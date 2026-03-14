@@ -1,18 +1,16 @@
 
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Sprite, MSXColorValue, PixelData, Point, SpriteFrame, DataFormat, ExplosionParams, ExplosionType, EXPLOSION_SPRITE_SIZES, ProjectAsset, FacingDirection } from '../../types';
+import { Sprite, MSXColorValue, PixelData, Point, SpriteFrame, DataFormat, ProjectAsset, FacingDirection } from '../../types';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
 import { PlusCircleIcon, SaveIcon, DocumentDuplicateIcon, TrashIcon, CodeIcon, RotateCcwIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, PencilIcon, EraserIcon, CogIcon, CompressVerticalIcon, CompressHorizontalIcon, FireIcon, PlayIcon, StopIcon, FolderOpenIcon, SphereIcon, ViewfinderCircleIcon, TilesetIcon, SpriteIcon, ContourIcon, EraserIcon as DisintegrationIcon, CopyIcon, PasteIcon } from '../icons/MsxIcons';
 import { ExportSpriteASMModal } from '../modals/ExportSpriteASMModal';
-import { ExplosionGeneratorModal } from '../modals/ExplosionGeneratorModal';
 import { DisintegrationGeneratorModal, DisintegrationParams } from '../modals/DisintegrationGeneratorModal';
 import { FragmentGeneratorModal, FragmentParams } from '../modals/FragmentGeneratorModal';
 import { WarpGeneratorModal, WarpParams } from '../modals/WarpGeneratorModal';
-import { MSX_SCREEN5_PALETTE } from '../../constants'; 
 import { SpriteImportConfigModal, SpriteImportConfig } from '../modals/SpriteImportConfigModal';
 import { AnimationWatcherModal } from '../modals/AnimationWatcherModal';
 
@@ -49,6 +47,8 @@ type SpriteToolMode = 'draw' | 'erase' | 'sphere';
 const createEmptySpriteFrameData = (width: number, height: number, fillColor: MSXColorValue): PixelData => {
   return Array(height).fill(null).map(() => Array(width).fill(fillColor));
 };
+
+const SPRITE_SIZE_OPTIONS = [16, 24, 32, 48, 64] as const;
 
 /**
  * Props for the {@link SpritePixelGrid} component.
@@ -234,16 +234,6 @@ const SpritePixelGrid: React.FC<SpritePixelGridProps> = ({
   );
 };
 
-interface ActiveFragment {
-    id: string;
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    color: MSXColorValue;
-}
-
-
 /**
  * The main editor component for creating and modifying sprite assets.
  * It includes a pixel grid for drawing, frame management tools, animation previews,
@@ -287,7 +277,6 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
   const [activeBrushColorIndex, setActiveBrushColorIndex] = useState<number>(0);
   const [activePaletteSetupSlotIndex, setActivePaletteSetupSlotIndex] = useState<number | 'bg' | null>(null);
 
-  const [isExplosionModalOpen, setIsExplosionModalOpen] = useState<boolean>(false);
   const [isDisintegrationModalOpen, setIsDisintegrationModalOpen] = useState<boolean>(false);
   const [isFragmentModalOpen, setIsFragmentModalOpen] = useState<boolean>(false);
   const [isWarpModalOpen, setIsWarpModalOpen] = useState<boolean>(false);
@@ -676,125 +665,6 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
       return { ...frame, data: newPixelData };
     });
     onUpdate({ size: { width: newWidth, height: newHeight }, frames: updatedFrames });
-  };
-
-  const handleGenerateExplosion = (params: ExplosionParams) => {
-    const { type, size: newSpriteSize, numFrames, intensity, jitter, numSimultaneousColors } = params;
-  
-    const newFramesArray: SpriteFrame[] = [];
-    const epicenter = { x: newSpriteSize / 2, y: newSpriteSize / 2 };
-  
-    const availableParticleColors = sprite.spritePalette.filter(c => 
-        c !== sprite.backgroundColor && 
-        c !== 'rgba(0,0,0,0)'
-    );
-    const uniqueAvailableParticleColors = [...new Set(availableParticleColors)];
-    if (uniqueAvailableParticleColors.length === 0) {
-      uniqueAvailableParticleColors.push(MSX_SCREEN5_PALETTE[8].hex); 
-    }
-  
-    let activeParticles: ActiveFragment[] = [];
-
-    for (let f = 0; f < numFrames; f++) {
-      const framePixelData = createEmptySpriteFrameData(newSpriteSize, newSpriteSize, sprite.backgroundColor);
-      let particleCounterForFrame = 0;
-  
-      if (type === "Radial") {
-        const maxRadius = (newSpriteSize / 2);
-        const frameProgress = (f + 1) / numFrames;
-        const currentRadius = maxRadius * Math.pow(frameProgress, 0.7) * (intensity / 100);
-        const jitterFactor = jitter / 100;
-        const maxJitterPixels = jitterFactor * (newSpriteSize / 4);
-        const angleStep = Math.PI / 12; 
-
-        for (let angleTheta = 0; angleTheta < 2 * Math.PI; angleTheta += angleStep) {
-          const randomJitterX = (Math.random() - 0.5) * 2 * maxJitterPixels;
-          const randomJitterY = (Math.random() - 0.5) * 2 * maxJitterPixels;
-          const x = Math.round(epicenter.x + currentRadius * Math.cos(angleTheta) + randomJitterX);
-          const y = Math.round(epicenter.y + currentRadius * Math.sin(angleTheta) + randomJitterY);
-  
-          if (x >= 0 && x < newSpriteSize && y >= 0 && y < newSpriteSize) {
-            let particleColorForFrame: MSXColorValue;
-            const colorsToUseCount = Math.min(numSimultaneousColors, uniqueAvailableParticleColors.length);
-            if (colorsToUseCount === 0) { particleColorForFrame = MSX_SCREEN5_PALETTE[8].hex; }
-            else if (numSimultaneousColors === 1) {
-                const colorIndex = Math.floor(frameProgress * uniqueAvailableParticleColors.length) % uniqueAvailableParticleColors.length;
-                particleColorForFrame = uniqueAvailableParticleColors[colorIndex];
-            } else {
-                const colorIndexForParticle = (particleCounterForFrame + f) % colorsToUseCount;
-                particleColorForFrame = uniqueAvailableParticleColors[colorIndexForParticle];
-            }
-            framePixelData[y][x] = particleColorForFrame;
-            particleCounterForFrame++;
-          }
-        }
-      } else if (type === "Fragmentada") {
-        const numFrags = params.numFragments || 5;
-        const speedVar = (params.fragmentSpeedVariation || 30) / 100;
-        
-        if (f === 0) { 
-            activeParticles = []; 
-            const baseSpeed = (intensity / 100) * (newSpriteSize / (numFrames * 0.75)); 
-
-            for (let i = 0; i < numFrags; i++) {
-                const angle = Math.random() * 2 * Math.PI;
-                const speedMagnitude = baseSpeed * (1 + (Math.random() - 0.5) * 2 * speedVar);
-                
-                let particleColor: MSXColorValue;
-                const colorsToUseCount = Math.min(numSimultaneousColors, uniqueAvailableParticleColors.length);
-                if (colorsToUseCount === 0) { particleColor = MSX_SCREEN5_PALETTE[8].hex; }
-                else if (numSimultaneousColors === 1) {
-                    const colorIndex = Math.floor((i / numFrags) * uniqueAvailableParticleColors.length) % uniqueAvailableParticleColors.length;
-                    particleColor = uniqueAvailableParticleColors[colorIndex];
-                } else {
-                    const colorIndexForFragment = i % colorsToUseCount;
-                    particleColor = uniqueAvailableParticleColors[colorIndexForFragment];
-                }
-
-                activeParticles.push({
-                    id: `frag-${i}`,
-                    x: epicenter.x,
-                    y: epicenter.y,
-                    vx: Math.cos(angle) * speedMagnitude,
-                    vy: Math.sin(angle) * speedMagnitude,
-                    color: particleColor,
-                });
-            }
-        }
-        
-        activeParticles.forEach(p => {
-            p.x += p.vx;
-            p.y += p.vy;
-
-            const jitterFactor = jitter / 100;
-            const maxJitterDisplacement = jitterFactor * (newSpriteSize / 20); 
-            p.x += (Math.random() - 0.5) * 2 * maxJitterDisplacement;
-            p.y += (Math.random() - 0.5) * 2 * maxJitterDisplacement;
-
-            const px = Math.round(p.x);
-            const py = Math.round(p.y);
-
-            if (px >= 0 && px < newSpriteSize && py >= 0 && py < newSpriteSize) {
-                framePixelData[py][px] = p.color;
-            }
-        });
-      } else if (type === "Implosión") {
-        // Future implementation
-      }
-  
-      newFramesArray.push({
-        id: `expframe_${Date.now()}_${f}`,
-        data: framePixelData,
-      });
-    }
-  
-    onUpdate({
-      size: { width: newSpriteSize, height: newSpriteSize },
-      frames: newFramesArray,
-      currentFrameIndex: 0,
-    });
-  
-    setIsExplosionModalOpen(false);
   };
 
   const convertToGrayscale = (pixelData: PixelData, backgroundColor: MSXColorValue): PixelData => {
@@ -1222,13 +1092,11 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
 
         <label htmlFor="spriteWidth" className="text-xs pixel-font text-msx-textsecondary ml-2">Size:</label>
         <select value={sprite.size.width} onChange={e => handleResizeSprite(parseInt(e.target.value), sprite.size.height)} className="p-1 text-xs bg-msx-panelbg border-msx-border rounded">
-            {EXPLOSION_SPRITE_SIZES.map(s => <option key={`w-${s}`} value={s}>{s}</option>)}
-             {[48, 64].filter(s => !EXPLOSION_SPRITE_SIZES.includes(s as any)).map(s => <option key={`w-${s}`} value={s}>{s}</option>)}
+            {SPRITE_SIZE_OPTIONS.map(s => <option key={`w-${s}`} value={s}>{s}</option>)}
         </select>
         <span className="text-xs">x</span>
         <select value={sprite.size.height} onChange={e => handleResizeSprite(sprite.size.width, parseInt(e.target.value))} className="p-1 text-xs bg-msx-panelbg border-msx-border rounded">
-           {EXPLOSION_SPRITE_SIZES.map(s => <option key={`h-${s}`} value={s}>{s}</option>)}
-           {[48, 64].filter(s => !EXPLOSION_SPRITE_SIZES.includes(s as any)).map(s => <option key={`h-${s}`} value={s}>{s}</option>)}
+           {SPRITE_SIZE_OPTIONS.map(s => <option key={`h-${s}`} value={s}>{s}</option>)}
         </select>
         
         <Button onClick={handleExportToPng} size="sm" variant="secondary" icon={<SaveIcon />}>Export PNG</Button>
@@ -1311,17 +1179,6 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                     <Button onClick={() => handleTransform('flipHorizontal')} variant="ghost" size="sm" className="w-full" justify="start">Flip H</Button>
                     <Button onClick={() => handleTransform('flipVertical')} variant="ghost" size="sm" className="w-full" justify="start">Flip V</Button>
                 </div>
-                <Button
-                    onClick={() => setIsExplosionModalOpen(true)}
-                    variant="secondary"
-                    size="sm"
-                    icon={<FireIcon className="w-3.5 h-3.5" />}
-                    className="w-full mb-1"
-                    justify="start"
-                    title="Crear secuencia animada de explosión (MSX1)"
-                >
-                    Gen Explosion
-                </Button>
                 <Button
                     onClick={() => setIsFragmentModalOpen(true)}
                     variant="secondary"
@@ -1642,14 +1499,6 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
           onClose={() => setIsExportAsmModalOpen(false)}
           spriteToExport={asmExportConfig.spriteToExport}
           dataOutputFormat={asmExportConfig.dataOutputFormat} 
-        />
-      )}
-      {isExplosionModalOpen && (
-        <ExplosionGeneratorModal
-            isOpen={isExplosionModalOpen}
-            onClose={() => setIsExplosionModalOpen(false)}
-            onGenerate={handleGenerateExplosion}
-            initialSpriteSize={sprite.size.width as typeof EXPLOSION_SPRITE_SIZES[number] || 16}
         />
       )}
       {isDisintegrationModalOpen && (

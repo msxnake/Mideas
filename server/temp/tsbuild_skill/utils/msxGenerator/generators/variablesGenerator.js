@@ -151,10 +151,29 @@ function generateVariablesFile(analysis) {
     code += `behavior_cache_row_base EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached row base address in behavior map (16-bit)\n`;
     currentAddress += 2;
     code += `RUNTIME_SCREEN_MAP_SIZE EQU 768\n`;
+    code += `MAX_RUNTIME_EFFECT_ZONES EQU 64\n`;
+    code += `runtime_background_layout EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Immutable copy of current background layout (32x24)\n`;
+    currentAddress += 768;
     code += `runtime_screen_layout  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current screen layout (32x24)\n`;
     currentAddress += 768;
     code += `runtime_behavior_map   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current behavior map (32x24)\n`;
     currentAddress += 768;
+    code += `runtime_effects_layout EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Alternate effects layout copy for secret zones (32x24)\n`;
+    currentAddress += 768;
+    code += `runtime_effect_zone_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current screen effect zone table (MAX_RUNTIME_EFFECT_ZONES * 8 bytes)\n`;
+    currentAddress += 64 * 8;
+    code += `current_effect_zone_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of effect zones copied into runtime_effect_zone_table\n`;
+    currentAddress++;
+    code += `secret_zone_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 if hero is currently inside an active secret zone\n`;
+    currentAddress++;
+    code += `secret_zone_rect_x EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active secret zone rect X in cells\n`;
+    currentAddress++;
+    code += `secret_zone_rect_y EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active secret zone rect Y in cells\n`;
+    currentAddress++;
+    code += `secret_zone_rect_w EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active secret zone rect width in cells\n`;
+    currentAddress++;
+    code += `secret_zone_rect_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active secret zone rect height in cells\n`;
+    currentAddress++;
     // Viewport/Camera variables (for scroll system)
     code += `
 ; ==================================================================
@@ -193,14 +212,6 @@ function generateVariablesFile(analysis) {
     currentAddress += 2;
     code += `anim_tile_row_buffer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temp buffer (8 bytes) for row transforms\n`;
     currentAddress += 8;
-    // Particle system variables
-    code += `
-; ==================================================================
-; PARTICLE SYSTEM VARIABLES
-; ==================================================================
-`;
-    code += `particle_pool       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Particle pool (8 particles * 8 bytes = 64 bytes)\n`;
-    currentAddress += 64; // 8 particles * 8 bytes each
     // Entity system variables (MAX_ENTITIES = 32)
     code += `
 ; ==================================================================
@@ -209,6 +220,8 @@ function generateVariablesFile(analysis) {
 MAX_ENTITIES        EQU 32
 `;
     code += `entity_active       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity active flags (32 bytes, 0=inactive, 1=active)\n`;
+    currentAddress += 32;
+    code += `entity_is_player    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity hero/player flag (32 bytes, 0=no, 1=yes)\n`;
     currentAddress += 32;
     code += `entity_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity X positions (32 bytes)\n`;
     currentAddress += 32;
@@ -486,7 +499,29 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     currentAddress += 32;
     code += `active_entity_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in active_entity_list\n`;
     currentAddress++;
+    code += `hero_entity_id      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; First current-screen entity flagged as player (#FF = none)\n`;
+    currentAddress++;
     code += `active_entity_list_dirty EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=rebuild active_entity_list required\n`;
+    currentAddress++;
+    code += `input_entity_list   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)\n`;
+    currentAddress += 32;
+    code += `input_entity_count  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in input_entity_list\n`;
+    currentAddress++;
+    code += `render_entity_list  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)\n`;
+    currentAddress += 32;
+    code += `render_entity_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in render_entity_list\n`;
+    currentAddress++;
+    code += `collision_entity_list EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)\n`;
+    currentAddress += 32;
+    code += `collision_entity_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in collision_entity_list\n`;
+    currentAddress++;
+    code += `ground_entity_list  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)\n`;
+    currentAddress += 32;
+    code += `ground_entity_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in ground_entity_list\n`;
+    currentAddress++;
+    code += `anim_entity_list    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)\n`;
+    currentAddress += 32;
+    code += `anim_entity_count   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in anim_entity_list\n`;
     currentAddress++;
     // Entity-entity collision optimized system variables
     code += `\n; Entity-entity collision optimized variables\n`;

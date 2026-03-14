@@ -231,11 +231,9 @@ CHECK_LEVEL_COMPLETE_ECS:
     RET
 
 TRIGGER_DEATH_EFFECTS:
-    ; Create death particle effects using ECS
     ; Stop player movement
     ; Play death sound
     CALL PLAY_DEATH_SOUND
-    CALL CREATE_DEATH_PARTICLES
     RET
 
 PREPARE_NEXT_ZONE:
@@ -444,9 +442,6 @@ LOAD_ENTITIES_FROM_TABLE:
     RET
 
 INIT_PLAYER_STATS:
-    RET
-
-CREATE_DEATH_PARTICLES:
     RET
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

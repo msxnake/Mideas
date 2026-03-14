@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem, TileStamp } from '../../types';
+import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem, TileStamp, resolveEffectZoneType } from '../../types';
 import { Panel } from '../common/Panel';
 import { DEFAULT_SCREEN_WIDTH_TILES, DEFAULT_SCREEN_HEIGHT_TILES, MSX_SCREEN5_PALETTE, MSX1_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, DEFAULT_TILE_BANK_DEFINITIONS, EDITOR_BASE_TILE_DIM_S2 as CONST_EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE_EDITOR } from '../../constants';
 import { ExportLayoutASMModal } from '../modals/ExportLayoutASMModal';
@@ -8,6 +8,8 @@ import { ExportBehaviorMapASMModal } from '../modals/ExportBehaviorMapASMModal';
 import { HUDEditorModal } from './HUDEditorModal';
 import { generateSuperRLEData, deepCompareTiles, generateScreenMapLayoutBytes, generateOptimizedRLEData } from '../utils/screenUtils'; // New Import
 import { ConfirmationModal } from '../modals/ConfirmationModal';
+import { NewEffectZoneModal } from '../modals/NewEffectZoneModal';
+import { AddSecretTextModal } from '../modals/AddSecretTextModal';
 import { PencilIcon, TilesetIcon } from '../icons/MsxIcons';
 
 
@@ -201,6 +203,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const [localActiveH, setLocalActiveH] = useState<string>(String(screenMap.activeAreaHeight ?? screenMap.height ?? 0));
 
   const [isPasteConfirmModalOpen, setIsPasteConfirmModalOpen] = useState(false);
+  const [isNewEffectZoneModalOpen, setIsNewEffectZoneModalOpen] = useState(false);
+  const [isAddSecretTextModalOpen, setIsAddSecretTextModalOpen] = useState(false);
 
   const [currentScreenTool, setCurrentScreenTool] = useState<ScreenEditorTool>('draw');
   const [selectionRect, setSelectionRect] = useState<ScreenSelectionRect | null>(null);
@@ -316,17 +320,167 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   }, [currentEntityTypeToPlace, getNextEntityInstanceName, screenMap.layers, onUpdate]);
 
   const handleAddNewEffectZone = () => {
+    if (activeLayer !== 'effects') {
+      setActiveLayer('effects');
+      setCurrentScreenTool('select');
+    }
+    if (!selectionRect) {
+      setStatusBarMessage('Select a rectangular area in the Effects layer before creating a zone.');
+      return;
+    }
+    setIsNewEffectZoneModalOpen(true);
+  };
+
+  const handleCreateEffectZone = (zoneData: {
+    name: string;
+    effectType: EffectZone['effectType'];
+    params: NonNullable<EffectZone['params']>;
+    description: string;
+  }) => {
+    if (!selectionRect) {
+      setStatusBarMessage('The selection was cleared before the zone could be created.');
+      setIsNewEffectZoneModalOpen(false);
+      return;
+    }
     const newZone: EffectZone = {
       id: `efz_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
-      name: `Effect Zone ${(screenMap.effectZones?.length || 0) + 1}`,
-      rect: { x: lastClickedCell?.x ?? 0, y: lastClickedCell?.y ?? 0, width: 4, height: 4 },
-      mask: 0,
-      description: ""
+      name: zoneData.name,
+      rect: { ...selectionRect },
+      effectType: zoneData.effectType,
+      params: zoneData.params,
+      description: zoneData.description,
     };
     const updatedEffectZones = [...(screenMap.effectZones || []), newZone];
     onUpdate({ effectZones: updatedEffectZones });
     onSelectEffectZone(newZone.id);
+    setIsNewEffectZoneModalOpen(false);
     setStatusBarMessage(`Added new effect zone: ${newZone.name}`);
+  };
+
+  const selectedEffectZone = useMemo(
+    () => (screenMap.effectZones || []).find(zone => zone.id === selectedEffectZoneId) || null,
+    [screenMap.effectZones, selectedEffectZoneId]
+  );
+
+  const isSecretZoneEditingSelectionValid = useCallback(() => {
+    if (!selectedEffectZone) {
+      setStatusBarMessage('Select a Secret Zone before editing tiles in the Effects layer.');
+      return false;
+    }
+    if (resolveEffectZoneType(selectedEffectZone) !== 'secretZone') {
+      setStatusBarMessage('Only Secret Zone uses editable tiles in the Effects layer.');
+      return false;
+    }
+    return true;
+  }, [selectedEffectZone, setStatusBarMessage]);
+
+  const isPointInsideSelectedSecretZone = useCallback((x: number, y: number) => {
+    if (!selectedEffectZone) return false;
+    const { rect } = selectedEffectZone;
+    return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
+  }, [selectedEffectZone]);
+
+  const currentTileBankAsset = useMemo(() => {
+    if (!screenMap.tileBankAssetId) return null;
+    const asset = allProjectAssets.find(projectAsset => projectAsset.id === screenMap.tileBankAssetId && projectAsset.type === 'tilebank');
+    return asset ? asset.data as TileBank : null;
+  }, [allProjectAssets, screenMap.tileBankAssetId]);
+
+  const canAddSecretText = useMemo(() => {
+    return !!selectedEffectZone
+      && resolveEffectZoneType(selectedEffectZone) === 'secretZone'
+      && currentScreenMode === "SCREEN 2 (Graphics I)"
+      && !!currentTileBankAsset;
+  }, [selectedEffectZone, currentScreenMode, currentTileBankAsset]);
+
+  const handleAddSecretText = () => {
+    if (!canAddSecretText) {
+      setStatusBarMessage('Select a Secret Zone with a valid SCREEN 2 TileBank before adding text.');
+      return;
+    }
+    setIsAddSecretTextModalOpen(true);
+  };
+
+  const handleInsertSecretText = (payload: { fontTileId: string; text: string; offsetX: number; offsetY: number }) => {
+    if (!selectedEffectZone || !currentTileBankAsset) {
+      setStatusBarMessage('No Secret Zone or TileBank available for text insertion.');
+      setIsAddSecretTextModalOpen(false);
+      return;
+    }
+
+    const allAssignments = currentTileBankAsset.banks.flatMap(bank =>
+      Object.entries(bank.assignedTiles).map(([tileId, assignment]) => ({ tileId, assignment }))
+    );
+    const selectedAssignment = allAssignments.find(entry =>
+      entry.tileId === payload.fontTileId && Array.isArray((entry.assignment as any).fontCharacters)
+    );
+
+    if (!selectedAssignment) {
+      setStatusBarMessage('Selected font assignment is no longer available in the TileBank.');
+      return;
+    }
+
+    const fontCharacters = (selectedAssignment.assignment as any).fontCharacters as Array<{ character: string }>;
+    const charIndexByCharacter = new Map<string, number>();
+    fontCharacters.forEach((charInfo, index) => {
+      if (!charIndexByCharacter.has(charInfo.character)) {
+        charIndexByCharacter.set(charInfo.character, index);
+      }
+    });
+
+    const unsupportedChars = Array.from(new Set(
+      payload.text
+        .split('')
+        .filter(char => char !== ' ')
+        .filter(char => !charIndexByCharacter.has(char) && !charIndexByCharacter.has(char.toUpperCase()))
+    ));
+
+    if (unsupportedChars.length > 0) {
+      setStatusBarMessage(`Unsupported characters for selected font: ${unsupportedChars.join(' ')}`);
+      return;
+    }
+
+    if (payload.offsetX < 0 || payload.offsetY < 0) {
+      setStatusBarMessage('Text offset must be zero or positive.');
+      return;
+    }
+
+    if (payload.offsetY >= selectedEffectZone.rect.height) {
+      setStatusBarMessage('Text Y offset falls outside the selected Secret Zone.');
+      return;
+    }
+
+    if (payload.offsetX + payload.text.length > selectedEffectZone.rect.width) {
+      setStatusBarMessage('Text does not fit inside the selected Secret Zone width.');
+      return;
+    }
+
+    const absoluteY = selectedEffectZone.rect.y + payload.offsetY;
+    const updatedEffectsLayer = screenMap.layers.effects.map(row => row.map(cell => ({ ...cell })));
+
+    payload.text.split('').forEach((char, index) => {
+      const absoluteX = selectedEffectZone.rect.x + payload.offsetX + index;
+      if (char === ' ') {
+        updatedEffectsLayer[absoluteY][absoluteX] = { tileId: null };
+        return;
+      }
+
+      const charIndex = charIndexByCharacter.get(char) ?? charIndexByCharacter.get(char.toUpperCase()) ?? 0;
+      updatedEffectsLayer[absoluteY][absoluteX] = {
+        tileId: payload.fontTileId,
+        subTileX: charIndex,
+        subTileY: 0,
+      };
+    });
+
+    onUpdate({
+      layers: {
+        ...screenMap.layers,
+        effects: updatedEffectsLayer,
+      },
+    });
+    setIsAddSecretTextModalOpen(false);
+    setStatusBarMessage(`Inserted text into ${selectedEffectZone.name}.`);
   };
 
 
@@ -369,18 +523,31 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       }
     }
 
-    if (activeLayer === 'entities' || activeLayer === 'effects' || currentScreenTool === 'select') return;
+    if (activeLayer === 'entities' || currentScreenTool === 'select') return;
 
     const newLayers = { ...screenMap.layers };
-    const layerToUpdateKey = activeLayer as Exclude<ScreenEditorLayerName, 'entities' | 'effects'>; // Ensure it's a valid layer key for tile data
+    const layerToUpdateKey = activeLayer as 'background' | 'collision' | 'effects';
     const layerToUpdate = newLayers[layerToUpdateKey];
     const currentLayerData = layerToUpdate.map(row => [...row]);
     let changed = false;
+
+    if (activeLayer === 'effects' && !isSecretZoneEditingSelectionValid()) {
+      return;
+    }
 
     // Handle stamp placement
     if (currentScreenTool === 'stamp' && selectedStampId) {
       const selectedStamp = stamps.find(s => s.id === selectedStampId);
       if (selectedStamp) {
+        if (activeLayer === 'effects') {
+          const stampFitsInZone = selectedStamp.tiles.every((row, dy) =>
+            row.every((stampTile, dx) => !stampTile || isPointInsideSelectedSecretZone(point.x + dx, point.y + dy))
+          );
+          if (!stampFitsInZone) {
+            setStatusBarMessage('Stamp must stay inside the selected Secret Zone.');
+            return;
+          }
+        }
         // Place the entire stamp pattern starting at the clicked position
         for (let dy = 0; dy < selectedStamp.height; dy++) {
           for (let dx = 0; dx < selectedStamp.width; dx++) {
@@ -414,6 +581,21 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           const spanY = Math.ceil(originalTileAsset.height / EDITOR_BASE_TILE_DIM);
           const originMapX = point.x - (cellToClear.subTileX || 0);
           const originMapY = point.y - (cellToClear.subTileY || 0);
+          if (activeLayer === 'effects') {
+            let clearFitsInZone = true;
+            for (let dy = 0; dy < spanY && clearFitsInZone; dy++) {
+              for (let dx = 0; dx < spanX; dx++) {
+                if (!isPointInsideSelectedSecretZone(originMapX + dx, originMapY + dy)) {
+                  clearFitsInZone = false;
+                  break;
+                }
+              }
+            }
+            if (!clearFitsInZone) {
+              setStatusBarMessage('Erase area must stay inside the selected Secret Zone.');
+              return;
+            }
+          }
           for (let dy = 0; dy < spanY; dy++) {
             for (let dx = 0; dx < spanX; dx++) {
               const targetX = originMapX + dx;
@@ -427,6 +609,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             }
           }
         } else {
+          if (activeLayer === 'effects' && !isPointInsideSelectedSecretZone(point.x, point.y)) {
+            setStatusBarMessage('You can only erase inside the selected Secret Zone.');
+            return;
+          }
           if (currentLayerData[point.y][point.x]?.tileId !== null) {
             currentLayerData[point.y][point.x] = { tileId: null };
             changed = true;
@@ -438,6 +624,21 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       const tileActualH = selectedTileAsset.height;
       const spanX = Math.ceil(tileActualW / EDITOR_BASE_TILE_DIM);
       const spanY = Math.ceil(tileActualH / EDITOR_BASE_TILE_DIM);
+      if (activeLayer === 'effects') {
+        let drawFitsInZone = true;
+        for (let dy = 0; dy < spanY && drawFitsInZone; dy++) {
+          for (let dx = 0; dx < spanX; dx++) {
+            if (!isPointInsideSelectedSecretZone(point.x + dx, point.y + dy)) {
+              drawFitsInZone = false;
+              break;
+            }
+          }
+        }
+        if (!drawFitsInZone) {
+          setStatusBarMessage('Tile placement must stay inside the selected Secret Zone.');
+          return;
+        }
+      }
       for (let dy = 0; dy < spanY; dy++) {
         for (let dx = 0; dx < spanX; dx++) {
           const targetX = point.x + dx;
@@ -459,11 +660,22 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       newLayers[layerToUpdateKey] = currentLayerData;
       onUpdate({ layers: newLayers });
     }
-  }, [screenMap.layers, screenMap.tileBankAssetId, activeLayer, onUpdate, selectedTileId, tileset, EDITOR_BASE_TILE_DIM, setLastClickedCell, currentScreenTool, currentScreenMode, allProjectAssets, setSelectedTileId, setStatusBarMessage, getSectorFromY, setCurrentSector, stamps, selectedStampId]);
+  }, [screenMap.layers, screenMap.tileBankAssetId, activeLayer, onUpdate, selectedTileId, tileset, EDITOR_BASE_TILE_DIM, setLastClickedCell, currentScreenTool, currentScreenMode, allProjectAssets, setSelectedTileId, setStatusBarMessage, getSectorFromY, setCurrentSector, stamps, selectedStampId, isSecretZoneEditingSelectionValid, isPointInsideSelectedSecretZone]);
 
   const handleClearSelection = () => {
-    if (!selectionRect || activeLayer === 'entities' || activeLayer === 'effects') return;
-    const layerToUpdateKey = activeLayer as Exclude<ScreenEditorLayerName, 'entities' | 'effects'>;
+    if (!selectionRect || activeLayer === 'entities') return;
+    if (activeLayer === 'effects') {
+      if (!isSecretZoneEditingSelectionValid()) return;
+      for (let y = selectionRect.y; y < selectionRect.y + selectionRect.height; y++) {
+        for (let x = selectionRect.x; x < selectionRect.x + selectionRect.width; x++) {
+          if (!isPointInsideSelectedSecretZone(x, y)) {
+            setStatusBarMessage('Selection must stay inside the selected Secret Zone.');
+            return;
+          }
+        }
+      }
+    }
+    const layerToUpdateKey = activeLayer as 'background' | 'collision' | 'effects';
     const newLayers = { ...screenMap.layers };
     const layerToUpdate = newLayers[layerToUpdateKey].map(row => [...row]);
     let changed = false;
@@ -491,12 +703,12 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
   const handleCreateStamp = useCallback(() => {
-    if (!selectionRect || activeLayer === 'entities' || activeLayer === 'effects') {
-      setStatusBarMessage("Cannot create stamp from entities or effects layer.");
+    if (!selectionRect || activeLayer === 'entities') {
+      setStatusBarMessage("Cannot create stamp from the entities layer.");
       return;
     }
 
-    const layerToStampKey = activeLayer as Exclude<ScreenEditorLayerName, 'entities' | 'effects'>;
+    const layerToStampKey = activeLayer as 'background' | 'collision' | 'effects';
     const sourceLayer = screenMap.layers[layerToStampKey];
 
     // Extract tiles from selection
@@ -544,8 +756,19 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   }, [stamps, selectedStampId, setStatusBarMessage]);
 
   const handleFillSelection = () => {
-    if (!selectionRect || activeLayer === 'entities' || activeLayer === 'effects' || !selectedTileId) return;
-    const layerToUpdateKey = activeLayer as Exclude<ScreenEditorLayerName, 'entities' | 'effects'>;
+    if (!selectionRect || activeLayer === 'entities' || !selectedTileId) return;
+    if (activeLayer === 'effects') {
+      if (!isSecretZoneEditingSelectionValid()) return;
+      for (let y = selectionRect.y; y < selectionRect.y + selectionRect.height; y++) {
+        for (let x = selectionRect.x; x < selectionRect.x + selectionRect.width; x++) {
+          if (!isPointInsideSelectedSecretZone(x, y)) {
+            setStatusBarMessage('Fill selection must stay inside the selected Secret Zone.');
+            return;
+          }
+        }
+      }
+    }
+    const layerToUpdateKey = activeLayer as 'background' | 'collision' | 'effects';
     const selectedTileAsset = tileset.find(t => t.id === selectedTileId);
     if (!selectedTileAsset) return;
 
@@ -584,8 +807,19 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
   const handleZigZagFillSelection = () => {
-    if (!selectionRect || activeLayer === 'entities' || activeLayer === 'effects' || !selectedTileId) return;
-    const layerToUpdateKey = activeLayer as Exclude<ScreenEditorLayerName, 'entities' | 'effects'>;
+    if (!selectionRect || activeLayer === 'entities' || !selectedTileId) return;
+    if (activeLayer === 'effects') {
+      if (!isSecretZoneEditingSelectionValid()) return;
+      for (let y = selectionRect.y; y < selectionRect.y + selectionRect.height; y++) {
+        for (let x = selectionRect.x; x < selectionRect.x + selectionRect.width; x++) {
+          if (!isPointInsideSelectedSecretZone(x, y)) {
+            setStatusBarMessage('ZigZag fill must stay inside the selected Secret Zone.');
+            return;
+          }
+        }
+      }
+    }
+    const layerToUpdateKey = activeLayer as 'background' | 'collision' | 'effects';
     const selectedTileAsset = tileset.find(t => t.id === selectedTileId);
     if (!selectedTileAsset) return;
 
@@ -956,11 +1190,6 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     } else if (tool !== 'placeEntity' && activeLayer === 'entities') {
       setActiveLayer('background'); // Default back to background if not placing entity
     }
-    if (activeLayer === 'effects' && tool !== 'defineEffectZone') {
-      // If on effects layer, default tool is select-like or define.
-      // If user clicks 'draw' or 'erase' from tileset panel, switch to background layer.
-      if (tool === 'draw' || tool === 'erase') setActiveLayer('background');
-    }
   };
 
   const handleLayerChange = (layer: ScreenEditorLayerName) => {
@@ -971,9 +1200,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     if (layer === 'entities') {
       handleSetScreenTool('placeEntity');
     } else if (layer === 'effects') {
-      // For 'effects' layer, we don't have a dedicated "define zone" tool in phase 1
-      // Set to 'select' conceptually, actual creation is via button, selection is via grid click.
-      handleSetScreenTool('select'); // Using 'select' for now to show selection rectangle if needed.
+      handleSetScreenTool('select');
     } else { // background, collision
       if (currentScreenTool === 'placeEntity' || currentScreenTool === 'defineEffectZone') {
         handleSetScreenTool('draw');
@@ -982,11 +1209,11 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
   const handleCopyActiveLayer = useCallback(() => {
-    if (activeLayer === 'entities' || activeLayer === 'effects') {
-      setStatusBarMessage("Cannot copy the 'entities' or 'effects' (zone) layer this way.");
+    if (activeLayer === 'entities') {
+      setStatusBarMessage("Cannot copy the 'entities' layer this way.");
       return;
     }
-    const sourceLayerName = activeLayer as Exclude<ScreenEditorLayerName, 'entities' | 'effects'>;
+    const sourceLayerName = activeLayer as 'background' | 'collision' | 'effects';
     const sourceLayerData = screenMap.layers[sourceLayerName];
     const ax = screenMap.activeAreaX ?? 0;
     const ay = screenMap.activeAreaY ?? 0;
@@ -1016,12 +1243,12 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       setStatusBarMessage("Layer buffer is empty. Copy a layer first.");
       return;
     }
-    if (activeLayer === 'entities' || activeLayer === 'effects') {
-      setStatusBarMessage("Cannot paste into 'entities' or 'effects' (zone) layer this way.");
+    if (activeLayer === 'entities') {
+      setStatusBarMessage("Cannot paste into the 'entities' layer this way.");
       return;
     }
 
-    const targetLayerName = activeLayer as Exclude<ScreenEditorLayerName, 'entities' | 'effects'>;
+    const targetLayerName = activeLayer as 'background' | 'collision' | 'effects';
     const newLayers = { ...screenMap.layers };
     const targetLayerData = newLayers[targetLayerName].map(row => [...row]);
 
@@ -1120,10 +1347,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         onImportScreenMapJSON={handleImportScreenMapJSON}
         onCopyLayer={handleCopyActiveLayer}
         onPasteLayer={handlePasteLayer}
-        isCopyLayerDisabled={activeLayer === 'entities' || activeLayer === 'effects'}
-        isPasteLayerDisabled={!copiedLayerBuffer || activeLayer === 'entities' || activeLayer === 'effects'}
+        isCopyLayerDisabled={activeLayer === 'entities'}
+        isPasteLayerDisabled={!copiedLayerBuffer || activeLayer === 'entities'}
         onAddNewEffectZone={handleAddNewEffectZone}
-        onShowMapFile={onShowMapFile}
+        canAddNewEffectZone={activeLayer === 'effects' && !!selectionRect}
         currentScreenMode={currentScreenMode}
         selectedTileBankId={screenMap.tileBankAssetId}
         onTileBankChange={handleTileBankChange}
@@ -1147,6 +1374,9 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           effectZones={screenMap.effectZones || []}
           selectedEffectZoneId={selectedEffectZoneId}
           onSelectEffectZone={onSelectEffectZone}
+          canAddSecretText={canAddSecretText}
+          onAddSecretText={handleAddSecretText}
+          selectionRect={selectionRect}
           currentSector={currentSector}
           selectedTileBankId={screenMap.tileBankAssetId}
           allProjectAssets={allProjectAssets}
@@ -1220,7 +1450,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           selectedTileId={selectedTileId}
           editorBaseTileDim={EDITOR_BASE_TILE_DIM}
           tileset={tileset}
-          activeLayerIsEditable={activeLayer !== 'entities' && activeLayer !== 'effects'}
+          activeLayerIsEditable={activeLayer !== 'entities'}
           onFillSelection={handleFillSelection}
           onZigZagFillSelection={handleZigZagFillSelection}
           onCopyScreen={handleCopyScreen}
@@ -1275,6 +1505,21 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           />
         )
       }
+      <NewEffectZoneModal
+        isOpen={isNewEffectZoneModalOpen}
+        selectionRect={selectionRect}
+        zoneCount={screenMap.effectZones?.length || 0}
+        onClose={() => setIsNewEffectZoneModalOpen(false)}
+        onConfirm={handleCreateEffectZone}
+      />
+      <AddSecretTextModal
+        isOpen={isAddSecretTextModalOpen}
+        effectZone={selectedEffectZone}
+        tileBank={currentTileBankAsset}
+        allAssets={allProjectAssets}
+        onClose={() => setIsAddSecretTextModalOpen(false)}
+        onConfirm={handleInsertSecretText}
+      />
     </Panel >
   );
 };

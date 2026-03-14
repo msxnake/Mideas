@@ -74,6 +74,8 @@ interface ScreenEditorToolbarProps {
   isPasteLayerDisabled?: boolean; 
   /** Callback function to add a new effect zone. */
   onAddNewEffectZone: () => void;
+  /** Whether a new effect zone can be created from the current selection. */
+  canAddNewEffectZone?: boolean;
 
   /** The current screen mode. */
   currentScreenMode: string;
@@ -108,7 +110,7 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   onExportLayout, onExportBehavior,
   onExportScreenMapJSON, onImportScreenMapJSON,
   onCopyLayer, onPasteLayer, isCopyLayerDisabled, isPasteLayerDisabled,
-  onAddNewEffectZone,
+  onAddNewEffectZone, canAddNewEffectZone = false,
   currentScreenMode, selectedTileBankId, onTileBankChange, allProjectAssets,
   backgroundColor = 1, borderColor = 1, onBackgroundColorChange, onBorderColorChange
 }) => {
@@ -236,7 +238,7 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
       <div className="flex items-center space-x-1 ml-auto">
         <Button onClick={onOpenHudEditor} size="sm" variant="secondary" icon={<HudIcon className="w-4 h-4" />} title={!isHudAreaDefined ? "No HUD area defined (Active Area covers full screen)" : "Manage HUD elements for this screen"} disabled={!isHudAreaDefined}> HUD </Button>
         {activeLayer === 'effects' && (
-            <Button onClick={onAddNewEffectZone} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-3.5 h-3.5"/>} title="Add a new effect zone to the map">Add Effect Zone</Button>
+            <Button onClick={onAddNewEffectZone} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-3.5 h-3.5"/>} title={canAddNewEffectZone ? "Create a new effect zone from the current selection" : "Select a rectangular area first"} disabled={!canAddNewEffectZone}>New Zone</Button>
         )}
         <Button onClick={onCopyLayer} size="sm" variant="ghost" title="Copy active area of current layer" icon={<CopyIcon className="w-3.5 h-3.5"/>} disabled={isCopyLayerDisabled}>Copy Layer</Button>
         <Button onClick={onPasteLayer} size="sm" variant="ghost" title="Paste copied layer data into active area of current layer" icon={<PasteIcon className="w-3.5 h-3.5"/>} disabled={isPasteLayerDisabled}>Paste Layer</Button>

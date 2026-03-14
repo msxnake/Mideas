@@ -50,7 +50,6 @@ export interface GeneratedASMFiles {
     'sound.asm': string;
     'scroll.asm': string;
     'animtiles.asm': string;
-    'particles.asm': string;
     'statemachine.asm': string;
     'gameflow.asm': string;
     'worlds.asm': string;
@@ -161,8 +160,6 @@ ${files['sound.asm']}
 ${files['scroll.asm']}
 
 ${files['animtiles.asm']}
-
-${files['particles.asm']}
 
 ${files['statemachine.asm'] && files['statemachine.asm'].trim() !== '; No State Machines' ? files['statemachine.asm'] : '; [statemachine.asm skipped - no state machines]\n'}
 

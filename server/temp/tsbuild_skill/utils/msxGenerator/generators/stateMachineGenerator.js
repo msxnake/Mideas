@@ -34,22 +34,25 @@ const ACTION_IDS = {
     [statemachine_types_1.ActionTypes.SPAWN_ENTITY]: 20,
     [statemachine_types_1.ActionTypes.GET_RANDOM_ENTITY_POSITION]: 21,
     [statemachine_types_1.ActionTypes.CHANGE_GAME_FLOW_NODE]: 22,
-    [statemachine_types_1.ActionTypes.DECREASE_LIVES]: 23,
-    [statemachine_types_1.ActionTypes.INCREASE_LIVES]: 24,
-    [statemachine_types_1.ActionTypes.RESPAWN_PLAYER]: 25,
-    [statemachine_types_1.ActionTypes.BREAK_TILE]: 26,
-    [statemachine_types_1.ActionTypes.REPLACE_TILE]: 27,
-    [statemachine_types_1.ActionTypes.RND]: 28,
-    [statemachine_types_1.ActionTypes.POINT_AT]: 29,
-    [statemachine_types_1.ActionTypes.ADD_VARIABLES]: 30,
-    [statemachine_types_1.ActionTypes.SUBTRACT_VARIABLES]: 31,
-    [statemachine_types_1.ActionTypes.MULTIPLY_VARIABLES]: 32,
-    [statemachine_types_1.ActionTypes.DIVIDE_VARIABLES]: 33,
-    [statemachine_types_1.ActionTypes.MODULO_VARIABLES]: 34,
-    [statemachine_types_1.ActionTypes.ASSIGN_VARIABLE]: 35,
+    [statemachine_types_1.ActionTypes.REGENERATE_HUD]: 23,
+    [statemachine_types_1.ActionTypes.DECREASE_LIVES]: 24,
+    [statemachine_types_1.ActionTypes.INCREASE_LIVES]: 25,
+    [statemachine_types_1.ActionTypes.RESPAWN_PLAYER]: 26,
+    [statemachine_types_1.ActionTypes.BREAK_TILE]: 27,
+    [statemachine_types_1.ActionTypes.REPLACE_TILE]: 28,
+    [statemachine_types_1.ActionTypes.RND]: 29,
+    [statemachine_types_1.ActionTypes.POINT_AT]: 30,
+    [statemachine_types_1.ActionTypes.ADD_VARIABLES]: 31,
+    [statemachine_types_1.ActionTypes.SUBTRACT_VARIABLES]: 32,
+    [statemachine_types_1.ActionTypes.MULTIPLY_VARIABLES]: 33,
+    [statemachine_types_1.ActionTypes.DIVIDE_VARIABLES]: 34,
+    [statemachine_types_1.ActionTypes.MODULO_VARIABLES]: 35,
+    [statemachine_types_1.ActionTypes.ASSIGN_VARIABLE]: 36,
     // Input Control
-    [statemachine_types_1.ActionTypes.DISABLE_INPUT]: 36,
-    [statemachine_types_1.ActionTypes.ENABLE_INPUT]: 37,
+    [statemachine_types_1.ActionTypes.DISABLE_INPUT]: 37,
+    [statemachine_types_1.ActionTypes.ENABLE_INPUT]: 38,
+    [statemachine_types_1.ActionTypes.CLEAN_SPRITES]: 39,
+    [statemachine_types_1.ActionTypes.EXIT_CURRENT_WORLD]: 40,
     // Special
     END: 0xFF
 };
@@ -742,21 +745,24 @@ SM_ActionTable:
     DW Action_SpawnEntity; 20
     DW Action_GetRandomPos; 21
     DW Action_ChangeGameFlow; 22
-    DW Action_DecLives; 23
-    DW Action_IncLives; 24
-    DW Action_Respawn; 25
-    DW Action_BreakTile; 26
-    DW Action_ReplaceTile; 27
-    DW Action_Rnd; 28
-    DW Action_PointAt; 29
-    DW Action_AddVars; 30
-    DW Action_SubVars; 31
-    DW Action_MulVars; 32
-    DW Action_DivVars; 33
-    DW Action_ModVars; 34
-    DW Action_AssignVar; 35
-    DW Action_DisableInput; 36
-    DW Action_EnableInput; 37
+    DW Action_RegenerateHud; 23
+    DW Action_DecLives; 24
+    DW Action_IncLives; 25
+    DW Action_Respawn; 26
+    DW Action_BreakTile; 27
+    DW Action_ReplaceTile; 28
+    DW Action_Rnd; 29
+    DW Action_PointAt; 30
+    DW Action_AddVars; 31
+    DW Action_SubVars; 32
+    DW Action_MulVars; 33
+    DW Action_DivVars; 34
+    DW Action_ModVars; 35
+    DW Action_AssignVar; 36
+    DW Action_DisableInput; 37
+    DW Action_EnableInput; 38
+    DW Action_CleanSprites; 39
+    DW Action_ExitCurrentWorld; 40
 
     ; ------------------------------------------------------------------
 ; ACTION HANDLERS IMPLEMENTATION
@@ -2144,6 +2150,11 @@ Action_ChangeGameFlow:
     pop hl
     ret
 
+Action_RegenerateHud:
+; No params - force a HUD redraw, preserving the caller-visible state
+    call force_render_hud
+    ret
+
 Action_DecLives:
 ; Params: Amount(1 byte)
 ; Decrease entity health/lives with clamp to 0
@@ -2166,6 +2177,7 @@ Action_DecLives:
     xor a
 .dec_lives_store:
     ld (hl), a
+    ld (global_var_lives), a   ; Keep FSM global "Lives" in sync with entity health
     ret
 
 Action_IncLives:
@@ -2202,6 +2214,8 @@ Action_IncLives:
     ld hl, entity_health_current
     add hl, de
     ld (hl), c
+    ld a, c
+    ld (global_var_lives), a   ; Keep FSM global "Lives" in sync with entity health
     ret
 
 Action_Respawn:
@@ -3544,6 +3558,17 @@ Action_EnableInput:
     pop hl
     ret
 
+Action_CleanSprites:
+; No params - clear sprite attribute table to hide hardware sprites until next render
+    call clear_sprite_table
+    ret
+
+Action_ExitCurrentWorld:
+; No params - request WorldLink loop exit so GameFlow continues by default connection
+    ld a, 1
+    ld (gameflow_exit_requested), a
+    ret
+
     ; ------------------------------------------------------------------
     ; CONDITION DISPATCH TABLE
     ; ------------------------------------------------------------------
@@ -4372,10 +4397,11 @@ Condition_VariableCompare:
     inc hl
     ld d, (hl)              ; DE = address of global variable
 
-    ; Read value
+    ; Read value. Restore compare-value pair first, then copy the
+    ; global byte into E so the compare sees the actual variable value.
     ld a, (de)              ; A = global variable value
-    ld e, a                 ; E = variable value
     pop de                  ; Restore Compare Value to D
+    ld e, a                 ; E = variable value
     jr .do_compare
 
 .get_x:
@@ -4654,8 +4680,12 @@ function applyConditionalHandlers(asm, usedActions, usedConditions) {
         asm = patchActionEntry(asm, 'Action_GetRandomPos');
     }
     if (!hasAction(statemachine_types_1.ActionTypes.CHANGE_GAME_FLOW_NODE)) {
-        asm = stripSection(asm, 'Action_ChangeGameFlow', 'Action_DecLives');
+        asm = stripSection(asm, 'Action_ChangeGameFlow', 'Action_RegenerateHud');
         asm = patchActionEntry(asm, 'Action_ChangeGameFlow');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.REGENERATE_HUD)) {
+        asm = stripSection(asm, 'Action_RegenerateHud', 'Action_DecLives');
+        asm = patchActionEntry(asm, 'Action_RegenerateHud');
     }
     if (!hasAction(statemachine_types_1.ActionTypes.DECREASE_LIVES, statemachine_types_1.ActionTypes.INCREASE_LIVES, statemachine_types_1.ActionTypes.RESPAWN_PLAYER)) {
         asm = stripSection(asm, 'Action_DecLives', 'Action_BreakTile');
@@ -4734,8 +4764,16 @@ function applyConditionalHandlers(asm, usedActions, usedConditions) {
         asm = patchActionEntry(asm, 'Action_DisableInput');
     }
     if (!hasAction(statemachine_types_1.ActionTypes.ENABLE_INPUT)) {
-        asm = stripSection(asm, 'Action_EnableInput', 'SM_ConditionTable');
+        asm = stripSection(asm, 'Action_EnableInput', 'Action_CleanSprites');
         asm = patchActionEntry(asm, 'Action_EnableInput');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.CLEAN_SPRITES)) {
+        asm = stripSection(asm, 'Action_CleanSprites', 'Action_ExitCurrentWorld');
+        asm = patchActionEntry(asm, 'Action_CleanSprites');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.EXIT_CURRENT_WORLD)) {
+        asm = stripSection(asm, 'Action_ExitCurrentWorld', 'SM_ConditionTable');
+        asm = patchActionEntry(asm, 'Action_ExitCurrentWorld');
     }
     // ---- CONDITION HANDLERS ----
     if (!hasCond(statemachine_types_1.ConditionTypes.AND)) {
@@ -4925,10 +4963,34 @@ function generateStateMachineSoundTables(sounds) {
  */
 function generateStateMachineSystem(stateMachines, globalVariables, sprites, tiles, templates, sounds, trackIndexByAssetId) {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
+    const hasHardwareSprites = Array.isArray(sprites) && sprites.length > 0;
+    const hasLivesGlobal = Array.isArray(globalVariables) &&
+        globalVariables.some((variable) => String(variable?.asmName || '').trim() === 'global_var_lives');
+    asm = asm.replace(/Action_CleanSprites:[\s\S]*?Action_ExitCurrentWorld:/, hasHardwareSprites
+        ? `Action_CleanSprites:
+; No params - clear sprite RAM buffer and flush it to VRAM immediately
+    push hl
+    call clear_all_sprites
+    call update_sprites_to_vram
+    pop hl
+    ret
+
+Action_ExitCurrentWorld:`
+        : `Action_CleanSprites:
+; No params - fallback when no sprite system is generated
+    push hl
+    call clear_sprite_table
+    pop hl
+    ret
+
+Action_ExitCurrentWorld:`);
     // Tree-shake: remove unused handler bodies to stay within 32KB ROM budget.
     if (stateMachines.length > 0) {
         const { usedActions, usedConditions } = collectUsedActionsAndConditions(stateMachines);
         asm = applyConditionalHandlers(asm, usedActions, usedConditions);
+    }
+    if (!hasLivesGlobal) {
+        asm = asm.replace(/[ \t]*ld \(global_var_lives\), a\s*; Keep FSM global "Lives" in sync with entity health\r?\n/g, '');
     }
     // Build sprite name -> asset index map for CHANGE_SPRITE actions.
     // Must match spritesGenerator directional expansion to keep indexes aligned.
@@ -5285,6 +5347,10 @@ function generateActionBytes(action, smName = '', variableIdMap, spriteNameToInd
             bytes += `    DB ${nodeId}        ; node=${nodeRaw}\n`;
             break;
         }
+        case statemachine_types_1.ActionTypes.REGENERATE_HUD:
+        case statemachine_types_1.ActionTypes.CLEAN_SPRITES:
+        case statemachine_types_1.ActionTypes.EXIT_CURRENT_WORLD:
+            break;
         case statemachine_types_1.ActionTypes.BREAK_TILE: {
             const directionName = String(action.params.direction || 'up').toLowerCase();
             const directionId = TILE_DIRECTION_IDS[directionName] ?? 0;

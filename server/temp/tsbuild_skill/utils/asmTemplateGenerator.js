@@ -47,6 +47,7 @@ function analyzeProject(projectName, assets) {
         trackIndexByAssetId[normalizedTrack.id] = trackIndex;
     });
     const tiles = assets.filter(a => a.type === 'tile').map(a => a.data);
+    const tileBanks = assets.filter(a => a.type === 'tilebank').map(a => a.data);
     const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data);
     const worldmaps = assets.filter(a => a.type === 'worldmap').map(a => a.data);
     const stateMachines = assets.filter(a => a.type === 'statemachine').map(a => a.data);
@@ -123,6 +124,7 @@ function analyzeProject(projectName, assets) {
         tracks,
         trackIndexByAssetId,
         tiles,
+        tileBanks,
         screenMaps,
         screens: screenMaps, // Added alias
         worldmaps, // CRITICAL: Include worldmaps for GameFlow WorldLink nodes

@@ -137,6 +137,8 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
   const COMP_MASK_SPRITE = 0x02; // Bit used for sprite component
   const COMP_MASK_INPUT = 0x10; // Bit used for input component
   const templateTokenMap = buildTemplateTokenMap(analysis.templates as any[]);
+  const hasExplicitPlayerTemplate = Array.isArray(analysis.templates)
+    && analysis.templates.some((tpl: any) => parseBool(tpl?.isPlayer, false));
 
   const sanitizeEntityName = (rawName: any): string => {
     const safe = String(rawName ?? 'entity')
@@ -243,6 +245,13 @@ init_entities:
     ld (hl), 0
     ldir
 
+    ; Clear entity player-role flags
+    ld hl, entity_is_player
+    ld de, entity_is_player+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
     ; Clear entity template tokens
     ld hl, entity_template_token
     ld de, entity_template_token+1
@@ -341,6 +350,12 @@ update_entities:
       const componentMask = generateEntityComponentMask(entity, template, analysis);
       const hasSprite = (componentMask & COMP_MASK_SPRITE) !== 0;
       const hasInput = (componentMask & COMP_MASK_INPUT) !== 0;
+      const hasLegacyPlayerInput = !!template?.components?.some((component: any) =>
+        component?.definitionId === 'comp_player_input' || component?.definitionId === 'comp_input'
+      );
+      const isPlayerTemplate = hasExplicitPlayerTemplate
+        ? parseBool(template?.isPlayer, false)
+        : hasLegacyPlayerInput;
       const jobPeriod = parseJobPeriod((entity as any)?.jobRate ?? (entity as any)?.jobPeriod);
       const jobEntry = parseJobEntry((entity as any)?.jobEntry, jobPeriod);
       if (hasSprite && hasInput) {
@@ -783,6 +798,10 @@ update_entities:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), ${entityScreenId}                 ; Screen ID (world node index / fallback screen index)
+
+    ld hl, entity_is_player
+    add hl, de
+    ld (hl), ${isPlayerTemplate ? 1 : 0}                 ; Player/hero marker from template
 
     ; Template token for state-machine template-aware actions
     ld hl, entity_template_token

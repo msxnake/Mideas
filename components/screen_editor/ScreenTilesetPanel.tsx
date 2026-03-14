@@ -35,6 +35,12 @@ interface ScreenTilesetPanelProps {
   selectedEffectZoneId: string | null;
   /** Callback function to select an effect zone. */
   onSelectEffectZone: (id: string | null) => void;
+  /** Whether the selected effect zone can insert text. */
+  canAddSecretText?: boolean;
+  /** Opens the Add Text modal for the selected secret zone. */
+  onAddSecretText?: () => void;
+  /** Current rectangular selection in the grid. */
+  selectionRect?: { x: number; y: number; width: number; height: number } | null;
   /** The current MSX Screen 2 sector (0, 1, or 2). */
   currentSector?: 0 | 1 | 2;
   /** The selected TileBank asset ID (for SCREEN 2 filtering). */
@@ -77,6 +83,9 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
   effectZones,
   selectedEffectZoneId,
   onSelectEffectZone,
+  canAddSecretText = false,
+  onAddSecretText,
+  selectionRect,
   currentSector,
   selectedTileBankId,
   allProjectAssets,
@@ -176,9 +185,7 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
             key={tile.id}
             onClick={() => {
               setSelectedTileId(tile.id);
-              if (currentScreenTool !== 'select') {
-                onSetScreenTool('draw');
-              }
+              onSetScreenTool('draw');
             }}
             onContextMenu={(e) => {
               if (onTileContextMenu) {
@@ -213,7 +220,24 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
 
   const renderEffectZoneTools = () => (
     <div className="space-y-1">
-      {effectZones.length === 0 && <p className="text-xs text-msx-textsecondary italic">No effect zones defined. Click "Add Effect Zone" in the toolbar.</p>}
+      <div className="rounded border border-msx-border/60 bg-msx-bgcolor/40 p-2 text-xs text-msx-textsecondary">
+        {selectionRect
+          ? `Selection: X ${selectionRect.x}, Y ${selectionRect.y}, W ${selectionRect.width}, H ${selectionRect.height}. Use "New Zone" in the toolbar.`
+          : 'Use the Select tool on the Effects layer to mark an area, then click "New Zone".'}
+      </div>
+      {onAddSecretText && (
+        <Button
+          onClick={onAddSecretText}
+          variant="secondary"
+          size="sm"
+          className="w-full"
+          disabled={!canAddSecretText}
+          title={canAddSecretText ? 'Insert tile text inside the selected Secret Zone' : 'Select a Secret Zone first'}
+        >
+          Add Text
+        </Button>
+      )}
+      {effectZones.length === 0 && <p className="text-xs text-msx-textsecondary italic">No effect zones defined yet.</p>}
       {effectZones.map(zone => (
         <Button
           key={zone.id}
@@ -326,7 +350,15 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
         </>
       )}
 
-      {activeLayer === 'effects' && renderEffectZoneTools()}
+      {activeLayer === 'effects' && (
+        <>
+          {renderTileBasedTools()}
+          <div className="mt-3 border-t border-msx-border pt-3">
+            <h5 className="mb-2 text-xs font-bold text-msx-highlight">Zones</h5>
+            {renderEffectZoneTools()}
+          </div>
+        </>
+      )}
     </div>
   );
 };

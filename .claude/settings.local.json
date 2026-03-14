@@ -133,7 +133,9 @@
       "Bash(cd /c/Users/salam/Downloads && grep -n '\"name\": \"rajol_vermell\"' patoantic201.json)",
       "Bash(cd /c/Users/salam/Downloads && grep -n '\"type\": \"screenmap\"' patoantic201.json)",
       "Bash(cd /c/Users/salam/Downloads && grep -c '\"tile_1772126067456\"' patoantic201.json && grep -c '\"tile_1772380335352\"' patoantic201.json && grep -c '\"tile_1772399386002\"' patoantic201.json)",
-      "Bash(cd /c/Users/salam/Downloads && grep -n '\"id\": \"tpl_1771166650770_6ibnk\"' patoantic201.json)"
+      "Bash(cd /c/Users/salam/Downloads && grep -n '\"id\": \"tpl_1771166650770_6ibnk\"' patoantic201.json)",
+      "Read(//tmp/**)",
+      "Bash(for label:*)"
     ],
     "deny": [],
     "ask": []

@@ -20,7 +20,7 @@ const registerContract_1 = require("./registerContract");
  * @param avoidStateMachineDuplication - true when GameFlow already executes execute_all_state_machines
  * @returns ASM code for update_all_entities
  */
-function generateUpdateAllEntities(usedComponents, avoidStateMachineDuplication) {
+function generateUpdateAllEntities(usedComponents, avoidStateMachineDuplication, hasSecretZones) {
     const emitInc16 = (symbol) => `    ld hl, ${symbol}\n    inc (hl)\n    jr nz, $+4\n    inc hl\n    inc (hl)\n`;
     let code = `
 ; ==================================================================
@@ -77,6 +77,7 @@ update_all_entities:
         ['Collision', 'update_collision_component', '8b. Collision detection'],
         ['Collision', 'update_platform_riding', '8c. Platform riding'],
         ['WallCollision', 'update_wallcollision_component', '8d. Wall collision'],
+        ['SecretZones', 'update_secret_zone_component', '8e. Secret zone runtime'],
         ['DeadlyTiles', 'update_deadly_tiles_component', '8e. Deadly tiles'],
         ['TileInteraction', 'check_tile_interaction', '8f. Tile interaction (gems/collectibles)'],
         ['Health', 'update_health_component', '9. Health/Death'],
@@ -90,7 +91,8 @@ update_all_entities:
     for (const [component, funcCall, comment] of componentSystems) {
         // Position is always needed (entities always have positions)
         const isRequired = component === 'Position' || component === 'Sprite';
-        if (isRequired || usedComponents.has(component)) {
+        const isEnabled = isRequired || (component === 'SecretZones' ? hasSecretZones : usedComponents.has(component));
+        if (isEnabled) {
             // GameFlow executes state machines explicitly in execute_all_state_machines.
             // Avoid running them twice per frame.
             if (avoidStateMachineDuplication && funcCall === 'update_statemachine_component') {
@@ -173,7 +175,13 @@ ensure_used_entity_list_current:
 ${(0, registerContract_1.buildRegisterContractComment)({
         purpose: 'Recompute compact list of entities active on current screen.',
         inputs: ['entity_active, entity_comp_masks(_hi), entity_screen_id, current_screen_id'],
-        outputs: ['active_entity_list[]', 'active_entity_count', 'active_entity_list_dirty=0'],
+        outputs: [
+            'active_entity_list[]',
+            'active_entity_count',
+            'hero_entity_id updated from first current-screen entity flagged as player',
+            'input/render/collision/ground/anim buckets refreshed',
+            'active_entity_list_dirty=0',
+        ],
         clobbers: ['AF', 'BC', 'DE', 'HL'],
         preserved: ['None'],
         usage: [
@@ -187,6 +195,13 @@ ${(0, registerContract_1.buildRegisterContractComment)({
 rebuild_used_entity_list:
     xor a
     ld (active_entity_count), a
+    ld (input_entity_count), a
+    ld (render_entity_count), a
+    ld (collision_entity_count), a
+    ld (ground_entity_count), a
+    ld (anim_entity_count), a
+    ld a, #FF
+    ld (hero_entity_id), a
     ld b, MAX_ENTITIES
     ld c, 0
 
@@ -197,7 +212,7 @@ rebuild_used_entity_list:
     add hl, de
     ld a, (hl)
     or a
-    jr z, .next_entity
+    jp z, .next_entity
 
     ld hl, entity_comp_masks
     add hl, de
@@ -205,7 +220,7 @@ rebuild_used_entity_list:
     ld hl, entity_comp_masks_hi
     add hl, de
     or (hl)
-    jr z, .next_entity
+    jp z, .next_entity
 
     ; Keep only entities from currently visible screen
     ld hl, entity_screen_id
@@ -213,7 +228,7 @@ rebuild_used_entity_list:
     ld a, (hl)
     ld hl, current_screen_id
     cp (hl)
-    jr nz, .next_entity
+    jp nz, .next_entity
 
     ; Keep only entities scheduled to run on this frame.
     ; entity_job_should_run_c expects C=entity index.
@@ -221,12 +236,12 @@ rebuild_used_entity_list:
     call entity_job_should_run_c
     pop bc
     or a
-    jr z, .next_entity
+    jp z, .next_entity
 
     ld hl, active_entity_count
     ld a, (hl)
     cp MAX_ENTITIES
-    jr nc, .next_entity
+    jp nc, .next_entity
 
     ld e, a
     ld d, 0
@@ -236,11 +251,130 @@ rebuild_used_entity_list:
     ld hl, active_entity_count
     inc (hl)
 
+    ld e, c
+    ld d, 0
+    ld a, (hero_entity_id)
+    cp #FF
+    jr nz, .skip_hero_candidate
+    ld hl, entity_is_player
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .skip_hero_candidate
+    ld a, c
+    ld (hero_entity_id), a
+.skip_hero_candidate:
+
+    ; Build hot-path buckets once so gameplay systems avoid repeating
+    ; the same component-mask filtering every frame.
+    ld e, c
+    ld d, 0
+
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    jr z, .skip_input_bucket
+    ld a, (input_entity_count)
+    ld l, a
+    ld h, 0
+    ld de, input_entity_list
+    add hl, de
+    ld (hl), c
+    ld hl, input_entity_count
+    inc (hl)
+.skip_input_bucket:
+
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_SPRITE
+    jr z, .skip_render_bucket
+    ld a, (render_entity_count)
+    ld l, a
+    ld h, 0
+    ld de, render_entity_list
+    add hl, de
+    ld (hl), c
+    ld hl, render_entity_count
+    inc (hl)
+.skip_render_bucket:
+
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_COLLISION
+    jr z, .skip_collision_bucket
+    ld a, (collision_entity_count)
+    ld l, a
+    ld h, 0
+    ld de, collision_entity_list
+    add hl, de
+    ld (hl), c
+    ld hl, collision_entity_count
+    inc (hl)
+.skip_collision_bucket:
+
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_COLLISION
+    jr nz, .store_ground_bucket
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #02                       ; COMP_MASK_GRAVITY
+    jr z, .skip_ground_bucket
+.store_ground_bucket:
+    ld a, (ground_entity_count)
+    ld l, a
+    ld h, 0
+    ld de, ground_entity_list
+    add hl, de
+    ld (hl), c
+    ld hl, ground_entity_count
+    inc (hl)
+.skip_ground_bucket:
+
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+    cp COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+    jp nz, .next_entity
+    ld a, (anim_entity_count)
+    ld l, a
+    ld h, 0
+    ld de, anim_entity_list
+    add hl, de
+    ld (hl), c
+    ld hl, anim_entity_count
+    inc (hl)
+
 .next_entity:
     inc c
-    djnz .rebuild_loop
+    dec b
+    jp nz, .rebuild_loop
 
 .rebuild_done:
+    ld a, (hero_entity_id)
+    cp #FF
+    jr nz, .rebuild_store_clean
+    ld a, (input_entity_count)
+    or a
+    jr z, .rebuild_store_clean
+    ld hl, input_entity_list
+    ld a, (hl)
+    ld (hero_entity_id), a
+.rebuild_store_clean:
     xor a
     ld (active_entity_list_dirty), a
     ret
@@ -302,18 +436,7 @@ position_update_loop:
     and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
     jr z, position_next_entity ; Skip velocity if no movement/input source
 
-    ; Skip entities that are not in the currently active screen
-    ; Preserve HL because it is the entity_comp_masks loop pointer.
-    push hl
-    ld hl, entity_screen_id
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    pop hl
-    jp nz, position_next_entity
+    ; active_entity_list already guarantees current_screen_id membership
 
     push bc
     push hl
@@ -389,11 +512,11 @@ init_sprite_system:
 
 update_sprite_component:
     ; Update sprite rendering based on entity positions
-    ld a, (active_entity_count)
+    ld a, (render_entity_count)
     or a
     ret z
-    ld b, a                    ; Loop through used entities only
-    ld hl, active_entity_list
+    ld b, a                    ; Loop through renderable entities only
+    ld hl, render_entity_list
 
 sprite_update_loop:
     ld c, (hl)                 ; C = entity index
@@ -401,41 +524,12 @@ sprite_update_loop:
     push hl                    ; Save list pointer
     ld e, c
     ld d, 0
-    ld hl, entity_comp_masks
-    add hl, de
-    ld a, (hl)                 ; Get entity component mask
     pop hl                     ; Restore list pointer
-    and COMP_MASK_SPRITE       ; Check if has sprite component
-    jp z, sprite_next_entity   ; Skip if no sprite component (jp because distance > 127 bytes)
 
-    ; Skip inactive entities (prevents ghost sprite rendering)
-    push hl
-    ld hl, entity_active
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    pop hl
-    or a
-    jp z, sprite_next_entity
-
-    ; Check if entity is in current screen (multi-screen support)
+    ; render_entity_list already guarantees active + current_screen_id + sprite
     push bc
     push hl
 
-    ; Check entity screen ID
-    ld hl, entity_screen_id
-    ld e, c                    ; Entity index
-    ld d, 0
-    add hl, de                 ; HL points to entity screen ID
-    ld a, (hl)                 ; A = entity screen ID
-
-    ; Compare with current screen ID
-    ld hl, current_screen_id
-    cp (hl)                    ; Compare entity screen with current screen
-    jr nz, sprite_hide         ; If different screen, hide sprite
-
-    ; Entity is in current screen - render normally
     ; E already contains entity index (from line 129)
     ; D = 0 (from line 130)
     
@@ -503,36 +597,6 @@ sprite_layer_loop:
     dec h                      ; Decrement Layer Count
     jr nz, sprite_layer_loop
     
-    jr sprite_continue
-
-sprite_hide:
-    ; Entity is in different screen - hide sprite (Y = 208+)
-    ; We must hide ALL layers for this entity
-    ; E contains Entity Index (from line 129)
-    ; D = 0 (from line 130)
-
-    ld hl, entity_sprite_config
-    add hl, de
-    add hl, de
-
-    inc hl                     ; Point to Layer Count first
-    ld b, (hl)                 ; B = Layer Count
-    dec hl                     ; Back to Base HW Sprite
-    ld a, b
-    or a
-    jr z, sprite_continue      ; Nothing to hide for anchor entities
-    ld a, (hl)                 ; A = Base HW Sprite (read AFTER zero check)
-
-sprite_hide_loop:
-    push bc
-    push af
-    call hide_sprite           ; A = HW Sprite (correct base index)
-    pop af
-    pop bc
-
-    inc a                      ; Next HW Sprite
-    djnz sprite_hide_loop
-
 sprite_continue:
     pop hl
     pop bc
@@ -793,33 +857,17 @@ function generateCollisionSystem(analysis) {
     update_collision_component:
     ; Ground detection for entities with Collision or Gravity components
     ; Sets entity_on_ground flag based on Y position
-    ld a, (active_entity_count)
+    ld a, (ground_entity_count)
     or a
     ret z
-    ld b, a                       ; Loop through used entities only
-    ld hl, active_entity_list
+    ld b, a                       ; Loop through ground-probe entities only
+    ld hl, ground_entity_list
 
     collision_update_loop:
     ld c, (hl)                    ; C = entity index
     inc hl                        ; Advance list pointer
     push hl                       ; Save list pointer
 
-    ; Check if entity has Collision OR Gravity component
-    ld e, c
-    ld d, 0
-    ld hl, entity_comp_masks
-    add hl, de
-    ld a, (hl)                    ; Get low byte (Collision is bit 3)
-    and COMP_MASK_COLLISION
-    jr nz, .has_collision_comp    ; Has Collision component
-
-    ld hl, entity_comp_masks_hi
-    add hl, de
-    ld a, (hl)                    ; Get high byte (Gravity is bit 1)
-    and #02                       ; COMP_MASK_GRAVITY high byte
-    jp z, collision_next_entity   ; Skip if no collision or gravity (JP for long jump)
-
-.has_collision_comp:
     ; Get entity Y position
     push bc
     push hl
@@ -865,166 +913,9 @@ function generateCollisionSystem(analysis) {
     set 0, (hl)                   ; Mark as grounded
 
 .ground_check_done:
-    ; Check for deadly tile collision (lava, spikes, etc.)
-    ; IMPORTANT:
-    ;   - Read from the behavior map generated from the collision layer,
-    ;     NOT from the visual screen layout.
-    ;   - Mirror the Preview logic by sampling:
-    ;       center/middle, left/middle, right/middle,
-    ;       left/bottom+1, center/bottom+1, right/bottom+1.
-    ; This catches no-solid deadly tiles like ropes that overlap the body,
-    ; not just the feet.
-    ;
-    ; Deadly flag uses logicalProperties.causesDamage (mapId bit 2 = #04).
-    ld e, c
-    ld d, 0
-    ld hl, entity_comp_masks_hi
-    add hl, de
-    ld a, (hl)
-    and #20                       ; COMP_MASK_DEADLY_TILES (#2000) => high byte bit 5
-    jr nz, .deadly_component_active
-
-    ld hl, entity_flag_deadly_tile
-    add hl, de
-    res 0, (hl)
-    jp .deadly_check_done
-
-.deadly_component_active:
-
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    ld (wall_temp_x), a
-
-    ld hl, entity_y_pos
-    add hl, de
-    ld a, (hl)
-    ld (wall_temp_y), a
-
-    call wall_build_hitbox_cache
-
-    push bc
-
-    ; Mid row = top + floor(height / 2)
-    ld a, (wall_hit_h)
-    srl a
-    ld c, a
-    ld a, (wall_hit_top)
-    add a, c
-    srl a
-    srl a
-    srl a
-    ld b, a                       ; B = middle row
-
-    ; Center column = left + floor(width / 2)
-    ld a, (wall_hit_w)
-    srl a
-    ld c, a
-    ld a, (wall_hit_left)
-    add a, c
-    srl a
-    srl a
-    srl a
-    ld c, a                       ; C = center column
-    call get_behavior_tile_nb
-    bit 2, a
-    jr nz, .deadly_tile_found
-
-    ; Left middle
-    ld a, (wall_hit_left)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call get_behavior_tile_nb
-    bit 2, a
-    jr nz, .deadly_tile_found
-
-    ; Right middle
-    ld a, (wall_hit_right)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call get_behavior_tile_nb
-    bit 2, a
-    jr nz, .deadly_tile_found
-
-    ; Bottom row (matches Preview bottom sample and still catches
-    ; standing on deadly floors after wall-collision snap)
-    ld a, (wall_hit_bottom)
-    cp 191
-    jr nc, .deadly_y_clamped
-    inc a
-    jr .deadly_y_ready
-.deadly_y_clamped:
-    ld a, 191
-.deadly_y_ready:
-    srl a
-    srl a
-    srl a
-    ld b, a                       ; B = bottom row
-
-    ; Left bottom
-    ld a, (wall_hit_left)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call get_behavior_tile_nb
-    bit 2, a
-    jr nz, .deadly_tile_found
-
-    ; Right bottom
-    ld a, (wall_hit_right)
-    cp 255
-    jr z, .deadly_right_bottom_ready
-    inc a
-.deadly_right_bottom_ready:
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call get_behavior_tile_nb
-    bit 2, a
-    jr nz, .deadly_tile_found
-
-    ; Center bottom
-    ld a, (wall_hit_w)
-    srl a
-    ld c, a
-    ld a, (wall_hit_left)
-    add a, c
-    srl a
-    srl a
-    srl a
-    ld c, a                       ; C = center column
-    call get_behavior_tile_nb
-    bit 2, a
-    jr z, .no_deadly_tile
-
-.deadly_tile_found:
-    pop bc
-
-    ; Entity is touching deadly area - set flag
-    ld hl, entity_deadly_collision
-    ld e, c
-    ld d, 0
-    add hl, de
-    set 0, (hl)                   ; Mark as touching deadly tile
-    jp .deadly_check_done
-
-.no_deadly_tile:
-    pop bc
-
-    ; Clear deadly tile flag
-    ld hl, entity_deadly_collision
-    ld e, c
-    ld d, 0
-    add hl, de
-    res 0, (hl)                   ; Clear deadly flag
-
-.deadly_check_done:
+    ; Deadly contact is updated later by update_deadly_tiles_component.
+    ; Keep collision focused on ground/platform state so we do not resample
+    ; the behavior map twice per frame for the same entity.
     pop de
     pop hl
     pop bc
@@ -1052,35 +943,26 @@ update_entity_collision_fast:
     and 1
     ret nz
 
-    ; === PHASE 1: Build active list ===
+    ; === PHASE 1: Build active list from prefiltered collision bucket ===
     ld hl, coll_list              ; HL = write pointer into coll_list
     xor a
     ld (coll_list_count), a       ; count = 0
-    ld c, 0                       ; C = entity index 0..31
+    ld a, (collision_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld de, collision_entity_list
 
 .build_loop:
-    ld a, c
-    cp 32
-    jp z, .build_done
+    ld a, (de)
+    ld c, a
+    inc de
 
     ; Clear collision flags for ALL entities with collision component
     push hl                       ; Save list write pointer
+    push de
     ld e, c
     ld d, 0
-
-    ; Check active
-    ld hl, entity_active
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, .build_skip
-
-    ; Check collision component
-    ld hl, entity_comp_masks
-    add hl, de
-    ld a, (hl)
-    and COMP_MASK_COLLISION
-    jp z, .build_skip
 
     ; Clear collision flags for this entity (even if wrong screen)
     ld hl, entity_entity_collision_flags
@@ -1089,14 +971,6 @@ update_entity_collision_fast:
     ld hl, entity_last_collision_entity
     add hl, de
     ld (hl), 255
-
-    ; Check screen match
-    ld hl, entity_screen_id
-    add hl, de
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    jp nz, .build_skip
 
     ; Entity qualifies - add to list (max MAX_ENTITIES)
     ld a, (coll_list_count)
@@ -1114,9 +988,9 @@ update_entity_collision_fast:
     ld (coll_list_count), a
 
 .build_skip:
+    pop de
     pop hl                        ; Restore list write pointer
-    inc c
-    jp .build_loop
+    djnz .build_loop
 
 .build_done:
     ; === PHASE 2: Check pairs ===
@@ -1831,37 +1705,19 @@ function generateInputSystem() {
             ; NOTE: input_state/prev_input_state are polled by interrupt task_update_input
 
             ; Process input for entities with input component
-            ld a, (active_entity_count)
+            ld a, (input_entity_count)
             or a
             ret z
-            ld b, a                    ; Loop through used entities only
-            ld hl, active_entity_list
+            ld b, a                    ; Loop through input-enabled entities only
+            ld hl, input_entity_list
 
         input_update_loop:
             ld c, (hl)                 ; C = entity index
             inc hl                     ; Advance list pointer
             push hl                    ; Save list pointer
-            ld e, c
-            ld d, 0
-            ld hl, entity_comp_masks
-            add hl, de
-            ld a, (hl)                 ; Get entity component mask
             pop hl                     ; Restore list pointer
-            and COMP_MASK_INPUT        ; Check if has input component
-            jp z, input_next_entity    ; Skip if no input component
 
-            ; Skip entities that are not in the currently active screen
-            ; Preserve HL because it is the entity_comp_masks loop pointer.
-            push hl
-            ld hl, entity_screen_id
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            ld hl, current_screen_id
-            cp (hl)
-            pop hl
-            jp nz, input_next_entity
+            ; input_entity_list already guarantees active + current_screen_id + input
 
             ; Check if input is disabled for this entity (DISABLE_INPUT action)
             push hl
@@ -2251,18 +2107,7 @@ gravity_update_loop:
             and #02; Check COMP_MASK_GRAVITY(#0200) => bit 1 in high byte
             jr z, gravity_next_entity; Skip if no gravity component
 
-    ; Skip entities that are not in the currently active screen
-    ; Preserve HL because it is the entity_comp_masks_hi loop pointer.
-            push hl
-            ld hl, entity_screen_id
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            ld hl, current_screen_id
-            cp (hl)
-            pop hl
-            jp nz, gravity_next_entity
+    ; active_entity_list already guarantees current_screen_id membership
 
     ; Entity has gravity - apply acceleration
             push bc
@@ -3031,11 +2876,11 @@ function generateAnimationSystem() {
             ; Update animations for entities
             ; - Advances entity_anim_frame using entity_anim_tick/entity_anim_speed
             ; - Copies the selected frame's patterns to VRAM for this entity
-            ld a, (active_entity_count)
+            ld a, (anim_entity_count)
             or a
             ret z
-            ld b, a                    ; Loop used entities only
-            ld hl, active_entity_list
+            ld b, a                    ; Loop animated render entities only
+            ld hl, anim_entity_list
 
         .anim_loop:
             ld c, (hl)                 ; C = entity index
@@ -3043,15 +2888,9 @@ function generateAnimationSystem() {
             push hl                    ; Save list pointer
             ld e, c
             ld d, 0
-            ld hl, entity_comp_masks
-            add hl, de
-            ld a, (hl)
             pop hl                     ; Restore list pointer
-            and COMP_MASK_ANIMATION | COMP_MASK_SPRITE
-            cp COMP_MASK_ANIMATION | COMP_MASK_SPRITE
-            jp nz, .anim_next_entity
 
-            ; active_entity_list already guarantees active + current_screen_id
+            ; anim_entity_list already guarantees active + current_screen_id + animation + sprite
 
             push bc
             push hl
@@ -3465,7 +3304,7 @@ function generateAutoDestroySystem() {
     ; ==================================================================
     ; Entities with AUTO_DESTROY component have a lifetime counter
     ; When lifetime reaches 0, entity is automatically destroyed
-    ; Useful for: projectiles, particles, temporary effects, etc.
+    ; Useful for: projectiles and other temporary effects.
 
 init_auto_destroy_system:
     ; Initialize all lifetimes to 0 (infinite by default)
@@ -3696,17 +3535,16 @@ init_wallcollision_system:
 ;            direction(s) and snap position + zero velocity on hit.
 ;   Inputs:
 ;     - entity_active[]         : 1 = entity exists
+;     - active_entity_list[] / active_entity_count : compact active list already current
 ;     - entity_comp_masks[]     : low byte component bitmask
 ;     - entity_comp_masks_hi[]  : high byte (COMP_MASK_GRAVITY at bit 1)
 ;     - entity_collides_with[]  : must include COLLISION_LAYER_PLATFORM (#08)
-;     - entity_screen_id[]      : entity must be on current_screen_id
 ;     - entity_x_pos/y_pos[]    : world position
 ;     - entity_vel_x/vel_y[]    : signed 8-bit velocity (negative = left/up)
 ;     - entity_gravity_vel[]    : 16-bit signed gravity accumulator (word)
 ;     - entity_collision_offset_x/y[]: signed offset from origin to hitbox corner
 ;     - entity_collision_hitbox_w/h[]: hitbox size (minimum 1 if zero)
 ;     - current_behavior_map    : pointer to active screen behavior map
-;     - current_screen_id       : ID of the visible screen
 ;   Outputs:
 ;     - entity_x_pos/y_pos[]    : snapped on collision
 ;     - entity_vel_x/vel_y[]    : zeroed on collision axis
@@ -3718,6 +3556,7 @@ init_wallcollision_system:
 ;   Notes:
 ;     - Opt-B: loop uses active_entity_list (entities guaranteed active + on screen).
 ;       Eliminates ~29 wasted iterations vs 0..MAX_ENTITIES scan (3 entities active).
+;     - Caller must refresh active_entity_list earlier in the frame.
 ;     - Opt-C: wall_build_hitbox_cache is skipped on DOWN snap when new Y == current Y
 ;       (entity already on floor). Saves ~200 cycles/entity/frame when standing still.
 ;     - wall_build_hitbox_cache is called once at entity entry, and after each snap
@@ -3726,15 +3565,13 @@ init_wallcollision_system:
 ;       so entity_on_ground stays accurate when entity is standing still.
 ; ------------------------------------------------------------------
 update_wallcollision_component:
-    ; Opt-B: use compact active_entity_list instead of 0..MAX_ENTITIES scan.
-    ; Entities in the list are already guaranteed active and on current_screen_id.
-    ; This eliminates ~29 wasted iterations when only 3 entities are active.
-    call ensure_used_entity_list_current
-    ld a, (active_entity_count)
+    ; update_all_entities refreshed active_entity_list before entering the
+    ; component chain, so we can consume it directly here.
+    ld a, (collision_entity_count)
     or a
     ret z                         ; no active entities → done
     ld b, a                       ; B = entity count (loop counter for djnz)
-    ld hl, active_entity_list
+    ld hl, collision_entity_list
 
 .wall_loop:
     ; ---- Load next entity index from compact list ----
@@ -5162,11 +4999,6 @@ function generateTileInteractionSystem(tileCollectorConfig, canUseSoundAssetPlay
     const hudSyncCode = tileCollectorConfig.targetVariable?.asmName === 'global_var_score'
         ? `    ; Keep HUD Score text in sync with the updated global variable.
     push de
-    ld a, (${tileCollectorConfig.targetVariable.asmName})
-    ld l, a
-    ld a, (${tileCollectorConfig.targetVariable.asmName}+1)
-    ld h, a
-    call update_hud_score
     call force_render_hud
     pop de
 `
@@ -5575,24 +5407,17 @@ update_slash_component:
     ld c, (hl)
     inc hl
     push hl                    ; Save list pointer
-
-    ; Skip entities not on the current screen
     ld e, c
     ld d, 0
-    ld hl, entity_screen_id
-    add hl, de
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    jp nz, .slash_next
-
-    push bc
+    ; active_entity_list already guarantees current_screen_id membership
 
     ld hl, entity_slash_vel_x
     add hl, de
     ld a, (hl)
     or a
-    jp z, .slash_done_entity
+    jp z, .slash_next
+
+    push bc
 
     ld b, a                    ; B = additive slash X velocity
     ld hl, entity_vel_x
@@ -5622,7 +5447,6 @@ update_slash_component:
 .slash_store_decay:
     ld (hl), a
 
-.slash_done_entity:
     pop bc
 
 .slash_next:
@@ -5656,11 +5480,11 @@ ${bonusRespawnRuntimeCode}
 ;   - DE must survive the optional HUD/sound hooks until persistence logic runs
 ; ------------------------------------------------------------------
 check_tile_interaction:
-    ld a, (active_entity_count)
+    ld a, (input_entity_count)
     or a
     jp z, .ti_respawn_only         ; No active entities
 
-    ld hl, active_entity_list
+    ld hl, input_entity_list
     ld b, a                        ; B = entity count
 
 .ti_loop:
@@ -5677,27 +5501,8 @@ check_tile_interaction:
     and COMP_MASK_INPUT
     jp z, .ti_next                 ; No input component → skip
 
-    ; Mirror Preview timing for deadly tiles only on entities that opt in
-    ; through comp_deadly_tiles.
-    ld hl, entity_comp_masks_hi
-    add hl, de
-    ld a, (hl)
-    and #20                       ; COMP_MASK_DEADLY_TILES (#2000) => high byte bit 5
-    jr nz, .ti_update_deadly
-
-    ld hl, entity_flag_deadly_tile
-    add hl, de
-    res 0, (hl)
-    jr .ti_deadly_done
-
-.ti_update_deadly:
-    push bc
-    push de
-    call update_entity_deadly_flag_runtime
-    pop de
-    pop bc
-
-.ti_deadly_done:
+    ; Deadly state is produced earlier by update_deadly_tiles_component.
+    ; Tile interaction only consumes entity_flag_deadly_tile.
 
     ; Get center X
     ld hl, entity_x_pos
@@ -5965,6 +5770,9 @@ init_collectible_system:
 ; When collected: deactivate item, increment score
 ; ------------------------------------------------------------------
 update_collectible_component:
+    call resolve_runtime_hero_entity
+    cp #FF
+    ret z
     ld c, 0                       ; Entity index
 
 .collect_loop:
@@ -5983,7 +5791,7 @@ update_collectible_component:
 
     ; TODO: Check if entity has COLLECTIBLE component mask
 
-    ; Assume entity 0 is player - check collision with player
+    ; Check collision against resolved hero entity
     ; Get collectible position
     ld hl, entity_x_pos
     ld e, c
@@ -5993,7 +5801,8 @@ update_collectible_component:
 
     ; Get player X position
     ld hl, entity_x_pos
-    ld e, 0                       ; Entity 0 = player
+    ld a, (hero_entity_id)
+    ld e, a
     ld d, 0
     add hl, de
     ld b, (hl)                    ; B = player X
@@ -6014,7 +5823,8 @@ update_collectible_component:
     ld a, (hl)                    ; A = collectible Y
 
     ld hl, entity_y_pos
-    ld e, 0
+    ld a, (hero_entity_id)
+    ld e, a
     ld d, 0
     add hl, de
     ld b, (hl)                    ; B = player Y
@@ -6857,12 +6667,11 @@ update_collision_component:
     if (usedComponents.has('Collision') || usedComponents.has('WallCollision')) {
         code += generateGetBehaviorTile(romMode);
     }
-    // Wall hitbox helpers are also reused by deadly-tile probes and the
-    // late-frame tile interaction deadly check. When WallCollision is absent,
-    // emit the helpers on their own so those call sites still assemble.
+    // Wall hitbox helpers are required by WallCollision itself and are also
+    // reused by deadly-tile probes / late-frame tile interaction.
     const needsWallHitboxHelpers = usedComponents.has('DeadlyTiles') ||
         (hasInteractableTiles && usedComponents.has('Input'));
-    if (!usedComponents.has('WallCollision') && needsWallHitboxHelpers) {
+    if (!usedComponents.has('WallCollision') && (usedComponents.has('Collision') || needsWallHitboxHelpers)) {
         code += generateWallHitboxHelpers();
     }
     // Generate Input System (if used)
@@ -7157,9 +6966,11 @@ apply_collected_tiles:
     // ==================================================================
     // Generate update_all_entities function - OPTIMIZED based on used components
     // Only generates CALLs to systems that are actually used
-    code += generateUpdateAllEntities(usedComponents, !!analysis.hasGameFlow);
+    const hasSecretZones = !!analysis.screenMaps?.some((screen) => Array.isArray(screen?.effectZones) && screen.effectZones.some((zone) => String(zone?.effectType || '').length === 0 || zone?.effectType === 'secretZone' || (zone?.mask ?? 0) === 0));
+    code += generateUpdateAllEntities(usedComponents, !!analysis.hasGameFlow, hasSecretZones);
     // Generate execute_all_state_machines function - called by GameFlow game loop
-    code += `
+    if (usedComponents.has('StateMachine') && Array.isArray(analysis.stateMachines) && analysis.stateMachines.length > 0) {
+        code += `
 ; ==================================================================
 ; EXECUTE ALL STATE MACHINES - Called by GameFlow
 ; ==================================================================
@@ -7212,6 +7023,18 @@ execute_all_state_machines:
     ret
 
 `;
+    }
+    else {
+        code += `
+; ==================================================================
+; EXECUTE ALL STATE MACHINES - Called by GameFlow
+; ==================================================================
+; No state machines are present in this build.
+execute_all_state_machines:
+    ret
+
+`;
+    }
     // Tile Collision System
     code += `
 ; ==================================================================
@@ -7412,6 +7235,318 @@ div_a_by_c:
     ret
 
 `;
+    if (hasSecretZones) {
+        code += `
+; ------------------------------------------------------------------
+; update_secret_zone_component
+; Hero-only secret zone runtime.
+; Uses hero_entity_id resolved from templates flagged with isPlayer.
+; ------------------------------------------------------------------
+${(0, registerContract_1.buildRegisterContractComment)({
+            purpose: 'Detect player entry/exit on secret zones and swap visible tiles.',
+            inputs: [
+                'hero_entity_id + entity_is_player/current-screen filtering',
+                'entity_x_pos[hero], entity_y_pos[hero] as hero top-left position',
+                'runtime_effect_zone_table/current_effect_zone_count',
+                'runtime_background_layout, runtime_effects_layout, runtime_screen_layout',
+            ],
+            outputs: [
+                'runtime_screen_layout updated when entering/leaving a secret zone',
+                'VRAM Name Table updated for affected rectangle',
+                'secret_zone_active + secret_zone_rect_* state refreshed',
+            ],
+            clobbers: ['AF', 'BC', 'DE', 'HL', 'IX'],
+            preserved: ['None'],
+            notes: [
+                'Only secret zones are handled in this v1 runtime.',
+                'First matching zone wins when zones overlap.',
+            ],
+        })}
+update_secret_zone_component:
+    call resolve_runtime_hero_entity
+    cp #FF
+    jp z, .secret_no_match
+    ld e, a
+    ld d, 0
+
+    ld hl, entity_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .secret_no_match
+
+    ld a, (current_effect_zone_count)
+    or a
+    jp z, .secret_no_match
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    srl a
+    srl a
+    srl a
+    ld b, a                       ; B = hero center X in cells
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    srl a
+    srl a
+    srl a
+    ld c, a                       ; C = hero center Y in cells
+
+    ld a, (current_effect_zone_count)
+    ld d, a
+    ld ix, runtime_effect_zone_table
+
+.secret_scan_loop:
+    ld a, d
+    or a
+    jp z, .secret_no_match
+
+    ld a, b
+    cp (ix+0)
+    jp c, .secret_next_entry
+    sub (ix+0)
+    ld e, a
+
+    ld a, c
+    cp (ix+1)
+    jp c, .secret_next_entry
+    sub (ix+1)
+    ld h, a
+
+    ld a, (ix+2)
+    cp e
+    jp z, .secret_next_entry
+    jp c, .secret_next_entry
+
+    ld a, (ix+3)
+    cp h
+    jp z, .secret_next_entry
+    jp c, .secret_next_entry
+
+    ld a, (ix+4)
+    cp EFFECT_TYPE_SECRET_ZONE
+    jp nz, .secret_next_entry
+
+    ld a, (secret_zone_active)
+    or a
+    jp z, .secret_activate_new
+
+    ld a, (secret_zone_rect_x)
+    cp (ix+0)
+    jp nz, .secret_switch_zone
+    ld a, (secret_zone_rect_y)
+    cp (ix+1)
+    jp nz, .secret_switch_zone
+    ld a, (secret_zone_rect_w)
+    cp (ix+2)
+    jp nz, .secret_switch_zone
+    ld a, (secret_zone_rect_h)
+    cp (ix+3)
+    jp nz, .secret_switch_zone
+    ret
+
+.secret_switch_zone:
+    call secret_zone_restore_current_rect
+
+.secret_activate_new:
+    ld a, (ix+0)
+    ld (secret_zone_rect_x), a
+    ld a, (ix+1)
+    ld (secret_zone_rect_y), a
+    ld a, (ix+2)
+    ld (secret_zone_rect_w), a
+    ld a, (ix+3)
+    ld (secret_zone_rect_h), a
+    ld a, 1
+    ld (secret_zone_active), a
+    call secret_zone_apply_current_rect
+    ret
+
+.secret_next_entry:
+    push de
+    ld bc, EFFECT_ZONE_ENTRY_SIZE
+    add ix, bc
+    pop de
+    dec d
+    jp .secret_scan_loop
+
+.secret_no_match:
+    ld a, (secret_zone_active)
+    or a
+    ret z
+    call secret_zone_restore_current_rect
+    call secret_zone_clear_state
+    ret
+
+; ------------------------------------------------------------------
+; resolve_runtime_hero_entity
+; Preferred order:
+;   1) hero_entity_id if valid
+;   2) first input entity of current screen
+;   3) entity 0 if still active (legacy compatibility)
+; Output: A = entity index, or #FF when unavailable
+; Clobbers: AF, HL
+; ------------------------------------------------------------------
+resolve_runtime_hero_entity:
+    ld a, (hero_entity_id)
+    cp #FF
+    ret nz
+    ld a, (input_entity_count)
+    or a
+    jr z, .resolve_legacy_entity0
+    ld hl, input_entity_list
+    ld a, (hl)
+    ld (hero_entity_id), a
+    ret
+
+.resolve_legacy_entity0:
+    ld a, (entity_active)
+    or a
+    jr z, .resolve_none
+    xor a
+    ld (hero_entity_id), a
+    ret
+
+.resolve_none:
+    ld a, #FF
+    ret
+
+; ------------------------------------------------------------------
+; secret_zone_apply_current_rect
+; Copy active rect from runtime_effects_layout to runtime_screen_layout and VRAM.
+; ------------------------------------------------------------------
+secret_zone_apply_current_rect:
+    call secret_zone_compute_offset
+    push hl
+    ld de, runtime_effects_layout
+    add hl, de
+    ex de, hl
+    pop hl
+    push de
+    ld de, runtime_screen_layout
+    add hl, de
+    ex de, hl
+    pop hl
+    ld a, (secret_zone_rect_w)
+    ld c, a
+    ld a, (secret_zone_rect_h)
+    call copy_layout_rect_ram_to_ram
+
+    call secret_zone_compute_offset
+    push hl
+    ld de, runtime_screen_layout
+    add hl, de
+    pop de
+    push hl
+    ld hl, NAMETBL
+    add hl, de
+    ex de, hl
+    pop hl
+    ld a, (secret_zone_rect_w)
+    ld c, a
+    ld a, (secret_zone_rect_h)
+    call copy_layout_rect_to_vram
+    ret
+
+; ------------------------------------------------------------------
+; secret_zone_restore_current_rect
+; Restore active rect from runtime_background_layout into runtime_screen_layout and VRAM.
+; ------------------------------------------------------------------
+secret_zone_restore_current_rect:
+    call secret_zone_compute_offset
+    push hl
+    ld de, runtime_background_layout
+    add hl, de
+    ex de, hl
+    pop hl
+    push de
+    ld de, runtime_screen_layout
+    add hl, de
+    ex de, hl
+    pop hl
+    ld a, (secret_zone_rect_w)
+    ld c, a
+    ld a, (secret_zone_rect_h)
+    call copy_layout_rect_ram_to_ram
+
+    call secret_zone_compute_offset
+    push hl
+    ld de, runtime_screen_layout
+    add hl, de
+    pop de
+    push hl
+    ld hl, NAMETBL
+    add hl, de
+    ex de, hl
+    pop hl
+    ld a, (secret_zone_rect_w)
+    ld c, a
+    ld a, (secret_zone_rect_h)
+    call copy_layout_rect_to_vram
+    ret
+
+; ------------------------------------------------------------------
+; secret_zone_clear_state
+; ------------------------------------------------------------------
+secret_zone_clear_state:
+    xor a
+    ld (secret_zone_active), a
+    ld (secret_zone_rect_x), a
+    ld (secret_zone_rect_y), a
+    ld (secret_zone_rect_w), a
+    ld (secret_zone_rect_h), a
+    ret
+
+; ------------------------------------------------------------------
+; secret_zone_compute_offset
+; Output: HL = row*32 + col for current secret rect origin
+; Clobbers: AF, DE, HL
+; ------------------------------------------------------------------
+secret_zone_compute_offset:
+    ld a, (secret_zone_rect_y)
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld a, (secret_zone_rect_x)
+    ld e, a
+    ld d, 0
+    add hl, de
+    ret
+
+`;
+    }
+    else {
+        code += `
+update_secret_zone_component:
+    ret
+
+`;
+    }
+    if (usedComponents.has('WallCollision')) {
+        const wallHitboxHelpersBlock = generateWallHitboxHelpers();
+        const firstWallHitboxHelper = code.indexOf(wallHitboxHelpersBlock);
+        const lastWallHitboxHelper = code.lastIndexOf(wallHitboxHelpersBlock);
+        // Collision/deadly projects without WallCollision still need the shared helper block.
+        // When WallCollision is present, that system already embeds the helpers inline.
+        // If a shared copy slipped in earlier, remove only the first duplicate and keep the
+        // WallCollision-local copy so all call sites still resolve to the same contract.
+        if (firstWallHitboxHelper !== -1 &&
+            lastWallHitboxHelper !== -1 &&
+            firstWallHitboxHelper !== lastWallHitboxHelper) {
+            code =
+                code.slice(0, firstWallHitboxHelper) +
+                    code.slice(firstWallHitboxHelper + wallHitboxHelpersBlock.length);
+        }
+    }
     // End of file
     code += `
     ; ==================================================================

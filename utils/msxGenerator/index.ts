@@ -31,7 +31,6 @@ import { generateInterruptFile } from './generators/interruptGenerator';
 import { generateSoundFile } from './generators/soundGenerator';
 import { generateScrollFile } from './generators/scrollGenerator';
 import { generateAnimatedTilesFile } from './generators/animatedTilesGenerator';
-import { generateParticlesFile } from './generators/particlesGenerator';
 import { buildExecutionPlan } from './planning/executionPlan';
 import { validateExecutionPlan } from './planning/executionValidators';
 import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes';
@@ -125,6 +124,7 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
     tracks: tracks as any[],
     trackIndexByAssetId,
     tiles: summary.assets.tiles as any[],
+    tileBanks: [],
     screens: summary.assets.screens as any[], // Added alias
     screenMaps: summary.assets.screens as any[], // Added missing property
     gameFlow: summary.execution.mainGameFlow as any,
@@ -195,6 +195,7 @@ export function generateModularASM(
       tracks: [],
       trackIndexByAssetId: {},
       tiles: [],
+      tileBanks: [],
       screens: [],
       screenMaps: [],
       projectName: projectName,
@@ -239,7 +240,6 @@ export function generateModularASM(
     'sound.asm': generateSoundFile(analysis, executionPlan),
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis),
-    'particles.asm': generateParticlesFile(analysis),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
       ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId)
       : '; No State Machines\n',
@@ -330,7 +330,6 @@ export function generateModularASMFromSummary(
     'sound.asm': generateSoundFile(analysis, executionPlan),
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis),
-    'particles.asm': generateParticlesFile(analysis),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
       ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId)
       : '; No State Machines\n',

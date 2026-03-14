@@ -138,6 +138,8 @@ function generateEntitiesFile(analysis) {
     const COMP_MASK_SPRITE = 0x02; // Bit used for sprite component
     const COMP_MASK_INPUT = 0x10; // Bit used for input component
     const templateTokenMap = buildTemplateTokenMap(analysis.templates);
+    const hasExplicitPlayerTemplate = Array.isArray(analysis.templates)
+        && analysis.templates.some((tpl) => parseBool(tpl?.isPlayer, false));
     const sanitizeEntityName = (rawName) => {
         const safe = String(rawName ?? 'entity')
             .toUpperCase()
@@ -228,6 +230,13 @@ init_entities:
     ; Clear entity screen IDs to prevent ghost entities on restart
     ld hl, entity_screen_id
     ld de, entity_screen_id+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Clear entity player-role flags
+    ld hl, entity_is_player
+    ld de, entity_is_player+1
     ld bc, 31
     ld (hl), 0
     ldir
@@ -326,6 +335,10 @@ update_entities:
             const componentMask = (0, componentAnalyzer_1.generateEntityComponentMask)(entity, template, analysis);
             const hasSprite = (componentMask & COMP_MASK_SPRITE) !== 0;
             const hasInput = (componentMask & COMP_MASK_INPUT) !== 0;
+            const hasLegacyPlayerInput = !!template?.components?.some((component) => component?.definitionId === 'comp_player_input' || component?.definitionId === 'comp_input');
+            const isPlayerTemplate = hasExplicitPlayerTemplate
+                ? parseBool(template?.isPlayer, false)
+                : hasLegacyPlayerInput;
             const jobPeriod = parseJobPeriod(entity?.jobRate ?? entity?.jobPeriod);
             const jobEntry = parseJobEntry(entity?.jobEntry, jobPeriod);
             if (hasSprite && hasInput) {
@@ -743,6 +756,10 @@ update_entities:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), ${entityScreenId}                 ; Screen ID (world node index / fallback screen index)
+
+    ld hl, entity_is_player
+    add hl, de
+    ld (hl), ${isPlayerTemplate ? 1 : 0}                 ; Player/hero marker from template
 
     ; Template token for state-machine template-aware actions
     ld hl, entity_template_token

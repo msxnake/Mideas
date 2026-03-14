@@ -31,14 +31,13 @@ const interruptGenerator_1 = require("./generators/interruptGenerator");
 const soundGenerator_1 = require("./generators/soundGenerator");
 const scrollGenerator_1 = require("./generators/scrollGenerator");
 const animatedTilesGenerator_1 = require("./generators/animatedTilesGenerator");
-const particlesGenerator_1 = require("./generators/particlesGenerator");
 const executionPlan_1 = require("./planning/executionPlan");
 const executionValidators_1 = require("./planning/executionValidators");
 function resolveExecutionMode(config) {
     if (config.executionMode) {
         return config.executionMode;
     }
-    return 'gameLoopHalt';
+    return 'interruptTaskManager';
 }
 function buildValidatedExecutionPlan(analysis, config) {
     const normalizedConfig = {
@@ -91,6 +90,7 @@ function convertSummaryToAnalysis(summary) {
         tracks: tracks,
         trackIndexByAssetId,
         tiles: summary.assets.tiles,
+        tileBanks: [],
         screens: summary.assets.screens, // Added alias
         screenMaps: summary.assets.screens, // Added missing property
         gameFlow: summary.execution.mainGameFlow,
@@ -151,6 +151,7 @@ function generateModularASM(projectName, assets, config = {}) {
             tracks: [],
             trackIndexByAssetId: {},
             tiles: [],
+            tileBanks: [],
             screens: [],
             screenMaps: [],
             projectName: projectName,
@@ -193,7 +194,6 @@ function generateModularASM(projectName, assets, config = {}) {
         'sound.asm': (0, soundGenerator_1.generateSoundFile)(analysis, executionPlan),
         'scroll.asm': (0, scrollGenerator_1.generateScrollFile)(analysis),
         'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis),
-        'particles.asm': (0, particlesGenerator_1.generateParticlesFile)(analysis),
         'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
             ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates, analysis.sounds, analysis.trackIndexByAssetId)
             : '; No State Machines\n',
@@ -270,7 +270,6 @@ function generateModularASMFromSummary(summary, config = {}) {
         'sound.asm': (0, soundGenerator_1.generateSoundFile)(analysis, executionPlan),
         'scroll.asm': (0, scrollGenerator_1.generateScrollFile)(analysis),
         'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis),
-        'particles.asm': (0, particlesGenerator_1.generateParticlesFile)(analysis),
         'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
             ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates, analysis.sounds, analysis.trackIndexByAssetId)
             : '; No State Machines\n',

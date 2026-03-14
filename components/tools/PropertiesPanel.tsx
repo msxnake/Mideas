@@ -3,10 +3,10 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, LineColorAttribute,
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
-    ComponentDefinition, EntityTemplate, EffectZone, EffectZoneFlagKey, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowEndNode, GameFlowStartNode
+    ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType
 } from '../../types';
 import { Panel } from '../common/Panel';
-import { SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MAP, EDITOR_BASE_TILE_DIM_S2, EFFECT_ZONE_FLAGS } from '../../constants';
+import { SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MAP, EDITOR_BASE_TILE_DIM_S2 } from '../../constants';
 import { Button } from '../common/Button';
 import { TrashIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
@@ -215,7 +215,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
   const [localEffectZoneName, setLocalEffectZoneName] = useState(effectZone?.name || "");
   const [localEffectZoneRect, setLocalEffectZoneRect] = useState(effectZone?.rect || { x: 0, y: 0, width: 4, height: 4 });
-  const [localEffectZoneMask, setLocalEffectZoneMask] = useState(effectZone?.mask || 0);
+  const [localEffectZoneType, setLocalEffectZoneType] = useState<EffectType>(effectZone ? resolveEffectZoneType(effectZone) : 'secretZone');
+  const [localEffectZoneParams, setLocalEffectZoneParams] = useState<Record<string, any>>(
+    effectZone ? normalizeEffectZoneParams(resolveEffectZoneType(effectZone), effectZone.params) : {}
+  );
   const [localEffectZoneDesc, setLocalEffectZoneDesc] = useState(effectZone?.description || "");
   
   useEffect(() => {
@@ -306,12 +309,18 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   
   useEffect(() => {
     if (effectZone) {
+      const resolvedType = resolveEffectZoneType(effectZone);
       setLocalEffectZoneName(effectZone.name);
       setLocalEffectZoneRect({ ...effectZone.rect });
-      setLocalEffectZoneMask(effectZone.mask);
+      setLocalEffectZoneType(resolvedType);
+      setLocalEffectZoneParams(normalizeEffectZoneParams(resolvedType, effectZone.params));
       setLocalEffectZoneDesc(effectZone.description || "");
     } else {
-      setLocalEffectZoneName(""); setLocalEffectZoneRect({ x: 0, y: 0, width: 4, height: 4 }); setLocalEffectZoneMask(0); setLocalEffectZoneDesc("");
+      setLocalEffectZoneName("");
+      setLocalEffectZoneRect({ x: 0, y: 0, width: 4, height: 4 });
+      setLocalEffectZoneType('secretZone');
+      setLocalEffectZoneParams({});
+      setLocalEffectZoneDesc("");
     }
   }, [effectZone]);
 
@@ -446,17 +455,27 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   };
   const handleEffectZoneRectChange = (field: keyof EffectZone['rect'], value: string) => {
     if (!effectZone || !onUpdateEffectZone) return;
-    const numValue = parseInt(value, 10) || 0;
+    const parsedValue = parseInt(value, 10);
+    const numValue = Number.isNaN(parsedValue) ? 0 : parsedValue;
     const newRect = { ...localEffectZoneRect, [field]: numValue };
     setLocalEffectZoneRect(newRect);
     onUpdateEffectZone(effectZone.id, { rect: newRect });
   };
-  const handleEffectZoneMaskToggle = (flagKey: EffectZoneFlagKey) => {
+  const handleEffectZoneTypeChange = (value: EffectType) => {
     if (!effectZone || !onUpdateEffectZone) return;
-    const flag = EFFECT_ZONE_FLAGS[flagKey];
-    const newMask = localEffectZoneMask ^ flag.maskValue;
-    setLocalEffectZoneMask(newMask);
-    onUpdateEffectZone(effectZone.id, { mask: newMask });
+    const normalizedParams = normalizeEffectZoneParams(value, localEffectZoneParams);
+    setLocalEffectZoneType(value);
+    setLocalEffectZoneParams(normalizedParams);
+    onUpdateEffectZone(effectZone.id, { effectType: value, params: normalizedParams });
+  };
+  const handleWindEffectParamChange = (field: 'direction' | 'strength', value: string) => {
+    if (!effectZone || !onUpdateEffectZone) return;
+    const nextParams = normalizeEffectZoneParams(localEffectZoneType, {
+      ...localEffectZoneParams,
+      [field]: field === 'strength' ? parseInt(value, 10) : value,
+    });
+    setLocalEffectZoneParams(nextParams);
+    onUpdateEffectZone(effectZone.id, { params: nextParams });
   };
   const handleEffectZoneDescChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (!effectZone || !onUpdateEffectZone) return;
@@ -920,21 +939,47 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           </div>
         </div>
         <div>
-          <label className="block text-xs text-msx-textsecondary mb-1">Effect Mask (0b{localEffectZoneMask.toString(2).padStart(8, '0')} = {localEffectZoneMask}):</label>
-          <div className="grid grid-cols-2 gap-1 text-xs">
-            {Object.entries(EFFECT_ZONE_FLAGS).map(([key, flag]) => (
-              <label key={key} className="flex items-center space-x-1.5 cursor-pointer p-0.5 hover:bg-msx-border rounded">
-                <input
-                  type="checkbox"
-                  checked={(localEffectZoneMask & flag.maskValue) !== 0}
-                  onChange={() => handleEffectZoneMaskToggle(key as EffectZoneFlagKey)}
-                  className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"
-                />
-                <span className="text-msx-textsecondary truncate" title={flag.label}>{flag.label}</span>
-              </label>
+          <label htmlFor="ezType" className="block text-xs text-msx-textsecondary mb-0.5">Type:</label>
+          <select
+            id="ezType"
+            value={localEffectZoneType}
+            onChange={e => handleEffectZoneTypeChange(e.target.value as EffectType)}
+            className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+          >
+            {Object.entries(EFFECT_ZONE_TYPE_CONFIG).map(([type, config]) => (
+              <option key={type} value={type}>{config.label}</option>
             ))}
-          </div>
+          </select>
         </div>
+        {localEffectZoneType === 'wind' && (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label htmlFor="ezWindDirection" className="block text-xs text-msx-textsecondary mb-0.5">Direction:</label>
+              <select
+                id="ezWindDirection"
+                value={String(localEffectZoneParams.direction || 'right')}
+                onChange={e => handleWindEffectParamChange('direction', e.target.value as WindEffectDirection)}
+                className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+              >
+                <option value="left">left</option>
+                <option value="right">right</option>
+                <option value="up">up</option>
+                <option value="down">down</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="ezWindStrength" className="block text-xs text-msx-textsecondary mb-0.5">Strength:</label>
+              <input
+                id="ezWindStrength"
+                type="number"
+                min="0"
+                value={String(localEffectZoneParams.strength ?? 1)}
+                onChange={e => handleWindEffectParamChange('strength', e.target.value)}
+                className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+              />
+            </div>
+          </div>
+        )}
         <div>
           <label htmlFor="ezDesc" className="block text-xs text-msx-textsecondary mb-0.5">Description:</label>
           <textarea id="ezDesc" value={localEffectZoneDesc} onChange={handleEffectZoneDescChange} rows={2} className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded" />
@@ -949,7 +994,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   let panelTitle = "Properties";
   if (gameFlowNode && activeEditorType === EditorType.GameFlow) panelTitle = "Game Flow Node Properties";
   else if (entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities') panelTitle = "Entity Instance Properties";
-  else if (effectZone && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'effects') panelTitle = "Effect Zone Properties";
+  else if (effectZone && activeEditorType === EditorType.Screen) panelTitle = "Effect Zone Properties";
   else if (asset && activeEditorType !== EditorType.BehaviorEditor && activeEditorType !== EditorType.Font && activeEditorType !== EditorType.HelpDocs && activeEditorType !== EditorType.ComponentDefinitionEditor && activeEditorType !== EditorType.EntityTemplateEditor) panelTitle = "Asset Properties";
 
   /**
@@ -1202,11 +1247,11 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       bodyClassName="flex-1 flex flex-col min-h-0"
     >
       <div className="space-y-1 p-2 flex-1 overflow-y-auto min-h-0">
-        {gameFlowNode && activeEditorType === EditorType.GameFlow
-          ? renderGameFlowNodeProperties()
-          : entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities'
-            ? renderEntityInstanceProperties()
-            : effectZone && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'effects'
+          {gameFlowNode && activeEditorType === EditorType.GameFlow
+            ? renderGameFlowNodeProperties()
+            : entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities'
+              ? renderEntityInstanceProperties()
+            : effectZone && activeEditorType === EditorType.Screen
               ? renderEffectZoneProperties()
               : (asset && (activeEditorType === EditorType.Tile || activeEditorType === EditorType.Sprite || activeEditorType === EditorType.Screen || activeEditorType === EditorType.Code || activeEditorType === EditorType.BehaviorEditor || activeEditorType === EditorType.ComponentDefinitionEditor || activeEditorType === EditorType.EntityTemplateEditor || activeEditorType === EditorType.GlobalVariables ))
                   ? renderAssetProperties()

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.HELP_DOCS_SYSTEM_ASSET_ID = exports.EFFECT_ZONE_FLAGS = exports.DEFAULT_MAIN_MENU_CONFIG = exports.DEFAULT_TILE_BANK_DEFINITIONS = exports.DEFAULT_PSG_INSTRUMENTS = exports.PT3_KEYBOARD_OCTAVE_MIN_MAX = exports.PT3_PIANO_KEY_LAYOUT = exports.PT3_INSTRUMENT_DATA_SIZE = exports.PT3_ORNAMENT_LENGTH = exports.PT3_DEFAULT_VIBRATO_TABLE = exports.PT3_NOTE_NAMES = exports.SCC_CHANNELS = exports.PT3_CHANNELS = exports.PT3_MAX_ORNAMENTS = exports.PT3_MAX_INSTRUMENTS = exports.PT3_MAX_PATTERNS = exports.DEFAULT_PT3_SPEED = exports.DEFAULT_PT3_BPM = exports.DEFAULT_PT3_ROWS_PER_PATTERN = exports.MSX1_DEFAULT_COLOR = exports.MSX1_PALETTE_IDX_MAP = exports.MSX1_PALETTE_MAP = exports.DEFAULT_SCREEN2_BG_COLOR = exports.DEFAULT_SCREEN2_FG_COLOR = exports.DEFAULT_SCREEN2_BG_COLOR_INDEX = exports.DEFAULT_SCREEN2_FG_COLOR_INDEX = exports.SCREEN2_PIXELS_PER_COLOR_SEGMENT = exports.Z80_BEHAVIOR_SNIPPETS = exports.Z80_SNIPPETS = exports.Z80_DIRECTIVES = exports.Z80_CONDITIONS = exports.Z80_REGISTERS = exports.Z80_MNEMONICS = exports.DEFAULT_SCREEN_MODE = exports.SCREEN_MODES = exports.EMPTY_CELL_CHAR_CODE = exports.EDITOR_BASE_TILE_DIM_S2 = exports.DEFAULT_SCREEN_HEIGHT_TILES = exports.DEFAULT_SCREEN_WIDTH_TILES = exports.DEFAULT_SPRITE_SIZE = exports.DEFAULT_TILE_HEIGHT = exports.DEFAULT_TILE_WIDTH = exports.EDITABLE_TILE_DIMENSIONS = exports.DEFAULT_SCREEN5_CUSTOM_PALETTE = exports.snapHexToScreen5MasterColor = exports.MSX_SCREEN5_MASTER_PALETTE = exports.MSX2_COLOR_LEVELS = exports.MSX1_PALETTE = exports.MSX_SCREEN5_PALETTE = exports.APP_VERSION = void 0;
+exports.HELP_DOCS_SYSTEM_ASSET_ID = exports.EFFECT_ZONE_TYPE_CONFIG = exports.DEFAULT_MAIN_MENU_CONFIG = exports.DEFAULT_TILE_BANK_DEFINITIONS = exports.DEFAULT_PSG_INSTRUMENTS = exports.PT3_KEYBOARD_OCTAVE_MIN_MAX = exports.PT3_PIANO_KEY_LAYOUT = exports.PT3_INSTRUMENT_DATA_SIZE = exports.PT3_ORNAMENT_LENGTH = exports.PT3_DEFAULT_VIBRATO_TABLE = exports.PT3_NOTE_NAMES = exports.SCC_CHANNELS = exports.PT3_CHANNELS = exports.PT3_MAX_ORNAMENTS = exports.PT3_MAX_INSTRUMENTS = exports.PT3_MAX_PATTERNS = exports.DEFAULT_PT3_SPEED = exports.DEFAULT_PT3_BPM = exports.DEFAULT_PT3_ROWS_PER_PATTERN = exports.MSX1_DEFAULT_COLOR = exports.MSX1_PALETTE_IDX_MAP = exports.MSX1_PALETTE_MAP = exports.DEFAULT_SCREEN2_BG_COLOR = exports.DEFAULT_SCREEN2_FG_COLOR = exports.DEFAULT_SCREEN2_BG_COLOR_INDEX = exports.DEFAULT_SCREEN2_FG_COLOR_INDEX = exports.SCREEN2_PIXELS_PER_COLOR_SEGMENT = exports.Z80_BEHAVIOR_SNIPPETS = exports.Z80_SNIPPETS = exports.Z80_DIRECTIVES = exports.Z80_CONDITIONS = exports.Z80_REGISTERS = exports.Z80_MNEMONICS = exports.DEFAULT_SCREEN_MODE = exports.SCREEN_MODES = exports.EMPTY_CELL_CHAR_CODE = exports.EDITOR_BASE_TILE_DIM_S2 = exports.DEFAULT_SCREEN_HEIGHT_TILES = exports.DEFAULT_SCREEN_WIDTH_TILES = exports.DEFAULT_SPRITE_SIZE = exports.DEFAULT_TILE_HEIGHT = exports.DEFAULT_TILE_WIDTH = exports.EDITABLE_TILE_DIMENSIONS = exports.DEFAULT_SCREEN5_CUSTOM_PALETTE = exports.snapHexToScreen5MasterColor = exports.MSX_SCREEN5_MASTER_PALETTE = exports.MSX2_COLOR_LEVELS = exports.MSX1_PALETTE = exports.MSX_SCREEN5_PALETTE = exports.APP_VERSION = void 0;
 exports.MIDEAS_GLOBAL_VARIABLES = exports.MAX_HISTORY_LENGTH = exports.DEFAULT_HELP_DOCS_DATA = void 0;
 exports.getMideasVariableValues = getMideasVariableValues;
 exports.getMideasVariable = getMideasVariable;
@@ -621,8 +621,8 @@ exports.DEFAULT_MAIN_MENU_CONFIG = {
 };
 // --- End Main Menu Constants ---
 // --- Effect Zone Constants ---
-/** Re-export of EFFECT_ZONE_FLAGS from `types.ts` for convenient access. */
-exports.EFFECT_ZONE_FLAGS = types_1.EFFECT_ZONE_FLAGS;
+/** Re-export of effect zone display metadata from `types.ts` for convenient access. */
+exports.EFFECT_ZONE_TYPE_CONFIG = types_1.EFFECT_ZONE_TYPE_CONFIG;
 // --- End Effect Zone Constants ---
 // --- Help & Documentation Constants ---
 /** System asset ID for the Help & Docs viewer. */
@@ -740,14 +740,15 @@ exports.DEFAULT_HELP_DOCS_DATA = [
             <li><strong>Entity Types Panel (Right, when Entity layer active)</strong>: Lists your configured Entity Templates. Select one to place instances on the map.</li>
             <li><strong>Properties Panel (Right)</strong>: Shows properties of the selected map, entity instance, or effect zone.</li>
             <li><strong>Active Area</strong>: Defines the playable portion of the screen map. Areas outside can be used for HUD elements. Editable via input fields in the toolbar.</li>
-            <li><strong>Toolbar (Screen Editor)</strong>: Contains layer selectors, zoom, active area inputs, HUD editor button, and export options. When 'Effects' layer is active, an "Add Effect Zone" button appears.</li>
+            <li><strong>Toolbar (Screen Editor)</strong>: Contains layer selectors, zoom, active area inputs, HUD editor button, and export options. When 'Effects' layer is active, a "New Zone" button appears after selecting an area.</li>
           </ul>
           <h3>Effect Zones:</h3>
-          <p>On the 'Effects' layer, you can add rectangular zones. Each zone has:</p>
+          <p>On the 'Effects' layer, you can draw alternate tiles and define rectangular trigger zones. Each zone has:</p>
           <ul>
             <li>A name.</li>
             <li>Position (x,y) and Size (width, height) in grid cells.</li>
-            <li>An <strong>Effect Mask</strong>: A byte value where each bit represents a different effect (e.g., bit 0 for water, bit 1 for ice). You can toggle these effects using checkboxes in the Properties Panel.</li>
+            <li>An <strong>Effect Type</strong>: the runtime behavior for the zone, such as <code>secretZone</code> or <code>wind</code>.</li>
+            <li>Optional per-effect parameters, for example wind direction and strength.</li>
           </ul>
           <h3>SCREEN 2 Specifics:</h3>
           <p>When in SCREEN 2 mode:</p>

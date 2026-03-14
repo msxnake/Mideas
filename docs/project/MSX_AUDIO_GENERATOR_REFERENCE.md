@@ -27,7 +27,6 @@ Generadores ASM registrados hoy:
 - `soundGenerator.ts` -> `sound.asm`
 - `scrollGenerator.ts` -> `scroll.asm`
 - `animatedTilesGenerator.ts` -> `animtiles.asm`
-- `particlesGenerator.ts` -> `particles.asm`
 - `stateMachineGenerator.ts` -> `statemachine.asm`
 - `gameFlowGenerator.ts` -> `gameflow.asm`
 - `mainGenerator.ts` -> `main.asm`
@@ -41,7 +40,6 @@ Comparando el pipeline real con la documentación histórica, estos módulos era
 - `worldGenerator.ts`: arranque de pantallas/mundos y helpers de transición.
 - `scrollGenerator.ts`: soporte de scroll horizontal/vertical.
 - `animatedTilesGenerator.ts`: actualización de tiles animados por frame.
-- `particlesGenerator.ts`: runtime de partículas por tiles.
 - `interruptGenerator.ts`: scheduler/task dispatcher con contratos de registros explícitos.
 
 No todos necesitan una guía completa en la misma sesión, pero el de audio sí, porque un proyecto solo con música depende de él directamente.

@@ -373,7 +373,7 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
 
 export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
   {
-    id: "tpl_player", name: "Player", icon: "👤",
+    id: "tpl_player", name: "Player", icon: "👤", isPlayer: true,
     components: [
       { definitionId: "comp_pos", defaultValues: { x: 32, y: 100 } },
       { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player", isVisible: true, layer: 1 } },
@@ -438,7 +438,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
     description: "Spawns enemies randomly across the screen."
   },
   {
-    id: "tpl_player_ship", name: "Player Ship", icon: "🚀",
+    id: "tpl_player_ship", name: "Player Ship", icon: "🚀", isPlayer: true,
     components: [
       { definitionId: "comp_pos", defaultValues: { x: 120, y: 150 } },
       { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player_ship", isVisible: true, layer: 1 } },
@@ -464,7 +464,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
     description: "A fast-moving laser projectile fired by the player ship. Create your own bullet sprite and assign it to this entity."
   },
   {
-    id: "tpl_collector_player", name: "Collector Player", icon: "🔵",
+    id: "tpl_collector_player", name: "Collector Player", icon: "🔵", isPlayer: true,
     components: [
       { definitionId: "comp_pos", defaultValues: { x: 32, y: 32 } },
       { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_collector", isVisible: true, layer: 1 } },
@@ -480,7 +480,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
     description: "A Pac-Man style player that collects items by walking over tiles. Perfect for maze-based collection games."
   },
   {
-    id: "tpl_pacman_player", name: "Pac-Man Player", icon: "🟡",
+    id: "tpl_pacman_player", name: "Pac-Man Player", icon: "🟡", isPlayer: true,
     components: [
       { definitionId: "comp_pos", defaultValues: { x: 32, y: 32 } },
       { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_pacman", isVisible: true, layer: 1 } },
@@ -508,7 +508,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
     description: "Advanced Pac-Man player with pixel-perfect movement, 8-pixel collision checks, direction intention system, and 60fps smooth movement. Sprite size should be 16x16 pixels."
   },
   {
-    id: "tpl_PacmanPlayerV2", name: "PacmanPlayerV2", icon: "🟡",
+    id: "tpl_PacmanPlayerV2", name: "PacmanPlayerV2", icon: "🟡", isPlayer: true,
     components: [
       { definitionId: "comp_pos", defaultValues: { x: 32, y: 32 } },
       { definitionId: "comp_render", defaultValues: { spriteAssetId: "pacman_sprite_16x16", isVisible: true, layer: 1 } },

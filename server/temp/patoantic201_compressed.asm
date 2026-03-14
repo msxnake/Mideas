@@ -30,7 +30,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 113243
+; Estimated payload bytes: 108263
 ; Estimated banks used: 14
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1383 bytes)
@@ -45,23 +45,22 @@
 ; BANK 04 @#0000 : screens.asm part 3/3 (7835 bytes)
 ; BANK 04 @#1E9B : sprites.asm part 1/2 (357 bytes)
 ; BANK 05 @#0000 : sprites.asm part 2/2 (8192 bytes)
-; BANK 06 @#0000 : sprites.asm part 3/2 (2461 bytes)
-; BANK 06 @#099D : font.asm (3547 bytes)
-; BANK 06 @#1778 : hud.asm (2184 bytes)
-; BANK 07 @#0000 : hud.asm (2283 bytes)
-; BANK 07 @#08EB : menus.asm (454 bytes)
-; BANK 07 @#0AB1 : sound.asm part 1/2 (5455 bytes)
-; BANK 08 @#0000 : sound.asm part 2/2 (4082 bytes)
-; BANK 08 @#0FF2 : scroll.asm (2353 bytes)
-; BANK 08 @#1923 : animtiles.asm (1757 bytes)
-; BANK 09 @#0000 : animtiles.asm (5130 bytes)
-; BANK 09 @#140A : particles.asm (3062 bytes)
-; BANK 10 @#0000 : particles.asm (1901 bytes)
-; BANK 10 @#076D : statemachine.asm part 1/3 (6291 bytes)
-; BANK 11 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 12 @#0000 : statemachine.asm part 3/3 (3039 bytes)
-; BANK 12 @#0BDF : gameflow.asm part 1/2 (5153 bytes)
-; BANK 13 @#0000 : gameflow.asm part 2/2 (6747 bytes)
+; BANK 06 @#0000 : sprites.asm part 3/2 (2462 bytes)
+; BANK 06 @#099E : font.asm (3547 bytes)
+; BANK 06 @#1779 : hud.asm (2183 bytes)
+; BANK 07 @#0000 : hud.asm (2284 bytes)
+; BANK 07 @#08EC : menus.asm (454 bytes)
+; BANK 07 @#0AB2 : sound.asm part 1/2 (5454 bytes)
+; BANK 08 @#0000 : sound.asm part 2/2 (4083 bytes)
+; BANK 08 @#0FF3 : scroll.asm (2353 bytes)
+; BANK 08 @#1924 : animtiles.asm (1756 bytes)
+; BANK 09 @#0000 : animtiles.asm (5131 bytes)
+; BANK 09 @#140B : statemachine.asm part 1/3 (3061 bytes)
+; BANK 10 @#0000 : statemachine.asm part 2/3 (8192 bytes)
+; BANK 11 @#0000 : statemachine.asm part 3/3 (6269 bytes)
+; BANK 11 @#187D : gameflow.asm part 1/2 (1923 bytes)
+; BANK 12 @#0000 : gameflow.asm part 2/2 (8192 bytes)
+; BANK 13 @#0000 : gameflow.asm part 3/2 (1767 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -1140,275 +1139,270 @@ anim_tile_transform_flags EQU #C64C   ; Runtime flags for transform-mode tile an
 anim_tile_row_buffer EQU #C64E   ; Temp buffer (8 bytes) for row transforms
 
 ; ==================================================================
-; PARTICLE SYSTEM VARIABLES
-; ==================================================================
-particle_pool       EQU #C656   ; Particle pool (8 particles * 8 bytes = 64 bytes)
-
-; ==================================================================
 ; ENTITY SYSTEM VARIABLES (Fixed 32 entities)
 ; ==================================================================
 MAX_ENTITIES        EQU 32
-entity_active       EQU #C696   ; Entity active flags (32 bytes, 0=inactive, 1=active)
-entity_x_pos        EQU #C6B6   ; Entity X positions (32 bytes)
-entity_y_pos        EQU #C6D6   ; Entity Y positions (32 bytes)
-entity_vel_x        EQU #C6F6   ; Entity X velocity (32 bytes)
-entity_vel_y        EQU #C716   ; Entity Y velocity (32 bytes)
-entity_comp_masks   EQU #C736   ; Entity component masks (32 bytes)
-entity_comp_masks_hi EQU #C756   ; Entity component masks high byte (32 bytes)
-entity_screen_id    EQU #C776   ; Entity screen ID (32 bytes)
-entity_job_period   EQU #C796   ; Entity job period in frames (32 bytes, 1=100%,2=50%,3=33%,4=25%)
-entity_job_entry    EQU #C7B6   ; Entity job entry slot within period window (32 bytes)
-entity_job_scheduler_active EQU #C7D6   ; 1 when any entity uses non-default job cadence
-entity_dir_mask     EQU #C7D7   ; Entity direction mask (32 bytes)
-entity_input_speed  EQU #C7F7   ; Entity input/cursor speed (32 bytes)
-entity_health       EQU #C817   ; Entity health (32 bytes)
-entity_anim_frame   EQU #C837   ; Entity animation frame (32 bytes)
-entity_anim_tick    EQU #C857   ; Entity animation tick counter (32 bytes)
-entity_anim_speed   EQU #C877   ; Entity animation speed (ticks per frame) (32 bytes)
-entity_anim_flags   EQU #C897   ; Entity animation flags (32 bytes)
-entity_sm_ptr_l     EQU #C8B7   ; Entity State Pointer Low (32 bytes)
-entity_sm_ptr_h     EQU #C8D7   ; Entity State Pointer High (32 bytes)
-entity_sm_timer_l   EQU #C8F7   ; Entity State Timer Low (32 bytes)
-entity_sm_timer_h   EQU #C917   ; Entity State Timer High (32 bytes)
-entity_sm_wait_timer EQU #C937   ; Entity State Wait Timer (32 bytes)
-entity_lifetime     EQU #C957   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
-entity_carried_by   EQU #C977   ; Entity carrier ID (32 bytes, 255=not carried)
-entity_template_token EQU #C997   ; Entity template token (32 bytes, 0=unknown)
-entity_facing_dir   EQU #C9B7   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
-entity_sm_var_0     EQU #C9D7   ; Entity Variable 0 (32 bytes)
-entity_sm_var_1     EQU #C9F7   ; Entity Variable 1 (32 bytes)
-entity_sm_var_2     EQU #CA17   ; Entity Variable 2 (32 bytes)
-entity_sm_var_3     EQU #CA37   ; Entity Variable 3 (32 bytes)
-entity_sm_var_4     EQU #CA57   ; Entity Variable 4 (32 bytes)
-entity_sm_var_5     EQU #CA77   ; Entity Variable 5 (32 bytes)
-entity_sm_var_6     EQU #CA97   ; Entity Variable 6 (32 bytes)
-entity_sm_var_7     EQU #CAB7   ; Entity Variable 7 (32 bytes)
+entity_active       EQU #C656   ; Entity active flags (32 bytes, 0=inactive, 1=active)
+entity_x_pos        EQU #C676   ; Entity X positions (32 bytes)
+entity_y_pos        EQU #C696   ; Entity Y positions (32 bytes)
+entity_vel_x        EQU #C6B6   ; Entity X velocity (32 bytes)
+entity_vel_y        EQU #C6D6   ; Entity Y velocity (32 bytes)
+entity_comp_masks   EQU #C6F6   ; Entity component masks (32 bytes)
+entity_comp_masks_hi EQU #C716   ; Entity component masks high byte (32 bytes)
+entity_screen_id    EQU #C736   ; Entity screen ID (32 bytes)
+entity_job_period   EQU #C756   ; Entity job period in frames (32 bytes, 1=100%,2=50%,3=33%,4=25%)
+entity_job_entry    EQU #C776   ; Entity job entry slot within period window (32 bytes)
+entity_job_scheduler_active EQU #C796   ; 1 when any entity uses non-default job cadence
+entity_dir_mask     EQU #C797   ; Entity direction mask (32 bytes)
+entity_input_speed  EQU #C7B7   ; Entity input/cursor speed (32 bytes)
+entity_health       EQU #C7D7   ; Entity health (32 bytes)
+entity_anim_frame   EQU #C7F7   ; Entity animation frame (32 bytes)
+entity_anim_tick    EQU #C817   ; Entity animation tick counter (32 bytes)
+entity_anim_speed   EQU #C837   ; Entity animation speed (ticks per frame) (32 bytes)
+entity_anim_flags   EQU #C857   ; Entity animation flags (32 bytes)
+entity_sm_ptr_l     EQU #C877   ; Entity State Pointer Low (32 bytes)
+entity_sm_ptr_h     EQU #C897   ; Entity State Pointer High (32 bytes)
+entity_sm_timer_l   EQU #C8B7   ; Entity State Timer Low (32 bytes)
+entity_sm_timer_h   EQU #C8D7   ; Entity State Timer High (32 bytes)
+entity_sm_wait_timer EQU #C8F7   ; Entity State Wait Timer (32 bytes)
+entity_lifetime     EQU #C917   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
+entity_carried_by   EQU #C937   ; Entity carrier ID (32 bytes, 255=not carried)
+entity_template_token EQU #C957   ; Entity template token (32 bytes, 0=unknown)
+entity_facing_dir   EQU #C977   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
+entity_sm_var_0     EQU #C997   ; Entity Variable 0 (32 bytes)
+entity_sm_var_1     EQU #C9B7   ; Entity Variable 1 (32 bytes)
+entity_sm_var_2     EQU #C9D7   ; Entity Variable 2 (32 bytes)
+entity_sm_var_3     EQU #C9F7   ; Entity Variable 3 (32 bytes)
+entity_sm_var_4     EQU #CA17   ; Entity Variable 4 (32 bytes)
+entity_sm_var_5     EQU #CA37   ; Entity Variable 5 (32 bytes)
+entity_sm_var_6     EQU #CA57   ; Entity Variable 6 (32 bytes)
+entity_sm_var_7     EQU #CA77   ; Entity Variable 7 (32 bytes)
 
 ; ==================================================================
 ; SPRITE SYSTEM VARIABLES
 ; ==================================================================
-entity_sprite_asset_index EQU #CAD7   ; Entity sprite asset index - RAM copy (32 bytes)
-active_sprite_count EQU #CAF7   ; Number of sprites currently active
-sprites_dirty      EQU #CAF8   ; 1=sprite_attributes changed, needs VRAM sync
-sprite_pattern      EQU #CAF9   ; Sprite pattern IDs (32 bytes)
-sprite_color        EQU #CB19   ; Sprite colors (32 bytes)
-sprite_layer_colors EQU #CB39   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
-sprite_attributes   EQU #CB59   ; Interleaved sprite attributes (32 * 4 bytes)
+entity_sprite_asset_index EQU #CA97   ; Entity sprite asset index - RAM copy (32 bytes)
+active_sprite_count EQU #CAB7   ; Number of sprites currently active
+sprites_dirty      EQU #CAB8   ; 1=sprite_attributes changed, needs VRAM sync
+sprite_pattern      EQU #CAB9   ; Sprite pattern IDs (32 bytes)
+sprite_color        EQU #CAD9   ; Sprite colors (32 bytes)
+sprite_layer_colors EQU #CAF9   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
+sprite_attributes   EQU #CB19   ; Interleaved sprite attributes (32 * 4 bytes)
 
 ; ==================================================================
 ; SCREEN SYSTEM VARIABLES (7 screens detected)
 ; ==================================================================
-current_screen_id   EQU #CBD9   ; Currently displayed screen ID
-screen_dirty_flag   EQU #CBDA   ; Screen needs redraw flag
-screen_transition_cooldown EQU #CBDB   ; Cooldown frames after screen transition
-current_world_id    EQU #CBDC   ; Current world ID (for multi-world support)
-current_screen_index EQU #CBDD   ; Current screen index within world
+current_screen_id   EQU #CB99   ; Currently displayed screen ID
+screen_dirty_flag   EQU #CB9A   ; Screen needs redraw flag
+screen_transition_cooldown EQU #CB9B   ; Cooldown frames after screen transition
+current_world_id    EQU #CB9C   ; Current world ID (for multi-world support)
+current_screen_index EQU #CB9D   ; Current screen index within world
 
 ; ==================================================================
 ; PLAYER SYSTEM VARIABLES (player entity detected)
 ; ==================================================================
-player_x            EQU #CBDE   ; Player X position (16-bit)
-player_y            EQU #CBE0   ; Player Y position (16-bit)
-player_health       EQU #CBE2   ; Player health points
-player_score        EQU #CBE3   ; Player score (16-bit)
-gem_count           EQU #CBE5   ; Collectible tile counter (8-bit)
-last_gem_char       EQU #CBE6   ; Char code of last collected gem tile (for SM VARIABLE_COMPARE)
+player_x            EQU #CB9E   ; Player X position (16-bit)
+player_y            EQU #CBA0   ; Player Y position (16-bit)
+player_health       EQU #CBA2   ; Player health points
+player_score        EQU #CBA3   ; Player score (16-bit)
+gem_count           EQU #CBA5   ; Collectible tile counter (8-bit)
+last_gem_char       EQU #CBA6   ; Char code of last collected gem tile (for SM VARIABLE_COMPARE)
 
 ; Persistent collectibles list (survives screen re-entry)
 MAX_COLLECTIBLES     EQU 64              ; Max persistent collectible records
-collected_count      EQU #CBE7   ; Number of collected tiles recorded (8-bit)
-collected_world      EQU #CBE8   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
-collected_screen     EQU #CC28   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
-collected_idx_l      EQU #CC68   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
-collected_idx_h      EQU #CCA8   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
+collected_count      EQU #CBA7   ; Number of collected tiles recorded (8-bit)
+collected_world      EQU #CBA8   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_screen     EQU #CBE8   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_idx_l      EQU #CC28   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
+collected_idx_h      EQU #CC68   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
 
 ; Timed bonus tile respawn slots (bonus gem regeneration)
 MAX_BONUS_RESPAWNS   EQU 16              ; Max timed bonus tiles waiting to respawn
-bonus_respawn_world  EQU #CCE8   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_screen EQU #CCF8   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_idx_l  EQU #CD08   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_idx_h  EQU #CD18   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_secs   EQU #CD28   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_frames EQU #CD38   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_world  EQU #CCA8   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_screen EQU #CCB8   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_l  EQU #CCC8   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_h  EQU #CCD8   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_secs   EQU #CCE8   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_frames EQU #CCF8   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
 
 ; ==================================================================
 ; AUXILIARY VARIABLES 
 ; ==================================================================
-deterministic        EQU #CD48   ; Deterministic mode flag
+deterministic        EQU #CD08   ; Deterministic mode flag
 
 ; ==================================================================
 ; TEMPORARY VARIABLES (ALWAYS NEEDED)
 ; ==================================================================
-temp_word_1         EQU #CD49   ; Temporary 16-bit storage
-temp_word_2         EQU #CD4B   ; Temporary 16-bit storage
-temp_byte_1         EQU #CD4D   ; Temporary 8-bit storage
-temp_byte_2         EQU #CD4E   ; Temporary 8-bit storage
-temp_byte_3         EQU #CD4F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_4         EQU #CD6F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_5         EQU #CD8F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_6         EQU #CDAF   ; Temporary 8-bit storage (32 bytes)
+temp_word_1         EQU #CD09   ; Temporary 16-bit storage
+temp_word_2         EQU #CD0B   ; Temporary 16-bit storage
+temp_byte_1         EQU #CD0D   ; Temporary 8-bit storage
+temp_byte_2         EQU #CD0E   ; Temporary 8-bit storage
+temp_byte_3         EQU #CD0F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_4         EQU #CD2F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_5         EQU #CD4F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_6         EQU #CD6F   ; Temporary 8-bit storage (32 bytes)
 
 ; ==================================================================
 ; SOUND SYSTEM VARIABLES
 ; ==================================================================
-sfx_active          EQU #CDCF   ; 0=no SFX active, 1=playing
-sfx_timer           EQU #CDD0   ; Frames remaining for current SFX
-sfx_fadeout         EQU #CDD1   ; Reserved fadeout flag/state
-temp_byte_7         EQU #CDD2   ; Temporary 8-bit storage (32 bytes)
-temp_byte_8         EQU #CDF2   ; Temporary 8-bit storage (32 bytes)
-temp_byte_9         EQU #CE12   ; Temporary 8-bit storage (32 bytes)
-temp_byte_10        EQU #CE32   ; Temporary 8-bit storage (32 bytes)
-temp_byte_11        EQU #CE52   ; Temporary 8-bit storage (32 bytes)
-temp_byte_12        EQU #CE72   ; Temporary 8-bit storage (32 bytes)
-temp_byte_13        EQU #CE92   ; Temporary 8-bit storage (32 bytes)
-temp_byte_14        EQU #CEB2   ; Temporary 8-bit storage (32 bytes)
-temp_byte_15        EQU #CED2   ; Temporary 8-bit storage (32 bytes)
-temp_byte_16        EQU #CEF2   ; Temporary 8-bit storage (32 bytes)
-temp_byte_17        EQU #CF12   ; Temporary 8-bit storage (32 bytes)
-temp_byte_18        EQU #CF32   ; Temporary 8-bit storage (32 bytes)
-temp_byte_19        EQU #CF52   ; Temporary 8-bit storage (32 bytes)
-temp_byte_20        EQU #CF72   ; Temporary 8-bit storage (32 bytes)
-temp_byte_21        EQU #CF92   ; Temporary 8-bit storage (32 bytes)
-temp_byte_22        EQU #CFB2   ; Temporary 8-bit storage (32 bytes)
-temp_byte_23        EQU #CFD2   ; Temporary 8-bit storage (32 bytes)
-temp_byte_24        EQU #CFF2   ; Temporary 8-bit storage (32 bytes)
-temp_byte_25        EQU #D012   ; Temporary 8-bit storage (32 bytes)
-temp_word_3         EQU #D032   ; Temporary 16-bit storage (64 bytes)
-temp_word_4         EQU #D072   ; Temporary 16-bit storage (64 bytes)
-temp_byte_26        EQU #D0B2   ; Temporary 8-bit storage (32 bytes)
-temp_byte_27        EQU #D0D2   ; Temporary 8-bit storage (32 bytes)
-tileDead_dbg        EQU #D0F2   ; Debug byte: current hero deadly contact
-tileDead_latched_dbg EQU #D0F3   ; Debug byte: latched hero deadly contact
-tileDead_x_dbg      EQU #D0F4   ; Debug byte: last sampled deadly tile X
-tileDead_y_dbg      EQU #D0F5   ; Debug byte: last sampled deadly tile Y
-tileDead_value_dbg  EQU #D0F6   ; Debug byte: last raw deadly behavior value
+sfx_active          EQU #CD8F   ; 0=no SFX active, 1=playing
+sfx_timer           EQU #CD90   ; Frames remaining for current SFX
+sfx_fadeout         EQU #CD91   ; Reserved fadeout flag/state
+temp_byte_7         EQU #CD92   ; Temporary 8-bit storage (32 bytes)
+temp_byte_8         EQU #CDB2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_9         EQU #CDD2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_10        EQU #CDF2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_11        EQU #CE12   ; Temporary 8-bit storage (32 bytes)
+temp_byte_12        EQU #CE32   ; Temporary 8-bit storage (32 bytes)
+temp_byte_13        EQU #CE52   ; Temporary 8-bit storage (32 bytes)
+temp_byte_14        EQU #CE72   ; Temporary 8-bit storage (32 bytes)
+temp_byte_15        EQU #CE92   ; Temporary 8-bit storage (32 bytes)
+temp_byte_16        EQU #CEB2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_17        EQU #CED2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_18        EQU #CEF2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_19        EQU #CF12   ; Temporary 8-bit storage (32 bytes)
+temp_byte_20        EQU #CF32   ; Temporary 8-bit storage (32 bytes)
+temp_byte_21        EQU #CF52   ; Temporary 8-bit storage (32 bytes)
+temp_byte_22        EQU #CF72   ; Temporary 8-bit storage (32 bytes)
+temp_byte_23        EQU #CF92   ; Temporary 8-bit storage (32 bytes)
+temp_byte_24        EQU #CFB2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_25        EQU #CFD2   ; Temporary 8-bit storage (32 bytes)
+temp_word_3         EQU #CFF2   ; Temporary 16-bit storage (64 bytes)
+temp_word_4         EQU #D032   ; Temporary 16-bit storage (64 bytes)
+temp_byte_26        EQU #D072   ; Temporary 8-bit storage (32 bytes)
+temp_byte_27        EQU #D092   ; Temporary 8-bit storage (32 bytes)
+tileDead_dbg        EQU #D0B2   ; Debug byte: current hero deadly contact
+tileDead_latched_dbg EQU #D0B3   ; Debug byte: latched hero deadly contact
+tileDead_x_dbg      EQU #D0B4   ; Debug byte: last sampled deadly tile X
+tileDead_y_dbg      EQU #D0B5   ; Debug byte: last sampled deadly tile Y
+tileDead_value_dbg  EQU #D0B6   ; Debug byte: last raw deadly behavior value
 
 ; Wall collision temporary variables
-wall_temp_x         EQU #D0F7   ; Cached entity X for wall checks
-wall_temp_y         EQU #D0F8   ; Cached entity Y for wall checks
-wall_hit_left       EQU #D0F9   ; Hitbox left edge cache
-wall_hit_top        EQU #D0FA   ; Hitbox top edge cache
-wall_hit_right      EQU #D0FB   ; Hitbox right edge cache
-wall_hit_bottom     EQU #D0FC   ; Hitbox bottom edge cache
-wall_hit_w          EQU #D0FD   ; Hitbox width cache (min 1)
-wall_hit_h          EQU #D0FE   ; Hitbox height cache (min 1)
-wall_probe_left     EQU #D0FF   ; X probe near hitbox left (adaptive inset)
-wall_probe_right    EQU #D100   ; X probe near hitbox right (adaptive inset)
-wall_probe_top      EQU #D101   ; Y probe near hitbox top (adaptive inset)
-wall_probe_bottom   EQU #D102   ; Y probe near hitbox bottom (adaptive inset)
+wall_temp_x         EQU #D0B7   ; Cached entity X for wall checks
+wall_temp_y         EQU #D0B8   ; Cached entity Y for wall checks
+wall_hit_left       EQU #D0B9   ; Hitbox left edge cache
+wall_hit_top        EQU #D0BA   ; Hitbox top edge cache
+wall_hit_right      EQU #D0BB   ; Hitbox right edge cache
+wall_hit_bottom     EQU #D0BC   ; Hitbox bottom edge cache
+wall_hit_w          EQU #D0BD   ; Hitbox width cache (min 1)
+wall_hit_h          EQU #D0BE   ; Hitbox height cache (min 1)
+wall_probe_left     EQU #D0BF   ; X probe near hitbox left (adaptive inset)
+wall_probe_right    EQU #D0C0   ; X probe near hitbox right (adaptive inset)
+wall_probe_top      EQU #D0C1   ; Y probe near hitbox top (adaptive inset)
+wall_probe_bottom   EQU #D0C2   ; Y probe near hitbox bottom (adaptive inset)
 
 ; Unified update helpers
-active_entity_list  EQU #D103   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
-active_entity_count EQU #D123   ; Number of entries in active_entity_list
-active_entity_list_dirty EQU #D124   ; 1=rebuild active_entity_list required
-input_entity_list   EQU #D125   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)
-input_entity_count  EQU #D145   ; Number of entries in input_entity_list
-render_entity_list  EQU #D146   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)
-render_entity_count EQU #D166   ; Number of entries in render_entity_list
-collision_entity_list EQU #D167   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)
-collision_entity_count EQU #D187   ; Number of entries in collision_entity_list
-ground_entity_list  EQU #D188   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)
-ground_entity_count EQU #D1A8   ; Number of entries in ground_entity_list
-anim_entity_list    EQU #D1A9   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)
-anim_entity_count   EQU #D1C9   ; Number of entries in anim_entity_list
+active_entity_list  EQU #D0C3   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
+active_entity_count EQU #D0E3   ; Number of entries in active_entity_list
+active_entity_list_dirty EQU #D0E4   ; 1=rebuild active_entity_list required
+input_entity_list   EQU #D0E5   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)
+input_entity_count  EQU #D105   ; Number of entries in input_entity_list
+render_entity_list  EQU #D106   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)
+render_entity_count EQU #D126   ; Number of entries in render_entity_list
+collision_entity_list EQU #D127   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)
+collision_entity_count EQU #D147   ; Number of entries in collision_entity_list
+ground_entity_list  EQU #D148   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)
+ground_entity_count EQU #D168   ; Number of entries in ground_entity_list
+anim_entity_list    EQU #D169   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)
+anim_entity_count   EQU #D189   ; Number of entries in anim_entity_list
 
 ; Entity-entity collision optimized variables
-coll_list           EQU #D1CA   ; Active collidable entity indices (MAX_ENTITIES bytes)
-coll_list_count     EQU #D1EA   ; Number of entities in coll_list
-coll_src_left       EQU #D1EB   ; Source AABB left edge (scratch)
-coll_src_right      EQU #D1EC   ; Source AABB right edge (scratch)
-coll_src_top        EQU #D1ED   ; Source AABB top edge (scratch)
-coll_src_bottom     EQU #D1EE   ; Source AABB bottom edge (scratch)
+coll_list           EQU #D18A   ; Active collidable entity indices (MAX_ENTITIES bytes)
+coll_list_count     EQU #D1AA   ; Number of entities in coll_list
+coll_src_left       EQU #D1AB   ; Source AABB left edge (scratch)
+coll_src_right      EQU #D1AC   ; Source AABB right edge (scratch)
+coll_src_top        EQU #D1AD   ; Source AABB top edge (scratch)
+coll_src_bottom     EQU #D1AE   ; Source AABB bottom edge (scratch)
 
 ; ==================================================================
 ; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
 ; ==================================================================
-task_table              EQU #D1EF   ; Task table base (8 slots x 2 bytes = 16 bytes)
-task_0_ptr              EQU #D1EF   ; Slot 0 pointer (2 bytes)
-task_1_ptr              EQU #D1F1   ; Slot 1 pointer (2 bytes)
-task_2_ptr              EQU #D1F3   ; Slot 2 pointer (2 bytes)
-task_3_ptr              EQU #D1F5   ; Slot 3 pointer (2 bytes)
-task_4_ptr              EQU #D1F7   ; Slot 4 pointer (2 bytes)
-task_5_ptr              EQU #D1F9   ; Slot 5 pointer (2 bytes)
-task_6_ptr              EQU #D1FB   ; Slot 6 pointer (2 bytes)
-task_7_ptr              EQU #D1FD   ; Slot 7 pointer (2 bytes)
-interrupt_system_enabled EQU #D1FF   ; 0=disabled, 1=enabled (1 byte)
-old_htimi_hook          EQU #D200   ; Original H.TIMI hook (5 bytes)
-interrupt_counter       EQU #D205   ; Frame counter (16-bit)
-task_exec_time          EQU #D207   ; Cycles used by tasks (16-bit, debug)
-vblank_flag             EQU #D209   ; Set to 1 on each VBlank (1 byte)
-RAM_INTERRUPT_END       EQU #D20A   ; End of interrupt system
+task_table              EQU #D1AF   ; Task table base (8 slots x 2 bytes = 16 bytes)
+task_0_ptr              EQU #D1AF   ; Slot 0 pointer (2 bytes)
+task_1_ptr              EQU #D1B1   ; Slot 1 pointer (2 bytes)
+task_2_ptr              EQU #D1B3   ; Slot 2 pointer (2 bytes)
+task_3_ptr              EQU #D1B5   ; Slot 3 pointer (2 bytes)
+task_4_ptr              EQU #D1B7   ; Slot 4 pointer (2 bytes)
+task_5_ptr              EQU #D1B9   ; Slot 5 pointer (2 bytes)
+task_6_ptr              EQU #D1BB   ; Slot 6 pointer (2 bytes)
+task_7_ptr              EQU #D1BD   ; Slot 7 pointer (2 bytes)
+interrupt_system_enabled EQU #D1BF   ; 0=disabled, 1=enabled (1 byte)
+old_htimi_hook          EQU #D1C0   ; Original H.TIMI hook (5 bytes)
+interrupt_counter       EQU #D1C5   ; Frame counter (16-bit)
+task_exec_time          EQU #D1C7   ; Cycles used by tasks (16-bit, debug)
+vblank_flag             EQU #D1C9   ; Set to 1 on each VBlank (1 byte)
+RAM_INTERRUPT_END       EQU #D1CA   ; End of interrupt system
 
 ; ==================================================================
 ; STATE MACHINE SOUND RUNTIME (one active sound asset)
 ; ==================================================================
-sm_sound_active       EQU #D20A   ; 0=idle, 1=playing state-machine sound asset
-sm_sound_frames_left  EQU #D20B   ; Frames left for current state-machine sound asset
-sm_sound_ptr_l        EQU #D20C   ; Next sound frame pointer low byte
-sm_sound_ptr_h        EQU #D20D   ; Next sound frame pointer high byte
+sm_sound_active       EQU #D1CA   ; 0=idle, 1=playing state-machine sound asset
+sm_sound_frames_left  EQU #D1CB   ; Frames left for current state-machine sound asset
+sm_sound_ptr_l        EQU #D1CC   ; Next sound frame pointer low byte
+sm_sound_ptr_h        EQU #D1CD   ; Next sound frame pointer high byte
 
 ; ==================================================================
 ; TRACKER MUSIC RUNTIME
 ; ==================================================================
-music_active         EQU #D20E   ; 0=stopped, 1=track active
-music_muted          EQU #D20F   ; 0=audible, 1=muted/pause
-music_loop           EQU #D210   ; 0=no loop, 1=loop enabled
-music_track_index    EQU #D211   ; Current ROM track index
-music_row_frames     EQU #D212   ; Frames per tracker row
-music_row_countdown  EQU #D213   ; Countdown to next row
-music_order_pos      EQU #D214   ; Current order position
-music_pattern_index  EQU #D215   ; Current pattern index
-music_pattern_row    EQU #D216   ; Current row inside pattern
-music_pattern_rows   EQU #D217   ; Cached rows in current pattern
-music_track_ptr_l    EQU #D218   ; Current track pointer low byte
-music_track_ptr_h    EQU #D219   ; Current track pointer high byte
-music_pattern_ptr_l  EQU #D21A   ; Current pattern rows pointer low byte
-music_pattern_ptr_h  EQU #D21B   ; Current pattern rows pointer high byte
-music_mixer_shadow   EQU #D21C   ; PSG mixer shadow for music runtime
-music_ch_note_base EQU #D21D   ; Current note index (255=silent) (3 bytes)
-music_ch_a_note EQU #D21D   ; Channel A
-music_ch_b_note EQU #D21E   ; Channel B
-music_ch_c_note EQU #D21F   ; Channel C
-music_ch_instrument_base EQU #D220   ; Current instrument id (0=none) (3 bytes)
-music_ch_a_instrument EQU #D220   ; Channel A
-music_ch_b_instrument EQU #D221   ; Channel B
-music_ch_c_instrument EQU #D222   ; Channel C
-music_ch_ornament_base EQU #D223   ; Current ornament id (0=none) (3 bytes)
-music_ch_a_ornament EQU #D223   ; Channel A
-music_ch_b_ornament EQU #D224   ; Channel B
-music_ch_c_ornament EQU #D225   ; Channel C
-music_ch_volume_base EQU #D226   ; Current base volume (0-15) (3 bytes)
-music_ch_a_volume EQU #D226   ; Channel A
-music_ch_b_volume EQU #D227   ; Channel B
-music_ch_c_volume EQU #D228   ; Channel C
-music_ch_vol_step_base EQU #D229   ; Reserved software volume envelope step (3 bytes)
-music_ch_a_vol_step EQU #D229   ; Channel A
-music_ch_b_vol_step EQU #D22A   ; Channel B
-music_ch_c_vol_step EQU #D22B   ; Channel C
-music_ch_tone_step_base EQU #D22C   ; Reserved software tone envelope step (3 bytes)
-music_ch_a_tone_step EQU #D22C   ; Channel A
-music_ch_b_tone_step EQU #D22D   ; Channel B
-music_ch_c_tone_step EQU #D22E   ; Channel C
-music_ch_noise_step_base EQU #D22F   ; Reserved software noise envelope step (3 bytes)
-music_ch_a_noise_step EQU #D22F   ; Channel A
-music_ch_b_noise_step EQU #D230   ; Channel B
-music_ch_c_noise_step EQU #D231   ; Channel C
-music_ch_orn_step_base EQU #D232   ; Reserved ornament step (3 bytes)
-music_ch_a_orn_step EQU #D232   ; Channel A
-music_ch_b_orn_step EQU #D233   ; Channel B
-music_ch_c_orn_step EQU #D234   ; Channel C
+music_active         EQU #D1CE   ; 0=stopped, 1=track active
+music_muted          EQU #D1CF   ; 0=audible, 1=muted/pause
+music_loop           EQU #D1D0   ; 0=no loop, 1=loop enabled
+music_track_index    EQU #D1D1   ; Current ROM track index
+music_row_frames     EQU #D1D2   ; Frames per tracker row
+music_row_countdown  EQU #D1D3   ; Countdown to next row
+music_order_pos      EQU #D1D4   ; Current order position
+music_pattern_index  EQU #D1D5   ; Current pattern index
+music_pattern_row    EQU #D1D6   ; Current row inside pattern
+music_pattern_rows   EQU #D1D7   ; Cached rows in current pattern
+music_track_ptr_l    EQU #D1D8   ; Current track pointer low byte
+music_track_ptr_h    EQU #D1D9   ; Current track pointer high byte
+music_pattern_ptr_l  EQU #D1DA   ; Current pattern rows pointer low byte
+music_pattern_ptr_h  EQU #D1DB   ; Current pattern rows pointer high byte
+music_mixer_shadow   EQU #D1DC   ; PSG mixer shadow for music runtime
+music_ch_note_base EQU #D1DD   ; Current note index (255=silent) (3 bytes)
+music_ch_a_note EQU #D1DD   ; Channel A
+music_ch_b_note EQU #D1DE   ; Channel B
+music_ch_c_note EQU #D1DF   ; Channel C
+music_ch_instrument_base EQU #D1E0   ; Current instrument id (0=none) (3 bytes)
+music_ch_a_instrument EQU #D1E0   ; Channel A
+music_ch_b_instrument EQU #D1E1   ; Channel B
+music_ch_c_instrument EQU #D1E2   ; Channel C
+music_ch_ornament_base EQU #D1E3   ; Current ornament id (0=none) (3 bytes)
+music_ch_a_ornament EQU #D1E3   ; Channel A
+music_ch_b_ornament EQU #D1E4   ; Channel B
+music_ch_c_ornament EQU #D1E5   ; Channel C
+music_ch_volume_base EQU #D1E6   ; Current base volume (0-15) (3 bytes)
+music_ch_a_volume EQU #D1E6   ; Channel A
+music_ch_b_volume EQU #D1E7   ; Channel B
+music_ch_c_volume EQU #D1E8   ; Channel C
+music_ch_vol_step_base EQU #D1E9   ; Reserved software volume envelope step (3 bytes)
+music_ch_a_vol_step EQU #D1E9   ; Channel A
+music_ch_b_vol_step EQU #D1EA   ; Channel B
+music_ch_c_vol_step EQU #D1EB   ; Channel C
+music_ch_tone_step_base EQU #D1EC   ; Reserved software tone envelope step (3 bytes)
+music_ch_a_tone_step EQU #D1EC   ; Channel A
+music_ch_b_tone_step EQU #D1ED   ; Channel B
+music_ch_c_tone_step EQU #D1EE   ; Channel C
+music_ch_noise_step_base EQU #D1EF   ; Reserved software noise envelope step (3 bytes)
+music_ch_a_noise_step EQU #D1EF   ; Channel A
+music_ch_b_noise_step EQU #D1F0   ; Channel B
+music_ch_c_noise_step EQU #D1F1   ; Channel C
+music_ch_orn_step_base EQU #D1F2   ; Reserved ornament step (3 bytes)
+music_ch_a_orn_step EQU #D1F2   ; Channel A
+music_ch_b_orn_step EQU #D1F3   ; Channel B
+music_ch_c_orn_step EQU #D1F4   ; Channel C
 
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #D235   ; End of project variables (4661 bytes used)
+RAM_USAGE_END       EQU #D1F5   ; End of project variables (4597 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#D235: Project variables (4661 bytes)
-;   #D235-#F37F: Free RAM (~8523 bytes available)
+;   #C000-#D1F5: Project variables (4597 bytes)
+;   #D1F5-#F37F: Free RAM (~8587 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
@@ -4615,7 +4609,7 @@ gravity_next_entity:
     ; ==================================================================
     ; Entities with AUTO_DESTROY component have a lifetime counter
     ; When lifetime reaches 0, entity is automatically destroyed
-    ; Useful for: projectiles, particles, temporary effects, etc.
+    ; Useful for: projectiles and other temporary effects.
 
 init_auto_destroy_system:
     ; Initialize all lifetimes to 0 (infinite by default)
@@ -7859,7 +7853,7 @@ load_colors_to_vram:
 ; Description: Sprite pattern and animation data
 ; Entities: 4
 ; Total Hardware Sprites (Layers): 32
-; SAT Upload Sprites per frame: 8
+; SAT Upload Sprites per frame: 32
 ; ==================================================================
 
 ; ==================================================================
@@ -8639,7 +8633,7 @@ update_sprites_to_vram:
     ld (sprites_dirty), a
     ld hl, sprite_attributes
     ld de, SPRATR
-    ld bc, 32  ; Upload active sprite range + SAT end marker
+    ld bc, 128  ; Upload active sprite range + SAT end marker
     call FAST_LDIRVM
     ret
 
@@ -14667,653 +14661,6 @@ get_tile_animation_frame:
 ; ==================================================================
 
 
-; ==================================================================
-; PARTICLE SYSTEM (VRAM Pattern Redefinition)
-; File: particles.asm
-; Description: Visual effects using dynamic tile pattern updates
-; ==================================================================
-
-; ==================================================================
-; PARTICLE SYSTEM CONSTANTS
-; ==================================================================
-
-; Maximum active particles
-MAX_PARTICLES           EQU 8       ; Support up to 8 simultaneous particles
-
-; Reserved tile IDs for particles (248-255)
-PARTICLE_TILE_BASE      EQU 248     ; First tile ID for particles
-
-; Particle types
-PARTICLE_NONE           EQU 0       ; Inactive particle slot
-PARTICLE_EXPLOSION      EQU 1       ; Explosion (4 frames, expands outward)
-PARTICLE_SMOKE          EQU 2       ; Smoke puff (4 frames, rises up)
-PARTICLE_SPARK          EQU 3       ; Spark/flash (2 frames, quick)
-PARTICLE_DUST           EQU 4       ; Dust cloud (3 frames, fades)
-PARTICLE_IMPACT         EQU 5       ; Impact star (3 frames, shrinks)
-PARTICLE_DEBRIS         EQU 6       ; Debris chunk (2 frames, falls)
-PARTICLE_MUZZLE_FLASH   EQU 7       ; Muzzle flash (2 frames, instant)
-PARTICLE_WATER_SPLASH   EQU 8       ; Water splash (4 frames, arcs)
-
-; Particle lifetimes (in frames)
-LIFE_EXPLOSION          EQU 16      ; ~267ms
-LIFE_SMOKE              EQU 24      ; ~400ms
-LIFE_SPARK              EQU 8       ; ~133ms
-LIFE_DUST               EQU 12      ; ~200ms
-LIFE_IMPACT             EQU 10      ; ~167ms
-LIFE_DEBRIS             EQU 20      ; ~333ms
-LIFE_MUZZLE_FLASH       EQU 4       ; ~67ms (very quick)
-LIFE_WATER_SPLASH       EQU 18      ; ~300ms
-
-; Particle pool structure (8 bytes per particle)
-; Offset 0: Type (PARTICLE_*)
-; Offset 1: Lifetime remaining (frames)
-; Offset 2: X position (screen coords, 0-31 tiles)
-; Offset 3: Y position (screen coords, 0-23 tiles)
-; Offset 4: Animation frame (0-3)
-; Offset 5: Tile ID assigned (248-255)
-; Offset 6: Velocity X (signed, -128 to 127)
-; Offset 7: Velocity Y (signed, -128 to 127)
-
-PARTICLE_STRUCT_SIZE    EQU 8
-
-; ==================================================================
-; PARTICLE SYSTEM INITIALIZATION
-; ==================================================================
-
-init_particle_system:
-    ; Clear particle pool
-    ld hl, particle_pool
-    ld de, particle_pool + 1
-    ld bc, MAX_PARTICLES * PARTICLE_STRUCT_SIZE - 1
-    ld (hl), PARTICLE_NONE
-    ldir
-
-    ; Initialize tile ID assignments
-    ld a, PARTICLE_TILE_BASE
-    ld b, MAX_PARTICLES
-    ld hl, particle_pool + 5    ; Offset to tile_id field
-.part_init_tile_loop:
-    ld (hl), a
-    inc a
-    ld de, PARTICLE_STRUCT_SIZE
-    add hl, de
-    djnz .part_init_tile_loop
-
-    ret
-
-; ==================================================================
-; PARTICLE SPAWNING FUNCTIONS
-; ==================================================================
-
-; ------------------------------------------------------------------
-; spawn_particle
-; Create a new particle at given position
-; Input:  A = Particle type (PARTICLE_*)
-;         B = X position (tile coords, 0-31)
-;         C = Y position (tile coords, 0-23)
-;         D = Velocity X (optional, signed)
-;         E = Velocity Y (optional, signed)
-; Output: A = 1 if spawned successfully, 0 if pool full
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-spawn_particle:
-    push af                     ; Save particle type
-    push bc                     ; Save position
-    push de                     ; Save velocity
-
-    ; Find free particle slot
-    call find_free_particle
-    jr z, .part_spawn_failed    ; Z flag set = no free slots
-
-    ; HL points to free particle structure
-    pop de                      ; Restore velocity
-    pop bc                      ; Restore position
-    pop af                      ; Restore type
-
-    ; Fill particle structure
-    ld (hl), a                  ; Offset 0: type
-    inc hl
-
-    ; Set lifetime based on type
-    push hl
-    call get_particle_lifetime  ; A = type -> A = lifetime
-    pop hl
-    ld (hl), a                  ; Offset 1: lifetime
-    inc hl
-
-    ld (hl), b                  ; Offset 2: X position
-    inc hl
-    ld (hl), c                  ; Offset 3: Y position
-    inc hl
-
-    xor a
-    ld (hl), a                  ; Offset 4: frame = 0
-    inc hl
-    inc hl                      ; Skip tile_id (already assigned)
-
-    ld (hl), d                  ; Offset 6: velocity X
-    inc hl
-    ld (hl), e                  ; Offset 7: velocity Y
-
-    ; Place particle tile on screen immediately
-    dec hl
-    dec hl
-    dec hl
-    dec hl
-    dec hl
-    dec hl                      ; Back to start of structure
-    call draw_particle_tile
-
-    ld a, 1                     ; Success
-    ret
-
-.part_spawn_failed:
-    pop de
-    pop bc
-    pop af
-    xor a                       ; Failed
-    ret
-
-; ------------------------------------------------------------------
-; find_free_particle
-; Find first inactive particle slot
-; Output: HL = Address of free particle, Z flag clear
-;         Z flag set if no free slots
-; ------------------------------------------------------------------
-find_free_particle:
-    ld hl, particle_pool
-    ld b, MAX_PARTICLES
-.part_find_loop:
-    ld a, (hl)
-    cp PARTICLE_NONE
-    ret z                       ; Found free slot
-
-    ld de, PARTICLE_STRUCT_SIZE
-    add hl, de
-    djnz .part_find_loop
-
-    ; No free slot found
-    xor a
-    or 1                        ; Clear Z flag
-    ret
-
-; ------------------------------------------------------------------
-; get_particle_lifetime
-; Get default lifetime for particle type
-; Input:  A = Particle type
-; Output: A = Lifetime in frames
-; ------------------------------------------------------------------
-get_particle_lifetime:
-    ld hl, particle_lifetime_table
-    ld e, a
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    ret
-
-particle_lifetime_table:
-    db 0                        ; PARTICLE_NONE
-    db LIFE_EXPLOSION           ; PARTICLE_EXPLOSION
-    db LIFE_SMOKE               ; PARTICLE_SMOKE
-    db LIFE_SPARK               ; PARTICLE_SPARK
-    db LIFE_DUST                ; PARTICLE_DUST
-    db LIFE_IMPACT              ; PARTICLE_IMPACT
-    db LIFE_DEBRIS              ; PARTICLE_DEBRIS
-    db LIFE_MUZZLE_FLASH        ; PARTICLE_MUZZLE_FLASH
-    db LIFE_WATER_SPLASH        ; PARTICLE_WATER_SPLASH
-
-; ==================================================================
-; PARTICLE UPDATE FUNCTIONS
-; ==================================================================
-
-; ------------------------------------------------------------------
-; update_particles
-; Update all active particles (call every frame)
-; Decrements lifetime, advances animation, applies velocity
-; ------------------------------------------------------------------
-update_particles:
-    ld hl, particle_pool
-    ld b, MAX_PARTICLES
-.part_update_loop:
-    push bc
-    push hl
-
-    ; Check if particle is active
-    ld a, (hl)
-    cp PARTICLE_NONE
-    jr z, .part_update_next     ; Skip inactive
-
-    ; Decrement lifetime
-    inc hl                      ; Offset 1: lifetime
-    ld a, (hl)
-    dec a
-    ld (hl), a
-    jr z, .part_update_kill     ; Lifetime expired
-
-    ; Advance animation frame
-    inc hl
-    inc hl
-    inc hl                      ; Offset 4: frame
-    ld a, (hl)
-    inc a
-    and #03                     ; Wrap at 4 frames
-    ld (hl), a
-
-    ; Apply velocity (simple physics)
-    inc hl
-    inc hl                      ; Offset 6: velocity X
-    ld a, (hl)
-    or a
-    jr z, .part_update_skip_vx
-
-    ; Update X position
-    dec hl
-    dec hl
-    dec hl
-    dec hl                      ; Offset 2: X position
-    ld b, (hl)
-    inc hl
-    inc hl
-    inc hl
-    inc hl
-    ld a, (hl)
-    add a, b
-    dec hl
-    dec hl
-    dec hl
-    dec hl
-    ld (hl), a                  ; Store new X
-    inc hl
-    inc hl
-    inc hl
-    inc hl
-
-.part_update_skip_vx:
-    ; Apply velocity Y
-    inc hl                      ; Offset 7: velocity Y
-    ld a, (hl)
-    or a
-    jr z, .part_update_skip_vy
-
-    ; Update Y position
-    dec hl
-    dec hl
-    dec hl
-    dec hl
-    dec hl                      ; Offset 3: Y position
-    ld b, (hl)
-    inc hl
-    inc hl
-    inc hl
-    inc hl
-    inc hl
-    ld a, (hl)
-    add a, b
-    dec hl
-    dec hl
-    dec hl
-    dec hl
-    dec hl
-    ld (hl), a                  ; Store new Y
-    inc hl
-    inc hl
-    inc hl
-    inc hl
-    inc hl
-
-.part_update_skip_vy:
-    ; Redraw particle with new frame
-    pop hl
-    push hl
-    call draw_particle_tile
-
-    jr .part_update_next
-
-.part_update_kill:
-    ; Clear particle tile from screen
-    pop hl
-    push hl
-    call clear_particle_tile
-
-    ; Mark particle as inactive
-    pop hl
-    push hl
-    ld (hl), PARTICLE_NONE
-
-.part_update_next:
-    pop hl
-    pop bc
-    ld de, PARTICLE_STRUCT_SIZE
-    add hl, de
-    djnz .part_update_loop
-
-    ret
-
-; ==================================================================
-; PARTICLE RENDERING FUNCTIONS
-; ==================================================================
-
-; ------------------------------------------------------------------
-; draw_particle_tile
-; Draw particle at its position using its tile ID
-; Input:  HL = Address of particle structure
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-draw_particle_tile:
-    push hl
-
-    ; Get position (offsets 2, 3)
-    inc hl
-    inc hl
-    ld b, (hl)                  ; B = X tile
-    inc hl
-    ld c, (hl)                  ; C = Y tile
-
-    ; Get tile ID (offset 5)
-    inc hl
-    inc hl
-    ld a, (hl)                  ; A = tile ID
-
-    ; Calculate name table address
-    ; NAMETBL + (Y * 32) + X
-    push af                     ; Save tile ID
-    ld a, c
-    add a, a
-    add a, a
-    add a, a
-    add a, a
-    add a, a                    ; Y * 32
-    add a, b                    ; + X
-    ld e, a
-    ld d, 0
-    ld hl, NAMETBL
-    add hl, de                  ; HL = VRAM address
-
-    ; Write tile ID to name table
-    pop af                      ; Restore tile ID
-    call WRTVRM
-
-    ; Now update pattern in VRAM
-    pop hl
-    push hl
-    call update_particle_pattern
-
-    pop hl
-    ret
-
-; ------------------------------------------------------------------
-; clear_particle_tile
-; Clear particle from screen (set tile to 0)
-; Input:  HL = Address of particle structure
-; ------------------------------------------------------------------
-clear_particle_tile:
-    push hl
-
-    ; Get position
-    inc hl
-    inc hl
-    ld b, (hl)                  ; B = X
-    inc hl
-    ld c, (hl)                  ; C = Y
-
-    ; Calculate name table address
-    ld a, c
-    add a, a
-    add a, a
-    add a, a
-    add a, a
-    add a, a                    ; Y * 32
-    add a, b
-    ld e, a
-    ld d, 0
-    ld hl, NAMETBL
-    add hl, de
-
-    ; Write 0 (blank tile)
-    xor a
-    call WRTVRM
-
-    pop hl
-    ret
-
-; ------------------------------------------------------------------
-; update_particle_pattern
-; Redefine particle's pattern in VRAM based on type and frame
-; Input:  HL = Address of particle structure
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-update_particle_pattern:
-    ; Get type and frame
-    ld a, (hl)                  ; Offset 0: type
-    ld b, a                     ; B = type
-    inc hl
-    inc hl
-    inc hl
-    inc hl
-    ld a, (hl)                  ; Offset 4: frame
-    ld c, a                     ; C = frame
-    dec hl
-    dec hl
-    inc hl
-    ld a, (hl)                  ; Offset 5: tile ID
-    ld d, a                     ; D = tile ID
-
-    ; Calculate pattern source address
-    ; particle_patterns + (type * 32) + (frame * 8)
-    ld a, b                     ; A = type
-    add a, a
-    add a, a
-    add a, a
-    add a, a
-    add a, a                    ; * 32 (4 frames * 8 bytes)
-    ld l, a
-    ld h, 0
-
-    ld a, c                     ; A = frame
-    add a, a
-    add a, a
-    add a, a                    ; * 8
-    ld e, a
-    ld d, 0
-    add hl, de
-
-    ld de, particle_patterns
-    add hl, de                  ; HL = source pattern address
-
-    ; Calculate VRAM destination
-    ; CHRTBL + (tile_id * 8)
-    ld a, d                     ; A = tile ID
-    ld e, a
-    ld d, 0
-    ex de, hl                   ; DE = source, HL = tile_id
-    add hl, hl
-    add hl, hl
-    add hl, hl                  ; * 8
-    ld bc, CHRTBL
-    add hl, bc                  ; HL = VRAM address
-
-    ex de, hl                   ; DE = VRAM, HL = source
-
-    ; Copy 8 bytes to VRAM
-    ld bc, 8
-    call LDIRVM
-
-    ret
-
-; ==================================================================
-; PARTICLE PATTERN DATA
-; ==================================================================
-; Each particle type has 4 frames, 8 bytes each = 32 bytes total
-; Frame progression creates animation effect
-
-particle_patterns:
-
-; ---- PARTICLE_NONE (type 0) - Empty ----
-    db #00, #00, #00, #00, #00, #00, #00, #00
-    db #00, #00, #00, #00, #00, #00, #00, #00
-    db #00, #00, #00, #00, #00, #00, #00, #00
-    db #00, #00, #00, #00, #00, #00, #00, #00
-
-; ---- PARTICLE_EXPLOSION (type 1) - Expands outward ----
-    ; Frame 0: Small dot
-    db #00, #00, #00, #18, #18, #00, #00, #00
-    ; Frame 1: Expanding
-    db #00, #18, #3C, #7E, #7E, #3C, #18, #00
-    ; Frame 2: Large explosion
-    db #18, #7E, #FF, #FF, #FF, #FF, #7E, #18
-    ; Frame 3: Fading fragments
-    db #81, #42, #24, #18, #18, #24, #42, #81
-
-; ---- PARTICLE_SMOKE (type 2) - Puff rising ----
-    ; Frame 0: Small puff
-    db #00, #00, #3C, #66, #66, #3C, #00, #00
-    ; Frame 1: Expanding
-    db #00, #7E, #FF, #C3, #C3, #FF, #7E, #00
-    ; Frame 2: Large cloud
-    db #7E, #FF, #E7, #C3, #C3, #E7, #FF, #7E
-    ; Frame 3: Dispersing
-    db #66, #E7, #C3, #81, #81, #C3, #E7, #66
-
-; ---- PARTICLE_SPARK (type 3) - Quick flash ----
-    ; Frame 0: Bright cross
-    db #10, #38, #7C, #FE, #FE, #7C, #38, #10
-    ; Frame 1: Fading
-    db #00, #10, #38, #7C, #7C, #38, #10, #00
-    ; Frame 2: Dimmer
-    db #00, #00, #10, #38, #38, #10, #00, #00
-    ; Frame 3: Gone
-    db #00, #00, #00, #18, #18, #00, #00, #00
-
-; ---- PARTICLE_DUST (type 4) - Dust cloud ----
-    ; Frame 0: Small dots
-    db #00, #42, #00, #24, #00, #42, #00, #24
-    ; Frame 1: Expanding dots
-    db #24, #00, #66, #00, #24, #00, #66, #00
-    ; Frame 2: Dispersed
-    db #00, #81, #00, #42, #00, #81, #00, #42
-    ; Frame 3: Fading
-    db #42, #00, #24, #00, #42, #00, #24, #00
-
-; ---- PARTICLE_IMPACT (type 5) - Impact star ----
-    ; Frame 0: Large star
-    db #18, #5A, #7E, #FF, #FF, #7E, #5A, #18
-    ; Frame 1: Shrinking
-    db #00, #18, #3C, #7E, #7E, #3C, #18, #00
-    ; Frame 2: Small star
-    db #00, #00, #18, #3C, #3C, #18, #00, #00
-    ; Frame 3: Fading
-    db #00, #00, #00, #18, #18, #00, #00, #00
-
-; ---- PARTICLE_DEBRIS (type 6) - Falling chunk ----
-    ; Frame 0: Solid chunk
-    db #00, #3C, #7E, #7E, #7E, #7E, #3C, #00
-    ; Frame 1: Tumbling
-    db #00, #1E, #3F, #7F, #7F, #3F, #1E, #00
-    ; Frame 2: Rotating
-    db #00, #78, #FC, #FE, #FE, #FC, #78, #00
-    ; Frame 3: Tumbling again
-    db #00, #3C, #7E, #7E, #7E, #7E, #3C, #00
-
-; ---- PARTICLE_MUZZLE_FLASH (type 7) - Gun flash ----
-    ; Frame 0: Bright burst
-    db #7E, #FF, #FF, #FF, #FF, #FF, #FF, #7E
-    ; Frame 1: Fading
-    db #3C, #7E, #FF, #FF, #FF, #FF, #7E, #3C
-    ; Frame 2: Dimmer
-    db #18, #3C, #7E, #7E, #7E, #7E, #3C, #18
-    ; Frame 3: Gone
-    db #00, #18, #3C, #3C, #3C, #3C, #18, #00
-
-; ---- PARTICLE_WATER_SPLASH (type 8) - Water droplets ----
-    ; Frame 0: Impact
-    db #18, #3C, #7E, #FF, #FF, #7E, #3C, #18
-    ; Frame 1: Droplets rising
-    db #42, #66, #3C, #18, #18, #3C, #66, #42
-    ; Frame 2: Arcing
-    db #81, #C3, #24, #00, #00, #24, #C3, #81
-    ; Frame 3: Dispersed
-    db #00, #81, #42, #00, #00, #42, #81, #00
-
-; ==================================================================
-; PARTICLE UTILITY FUNCTIONS
-; ==================================================================
-
-; ------------------------------------------------------------------
-; clear_all_particles
-; Remove all active particles from screen
-; ------------------------------------------------------------------
-clear_all_particles:
-    ld hl, particle_pool
-    ld b, MAX_PARTICLES
-.part_clear_loop:
-    push bc
-    push hl
-
-    ld a, (hl)
-    cp PARTICLE_NONE
-    jr z, .part_clear_next
-
-    call clear_particle_tile
-
-    pop hl
-    push hl
-    ld (hl), PARTICLE_NONE
-
-.part_clear_next:
-    pop hl
-    pop bc
-    ld de, PARTICLE_STRUCT_SIZE
-    add hl, de
-    djnz .part_clear_loop
-
-    ret
-
-; ------------------------------------------------------------------
-; Helper: Spawn common particle effects
-; ------------------------------------------------------------------
-
-; Spawn explosion at entity position
-; Input: B = X tile, C = Y tile
-spawn_explosion:
-    ld a, PARTICLE_EXPLOSION
-    ld d, 0                     ; No X velocity
-    ld e, 0                     ; No Y velocity
-    call spawn_particle
-    ret
-
-; Spawn dust cloud at entity feet
-; Input: B = X tile, C = Y tile
-spawn_dust:
-    ld a, PARTICLE_DUST
-    ld d, 0
-    ld e, 0
-    call spawn_particle
-    ret
-
-; Spawn impact effect
-; Input: B = X tile, C = Y tile
-spawn_impact:
-    ld a, PARTICLE_IMPACT
-    ld d, 0
-    ld e, 0
-    call spawn_particle
-    ret
-
-; Spawn muzzle flash (shooting effect)
-; Input: B = X tile, C = Y tile
-spawn_muzzle_flash:
-    ld a, PARTICLE_MUZZLE_FLASH
-    ld d, 0
-    ld e, 0
-    call spawn_particle
-    ret
-
-; ==================================================================
-; END OF PARTICLE SYSTEM
-; ==================================================================
-; Note: particle_pool variable is defined in variables.asm
-
-
 
     ; ------------------------------------------------------------------
     ; SM_Update
@@ -18644,9 +17991,6 @@ gameflow_node_gf_start_1770754183471_init:
     ; Initialize PSG (silence all channels)
     call init_psg_silence
 
-    ; Clear sprite attribute table
-    call clear_sprite_table
-
     ; === Global Variables Initialization ===
     ld a, 0
     ld (global_var_score), a    ; Score low byte = 0
@@ -18710,10 +18054,10 @@ gameflow_node_gfn_1773429482585:
 
 gameflow_node_gfn_1773429482585_data:
     db 1    ; Background color (MSX index)
-    db 255    ; Cursor sprite asset index (#FF = use text marker)
-    db 0    ; Cursor sprite layer count (max 4)
-    db 0, 0, 0, 0    ; Cursor source layer offsets
-    db 0, 0, 0, 0    ; Cursor layer colors
+    db 2    ; Cursor sprite asset index (#FF = use text marker)
+    db 2    ; Cursor sprite layer count (max 4)
+    db 0, 1, 0, 0    ; Cursor source layer offsets
+    db 15, 8, 0, 0    ; Cursor layer colors
     dw 0    ; Background screen load function (0=none)
     db 0    ; Background screen load bank
     db 2    ; Number of options (max 6)
@@ -20164,43 +19508,43 @@ ZX0_SPRITE_FRAME_DATA_END_LABEL:
 ; ZX0 SCREEN BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for screen layout decompression (768 bytes)
 ; ==================================================================
-ZX0_SCREEN_BUFFER EQU #D300
+ZX0_SCREEN_BUFFER EQU #D200
 
 ; ==================================================================
 ; ZX0 BEHAVIOR BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for behavior map decompression (768 bytes)
 ; ==================================================================
-ZX0_BEHAVIOR_BUFFER EQU #D600
+ZX0_BEHAVIOR_BUFFER EQU #D500
 
 ; ==================================================================
 ; ZX0 TILE PATTERN BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for tile pattern data decompression (192 bytes)
 ; ==================================================================
-ZX0_TILE_PATTERN_BUFFER EQU #D900
+ZX0_TILE_PATTERN_BUFFER EQU #D800
 
 ; ==================================================================
 ; ZX0 TILE COLOR BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for tile color data decompression (192 bytes)
 ; ==================================================================
-ZX0_TILE_COLOR_BUFFER EQU #DA00
+ZX0_TILE_COLOR_BUFFER EQU #D900
 
 ; ==================================================================
 ; ZX0 FONT PATTERN BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for font pattern data decompression (360 bytes)
 ; ==================================================================
-ZX0_FONT_PATTERN_BUFFER EQU #DB00
+ZX0_FONT_PATTERN_BUFFER EQU #DA00
 
 ; ==================================================================
 ; ZX0 FONT COLOR BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for font color data decompression (360 bytes)
 ; ==================================================================
-ZX0_FONT_COLOR_BUFFER EQU #DD00
+ZX0_FONT_COLOR_BUFFER EQU #DC00
 
 ; ==================================================================
 ; ZX0 SPRITE FRAME BUFFER (AUTO-INJECTED)
 ; Shared RAM buffer for per-frame sprite decompression before VRAM upload (64 bytes)
 ; ==================================================================
-ZX0_SPRITE_FRAME_BUFFER EQU #DF00
+ZX0_SPRITE_FRAME_BUFFER EQU #DE00
 
 ; ==================================================================
 ; ZX0 SPRITE LABEL REMAP (AUTO-INJECTED)

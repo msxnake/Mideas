@@ -232,6 +232,7 @@ ${repositionCode}    ; Reset player velocity after transition
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call rebuild_used_entity_list  ; Precompute room entity buckets during transition
     call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
@@ -378,6 +379,7 @@ load_world_${toRoutineLabel(worldId)}:
     xor a
     ld (screen_transition_cooldown), a
 
+    call rebuild_used_entity_list  ; Precompute room entity buckets before gameplay resumes
     call apply_collected_tiles     ; Re-apply persistent collection state for this screen
     ret
 
@@ -436,6 +438,7 @@ transition_${toRoutineLabel(worldId)}_${connIndex}:
     ld (current_screen_id), a
     ld hl, active_entity_list_dirty
     ld (hl), 1
+    call rebuild_used_entity_list  ; Precompute room entity buckets during transition
     call apply_collected_tiles     ; Re-apply persistent collection state
     ret
 
@@ -611,6 +614,7 @@ set_current_screen:
     ld (current_screen_id), a
     ld hl, active_entity_list_dirty
     ld (hl), 1
+    call rebuild_used_entity_list
     ret
 
 ; ==================================================================

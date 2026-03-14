@@ -4,7 +4,7 @@ exports.buildExecutionPlan = buildExecutionPlan;
 const mainlinePlanBuilder_1 = require("./mainlinePlanBuilder");
 const taskPlanBuilder_1 = require("./taskPlanBuilder");
 function buildExecutionPlan(analysis, config) {
-    const mode = config.executionMode ?? 'gameLoopHalt';
+    const mode = config.executionMode ?? 'interruptTaskManager';
     if (mode === 'gameLoopHalt') {
         return {
             mode,

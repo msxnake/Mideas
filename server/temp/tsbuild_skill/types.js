@@ -1,8 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PROPERTY_FLAGS = exports.SOLIDITY_TYPES = exports.DITHER_BRUSH_DIAMETERS = exports.EditorType = exports.EFFECT_ZONE_FLAGS = exports.HUDElementType = exports.EXPLOSION_SPRITE_SIZES = void 0;
-/** An array of possible sprite sizes for generated explosions. */
-exports.EXPLOSION_SPRITE_SIZES = [16, 24, 32];
+exports.PROPERTY_FLAGS = exports.SOLIDITY_TYPES = exports.DITHER_BRUSH_DIAMETERS = exports.EditorType = exports.resolveEffectZoneType = exports.normalizeEffectZoneParams = exports.getDefaultEffectZoneParams = exports.DEFAULT_WIND_EFFECT_ZONE_PARAMS = exports.EFFECT_ZONE_TYPE_CONFIG = exports.LEGACY_EFFECT_ZONE_FLAGS = exports.HUDElementType = void 0;
 /**
  * An enumeration of all possible HUD element types.
  */
@@ -25,13 +23,71 @@ var HUDElementType;
 })(HUDElementType || (exports.HUDElementType = HUDElementType = {}));
 // --- End ECS Core Types ---
 // --- Effect Zone Types ---
-/** A constant object defining the available flags for an effect zone. */
-exports.EFFECT_ZONE_FLAGS = {
+/**
+ * Legacy bitmask definitions kept only to infer effect types from old projects.
+ * New data should use `effectType + params`.
+ */
+exports.LEGACY_EFFECT_ZONE_FLAGS = {
     water: { bit: 0, label: "Water Effect", maskValue: 0b00000001, color: 'rgba(50, 100, 200, 0.4)' },
     customGravity: { bit: 1, label: "Custom Gravity", maskValue: 0b00000010, color: 'rgba(150, 50, 200, 0.4)' },
     icePhysics: { bit: 2, label: "Ice Physics", maskValue: 0b00000100, color: 'rgba(100, 200, 255, 0.4)' },
     spriteConceal: { bit: 3, label: "Sprite Concealment", maskValue: 0b00001000, color: 'rgba(100, 100, 100, 0.4)' },
 };
+/** Supported runtime effect categories for rectangular effect zones. */
+exports.EFFECT_ZONE_TYPE_CONFIG = {
+    secretZone: { label: "Secret Zone", color: 'rgba(255, 209, 102, 0.38)' },
+    wind: { label: "Wind", color: 'rgba(91, 192, 235, 0.34)' },
+    water: { label: "Water", color: 'rgba(50, 100, 200, 0.4)' },
+    customGravity: { label: "Custom Gravity", color: 'rgba(150, 50, 200, 0.4)' },
+    icePhysics: { label: "Ice Physics", color: 'rgba(100, 200, 255, 0.4)' },
+    spriteConceal: { label: "Sprite Concealment", color: 'rgba(100, 100, 100, 0.4)' },
+};
+exports.DEFAULT_WIND_EFFECT_ZONE_PARAMS = {
+    direction: 'right',
+    strength: 1,
+};
+const getDefaultEffectZoneParams = (effectType) => {
+    switch (effectType) {
+        case 'wind':
+            return { ...exports.DEFAULT_WIND_EFFECT_ZONE_PARAMS };
+        default:
+            return {};
+    }
+};
+exports.getDefaultEffectZoneParams = getDefaultEffectZoneParams;
+const normalizeEffectZoneParams = (effectType, params) => {
+    const source = params || {};
+    if (effectType === 'wind') {
+        const allowedDirections = ['left', 'right', 'up', 'down'];
+        const rawDirection = typeof source.direction === 'string' ? source.direction : exports.DEFAULT_WIND_EFFECT_ZONE_PARAMS.direction;
+        const direction = allowedDirections.includes(rawDirection)
+            ? rawDirection
+            : exports.DEFAULT_WIND_EFFECT_ZONE_PARAMS.direction;
+        const rawStrength = typeof source.strength === 'number' ? source.strength : parseInt(String(source.strength ?? ''), 10);
+        return {
+            direction,
+            strength: Number.isFinite(rawStrength) ? Math.max(0, rawStrength) : exports.DEFAULT_WIND_EFFECT_ZONE_PARAMS.strength,
+        };
+    }
+    return {};
+};
+exports.normalizeEffectZoneParams = normalizeEffectZoneParams;
+const resolveEffectZoneType = (zone) => {
+    if (zone.effectType && zone.effectType in exports.EFFECT_ZONE_TYPE_CONFIG) {
+        return zone.effectType;
+    }
+    const mask = zone.mask ?? 0;
+    if ((mask & exports.LEGACY_EFFECT_ZONE_FLAGS.water.maskValue) !== 0)
+        return 'water';
+    if ((mask & exports.LEGACY_EFFECT_ZONE_FLAGS.customGravity.maskValue) !== 0)
+        return 'customGravity';
+    if ((mask & exports.LEGACY_EFFECT_ZONE_FLAGS.icePhysics.maskValue) !== 0)
+        return 'icePhysics';
+    if ((mask & exports.LEGACY_EFFECT_ZONE_FLAGS.spriteConceal.maskValue) !== 0)
+        return 'spriteConceal';
+    return 'secretZone';
+};
+exports.resolveEffectZoneType = resolveEffectZoneType;
 // --- End Game Flow Types ---
 /**
  * An enumeration of all possible editor types in the application.

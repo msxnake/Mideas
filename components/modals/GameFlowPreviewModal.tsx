@@ -418,8 +418,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // Secret passage tiles registry: tracks which background tiles have been revealed (made invisible)
     // Key: "${screenId}_${x}_${y}", Value: true if revealed (should stay hidden)
     const revealedSecretTiles = useRef<Set<string>>(new Set());
-    // Visual effects for secret discovery (sparkles/particles)
-    const secretDiscoveryEffects = useRef<Array<{ x: number, y: number, lifetime: number, maxLifetime: number }>>([]);
     // Spawn anchors for collectibles (e.g., coins) distributed across the screen
     const nucleoPositionsRef = useRef<Array<{ x: number; y: number }>>([]);
     const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
@@ -5557,13 +5555,6 @@ useEffect(() => {
                                         revealedSecretTiles.current.add(key);
                                         tileBufferNeedsUpdate.current = false; // Don't force re-render, just hide tiles
 
-                                        // Add sparkle effect for discovered secret tile
-                                        secretDiscoveryEffects.current.push({
-                                            x: tx * TILE_SIZE + TILE_SIZE / 2,
-                                            y: ty * TILE_SIZE + TILE_SIZE / 2,
-                                            lifetime: 0,
-                                            maxLifetime: 1000 // 1 second
-                                        });
                                     }
                                 }
                             }
@@ -6768,31 +6759,6 @@ useEffect(() => {
                 if (now % 1000 < 16) {
                 }
             }
-        });
-
-        // --- Render Secret Discovery Effects (Sparkles) ---
-        const deltaTime = 16; // Approximate frame time
-        secretDiscoveryEffects.current = secretDiscoveryEffects.current.filter(effect => {
-            effect.lifetime += deltaTime;
-            if (effect.lifetime > effect.maxLifetime) {
-                return false; // Remove expired effects
-            }
-
-            // Draw sparkle effect
-            const progress = effect.lifetime / effect.maxLifetime;
-            const alpha = 1 - progress; // Fade out
-            const size = 3 + Math.sin(progress * Math.PI) * 3; // Pulse size
-
-            ctx.save();
-            ctx.globalAlpha = alpha;
-            ctx.fillStyle = '#FFFF00'; // Yellow sparkle
-
-            // Draw cross shape
-            ctx.fillRect(effect.x - size, effect.y - 1, size * 2, 2);
-            ctx.fillRect(effect.x - 1, effect.y - size, 2, size * 2);
-
-            ctx.restore();
-            return true; // Keep effect
         });
 
         // HUD overlay (pre-rendered to avoid per-frame text building)

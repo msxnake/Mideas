@@ -171,35 +171,6 @@ export interface SpriteFrame {
   data: PixelData;
 }
 
-/** The type of explosion to generate. */
-export type ExplosionType = "Radial" | "Fragmentada" | "Implosión";
-/** An array of possible sprite sizes for generated explosions. */
-export const EXPLOSION_SPRITE_SIZES = [16, 24, 32] as const;
-/** The size of a sprite for a generated explosion. */
-export type ExplosionSpriteSize = typeof EXPLOSION_SPRITE_SIZES[number];
-
-/**
- * Parameters for generating an explosion sprite animation.
- */
-export interface ExplosionParams {
-  /** The type of explosion. */
-  type: ExplosionType;
-  /** The size of the explosion sprite. */
-  size: ExplosionSpriteSize;
-  /** The number of frames in the animation. */
-  numFrames: number;
-  /** The intensity of the explosion. */
-  intensity: number;
-  /** The amount of jitter or randomness. */
-  jitter: number;
-  /** The number of simultaneous colors to use. */
-  numSimultaneousColors: 1 | 2 | 3 | 4;
-  /** The number of fragments for fragmented explosions. */
-  numFragments?: number;
-  /** The variation in fragment speed. */
-  fragmentSpeedVariation?: number;
-}
-
 /** The direction an entity is facing. */
 export type FacingDirection = 'neutral' | 'right' | 'left' | 'up' | 'down';
 
@@ -414,6 +385,8 @@ export interface EntityTemplate {
   name: string;
   /** An optional icon for display in the editor UI. */
   icon?: string;
+  /** Marks this template as a player-controlled hero candidate for runtime systems. */
+  isPlayer?: boolean;
   /** An array of components that make up this template. */
   components: EntityTemplateComponent[];
   /** A description of the entity template. */
@@ -449,16 +422,81 @@ export interface EntityInstance {
 // --- End ECS Core Types ---
 
 // --- Effect Zone Types ---
-/** A constant object defining the available flags for an effect zone. */
-export const EFFECT_ZONE_FLAGS = {
+/**
+ * Legacy bitmask definitions kept only to infer effect types from old projects.
+ * New data should use `effectType + params`.
+ */
+export const LEGACY_EFFECT_ZONE_FLAGS = {
   water: { bit: 0, label: "Water Effect", maskValue: 0b00000001, color: 'rgba(50, 100, 200, 0.4)' },
   customGravity: { bit: 1, label: "Custom Gravity", maskValue: 0b00000010, color: 'rgba(150, 50, 200, 0.4)' },
   icePhysics: { bit: 2, label: "Ice Physics", maskValue: 0b00000100, color: 'rgba(100, 200, 255, 0.4)' },
   spriteConceal: { bit: 3, label: "Sprite Concealment", maskValue: 0b00001000, color: 'rgba(100, 100, 100, 0.4)' },
 } as const;
 
-/** A type representing the keys of the EFFECT_ZONE_FLAGS object. */
-export type EffectZoneFlagKey = keyof typeof EFFECT_ZONE_FLAGS;
+/** Supported runtime effect categories for rectangular effect zones. */
+export const EFFECT_ZONE_TYPE_CONFIG = {
+  secretZone: { label: "Secret Zone", color: 'rgba(255, 209, 102, 0.38)' },
+  wind: { label: "Wind", color: 'rgba(91, 192, 235, 0.34)' },
+  water: { label: "Water", color: 'rgba(50, 100, 200, 0.4)' },
+  customGravity: { label: "Custom Gravity", color: 'rgba(150, 50, 200, 0.4)' },
+  icePhysics: { label: "Ice Physics", color: 'rgba(100, 200, 255, 0.4)' },
+  spriteConceal: { label: "Sprite Concealment", color: 'rgba(100, 100, 100, 0.4)' },
+} as const;
+
+export type EffectType = keyof typeof EFFECT_ZONE_TYPE_CONFIG;
+export type EffectZoneLegacyFlagKey = keyof typeof LEGACY_EFFECT_ZONE_FLAGS;
+export type WindEffectDirection = 'left' | 'right' | 'up' | 'down';
+
+export interface WindEffectZoneParams {
+  direction: WindEffectDirection;
+  strength: number;
+}
+
+export type EffectZoneParams = Record<string, any>;
+
+export const DEFAULT_WIND_EFFECT_ZONE_PARAMS: WindEffectZoneParams = {
+  direction: 'right',
+  strength: 1,
+};
+
+export const getDefaultEffectZoneParams = (effectType: EffectType): EffectZoneParams => {
+  switch (effectType) {
+    case 'wind':
+      return { ...DEFAULT_WIND_EFFECT_ZONE_PARAMS };
+    default:
+      return {};
+  }
+};
+
+export const normalizeEffectZoneParams = (effectType: EffectType, params?: Record<string, any>): EffectZoneParams => {
+  const source = params || {};
+  if (effectType === 'wind') {
+    const allowedDirections: WindEffectDirection[] = ['left', 'right', 'up', 'down'];
+    const rawDirection = typeof source.direction === 'string' ? source.direction : DEFAULT_WIND_EFFECT_ZONE_PARAMS.direction;
+    const direction = allowedDirections.includes(rawDirection as WindEffectDirection)
+      ? rawDirection as WindEffectDirection
+      : DEFAULT_WIND_EFFECT_ZONE_PARAMS.direction;
+    const rawStrength = typeof source.strength === 'number' ? source.strength : parseInt(String(source.strength ?? ''), 10);
+    return {
+      direction,
+      strength: Number.isFinite(rawStrength) ? Math.max(0, rawStrength) : DEFAULT_WIND_EFFECT_ZONE_PARAMS.strength,
+    };
+  }
+  return {};
+};
+
+export const resolveEffectZoneType = (zone: { effectType?: EffectType; mask?: number }): EffectType => {
+  if (zone.effectType && zone.effectType in EFFECT_ZONE_TYPE_CONFIG) {
+    return zone.effectType;
+  }
+
+  const mask = zone.mask ?? 0;
+  if ((mask & LEGACY_EFFECT_ZONE_FLAGS.water.maskValue) !== 0) return 'water';
+  if ((mask & LEGACY_EFFECT_ZONE_FLAGS.customGravity.maskValue) !== 0) return 'customGravity';
+  if ((mask & LEGACY_EFFECT_ZONE_FLAGS.icePhysics.maskValue) !== 0) return 'icePhysics';
+  if ((mask & LEGACY_EFFECT_ZONE_FLAGS.spriteConceal.maskValue) !== 0) return 'spriteConceal';
+  return 'secretZone';
+};
 
 /**
  * Represents a rectangular area on a screen map that can apply special effects.
@@ -470,8 +508,12 @@ export interface EffectZone {
   name: string;
   /** The rectangular area of the zone, in grid cells. */
   rect: { x: number; y: number; width: number; height: number };
-  /** A bitmask representing the active effects for this zone. */
-  mask: number;
+  /** Explicit type describing how the zone behaves at runtime. */
+  effectType?: EffectType;
+  /** Optional per-type configuration payload. */
+  params?: EffectZoneParams;
+  /** Legacy bitmask kept for backward compatibility with older projects. */
+  mask?: number;
   /** A description of the effect zone's purpose. */
   description?: string;
 }

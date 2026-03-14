@@ -183,7 +183,7 @@ export const generateScreenMapLayoutBytes = (
         let actualCharCodeForCell = CONST_EMPTY_CELL_CHAR_CODE;
         const tileAsset = tileset.find(t => t.id === screenTile.tileId);
 
-        if (currentScreenMode === "SCREEN 2 (Graphics I)" && tileBanks && tileAsset) {
+        if (currentScreenMode === "SCREEN 2 (Graphics I)" && tileBanks) {
           let foundInBank = false;
           let debugInfo = { tileId: screenTile.tileId, position: { x: mapX, y: mapY }, attempts: [] as any[], banksReceived: tileBanks.length };
 
@@ -207,16 +207,24 @@ export const generateScreenMapLayoutBytes = (
           for (const bank of tileBanks) {
             // Only process if bank is enabled and tile is assigned
             if ((bank.enabled ?? true) && bank.assignedTiles[screenTile.tileId]) {
-              const baseCharCode = bank.assignedTiles[screenTile.tileId].charCode;
-              const widthInChars = Math.ceil(tileAsset.width / EDITOR_BASE_TILE_DIM_S2);
+              const assignment = bank.assignedTiles[screenTile.tileId] as any;
               const subX = screenTile.subTileX || 0;
               const subY = screenTile.subTileY || 0;
-              actualCharCodeForCell = baseCharCode + (subY * widthInChars) + subX;
+
+              if (tileAsset) {
+                const baseCharCode = assignment.charCode;
+                const widthInChars = Math.ceil(tileAsset.width / EDITOR_BASE_TILE_DIM_S2);
+                actualCharCodeForCell = baseCharCode + (subY * widthInChars) + subX;
+              } else if (Array.isArray(assignment.fontCharacters)) {
+                const fontChar = assignment.fontCharacters[subX];
+                actualCharCodeForCell = fontChar?.bankCharCode ?? CONST_EMPTY_CELL_CHAR_CODE;
+              } else {
+                actualCharCodeForCell = CONST_EMPTY_CELL_CHAR_CODE;
+              }
 
               const inRange = actualCharCodeForCell >= bank.charsetRangeStart && actualCharCodeForCell <= bank.charsetRangeEnd;
               debugInfo.attempts.push({
                 bankName: bank.name,
-                baseCharCode,
                 calculated: actualCharCodeForCell,
                 range: `${bank.charsetRangeStart}-${bank.charsetRangeEnd}`,
                 inRange
@@ -493,22 +501,23 @@ export const generateSuperRLEData = (
     const tileAsset = tileset.find(t => t.id === tileId);
     let charCodeForCell = CONST_EMPTY_CELL_CHAR_CODE; 
 
-    if (tileBanks && tileAsset && baseTileDim === EDITOR_BASE_TILE_DIM_S2) { 
+    if (tileBanks && baseTileDim === EDITOR_BASE_TILE_DIM_S2) { 
         let foundInBank = false;
         for (const bank of tileBanks) {
             const isBankEffectivelyEnabled = bank.enabled ?? true;
             if (isBankEffectivelyEnabled && bank.assignedTiles[tileId]) {
-                const baseCharCode = bank.assignedTiles[tileId].charCode;
-                const widthInChars = Math.ceil(tileAsset.width / baseTileDim);
+                const assignment = bank.assignedTiles[tileId] as any;
                 const sX = subTileX || 0;
                 const sY = subTileY || 0;
-                const calculatedCharCode = baseCharCode + (sY * widthInChars) + sX;
-                 if (calculatedCharCode >= bank.charsetRangeStart && calculatedCharCode <= bank.charsetRangeEnd) {
+                const calculatedCharCode = tileAsset
+                  ? assignment.charCode + (sY * Math.ceil(tileAsset.width / baseTileDim)) + sX
+                  : (Array.isArray(assignment.fontCharacters) ? (assignment.fontCharacters[sX]?.bankCharCode ?? CONST_EMPTY_CELL_CHAR_CODE) : CONST_EMPTY_CELL_CHAR_CODE);
+                if (calculatedCharCode >= bank.charsetRangeStart && calculatedCharCode <= bank.charsetRangeEnd) {
                     charCodeForCell = calculatedCharCode;
                     foundInBank = true;
                     
                     if (!tilePartReferencesList.some(ref => ref.byteValue === charCodeForCell)) {
-                        tilePartReferencesList.push({ byteValue: charCodeForCell, tileId, subTileX: sX, subTileY: sY, name: tileAsset?.name || 'Unknown Tile (S2)' });
+                        tilePartReferencesList.push({ byteValue: charCodeForCell, tileId, subTileX: sX, subTileY: sY, name: tileAsset?.name || 'Font Tile (S2)' });
                     }
                     break;
                 }

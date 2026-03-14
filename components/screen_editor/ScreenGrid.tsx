@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { ScreenMap, Tile, Point, MSX1ColorValue, HUDElement, HUDElementType, TileBank, MSXFont, MSXFontColorAttributes, Sprite, ProjectAsset, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, EffectZone, EffectZoneFlagKey, ComponentDefinition, TileStamp } from '../../types';
-import { MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX_SCREEN5_PALETTE, EFFECT_ZONE_FLAGS, MSX1_PALETTE } from '../../constants';
+import { ScreenMap, Tile, Point, MSX1ColorValue, HUDElement, HUDElementType, TileBank, MSXFont, MSXFontColorAttributes, Sprite, ProjectAsset, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, EffectZone, ComponentDefinition, TileStamp, EFFECT_ZONE_TYPE_CONFIG, MSXFontAsset, resolveEffectZoneType } from '../../types';
+import { MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX_SCREEN5_PALETTE, MSX1_PALETTE } from '../../constants';
 import { getBackgroundColorHex } from '../../utils/screenModeConfig';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
 import { createTileDataURL, createSpriteDataURL } from '../utils/screenUtils';
@@ -178,19 +178,23 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     }
 
     // If no entity was clicked, proceed with other tool/layer logic
-    if (currentScreenTool === 'select' && activeLayer !== 'effects' && activeLayer !== 'entities') {
+    if (currentScreenTool === 'select' && activeLayer !== 'entities') {
+        if (activeLayer === 'effects') {
+            const clickedEffectZone = effectZones.find(zone =>
+                point.x >= zone.rect.x && point.x < zone.rect.x + zone.rect.width &&
+                point.y >= zone.rect.y && point.y < zone.rect.y + zone.rect.height
+            );
+            if (clickedEffectZone) {
+                onSelectionChange(null);
+                onEffectZoneSelect(clickedEffectZone.id);
+                return;
+            }
+            onEffectZoneSelect(null);
+        }
         setStartSelectionPoint(point);
         onSelectionChange({ x: point.x, y: point.y, width: 1, height: 1 });
     } else if (activeLayer === 'effects') {
-        const clickedEffectZone = effectZones.find(zone => 
-            point.x >= zone.rect.x && point.x < zone.rect.x + zone.rect.width &&
-            point.y >= zone.rect.y && point.y < zone.rect.y + zone.rect.height
-        );
-        if (clickedEffectZone) {
-            onEffectZoneSelect(clickedEffectZone.id);
-        } else {
-            onEffectZoneSelect(null);
-        }
+        onTilePlace(point);
     } else if (currentScreenTool === 'draw' || currentScreenTool === 'erase' || currentScreenTool === 'stamp') {
         if (activeLayer === 'entities') {
             onEntityPlace(point); // Place new entity if "Entities" layer is active and click is on empty space
@@ -214,7 +218,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     // Update hover point for stamp preview
     setHoverPoint(currentPoint);
 
-    if (!isMouseDown || !startSelectionPoint || currentScreenTool !== 'select' || activeLayer === 'effects' || activeLayer === 'entities') return;
+    if (!isMouseDown || !startSelectionPoint || currentScreenTool !== 'select' || activeLayer === 'entities') return;
     if (!currentPoint) return;
 
     const newRectX = Math.min(startSelectionPoint.x, currentPoint.x);
@@ -230,7 +234,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
    */
   const handleMouseUp = () => {
     setIsMouseDown(false);
-    if (currentScreenTool === 'select' && activeLayer !== 'effects' && activeLayer !== 'entities') {
+    if (currentScreenTool === 'select' && activeLayer !== 'entities') {
       setStartSelectionPoint(null); 
     }
   };
@@ -250,6 +254,13 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
   const layerDataToRender = (activeLayer === 'background' || activeLayer === 'collision' || activeLayer === 'effects')
     ? layers[activeLayer as 'background' | 'collision' | 'effects']
     : layers.background;
+  const baseLayerDataToRender = activeLayer === 'collision' ? layers.collision : layers.background;
+  const effectOverlayData = activeLayer === 'effects' ? layers.effects : null;
+  const selectedEffectZone = effectZones.find(zone => zone.id === selectedEffectZoneId) || null;
+  const isEditingSelectedSecretZone = activeLayer === 'effects'
+    && currentScreenTool !== 'select'
+    && !!selectedEffectZone
+    && resolveEffectZoneType(selectedEffectZone) === 'secretZone';
 
   if (!layerDataToRender || !Array.isArray(layerDataToRender) || layerDataToRender.length === 0) {
     return <div className="text-xs text-red-400">Layer data is empty or invalid.</div>;
@@ -350,13 +361,43 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     cursorStyle = 'crosshair';
   } else if (activeLayer === 'entities' || currentScreenTool === 'placeEntity') {
     cursorStyle = 'copy';
-  } else if (currentScreenTool === 'select' || activeLayer === 'effects') { 
+  } else if (currentScreenTool === 'select') {
     cursorStyle = 'cell';
   }
 
   // Get background color from screenMap or default to black
   const bgColorIndex = mapData.backgroundColor !== undefined ? mapData.backgroundColor : 1;
   const bgColor = getBackgroundColorHex(bgColorIndex, currentScreenMode);
+
+  const resolveFontTilePreview = (tileId: string | null | undefined, subTileX?: number) => {
+    if (!tileId || !tileBanks || currentScreenMode !== "SCREEN 2 (Graphics I)") {
+      return null;
+    }
+
+    for (const bank of tileBankDefinitions || []) {
+      const assignment = bank.assignedTiles?.[tileId];
+      if (!assignment || !Array.isArray((assignment as any).fontCharacters)) {
+        continue;
+      }
+
+      const fontCharacters = (assignment as any).fontCharacters as Array<{ character: string }>;
+      const charInfo = fontCharacters[subTileX || 0];
+      if (!charInfo) {
+        return null;
+      }
+
+      const matchingFontAsset = allAssets.find(asset => asset.type === 'font' && tileId.includes(asset.id));
+      const fontData = matchingFontAsset ? (matchingFontAsset.data as MSXFontAsset).fontData : msxFont;
+      const fontColors = matchingFontAsset ? (matchingFontAsset.data as MSXFontAsset).fontColorAttributes : msxFontColorAttributes;
+
+      return {
+        src: renderMSX1TextToDataURL(charInfo.character, fontData, fontColors, 1, 0, undefined, 'transparent'),
+        alt: charInfo.character,
+      };
+    }
+
+    return null;
+  };
 
   return (
     <div
@@ -387,38 +428,70 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
         }
       }}
     >
-      {/* Render base layer (background or collision) */}
-      {activeLayer !== 'effects' && layerDataToRender.map((row, y) =>
+      {/* Render base tile layer */}
+      {baseLayerDataToRender.map((row, y) =>
         row.map((screenTile, x) => {
-          const fullTileAsset = tileset.find(t => t.id === screenTile.tileId);
+          const baseTileAsset = tileset.find(t => t.id === screenTile.tileId);
+          const effectTile = effectOverlayData?.[y]?.[x];
+          const effectTileAsset = effectTile?.tileId ? tileset.find(t => t.id === effectTile.tileId) : undefined;
+          const isInsideSelectedSecretZone = isEditingSelectedSecretZone
+            && !!selectedEffectZone
+            && x >= selectedEffectZone.rect.x
+            && x < selectedEffectZone.rect.x + selectedEffectZone.rect.width
+            && y >= selectedEffectZone.rect.y
+            && y < selectedEffectZone.rect.y + selectedEffectZone.rect.height;
+          const displayTile = isInsideSelectedSecretZone
+            ? (effectTileAsset || null)
+            : (effectTileAsset || baseTileAsset);
+          const displaySubTileX = isInsideSelectedSecretZone
+            ? effectTile?.subTileX
+            : (effectTileAsset ? effectTile?.subTileX : screenTile.subTileX);
+          const displaySubTileY = isInsideSelectedSecretZone
+            ? effectTile?.subTileY
+            : (effectTileAsset ? effectTile?.subTileY : screenTile.subTileY);
+          const fontTilePreview = !displayTile
+            ? resolveFontTilePreview(
+                isInsideSelectedSecretZone ? effectTile?.tileId : (effectTile?.tileId || screenTile.tileId),
+                isInsideSelectedSecretZone ? effectTile?.subTileX : (effectTile?.subTileX ?? screenTile.subTileX)
+              )
+            : null;
           const isCellActive = x >= activeAreaX && x < activeAreaX + activeAreaWidth &&
                                y >= activeAreaY && y < activeAreaY + activeAreaHeight;
           return (
             <div
               key={`${x}-${y}`}
               className={`hover:outline hover:outline-1 hover:outline-msx-highlight relative
-                ${(activeLayer === 'collision' && fullTileAsset) ? 'bg-msx-danger/30' : ''}
+                ${(activeLayer === 'collision' && baseTileAsset) ? 'bg-msx-danger/30' : ''}
               `}
               style={{
                 width: `${gridPixelSize}px`,
                 height: `${gridPixelSize}px`,
                 // Background color is inherited from parent grid div
               }}
-              title={fullTileAsset ? `Tile: ${fullTileAsset.name} (Part ${screenTile.subTileX ?? 0},${screenTile.subTileY ?? 0}) @ (${x},${y})` : `Empty @ (${x},${y})`}
+              title={displayTile ? `Tile: ${displayTile.name} (Part ${displaySubTileX ?? 0},${displaySubTileY ?? 0}) @ (${x},${y})` : `Empty @ (${x},${y})`}
             >
-              {fullTileAsset && fullTileAsset.data && (
+              {displayTile && displayTile.data && (
                 <img
                   src={createTileDataURL(
-                    fullTileAsset,
-                    screenTile.subTileX,
-                    screenTile.subTileY,
+                    displayTile,
+                    displaySubTileX,
+                    displaySubTileY,
                     gridPixelSize,
                     gridPixelSize,
                     baseCellPixelWidth,
                     currentScreenMode
                   )}
-                  alt={fullTileAsset.name}
+                  alt={displayTile.name}
                   className="w-full h-full object-contain pointer-events-none" 
+                  style={{ imageRendering: 'pixelated' }}
+                  draggable="false"
+                />
+              )}
+              {!displayTile && fontTilePreview && (
+                <img
+                  src={fontTilePreview.src}
+                  alt={fontTilePreview.alt}
+                  className="w-full h-full object-contain pointer-events-none"
                   style={{ imageRendering: 'pixelated' }}
                   draggable="false"
                 />
@@ -436,16 +509,11 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
       {/* Render Effect Zones if 'effects' layer is active */}
       {activeLayer === 'effects' && effectZones.map(zone => {
         const isSelected = zone.id === selectedEffectZoneId;
-        let zoneDisplayColor = 'rgba(200, 200, 200, 0.3)'; 
-        if (zone.mask > 0) {
-            for (const flagKey in EFFECT_ZONE_FLAGS) {
-                const flag = EFFECT_ZONE_FLAGS[flagKey as EffectZoneFlagKey];
-                if (flag && (zone.mask & flag.maskValue) !== 0) {
-                    zoneDisplayColor = flag.color;
-                    break; 
-                }
-            }
-        }
+        const effectType = resolveEffectZoneType(zone);
+        const zoneDisplayColor = isEditingSelectedSecretZone && isSelected
+          ? 'transparent'
+          : EFFECT_ZONE_TYPE_CONFIG[effectType].color;
+        const zoneCapturesPointer = currentScreenTool === 'select';
 
         return (
             <div
@@ -458,10 +526,15 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
                     height: zone.rect.height * gridPixelSize,
                     backgroundColor: zoneDisplayColor,
                     zIndex: 15, 
-                    cursor: 'pointer',
+                    cursor: zoneCapturesPointer ? 'pointer' : 'default',
+                    pointerEvents: zoneCapturesPointer ? 'auto' : 'none',
                 }}
-                onClick={(e) => { e.stopPropagation(); onEffectZoneSelect(zone.id); }}
-                title={`Effect Zone: ${zone.name}\nMask: 0b${zone.mask.toString(2).padStart(8,'0')} (${zone.mask})`}
+                onClick={(e) => {
+                  if (!zoneCapturesPointer) return;
+                  e.stopPropagation();
+                  onEffectZoneSelect(zone.id);
+                }}
+                title={`Effect Zone: ${zone.name}\nType: ${EFFECT_ZONE_TYPE_CONFIG[effectType].label}`}
             >
                 <span className="absolute top-0 left-0 px-1 py-0.5 text-[0.6rem] bg-black/50 text-white opacity-80 pointer-events-none">
                     {zone.name.substring(0,10)}{zone.name.length > 10 ? '...' : ''}
@@ -637,7 +710,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
           </div>
         );
       })}
-       {selectionRect && (activeLayer !== 'effects') && (
+      {selectionRect && (
         <div
           className="absolute border-2 border-dashed border-yellow-400 pointer-events-none"
           style={{

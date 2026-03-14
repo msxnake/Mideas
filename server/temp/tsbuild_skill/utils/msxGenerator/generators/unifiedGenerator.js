@@ -94,7 +94,11 @@ ${analysis.entities && analysis.entities.length > 0 ? files['entities.asm'] : ';
 
 ${hasMenus ? files['menus.asm'] : '; [menus.asm skipped - no menus]\n'}
 
-${needsFont ? files['font.asm'] : '; [font.asm skipped - no text/menus]\n'}
+${needsFont ? files['font.asm'] : `; [font.asm skipped - no text/menus]
+init_font_system:
+    ret
+
+`}
 
 ${hasHud ? files['hud.asm'] : '; [hud.asm skipped - no HUD elements]\n'}
 
@@ -103,8 +107,6 @@ ${files['sound.asm']}
 ${files['scroll.asm']}
 
 ${files['animtiles.asm']}
-
-${files['particles.asm']}
 
 ${files['statemachine.asm'] && files['statemachine.asm'].trim() !== '; No State Machines' ? files['statemachine.asm'] : '; [statemachine.asm skipped - no state machines]\n'}
 
@@ -144,6 +146,7 @@ ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize game ent
 `}
 ${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load the first game screen
     call load_game_screen
+    call rebuild_used_entity_list
 ` : `    ; No screens - skip screen loading
 `}
 ${needsFont ? `    ; Initialize font system

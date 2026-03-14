@@ -23,7 +23,8 @@ import { buildRegisterContractComment } from './registerContract';
  */
 function generateUpdateAllEntities(
     usedComponents: Set<string>,
-    avoidStateMachineDuplication: boolean
+    avoidStateMachineDuplication: boolean,
+    hasSecretZones: boolean
 ): string {
     const emitInc16 = (symbol: string) => `    ld hl, ${symbol}\n    inc (hl)\n    jr nz, $+4\n    inc hl\n    inc (hl)\n`;
     let code = `
@@ -82,6 +83,7 @@ update_all_entities:
         ['Collision', 'update_collision_component', '8b. Collision detection'],
         ['Collision', 'update_platform_riding', '8c. Platform riding'],
         ['WallCollision', 'update_wallcollision_component', '8d. Wall collision'],
+        ['SecretZones', 'update_secret_zone_component', '8e. Secret zone runtime'],
         ['DeadlyTiles', 'update_deadly_tiles_component', '8e. Deadly tiles'],
         ['TileInteraction', 'check_tile_interaction', '8f. Tile interaction (gems/collectibles)'],
         ['Health', 'update_health_component', '9. Health/Death'],
@@ -98,7 +100,8 @@ update_all_entities:
         // Position is always needed (entities always have positions)
         const isRequired = component === 'Position' || component === 'Sprite';
 
-        if (isRequired || usedComponents.has(component)) {
+        const isEnabled = isRequired || (component === 'SecretZones' ? hasSecretZones : usedComponents.has(component));
+        if (isEnabled) {
             // GameFlow executes state machines explicitly in execute_all_state_machines.
             // Avoid running them twice per frame.
             if (avoidStateMachineDuplication && funcCall === 'update_statemachine_component') {
@@ -185,6 +188,7 @@ ${buildRegisterContractComment({
   outputs: [
     'active_entity_list[]',
     'active_entity_count',
+    'hero_entity_id updated from first current-screen entity flagged as player',
     'input/render/collision/ground/anim buckets refreshed',
     'active_entity_list_dirty=0',
   ],
@@ -206,6 +210,8 @@ rebuild_used_entity_list:
     ld (collision_entity_count), a
     ld (ground_entity_count), a
     ld (anim_entity_count), a
+    ld a, #FF
+    ld (hero_entity_id), a
     ld b, MAX_ENTITIES
     ld c, 0
 
@@ -254,6 +260,20 @@ rebuild_used_entity_list:
     ld (hl), c
     ld hl, active_entity_count
     inc (hl)
+
+    ld e, c
+    ld d, 0
+    ld a, (hero_entity_id)
+    cp #FF
+    jr nz, .skip_hero_candidate
+    ld hl, entity_is_player
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .skip_hero_candidate
+    ld a, c
+    ld (hero_entity_id), a
+.skip_hero_candidate:
 
     ; Build hot-path buckets once so gameplay systems avoid repeating
     ; the same component-mask filtering every frame.
@@ -355,6 +375,16 @@ rebuild_used_entity_list:
     jp nz, .rebuild_loop
 
 .rebuild_done:
+    ld a, (hero_entity_id)
+    cp #FF
+    jr nz, .rebuild_store_clean
+    ld a, (input_entity_count)
+    or a
+    jr z, .rebuild_store_clean
+    ld hl, input_entity_list
+    ld a, (hl)
+    ld (hero_entity_id), a
+.rebuild_store_clean:
     xor a
     ld (active_entity_list_dirty), a
     ret
@@ -3306,7 +3336,7 @@ function generateAutoDestroySystem(): string {
     ; ==================================================================
     ; Entities with AUTO_DESTROY component have a lifetime counter
     ; When lifetime reaches 0, entity is automatically destroyed
-    ; Useful for: projectiles, particles, temporary effects, etc.
+    ; Useful for: projectiles and other temporary effects.
 
 init_auto_destroy_system:
     ; Initialize all lifetimes to 0 (infinite by default)
@@ -5834,6 +5864,9 @@ init_collectible_system:
 ; When collected: deactivate item, increment score
 ; ------------------------------------------------------------------
 update_collectible_component:
+    call resolve_runtime_hero_entity
+    cp #FF
+    ret z
     ld c, 0                       ; Entity index
 
 .collect_loop:
@@ -5852,7 +5885,7 @@ update_collectible_component:
 
     ; TODO: Check if entity has COLLECTIBLE component mask
 
-    ; Assume entity 0 is player - check collision with player
+    ; Check collision against resolved hero entity
     ; Get collectible position
     ld hl, entity_x_pos
     ld e, c
@@ -5862,7 +5895,8 @@ update_collectible_component:
 
     ; Get player X position
     ld hl, entity_x_pos
-    ld e, 0                       ; Entity 0 = player
+    ld a, (hero_entity_id)
+    ld e, a
     ld d, 0
     add hl, de
     ld b, (hl)                    ; B = player X
@@ -5883,7 +5917,8 @@ update_collectible_component:
     ld a, (hl)                    ; A = collectible Y
 
     ld hl, entity_y_pos
-    ld e, 0
+    ld a, (hero_entity_id)
+    ld e, a
     ld d, 0
     add hl, de
     ld b, (hl)                    ; B = player Y
@@ -7067,7 +7102,10 @@ apply_collected_tiles:
 
     // Generate update_all_entities function - OPTIMIZED based on used components
     // Only generates CALLs to systems that are actually used
-    code += generateUpdateAllEntities(usedComponents, !!analysis.hasGameFlow);
+    const hasSecretZones = !!analysis.screenMaps?.some((screen: any) =>
+      Array.isArray(screen?.effectZones) && screen.effectZones.some((zone: any) => String(zone?.effectType || '').length === 0 || zone?.effectType === 'secretZone' || (zone?.mask ?? 0) === 0)
+    );
+    code += generateUpdateAllEntities(usedComponents, !!analysis.hasGameFlow, hasSecretZones);
 
     // Generate execute_all_state_machines function - called by GameFlow game loop
     if (usedComponents.has('StateMachine') && Array.isArray(analysis.stateMachines) && analysis.stateMachines.length > 0) {
@@ -7336,6 +7374,304 @@ div_a_by_c:
     ret
 
 `;
+
+    if (hasSecretZones) {
+        code += `
+; ------------------------------------------------------------------
+; update_secret_zone_component
+; Hero-only secret zone runtime.
+; Uses hero_entity_id resolved from templates flagged with isPlayer.
+; ------------------------------------------------------------------
+${buildRegisterContractComment({
+  purpose: 'Detect player entry/exit on secret zones and swap visible tiles.',
+  inputs: [
+    'hero_entity_id + entity_is_player/current-screen filtering',
+    'entity_x_pos[hero], entity_y_pos[hero] as hero top-left position',
+    'runtime_effect_zone_table/current_effect_zone_count',
+    'runtime_background_layout, runtime_effects_layout, runtime_screen_layout',
+  ],
+  outputs: [
+    'runtime_screen_layout updated when entering/leaving a secret zone',
+    'VRAM Name Table updated for affected rectangle',
+    'secret_zone_active + secret_zone_rect_* state refreshed',
+  ],
+  clobbers: ['AF', 'BC', 'DE', 'HL', 'IX'],
+  preserved: ['None'],
+  notes: [
+    'Only secret zones are handled in this v1 runtime.',
+    'First matching zone wins when zones overlap.',
+  ],
+})}
+update_secret_zone_component:
+    call resolve_runtime_hero_entity
+    cp #FF
+    jp z, .secret_no_match
+    ld e, a
+    ld d, 0
+
+    ld hl, entity_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .secret_no_match
+
+    ld a, (current_effect_zone_count)
+    or a
+    jp z, .secret_no_match
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    srl a
+    srl a
+    srl a
+    ld b, a                       ; B = hero center X in cells
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    srl a
+    srl a
+    srl a
+    ld c, a                       ; C = hero center Y in cells
+
+    ld a, (current_effect_zone_count)
+    ld d, a                       ; D = remaining zone count
+    ld ix, runtime_effect_zone_table
+
+.secret_scan_loop:
+    ld a, d
+    or a
+    jp z, .secret_no_match
+
+    ld a, b                       ; hero center X
+    cp (ix+0)                     ; zone.x
+    jp c, .secret_next_entry
+    sub (ix+0)
+    ld e, a                       ; E = deltaX
+
+    ld a, c                       ; hero center Y
+    cp (ix+1)                     ; zone.y
+    jp c, .secret_next_entry
+    sub (ix+1)
+    ld h, a                       ; H = deltaY
+
+    ld a, (ix+2)                  ; zone.width
+    cp e                          ; width > deltaX?
+    jp z, .secret_next_entry
+    jp c, .secret_next_entry
+
+    ld a, (ix+3)                  ; zone.height
+    cp h                          ; height > deltaY?
+    jp z, .secret_next_entry
+    jp c, .secret_next_entry
+
+    ld a, (ix+4)
+    cp EFFECT_TYPE_SECRET_ZONE
+    jp nz, .secret_next_entry
+
+    ld a, (secret_zone_active)
+    or a
+    jp z, .secret_activate_new
+
+    ld a, (secret_zone_rect_x)
+    cp (ix+0)
+    jp nz, .secret_switch_zone
+    ld a, (secret_zone_rect_y)
+    cp (ix+1)
+    jp nz, .secret_switch_zone
+    ld a, (secret_zone_rect_w)
+    cp (ix+2)
+    jp nz, .secret_switch_zone
+    ld a, (secret_zone_rect_h)
+    cp (ix+3)
+    jp nz, .secret_switch_zone
+    ret
+
+.secret_switch_zone:
+    call secret_zone_restore_current_rect
+
+.secret_activate_new:
+    ld a, (ix+0)
+    ld (secret_zone_rect_x), a
+    ld a, (ix+1)
+    ld (secret_zone_rect_y), a
+    ld a, (ix+2)
+    ld (secret_zone_rect_w), a
+    ld a, (ix+3)
+    ld (secret_zone_rect_h), a
+    ld a, 1
+    ld (secret_zone_active), a
+    call secret_zone_apply_current_rect
+    ret
+
+.secret_next_entry:
+    push de
+    push bc
+    ld bc, EFFECT_ZONE_ENTRY_SIZE
+    add ix, bc
+    pop bc
+    pop de
+    dec d                         ; decrement zone counter (NOT hero Y)
+    jp .secret_scan_loop
+
+.secret_no_match:
+    ld a, (secret_zone_active)
+    or a
+    ret z
+    call secret_zone_restore_current_rect
+    call secret_zone_clear_state
+    ret
+
+; ------------------------------------------------------------------
+; resolve_runtime_hero_entity
+; Preferred order:
+;   1) hero_entity_id if valid
+;   2) first input entity of current screen
+;   3) entity 0 if still active (legacy compatibility)
+; Output: A = entity index, or #FF when unavailable
+; Clobbers: AF, HL
+; ------------------------------------------------------------------
+resolve_runtime_hero_entity:
+    ld a, (hero_entity_id)
+    cp #FF
+    ret nz
+    ld a, (input_entity_count)
+    or a
+    jr z, .resolve_legacy_entity0
+    ld hl, input_entity_list
+    ld a, (hl)
+    ld (hero_entity_id), a
+    ret
+
+.resolve_legacy_entity0:
+    ld a, (entity_active)
+    or a
+    jr z, .resolve_none
+    xor a
+    ld (hero_entity_id), a
+    ret
+
+.resolve_none:
+    ld a, #FF
+    ret
+
+; ------------------------------------------------------------------
+; secret_zone_apply_current_rect
+; Copy active rect from runtime_effects_layout to runtime_screen_layout and VRAM.
+; ------------------------------------------------------------------
+secret_zone_apply_current_rect:
+    call secret_zone_compute_offset
+    push hl
+    ld de, runtime_effects_layout
+    add hl, de
+    ex de, hl
+    pop hl
+    push de
+    ld de, runtime_screen_layout
+    add hl, de
+    ex de, hl
+    pop hl
+    ld a, (secret_zone_rect_w)
+    ld c, a
+    ld a, (secret_zone_rect_h)
+    call copy_layout_rect_ram_to_ram
+
+    call secret_zone_compute_offset
+    push hl
+    ld de, runtime_screen_layout
+    add hl, de
+    pop de
+    push hl
+    ld hl, NAMETBL
+    add hl, de
+    ex de, hl
+    pop hl
+    ld a, (secret_zone_rect_w)
+    ld c, a
+    ld a, (secret_zone_rect_h)
+    call copy_layout_rect_to_vram
+    ret
+
+; ------------------------------------------------------------------
+; secret_zone_restore_current_rect
+; Restore active rect from runtime_background_layout into runtime_screen_layout and VRAM.
+; ------------------------------------------------------------------
+secret_zone_restore_current_rect:
+    call secret_zone_compute_offset
+    push hl
+    ld de, runtime_background_layout
+    add hl, de
+    ex de, hl
+    pop hl
+    push de
+    ld de, runtime_screen_layout
+    add hl, de
+    ex de, hl
+    pop hl
+    ld a, (secret_zone_rect_w)
+    ld c, a
+    ld a, (secret_zone_rect_h)
+    call copy_layout_rect_ram_to_ram
+
+    call secret_zone_compute_offset
+    push hl
+    ld de, runtime_screen_layout
+    add hl, de
+    pop de
+    push hl
+    ld hl, NAMETBL
+    add hl, de
+    ex de, hl
+    pop hl
+    ld a, (secret_zone_rect_w)
+    ld c, a
+    ld a, (secret_zone_rect_h)
+    call copy_layout_rect_to_vram
+    ret
+
+; ------------------------------------------------------------------
+; secret_zone_clear_state
+; ------------------------------------------------------------------
+secret_zone_clear_state:
+    xor a
+    ld (secret_zone_active), a
+    ld (secret_zone_rect_x), a
+    ld (secret_zone_rect_y), a
+    ld (secret_zone_rect_w), a
+    ld (secret_zone_rect_h), a
+    ret
+
+; ------------------------------------------------------------------
+; secret_zone_compute_offset
+; Output: HL = row*32 + col for current secret rect origin
+; Clobbers: AF, DE, HL
+; ------------------------------------------------------------------
+secret_zone_compute_offset:
+    ld a, (secret_zone_rect_y)
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld a, (secret_zone_rect_x)
+    ld e, a
+    ld d, 0
+    add hl, de
+    ret
+
+`;
+    } else {
+        code += `
+update_secret_zone_component:
+    ret
+
+`;
+    }
 
     if (usedComponents.has('WallCollision')) {
         const wallHitboxHelpersBlock = generateWallHitboxHelpers();

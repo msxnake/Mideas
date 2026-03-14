@@ -1,8 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PROPERTY_FLAGS = exports.SOLIDITY_TYPES = exports.DITHER_BRUSH_DIAMETERS = exports.EditorType = exports.EFFECT_ZONE_FLAGS = exports.HUDElementType = exports.EXPLOSION_SPRITE_SIZES = void 0;
-/** An array of possible sprite sizes for generated explosions. */
-exports.EXPLOSION_SPRITE_SIZES = [16, 24, 32];
+exports.PROPERTY_FLAGS = exports.SOLIDITY_TYPES = exports.DITHER_BRUSH_DIAMETERS = exports.EditorType = exports.EFFECT_ZONE_FLAGS = exports.HUDElementType = void 0;
 /**
  * An enumeration of all possible HUD element types.
  */

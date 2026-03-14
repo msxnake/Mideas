@@ -1,4 +1,4 @@
-import { MSXColor, MSX1Color, MSX1ColorValue, Screen5PaletteSlot, TileBank, TileBankDefinition, PianoKeyLayoutEntry, HelpDocSection, Snippet, EFFECT_ZONE_FLAGS as EFFECT_ZONE_FLAGS_TYPE, MainMenuConfig } from './types';
+import { MSXColor, MSX1Color, MSX1ColorValue, Screen5PaletteSlot, TileBank, TileBankDefinition, PianoKeyLayoutEntry, HelpDocSection, Snippet, EFFECT_ZONE_TYPE_CONFIG as EFFECT_ZONE_TYPE_CONFIG_TYPE, MainMenuConfig } from './types';
 
 /** The current version of the application. */
 export const APP_VERSION = "0.267";
@@ -655,8 +655,8 @@ export const DEFAULT_MAIN_MENU_CONFIG: MainMenuConfig = {
 // --- End Main Menu Constants ---
 
 // --- Effect Zone Constants ---
-/** Re-export of EFFECT_ZONE_FLAGS from `types.ts` for convenient access. */
-export const EFFECT_ZONE_FLAGS = EFFECT_ZONE_FLAGS_TYPE;
+/** Re-export of effect zone display metadata from `types.ts` for convenient access. */
+export const EFFECT_ZONE_TYPE_CONFIG = EFFECT_ZONE_TYPE_CONFIG_TYPE;
 // --- End Effect Zone Constants ---
 
 
@@ -777,14 +777,15 @@ export const DEFAULT_HELP_DOCS_DATA: HelpDocSection[] = [
             <li><strong>Entity Types Panel (Right, when Entity layer active)</strong>: Lists your configured Entity Templates. Select one to place instances on the map.</li>
             <li><strong>Properties Panel (Right)</strong>: Shows properties of the selected map, entity instance, or effect zone.</li>
             <li><strong>Active Area</strong>: Defines the playable portion of the screen map. Areas outside can be used for HUD elements. Editable via input fields in the toolbar.</li>
-            <li><strong>Toolbar (Screen Editor)</strong>: Contains layer selectors, zoom, active area inputs, HUD editor button, and export options. When 'Effects' layer is active, an "Add Effect Zone" button appears.</li>
+            <li><strong>Toolbar (Screen Editor)</strong>: Contains layer selectors, zoom, active area inputs, HUD editor button, and export options. When 'Effects' layer is active, a "New Zone" button appears after selecting an area.</li>
           </ul>
           <h3>Effect Zones:</h3>
-          <p>On the 'Effects' layer, you can add rectangular zones. Each zone has:</p>
+          <p>On the 'Effects' layer, you can draw alternate tiles and define rectangular trigger zones. Each zone has:</p>
           <ul>
             <li>A name.</li>
             <li>Position (x,y) and Size (width, height) in grid cells.</li>
-            <li>An <strong>Effect Mask</strong>: A byte value where each bit represents a different effect (e.g., bit 0 for water, bit 1 for ice). You can toggle these effects using checkboxes in the Properties Panel.</li>
+            <li>An <strong>Effect Type</strong>: the runtime behavior for the zone, such as <code>secretZone</code> or <code>wind</code>.</li>
+            <li>Optional per-effect parameters, for example wind direction and strength.</li>
           </ul>
           <h3>SCREEN 2 Specifics:</h3>
           <p>When in SCREEN 2 mode:</p>

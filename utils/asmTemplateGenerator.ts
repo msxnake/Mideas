@@ -3,7 +3,7 @@
  * Generates dynamic ASM code from templates with replaceable sections
  */
 
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData } from '../types';
+import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank } from '../types';
 import { StateMachine } from '../statemachine.types';
 import { getUsedGlobalVariables } from './globalVariablesUtils';
 
@@ -28,6 +28,7 @@ export interface ProjectAnalysis {
   tracks?: TrackerSongData[];
   trackIndexByAssetId?: Record<string, number>;
   tiles: Tile[];
+  tileBanks: TileBank[];
   screenMaps: ScreenMap[];
   screens: ScreenMap[];   // Added alias for compatibility
   worldmaps?: any[];  // Worldmap data for GameFlow WorldLink nodes
@@ -98,6 +99,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
       trackIndexByAssetId[normalizedTrack.id] = trackIndex;
     });
   const tiles = assets.filter(a => a.type === 'tile').map(a => a.data as Tile);
+  const tileBanks = assets.filter(a => a.type === 'tilebank').map(a => a.data as TileBank);
   const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap);
   const worldmaps = assets.filter(a => a.type === 'worldmap').map(a => a.data);
   const stateMachines = assets.filter(a => a.type === 'statemachine').map(a => a.data as StateMachine);
@@ -181,6 +183,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     tracks,
     trackIndexByAssetId,
     tiles,
+    tileBanks,
     screenMaps,
     screens: screenMaps, // Added alias
     worldmaps,  // CRITICAL: Include worldmaps for GameFlow WorldLink nodes

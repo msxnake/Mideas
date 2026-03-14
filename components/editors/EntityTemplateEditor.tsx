@@ -130,6 +130,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
       id: newId,
       name: `NewEntityTemplate_${entityTemplates.length + 1}`,
       icon: '❓',
+      isPlayer: false,
       description: '',
       components: [],
     };
@@ -138,7 +139,10 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
     setExpandedComponents({});
   };
 
-  const handleTemplateChange = (field: keyof Omit<EntityTemplate, 'components' | 'id'>, value: string) => {
+  const handleTemplateChange = (
+    field: keyof Omit<EntityTemplate, 'components' | 'id'>,
+    value: string | boolean
+  ) => {
     if (editingTemplate) {
       setEditingTemplate(prev => prev ? { ...prev, [field]: value } : null);
     }
@@ -426,6 +430,14 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
                   <label htmlFor="tplIcon" className="block text-sm font-medium text-msx-textsecondary">Icon (Emoji/Char):</label>
                   <input type="text" id="tplIcon" value={editingTemplate.icon || ''} onChange={e => handleTemplateChange('icon', e.target.value)} maxLength={2} className="w-full p-1.5 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"/>
                 </div>
+                <label className="flex items-center gap-2 self-end rounded border border-msx-border px-3 py-2 text-sm text-msx-textprimary">
+                  <input
+                    type="checkbox"
+                    checked={!!editingTemplate.isPlayer}
+                    onChange={e => handleTemplateChange('isPlayer', e.target.checked)}
+                  />
+                  <span>Is Player</span>
+                </label>
               </div>
               <div>
                 <label htmlFor="tplDesc" className="block text-sm font-medium text-msx-textsecondary">Description:</label>
