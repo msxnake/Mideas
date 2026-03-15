@@ -30,7 +30,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 118819
+; Estimated payload bytes: 119434
 ; Estimated banks used: 15
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1383 bytes)
@@ -59,9 +59,9 @@
 ; BANK 10 @#1B41 : statemachine.asm part 1/3 (1215 bytes)
 ; BANK 11 @#0000 : statemachine.asm part 2/3 (8192 bytes)
 ; BANK 12 @#0000 : statemachine.asm part 3/3 (8192 bytes)
-; BANK 13 @#0000 : statemachine.asm part 4/3 (441 bytes)
-; BANK 13 @#01B9 : gameflow.asm part 1/2 (7751 bytes)
-; BANK 14 @#0000 : gameflow.asm part 2/2 (4131 bytes)
+; BANK 13 @#0000 : statemachine.asm part 4/3 (1056 bytes)
+; BANK 13 @#0420 : gameflow.asm part 1/2 (7136 bytes)
+; BANK 14 @#0000 : gameflow.asm part 2/2 (4746 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -2512,10 +2512,8 @@ update_sprite_component:
 sprite_update_loop:
     ld c, (hl)                 ; C = entity index
     inc hl                     ; Advance list pointer
-    push hl                    ; Save list pointer
     ld e, c
     ld d, 0
-    pop hl                     ; Restore list pointer
 
     ; render_entity_list already guarantees active + current_screen_id + sprite
     push bc
@@ -17532,9 +17530,19 @@ SM_New_Statemachine_state_1771533526010_Transitions:
     DB 8; HAS_COLLISION 
     DB 2          ; collisionType: enemy
     DW SM_New_Statemachine_state_1771533530403 
-    DW 0 
+    DW SM_New_Statemachine_state_1771533526010_Transitions_Actions_3 
 
 SM_New_Statemachine_state_1771533526010_Transitions_Actions_2: 
+    DB 5; CHANGE_SPRITE 
+    DB 6; sprite: nina_dead 
+    DB 9; PLAY_SOUND 
+    DB 0        ; sound: sound_1772354483190
+    DB 1; SET_POSITION 
+    DB 32, 80 
+    DB 15; DECREMENT_VARIABLE 
+    DB 9, 1        ; Lives (ID 9)
+    DB 0xFF; END
+SM_New_Statemachine_state_1771533526010_Transitions_Actions_3: 
     DB 5; CHANGE_SPRITE 
     DB 6; sprite: nina_dead 
     DB 9; PLAY_SOUND 
@@ -17603,9 +17611,19 @@ SM_New_Statemachine_state_1771966990568_Transitions:
     DB 8; HAS_COLLISION 
     DB 2          ; collisionType: enemy
     DW SM_New_Statemachine_state_1771533530403 
-    DW 0 
+    DW SM_New_Statemachine_state_1771966990568_Transitions_Actions_3 
 
 SM_New_Statemachine_state_1771966990568_Transitions_Actions_2: 
+    DB 5; CHANGE_SPRITE 
+    DB 6; sprite: nina_dead 
+    DB 9; PLAY_SOUND 
+    DB 0        ; sound: sound_1772354483190
+    DB 1; SET_POSITION 
+    DB 32, 80 
+    DB 15; DECREMENT_VARIABLE 
+    DB 9, 1        ; Lives (ID 9)
+    DB 0xFF; END
+SM_New_Statemachine_state_1771966990568_Transitions_Actions_3: 
     DB 5; CHANGE_SPRITE 
     DB 6; sprite: nina_dead 
     DB 9; PLAY_SOUND 
@@ -17641,9 +17659,19 @@ SM_New_Statemachine_state_1772025558931_Transitions:
     DB 8; HAS_COLLISION 
     DB 2          ; collisionType: enemy
     DW SM_New_Statemachine_state_1771533530403 
-    DW 0 
+    DW SM_New_Statemachine_state_1772025558931_Transitions_Actions_2 
 
 SM_New_Statemachine_state_1772025558931_Transitions_Actions_1: 
+    DB 5; CHANGE_SPRITE 
+    DB 6; sprite: nina_dead 
+    DB 9; PLAY_SOUND 
+    DB 0        ; sound: sound_1772354483190
+    DB 1; SET_POSITION 
+    DB 32, 80 
+    DB 15; DECREMENT_VARIABLE 
+    DB 9, 1        ; Lives (ID 9)
+    DB 0xFF; END
+SM_New_Statemachine_state_1772025558931_Transitions_Actions_2: 
     DB 5; CHANGE_SPRITE 
     DB 6; sprite: nina_dead 
     DB 9; PLAY_SOUND 
@@ -17683,9 +17711,19 @@ SM_New_Statemachine_state_1772025563321_Transitions:
     DB 8; HAS_COLLISION 
     DB 2          ; collisionType: enemy
     DW SM_New_Statemachine_state_1771533530403 
-    DW 0 
+    DW SM_New_Statemachine_state_1772025563321_Transitions_Actions_2 
 
 SM_New_Statemachine_state_1772025563321_Transitions_Actions_1: 
+    DB 5; CHANGE_SPRITE 
+    DB 6; sprite: nina_dead 
+    DB 9; PLAY_SOUND 
+    DB 0        ; sound: sound_1772354483190
+    DB 1; SET_POSITION 
+    DB 32, 80 
+    DB 15; DECREMENT_VARIABLE 
+    DB 9, 1        ; Lives (ID 9)
+    DB 0xFF; END
+SM_New_Statemachine_state_1772025563321_Transitions_Actions_2: 
     DB 5; CHANGE_SPRITE 
     DB 6; sprite: nina_dead 
     DB 9; PLAY_SOUND 
@@ -17722,9 +17760,19 @@ SM_New_Statemachine_state_1772025566187_Transitions:
     DB 8; HAS_COLLISION 
     DB 2          ; collisionType: enemy
     DW SM_New_Statemachine_state_1771533530403 
-    DW 0 
+    DW SM_New_Statemachine_state_1772025566187_Transitions_Actions_2 
 
 SM_New_Statemachine_state_1772025566187_Transitions_Actions_1: 
+    DB 5; CHANGE_SPRITE 
+    DB 6; sprite: nina_dead 
+    DB 9; PLAY_SOUND 
+    DB 0        ; sound: sound_1772354483190
+    DB 1; SET_POSITION 
+    DB 32, 80 
+    DB 15; DECREMENT_VARIABLE 
+    DB 9, 1        ; Lives (ID 9)
+    DB 0xFF; END
+SM_New_Statemachine_state_1772025566187_Transitions_Actions_2: 
     DB 5; CHANGE_SPRITE 
     DB 6; sprite: nina_dead 
     DB 9; PLAY_SOUND 
@@ -17756,9 +17804,19 @@ SM_New_Statemachine_state_1773007838313_Transitions:
     DB 8; HAS_COLLISION 
     DB 2          ; collisionType: enemy
     DW SM_New_Statemachine_state_1771533530403 
-    DW 0 
+    DW SM_New_Statemachine_state_1773007838313_Transitions_Actions_1 
 
 SM_New_Statemachine_state_1773007838313_Transitions_Actions_0: 
+    DB 5; CHANGE_SPRITE 
+    DB 6; sprite: nina_dead 
+    DB 9; PLAY_SOUND 
+    DB 0        ; sound: sound_1772354483190
+    DB 1; SET_POSITION 
+    DB 32, 80 
+    DB 15; DECREMENT_VARIABLE 
+    DB 9, 1        ; Lives (ID 9)
+    DB 0xFF; END
+SM_New_Statemachine_state_1773007838313_Transitions_Actions_1: 
     DB 5; CHANGE_SPRITE 
     DB 6; sprite: nina_dead 
     DB 9; PLAY_SOUND 

@@ -535,10 +535,8 @@ update_sprite_component:
 sprite_update_loop:
     ld c, (hl)                 ; C = entity index
     inc hl                     ; Advance list pointer
-    push hl                    ; Save list pointer
     ld e, c
     ld d, 0
-    pop hl                     ; Restore list pointer
 
     ; render_entity_list already guarantees active + current_screen_id + sprite
     push bc
