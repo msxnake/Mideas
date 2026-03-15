@@ -730,7 +730,7 @@ function generateMovementSystem() {
             jr z, movement_next_entity ; Skip if no movement component
 
             ; No damping/friction: instant stop when input released (Maze of Galious style).
-            ; Gravity component manages Y velocity independently.
+            ; Gravity component overwrites entity_vel_y each frame from gravity_vel accumulator.
 
         movement_next_entity:
             dec b
@@ -6347,6 +6347,29 @@ entity_job_should_run_c:
     ld a, 1
     ret
 force_update_entity_sprite:
+    ret
+
+mark_used_entity_list_dirty:
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ret
+
+ensure_used_entity_list_current:
+    call rebuild_used_entity_list
+    ret
+
+rebuild_used_entity_list:
+    xor a
+    ld (active_entity_count), a
+    ld (input_entity_count), a
+    ld (render_entity_count), a
+    ld (collision_entity_count), a
+    ld (ground_entity_count), a
+    ld (anim_entity_count), a
+    ld (coll_list_count), a
+    ld (active_entity_list_dirty), a
+    ld a, #FF
+    ld (hero_entity_id), a
     ret
 
 update_input_component:

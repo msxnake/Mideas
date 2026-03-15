@@ -95,12 +95,15 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
       ...track,
       soundChip: track?.soundChip || 'PSG'
     }));
-  const trackIndexByAssetId = tracks.reduce((map: Record<string, number>, track: any, index: number) => {
-    if (track?.id) {
-      map[track.id] = index;
+  // Only external-pt3 tracks are in music_pt3_track_table (soundGenerator uses same filter).
+  // Indexing all PSG tracks would produce wrong table offsets when non-pt3 tracks exist.
+  let pt3TrackIndex = 0;
+  const trackIndexByAssetId = tracks.reduce((map: Record<string, number>, track: any) => {
+    if (track?.id && track?.playbackBackend === 'external-pt3') {
+      map[track.id] = pt3TrackIndex++;
     }
     return map;
-  }, {});
+  }, {} as Record<string, number>);
 
   const analysis: ProjectAnalysis = {
     hasSprites: summary.assets.sprites.length > 0,

@@ -26,6 +26,7 @@ function analyzeProject(projectName, assets) {
     }));
     const tracks = [];
     const trackIndexByAssetId = {};
+    let pt3TrackIndex = 0;
     assets
         .filter(a => a.type === 'track')
         .forEach((asset) => {
@@ -41,10 +42,12 @@ function analyzeProject(projectName, assets) {
             id: rawTrack.id || asset.id,
             name: rawTrack.name || asset.name,
         };
-        const trackIndex = tracks.length;
         tracks.push(normalizedTrack);
-        trackIndexByAssetId[asset.id] = trackIndex;
-        trackIndexByAssetId[normalizedTrack.id] = trackIndex;
+        if (normalizedTrack.playbackBackend === 'external-pt3') {
+            trackIndexByAssetId[asset.id] = pt3TrackIndex;
+            trackIndexByAssetId[normalizedTrack.id] = pt3TrackIndex;
+            pt3TrackIndex++;
+        }
     });
     const tiles = assets.filter(a => a.type === 'tile').map(a => a.data);
     const tileBanks = assets.filter(a => a.type === 'tilebank').map(a => a.data);

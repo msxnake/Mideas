@@ -62,9 +62,10 @@ function convertSummaryToAnalysis(summary) {
         ...track,
         soundChip: track?.soundChip || 'PSG'
     }));
-    const trackIndexByAssetId = tracks.reduce((map, track, index) => {
-        if (track?.id) {
-            map[track.id] = index;
+    let pt3TrackIndex = 0;
+    const trackIndexByAssetId = tracks.reduce((map, track) => {
+        if (track?.id && track?.playbackBackend === 'external-pt3') {
+            map[track.id] = pt3TrackIndex++;
         }
         return map;
     }, {});

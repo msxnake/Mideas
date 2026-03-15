@@ -6472,6 +6472,29 @@ entity_job_should_run_c:
 force_update_entity_sprite:
     ret
 
+mark_used_entity_list_dirty:
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ret
+
+ensure_used_entity_list_current:
+    call rebuild_used_entity_list
+    ret
+
+rebuild_used_entity_list:
+    xor a
+    ld (active_entity_count), a
+    ld (input_entity_count), a
+    ld (render_entity_count), a
+    ld (collision_entity_count), a
+    ld (ground_entity_count), a
+    ld (anim_entity_count), a
+    ld (coll_list_count), a
+    ld (active_entity_list_dirty), a
+    ld a, #FF
+    ld (hero_entity_id), a
+    ret
+
 update_input_component:
     ret
 update_position_component:

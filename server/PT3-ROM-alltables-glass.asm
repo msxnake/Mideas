@@ -377,7 +377,7 @@ PD_LP2:		LD A,(BC)
 		JR C,PD_ESAM
 		ADD A,A
 		LD E,A
-		LD HL,((SPCCOMS+#DF20) % 65536)	; Adapted from original Speccy version (saves 6 bytes)
+		LD HL,SPCCOMS				; Direct address (Speccy trick invalid at arbitrary MSX ROM addresses)
 		ADD HL,DE
 		LD E,(HL)
 		INC HL
