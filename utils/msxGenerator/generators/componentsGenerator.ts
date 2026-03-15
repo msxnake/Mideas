@@ -744,7 +744,7 @@ function generateMovementSystem(): string {
             jr z, movement_next_entity ; Skip if no movement component
 
             ; No damping/friction: instant stop when input released (Maze of Galious style).
-            ; Gravity component manages Y velocity independently.
+            ; Gravity component overwrites entity_vel_y each frame from gravity_vel accumulator.
 
         movement_next_entity:
             dec b
