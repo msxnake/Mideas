@@ -11201,7 +11201,7 @@ init_hero_1:
     ; Set input speed for Cursors component (if entity has Input component)
     ld hl, entity_input_speed
     add hl, de
-    ld (hl), 1            ; Cursor speed (px/frame)
+    ld (hl), 2            ; Cursor speed (px/frame)
 
     ; Set Jump component configuration
     ld hl, entity_jump_max

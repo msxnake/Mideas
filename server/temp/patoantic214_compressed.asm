@@ -2512,10 +2512,8 @@ update_sprite_component:
 sprite_update_loop:
     ld c, (hl)                 ; C = entity index
     inc hl                     ; Advance list pointer
-    push hl                    ; Save list pointer
     ld e, c
     ld d, 0
-    pop hl                     ; Restore list pointer
 
     ; render_entity_list already guarantees active + current_screen_id + sprite
     push bc
@@ -11203,7 +11201,7 @@ init_hero_1:
     ; Set input speed for Cursors component (if entity has Input component)
     ld hl, entity_input_speed
     add hl, de
-    ld (hl), 1            ; Cursor speed (px/frame)
+    ld (hl), 2            ; Cursor speed (px/frame)
 
     ; Set Jump component configuration
     ld hl, entity_jump_max

@@ -743,52 +743,8 @@ function generateMovementSystem(): string {
             and COMP_MASK_MOVEMENT     ; Check if has movement component
             jr z, movement_next_entity ; Skip if no movement component
 
-            ; Apply physics / movement logic here
-            push bc
-            push hl
-
-            ; 1. Apply Gravity (if applicable - TODO: check Gravity component)
-            ; For now, just simple friction / damping if no input
-
-            ; 2. Friction / Damping
-            ; If velocity is non-zero, reduce it slightly (simple approach)
-            ; This prevents infinite sliding
-
-            ; X Velocity Damping
-            ld hl, entity_vel_x
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            or a
-            jr z, movement_check_y_vel
-
-            ; If positive, dec; if negative, inc (move towards 0)
-            bit 7, a                   ; Check sign
-            jr nz, movement_vel_x_neg
-            dec (hl)                   ; Positive -> decrease
-            jr movement_check_y_vel
-        movement_vel_x_neg:
-            inc (hl)                   ; Negative -> increase
-
-        movement_check_y_vel:
-            ; Y Velocity Damping
-            ld hl, entity_vel_y
-            add hl, de
-            ld a, (hl)
-            or a
-            jr z, movement_physics_done
-
-            bit 7, a
-            jr nz, movement_vel_y_neg
-            dec (hl)
-            jr movement_physics_done
-        movement_vel_y_neg:
-            inc (hl)
-
-        movement_physics_done:
-            pop hl
-            pop bc
+            ; No damping/friction: instant stop when input released (Maze of Galious style).
+            ; Gravity component manages Y velocity independently.
 
         movement_next_entity:
             dec b
