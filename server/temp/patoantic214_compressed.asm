@@ -30,7 +30,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 119434
+; Estimated payload bytes: 117364
 ; Estimated banks used: 15
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1383 bytes)
@@ -51,17 +51,17 @@
 ; BANK 07 @#1EAF : hud.asm (337 bytes)
 ; BANK 08 @#0000 : hud.asm (4130 bytes)
 ; BANK 08 @#1022 : menus.asm (454 bytes)
-; BANK 08 @#11E8 : sound.asm part 1/2 (3608 bytes)
-; BANK 09 @#0000 : sound.asm part 2/2 (5929 bytes)
-; BANK 09 @#1729 : scroll.asm (2263 bytes)
-; BANK 10 @#0000 : scroll.asm (90 bytes)
-; BANK 10 @#005A : animtiles.asm (6887 bytes)
-; BANK 10 @#1B41 : statemachine.asm part 1/3 (1215 bytes)
+; BANK 08 @#11E8 : sound.asm (3608 bytes)
+; BANK 09 @#0000 : sound.asm (3647 bytes)
+; BANK 09 @#0E3F : scroll.asm (2353 bytes)
+; BANK 09 @#1770 : animtiles.asm (2192 bytes)
+; BANK 10 @#0000 : animtiles.asm (4695 bytes)
+; BANK 10 @#1257 : statemachine.asm part 1/3 (3497 bytes)
 ; BANK 11 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 12 @#0000 : statemachine.asm part 3/3 (8192 bytes)
-; BANK 13 @#0000 : statemachine.asm part 4/3 (1056 bytes)
-; BANK 13 @#0420 : gameflow.asm part 1/2 (7136 bytes)
-; BANK 14 @#0000 : gameflow.asm part 2/2 (4746 bytes)
+; BANK 12 @#0000 : statemachine.asm part 3/3 (6966 bytes)
+; BANK 12 @#1B36 : gameflow.asm part 1/2 (1226 bytes)
+; BANK 13 @#0000 : gameflow.asm part 2/2 (8192 bytes)
+; BANK 14 @#0000 : gameflow.asm part 3/2 (2676 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -70,7 +70,7 @@
 ; File: header.asm
 ; Description: Standard MSX cartridge initialization
 ; GameFlow Integration: Using "Main" as execution orchestrator
-; Flow: Start → SubMenu (CON FALDAS Y A LO LOCA)
+; Flow: Start → Music (gfn_1773587244048)
 ; ==================================================================
 
     org #4000           ; MSX cartridge start address
@@ -1406,16 +1406,65 @@ music_ch_b_orn_step EQU #DA1A   ; Channel B
 music_ch_c_orn_step EQU #DA1B   ; Channel C
 
 ; ==================================================================
+; PT3 REPLAYER WORKSPACE (~448 bytes)
+; Layout matches PT3-ROM-alltables-glass.asm expected labels
+; ==================================================================
+PT3_SETUP       EQU #DA1C   ; PT3 state flags (bit0=loop, bit7=song_ended)
+PT3_MODADDR     EQU #DA1D   ; Module address pointer (2 bytes)
+PT3_CrPsPtr     EQU #DA1F   ; Current position pointer
+PT3_SAMPTRS     EQU #DA21   ; Sample pointers base
+PT3_OrnPtrs     EQU #DA23   ; Ornament pointers base
+PT3_PDSP        EQU #DA25   ; Pattern data start pointer
+PT3_CSP         EQU #DA27   ; Saved SP (CHREGS SP trick)
+PT3_PSP         EQU #DA29   ; PT3 stack pointer save
+PT3_PrNote      EQU #DA2B   ; Previous note
+PT3_PrSlide     EQU #DA2C   ; Previous slide (2 bytes)
+PT3_AdInPtA     EQU #DA2E   ; Channel A inline pointer
+PT3_AdInPtB     EQU #DA30   ; Channel B inline pointer
+PT3_AdInPtC     EQU #DA32   ; Channel C inline pointer
+PT3_LPosPtr     EQU #DA34   ; Loop position pointer
+PT3_PatsPtr     EQU #DA36   ; Patterns table pointer
+PT3_Delay       EQU #DA38   ; Song speed/delay
+PT3_AddToEn     EQU #DA39   ; Add to envelope
+PT3_Env_Del     EQU #DA3A   ; Envelope delay
+PT3_ESldAdd     EQU #DA3B   ; Envelope slide add (2 bytes)
+PT3_NTL3        EQU #DA3D   ; Note table link 3
+VARS            EQU #DA3F   ; Channel vars base
+ChanA           EQU #DA3F   ; Channel A data (29 bytes)
+ChanB           EQU #DA5C   ; Channel B data (29 bytes)
+ChanC           EQU #DA79   ; Channel C data (29 bytes)
+DelyCnt         EQU #DA96   ; Delay counter
+CurESld         EQU #DA97   ; Current envelope slide (2 bytes)
+CurEDel         EQU #DA99   ; Current envelope delay
+Ns_Base_AddToNs EQU #DA9A   ; Noise base + add to noise (combined)
+Ns_Base         EQU #DA9A   ; Noise base
+AddToNs         EQU #DA9B   ; Add to noise
+NT_             EQU #DA9C   ; Note table (192 bytes)
+AYREGS          EQU #DB5C  ; AY registers mirror (14 bytes)
+VT_             EQU #DB5C  ; Volume table base (alias for AYREGS)
+EnvBase         EQU #DB6A  ; Envelope base
+VAR0END         EQU #DB6C  ; End of fixed workspace
+T1_             EQU #DB6C  ; Tone tables start (unpacked by PT3_INIT)
+T_NEW_1         EQU #DB6C  ; Tone table new 1
+T_OLD_1         EQU #DB6C  ; Tone table old 1
+T_OLD_2         EQU #DB84  ; Tone table old 2
+T_NEW_3         EQU #DB9C  ; Tone table new 3
+T_OLD_3         EQU #DB9C  ; Tone table old 3
+T_OLD_0         EQU #DB9E  ; Tone table old 0
+T_NEW_0         EQU #DB9E  ; Tone table new 0
+T_NEW_2         EQU #DBB6  ; Tone table new 2 (last, ends at +0x1B2)
+
+; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #DA1C   ; End of project variables (6684 bytes used)
+RAM_USAGE_END       EQU #DC5C   ; End of project variables (7260 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#DA1C: Project variables (6684 bytes)
-;   #DA1C-#F37F: Free RAM (~6500 bytes available)
+;   #C000-#DC5C: Project variables (7260 bytes)
+;   #DC5C-#F37F: Free RAM (~5924 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
@@ -13362,21 +13411,14 @@ sfx_update:
     ret
 
 ; ==================================================================
-; TRACKER MUSIC RUNTIME (Phase 1)
-; Phase 1 plays row data and loop state in ROM; descriptor tables are
-; serialized now for compatibility and future expansion.
+; PT3 MUSIC BACKEND
+; Uses the PT3 replayer for AY-3-8910 music playback.
+; PT3_SETUP, ChanA, AYREGS, etc. are defined in variables.asm.
 ; ==================================================================
-
-MUSIC_TRACK_ORDER_TABLE     EQU 5
-MUSIC_TRACK_PATTERN_TABLE   EQU 7
-MUSIC_TRACK_INSTRUMENT_TABLE EQU 9
-MUSIC_TRACK_NOISE_DEFAULT   EQU 15
 
 ; ------------------------------------------------------------------
 ; music_init_system
-; Reset tracker runtime RAM and default PSG mixer shadow.
-; Input:  None
-; Output: music_active=0, music_muted=0, music_mixer_shadow=#3F
+; Reset PT3 music state. Call once at startup.
 ; Destroys: AF
 ; ------------------------------------------------------------------
 music_init_system:
@@ -13385,72 +13427,48 @@ music_init_system:
     ld (music_muted), a
     ld (music_loop), a
     ld (music_track_index), a
-    ld (music_row_frames), a
-    ld (music_row_countdown), a
-    ld (music_order_pos), a
-    ld (music_pattern_index), a
-    ld (music_pattern_row), a
-    ld (music_pattern_rows), a
-    ld (music_track_ptr_l), a
-    ld (music_track_ptr_h), a
-    ld (music_pattern_ptr_l), a
-    ld (music_pattern_ptr_h), a
-    ld a, #3F
-    ld (music_mixer_shadow), a
-    call music_reset_channel_state
+    ld (PT3_SETUP), a
     ret
 
-music_reset_channel_state:
-    ld a, #FF
-    ld (music_ch_a_note), a
-    ld (music_ch_b_note), a
-    ld (music_ch_c_note), a
-    xor a
-    ld (music_ch_a_instrument), a
-    ld (music_ch_b_instrument), a
-    ld (music_ch_c_instrument), a
-    ld (music_ch_a_ornament), a
-    ld (music_ch_b_ornament), a
-    ld (music_ch_c_ornament), a
-    ld (music_ch_a_vol_step), a
-    ld (music_ch_b_vol_step), a
-    ld (music_ch_c_vol_step), a
-    ld (music_ch_a_tone_step), a
-    ld (music_ch_b_tone_step), a
-    ld (music_ch_c_tone_step), a
-    ld (music_ch_a_noise_step), a
-    ld (music_ch_b_noise_step), a
-    ld (music_ch_c_noise_step), a
-    ld (music_ch_a_orn_step), a
-    ld (music_ch_b_orn_step), a
-    ld (music_ch_c_orn_step), a
-    ld a, #0F
-    ld (music_ch_a_volume), a
-    ld (music_ch_b_volume), a
-    ld (music_ch_c_volume), a
-    ret
-
+; ------------------------------------------------------------------
+; music_silence_channels
+; Silence all AY channels via BIOS WRTPSG.
+; Destroys: AF, E
+; ------------------------------------------------------------------
 music_silence_channels:
     xor a
-    ld b, 0
-    call psg_set_volume
+    ld b, a
+    call psg_set_volume     ; Channel A vol=0
     ld a, 1
     ld b, 0
-    call psg_set_volume
+    call psg_set_volume     ; Channel B vol=0
     ld a, 2
     ld b, 0
-    call psg_set_volume
-    ld a, #3F
-    call psg_set_mixer
+    call psg_set_volume     ; Channel C vol=0
+    ld a, PSG_MIXER
+    ld e, #3F
+    call WRTPSG             ; All tones+noise off
     ret
 
+; ------------------------------------------------------------------
+; music_stop
+; Stop music and silence channels.
+; Destroys: AF
+; ------------------------------------------------------------------
 music_stop:
     push af
-    call music_init_system
+    xor a
+    ld (music_active), a
+    ld (PT3_SETUP), a
     call music_silence_channels
     pop af
     ret
 
+; ------------------------------------------------------------------
+; music_mute
+; Mute music (keep track position).
+; Destroys: AF
+; ------------------------------------------------------------------
 music_mute:
     ld a, (music_active)
     or a
@@ -13460,22 +13478,25 @@ music_mute:
     call music_silence_channels
     ret
 
+; ------------------------------------------------------------------
+; music_resume
+; Resume muted music.
+; Destroys: AF
+; ------------------------------------------------------------------
 music_resume:
     ld a, (music_active)
     or a
     ret z
     xor a
     ld (music_muted), a
-    call music_update_channel_effects
     ret
 
 ; ------------------------------------------------------------------
 ; music_execute_command
-; Dispatch a compact music command stream used by Game Flow nodes.
+; Dispatch a music command from Game Flow nodes.
 ; Input:  DE -> [command, trackIndex, loopFlag]
-;         command: 0=stop, 1=play, 2=mute, 3=resume, #FF=no-op
-; Output: Selected command executed, DE may advance while parsing
-; Destroys: AF, BC (play path), DE (play path), HL (via callees)
+;         0=stop, 1=play, 2=mute, 3=resume, #FF=no-op
+; Destroys: AF, BC (play path), DE (play path), HL
 ; ------------------------------------------------------------------
 music_execute_command:
     ld a, (de)
@@ -13484,13 +13505,13 @@ music_execute_command:
     or a
     jp z, music_stop
     cp 1
-    jp z, .play_track
+    jp z, .pt3_exec_play
     cp 2
     jp z, music_mute
     cp 3
     jp z, music_resume
     ret
-.play_track:
+.pt3_exec_play:
     inc de
     ld a, (de)
     ld c, a
@@ -13501,582 +13522,48 @@ music_execute_command:
     call music_play_track
     ret
 
-music_load_track_pointer_from_index:
-    add a, a
-    ld e, a
-    ld d, 0
-    ld hl, music_track_ptr_table
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld a, e
-    ld (music_track_ptr_l), a
-    ld a, d
-    ld (music_track_ptr_h), a
-    ret
-
-music_get_track_ptr:
-    ld a, (music_track_ptr_l)
-    ld l, a
-    ld a, (music_track_ptr_h)
-    ld h, a
-    ret
-
-music_get_track_header_ptr:
-    ld e, a
-    ld d, 0
-    call music_get_track_ptr
-    add hl, de
-    ret
-
-music_read_track_byte:
-    call music_get_track_header_ptr
-    ld a, (hl)
-    ret
-
-music_read_track_word:
-    call music_get_track_header_ptr
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld h, d
-    ld l, e
-    ret
-
-music_get_instrument_ptr:
-    or a
-    jr z, .no_instrument
-    add a, a
-    ld e, a
-    ld d, 0
-    ld a, MUSIC_TRACK_INSTRUMENT_TABLE
-    call music_read_track_word
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld h, d
-    ld l, e
-    ret
-.no_instrument:
-    ld hl, 0
-    ret
-
-; ------------------------------------------------------------------
-; music_get_channel_instrument_ptr
-; Resolve current channel instrument pointer from the cached channel id.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: HL = instrument descriptor or 0 when none is active
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_get_channel_instrument_ptr:
-    ld hl, music_ch_instrument_base
-    call music_load_channel_byte
-    call music_get_instrument_ptr
-    ret
-
-; ------------------------------------------------------------------
-; music_channel_uses_hardware_env
-; Check if the active instrument routes channel volume through PSG ENV.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: A = 1 when PSG hardware envelope is enabled, else 0
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_channel_uses_hardware_env:
-    push hl
-    call music_get_channel_instrument_ptr
-    ld a, h
-    or l
-    jr z, music_channel_uses_hardware_env_no_hw_env
-    ld a, (hl)
-    and #04
-    jr z, music_channel_uses_hardware_env_no_hw_env
-    ld a, 1
-    pop hl
-    ret
-music_channel_uses_hardware_env_no_hw_env:
-    xor a
-    pop hl
-    ret
-
-; ------------------------------------------------------------------
-; music_trigger_channel_attack
-; Hook kept for compatibility. The preview-style hardware envelope is
-; emulated in software per channel, so new-note state is already reset
-; by music_apply_channel_cell before this helper is called.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: None
-; Destroys: None
-; ------------------------------------------------------------------
-music_trigger_channel_attack:
-    ret
-
-; ------------------------------------------------------------------
-; music_resolve_channel_volume
-; Resolve per-frame channel volume.
-; Current Phase 1 behavior:
-; - emulates AY hardware envelope shapes in software when ayEnvelopeShape is set
-; - falls back to music_ch_volume_base when no envelope data exists
-; - applies a simple software volumeEnvelope when present
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: B = PSG volume 0-15
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_resolve_channel_volume:
-    push af
-    push de
-    push hl
-    ld hl, music_ch_instrument_base
-    call music_load_channel_byte
-    or a
-    jp z, .fallback_base
-    call music_get_instrument_ptr
-    ld a, h
-    or l
-    jp z, .fallback_base
-    ld a, (hl)
-    and #04
-    jp nz, .hardware_env
-.check_software_env:
-    push hl
-    ld de, 8
-    add hl, de
-    ld b, (hl)
-    pop hl
-    ld a, b
-    or a
-    jp z, .fallback_base
-    push hl
-    ld de, 6
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    pop hl
-    push hl
-    ld hl, music_ch_vol_step_base
-    call music_load_channel_byte
-    cp b
-    jr c, .step_ok_restore
-    pop hl
-    push de
-    push hl
-    ld de, 9
-    add hl, de
-    ld a, (hl)
-    pop hl
-    pop de
-    cp b
-    jr c, .step_ok
-    ld a, b
-    push af
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    pop af
-    ld hl, music_ch_note_base
-    ld a, #FF
-    call music_store_channel_byte
-    xor a
-    ld b, a
-    jp .mrcv_done
-.step_ok_restore:
-    pop hl
-.step_ok:
-    push af
-    inc a
-    cp b
-    jr c, .next_step_ok
-    push de
-    push hl
-    ld de, 9
-    add hl, de
-    ld a, (hl)
-    pop hl
-    pop de
-    cp b
-    jr c, .next_step_ok
-    ld a, b
-.next_step_ok:
-    push de
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    pop de
-    pop af
-    ld l, a
-    ld h, 0
-    add hl, de
-    ld a, (hl)
-    cp 16
-    jr c, .env_volume_ok
-    ld a, 15
-.env_volume_ok:
-    ld b, a
-    jp .mrcv_done
-.hardware_env:
-    ld hl, music_ch_tone_step_base
-    call music_load_channel_byte
-    inc a
-    cp 2
-    jr c, .hw_store_counter
-    xor a
-    push af
-    ld hl, music_ch_tone_step_base
-    call music_store_channel_byte
-    pop af
-    ld hl, music_ch_vol_step_base
-    call music_load_channel_byte
-    cp 15
-    jr nc, .hw_phase_ready
-    inc a
-    push af
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    pop af
-    jr .hw_phase_ready
-.hw_store_counter:
-    push af
-    ld hl, music_ch_tone_step_base
-    call music_store_channel_byte
-    pop af
-    ld hl, music_ch_vol_step_base
-    call music_load_channel_byte
-.hw_phase_ready:
-    push af
-    call music_get_channel_instrument_ptr
-    ld a, h
-    or l
-    pop af
-    jr z, .hw_decay
-    push af
-    inc hl
-    inc hl
-    ld a, (hl)
-    and #04
-    pop af
-    jr z, .hw_decay
-    ld b, a
-    jp .mrcv_done
-.hw_decay:
-    ld e, a
-    ld a, 15
-    sub e
-    ld b, a
-    jp .mrcv_done
-.fallback_base:
-    ld hl, music_ch_volume_base
-    call music_load_channel_byte
-    ld b, a
-.mrcv_done:
-    pop hl
-    pop de
-    pop af
-    ret
-
-; ------------------------------------------------------------------
-; music_resolve_channel_noise
-; Resolve per-frame channel noise period, including the PT3-inspired
-; software noise macro appended to the instrument descriptor.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: A = PSG noise period 0-31
-; Destroys: AF, DE, HL
-; Preserves: Stack balance restored before return
-; ------------------------------------------------------------------
-music_resolve_channel_noise:
-    push de
-    push hl
-    ld hl, music_ch_instrument_base
-    call music_load_channel_byte
-    or a
-    jp z, .mrcn_track_default
-    call music_get_instrument_ptr
-    ld a, h
-    or l
-    jp z, .mrcn_track_default
-    push hl
-    ld de, 16
-    add hl, de
-    ld b, (hl)
-    pop hl
-    ld a, b
-    or a
-    jp z, .mrcn_static_noise
-    push hl
-    ld hl, music_ch_noise_step_base
-    call music_load_channel_byte
-    cp b
-    jr c, .mrcn_step_ok
-    ld a, b
-    dec a
-.mrcn_step_ok:
-    push af
-    pop af
-    pop hl
-    push af
-    inc a
-    cp b
-    jr c, .mrcn_store_next
-    push de
-    ld de, 17
-    add hl, de
-    ld a, (hl)
-    pop de
-    cp b
-    jr c, .mrcn_store_next
-    ld a, b
-    dec a
-.mrcn_store_next:
-    push hl
-    push af
-    ld hl, music_ch_noise_step_base
-    call music_store_channel_byte
-    pop af
-    pop hl
-    ld de, 14
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    pop af
-    ld l, a
-    ld h, 0
-    add hl, de
-    ld a, (hl)
-    and #1F
-    jp .mrcn_done
-.mrcn_static_noise:
-    push de
-    ld de, 3
-    add hl, de
-    ld a, (hl)
-    pop de
-    and #1F
-    jp .mrcn_done
-.mrcn_track_default:
-    ld a, MUSIC_TRACK_NOISE_DEFAULT
-    call music_read_track_byte
-    and #1F
-.mrcn_done:
-    pop hl
-    pop de
-    ret
-
 ; ------------------------------------------------------------------
 ; music_play_track
-; Start a serialized PSG tracker song from ROM.
-; Input:  A = track index in music_track_ptr_table
-;         B bit 0 = loop enabled flag
-; Output: music_active=1 and first row applied immediately
-; Destroys: AF, BC, DE, HL
-; Preserves: Stack balance restored on all exits
+; Start playing a PT3 track.
+; Input:  A = track index (0-based)
+;         B = loop flag (0=no loop, 1=loop)
+; Destroys: AF, BC, DE, HL, IX, IY
 ; ------------------------------------------------------------------
 music_play_track:
-    push bc
-    push de
-    push hl
-    ld hl, music_track_count
-    cp (hl)
-    jp nc, .done
     ld (music_track_index), a
-    call music_load_track_pointer_from_index
     ld a, b
     and 1
     ld (music_loop), a
-    xor a
-    ld (music_muted), a
-    ld (music_order_pos), a
-    ld (music_pattern_index), a
-    ld (music_pattern_row), a
-    ld a, 1
-    ld (music_active), a
-    call music_reset_channel_state
-    call music_apply_row
-.done:
-    pop hl
-    pop de
-    pop bc
-    ret
-
-music_store_channel_byte:
-    push de
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld (hl), a
-    pop de
-    ret
-
-music_load_channel_byte:
-    push de
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    pop de
-    ret
-
-music_apply_channel_cell:
-    ld c, a
-    ld d, 0
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jp z, .note_done
-    cp #FE
-    jp nz, .store_note
-    ld a, #FF
-    jr .store_note
-.store_note:
-    cp #FF
-    jr z, .store_note_value
-    ld d, 1
-.store_note_value:
-    push hl
-    ld hl, music_ch_note_base
-    call music_store_channel_byte
-    xor a
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    ld hl, music_ch_tone_step_base
-    call music_store_channel_byte
-    ld hl, music_ch_noise_step_base
-    call music_store_channel_byte
-    ld hl, music_ch_orn_step_base
-    call music_store_channel_byte
-    pop hl
-.note_done:
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jp z, .instrument_done
-    push hl
-    ld hl, music_ch_instrument_base
-    call music_store_channel_byte
-    pop hl
-.instrument_done:
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jp z, .ornament_done
-    push hl
-    ld hl, music_ch_ornament_base
-    call music_store_channel_byte
-    pop hl
-.ornament_done:
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jr z, .maybe_trigger_attack
-    push hl
-    ld hl, music_ch_volume_base
-    call music_store_channel_byte
-    pop hl
-.maybe_trigger_attack:
-    ld a, d
-    or a
-    ret z
-    push hl
-    call music_trigger_channel_attack
-    pop hl
-    ret
-
-; ------------------------------------------------------------------
-; music_apply_row
-; Decode current order/pattern row and cache channel state for A/B/C.
-; Input:  Runtime variables select track/order/pattern position
-; Output: Channel note/instrument/volume caches updated
-;         Row countdown reloaded and PSG refreshed once
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-music_apply_row:
-    ld a, MUSIC_TRACK_ORDER_TABLE
-    call music_read_track_word
-    ld a, (music_order_pos)
+    ld a, (music_track_index)
+    add a, a               ; *2 (DW entries)
     ld e, a
     ld d, 0
-    add hl, de
-    ld a, (hl)
-    ld (music_pattern_index), a
-    ld a, MUSIC_TRACK_PATTERN_TABLE
-    call music_read_track_word
-    ld a, (music_pattern_index)
-    ld e, a
-    ld d, 0
-    add hl, de
-    add hl, de
+    ld hl, music_pt3_track_table
     add hl, de
     ld e, (hl)
     inc hl
     ld d, (hl)
-    inc hl
-    ld a, (hl)
-    ld (music_pattern_rows), a
-    ld a, e
-    ld (music_pattern_ptr_l), a
-    ld a, d
-    ld (music_pattern_ptr_h), a
     ld h, d
-    ld l, e
-    ld a, (music_pattern_row)
-    or a
-    jp z, .row_ptr_ready
-    ld b, a
-.row_offset_loop:
-    ld de, 12
-    add hl, de
-    djnz .row_offset_loop
-.row_ptr_ready:
+    ld l, e                ; HL = adjusted module address
     xor a
-    call music_apply_channel_cell
+    ld (music_muted), a
+    ld (PT3_SETUP), a      ; Clear end-of-song flag
+    di                     ; Disable interrupts while initialising PT3
+    push ix
+    push iy
+    call PT3_INIT
+    pop iy
+    pop ix
     ld a, 1
-    call music_apply_channel_cell
-    ld a, 2
-    call music_apply_channel_cell
-    ld a, (music_pattern_row)
-    inc a
-    ld d, a
-    ld a, (music_pattern_rows)
-    cp d
-    jp z, .advance_order
-    jp c, .advance_order
-    ld a, d
-    ld (music_pattern_row), a
-    jp .row_done
-.advance_order:
-    xor a
-    ld (music_pattern_row), a
-    ld a, (music_order_pos)
-    inc a
-    ld d, a
-    ld a, 1
-    call music_read_track_byte
-    cp d
-    jp z, .end_of_order
-    jp c, .end_of_order
-    ld a, d
-    ld (music_order_pos), a
-    jp .row_done
-.end_of_order:
-    ld a, (music_loop)
-    or a
-    jp z, music_stop
-    ld a, 2
-    call music_read_track_byte
-    ld (music_order_pos), a
-.row_done:
-    xor a
-    call music_read_track_byte
-    ld (music_row_frames), a
-    ld (music_row_countdown), a
-    call music_update_channel_effects
+    ld (music_active), a   ; Enable playback AFTER PT3 is fully initialised
+    ei
     ret
 
 ; ------------------------------------------------------------------
 ; music_update
-; Advance the tracker once per game frame.
-; Input:  None
-; Output: Current channel PSG state refreshed; next row applied when due
-; Destroys: AF, BC, DE, HL
+; Update PT3 playback. Called every frame from the main loop or ISR.
+; Checks end-of-song flag, handles loop/stop, runs PT3_PLAY+PT3_ROUT.
+; Destroys: AF, HL, DE (saves/restores IX/IY around PT3 calls)
 ; ------------------------------------------------------------------
 music_update:
     ld a, (music_active)
@@ -14085,197 +13572,158 @@ music_update:
     ld a, (music_muted)
     or a
     ret nz
-    call music_update_channel_effects
-    ld a, (music_row_countdown)
+    ; Check if song ended (CHECKLP sets bit7 of PT3_SETUP)
+    ld a, (PT3_SETUP)
+    bit 7, a
+    jr z, .pt3_upd_play
+    ; Song ended - loop or stop?
+    ld a, (music_loop)
     or a
-    jp z, music_apply_row
-    dec a
-    ld (music_row_countdown), a
-    ret nz
-    call music_apply_row
-    ret
-
-; ------------------------------------------------------------------
-; music_update_channel_effects
-; Rebuild mixer bits and push current cached channel state to PSG.
-; Input:  music_ch_* caches already populated
-; Output: PSG tone/volume registers updated for channels A/B/C
-;         music_mixer_shadow rewritten with current enable bits
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-music_update_channel_effects:
-    ld a, #3F
-    ld (music_mixer_shadow), a
-    ld c, 0
-    call music_update_one_channel
-    ld c, 1
-    call music_update_one_channel
-    ld c, 2
-    call music_update_one_channel
-    ld a, (music_mixer_shadow)
-    call psg_set_mixer
-    ret
-
-; ------------------------------------------------------------------
-; music_update_one_channel
-; Apply one cached channel to PSG and update the mixer shadow bits.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: Channel PSG tone/volume updated or silenced
-;         music_mixer_shadow updated for that channel
-; Destroys: AF, BC, DE, HL
-; Preserves: Stack balance restored before return
-; ------------------------------------------------------------------
-music_update_one_channel:
-    push bc
-    push de
-    push hl
-    ld hl, music_ch_note_base
-    call music_load_channel_byte
-    cp #FF
-    jp z, .silent_channel
+    jr z, .pt3_upd_stop
+    ; Loop: reinitialise from same track
+    ld a, (music_track_index)
     add a, a
     ld e, a
     ld d, 0
-    ld hl, music_note_period_table
+    ld hl, music_pt3_track_table
     add hl, de
     ld e, (hl)
     inc hl
     ld d, (hl)
     ld h, d
     ld l, e
-    ld a, c
-    push bc
-    call psg_set_tone
-    pop bc
-    call music_resolve_channel_volume
-    ld a, c
-    push bc
-    call psg_set_volume
-    pop bc
-    ld d, 1
-    ld e, 0
-    call music_get_channel_instrument_ptr
-    ld a, h
-    or l
-    jr z, .apply_mixer_bits
-    ld a, (hl)
-    and #01
-    ld d, a
-    ld a, (hl)
-    and #02
-    srl a
-    ld e, a
-    ld a, e
-    or a
-    jr z, .apply_mixer_bits
-    push de
-    call music_resolve_channel_noise
-    call psg_set_noise
-    pop de
-.apply_mixer_bits:
-    ld a, (music_mixer_shadow)
-    ld b, a
-    ld a, c
-    cp 1
-    jp z, .enable_b
-    cp 2
-    jp z, .enable_c
-    ld a, b
-    bit 0, d
-    jr z, .a_tone_off
-    and #3E
-    jr .a_noise_gate
-.a_tone_off:
-    or #01
-.a_noise_gate:
-    bit 0, e
-    jr z, .a_noise_off
-    and #37
-    jp .store_mixer
-.a_noise_off:
-    or #08
-    jp .store_mixer
-.enable_b:
-    ld a, b
-    bit 0, d
-    jr z, .b_tone_off
-    and #3D
-    jr .b_noise_gate
-.b_tone_off:
-    or #02
-.b_noise_gate:
-    bit 0, e
-    jr z, .b_noise_off
-    and #2F
-    jp .store_mixer
-.b_noise_off:
-    or #10
-    jp .store_mixer
-.enable_c:
-    ld a, b
-    bit 0, d
-    jr z, .c_tone_off
-    and #3B
-    jr .c_noise_gate
-.c_tone_off:
-    or #04
-.c_noise_gate:
-    bit 0, e
-    jr z, .c_noise_off
-    and #1F
-    jp .store_mixer
-.c_noise_off:
-    or #20
-    jp .store_mixer
-.silent_channel:
-    ld b, 0
-    ld a, c
-    push bc
-    call psg_set_volume
-    pop bc
-    ld a, (music_mixer_shadow)
-    ld b, a
-    ld a, c
-    cp 1
-    jp z, .disable_b
-    cp 2
-    jp z, .disable_c
-    ld a, b
-    or #09
-    jp .store_mixer
-.disable_b:
-    ld a, b
-    or #12
-    jp .store_mixer
-.disable_c:
-    ld a, b
-    or #24
-.store_mixer:
-    ld (music_mixer_shadow), a
-    pop hl
-    pop de
-    pop bc
+    di
+    push ix
+    push iy
+    call PT3_INIT
+    pop iy
+    pop ix
+    ei
+    ret
+.pt3_upd_stop:
+    xor a
+    ld (music_active), a
+    ret
+.pt3_upd_play:
+    di
+    push ix
+    push iy
+    call PT3_PLAY
+    call PT3_ROUT
+    pop iy
+    pop ix
+    ei
     ret
 
-music_note_period_table:
-    DW #1AB9,#1939,#17CF,#1679,#1536,#1405,#12E5,#11D6
-    DW #10D6,#0FE4,#0EFF,#0E28,#0D5C,#0C9D,#0BE7,#0B3C
-    DW #0A9B,#0A02,#0973,#08EB,#086B,#07F2,#0780,#0714
-    DW #06AE,#064E,#05F4,#059E,#054D,#0501,#04B9,#0475
-    DW #0435,#03F9,#03C0,#038A,#0357,#0327,#02FA,#02CF
-    DW #02A7,#0281,#025D,#023B,#021B,#01FC,#01E0,#01C5
-    DW #01AC,#0194,#017D,#0168,#0153,#0140,#012E,#011D
-    DW #010D,#00FE,#00F0,#00E2,#00D6,#00CA,#00BE,#00B4
-    DW #00AA,#00A0,#0097,#008F,#0087,#007F,#0078,#0071
-    DW #006B,#0065,#005F,#005A,#0055,#0050,#004C,#0047
-    DW #0043,#0040,#003C,#0039,#0035,#0032,#0030,#002D
-    DW #002A,#0028,#0026,#0024,#0022,#0020,#001E,#001C
+; ------------------------------------------------------------------
+; PT3 REPLAYER (included from server root)
+; ------------------------------------------------------------------
+    include "../PT3-ROM-alltables-glass.asm"
 
-music_track_count:
+; ------------------------------------------------------------------
+; PT3 TRACK TABLE
+; ------------------------------------------------------------------
+music_pt3_track_count:
+    DB #01
+
+music_pt3_track_table:
+    DW pt3_track_0_data - 99    ; New Track (.99 stripped)
+
+; --- PT3 Track 0: New Track ---
+pt3_track_0_data:
+    DB #02,#06,#09,#00,#D3,#00,#00,#00,#BA,#05,#CC,#05,#E6,#05,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#0C,#06,#0F,#06,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#03,#06,#09,#0C,#0C,#0F,#06,#12,#FF
+    DB #FD,#00,#3C,#01,#49,#01,#CF,#01,#20,#02,#5F,#02,#CF,#01,#E5,#02
+    DB #5F,#02,#2F,#03,#45,#03,#55,#03,#7B,#03,#C0,#03,#08,#04,#8E,#04
+    DB #C7,#04,#00,#05,#66,#05,#7D,#05,#94,#05,#B1,#10,#C0,#F1,#04,#CB
+    DB #B1,#01,#7A,#7E,#77,#83,#B1,#02,#81,#77,#B1,#01,#7A,#7E,#77,#83
+    DB #81,#75,#81,#75,#7A,#7E,#77,#83,#B1,#02,#81,#77,#B1,#01,#7A,#7E
+    DB #77,#83,#81,#75,#81,#75,#7A,#7E,#77,#83,#B1,#02,#81,#77,#B1,#01
+    DB #7A,#7E,#77,#83,#81,#75,#81,#75,#00,#B1,#30,#C0,#F0,#06,#CE,#B1
+    DB #04,#86,#86,#86,#86,#00,#1E,#00,#4A,#02,#40,#CF,#B1,#02,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#00,#F1,#04,#CB,#B1
+    DB #01,#7A,#7E,#77,#83,#B1,#02,#81,#77,#B1,#01,#7A,#7E,#77,#83,#81
+    DB #75,#B1,#02,#81,#B1,#01,#7A,#7E,#77,#83,#B1,#02,#81,#77,#B1,#01
+    DB #7A,#7E,#77,#83,#81,#75,#81,#75,#7A,#7E,#77,#83,#B1,#02,#81,#77
+    DB #B1,#01,#7A,#7E,#77,#83,#81,#75,#81,#75,#7A,#7E,#77,#83,#B1,#02
+    DB #81,#77,#B1,#01,#7A,#7E,#77,#83,#81,#75,#81,#75,#00,#F0,#06,#CE
+    DB #B1,#04,#86,#86,#86,#86,#B1,#02,#86,#88,#89,#8A,#B1,#01,#83,#B1
+    DB #02,#81,#B1,#01,#81,#B1,#02,#8A,#8A,#86,#88,#89,#8A,#B1,#01,#83
+    DB #B1,#02,#81,#B1,#01,#81,#B1,#02,#88,#7C,#86,#88,#89,#8A,#B1,#01
+    DB #83,#B1,#02,#81,#B1,#01,#81,#B1,#02,#8A,#8A,#00,#1E,#00,#4A,#02
+    DB #40,#CF,#B1,#02,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25
+    DB #6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25
+    DB #6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25
+    DB #6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#63,#5D,#BF,#00,#31
+    DB #69,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25
+    DB #6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#63,#5D,#BF,#00,#31
+    DB #69,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25
+    DB #6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#63,#5D,#BF,#00,#31
+    DB #69,#00,#F0,#06,#CE,#B1,#01,#8B,#8D,#8B,#8D,#8A,#86,#83,#81,#B1
+    DB #02,#86,#83,#B1,#04,#86,#B1,#02,#86,#88,#89,#8A,#B1,#01,#83,#B1
+    DB #02,#81,#B1,#01,#81,#B1,#02,#8A,#8A,#86,#88,#89,#8A,#B1,#01,#83
+    DB #B1,#02,#81,#B1,#01,#81,#B1,#02,#88,#7C,#86,#88,#89,#8A,#B1,#01
+    DB #83,#B1,#02,#81,#B1,#01,#81,#B1,#02,#8A,#8A,#00,#F1,#04,#CB,#B1
+    DB #01,#7F,#81,#7F,#81,#7F,#81,#7F,#81,#75,#75,#77,#75,#75,#75,#77
+    DB #75,#00,#F0,#06,#CE,#B1,#01,#8B,#8D,#8B,#8D,#8B,#8D,#8B,#B1,#09
+    DB #8D,#00,#1E,#00,#63,#02,#40,#CF,#B1,#02,#5D,#BF,#00,#63,#5D,#BF
+    DB #00,#63,#5D,#BF,#00,#63,#5D,#BF,#00,#63,#5D,#BF,#00,#63,#5D,#BF
+    DB #00,#53,#60,#BF,#00,#4A,#62,#00,#F1,#04,#CB,#B1,#01,#73,#6E,#70
+    DB #6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#73,#6E,#70
+    DB #6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#73,#6E,#70
+    DB #6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#73,#6E,#70
+    DB #6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#B1,#04,#70,#00,#F0,#06,#CE
+    DB #B1,#01,#8F,#8E,#8F,#8B,#92,#94,#92,#94,#8F,#8F,#B1,#02,#8F,#8F
+    DB #8F,#B1,#01,#8F,#8E,#8F,#8B,#92,#94,#92,#94,#8D,#8D,#B1,#02,#8D
+    DB #8D,#8D,#B1,#01,#8F,#8E,#8F,#8B,#92,#94,#92,#94,#8F,#8F,#B1,#02
+    DB #8F,#8F,#8F,#B1,#01,#8B,#8A,#8B,#86,#88,#8B,#84,#8B,#83,#8B,#8B
+    DB #8A,#B1,#04,#8B,#00,#1E,#00,#75,#02,#40,#CF,#B1,#02,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#75,#5A,#BF,#00,#37,#67,#BF,#00,#75,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#4A,#62,#BF,#00,#4A,#62,#BF,#00,#75,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#75,#5A,#BF,#00,#37,#67,#BF,#00,#58,#5F,#BF,#00
+    DB #58,#5F,#BF,#00,#53,#60,#BF,#00,#4A,#62,#BF,#00,#75,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#75,#5A,#BF,#00,#37,#67,#BF,#00,#75,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#4A,#62,#BF,#00,#4A,#62,#BF,#00,#75,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#75,#5A,#BF,#00,#37,#67,#BF,#00,#75,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#4A,#62,#BF,#00,#4A,#62,#00,#B1,#01,#7A,#7E,#77
+    DB #83,#B1,#02,#81,#77,#B1,#01,#7A,#7E,#77,#83,#81,#75,#81,#75,#7A
+    DB #7E,#77,#83,#B1,#02,#81,#77,#B1,#01,#7A,#7E,#77,#83,#81,#75,#81
+    DB #75,#7A,#7E,#77,#83,#B1,#02,#81,#77,#B1,#01,#7A,#7E,#77,#83,#81
+    DB #75,#81,#75,#00,#F0,#06,#CE,#B1,#02,#86,#88,#89,#8A,#B1,#01,#83
+    DB #B1,#02,#81,#B1,#01,#81,#B1,#02,#8A,#8A,#86,#88,#89,#8A,#B1,#01
+    DB #83,#B1,#02,#81,#B1,#01,#81,#B1,#02,#7C,#7C,#86,#88,#89,#8A,#B1
+    DB #01,#83,#B1,#02,#81,#B1,#01,#81,#B1,#02,#8A,#8A,#00,#1E,#00,#4A
+    DB #02,#40,#CF,#B1,#02,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00
+    DB #25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#63,#5D,#BF,#00
+    DB #31,#69,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00
+    DB #25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#63,#5D,#BF,#00
+    DB #31,#69,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00
+    DB #25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#63,#5D,#BF,#00
+    DB #31,#69,#00,#F1,#04,#CB,#B1,#01,#73,#75,#73,#75,#73,#75,#73,#75
+    DB #B1,#02,#69,#B1,#01,#6E,#B1,#05,#6E,#00,#F0,#06,#CE,#B1,#01,#88
+    DB #81,#88,#81,#88,#81,#88,#81,#B1,#02,#86,#B1,#01,#86,#B1,#05,#86
+    DB #00,#1E,#00,#63,#02,#40,#CF,#B1,#02,#5D,#BF,#00,#63,#5D,#BF,#00
+    DB #63,#5D,#BF,#00,#63,#5D,#BF,#00,#63,#5D,#BF,#00,#4A,#B1,#01,#62
+    DB #BF,#00,#4A,#B1,#05,#62,#00,#03,#04,#00,#8F,#00,#00,#00,#8F,#00
+    DB #00,#80,#8F,#00,#00,#81,#8E,#00,#00,#05,#06,#01,#8A,#00,#00,#01
+    DB #8D,#00,#00,#01,#8F,#00,#00,#01,#8E,#00,#00,#81,#89,#00,#00,#81
+    DB #86,#00,#00,#07,#09,#01,#8D,#00,#00,#01,#8E,#00,#00,#01,#8F,#FF
+    DB #FF,#01,#8F,#FF,#FF,#01,#8F,#FF,#FF,#01,#8F,#FF,#FF,#01,#8E,#00
+    DB #00,#01,#8D,#00,#00,#81,#8D,#00,#00,#00,#01,#00,#02,#03,#00,#0C
     DB #00
 
-music_track_ptr_table:
-    DW 0
 
 ; ==================================================================
 ; END OF PSG SOUND SYSTEM
@@ -17836,8 +17284,8 @@ SM_New_Statemachine_state_1773007838313_Transitions_Actions_1:
 ; ==================================================================
 ;
 ; GameFlow: Main
-; Total Nodes: 5
-; Total Connections: 6
+; Total Nodes: 6
+; Total Connections: 7
 ; Start Node: gf_start_1770754183471
 ;
 ; ARCHITECTURE:
@@ -17902,6 +17350,8 @@ gameflow_execute_node:
     jp z, gameflow_handle_text
     cp NODE_TYPE_SUB_MENU
     jp z, gameflow_handle_submenu
+    cp NODE_TYPE_MUSIC
+    jp z, gameflow_handle_music
     
     ; Unknown node type - error
     ret
@@ -18832,6 +18282,19 @@ submenu_cursor_sprite_pattern_table:
     dw SPRITE_9_PATTERN
 
 
+gameflow_handle_music:
+    ; Music node - play/stop music
+    ; DE = music data (command, track index, loop flag)
+    ; BC = connection table
+    
+    push bc
+    call music_execute_command
+    pop bc
+    call gameflow_get_default_connection
+    ld a, h
+    or l
+    ret z
+    jp gameflow_execute_node
 ; ------------------------------------------------------------------
 ; Shared helper: Print string to VRAM
 ; Input: HL = string pointer (null-terminated)
@@ -19011,7 +18474,7 @@ gameflow_node_gf_start_1770754183471_data:
 
 gameflow_node_gf_start_1770754183471_conn:
     db CONNECTION_DEFAULT
-    dw gameflow_node_gfn_1773429482585
+    dw gameflow_node_gfn_1773587244048
     db CONNECTION_END
 
 ; ------------------------------------------------------------------
@@ -19148,6 +18611,20 @@ text_gfn_1773429614539_prompt:
 gameflow_node_gfn_1773429614539_conn:
     db CONNECTION_DEFAULT
     dw gameflow_node_gf_start_1770754183471
+    db CONNECTION_END
+
+; Node: Music - "gfn_1773587244048"
+gameflow_node_gfn_1773587244048:
+    db NODE_TYPE_MUSIC
+    dw gameflow_node_gfn_1773587244048_data
+    dw gameflow_node_gfn_1773587244048_conn
+
+gameflow_node_gfn_1773587244048_data:
+    db 1, 0, 1    ; command, track index, loop flag
+
+gameflow_node_gfn_1773587244048_conn:
+    db CONNECTION_DEFAULT
+    dw gameflow_node_gfn_1773429482585
     db CONNECTION_END
 
 
@@ -20544,43 +20021,43 @@ ZX0_SPRITE_FRAME_DATA_END_LABEL:
 ; ZX0 SCREEN BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for screen layout decompression (768 bytes)
 ; ==================================================================
-ZX0_SCREEN_BUFFER EQU #DB00
+ZX0_SCREEN_BUFFER EQU #DD00
 
 ; ==================================================================
 ; ZX0 BEHAVIOR BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for behavior map decompression (768 bytes)
 ; ==================================================================
-ZX0_BEHAVIOR_BUFFER EQU #DE00
+ZX0_BEHAVIOR_BUFFER EQU #E000
 
 ; ==================================================================
 ; ZX0 TILE PATTERN BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for tile pattern data decompression (192 bytes)
 ; ==================================================================
-ZX0_TILE_PATTERN_BUFFER EQU #E100
+ZX0_TILE_PATTERN_BUFFER EQU #E300
 
 ; ==================================================================
 ; ZX0 TILE COLOR BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for tile color data decompression (192 bytes)
 ; ==================================================================
-ZX0_TILE_COLOR_BUFFER EQU #E200
+ZX0_TILE_COLOR_BUFFER EQU #E400
 
 ; ==================================================================
 ; ZX0 FONT PATTERN BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for font pattern data decompression (360 bytes)
 ; ==================================================================
-ZX0_FONT_PATTERN_BUFFER EQU #E300
+ZX0_FONT_PATTERN_BUFFER EQU #E500
 
 ; ==================================================================
 ; ZX0 FONT COLOR BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for font color data decompression (360 bytes)
 ; ==================================================================
-ZX0_FONT_COLOR_BUFFER EQU #E500
+ZX0_FONT_COLOR_BUFFER EQU #E700
 
 ; ==================================================================
 ; ZX0 SPRITE FRAME BUFFER (AUTO-INJECTED)
 ; Shared RAM buffer for per-frame sprite decompression before VRAM upload (64 bytes)
 ; ==================================================================
-ZX0_SPRITE_FRAME_BUFFER EQU #E700
+ZX0_SPRITE_FRAME_BUFFER EQU #E900
 
 ; ==================================================================
 ; ZX0 SPRITE LABEL REMAP (AUTO-INJECTED)
