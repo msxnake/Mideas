@@ -1121,6 +1121,93 @@ export interface MainMenuConfig {
 }
 // --- End Main Menu Types ---
 
+// --- Presentation Screen Types ---
+export interface PresentationScreenConversionConfig {
+  dither: 'none';
+  backgroundColorIndex: number;
+  preferExistingPalette: boolean;
+  twoColorsPer8PixelRow: boolean;
+  deduplicatePatterns: boolean;
+}
+
+export interface PresentationScreenPreview {
+  paletteIndices: number[];
+  uniqueCharsPerBank: [number, number, number];
+  totalUniqueChars: number;
+  warning?: string | null;
+}
+
+export interface PresentationScreenData {
+  nameTable: number[];
+  patternBank0: number[];
+  patternBank1: number[];
+  patternBank2: number[];
+  colorBank0: number[];
+  colorBank1: number[];
+  colorBank2: number[];
+  patternCountBank0: number;
+  patternCountBank1: number;
+  patternCountBank2: number;
+}
+
+export interface PresentationScreenCompressionConfig {
+  codec: 'ZX0';
+  compressNameTable: boolean;
+  compressPatterns: boolean;
+  compressColors: boolean;
+}
+
+export interface PresentationScreenRuntimeConfig {
+  showAtBoot: boolean;
+  clearSpritesBeforeShow: boolean;
+  waitForKey: boolean;
+  waitForFrames: number;
+}
+
+export type PresentationScreenBankIndex = 0 | 1 | 2;
+export type PresentationScreenEditMode = 'single' | 'shared';
+
+export interface PresentationScreenCellCoordinate {
+  x: number;
+  y: number;
+}
+
+export interface PresentationScreenCellInfo {
+  x: number;
+  y: number;
+  bank: PresentationScreenBankIndex;
+  charCode: number;
+  charUsageCount: number;
+  sharedCells: PresentationScreenCellCoordinate[];
+}
+
+export interface PresentationScreenEditableTile {
+  cell: PresentationScreenCellCoordinate;
+  bank: PresentationScreenBankIndex;
+  charCode: number;
+  charUsageCount: number;
+  patternBytes: number[];
+  colorBytes: number[];
+}
+
+export interface PresentationScreenConfig {
+  enabled: boolean;
+  name: string;
+  sourceFileName: string | null;
+  sourceImageWidth: number;
+  sourceImageHeight: number;
+  screenMode: 'SCREEN 2';
+  paletteMode: 'MSX1';
+  conversion: PresentationScreenConversionConfig;
+  preview: PresentationScreenPreview;
+  data: PresentationScreenData;
+  compression: PresentationScreenCompressionConfig;
+  runtime: PresentationScreenRuntimeConfig;
+  updatedAt?: number | null;
+  lastImportError?: string | null;
+}
+// --- End Presentation Screen Types ---
+
 // --- Game Flow Types ---
 
 /** The type of a node in the game flow graph. */
@@ -1327,6 +1414,7 @@ export enum EditorType {
   WorldView = "WorldView",
   GameFlow = "GameFlow",
   MainMenu = "MainMenu",
+  PresentationScreen = "PresentationScreen",
   StateMachine = "StateMachine",
   GlobalVariables = "GlobalVariables",
   Palette = "Palette",
@@ -1341,9 +1429,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette';
+  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset;
+  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }
@@ -1556,7 +1644,7 @@ export interface WaypointPickerState {
 }
 
 // --- Centralized History System ---
-export type HistoryActionType = 'ASSETS_UPDATE' | 'TILE_BANKS_UPDATE' | 'FONT_UPDATE' | 'FONT_COLOR_UPDATE' | 'COMPONENT_DEFINITIONS_UPDATE' | 'ENTITY_TEMPLATES_UPDATE' | 'MAIN_MENU_UPDATE';
+export type HistoryActionType = 'ASSETS_UPDATE' | 'TILE_BANKS_UPDATE' | 'FONT_UPDATE' | 'FONT_COLOR_UPDATE' | 'COMPONENT_DEFINITIONS_UPDATE' | 'ENTITY_TEMPLATES_UPDATE' | 'MAIN_MENU_UPDATE' | 'PRESENTATION_SCREEN_UPDATE';
 
 export interface HistoryAction {
   type: HistoryActionType;

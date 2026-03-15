@@ -5,13 +5,13 @@ import {
   HUDConfiguration, TileBank, MSXFont, MSXFontColorAttributes,
   MSXFontAsset, DataFormat, Snippet, HistoryState, HistoryAction,
   CopiedScreenData, CopiedLayerData, CopiedTileData, WaypointPickerState,
-  GameFlowGraph, CopiedBossPhaseData, HelpDocSection
+  GameFlowGraph, CopiedBossPhaseData, HelpDocSection, PresentationScreenConfig
 } from '../types';
 import {
   MSX_SCREEN5_PALETTE, DEFAULT_SCREEN_MODE, DEFAULT_MAIN_MENU_CONFIG,
   DEFAULT_SCREEN2_BG_COLOR, MSX1_PALETTE, Z80_SNIPPETS as DEFAULT_Z80_SNIPPETS,
   Z80_BEHAVIOR_SNIPPETS, DEFAULT_TILE_BANK_DEFINITIONS, MAX_HISTORY_LENGTH,
-  DEFAULT_HELP_DOCS_DATA
+  DEFAULT_HELP_DOCS_DATA, DEFAULT_PRESENTATION_SCREEN_CONFIG
 } from '../constants';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
 import { getVariedColorsForChar } from '../utils/colorUtils';
@@ -39,6 +39,7 @@ export const useAppState = () => {
   const [componentDefinitions, setComponentDefinitionsState] = useState<ComponentDefinition[]>(DEFAULT_COMPONENT_DEFINITIONS);
   const [entityTemplates, setEntityTemplatesState] = useState<EntityTemplate[]>(DEFAULT_ENTITY_TEMPLATES);
   const [mainMenuConfig, setMainMenuConfigState] = useState<MainMenuConfig>(DEFAULT_MAIN_MENU_CONFIG);
+  const [presentationScreen, setPresentationScreenState] = useState<PresentationScreenConfig>(DEFAULT_PRESENTATION_SCREEN_CONFIG);
   const [currentEntityTypeToPlace, setCurrentEntityTypeToPlace] = useState<EntityTemplate | null>(null);
   const [selectedEntityInstanceId, setSelectedEntityInstanceId] = useState<string | null>(null);
   const [selectedEffectZoneId, setSelectedEffectZoneId] = useState<string | null>(null);
@@ -357,6 +358,8 @@ export const useAppState = () => {
     setEntityTemplatesState,
     mainMenuConfig,
     setMainMenuConfigState,
+    presentationScreen,
+    setPresentationScreenState,
     currentEntityTypeToPlace,
     setCurrentEntityTypeToPlace,
     selectedEntityInstanceId,

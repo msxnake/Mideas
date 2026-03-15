@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { ProjectAsset, EditorType, ScreenMap, TileBank, TileBankDefinition, ComponentDefinition, EntityTemplate, MainMenuConfig, Snippet, HelpDocSection, DataFormat, MSXFont, MSXFontColorAttributes, MSXColorValue } from '../types';
-import { DEFAULT_TILE_BANK_DEFINITIONS, DEFAULT_MAIN_MENU_CONFIG, DEFAULT_SCREEN_MODE, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../constants';
+import { ProjectAsset, EditorType, ScreenMap, TileBank, TileBankDefinition, ComponentDefinition, EntityTemplate, MainMenuConfig, Snippet, HelpDocSection, DataFormat, MSXFont, MSXFontColorAttributes, MSXColorValue, PresentationScreenConfig } from '../types';
+import { DEFAULT_TILE_BANK_DEFINITIONS, DEFAULT_MAIN_MENU_CONFIG, DEFAULT_PRESENTATION_SCREEN_CONFIG, DEFAULT_SCREEN_MODE, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../constants';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
 import { getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from '../utils/projectUtils';
 import { cleanUnusedDefinitions } from '../utils/projectCleanup';
@@ -33,6 +33,8 @@ interface ProjectHandlersProps {
   setEntityTemplatesState: (templates: EntityTemplate[]) => void;
   mainMenuConfig: MainMenuConfig;
   setMainMenuConfigState: (config: MainMenuConfig) => void;
+  presentationScreen: PresentationScreenConfig;
+  setPresentationScreenState: (config: PresentationScreenConfig) => void;
   clearAllHistory: () => void;
   setCopiedScreenBuffer: (data: any) => void;
   setCopiedTileData: (data: any) => void;
@@ -241,6 +243,37 @@ function normalizeLoadedCustomGlobalVariables(customVariables: any[]): { variabl
   };
 }
 
+function mergePresentationScreenConfig(rawConfig: any): PresentationScreenConfig {
+  if (!rawConfig || typeof rawConfig !== 'object') {
+    return JSON.parse(JSON.stringify(DEFAULT_PRESENTATION_SCREEN_CONFIG));
+  }
+
+  return {
+    ...DEFAULT_PRESENTATION_SCREEN_CONFIG,
+    ...rawConfig,
+    conversion: {
+      ...DEFAULT_PRESENTATION_SCREEN_CONFIG.conversion,
+      ...(rawConfig.conversion || {}),
+    },
+    preview: {
+      ...DEFAULT_PRESENTATION_SCREEN_CONFIG.preview,
+      ...(rawConfig.preview || {}),
+    },
+    data: {
+      ...DEFAULT_PRESENTATION_SCREEN_CONFIG.data,
+      ...(rawConfig.data || {}),
+    },
+    compression: {
+      ...DEFAULT_PRESENTATION_SCREEN_CONFIG.compression,
+      ...(rawConfig.compression || {}),
+    },
+    runtime: {
+      ...DEFAULT_PRESENTATION_SCREEN_CONFIG.runtime,
+      ...(rawConfig.runtime || {}),
+    },
+  };
+}
+
 export const useProjectHandlers = ({
   assets,
   setAssets,
@@ -267,6 +300,8 @@ export const useProjectHandlers = ({
   setEntityTemplatesState,
   mainMenuConfig,
   setMainMenuConfigState,
+  presentationScreen,
+  setPresentationScreenState,
   clearAllHistory,
   setCopiedScreenBuffer,
   setCopiedTileData,
@@ -316,6 +351,7 @@ export const useProjectHandlers = ({
         setComponentDefinitionsState(DEFAULT_COMPONENT_DEFINITIONS);
         setEntityTemplatesState(DEFAULT_ENTITY_TEMPLATES);
         setMainMenuConfigState(DEFAULT_MAIN_MENU_CONFIG);
+        setPresentationScreenState(DEFAULT_PRESENTATION_SCREEN_CONFIG);
         clearAllHistory();
         setCopiedScreenBuffer(null);
         setCopiedTileData(null);
@@ -481,6 +517,7 @@ export const useProjectHandlers = ({
       componentDefinitions: cleanedComponents,
       entityTemplates: cleanedTemplates,
       mainMenuConfig,
+      presentationScreen,
       selectedEntityInstanceId: null,
       selectedEffectZoneId: null,
     };
@@ -506,7 +543,7 @@ export const useProjectHandlers = ({
     assets, currentScreenMode, selectedAssetId, currentEditor, tileBanks,
     msxFont, msxFontColorAttributes, dataOutputFormat, autosaveEnabled,
     snippetsEnabled, syntaxHighlightingEnabled, userSnippets, helpDocsData,
-    currentProjectName, componentDefinitions, entityTemplates, mainMenuConfig,
+    currentProjectName, componentDefinitions, entityTemplates, mainMenuConfig, presentationScreen,
     setStatusBarMessage
   ]);
 
@@ -671,6 +708,7 @@ export const useProjectHandlers = ({
       }
 
       if (projectData.mainMenuConfig) setMainMenuConfigState(projectData.mainMenuConfig);
+      setPresentationScreenState(mergePresentationScreenConfig(projectData.presentationScreen));
 
       const finalProjectName = projectData.currentProjectName || projectName || 'msx_ide_project';
       setCurrentProjectName(finalProjectName);
@@ -717,6 +755,7 @@ export const useProjectHandlers = ({
     setCopiedTileData,
     setEntityTemplatesState,
     setMainMenuConfigState,
+    setPresentationScreenState,
     setSelectedAssetId,
     setSelectedEffectZoneId,
     setSelectedEntityInstanceId,

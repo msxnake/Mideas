@@ -280,6 +280,12 @@ function countSymbolReferences(sourceCodeUpper, symbol) {
   return matches ? matches.length : 0;
 }
 
+function parsePresentationCompressionFlag(sourceCode, key, defaultValue = true) {
+  const match = String(sourceCode || '').match(new RegExp(`^\\s*;\\s*${key}:\\s*([01])\\s*$`, 'im'));
+  if (!match) return defaultValue;
+  return match[1] === '1';
+}
+
 function buildSpriteFrameGroups(spritePatternBlocks, sourceCode) {
   const groups = [];
   const groupsByKey = new Map();
@@ -426,6 +432,9 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const hasLayoutData = /SCREEN_[A-Z0-9_]+_\d+_LAYOUT:/.test(sourceCode);
   const hasEffectsData = /SCREEN_[A-Z0-9_]+_\d+_EFFECTS_LAYOUT:/.test(sourceCode);
   const hasBehaviorData = /BEHAVIOR_[A-Z0-9_]+_\d+_DATA:/.test(sourceCode);
+  const hasPresentationNameData = /^\s*PRESENTATION_SCREEN_NAMETBL:\s*$/im.test(sourceCode);
+  const hasPresentationPatternData = /^\s*PRESENTATION_SCREEN_PATTERNS_B[0-2]:\s*$/im.test(sourceCode);
+  const hasPresentationColorData = /^\s*PRESENTATION_SCREEN_COLORS_B[0-2]:\s*$/im.test(sourceCode);
   const hasTilePatternData = /^\s*tile_pattern_[a-z0-9_]+:\s*$/im.test(sourceCode);
   const hasTileColorData = /^\s*tile_color_[a-z0-9_]+:\s*$/im.test(sourceCode);
   const hasFontPatternData = /^\s*FONT_PATTERN_DATA:\s*$/im.test(sourceCode);
@@ -435,6 +444,9 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     !hasLayoutData &&
     !hasEffectsData &&
     !hasBehaviorData &&
+    !hasPresentationNameData &&
+    !hasPresentationPatternData &&
+    !hasPresentationColorData &&
     !hasTilePatternData &&
     !hasTileColorData &&
     !hasFontPatternData &&
@@ -451,6 +463,9 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const tileColorBufferSymbol = hasEquSymbol(sourceCode, 'ZX0_TILE_COLOR_BUFFER') ? 'ZX0_TILE_COLOR_BUFFER' : 'ZX0_TILE_COLOR_BUFFER';
   const fontPatternBufferSymbol = hasEquSymbol(sourceCode, 'ZX0_FONT_PATTERN_BUFFER') ? 'ZX0_FONT_PATTERN_BUFFER' : 'ZX0_FONT_PATTERN_BUFFER';
   const fontColorBufferSymbol = hasEquSymbol(sourceCode, 'ZX0_FONT_COLOR_BUFFER') ? 'ZX0_FONT_COLOR_BUFFER' : 'ZX0_FONT_COLOR_BUFFER';
+  const compressPresentationName = parsePresentationCompressionFlag(sourceCode, 'PRESENTATION_SCREEN_COMPRESS_NAMETBL', true);
+  const compressPresentationPatterns = parsePresentationCompressionFlag(sourceCode, 'PRESENTATION_SCREEN_COMPRESS_PATTERNS', true);
+  const compressPresentationColors = parsePresentationCompressionFlag(sourceCode, 'PRESENTATION_SCREEN_COMPRESS_COLORS', true);
   info.screenBufferSymbol = screenBufferSymbol;
   info.effectsBufferSymbol = 'runtime_effects_layout';
   info.behaviorBufferSymbol = behaviorBufferSymbol;
@@ -464,6 +479,15 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const layoutBlocks = collectAsmDataBlocks(lines, /^\s*(SCREEN_[A-Z0-9_]+_\d+_LAYOUT):\s*$/);
   const effectsBlocks = collectAsmDataBlocks(lines, /^\s*(SCREEN_[A-Z0-9_]+_\d+_EFFECTS_LAYOUT):\s*$/);
   const behaviorBlocks = collectAsmDataBlocks(lines, /^\s*(BEHAVIOR_[A-Z0-9_]+_\d+_DATA):\s*$/);
+  const presentationNameBlocks = compressPresentationName
+    ? collectAsmDataBlocks(lines, /^\s*(PRESENTATION_SCREEN_NAMETBL):\s*$/)
+    : [];
+  const presentationPatternBlocks = compressPresentationPatterns
+    ? collectAsmDataBlocks(lines, /^\s*(PRESENTATION_SCREEN_PATTERNS_B[0-2]):\s*$/)
+    : [];
+  const presentationColorBlocks = compressPresentationColors
+    ? collectAsmDataBlocks(lines, /^\s*(PRESENTATION_SCREEN_COLORS_B[0-2]):\s*$/)
+    : [];
   const tilePatternBlocks = collectAsmDataBlocks(lines, /^\s*(tile_pattern_[a-z0-9_]+):\s*$/i);
   const tileColorBlocks = collectAsmDataBlocks(lines, /^\s*(tile_color_[a-z0-9_]+):\s*$/i);
   const fontPatternBlocks = collectAsmDataBlocks(lines, /^\s*(FONT_PATTERN_DATA):\s*$/i);
@@ -472,8 +496,11 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
   if (
     layoutBlocks.length === 0 &&
+    presentationNameBlocks.length === 0 &&
     effectsBlocks.length === 0 &&
     behaviorBlocks.length === 0 &&
+    presentationPatternBlocks.length === 0 &&
+    presentationColorBlocks.length === 0 &&
     tilePatternBlocks.length === 0 &&
     tileColorBlocks.length === 0 &&
     fontPatternBlocks.length === 0 &&
@@ -483,21 +510,25 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     return { code: sourceCode, info };
   }
 
-  info.candidateScreens = layoutBlocks.length;
+  const allLayoutBlocks = [...layoutBlocks, ...presentationNameBlocks];
+  const allTilePatternBlocks = [...tilePatternBlocks, ...presentationPatternBlocks];
+  const allTileColorBlocks = [...tileColorBlocks, ...presentationColorBlocks];
+
+  info.candidateScreens = allLayoutBlocks.length;
   info.candidateEffects = effectsBlocks.length;
   info.candidateBehaviorMaps = behaviorBlocks.length;
-  info.candidateTilePatterns = tilePatternBlocks.length;
-  info.candidateTileColors = tileColorBlocks.length;
+  info.candidateTilePatterns = allTilePatternBlocks.length;
+  info.candidateTileColors = allTileColorBlocks.length;
   info.candidateFontPatterns = fontPatternBlocks.length;
   info.candidateFontColors = fontColorBlocks.length;
   info.candidateSpritePatterns = spritePatternBlocks.length;
 
   const enabledProgressGroups = [
-    screens ? { phase: 'screens', label: 'Compress screen layouts', count: layoutBlocks.length } : null,
+    screens ? { phase: 'screens', label: 'Compress screen layouts', count: allLayoutBlocks.length } : null,
     effects ? { phase: 'effects', label: 'Compress effects layouts', count: effectsBlocks.length } : null,
     behaviorMaps ? { phase: 'behaviorMaps', label: 'Compress behavior maps', count: behaviorBlocks.length } : null,
-    tilePatterns ? { phase: 'tilePatterns', label: 'Compress tile patterns', count: tilePatternBlocks.length } : null,
-    tileColors ? { phase: 'tileColors', label: 'Compress tile colors', count: tileColorBlocks.length } : null,
+    tilePatterns ? { phase: 'tilePatterns', label: 'Compress tile patterns', count: allTilePatternBlocks.length } : null,
+    tileColors ? { phase: 'tileColors', label: 'Compress tile colors', count: allTileColorBlocks.length } : null,
     fontPatterns ? { phase: 'fontPatterns', label: 'Compress font patterns', count: fontPatternBlocks.length } : null,
     fontColors ? { phase: 'fontColors', label: 'Compress font colors', count: fontColorBlocks.length } : null,
     spritePatterns ? { phase: 'spritePatterns', label: 'Compress sprite frames', count: spritePatternBlocks.length > 0 ? buildSpriteFrameGroups(spritePatternBlocks, sourceCode).length : 0 } : null,
@@ -584,11 +615,11 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
   emitProgress('Preparing ZX0 blocks...', 'prepare', 0, totalProgressSteps);
 
-  if (screens)      await processBlocks(layoutBlocks, 'layout', 'Compress screen layouts', 'screens');
+  if (screens)      await processBlocks(allLayoutBlocks, 'layout', 'Compress screen layouts', 'screens');
   if (effects)      await processBlocks(effectsBlocks, 'effects', 'Compress effects layouts', 'effects');
   if (behaviorMaps) await processBlocks(behaviorBlocks, 'behavior', 'Compress behavior maps', 'behaviorMaps');
-  if (tilePatterns) await processBlocks(tilePatternBlocks, 'tile_pattern', 'Compress tile patterns', 'tilePatterns');
-  if (tileColors)   await processBlocks(tileColorBlocks, 'tile_color', 'Compress tile colors', 'tileColors');
+  if (tilePatterns) await processBlocks(allTilePatternBlocks, 'tile_pattern', 'Compress tile patterns', 'tilePatterns');
+  if (tileColors)   await processBlocks(allTileColorBlocks, 'tile_color', 'Compress tile colors', 'tileColors');
   if (fontPatterns) await processBlocks(fontPatternBlocks, 'font_pattern', 'Compress font patterns', 'fontPatterns');
   if (fontColors)   await processBlocks(fontColorBlocks, 'font_color', 'Compress font colors', 'fontColors');
 
@@ -702,6 +733,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   let inUpdateAnimation = false;
   let inActionChangeSprite = false;
   let inSubmenuPrepareCursor = false;
+  let inShowPresentationScreen = false;
   let fontBlobInitInjected = false;
 
   for (const line of rebuilt) {
@@ -709,6 +741,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inLoadSpritePatterns = true;
       inUpdateAnimation = false;
       inSubmenuPrepareCursor = false;
+      inShowPresentationScreen = false;
       patched.push(line);
       continue;
     }
@@ -718,6 +751,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inUpdateAnimation = true;
       inActionChangeSprite = false;
       inSubmenuPrepareCursor = false;
+      inShowPresentationScreen = false;
       patched.push(line);
       continue;
     }
@@ -727,6 +761,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inUpdateAnimation = false;
       inActionChangeSprite = true;
       inSubmenuPrepareCursor = false;
+      inShowPresentationScreen = false;
       patched.push(line);
       continue;
     }
@@ -736,6 +771,20 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inUpdateAnimation = false;
       inActionChangeSprite = false;
       inSubmenuPrepareCursor = true;
+      inShowPresentationScreen = false;
+      patched.push(line);
+      continue;
+    }
+
+    if (/^\s*show_presentation_screen:\s*$/i.test(line)) {
+      inLoadScreen = false;
+      inLoadPattern = false;
+      inLoadColor = false;
+      inLoadSpritePatterns = false;
+      inUpdateAnimation = false;
+      inActionChangeSprite = false;
+      inSubmenuPrepareCursor = false;
+      inShowPresentationScreen = true;
       patched.push(line);
       continue;
     }
@@ -789,6 +838,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inLoadSpritePatterns = false;
       inUpdateAnimation = false;
       inSubmenuPrepareCursor = false;
+      inShowPresentationScreen = false;
       layoutDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;
@@ -804,6 +854,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inLoadSpritePatterns = false;
       inUpdateAnimation = false;
       inSubmenuPrepareCursor = false;
+      inShowPresentationScreen = false;
       layoutDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;
@@ -819,6 +870,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inLoadSpritePatterns = false;
       inUpdateAnimation = false;
       inSubmenuPrepareCursor = false;
+      inShowPresentationScreen = false;
       layoutDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;
@@ -917,6 +969,51 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       }
     }
 
+    const hlPresentationNameMatch = line.match(/^\s*ld\s+hl,\s*(PRESENTATION_SCREEN_NAMETBL)\s*(?:;.*)?$/i);
+    if (inShowPresentationScreen && hlPresentationNameMatch) {
+      const label = hlPresentationNameMatch[1].toUpperCase();
+      if (compressedLayoutLabels.has(label)) {
+        patched.push('    ; Decompress ZX0 presentation name table into RAM buffer');
+        patched.push('    di');
+        patched.push(`    ld hl, ${hlPresentationNameMatch[1]}`);
+        patched.push(`    ld de, ${screenBufferSymbol}`);
+        patched.push('    call dzx0_standard');
+        patched.push('    ei');
+        patched.push(`    ld hl, ${screenBufferSymbol}`);
+        continue;
+      }
+    }
+
+    const hlPresentationPatternMatch = line.match(/^\s*ld\s+hl,\s*(PRESENTATION_SCREEN_PATTERNS_B[0-2])\s*(?:;.*)?$/i);
+    if (inShowPresentationScreen && hlPresentationPatternMatch) {
+      const label = hlPresentationPatternMatch[1].toUpperCase();
+      if (compressedTilePatternLabels.has(label)) {
+        patched.push('    ; Decompress ZX0 presentation pattern bank into RAM buffer');
+        patched.push('    di');
+        patched.push(`    ld hl, ${hlPresentationPatternMatch[1]}`);
+        patched.push(`    ld de, ${tilePatternBufferSymbol}`);
+        patched.push('    call dzx0_standard');
+        patched.push('    ei');
+        patched.push(`    ld hl, ${tilePatternBufferSymbol}`);
+        continue;
+      }
+    }
+
+    const hlPresentationColorMatch = line.match(/^\s*ld\s+hl,\s*(PRESENTATION_SCREEN_COLORS_B[0-2])\s*(?:;.*)?$/i);
+    if (inShowPresentationScreen && hlPresentationColorMatch) {
+      const label = hlPresentationColorMatch[1].toUpperCase();
+      if (compressedTileColorLabels.has(label)) {
+        patched.push('    ; Decompress ZX0 presentation color bank into RAM buffer');
+        patched.push('    di');
+        patched.push(`    ld hl, ${hlPresentationColorMatch[1]}`);
+        patched.push(`    ld de, ${tileColorBufferSymbol}`);
+        patched.push('    call dzx0_standard');
+        patched.push('    ei');
+        patched.push(`    ld hl, ${tileColorBufferSymbol}`);
+        continue;
+      }
+    }
+
     if (compressedFontPatternLabels.size > 0 && /^\s*ld\s+iy,\s*FONT_PATTERN_DATA\s*(?:;.*)?$/i.test(line)) {
       patched.push(`    ld iy, ${fontPatternBufferSymbol}`);
       continue;
@@ -927,13 +1024,14 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       continue;
     }
 
-    if ((inLoadScreen || inLoadPattern || inLoadColor || inLoadSpritePatterns || inUpdateAnimation || inActionChangeSprite) && /^\s*ret\s*$/i.test(line)) {
+    if ((inLoadScreen || inLoadPattern || inLoadColor || inLoadSpritePatterns || inUpdateAnimation || inActionChangeSprite || inShowPresentationScreen) && /^\s*ret\s*$/i.test(line)) {
       inLoadScreen = false;
       inLoadPattern = false;
       inLoadColor = false;
       inLoadSpritePatterns = false;
       inUpdateAnimation = false;
       inActionChangeSprite = false;
+      inShowPresentationScreen = false;
       layoutDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;

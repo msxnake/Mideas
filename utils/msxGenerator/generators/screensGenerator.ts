@@ -7,6 +7,7 @@ import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { generateScreenLayoutASMCode, generateBehaviorMapASMCode, generateScreenMapLayoutBytes } from '../../../components/utils/screenUtils';
 import { DEFAULT_TILE_BANK_DEFINITIONS, EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE } from '../../../constants';
 import { ScreenMap, TileBank, normalizeEffectZoneParams, resolveEffectZoneType } from '../../../types';
+import { buildRegisterContractComment } from './registerContract';
 
 const SCREEN_WIDTH = 32;
 const SCREEN_HEIGHT = 24;
@@ -111,6 +112,228 @@ function generateRawByteBlock(label: string, bytes: number[], comments: string[]
     asm += `    DB ${formatted.join(',')}\n`;
   }
   return asm;
+}
+
+function hasPresentationScreenData(analysis: ProjectAnalysis): boolean {
+  const config = analysis.presentationScreen;
+  if (!config?.enabled) return false;
+  return Array.isArray(config.data?.nameTable) && config.data.nameTable.length === (SCREEN_WIDTH * SCREEN_HEIGHT);
+}
+
+function generatePresentationScreenSection(analysis: ProjectAnalysis, hasSpriteAssets: boolean): string {
+  if (!hasPresentationScreenData(analysis)) {
+    return '';
+  }
+
+  const presentationScreen = analysis.presentationScreen!;
+  const config = presentationScreen;
+  const patternSize = Math.max(
+    config.data.patternBank0.length,
+    config.data.patternBank1.length,
+    config.data.patternBank2.length
+  );
+  const colorSize = Math.max(
+    config.data.colorBank0.length,
+    config.data.colorBank1.length,
+    config.data.colorBank2.length
+  );
+  const nameSize = config.data.nameTable.length;
+
+  let code = `; ==================================================================
+; PRESENTATION SCREEN DATA
+; ==================================================================
+
+; Presentation Screen runtime config
+; PRESENTATION_SCREEN_COMPRESS_NAMETBL: ${config.compression.compressNameTable ? 1 : 0}
+; PRESENTATION_SCREEN_COMPRESS_PATTERNS: ${config.compression.compressPatterns ? 1 : 0}
+; PRESENTATION_SCREEN_COMPRESS_COLORS: ${config.compression.compressColors ? 1 : 0}
+
+PRESENTATION_SCREEN_NAMETBL_BANK EQU ((PRESENTATION_SCREEN_NAMETBL - #4000) / #2000)
+PRESENTATION_SCREEN_PATTERNS_B0_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B0 - #4000) / #2000)
+PRESENTATION_SCREEN_PATTERNS_B1_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B1 - #4000) / #2000)
+PRESENTATION_SCREEN_PATTERNS_B2_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B2 - #4000) / #2000)
+PRESENTATION_SCREEN_COLORS_B0_BANK EQU ((PRESENTATION_SCREEN_COLORS_B0 - #4000) / #2000)
+PRESENTATION_SCREEN_COLORS_B1_BANK EQU ((PRESENTATION_SCREEN_COLORS_B1 - #4000) / #2000)
+PRESENTATION_SCREEN_COLORS_B2_BANK EQU ((PRESENTATION_SCREEN_COLORS_B2 - #4000) / #2000)
+PRESENTATION_SCREEN_NAMETBL_SIZE EQU ${nameSize}
+PRESENTATION_SCREEN_PATTERN_B0_SIZE EQU ${config.data.patternBank0.length}
+PRESENTATION_SCREEN_PATTERN_B1_SIZE EQU ${config.data.patternBank1.length}
+PRESENTATION_SCREEN_PATTERN_B2_SIZE EQU ${config.data.patternBank2.length}
+PRESENTATION_SCREEN_COLOR_B0_SIZE EQU ${config.data.colorBank0.length}
+PRESENTATION_SCREEN_COLOR_B1_SIZE EQU ${config.data.colorBank1.length}
+PRESENTATION_SCREEN_COLOR_B2_SIZE EQU ${config.data.colorBank2.length}
+PRESENTATION_SCREEN_MAX_PATTERN_SIZE EQU ${patternSize}
+PRESENTATION_SCREEN_MAX_COLOR_SIZE EQU ${colorSize}
+
+`;
+
+  code += generateRawByteBlock('PRESENTATION_SCREEN_NAMETBL', config.data.nameTable, [
+    `${config.name} - Name table (32x24)`,
+  ]);
+  code += '\n';
+  code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B0', config.data.patternBank0, [
+    `${config.name} - Pattern bank 0`,
+  ]);
+  code += '\n';
+  code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B1', config.data.patternBank1, [
+    `${config.name} - Pattern bank 1`,
+  ]);
+  code += '\n';
+  code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B2', config.data.patternBank2, [
+    `${config.name} - Pattern bank 2`,
+  ]);
+  code += '\n';
+  code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B0', config.data.colorBank0, [
+    `${config.name} - Color bank 0`,
+  ]);
+  code += '\n';
+  code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B1', config.data.colorBank1, [
+    `${config.name} - Color bank 1`,
+  ]);
+  code += '\n';
+  code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B2', config.data.colorBank2, [
+    `${config.name} - Color bank 2`,
+  ]);
+  code += `\n${buildRegisterContractComment({
+    purpose: 'Wait a configurable number of frames after showing the presentation screen.',
+    inputs: ['B = frame count'],
+    outputs: ['None'],
+    clobbers: ['AF', 'B'],
+    preserved: ['BC', 'DE', 'HL', 'IX', 'IY'],
+  })}presentation_wait_frames:
+    push bc
+    ld a, b
+    or a
+    jr z, .done
+.loop:
+    halt
+    djnz .loop
+.done:
+    pop bc
+    ret
+
+${buildRegisterContractComment({
+    purpose: 'Wait for trigger/space press and release after showing the presentation screen.',
+    inputs: ['None'],
+    outputs: ['None'],
+    clobbers: ['AF'],
+    preserved: ['BC', 'DE', 'HL', 'IX', 'IY'],
+  })}presentation_wait_for_fire:
+.wait_press:
+    halt
+    ld a, 0
+    call GTTRIG
+    or a
+    jr z, .wait_press
+.wait_release:
+    halt
+    ld a, 0
+    call GTTRIG
+    or a
+    jr nz, .wait_release
+    ret
+
+${buildRegisterContractComment({
+    purpose: 'Show the imported fullscreen presentation image in SCREEN 2.',
+    inputs: ['None'],
+    outputs: ['None'],
+    clobbers: ['AF', 'BC', 'DE', 'HL'],
+    preserved: ['IX', 'IY'],
+    notes: ['Loads pattern/color banks 0..2 and the 32x24 name table.', 'Optional wait/key behavior comes from Presentation Screen config.']
+  })}show_presentation_screen:
+    call DISSCR
+    ld a, 2
+    call CHGMOD
+`;
+
+  if (config.runtime.clearSpritesBeforeShow && hasSpriteAssets) {
+    code += `    call clear_all_sprites
+    call update_sprites_to_vram
+`;
+  }
+
+  code += `    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_PATTERNS_B0_BANK
+    call mapper_set_bank_p2
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B0
+    ld de, CHRTBL2
+    ld bc, PRESENTATION_SCREEN_PATTERN_B0_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_PATTERNS_B1_BANK
+    call mapper_set_bank_p2
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B1
+    ld de, CHRTBL2 + #800
+    ld bc, PRESENTATION_SCREEN_PATTERN_B1_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_PATTERNS_B2_BANK
+    call mapper_set_bank_p2
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B2
+    ld de, CHRTBL2 + #1000
+    ld bc, PRESENTATION_SCREEN_PATTERN_B2_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_COLORS_B0_BANK
+    call mapper_set_bank_p2
+    ld hl, PRESENTATION_SCREEN_COLORS_B0
+    ld de, CLRTBL2
+    ld bc, PRESENTATION_SCREEN_COLOR_B0_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_COLORS_B1_BANK
+    call mapper_set_bank_p2
+    ld hl, PRESENTATION_SCREEN_COLORS_B1
+    ld de, CLRTBL2 + #800
+    ld bc, PRESENTATION_SCREEN_COLOR_B1_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_COLORS_B2_BANK
+    call mapper_set_bank_p2
+    ld hl, PRESENTATION_SCREEN_COLORS_B2
+    ld de, CLRTBL2 + #1000
+    ld bc, PRESENTATION_SCREEN_COLOR_B2_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_NAMETBL_BANK
+    call mapper_set_bank_p2
+    ld hl, PRESENTATION_SCREEN_NAMETBL
+    ld de, NAMETBL
+    ld bc, PRESENTATION_SCREEN_NAMETBL_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call ENASCR
+`;
+
+  if (config.runtime.waitForFrames > 0) {
+    code += `    ld b, ${Math.max(0, Math.min(255, config.runtime.waitForFrames))}
+    call presentation_wait_frames
+`;
+  }
+
+  if (config.runtime.waitForKey) {
+    code += `    call presentation_wait_for_fire
+`;
+  }
+
+  code += `    ret
+
+`;
+
+  return code;
 }
 
 function buildEffectZoneBytes(screen: ScreenMap): number[] {
@@ -516,6 +739,8 @@ SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_SIZE EQU ${effectZoneCount * 8}
 
       code += `\n`;
     });
+
+    code += generatePresentationScreenSection(analysis, hasSpriteAssets);
 
     code += `; ==================================================================
 ; SCREEN LOADING FUNCTIONS

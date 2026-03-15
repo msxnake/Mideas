@@ -1,4 +1,4 @@
-import { MSXColor, MSX1Color, MSX1ColorValue, Screen5PaletteSlot, TileBank, TileBankDefinition, PianoKeyLayoutEntry, HelpDocSection, Snippet, EFFECT_ZONE_TYPE_CONFIG as EFFECT_ZONE_TYPE_CONFIG_TYPE, MainMenuConfig } from './types';
+import { MSXColor, MSX1Color, MSX1ColorValue, Screen5PaletteSlot, TileBank, TileBankDefinition, PianoKeyLayoutEntry, HelpDocSection, Snippet, EFFECT_ZONE_TYPE_CONFIG as EFFECT_ZONE_TYPE_CONFIG_TYPE, MainMenuConfig, PresentationScreenConfig } from './types';
 
 /** The current version of the application. */
 export const APP_VERSION = "0.267";
@@ -653,6 +653,57 @@ export const DEFAULT_MAIN_MENU_CONFIG: MainMenuConfig = {
   },
 };
 // --- End Main Menu Constants ---
+
+// --- Presentation Screen Constants ---
+export const DEFAULT_PRESENTATION_SCREEN_CONFIG: PresentationScreenConfig = {
+  enabled: false,
+  name: 'Presentation Screen',
+  sourceFileName: null,
+  sourceImageWidth: 0,
+  sourceImageHeight: 0,
+  screenMode: 'SCREEN 2',
+  paletteMode: 'MSX1',
+  conversion: {
+    dither: 'none',
+    backgroundColorIndex: 4,
+    preferExistingPalette: false,
+    twoColorsPer8PixelRow: true,
+    deduplicatePatterns: true,
+  },
+  preview: {
+    paletteIndices: [],
+    uniqueCharsPerBank: [0, 0, 0],
+    totalUniqueChars: 0,
+    warning: null,
+  },
+  data: {
+    nameTable: [],
+    patternBank0: [],
+    patternBank1: [],
+    patternBank2: [],
+    colorBank0: [],
+    colorBank1: [],
+    colorBank2: [],
+    patternCountBank0: 0,
+    patternCountBank1: 0,
+    patternCountBank2: 0,
+  },
+  compression: {
+    codec: 'ZX0',
+    compressNameTable: true,
+    compressPatterns: true,
+    compressColors: true,
+  },
+  runtime: {
+    showAtBoot: false,
+    clearSpritesBeforeShow: true,
+    waitForKey: true,
+    waitForFrames: 0,
+  },
+  updatedAt: null,
+  lastImportError: null,
+};
+// --- End Presentation Screen Constants ---
 
 // --- Effect Zone Constants ---
 /** Re-export of effect zone display metadata from `types.ts` for convenient access. */

@@ -28,7 +28,10 @@ interface FileExplorerPanelProps {
   onRequestLoadTile: (assetId: string) => void;
   /** Callback function to request saving multiple selected tile assets. */
   onRequestSaveSelectedTiles: (assetIds: string[]) => void;
- 
+  /** Whether the Main Menu system editor is active. */
+  isMainMenuActive?: boolean;
+  /** Whether the Presentation Screen system editor is active. */
+  isPresentationScreenActive?: boolean;
   /** Optional CSS class name for the panel. */
   className?: string;
 }
@@ -37,7 +40,7 @@ interface FileExplorerPanelProps {
  * A component that displays an icon corresponding to a given asset type.
  * @internal
  */
-const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fonteditor' | 'helpdocs' | 'componentdefinitioneditor' | 'entitytemplateeditor' | 'worldview' | 'gameflow'}> = ({ type }) => {
+const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fonteditor' | 'helpdocs' | 'componentdefinitioneditor' | 'entitytemplateeditor' | 'worldview' | 'gameflow' | 'mainmenu' | 'presentationscreen'}> = ({ type }) => {
   const iconClass = "w-4 h-4 mr-2";
   switch (type) {
     case 'tile': return <TilesetIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -63,6 +66,8 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'componentdefinitioneditor': return <PuzzlePieceIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'entitytemplateeditor': return <SpriteIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'worldview': return <WorldViewIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
+    case 'mainmenu': return <ListBulletIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
+    case 'presentationscreen': return <MapIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     default: return <PlaceholderIcon className={`${iconClass} text-msx-textsecondary`} />;
   }
 };
@@ -87,6 +92,7 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   entitytemplate: "Entity Templates (Data)",
   globalvariables: "Global Variables",
   palette: "Palettes",
+  presentationscreen: "Presentation Screens",
   code: "Code Files",
 };
 
@@ -108,6 +114,7 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   entitytemplate: EditorType.EntityTemplateEditor,
   globalvariables: EditorType.GlobalVariables,
   palette: EditorType.Palette,
+  presentationscreen: EditorType.PresentationScreen,
   code: EditorType.Code,
 };
 
@@ -127,6 +134,8 @@ export const WORLD_VIEW_SYSTEM_ASSET_ID = "WORLD_VIEW_SYSTEM_ASSET";
 export const GAME_FLOW_SYSTEM_ASSET_ID = "GAME_FLOW_SYSTEM_ASSET_ID";
 /** System asset ID for the Global Variables editor. @constant */
 export const GLOBAL_VARIABLES_SYSTEM_ASSET_ID = "GLOBAL_VARIABLES_SYSTEM_ASSET_ID";
+/** System asset ID for the Presentation Screen editor. @constant */
+export const PRESENTATION_SCREEN_SYSTEM_ASSET_ID = "PRESENTATION_SCREEN_SYSTEM_ASSET_ID";
 
 
 /**
@@ -148,6 +157,8 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   onImportTrack,
   onRequestLoadTile,
   onRequestSaveSelectedTiles,
+  isMainMenuActive = false,
+  isPresentationScreenActive = false,
   className = '',
 }) => {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
@@ -260,7 +271,31 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   const inactiveItemClass = "text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary";
   const selectedTileClass = "bg-msx-highlight text-white";
 
-  const systemTools: any[] = [];
+  const systemTools: Array<{
+    id: string;
+    name: string;
+    title: string;
+    editorType: EditorType;
+    iconType: 'mainmenu' | 'presentationscreen';
+    isActive: boolean;
+  }> = [
+    {
+      id: 'MAIN_MENU_SYSTEM_ASSET_ID',
+      name: 'Main Menu',
+      title: 'Open Main Menu editor',
+      editorType: EditorType.MainMenu,
+      iconType: 'mainmenu',
+      isActive: isMainMenuActive,
+    },
+    {
+      id: PRESENTATION_SCREEN_SYSTEM_ASSET_ID,
+      name: 'Presentation Screen',
+      title: 'Open Presentation Screen editor',
+      editorType: EditorType.PresentationScreen,
+      iconType: 'presentationscreen',
+      isActive: isPresentationScreenActive,
+    },
+  ];
 
 
   const getContextMenuItems = (): ContextMenuItem[] => {

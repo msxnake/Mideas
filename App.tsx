@@ -67,6 +67,8 @@ const App: React.FC = () => {
     setEntityTemplatesState,
     mainMenuConfig,
     setMainMenuConfigState,
+    presentationScreen,
+    setPresentationScreenState,
     // Modal states
     isRenameModalOpen,
     setIsRenameModalOpen,
@@ -251,6 +253,7 @@ const App: React.FC = () => {
     setComponentDefinitionsState,
     setEntityTemplatesState,
     setMainMenuConfigState,
+    setPresentationScreenState,
     setStatusBarMessage
   });
 
@@ -265,6 +268,7 @@ const App: React.FC = () => {
     setComponentDefinitions: setComponentDefinitionsWithHistory,
     setEntityTemplates: setEntityTemplatesWithHistory,
     setMainMenuConfig: setMainMenuConfigWithHistory,
+    setPresentationScreen,
     handleUndo,
     handleRedo
   } = historyHandlers;
@@ -437,6 +441,8 @@ const App: React.FC = () => {
     setEntityTemplatesState,
     mainMenuConfig,
     setMainMenuConfigState,
+    presentationScreen,
+    setPresentationScreenState,
     clearAllHistory,
     setCopiedScreenBuffer: setCopiedScreenData,
     setCopiedTileData,
@@ -693,6 +699,8 @@ const App: React.FC = () => {
     setEntityTemplates: setEntityTemplatesWithCleanup,
     mainMenuConfig,
     onUpdateMainMenuConfig: setMainMenuConfigWithHistory,
+    presentationScreen,
+    onUpdatePresentationScreen: setPresentationScreen,
     currentEntityTypeToPlace,
     setCurrentEntityTypeToPlace,
     selectedEntityInstanceId,

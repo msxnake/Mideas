@@ -291,6 +291,15 @@ if (Array.isArray(raw.entityTemplates)) {
   }
 }
 
+if (raw.presentationScreen && raw.presentationScreen.data && Array.isArray(raw.presentationScreen.data.nameTable) && raw.presentationScreen.data.nameTable.length === 768) {
+  assets.push({
+    id: "system_presentation_screen",
+    name: raw.presentationScreen.name || "Presentation Screen",
+    type: "presentationscreen",
+    data: raw.presentationScreen,
+  });
+}
+
 const files = generator.generateModularASM(name, assets, {
   generateUnified: true,
   romMode,

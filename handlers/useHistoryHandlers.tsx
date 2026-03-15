@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import {
   ProjectAsset, HistoryState, HistoryAction, HistoryActionType,
   TileBank, MSXFont, MSXFontColorAttributes, ComponentDefinition,
-  EntityTemplate, MainMenuConfig
+  EntityTemplate, MainMenuConfig, PresentationScreenConfig
 } from '../types';
 import { MAX_HISTORY_LENGTH } from '../constants';
 
@@ -14,6 +14,7 @@ interface HistoryHandlersProps {
   setComponentDefinitionsState: (defs: ComponentDefinition[]) => void;
   setEntityTemplatesState: (templates: EntityTemplate[]) => void;
   setMainMenuConfigState: (config: MainMenuConfig) => void;
+  setPresentationScreenState: (config: PresentationScreenConfig) => void;
   setStatusBarMessage: (message: string) => void;
 }
 
@@ -25,6 +26,7 @@ export const useHistoryHandlers = ({
   setComponentDefinitionsState,
   setEntityTemplatesState,
   setMainMenuConfigState,
+  setPresentationScreenState,
   setStatusBarMessage
 }: HistoryHandlersProps) => {
 
@@ -122,6 +124,16 @@ export const useHistoryHandlers = ({
     });
   }, [pushToHistory, setMainMenuConfigState]);
 
+  const setPresentationScreen = useCallback((updater: PresentationScreenConfig | ((prev: PresentationScreenConfig) => PresentationScreenConfig)) => {
+    setPresentationScreenState(prevConfig => {
+      const newConfig = typeof updater === 'function'
+        ? (updater as (prev: PresentationScreenConfig) => PresentationScreenConfig)(prevConfig)
+        : updater;
+      pushToHistory('PRESENTATION_SCREEN_UPDATE', prevConfig, newConfig);
+      return newConfig;
+    });
+  }, [pushToHistory, setPresentationScreenState]);
+
   const handleUndo = useCallback(() => {
     if (history.undoStack.length === 0) {
       setStatusBarMessage("Nothing to undo.");
@@ -154,6 +166,9 @@ export const useHistoryHandlers = ({
       case 'MAIN_MENU_UPDATE':
         setMainMenuConfigState(payload.before);
         break;
+      case 'PRESENTATION_SCREEN_UPDATE':
+        setPresentationScreenState(payload.before);
+        break;
     }
 
     setHistory(prev => ({
@@ -171,6 +186,7 @@ export const useHistoryHandlers = ({
     setComponentDefinitionsState,
     setEntityTemplatesState,
     setMainMenuConfigState,
+    setPresentationScreenState,
     setStatusBarMessage
   ]);
 
@@ -206,6 +222,9 @@ export const useHistoryHandlers = ({
       case 'MAIN_MENU_UPDATE':
         setMainMenuConfigState(payload.after);
         break;
+      case 'PRESENTATION_SCREEN_UPDATE':
+        setPresentationScreenState(payload.after);
+        break;
     }
 
     setHistory(prev => ({
@@ -223,6 +242,7 @@ export const useHistoryHandlers = ({
     setComponentDefinitionsState,
     setEntityTemplatesState,
     setMainMenuConfigState,
+    setPresentationScreenState,
     setStatusBarMessage
   ]);
 
@@ -238,6 +258,7 @@ export const useHistoryHandlers = ({
     setComponentDefinitions,
     setEntityTemplates,
     setMainMenuConfig,
+    setPresentationScreen,
     handleUndo,
     handleRedo
   };

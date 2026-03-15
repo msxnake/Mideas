@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
 import { ProjectAsset } from '../../types';
+import { hasPresentationScreenData } from '../utils/presentationScreenUtils';
 import {
   generateCompleteGameAssembly,
   generateCompleteGameWithStateMachine,
@@ -233,6 +234,15 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           } as ProjectAsset);
         }
       });
+    }
+
+    if (projectData?.presentationScreen && hasPresentationScreenData(projectData.presentationScreen)) {
+      enhancedAssets.push({
+        id: 'system_presentation_screen',
+        type: 'presentationscreen',
+        name: projectData.presentationScreen.name || 'Presentation Screen',
+        data: projectData.presentationScreen
+      } as ProjectAsset);
     }
 
     return enhancedAssets;

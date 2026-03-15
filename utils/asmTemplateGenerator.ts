@@ -3,7 +3,7 @@
  * Generates dynamic ASM code from templates with replaceable sections
  */
 
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank } from '../types';
+import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig } from '../types';
 import { StateMachine } from '../statemachine.types';
 import { getUsedGlobalVariables } from './globalVariablesUtils';
 
@@ -34,6 +34,7 @@ export interface ProjectAnalysis {
   worldmaps?: any[];  // Worldmap data for GameFlow WorldLink nodes
   entities?: EntityInstance[];
   fonts?: any[];
+  presentationScreen?: PresentationScreenConfig;
   gameFlow?: GameFlowGraph;
   stateMachines?: StateMachine[]; // Added State Machines
   hasECS: boolean;
@@ -107,6 +108,8 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap);
   const worldmaps = assets.filter(a => a.type === 'worldmap').map(a => a.data);
   const stateMachines = assets.filter(a => a.type === 'statemachine').map(a => a.data as StateMachine);
+  const presentationScreenAsset = assets.find(a => a.type === 'presentationscreen');
+  const presentationScreen = presentationScreenAsset?.data as PresentationScreenConfig | undefined;
 
   // CRITICAL: Extract entities from screenmaps
   // Deduplicate entities across possible storage formats
@@ -193,6 +196,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     worldmaps,  // CRITICAL: Include worldmaps for GameFlow WorldLink nodes
     entities,  // CRITICAL: Include entities extracted from screenmaps
     fonts: assets.filter(a => a.type === 'font'), // CRITICAL: Include fonts for fontGenerator
+    presentationScreen,
     gameFlow,  // CRITICAL: Include GameFlow for MSX ASM generation
     stateMachines, // CRITICAL: Include State Machines
     hasECS,

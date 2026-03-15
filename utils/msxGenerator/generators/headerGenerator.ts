@@ -72,6 +72,19 @@ export function generateHeaderFile(projectName: string, analysis?: ProjectAnalys
     }
   }
 
+  const shouldShowPresentationAtBoot = !!(
+    analysis?.presentationScreen?.enabled &&
+    analysis.presentationScreen.runtime?.showAtBoot &&
+    Array.isArray(analysis.presentationScreen.data?.nameTable) &&
+    analysis.presentationScreen.data.nameTable.length === (32 * 24)
+  );
+  const presentationBootAsm = shouldShowPresentationAtBoot
+    ? `    ; Optional Presentation Screen configured in project data
+    call show_presentation_screen
+
+`
+    : '';
+
   return `; ==================================================================
 ; MSX CARTRIDGE ROM HEADER
 ; File: header.asm
@@ -167,7 +180,7 @@ restart_rom_continue:
 ${analysis.hasGameFlow ? `    ; ====================================================
     ; GAMEFLOW INITIALIZATION
     ; ====================================================
-    ; Initialize GameFlow system
+${presentationBootAsm}    ; Initialize GameFlow system
     call gameflow_init
 
     ; Start execution from GameFlow Start node
@@ -177,7 +190,7 @@ ${analysis.hasGameFlow ? `    ; ================================================
     ; SIMPLE GAME LOOP (No GameFlow)
     ; ====================================================
     ; Initialize game entities
-    call init_game_entities
+${presentationBootAsm}    call init_game_entities
     call load_game_screen
     call rebuild_used_entity_list
     call ENASCR

@@ -2,7 +2,7 @@
  * @fileoverview Shared types for MSX ASM Generator
  */
 
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank } from '../../../types';
+import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig } from '../../../types';
 import { MideasGlobalVariable } from '../../../constants';
 
 /**
@@ -141,4 +141,5 @@ export interface ProjectAnalysis {
   screenMaps?: ScreenMap[];  // Alias for screens (compatibility)
   tracks?: TrackerSongData[];
   trackIndexByAssetId?: Record<string, number>;
+  presentationScreen?: PresentationScreenConfig;
 }
