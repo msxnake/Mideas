@@ -81,6 +81,40 @@ function getScreenLoadRoutineName(screenAssetId, analysis) {
         : '';
     return `load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
 }
+function getScreenActiveAreaBounds(screenAssetId, analysis) {
+    const screenAsset = analysis.screens?.find((s) => s.id === screenAssetId);
+    const screenWidthTiles = Math.max(1, screenAsset?.width ?? 32);
+    const screenHeightTiles = Math.max(1, screenAsset?.height ?? 24);
+    const activeAreaX = Math.max(0, Math.min(screenWidthTiles - 1, screenAsset?.activeAreaX ?? 0));
+    const activeAreaY = Math.max(0, Math.min(screenHeightTiles - 1, screenAsset?.activeAreaY ?? 0));
+    const activeAreaWidth = Math.max(1, Math.min(screenWidthTiles - activeAreaX, screenAsset?.activeAreaWidth ?? screenWidthTiles));
+    const activeAreaHeight = Math.max(1, Math.min(screenHeightTiles - activeAreaY, screenAsset?.activeAreaHeight ?? screenHeightTiles));
+    const leftPx = activeAreaX * 8;
+    const topPx = activeAreaY * 8;
+    const rightPx = leftPx + (activeAreaWidth * 8);
+    const bottomPx = topPx + (activeAreaHeight * 8);
+    const entryMargin = 2;
+    const spriteWidth = 16;
+    const spriteHeight = 16;
+    const enterWestX = leftPx + entryMargin;
+    const enterEastX = Math.max(enterWestX, rightPx - spriteWidth - entryMargin);
+    const enterNorthY = topPx + entryMargin;
+    const enterSouthY = Math.max(enterNorthY, bottomPx - spriteHeight - entryMargin);
+    return {
+        leftPx,
+        topPx,
+        rightPx,
+        bottomPx,
+        westExitX: leftPx + entryMargin,
+        eastExitX: Math.max(leftPx, rightPx - spriteWidth),
+        northExitY: topPx + entryMargin,
+        southExitY: Math.max(topPx, bottomPx - spriteHeight),
+        enterWestX,
+        enterEastX,
+        enterNorthY,
+        enterSouthY,
+    };
+}
 /**
  * Get the generated imported HUD frame draw routine name for a screen asset id.
  * Returns null when screen has no imported HUD frame snapshot.
@@ -127,7 +161,7 @@ function getWorldImportedHudFrameDrawRoutineName(world, analysis) {
 /**
  * Emit transition runtime snippet for one exit direction.
  */
-function emitDirectionalTransitionCode(worldLabel, screenIndex, direction, targetScreenIndex, targetLoadRoutine) {
+function emitDirectionalTransitionCode(worldLabel, screenIndex, direction, targetScreenIndex, targetLoadRoutine, currentBounds, targetBounds) {
     const skipLabel = `check_transition_${worldLabel}_s${screenIndex}_skip_${direction}`;
     const applyLabel = `check_transition_${worldLabel}_s${screenIndex}_apply_${direction}`;
     let conditionCode = '';
@@ -145,13 +179,13 @@ function emitDirectionalTransitionCode(worldLabel, screenIndex, direction, targe
     ld hl, entity_x_pos
     add hl, de
     ld a, (hl)
-    cp 240
+    cp ${currentBounds.eastExitX}
     jp c, ${skipLabel}
 `;
         repositionCode = `    ; Enter from west edge
     ld hl, entity_x_pos
     add hl, de
-    ld (hl), 2
+    ld (hl), ${targetBounds.enterWestX}
 `;
     }
     else if (direction === 'west') {
@@ -167,13 +201,13 @@ function emitDirectionalTransitionCode(worldLabel, screenIndex, direction, targe
     ld hl, entity_x_pos
     add hl, de
     ld a, (hl)
-    cp 2
+    cp ${currentBounds.westExitX}
     jp nc, ${skipLabel}
 `;
-        repositionCode = `    ; Enter from east edge (256 - 16 - 2 = 238)
+        repositionCode = `    ; Enter from east edge of target active area
     ld hl, entity_x_pos
     add hl, de
-    ld (hl), 238
+    ld (hl), ${targetBounds.enterEastX}
 `;
     }
     else if (direction === 'south') {
@@ -182,13 +216,13 @@ function emitDirectionalTransitionCode(worldLabel, screenIndex, direction, targe
     ld hl, entity_y_pos
     add hl, de
     ld a, (hl)
-    cp 176
+    cp ${currentBounds.southExitY}
     jp c, ${skipLabel}
 `;
         repositionCode = `    ; Enter from north edge
     ld hl, entity_y_pos
     add hl, de
-    ld (hl), 2
+    ld (hl), ${targetBounds.enterNorthY}
 `;
     }
     else {
@@ -197,13 +231,13 @@ function emitDirectionalTransitionCode(worldLabel, screenIndex, direction, targe
     ld hl, entity_y_pos
     add hl, de
     ld a, (hl)
-    cp 2
+    cp ${currentBounds.northExitY}
     jp nc, ${skipLabel}
 `;
-        repositionCode = `    ; Enter from south edge (192 - 16 - 2 = 174)
+        repositionCode = `    ; Enter from south edge of target active area
     ld hl, entity_y_pos
     add hl, de
-    ld (hl), 174
+    ld (hl), ${targetBounds.enterSouthY}
 `;
     }
     return `${conditionCode}${applyLabel}:
@@ -575,7 +609,9 @@ check_world_screen_transition:
                 if (!targetNode?.screenAssetId)
                     return;
                 const targetLoadRoutine = getScreenLoadRoutineName(targetNode.screenAssetId, analysis);
-                code += emitDirectionalTransitionCode(worldLabel, idx, direction, targetIndex, targetLoadRoutine);
+                const currentBounds = getScreenActiveAreaBounds(node.screenAssetId, analysis);
+                const targetBounds = getScreenActiveAreaBounds(targetNode.screenAssetId, analysis);
+                code += emitDirectionalTransitionCode(worldLabel, idx, direction, targetIndex, targetLoadRoutine, currentBounds, targetBounds);
                 emittedAny = true;
             });
             if (!emittedAny) {

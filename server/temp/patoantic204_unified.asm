@@ -30,7 +30,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 118287
+; Estimated payload bytes: 118296
 ; Estimated banks used: 15
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1383 bytes)
@@ -44,24 +44,24 @@
 ; BANK 03 @#0000 : screens.asm part 2/5 (8192 bytes)
 ; BANK 04 @#0000 : screens.asm part 3/5 (8192 bytes)
 ; BANK 05 @#0000 : screens.asm part 4/5 (8192 bytes)
-; BANK 06 @#0000 : screens.asm part 5/5 (1475 bytes)
-; BANK 06 @#05C3 : sprites.asm part 1/2 (6717 bytes)
-; BANK 07 @#0000 : sprites.asm part 2/2 (4294 bytes)
-; BANK 07 @#10C6 : font.asm (3547 bytes)
-; BANK 07 @#1EA1 : hud.asm (351 bytes)
-; BANK 08 @#0000 : hud.asm (4116 bytes)
-; BANK 08 @#1014 : menus.asm (454 bytes)
-; BANK 08 @#11DA : sound.asm part 1/2 (3622 bytes)
-; BANK 09 @#0000 : sound.asm part 2/2 (5915 bytes)
-; BANK 09 @#171B : scroll.asm (2277 bytes)
-; BANK 10 @#0000 : scroll.asm (76 bytes)
-; BANK 10 @#004C : animtiles.asm (6887 bytes)
-; BANK 10 @#1B33 : statemachine.asm part 1/3 (1229 bytes)
+; BANK 06 @#0000 : screens.asm part 5/5 (1484 bytes)
+; BANK 06 @#05CC : sprites.asm part 1/2 (6708 bytes)
+; BANK 07 @#0000 : sprites.asm part 2/2 (4303 bytes)
+; BANK 07 @#10CF : font.asm (3547 bytes)
+; BANK 07 @#1EAA : hud.asm (342 bytes)
+; BANK 08 @#0000 : hud.asm (4125 bytes)
+; BANK 08 @#101D : menus.asm (454 bytes)
+; BANK 08 @#11E3 : sound.asm part 1/2 (3613 bytes)
+; BANK 09 @#0000 : sound.asm part 2/2 (5924 bytes)
+; BANK 09 @#1724 : scroll.asm (2268 bytes)
+; BANK 10 @#0000 : scroll.asm (85 bytes)
+; BANK 10 @#0055 : animtiles.asm (6887 bytes)
+; BANK 10 @#1B3C : statemachine.asm part 1/3 (1220 bytes)
 ; BANK 11 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 12 @#0000 : statemachine.asm part 3/3 (8101 bytes)
-; BANK 12 @#1FA5 : gameflow.asm part 1/2 (91 bytes)
+; BANK 12 @#0000 : statemachine.asm part 3/3 (8110 bytes)
+; BANK 12 @#1FAE : gameflow.asm part 1/2 (82 bytes)
 ; BANK 13 @#0000 : gameflow.asm part 2/2 (8192 bytes)
-; BANK 14 @#0000 : gameflow.asm part 3/2 (3599 bytes)
+; BANK 14 @#0000 : gameflow.asm part 3/2 (3608 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -4914,6 +4914,73 @@ init_wallcollision_system:
     ret
 
 ; ------------------------------------------------------------------
+; wall_behavior_is_full_blocker
+; Input:  A = behavior byte or family bits
+; Output: Z = passable / top-solid platform, NZ = full blocker
+; Clobbers: AF
+; Notes:
+;   - familyId 2 (#20) is treated as one-way/top-solid, so it must not
+;     block horizontal motion or upward motion.
+; ------------------------------------------------------------------
+wall_behavior_is_full_blocker:
+    and #F0
+    ret z
+    cp #20
+    ret z
+    or a
+    ret
+
+; ------------------------------------------------------------------
+; wall_down_behavior_blocks
+; Input:
+;   - A  = behavior byte or family bits from get_behavior_tile
+;   - B  = tile row of the floor probe
+;   - DE = entity index
+; Output:
+;   - Z  = passable
+;   - NZ = blocks downward movement / supports standing
+; Clobbers: AF, C, HL
+; Preserved: B, DE
+; Notes:
+;   - familyId 2 (#20) is top-solid: it only blocks when the entity was
+;     already above the tile before this frame's vertical movement.
+;   - update_position_component already applied vel_y before WallCollision,
+;     so previous_bottom = wall_hit_bottom - entity_vel_y.
+; ------------------------------------------------------------------
+wall_down_behavior_blocks:
+    and #F0
+    ret z
+    cp #20
+    jr z, .platform_check
+    or a
+    ret
+
+.platform_check:
+    push bc
+    push hl
+    ld a, b
+    add a, a
+    add a, a
+    add a, a                      ; A = tileTop = row * 8
+    add a, 2
+    ld c, a                       ; C = tileTop + tolerance
+    ld a, (wall_hit_bottom)
+    ld hl, entity_vel_y
+    add hl, de
+    sub (hl)                      ; previous_bottom = current_bottom - vel_y
+    cp c
+    pop hl
+    pop bc
+    jr c, .platform_blocks
+    jr z, .platform_blocks
+    xor a
+    ret
+
+.platform_blocks:
+    ld a, 1
+    ret
+
+; ------------------------------------------------------------------
 ; update_wallcollision_component
 ; ------------------------------------------------------------------
 ; Check wall collisions and prevent movement through solid tiles.
@@ -5051,7 +5118,7 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = top / 8
     call get_behavior_tile
-    and #F0
+    call wall_behavior_is_full_blocker
     jp nz, .wall_left_blocked
 
     ; Check point 2: adaptive bottom probe (safe for small hitboxes)
@@ -5062,7 +5129,7 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = bottom / 8
     call get_behavior_tile_nb
-    and #F0
+    call wall_behavior_is_full_blocker
     jp z, .check_wall_y           ; Both passable
 
 .wall_left_blocked:
@@ -5118,7 +5185,7 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = top / 8
     call get_behavior_tile
-    and #F0
+    call wall_behavior_is_full_blocker
     jp nz, .wall_right_blocked
 
     ; Check point 2: adaptive bottom probe (safe for small hitboxes)
@@ -5129,7 +5196,7 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = bottom / 8
     call get_behavior_tile_nb
-    and #F0
+    call wall_behavior_is_full_blocker
     jp z, .check_wall_y           ; Both passable
 
 .wall_right_blocked:
@@ -5207,7 +5274,7 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = left / 8
     call get_behavior_tile
-    and #F0
+    call wall_behavior_is_full_blocker
     jp nz, .wall_up_blocked
 
     ; Check point 2: adaptive right probe (safe for small hitboxes)
@@ -5217,7 +5284,7 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = right / 8
     call get_behavior_tile
-    and #F0
+    call wall_behavior_is_full_blocker
     jp z, .wall_next              ; Both passable
 
 .wall_up_top_edge:
@@ -5356,7 +5423,7 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = left / 8
     call get_behavior_tile
-    and #F0
+    call wall_down_behavior_blocks
     jp nz, .wall_down_blocked
 
     ; Check point 2: adaptive right probe (safe for small hitboxes)
@@ -5366,7 +5433,7 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = right / 8
     call get_behavior_tile
-    and #F0
+    call wall_down_behavior_blocks
     jp z, .wall_next              ; Both passable
 
 .wall_down_blocked:
@@ -7758,7 +7825,7 @@ update_secret_zone_component:
     ld c, a                       ; C = hero center Y in cells
 
     ld a, (current_effect_zone_count)
-    ld d, a
+    ld d, a                       ; D = remaining zone count
     ld ix, runtime_effect_zone_table
 
 .secret_scan_loop:
@@ -7766,25 +7833,25 @@ update_secret_zone_component:
     or a
     jp z, .secret_no_match
 
-    ld a, b
-    cp (ix+0)
+    ld a, b                       ; hero center X
+    cp (ix+0)                     ; zone.x
     jp c, .secret_next_entry
     sub (ix+0)
-    ld e, a
+    ld e, a                       ; E = deltaX
 
-    ld a, c
-    cp (ix+1)
+    ld a, c                       ; hero center Y
+    cp (ix+1)                     ; zone.y
     jp c, .secret_next_entry
     sub (ix+1)
-    ld h, a
+    ld h, a                       ; H = deltaY
 
-    ld a, (ix+2)
-    cp e
+    ld a, (ix+2)                  ; zone.width
+    cp e                          ; width > deltaX?
     jp z, .secret_next_entry
     jp c, .secret_next_entry
 
-    ld a, (ix+3)
-    cp h
+    ld a, (ix+3)                  ; zone.height
+    cp h                          ; height > deltaY?
     jp z, .secret_next_entry
     jp c, .secret_next_entry
 
@@ -7829,10 +7896,12 @@ update_secret_zone_component:
 
 .secret_next_entry:
     push de
+    push bc
     ld bc, EFFECT_ZONE_ENTRY_SIZE
     add ix, bc
+    pop bc
     pop de
-    dec d
+    dec d                         ; decrement zone counter (NOT hero Y)
     jp .secret_scan_loop
 
 .secret_no_match:
@@ -10809,18 +10878,14 @@ copy_layout_rect_to_vram:
 
     dec a
     ret z
-    push af
+    ; HL/DE were restored by push/pop, so advance a full row (32 bytes)
     push bc
-    ld a, 32
-    sub c
-    ld c, a
-    ld b, 0
+    ld bc, 32
     add hl, bc
     ex de, hl
     add hl, bc
     ex de, hl
     pop bc
-    pop af
     jr .copy_rect_row_loop
 
 ; Helper: Copy rectangular area between 32-byte rows in RAM
@@ -10851,18 +10916,14 @@ copy_layout_rect_ram_to_ram:
 
     dec a
     ret z
-    push af
+    ; HL/DE were restored by push/pop, so advance a full row (32 bytes)
     push bc
-    ld a, 32
-    sub c
-    ld c, a
-    ld b, 0
+    ld bc, 32
     add hl, bc
     ex de, hl
     add hl, bc
     ex de, hl
     pop bc
-    pop af
     jr .copy_rect_ram_row_loop
 
 load_screen:

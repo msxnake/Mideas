@@ -377,6 +377,7 @@ function buildSpriteFrameGroups(spritePatternBlocks, sourceCode) {
 async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProgress = null) {
   const {
     screens       = true,
+    effects       = true,
     behaviorMaps  = true,
     tilePatterns  = true,
     tileColors    = true,
@@ -389,6 +390,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     applied: false,
     method: 'ZX0',
     candidateScreens: 0,
+    candidateEffects: 0,
     candidateBehaviorMaps: 0,
     candidateTilePatterns: 0,
     candidateTileColors: 0,
@@ -396,6 +398,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     candidateFontColors: 0,
     candidateSpritePatterns: 0,
     compressedScreens: 0,
+    compressedEffects: 0,
     compressedBehaviorMaps: 0,
     compressedTilePatterns: 0,
     compressedTileColors: 0,
@@ -408,6 +411,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     netSavedBytes: 0,
     warning: null,
     screenBufferSymbol: null,
+    effectsBufferSymbol: 'runtime_effects_layout',
     behaviorBufferSymbol: null,
     tilePatternBufferSymbol: null,
     tileColorBufferSymbol: null,
@@ -420,6 +424,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     return { code: sourceCode, info };
   }
   const hasLayoutData = /SCREEN_[A-Z0-9_]+_\d+_LAYOUT:/.test(sourceCode);
+  const hasEffectsData = /SCREEN_[A-Z0-9_]+_\d+_EFFECTS_LAYOUT:/.test(sourceCode);
   const hasBehaviorData = /BEHAVIOR_[A-Z0-9_]+_\d+_DATA:/.test(sourceCode);
   const hasTilePatternData = /^\s*tile_pattern_[a-z0-9_]+:\s*$/im.test(sourceCode);
   const hasTileColorData = /^\s*tile_color_[a-z0-9_]+:\s*$/im.test(sourceCode);
@@ -428,6 +433,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const hasSpritePatternData = /^\s*(?:[A-Z][A-Z0-9_]*_F\d+_LAYER\d+|SPRITE_PLACEHOLDER_PATTERN):\s*$/im.test(sourceCode);
   if (
     !hasLayoutData &&
+    !hasEffectsData &&
     !hasBehaviorData &&
     !hasTilePatternData &&
     !hasTileColorData &&
@@ -446,6 +452,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const fontPatternBufferSymbol = hasEquSymbol(sourceCode, 'ZX0_FONT_PATTERN_BUFFER') ? 'ZX0_FONT_PATTERN_BUFFER' : 'ZX0_FONT_PATTERN_BUFFER';
   const fontColorBufferSymbol = hasEquSymbol(sourceCode, 'ZX0_FONT_COLOR_BUFFER') ? 'ZX0_FONT_COLOR_BUFFER' : 'ZX0_FONT_COLOR_BUFFER';
   info.screenBufferSymbol = screenBufferSymbol;
+  info.effectsBufferSymbol = 'runtime_effects_layout';
   info.behaviorBufferSymbol = behaviorBufferSymbol;
   info.tilePatternBufferSymbol = tilePatternBufferSymbol;
   info.tileColorBufferSymbol = tileColorBufferSymbol;
@@ -455,6 +462,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   info.attempted = true;
   const lines = sourceCode.split(/\r?\n/);
   const layoutBlocks = collectAsmDataBlocks(lines, /^\s*(SCREEN_[A-Z0-9_]+_\d+_LAYOUT):\s*$/);
+  const effectsBlocks = collectAsmDataBlocks(lines, /^\s*(SCREEN_[A-Z0-9_]+_\d+_EFFECTS_LAYOUT):\s*$/);
   const behaviorBlocks = collectAsmDataBlocks(lines, /^\s*(BEHAVIOR_[A-Z0-9_]+_\d+_DATA):\s*$/);
   const tilePatternBlocks = collectAsmDataBlocks(lines, /^\s*(tile_pattern_[a-z0-9_]+):\s*$/i);
   const tileColorBlocks = collectAsmDataBlocks(lines, /^\s*(tile_color_[a-z0-9_]+):\s*$/i);
@@ -464,6 +472,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
   if (
     layoutBlocks.length === 0 &&
+    effectsBlocks.length === 0 &&
     behaviorBlocks.length === 0 &&
     tilePatternBlocks.length === 0 &&
     tileColorBlocks.length === 0 &&
@@ -475,6 +484,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   }
 
   info.candidateScreens = layoutBlocks.length;
+  info.candidateEffects = effectsBlocks.length;
   info.candidateBehaviorMaps = behaviorBlocks.length;
   info.candidateTilePatterns = tilePatternBlocks.length;
   info.candidateTileColors = tileColorBlocks.length;
@@ -484,6 +494,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
   const enabledProgressGroups = [
     screens ? { phase: 'screens', label: 'Compress screen layouts', count: layoutBlocks.length } : null,
+    effects ? { phase: 'effects', label: 'Compress effects layouts', count: effectsBlocks.length } : null,
     behaviorMaps ? { phase: 'behaviorMaps', label: 'Compress behavior maps', count: behaviorBlocks.length } : null,
     tilePatterns ? { phase: 'tilePatterns', label: 'Compress tile patterns', count: tilePatternBlocks.length } : null,
     tileColors ? { phase: 'tileColors', label: 'Compress tile colors', count: tileColorBlocks.length } : null,
@@ -507,6 +518,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   };
 
   const selectedLayoutBlocks = new Map();
+  const selectedEffectsBlocks = new Map();
   const selectedBehaviorBlocks = new Map();
   const selectedTilePatternBlocks = new Map();
   const selectedTileColorBlocks = new Map();
@@ -535,6 +547,9 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
           if (kind === 'layout') {
             selectedLayoutBlocks.set(block.label.toUpperCase(), selected);
             info.compressedScreens += 1;
+          } else if (kind === 'effects') {
+            selectedEffectsBlocks.set(block.label.toUpperCase(), selected);
+            info.compressedEffects += 1;
           } else if (kind === 'behavior') {
             selectedBehaviorBlocks.set(block.label.toUpperCase(), selected);
             info.compressedBehaviorMaps += 1;
@@ -570,6 +585,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   emitProgress('Preparing ZX0 blocks...', 'prepare', 0, totalProgressSteps);
 
   if (screens)      await processBlocks(layoutBlocks, 'layout', 'Compress screen layouts', 'screens');
+  if (effects)      await processBlocks(effectsBlocks, 'effects', 'Compress effects layouts', 'effects');
   if (behaviorMaps) await processBlocks(behaviorBlocks, 'behavior', 'Compress behavior maps', 'behaviorMaps');
   if (tilePatterns) await processBlocks(tilePatternBlocks, 'tile_pattern', 'Compress tile patterns', 'tilePatterns');
   if (tileColors)   await processBlocks(tileColorBlocks, 'tile_color', 'Compress tile colors', 'tileColors');
@@ -612,6 +628,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
   const compressedBlockCount =
     selectedLayoutBlocks.size +
+    selectedEffectsBlocks.size +
     selectedBehaviorBlocks.size +
     selectedTilePatternBlocks.size +
     selectedTileColorBlocks.size +
@@ -630,6 +647,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const replacementByStart = new Map();
   const allSelectedBlocks = [
     ...selectedLayoutBlocks.values(),
+    ...selectedEffectsBlocks.values(),
     ...selectedBehaviorBlocks.values(),
     ...selectedTilePatternBlocks.values(),
     ...selectedTileColorBlocks.values(),
@@ -645,6 +663,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   }
 
   const compressedLayoutLabels = new Set(Array.from(selectedLayoutBlocks.keys()));
+  const compressedEffectsLabels = new Set(Array.from(selectedEffectsBlocks.keys()));
   const compressedBehaviorLabels = new Set(Array.from(selectedBehaviorBlocks.keys()));
   const compressedTilePatternLabels = new Set(Array.from(selectedTilePatternBlocks.keys()));
   const compressedTileColorLabels = new Set(Array.from(selectedTileColorBlocks.keys()));
@@ -845,6 +864,21 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       }
     }
 
+    const hlEffectsMatch = line.match(/^\s*ld\s+hl,\s*(SCREEN_[A-Z0-9_]+_\d+_EFFECTS_LAYOUT)\s*(?:;.*)?$/i);
+    if (inLoadScreen && hlEffectsMatch) {
+      const effectsLabel = hlEffectsMatch[1].toUpperCase();
+      if (compressedEffectsLabels.has(effectsLabel)) {
+        patched.push('    ; Decompress ZX0 effects layout directly into runtime_effects_layout');
+        patched.push('    di');
+        patched.push(`    ld hl, ${hlEffectsMatch[1]}`);
+        patched.push('    ld de, runtime_effects_layout');
+        patched.push('    call dzx0_standard');
+        patched.push('    ei');
+        patched.push('    ld hl, runtime_effects_layout');
+        continue;
+      }
+    }
+
     const hlTilePatternMatch = line.match(/^\s*ld\s+hl,\s*(tile_pattern_[a-z0-9_]+)(\s*\+\s*\d+)?\s*(?:;.*)?$/i);
     if (inLoadPattern && hlTilePatternMatch) {
       const patternLabel = hlTilePatternMatch[1].toUpperCase();
@@ -916,6 +950,9 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const maxLayoutSize = selectedLayoutBlocks.size > 0
     ? Math.max(...Array.from(selectedLayoutBlocks.values()).map(b => b.bytes.length))
     : 0;
+  const maxEffectsSize = selectedEffectsBlocks.size > 0
+    ? Math.max(...Array.from(selectedEffectsBlocks.values()).map(b => b.bytes.length))
+    : 0;
   const maxBehaviorSize = selectedBehaviorBlocks.size > 0
     ? Math.max(...Array.from(selectedBehaviorBlocks.values()).map(b => b.bytes.length))
     : 0;
@@ -963,6 +1000,9 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
   const buffersToAllocate = [];
   if (needsScreenBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_SCREEN_BUFFER', size: Math.max(1, maxLayoutSize), title: 'ZX0 SCREEN BUFFER', note: 'Free RAM buffer for screen layout decompression' });
+  if (selectedEffectsBlocks.size > 0 && maxEffectsSize <= 0) {
+    throw new Error('Effects ZX0 compression selected but no effects block size was resolved');
+  }
   if (needsBehaviorBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_BEHAVIOR_BUFFER', size: Math.max(1, maxBehaviorSize), title: 'ZX0 BEHAVIOR BUFFER', note: 'Free RAM buffer for behavior map decompression' });
   if (needsTilePatternBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_TILE_PATTERN_BUFFER', size: Math.max(1, maxTilePatternSize), title: 'ZX0 TILE PATTERN BUFFER', note: 'Free RAM buffer for tile pattern data decompression' });
   if (needsTileColorBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_TILE_COLOR_BUFFER', size: Math.max(1, maxTileColorSize), title: 'ZX0 TILE COLOR BUFFER', note: 'Free RAM buffer for tile color data decompression' });
@@ -1225,6 +1265,7 @@ app.post('/compile', async (req, res) => {
     applied: false,
     method: 'ZX0',
     candidateScreens: 0,
+    candidateEffects: 0,
     candidateBehaviorMaps: 0,
     candidateTilePatterns: 0,
     candidateTileColors: 0,
@@ -1232,6 +1273,7 @@ app.post('/compile', async (req, res) => {
     candidateFontColors: 0,
     candidateSpritePatterns: 0,
     compressedScreens: 0,
+    compressedEffects: 0,
     compressedBehaviorMaps: 0,
     compressedTilePatterns: 0,
     compressedTileColors: 0,
@@ -1244,6 +1286,7 @@ app.post('/compile', async (req, res) => {
     netSavedBytes: 0,
     warning: null,
     screenBufferSymbol: null,
+    effectsBufferSymbol: 'runtime_effects_layout',
     behaviorBufferSymbol: null,
     tilePatternBufferSymbol: null,
     tileColorBufferSymbol: null,

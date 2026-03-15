@@ -582,18 +582,14 @@ copy_layout_rect_to_vram:
 
     dec a
     ret z
-    push af
+    ; HL/DE were restored by push/pop, so advance a full row (32 bytes)
     push bc
-    ld a, 32
-    sub c
-    ld c, a
-    ld b, 0
+    ld bc, 32
     add hl, bc
     ex de, hl
     add hl, bc
     ex de, hl
     pop bc
-    pop af
     jr .copy_rect_row_loop
 
 ; Helper: Copy rectangular area between 32-byte rows in RAM
@@ -624,18 +620,14 @@ copy_layout_rect_ram_to_ram:
 
     dec a
     ret z
-    push af
+    ; HL/DE were restored by push/pop, so advance a full row (32 bytes)
     push bc
-    ld a, 32
-    sub c
-    ld c, a
-    ld b, 0
+    ld bc, 32
     add hl, bc
     ex de, hl
     add hl, bc
     ex de, hl
     pop bc
-    pop af
     jr .copy_rect_ram_row_loop
 
 load_screen:

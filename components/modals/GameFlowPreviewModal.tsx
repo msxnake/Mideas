@@ -567,6 +567,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const gridHeightTiles = currentScreenMap?.height ?? screenModeMetrics.heightTiles;
     const PREVIEW_WIDTH = gridWidthTiles * TILE_SIZE;
     const PREVIEW_HEIGHT = gridHeightTiles * TILE_SIZE;
+    const getScreenActiveBoundsPx = useCallback((screen: ScreenMap | null | undefined) => {
+        const screenWidthTiles = Math.max(1, screen?.width ?? screenModeMetrics.widthTiles);
+        const screenHeightTiles = Math.max(1, screen?.height ?? screenModeMetrics.heightTiles);
+        const activeAreaX = Math.max(0, Math.min(screenWidthTiles - 1, screen?.activeAreaX ?? 0));
+        const activeAreaY = Math.max(0, Math.min(screenHeightTiles - 1, screen?.activeAreaY ?? 0));
+        const activeAreaWidth = Math.max(1, Math.min(screenWidthTiles - activeAreaX, screen?.activeAreaWidth ?? screenWidthTiles));
+        const activeAreaHeight = Math.max(1, Math.min(screenHeightTiles - activeAreaY, screen?.activeAreaHeight ?? screenHeightTiles));
+        return {
+            leftPx: activeAreaX * TILE_SIZE,
+            topPx: activeAreaY * TILE_SIZE,
+            rightPx: (activeAreaX + activeAreaWidth) * TILE_SIZE,
+            bottomPx: (activeAreaY + activeAreaHeight) * TILE_SIZE,
+        };
+    }, [TILE_SIZE, screenModeMetrics.heightTiles, screenModeMetrics.widthTiles]);
     const getArrowCursor = useCallback((direction: 'north' | 'south' | 'east' | 'west') => {
         const rotation = direction === 'east' ? 0 : direction === 'south' ? 90 : direction === 'west' ? 180 : -90;
         const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><polygon points='8,4 26,16 8,28 8,20 2,20 2,12 8,12' fill='red' transform='rotate(${rotation} 16 16)'/></svg>`;
@@ -3484,9 +3498,10 @@ useEffect(() => {
             setPlayerEntryPoint(null); // Entry point was consumed
         }
 
-        // Checkpoint: clamp to a safe area within the screen bounds
-        const safeX = Math.max(8, Math.min(PREVIEW_WIDTH - heroForThisScreen.sprite.size.width - 8, Math.round(heroForThisScreen.x)));
-        const safeY = Math.max(8, Math.min(PREVIEW_HEIGHT - heroForThisScreen.sprite.size.height - 8, Math.round(heroForThisScreen.y)));
+        // Checkpoint: clamp to the active gameplay area of the current screen
+        const activeBounds = getScreenActiveBoundsPx(currentScreenMap);
+        const safeX = Math.max(activeBounds.leftPx + 8, Math.min(activeBounds.rightPx - heroForThisScreen.sprite.size.width - 8, Math.round(heroForThisScreen.x)));
+        const safeY = Math.max(activeBounds.topPx + 8, Math.min(activeBounds.bottomPx - heroForThisScreen.sprite.size.height - 8, Math.round(heroForThisScreen.y)));
 
         updateGameGlobalVariables(prev => ({
             ...prev,
@@ -3507,7 +3522,7 @@ useEffect(() => {
         });
         setPlayerEntryPoint(null);
     }
-}, [isOpen, currentScreenMap, allAssets, entityTemplates, componentDefinitions, checkKeyTransitions]);
+}, [isOpen, currentScreenMap, allAssets, entityTemplates, componentDefinitions, checkKeyTransitions, getScreenActiveBoundsPx]);
 
 useEffect(() => {
     if (!isOpen || !currentNode) return;
@@ -6009,6 +6024,7 @@ useEffect(() => {
                     const spriteWidth = entityA.sprite.size.width;
                     const spriteHeight = entityA.sprite.size.height;
                     let exitDirection: 'north' | 'south' | 'east' | 'west' | null = null;
+                    const currentActiveBounds = getScreenActiveBoundsPx(currentScreenMap);
 
                     // Use platform velocity when riding to infer movement direction
                     const platformVx = entityA.platformUnderneath ? entityA.platformUnderneath.vx : 0;
@@ -6019,10 +6035,10 @@ useEffect(() => {
                     const centerX = entityA.x + spriteWidth / 2;
                     const centerY = entityA.y + spriteHeight / 2;
 
-                    if (centerX < 0 && (effectiveVx < 0)) exitDirection = 'west';
-                    else if (centerX > PREVIEW_WIDTH && (effectiveVx > 0)) exitDirection = 'east';
-                    else if (centerY < 0 && (effectiveVy < 0)) exitDirection = 'north';
-                    else if (centerY > PREVIEW_HEIGHT && (effectiveVy > 0)) exitDirection = 'south';
+                    if (centerX < currentActiveBounds.leftPx && (effectiveVx < 0)) exitDirection = 'west';
+                    else if (centerX > currentActiveBounds.rightPx && (effectiveVx > 0)) exitDirection = 'east';
+                    else if (centerY < currentActiveBounds.topPx && (effectiveVy < 0)) exitDirection = 'north';
+                    else if (centerY > currentActiveBounds.bottomPx && (effectiveVy > 0)) exitDirection = 'south';
 
                     if (exitDirection) {
                         const currentScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === currentScreenMap.id);
@@ -6035,14 +6051,18 @@ useEffect(() => {
                             }
                             if (targetNodeId) {
                                 let newPlayerPos = { x: entityA.x, y: entityA.y };
+                                const targetScreenNode = currentWorldMapGraph.nodes.find(n => n.id === targetNodeId);
+                                const targetScreenAsset = targetScreenNode
+                                    ? allAssets.find(a => a.id === targetScreenNode.screenAssetId && a.type === 'screenmap')
+                                    : null;
+                                const targetActiveBounds = getScreenActiveBoundsPx((targetScreenAsset?.data as ScreenMap | undefined) ?? null);
 
-                                // Reverted: always use margin-based entry
                                 const entryMargin = 2;
                                 switch (exitDirection) {
-                                    case 'east': newPlayerPos.x = 0 + entryMargin; break;
-                                    case 'west': newPlayerPos.x = PREVIEW_WIDTH - spriteWidth - entryMargin; break;
-                                    case 'south': newPlayerPos.y = 0 + entryMargin; break;
-                                    case 'north': newPlayerPos.y = PREVIEW_HEIGHT - spriteHeight - entryMargin; break;
+                                    case 'east': newPlayerPos.x = targetActiveBounds.leftPx + entryMargin; break;
+                                    case 'west': newPlayerPos.x = Math.max(targetActiveBounds.leftPx + entryMargin, targetActiveBounds.rightPx - spriteWidth - entryMargin); break;
+                                    case 'south': newPlayerPos.y = targetActiveBounds.topPx + entryMargin; break;
+                                    case 'north': newPlayerPos.y = Math.max(targetActiveBounds.topPx + entryMargin, targetActiveBounds.bottomPx - spriteHeight - entryMargin); break;
                                 }
                                 setPlayerEntryPoint(newPlayerPos);
                                 handleScreenTransition(targetNodeId);
@@ -6498,12 +6518,13 @@ useEffect(() => {
                                                 // Trigger screen transition
                                                 const targetScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === localCoord.screenId);
                                                 if (targetScreenNode) {
-                                                    // Revert: clamp to margin inside target screen using computed local coords
+                                                    const targetScreenAsset = allAssets.find(a => a.id === targetScreenNode.screenAssetId && a.type === 'screenmap');
+                                                    const targetActiveBounds = getScreenActiveBoundsPx((targetScreenAsset?.data as ScreenMap | undefined) ?? null);
                                                     const spriteW = entityA.sprite.size.width;
                                                     const spriteH = entityA.sprite.size.height;
                                                     const margin = 2;
-                                                    const entryX = Math.max(0 + margin, Math.min(PREVIEW_WIDTH - spriteW - margin, localCoord.x));
-                                                    const entryY = Math.max(0 + margin, Math.min(PREVIEW_HEIGHT - spriteH - margin, localCoord.y));
+                                                    const entryX = Math.max(targetActiveBounds.leftPx + margin, Math.min(targetActiveBounds.rightPx - spriteW - margin, localCoord.x));
+                                                    const entryY = Math.max(targetActiveBounds.topPx + margin, Math.min(targetActiveBounds.bottomPx - spriteH - margin, localCoord.y));
                                                     setPlayerEntryPoint({ x: entryX, y: entryY });
 
                                                     // Mark transition timestamp

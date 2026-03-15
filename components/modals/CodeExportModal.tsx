@@ -51,6 +51,7 @@ type RomBuildConfig = {
 
 interface Zx0CompressionOptions {
   screens: boolean;
+  effects: boolean;
   behaviorMaps: boolean;
   tilePatterns: boolean;
   tileColors: boolean;
@@ -61,6 +62,7 @@ interface Zx0CompressionOptions {
 
 const DEFAULT_ZX0_OPTIONS: Zx0CompressionOptions = {
   screens: true,
+  effects: true,
   behaviorMaps: true,
   tilePatterns: true,
   tileColors: true,
@@ -1013,6 +1015,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       alert(
         `ZX0 compression applied.\n\n` +
         `Screens: ${info.compressedScreens || 0}/${info.candidateScreens || 0}\n` +
+        `Effects: ${info.compressedEffects || 0}/${info.candidateEffects || 0}\n` +
         `Behavior maps: ${info.compressedBehaviorMaps || 0}/${info.candidateBehaviorMaps || 0}\n` +
         `Tile patterns: ${info.compressedTilePatterns || 0}/${info.candidateTilePatterns || 0}\n` +
         `Tile colors: ${info.compressedTileColors || 0}/${info.candidateTileColors || 0}\n` +
@@ -1420,6 +1423,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 </p>
                 {([
                   { key: 'screens',      label: 'Screens (layout maps)' },
+                  { key: 'effects',      label: 'Effects (secret layouts)' },
                   { key: 'behaviorMaps', label: 'Behavior maps' },
                   { key: 'tilePatterns', label: 'Tile patterns' },
                   { key: 'tileColors',   label: 'Tile colors' },
@@ -1449,7 +1453,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   </button>
                   <button
                     className="text-xs text-msx-textsecondary underline"
-                    onClick={() => setZx0Options({ screens: false, behaviorMaps: false, tilePatterns: false, tileColors: false, fontPatterns: false, fontColors: false, spritePatterns: false })}
+                    onClick={() => setZx0Options({ screens: false, effects: false, behaviorMaps: false, tilePatterns: false, tileColors: false, fontPatterns: false, fontColors: false, spritePatterns: false })}
                   >
                     None
                   </button>
@@ -1483,7 +1487,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   variant="secondary"
                   className="w-full"
                 >
-                  {isCompressingAsm ? 'Compressing...' : 'Compress Screen + Behavior + Tiles + Font (ZX0)'}
+                  {isCompressingAsm ? 'Compressing...' : 'Compress Screen + Effects + Behavior + Tiles + Font (ZX0)'}
                 </Button>
 
                 <Button
@@ -1527,12 +1531,15 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 {asmCompressionResult?.applied && (
                   <div className="p-2 rounded text-xs bg-green-900 bg-opacity-30 border border-green-600 text-msx-textsecondary">
                     <div className="font-semibold text-green-400">ZX0 Compression Applied</div>
-                    <div>
-                      Screens: {asmCompressionResult?.compressionInfo?.compressedScreens ?? 0}/{asmCompressionResult?.compressionInfo?.candidateScreens ?? 0}
-                    </div>
-                    <div>
-                      Behavior: {asmCompressionResult?.compressionInfo?.compressedBehaviorMaps ?? 0}/{asmCompressionResult?.compressionInfo?.candidateBehaviorMaps ?? 0}
-                    </div>
+                  <div>
+                    Screens: {asmCompressionResult?.compressionInfo?.compressedScreens ?? 0}/{asmCompressionResult?.compressionInfo?.candidateScreens ?? 0}
+                  </div>
+                  <div>
+                    Effects: {asmCompressionResult?.compressionInfo?.compressedEffects ?? 0}/{asmCompressionResult?.compressionInfo?.candidateEffects ?? 0}
+                  </div>
+                  <div>
+                    Behavior: {asmCompressionResult?.compressionInfo?.compressedBehaviorMaps ?? 0}/{asmCompressionResult?.compressionInfo?.candidateBehaviorMaps ?? 0}
+                  </div>
                     <div>
                       Tile patterns: {asmCompressionResult?.compressionInfo?.compressedTilePatterns ?? 0}/{asmCompressionResult?.compressionInfo?.candidateTilePatterns ?? 0}
                     </div>

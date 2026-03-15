@@ -998,11 +998,14 @@ update_entity_collision_fast:
     cp MAX_ENTITIES
     jp nc, .build_skip            ; List full
 
-    ; Store entity index in coll_list
-    pop hl                        ; Restore list write pointer
+    ; Restore pointers in reverse push order: DE read cursor first, then HL write cursor.
+    ; The previous order wrote into collision_entity_list instead of coll_list.
+    pop de
+    pop hl
     ld (hl), c                    ; coll_list[count] = entity index
     inc hl                        ; Advance write pointer
     push hl                       ; Save updated write pointer
+    push de
 
     ld a, (coll_list_count)
     inc a
@@ -3558,6 +3561,73 @@ init_wallcollision_system:
     ret
 
 ; ------------------------------------------------------------------
+; wall_behavior_is_full_blocker
+; Input:  A = behavior byte or family bits
+; Output: Z = passable / top-solid platform, NZ = full blocker
+; Clobbers: AF
+; Notes:
+;   - familyId 2 (#20) is treated as one-way/top-solid, so it must not
+;     block horizontal motion or upward motion.
+; ------------------------------------------------------------------
+wall_behavior_is_full_blocker:
+    and #F0
+    ret z
+    cp #20
+    ret z
+    or a
+    ret
+
+; ------------------------------------------------------------------
+; wall_down_behavior_blocks
+; Input:
+;   - A  = behavior byte or family bits from get_behavior_tile
+;   - B  = tile row of the floor probe
+;   - DE = entity index
+; Output:
+;   - Z  = passable
+;   - NZ = blocks downward movement / supports standing
+; Clobbers: AF, C, HL
+; Preserved: B, DE
+; Notes:
+;   - familyId 2 (#20) is top-solid: it only blocks when the entity was
+;     already above the tile before this frame's vertical movement.
+;   - update_position_component already applied vel_y before WallCollision,
+;     so previous_bottom = wall_hit_bottom - entity_vel_y.
+; ------------------------------------------------------------------
+wall_down_behavior_blocks:
+    and #F0
+    ret z
+    cp #20
+    jr z, .platform_check
+    or a
+    ret
+
+.platform_check:
+    push bc
+    push hl
+    ld a, b
+    add a, a
+    add a, a
+    add a, a                      ; A = tileTop = row * 8
+    add a, 2
+    ld c, a                       ; C = tileTop + tolerance
+    ld a, (wall_hit_bottom)
+    ld hl, entity_vel_y
+    add hl, de
+    sub (hl)                      ; previous_bottom = current_bottom - vel_y
+    cp c
+    pop hl
+    pop bc
+    jr c, .platform_blocks
+    jr z, .platform_blocks
+    xor a
+    ret
+
+.platform_blocks:
+    ld a, 1
+    ret
+
+; ------------------------------------------------------------------
 ; update_wallcollision_component
 ; ------------------------------------------------------------------
 ; Check wall collisions and prevent movement through solid tiles.
@@ -3695,7 +3765,7 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = top / 8
     call get_behavior_tile
-    and #F0
+    call wall_behavior_is_full_blocker
     jp nz, .wall_left_blocked
 
     ; Check point 2: adaptive bottom probe (safe for small hitboxes)
@@ -3706,7 +3776,7 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = bottom / 8
     call get_behavior_tile_nb
-    and #F0
+    call wall_behavior_is_full_blocker
     jp z, .check_wall_y           ; Both passable
 
 .wall_left_blocked:
@@ -3762,7 +3832,7 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = top / 8
     call get_behavior_tile
-    and #F0
+    call wall_behavior_is_full_blocker
     jp nz, .wall_right_blocked
 
     ; Check point 2: adaptive bottom probe (safe for small hitboxes)
@@ -3773,7 +3843,7 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = bottom / 8
     call get_behavior_tile_nb
-    and #F0
+    call wall_behavior_is_full_blocker
     jp z, .check_wall_y           ; Both passable
 
 .wall_right_blocked:
@@ -3851,7 +3921,7 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = left / 8
     call get_behavior_tile
-    and #F0
+    call wall_behavior_is_full_blocker
     jp nz, .wall_up_blocked
 
     ; Check point 2: adaptive right probe (safe for small hitboxes)
@@ -3861,7 +3931,7 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = right / 8
     call get_behavior_tile
-    and #F0
+    call wall_behavior_is_full_blocker
     jp z, .wall_next              ; Both passable
 
 .wall_up_top_edge:
@@ -4000,7 +4070,7 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = left / 8
     call get_behavior_tile
-    and #F0
+    call wall_down_behavior_blocks
     jp nz, .wall_down_blocked
 
     ; Check point 2: adaptive right probe (safe for small hitboxes)
@@ -4010,7 +4080,7 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = right / 8
     call get_behavior_tile
-    and #F0
+    call wall_down_behavior_blocks
     jp z, .wall_next              ; Both passable
 
 .wall_down_blocked:
