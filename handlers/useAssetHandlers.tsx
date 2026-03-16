@@ -8,7 +8,8 @@ import {
   DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE, MSX1_PALETTE,
   DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR, DEFAULT_SCREEN_WIDTH_TILES,
   DEFAULT_SCREEN_HEIGHT_TILES, DEFAULT_SPRITE_SIZE, EDITOR_BASE_TILE_DIM_S2,
-  DEFAULT_TILE_BANK_DEFINITIONS, DEFAULT_PSG_INSTRUMENTS, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED, DEFAULT_PT3_ROWS_PER_PATTERN
+  DEFAULT_TILE_BANK_DEFINITIONS, DEFAULT_PSG_INSTRUMENTS, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED, DEFAULT_PT3_ROWS_PER_PATTERN,
+  DEFAULT_PRESENTATION_SCREEN_CONFIG
 } from '../constants';
 import { createDefaultLineAttributes } from '../components/utils/tileUtils';
 import { DEFAULT_MSX_FONT } from '../components/utils/msxFontRenderer';
@@ -313,6 +314,10 @@ export const useAssetHandlers = ({
           mode: 'SCREEN5'
         } as PaletteAsset;
         newEditorType = EditorType.Palette;
+        break;
+      case 'presentationscreen':
+        newAssetData = { ...DEFAULT_PRESENTATION_SCREEN_CONFIG };
+        newEditorType = EditorType.PresentationScreen;
         break;
       case 'font':
         // Create default color attributes for each character in the font

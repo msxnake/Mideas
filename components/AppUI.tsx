@@ -13,7 +13,8 @@ import {
   MSX_SCREEN5_PALETTE, MSX1_PALETTE,
   DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR,
   DEFAULT_HELP_DOCS_DATA, HELP_DOCS_SYSTEM_ASSET_ID,
-  Z80_BEHAVIOR_SNIPPETS, Z80_SNIPPETS as DEFAULT_Z80_SNIPPETS, EDITOR_BASE_TILE_DIM_S2
+  Z80_BEHAVIOR_SNIPPETS, Z80_SNIPPETS as DEFAULT_Z80_SNIPPETS, EDITOR_BASE_TILE_DIM_S2,
+  DEFAULT_PRESENTATION_SCREEN_CONFIG
 } from '../constants';
 import { ensureScreen5PaletteSlots, screen5SlotsToMsxColors } from '../utils/screen5PaletteUtils';
 import { EDITABLE_CHAR_CODES_SUBSET } from './utils/msxFontRenderer';
@@ -605,10 +606,21 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
              />
            )}
           {currentEditor === EditorType.PresentationScreen && (
-            <PresentationScreenEditor
-              presentationScreen={presentationScreen}
-              onUpdatePresentationScreen={onUpdatePresentationScreen}
-            />
+            activeAsset?.type === 'presentationscreen' ? (
+              <PresentationScreenEditor
+                presentationScreen={(activeAsset.data as PresentationScreenConfig)}
+                onUpdatePresentationScreen={(updater) => {
+                  const current = activeAsset.data as PresentationScreenConfig;
+                  const newData = typeof updater === 'function' ? updater(current) : updater;
+                  handleUpdateAsset(activeAsset.id, newData);
+                }}
+              />
+            ) : (
+              <PresentationScreenEditor
+                presentationScreen={presentationScreen}
+                onUpdatePresentationScreen={onUpdatePresentationScreen}
+              />
+            )
           )}
           {currentEditor === EditorType.StateMachine && activeAsset?.type === 'statemachine' && (
             <StateMachineEditor
@@ -623,7 +635,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         <div className="w-64 flex-shrink-0 flex flex-col min-h-0 overflow-hidden">
          {renderRightPanelContent()}
           <PropertiesPanel 
-            asset={currentEditor === EditorType.Font || currentEditor === EditorType.HelpDocs || currentEditor === EditorType.BehaviorEditor || currentEditor === EditorType.ComponentDefinitionEditor || currentEditor === EditorType.EntityTemplateEditor || currentEditor === EditorType.PresentationScreen ? undefined : activeAsset}
+            asset={currentEditor === EditorType.Font || currentEditor === EditorType.HelpDocs || currentEditor === EditorType.BehaviorEditor || currentEditor === EditorType.ComponentDefinitionEditor || currentEditor === EditorType.EntityTemplateEditor || (currentEditor === EditorType.PresentationScreen && activeAsset?.type !== 'presentationscreen') ? undefined : activeAsset}
             entityInstance={selectedEntityInstance}
             effectZone={selectedEffectZone}
             gameFlowNode={selectedGameFlowNode}

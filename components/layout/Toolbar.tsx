@@ -393,6 +393,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownSeparator />
         <DropdownItem onClick={() => onNewAsset('sound')} icon={<SoundIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white">Sound FX</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('track')} icon={<MusicNoteIcon />} colorClass="text-emerald-200 hover:bg-emerald-500 hover:text-white">Music Track</DropdownItem>
+        <DropdownSeparator />
+        <DropdownItem onClick={() => onNewAsset('presentationscreen')} icon={<MapIcon />} colorClass="text-teal-200 hover:bg-teal-500 hover:text-white">Presentation Screen</DropdownItem>
       </DropdownMenu>
 
       <Sep />
