@@ -47,30 +47,61 @@ const paletteEntries = MSX1_PALETTE.map(color => ({
   cssColor: color.index === 0 ? '#111111' : color.hex,
 }));
 
-const PaletteSwatchButton: React.FC<{
+/** Small color swatch used in the row table */
+const RowSwatch: React.FC<{
   colorIndex: number;
-  selected: boolean;
+  active: boolean;
   onClick: () => void;
-  titlePrefix: string;
-}> = ({ colorIndex, selected, onClick, titlePrefix }) => {
-  const color = paletteEntries.find(entry => entry.index === colorIndex) ?? paletteEntries[0];
+  title: string;
+}> = ({ colorIndex, active, onClick, title }) => {
+  const color = paletteEntries.find(e => e.index === colorIndex) ?? paletteEntries[0];
   const textClass = colorIndex === 11 || colorIndex === 14 || colorIndex === 15 ? 'text-black' : 'text-white';
-
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`relative h-8 rounded border transition-all ${selected ? 'border-msx-highlight ring-1 ring-msx-highlight scale-[1.03]' : 'border-msx-border hover:border-msx-textsecondary'}`}
+      title={title}
+      className={`relative w-7 h-7 rounded border transition-all text-[10px] font-bold ${active ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border hover:border-msx-textsecondary'} ${textClass}`}
       style={{ backgroundColor: color.cssColor }}
-      title={`${titlePrefix}: ${color.index} - ${color.name}`}
     >
-      <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textClass}`}>
-        {color.index}
-      </span>
+      {colorIndex}
       {colorIndex === 0 && (
         <span className="absolute inset-0 bg-[linear-gradient(135deg,transparent_45%,rgba(255,255,255,0.45)_45%,rgba(255,255,255,0.45)_55%,transparent_55%)]" />
       )}
     </button>
+  );
+};
+
+/** Full palette picker — shared selector */
+const PalettePicker: React.FC<{
+  selected: number;
+  onSelect: (idx: number) => void;
+  label: string;
+}> = ({ selected, onSelect, label }) => {
+  return (
+    <div className="space-y-1">
+      <div className="text-[11px] text-msx-textsecondary">{label}</div>
+      <div className="grid grid-cols-8 gap-[3px]">
+        {paletteEntries.map(color => {
+          const textClass = color.index === 11 || color.index === 14 || color.index === 15 ? 'text-black' : 'text-white';
+          return (
+            <button
+              key={color.index}
+              type="button"
+              onClick={() => onSelect(color.index)}
+              title={`${color.index} - ${color.name}`}
+              className={`relative h-7 rounded border transition-all text-[10px] font-bold ${textClass} ${selected === color.index ? 'border-msx-highlight ring-1 ring-msx-highlight scale-[1.05]' : 'border-msx-border hover:border-msx-textsecondary'}`}
+              style={{ backgroundColor: color.cssColor }}
+            >
+              {color.index}
+              {color.index === 0 && (
+                <span className="absolute inset-0 bg-[linear-gradient(135deg,transparent_45%,rgba(255,255,255,0.45)_45%,rgba(255,255,255,0.45)_55%,transparent_55%)]" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 
@@ -83,31 +114,27 @@ export const PresentationScreenTileEditor: React.FC<PresentationScreenTileEditor
   const [patternBytes, setPatternBytes] = useState<number[]>(Array(TILE_SIZE).fill(0));
   const [colorBytes, setColorBytes] = useState<number[]>(Array(TILE_SIZE).fill(0x11));
   const [editMode, setEditMode] = useState<PresentationScreenEditMode>('single');
-  const [bulkFgColor, setBulkFgColor] = useState<number>(DEFAULT_BULK_FG);
-  const [bulkBgColor, setBulkBgColor] = useState<number>(DEFAULT_BULK_BG);
+
+  // Shared palette state — one selected color, one active channel
+  const [selectedColor, setSelectedColor] = useState<number>(DEFAULT_BULK_FG);
+  const [paintChannel, setPaintChannel] = useState<'fg' | 'bg'>('fg');
 
   useEffect(() => {
-    if (!tile) {
-      return;
-    }
+    if (!tile) return;
     setPatternBytes(tile.patternBytes.slice(0, TILE_SIZE));
     setColorBytes(tile.colorBytes.slice(0, TILE_SIZE));
     setEditMode(tile.charUsageCount > 1 ? 'single' : 'shared');
     const firstRowColors = readRowColors(tile.colorBytes[0] ?? 0x11);
-    setBulkFgColor(firstRowColors.fg);
-    setBulkBgColor(firstRowColors.bg);
+    setSelectedColor(paintChannel === 'fg' ? firstRowColors.fg : firstRowColors.bg);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tile]);
 
   const sharedLabel = useMemo(() => {
-    if (!tile || tile.charUsageCount <= 1) {
-      return 'Char exclusivo';
-    }
+    if (!tile || tile.charUsageCount <= 1) return 'Char exclusivo';
     return `Char compartido por ${tile.charUsageCount} celdas`;
   }, [tile]);
 
-  if (!tile) {
-    return null;
-  }
+  if (!tile) return null;
 
   const handlePixelClick = (x: number, y: number) => {
     setPatternBytes(prev => {
@@ -117,16 +144,28 @@ export const PresentationScreenTileEditor: React.FC<PresentationScreenTileEditor
     });
   };
 
-  const handleRowColorChange = (row: number, channel: 'fg' | 'bg', value: number) => {
+  /** Apply selectedColor to a specific row + channel */
+  const handleRowSwatchClick = (row: number, channel: 'fg' | 'bg') => {
     setColorBytes(prev => {
       const next = [...prev];
       const current = readRowColors(next[row] ?? 0);
       next[row] = writeRowColors(
-        channel === 'fg' ? value : current.fg,
-        channel === 'bg' ? value : current.bg,
+        channel === 'fg' ? selectedColor : current.fg,
+        channel === 'bg' ? selectedColor : current.bg,
       );
       return next;
     });
+  };
+
+  /** Apply selectedColor to all rows for paintChannel */
+  const handleFillAll = (channel: 'fg' | 'bg') => {
+    setColorBytes(prev => prev.map(colorByte => {
+      const current = readRowColors(colorByte ?? 0);
+      return writeRowColors(
+        channel === 'fg' ? selectedColor : current.fg,
+        channel === 'bg' ? selectedColor : current.bg,
+      );
+    }));
   };
 
   const handleReset = () => {
@@ -134,18 +173,8 @@ export const PresentationScreenTileEditor: React.FC<PresentationScreenTileEditor
     setColorBytes(tile.colorBytes.slice(0, TILE_SIZE));
     setEditMode(tile.charUsageCount > 1 ? 'single' : 'shared');
     const firstRowColors = readRowColors(tile.colorBytes[0] ?? 0x11);
-    setBulkFgColor(firstRowColors.fg);
-    setBulkBgColor(firstRowColors.bg);
-  };
-
-  const applyBulkColor = (channel: 'fg' | 'bg', value: number) => {
-    setColorBytes(prev => prev.map((colorByte) => {
-      const current = readRowColors(colorByte ?? 0);
-      return writeRowColors(
-        channel === 'fg' ? value : current.fg,
-        channel === 'bg' ? value : current.bg,
-      );
-    }));
+    setSelectedColor(firstRowColors.fg);
+    setPaintChannel('fg');
   };
 
   const handleSave = () => {
@@ -162,8 +191,9 @@ export const PresentationScreenTileEditor: React.FC<PresentationScreenTileEditor
       onClose={onClose}
       title={`Edit Tile (${tile.cell.x}, ${tile.cell.y})`}
     >
-      <div className="w-[min(92vw,980px)] max-h-[85vh] overflow-y-auto space-y-4">
+      <div className="w-[min(92vw,760px)] space-y-4">
         <div className="grid grid-cols-1 lg:grid-cols-[auto_minmax(0,1fr)] gap-4 items-start">
+          {/* ── Left: Pixel canvas ── */}
           <Panel title="Pixels" bodyClassName="p-3">
             <div
               className="grid border border-msx-border bg-black"
@@ -178,7 +208,6 @@ export const PresentationScreenTileEditor: React.FC<PresentationScreenTileEditor
                   const isSet = (patternByte & (0x80 >> x)) !== 0;
                   const colorIndex = isSet ? colors.fg : colors.bg;
                   const swatch = MSX1_PALETTE.find(entry => entry.index === colorIndex)?.hex ?? '#000000';
-
                   return (
                     <button
                       key={`${x}-${y}`}
@@ -192,121 +221,86 @@ export const PresentationScreenTileEditor: React.FC<PresentationScreenTileEditor
                 }),
               )}
             </div>
-            <div className="mt-3 text-xs text-msx-textsecondary">
-              <div>Char code: {tile.charCode}</div>
-              <div>Banco: {tile.bank}</div>
+            <div className="mt-3 text-xs text-msx-textsecondary space-y-0.5">
+              <div>Char: {tile.charCode} · Bank: {tile.bank}</div>
               <div>{sharedLabel}</div>
             </div>
           </Panel>
 
-          <Panel title="Row Colors" bodyClassName="p-3 space-y-3">
-            <Panel title="Bulk Apply" bodyClassName="p-3 space-y-3">
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-msx-textsecondary">Foreground</span>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => applyBulkColor('fg', bulkFgColor)}
-                    >
-                      Apply FG to all rows
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-8 gap-1">
-                    {paletteEntries.map(color => (
-                      <PaletteSwatchButton
-                        key={`bulk-fg-${color.index}`}
-                        colorIndex={color.index}
-                        selected={bulkFgColor === color.index}
-                        onClick={() => setBulkFgColor(color.index)}
-                        titlePrefix="Bulk FG"
-                      />
-                    ))}
-                  </div>
-                </div>
+          {/* ── Right: Compact color editor ── */}
+          <div className="space-y-3">
+            {/* Shared palette */}
+            <Panel title="Color Palette" bodyClassName="p-3 space-y-3">
+              <PalettePicker
+                selected={selectedColor}
+                onSelect={setSelectedColor}
+                label="Selected color (click a row swatch to apply)"
+              />
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-msx-textsecondary">Background</span>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => applyBulkColor('bg', bulkBgColor)}
-                    >
-                      Apply BG to all rows
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-8 gap-1">
-                    {paletteEntries.map(color => (
-                      <PaletteSwatchButton
-                        key={`bulk-bg-${color.index}`}
-                        colorIndex={color.index}
-                        selected={bulkBgColor === color.index}
-                        onClick={() => setBulkBgColor(color.index)}
-                        titlePrefix="Bulk BG"
-                      />
-                    ))}
-                  </div>
-                </div>
+              {/* Channel toggle + Fill All */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-msx-textsecondary">Paint:</span>
+                <button
+                  type="button"
+                  onClick={() => setPaintChannel('fg')}
+                  className={`px-3 py-1 rounded text-xs border transition-all ${paintChannel === 'fg' ? 'bg-msx-highlight border-msx-highlight text-black font-bold' : 'border-msx-border text-msx-textsecondary hover:border-msx-textsecondary'}`}
+                >
+                  FG
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaintChannel('bg')}
+                  className={`px-3 py-1 rounded text-xs border transition-all ${paintChannel === 'bg' ? 'bg-msx-highlight border-msx-highlight text-black font-bold' : 'border-msx-border text-msx-textsecondary hover:border-msx-textsecondary'}`}
+                >
+                  BG
+                </button>
+                <Button size="sm" variant="secondary" onClick={() => handleFillAll('fg')}>
+                  Fill All FG
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => handleFillAll('bg')}>
+                  Fill All BG
+                </Button>
               </div>
             </Panel>
 
-            {colorBytes.map((colorByte, row) => {
-              const { fg, bg } = readRowColors(colorByte ?? 0);
-              const fgColor = paletteEntries.find(entry => entry.index === fg) ?? paletteEntries[0];
-              const bgColor = paletteEntries.find(entry => entry.index === bg) ?? paletteEntries[0];
-
-              return (
-                <div key={row} className="rounded border border-msx-border p-2 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs text-msx-textsecondary">R{row}</div>
-                    <div className="flex items-center gap-3 text-[11px] text-msx-textsecondary">
-                      <div className="flex items-center gap-1">
-                        <span className="inline-block w-3 h-3 rounded border border-msx-border" style={{ backgroundColor: fgColor.cssColor }} />
-                        <span>FG {fg}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="inline-block w-3 h-3 rounded border border-msx-border" style={{ backgroundColor: bgColor.cssColor }} />
-                        <span>BG {bg}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <div className="text-[11px] text-msx-textsecondary">Foreground</div>
-                      <div className="grid grid-cols-8 gap-1">
-                        {paletteEntries.map(color => (
-                          <PaletteSwatchButton
-                            key={`fg-${row}-${color.index}`}
-                            colorIndex={color.index}
-                            selected={fg === color.index}
-                            onClick={() => handleRowColorChange(row, 'fg', color.index)}
-                            titlePrefix={`R${row} FG`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="text-[11px] text-msx-textsecondary">Background</div>
-                      <div className="grid grid-cols-8 gap-1">
-                        {paletteEntries.map(color => (
-                          <PaletteSwatchButton
-                            key={`bg-${row}-${color.index}`}
-                            colorIndex={color.index}
-                            selected={bg === color.index}
-                            onClick={() => handleRowColorChange(row, 'bg', color.index)}
-                            titlePrefix={`R${row} BG`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+            {/* Compact row table */}
+            <Panel title="Row Colors" bodyClassName="p-2">
+              <div className="space-y-1">
+                {/* Header */}
+                <div className="grid grid-cols-[2rem_auto_auto] items-center gap-2 px-1 text-[11px] text-msx-textsecondary">
+                  <span>Row</span>
+                  <span className="text-center">FG</span>
+                  <span className="text-center">BG</span>
                 </div>
-              );
-            })}
+
+                {colorBytes.map((colorByte, row) => {
+                  const { fg, bg } = readRowColors(colorByte ?? 0);
+                  return (
+                    <div
+                      key={row}
+                      className="grid grid-cols-[2rem_auto_auto] items-center gap-2 px-1 rounded hover:bg-msx-bg"
+                    >
+                      <span className="text-xs text-msx-textsecondary text-center">{row}</span>
+                      <RowSwatch
+                        colorIndex={fg}
+                        active={false}
+                        onClick={() => handleRowSwatchClick(row, 'fg')}
+                        title={`R${row} FG = ${fg} — click to set to ${selectedColor}`}
+                      />
+                      <RowSwatch
+                        colorIndex={bg}
+                        active={false}
+                        onClick={() => handleRowSwatchClick(row, 'bg')}
+                        title={`R${row} BG = ${bg} — click to set to ${selectedColor}`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-[10px] text-msx-textsecondary px-1">
+                Click FG/BG swatch to apply selected palette color to that row.
+              </p>
+            </Panel>
 
             {tile.charUsageCount > 1 && (
               <Panel title="Apply Mode" bodyClassName="p-3 space-y-2">
@@ -330,19 +324,13 @@ export const PresentationScreenTileEditor: React.FC<PresentationScreenTileEditor
                 </label>
               </Panel>
             )}
-          </Panel>
+          </div>
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button onClick={handleReset} variant="ghost">
-            Reset
-          </Button>
-          <Button onClick={onClose} variant="ghost">
-            Cancel
-          </Button>
-          <Button onClick={handleSave}>
-            Save Tile
-          </Button>
+          <Button onClick={handleReset} variant="ghost">Reset</Button>
+          <Button onClick={onClose} variant="ghost">Cancel</Button>
+          <Button onClick={handleSave}>Save Tile</Button>
         </div>
       </div>
     </Modal>
