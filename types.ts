@@ -1211,7 +1211,7 @@ export interface PresentationScreenConfig {
 // --- Game Flow Types ---
 
 /** The type of a node in the game flow graph. */
-export type GameFlowNodeType = 'Start' | 'SubMenu' | 'WorldLink' | 'End' | 'Text' | 'Restart' | 'Waypoint' | 'Transition' | 'Group' | 'IfThenElse' | 'Music' | 'Globals';
+export type GameFlowNodeType = 'Start' | 'SubMenu' | 'WorldLink' | 'End' | 'Text' | 'Restart' | 'Waypoint' | 'Transition' | 'Group' | 'IfThenElse' | 'Music' | 'Globals' | 'PresentationScreen';
 
 /** The base interface for a game flow node. */
 export interface GameFlowNode_Base {
@@ -1375,8 +1375,15 @@ export interface GameFlowIfThenElseNode extends GameFlowNode_Base {
   operator?: '==' | '!=' | '>' | '<' | '>=' | '<=';
 }
 
+/** Represents a node that displays a Presentation Screen asset. */
+export interface GameFlowPresentationScreenNode extends GameFlowNode_Base {
+  type: 'PresentationScreen';
+  /** ID of the PresentationScreen asset to display. */
+  presentationScreenAssetId?: string;
+}
+
 /** A union type for all possible game flow node types. */
-export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode | GameFlowTextNode | GameFlowRestartNode | GameFlowWaypointNode | GameFlowMusicNode | GameFlowTransitionNode | GameFlowGroupNode | GameFlowIfThenElseNode | GameFlowGlobalsNode;
+export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode | GameFlowTextNode | GameFlowRestartNode | GameFlowWaypointNode | GameFlowMusicNode | GameFlowTransitionNode | GameFlowGroupNode | GameFlowIfThenElseNode | GameFlowGlobalsNode | GameFlowPresentationScreenNode;
 
 /** Represents a connection between two nodes in the game flow graph. */
 export interface GameFlowConnection {

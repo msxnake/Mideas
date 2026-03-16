@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, GameFlowTextNode, GameFlowRestartNode, GameFlowWaypointNode, GameFlowIfThenElseNode, ContextMenuItem, GameFlowGlobalsNode } from '../../types';
+import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, GameFlowTextNode, GameFlowRestartNode, GameFlowWaypointNode, GameFlowIfThenElseNode, ContextMenuItem, GameFlowGlobalsNode, GameFlowPresentationScreenNode } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, CodeIcon, ArrowsPointingOutIcon, ScissorsIcon } from '../icons/MsxIcons';
@@ -229,6 +229,7 @@ const GameFlowNodeComponent: React.FC<{
     : node.type === 'IfThenElse' ? 'hsl(30, 70%, 45%)'
     : node.type === 'Globals' ? 'hsl(200, 60%, 40%)'
     : node.type === 'Waypoint' ? 'hsl(0, 0%, 30%)'
+    : node.type === 'PresentationScreen' ? 'hsl(160, 40%, 30%)'
     : 'hsl(260, 30%, 40%)';
 
   const strokeColor = isSelected ? 'hsl(50, 100%, 70%)' :
@@ -243,6 +244,7 @@ const GameFlowNodeComponent: React.FC<{
     : node.type === 'IfThenElse' ? 'hsl(30, 80%, 65%)'
     : node.type === 'Globals' ? 'hsl(200, 70%, 60%)'
     : node.type === 'Waypoint' ? 'hsl(0, 0%, 50%)'
+    : node.type === 'PresentationScreen' ? 'hsl(160, 60%, 60%)'
     : 'hsl(260, 50%, 70%)';
 
   const worldNode = node.type === 'WorldLink' ? allAssets.find(a => a.id === (node as GameFlowWorldLinkNode).worldAssetId) : null;
@@ -262,6 +264,7 @@ const GameFlowNodeComponent: React.FC<{
 
   const groupGameFlow = node.type === 'Group' ? allAssets.find(a => a.id === (node as any).gameFlowAssetId && a.type === 'gameflow') : null;
   const musicTrack = node.type === 'Music' ? allAssets.find(a => a.id === (node as any).trackAssetId && a.type === 'track') : null;
+  const presentationScreenAsset = node.type === 'PresentationScreen' ? allAssets.find(a => a.id === (node as GameFlowPresentationScreenNode).presentationScreenAssetId && a.type === 'presentationscreen') : null;
 
   const nodeName =
       node.type === 'Start' ? (isMainGameFlow ? 'Main' : 'Start')
@@ -275,6 +278,7 @@ const GameFlowNodeComponent: React.FC<{
     : node.type === 'Group' ? (node as any).name || 'Group'
     : node.type === 'IfThenElse' ? `${(node as any).variableName || 'Goal'} ${(node as any).operator || '=='} ${(node as any).compareValue || 'Completed'}`
     : node.type === 'Waypoint' ? '•'
+    : node.type === 'PresentationScreen' ? (presentationScreenAsset?.name || 'Presentation Screen')
     : node.id;
   // Start can be re-entered to rerun its initialization block.
   const hasInput = true;
@@ -497,6 +501,12 @@ const GameFlowNodeComponent: React.FC<{
           </text>
         </>
       )}
+
+      {node.type === 'PresentationScreen' && (
+        <text x={nodeWidth / 2} y={nodeHeight - 20} textAnchor="middle" fill="hsl(160, 80%, 70%)" fontSize="8px" className="pixel-font select-none pointer-events-none">
+          {presentationScreenAsset ? 'Screen 2' : 'Sin asignar'}
+        </text>
+      )}
     </g>
   );
 };
@@ -510,7 +520,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; fromPortId: string; } | null>(null);
   const [isLinkingMode, setIsLinkingMode] = useState(false);
   const [isCutMode, setIsCutMode] = useState(false);
-  const [assetPickerState, setAssetPickerState] = useState<{ isOpen: boolean; onSelect: ((assetId: string) => void) | null; }>({ isOpen: false, onSelect: null });
+  const [assetPickerState, setAssetPickerState] = useState<{ isOpen: boolean; assetType: ProjectAsset['type']; onSelect: ((assetId: string) => void) | null; }>({ isOpen: false, assetType: 'worldmap', onSelect: null });
   const svgRef = useRef<SVGSVGElement>(null);
   const [viewBox, setViewBox] = useState(`0 0 1000 700`);
   const [isPanning, setIsPanning] = useState(false);
@@ -924,7 +934,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       }
   };
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
-  const handleAddNode = (type: 'SubMenu' | 'WorldLink' | 'Text' | 'End' | 'Restart' | 'Transition' | 'Group' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Globals') => {
+  const handleAddNode = (type: 'SubMenu' | 'WorldLink' | 'Text' | 'End' | 'Restart' | 'Transition' | 'Group' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Globals' | 'PresentationScreen') => {
     let newNodeData: NodeToPlace;
     if (type === 'SubMenu') {
         newNodeData = {
@@ -937,7 +947,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         };
         setNodeToPlace(newNodeData);
     } else if (type === 'WorldLink') {
-        setAssetPickerState({ isOpen: true, onSelect: (worldAssetId) => {
+        setAssetPickerState({ isOpen: true, assetType: 'worldmap', onSelect: (worldAssetId) => {
             newNodeData = { type: 'WorldLink', worldAssetId };
             setNodeToPlace(newNodeData);
         }});
@@ -1022,6 +1032,11 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
             ]
         } as unknown as NodeToPlace;
         setNodeToPlace(newNodeData);
+    } else if (type === 'PresentationScreen') {
+        setAssetPickerState({ isOpen: true, assetType: 'presentationscreen', onSelect: (presentationScreenAssetId) => {
+            newNodeData = { type: 'PresentationScreen', presentationScreenAssetId } as unknown as NodeToPlace;
+            setNodeToPlace(newNodeData);
+        }});
     }
   };
   const getPointFromEvent = (e: React.MouseEvent): Point | null => {
@@ -1254,6 +1269,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button onClick={() => handleAddNode('Transition')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Transition</Button>
         <Button onClick={() => handleAddNode('Group')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Group</Button>
         <Button onClick={() => handleAddNode('Globals')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add node to set global variables">Add Globals</Button>
+        <Button onClick={() => handleAddNode('PresentationScreen')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add presentation screen node">Add Pres. Screen</Button>
         </div>
         <div className="flex items-center gap-2">
         <Button onClick={() => handleAddNode('Waypoint')} size="sm" variant="ghost" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add waypoint for visual organization">Waypoint</Button>
@@ -1363,7 +1379,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           {nodes.map(node => (
             <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} onEditAppearance={handleOpenSubMenuModal} onEditTextNode={handleOpenTextNodeModal} onEditRestartNode={handleOpenRestartNodeModal} onEditTransitionNode={handleOpenTransitionNodeModal} onEditMusicNode={handleOpenMusicNodeModal} onEditIfThenElseNode={handleOpenIfThenElseModal} onEditGlobalsNode={handleOpenGlobalsNodeModal} isLinkingMode={isLinkingMode} gameFlowAssetName={gameFlowAssetName} />
           ))}
-          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - getNodeWidth(nodeToPlace)/2}, ${mousePosition.y - getNodeHeight(nodeToPlace)/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} onEditAppearance={() => {}} onEditTextNode={() => {}} onEditRestartNode={() => {}} onEditTransitionNode={() => {}} onEditMusicNode={() => {}} onEditIfThenElseNode={() => {}} isLinkingMode={false} gameFlowAssetName={gameFlowAssetName} /></g>}
+          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - getNodeWidth(nodeToPlace)/2}, ${mousePosition.y - getNodeHeight(nodeToPlace)/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} onEditAppearance={() => {}} onEditTextNode={() => {}} onEditRestartNode={() => {}} onEditTransitionNode={() => {}} onEditMusicNode={() => {}} onEditIfThenElseNode={() => {}} onEditGlobalsNode={() => {}} isLinkingMode={false} gameFlowAssetName={gameFlowAssetName} /></g>}
           {linkingState && mousePosition && (() => {
               const fromNode = nodes.find(n => n.id === linkingState.fromNodeId);
               if (!fromNode) return null;
@@ -1373,7 +1389,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         </svg>
       </div>
       {assetPickerState.isOpen && (
-        <AssetPickerModal isOpen={assetPickerState.isOpen} onClose={() => setAssetPickerState({ isOpen: false, onSelect: null })} onSelectAsset={(assetId) => { assetPickerState.onSelect?.(assetId); setAssetPickerState({ isOpen: false, onSelect: null }); }} assetTypeToPick={'worldmap'} allAssets={allAssets} currentSelectedId={null}/>
+        <AssetPickerModal isOpen={assetPickerState.isOpen} onClose={() => setAssetPickerState({ isOpen: false, assetType: 'worldmap', onSelect: null })} onSelectAsset={(assetId) => { assetPickerState.onSelect?.(assetId); setAssetPickerState({ isOpen: false, assetType: 'worldmap', onSelect: null }); }} assetTypeToPick={assetPickerState.assetType} allAssets={allAssets} currentSelectedId={null}/>
       )}
       {isSubMenuModalOpen && editingSubMenu && (
         <Modal isOpen={isSubMenuModalOpen} onClose={handleCloseSubMenuModal} title="Edit Submenu Appearance">
