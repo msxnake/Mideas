@@ -2071,8 +2071,8 @@ ${frameAudioTickAsm}    pop bc
 .assign_loop:
     ld a, b
     or a
-    jr z, .done
-    
+    jr z, .gfg_done
+
     ; Read var address
     ld e, (hl)
     inc hl
@@ -2089,8 +2089,8 @@ ${frameAudioTickAsm}    pop bc
     ex de, hl
     
     djnz .assign_loop
-    
-.done:
+
+.gfg_done:
     pop bc
     call gameflow_get_default_connection
     ld a, h
@@ -2576,9 +2576,24 @@ trans_fast_filvrm:
     ; Music node - play/stop music
     ; DE = music data (command, track index, loop flag)
     ; BC = connection table
-    
+
     push bc
     call music_execute_command
+    pop bc
+    call gameflow_get_default_connection
+    ld a, h
+    or l
+    ret z
+    jp gameflow_execute_node
+`;
+        break;
+
+      case 'PresentationScreen':
+        code += `gameflow_handle_presentationscreen:
+    ; PresentationScreen node - show full-screen presentation image
+    ; BC = connection table
+    push bc
+    call show_presentation_screen
     pop bc
     call gameflow_get_default_connection
     ld a, h

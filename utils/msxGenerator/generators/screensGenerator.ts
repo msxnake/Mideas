@@ -122,7 +122,11 @@ function hasPresentationScreenData(analysis: ProjectAnalysis): boolean {
 
 function generatePresentationScreenSection(analysis: ProjectAnalysis, hasSpriteAssets: boolean): string {
   if (!hasPresentationScreenData(analysis)) {
-    return '';
+    // Stub so GameFlow PresentationScreen nodes can always call show_presentation_screen
+    return `show_presentation_screen:
+    ret
+
+`;
   }
 
   const presentationScreen = analysis.presentationScreen!;
@@ -204,11 +208,11 @@ PRESENTATION_SCREEN_MAX_COLOR_SIZE EQU ${colorSize}
     push bc
     ld a, b
     or a
-    jr z, .done
-.loop:
+    jr z, .pwf_done
+.pwf_loop:
     halt
-    djnz .loop
-.done:
+    djnz .pwf_loop
+.pwf_done:
     pop bc
     ret
 
@@ -219,18 +223,18 @@ ${buildRegisterContractComment({
     clobbers: ['AF'],
     preserved: ['BC', 'DE', 'HL', 'IX', 'IY'],
   })}presentation_wait_for_fire:
-.wait_press:
+.pwff_wait_press:
     halt
     ld a, 0
     call GTTRIG
     or a
-    jr z, .wait_press
-.wait_release:
+    jr z, .pwff_wait_press
+.pwff_wait_release:
     halt
     ld a, 0
     call GTTRIG
     or a
-    jr nz, .wait_release
+    jr nz, .pwff_wait_release
     ret
 
 ${buildRegisterContractComment({
@@ -394,6 +398,7 @@ export function generateScreensFile(analysis: ProjectAnalysis): string {
 load_screen_default:
     ret
 
+${generatePresentationScreenSection(analysis, hasSpriteAssets)}
 ; ==================================================================
 ; END OF SCREENS (MINIMAL VERSION)
 ; ==================================================================
