@@ -30,7 +30,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 126799
+; Estimated payload bytes: 126859
 ; Estimated banks used: 16
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1544 bytes)
@@ -53,16 +53,16 @@
 ; BANK 09 @#02EE : hud.asm (4432 bytes)
 ; BANK 09 @#143E : menus.asm (454 bytes)
 ; BANK 09 @#1604 : sound.asm (2556 bytes)
-; BANK 10 @#0000 : sound.asm (4699 bytes)
-; BANK 10 @#125B : scroll.asm (2353 bytes)
-; BANK 10 @#1B8C : animtiles.asm (1140 bytes)
-; BANK 11 @#0000 : animtiles.asm (5747 bytes)
-; BANK 11 @#1673 : statemachine.asm part 1/3 (2445 bytes)
+; BANK 10 @#0000 : sound.asm (4691 bytes)
+; BANK 10 @#1253 : scroll.asm (2353 bytes)
+; BANK 10 @#1B84 : animtiles.asm (1148 bytes)
+; BANK 11 @#0000 : animtiles.asm (5739 bytes)
+; BANK 11 @#166B : statemachine.asm part 1/3 (2453 bytes)
 ; BANK 12 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 13 @#0000 : statemachine.asm part 3/3 (8018 bytes)
-; BANK 13 @#1F52 : gameflow.asm part 1/2 (174 bytes)
+; BANK 13 @#0000 : statemachine.asm part 3/3 (8010 bytes)
+; BANK 13 @#1F4A : gameflow.asm part 1/2 (182 bytes)
 ; BANK 14 @#0000 : gameflow.asm part 2/2 (8192 bytes)
-; BANK 15 @#0000 : gameflow.asm part 3/2 (3919 bytes)
+; BANK 15 @#0000 : gameflow.asm part 3/2 (3979 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -1764,7 +1764,8 @@ interrupt_dispatcher:
     ; --- STEP 3.5: Update VBlank flag (reads VDP status) ---
     call update_vblank_flag
 
-    ; --- STEP 4: Walk through task table ---
+    ; --- STEP 4: Walk through task table (DI ensures no nested interrupts) ---
+    di                          ; Disable interrupts for task execution
     ld hl, task_table           ; HL = pointer to task table
     ld b, 8                     ; 8 slots
 
@@ -14020,27 +14021,23 @@ music_update:
     ld d, (hl)
     ld h, d
     ld l, e
-    di
     push ix
     push iy
     call PT3_INIT
     pop iy
     pop ix
-    ei
     ret
 .pt3_upd_stop:
     xor a
     ld (music_active), a
     ret
 .pt3_upd_play:
-    di
     push ix
     push iy
     call PT3_PLAY
     call PT3_ROUT
     pop iy
     pop ix
-    ei
     ret
 
 ; ------------------------------------------------------------------
@@ -18730,6 +18727,10 @@ gameflow_handle_presentationscreen:
     ; BC = connection table
     push bc
     call show_presentation_screen
+    ; show_presentation_screen overwrites ALL of CHRTBL2 (chars 0-255 x 3 banks).
+    ; Game tile patterns live at char 128+ and are now corrupted.
+    ; Reload game VRAM (patterns + colors) before entering gameplay.
+    call init_game_systems
     pop bc
     call gameflow_get_default_connection
     ld a, h

@@ -2594,6 +2594,10 @@ trans_fast_filvrm:
     ; BC = connection table
     push bc
     call show_presentation_screen
+    ; show_presentation_screen overwrites ALL of CHRTBL2 (chars 0-255 x 3 banks).
+    ; Game tile patterns live at char 128+ and are now corrupted.
+    ; Reload game VRAM (patterns + colors) before entering gameplay.
+    call init_game_systems
     pop bc
     call gameflow_get_default_connection
     ld a, h
