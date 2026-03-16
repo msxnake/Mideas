@@ -708,7 +708,23 @@ export const useProjectHandlers = ({
       }
 
       if (projectData.mainMenuConfig) setMainMenuConfigState(projectData.mainMenuConfig);
-      setPresentationScreenState(mergePresentationScreenConfig(projectData.presentationScreen));
+      const mergedPS = mergePresentationScreenConfig(projectData.presentationScreen);
+      setPresentationScreenState(mergedPS);
+
+      // Migrate old top-level presentationScreen to an asset if it has data and no asset exists yet
+      const hasLegacyPS = mergedPS.enabled || !!mergedPS.sourceFileName;
+      const hasPSAsset = loadedAssets.some(a => a.type === 'presentationscreen');
+      if (hasLegacyPS && !hasPSAsset) {
+        const migratedAsset: ProjectAsset = {
+          id: `presentationscreen_${Date.now()}`,
+          name: mergedPS.name || 'Presentation Screen',
+          type: 'presentationscreen',
+          data: mergedPS,
+        };
+        loadedAssets = [...loadedAssets, migratedAsset];
+        setAssetsWithHistory(() => loadedAssets);
+        loadWarnings.push('Presentation Screen migrada al sistema de assets.');
+      }
 
       const finalProjectName = projectData.currentProjectName || projectName || 'msx_ide_project';
       setCurrentProjectName(finalProjectName);

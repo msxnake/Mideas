@@ -75,6 +75,7 @@ export const PresentationScreenEditor: React.FC<PresentationScreenEditorProps> =
   onUpdatePresentationScreen,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const jsonInputRef = useRef<HTMLInputElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [hoveredCell, setHoveredCell] = useState<PresentationScreenCellCoordinate | null>(null);
@@ -127,6 +128,47 @@ export const PresentationScreenEditor: React.FC<PresentationScreenEditorProps> =
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleImportJsonClick = () => {
+    jsonInputRef.current?.click();
+  };
+
+  const handleJsonFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target?.result as string);
+        onUpdatePresentationScreen(parsed as PresentationScreenConfig);
+      } catch (err) {
+        alert(`Failed to import JSON: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        if (jsonInputRef.current) jsonInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleExportPng = () => {
+    const canvas = previewCanvasRef.current;
+    if (!canvas) return;
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `${presentationScreen.name || 'presentation_screen'}.png`;
+    a.click();
+  };
+
+  const handleExportJson = () => {
+    const dataStr = JSON.stringify(presentationScreen, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${presentationScreen.name || 'presentation_screen'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleClear = () => {
@@ -312,8 +354,17 @@ export const PresentationScreenEditor: React.FC<PresentationScreenEditorProps> =
         <Button onClick={handleImportClick} disabled={isImporting}>
           {isImporting ? 'Importing PNG...' : 'Import PNG'}
         </Button>
+        <Button onClick={handleImportJsonClick} variant="secondary">
+          Import JSON
+        </Button>
         <Button onClick={() => openTileEditor(selectedCell)} variant="secondary" disabled={!selectedCellInfo}>
           Edit Tile
+        </Button>
+        <Button onClick={handleExportJson} variant="secondary" disabled={!hasData}>
+          Export JSON
+        </Button>
+        <Button onClick={handleExportPng} variant="secondary" disabled={!hasData}>
+          Export PNG
         </Button>
         <Button onClick={handleClear} variant="ghost" disabled={!hasData} icon={<TrashIcon className="w-4 h-4" />}>
           Clear
@@ -326,6 +377,13 @@ export const PresentationScreenEditor: React.FC<PresentationScreenEditorProps> =
         accept=".png,image/png"
         className="hidden"
         onChange={handleFileSelected}
+      />
+      <input
+        ref={jsonInputRef}
+        type="file"
+        accept=".json,application/json"
+        className="hidden"
+        onChange={handleJsonFileSelected}
       />
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-3">
