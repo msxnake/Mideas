@@ -30,6 +30,8 @@ import {
 import { Button } from '../common/Button';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
+import { drawPresentationScreenPreview } from '../utils/presentationScreenUtils';
+import type { PresentationScreenConfig } from '../../types';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowsPointingOutIcon } from '../icons/MsxIcons';
 import { StateMachine, StateMachineState, Action, TransitionGuard } from '../../statemachine.types';
@@ -2927,7 +2929,7 @@ const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
             case ' ': case 'Enter': handleAction(); break;
             case 'Escape': handleGoBack(); break;
         }
-    } else if (currentNode.type === 'Text' || currentNode.type === 'Restart' || currentNode.type === 'Music') {
+    } else if (currentNode.type === 'Text' || currentNode.type === 'Restart' || currentNode.type === 'Music' || currentNode.type === 'PresentationScreen') {
         switch (e.key) {
             case ' ': case 'Enter':
                 if (currentNode.type === 'Restart') {
@@ -4764,6 +4766,41 @@ useEffect(() => {
                     if (conn) setCurrentNodeId(conn.to.nodeId);
                 }, 500);
                 break;
+            case 'PresentationScreen': {
+                const psNode = currentNode as any;
+                const psAsset = psNode.presentationScreenAssetId
+                    ? allAssets.find(a => a.id === psNode.presentationScreenAssetId && a.type === 'presentationscreen')
+                    : null;
+                const psConfig = psAsset
+                    ? (psAsset.data as PresentationScreenConfig)
+                    : null;
+                const canvas = canvasRef.current;
+                if (canvas && psConfig) {
+                    drawPresentationScreenPreview(canvas, psConfig);
+                } else if (canvas) {
+                    // No asset found: show a placeholder
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.fillStyle = '#101820';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillStyle = '#888';
+                        ctx.font = '12px monospace';
+                        ctx.fillText('PresentationScreen: no asset assigned', 16, canvas.height / 2);
+                    }
+                }
+                // Auto-advance after waitForFrames (60fps), or wait for fire if waitForKey
+                const psRuntime = psConfig?.runtime;
+                const psWaitFrames = psRuntime?.waitForFrames ?? 0;
+                const psWaitKey = psRuntime?.waitForKey ?? true;
+                if (!psWaitKey && psWaitFrames > 0) {
+                    setTimeout(() => {
+                        const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                        if (conn) setCurrentNodeId(conn.to.nodeId);
+                    }, Math.round((psWaitFrames / 60) * 1000));
+                }
+                // If waitForKey (or no frames configured), user must press Space/Enter (handled in handleKeyDown)
+                break;
+            }
             case 'End':
                 if (gameFlowStack.length > 0) {
                     const { parentGraphData, returnNodeId, parentGameFlowName } = gameFlowStack[gameFlowStack.length - 1];

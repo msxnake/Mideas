@@ -30,8 +30,8 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 117610
-; Estimated banks used: 15
+; Estimated payload bytes: 126799
+; Estimated banks used: 16
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1544 bytes)
 ; BANK 00 @#0608 : colors.asm (1330 bytes)
@@ -40,28 +40,29 @@
 ; BANK 01 @#0000 : entities.asm (2029 bytes)
 ; BANK 01 @#07ED : worlds.asm (6163 bytes)
 ; BANK 02 @#0000 : worlds.asm (1760 bytes)
-; BANK 02 @#06E0 : screens.asm part 1/5 (6432 bytes)
-; BANK 03 @#0000 : screens.asm part 2/5 (8192 bytes)
-; BANK 04 @#0000 : screens.asm part 3/5 (8192 bytes)
-; BANK 05 @#0000 : screens.asm part 4/5 (8192 bytes)
-; BANK 06 @#0000 : screens.asm part 5/5 (1770 bytes)
-; BANK 06 @#06EA : sprites.asm part 1/2 (6422 bytes)
-; BANK 07 @#0000 : sprites.asm part 2/2 (4589 bytes)
-; BANK 07 @#11ED : font.asm (3547 bytes)
-; BANK 07 @#1FC8 : hud.asm (56 bytes)
-; BANK 08 @#0000 : hud.asm (4376 bytes)
-; BANK 08 @#1118 : menus.asm (454 bytes)
-; BANK 08 @#12DE : sound.asm (3362 bytes)
-; BANK 09 @#0000 : sound.asm (3893 bytes)
-; BANK 09 @#0F35 : scroll.asm (2353 bytes)
-; BANK 09 @#1866 : animtiles.asm (1946 bytes)
-; BANK 10 @#0000 : animtiles.asm (4941 bytes)
-; BANK 10 @#134D : statemachine.asm part 1/3 (3251 bytes)
-; BANK 11 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 12 @#0000 : statemachine.asm part 3/3 (7212 bytes)
-; BANK 12 @#1C2C : gameflow.asm part 1/2 (980 bytes)
-; BANK 13 @#0000 : gameflow.asm part 2/2 (8192 bytes)
-; BANK 14 @#0000 : gameflow.asm part 3/2 (2922 bytes)
+; BANK 02 @#06E0 : screens.asm part 1/6 (6432 bytes)
+; BANK 03 @#0000 : screens.asm part 2/6 (8192 bytes)
+; BANK 04 @#0000 : screens.asm part 3/6 (8192 bytes)
+; BANK 05 @#0000 : screens.asm part 4/6 (8192 bytes)
+; BANK 06 @#0000 : screens.asm part 5/6 (8192 bytes)
+; BANK 07 @#0000 : screens.asm part 6/6 (2576 bytes)
+; BANK 07 @#0A10 : sprites.asm part 1/2 (5616 bytes)
+; BANK 08 @#0000 : sprites.asm part 2/2 (5395 bytes)
+; BANK 08 @#1513 : font.asm (2797 bytes)
+; BANK 09 @#0000 : font.asm (750 bytes)
+; BANK 09 @#02EE : hud.asm (4432 bytes)
+; BANK 09 @#143E : menus.asm (454 bytes)
+; BANK 09 @#1604 : sound.asm (2556 bytes)
+; BANK 10 @#0000 : sound.asm (4699 bytes)
+; BANK 10 @#125B : scroll.asm (2353 bytes)
+; BANK 10 @#1B8C : animtiles.asm (1140 bytes)
+; BANK 11 @#0000 : animtiles.asm (5747 bytes)
+; BANK 11 @#1673 : statemachine.asm part 1/3 (2445 bytes)
+; BANK 12 @#0000 : statemachine.asm part 2/3 (8192 bytes)
+; BANK 13 @#0000 : statemachine.asm part 3/3 (8018 bytes)
+; BANK 13 @#1F52 : gameflow.asm part 1/2 (174 bytes)
+; BANK 14 @#0000 : gameflow.asm part 2/2 (8192 bytes)
+; BANK 15 @#0000 : gameflow.asm part 3/2 (3919 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -1028,6 +1029,7 @@ NODE_TYPE_GLOBALS       EQU 9    ; Globals node (global variable ops)
 NODE_TYPE_WAYPOINT      EQU 10   ; Waypoint node (routing marker)
 NODE_TYPE_GROUP         EQU 11   ; Group node (nested flow)
 NODE_TYPE_MUSIC         EQU 12   ; Music node (audio command)
+NODE_TYPE_PRESENTATION_SCREEN EQU 13 ; Presentation Screen node (static tile screen)
 NODE_TYPE_UNKNOWN       EQU 255  ; Unknown/unsupported node type
 
 ; Additional Game Flow States detected in project
@@ -9466,6 +9468,437 @@ BEHAVIOR_PAN6_6_DATA:
     DB #CC,#80,#56,#85,#08,#0F,#A7,#D7,#92,#DE,#E8,#C1,#F5,#04,#FF,#DE
     DB #6E,#F0,#5F,#FE,#5F,#C0,#5F,#E4,#76,#58,#1E,#F8,#5F,#CE,#F5,#C0
     DB #FF,#30,#F0,#39,#FE,#13,#55,#55,#80
+PRESENTATION_SCREEN_NAMETBL_BANK EQU ((PRESENTATION_SCREEN_NAMETBL - #4000) / #2000)
+PRESENTATION_SCREEN_PATTERNS_B0_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B0 - #4000) / #2000)
+PRESENTATION_SCREEN_PATTERNS_B1_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B1 - #4000) / #2000)
+PRESENTATION_SCREEN_PATTERNS_B2_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B2 - #4000) / #2000)
+PRESENTATION_SCREEN_COLORS_B0_BANK EQU ((PRESENTATION_SCREEN_COLORS_B0 - #4000) / #2000)
+PRESENTATION_SCREEN_COLORS_B1_BANK EQU ((PRESENTATION_SCREEN_COLORS_B1 - #4000) / #2000)
+PRESENTATION_SCREEN_COLORS_B2_BANK EQU ((PRESENTATION_SCREEN_COLORS_B2 - #4000) / #2000)
+PRESENTATION_SCREEN_NAMETBL_SIZE EQU 768
+PRESENTATION_SCREEN_PATTERN_B0_SIZE EQU 680
+PRESENTATION_SCREEN_PATTERN_B1_SIZE EQU 1488
+PRESENTATION_SCREEN_PATTERN_B2_SIZE EQU 488
+PRESENTATION_SCREEN_COLOR_B0_SIZE EQU 680
+PRESENTATION_SCREEN_COLOR_B1_SIZE EQU 1488
+PRESENTATION_SCREEN_COLOR_B2_SIZE EQU 488
+PRESENTATION_SCREEN_MAX_PATTERN_SIZE EQU 1488
+PRESENTATION_SCREEN_MAX_COLOR_SIZE EQU 1488
+
+PRESENTATION_SCREEN_NAMETBL:
+    ; ZX0 compressed layout (768 -> 260 bytes)
+    DB #90,#00,#47,#80,#C1,#A8,#01,#02,#03,#04,#05,#06,#07,#08,#09,#16
+    DB #52,#0A,#0B,#0C,#0D,#0E,#0F,#10,#11,#12,#13,#14,#15,#16,#17,#04
+    DB #80,#77,#18,#19,#1A,#1B,#1C,#1D,#1E,#1F,#20,#21,#22,#23,#24,#25
+    DB #26,#27,#28,#CA,#18,#46,#29,#2A,#2B,#2C,#2D,#2E,#2F,#30,#31,#32
+    DB #33,#34,#35,#36,#37,#38,#39,#3A,#3B,#3C,#3D,#12,#15,#80,#3E,#3F
+    DB #40,#41,#42,#43,#44,#45,#46,#47,#48,#49,#4A,#4B,#4C,#4D,#4E,#4F
+    DB #50,#51,#52,#53,#54,#6D,#09,#C6,#F2,#97,#18,#D7,#08,#83,#24,#CE
+    DB #C0,#16,#5E,#2A,#5E,#40,#0E,#18,#49,#0C,#55,#56,#57,#58,#59,#5A
+    DB #5B,#5C,#5D,#5E,#5F,#60,#82,#82,#40,#80,#61,#62,#63,#64,#65,#66
+    DB #67,#68,#69,#6A,#6B,#6C,#6D,#6E,#6F,#70,#71,#72,#73,#74,#75,#76
+    DB #77,#78,#90,#60,#79,#7A,#7B,#7C,#7D,#7E,#7F,#80,#81,#82,#83,#84
+    DB #85,#86,#87,#88,#89,#8A,#8B,#8C,#8D,#8E,#8F,#90,#91,#21,#09,#92
+    DB #93,#94,#95,#96,#97,#98,#99,#9A,#9B,#9C,#9D,#9E,#9F,#A0,#A1,#A2
+    DB #A3,#A4,#A5,#08,#42,#A6,#A7,#A8,#A9,#AA,#AB,#AC,#AD,#AE,#AF,#B0
+    DB #B1,#B2,#B3,#B4,#B5,#B6,#B7,#B8,#B9,#0C,#D1,#FC,#E4,#C0,#CB,#E6
+    DB #21,#F4,#3C,#7A,#32,#DA,#72,#E2,#5D,#34,#E2,#32,#A9,#E0,#00,#FE
+    DB #11,#D5,#55,#60
+PRESENTATION_SCREEN_PATTERNS_B0:
+    ; ZX0 compressed tile_pattern (680 -> 461 bytes)
+    DB #91,#FF,#81,#AE,#40,#60,#FF,#01,#03,#07,#0F,#E0,#C0,#E0,#D4,#25
+    DB #B8,#03,#E0,#C1,#38,#30,#50,#20,#E1,#39,#F0,#03,#01,#01,#DF,#BE
+    DB #60,#0F,#3C,#E9,#FF,#BE,#40,#B7,#FF,#A0,#70,#AF,#30,#18,#80,#E0
+    DB #F0,#A3,#F7,#FF,#7E,#88,#F4,#F6,#70,#3C,#E0,#A0,#80,#EE,#10,#18
+    DB #0C,#07,#89,#10,#AD,#A0,#1C,#B8,#0F,#38,#18,#FF,#FE,#9A,#E0,#60
+    DB #40,#A6,#80,#C0,#83,#FF,#AA,#C0,#C1,#2E,#1E,#DF,#EE,#0F,#13,#E0
+    DB #FF,#A8,#01,#40,#9A,#83,#41,#C1,#FF,#43,#0B,#66,#BC,#AC,#FE,#F6
+    DB #E5,#CF,#1B,#0F,#0E,#3C,#78,#40,#63,#ED,#0E,#07,#FE,#1B,#46,#D8
+    DB #AF,#0E,#49,#7E,#B0,#7F,#2F,#F0,#FF,#FD,#EE,#A1,#33,#1C,#0E,#8B
+    DB #81,#02,#6B,#D6,#60,#8E,#0F,#80,#30,#CC,#BA,#06,#AD,#8E,#F6,#FF
+    DB #32,#84,#89,#E0,#07,#D0,#07,#81,#30,#38,#E0,#1E,#0C,#A4,#0D,#06
+    DB #86,#DF,#07,#80,#43,#43,#80,#01,#A7,#77,#68,#59,#A0,#DF,#61,#26
+    DB #AF,#D0,#51,#EE,#AF,#00,#D3,#37,#02,#03,#E3,#26,#F1,#F0,#80,#07
+    DB #37,#C1,#BF,#22,#95,#16,#DB,#FF,#04,#DD,#9B,#C5,#DE,#38,#50,#9A
+    DB #1E,#81,#01,#37,#1C,#58,#5F,#F3,#FF,#8D,#5E,#0B,#0E,#65,#C3,#88
+    DB #06,#06,#01,#09,#02,#06,#FF,#B6,#C0,#70,#19,#1E,#FF,#82,#C3,#C2
+    DB #1C,#FE,#8F,#80,#21,#9B,#E8,#FE,#81,#3B,#D3,#81,#FA,#2F,#BD,#F2
+    DB #7E,#81,#07,#01,#8C,#48,#E0,#F0,#70,#86,#C6,#0E,#83,#0A,#19,#80
+    DB #90,#E7,#55,#D1,#82,#80,#03,#A0,#FF,#15,#B3,#C0,#24,#CB,#88,#9B
+    DB #42,#70,#A6,#A4,#13,#13,#07,#DF,#97,#01,#66,#7D,#C1,#83,#78,#FE
+    DB #E9,#A3,#00,#4D,#D6,#97,#70,#6D,#08,#60,#E0,#FC,#71,#AD,#EB,#25
+    DB #F9,#0F,#BF,#F7,#06,#49,#D8,#FF,#64,#3F,#A0,#F2,#E8,#18,#81,#60
+    DB #04,#2E,#38,#98,#18,#88,#81,#DB,#FA,#08,#0C,#FD,#FF,#E0,#88,#0C
+    DB #F0,#28,#01,#3D,#CB,#8D,#A0,#DE,#90,#FF,#0A,#42,#83,#98,#07,#98
+    DB #03,#22,#07,#E0,#11,#0E,#08,#12,#0C,#1C,#06,#AA,#0E,#E0,#26,#15
+    DB #09,#05,#FF,#CE,#57,#5A,#F0,#35,#60,#30,#D2,#0B,#ED,#2A,#C0,#03
+    DB #09,#CE,#BF,#A6,#D2,#8A,#D6,#51,#18,#03,#06,#07,#C8,#C0,#33,#17
+    DB #29,#5C,#3D,#1C,#60,#02,#18,#60,#80,#EF,#F9,#5F,#B1,#C9,#A3,#61
+    DB #83,#C0,#1C,#01,#B4,#05,#38,#8D,#60,#3D,#06,#55,#56
+PRESENTATION_SCREEN_PATTERNS_B1:
+    ; ZX0 compressed tile_pattern (1488 -> 992 bytes)
+    DB #96,#FF,#5A,#81,#0E,#82,#C0,#0F,#03,#FF,#24,#C0,#E0,#FE,#D8,#C9
+    DB #26,#03,#F0,#4A,#01,#E0,#0A,#80,#03,#28,#5A,#C8,#03,#03,#03,#A8
+    DB #C0,#0C,#20,#C1,#0E,#F8,#D9,#FF,#88,#16,#06,#9A,#05,#85,#84,#88
+    DB #80,#01,#20,#AA,#FF,#38,#07,#41,#85,#6A,#84,#83,#80,#07,#80,#8B
+    DB #30,#E0,#60,#40,#01,#02,#18,#30,#90,#A0,#63,#60,#83,#0E,#0C,#82
+    DB #18,#AE,#76,#0F,#C9,#FB,#0F,#FD,#F1,#C3,#E5,#85,#33,#A7,#C0,#01
+    DB #81,#40,#C0,#40,#C0,#87,#38,#C3,#A2,#FF,#C0,#1E,#60,#70,#87,#C0
+    DB #F0,#1B,#78,#0F,#0C,#29,#D9,#E0,#E0,#01,#AD,#D9,#06,#98,#87,#60
+    DB #DD,#AE,#78,#02,#F0,#03,#5A,#8E,#C0,#81,#0D,#56,#A0,#E2,#31,#1C
+    DB #40,#C2,#10,#08,#02,#01,#A0,#04,#04,#0C,#FF,#FB,#98,#70,#6D,#B0
+    DB #FD,#AC,#B9,#8A,#A5,#07,#E0,#FB,#11,#01,#99,#F0,#88,#FE,#92,#C0
+    DB #80,#2A,#F0,#E0,#C0,#1A,#50,#2A,#60,#5A,#A0,#24,#12,#81,#64,#18
+    DB #83,#AA,#87,#06,#7B,#0A,#07,#70,#A4,#BD,#BA,#81,#AE,#C9,#FF,#FE
+    DB #9B,#86,#06,#FF,#6B,#7C,#B0,#E6,#ED,#DB,#07,#0E,#86,#BA,#C0,#4A
+    DB #6F,#A0,#21,#E1,#36,#DF,#B2,#7A,#31,#D0,#7B,#09,#06,#01,#A2,#8F
+    DB #FE,#C1,#C9,#81,#B5,#BD,#02,#0C,#C0,#23,#DB,#BD,#BA,#FE,#D1,#E1
+    DB #F4,#FE,#38,#BB,#DD,#EE,#E9,#58,#A0,#0E,#C1,#1C,#2D,#81,#C1,#C3
+    DB #43,#83,#F0,#E4,#0C,#95,#4B,#B2,#21,#86,#86,#12,#0D,#82,#92,#98
+    DB #0C,#C2,#16,#12,#32,#05,#38,#39,#28,#F0,#07,#2D,#09,#0C,#0E,#B2
+    DB #72,#E0,#63,#0F,#FF,#80,#BD,#DB,#01,#57,#A8,#6C,#E0,#D9,#77,#24
+    DB #40,#40,#40,#81,#30,#60,#9C,#40,#FF,#20,#DF,#89,#9F,#FE,#3A,#B2
+    DB #FA,#01,#20,#38,#BF,#10,#F0,#D6,#C3,#E4,#E3,#09,#78,#83,#62,#C1
+    DB #21,#31,#F6,#EB,#B0,#DB,#AC,#66,#00,#FF,#C1,#F1,#C5,#9F,#FD,#5D
+    DB #B3,#41,#77,#30,#DF,#A7,#BD,#68,#A7,#0A,#D9,#58,#BF,#E0,#0C,#07
+    DB #C5,#69,#6F,#81,#C6,#A5,#FF,#46,#FE,#A0,#34,#A8,#38,#38,#30,#10
+    DB #30,#80,#FA,#C1,#61,#1E,#08,#70,#06,#18,#3C,#73,#FF,#01,#20,#2E
+    DB #18,#78,#F0,#01,#F0,#B0,#30,#20,#60,#35,#87,#45,#C0,#0E,#70,#30
+    DB #70,#2D,#02,#D7,#CB,#99,#FF,#DE,#19,#F9,#59,#7D,#E8,#06,#20,#60
+    DB #20,#8F,#78,#80,#D7,#AA,#08,#C0,#29,#10,#70,#FE,#03,#83,#78,#FE
+    DB #47,#EB,#07,#95,#0E,#6D,#A2,#63,#67,#0F,#06,#86,#20,#7A,#C1,#C1
+    DB #02,#F1,#C0,#96,#07,#E1,#E1,#08,#FF,#81,#38,#DE,#82,#EC,#07,#C4
+    DB #8D,#40,#FB,#BF,#99,#70,#6A,#A9,#0D,#D8,#11,#96,#B5,#06,#DB,#F7
+    DB #48,#DA,#2F,#DA,#DB,#0F,#AF,#60,#34,#A7,#BE,#1F,#F0,#AB,#B1,#0B
+    DB #0C,#0C,#06,#0F,#4A,#1C,#6B,#0C,#30,#C0,#06,#7D,#D4,#B1,#D3,#08
+    DB #AF,#EF,#0E,#67,#63,#97,#70,#60,#B6,#5A,#11,#96,#8C,#CB,#02,#12
+    DB #FC,#D0,#C5,#8F,#2E,#CB,#62,#D1,#06,#06,#3C,#77,#CF,#22,#87,#26
+    DB #6E,#D2,#60,#24,#36,#7A,#D6,#36,#CD,#98,#FD,#8B,#FF,#F4,#30,#B3
+    DB #18,#8F,#26,#EE,#CA,#F0,#C5,#81,#DF,#48,#9B,#84,#10,#E3,#81,#FE
+    DB #0D,#40,#F0,#B3,#FD,#E5,#64,#B5,#D2,#CF,#BD,#DA,#6B,#BF,#30,#DA
+    DB #93,#C8,#A3,#06,#0B,#1C,#D7,#15,#2F,#26,#D1,#18,#22,#21,#D6,#3D
+    DB #4B,#C0,#D0,#30,#60,#13,#04,#5B,#E1,#10,#4C,#E7,#FC,#2B,#64,#F4
+    DB #9E,#BF,#BD,#83,#04,#F7,#9C,#97,#1B,#9A,#B5,#EC,#A7,#05,#02,#F6
+    DB #5F,#B7,#B0,#27,#E1,#E2,#18,#5E,#7F,#FE,#A5,#FF,#F2,#DD,#C6,#EF
+    DB #A2,#F5,#8E,#94,#D0,#D7,#D9,#E6,#75,#FF,#C1,#1C,#18,#28,#10,#EA
+    DB #D4,#01,#36,#BF,#97,#C0,#ED,#53,#72,#BC,#76,#C7,#D7,#5F,#CD,#F0
+    DB #E9,#FD,#E3,#99,#E3,#60,#61,#F6,#16,#1C,#DD,#FD,#B8,#8F,#30,#45
+    DB #67,#0E,#09,#50,#D0,#E1,#18,#F3,#A6,#18,#90,#04,#0A,#41,#35,#27
+    DB #CF,#30,#82,#09,#2D,#95,#1C,#D7,#E7,#DD,#2B,#F4,#0E,#49,#CF,#EE
+    DB #40,#60,#1C,#56,#1F,#32,#14,#70,#C7,#B6,#1E,#7B,#DA,#63,#F0,#37
+    DB #06,#86,#17,#5E,#BD,#CB,#74,#0F,#01,#30,#B5,#A2,#FD,#F0,#A7,#7F
+    DB #0E,#F5,#2E,#6C,#A7,#6F,#11,#31,#61,#FF,#63,#FA,#E7,#A9,#D0,#F7
+    DB #FB,#FE,#7F,#B9,#FE,#3D,#F6,#2A,#6C,#80,#CB,#8F,#20,#56,#4E,#D7
+    DB #67,#27,#62,#6E,#EA,#9D,#B5,#33,#3C,#05,#93,#23,#BC,#B7,#D2,#C2
+    DB #D1,#FB,#C5,#E1,#A6,#73,#48,#AD,#EC,#C0,#3D,#36,#CD,#61,#53,#7E
+    DB #82,#F1,#5B,#83,#39,#04,#08,#10,#20,#40,#2D,#B0,#33,#59,#CD,#2C
+    DB #E0,#CD,#61,#FB,#4F,#28,#8E,#A0,#02,#C6,#B9,#C7,#1C,#05,#A2,#FE
+    DB #1C,#3C,#CB,#E0,#4D,#87,#3F,#BA,#FE,#A7,#E0,#8D,#EB,#30,#87,#ED
+    DB #80,#33,#D3,#05,#35,#FC,#FB,#B2,#9F,#26,#03,#73,#3D,#37,#53,#A2
+    DB #7B,#DC,#BF,#F7,#50,#8C,#1F,#6E,#7E,#A2,#D8,#B1,#81,#AE,#0E,#B0
+    DB #C6,#36,#2C,#76,#6E,#E6,#63,#42,#41,#1E,#E6,#FF,#12,#21,#40,#37
+    DB #FE,#A8,#C0,#EC,#1C,#80,#5C,#2E,#58,#93,#E0,#20,#FF,#74,#30,#4C
+    DB #31,#11,#60,#F0,#60,#18,#81,#7E,#88,#46,#B4,#10,#7D,#26,#55,#56
+PRESENTATION_SCREEN_PATTERNS_B2:
+    ; ZX0 compressed tile_pattern (488 -> 291 bytes)
+    DB #96,#FF,#2A,#60,#01,#02,#2A,#03,#91,#FF,#9A,#01,#38,#F0,#89,#E0
+    DB #3B,#60,#03,#0C,#41,#1C,#FF,#F7,#C0,#E2,#C4,#E0,#80,#66,#03,#0F
+    DB #07,#3A,#DD,#03,#A6,#E0,#B8,#03,#A8,#BB,#C0,#C2,#DE,#80,#EF,#93
+    DB #07,#E7,#53,#ED,#0D,#1B,#15,#87,#97,#80,#83,#83,#82,#01,#92,#41
+    DB #82,#82,#01,#C2,#0E,#01,#4F,#D9,#8E,#83,#06,#02,#BC,#E1,#BB,#FF
+    DB #C0,#0A,#07,#07,#03,#D2,#CC,#7F,#CB,#FF,#F9,#0F,#D7,#E0,#E1,#F0
+    DB #E6,#51,#07,#09,#06,#FA,#08,#30,#FA,#8D,#F1,#C0,#86,#0C,#60,#80
+    DB #1E,#1E,#38,#88,#88,#83,#4C,#9B,#01,#06,#E0,#BD,#F4,#1D,#BE,#B6
+    DB #F7,#EC,#B7,#0F,#42,#D8,#C5,#B6,#08,#20,#E8,#EA,#75,#10,#0A,#81
+    DB #C1,#1C,#0C,#7F,#F0,#D0,#D0,#30,#CE,#1E,#2B,#0B,#0F,#38,#38,#03
+    DB #7D,#27,#43,#F7,#1D,#0D,#F4,#3F,#32,#8E,#C4,#30,#F7,#87,#F4,#36
+    DB #B4,#77,#C7,#A2,#FE,#87,#07,#92,#05,#04,#18,#1C,#83,#03,#EE,#B3
+    DB #20,#11,#0A,#83,#60,#18,#03,#62,#01,#70,#07,#FF,#80,#B7,#46,#A8
+    DB #42,#30,#32,#9E,#6B,#02,#E0,#FE,#BA,#18,#8E,#0E,#0C,#E1,#70,#3D
+    DB #B1,#BF,#1C,#23,#73,#E2,#21,#AF,#04,#06,#4F,#8E,#F9,#CB,#98,#AF
+    DB #30,#00,#E2,#D1,#01,#86,#4D,#E2,#64,#80,#19,#37,#E4,#8F,#23,#1C
+    DB #87,#B9,#7E,#B9,#A0,#60,#40,#06,#35,#F0,#A8,#50,#E0,#18,#07,#4C
+    DB #3C,#E7,#EA,#C1,#CC,#07,#5E,#D8,#3F,#04,#D0,#74,#AD,#DE,#18,#9D
+    DB #64,#55,#56
+PRESENTATION_SCREEN_COLORS_B0:
+    ; ZX0 compressed tile_color (680 -> 368 bytes)
+    DB #91,#11,#A9,#41,#8A,#11,#B1,#A1,#1A,#22,#1B,#AA,#08,#28,#1A,#A1
+    DB #B1,#1A,#9F,#BA,#1A,#F0,#E7,#E0,#9F,#FE,#B2,#F7,#F0,#8F,#D7,#B1
+    DB #61,#72,#29,#E1,#6F,#14,#5E,#7E,#FD,#FE,#09,#A6,#14,#41,#14,#44
+    DB #1A,#18,#48,#98,#81,#61,#BE,#86,#88,#E0,#22,#68,#86,#7B,#A1,#81
+    DB #81,#EE,#FF,#FF,#E1,#F5,#DA,#8E,#AA,#8A,#C9,#22,#68,#66,#FA,#61
+    DB #FE,#64,#3B,#4A,#EE,#FF,#76,#F4,#98,#1F,#EF,#1F,#F3,#42,#FB,#FE
+    DB #F0,#EE,#D9,#F3,#44,#19,#7E,#FE,#EF,#F9,#E0,#1F,#EE,#FF,#F9,#E9
+    DB #14,#FE,#EB,#A2,#18,#E7,#0E,#44,#44,#41,#9E,#57,#16,#11,#66,#A1
+    DB #3E,#F1,#68,#0F,#DE,#FA,#FB,#4D,#16,#BB,#16,#C3,#1F,#E9,#1D,#F0
+    DB #FF,#11,#1E,#EF,#E1,#E5,#CC,#EF,#2A,#F9,#B6,#60,#AA,#EB,#94,#1E
+    DB #BF,#2C,#F3,#D3,#FF,#E0,#43,#B3,#F2,#41,#16,#8F,#F1,#0E,#F6,#FE
+    DB #59,#41,#14,#E1,#F1,#FE,#E9,#19,#99,#9F,#F9,#99,#08,#E7,#E9,#F9
+    DB #FD,#F9,#19,#E9,#E2,#8F,#87,#F1,#1F,#ED,#FE,#AB,#73,#F1,#1E,#A2
+    DB #FE,#EF,#E9,#68,#F9,#A0,#F1,#A2,#E1,#6A,#9F,#E9,#99,#F9,#1F,#92
+    DB #F7,#F5,#BB,#FF,#07,#05,#BD,#FB,#FB,#B4,#F7,#19,#CF,#FE,#76,#FE
+    DB #58,#3A,#66,#F9,#9F,#FF,#EB,#C8,#91,#F6,#7D,#A3,#1E,#7D,#FB,#93
+    DB #D0,#A4,#F1,#B1,#89,#1B,#9B,#3D,#05,#FF,#84,#B0,#FF,#99,#97,#94
+    DB #67,#B8,#9E,#F7,#9F,#1F,#91,#FF,#DB,#1F,#85,#1E,#69,#E2,#9D,#1E
+    DB #1F,#EF,#9F,#C0,#D7,#FA,#CF,#FE,#F9,#48,#92,#E9,#E1,#F2,#F1,#E2
+    DB #79,#F9,#FE,#91,#FE,#F8,#9F,#E2,#B8,#F6,#D2,#9D,#9F,#9F,#6E,#DF
+    DB #A0,#E2,#F9,#72,#BE,#EF,#E1,#11,#E7,#BF,#D3,#F1,#E8,#3D,#FB,#33
+    DB #99,#0F,#DA,#FF,#BA,#3A,#16,#B6,#F0,#FF,#B1,#F6,#ED,#98,#E9,#66
+    DB #66,#B6,#8F,#6B,#6B,#C5,#E7,#E9,#C0,#5E,#0C,#35,#1B,#16,#55,#58
+PRESENTATION_SCREEN_COLORS_B1:
+    ; ZX0 compressed tile_color (1488 -> 835 bytes)
+    DB #96,#11,#22,#41,#14,#BB,#41,#F0,#CA,#FE,#99,#18,#E2,#69,#96,#F6
+    DB #5E,#E6,#6F,#1E,#E9,#9F,#FE,#6E,#FF,#59,#E6,#16,#F9,#9F,#6F,#96
+    DB #66,#89,#91,#E6,#4A,#F1,#64,#92,#FE,#FF,#9F,#F6,#E9,#E6,#AA,#61
+    DB #F6,#6A,#E6,#96,#E6,#F6,#7F,#F6,#E1,#98,#F8,#E6,#FE,#EF,#1E,#16
+    DB #FF,#DC,#8E,#F1,#E1,#FD,#1F,#1E,#EF,#9F,#66,#69,#B7,#EF,#FE,#66
+    DB #01,#AF,#16,#F1,#D9,#B6,#C3,#61,#F2,#FA,#85,#F0,#FF,#11,#F9,#FE
+    DB #EA,#EB,#FF,#61,#83,#B6,#BE,#EA,#75,#EF,#B9,#6B,#CC,#8E,#96,#1B
+    DB #FF,#6A,#11,#61,#91,#B1,#3F,#A7,#FE,#EE,#7A,#F8,#D9,#6F,#DC,#74
+    DB #47,#47,#72,#BA,#71,#48,#FA,#E6,#FE,#E1,#28,#F1,#2E,#16,#E8,#EE
+    DB #00,#D5,#7F,#6E,#FE,#1E,#DA,#E0,#E2,#E8,#EF,#EF,#FE,#E1,#DC,#DB
+    DB #66,#EE,#C3,#11,#6D,#C6,#BE,#B4,#6B,#D3,#BF,#96,#F0,#98,#E3,#EF
+    DB #1F,#E1,#A3,#11,#7F,#45,#F0,#FF,#E7,#97,#F0,#E9,#7B,#CF,#FE,#D8
+    DB #50,#A3,#FF,#E2,#F7,#35,#6E,#1F,#76,#8B,#27,#11,#11,#AD,#D2,#16
+    DB #FF,#7E,#E2,#68,#C0,#F6,#A1,#61,#ED,#AA,#ED,#EF,#16,#A7,#A8,#1B
+    DB #8A,#BB,#3F,#F0,#DB,#AF,#E7,#1B,#EE,#BB,#91,#B2,#F7,#EE,#06,#D7
+    DB #E0,#22,#74,#44,#37,#7C,#AD,#17,#9D,#6E,#B8,#E0,#FF,#21,#F6,#6F
+    DB #9F,#F1,#F7,#0F,#C7,#BC,#F6,#FE,#A7,#A1,#EE,#F2,#1A,#FF,#F2,#BA
+    DB #E2,#A8,#A1,#A1,#FF,#FE,#F1,#9E,#FE,#F0,#0E,#D4,#AF,#AA,#A0,#F3
+    DB #E0,#B8,#FE,#19,#9F,#14,#F4,#F5,#AE,#FB,#FF,#FE,#AF,#EE,#FB,#7D
+    DB #DC,#AD,#2B,#11,#F3,#CE,#46,#DB,#7D,#B1,#AA,#FE,#11,#86,#1B,#AC
+    DB #BB,#E1,#E0,#EE,#E3,#1F,#FB,#B9,#BB,#E7,#9B,#EB,#B6,#FF,#9B,#52
+    DB #DE,#D3,#DB,#D7,#B1,#F2,#36,#86,#3F,#F0,#B5,#B2,#E8,#D0,#14,#2E
+    DB #74,#FE,#8B,#11,#44,#DF,#F7,#49,#1B,#FD,#C4,#55,#F7,#B6,#C2,#A1
+    DB #A1,#76,#C5,#93,#B1,#9D,#F0,#A8,#74,#B1,#37,#92,#E3,#D0,#2F,#BA
+    DB #E7,#EB,#71,#76,#B1,#68,#40,#E6,#4E,#4F,#6B,#E4,#F4,#E4,#B6,#EE
+    DB #8A,#8D,#FE,#1F,#75,#9D,#CE,#55,#57,#FF,#6A,#9B,#91,#98,#E8,#96
+    DB #B8,#F9,#98,#61,#19,#86,#68,#0E,#D7,#5E,#B1,#B6,#BD,#1D,#D6,#81
+    DB #9B,#F0,#81,#8F,#B6,#8B,#8B,#8B,#6B,#9B,#9F,#B1,#B8,#E5,#63,#4E
+    DB #7E,#08,#FE,#70,#8E,#F2,#F9,#DB,#E4,#B7,#E4,#E6,#FE,#F4,#74,#14
+    DB #1B,#41,#FF,#1D,#01,#FE,#61,#AC,#DB,#86,#B6,#D6,#E8,#BF,#BA,#D0
+    DB #5D,#F0,#D9,#5A,#F8,#DB,#A4,#D9,#48,#3F,#B6,#A0,#81,#BA,#7C,#22
+    DB #BC,#EF,#09,#98,#5C,#D2,#9B,#6B,#B0,#82,#B4,#B4,#14,#86,#A2,#D1
+    DB #4B,#61,#64,#D4,#68,#68,#86,#63,#8C,#61,#79,#74,#9F,#8F,#F9,#F8
+    DB #F8,#1B,#6B,#6B,#96,#69,#D6,#CF,#17,#33,#FF,#0F,#F2,#33,#BC,#D7
+    DB #27,#E9,#8D,#2E,#DF,#97,#B4,#B3,#D5,#F4,#E1,#68,#8E,#B1,#44,#14
+    DB #BF,#75,#F4,#FF,#ED,#FF,#D1,#D5,#B0,#B7,#B6,#80,#0F,#9D,#F9,#94
+    DB #F4,#E7,#DE,#FE,#FE,#D4,#9D,#BA,#87,#BE,#CB,#D0,#68,#CB,#C2,#18
+    DB #D6,#CF,#37,#0B,#81,#81,#16,#68,#28,#1F,#FE,#D3,#BB,#7B,#81,#3E
+    DB #59,#1E,#D6,#4D,#26,#44,#41,#CE,#F4,#A0,#C8,#44,#03,#18,#8F,#F8
+    DB #89,#F8,#8F,#FE,#98,#68,#88,#9C,#86,#86,#D6,#3D,#45,#FB,#3F,#6E
+    DB #E2,#9D,#88,#18,#81,#A3,#38,#B9,#9B,#A6,#FE,#8B,#11,#91,#92,#19
+    DB #99,#9B,#B6,#1B,#B1,#1D,#48,#00,#76,#78,#FB,#FF,#6E,#7F,#E6,#0E
+    DB #E1,#00,#FA,#FE,#81,#FF,#EB,#F4,#FB,#FF,#F4,#18,#A4,#FE,#8A,#1A
+    DB #A8,#68,#18,#68,#18,#81,#18,#FA,#86,#88,#3F,#F3,#61,#EF,#DE,#25
+    DB #FF,#FF,#19,#B9,#F0,#CB,#62,#BD,#BC,#0B,#CD,#48,#23,#A5,#18,#E8
+    DB #52,#BA,#C7,#37,#BB,#A8,#24,#5D,#1B,#B5,#76,#9F,#22,#E7,#3F,#75
+    DB #F7,#EC,#B7,#1E,#35,#8D,#D8,#08,#B8,#74,#3D,#B4,#87,#B0,#7F,#DD
+    DB #38,#E6,#FF,#10,#09,#16,#86,#81,#81,#A3,#66,#FD,#1E,#1C,#FF,#18
+    DB #D0,#FE,#10,#D8,#EF,#DD,#16,#F1,#BF,#D2,#F2,#EB,#D0,#61,#A6,#E3
+    DB #16,#FA,#86,#F1,#FF,#E1,#5A,#F8,#0A,#9F,#B9,#F9,#CF,#7E,#16,#E8
+    DB #EF,#6F,#6F,#1F,#41,#C8,#C7,#B6,#85,#76,#B5,#FB,#34,#71,#61,#C6
+    DB #D5,#D6,#36,#3E,#C9,#AD,#23,#91,#1B,#6B,#8B,#9B,#BB,#7C,#DA,#D5
+    DB #7D,#55,#60
+PRESENTATION_SCREEN_COLORS_B2:
+    ; ZX0 compressed tile_color (488 -> 284 bytes)
+    DB #96,#11,#20,#41,#61,#AA,#81,#88,#46,#FF,#18,#DD,#FE,#AA,#C8,#68
+    DB #EE,#11,#F7,#18,#CF,#09,#11,#11,#16,#68,#EF,#E3,#86,#F4,#BF,#16
+    DB #D1,#B4,#BE,#81,#D5,#E6,#AE,#86,#72,#EB,#BD,#66,#A2,#FE,#44,#18
+    DB #A0,#11,#8A,#44,#E1,#26,#F1,#E1,#28,#1E,#18,#22,#8F,#D8,#98,#16
+    DB #88,#1E,#2A,#19,#E1,#61,#11,#BB,#60,#26,#9B,#8B,#1B,#16,#8B,#9B
+    DB #EB,#1B,#67,#B1,#91,#B1,#FB,#D3,#D0,#AA,#EF,#FB,#DE,#0D,#A2,#DA
+    DB #1E,#1F,#E3,#FE,#E6,#77,#F0,#F7,#16,#2B,#E4,#EF,#EC,#17,#FD,#F3
+    DB #EE,#FF,#CA,#0C,#6D,#CA,#8F,#D2,#F9,#A3,#E3,#81,#E8,#E1,#F6,#2E
+    DB #41,#41,#14,#14,#F4,#B8,#44,#FF,#2F,#14,#41,#14,#74,#F5,#FF,#FF
+    DB #EB,#F2,#E3,#D9,#FB,#4E,#4E,#DE,#C9,#E7,#F9,#26,#EE,#EE,#7D,#EF
+    DB #1E,#81,#E9,#8A,#3B,#E1,#FE,#D8,#1E,#C5,#E7,#E1,#91,#24,#FF,#87
+    DB #FF,#28,#FA,#9F,#F0,#41,#F9,#7D,#D4,#FB,#9C,#1B,#7A,#CB,#FF,#E1
+    DB #21,#88,#EF,#1F,#6F,#8F,#F8,#28,#98,#FF,#8F,#98,#0E,#F8,#8F,#FE
+    DB #1F,#18,#E9,#FE,#1E,#10,#7E,#9F,#FE,#FF,#80,#FF,#DE,#E6,#68,#39
+    DB #EC,#FF,#F2,#EE,#FD,#F1,#FE,#F3,#B0,#8E,#A8,#B0,#FE,#2C,#F0,#A6
+    DB #74,#22,#74,#47,#98,#E7,#88,#4F,#1F,#89,#EF,#E1,#B3,#FF,#FF,#1F
+    DB #5D,#37,#BF,#FF,#B9,#F1,#68,#FF,#CB,#F8,#E8,#81,#34,#6D,#3C,#BF
+    DB #2E,#0F,#F0,#FA,#20,#14,#4F,#F3,#9D,#F0,#55,#56
+presentation_wait_frames:
+    push bc
+    ld a, b
+    or a
+    jr z, .pwf_done
+.pwf_loop:
+    halt
+    djnz .pwf_loop
+.pwf_done:
+    pop bc
+    ret
+
+; Register Contract:
+;   Purpose: Wait for trigger/space press and release after showing the presentation screen.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;     - IX
+;     - IY
+presentation_wait_for_fire:
+.pwff_wait_press:
+    halt
+    ld a, 0
+    call GTTRIG
+    or a
+    jr z, .pwff_wait_press
+.pwff_wait_release:
+    halt
+    ld a, 0
+    call GTTRIG
+    or a
+    jr nz, .pwff_wait_release
+    ret
+
+; Register Contract:
+;   Purpose: Show the imported fullscreen presentation image in SCREEN 2.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - IX
+;     - IY
+;   Notes:
+;     - Loads pattern/color banks 0..2 and the 32x24 name table.
+;     - Optional wait/key behavior comes from Presentation Screen config.
+show_presentation_screen:
+    call DISSCR
+    ld a, 2
+    call CHGMOD
+    call clear_all_sprites
+    call update_sprites_to_vram
+    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_PATTERNS_B0_BANK
+    call mapper_set_bank_p2
+    ; Decompress ZX0 presentation pattern bank into RAM buffer
+    di
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B0
+    ld de, ZX0_TILE_PATTERN_BUFFER
+    call dzx0_standard
+    ei
+    ld hl, ZX0_TILE_PATTERN_BUFFER
+    ld de, CHRTBL2
+    ld bc, PRESENTATION_SCREEN_PATTERN_B0_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_PATTERNS_B1_BANK
+    call mapper_set_bank_p2
+    ; Decompress ZX0 presentation pattern bank into RAM buffer
+    di
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B1
+    ld de, ZX0_TILE_PATTERN_BUFFER
+    call dzx0_standard
+    ei
+    ld hl, ZX0_TILE_PATTERN_BUFFER
+    ld de, CHRTBL2 + #800
+    ld bc, PRESENTATION_SCREEN_PATTERN_B1_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_PATTERNS_B2_BANK
+    call mapper_set_bank_p2
+    ; Decompress ZX0 presentation pattern bank into RAM buffer
+    di
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B2
+    ld de, ZX0_TILE_PATTERN_BUFFER
+    call dzx0_standard
+    ei
+    ld hl, ZX0_TILE_PATTERN_BUFFER
+    ld de, CHRTBL2 + #1000
+    ld bc, PRESENTATION_SCREEN_PATTERN_B2_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_COLORS_B0_BANK
+    call mapper_set_bank_p2
+    ; Decompress ZX0 presentation color bank into RAM buffer
+    di
+    ld hl, PRESENTATION_SCREEN_COLORS_B0
+    ld de, ZX0_TILE_COLOR_BUFFER
+    call dzx0_standard
+    ei
+    ld hl, ZX0_TILE_COLOR_BUFFER
+    ld de, CLRTBL2
+    ld bc, PRESENTATION_SCREEN_COLOR_B0_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_COLORS_B1_BANK
+    call mapper_set_bank_p2
+    ; Decompress ZX0 presentation color bank into RAM buffer
+    di
+    ld hl, PRESENTATION_SCREEN_COLORS_B1
+    ld de, ZX0_TILE_COLOR_BUFFER
+    call dzx0_standard
+    ei
+    ld hl, ZX0_TILE_COLOR_BUFFER
+    ld de, CLRTBL2 + #800
+    ld bc, PRESENTATION_SCREEN_COLOR_B1_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_COLORS_B2_BANK
+    call mapper_set_bank_p2
+    ; Decompress ZX0 presentation color bank into RAM buffer
+    di
+    ld hl, PRESENTATION_SCREEN_COLORS_B2
+    ld de, ZX0_TILE_COLOR_BUFFER
+    call dzx0_standard
+    ei
+    ld hl, ZX0_TILE_COLOR_BUFFER
+    ld de, CLRTBL2 + #1000
+    ld bc, PRESENTATION_SCREEN_COLOR_B2_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, PRESENTATION_SCREEN_NAMETBL_BANK
+    call mapper_set_bank_p2
+    ; Decompress ZX0 presentation name table into RAM buffer
+    di
+    ld hl, PRESENTATION_SCREEN_NAMETBL
+    ld de, ZX0_SCREEN_BUFFER
+    call dzx0_standard
+    ei
+    ld hl, ZX0_SCREEN_BUFFER
+    ld de, NAMETBL
+    ld bc, PRESENTATION_SCREEN_NAMETBL_SIZE
+    call FAST_LDIRVM
+    call mapper_pop_p2
+
+    call ENASCR
+    call presentation_wait_for_fire
+    ret
+
+; ==================================================================
+; SCREEN LOADING FUNCTIONS
+; ==================================================================
+
+; Color shift lookup table (0-15 shifted to high nibble)
+; OPTIMIZED: Table lookup is faster than 4× RLCA (11 cycles vs 16 cycles)
 color_shift_table:
     db #00, #10, #20, #30, #40, #50, #60, #70
     db #80, #90, #A0, #B0, #C0, #D0, #E0, #F0
@@ -17279,8 +17712,8 @@ SM_New_Statemachine_state_1773007838313_Transitions_Actions_1:
 ; ==================================================================
 ;
 ; GameFlow: Main
-; Total Nodes: 6
-; Total Connections: 7
+; Total Nodes: 7
+; Total Connections: 8
 ; Start Node: gf_start_1770754183471
 ;
 ; ARCHITECTURE:
@@ -17347,6 +17780,8 @@ gameflow_execute_node:
     jp z, gameflow_handle_submenu
     cp NODE_TYPE_MUSIC
     jp z, gameflow_handle_music
+    cp NODE_TYPE_PRESENTATION_SCREEN
+    jp z, gameflow_handle_presentationscreen
     
     ; Unknown node type - error
     ret
@@ -18281,9 +18716,20 @@ gameflow_handle_music:
     ; Music node - play/stop music
     ; DE = music data (command, track index, loop flag)
     ; BC = connection table
-    
+
     push bc
     call music_execute_command
+    pop bc
+    call gameflow_get_default_connection
+    ld a, h
+    or l
+    ret z
+    jp gameflow_execute_node
+gameflow_handle_presentationscreen:
+    ; PresentationScreen node - show full-screen presentation image
+    ; BC = connection table
+    push bc
+    call show_presentation_screen
     pop bc
     call gameflow_get_default_connection
     ld a, h
@@ -18618,6 +19064,17 @@ gameflow_node_gfn_1773587244048_data:
     db 1, 0, 1    ; command, track index, loop flag
 
 gameflow_node_gfn_1773587244048_conn:
+    db CONNECTION_DEFAULT
+    dw gameflow_node_gfn_1773690160008
+    db CONNECTION_END
+
+; Node: PresentationScreen - "gfn_1773690160008"
+gameflow_node_gfn_1773690160008:
+    db NODE_TYPE_PRESENTATION_SCREEN
+    dw gameflow_no_data
+    dw gameflow_node_gfn_1773690160008_conn
+
+gameflow_node_gfn_1773690160008_conn:
     db CONNECTION_DEFAULT
     dw gameflow_node_gfn_1773429482585
     db CONNECTION_END
@@ -20026,33 +20483,33 @@ ZX0_BEHAVIOR_BUFFER EQU #E000
 
 ; ==================================================================
 ; ZX0 TILE PATTERN BUFFER (AUTO-INJECTED)
-; Free RAM buffer for tile pattern data decompression (240 bytes)
+; Free RAM buffer for tile pattern data decompression (1488 bytes)
 ; ==================================================================
 ZX0_TILE_PATTERN_BUFFER EQU #E300
 
 ; ==================================================================
 ; ZX0 TILE COLOR BUFFER (AUTO-INJECTED)
-; Free RAM buffer for tile color data decompression (240 bytes)
+; Free RAM buffer for tile color data decompression (1488 bytes)
 ; ==================================================================
-ZX0_TILE_COLOR_BUFFER EQU #E400
+ZX0_TILE_COLOR_BUFFER EQU #E900
 
 ; ==================================================================
 ; ZX0 FONT PATTERN BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for font pattern data decompression (360 bytes)
 ; ==================================================================
-ZX0_FONT_PATTERN_BUFFER EQU #E500
+ZX0_FONT_PATTERN_BUFFER EQU #EF00
 
 ; ==================================================================
 ; ZX0 FONT COLOR BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for font color data decompression (360 bytes)
 ; ==================================================================
-ZX0_FONT_COLOR_BUFFER EQU #E700
+ZX0_FONT_COLOR_BUFFER EQU #F100
 
 ; ==================================================================
 ; ZX0 SPRITE FRAME BUFFER (AUTO-INJECTED)
 ; Shared RAM buffer for per-frame sprite decompression before VRAM upload (64 bytes)
 ; ==================================================================
-ZX0_SPRITE_FRAME_BUFFER EQU #E900
+ZX0_SPRITE_FRAME_BUFFER EQU #F300
 
 ; ==================================================================
 ; ZX0 SPRITE LABEL REMAP (AUTO-INJECTED)
