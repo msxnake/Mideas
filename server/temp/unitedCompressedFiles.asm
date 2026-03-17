@@ -30,39 +30,39 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 126859
+; Estimated payload bytes: 126137
 ; Estimated banks used: 16
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1544 bytes)
 ; BANK 00 @#0608 : colors.asm (1330 bytes)
 ; BANK 00 @#0B3A : components.asm (22 bytes)
 ; BANK 00 @#0B50 : entities.asm (5296 bytes)
-; BANK 01 @#0000 : entities.asm (2029 bytes)
-; BANK 01 @#07ED : worlds.asm (6163 bytes)
-; BANK 02 @#0000 : worlds.asm (1760 bytes)
-; BANK 02 @#06E0 : screens.asm part 1/6 (6432 bytes)
+; BANK 01 @#0000 : entities.asm (2132 bytes)
+; BANK 01 @#0854 : worlds.asm (6060 bytes)
+; BANK 02 @#0000 : worlds.asm (1863 bytes)
+; BANK 02 @#0747 : screens.asm part 1/6 (6329 bytes)
 ; BANK 03 @#0000 : screens.asm part 2/6 (8192 bytes)
 ; BANK 04 @#0000 : screens.asm part 3/6 (8192 bytes)
 ; BANK 05 @#0000 : screens.asm part 4/6 (8192 bytes)
 ; BANK 06 @#0000 : screens.asm part 5/6 (8192 bytes)
-; BANK 07 @#0000 : screens.asm part 6/6 (2576 bytes)
-; BANK 07 @#0A10 : sprites.asm part 1/2 (5616 bytes)
-; BANK 08 @#0000 : sprites.asm part 2/2 (5395 bytes)
-; BANK 08 @#1513 : font.asm (2797 bytes)
-; BANK 09 @#0000 : font.asm (750 bytes)
-; BANK 09 @#02EE : hud.asm (4432 bytes)
-; BANK 09 @#143E : menus.asm (454 bytes)
-; BANK 09 @#1604 : sound.asm (2556 bytes)
-; BANK 10 @#0000 : sound.asm (4691 bytes)
-; BANK 10 @#1253 : scroll.asm (2353 bytes)
-; BANK 10 @#1B84 : animtiles.asm (1148 bytes)
-; BANK 11 @#0000 : animtiles.asm (5739 bytes)
-; BANK 11 @#166B : statemachine.asm part 1/3 (2453 bytes)
+; BANK 07 @#0000 : screens.asm part 6/6 (2679 bytes)
+; BANK 07 @#0A77 : sprites.asm part 1/2 (5513 bytes)
+; BANK 08 @#0000 : sprites.asm part 2/2 (5498 bytes)
+; BANK 08 @#157A : font.asm (2694 bytes)
+; BANK 09 @#0000 : font.asm (853 bytes)
+; BANK 09 @#0355 : hud.asm (3607 bytes)
+; BANK 09 @#116C : menus.asm (454 bytes)
+; BANK 09 @#1332 : sound.asm (3278 bytes)
+; BANK 10 @#0000 : sound.asm (3969 bytes)
+; BANK 10 @#0F81 : scroll.asm (2353 bytes)
+; BANK 10 @#18B2 : animtiles.asm (1870 bytes)
+; BANK 11 @#0000 : animtiles.asm (5017 bytes)
+; BANK 11 @#1399 : statemachine.asm part 1/3 (3175 bytes)
 ; BANK 12 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 13 @#0000 : statemachine.asm part 3/3 (8010 bytes)
-; BANK 13 @#1F4A : gameflow.asm part 1/2 (182 bytes)
+; BANK 13 @#0000 : statemachine.asm part 3/3 (7288 bytes)
+; BANK 13 @#1C78 : gameflow.asm part 1/2 (904 bytes)
 ; BANK 14 @#0000 : gameflow.asm part 2/2 (8192 bytes)
-; BANK 15 @#0000 : gameflow.asm part 3/2 (3979 bytes)
+; BANK 15 @#0000 : gameflow.asm part 3/2 (3257 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -12409,7 +12409,20 @@ update_entity_patrol_facing:
 
     ld hl, entity_sprite_asset_index
     add hl, de
+    cp (hl)
+    jr z, .patrol_facing_done
     ld (hl), a
+
+    ; Reset animation progression when directional variant changes.
+    ; Without this, switching to a variant with fewer frames can leave
+    ; entity_anim_frame out of range until the next animation wrap.
+    ld hl, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+
+    ld hl, entity_anim_tick
+    add hl, de
+    ld (hl), 0
 
 .patrol_facing_done:
     pop hl
@@ -12858,7 +12871,7 @@ imprimir_marco:
 ;   AF, BC, DE, HL, IX
 ; Notes:
 ;   - Returns immediately if hud_dirty_flag = 0
-;   - Re-applies dynamic numeric fields (Score/Lives) after redrawing static text
+;   - Re-applies dynamic numeric fields (Score/Lives/custom bindings) after redrawing static text
 ; ------------------------------------------------------------------
 render_hud:
     ld a, (hud_dirty_flag)
@@ -13045,23 +13058,15 @@ hud_print_string:
     or a                        ; Check for null terminator
     jr z, .print_done
 
-    ; OPTIMIZED: Inline ASCII validation (saves CALL/RET overhead = 27 cycles)
     cp 32                       ; Check if >= 32 (printable ASCII)
-    jr nc, .valid_char          ; If valid, skip to write
+    jr nc, .valid_char
     ld a, 32                    ; Replace control chars with space
 .valid_char:
-
-    ; Write tile to VRAM Name Table
-    ; WRTVRM signature: A = data, HL = VRAM address
-    ; A already has character, HL already has VRAM address
-    push de                     ; Save string pointer
-    call FAST_WRTVRM            ; Write A to VRAM at HL
-    pop de                      ; Restore string pointer
-
-    ; Move to next character
-    inc de                      ; Next char in string
-    inc hl                      ; Next VRAM position
-
+    push de
+    call FAST_WRTVRM
+    pop de
+    inc de
+    inc hl
     jr .print_loop
 
 .print_done:
@@ -13078,15 +13083,9 @@ hud_print_string:
 ; Output: A = Tile index (ASCII code for direct mapping)
 ; ------------------------------------------------------------------
 hud_ascii_to_tile:
-    ; SIMPLIFIED: Just return the ASCII code directly
-    ; Font patterns are loaded at their ASCII positions
-    
-    ; Validate range (printable ASCII 32-126)
     cp 32
-    ret nc              ; If >= 32, it's valid - return as-is
-    
-    ; Below 32 (control characters) - default to space
-    ld a, 32            ; Space character
+    ret nc
+    ld a, 32
     ret
 
 ; ------------------------------------------------------------------
@@ -13100,116 +13099,80 @@ hud_draw_frame:
     push bc
     push de
     push hl
-    
-    ; Calculate VRAM Start Address
-    ; Addr = #1800 + (E * 32) + D
     ld l, e
     ld h, 0
-    add hl, hl          ; * 2
-    add hl, hl          ; * 4
-    add hl, hl          ; * 8
-    add hl, hl          ; * 16
-    add hl, hl          ; * 32
-    
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
     ld e, d
     ld d, 0
     add hl, de
     ld de, #1800
-    add hl, de          ; HL = Top-Left Corner VRAM Address
-    
-    ; Draw Top Row
-    push hl             ; Save Start Address
-    push bc             ; Save Dimensions
-    
-    ; Top-Left Corner
-    ld a, 43            ; '+'
+    add hl, de
+    push hl
+    push bc
+    ld a, 43
     call FAST_WRTVRM
     inc hl
-    
-    ; Top Edge
     ld a, b
-    sub 2               ; Width - 2 corners
-    jr z, .skip_top_edge ; Skip if exactly 2 wide (no edge)
-    jr c, .skip_top_edge ; Skip if < 2 wide
+    sub 2
+    jr z, .skip_top_edge
+    jr c, .skip_top_edge
     ld b, a
 .top_edge_loop:
-    ld a, 45            ; '-'
+    ld a, 45
     call FAST_WRTVRM
     inc hl
     djnz .top_edge_loop
 .skip_top_edge:
-    
-    ; Top-Right Corner
-    ld a, 43            ; '+'
+    ld a, 43
     call FAST_WRTVRM
-    
-    pop bc              ; Restore Dimensions
-    pop hl              ; Restore Start Address
-    
-    ; Move to next row
+    pop bc
+    pop hl
     ld de, 32
     add hl, de
-    
-    ; Draw Middle Rows (Vertical Edges)
     ld a, c
-    sub 2               ; Height - 2 rows
-    jr z, .bottom_row   ; Skip if height is small
-    jr c, .bottom_row   ; Skip if height is < 2
-    ld c, a             ; C = Middle Rows count
-    
+    sub 2
+    jr z, .bottom_row
+    jr c, .bottom_row
+    ld c, a
 .middle_row_loop:
-    push hl             ; Save Row Start
-    push bc             ; Save Counters
-    
-    ; Left Edge
-    ld a, 124           ; '|'
+    push hl
+    push bc
+    ld a, 124
     call FAST_WRTVRM
-    
-    ; Skip Middle (Content Area)
     ld a, b
-    dec a               ; Width - 1
-    ; Ensure we don't add negative offset if width is 0 (unlikely here but safe)
-    ; Actually Width must be at least 2 to have corners, so Width-1 >= 1.
+    dec a
     ld e, a
     ld d, 0
     add hl, de
-    
-    ; Right Edge
-    ld a, 124           ; '|'
+    ld a, 124
     call FAST_WRTVRM
-    
-    pop bc              ; Restore Counters
-    pop hl              ; Restore Row Start
-    
+    pop bc
+    pop hl
     ld de, 32
-    add hl, de          ; Next Row
+    add hl, de
     dec c
     jr nz, .middle_row_loop
-    
 .bottom_row:
-    ; Draw Bottom Row
-    ; Bottom-Left Corner
-    ld a, 43            ; '+'
+    ld a, 43
     call FAST_WRTVRM
     inc hl
-    
-    ; Bottom Edge
     ld a, b
-    sub 2               ; Width - 2 corners
+    sub 2
     jr z, .skip_bottom_edge
     jr c, .skip_bottom_edge
     ld b, a
 .bottom_edge_loop:
-    ld a, 45            ; '-'
+    ld a, 45
     call FAST_WRTVRM
     inc hl
     djnz .bottom_edge_loop
 .skip_bottom_edge:
-    
-    ; Bottom-Right Corner
-    ld a, 43            ; '+'
+    ld a, 43
     call FAST_WRTVRM
-    
     pop hl
     pop de
     pop bc
@@ -13220,17 +13183,12 @@ hud_draw_frame:
 ; update_hud_score
 ; Update score HUD element with current score value
 ; Input: HL = Score value (16-bit binary, 0-65535)
-; Writes score digits directly into the HUD numeric field in VRAM
 ; Output:
 ;   None
 ; Clobbers:
 ;   None visible to caller
 ; Preserves:
 ;   AF, BC, DE, HL
-; Notes:
-;   - Uses BC internally for decimal divisors
-;   - Uses DE internally as VRAM cursor for the numeric field
-;   - Writes only the numeric digits; the static "SCORE: " label is not touched
 ; ------------------------------------------------------------------
 update_hud_score:
     push af
@@ -13238,13 +13196,11 @@ update_hud_score:
     push de
     push hl
 
-    ; Direct VRAM update of the numeric HUD field.
-    ; Static label ("SCORE: ") stays in ROM; only digits are rewritten.
     ld de, #1827
 
     ; Runtime digit 0: / 1000
     ld bc, 1000
-    call .div16
+    call hud_div16
     add a, '0'
     push hl
     ld h, d
@@ -13254,7 +13210,7 @@ update_hud_score:
     inc de
     ; Runtime digit 1: / 100
     ld bc, 100
-    call .div16
+    call hud_div16
     add a, '0'
     push hl
     ld h, d
@@ -13264,7 +13220,7 @@ update_hud_score:
     inc de
     ; Runtime digit 2: / 10
     ld bc, 10
-    call .div16
+    call hud_div16
     add a, '0'
     push hl
     ld h, d
@@ -13280,7 +13236,6 @@ update_hud_score:
     ld l, e
     call FAST_WRTVRM
     pop hl
-
     pop hl
     pop de
     pop bc
@@ -13288,16 +13243,16 @@ update_hud_score:
     ret
 
 ; Helper: HL = HL / BC, A = quotient, HL = remainder
-.div16:
-    xor a                       ; Quotient = 0
-.div16_loop:
-    or a                        ; Clear carry
-    sbc hl, bc                  ; HL -= BC
-    jr c, .div16_done           ; If underflow, done
-    inc a                       ; Quotient++
-    jr .div16_loop
-.div16_done:
-    add hl, bc                  ; Restore remainder
+hud_div16:
+    xor a
+.hud_div16_loop:
+    or a
+    sbc hl, bc
+    jr c, .hud_div16_done
+    inc a
+    jr .hud_div16_loop
+.hud_div16_done:
+    add hl, bc
     ret
 
 ; ------------------------------------------------------------------
@@ -13310,18 +13265,13 @@ update_hud_score:
 ;   None visible to caller
 ; Preserves:
 ;   AF, HL
-; Notes:
-;   - Writes only the numeric digit in VRAM; the static label is not touched
 ; ------------------------------------------------------------------
 update_hud_lives:
     push af
     push hl
-
-    ; Direct VRAM update of the Lives numeric field.
-    add a, '0'                  ; Convert to ASCII
+    add a, '0'
     ld hl, #182D
     call FAST_WRTVRM
-
     pop hl
     pop af
     ret
