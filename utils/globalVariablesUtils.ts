@@ -165,6 +165,19 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
   const globalsVariableNames = new Set<string>();
   const tileCollectorVariableNames = new Set<string>();
   const hudVariableNames = new Set<string>();
+  const addHudVariableName = (rawValue: any) => {
+    if (typeof rawValue !== 'string') return;
+    const variableName = normalizeGlobalVariableName(rawValue);
+    if (!variableName) return;
+    hudVariableNames.add(variableName);
+  };
+  const addHudPlaceholderVariableNames = (rawText: any) => {
+    if (typeof rawText !== 'string' || !rawText.includes('{{')) return;
+    const placeholderRegex = /\{\{\s*([^{}]+?)\s*\}\}/g;
+    for (const match of rawText.matchAll(placeholderRegex)) {
+      addHudVariableName(match[1]);
+    }
+  };
 
   if (gameFlowAsset?.data) {
     const gameFlow = gameFlowAsset.data as any;
@@ -229,6 +242,12 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
       } else if (hudType === 'lives') {
         hudVariableNames.add(normalizeGlobalVariableName('Lives'));
       }
+
+      addHudVariableName(element?.details?.variableName);
+      addHudVariableName(element?.details?.globalVariableName);
+      addHudVariableName(element?.details?.bindingVariable);
+      addHudPlaceholderVariableNames(element?.text);
+      addHudPlaceholderVariableNames(element?.name);
     });
   });
 
@@ -317,6 +336,24 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
         constantPrefix: buildGlobalVariableConstantPrefix(normalizedName),
         type: '8bit',
         description: `Auto-generated variable from Tile Collector`,
+        values: [{ label: '0', value: 0 }],
+        category: 'special'
+      });
+      usedVariableNames.add(normalizedName);
+    }
+  });
+
+  // 8. Add any missing variables referenced by HUD bindings/placeholders
+  hudVariableNames.forEach(varName => {
+    const normalizedName = normalizeGlobalVariableName(varName);
+    if (!usedVariableNames.has(normalizedName)) {
+      const asmName = buildGlobalVariableAsmName(normalizedName);
+      usedVariables.push({
+        name: normalizedName,
+        asmName: asmName,
+        constantPrefix: buildGlobalVariableConstantPrefix(normalizedName),
+        type: '8bit',
+        description: `Auto-generated variable from HUD binding`,
         values: [{ label: '0', value: 0 }],
         category: 'special'
       });

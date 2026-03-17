@@ -55,6 +55,21 @@ const DEFAULT_HUD_ELEMENT_PROPS: Omit<HUDElementProperties_Base, 'name'> = {
   memoryAddress: "0xF000", 
 };
 
+const HUD_DETAIL_DEFAULTS_BY_TYPE: Partial<Record<HUDElementType, Record<string, any>>> = {
+  [HUDElementType.NumericField]: {
+    label: 'DATA:',
+    digits: 3,
+    variableName: '',
+    textBackgroundColor: 'transparent'
+  },
+  [HUDElementType.CustomCounter]: {
+    format: 'decimal',
+    digits: 2,
+    variableName: '',
+    textBackgroundColor: 'transparent'
+  }
+};
+
 /**
  * A collection of predefined HUD element templates, categorized by tabs.
  * Used to populate the "Add New" buttons in the HUD editor.
@@ -103,6 +118,7 @@ const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; 
     { type: HUDElementType.SceneName, name: "Scene Name Display", defaultText: "STAGE 1", defaultDetails: { animation: 'static', textBackgroundColor: 'transparent' } },
     { type: HUDElementType.MiniMap, name: "Mini-Map", defaultDetails: { style: 'grid', size: "64x64" } },
     { type: HUDElementType.CoinCounter, name: "Coin Counter", defaultText: "$00", defaultDetails: { symbol: '$', format: 'X00', textBackgroundColor: 'transparent' } },
+    { type: HUDElementType.NumericField, name: "Timer", defaultText: "TIME: 300", defaultDetails: { label: 'TIME:', digits: 3, variableName: 'TimeRemaining', textBackgroundColor: 'transparent' } },
   ],
   "Boss Battle": [
     {
@@ -130,8 +146,8 @@ const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; 
   ],
   "Custom": [
     { type: HUDElementType.TextBox, name: "Custom Text Box", defaultText: "Your text here...", defaultDetails: { border: 'decorative', textBackgroundColor: MSX1_PALETTE[4].hex } },
-    { type: HUDElementType.NumericField, name: "Custom Numeric Field", defaultText: "DATA: 123", defaultDetails: { label: 'DATA:', textBackgroundColor: 'transparent' } },
-    { type: HUDElementType.CustomCounter, name: "Custom Counter", defaultText: "00", defaultDetails: { format: 'decimal', textBackgroundColor: 'transparent' } },
+    { type: HUDElementType.NumericField, name: "Custom Numeric Field", defaultText: "DATA: 123", defaultDetails: { label: 'DATA:', digits: 3, variableName: '', textBackgroundColor: 'transparent' } },
+    { type: HUDElementType.CustomCounter, name: "Custom Counter", defaultText: "00", defaultDetails: { format: 'decimal', digits: 2, variableName: '', textBackgroundColor: 'transparent' } },
   ],
 };
 
@@ -227,6 +243,10 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
     }
   }, [localHudConfig.elements, selectedElementId]);
 
+  const getMergedHudDetails = (element: HUDElement) => ({
+    ...(HUD_DETAIL_DEFAULTS_BY_TYPE[element.type] || {}),
+    ...(element.details || {})
+  });
 
   const handleAddElement = (elementType: HUDElementType, elementNameSeed: string, defaultText?: string, defaultDetails?: Record<string, any>) => {
     const numElements = localHudConfig.elements.length;
@@ -1433,8 +1453,8 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                 
                 <div className="pt-2 mt-2 border-t border-msx-lightyellow/30">
                   <p className="text-xs text-msx-highlight mb-1">{selectedElement.type} Specifics:</p>
-                  {selectedElement.details && Object.keys(selectedElement.details).length > 0 ? 
-                    Object.entries(selectedElement.details).map(([key, value]) => renderPropertyField(selectedElement, key, value, 'details'))
+                  {Object.keys(getMergedHudDetails(selectedElement)).length > 0 ? 
+                    Object.entries(getMergedHudDetails(selectedElement)).map(([key, value]) => renderPropertyField(selectedElement, key, value, 'details'))
                     : <p className="text-xs text-msx-textsecondary italic">No type-specific properties defined yet for this element.</p>
                   }
                 </div>
