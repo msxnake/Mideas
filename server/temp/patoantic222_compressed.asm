@@ -30,7 +30,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 126859
+; Estimated payload bytes: 124801
 ; Estimated banks used: 16
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1544 bytes)
@@ -50,19 +50,19 @@
 ; BANK 08 @#0000 : sprites.asm part 2/2 (5395 bytes)
 ; BANK 08 @#1513 : font.asm (2797 bytes)
 ; BANK 09 @#0000 : font.asm (750 bytes)
-; BANK 09 @#02EE : hud.asm (4432 bytes)
-; BANK 09 @#143E : menus.asm (454 bytes)
-; BANK 09 @#1604 : sound.asm (2556 bytes)
-; BANK 10 @#0000 : sound.asm (4691 bytes)
-; BANK 10 @#1253 : scroll.asm (2353 bytes)
-; BANK 10 @#1B84 : animtiles.asm (1148 bytes)
-; BANK 11 @#0000 : animtiles.asm (5739 bytes)
-; BANK 11 @#166B : statemachine.asm part 1/3 (2453 bytes)
+; BANK 09 @#02EE : hud.asm (3607 bytes)
+; BANK 09 @#1105 : menus.asm (454 bytes)
+; BANK 09 @#12CB : sound.asm (3381 bytes)
+; BANK 10 @#0000 : sound.asm (3866 bytes)
+; BANK 10 @#0F1A : scroll.asm (2353 bytes)
+; BANK 10 @#184B : animtiles.asm (1973 bytes)
+; BANK 11 @#0000 : animtiles.asm (4914 bytes)
+; BANK 11 @#1332 : statemachine.asm part 1/3 (3278 bytes)
 ; BANK 12 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 13 @#0000 : statemachine.asm part 3/3 (8010 bytes)
-; BANK 13 @#1F4A : gameflow.asm part 1/2 (182 bytes)
+; BANK 13 @#0000 : statemachine.asm part 3/3 (5952 bytes)
+; BANK 13 @#1740 : gameflow.asm part 1/2 (2240 bytes)
 ; BANK 14 @#0000 : gameflow.asm part 2/2 (8192 bytes)
-; BANK 15 @#0000 : gameflow.asm part 3/2 (3979 bytes)
+; BANK 15 @#0000 : gameflow.asm part 3/2 (1921 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -2290,6 +2290,7 @@ ANIM_FLAG_PLAYING            EQU #01
 ANIM_FLAG_LOOP               EQU #02
 ANIM_FLAG_ONLY_WHEN_MOVING   EQU #04
 ANIM_FLAG_COMPLETED          EQU #08
+ANIM_FLAG_FORCE_UPLOAD       EQU #10
 ANIM_DEFAULT_SPEED           EQU 8
 
     ; ==================================================================
@@ -4187,6 +4188,28 @@ increase_entity_lives:
             jp z, anim_done_entity
 
         .tick:
+            ; ChangeSprite defers VRAM pattern uploads to the next animation
+            ; pass so the copy happens from the regular frame pipeline instead
+            ; of mid-frame inside the state-machine action path.
+            ld hl, entity_anim_flags
+            add hl, de
+            bit 4, (hl)
+            jr z, .anim_tick_advance
+            res 4, (hl)
+            ld hl, entity_sprite_asset_index
+            add hl, de
+            ld a, (hl)
+            cp #FF
+            jp z, anim_done_entity
+            cp SPRITE_ASSET_COUNT
+            jp nc, anim_done_entity
+            ld b, a                    ; B = sprite asset index for forced upload
+            ld hl, entity_anim_frame
+            add hl, de
+            ld a, (hl)
+            jp .anim_upload_frame
+
+        .anim_tick_advance:
             ; tick++
             ld hl, entity_anim_tick
             add hl, de
@@ -4271,6 +4294,7 @@ increase_entity_lives:
             add hl, de
             ld (hl), a                 ; store new frame index
 
+        .anim_upload_frame:
             ; Get pointer to this sprite asset's frame pointer list
             ld l, b
             ld h, 0
@@ -12858,7 +12882,7 @@ imprimir_marco:
 ;   AF, BC, DE, HL, IX
 ; Notes:
 ;   - Returns immediately if hud_dirty_flag = 0
-;   - Re-applies dynamic numeric fields (Score/Lives) after redrawing static text
+;   - Re-applies dynamic numeric fields (Score/Lives/custom bindings) after redrawing static text
 ; ------------------------------------------------------------------
 render_hud:
     ld a, (hud_dirty_flag)
@@ -13045,23 +13069,15 @@ hud_print_string:
     or a                        ; Check for null terminator
     jr z, .print_done
 
-    ; OPTIMIZED: Inline ASCII validation (saves CALL/RET overhead = 27 cycles)
     cp 32                       ; Check if >= 32 (printable ASCII)
-    jr nc, .valid_char          ; If valid, skip to write
+    jr nc, .valid_char
     ld a, 32                    ; Replace control chars with space
 .valid_char:
-
-    ; Write tile to VRAM Name Table
-    ; WRTVRM signature: A = data, HL = VRAM address
-    ; A already has character, HL already has VRAM address
-    push de                     ; Save string pointer
-    call FAST_WRTVRM            ; Write A to VRAM at HL
-    pop de                      ; Restore string pointer
-
-    ; Move to next character
-    inc de                      ; Next char in string
-    inc hl                      ; Next VRAM position
-
+    push de
+    call FAST_WRTVRM
+    pop de
+    inc de
+    inc hl
     jr .print_loop
 
 .print_done:
@@ -13078,15 +13094,9 @@ hud_print_string:
 ; Output: A = Tile index (ASCII code for direct mapping)
 ; ------------------------------------------------------------------
 hud_ascii_to_tile:
-    ; SIMPLIFIED: Just return the ASCII code directly
-    ; Font patterns are loaded at their ASCII positions
-    
-    ; Validate range (printable ASCII 32-126)
     cp 32
-    ret nc              ; If >= 32, it's valid - return as-is
-    
-    ; Below 32 (control characters) - default to space
-    ld a, 32            ; Space character
+    ret nc
+    ld a, 32
     ret
 
 ; ------------------------------------------------------------------
@@ -13100,116 +13110,80 @@ hud_draw_frame:
     push bc
     push de
     push hl
-    
-    ; Calculate VRAM Start Address
-    ; Addr = #1800 + (E * 32) + D
     ld l, e
     ld h, 0
-    add hl, hl          ; * 2
-    add hl, hl          ; * 4
-    add hl, hl          ; * 8
-    add hl, hl          ; * 16
-    add hl, hl          ; * 32
-    
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
     ld e, d
     ld d, 0
     add hl, de
     ld de, #1800
-    add hl, de          ; HL = Top-Left Corner VRAM Address
-    
-    ; Draw Top Row
-    push hl             ; Save Start Address
-    push bc             ; Save Dimensions
-    
-    ; Top-Left Corner
-    ld a, 43            ; '+'
+    add hl, de
+    push hl
+    push bc
+    ld a, 43
     call FAST_WRTVRM
     inc hl
-    
-    ; Top Edge
     ld a, b
-    sub 2               ; Width - 2 corners
-    jr z, .skip_top_edge ; Skip if exactly 2 wide (no edge)
-    jr c, .skip_top_edge ; Skip if < 2 wide
+    sub 2
+    jr z, .skip_top_edge
+    jr c, .skip_top_edge
     ld b, a
 .top_edge_loop:
-    ld a, 45            ; '-'
+    ld a, 45
     call FAST_WRTVRM
     inc hl
     djnz .top_edge_loop
 .skip_top_edge:
-    
-    ; Top-Right Corner
-    ld a, 43            ; '+'
+    ld a, 43
     call FAST_WRTVRM
-    
-    pop bc              ; Restore Dimensions
-    pop hl              ; Restore Start Address
-    
-    ; Move to next row
+    pop bc
+    pop hl
     ld de, 32
     add hl, de
-    
-    ; Draw Middle Rows (Vertical Edges)
     ld a, c
-    sub 2               ; Height - 2 rows
-    jr z, .bottom_row   ; Skip if height is small
-    jr c, .bottom_row   ; Skip if height is < 2
-    ld c, a             ; C = Middle Rows count
-    
+    sub 2
+    jr z, .bottom_row
+    jr c, .bottom_row
+    ld c, a
 .middle_row_loop:
-    push hl             ; Save Row Start
-    push bc             ; Save Counters
-    
-    ; Left Edge
-    ld a, 124           ; '|'
+    push hl
+    push bc
+    ld a, 124
     call FAST_WRTVRM
-    
-    ; Skip Middle (Content Area)
     ld a, b
-    dec a               ; Width - 1
-    ; Ensure we don't add negative offset if width is 0 (unlikely here but safe)
-    ; Actually Width must be at least 2 to have corners, so Width-1 >= 1.
+    dec a
     ld e, a
     ld d, 0
     add hl, de
-    
-    ; Right Edge
-    ld a, 124           ; '|'
+    ld a, 124
     call FAST_WRTVRM
-    
-    pop bc              ; Restore Counters
-    pop hl              ; Restore Row Start
-    
+    pop bc
+    pop hl
     ld de, 32
-    add hl, de          ; Next Row
+    add hl, de
     dec c
     jr nz, .middle_row_loop
-    
 .bottom_row:
-    ; Draw Bottom Row
-    ; Bottom-Left Corner
-    ld a, 43            ; '+'
+    ld a, 43
     call FAST_WRTVRM
     inc hl
-    
-    ; Bottom Edge
     ld a, b
-    sub 2               ; Width - 2 corners
+    sub 2
     jr z, .skip_bottom_edge
     jr c, .skip_bottom_edge
     ld b, a
 .bottom_edge_loop:
-    ld a, 45            ; '-'
+    ld a, 45
     call FAST_WRTVRM
     inc hl
     djnz .bottom_edge_loop
 .skip_bottom_edge:
-    
-    ; Bottom-Right Corner
-    ld a, 43            ; '+'
+    ld a, 43
     call FAST_WRTVRM
-    
     pop hl
     pop de
     pop bc
@@ -13220,17 +13194,12 @@ hud_draw_frame:
 ; update_hud_score
 ; Update score HUD element with current score value
 ; Input: HL = Score value (16-bit binary, 0-65535)
-; Writes score digits directly into the HUD numeric field in VRAM
 ; Output:
 ;   None
 ; Clobbers:
 ;   None visible to caller
 ; Preserves:
 ;   AF, BC, DE, HL
-; Notes:
-;   - Uses BC internally for decimal divisors
-;   - Uses DE internally as VRAM cursor for the numeric field
-;   - Writes only the numeric digits; the static "SCORE: " label is not touched
 ; ------------------------------------------------------------------
 update_hud_score:
     push af
@@ -13238,13 +13207,11 @@ update_hud_score:
     push de
     push hl
 
-    ; Direct VRAM update of the numeric HUD field.
-    ; Static label ("SCORE: ") stays in ROM; only digits are rewritten.
     ld de, #1827
 
     ; Runtime digit 0: / 1000
     ld bc, 1000
-    call .div16
+    call hud_div16
     add a, '0'
     push hl
     ld h, d
@@ -13254,7 +13221,7 @@ update_hud_score:
     inc de
     ; Runtime digit 1: / 100
     ld bc, 100
-    call .div16
+    call hud_div16
     add a, '0'
     push hl
     ld h, d
@@ -13264,7 +13231,7 @@ update_hud_score:
     inc de
     ; Runtime digit 2: / 10
     ld bc, 10
-    call .div16
+    call hud_div16
     add a, '0'
     push hl
     ld h, d
@@ -13280,7 +13247,6 @@ update_hud_score:
     ld l, e
     call FAST_WRTVRM
     pop hl
-
     pop hl
     pop de
     pop bc
@@ -13288,16 +13254,16 @@ update_hud_score:
     ret
 
 ; Helper: HL = HL / BC, A = quotient, HL = remainder
-.div16:
-    xor a                       ; Quotient = 0
-.div16_loop:
-    or a                        ; Clear carry
-    sbc hl, bc                  ; HL -= BC
-    jr c, .div16_done           ; If underflow, done
-    inc a                       ; Quotient++
-    jr .div16_loop
-.div16_done:
-    add hl, bc                  ; Restore remainder
+hud_div16:
+    xor a
+.hud_div16_loop:
+    or a
+    sbc hl, bc
+    jr c, .hud_div16_done
+    inc a
+    jr .hud_div16_loop
+.hud_div16_done:
+    add hl, bc
     ret
 
 ; ------------------------------------------------------------------
@@ -13310,18 +13276,13 @@ update_hud_score:
 ;   None visible to caller
 ; Preserves:
 ;   AF, HL
-; Notes:
-;   - Writes only the numeric digit in VRAM; the static label is not touched
 ; ------------------------------------------------------------------
 update_hud_lives:
     push af
     push hl
-
-    ; Direct VRAM update of the Lives numeric field.
-    add a, '0'                  ; Convert to ASCII
+    add a, '0'
     ld hl, #182D
     call FAST_WRTVRM
-
     pop hl
     pop af
     ret
@@ -15912,12 +15873,10 @@ SM_FacingDirTablePtrs:
 ;   2. Commit: escribe el sprite final en entity_sprite_asset_index.
 ;   3. Reset de animación: pone entity_anim_frame y entity_anim_tick a 0.
 ;   4. Flags de animación: activa PLAYING, aplica el flag de LOOP del
-;      sprite, y para sprites one-shot borra ONLY_WHEN_MOVING para que
-;      la animación avance aunque la entidad esté quieta.
-;   5. Upload inmediato: copia el frame 0 del nuevo sprite a VRAM en
-;      el mismo frame para que el cambio sea visible sin esperar al
-;      siguiente ciclo de update_animation_component.
-;   6. Colores de capas: actualiza sprite_layer_colors (tabla RAM) con
+;      sprite, borra ONLY_WHEN_MOVING y marca FORCE_UPLOAD para que el
+;      frame 0 se suba limpio al comienzo del siguiente ciclo normal de
+;      animación, fuera del path de cambio de sprite.
+;   5. Colores de capas: actualiza sprite_layer_colors (tabla RAM) con
 ;      los colores del nuevo sprite desde SM_SpriteLayerColorTable.
 ;
 ; Input:
@@ -15953,6 +15912,7 @@ SM_FacingDirTablePtrs:
 ;   bit 1 = ANIM_FLAG_LOOP          (1 = bucle infinito, 0 = one-shot)
 ;   bit 2 = ANIM_FLAG_ONLY_WHEN_MOVING (1 = solo anima si vel != 0)
 ;   bit 3 = ANIM_FLAG_COMPLETED     (1 = one-shot llegó al último frame)
+;   bit 4 = ANIM_FLAG_FORCE_UPLOAD  (1 = subir frame actual en el próximo update_animation_component)
 ;
 ; NOTA: el bloque de redirect direccional usa B como registro temporal
 ; para guardar el sprite ID. Al salir del bloque, B queda corrupto.
@@ -16037,7 +15997,7 @@ Action_ChangeSprite:
     ; BLOQUE 2: Commit del sprite y reset de estado de animación
     ; ------------------------------------------------------------------
 
-    ; D guardará el sprite ID para uso posterior (VRAM upload, loop flags).
+    ; D guardará el sprite ID para uso posterior (color update, loop flags).
     ; No usar A directamente porque las instrucciones siguientes lo machan.
     ld d, a                 ; D = Sprite Asset ID final (preservado para los bloques 3-5)
     ld (hl), a              ; entity_sprite_asset_index[entity] = sprite ID final
@@ -16079,6 +16039,8 @@ Action_ChangeSprite:
     ;   - bit 0 (PLAYING)         → 1  (arrancar animación)
     ;   - bit 1 (LOOP)            → según sprite_loop_flags del nuevo sprite
     ;   - bit 2 (ONLY_WHEN_MOVING)→ 0  SIEMPRE, para cualquier sprite
+    ;   - bit 4 (FORCE_UPLOAD)    → 1  pedir subida del frame actual en el
+    ;                                 próximo update_animation_component
     ;
     ; Razón de limpiar ONLY_WHEN_MOVING siempre:
     ;   Cuando el SM llama ChangeSprite, lo hace porque quiere mostrar ese
@@ -16099,123 +16061,12 @@ Action_ChangeSprite:
     and #FD                 ; bit 1 = 0: limpiar ANIM_FLAG_LOOP antes de aplicar el nuevo
     or e                    ; bit 1 = nuevo loop flag (E=0x02 o 0x00 según el sprite)
     and #FB                 ; bit 2 = 0: borrar ANIM_FLAG_ONLY_WHEN_MOVING (siempre)
+    and #EF                 ; bit 4 = 0: limpiar FORCE_UPLOAD previo
+    or ANIM_FLAG_FORCE_UPLOAD
     ld (hl), a              ; entity_anim_flags[entity] = flags actualizados
 
     ; ------------------------------------------------------------------
-    ; BLOQUE 5: Upload inmediato del frame 0 a VRAM
-    ;
-    ; update_animation_component no se ejecuta hasta el próximo frame.
-    ; Para que el sprite nuevo se vea en el frame actual, copiamos el
-    ; frame 0 directamente a VRAM ahora.
-    ;
-    ; Stack a la entrada de este bloque (top → bottom):
-    ;   HL = &entity_anim_flags[entity]  ← push hl
-    ;   BC = (0, entity_index)           ← push bc
-    ;   DE = (spriteId, loopFlag)        ← push de
-    ;
-    ; Al salir (.acs_upload_done) se recuperan los tres en orden inverso.
-    ; ------------------------------------------------------------------
-    push hl                 ; [stack] guarda ptr entity_anim_flags (descartado al salir)
-    push bc                 ; [stack] BC = (0, entity_index)
-    push de                 ; [stack] DE = (D=spriteId, E=loopFlag)
-
-    ; Validar que el sprite ID esté dentro del rango conocido
-    ld a, d                 ; A = sprite asset ID
-    cp SM_SpriteAssetCount  ; ¿fuera de rango?
-    jr nc, .acs_upload_done ; sí → saltar el upload (evitar acceso fuera de tabla)
-
-    ; Obtener puntero al frame 0: SM_SpritePatternPtrTable[spriteId * 2]
-    ; El banco ROM se deriva del propio puntero, no de una tabla separada.
-    ; Esto evita desincronizaciones cuando el export comprimido remapea
-    ; labels de sprite a blobs ZX0 en un postproceso posterior.
-    ld e, a
-    ld d, 0                 ; DE = sprite asset index
-
-    ld hl, SM_SpritePatternPtrTable
-    add hl, de
-    add hl, de              ; HL = &SM_SpritePatternPtrTable[spriteId * 2]
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ex de, hl               ; HL = puntero al frame 0 (datos de patrón en ROM)
-    push hl                 ; [stack] guarda puntero al frame 0
-
-    ; Mapear el banco ROM que contiene los datos del frame 0.
-    ; Bank = ((framePtr - #4000) / #2000), derivado en runtime desde HL.
-    ld a, h
-    sub #40
-    srl a
-    srl a
-    srl a
-    srl a
-    srl a
-    call mapper_push_p2     ; salva el banco actual de P2 en la pila del mapper
-    call mapper_set_bank_p2 ; mapea el banco del frame 0 en la ventana P2 (#8000-#BFFF)
-
-    ; Leer configuración HW del sprite: entity_sprite_config[entity * 2]
-    ;   byte 0: base HW sprite index (slot en la OAM, 0-31)
-    ;   byte 1: layer count (número de capas HW del sprite, típicamente 1-2)
-    ld e, c                 ; E = entity index (C preservado de antes)
-    ld d, 0
-    ld hl, entity_sprite_config
-    add hl, de
-    add hl, de              ; HL = &entity_sprite_config[entity * 2]
-    ld a, (hl)              ; A = base HW sprite index
-    inc hl
-    ld c, (hl)              ; C = layer count
-    ld d, a                 ; D = base HW sprite index
-
-    ; Si layer count = 0, no hay sprite HW asignado → saltar upload
-    ld a, c
-    or a
-    jr z, .acs_upload_pop_source
-
-    ; Calcular BC = layerCount * 32  (bytes totales de patrón a copiar)
-    ; Cada capa HW ocupa 32 bytes de patrón (sprite 16x16 = 2 tiles * 16 bytes, comprimido como 32)
-    ld a, c
-    ld b, 0
-    ld c, a                 ; C = layer count
-    sla c
-    rl b                    ; × 2
-    sla c
-    rl b                    ; × 4
-    sla c
-    rl b                    ; × 8
-    sla c
-    rl b                    ; × 16
-    sla c
-    rl b                    ; × 32  →  BC = layerCount * 32
-
-    ; Calcular DE = SPRPAT + baseHwSprite * 32  (destino en VRAM)
-    ld a, d                 ; A = base HW sprite index
-    ld l, a
-    ld h, 0
-    add hl, hl              ; × 2
-    add hl, hl              ; × 4
-    add hl, hl              ; × 8
-    add hl, hl              ; × 16
-    add hl, hl              ; × 32  →  HL = base * 32
-    ld de, SPRPAT
-    add hl, de              ; HL = SPRPAT + base * 32  (dirección VRAM del slot HW)
-    ex de, hl               ; DE = destino VRAM, HL libre para fuente
-
-    pop hl                  ; HL = puntero al frame 0 en ROM  [recuperado del stack]
-    call COPY_SPRITE_SRC_TO_VRAM
-    jr .acs_upload_restore_bank
-
-.acs_upload_pop_source:
-    pop hl                  ; descarta el puntero al frame 0 (layer count = 0, nada que copiar)
-
-.acs_upload_restore_bank:
-    call mapper_pop_p2      ; restaura el banco ROM que estaba antes en P2
-
-.acs_upload_done:
-    pop de                  ; DE: D = sprite asset ID, E = loop flag  [recuperado del stack]
-    pop bc                  ; BC = (0, entity_index)                  [recuperado del stack]
-    pop hl                  ; descarta ptr entity_anim_flags           [recuperado del stack]
-
-    ; ------------------------------------------------------------------
-    ; BLOQUE 6: Actualizar tabla de colores de capas en RAM
+    ; BLOQUE 5: Actualizar tabla de colores de capas en RAM
     ;
     ; sprite_layer_colors es una tabla RAM indexada por slot HW sprite.
     ; SM_SpriteLayerColorTable es una tabla ROM de SPRITE_MAX_ENTITY_LAYERS

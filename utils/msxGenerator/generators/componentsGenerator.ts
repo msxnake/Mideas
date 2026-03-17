@@ -2905,6 +2905,28 @@ function generateAnimationSystem(): string {
             jp z, anim_done_entity
 
         .tick:
+            ; ChangeSprite defers VRAM pattern uploads to the next animation
+            ; pass so the copy happens from the regular frame pipeline instead
+            ; of mid-frame inside the state-machine action path.
+            ld hl, entity_anim_flags
+            add hl, de
+            bit 4, (hl)
+            jr z, .anim_tick_advance
+            res 4, (hl)
+            ld hl, entity_sprite_asset_index
+            add hl, de
+            ld a, (hl)
+            cp #FF
+            jp z, anim_done_entity
+            cp SPRITE_ASSET_COUNT
+            jp nc, anim_done_entity
+            ld b, a                    ; B = sprite asset index for forced upload
+            ld hl, entity_anim_frame
+            add hl, de
+            ld a, (hl)
+            jp .anim_upload_frame
+
+        .anim_tick_advance:
             ; tick++
             ld hl, entity_anim_tick
             add hl, de
@@ -2989,6 +3011,7 @@ function generateAnimationSystem(): string {
             add hl, de
             ld (hl), a                 ; store new frame index
 
+        .anim_upload_frame:
             ; Get pointer to this sprite asset's frame pointer list
             ld l, b
             ld h, 0
@@ -6426,6 +6449,7 @@ ANIM_FLAG_PLAYING            EQU #01
 ANIM_FLAG_LOOP               EQU #02
 ANIM_FLAG_ONLY_WHEN_MOVING   EQU #04
 ANIM_FLAG_COMPLETED          EQU #08
+ANIM_FLAG_FORCE_UPLOAD       EQU #10
 ANIM_DEFAULT_SPEED           EQU 8
 
 COMP_POSITION   EQU 0
@@ -6720,6 +6744,7 @@ ANIM_FLAG_PLAYING            EQU #01
 ANIM_FLAG_LOOP               EQU #02
 ANIM_FLAG_ONLY_WHEN_MOVING   EQU #04
 ANIM_FLAG_COMPLETED          EQU #08
+ANIM_FLAG_FORCE_UPLOAD       EQU #10
 ANIM_DEFAULT_SPEED           EQU 8
 
     ; ==================================================================

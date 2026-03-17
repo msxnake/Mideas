@@ -1,0 +1,31 @@
+Para implementarlo bien en juego pato, haría esto:
+
+Crea una global GameTime o TiempoRestante, tipo 8bit.
+Motivo: en esta rama las acciones SET/INC/DEC_VARIABLE escriben en 8 bits, aunque existan globales de 16 bits. Está en stateMachineGenerator.ts#L1459, stateMachineGenerator.ts#L1575 y stateMachineGenerator.ts#L1658.
+
+Inicialízala al entrar al nivel.
+Ejemplo: GameTime = 90.
+
+En la state machine del héroe o en una entidad invisible “timer”, crea un estado tipo TimerRunning.
+
+Añade una transición de ese estado a sí mismo con:
+
+Condition = TIME_OUT
+duration = 60
+Acción: DECREMENT_VARIABLE GameTime, 1
+Eso te da 1 segundo por cada 60 frames. El TIME_OUT serializa esa duration en stateMachineGenerator.ts#L5628.
+
+Añade otra transición cuando GameTime <= 0 hacia GameOver, Lose, o el nodo que uses para salir del nivel.
+Aquí usaría una guard/compare contra la global, no TIME_OUT.
+Quedaría así, conceptualmente:
+
+Estado: TimerRunning
+  si TIME_OUT(60):
+    GameTime -= 1
+    volver a TimerRunning
+
+  si GameTime <= 0:
+    ir a TimeOver / GameOver
+Lo importante es esto: usa TIME_OUT como “tick de 60 frames”, no como “GameTime llegó a 0”. El contador real lo llevas en una global.
+
+Si quieres, te preparo el cambio exacto para juego pato: variable global, state machine del timer y salida a GameOver.
