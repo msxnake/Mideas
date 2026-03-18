@@ -39,6 +39,7 @@ function generateUnifiedFile(files, projectName, analysis, executionPlan, config
     autoMegaROM: false
 }) {
     // Check what features are needed
+    const hasPresentationScreenNode = analysis.gameFlow?.nodes?.some(node => node.type === 'PresentationScreen');
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
     const hasText = analysis.screenMaps?.some(screen => screen.layers?.text || screen.textElements?.length > 0);
     const hasHud = analysis.screenMaps?.some(screen => screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
@@ -86,7 +87,7 @@ ${analysis.tiles && analysis.tiles.length > 0 ? files['colors.asm'] : '; [colors
 
 ${files['sprites.asm']}
 
-${analysis.screenMaps && analysis.screenMaps.length > 0 ? files['screens.asm'] : '; [screens.asm skipped - no screens]\n'}
+${analysis.screenMaps && analysis.screenMaps.length > 0 || hasPresentationScreenNode ? files['screens.asm'] : '; [screens.asm skipped - no screens]\n'}
 
 ${files['components.asm']}
 

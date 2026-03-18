@@ -6,9 +6,78 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateHudFile = generateHudFile;
 const types_1 = require("../../../types");
+const globalVariablesUtils_1 = require("../../globalVariablesUtils");
 function hasGlobalVariable(analysis, asmName) {
     const globals = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
     return globals.some(variable => String(variable?.asmName || '').trim().toLowerCase() === asmName.toLowerCase());
+}
+function findGlobalVariable(analysis, rawName) {
+    const globals = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
+    const normalizedName = (0, globalVariablesUtils_1.normalizeGlobalVariableName)(rawName || '').trim().toLowerCase();
+    if (!normalizedName)
+        return null;
+    return globals.find(variable => {
+        const variableName = (0, globalVariablesUtils_1.normalizeGlobalVariableName)(String(variable?.name || '')).trim().toLowerCase();
+        const asmName = String(variable?.asmName || '').trim().toLowerCase();
+        return variableName === normalizedName || asmName === normalizedName;
+    }) || null;
+}
+function resolveHudDynamicFieldBinding(element, index, analysis) {
+    if (element.type === types_1.HUDElementType.Score || element.type === types_1.HUDElementType.Lives) {
+        return null;
+    }
+    const rawText = String(element.text || element.name || '');
+    const details = element.details || {};
+    const explicitVariableName = [details.variableName, details.globalVariableName, details.bindingVariable]
+        .find(value => typeof value === 'string' && value.trim().length > 0);
+    const placeholderMatch = rawText.match(/\{\{\s*([^{}]+?)\s*\}\}/);
+    const placeholderVariableName = placeholderMatch?.[1]?.trim();
+    const variableName = explicitVariableName || placeholderVariableName;
+    if (!variableName) {
+        return null;
+    }
+    const variable = findGlobalVariable(analysis, variableName);
+    if (!variable?.asmName) {
+        return null;
+    }
+    const isWord = ['word', '16bit'].includes(String(variable.type || '').toLowerCase());
+    const requestedDigits = Number(details.digits);
+    const hasRequestedDigits = Number.isFinite(requestedDigits) && requestedDigits > 0;
+    const fallbackDigits = isWord ? 5 : 3;
+    const digitMatch = /\d+(?!.*\d)/.exec(rawText);
+    let digits = hasRequestedDigits ? Math.floor(requestedDigits) : fallbackDigits;
+    let fieldOffset = rawText.length;
+    let staticText = rawText;
+    if (placeholderMatch && typeof placeholderMatch.index === 'number') {
+        fieldOffset = placeholderMatch.index;
+        staticText = `${rawText.slice(0, fieldOffset)}${'0'.repeat(digits)}${rawText.slice(fieldOffset + placeholderMatch[0].length)}`;
+    }
+    else if (digitMatch && typeof digitMatch.index === 'number') {
+        fieldOffset = digitMatch.index;
+        if (!hasRequestedDigits) {
+            digits = Math.max(1, digitMatch[0].length);
+        }
+        staticText = `${rawText.slice(0, fieldOffset)}${'0'.repeat(digits)}${rawText.slice(fieldOffset + digitMatch[0].length)}`;
+    }
+    else {
+        staticText = `${rawText}${'0'.repeat(digits)}`;
+    }
+    const tileX = Math.floor((element.position?.x || 0) / 8) + fieldOffset;
+    const tileY = Math.floor((element.position?.y || 0) / 8);
+    return {
+        index,
+        asmName: String(variable.asmName),
+        digits,
+        fieldOffset,
+        isWord,
+        staticText,
+        vramAddress: 0x1800 + (tileY * 32) + tileX,
+    };
+}
+function getHudDynamicFieldBindings(hudElements, analysis) {
+    return hudElements
+        .map((element, index) => resolveHudDynamicFieldBinding(element, index, analysis))
+        .filter((binding) => binding !== null);
 }
 /**
  * Generate HUD system ASM code
@@ -56,7 +125,7 @@ update_hud_lives:
 
 `;
     // Generate HUD data structures
-    asm += generateHudDataStructures(allHudElements);
+    asm += generateHudDataStructures(allHudElements, analysis);
     // Determine HUD row count from activeAreaY
     let hudRows = 0;
     analysis.screenMaps?.forEach(screen => {
@@ -69,18 +138,20 @@ update_hud_lives:
     // Generate main render_hud function
     asm += generateRenderHudFunction(allHudElements, hudRows, analysis);
     // Generate helper functions
-    asm += generateHudHelperFunctions(allHudElements);
+    asm += generateHudHelperFunctions(allHudElements, analysis);
     return asm;
 }
 /**
  * Generate HUD data structures
  */
-function generateHudDataStructures(hudElements) {
+function generateHudDataStructures(hudElements, analysis) {
     let asm = `; ------------------------------------------------------------------
 ; HUD DATA STRUCTURES
 ; ------------------------------------------------------------------
 
 `;
+    const dynamicFieldBindings = getHudDynamicFieldBindings(hudElements, analysis);
+    const dynamicFieldBindingMap = new Map(dynamicFieldBindings.map(binding => [binding.index, binding]));
     // Generate element count
     asm += `HUD_ELEMENT_COUNT   EQU ${hudElements.length}\n\n`;
     // Generate element data table
@@ -104,8 +175,9 @@ function generateHudDataStructures(hudElements) {
             flags |= 1; // Bit 0: Draw Border
         }
         // Calculate width based on text length or explicit width
-        if (el.text) {
-            width = el.text.length;
+        const renderedText = dynamicFieldBindingMap.get(index)?.staticText || el.text || el.name || '';
+        if (renderedText) {
+            width = renderedText.length;
         }
         else if (details.width) {
             width = Math.ceil(details.width / 8); // Convert pixels to tiles if needed
@@ -128,7 +200,7 @@ function generateHudDataStructures(hudElements) {
     // Generate text strings
     asm += `; HUD Text Strings\n`;
     hudElements.forEach((el, index) => {
-        const text = el.text || el.name || '';
+        const text = dynamicFieldBindingMap.get(index)?.staticText || el.text || el.name || '';
         const textLabel = `hud_text_${index}`;
         asm += `${textLabel}:\n`;
         asm += `    DB "${text}", 0\n`;
@@ -228,6 +300,7 @@ function generateRenderHudFunction(hudElements, hudRows, analysis) {
     const clearHudArea = '';
     const scoreIndex = hudElements.findIndex(el => el.type === types_1.HUDElementType.Score);
     const livesIndex = hudElements.findIndex(el => el.type === types_1.HUDElementType.Lives);
+    const dynamicFieldBindings = getHudDynamicFieldBindings(hudElements, analysis);
     const hasScoreGlobal = hasGlobalVariable(analysis, 'global_var_score');
     const hasLivesGlobal = hasGlobalVariable(analysis, 'global_var_lives');
     const dynamicSyncCode = `${scoreIndex >= 0 && hasScoreGlobal ? `
@@ -245,7 +318,16 @@ function generateRenderHudFunction(hudElements, hudRows, analysis) {
     call update_hud_lives
 ` : livesIndex >= 0 ? `
     ; Lives HUD present but global_var_lives is not allocated in this project.
-` : ''}`;
+` : ''}${dynamicFieldBindings.map(binding => `
+    ; Re-apply HUD-bound numeric field ${binding.index} from ${binding.asmName}.
+${binding.isWord ? `    ld a, (${binding.asmName})
+    ld l, a
+    ld a, (${binding.asmName}+1)
+    ld h, a` : `    ld a, (${binding.asmName})
+    ld l, a
+    ld h, 0`}
+    call update_hud_dynamic_${binding.index}
+`).join('')}`;
     return `; ------------------------------------------------------------------
 ; render_hud
 ; Main HUD rendering function
@@ -260,7 +342,7 @@ function generateRenderHudFunction(hudElements, hudRows, analysis) {
 ;   AF, BC, DE, HL, IX
 ; Notes:
 ;   - Returns immediately if hud_dirty_flag = 0
-;   - Re-applies dynamic numeric fields (Score/Lives) after redrawing static text
+;   - Re-applies dynamic numeric fields (Score/Lives/custom bindings) after redrawing static text
 ; ------------------------------------------------------------------
 render_hud:
     ld a, (hud_dirty_flag)
@@ -425,20 +507,18 @@ force_render_hud:
 /**
  * Generate HUD helper functions
  */
-function generateHudHelperFunctions(hudElements) {
-    // Find the actual element indices for Score and Lives
+function generateHudHelperFunctions(hudElements, analysis) {
     const scoreIndex = hudElements.findIndex(el => el.type === types_1.HUDElementType.Score);
     const livesIndex = hudElements.findIndex(el => el.type === types_1.HUDElementType.Lives);
     const scoreElement = scoreIndex >= 0 ? hudElements[scoreIndex] : null;
     const livesElement = livesIndex >= 0 ? hudElements[livesIndex] : null;
     const scoreLabel = scoreIndex >= 0 ? `hud_text_${scoreIndex}` : null;
     const livesLabel = livesIndex >= 0 ? `hud_text_${livesIndex}` : null;
+    const dynamicFieldBindings = getHudDynamicFieldBindings(hudElements, analysis);
     const getNumericFieldInfo = (text, fallbackDigits) => {
         const safeText = text || '';
         const match = /\d+(?!.*\d)/.exec(safeText);
         if (!match || typeof match.index !== 'number') {
-            // No numeric placeholder in the static label: append the runtime field
-            // immediately after the label text instead of overwriting its first char.
             return { offset: safeText.length, digits: fallbackDigits };
         }
         return {
@@ -459,11 +539,13 @@ function generateHudHelperFunctions(hudElements) {
     };
     const scoreFieldVramAddress = getFieldVramAddress(scoreElement, scoreField.offset);
     const livesFieldVramAddress = getFieldVramAddress(livesElement, livesField.offset);
-    const scoreSupportedDigits = Math.min(scoreField.digits, 5);
-    const scoreLeadingZeroCount = Math.max(0, scoreField.digits - scoreSupportedDigits);
-    const availableScoreDivisors = [10000, 1000, 100, 10];
-    const scoreDivisors = availableScoreDivisors.slice(availableScoreDivisors.length - Math.max(0, scoreSupportedDigits - 1));
-    const scoreLeadingZeroCode = Array.from({ length: scoreLeadingZeroCount }, (_, index) => `    ; Leading digit ${index}: forced zero (Score is 16-bit max 65535)
+    const buildDecimalWriteCode = (digits, scoreMode = false) => {
+        const safeDigits = Math.max(1, digits);
+        const supportedDigits = Math.min(safeDigits, 5);
+        const leadingZeroCount = Math.max(0, safeDigits - supportedDigits);
+        const availableDivisors = [10000, 1000, 100, 10];
+        const divisors = availableDivisors.slice(availableDivisors.length - Math.max(0, supportedDigits - 1));
+        const leadingZeroCode = Array.from({ length: leadingZeroCount }, (_, index) => `    ; Leading digit ${index}: forced zero (${scoreMode ? 'Score' : '16-bit value'} max 65535)
     ld a, '0'
     push hl
     ld h, d
@@ -472,9 +554,9 @@ function generateHudHelperFunctions(hudElements) {
     pop hl
     inc de
 `).join('');
-    const scoreDigitsCode = scoreDivisors.map((divisor, index) => `    ; Runtime digit ${index}: / ${divisor}
+        const digitCode = divisors.map((divisor, index) => `    ; Runtime digit ${index}: / ${divisor}
     ld bc, ${divisor}
-    call .div16
+    call hud_div16
     add a, '0'
     push hl
     ld h, d
@@ -482,6 +564,45 @@ function generateHudHelperFunctions(hudElements) {
     call FAST_WRTVRM
     pop hl
     inc de
+`).join('');
+        return `${leadingZeroCode}${digitCode}    ; Final digit: ones (remainder)
+    ld a, l
+    add a, '0'
+    push hl
+    ld h, d
+    ld l, e
+    call FAST_WRTVRM
+    pop hl
+`;
+    };
+    const scoreWriteCode = buildDecimalWriteCode(scoreField.digits, true);
+    const dynamicFieldHelpers = dynamicFieldBindings.map(binding => `; ------------------------------------------------------------------
+; update_hud_dynamic_${binding.index}
+; Update HUD-bound numeric field ${binding.index} from HL value
+; Input: HL = Current value (16-bit binary, 0-65535)
+; Output:
+;   None
+; Clobbers:
+;   None visible to caller
+; Preserves:
+;   AF, BC, DE, HL
+; Notes:
+;   - Writes only the numeric digits in VRAM; the static label is not touched
+; ------------------------------------------------------------------
+update_hud_dynamic_${binding.index}:
+    push af
+    push bc
+    push de
+    push hl
+
+    ld de, #${binding.vramAddress.toString(16).toUpperCase()}
+
+${buildDecimalWriteCode(binding.digits)}    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
 `).join('');
     return `; ------------------------------------------------------------------
 ; hud_print_string
@@ -499,23 +620,15 @@ hud_print_string:
     or a                        ; Check for null terminator
     jr z, .print_done
 
-    ; OPTIMIZED: Inline ASCII validation (saves CALL/RET overhead = 27 cycles)
     cp 32                       ; Check if >= 32 (printable ASCII)
-    jr nc, .valid_char          ; If valid, skip to write
+    jr nc, .valid_char
     ld a, 32                    ; Replace control chars with space
 .valid_char:
-
-    ; Write tile to VRAM Name Table
-    ; WRTVRM signature: A = data, HL = VRAM address
-    ; A already has character, HL already has VRAM address
-    push de                     ; Save string pointer
-    call FAST_WRTVRM            ; Write A to VRAM at HL
-    pop de                      ; Restore string pointer
-
-    ; Move to next character
-    inc de                      ; Next char in string
-    inc hl                      ; Next VRAM position
-
+    push de
+    call FAST_WRTVRM
+    pop de
+    inc de
+    inc hl
     jr .print_loop
 
 .print_done:
@@ -532,15 +645,9 @@ hud_print_string:
 ; Output: A = Tile index (ASCII code for direct mapping)
 ; ------------------------------------------------------------------
 hud_ascii_to_tile:
-    ; SIMPLIFIED: Just return the ASCII code directly
-    ; Font patterns are loaded at their ASCII positions
-    
-    ; Validate range (printable ASCII 32-126)
     cp 32
-    ret nc              ; If >= 32, it's valid - return as-is
-    
-    ; Below 32 (control characters) - default to space
-    ld a, 32            ; Space character
+    ret nc
+    ld a, 32
     ret
 
 ; ------------------------------------------------------------------
@@ -554,116 +661,80 @@ hud_draw_frame:
     push bc
     push de
     push hl
-    
-    ; Calculate VRAM Start Address
-    ; Addr = #1800 + (E * 32) + D
     ld l, e
     ld h, 0
-    add hl, hl          ; * 2
-    add hl, hl          ; * 4
-    add hl, hl          ; * 8
-    add hl, hl          ; * 16
-    add hl, hl          ; * 32
-    
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
     ld e, d
     ld d, 0
     add hl, de
     ld de, #1800
-    add hl, de          ; HL = Top-Left Corner VRAM Address
-    
-    ; Draw Top Row
-    push hl             ; Save Start Address
-    push bc             ; Save Dimensions
-    
-    ; Top-Left Corner
-    ld a, 43            ; '+'
+    add hl, de
+    push hl
+    push bc
+    ld a, 43
     call FAST_WRTVRM
     inc hl
-    
-    ; Top Edge
     ld a, b
-    sub 2               ; Width - 2 corners
-    jr z, .skip_top_edge ; Skip if exactly 2 wide (no edge)
-    jr c, .skip_top_edge ; Skip if < 2 wide
+    sub 2
+    jr z, .skip_top_edge
+    jr c, .skip_top_edge
     ld b, a
 .top_edge_loop:
-    ld a, 45            ; '-'
+    ld a, 45
     call FAST_WRTVRM
     inc hl
     djnz .top_edge_loop
 .skip_top_edge:
-    
-    ; Top-Right Corner
-    ld a, 43            ; '+'
+    ld a, 43
     call FAST_WRTVRM
-    
-    pop bc              ; Restore Dimensions
-    pop hl              ; Restore Start Address
-    
-    ; Move to next row
+    pop bc
+    pop hl
     ld de, 32
     add hl, de
-    
-    ; Draw Middle Rows (Vertical Edges)
     ld a, c
-    sub 2               ; Height - 2 rows
-    jr z, .bottom_row   ; Skip if height is small
-    jr c, .bottom_row   ; Skip if height is < 2
-    ld c, a             ; C = Middle Rows count
-    
+    sub 2
+    jr z, .bottom_row
+    jr c, .bottom_row
+    ld c, a
 .middle_row_loop:
-    push hl             ; Save Row Start
-    push bc             ; Save Counters
-    
-    ; Left Edge
-    ld a, 124           ; '|'
+    push hl
+    push bc
+    ld a, 124
     call FAST_WRTVRM
-    
-    ; Skip Middle (Content Area)
     ld a, b
-    dec a               ; Width - 1
-    ; Ensure we don't add negative offset if width is 0 (unlikely here but safe)
-    ; Actually Width must be at least 2 to have corners, so Width-1 >= 1.
+    dec a
     ld e, a
     ld d, 0
     add hl, de
-    
-    ; Right Edge
-    ld a, 124           ; '|'
+    ld a, 124
     call FAST_WRTVRM
-    
-    pop bc              ; Restore Counters
-    pop hl              ; Restore Row Start
-    
+    pop bc
+    pop hl
     ld de, 32
-    add hl, de          ; Next Row
+    add hl, de
     dec c
     jr nz, .middle_row_loop
-    
 .bottom_row:
-    ; Draw Bottom Row
-    ; Bottom-Left Corner
-    ld a, 43            ; '+'
+    ld a, 43
     call FAST_WRTVRM
     inc hl
-    
-    ; Bottom Edge
     ld a, b
-    sub 2               ; Width - 2 corners
+    sub 2
     jr z, .skip_bottom_edge
     jr c, .skip_bottom_edge
     ld b, a
 .bottom_edge_loop:
-    ld a, 45            ; '-'
+    ld a, 45
     call FAST_WRTVRM
     inc hl
     djnz .bottom_edge_loop
 .skip_bottom_edge:
-    
-    ; Bottom-Right Corner
-    ld a, 43            ; '+'
+    ld a, 43
     call FAST_WRTVRM
-    
     pop hl
     pop de
     pop bc
@@ -674,17 +745,12 @@ hud_draw_frame:
 ; update_hud_score
 ; Update score HUD element with current score value
 ; Input: HL = Score value (16-bit binary, 0-65535)
-; Writes score digits directly into the HUD numeric field in VRAM
 ; Output:
 ;   None
 ; Clobbers:
 ;   None visible to caller
 ; Preserves:
 ;   AF, BC, DE, HL
-; Notes:
-;   - Uses BC internally for decimal divisors
-;   - Uses DE internally as VRAM cursor for the numeric field
-;   - Writes only the numeric digits; the static "SCORE: " label is not touched
 ; ------------------------------------------------------------------
 update_hud_score:
 ${scoreLabel ? `    push af
@@ -692,38 +758,27 @@ ${scoreLabel ? `    push af
     push de
     push hl
 
-    ; Direct VRAM update of the numeric HUD field.
-    ; Static label ("SCORE: ") stays in ROM; only digits are rewritten.
     ld de, #${(scoreFieldVramAddress || 0).toString(16).toUpperCase()}
 
-${scoreLeadingZeroCode}${scoreDigitsCode}    ; Final digit: ones (remainder)
-    ld a, l
-    add a, '0'
-    push hl
-    ld h, d
-    ld l, e
-    call FAST_WRTVRM
-    pop hl
-
-    pop hl
+${scoreWriteCode}    pop hl
     pop de
     pop bc
     pop af` : `    ; No Score element defined in HUD`}
     ret
 
-${scoreLabel ? `; Helper: HL = HL / BC, A = quotient, HL = remainder
-.div16:
-    xor a                       ; Quotient = 0
-.div16_loop:
-    or a                        ; Clear carry
-    sbc hl, bc                  ; HL -= BC
-    jr c, .div16_done           ; If underflow, done
-    inc a                       ; Quotient++
-    jr .div16_loop
-.div16_done:
-    add hl, bc                  ; Restore remainder
+; Helper: HL = HL / BC, A = quotient, HL = remainder
+hud_div16:
+    xor a
+.hud_div16_loop:
+    or a
+    sbc hl, bc
+    jr c, .hud_div16_done
+    inc a
+    jr .hud_div16_loop
+.hud_div16_done:
+    add hl, bc
     ret
-` : ``}
+
 ; ------------------------------------------------------------------
 ; update_hud_lives
 ; Update lives HUD element
@@ -734,23 +789,18 @@ ${scoreLabel ? `; Helper: HL = HL / BC, A = quotient, HL = remainder
 ;   None visible to caller
 ; Preserves:
 ;   AF, HL
-; Notes:
-;   - Writes only the numeric digit in VRAM; the static label is not touched
 ; ------------------------------------------------------------------
 update_hud_lives:
 ${livesLabel ? `    push af
     push hl
-
-    ; Direct VRAM update of the Lives numeric field.
-    add a, '0'                  ; Convert to ASCII
+    add a, '0'
     ld hl, #${(livesFieldVramAddress || 0).toString(16).toUpperCase()}
     call FAST_WRTVRM
-
     pop hl
     pop af` : `    ; No Lives element defined in HUD`}
     ret
 
-`;
+${dynamicFieldHelpers}`;
 }
 /**
  * Get HUD element type ID for ASM

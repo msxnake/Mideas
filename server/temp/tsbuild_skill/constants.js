@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.HELP_DOCS_SYSTEM_ASSET_ID = exports.EFFECT_ZONE_TYPE_CONFIG = exports.DEFAULT_MAIN_MENU_CONFIG = exports.DEFAULT_TILE_BANK_DEFINITIONS = exports.DEFAULT_PSG_INSTRUMENTS = exports.PT3_KEYBOARD_OCTAVE_MIN_MAX = exports.PT3_PIANO_KEY_LAYOUT = exports.PT3_INSTRUMENT_DATA_SIZE = exports.PT3_ORNAMENT_LENGTH = exports.PT3_DEFAULT_VIBRATO_TABLE = exports.PT3_NOTE_NAMES = exports.SCC_CHANNELS = exports.PT3_CHANNELS = exports.PT3_MAX_ORNAMENTS = exports.PT3_MAX_INSTRUMENTS = exports.PT3_MAX_PATTERNS = exports.DEFAULT_PT3_SPEED = exports.DEFAULT_PT3_BPM = exports.DEFAULT_PT3_ROWS_PER_PATTERN = exports.MSX1_DEFAULT_COLOR = exports.MSX1_PALETTE_IDX_MAP = exports.MSX1_PALETTE_MAP = exports.DEFAULT_SCREEN2_BG_COLOR = exports.DEFAULT_SCREEN2_FG_COLOR = exports.DEFAULT_SCREEN2_BG_COLOR_INDEX = exports.DEFAULT_SCREEN2_FG_COLOR_INDEX = exports.SCREEN2_PIXELS_PER_COLOR_SEGMENT = exports.Z80_BEHAVIOR_SNIPPETS = exports.Z80_SNIPPETS = exports.Z80_DIRECTIVES = exports.Z80_CONDITIONS = exports.Z80_REGISTERS = exports.Z80_MNEMONICS = exports.DEFAULT_SCREEN_MODE = exports.SCREEN_MODES = exports.EMPTY_CELL_CHAR_CODE = exports.EDITOR_BASE_TILE_DIM_S2 = exports.DEFAULT_SCREEN_HEIGHT_TILES = exports.DEFAULT_SCREEN_WIDTH_TILES = exports.DEFAULT_SPRITE_SIZE = exports.DEFAULT_TILE_HEIGHT = exports.DEFAULT_TILE_WIDTH = exports.EDITABLE_TILE_DIMENSIONS = exports.DEFAULT_SCREEN5_CUSTOM_PALETTE = exports.snapHexToScreen5MasterColor = exports.MSX_SCREEN5_MASTER_PALETTE = exports.MSX2_COLOR_LEVELS = exports.MSX1_PALETTE = exports.MSX_SCREEN5_PALETTE = exports.APP_VERSION = void 0;
-exports.MIDEAS_GLOBAL_VARIABLES = exports.MAX_HISTORY_LENGTH = exports.DEFAULT_HELP_DOCS_DATA = void 0;
+exports.EFFECT_ZONE_TYPE_CONFIG = exports.DEFAULT_PRESENTATION_SCREEN_CONFIG = exports.DEFAULT_MAIN_MENU_CONFIG = exports.DEFAULT_TILE_BANK_DEFINITIONS = exports.DEFAULT_PSG_INSTRUMENTS = exports.PT3_KEYBOARD_OCTAVE_MIN_MAX = exports.PT3_PIANO_KEY_LAYOUT = exports.PT3_INSTRUMENT_DATA_SIZE = exports.PT3_ORNAMENT_LENGTH = exports.PT3_DEFAULT_VIBRATO_TABLE = exports.PT3_NOTE_NAMES = exports.SCC_CHANNELS = exports.PT3_CHANNELS = exports.PT3_MAX_ORNAMENTS = exports.PT3_MAX_INSTRUMENTS = exports.PT3_MAX_PATTERNS = exports.DEFAULT_PT3_SPEED = exports.DEFAULT_PT3_BPM = exports.DEFAULT_PT3_ROWS_PER_PATTERN = exports.MSX1_DEFAULT_COLOR = exports.MSX1_PALETTE_IDX_MAP = exports.MSX1_PALETTE_MAP = exports.DEFAULT_SCREEN2_BG_COLOR = exports.DEFAULT_SCREEN2_FG_COLOR = exports.DEFAULT_SCREEN2_BG_COLOR_INDEX = exports.DEFAULT_SCREEN2_FG_COLOR_INDEX = exports.SCREEN2_PIXELS_PER_COLOR_SEGMENT = exports.Z80_BEHAVIOR_SNIPPETS = exports.Z80_SNIPPETS = exports.Z80_DIRECTIVES = exports.Z80_CONDITIONS = exports.Z80_REGISTERS = exports.Z80_MNEMONICS = exports.DEFAULT_SCREEN_MODE = exports.SCREEN_MODES = exports.EMPTY_CELL_CHAR_CODE = exports.EDITOR_BASE_TILE_DIM_S2 = exports.DEFAULT_SCREEN_HEIGHT_TILES = exports.DEFAULT_SCREEN_WIDTH_TILES = exports.DEFAULT_SPRITE_SIZE = exports.DEFAULT_TILE_HEIGHT = exports.DEFAULT_TILE_WIDTH = exports.EDITABLE_TILE_DIMENSIONS = exports.DEFAULT_SCREEN5_CUSTOM_PALETTE = exports.snapHexToScreen5MasterColor = exports.MSX_SCREEN5_MASTER_PALETTE = exports.MSX2_COLOR_LEVELS = exports.MSX1_PALETTE = exports.MSX_SCREEN5_PALETTE = exports.APP_VERSION = void 0;
+exports.MIDEAS_GLOBAL_VARIABLES = exports.MAX_HISTORY_LENGTH = exports.DEFAULT_HELP_DOCS_DATA = exports.HELP_DOCS_SYSTEM_ASSET_ID = void 0;
 exports.getMideasVariableValues = getMideasVariableValues;
 exports.getMideasVariable = getMideasVariable;
 const types_1 = require("./types");
@@ -620,6 +620,56 @@ exports.DEFAULT_MAIN_MENU_CONFIG = {
     },
 };
 // --- End Main Menu Constants ---
+// --- Presentation Screen Constants ---
+exports.DEFAULT_PRESENTATION_SCREEN_CONFIG = {
+    enabled: false,
+    name: 'Presentation Screen',
+    sourceFileName: null,
+    sourceImageWidth: 0,
+    sourceImageHeight: 0,
+    screenMode: 'SCREEN 2',
+    paletteMode: 'MSX1',
+    conversion: {
+        dither: 'none',
+        backgroundColorIndex: 4,
+        preferExistingPalette: false,
+        twoColorsPer8PixelRow: true,
+        deduplicatePatterns: true,
+    },
+    preview: {
+        paletteIndices: [],
+        uniqueCharsPerBank: [0, 0, 0],
+        totalUniqueChars: 0,
+        warning: null,
+    },
+    data: {
+        nameTable: [],
+        patternBank0: [],
+        patternBank1: [],
+        patternBank2: [],
+        colorBank0: [],
+        colorBank1: [],
+        colorBank2: [],
+        patternCountBank0: 0,
+        patternCountBank1: 0,
+        patternCountBank2: 0,
+    },
+    compression: {
+        codec: 'ZX0',
+        compressNameTable: true,
+        compressPatterns: true,
+        compressColors: true,
+    },
+    runtime: {
+        showAtBoot: false,
+        clearSpritesBeforeShow: true,
+        waitForKey: true,
+        waitForFrames: 0,
+    },
+    updatedAt: null,
+    lastImportError: null,
+};
+// --- End Presentation Screen Constants ---
 // --- Effect Zone Constants ---
 /** Re-export of effect zone display metadata from `types.ts` for convenient access. */
 exports.EFFECT_ZONE_TYPE_CONFIG = types_1.EFFECT_ZONE_TYPE_CONFIG;

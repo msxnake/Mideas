@@ -896,12 +896,10 @@ SM_FacingDirTablePtrs:
 ;   2. Commit: escribe el sprite final en entity_sprite_asset_index.
 ;   3. Reset de animación: pone entity_anim_frame y entity_anim_tick a 0.
 ;   4. Flags de animación: activa PLAYING, aplica el flag de LOOP del
-;      sprite, y para sprites one-shot borra ONLY_WHEN_MOVING para que
-;      la animación avance aunque la entidad esté quieta.
-;   5. Upload inmediato: copia el frame 0 del nuevo sprite a VRAM en
-;      el mismo frame para que el cambio sea visible sin esperar al
-;      siguiente ciclo de update_animation_component.
-;   6. Colores de capas: actualiza sprite_layer_colors (tabla RAM) con
+;      sprite, borra ONLY_WHEN_MOVING y marca FORCE_UPLOAD para que el
+;      frame 0 se suba limpio al comienzo del siguiente ciclo normal de
+;      animación, fuera del path de cambio de sprite.
+;   5. Colores de capas: actualiza sprite_layer_colors (tabla RAM) con
 ;      los colores del nuevo sprite desde SM_SpriteLayerColorTable.
 ;
 ; Input:
@@ -937,6 +935,7 @@ SM_FacingDirTablePtrs:
 ;   bit 1 = ANIM_FLAG_LOOP          (1 = bucle infinito, 0 = one-shot)
 ;   bit 2 = ANIM_FLAG_ONLY_WHEN_MOVING (1 = solo anima si vel != 0)
 ;   bit 3 = ANIM_FLAG_COMPLETED     (1 = one-shot llegó al último frame)
+;   bit 4 = ANIM_FLAG_FORCE_UPLOAD  (1 = subir frame actual en el próximo update_animation_component)
 ;
 ; NOTA: el bloque de redirect direccional usa B como registro temporal
 ; para guardar el sprite ID. Al salir del bloque, B queda corrupto.
@@ -1021,7 +1020,7 @@ Action_ChangeSprite:
     ; BLOQUE 2: Commit del sprite y reset de estado de animación
     ; ------------------------------------------------------------------
 
-    ; D guardará el sprite ID para uso posterior (VRAM upload, loop flags).
+    ; D guardará el sprite ID para uso posterior (color update, loop flags).
     ; No usar A directamente porque las instrucciones siguientes lo machan.
     ld d, a                 ; D = Sprite Asset ID final (preservado para los bloques 3-5)
     ld (hl), a              ; entity_sprite_asset_index[entity] = sprite ID final
@@ -1063,6 +1062,8 @@ Action_ChangeSprite:
     ;   - bit 0 (PLAYING)         → 1  (arrancar animación)
     ;   - bit 1 (LOOP)            → según sprite_loop_flags del nuevo sprite
     ;   - bit 2 (ONLY_WHEN_MOVING)→ 0  SIEMPRE, para cualquier sprite
+    ;   - bit 4 (FORCE_UPLOAD)    → 1  pedir subida del frame actual en el
+    ;                                 próximo update_animation_component
     ;
     ; Razón de limpiar ONLY_WHEN_MOVING siempre:
     ;   Cuando el SM llama ChangeSprite, lo hace porque quiere mostrar ese
@@ -1083,123 +1084,12 @@ Action_ChangeSprite:
     and #FD                 ; bit 1 = 0: limpiar ANIM_FLAG_LOOP antes de aplicar el nuevo
     or e                    ; bit 1 = nuevo loop flag (E=0x02 o 0x00 según el sprite)
     and #FB                 ; bit 2 = 0: borrar ANIM_FLAG_ONLY_WHEN_MOVING (siempre)
+    and #EF                 ; bit 4 = 0: limpiar FORCE_UPLOAD previo
+    or ANIM_FLAG_FORCE_UPLOAD
     ld (hl), a              ; entity_anim_flags[entity] = flags actualizados
 
     ; ------------------------------------------------------------------
-    ; BLOQUE 5: Upload inmediato del frame 0 a VRAM
-    ;
-    ; update_animation_component no se ejecuta hasta el próximo frame.
-    ; Para que el sprite nuevo se vea en el frame actual, copiamos el
-    ; frame 0 directamente a VRAM ahora.
-    ;
-    ; Stack a la entrada de este bloque (top → bottom):
-    ;   HL = &entity_anim_flags[entity]  ← push hl
-    ;   BC = (0, entity_index)           ← push bc
-    ;   DE = (spriteId, loopFlag)        ← push de
-    ;
-    ; Al salir (.acs_upload_done) se recuperan los tres en orden inverso.
-    ; ------------------------------------------------------------------
-    push hl                 ; [stack] guarda ptr entity_anim_flags (descartado al salir)
-    push bc                 ; [stack] BC = (0, entity_index)
-    push de                 ; [stack] DE = (D=spriteId, E=loopFlag)
-
-    ; Validar que el sprite ID esté dentro del rango conocido
-    ld a, d                 ; A = sprite asset ID
-    cp SM_SpriteAssetCount  ; ¿fuera de rango?
-    jr nc, .acs_upload_done ; sí → saltar el upload (evitar acceso fuera de tabla)
-
-    ; Obtener puntero al frame 0: SM_SpritePatternPtrTable[spriteId * 2]
-    ; El banco ROM se deriva del propio puntero, no de una tabla separada.
-    ; Esto evita desincronizaciones cuando el export comprimido remapea
-    ; labels de sprite a blobs ZX0 en un postproceso posterior.
-    ld e, a
-    ld d, 0                 ; DE = sprite asset index
-
-    ld hl, SM_SpritePatternPtrTable
-    add hl, de
-    add hl, de              ; HL = &SM_SpritePatternPtrTable[spriteId * 2]
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ex de, hl               ; HL = puntero al frame 0 (datos de patrón en ROM)
-    push hl                 ; [stack] guarda puntero al frame 0
-
-    ; Mapear el banco ROM que contiene los datos del frame 0.
-    ; Bank = ((framePtr - #4000) / #2000), derivado en runtime desde HL.
-    ld a, h
-    sub #40
-    srl a
-    srl a
-    srl a
-    srl a
-    srl a
-    call mapper_push_p2     ; salva el banco actual de P2 en la pila del mapper
-    call mapper_set_bank_p2 ; mapea el banco del frame 0 en la ventana P2 (#8000-#BFFF)
-
-    ; Leer configuración HW del sprite: entity_sprite_config[entity * 2]
-    ;   byte 0: base HW sprite index (slot en la OAM, 0-31)
-    ;   byte 1: layer count (número de capas HW del sprite, típicamente 1-2)
-    ld e, c                 ; E = entity index (C preservado de antes)
-    ld d, 0
-    ld hl, entity_sprite_config
-    add hl, de
-    add hl, de              ; HL = &entity_sprite_config[entity * 2]
-    ld a, (hl)              ; A = base HW sprite index
-    inc hl
-    ld c, (hl)              ; C = layer count
-    ld d, a                 ; D = base HW sprite index
-
-    ; Si layer count = 0, no hay sprite HW asignado → saltar upload
-    ld a, c
-    or a
-    jr z, .acs_upload_pop_source
-
-    ; Calcular BC = layerCount * 32  (bytes totales de patrón a copiar)
-    ; Cada capa HW ocupa 32 bytes de patrón (sprite 16x16 = 2 tiles * 16 bytes, comprimido como 32)
-    ld a, c
-    ld b, 0
-    ld c, a                 ; C = layer count
-    sla c
-    rl b                    ; × 2
-    sla c
-    rl b                    ; × 4
-    sla c
-    rl b                    ; × 8
-    sla c
-    rl b                    ; × 16
-    sla c
-    rl b                    ; × 32  →  BC = layerCount * 32
-
-    ; Calcular DE = SPRPAT + baseHwSprite * 32  (destino en VRAM)
-    ld a, d                 ; A = base HW sprite index
-    ld l, a
-    ld h, 0
-    add hl, hl              ; × 2
-    add hl, hl              ; × 4
-    add hl, hl              ; × 8
-    add hl, hl              ; × 16
-    add hl, hl              ; × 32  →  HL = base * 32
-    ld de, SPRPAT
-    add hl, de              ; HL = SPRPAT + base * 32  (dirección VRAM del slot HW)
-    ex de, hl               ; DE = destino VRAM, HL libre para fuente
-
-    pop hl                  ; HL = puntero al frame 0 en ROM  [recuperado del stack]
-    call FAST_LDIRVM        ; copia BC bytes desde HL (ROM/RAM) a DE (VRAM)
-    jr .acs_upload_restore_bank
-
-.acs_upload_pop_source:
-    pop hl                  ; descarta el puntero al frame 0 (layer count = 0, nada que copiar)
-
-.acs_upload_restore_bank:
-    call mapper_pop_p2      ; restaura el banco ROM que estaba antes en P2
-
-.acs_upload_done:
-    pop de                  ; DE: D = sprite asset ID, E = loop flag  [recuperado del stack]
-    pop bc                  ; BC = (0, entity_index)                  [recuperado del stack]
-    pop hl                  ; descarta ptr entity_anim_flags           [recuperado del stack]
-
-    ; ------------------------------------------------------------------
-    ; BLOQUE 6: Actualizar tabla de colores de capas en RAM
+    ; BLOQUE 5: Actualizar tabla de colores de capas en RAM
     ;
     ; sprite_layer_colors es una tabla RAM indexada por slot HW sprite.
     ; SM_SpriteLayerColorTable es una tabla ROM de SPRITE_MAX_ENTITY_LAYERS

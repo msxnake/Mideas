@@ -36,6 +36,11 @@ function toConstantName(name: string): string {
   return name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
 }
 
+function hasGlobalVariableAsmName(analysis: ProjectAnalysis, asmName: string): boolean {
+  const globals = Array.isArray((analysis as any).globalVariables) ? (analysis as any).globalVariables : [];
+  return globals.some((variable: any) => String(variable?.asmName || '').trim().toLowerCase() === asmName.toLowerCase());
+}
+
 /**
  * Normalize world direction aliases to canonical values.
  */
@@ -325,6 +330,7 @@ export function generateWorldsFile(analysis: ProjectAnalysis): string {
   const hasHudElements = !!analysis.screenMaps?.some((screen: any) =>
     Array.isArray(screen?.hudConfiguration?.elements) && screen.hudConfiguration.elements.length > 0
   );
+  const hasScreenTimer = hasGlobalVariableAsmName(analysis, 'global_var_time_remaining');
 
   // Skip world system if no worlds in project
   if (worldMaps.length === 0) {
@@ -465,7 +471,8 @@ load_world_${toRoutineLabel(worldId)}:
     xor a
     ld (screen_transition_cooldown), a
 
-    call rebuild_used_entity_list  ; Precompute room entity buckets before gameplay resumes
+${hasScreenTimer ? `    call reset_world_screen_timer
+` : ``}    call rebuild_used_entity_list  ; Precompute room entity buckets before gameplay resumes
     call apply_collected_tiles     ; Re-apply persistent collection state for this screen
     ret
 
@@ -534,7 +541,8 @@ transition_${toRoutineLabel(worldId)}_${connIndex}:
     ld (current_screen_id), a
     ld hl, active_entity_list_dirty
     ld (hl), 1
-    call rebuild_used_entity_list  ; Precompute room entity buckets during transition
+${hasScreenTimer ? `    call reset_world_screen_timer
+` : ``}    call rebuild_used_entity_list  ; Precompute room entity buckets during transition
     call apply_collected_tiles     ; Re-apply persistent collection state
     ret
 

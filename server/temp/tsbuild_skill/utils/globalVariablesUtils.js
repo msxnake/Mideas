@@ -143,6 +143,22 @@ function getUsedGlobalVariables(assets) {
     const globalsVariableNames = new Set();
     const tileCollectorVariableNames = new Set();
     const hudVariableNames = new Set();
+    const addHudVariableName = (rawValue) => {
+        if (typeof rawValue !== 'string')
+            return;
+        const variableName = normalizeGlobalVariableName(rawValue);
+        if (!variableName)
+            return;
+        hudVariableNames.add(variableName);
+    };
+    const addHudPlaceholderVariableNames = (rawText) => {
+        if (typeof rawText !== 'string' || !rawText.includes('{{'))
+            return;
+        const placeholderRegex = /\{\{\s*([^{}]+?)\s*\}\}/g;
+        for (const match of rawText.matchAll(placeholderRegex)) {
+            addHudVariableName(match[1]);
+        }
+    };
     if (gameFlowAsset?.data) {
         const gameFlow = gameFlowAsset.data;
         if (gameFlow.nodes && Array.isArray(gameFlow.nodes)) {
@@ -203,6 +219,11 @@ function getUsedGlobalVariables(assets) {
             else if (hudType === 'lives') {
                 hudVariableNames.add(normalizeGlobalVariableName('Lives'));
             }
+            addHudVariableName(element?.details?.variableName);
+            addHudVariableName(element?.details?.globalVariableName);
+            addHudVariableName(element?.details?.bindingVariable);
+            addHudPlaceholderVariableNames(element?.text);
+            addHudPlaceholderVariableNames(element?.name);
         });
     });
     const templates = assets.filter(a => a.type === 'entitytemplate');
@@ -280,6 +301,23 @@ function getUsedGlobalVariables(assets) {
                 constantPrefix: buildGlobalVariableConstantPrefix(normalizedName),
                 type: '8bit',
                 description: `Auto-generated variable from Tile Collector`,
+                values: [{ label: '0', value: 0 }],
+                category: 'special'
+            });
+            usedVariableNames.add(normalizedName);
+        }
+    });
+    // 8. Add any missing variables referenced by HUD bindings/placeholders
+    hudVariableNames.forEach(varName => {
+        const normalizedName = normalizeGlobalVariableName(varName);
+        if (!usedVariableNames.has(normalizedName)) {
+            const asmName = buildGlobalVariableAsmName(normalizedName);
+            usedVariables.push({
+                name: normalizedName,
+                asmName: asmName,
+                constantPrefix: buildGlobalVariableConstantPrefix(normalizedName),
+                type: '8bit',
+                description: `Auto-generated variable from HUD binding`,
                 values: [{ label: '0', value: 0 }],
                 category: 'special'
             });

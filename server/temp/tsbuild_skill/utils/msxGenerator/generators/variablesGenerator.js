@@ -196,6 +196,8 @@ function generateVariablesFile(analysis) {
     currentAddress++;
     code += `hud_dirty_flag      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=HUD needs redraw, 0=clean\n`;
     currentAddress++;
+    code += `time_second_frame_counter EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Countdown frames until the next TimeRemaining decrement\n`;
+    currentAddress++;
     // Animated tiles variables
     code += `
 ; ==================================================================

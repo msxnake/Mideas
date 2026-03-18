@@ -524,6 +524,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const gameFlowExitRequestedRef = useRef(false);
     const cleanSpritesNextFrameRef = useRef(false);
     const pendingNodeTransitionRef = useRef<string | null>(null);
+    const screenTimerRuntimeRef = useRef<{ screenId: string | null; lastTickTime: number; carryMs: number }>({
+        screenId: null,
+        lastTickTime: 0,
+        carryMs: 0,
+    });
+    const STAGE_TIME_VARIABLE = 'TimeRemaining';
+    const STAGE_TIME_SECONDS = 60;
 
     // Music playback state
     const musicSynthesizerRef = useRef<any>(null); // AYSynthesizer instance for music
@@ -658,6 +665,19 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const matchKey = Object.keys(current).find(k => (normalizeVariableName(k) ?? k).toLowerCase() === lower);
         return matchKey ? current[matchKey] : undefined;
     };
+
+    const resetScreenTimer = useCallback((screenId?: string | null) => {
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        screenTimerRuntimeRef.current = {
+            screenId: screenId ?? currentScreenMapRef.current?.id ?? null,
+            lastTickTime: now,
+            carryMs: 0,
+        };
+        updateGameGlobalVariables(prev => ({
+            ...prev,
+            [STAGE_TIME_VARIABLE]: STAGE_TIME_SECONDS
+        }));
+    }, [updateGameGlobalVariables]);
 
     const resolveHudText = (hudEl: any): string => {
         const rawText = (hudEl as any).text || (hudEl as any).name || '';
@@ -3063,6 +3083,19 @@ useEffect(() => {
     setCurrentScreenMap(screenMapAsset.data as ScreenMap);
 }, [isOpen, currentNode, allAssets, currentScreenMap]);
 
+useEffect(() => {
+    if (!isOpen || currentNode?.type !== 'WorldLink' || !currentScreenMap?.id) {
+        screenTimerRuntimeRef.current = { screenId: null, lastTickTime: 0, carryMs: 0 };
+        return;
+    }
+
+    if (screenTimerRuntimeRef.current.screenId === currentScreenMap.id) {
+        return;
+    }
+
+    resetScreenTimer(currentScreenMap.id);
+}, [isOpen, currentNode?.type, currentScreenMap?.id, resetScreenTimer]);
+
 // Build screen world map when WorldMapGraph changes
 useEffect(() => {
     if (currentWorldMapGraph) {
@@ -5239,6 +5272,40 @@ useEffect(() => {
         // const deltaTime = currentTime - lastTime;
         // lastTime = currentTime;
         // --- Fin deltaTime ---
+
+        if (currentNode.type === 'WorldLink' && currentScreenMapRef.current?.id) {
+            const timerState = screenTimerRuntimeRef.current;
+            const currentScreenId = currentScreenMapRef.current.id;
+
+            if (timerState.screenId !== currentScreenId) {
+                timerState.screenId = currentScreenId;
+                timerState.lastTickTime = currentTime;
+                timerState.carryMs = 0;
+            } else {
+                const deltaMs = Math.max(0, currentTime - (timerState.lastTickTime || currentTime));
+                timerState.lastTickTime = currentTime;
+                timerState.carryMs += deltaMs;
+
+                const elapsedSeconds = Math.floor(timerState.carryMs / 1000);
+                if (elapsedSeconds > 0) {
+                    timerState.carryMs -= elapsedSeconds * 1000;
+                    const currentValueRaw = getGlobalVariableValue(STAGE_TIME_VARIABLE);
+                    const currentValue = Number.isFinite(Number(currentValueRaw))
+                        ? Math.max(0, Math.floor(Number(currentValueRaw)))
+                        : STAGE_TIME_SECONDS;
+
+                    if (currentValue > 0) {
+                        const nextValue = Math.max(0, currentValue - elapsedSeconds);
+                        if (nextValue !== currentValue) {
+                            updateGameGlobalVariables(prev => ({
+                                ...prev,
+                                [STAGE_TIME_VARIABLE]: nextValue
+                            }));
+                        }
+                    }
+                }
+            }
+        }
 
         // Regenerar buffer si es necesario (tiles modificados por BREAK_TILE/REPLACE_TILE)
         if (tileBufferNeedsUpdate.current && screenMapToRender) {

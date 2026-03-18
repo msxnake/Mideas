@@ -290,10 +290,19 @@ function getImportedHudFrameDrawRoutineName(screen: { name?: string; id?: string
 function getHudRuntimeScreenIndexes(analysis: ProjectAnalysis): number[] {
   const screenMaps = Array.isArray(analysis.screenMaps) ? analysis.screenMaps : [];
   const hudScreenAssetIds = new Set<string>();
+  const hudCarrierScreenAssetIds = new Set<string>();
   screenMaps.forEach((screen: any) => {
     const hasHudElems = Array.isArray(screen?.hudConfiguration?.elements) && screen.hudConfiguration.elements.length > 0;
-    if (hasHudElems && screen?.id) {
+    const hasImportedHudFrame = Array.isArray(screen?.hudConfiguration?.importedFrame?.cells)
+      && screen.hudConfiguration.importedFrame.cells.length > 0;
+    if (!screen?.id) {
+      return;
+    }
+    if (hasHudElems) {
       hudScreenAssetIds.add(String(screen.id));
+    }
+    if (hasHudElems || hasImportedHudFrame) {
+      hudCarrierScreenAssetIds.add(String(screen.id));
     }
   });
 
@@ -307,14 +316,14 @@ function getHudRuntimeScreenIndexes(analysis: ProjectAnalysis): number[] {
       const nodes = Array.isArray(world?.nodes) ? world.nodes : [];
       nodes.forEach((node: any, idx: number) => {
         const screenAssetId = String(node?.screenAssetId || '');
-        if (hudScreenAssetIds.has(screenAssetId)) {
+        if (hudCarrierScreenAssetIds.has(screenAssetId)) {
           runtimeIndexes.add(idx);
         }
       });
     });
   } else {
     screenMaps.forEach((screen: any, idx: number) => {
-      if (screen?.id && hudScreenAssetIds.has(String(screen.id))) {
+      if (screen?.id && hudCarrierScreenAssetIds.has(String(screen.id))) {
         runtimeIndexes.add(idx);
       }
     });
@@ -573,6 +582,8 @@ gameflow_no_data:
   // HUD is rendered only on runtime screens that actually contain HUD elements.
   const hudRuntimeScreenIndexes = getHudRuntimeScreenIndexes(analysis);
   const hasHud = hudRuntimeScreenIndexes.length > 0;
+  const timeRemainingAsmName = resolveGlobalVariableAsmName('TimeRemaining', analysis);
+  const hasScreenTimer = !!timeRemainingAsmName;
   const worldLoopHudRenderAsm = generateConditionalRenderHudAsm(hudRuntimeScreenIndexes, 'gf_worldloop_hud');
   const worldLinkHudBootstrapAsm = generateConditionalRenderHudAsm(hudRuntimeScreenIndexes, 'gf_worldlink_hud', true);
 
@@ -600,6 +611,10 @@ ${frameAudioTickAsm}    ; Upload sprites right after V-Blank edge (60/50 Hz fram
     ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
     call task_update_input
 
+${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stage)
+    call update_world_screen_timer
+` : ``}
+
     ; Handle world screen edge transitions (Preview parity)
     call check_world_screen_transition
 
@@ -620,6 +635,90 @@ ${worldLoopHudRenderAsm}` : ``}
     jp gameflow_world_game_loop
 
 `;
+
+  if (hasScreenTimer && timeRemainingAsmName) {
+    code += `; ==================================================================
+; SCREEN TIMER SUPPORT
+; Resets TimeRemaining to 60 on every screen load/transition and
+; decrements it once per real second inside the WorldLink loop.
+; ==================================================================
+
+reload_world_screen_timer_frames:
+    push af
+    ld a, (isComputer50HzOr60Hz)
+    or a
+    ld a, 50
+    jr z, .store_screen_timer_frames
+    ld a, 60
+.store_screen_timer_frames:
+    ld (time_second_frame_counter), a
+    pop af
+    ret
+
+reset_world_screen_timer:
+    push af
+    ld a, 60
+    ld (${timeRemainingAsmName}), a
+    xor a
+    ld (${timeRemainingAsmName}+1), a
+    call reload_world_screen_timer_frames
+${hasHud ? `    ld a, 1
+    ld (hud_dirty_flag), a
+` : ``}    pop af
+    ret
+
+update_world_screen_timer:
+    push af
+    push bc
+    push hl
+
+    ld a, (${timeRemainingAsmName})
+    ld b, a
+    ld a, (${timeRemainingAsmName}+1)
+    or b
+    jr z, .world_timer_done
+
+    ld a, (time_second_frame_counter)
+    or a
+    jr nz, .world_timer_countdown_loaded
+    call reload_world_screen_timer_frames
+    ld a, (time_second_frame_counter)
+
+.world_timer_countdown_loaded:
+    dec a
+    ld (time_second_frame_counter), a
+    jr nz, .world_timer_done
+
+    call reload_world_screen_timer_frames
+
+    ld hl, ${timeRemainingAsmName}
+    ld a, (hl)
+    or a
+    jr nz, .world_timer_dec_low
+    inc hl
+    ld a, (hl)
+    or a
+    jr z, .world_timer_mark_dirty
+    dec (hl)
+    dec hl
+    ld (hl), 255
+    jr .world_timer_mark_dirty
+
+.world_timer_dec_low:
+    dec (hl)
+
+.world_timer_mark_dirty:
+${hasHud ? `    ld a, 1
+    ld (hud_dirty_flag), a
+` : ``}
+.world_timer_done:
+    pop hl
+    pop bc
+    pop af
+    ret
+
+`;
+  }
 
   // ===================================================================
   // SECTION 6: NODE DATA STRUCTURES

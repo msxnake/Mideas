@@ -43,6 +43,7 @@ function analyzeProject(projectName, assets) {
             name: rawTrack.name || asset.name,
         };
         tracks.push(normalizedTrack);
+        // Only external-pt3 tracks appear in music_pt3_track_table (matches collectPT3Tracks filter)
         if (normalizedTrack.playbackBackend === 'external-pt3') {
             trackIndexByAssetId[asset.id] = pt3TrackIndex;
             trackIndexByAssetId[normalizedTrack.id] = pt3TrackIndex;
@@ -54,6 +55,8 @@ function analyzeProject(projectName, assets) {
     const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data);
     const worldmaps = assets.filter(a => a.type === 'worldmap').map(a => a.data);
     const stateMachines = assets.filter(a => a.type === 'statemachine').map(a => a.data);
+    const presentationScreenAsset = assets.find(a => a.type === 'presentationscreen');
+    const presentationScreen = presentationScreenAsset?.data;
     // CRITICAL: Extract entities from screenmaps
     // Deduplicate entities across possible storage formats
     // (layers.entities and legacy screen.entities) to avoid ghost duplicates.
@@ -133,6 +136,7 @@ function analyzeProject(projectName, assets) {
         worldmaps, // CRITICAL: Include worldmaps for GameFlow WorldLink nodes
         entities, // CRITICAL: Include entities extracted from screenmaps
         fonts: assets.filter(a => a.type === 'font'), // CRITICAL: Include fonts for fontGenerator
+        presentationScreen,
         gameFlow, // CRITICAL: Include GameFlow for MSX ASM generation
         stateMachines, // CRITICAL: Include State Machines
         hasECS,

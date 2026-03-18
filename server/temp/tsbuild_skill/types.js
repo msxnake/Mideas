@@ -115,6 +115,7 @@ var EditorType;
     EditorType["WorldView"] = "WorldView";
     EditorType["GameFlow"] = "GameFlow";
     EditorType["MainMenu"] = "MainMenu";
+    EditorType["PresentationScreen"] = "PresentationScreen";
     EditorType["StateMachine"] = "StateMachine";
     EditorType["GlobalVariables"] = "GlobalVariables";
     EditorType["Palette"] = "Palette";

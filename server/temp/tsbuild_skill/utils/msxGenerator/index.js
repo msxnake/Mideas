@@ -62,6 +62,8 @@ function convertSummaryToAnalysis(summary) {
         ...track,
         soundChip: track?.soundChip || 'PSG'
     }));
+    // Only external-pt3 tracks are in music_pt3_track_table (soundGenerator uses same filter).
+    // Indexing all PSG tracks would produce wrong table offsets when non-pt3 tracks exist.
     let pt3TrackIndex = 0;
     const trackIndexByAssetId = tracks.reduce((map, track) => {
         if (track?.id && track?.playbackBackend === 'external-pt3') {
