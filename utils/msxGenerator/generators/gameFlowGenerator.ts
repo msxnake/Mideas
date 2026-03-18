@@ -236,10 +236,10 @@ function getScreenLoadRoutineName(screen: { name?: string; id?: string }): strin
 }
 
 /**
- * Resolve a global variable reference used by GameFlow nodes to a valid ASM symbol.
- * Returns null when the variable does not exist in analysis.globalVariables.
+ * Resolve a global variable reference used by GameFlow nodes.
+ * Returns the matching variable definition or null when not found.
  */
-function resolveGlobalVariableAsmName(variableName: any, analysis: ProjectAnalysis): string | null {
+function resolveGlobalVariable(variableName: any, analysis: ProjectAnalysis): any | null {
   const rawName = String(variableName || '').trim();
   if (!rawName) return null;
 
@@ -254,17 +254,84 @@ function resolveGlobalVariableAsmName(variableName: any, analysis: ProjectAnalys
     const candidateName = String(v?.name || '').trim();
     const candidateAsmName = String(v?.asmName || '').trim();
     if (candidateName && candidateName.toLowerCase() === normalizedInput) {
-      return candidateAsmName || toDefaultAsmName(candidateName);
+      return v;
     }
     if (candidateAsmName && candidateAsmName.toLowerCase() === normalizedInput) {
-      return candidateAsmName;
+      return v;
     }
     if (candidateName && toDefaultAsmName(candidateName) === expectedAsmName) {
-      return candidateAsmName || toDefaultAsmName(candidateName);
+      return v;
     }
   }
 
   return null;
+}
+
+/**
+ * Resolve a global variable reference used by GameFlow nodes to a valid ASM symbol.
+ * Returns null when the variable does not exist in analysis.globalVariables.
+ */
+function resolveGlobalVariableAsmName(variableName: any, analysis: ProjectAnalysis): string | null {
+  const rawName = String(variableName || '').trim();
+  if (!rawName) return null;
+
+  const toDefaultAsmName = (name: string): string =>
+    `global_var_${name.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '').replace(/[^a-z0-9_]/g, '_')}`;
+  const variable = resolveGlobalVariable(rawName, analysis);
+  if (!variable) return null;
+
+  const candidateName = String(variable?.name || '').trim();
+  const candidateAsmName = String(variable?.asmName || '').trim();
+  return candidateAsmName || toDefaultAsmName(candidateName || rawName);
+}
+
+function getIfThenElseOperatorId(operator: any): number {
+  switch (String(operator || '==').trim()) {
+    case '!=':
+      return 1;
+    case '>':
+      return 2;
+    case '<':
+      return 3;
+    case '>=':
+      return 4;
+    case '<=':
+      return 5;
+    case '==':
+    default:
+      return 0;
+  }
+}
+
+function resolveIfThenElseCompareValue(variable: any, rawCompareValue: any): number {
+  if (typeof rawCompareValue === 'boolean') {
+    return rawCompareValue ? 1 : 0;
+  }
+
+  const parsedNumeric = Number(rawCompareValue);
+  if (Number.isFinite(parsedNumeric)) {
+    return Math.trunc(parsedNumeric);
+  }
+
+  const normalizedCompareValue = String(rawCompareValue ?? '').trim().toLowerCase();
+  const values = Array.isArray(variable?.values) ? variable.values : [];
+  const matchedValue = values.find((entry: any) => {
+    const label = String(entry?.label ?? '').trim().toLowerCase();
+    const value = String(entry?.value ?? '').trim().toLowerCase();
+    return label === normalizedCompareValue || value === normalizedCompareValue;
+  });
+
+  if (matchedValue) {
+    if (typeof matchedValue.value === 'boolean') {
+      return matchedValue.value ? 1 : 0;
+    }
+    const parsedMatchedValue = Number(matchedValue.value);
+    if (Number.isFinite(parsedMatchedValue)) {
+      return Math.trunc(parsedMatchedValue);
+    }
+  }
+
+  return 0;
 }
 
 /**
@@ -283,13 +350,14 @@ function getImportedHudFrameDrawRoutineName(screen: { name?: string; id?: string
 }
 
 /**
- * Resolve runtime screen indexes where HUD has visible elements.
- * In world-based projects we map by world node index (current_screen_id runtime contract).
+ * Resolve runtime screen indexes where HUD must stay active.
+ * In world-based projects, a HUD/imported frame bootstrapped on any node of a world
+ * must keep refreshing on every node of that same world because screen transitions
+ * preserve the non-active HUD area between rooms.
  * Without worlds, fallback to screen array index.
  */
 function getHudRuntimeScreenIndexes(analysis: ProjectAnalysis): number[] {
   const screenMaps = Array.isArray(analysis.screenMaps) ? analysis.screenMaps : [];
-  const hudScreenAssetIds = new Set<string>();
   const hudCarrierScreenAssetIds = new Set<string>();
   screenMaps.forEach((screen: any) => {
     const hasHudElems = Array.isArray(screen?.hudConfiguration?.elements) && screen.hudConfiguration.elements.length > 0;
@@ -298,15 +366,12 @@ function getHudRuntimeScreenIndexes(analysis: ProjectAnalysis): number[] {
     if (!screen?.id) {
       return;
     }
-    if (hasHudElems) {
-      hudScreenAssetIds.add(String(screen.id));
-    }
     if (hasHudElems || hasImportedHudFrame) {
       hudCarrierScreenAssetIds.add(String(screen.id));
     }
   });
 
-  if (hudScreenAssetIds.size === 0) return [];
+  if (hudCarrierScreenAssetIds.size === 0) return [];
 
   const worldMaps = Array.isArray((analysis as any).worldmaps) ? (analysis as any).worldmaps : [];
   const runtimeIndexes = new Set<number>();
@@ -314,9 +379,14 @@ function getHudRuntimeScreenIndexes(analysis: ProjectAnalysis): number[] {
   if (worldMaps.length > 0) {
     worldMaps.forEach((world: any) => {
       const nodes = Array.isArray(world?.nodes) ? world.nodes : [];
+      const worldHasHudCarrier = nodes.some((node: any) =>
+        hudCarrierScreenAssetIds.has(String(node?.screenAssetId || ''))
+      );
+      if (!worldHasHudCarrier) {
+        return;
+      }
       nodes.forEach((node: any, idx: number) => {
-        const screenAssetId = String(node?.screenAssetId || '');
-        if (hudCarrierScreenAssetIds.has(screenAssetId)) {
+        if (node?.screenAssetId) {
           runtimeIndexes.add(idx);
         }
       });
@@ -640,19 +710,27 @@ ${worldLoopHudRenderAsm}` : ``}
     code += `; ==================================================================
 ; SCREEN TIMER SUPPORT
 ; Resets TimeRemaining to 60 on every screen load/transition and
-; decrements it once per real second inside the WorldLink loop.
+; decrements it once per real second using interrupt_counter deltas.
 ; ==================================================================
 
-reload_world_screen_timer_frames:
-    push af
+get_world_screen_timer_frames_per_second:
     ld a, (isComputer50HzOr60Hz)
     or a
     ld a, 50
-    jr z, .store_screen_timer_frames
+    ret z
     ld a, 60
-.store_screen_timer_frames:
+    ret
+
+reload_world_screen_timer_frames:
+    call get_world_screen_timer_frames_per_second
     ld (time_second_frame_counter), a
-    pop af
+    ret
+
+snapshot_world_screen_timer_interrupt_counter:
+    ld a, (interrupt_counter)
+    ld (time_last_interrupt_counter), a
+    ld a, (interrupt_counter+1)
+    ld (time_last_interrupt_counter+1), a
     ret
 
 reset_world_screen_timer:
@@ -662,6 +740,7 @@ reset_world_screen_timer:
     xor a
     ld (${timeRemainingAsmName}+1), a
     call reload_world_screen_timer_frames
+    call snapshot_world_screen_timer_interrupt_counter
 ${hasHud ? `    ld a, 1
     ld (hud_dirty_flag), a
 ` : ``}    pop af
@@ -670,6 +749,7 @@ ${hasHud ? `    ld a, 1
 update_world_screen_timer:
     push af
     push bc
+    push de
     push hl
 
     ld a, (${timeRemainingAsmName})
@@ -678,6 +758,14 @@ update_world_screen_timer:
     or b
     jr z, .world_timer_done
 
+    ld hl, (interrupt_counter)
+    ld de, (time_last_interrupt_counter)
+    or a
+    sbc hl, de
+    jr z, .world_timer_done
+
+    call snapshot_world_screen_timer_interrupt_counter
+
     ld a, (time_second_frame_counter)
     or a
     jr nz, .world_timer_countdown_loaded
@@ -685,34 +773,76 @@ update_world_screen_timer:
     ld a, (time_second_frame_counter)
 
 .world_timer_countdown_loaded:
-    dec a
-    ld (time_second_frame_counter), a
-    jr nz, .world_timer_done
+    ld e, a
+    call get_world_screen_timer_frames_per_second
+    ld c, a
 
-    call reload_world_screen_timer_frames
+.world_timer_consume_elapsed_frames:
+    ld a, h
+    or l
+    jr z, .world_timer_store_countdown
 
-    ld hl, ${timeRemainingAsmName}
-    ld a, (hl)
+    ld a, h
+    or a
+    jr nz, .world_timer_hit_second_boundary
+    ld a, l
+    cp e
+    jr c, .world_timer_partial_consume
+
+.world_timer_hit_second_boundary:
+    ld a, l
+    sub e
+    ld l, a
+    jr nc, .world_timer_no_borrow
+    dec h
+.world_timer_no_borrow:
+    ld a, (${timeRemainingAsmName})
     or a
     jr nz, .world_timer_dec_low
-    inc hl
-    ld a, (hl)
+    ld a, (${timeRemainingAsmName}+1)
     or a
-    jr z, .world_timer_mark_dirty
-    dec (hl)
-    dec hl
-    ld (hl), 255
-    jr .world_timer_mark_dirty
+    jr z, .world_timer_reached_zero
+    dec a
+    ld (${timeRemainingAsmName}+1), a
+    ld a, 255
+    ld (${timeRemainingAsmName}), a
+    jr .world_timer_after_decrement
 
 .world_timer_dec_low:
-    dec (hl)
+    dec a
+    ld (${timeRemainingAsmName}), a
 
-.world_timer_mark_dirty:
+.world_timer_after_decrement:
 ${hasHud ? `    ld a, 1
     ld (hud_dirty_flag), a
 ` : ``}
+    ld a, (${timeRemainingAsmName})
+    ld b, a
+    ld a, (${timeRemainingAsmName}+1)
+    or b
+    jr z, .world_timer_reached_zero
+    ld e, c
+    jr .world_timer_consume_elapsed_frames
+
+.world_timer_partial_consume:
+    ld a, e
+    sub l
+    ld e, a
+    xor a
+    ld h, a
+    ld l, a
+    jr .world_timer_store_countdown
+
+.world_timer_reached_zero:
+    ld e, c
+
+.world_timer_store_countdown:
+    ld a, e
+    ld (time_second_frame_counter), a
+
 .world_timer_done:
     pop hl
+    pop de
     pop bc
     pop af
     ret
@@ -2108,7 +2238,12 @@ ${frameAudioTickAsm}    pop bc
       case 'IfThenElse':
         code += `gameflow_handle_ifthenelse:
     ; IfThenElse node - conditional branching
-    ; DE = condition data pointer (variable address, compare value, operator)
+    ; DE = condition data pointer
+    ;      dw variable address
+    ;      db compare value low
+    ;      db compare value high
+    ;      db operator
+    ;      db variable size (0=byte, 1=word)
     ; BC = connection table
     
     push bc         ; Save connection table
@@ -2119,18 +2254,106 @@ ${frameAudioTickAsm}    pop bc
     inc hl
     ld d, (hl)      ; DE = variable address
     inc hl
-    ld a, (hl)      ; A = compare value
+    ld c, (hl)      ; C = compare value low byte
     inc hl
-    ld c, (hl)      ; C = operator
+    ld b, (hl)      ; B = compare value high byte
+    inc hl
+    ld a, (hl)      ; A = operator
+    push af
+    inc hl
+    ld a, (hl)      ; A = variable size (0=byte, 1=word)
+    push af
     
     ; Load variable value
     ex de, hl
-    ld b, (hl)      ; B = current value
-    
-    ; Compare based on operator
-    ; For now, only == (operator 0)
+    pop af
+    ld e, (hl)      ; E = current value low byte
+    or a
+    jr z, .byte_value_loaded
+    inc hl
+    ld d, (hl)      ; D = current value high byte
+    jr .value_loaded
+
+.byte_value_loaded:
+    ld d, 0
+
+.value_loaded:
+    pop af
+
+    ; Compare DE (current value) against BC (compare value), unsigned.
+    cp 0
+    jr z, .compare_equals
+    cp 1
+    jr z, .compare_not_equals
+    cp 2
+    jr z, .compare_greater_than
+    cp 3
+    jr z, .compare_less_than
+    cp 4
+    jr z, .compare_greater_or_equal
+    cp 5
+    jr z, .compare_less_or_equal
+    jr .else_branch
+
+.compare_equals:
+    ld a, d
     cp b
+    jr nz, .else_branch
+    ld a, e
+    cp c
     jr z, .then_branch
+    jr .else_branch
+
+.compare_not_equals:
+    ld a, d
+    cp b
+    jr nz, .then_branch
+    ld a, e
+    cp c
+    jr nz, .then_branch
+    jr .else_branch
+
+.compare_greater_than:
+    ld a, d
+    cp b
+    jr c, .else_branch
+    jr nz, .then_branch
+    ld a, e
+    cp c
+    jr z, .else_branch
+    jr nc, .then_branch
+    jr .else_branch
+
+.compare_less_than:
+    ld a, d
+    cp b
+    jr c, .then_branch
+    jr nz, .else_branch
+    ld a, e
+    cp c
+    jr c, .then_branch
+    jr .else_branch
+
+.compare_greater_or_equal:
+    ld a, d
+    cp b
+    jr c, .else_branch
+    jr nz, .then_branch
+    ld a, e
+    cp c
+    jr c, .else_branch
+    jr .then_branch
+
+.compare_less_or_equal:
+    ld a, d
+    cp b
+    jr c, .then_branch
+    jr nz, .else_branch
+    ld a, e
+    cp c
+    jr c, .then_branch
+    jr z, .then_branch
+    jr .else_branch
     
 .else_branch:
     pop bc
@@ -2992,15 +3215,24 @@ ${nodeLabel}:
 
       case 'IfThenElse':
         const varName = node.variableName || 'unknown';
+        const resolvedVar = resolveGlobalVariable(varName, analysis);
         const asmVarName = resolveGlobalVariableAsmName(varName, analysis);
-        const compareValue = node.compareValue || 0;
+        const numericCompareValue = resolveIfThenElseCompareValue(resolvedVar, node.compareValue);
+        const operatorId = getIfThenElseOperatorId(node.operator);
+        const variableType = String(resolvedVar?.type || '').toLowerCase();
+        const isWordVariable = variableType === 'word' || variableType === '16bit';
+        const clampedCompareValue = isWordVariable
+          ? Math.max(0, Math.min(65535, numericCompareValue))
+          : Math.max(0, Math.min(255, numericCompareValue));
         if (asmVarName) {
           code += `    dw ${asmVarName}    ; Variable to check\n`;
         } else {
           code += `    dw 0                 ; WARNING: Missing global variable "${varName}"\n`;
         }
-        code += `    db ${compareValue}   ; Compare value\n`;
-        code += `    db 0                 ; Operator (0=equals)\n`;
+        code += `    db ${clampedCompareValue & 0xFF}   ; Compare value low byte\n`;
+        code += `    db ${(clampedCompareValue >> 8) & 0xFF}   ; Compare value high byte\n`;
+        code += `    db ${operatorId}   ; Operator (0===, 1=!=, 2=>, 3=<, 4=>=, 5=<=)\n`;
+        code += `    db ${isWordVariable ? 1 : 0}   ; Variable size (0=byte, 1=word)\n`;
         break;
 
       case 'Globals':

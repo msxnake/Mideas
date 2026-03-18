@@ -745,16 +745,11 @@ update_animated_tiles:
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
 update_animated_tiles_vram:
-    ; Protect VDP port sequence from ISR VRAM writes (sprite task, etc.)
-    ; Preserve prior interrupt state using LD A,I -> P/V = IFF2
-    ld a, i
-    push af
+    ; Protect VDP port sequence from ISR VRAM writes.
+    ; Always re-enables on exit (see FAST_LDIRVM note on LD A,I bug).
     di
 ${updateVramBody}
-    pop af
-    jp po, .anim_vram_irq_done
     ei
-.anim_vram_irq_done:
     ret
 
 ; ------------------------------------------------------------------

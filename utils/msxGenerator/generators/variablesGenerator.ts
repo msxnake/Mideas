@@ -214,8 +214,10 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
 
   code += `hud_dirty_flag      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=HUD needs redraw, 0=clean\n`;
   currentAddress++;
-  code += `time_second_frame_counter EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Countdown frames until the next TimeRemaining decrement\n`;
+  code += `time_second_frame_counter EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; VBlank frames remaining until the next TimeRemaining decrement\n`;
   currentAddress++;
+  code += `time_last_interrupt_counter EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Last interrupt_counter snapshot used by TimeRemaining sync (16-bit)\n`;
+  currentAddress += 2;
 
   // Animated tiles variables
   code += `
@@ -564,6 +566,9 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   currentAddress += 32;
 
   code += `temp_byte_27        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_28        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
   currentAddress += 32;
 
   code += `tileDead_dbg        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Debug byte: current hero deadly contact\n`;

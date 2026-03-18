@@ -123,9 +123,11 @@ ${buildRegisterContractComment({
 ;   - Works on all MSX models (TMS9918, V9938, V9958)
 ; ==================================================================
 FAST_LDIRVM:
-    ; Preserve previous IRQ state (LD A,I copies IFF2 into P/V)
-    ld a, i
-    push af
+    ; Disable interrupts during VDP port sequence to prevent ISR races.
+    ; Always re-enables on exit (called from main loop where EI is guaranteed).
+    ; NOTE: The old LD A,I / PUSH AF / RET PO pattern is unreliable on Z80 —
+    ; an interrupt between LD A,I and PUSH AF clears P/V, skipping EI and
+    ; leaving interrupts permanently disabled (next HALT locks the system).
     di
 
     ; Set VRAM write address
@@ -147,9 +149,6 @@ FAST_LDIRVM:
     or c                   ; (4 cycles)
     jr nz, .ldirvm_loop    ; Loop if not zero (12/7 cycles)
 
-    ; Restore previous IRQ state
-    pop af
-    ret po                 ; P/V=0 => IRQs were disabled on entry
     ei
     ret
 
@@ -196,9 +195,7 @@ ${buildRegisterContractComment({
 ;   Total: 11,776 cycles (saves ~500 cycles vs generic)
 ; ==================================================================
 FAST_LDIRVM_256:
-    ; Preserve previous IRQ state (LD A,I copies IFF2 into P/V)
-    ld a, i
-    push af
+    ; Disable interrupts during VDP port sequence (see FAST_LDIRVM note).
     di
 
     ; Set VRAM write address
@@ -219,9 +216,6 @@ FAST_LDIRVM_256:
     inc hl
     djnz .ldirvm_256_loop  ; Faster than dec bc + check (13/8 cycles)
 
-    ; Restore previous IRQ state
-    pop af
-    ret po                 ; P/V=0 => IRQs were disabled on entry
     ei
     ret
 
@@ -268,12 +262,11 @@ ${buildRegisterContractComment({
 ;   - VDP write sequence is atomic against ISR VRAM writes
 ; ==================================================================
 FAST_WRTVRM:
-    ; Preserve caller-visible state and previous IRQ status.
+    ; Preserve caller-visible state. Disable interrupts during VDP write
+    ; (see FAST_LDIRVM note on why LD A,I / RET PO is unsafe).
     push bc
     ld c, a                ; C = input data byte
     push af                ; Save caller AF
-    ld a, i
-    push af                ; Save previous IFF2 in P/V
     di
     ld a, l
     out (#99), a           ; Address low (11 cycles)
@@ -282,12 +275,7 @@ FAST_WRTVRM:
     out (#99), a           ; Address high + command (11 cycles)
     ld a, c
     out (#98), a           ; Write to VRAM (11 cycles)
-
-    ; Restore previous IRQ state.
-    pop af
-    jp po, .fwv_no_ei      ; P/V=0 => IRQs were disabled on entry
     ei
-.fwv_no_ei:
     pop af                 ; Restore caller AF
     pop bc
     ret

@@ -5093,7 +5093,8 @@ function generateTileInteractionSystem(
         bonusSlashStrength: number;
         bonusRespawnSeconds: number;
     },
-    canUseSoundAssetPlayback: boolean
+    canUseSoundAssetPlayback: boolean,
+    _hasWallCollision: boolean = false
 ): string {
     const collectionSoundAssetIndex = tileCollectorConfig.soundAssetIndex;
     const replacementTileChar = tileCollectorConfig.replacementTileChar;
@@ -5170,10 +5171,12 @@ ${hudSyncCode}
 `
         : `    ; No targetVariable/incrementAmount configured in the Tile Collector UI.
 `;
+    const slashTotalPixels = bonusSlashStrength * 8;  // 10 * 8 = 80px = 10 tiles
+    const slashTotalPixelsNeg = ((256 - slashTotalPixels) & 0xFF);
     const bonusEffectCode =
         tileCollectorConfig.bonusEntityEffect === 'grant_extra_jump' && tileCollectorConfig.bonusEffectAmount > 0
-            ? `    ; Bonus tile effect: arm an additive slash for the collecting entity.
-    ; Horizontal motion is applied by update_slash_component on subsequent frames.
+            ? `    ; Bonus tile effect: 8px-per-frame slash in current movement direction.
+    ; Covers ${bonusSlashStrength} tiles (${slashTotalPixels}px). Checks solid tiles each step.
     push de
     ld e, c
     ld d, 0
@@ -5185,160 +5188,59 @@ ${hudSyncCode}
     add hl, de
     ld (hl), 255
 
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld (hl), 0
-
-    ld hl, entity_dir_mask
-    add hl, de
-    ld b, (hl)                     ; B = direction permissions for this entity
-
-    ld a, (input_state)
-    or a
-    jp z, .ti_bonus_no_input
-    cp STICK_RIGHT
-    jp z, .ti_bonus_right
-    cp STICK_UPRIGHT
-    jp z, .ti_bonus_input_upright
-    cp STICK_DOWNRIGHT
-    jp z, .ti_bonus_downright
-    cp STICK_LEFT
-    jp z, .ti_bonus_left
-    cp STICK_UPLEFT
-    jp z, .ti_bonus_input_upleft
-    cp STICK_DOWNLEFT
-    jp z, .ti_bonus_downleft
-    cp STICK_DOWN
-    jp z, .ti_bonus_down
-    cp STICK_UP
-    jp z, .ti_bonus_input_up
-    jp .ti_bonus_facing_default
-
-.ti_bonus_no_input:
-    ; No directional cursor held: never infer horizontal slash from facing.
-    ; If UP is allowed, use the neutral upward pop; otherwise consume the
-    ; bonus tile without any forced movement.
-    ld a, b
-    and DIR_ALLOW_UP
-    jp nz, .ti_bonus_up
-    jp .ti_bonus_done
-
-.ti_bonus_input_upright:
-    ld a, b
-    and DIR_ALLOW_UP
-    jp z, .ti_bonus_right
-    jp .ti_bonus_upright
-
-.ti_bonus_input_upleft:
-    ld a, b
-    and DIR_ALLOW_UP
-    jp z, .ti_bonus_left
-    jp .ti_bonus_upleft
-
-.ti_bonus_input_up:
-    ld a, b
-    and DIR_ALLOW_UP
-    jp nz, .ti_bonus_up
-    jp .ti_bonus_facing_default
-
-.ti_bonus_facing_default:
-    ld hl, entity_facing_dir
+    ; --- Set slash_vel_x = sign(vel_x) * ${slashTotalPixels} ---
+    ld hl, entity_vel_x
     add hl, de
     ld a, (hl)
-    cp 1
-    jp z, .ti_bonus_left
-    cp 2
-    jp z, .ti_bonus_right
-    jp .ti_bonus_right
-
-.ti_bonus_right:
+    or a
+    jp z, .ti_slash_x_zero
+    bit 7, a
+    jp nz, .ti_slash_x_neg
+    ld a, ${slashTotalPixels}          ; +${slashTotalPixels} (moving right)
+    jp .ti_slash_x_set
+.ti_slash_x_neg:
+    ld a, #${slashTotalPixelsNeg.toString(16).toUpperCase().padStart(2, '0')}          ; -${slashTotalPixels} (moving left)
+.ti_slash_x_set:
     ld hl, entity_slash_vel_x
     add hl, de
-    ld (hl), ${bonusSlashStrength}
-    ld hl, entity_gravity_vel
-    add hl, de
-    add hl, de
-    ld (hl), 0
-    inc hl
-    ld (hl), #FF
-    jp .ti_bonus_done
-
-.ti_bonus_upright:
+    ld (hl), a
+    jp .ti_slash_x_done
+.ti_slash_x_zero:
     ld hl, entity_slash_vel_x
     add hl, de
-    ld (hl), ${bonusSlashUpStrength}
-    ld hl, entity_gravity_vel
-    add hl, de
-    add hl, de
     ld (hl), 0
-    inc hl
-    ld (hl), #FD
-    jp .ti_bonus_done
+.ti_slash_x_done:
 
-.ti_bonus_downright:
-    ld hl, entity_slash_vel_x
+    ; --- Set slash_vel_y = sign(vel_y) * ${slashTotalPixels} ---
+    ld hl, entity_vel_y
     add hl, de
-    ld (hl), ${bonusSlashDownStrength}
-    ld hl, entity_gravity_vel
+    ld a, (hl)
+    or a
+    jp z, .ti_slash_y_zero
+    bit 7, a
+    jp nz, .ti_slash_y_neg
+    ld a, ${slashTotalPixels}          ; +${slashTotalPixels} (moving down)
+    jp .ti_slash_y_set
+.ti_slash_y_neg:
+    ld a, #${slashTotalPixelsNeg.toString(16).toUpperCase().padStart(2, '0')}          ; -${slashTotalPixels} (moving up)
+.ti_slash_y_set:
+    ld hl, entity_slash_vel_y
     add hl, de
+    ld (hl), a
+    jp .ti_slash_y_done
+.ti_slash_y_zero:
+    ld hl, entity_slash_vel_y
     add hl, de
     ld (hl), 0
-    inc hl
-    ld (hl), #01
-    jp .ti_bonus_done
+.ti_slash_y_done:
 
-.ti_bonus_left:
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld (hl), ${bonusSlashLeftByte}
+    ; Zero gravity so it doesn't fight the vertical slash
     ld hl, entity_gravity_vel
     add hl, de
     add hl, de
     ld (hl), 0
     inc hl
-    ld (hl), #FF
-    jp .ti_bonus_done
-
-.ti_bonus_upleft:
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld (hl), ${bonusSlashUpLeftByte}
-    ld hl, entity_gravity_vel
-    add hl, de
-    add hl, de
     ld (hl), 0
-    inc hl
-    ld (hl), #FD
-    jp .ti_bonus_done
-
-.ti_bonus_downleft:
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld (hl), ${bonusSlashDownLeftByte}
-    ld hl, entity_gravity_vel
-    add hl, de
-    add hl, de
-    ld (hl), 0
-    inc hl
-    ld (hl), #01
-    jp .ti_bonus_done
-
-.ti_bonus_down:
-    ld hl, entity_gravity_vel
-    add hl, de
-    add hl, de
-    ld (hl), 0
-    inc hl
-    ld (hl), #02
-    jp .ti_bonus_done
-
-.ti_bonus_up:
-    ld hl, entity_gravity_vel
-    add hl, de
-    add hl, de
-    ld (hl), 0
-    inc hl
-    ld (hl), #FC
 
 .ti_bonus_done:
     pop de
@@ -5528,12 +5430,18 @@ init_tile_interaction_system:
     ld bc, 31
     ld (hl), 0
     ldir
+    ld hl, entity_slash_vel_y
+    ld de, entity_slash_vel_y+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
     ret
 
 ; ------------------------------------------------------------------
 ; update_slash_component
-; Add the temporary slash horizontal velocity on top of normal movement
-; and damp it over subsequent frames.
+; Tile-by-tile slash: moves entity exactly 8px per frame, checking
+; for solid tiles before each step.  Covers the remaining distance
+; stored in entity_slash_vel_x/y (decayed by 8 each frame).
 ; ------------------------------------------------------------------
 update_slash_component:
     ld a, (active_entity_count)
@@ -5548,44 +5456,285 @@ update_slash_component:
     push hl                    ; Save list pointer
     ld e, c
     ld d, 0
-    ; active_entity_list already guarantees current_screen_id membership
 
+    ; Check if entity has any slash velocity (X or Y)
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_slash_vel_y
+    add hl, de
+    or (hl)
+    jp z, .slash_next          ; both zero → skip
+
+    push bc
+
+    ; --- Build hitbox for tile checks (reuse wall_hit_* scratch) ---
+    ; hitbox_left = entity_x + collision_offset_x
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_x
+    add hl, de
+    add a, (hl)
+    ld (wall_hit_left), a
+
+    ; hitbox_right = left + w - 1
+    ld hl, entity_collision_hitbox_w
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .sl_w_ok
+    ld a, 1
+.sl_w_ok:
+    ld c, a
+    ld a, (wall_hit_left)
+    add a, c
+    dec a
+    ld (wall_hit_right), a
+
+    ; hitbox_top = entity_y + collision_offset_y
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_y
+    add hl, de
+    add a, (hl)
+    ld (wall_hit_top), a
+
+    ; hitbox_bottom = top + h - 1
+    ld hl, entity_collision_hitbox_h
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .sl_h_ok
+    ld a, 1
+.sl_h_ok:
+    ld c, a
+    ld a, (wall_hit_top)
+    add a, c
+    dec a
+    ld (wall_hit_bottom), a
+
+    ; ============ PROCESS X SLASH ============
     ld hl, entity_slash_vel_x
     add hl, de
     ld a, (hl)
     or a
-    jp z, .slash_next
+    jp z, .slash_x_done
+    bit 7, a
+    jp nz, .slash_x_left
 
+.slash_x_right:
+    ; Check tile at column (hitbox_right + 8) / 8
+    ld a, (wall_hit_right)
+    add a, 8
+    jp c, .slash_x_stop        ; overflow → screen edge
+    srl a
+    srl a
+    srl a
+    ld c, a                    ; C = probe column
+    ; Probe top row
+    ld a, (wall_hit_top)
+    srl a
+    srl a
+    srl a
+    ld b, a
     push bc
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    pop bc
+    jp nz, .slash_x_stop
+    ; Probe bottom row
+    ld a, (wall_hit_bottom)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jp nz, .slash_x_stop
 
-    ld b, a                    ; B = additive slash X velocity
+    ; Passable → override vel_x = +8, decay slash_vel_x by 8
     ld hl, entity_vel_x
     add hl, de
-    ld a, (hl)
-    add a, b
-    ld (hl), a
-
-    ; Dampen toward zero: +n -> +(n-2), -n -> -(n-2)
+    ld (hl), 8
     ld hl, entity_slash_vel_x
     add hl, de
     ld a, (hl)
-    bit 7, a
-    jp z, .slash_decay_positive
-
-    add a, 2
-    bit 7, a
-    jp nz, .slash_store_decay
+    sub 8
+    jp nc, .slash_x_store
     xor a
-    jp .slash_store_decay
-
-.slash_decay_positive:
-    sub 2
-    jp nc, .slash_store_decay
-    xor a
-
-.slash_store_decay:
+.slash_x_store:
     ld (hl), a
+    jp .slash_x_done
 
+.slash_x_left:
+    ; Check tile at column (hitbox_left - 8) / 8
+    ld a, (wall_hit_left)
+    cp 8
+    jp c, .slash_x_stop        ; < 8 → screen edge
+    sub 8
+    srl a
+    srl a
+    srl a
+    ld c, a                    ; C = probe column
+    ; Probe top row
+    ld a, (wall_hit_top)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    push bc
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    pop bc
+    jp nz, .slash_x_stop
+    ; Probe bottom row
+    ld a, (wall_hit_bottom)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jp nz, .slash_x_stop
+
+    ; Passable → override vel_x = -8, decay slash_vel_x by 8 toward 0
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), #F8               ; -8
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld a, (hl)
+    add a, 8                   ; negative + 8 → toward zero
+    bit 7, a
+    jp nz, .slash_x_store_l
+    xor a                      ; crossed zero → clamp
+.slash_x_store_l:
+    ld (hl), a
+    jp .slash_x_done
+
+.slash_x_stop:
+    ; Hit solid tile or screen edge → kill X slash and X velocity
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+
+.slash_x_done:
+
+    ; ============ PROCESS Y SLASH ============
+    ld hl, entity_slash_vel_y
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .slash_y_done
+    bit 7, a
+    jp nz, .slash_y_up
+
+.slash_y_down:
+    ; Check tile at row (hitbox_bottom + 8) / 8
+    ld a, (wall_hit_bottom)
+    add a, 8
+    cp 192
+    jp nc, .slash_y_stop       ; off-screen bottom
+    srl a
+    srl a
+    srl a
+    ld b, a                    ; B = probe row
+    ; Probe left column
+    ld a, (wall_hit_left)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    push bc
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    pop bc
+    jp nz, .slash_y_stop
+    ; Probe right column
+    ld a, (wall_hit_right)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jp nz, .slash_y_stop
+
+    ; Passable → override vel_y = +8, decay slash_vel_y by 8
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 8
+    ld hl, entity_slash_vel_y
+    add hl, de
+    ld a, (hl)
+    sub 8
+    jp nc, .slash_y_store
+    xor a
+.slash_y_store:
+    ld (hl), a
+    jp .slash_y_done
+
+.slash_y_up:
+    ; Check tile at row (hitbox_top - 8) / 8
+    ld a, (wall_hit_top)
+    cp 8
+    jp c, .slash_y_stop        ; < 8 → screen edge
+    sub 8
+    srl a
+    srl a
+    srl a
+    ld b, a                    ; B = probe row
+    ; Probe left column
+    ld a, (wall_hit_left)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    push bc
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    pop bc
+    jp nz, .slash_y_stop
+    ; Probe right column
+    ld a, (wall_hit_right)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jp nz, .slash_y_stop
+
+    ; Passable → override vel_y = -8, decay slash_vel_y by 8 toward 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), #F8               ; -8
+    ld hl, entity_slash_vel_y
+    add hl, de
+    ld a, (hl)
+    add a, 8                   ; negative + 8 → toward zero
+    bit 7, a
+    jp nz, .slash_y_store_u
+    xor a
+.slash_y_store_u:
+    ld (hl), a
+    jp .slash_y_done
+
+.slash_y_stop:
+    ; Hit solid tile or screen edge → kill Y slash and Y velocity
+    ld hl, entity_slash_vel_y
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+
+.slash_y_done:
     pop bc
 
 .slash_next:
@@ -6614,6 +6763,7 @@ init_entity_sprite:
     ; Component Data Structure EQUs (referenced by state machine actions)
 entity_jump_vel_y   EQU temp_word_3
 entity_slash_vel_x  EQU temp_byte_3
+entity_slash_vel_y  EQU temp_byte_28
 entity_jump_count   EQU temp_byte_4
 entity_jump_max     EQU temp_byte_25
 entity_jump_bonus   EQU temp_byte_27
@@ -6758,6 +6908,7 @@ ANIM_DEFAULT_SPEED           EQU 8
     ; Using temporary storage for optional components to save RAM
 entity_jump_vel_y   EQU temp_word_3; Y velocity for jumping(signed word, 32 words = 64 bytes)
 entity_slash_vel_x  EQU temp_byte_3; Additive horizontal slash velocity from bonus tiles (32 bytes)
+entity_slash_vel_y  EQU temp_byte_28; Additive vertical slash velocity from bonus tiles (32 bytes)
 entity_jump_count   EQU temp_byte_4; Current jump count(0 = grounded, 1 = first jump, etc.)(32 bytes)
 entity_jump_max     EQU temp_byte_25; Configured max jumps for this entity (32 bytes)
 entity_jump_bonus   EQU temp_byte_27; Temporary extra jumps granted by bonus tiles (32 bytes)
@@ -7144,7 +7295,7 @@ update_collectible_component:
     // Generate Tile Interaction System (when project has Interactable tiles)
     // Detects tiles with mapId & #08 (INTERACTABLE flag) on the screen map.
     if (hasInteractableTiles && usedComponents.has('Input')) {
-        code += generateTileInteractionSystem(tileCollectorRuntimeConfig, hasStateMachineSoundPlayback);
+        code += generateTileInteractionSystem(tileCollectorRuntimeConfig, hasStateMachineSoundPlayback, usedComponents.has('WallCollision'));
         code += generateApplyCollectedTiles();
         console.log('  - Tile Interaction system: ENABLED (interactable tiles detected)');
     } else {
