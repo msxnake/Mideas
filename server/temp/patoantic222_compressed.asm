@@ -30,39 +30,39 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 124801
+; Estimated payload bytes: 124904
 ; Estimated banks used: 16
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1544 bytes)
 ; BANK 00 @#0608 : colors.asm (1330 bytes)
 ; BANK 00 @#0B3A : components.asm (22 bytes)
 ; BANK 00 @#0B50 : entities.asm (5296 bytes)
-; BANK 01 @#0000 : entities.asm (2029 bytes)
-; BANK 01 @#07ED : worlds.asm (6163 bytes)
-; BANK 02 @#0000 : worlds.asm (1760 bytes)
-; BANK 02 @#06E0 : screens.asm part 1/6 (6432 bytes)
+; BANK 01 @#0000 : entities.asm (2132 bytes)
+; BANK 01 @#0854 : worlds.asm (6060 bytes)
+; BANK 02 @#0000 : worlds.asm (1863 bytes)
+; BANK 02 @#0747 : screens.asm part 1/6 (6329 bytes)
 ; BANK 03 @#0000 : screens.asm part 2/6 (8192 bytes)
 ; BANK 04 @#0000 : screens.asm part 3/6 (8192 bytes)
 ; BANK 05 @#0000 : screens.asm part 4/6 (8192 bytes)
 ; BANK 06 @#0000 : screens.asm part 5/6 (8192 bytes)
-; BANK 07 @#0000 : screens.asm part 6/6 (2576 bytes)
-; BANK 07 @#0A10 : sprites.asm part 1/2 (5616 bytes)
-; BANK 08 @#0000 : sprites.asm part 2/2 (5395 bytes)
-; BANK 08 @#1513 : font.asm (2797 bytes)
-; BANK 09 @#0000 : font.asm (750 bytes)
-; BANK 09 @#02EE : hud.asm (3607 bytes)
-; BANK 09 @#1105 : menus.asm (454 bytes)
-; BANK 09 @#12CB : sound.asm (3381 bytes)
-; BANK 10 @#0000 : sound.asm (3866 bytes)
-; BANK 10 @#0F1A : scroll.asm (2353 bytes)
-; BANK 10 @#184B : animtiles.asm (1973 bytes)
-; BANK 11 @#0000 : animtiles.asm (4914 bytes)
-; BANK 11 @#1332 : statemachine.asm part 1/3 (3278 bytes)
+; BANK 07 @#0000 : screens.asm part 6/6 (2679 bytes)
+; BANK 07 @#0A77 : sprites.asm part 1/2 (5513 bytes)
+; BANK 08 @#0000 : sprites.asm part 2/2 (5498 bytes)
+; BANK 08 @#157A : font.asm (2694 bytes)
+; BANK 09 @#0000 : font.asm (853 bytes)
+; BANK 09 @#0355 : hud.asm (3607 bytes)
+; BANK 09 @#116C : menus.asm (454 bytes)
+; BANK 09 @#1332 : sound.asm (3278 bytes)
+; BANK 10 @#0000 : sound.asm (3969 bytes)
+; BANK 10 @#0F81 : scroll.asm (2353 bytes)
+; BANK 10 @#18B2 : animtiles.asm (1870 bytes)
+; BANK 11 @#0000 : animtiles.asm (5017 bytes)
+; BANK 11 @#1399 : statemachine.asm part 1/3 (3175 bytes)
 ; BANK 12 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 13 @#0000 : statemachine.asm part 3/3 (5952 bytes)
-; BANK 13 @#1740 : gameflow.asm part 1/2 (2240 bytes)
+; BANK 13 @#0000 : statemachine.asm part 3/3 (6055 bytes)
+; BANK 13 @#17A7 : gameflow.asm part 1/2 (2137 bytes)
 ; BANK 14 @#0000 : gameflow.asm part 2/2 (8192 bytes)
-; BANK 15 @#0000 : gameflow.asm part 3/2 (1921 bytes)
+; BANK 15 @#0000 : gameflow.asm part 3/2 (2024 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -12433,7 +12433,20 @@ update_entity_patrol_facing:
 
     ld hl, entity_sprite_asset_index
     add hl, de
+    cp (hl)
+    jr z, .patrol_facing_done
     ld (hl), a
+
+    ; Reset animation progression when directional variant changes.
+    ; Without this, switching to a variant with fewer frames can leave
+    ; entity_anim_frame out of range until the next animation wrap.
+    ld hl, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+
+    ld hl, entity_anim_tick
+    add hl, de
+    ld (hl), 0
 
 .patrol_facing_done:
     pop hl
