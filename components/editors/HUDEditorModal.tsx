@@ -1269,7 +1269,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
       aria-labelledby="hudEditorModalTitle"
     >
       <div
-        className="bg-msx-black border-4 border-msx-lightyellow text-msx-lightyellow w-full max-w-4xl h-[80vh] flex flex-col pixel-font shadow-2xl animate-slideIn"
+        className="bg-msx-black border-4 border-msx-lightyellow text-msx-lightyellow w-full max-w-6xl h-[85vh] flex flex-col pixel-font shadow-2xl animate-slideIn"
         onClick={e => e.stopPropagation()}
       >
         <h2 id="hudEditorModalTitle" className="text-lg p-2 border-b-2 border-msx-lightyellow text-center select-none">
@@ -1277,8 +1277,101 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
         </h2>
 
         <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
-          {/* Left Panel: Element List and Add Buttons per Tab */}
-          <div className="w-1/4 border-r-2 border-msx-lightyellow flex flex-col min-h-0 overflow-y-auto">
+
+          {/* Far Left Panel: Import HUD Frame + Screen HUD Elements */}
+          <div className="w-1/5 border-r-2 border-msx-lightyellow flex flex-col min-h-0">
+
+            {/* Imported HUD Frame */}
+            <div className="p-2 border-b-2 border-msx-lightyellow/50 flex-shrink-0">
+              <h3 className="text-sm text-msx-highlight mb-2 select-none">Import HUD Frame:</h3>
+              <div className="text-xs text-msx-textsecondary mb-2">
+                Importa el descarte del Active Area de otra Screen como marco estatico HUD.
+              </div>
+              <div className="space-y-2 text-xs">
+                <div>
+                  <label className="block text-msx-textsecondary mb-1">Screen Asset origen:</label>
+                  <select
+                    value={importSourceScreenAssetId}
+                    onChange={(e) => setImportSourceScreenAssetId(e.target.value)}
+                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+                  >
+                    <option value="">Seleccionar screen...</option>
+                    {screenMapAssets.map(asset => (
+                      <option key={asset.id} value={asset.id}>{asset.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-msx-textsecondary mb-1">TileBank para chars:</label>
+                  <select
+                    value={importTileBankAssetId}
+                    onChange={(e) => setImportTileBankAssetId(e.target.value)}
+                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+                  >
+                    <option value="">Seleccionar TileBank...</option>
+                    {tileBankAssets.map(asset => (
+                      <option key={asset.id} value={asset.id}>{asset.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-1">
+                  <Button onClick={handleImportHudFrame} variant="secondary" size="sm" className="flex-1 text-xs">
+                    Import Frame
+                  </Button>
+                  <Button onClick={handleClearImportedFrame} variant="ghost" size="sm" className="text-xs">
+                    Clear
+                  </Button>
+                </div>
+                {localHudConfig.importedFrame && (
+                  <div className="text-[0.65rem] text-msx-cyan">
+                    Snapshot: {localHudConfig.importedFrame.cells.length} celdas ({localHudConfig.importedFrame.sourceScreenName || localHudConfig.importedFrame.sourceScreenAssetId})
+                  </div>
+                )}
+                {importFrameMessage && (
+                  <div className="text-[0.65rem] text-msx-textsecondary">{importFrameMessage}</div>
+                )}
+              </div>
+            </div>
+
+            {/* Screen HUD Elements - scrollable */}
+            <div className="p-2 flex-grow min-h-0 overflow-y-auto">
+              <h3 className="text-sm text-msx-highlight mb-1 select-none">Screen HUD Elements:</h3>
+              {localHudConfig.elements.length === 0 && <p className="text-xs text-msx-textsecondary italic">No HUD elements added yet.</p>}
+              <ul className="space-y-1">
+                {localHudConfig.elements.map(el => (
+                  <li key={el.id}
+                      className={`w-full flex justify-between items-center p-1.5 rounded text-xs
+                                  ${selectedElementId === el.id ? 'bg-msx-lightyellow text-msx-black' : 'bg-msx-darkblue/30 hover:bg-msx-darkblue/60'}`}
+                  >
+                    <div
+                        className="truncate flex-grow cursor-pointer"
+                        onClick={() => setSelectedElementId(el.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedElementId(el.id); }}
+                        tabIndex={0}
+                        role="button"
+                        aria-pressed={selectedElementId === el.id}
+                    >
+                        {el.name} ({el.type})
+                    </div>
+                    <Button
+                        onClick={(e) => { e.stopPropagation(); handleRemoveElement(el.id);}}
+                        variant="ghost"
+                        size="sm"
+                        className={`!p-0.5 !ml-1 !min-w-0 flex-shrink-0 ${selectedElementId === el.id ? 'text-msx-darkred hover:text-red-700' : 'text-red-500 hover:text-red-700'}`}
+                        icon={<TrashIcon className="w-3.5 h-3.5" />}
+                        aria-label={`Delete ${el.name}`}
+                        title={`Delete ${el.name}`}
+                    >
+                        {null}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Second Left Panel: Tabs + Add New + MSX Sectors */}
+          <div className="w-1/5 border-r-2 border-msx-lightyellow flex flex-col min-h-0">
             <div className="flex border-b-2 border-msx-lightyellow select-none">
               {(Object.keys(hudElementTemplates) as HudTab[]).map(tabName => (
                 <button
@@ -1300,7 +1393,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                   size="sm"
                   className="w-full text-xs justify-start"
                   icon={<PlusCircleIcon className="w-3 h-3"/>}
-                  disabled={(template.type === HUDElementType.MiniMap || template.type === HUDElementType.PhaseIndicator || template.name.includes("(Soon)"))} 
+                  disabled={(template.type === HUDElementType.MiniMap || template.type === HUDElementType.PhaseIndicator || template.name.includes("(Soon)"))}
                   title={(template.type === HUDElementType.MiniMap || template.type === HUDElementType.PhaseIndicator || template.name.includes("(Soon)")) ? "Feature coming soon" : `Add ${template.name}`}
                 >
                   {template.name}
@@ -1309,7 +1402,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
             </div>
 
             {/* MSX Screen 2 Sector Configuration */}
-            <div className="p-2 border-b-2 border-msx-lightyellow/50 flex-shrink-0" style={{ maxHeight: '220px', overflowY: 'auto' }}>
+            <div className="p-2 flex-grow min-h-0 overflow-y-auto border-t border-msx-lightyellow/20">
               <h3 className="text-sm text-msx-highlight mb-2 select-none">MSX Screen 2 Sectors:</h3>
               <div className="text-xs text-msx-textsecondary mb-2 italic">
                 Fonts are automatically extracted from TileBank character definitions (A-Z, 0-9)
@@ -1346,98 +1439,11 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                   </div>
                 );
               })}
-	            </div>
-
-	            {/* Imported HUD Frame */}
-	            <div className="p-2 border-b-2 border-msx-lightyellow/50 flex-shrink-0">
-	              <h3 className="text-sm text-msx-highlight mb-2 select-none">Import HUD Frame:</h3>
-	              <div className="text-xs text-msx-textsecondary mb-2">
-	                Importa el descarte del Active Area de otra Screen como marco estatico HUD.
-	              </div>
-	              <div className="space-y-2 text-xs">
-	                <div>
-	                  <label className="block text-msx-textsecondary mb-1">Screen Asset origen:</label>
-	                  <select
-	                    value={importSourceScreenAssetId}
-	                    onChange={(e) => setImportSourceScreenAssetId(e.target.value)}
-	                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
-	                  >
-	                    <option value="">Seleccionar screen...</option>
-	                    {screenMapAssets.map(asset => (
-	                      <option key={asset.id} value={asset.id}>{asset.name}</option>
-	                    ))}
-	                  </select>
-	                </div>
-	                <div>
-	                  <label className="block text-msx-textsecondary mb-1">TileBank para chars:</label>
-	                  <select
-	                    value={importTileBankAssetId}
-	                    onChange={(e) => setImportTileBankAssetId(e.target.value)}
-	                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
-	                  >
-	                    <option value="">Seleccionar TileBank...</option>
-	                    {tileBankAssets.map(asset => (
-	                      <option key={asset.id} value={asset.id}>{asset.name}</option>
-	                    ))}
-	                  </select>
-	                </div>
-	                <div className="flex gap-1">
-	                  <Button onClick={handleImportHudFrame} variant="secondary" size="sm" className="flex-1 text-xs">
-	                    Import Frame
-	                  </Button>
-	                  <Button onClick={handleClearImportedFrame} variant="ghost" size="sm" className="text-xs">
-	                    Clear
-	                  </Button>
-	                </div>
-	                {localHudConfig.importedFrame && (
-	                  <div className="text-[0.65rem] text-msx-cyan">
-	                    Snapshot: {localHudConfig.importedFrame.cells.length} celdas ({localHudConfig.importedFrame.sourceScreenName || localHudConfig.importedFrame.sourceScreenAssetId})
-	                  </div>
-	                )}
-	                {importFrameMessage && (
-	                  <div className="text-[0.65rem] text-msx-textsecondary">{importFrameMessage}</div>
-	                )}
-	              </div>
-	            </div>
-	
-	            <div className="p-2 flex-grow min-h-0 overflow-y-auto">
-	              <h3 className="text-sm text-msx-highlight mb-1 select-none">Screen HUD Elements:</h3>
-              {localHudConfig.elements.length === 0 && <p className="text-xs text-msx-textsecondary italic">No HUD elements added yet.</p>}
-              <ul className="space-y-1">
-                {localHudConfig.elements.map(el => (
-                  <li key={el.id}
-                      className={`w-full flex justify-between items-center p-1.5 rounded text-xs 
-                                  ${selectedElementId === el.id ? 'bg-msx-lightyellow text-msx-black' : 'bg-msx-darkblue/30 hover:bg-msx-darkblue/60'}`}
-                  >
-                    <div
-                        className="truncate flex-grow cursor-pointer"
-                        onClick={() => setSelectedElementId(el.id)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedElementId(el.id); }}
-                        tabIndex={0}
-                        role="button"
-                        aria-pressed={selectedElementId === el.id}
-                    >
-                        {el.name} ({el.type})
-                    </div>
-                     <Button
-                        onClick={(e) => { e.stopPropagation(); handleRemoveElement(el.id);}}
-                        variant="ghost"
-                        size="sm"
-                        className={`!p-0.5 !ml-1 !min-w-0 flex-shrink-0 ${selectedElementId === el.id ? 'text-msx-darkred hover:text-red-700' : 'text-red-500 hover:text-red-700'}`}
-                        icon={<TrashIcon className="w-3.5 h-3.5" />}
-                        aria-label={`Delete ${el.name}`}
-                        title={`Delete ${el.name}`}
-                    >
-                        {null}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
             </div>
           </div>
 
           {/* Center Panel: Preview */}
-          <div className="w-1/2 border-r-2 border-msx-lightyellow flex flex-col items-center justify-center p-2">
+          <div className="w-2/5 border-r-2 border-msx-lightyellow flex flex-col items-center justify-center p-2">
             <p className="text-sm text-msx-textsecondary select-none mb-1">HUD Preview (Approx. {PREVIEW_WIDTH_PX}x{PREVIEW_HEIGHT_PX}px Canvas)</p>
             {renderHudPreview()}
             {selectedElement && <p className="text-xs mt-2">Selected: <span className="text-msx-cyan">{selectedElement.name}</span> at ({selectedElement.position.x},{selectedElement.position.y}) MSX Pixels</p>}
@@ -1445,7 +1451,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
           </div>
 
           {/* Right Panel: Properties Editor */}
-          <div className="w-1/4 p-2 overflow-y-auto">
+          <div className="w-1/5 p-2 overflow-y-auto">
             <h3 className="text-sm text-msx-highlight mb-2 select-none">Properties:</h3>
             {selectedElement ? (
               <div className="space-y-2 text-xs">
