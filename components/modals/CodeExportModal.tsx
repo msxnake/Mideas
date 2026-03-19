@@ -59,6 +59,7 @@ interface Zx0CompressionOptions {
   fontPatterns: boolean;
   fontColors: boolean;
   spritePatterns: boolean;
+  presentationScreen: boolean;
 }
 
 const DEFAULT_ZX0_OPTIONS: Zx0CompressionOptions = {
@@ -70,6 +71,7 @@ const DEFAULT_ZX0_OPTIONS: Zx0CompressionOptions = {
   fontPatterns: true,
   fontColors: true,
   spritePatterns: true,
+  presentationScreen: true,
 };
 
 interface GeneratedFile {
@@ -1432,14 +1434,15 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   Data blocks to compress with ZX0:
                 </p>
                 {([
-                  { key: 'screens',      label: 'Screens (layout maps)' },
-                  { key: 'effects',      label: 'Effects (secret layouts)' },
-                  { key: 'behaviorMaps', label: 'Behavior maps' },
-                  { key: 'tilePatterns', label: 'Tile patterns' },
-                  { key: 'tileColors',   label: 'Tile colors' },
-                  { key: 'fontPatterns', label: 'Font patterns' },
-                  { key: 'fontColors',   label: 'Font colors' },
-                  { key: 'spritePatterns', label: 'Sprite patterns' },
+                  { key: 'screens',            label: 'Screens (layout maps)' },
+                  { key: 'effects',            label: 'Effects (secret layouts)' },
+                  { key: 'behaviorMaps',       label: 'Behavior maps' },
+                  { key: 'tilePatterns',       label: 'Tile patterns' },
+                  { key: 'tileColors',         label: 'Tile colors' },
+                  { key: 'fontPatterns',       label: 'Font patterns' },
+                  { key: 'fontColors',         label: 'Font colors' },
+                  { key: 'spritePatterns',     label: 'Sprite patterns' },
+                  { key: 'presentationScreen', label: 'Presentation Screen' },
                 ] as { key: keyof Zx0CompressionOptions; label: string }[]).map(({ key, label }) => (
                   <div key={key} className="flex items-center space-x-2">
                     <input
@@ -1463,7 +1466,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   </button>
                   <button
                     className="text-xs text-msx-textsecondary underline"
-                    onClick={() => setZx0Options({ screens: false, effects: false, behaviorMaps: false, tilePatterns: false, tileColors: false, fontPatterns: false, fontColors: false, spritePatterns: false })}
+                    onClick={() => setZx0Options({ screens: false, effects: false, behaviorMaps: false, tilePatterns: false, tileColors: false, fontPatterns: false, fontColors: false, spritePatterns: false, presentationScreen: false })}
                   >
                     None
                   </button>

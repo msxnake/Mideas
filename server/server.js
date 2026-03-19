@@ -382,14 +382,15 @@ function buildSpriteFrameGroups(spritePatternBlocks, sourceCode) {
 
 async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProgress = null) {
   const {
-    screens       = true,
-    effects       = true,
-    behaviorMaps  = true,
-    tilePatterns  = true,
-    tileColors    = true,
-    fontPatterns  = true,
-    fontColors    = true,
-    spritePatterns = true,
+    screens             = true,
+    effects             = true,
+    behaviorMaps        = true,
+    tilePatterns        = true,
+    tileColors          = true,
+    fontPatterns        = true,
+    fontColors          = true,
+    spritePatterns      = true,
+    presentationScreen  = true,
   } = options;
   const info = {
     attempted: false,
@@ -479,13 +480,13 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const layoutBlocks = collectAsmDataBlocks(lines, /^\s*(SCREEN_[A-Z0-9_]+_\d+_LAYOUT):\s*$/);
   const effectsBlocks = collectAsmDataBlocks(lines, /^\s*(SCREEN_[A-Z0-9_]+_\d+_EFFECTS_LAYOUT):\s*$/);
   const behaviorBlocks = collectAsmDataBlocks(lines, /^\s*(BEHAVIOR_[A-Z0-9_]+_\d+_DATA):\s*$/);
-  const presentationNameBlocks = compressPresentationName
+  const presentationNameBlocks = (presentationScreen && compressPresentationName)
     ? collectAsmDataBlocks(lines, /^\s*(PRESENTATION_SCREEN_NAMETBL):\s*$/)
     : [];
-  const presentationPatternBlocks = compressPresentationPatterns
+  const presentationPatternBlocks = (presentationScreen && compressPresentationPatterns)
     ? collectAsmDataBlocks(lines, /^\s*(PRESENTATION_SCREEN_PATTERNS_B[0-2]):\s*$/)
     : [];
-  const presentationColorBlocks = compressPresentationColors
+  const presentationColorBlocks = (presentationScreen && compressPresentationColors)
     ? collectAsmDataBlocks(lines, /^\s*(PRESENTATION_SCREEN_COLORS_B[0-2]):\s*$/)
     : [];
   const tilePatternBlocks = collectAsmDataBlocks(lines, /^\s*(tile_pattern_[a-z0-9_]+):\s*$/i);
