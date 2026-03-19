@@ -3105,26 +3105,31 @@ ${nodeLabel}:
       case 'Text': {
         const nodeId = sanitizeId(node.id);
         const title = (node.title || node.name || '').replace(/"/g, '').replace(/\r?\n/g, ' ').trim().toUpperCase() || 'TEXT';
-        const message = (node.message || '').replace(/"/g, '').replace(/\r?\n/g, ' ');
+        const message = (node.message || '').replace(/"/g, '');
         const bgHex = (node as any).appearance?.colors?.background || '#000000';
         const bgColor = hexToMSXColor(bgHex);
 
         // Word-wrap message to 28 chars per line (leaving 2-char margin each side)
+        // Respect explicit line breaks (\n) from the user
         const maxLineWidth = 28;
-        const words = message.split(' ');
+        const paragraphs = message.split(/\r?\n/);
         const messageLines: string[] = [];
-        let currentLine = '';
-        for (const word of words) {
-          const upperWord = word.toUpperCase();
-          const testLine = currentLine ? currentLine + ' ' + upperWord : upperWord;
-          if (testLine.length > maxLineWidth && currentLine) {
-            messageLines.push(currentLine);
-            currentLine = upperWord;
-          } else {
-            currentLine = testLine;
+        for (const paragraph of paragraphs) {
+          const words = paragraph.split(' ');
+          let currentLine = '';
+          for (const word of words) {
+            const upperWord = word.toUpperCase();
+            const testLine = currentLine ? currentLine + ' ' + upperWord : upperWord;
+            if (testLine.length > maxLineWidth && currentLine) {
+              messageLines.push(currentLine);
+              currentLine = upperWord;
+            } else {
+              currentLine = testLine;
+            }
           }
+          if (currentLine.trim()) messageLines.push(currentLine);
+          else messageLines.push(''); // empty line for blank paragraph
         }
-        if (currentLine.trim()) messageLines.push(currentLine);
 
         const promptText = 'PRESS FIRE TO CONTINUE';
 
@@ -3134,10 +3139,16 @@ ${nodeLabel}:
         // Title at row 3
         allLines.push({ row: 3, text: title, label: `text_${nodeId}_title` });
 
-        // Message lines starting at row 7
-        messageLines.forEach((line, i) => {
-          allLines.push({ row: 7 + i, text: line, label: `text_${nodeId}_msg${i}` });
-        });
+        // Message lines starting at row 7, skip empty lines (but advance row)
+        let msgRow = 7;
+        let msgLabelIdx = 0;
+        for (const line of messageLines) {
+          if (line.trim()) {
+            allLines.push({ row: msgRow, text: line, label: `text_${nodeId}_msg${msgLabelIdx}` });
+            msgLabelIdx++;
+          }
+          msgRow++;
+        }
 
         // Prompt at row 20
         allLines.push({ row: 20, text: promptText, label: `text_${nodeId}_prompt` });

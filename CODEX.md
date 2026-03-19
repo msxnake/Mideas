@@ -51,5 +51,6 @@ Regla de ubicacion de archivos
 - Si el usuario menciona un archivo sin ruta explicita, buscar primero en `C:\Users\salam\Downloads`.
 
 Regla ASM del generador
-- Si modificas una rutina ASM del generador o codigo que emite ASM, lee antes `CLAUDE.md`, `docs/msx/Z80_INSTRUCTIONS_REFERENCE.md` y la documentacion funcional asociada al subsistema.
+- Si modificas una rutina ASM del generador o codigo que emite ASM, lee antes `CLAUDE.md`, `docs/msx/Z80_INSTRUCTIONS_REFERENCE.md`, `docs/msx/Z80_LDA_I_ERRATA.md` y la documentacion funcional asociada al subsistema.
 - Antes de cambiar la rutina, identifica y conserva su contrato de registros (entradas, salidas, registros clobbered, flags y balance de stack). Si cambias ese contrato a proposito, actualiza tambien la documentacion asociada.
+- Regla critica: no usar `ld a, i` o `ld a, r` para preservar/restaurar el estado de interrupciones alrededor de una seccion critica. Ese patron tiene una errata real del Z80 y puede dejar las IRQ deshabilitadas de forma permanente.

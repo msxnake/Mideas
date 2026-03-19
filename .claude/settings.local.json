@@ -136,7 +136,9 @@
       "Bash(cd /c/Users/salam/Downloads && grep -n '\"id\": \"tpl_1771166650770_6ibnk\"' patoantic201.json)",
       "Read(//tmp/**)",
       "Bash(for label:*)",
-      "Bash(start:*)"
+      "Bash(start:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:celeste.ink)"
     ],
     "deny": [],
     "ask": []

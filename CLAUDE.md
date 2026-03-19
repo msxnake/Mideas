@@ -5,6 +5,7 @@
 ## Z80 ASM - Errores Comunes a Evitar
 
 **LEER**: `docs/msx/Z80_INSTRUCTIONS_REFERENCE.md` para referencia completa.
+**LEER TAMBIEN**: `docs/msx/Z80_LDA_I_ERRATA.md` antes de tocar codigo ASM que preserve/restaure IRQ o lea IFF2 mediante flags.
 
 | INCORRECTO | CORRECTO |
 |------------|----------|
@@ -24,6 +25,24 @@
 **REGLA**: Si el código entre el salto y la etiqueta puede crecer o es largo, usar **`jp`** en lugar de `jr`.
 - `jr` = 2 bytes, pero limitado a ±127 bytes
 - `jp` = 3 bytes, pero sin límite de distancia
+
+### Errata Z80 - `ld a, i` / `ld a, r`
+
+Patron prohibido en secciones criticas:
+
+```asm
+ld a, i
+push af
+; ...
+pop af
+ret po
+ei
+ret
+```
+
+**Motivo**: si entra una IRQ entre `ld a, i` y la siguiente lectura de flags, el bit P/V puede corromperse a 0 y el flujo puede saltarse el `ei`.
+
+**Regla**: no usar `ld a, i` ni `ld a, r` para recordar el estado de interrupciones. Si el contexto garantiza IRQ activadas, usar `di` / `ei` incondicional. Si el contexto no es conocido, guardar el estado por otro mecanismo, por ejemplo un flag en RAM.
 
 ### MSX1 Screen 2 - Estructura de 3 Bancos
 

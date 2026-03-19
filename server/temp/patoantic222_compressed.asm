@@ -30,7 +30,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 126576
+; Estimated payload bytes: 126568
 ; Estimated banks used: 16
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1544 bytes)
@@ -62,7 +62,7 @@
 ; BANK 13 @#0000 : statemachine.asm part 3/3 (6643 bytes)
 ; BANK 13 @#19F3 : gameflow.asm part 1/2 (1549 bytes)
 ; BANK 14 @#0000 : gameflow.asm part 2/2 (8192 bytes)
-; BANK 15 @#0000 : gameflow.asm part 3/2 (3696 bytes)
+; BANK 15 @#0000 : gameflow.asm part 3/2 (3688 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -19207,7 +19207,7 @@ gameflow_node_gfn_1772275295906_conn:
     dw gameflow_node_gfn_1773061671607
     db CONNECTION_END
 
-; Node: Text - "GAME OVER"
+; Node: Text - "gfn_1773061671607"
 gameflow_node_gfn_1773061671607:
     db NODE_TYPE_TEXT
     dw gameflow_node_gfn_1773061671607_data
@@ -19218,17 +19218,17 @@ gameflow_node_gfn_1773061671607_data:
     DW 0            ; Background screen load function (0=none)
     DB 0         ; Background screen load bank
     DB 3                  ; Number of lines
-    DB 3, 11              ; Row 3, Col 11
-    DW text_gfn_1773061671607_title          ; -> "GAME OVER"
-    DB 7, 5              ; Row 7, Col 5
-    DW text_gfn_1773061671607_msg0          ; -> "CON FALDAS Y A LO LOCA"
+    DB 3, 14              ; Row 3, Col 14
+    DW text_gfn_1773061671607_title          ; -> "TEXT"
+    DB 7, 11              ; Row 7, Col 11
+    DW text_gfn_1773061671607_msg0          ; -> "GAME OVER"
     DB 20, 5              ; Row 20, Col 5
     DW text_gfn_1773061671607_prompt          ; -> "PRESS FIRE TO CONTINUE"
 
 text_gfn_1773061671607_title:
-    DB "GAME OVER", 0
+    DB "TEXT", 0
 text_gfn_1773061671607_msg0:
-    DB "CON FALDAS Y A LO LOCA", 0
+    DB "GAME OVER", 0
 text_gfn_1773061671607_prompt:
     DB "PRESS FIRE TO CONTINUE", 0
 
@@ -19284,19 +19284,19 @@ gameflow_node_gfn_1773429614539_data:
     DB 4                  ; Number of lines
     DB 3, 12              ; Row 3, Col 12
     DW text_gfn_1773429614539_title          ; -> "CREDITS"
-    DB 7, 3              ; Row 7, Col 3
-    DW text_gfn_1773429614539_msg0          ; -> "GRAPHICS - MSXNAKE GAME -"
-    DB 8, 12              ; Row 8, Col 12
-    DW text_gfn_1773429614539_msg1          ; -> "MSXNAKE"
+    DB 7, 7              ; Row 7, Col 7
+    DW text_gfn_1773429614539_msg0          ; -> "GRAPHICS - MSXNAKE"
+    DB 8, 9              ; Row 8, Col 9
+    DW text_gfn_1773429614539_msg1          ; -> "GAME - MSXNAKE"
     DB 20, 5              ; Row 20, Col 5
     DW text_gfn_1773429614539_prompt          ; -> "PRESS FIRE TO CONTINUE"
 
 text_gfn_1773429614539_title:
     DB "CREDITS", 0
 text_gfn_1773429614539_msg0:
-    DB "GRAPHICS - MSXNAKE GAME -", 0
+    DB "GRAPHICS - MSXNAKE", 0
 text_gfn_1773429614539_msg1:
-    DB "MSXNAKE", 0
+    DB "GAME - MSXNAKE", 0
 text_gfn_1773429614539_prompt:
     DB "PRESS FIRE TO CONTINUE", 0
 

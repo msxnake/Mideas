@@ -92,10 +92,14 @@ export const TextNodeEditor: React.FC<TextNodeEditorProps> = ({
           <label className="block text-msx-textprimary text-sm mb-1">Message</label>
           <textarea
             value={node.message}
-            onChange={(e) => handleFieldChange('message', e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\\n/g, '\n');
+              handleFieldChange('message', val);
+            }}
             rows={4}
             className="w-full bg-msx-bgcolor border border-msx-border text-msx-textprimary rounded px-2 py-1 focus:outline-none focus:border-msx-primary resize-none"
           />
+          <p className="text-msx-textsecondary text-xs mt-1">Use \n or Enter for line breaks</p>
         </div>
       </Panel>
 

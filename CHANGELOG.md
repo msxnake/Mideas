@@ -8,6 +8,7 @@
 ### Documentation
 
 - **Documented State Machine global compare bug**: Added a project note describing the symptom, root cause, affected register flow, and patch for the `Lives == N` transition failure in exported ASM.
+- **Documented Z80 `ld a, i` / `ld a, r` errata**: Added `docs/msx/Z80_LDA_I_ERRATA.md` and linked the rule from the main Z80 guidance files so future ASM generator changes avoid the interrupt flag race.
 
 ---
 
