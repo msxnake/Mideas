@@ -3720,6 +3720,21 @@ useEffect(() => {
                     return { ...prev, [targetVar]: current + incrementAmount };
                 });
             }
+            const rawFlagVar = tileCollectorProps.flagVariable;
+            const flagVar = normalizeVariableName(rawFlagVar) ?? (typeof rawFlagVar === 'string' ? rawFlagVar.trim() : '');
+            const rawFlagValue = tileCollectorProps.flagValue;
+            const flagValue = typeof rawFlagValue === 'boolean'
+                ? rawFlagValue
+                : (() => {
+                    const parsed = Number(rawFlagValue ?? 1);
+                    return Number.isNaN(parsed) ? 1 : parsed;
+                })();
+            if (flagVar) {
+                updateGameGlobalVariables((prev: Record<string, any>) => ({
+                    ...prev,
+                    [flagVar]: flagValue
+                }));
+            }
         }
 
         // 4. Store last_gem_char (tile ID for SM conditions)

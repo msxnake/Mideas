@@ -232,6 +232,7 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
     const entities = (screenMap.data as any)?.layers?.entities || [];
     entities.forEach((entity: any) => {
       addTileCollectorVariableName(entity?.componentOverrides?.comp_tile_collector?.targetVariable);
+      addTileCollectorVariableName(entity?.componentOverrides?.comp_tile_collector?.flagVariable);
     });
 
     const hudElements = (screenMap.data as any)?.hudConfiguration?.elements || [];
@@ -256,6 +257,7 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
     const template = templateAsset.data as any;
     const tileCollectorComp = template?.components?.find((c: any) => c.definitionId === 'comp_tile_collector');
     addTileCollectorVariableName(tileCollectorComp?.defaultValues?.targetVariable);
+    addTileCollectorVariableName(tileCollectorComp?.defaultValues?.flagVariable);
   });
 
   // 4. Detect which variables are used

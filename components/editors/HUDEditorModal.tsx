@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { HUDConfiguration, HUDElement, HUDElementType, HUDElementProperties_Base, MSXColorValue, MSX1ColorValue, MSXFont, MSXFontColorAttributes, TileBank, Tile, ProjectAsset, ScreenMap, ScreenTile, HUDImportedFrameCell } from '../../types';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
@@ -882,12 +882,29 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
 
   const commonProperties: (keyof HUDElementProperties_Base)[] = ['name', 'text', 'position', 'visible', 'memoryAddress'];
 
+  const centerPanelRef = useRef<HTMLDivElement>(null);
+  const [centerPanelSize, setCenterPanelSize] = useState({ w: PREVIEW_WIDTH_PX, h: PREVIEW_HEIGHT_PX });
+
+  useEffect(() => {
+    const el = centerPanelRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setCenterPanelSize({ w: Math.floor(width), h: Math.floor(height) });
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const screenTotalPixelWidth = screenMapWidth * baseCellDimension;
   const screenTotalPixelHeight = screenMapHeight * baseCellDimension;
 
-  const previewScaleX = PREVIEW_WIDTH_PX / screenTotalPixelWidth;
-  const previewScaleY = PREVIEW_HEIGHT_PX / screenTotalPixelHeight;
-  const finalPreviewScale = Math.min(previewScaleX, previewScaleY, 1); 
+  const MARGIN = 8;
+  const previewScaleX = (centerPanelSize.w - MARGIN) / screenTotalPixelWidth;
+  const previewScaleY = (centerPanelSize.h - MARGIN) / screenTotalPixelHeight;
+  const finalPreviewScale = Math.min(previewScaleX, previewScaleY);
 
   const scaledTileW = baseCellDimension * finalPreviewScale;
   const scaledTileH = baseCellDimension * finalPreviewScale;
@@ -1244,12 +1261,10 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
         }
     });
     return (
-        <div className="relative bg-msx-darkblue/20 border border-dashed border-msx-lightyellow/50 mt-2 overflow-hidden"
+        <div className="relative bg-msx-darkblue/20 border border-dashed border-msx-lightyellow/50 overflow-hidden"
             style={{
-                width: screenMapWidth * scaledTileW, 
-                height: screenMapHeight * scaledTileH, 
-                maxWidth: PREVIEW_WIDTH_PX, 
-                maxHeight: PREVIEW_HEIGHT_PX,
+                width: screenMapWidth * scaledTileW,
+                height: screenMapHeight * scaledTileH,
                 margin: 'auto'
             }}
             aria-label="HUD Preview"
@@ -1269,31 +1284,45 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
       aria-labelledby="hudEditorModalTitle"
     >
       <div
-        className="bg-msx-black border-4 border-msx-lightyellow text-msx-lightyellow w-full max-w-6xl h-[85vh] flex flex-col pixel-font shadow-2xl animate-slideIn"
+        className="bg-[#0d1117] border border-[#30363d] text-[#e6edf3] w-[98vw] h-[95vh] flex flex-col font-sans shadow-2xl animate-slideIn rounded-md overflow-hidden"
         onClick={e => e.stopPropagation()}
+        style={{
+          '--msx-bgcolor': '#161b22',
+          '--msx-panelbg': '#0d1117',
+          '--msx-highlight': '#58a6ff',
+          '--msx-textsecondary': '#8b949e',
+          '--msx-textprimary': '#e6edf3',
+          '--msx-border': '#30363d',
+          '--msx-accent': '#58a6ff',
+          '--msx-danger': '#f85149',
+          '--msx-warning': '#d29922',
+          '--msx-cyan': '#79c0ff',
+        } as React.CSSProperties}
       >
-        <h2 id="hudEditorModalTitle" className="text-lg p-2 border-b-2 border-msx-lightyellow text-center select-none">
-          HUD Configuration Editor (Screen: {currentScreenMode})
+        <h2 id="hudEditorModalTitle" className="text-base font-semibold px-4 py-2.5 border-b border-[#30363d] bg-[#161b22] text-[#e6edf3] select-none tracking-wide flex items-center gap-2">
+          <span className="text-[#58a6ff]">◈</span>
+          HUD Configuration Editor
+          <span className="text-[#8b949e] font-normal text-sm">— {currentScreenMode}</span>
         </h2>
 
         <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
 
           {/* Far Left Panel: Import HUD Frame + Screen HUD Elements */}
-          <div className="w-1/5 border-r-2 border-msx-lightyellow flex flex-col min-h-0">
+          <div className="w-1/5 border-r border-[#30363d] flex flex-col min-h-0 bg-[#0d1117]">
 
             {/* Imported HUD Frame */}
-            <div className="p-2 border-b-2 border-msx-lightyellow/50 flex-shrink-0">
-              <h3 className="text-sm text-msx-highlight mb-2 select-none">Import HUD Frame:</h3>
-              <div className="text-xs text-msx-textsecondary mb-2">
-                Importa el descarte del Active Area de otra Screen como marco estatico HUD.
-              </div>
-              <div className="space-y-2 text-xs">
+            <div className="p-3 border-b border-[#30363d] flex-shrink-0">
+              <h3 className="text-xs font-semibold text-[#58a6ff] uppercase tracking-widest mb-2.5 select-none">Import HUD Frame</h3>
+              <p className="text-xs text-[#8b949e] mb-3 leading-relaxed">
+                Importa el descarte del Active Area de otra Screen como marco estático HUD.
+              </p>
+              <div className="space-y-2.5">
                 <div>
-                  <label className="block text-msx-textsecondary mb-1">Screen Asset origen:</label>
+                  <label className="block text-xs font-medium text-[#8b949e] mb-1">Screen Asset origen</label>
                   <select
                     value={importSourceScreenAssetId}
                     onChange={(e) => setImportSourceScreenAssetId(e.target.value)}
-                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+                    className="w-full px-2 py-1.5 text-sm bg-[#161b22] border border-[#30363d] rounded text-[#e6edf3] focus:outline-none focus:border-[#58a6ff]"
                   >
                     <option value="">Seleccionar screen...</option>
                     {screenMapAssets.map(asset => (
@@ -1302,11 +1331,11 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-msx-textsecondary mb-1">TileBank para chars:</label>
+                  <label className="block text-xs font-medium text-[#8b949e] mb-1">TileBank para chars</label>
                   <select
                     value={importTileBankAssetId}
                     onChange={(e) => setImportTileBankAssetId(e.target.value)}
-                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+                    className="w-full px-2 py-1.5 text-sm bg-[#161b22] border border-[#30363d] rounded text-[#e6edf3] focus:outline-none focus:border-[#58a6ff]"
                   >
                     <option value="">Seleccionar TileBank...</option>
                     {tileBankAssets.map(asset => (
@@ -1314,7 +1343,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                     ))}
                   </select>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-2">
                   <Button onClick={handleImportHudFrame} variant="secondary" size="sm" className="flex-1 text-xs">
                     Import Frame
                   </Button>
@@ -1323,25 +1352,25 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                   </Button>
                 </div>
                 {localHudConfig.importedFrame && (
-                  <div className="text-[0.65rem] text-msx-cyan">
-                    Snapshot: {localHudConfig.importedFrame.cells.length} celdas ({localHudConfig.importedFrame.sourceScreenName || localHudConfig.importedFrame.sourceScreenAssetId})
+                  <div className="text-xs text-[#3fb950] bg-[#3fb950]/10 px-2 py-1 rounded">
+                    ✓ {localHudConfig.importedFrame.cells.length} celdas ({localHudConfig.importedFrame.sourceScreenName || localHudConfig.importedFrame.sourceScreenAssetId})
                   </div>
                 )}
                 {importFrameMessage && (
-                  <div className="text-[0.65rem] text-msx-textsecondary">{importFrameMessage}</div>
+                  <div className="text-xs text-[#8b949e]">{importFrameMessage}</div>
                 )}
               </div>
             </div>
 
             {/* Screen HUD Elements - scrollable */}
-            <div className="p-2 flex-grow min-h-0 overflow-y-auto">
-              <h3 className="text-sm text-msx-highlight mb-1 select-none">Screen HUD Elements:</h3>
-              {localHudConfig.elements.length === 0 && <p className="text-xs text-msx-textsecondary italic">No HUD elements added yet.</p>}
+            <div className="p-3 flex-grow min-h-0 overflow-y-auto">
+              <h3 className="text-xs font-semibold text-[#58a6ff] uppercase tracking-widest mb-2.5 select-none">Screen HUD Elements</h3>
+              {localHudConfig.elements.length === 0 && <p className="text-sm text-[#8b949e] italic">No HUD elements added yet.</p>}
               <ul className="space-y-1">
                 {localHudConfig.elements.map(el => (
                   <li key={el.id}
-                      className={`w-full flex justify-between items-center p-1.5 rounded text-xs
-                                  ${selectedElementId === el.id ? 'bg-msx-lightyellow text-msx-black' : 'bg-msx-darkblue/30 hover:bg-msx-darkblue/60'}`}
+                      className={`w-full flex justify-between items-center px-2.5 py-2 rounded text-sm transition-colors
+                                  ${selectedElementId === el.id ? 'bg-[#1f6feb] text-white' : 'bg-[#161b22] hover:bg-[#21262d] text-[#c9d1d9]'}`}
                   >
                     <div
                         className="truncate flex-grow cursor-pointer"
@@ -1357,7 +1386,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                         onClick={(e) => { e.stopPropagation(); handleRemoveElement(el.id);}}
                         variant="ghost"
                         size="sm"
-                        className={`!p-0.5 !ml-1 !min-w-0 flex-shrink-0 ${selectedElementId === el.id ? 'text-msx-darkred hover:text-red-700' : 'text-red-500 hover:text-red-700'}`}
+                        className={`!p-0.5 !ml-1 !min-w-0 flex-shrink-0 opacity-60 hover:opacity-100 ${selectedElementId === el.id ? 'text-white' : 'text-red-400'}`}
                         icon={<TrashIcon className="w-3.5 h-3.5" />}
                         aria-label={`Delete ${el.name}`}
                         title={`Delete ${el.name}`}
@@ -1371,20 +1400,20 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
           </div>
 
           {/* Second Left Panel: Tabs + Add New + MSX Sectors */}
-          <div className="w-1/5 border-r-2 border-msx-lightyellow flex flex-col min-h-0">
-            <div className="flex border-b-2 border-msx-lightyellow select-none">
+          <div className="w-1/5 border-r border-[#30363d] flex flex-col min-h-0 bg-[#0d1117]">
+            <div className="flex border-b border-[#30363d] select-none bg-[#161b22]">
               {(Object.keys(hudElementTemplates) as HudTab[]).map(tabName => (
                 <button
                   key={tabName}
                   onClick={() => setActiveTab(tabName)}
-                  className={`flex-1 py-1.5 px-1 text-xs truncate ${activeTab === tabName ? 'bg-msx-lightyellow text-msx-black' : 'hover:bg-msx-darkblue/50'}`}
+                  className={`flex-1 py-2 px-1 text-xs font-medium truncate transition-colors ${activeTab === tabName ? 'bg-[#1f6feb] text-white' : 'text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#21262d]'}`}
                 >
                   {tabName}
                 </button>
               ))}
             </div>
-            <div className="p-2 space-y-1 flex-shrink-0 border-b-2 border-msx-lightyellow/50">
-              <h3 className="text-sm text-msx-highlight mb-1 select-none">Add New ({activeTab}):</h3>
+            <div className="p-3 space-y-1.5 flex-shrink-0 border-b border-[#30363d]">
+              <h3 className="text-xs font-semibold text-[#58a6ff] uppercase tracking-widest mb-2 select-none">Add New — {activeTab}</h3>
               {hudElementTemplates[activeTab].map(template => (
                 <Button
                   key={template.type}
@@ -1402,40 +1431,36 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
             </div>
 
             {/* MSX Screen 2 Sector Configuration */}
-            <div className="p-2 flex-grow min-h-0 overflow-y-auto border-t border-msx-lightyellow/20">
-              <h3 className="text-sm text-msx-highlight mb-2 select-none">MSX Screen 2 Sectors:</h3>
-              <div className="text-xs text-msx-textsecondary mb-2 italic">
-                Fonts are automatically extracted from TileBank character definitions (A-Z, 0-9)
-              </div>
+            <div className="p-3 flex-grow min-h-0 overflow-y-auto">
+              <h3 className="text-xs font-semibold text-[#58a6ff] uppercase tracking-widest mb-2 select-none">MSX Screen 2 Sectors</h3>
+              <p className="text-xs text-[#8b949e] mb-3 leading-relaxed">
+                Fonts extracted from TileBank character definitions (A-Z, 0-9)
+              </p>
               {[0, 1, 2].map((sectorIndex) => {
                 const sectorKey = `sector${sectorIndex}` as const;
                 const sectorConfig = localHudConfig.screenSectors?.[sectorKey];
                 const tileBankAssets = allAssets?.filter(asset => asset.type === 'tilebank') || [];
 
                 return (
-                  <div key={sectorIndex} className="mb-2 p-2 border border-msx-border/30 rounded text-xs">
-                    <div className="text-msx-cyan font-semibold mb-1">
-                      Bank {sectorIndex} (Lines {sectorIndex * 8}-{sectorIndex * 8 + 7})
+                  <div key={sectorIndex} className="mb-2.5 p-2.5 border border-[#21262d] rounded-md bg-[#161b22]">
+                    <div className="text-sm font-semibold text-[#79c0ff] mb-0.5">
+                      Bank {sectorIndex} <span className="font-normal text-[#8b949e]">· Lines {sectorIndex * 8}–{sectorIndex * 8 + 7}</span>
                     </div>
-                    <div className="text-msx-textsecondary mb-1 text-xs">
-                      Y: {sectorIndex * 64}-{sectorIndex * 64 + 63} pixels
+                    <div className="text-xs text-[#6e7681] mb-2">
+                      Y: {sectorIndex * 64}–{sectorIndex * 64 + 63}px
                     </div>
-
-                    <div>
-                      <label className="block text-msx-textsecondary mb-1 text-xs">TileBank Asset (includes tiles + font):</label>
-                      <select
-                        value={sectorConfig?.tileBankAssetId || ''}
-                        onChange={(e) => handleSectorChange(sectorIndex as 0 | 1 | 2, e.target.value)}
-                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
-                      >
-                        <option value="">Default MSX Font</option>
-                        {tileBankAssets.map(asset => (
-                          <option key={asset.id} value={asset.id}>
-                            {asset.name || 'Unnamed TileBank'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <select
+                      value={sectorConfig?.tileBankAssetId || ''}
+                      onChange={(e) => handleSectorChange(sectorIndex as 0 | 1 | 2, e.target.value)}
+                      className="w-full px-2 py-1.5 text-sm bg-[#0d1117] border border-[#30363d] rounded text-[#e6edf3] focus:outline-none focus:border-[#58a6ff]"
+                    >
+                      <option value="">Default MSX Font</option>
+                      {tileBankAssets.map(asset => (
+                        <option key={asset.id} value={asset.id}>
+                          {asset.name || 'Unnamed TileBank'}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 );
               })}
@@ -1443,40 +1468,43 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
           </div>
 
           {/* Center Panel: Preview */}
-          <div className="w-2/5 border-r-2 border-msx-lightyellow flex flex-col items-center justify-center p-2">
-            <p className="text-sm text-msx-textsecondary select-none mb-1">HUD Preview (Approx. {PREVIEW_WIDTH_PX}x{PREVIEW_HEIGHT_PX}px Canvas)</p>
-            {renderHudPreview()}
-            {selectedElement && <p className="text-xs mt-2">Selected: <span className="text-msx-cyan">{selectedElement.name}</span> at ({selectedElement.position.x},{selectedElement.position.y}) MSX Pixels</p>}
-             <p className="text-[0.6rem] text-msx-textsecondary mt-1">Note: Previsualización de texto usa fuente MSX1. Colores y posicionamiento son aproximados.</p>
+          <div className="w-2/5 border-r border-[#30363d] flex flex-col p-3 min-h-0 bg-[#010409]">
+            <p className="text-xs font-semibold text-[#8b949e] uppercase tracking-widest select-none mb-2 flex-shrink-0 text-center">HUD Preview — 256 × 192 MSX</p>
+            <div ref={centerPanelRef} className="flex-grow min-h-0 flex items-center justify-center overflow-hidden">
+              {renderHudPreview()}
+            </div>
+            <div className="flex-shrink-0 text-center pt-2 border-t border-[#21262d] mt-2">
+              {selectedElement && <p className="text-sm text-[#79c0ff] font-medium">Selected: <span className="text-[#e6edf3]">{selectedElement.name}</span> at ({selectedElement.position.x},{selectedElement.position.y}) px</p>}
+              <p className="text-xs text-[#6e7681] mt-0.5">Previsualización aproximada. Fuente MSX1, colores y posición pueden diferir.</p>
+            </div>
           </div>
 
           {/* Right Panel: Properties Editor */}
-          <div className="w-1/5 p-2 overflow-y-auto">
-            <h3 className="text-sm text-msx-highlight mb-2 select-none">Properties:</h3>
+          <div className="w-1/5 p-3 overflow-y-auto bg-[#0d1117]">
+            <h3 className="text-xs font-semibold text-[#58a6ff] uppercase tracking-widest mb-3 select-none">Properties</h3>
             {selectedElement ? (
-              <div className="space-y-2 text-xs">
+              <div className="space-y-2.5 text-sm">
                 {commonProperties.map(propKey => renderPropertyField(selectedElement, propKey as string, selectedElement[propKey as keyof HUDElement], ''))}
-                
-                <div className="pt-2 mt-2 border-t border-msx-lightyellow/30">
-                  <p className="text-xs text-msx-highlight mb-1">{selectedElement.type} Specifics:</p>
-                  {Object.keys(getMergedHudDetails(selectedElement)).length > 0 ? 
+
+                <div className="pt-3 mt-3 border-t border-[#21262d]">
+                  <p className="text-xs font-semibold text-[#58a6ff] uppercase tracking-widest mb-2">{selectedElement.type} Specifics</p>
+                  {Object.keys(getMergedHudDetails(selectedElement)).length > 0 ?
                     Object.entries(getMergedHudDetails(selectedElement)).map(([key, value]) => renderPropertyField(selectedElement, key, value, 'details'))
-                    : <p className="text-xs text-msx-textsecondary italic">No type-specific properties defined yet for this element.</p>
+                    : <p className="text-sm text-[#8b949e] italic">No type-specific properties.</p>
                   }
                 </div>
-                <div className="pt-2 mt-2 border-t border-msx-lightyellow/30 text-msx-textsecondary text-[0.65rem]">
-                    <p>VRAM Used: (calc...)</p>
-                    <p>Sprites/Line: (calc...)</p>
+                <div className="pt-3 mt-3 border-t border-[#21262d] text-xs text-[#6e7681]">
+                  <p>VRAM Used: (calc...)</p>
+                  <p>Sprites/Line: (calc...)</p>
                 </div>
-
               </div>
             ) : (
-              <p className="text-xs text-msx-textsecondary italic">Select an element to edit its properties.</p>
+              <p className="text-sm text-[#8b949e] italic">Select an element to edit its properties.</p>
             )}
           </div>
         </div>
 
-        <div className="p-2 border-t-2 border-msx-lightyellow flex justify-end">
+        <div className="px-4 py-2.5 border-t border-[#30363d] bg-[#161b22] flex justify-end">
           <Button onClick={onClose} variant="primary" size="md">Close</Button>
         </div>
       </div>

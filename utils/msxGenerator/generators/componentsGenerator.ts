@@ -4414,6 +4414,13 @@ function clampTileCollectorAmount(rawValue: any): number {
     return Math.max(0, Math.min(65535, Math.round(parsed)));
 }
 
+function coerceTileCollectorAssignValue(rawValue: any): number {
+    if (typeof rawValue === 'boolean') return rawValue ? 1 : 0;
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) return 1;
+    return Math.max(0, Math.min(65535, Math.round(parsed)));
+}
+
 function clampTileCollectorByte(rawValue: any): number {
     const parsed = Number(rawValue);
     if (!Number.isFinite(parsed) || parsed <= 0) return 0;
@@ -4492,6 +4499,8 @@ function extractTileCollectorConfig(candidate: any) {
         replacementTileId: candidate.replacementTileId,
         targetVariable: candidate.targetVariable ?? candidate.scoreVariable ?? candidate.scoreVariableName,
         incrementAmount: candidate.incrementAmount ?? candidate.scoreAmount ?? candidate.collectionValue ?? 0,
+        flagVariable: candidate.flagVariable ?? candidate.eventVariable ?? candidate.modifiedFlagVariable,
+        flagValue: candidate.flagValue ?? candidate.eventValue ?? 1,
         bonusTileId: candidate.bonusTileId,
         bonusReplacementTileId: candidate.bonusReplacementTileId,
         bonusSoundId: candidate.bonusSoundId,
@@ -4508,6 +4517,8 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
     replacementTileChar: number;
     targetVariable: { asmName: string; isWord: boolean } | null;
     incrementAmount: number;
+    flagVariable: { asmName: string; isWord: boolean } | null;
+    flagValue: number;
     bonusTileChar: number | null;
     bonusReplacementTileChar: number;
     bonusSoundAssetIndex: number | null;
@@ -4530,6 +4541,8 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
         const replacementTileChar = resolveTileCharCode(config.replacementTileId ?? 0, tileIdToCharCode);
         const targetVariable = resolveConfiguredVariableInfo(config.targetVariable, variableMap);
         const incrementAmount = clampTileCollectorAmount(config.incrementAmount);
+        const flagVariable = resolveConfiguredVariableInfo(config.flagVariable, variableMap);
+        const flagValue = coerceTileCollectorAssignValue(config.flagValue);
         const bonusTileChar = config.bonusTileId ? resolveTileCharCode(config.bonusTileId, tileIdToCharCode) : null;
         const bonusReplacementTileChar = resolveTileCharCode(config.bonusReplacementTileId ?? 0, tileIdToCharCode);
         const bonusSoundAssetIndex = resolveSoundAssetIndex(config.bonusSoundId, soundMap);
@@ -4545,6 +4558,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
             soundAssetIndex !== null ||
             replacementTileChar !== 0 ||
             (targetVariable && incrementAmount > 0) ||
+            flagVariable !== null ||
             bonusTileChar !== null ||
             bonusSoundAssetIndex !== null ||
             (bonusEntityEffect !== 'none' && bonusEffectAmount > 0) ||
@@ -4555,6 +4569,8 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
                 replacementTileChar,
                 targetVariable,
                 incrementAmount,
+                flagVariable,
+                flagValue,
                 bonusTileChar,
                 bonusReplacementTileChar,
                 bonusSoundAssetIndex,
@@ -4580,6 +4596,8 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
         const replacementTileChar = resolveTileCharCode(config.replacementTileId ?? 0, tileIdToCharCode);
         const targetVariable = resolveConfiguredVariableInfo(config.targetVariable, variableMap);
         const incrementAmount = clampTileCollectorAmount(config.incrementAmount);
+        const flagVariable = resolveConfiguredVariableInfo(config.flagVariable, variableMap);
+        const flagValue = coerceTileCollectorAssignValue(config.flagValue);
         const bonusTileChar = config.bonusTileId ? resolveTileCharCode(config.bonusTileId, tileIdToCharCode) : null;
         const bonusReplacementTileChar = resolveTileCharCode(config.bonusReplacementTileId ?? 0, tileIdToCharCode);
         const bonusSoundAssetIndex = resolveSoundAssetIndex(config.bonusSoundId, soundMap);
@@ -4595,6 +4613,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
             soundAssetIndex !== null ||
             replacementTileChar !== 0 ||
             (targetVariable && incrementAmount > 0) ||
+            flagVariable !== null ||
             bonusTileChar !== null ||
             bonusSoundAssetIndex !== null ||
             (bonusEntityEffect !== 'none' && bonusEffectAmount > 0) ||
@@ -4605,6 +4624,8 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
                 replacementTileChar,
                 targetVariable,
                 incrementAmount,
+                flagVariable,
+                flagValue,
                 bonusTileChar,
                 bonusReplacementTileChar,
                 bonusSoundAssetIndex,
@@ -4622,6 +4643,8 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
         replacementTileChar: 0,
         targetVariable: null,
         incrementAmount: 0,
+        flagVariable: null,
+        flagValue: 1,
         bonusTileChar: null,
         bonusReplacementTileChar: 0,
         bonusSoundAssetIndex: null,
@@ -5084,6 +5107,8 @@ function generateTileInteractionSystem(
         replacementTileChar: number;
         targetVariable: { asmName: string; isWord: boolean } | null;
         incrementAmount: number;
+        flagVariable: { asmName: string; isWord: boolean } | null;
+        flagValue: number;
         bonusTileChar: number | null;
         bonusReplacementTileChar: number;
         bonusSoundAssetIndex: number | null;
@@ -5133,21 +5158,22 @@ function generateTileInteractionSystem(
 `
                 : `    ; No bonusSoundId configured.
 `;
-    const hudSyncCode = tileCollectorConfig.targetVariable?.asmName === 'global_var_score'
+    const buildHudSyncCode = (variableInfo: { asmName: string; isWord: boolean } | null) => variableInfo?.asmName === 'global_var_score'
         ? `    ; Keep HUD Score text in sync with the updated global variable.
     push de
     call force_render_hud
     pop de
 `
-        : tileCollectorConfig.targetVariable?.asmName === 'global_var_lives'
+        : variableInfo?.asmName === 'global_var_lives'
             ? `    ; Keep HUD Lives text in sync with the updated global variable.
     push de
-    ld a, (${tileCollectorConfig.targetVariable.asmName})
+    ld a, (${variableInfo.asmName})
     call update_hud_lives
     call force_render_hud
     pop de
 `
             : '';
+    const hudSyncCode = buildHudSyncCode(tileCollectorConfig.targetVariable);
 
     const variableIncrementCode = tileCollectorConfig.targetVariable && tileCollectorConfig.incrementAmount > 0
         ? tileCollectorConfig.targetVariable.isWord
@@ -5170,6 +5196,25 @@ ${hudSyncCode}
 ${hudSyncCode}
 `
         : `    ; No targetVariable/incrementAmount configured in the Tile Collector UI.
+`;
+    const flagAssignCode = tileCollectorConfig.flagVariable
+        ? tileCollectorConfig.flagVariable.isWord
+            ? `    ; Tile Collector pickup flag assignment (16-bit).
+    ld hl, ${tileCollectorConfig.flagVariable.asmName}
+    ld a, ${(tileCollectorConfig.flagValue & 0xFF)}
+    ld (hl), a
+    inc hl
+    ld a, ${((tileCollectorConfig.flagValue >> 8) & 0xFF)}
+    ld (hl), a
+${buildHudSyncCode(tileCollectorConfig.flagVariable)}
+`
+            : `    ; Tile Collector pickup flag assignment (8-bit).
+    ld hl, ${tileCollectorConfig.flagVariable.asmName}
+    ld a, ${Math.min(255, tileCollectorConfig.flagValue)}
+    ld (hl), a
+${buildHudSyncCode(tileCollectorConfig.flagVariable)}
+`
+        : `    ; No flagVariable configured in the Tile Collector UI.
 `;
     const slashTotalPixels = bonusSlashStrength * 8;  // 10 * 8 = 80px = 10 tiles
     const slashTotalPixelsNeg = ((256 - slashTotalPixels) & 0xFF);
@@ -5892,6 +5937,7 @@ ${bonusCollectBranchCode}
     inc (hl)
 
 ${variableIncrementCode}
+${flagAssignCode}
 
 ${collectionSoundCode}
 

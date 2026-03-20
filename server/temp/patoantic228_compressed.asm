@@ -30,7 +30,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 126777
+; Estimated payload bytes: 126822
 ; Estimated banks used: 16
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1605 bytes)
@@ -50,19 +50,19 @@
 ; BANK 08 @#0000 : sprites.asm part 2/2 (5685 bytes)
 ; BANK 08 @#1635 : font.asm (2507 bytes)
 ; BANK 09 @#0000 : font.asm (1040 bytes)
-; BANK 09 @#0410 : hud.asm (3960 bytes)
-; BANK 09 @#1388 : menus.asm (454 bytes)
-; BANK 09 @#154E : sound.asm (2738 bytes)
-; BANK 10 @#0000 : sound.asm (4509 bytes)
-; BANK 10 @#119D : scroll.asm (2353 bytes)
-; BANK 10 @#1ACE : animtiles.asm (1330 bytes)
-; BANK 11 @#0000 : animtiles.asm (5529 bytes)
-; BANK 11 @#1599 : statemachine.asm part 1/3 (2663 bytes)
+; BANK 09 @#0410 : hud.asm (4005 bytes)
+; BANK 09 @#13B5 : menus.asm (454 bytes)
+; BANK 09 @#157B : sound.asm (2693 bytes)
+; BANK 10 @#0000 : sound.asm (4554 bytes)
+; BANK 10 @#11CA : scroll.asm (2353 bytes)
+; BANK 10 @#1AFB : animtiles.asm (1285 bytes)
+; BANK 11 @#0000 : animtiles.asm (5574 bytes)
+; BANK 11 @#15C6 : statemachine.asm part 1/3 (2618 bytes)
 ; BANK 12 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 13 @#0000 : statemachine.asm part 3/3 (6806 bytes)
-; BANK 13 @#1A96 : gameflow.asm part 1/2 (1386 bytes)
+; BANK 13 @#0000 : statemachine.asm part 3/3 (6851 bytes)
+; BANK 13 @#1AC3 : gameflow.asm part 1/2 (1341 bytes)
 ; BANK 14 @#0000 : gameflow.asm part 2/2 (8192 bytes)
-; BANK 15 @#0000 : gameflow.asm part 3/2 (3897 bytes)
+; BANK 15 @#0000 : gameflow.asm part 3/2 (3942 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -9384,19 +9384,18 @@ SCREEN_PAN1_0_HEIGHT    EQU 24
 SCREEN_PAN1_0_SIZE      EQU 768
 
 SCREEN_PAN1_0_LAYOUT:
-    ; ZX0 compressed layout (768 -> 178 bytes)
-    DB #95,#84,#68,#FF,#5B,#9D,#A6,#F3,#9E,#B9,#9F,#FE,#29,#84,#56,#AE
-    DB #80,#81,#FC,#3F,#FB,#FC,#18,#8F,#88,#92,#F0,#BF,#82,#7B,#FC,#02
-    DB #22,#82,#83,#FF,#80,#EE,#B8,#17,#D4,#C0,#E8,#81,#86,#56,#FE,#81
-    DB #05,#00,#21,#89,#8A,#58,#91,#83,#83,#7E,#85,#91,#FE,#80,#F8,#00
-    DB #47,#9F,#CB,#8A,#8B,#8C,#87,#B9,#F8,#80,#1E,#51,#97,#8C,#21,#C6
-    DB #BF,#8E,#FF,#F0,#BE,#93,#FF,#F4,#CC,#F8,#39,#38,#6F,#88,#FE,#F0
-    DB #2C,#CD,#C0,#4A,#83,#40,#F5,#80,#B7,#89,#65,#59,#C8,#E4,#C0,#3A
-    DB #D1,#8B,#03,#83,#B4,#58,#80,#A0,#83,#48,#65,#9C,#98,#99,#9A,#82
-    DB #F5,#5C,#FA,#FE,#9B,#78,#80,#9B,#88,#92,#92,#FD,#F8,#C0,#7B,#FA
-    DB #AB,#80,#85,#4F,#B8,#4C,#B0,#F5,#C0,#A7,#80,#DF,#80,#30,#DD,#D0
-    DB #F6,#FC,#FC,#82,#FB,#80,#32,#44,#F9,#B5,#FC,#2F,#80,#FB,#8D,#D0
-    DB #55,#56
+    ; ZX0 compressed layout (768 -> 174 bytes)
+    DB #84,#FF,#5B,#9D,#A6,#F3,#9E,#8E,#9F,#FC,#41,#98,#80,#80,#81,#7F
+    DB #FB,#FC,#18,#8F,#88,#92,#F0,#BC,#82,#88,#48,#EF,#82,#83,#FD,#80
+    DB #40,#53,#F4,#81,#FE,#7A,#81,#86,#15,#BF,#81,#05,#00,#88,#89,#8A
+    DB #56,#24,#83,#83,#5F,#85,#BF,#91,#80,#F8,#91,#00,#E7,#CB,#8A,#8B
+    DB #8C,#EE,#87,#F8,#80,#47,#A5,#51,#8C,#C8,#C6,#6F,#8E,#FF,#EF,#F0
+    DB #93,#FF,#B3,#F4,#F8,#0E,#38,#5B,#88,#FC,#FE,#2C,#33,#C0,#52,#90
+    DB #83,#3D,#80,#6D,#89,#D6,#65,#C8,#79,#C0,#0E,#D1,#80,#8B,#E0,#B4
+    DB #D6,#80,#28,#83,#12,#19,#9C,#98,#99,#9A,#82,#7D,#5C,#7E,#FE,#9E
+    DB #9B,#80,#26,#88,#92,#92,#FF,#F8,#C0,#5E,#FA,#EA,#80,#85,#D3,#B8
+    DB #D3,#B0,#3D,#C0,#69,#80,#F7,#80,#F7,#30,#D0,#7D,#FC,#BF,#82,#FB
+    DB #80,#0C,#BE,#44,#B5,#FC,#4B,#80,#E3,#FB,#D0,#55,#55,#80
 SCREEN_PAN1_0_EFFECTS_LAYOUT:
     ; ZX0 compressed effects (768 -> 6 bytes)
     DB #85,#FF,#55,#5D,#55,#56
@@ -10285,38 +10284,38 @@ load_screen:
 
 hud_imported_frame_pan1_770754008863_data:
     ; Imported HUD frame snapshot for pan1 (96 cells)
-    DB #00,#00,#84
-    DB #01,#00,#84
-    DB #02,#00,#84
-    DB #03,#00,#84
-    DB #04,#00,#84
-    DB #05,#00,#84
-    DB #06,#00,#84
-    DB #07,#00,#84
-    DB #08,#00,#84
-    DB #09,#00,#84
-    DB #0A,#00,#84
-    DB #0B,#00,#84
-    DB #0C,#00,#84
-    DB #0D,#00,#84
-    DB #0E,#00,#84
-    DB #0F,#00,#84
-    DB #10,#00,#84
-    DB #11,#00,#84
-    DB #12,#00,#84
-    DB #13,#00,#84
-    DB #14,#00,#84
-    DB #15,#00,#84
-    DB #16,#00,#84
-    DB #17,#00,#84
-    DB #18,#00,#84
-    DB #19,#00,#84
-    DB #1A,#00,#84
-    DB #1B,#00,#84
-    DB #1C,#00,#84
-    DB #1D,#00,#84
-    DB #1E,#00,#84
-    DB #1F,#00,#84
+    DB #00,#00,#00
+    DB #01,#00,#00
+    DB #02,#00,#00
+    DB #03,#00,#00
+    DB #04,#00,#00
+    DB #05,#00,#00
+    DB #06,#00,#00
+    DB #07,#00,#00
+    DB #08,#00,#00
+    DB #09,#00,#00
+    DB #0A,#00,#00
+    DB #0B,#00,#00
+    DB #0C,#00,#00
+    DB #0D,#00,#00
+    DB #0E,#00,#00
+    DB #0F,#00,#00
+    DB #10,#00,#00
+    DB #11,#00,#00
+    DB #12,#00,#00
+    DB #13,#00,#00
+    DB #14,#00,#00
+    DB #15,#00,#00
+    DB #16,#00,#00
+    DB #17,#00,#00
+    DB #18,#00,#00
+    DB #19,#00,#00
+    DB #1A,#00,#00
+    DB #1B,#00,#00
+    DB #1C,#00,#00
+    DB #1D,#00,#00
+    DB #1E,#00,#00
+    DB #1F,#00,#00
     DB #20,#00,#00
     DB #21,#00,#00
     DB #22,#00,#00
@@ -10349,38 +10348,38 @@ hud_imported_frame_pan1_770754008863_data:
     DB #3D,#00,#00
     DB #3E,#00,#00
     DB #3F,#00,#00
-    DB #40,#00,#84
-    DB #41,#00,#84
-    DB #42,#00,#84
-    DB #43,#00,#84
-    DB #44,#00,#84
-    DB #45,#00,#84
-    DB #46,#00,#84
-    DB #47,#00,#84
-    DB #48,#00,#84
-    DB #49,#00,#84
-    DB #4A,#00,#84
-    DB #4B,#00,#84
-    DB #4C,#00,#84
-    DB #4D,#00,#84
-    DB #4E,#00,#84
-    DB #4F,#00,#84
-    DB #50,#00,#84
-    DB #51,#00,#84
-    DB #52,#00,#84
-    DB #53,#00,#84
-    DB #54,#00,#84
-    DB #55,#00,#84
-    DB #56,#00,#84
-    DB #57,#00,#84
-    DB #58,#00,#84
-    DB #59,#00,#84
-    DB #5A,#00,#84
-    DB #5B,#00,#84
-    DB #5C,#00,#84
-    DB #5D,#00,#84
-    DB #5E,#00,#84
-    DB #5F,#00,#84
+    DB #40,#00,#00
+    DB #41,#00,#00
+    DB #42,#00,#00
+    DB #43,#00,#00
+    DB #44,#00,#00
+    DB #45,#00,#00
+    DB #46,#00,#00
+    DB #47,#00,#00
+    DB #48,#00,#00
+    DB #49,#00,#00
+    DB #4A,#00,#00
+    DB #4B,#00,#00
+    DB #4C,#00,#00
+    DB #4D,#00,#00
+    DB #4E,#00,#00
+    DB #4F,#00,#00
+    DB #50,#00,#00
+    DB #51,#00,#00
+    DB #52,#00,#00
+    DB #53,#00,#00
+    DB #54,#00,#00
+    DB #55,#00,#00
+    DB #56,#00,#00
+    DB #57,#00,#00
+    DB #58,#00,#00
+    DB #59,#00,#00
+    DB #5A,#00,#00
+    DB #5B,#00,#00
+    DB #5C,#00,#00
+    DB #5D,#00,#00
+    DB #5E,#00,#00
+    DB #5F,#00,#00
 
 hud_imported_frame_pan1_770754008863_draw:
     ; Draw imported HUD frame chars into Name Table
@@ -12943,14 +12942,14 @@ hud_element_data:
     DB 2, 1, 0 ; W, H, Flags
     DW hud_text_3             ; Text pointer
     DB 1                ; Visible
-    DB 8, 168, 8    ; Element 4: CoinCounter at (168,8)
+    DB 8, 160, 8    ; Element 4: CoinCounter at (160,8)
     DB 2, 1, 0 ; W, H, Flags
     DW hud_text_4             ; Text pointer
     DB 1                ; Visible
 
 ; HUD Text Strings
 hud_text_0:
-    DB "SCORE: 0000", 0
+    DB "SCORE 00000", 0
 hud_text_1:
     DB "3", 0
 hud_text_2:
@@ -13381,9 +13380,19 @@ update_hud_score:
     push de
     push hl
 
-    ld de, #1827
+    ld de, #1826
 
-    ; Runtime digit 0: / 1000
+    ; Runtime digit 0: / 10000
+    ld bc, 10000
+    call hud_div16
+    add a, '0'
+    push hl
+    ld h, d
+    ld l, e
+    call FAST_WRTVRM
+    pop hl
+    inc de
+    ; Runtime digit 1: / 1000
     ld bc, 1000
     call hud_div16
     add a, '0'
@@ -13393,7 +13402,7 @@ update_hud_score:
     call FAST_WRTVRM
     pop hl
     inc de
-    ; Runtime digit 1: / 100
+    ; Runtime digit 2: / 100
     ld bc, 100
     call hud_div16
     add a, '0'
@@ -13403,7 +13412,7 @@ update_hud_score:
     call FAST_WRTVRM
     pop hl
     inc de
-    ; Runtime digit 2: / 10
+    ; Runtime digit 3: / 10
     ld bc, 10
     call hud_div16
     add a, '0'

@@ -294,6 +294,8 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "collectionSoundId", type: 'sound_ref', defaultValue: '', description: "Sound to play when collecting items." },
       { name: "targetVariable", type: 'string', defaultValue: '', description: "Optional global variable name to increment when an item is collected (e.g. Score)." },
       { name: "incrementAmount", type: 'word', defaultValue: '0', description: "How much to add to targetVariable on collection. 0 = disabled." },
+      { name: "flagVariable", type: 'string', defaultValue: '', description: "Optional second global variable to set when an item is collected (e.g. GemsModified)." },
+      { name: "flagValue", type: 'word', defaultValue: '1', description: "Value assigned to flagVariable on collection. Use 1 for a pickup flag and clear it later from StateMachine." },
       { name: "bonusTileId", type: 'tile_ref', defaultValue: '', description: "Optional special tile with its own pickup behavior (kept separate from normal collectibles)." },
       { name: "bonusReplacementTileId", type: 'tile_ref', defaultValue: '', description: "Tile to place after picking up the bonus tile during the current visit. Leave empty to remove it." },
       { name: "bonusSoundId", type: 'sound_ref', defaultValue: '', description: "Optional sound for the bonus tile pickup." },
@@ -380,7 +382,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_behavior", defaultValues: { scriptAssetId: "placeholder_behavior_player_control" } },
       { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
       { definitionId: "comp_deadly_tiles", defaultValues: {} },
-      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", targetVariable: "", incrementAmount: 0, bonusTileId: "", bonusReplacementTileId: "", bonusSoundId: "", bonusIsPersistent: false, bonusEntityEffect: "none", bonusEffectAmount: 1, bonusSlashStrength: 8, bonusRespawnSeconds: 0, isEnabled: true } },
+      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", targetVariable: "", incrementAmount: 0, flagVariable: "", flagValue: 1, bonusTileId: "", bonusReplacementTileId: "", bonusSoundId: "", bonusIsPersistent: false, bonusEntityEffect: "none", bonusEffectAmount: 1, bonusSlashStrength: 8, bonusRespawnSeconds: 0, isEnabled: true } },
       { definitionId: "comp_jump", defaultValues: { jumpPower: "384", maxJumps: "2" } },
       { definitionId: "comp_gravity", defaultValues: { strength: "80" } },
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", animationSpeed: "8", animateOnlyWhenMoving: true } },
@@ -474,7 +476,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, tileSize: 8, stopOnCollision: true } },
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
       { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 } },
-      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", targetVariable: "", incrementAmount: 0, bonusTileId: "", bonusReplacementTileId: "", bonusSoundId: "", bonusIsPersistent: false, bonusEntityEffect: "none", bonusEffectAmount: 1, bonusSlashStrength: 8, bonusRespawnSeconds: 0, isEnabled: true } },
+      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", targetVariable: "", incrementAmount: 0, flagVariable: "", flagValue: 1, bonusTileId: "", bonusReplacementTileId: "", bonusSoundId: "", bonusIsPersistent: false, bonusEntityEffect: "none", bonusEffectAmount: 1, bonusSlashStrength: 8, bonusRespawnSeconds: 0, isEnabled: true } },
       { definitionId: "comp_inventory", defaultValues: { maxItems: 255, currentItemCount: 0, showCountOnScreen: true, countDisplayX: 1, countDisplayY: 1, scorePerItem: 10, totalScore: 0 } }
     ],
     description: "A Pac-Man style player that collects items by walking over tiles. Perfect for maze-based collection games."
