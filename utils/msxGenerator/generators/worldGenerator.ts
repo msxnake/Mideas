@@ -4,6 +4,7 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import { buildRuntimeSpritePatternPacks } from './spritesGenerator';
 
 type WorldDirection = 'north' | 'south' | 'east' | 'west';
 
@@ -327,6 +328,9 @@ ${skipLabel}:
 export function generateWorldsFile(analysis: ProjectAnalysis): string {
   // Check if we have world maps in the analysis
   const worldMaps = (analysis as any).worldmaps || [];
+  const runtimePatternPackById = new Map(
+    buildRuntimeSpritePatternPacks(analysis).map((pack) => [pack.id, pack])
+  );
   const hasHudElements = !!analysis.screenMaps?.some((screen: any) =>
     Array.isArray(screen?.hudConfiguration?.elements) && screen.hudConfiguration.elements.length > 0
   );
@@ -438,8 +442,11 @@ load_world_${toRoutineLabel(worldId)}:
 
     const loadRoutine = getScreenLoadRoutineName(startScreenAssetId, analysis);
     const worldImportedHudFrameDrawRoutine = getWorldImportedHudFrameDrawRoutineName(world, analysis);
+    const spritePack = runtimePatternPackById.get(worldId);
 
-    code += `    ; Load start screen: ${startNode.name || 'unknown'} (${startScreenAssetId})
+    code += `    ; Load runtime sprite patterns for this world
+${spritePack ? `    call load_sprite_patterns_${spritePack.label}
+` : ''}    ; Load start screen: ${startNode.name || 'unknown'} (${startScreenAssetId})
     ld a, ((${loadRoutine} - #4000) / #2000)
     ld hl, ${loadRoutine}
     call mapper_call_hl_auto

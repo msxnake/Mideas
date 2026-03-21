@@ -738,7 +738,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   let fontBlobInitInjected = false;
 
   for (const line of rebuilt) {
-    if (selectedSpritePatternGroups.length > 0 && /^\s*load_sprite_patterns:\s*$/i.test(line)) {
+    if (selectedSpritePatternGroups.length > 0 && /^\s*load_sprite_patterns(?:_[a-z0-9_]+)?:\s*$/i.test(line)) {
       inLoadSpritePatterns = true;
       inUpdateAnimation = false;
       inSubmenuPrepareCursor = false;

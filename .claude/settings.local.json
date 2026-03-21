@@ -138,7 +138,10 @@
       "Bash(for label:*)",
       "Bash(start:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:celeste.ink)"
+      "WebFetch(domain:celeste.ink)",
+      "Bash(wc -l \"C:\\\\Users\\\\salam\\\\Downloads\\\\unitedCompressedFiles\\(93\\).asm\" \"C:\\\\Users\\\\salam\\\\Downloads\\\\unitedCompressedFiles\\(92\\).asm\")",
+      "Bash(mv \"C:/Users/salam/Documents/Programacion/Mideas/utils/msxMainGenerator.ts\" \"C:/Users/salam/Documents/Programacion/Mideas/utils/backup_old_generators/msxMainGenerator.ts\")",
+      "Bash(mv \"C:/Users/salam/Documents/Programacion/Mideas/utils/msxECSGenerators.ts\" \"C:/Users/salam/Documents/Programacion/Mideas/utils/backup_old_generators/msxECSGenerators.ts\")"
     ],
     "deny": [],
     "ask": []

@@ -60,6 +60,15 @@ interface PreparedTransformGroup {
   flags: number;
 }
 
+export interface AnimatedTileGroupSummary {
+  groupId: string;
+  targetTileId: string;
+  targetCharCode: number;
+  charsPerTile: number;
+  speed: number;
+  frameCount: number;
+}
+
 const SCREEN2_MODE = 'SCREEN 2 (Graphics I)';
 
 function clampByte(value: number, fallback: number, min = 0, max = 255): number {
@@ -504,13 +513,25 @@ function prepareAnimationGroups(analysis: ProjectAnalysis): {
   return { frameGroups: [...frameGroups, ...transformFrameGroups], transformGroups };
 }
 
+export function collectAnimatedTileGroupSummaries(analysis: ProjectAnalysis): AnimatedTileGroupSummary[] {
+  const { frameGroups } = prepareAnimationGroups(analysis);
+  return frameGroups.map((group) => ({
+    groupId: group.groupId,
+    targetTileId: group.targetTileId,
+    targetCharCode: group.targetCharCode,
+    charsPerTile: group.charsPerTile,
+    speed: group.speed,
+    frameCount: group.frameCount,
+  }));
+}
+
 /**
  * Generate animated tiles file (animtiles.asm)
  *
  * @param analysis - Project analysis
  * @returns ASM code string with animated tiles system
  */
-export function generateAnimatedTilesFile(analysis: ProjectAnalysis): string {
+export function generateAnimatedTilesFile(analysis: ProjectAnalysis, romMode: string = 'simple32k'): string {
   const { frameGroups, transformGroups } = prepareAnimationGroups(analysis);
   const hasFrameAnimatedTiles = frameGroups.length > 0;
   const hasTransformAnimatedTiles = transformGroups.length > 0;
@@ -547,11 +568,11 @@ ${frames}
     db #00
 `;
 
-  const frameVramUpdateBlock = hasFrameAnimatedTiles
-    ? `    call mapper_push_p2
-    ld a, ANIM_TILE_DATA_BANK
-    call mapper_set_bank_p2
+  const mapperPush = romMode !== 'simple32k' ? '    call mapper_push_p2\n    ld a, ANIM_TILE_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
+  const mapperPop  = romMode !== 'simple32k' ? '    call mapper_pop_p2' : '';
 
+  const frameVramUpdateBlock = hasFrameAnimatedTiles
+    ? `${mapperPush}
     ld hl, anim_tile_table
 
 .anim_vram_loop:
@@ -645,7 +666,7 @@ ${frames}
     jr .anim_vram_loop
 
 .anim_vram_done:
-    call mapper_pop_p2`
+${mapperPop}`
     : '';
 
   const transformVramUpdateBlock = '';
@@ -708,7 +729,12 @@ init_animated_tiles:
 ; Call this every frame from main loop
 ; ------------------------------------------------------------------
 update_animated_tiles:
-    ; Increment timer
+${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Skip animation work on screens with no animated tile groups
+    ld a, (current_screen_anim_group_count)
+    or a
+    ret z
+
+` : ``}    ; Increment timer
     ld a, (anim_tile_timer)
     inc a
     ld (anim_tile_timer), a

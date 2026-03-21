@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import JSZip from 'jszip';
 import { ProjectAsset, EditorType, Sprite, MSXFont, MSXFontColorAttributes } from '../types';
-import { generateMSXProjectFiles, DEFAULT_MSX_CONFIG } from '../utils/msxMainGenerator';
 import { normalizeImportedPT3Data } from '../components/utils/trackerUtils';
 import { buildIntermediateGameJsonV1 } from '../utils/intermediateGameJson';
 import { downloadTextFile } from '../utils/downloadUtils';
@@ -113,24 +112,6 @@ export const useImportExportHandlers = ({
         projectFolderInZip.file(filename, asset.data as string);
       });
 
-      // Generate MSX project files
-      const msxConfig = {
-        ...DEFAULT_MSX_CONFIG,
-        projectName,
-        assets: assets,
-        tileBanks,
-        componentDefinitions,
-        entityTemplates,
-        mainMenuConfig,
-        msxFont
-      };
-
-      const msxProjectFiles = generateMSXProjectFiles(msxConfig);
-
-      // Add generated MSX files to ZIP
-      Object.entries(msxProjectFiles).forEach(([filename, content]) => {
-        projectFolderInZip.file(filename, content);
-      });
 
       // Generate and download ZIP
       const zipBlob = await zip.generateAsync({ type: 'blob' });

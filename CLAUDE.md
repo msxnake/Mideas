@@ -124,7 +124,7 @@ El proyecto que estamos haciendo es un editor de juegos para MSX, se llama "Mide
 # MSX Modular Generator - Generador de Código ASM
 
 ## Función Principal
-El archivo `utils/msxModularGenerator.ts` es el **generador principal de código ASM para MSX** en Mideas. Convierte proyectos Mideas (`.json`) en código Z80 Assembly ejecutable.
+El archivo `utils/msxGenerator/index.ts` es el **generador principal de código ASM para MSX** en Mideas. Convierte proyectos Mideas (`.json`) en código Z80 Assembly ejecutable.
 
 ## Objetivo de Paridad
 **CRÍTICO**: El modo "Play" de Mideas debe ser **idéntico** al ROM generado para MSX en:

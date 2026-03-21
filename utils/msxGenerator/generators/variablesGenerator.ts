@@ -4,6 +4,7 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import { buildMSXDirectionalSpriteCatalog } from '../../../components/utils/spriteUtils';
 
 /**
  * Generate RAM variables with EQU addresses (variables.asm)
@@ -12,6 +13,7 @@ import { ProjectAnalysis } from '../../asmTemplateGenerator';
  * @returns ASM code string with variable definitions
  */
 export function generateVariablesFile(analysis: ProjectAnalysis): string {
+  const expandedSpriteCount = Math.max(1, buildMSXDirectionalSpriteCatalog(analysis.sprites || []).sprites.length);
   let code = `; ==================================================================
 ; RAM VARIABLES DEFINITIONS
 ; File: variables.asm
@@ -361,6 +363,12 @@ MAX_ENTITIES        EQU 32
   code += `sprite_layer_colors EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)\n`;
   currentAddress += 32;
 
+  code += `sprite_asset_base_pattern_slot_runtime EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime base 16x16 slot per sprite asset (${expandedSpriteCount} bytes)\n`;
+  currentAddress += expandedSpriteCount;
+
+  code += `sprite_placeholder_base_pattern_num EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime placeholder pattern number (base slot * 4)\n`;
+  currentAddress++;
+
   // Interleaved sprite attribute buffer (Y, X, Pattern, Color per sprite)
   code += `sprite_attributes   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Interleaved sprite attributes (32 * 4 bytes)\n`;
   currentAddress += 32 * 4;
@@ -387,6 +395,18 @@ MAX_ENTITIES        EQU 32
     currentAddress++;
 
     code += `current_screen_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current screen index within world\n`;
+    currentAddress++;
+
+    code += `current_screen_anim_group_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Animated tile groups visible in current screen\n`;
+    currentAddress++;
+
+    code += `current_screen_entity_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity instances assigned to current screen\n`;
+    currentAddress++;
+
+    code += `current_screen_sprite_pattern_slots EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite pattern slots needed by current screen\n`;
+    currentAddress++;
+
+    code += `current_screen_summary_flags EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime screen summary flags (music/hud/effects/anim)\n`;
     currentAddress++;
   }
 

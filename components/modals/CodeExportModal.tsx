@@ -20,12 +20,6 @@ import {
   generateProjectSpecificASM,
   analyzeProject
 } from '../../utils/asmTemplateGenerator';
-import {
-  generateMainASM,
-  generateMSXProjectFiles,
-  DEFAULT_MSX_CONFIG,
-  MSXProjectConfig
-} from '../../utils/msxMainGenerator';
 import { generateSpriteBinaryData } from '../utils/spriteUtils';
 import { generateTilePatternBytes } from '../utils/tileUtils';
 import { CodeIcon, SaveIcon, CompilerIcon } from '../icons/MsxIcons';
@@ -39,7 +33,7 @@ interface CodeExportModalProps {
   onEditFile?: (filename: string, content: string) => void;
 }
 
-type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'msx_main_asm' | 'msx_full_project' | 'asm_all_in_one' | 'tiles' | 'sprites' | 'screens' | 'entities';
+type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'asm_all_in_one' | 'tiles' | 'sprites' | 'screens' | 'entities';
 type RomMode = 'auto' | 'simple32k' | 'megarom';
 type MapperFormat = 'konami' | 'ascii8' | 'ascii16';
 type EngineExecutionMode = 'gameLoopHalt' | 'interruptTaskManager';
@@ -567,63 +561,6 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           setProjectAnalysis(result.analysis);
           break;
 
-        case 'msx_main_asm':
-          const msxConfig: MSXProjectConfig = {
-            ...DEFAULT_MSX_CONFIG,
-            projectName,
-            targetMSX: options.msxModel as any,
-            baseAddress: options.baseAddress || 0x4000
-          };
-          code = generateMainASM(projectName, assets, msxConfig);
-          files = [{ name: 'main.asm', content: code }];
-          break;
-
-        case 'msx_full_project':
-          const projectFiles = generateMSXProjectFiles(projectName, assets, {
-            ...DEFAULT_MSX_CONFIG,
-            projectName,
-            targetMSX: options.msxModel as any,
-            baseAddress: options.baseAddress || 0x4000
-          });
-
-          // Generate multiple files from the project structure
-          files = Object.entries(projectFiles)
-            .filter(([path, content]) => path.endsWith('.asm'))
-            .map(([path, content]) => ({
-              name: path.replace(/^src\//, '').replace(/\//g, '_'),
-              content: content
-            }));
-
-          // Set the first file content as main display
-          code = files.length > 0 ? files[0].content : '; No ASM files generated';
-
-          // Show preview if no specific files
-          if (files.length === 0) {
-            code = `; Professional ECS MSX Project Generated:\n`;
-            code += `; \n`;
-            code += `; 📁 Project Structure:\n`;
-            code += `; ├── src/\n`;
-            code += `; │   ├── main.asm (entry point)\n`;
-            code += `; │   ├── constants.asm (MSX constants)\n`;
-            code += `; │   ├── macros.asm (utility macros)\n`;
-            code += `; │   ├── ecs/ (Entity-Component-System)\n`;
-            code += `; │   ├── core/ (memory, scheduler)\n`;
-            code += `; │   └── screens/ (game screens)\n`;
-            code += `; ├── assets/ (sprites, maps)\n`;
-            code += `; ├── tools/ (PNG→BIN converters)\n`;
-            code += `; ├── docs/ (documentation)\n`;
-            code += `; ├── Makefile (build system)\n`;
-            code += `; └── README.md (documentation)\n`;
-            code += `; \n`;
-            code += `; Total files: ${Object.keys(projectFiles).length}\n`;
-            code += `; Download ZIP for complete structure\n\n`;
-
-            // Show main.asm as preview
-            code += `; ===== PREVIEW: src/main.asm =====\n\n`;
-            code += projectFiles['src/main.asm'] || '; Error: Could not load main.asm';
-            files = [{ name: 'project_preview.asm', content: code }];
-          }
-          break;
 
         case 'tiles':
           const tiles = assets.filter(a => a.type === 'tile').map(a => a.data as any);
@@ -742,7 +679,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       setActiveFileIndex(nextActiveFileIndex);
       setLastGeneratedRomConfig(generatedRomConfig);
     } catch (error) {
-      const errorCode = `; Error generating code: ${error}`;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorCode = `; Error generating code: ${errorMessage}`;
       setGeneratedCode(errorCode);
       setGeneratedFiles([{ name: 'error.asm', content: errorCode }]);
       setActiveFileIndex(0);
@@ -1359,32 +1297,6 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   </div>
                 )}
 
-                {exportType === 'msx_main_asm' && (
-                  <div className="bg-blue-500 bg-opacity-10 p-2 rounded text-xs text-msx-textsecondary">
-                    <p>📁 <strong>MSX Main.asm:</strong> Generates a structured main assembly file with proper includes</p>
-                    <ul className="mt-1 ml-4 text-xs">
-                      <li>• Automatic INCLUDE statements for all project assets</li>
-                      <li>• ROM header generation for cartridge games</li>
-                      <li>• System initialization and memory organization</li>
-                      <li>• Asset loading stub functions</li>
-                      <li>• Ready for MSX/bin binary asset integration</li>
-                    </ul>
-                  </div>
-                )}
-
-                {exportType === 'msx_full_project' && (
-                  <div className="bg-purple-500 bg-opacity-10 p-2 rounded text-xs text-msx-textsecondary">
-                    <p>🎮 <strong>Professional ECS MSX Project:</strong> Complete ZIP with organized folder structure</p>
-                    <ul className="mt-1 ml-4 text-xs">
-                      <li>• 📁 <strong>src/</strong> - ECS architecture (entity manager, systems, components)</li>
-                      <li>• 📁 <strong>assets/</strong> - Sprite PNGs, entity CSV definitions</li>
-                      <li>• 📁 <strong>tools/</strong> - Python converters (PNG→BIN, CSV→ASM)</li>
-                      <li>• 📁 <strong>docs/</strong> - ECS design docs, memory layout</li>
-                      <li>• 🔧 <strong>Makefile</strong> - Professional build system with Glass</li>
-                      <li>• 📋 <strong>README.md</strong> - Complete documentation & usage guide</li>
-                    </ul>
-                  </div>
-                )}
 
                 {projectAnalysis && exportType === 'dynamic_project_asm' && (
                   <div className="bg-blue-500 bg-opacity-10 p-2 rounded text-xs text-msx-textsecondary">
@@ -1632,154 +1544,6 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   </Button>
                 )}
 
-                {exportType === 'msx_full_project' && (
-                  <Button
-                    onClick={async () => {
-                      const projectName = currentProjectName || "MSX_Project";
-                      const msxConfig: MSXProjectConfig = {
-                        ...DEFAULT_MSX_CONFIG,
-                        projectName,
-                        targetMSX: options.msxModel as any,
-                        baseAddress: options.baseAddress || 0x4000
-                      };
-
-                      try {
-                        const projectFiles = generateMSXProjectFiles(projectName, assets, msxConfig);
-
-                        // Create ZIP with proper folder structure
-                        const zip = new JSZip();
-                        const projectFolderName = `${projectName.toLowerCase()}_ecs_msx`;
-                        const projectFolder = zip.folder(projectFolderName);
-
-                        if (!projectFolder) {
-                          throw new Error("Could not create project folder in ZIP");
-                        }
-
-                        // Add all files to ZIP with proper folder structure
-                        Object.entries(projectFiles).forEach(([filepath, content]) => {
-                          if (filepath.includes('/')) {
-                            // Handle nested folders (e.g., "src/ecs/entity_manager.asm")
-                            const parts = filepath.split('/');
-                            const filename = parts.pop()!;
-                            const folderPath = parts.join('/');
-
-                            const folder = projectFolder.folder(folderPath);
-                            if (folder) {
-                              folder.file(filename, content);
-                            }
-                          } else {
-                            // Root level file
-                            projectFolder.file(filepath, content);
-                          }
-                        });
-
-                        // Add binary sprite assets to assets/sprites/
-                        const spritesFolder = projectFolder.folder('assets/sprites');
-                        if (spritesFolder) {
-                          const spriteAssets = assets.filter(a => a.type === 'sprite');
-
-                          if (spriteAssets.length > 0) {
-                            // Generate combined sprites binary
-                            const allSpriteDataArrays: Uint8Array[] = [];
-                            spriteAssets.forEach(asset => {
-                              const sprite = asset.data as any;
-                              // Use the existing sprite binary generation function from App.tsx
-                              try {
-                                const spriteBinaryData = generateSpriteBinaryData(sprite);
-                                allSpriteDataArrays.push(spriteBinaryData);
-                              } catch (error) {
-                                console.warn(`Could not generate binary for sprite ${asset.name}`, error);
-                              }
-                            });
-
-                            if (allSpriteDataArrays.length > 0) {
-                              // Create combined sprite binary
-                              const totalSpriteDataLength = allSpriteDataArrays.reduce((sum, arr) => sum + arr.length, 0);
-                              const combinedSpriteDataBytes = new Uint8Array(totalSpriteDataLength);
-                              let offset = 0;
-                              allSpriteDataArrays.forEach(arr => {
-                                combinedSpriteDataBytes.set(arr, offset);
-                                offset += arr.length;
-                              });
-
-                              spritesFolder.file('all_sprites.bin', combinedSpriteDataBytes);
-                            }
-
-                            // Also create individual sprite binaries for reference
-                            spriteAssets.forEach((asset, index) => {
-                              try {
-                                const sprite = asset.data as any;
-                                const spriteBinaryData = generateSpriteBinaryData(sprite);
-                                const sanitizedName = asset.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-                                spritesFolder.file(`${sanitizedName}.bin`, spriteBinaryData);
-                              } catch (error) {
-                                console.warn(`Could not generate individual binary for sprite ${asset.name}`, error);
-                              }
-                            });
-                          } else {
-                            // Create placeholder file if no sprites
-                            spritesFolder.file('README.txt', 'Place your sprite .bin files here\n\nUse tools/png2msx.py to convert PNG files to MSX binary format');
-                          }
-                        }
-
-                        // Add binary tile assets to assets/tiles/
-                        const tilesFolder = projectFolder.folder('assets/tiles');
-                        if (tilesFolder) {
-                          const tileAssets = assets.filter(a => a.type === 'tile');
-
-                          if (tileAssets.length > 0) {
-                            // Generate combined tiles binary
-                            const allPatternsBytesArrays: Uint8Array[] = [];
-                            tileAssets.forEach(asset => {
-                              const tile = asset.data as any;
-                              try {
-                                const tilePatternBytes = generateTilePatternBytes(tile, options.msxModel === 'MSX1' ? 'SCREEN 2 (Graphics I)' : 'SCREEN 4');
-                                allPatternsBytesArrays.push(tilePatternBytes);
-                              } catch (error) {
-                                console.warn(`Could not generate binary for tile ${asset.name}`, error);
-                              }
-                            });
-
-                            if (allPatternsBytesArrays.length > 0) {
-                              const totalPatternLength = allPatternsBytesArrays.reduce((sum, arr) => sum + arr.length, 0);
-                              const combinedPatternBytes = new Uint8Array(totalPatternLength);
-                              let offset = 0;
-                              allPatternsBytesArrays.forEach(arr => {
-                                combinedPatternBytes.set(arr, offset);
-                                offset += arr.length;
-                              });
-
-                              tilesFolder.file('all_patterns.bin', combinedPatternBytes);
-                            }
-                          } else {
-                            tilesFolder.file('README.txt', 'Place your tile .bin files here\n\nTiles will be generated from your project data');
-                          }
-                        }
-
-                        // Generate and download ZIP
-                        const zipBlob = await zip.generateAsync({ type: "blob" });
-                        const url = URL.createObjectURL(zipBlob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `${projectFolderName}.zip`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-
-                        alert(`✅ Professional ECS MSX Project created!\n\n📦 Downloaded: ${projectFolderName}.zip\n\n🏗️ Structure:\n- src/ (ECS architecture)\n- assets/ (sprites, maps)\n- tools/ (converters)\n- docs/ (documentation)\n- build system (Makefile, Glass config)\n\n🚀 Ready to extract and build!`);
-
-                      } catch (error) {
-                        alert(`Error creating MSX project: ${error instanceof Error ? error.message : "Unknown error"}`);
-                      }
-                    }}
-                    disabled={isGenerating}
-                    variant="primary"
-                    className="w-full"
-                  >
-                    🎮 Download Complete MSX Project ZIP
-                  </Button>
-                )}
 
                 {exportType === 'asm_all_in_one' && (
                   <Button

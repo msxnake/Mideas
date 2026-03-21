@@ -671,14 +671,8 @@ gameflow_world_game_loop:
 
     ; Frame sync first: start each tick exactly on V-Blank edge
     halt
-${frameAudioTickAsm}    ; Upload sprites right after V-Blank edge (60/50 Hz frame-paced)
-    call update_sprites_to_vram
-
-    ; Animated transform tiles do VRAM read-modify-write, so update them
-    ; near the V-Blank edge before the expensive gameplay work.
-    call update_animated_tiles
-
-    ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
+${frameAudioTickAsm}    ; Poll input immediately after V-Blank edge so the hero uses
+    ; the freshest input state in the same visible frame.
     call task_update_input
 
 ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stage)
@@ -697,7 +691,15 @@ ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stag
     ; Update timed PSG sound effects
     call sfx_update
 
-    ; Sprite SAT upload runs once per frame, outside ISR (done at frame start).
+    ; Upload sprites after gameplay so the hero position computed this frame
+    ; is what gets shown on screen, instead of the previous frame's SAT.
+    call update_sprites_to_vram
+
+    ; Animated transform tiles do VRAM read-modify-write, so defer them until
+    ; after hero/entity work to keep player response prioritized.
+    call update_animated_tiles
+
+    ; Sprite SAT upload runs once per frame, outside ISR.
 ${hasHud ? `
     ; Render HUD only on screens that define HUD elements
 ${worldLoopHudRenderAsm}` : ``}
@@ -1229,6 +1231,14 @@ function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis, ex
     ld (gameflow_exit_requested), a
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
+
+    ; Sync SAT patterns using the slot table just filled by load_world.
+    ; force_update_entity_sprite (called during init_entities) ran before
+    ; load_sprite_patterns, so sprite_asset_base_pattern_slot_runtime was
+    ; all zeros then.  Calling update_sprite_component here recomputes the
+    ; correct slot->pattern mapping for all entities in the render list
+    ; so the very first update_sprites_to_vram below writes the right data.
+    call update_sprite_component
 
     ; Update sprites
     call update_sprites_to_vram
@@ -3501,15 +3511,14 @@ ${defaultStartHudAsm}` : ``}    ret
 
 gameflow_world_game_loop:
     halt                            ; Frame sync at loop start (V-Blank edge)
-${frameAudioTickAsm}    call update_sprites_to_vram     ; Frame-paced SAT upload (outside ISR)
-    ; Animated transform tiles do VRAM read-modify-write, so update them
-    ; near the V-Blank edge before the expensive gameplay work.
-    call update_animated_tiles
-    ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
+${frameAudioTickAsm}    ; Poll input immediately after V-Blank so hero movement lands
+    ; in the same frame that gets uploaded to SAT.
     call task_update_input
     call check_world_screen_transition
     call update_all_entities
     call execute_all_state_machines
+    call update_sprites_to_vram     ; Upload current-frame sprite positions
+    call update_animated_tiles      ; Defer tile VRAM work behind hero updates
 ${defaultHasHud ? `    ; Render HUD only on screens that define HUD elements
 ${defaultLoopHudAsm}
 ` : ``}

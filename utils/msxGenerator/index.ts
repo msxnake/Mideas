@@ -228,21 +228,21 @@ export function generateModularASM(
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
     'header.asm': generateHeaderFile(projectName, analysis, executionPlan),
-    'patterns.asm': generatePatternsFile(analysis),
-    'colors.asm': generateColorsFile(analysis),
+    'patterns.asm': generatePatternsFile(analysis, romMode),
+    'colors.asm': generateColorsFile(analysis, romMode),
     'components.asm': interruptDrivenComponents
       ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
       : generateComponentsFile(analysis, romMode),
     'entities.asm': generateEntitiesFile(analysis),
     'worlds.asm': generateWorldsFile(analysis),
     'screens.asm': generateScreensFile(analysis),
-    'sprites.asm': generateSpritesFile(analysis),
-    'font.asm': generateFontFile(analysis),
+    'sprites.asm': generateSpritesFile(analysis, romMode),
+    'font.asm': generateFontFile(analysis, romMode),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
     'sound.asm': generateSoundFile(analysis, executionPlan),
     'scroll.asm': generateScrollFile(analysis),
-    'animtiles.asm': generateAnimatedTilesFile(analysis),
+    'animtiles.asm': generateAnimatedTilesFile(analysis, romMode),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
       ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId)
       : '; No State Machines\n',
@@ -318,21 +318,21 @@ export function generateModularASMFromSummary(
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
     'header.asm': generateHeaderFile(summary.projectInfo.name, analysis, executionPlan),
-    'patterns.asm': generatePatternsFile(analysis),
-    'colors.asm': generateColorsFile(analysis),
+    'patterns.asm': generatePatternsFile(analysis, romMode),
+    'colors.asm': generateColorsFile(analysis, romMode),
     'components.asm': interruptDrivenComponents
       ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
       : generateComponentsFile(analysis, romMode),
     'entities.asm': generateEntitiesFile(analysis),
     'worlds.asm': generateWorldsFile(analysis),
     'screens.asm': generateScreensFile(analysis),
-    'sprites.asm': generateSpritesFile(analysis),
-    'font.asm': generateFontFile(analysis),
+    'sprites.asm': generateSpritesFile(analysis, romMode),
+    'font.asm': generateFontFile(analysis, romMode),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
     'sound.asm': generateSoundFile(analysis, executionPlan),
     'scroll.asm': generateScrollFile(analysis),
-    'animtiles.asm': generateAnimatedTilesFile(analysis),
+    'animtiles.asm': generateAnimatedTilesFile(analysis, romMode),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
       ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId)
       : '; No State Machines\n',

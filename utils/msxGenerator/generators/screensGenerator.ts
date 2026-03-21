@@ -8,6 +8,9 @@ import { generateScreenLayoutASMCode, generateBehaviorMapASMCode, generateScreen
 import { DEFAULT_TILE_BANK_DEFINITIONS, EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE } from '../../../constants';
 import { ScreenMap, TileBank, normalizeEffectZoneParams, resolveEffectZoneType } from '../../../types';
 import { buildRegisterContractComment } from './registerContract';
+import { collectAnimatedTileGroupSummaries } from './animatedTilesGenerator';
+import { buildScreenSpritePatternUsageSummaries } from './spritesGenerator';
+import { getScreen2TileBankColorLoaderLabel, getScreen2TileBankPatternLoaderLabel } from '../utils/screen2TileBanks';
 
 const SCREEN_WIDTH = 32;
 const SCREEN_HEIGHT = 24;
@@ -371,6 +374,144 @@ function buildEffectZoneBytes(screen: ScreenMap): number[] {
   return bytes;
 }
 
+function buildScreenEntityCountMap(analysis: ProjectAnalysis): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const entity of analysis.entities || []) {
+    const screenId = String((entity as any)?.screenAssetId || '').trim();
+    if (!screenId) continue;
+    counts.set(screenId, (counts.get(screenId) || 0) + 1);
+  }
+  return counts;
+}
+
+function buildScreenWorldMembershipMap(analysis: ProjectAnalysis): Map<string, Set<string>> {
+  const membership = new Map<string, Set<string>>();
+  for (const world of (analysis.worldmaps || []) as any[]) {
+    const worldId = String(world?.id || '').trim();
+    if (!worldId) continue;
+    for (const node of world?.nodes || []) {
+      const screenId = String(node?.screenAssetId || '').trim();
+      if (!screenId) continue;
+      const worlds = membership.get(screenId) || new Set<string>();
+      worlds.add(worldId);
+      membership.set(screenId, worlds);
+    }
+  }
+  return membership;
+}
+
+function isExportableMusicTrack(trackAssetId: string, analysis: ProjectAnalysis): boolean {
+  const trimmedId = String(trackAssetId || '').trim();
+  if (!trimmedId) return false;
+
+  const trackIndexMap = ((analysis as any).trackIndexByAssetId || {}) as Record<string, number>;
+  if (trackIndexMap[trimmedId] !== undefined) {
+    return true;
+  }
+
+  return ((analysis.tracks || []) as any[]).some((track: any) => {
+    if (String(track?.id || '').trim() !== trimmedId) return false;
+    return (track?.soundChip || 'PSG') === 'PSG';
+  });
+}
+
+function hasAnyGameplayMusicConfigured(analysis: ProjectAnalysis): boolean {
+  return ((analysis.gameFlow?.nodes || []) as any[]).some((node: any) => {
+    if (node?.type !== 'Music') return false;
+    if (node?.stop === true) return false;
+    if (node?.autoPlay === false) return false;
+    return isExportableMusicTrack(String(node?.trackAssetId || ''), analysis);
+  });
+}
+
+function buildWorldMusicFlagMap(analysis: ProjectAnalysis): Map<string, number> {
+  const musicByWorldId = new Map<string, number>();
+  const gameFlow = analysis.gameFlow as any;
+  const nodes = Array.isArray(gameFlow?.nodes) ? gameFlow.nodes : [];
+  if (nodes.length === 0) return musicByWorldId;
+
+  const nodeById = new Map<string, any>();
+  for (const node of nodes) {
+    const nodeId = String(node?.id || '').trim();
+    if (!nodeId) continue;
+    nodeById.set(nodeId, node);
+  }
+
+  const adjacency = new Map<string, string[]>();
+  for (const connection of Array.isArray(gameFlow?.connections) ? gameFlow.connections : []) {
+    const fromId = String(connection?.from?.nodeId || '').trim();
+    const toId = String(connection?.to?.nodeId || '').trim();
+    if (!fromId || !toId) continue;
+    const next = adjacency.get(fromId) || [];
+    next.push(toId);
+    adjacency.set(fromId, next);
+  }
+
+  const startNodeId = String(gameFlow?.startNodeId || '').trim();
+  if (!startNodeId || !nodeById.has(startNodeId)) {
+    return musicByWorldId;
+  }
+
+  const queue: Array<{ nodeId: string; musicActive: number }> = [{ nodeId: startNodeId, musicActive: 0 }];
+  const seenStates = new Set<string>();
+
+  while (queue.length > 0) {
+    const state = queue.shift()!;
+    const stateKey = `${state.nodeId}|${state.musicActive}`;
+    if (seenStates.has(stateKey)) continue;
+    seenStates.add(stateKey);
+
+    const node = nodeById.get(state.nodeId);
+    if (!node) continue;
+
+    let nextMusicActive = state.musicActive;
+    if (node.type === 'Music') {
+      if (node.stop === true) {
+        nextMusicActive = 0;
+      } else if (node.autoPlay === false) {
+        nextMusicActive = state.musicActive;
+      } else if (isExportableMusicTrack(String(node.trackAssetId || ''), analysis)) {
+        nextMusicActive = 1;
+      }
+    }
+
+    if (node.type === 'WorldLink') {
+      const worldId = String(node.worldAssetId || '').trim();
+      if (worldId) {
+        const prev = musicByWorldId.get(worldId) || 0;
+        musicByWorldId.set(worldId, prev | nextMusicActive);
+      }
+    }
+
+    for (const nextNodeId of adjacency.get(state.nodeId) || []) {
+      queue.push({ nodeId: nextNodeId, musicActive: nextMusicActive });
+    }
+  }
+
+  return musicByWorldId;
+}
+
+function countAnimatedGroupsInScreen(
+  backgroundLayoutBytes: number[],
+  effectsLayoutBytes: number[],
+  animatedGroups: Array<{ targetCharCode: number; charsPerTile: number }>
+): number {
+  if (animatedGroups.length === 0) return 0;
+  const presentChars = new Set<number>([...backgroundLayoutBytes, ...effectsLayoutBytes]);
+  let count = 0;
+  for (const group of animatedGroups) {
+    let present = false;
+    for (let charCode = group.targetCharCode; charCode < group.targetCharCode + group.charsPerTile; charCode++) {
+      if (presentChars.has(charCode)) {
+        present = true;
+        break;
+      }
+    }
+    if (present) count++;
+  }
+  return count;
+}
+
 /**
  * Generate screens file with screen layout and map data (screens.asm)
  *
@@ -382,6 +523,14 @@ function buildEffectZoneBytes(screen: ScreenMap): number[] {
  */
 export function generateScreensFile(analysis: ProjectAnalysis): string {
   const hasSpriteAssets = !!analysis.sprites && analysis.sprites.length > 0;
+  const animatedTileGroups = collectAnimatedTileGroupSummaries(analysis);
+  const screenEntityCounts = buildScreenEntityCountMap(analysis);
+  const screenSpriteUsage = new Map(
+    buildScreenSpritePatternUsageSummaries(analysis).map((summary) => [summary.screenId, summary.totalSlotsRequired])
+  );
+  const screenWorldMembership = buildScreenWorldMembershipMap(analysis);
+  const worldMusicFlags = buildWorldMusicFlagMap(analysis);
+  const fallbackGameplayMusic = hasAnyGameplayMusicConfigured(analysis) ? 1 : 0;
   // Skip screen system if no screens in project
   if (!analysis.screenMaps || analysis.screenMaps.length === 0) {
     return `; ==================================================================
@@ -414,9 +563,31 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets)}
     const hasEffectsLayoutData = effectsLayoutBytes.some(value => value !== 0);
     const effectZoneBytes = buildEffectZoneBytes(screen);
     const effectZoneCount = (screen.effectZones || []).length;
+    const screenId = String(screen.id || `screen_${index}`);
+    const animatedGroupCount = countAnimatedGroupsInScreen(
+      backgroundLayoutBytes,
+      effectsLayoutBytes,
+      animatedTileGroups
+    );
+    const entityCount = screenEntityCounts.get(screenId) || 0;
+    const spritePatternSlots = screenSpriteUsage.get(screenId) || 1;
+    const hasHudData = !!(
+      (screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0) ||
+      (screen.hudConfiguration?.importedFrame?.cells && screen.hudConfiguration.importedFrame.cells.length > 0)
+    );
+    const worldIds = screenWorldMembership.get(screenId);
+    const musicInGame = worldIds && worldIds.size > 0
+      ? Array.from(worldIds).some((worldId) => (worldMusicFlags.get(worldId) || 0) !== 0) ? 1 : 0
+      : fallbackGameplayMusic;
+    const summaryFlags =
+      (musicInGame ? 0x01 : 0) |
+      (hasHudData ? 0x02 : 0) |
+      ((hasEffectsLayoutData || effectZoneCount > 0) ? 0x04 : 0) |
+      (animatedGroupCount > 0 ? 0x08 : 0);
 
     return {
       screen,
+      screenId,
       index,
       screenName,
       screenNameWithIndex,
@@ -425,6 +596,11 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets)}
       hasEffectsLayoutData,
       effectZoneBytes,
       effectZoneCount,
+      animatedGroupCount,
+      entityCount,
+      spritePatternSlots,
+      musicInGame,
+      summaryFlags,
     };
   });
 
@@ -455,11 +631,30 @@ EFFECT_WIND_DIR_LEFT EQU ${WIND_DIRECTION_IDS.left}
 EFFECT_WIND_DIR_RIGHT EQU ${WIND_DIRECTION_IDS.right}
 EFFECT_WIND_DIR_UP EQU ${WIND_DIRECTION_IDS.up}
 EFFECT_WIND_DIR_DOWN EQU ${WIND_DIRECTION_IDS.down}
+SCREEN_RUNTIME_SUMMARY_ENTRY_SIZE EQU 4
+SCREEN_RUNTIME_SUMMARY_OFFS_ANIM_GROUPS EQU 0
+SCREEN_RUNTIME_SUMMARY_OFFS_ENTITY_COUNT EQU 1
+SCREEN_RUNTIME_SUMMARY_OFFS_SPRITE_PATTERN_SLOTS EQU 2
+SCREEN_RUNTIME_SUMMARY_OFFS_FLAGS EQU 3
+SCREEN_RUNTIME_SUMMARY_FLAG_MUSIC_IN_GAME EQU #01
+SCREEN_RUNTIME_SUMMARY_FLAG_HAS_HUD EQU #02
+SCREEN_RUNTIME_SUMMARY_FLAG_HAS_EFFECTS EQU #04
+SCREEN_RUNTIME_SUMMARY_FLAG_HAS_ANIM_TILES EQU #08
 
 `;
 
     screenExports.forEach((screenExport) => {
-      const { screenName, index, hasEffectsLayoutData, effectZoneCount } = screenExport;
+      const {
+        screenName,
+        index,
+        hasEffectsLayoutData,
+        effectZoneCount,
+        animatedGroupCount,
+        entityCount,
+        spritePatternSlots,
+        musicInGame,
+        summaryFlags,
+      } = screenExport;
       code += `SCREEN_${screenName}_${index}_ID EQU ${index}
 SCREEN_${screenName}_${index}_LAYOUT_BANK EQU ((SCREEN_${screenName}_${index}_LAYOUT - #4000) / #2000)
 BEHAVIOR_${screenName}_${index}_DATA_BANK EQU ((BEHAVIOR_${screenName}_${index}_DATA - #4000) / #2000)
@@ -469,6 +664,38 @@ SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_SIZE EQU ${SCREEN_WIDTH * SCREEN_HE
 SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK EQU ((SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE - #4000) / #2000)
 SCREEN_${screenName}_${index}_EFFECT_ZONE_COUNT EQU ${effectZoneCount}
 SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_SIZE EQU ${effectZoneCount * 8}
+SCREEN_${screenName}_${index}_ANIM_GROUP_COUNT EQU ${animatedGroupCount}
+SCREEN_${screenName}_${index}_ENTITY_COUNT EQU ${entityCount}
+SCREEN_${screenName}_${index}_SPRITE_PATTERN_SLOTS EQU ${spritePatternSlots}
+SCREEN_${screenName}_${index}_MUSIC_IN_GAME EQU ${musicInGame}
+SCREEN_${screenName}_${index}_SUMMARY_FLAGS EQU #${summaryFlags.toString(16).toUpperCase().padStart(2, '0')}
+`;
+    });
+
+    code += `
+; ==================================================================
+; SCREEN RUNTIME SUMMARY TABLE
+; anim_groups: animated tile groups visible in this screen
+; entity_count: entity instances assigned to this screen
+; sprite_pattern_slots: SPRPAT slots needed by this screen's entity runtime set
+; flags bit0=music_in_game, bit1=has_hud, bit2=has_effects, bit3=has_anim_tiles
+; ==================================================================
+
+screen_runtime_summary_table:
+`;
+    screenExports.forEach((screenExport) => {
+      const {
+        screen,
+        index,
+        animatedGroupCount,
+        entityCount,
+        spritePatternSlots,
+        summaryFlags,
+      } = screenExport;
+      code += `    db ${animatedGroupCount}, ${entityCount}, ${spritePatternSlots}, #${summaryFlags
+        .toString(16)
+        .toUpperCase()
+        .padStart(2, '0')}    ; Screen ${index}: ${screen.name}
 `;
     });
 
@@ -972,6 +1199,15 @@ load_screen:
       const borderColor = screen.borderColor !== undefined ? screen.borderColor : 1; // Default to black
       // Use screen ID suffix to make function name unique (handles same name in different worlds)
       const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+      const screenExport = screenExports[index];
+      const animatedGroupCount = screenExport?.animatedGroupCount || 0;
+      const entityCount = screenExport?.entityCount || 0;
+      const spritePatternSlots = screenExport?.spritePatternSlots || 1;
+      const tileBankLoadCode = screen.tileBankAssetId
+        ? `    call ${getScreen2TileBankPatternLoaderLabel(screen.tileBankAssetId)}
+    call ${getScreen2TileBankColorLoaderLabel(screen.tileBankAssetId)}
+`
+        : '';
 
       const rawActiveAreaX = screen.activeAreaX ?? 0;
       const rawActiveAreaY = screen.activeAreaY ?? 0;
@@ -1066,7 +1302,7 @@ ${importedHudFrameLabelBase}_draw_loop:
     ; Initialize character 0 (empty cells) with background color
     ld a, ${bgColor}           ; Background color for char 0
     call init_char0_color
-`;
+${tileBankLoadCode}`;
         if (hasSpriteAssets) {
           code += `    ; Clear hardware sprites on screen switch to avoid visual carry-over
     call clear_all_sprites
@@ -1146,7 +1382,16 @@ ${importedHudFrameLabelBase}_draw_loop:
     ldir
     call mapper_pop_p2
 .load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
-`;
+    ld a, ${animatedGroupCount}
+    ld (current_screen_anim_group_count), a
+    ld a, ${entityCount}
+    ld (current_screen_entity_count), a
+    ld a, ${spritePatternSlots}
+    ld (current_screen_sprite_pattern_slots), a
+    ld a, SCREEN_${screenName}_${index}_SUMMARY_FLAGS
+    ld (current_screen_summary_flags), a
+${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
+` : ``}`;
 
         if (hasImportedHudFrame) {
           code += `    ; Imported HUD frame is drawn on world/game start only
@@ -1187,7 +1432,7 @@ ${importedHudFrameLabelBase}_draw_loop:
     ; Initialize character 0 (empty cells) with background color
     ld a, ${bgColor}           ; Background color for char 0
     call init_char0_color
-`;
+${tileBankLoadCode}`;
         if (hasSpriteAssets) {
           code += `    ; Clear hardware sprites on screen switch to avoid visual carry-over
     call clear_all_sprites
@@ -1249,7 +1494,16 @@ ${importedHudFrameLabelBase}_draw_loop:
     ldir
     call mapper_pop_p2
 .load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
-`;
+    ld a, ${animatedGroupCount}
+    ld (current_screen_anim_group_count), a
+    ld a, ${entityCount}
+    ld (current_screen_entity_count), a
+    ld a, ${spritePatternSlots}
+    ld (current_screen_sprite_pattern_slots), a
+    ld a, SCREEN_${screenName}_${index}_SUMMARY_FLAGS
+    ld (current_screen_summary_flags), a
+${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
+` : ``}`;
         if (hasImportedHudFrame) {
           code += `    ; Imported HUD frame is drawn on world/game start only
 `;
