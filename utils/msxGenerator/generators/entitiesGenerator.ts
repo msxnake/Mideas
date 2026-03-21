@@ -223,6 +223,7 @@ init_entities:
 
     ; Ensure sprite system is reset whenever entities are initialized
     call init_sprites
+    call init_player_fast_runtime
 
     ; CRITICAL: Clear ALL entity component masks to prevent ghost entities
     ; RAM may contain random data - entities 0..N will be set by create_entity
@@ -311,7 +312,8 @@ init_entities:
 `;
     }
 
-    code += `    ret
+    code += `    call init_player_from_hero_entity
+    ret
 
 update_entities:
     ; Update all active entities (${activeEntities.length} entities)
@@ -956,6 +958,66 @@ update_entity_patrol_facing:
 
 `;
     }
+
+    code += `; ------------------------------------------------------------------
+; init_player_fast_runtime
+; Reset the dedicated player fast-path runtime mirror.
+; ------------------------------------------------------------------
+init_player_fast_runtime:
+    xor a
+    ld (player_runtime_enabled), a
+    ld (player_vx_runtime), a
+    ld (player_vy_runtime), a
+    ld (player_x), a
+    ld (player_x+1), a
+    ld (player_y), a
+    ld (player_y+1), a
+    ld a, #FF
+    ld (player_entity_index), a
+    ret
+
+; ------------------------------------------------------------------
+; init_player_from_hero_entity
+; Seed player fast-path runtime from current hero_entity_id when available.
+; Safe to call before hero_entity_id has been resolved.
+; ------------------------------------------------------------------
+init_player_from_hero_entity:
+    ld a, (hero_entity_id)
+    cp #FF
+    ret z
+    ld (player_entity_index), a
+    ld c, a
+    ld a, 1
+    ld (player_runtime_enabled), a
+
+    ld e, c
+    ld d, 0
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_x), a
+    xor a
+    ld (player_x+1), a
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_y), a
+    xor a
+    ld (player_y+1), a
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    ld (player_vx_runtime), a
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    ld (player_vy_runtime), a
+    ret
+`;
   } else {
     code += `; ==================================================================
 ; DEFAULT ENTITY SYSTEM

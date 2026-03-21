@@ -132,6 +132,7 @@ update_all_entities:
         }
     }
 
+    code += `    call sync_player_runtime_from_entity\n`;
     code += `    ret\n`;
     code += `; Total systems called: ${callCount} (optimized from 16)\n\n`;
     code += `
@@ -388,6 +389,611 @@ rebuild_used_entity_list:
     xor a
     ld (active_entity_list_dirty), a
     ret
+
+; ------------------------------------------------------------------
+; ensure_player_fast_runtime_bound
+; Keep the dedicated player runtime attached to the current hero entity.
+; ------------------------------------------------------------------
+${buildRegisterContractComment({
+  purpose: 'Bind the player fast-path runtime to the current hero entity.',
+  inputs: ['active_entity_list_dirty, hero_entity_id, current-screen filtered entity lists'],
+  outputs: ['player_runtime_enabled, player_entity_index, player_x/player_y, player_vx_runtime/player_vy_runtime'],
+  clobbers: ['AF', 'BC', 'DE', 'HL'],
+  preserved: ['None'],
+  notes: ['Calls ensure_used_entity_list_current and resolve_runtime_hero_entity.'],
+})}
+ensure_player_fast_runtime_bound:
+    call ensure_used_entity_list_current
+    call resolve_runtime_hero_entity
+    cp #FF
+    jp nz, .bind_runtime
+
+    xor a
+    ld (player_runtime_enabled), a
+    ld (player_vx_runtime), a
+    ld (player_vy_runtime), a
+    ld (player_x), a
+    ld (player_x+1), a
+    ld (player_y), a
+    ld (player_y+1), a
+    ld a, #FF
+    ld (player_entity_index), a
+    ret
+
+.bind_runtime:
+    ld (player_entity_index), a
+    ld a, 1
+    ld (player_runtime_enabled), a
+    call sync_player_runtime_from_entity
+    ret
+
+; ------------------------------------------------------------------
+; sync_player_runtime_from_entity
+; Mirror hero ECS coordinates/velocity into player_* runtime vars.
+; ------------------------------------------------------------------
+${buildRegisterContractComment({
+  purpose: 'Copy the current bound hero entity state into player_* runtime variables.',
+  inputs: ['player_runtime_enabled, player_entity_index, entity_x_pos/y_pos, entity_vel_x/y'],
+  outputs: ['player_x, player_y, player_vx_runtime, player_vy_runtime updated'],
+  clobbers: ['AF', 'BC', 'DE', 'HL'],
+  preserved: ['None'],
+})}
+sync_player_runtime_from_entity:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_x), a
+    xor a
+    ld (player_x+1), a
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_y), a
+    xor a
+    ld (player_y+1), a
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    ld (player_vx_runtime), a
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    ld (player_vy_runtime), a
+    ret
+
+; ------------------------------------------------------------------
+; update_player_fastpath
+; Dedicated hero update path executed before the generic ECS sweeps.
+; Mirrors the critical input->jump->gravity->position chain for the
+; current player entity without iterating over every active entity.
+; ------------------------------------------------------------------
+${buildRegisterContractComment({
+  purpose: 'Run the critical per-frame player update without ECS list iteration.',
+  inputs: ['task_update_input already refreshed input_state/input_btn_*'],
+  outputs: ['Hero input/jump/gravity/position resolved into entity tables and player_* mirror'],
+  clobbers: ['AF', 'BC', 'DE', 'HL'],
+  preserved: ['None'],
+  notes: ['Global collision/wall/sprite systems still run later in the frame and may refine the final result.'],
+})}
+update_player_fastpath:
+    call ensure_player_fast_runtime_bound
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+
+    ; Require Input component to treat this entity as the player fast-path target.
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    jp z, .player_fast_sync
+
+    ; --------------------------------------------------------------
+    ; INPUT
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_input_disabled
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .player_fast_input_enabled
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    jp .player_fast_after_input
+
+.player_fast_input_enabled:
+    ld hl, entity_dir_mask
+    add hl, de
+    ld b, (hl)                    ; B = direction mask
+
+    ld hl, entity_input_speed
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .player_fast_speed_ok
+    ld a, 1
+.player_fast_speed_ok:
+    ld h, a                       ; H = cardinal speed
+    srl a
+    jr nz, .player_fast_diag_speed_ok
+    ld a, 1
+.player_fast_diag_speed_ok:
+    ld l, a                       ; L = diagonal speed
+
+    ld a, (input_state)
+    ld d, 0                       ; D = vel_x
+    ld e, 0                       ; E = vel_y
+    cp STICK_UP
+    jp z, .player_fast_input_up
+    cp STICK_DOWN
+    jp z, .player_fast_input_down
+    cp STICK_LEFT
+    jp z, .player_fast_input_left
+    cp STICK_RIGHT
+    jp z, .player_fast_input_right
+    cp STICK_UPRIGHT
+    jp z, .player_fast_input_upright
+    cp STICK_UPLEFT
+    jp z, .player_fast_input_upleft
+    cp STICK_DOWNRIGHT
+    jp z, .player_fast_input_downright
+    cp STICK_DOWNLEFT
+    jp z, .player_fast_input_downleft
+    jp .player_fast_apply_velocity
+
+.player_fast_input_up:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_down:
+    ld a, b
+    and DIR_ALLOW_DOWN
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_left:
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_right:
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_upright:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .player_fast_check_right_only
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_check_up_only
+    ld a, l
+    ld d, a
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_right_only:
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_up_only:
+    ld a, h
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_upleft:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .player_fast_check_left_only_1
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_check_up_only_1
+    ld a, l
+    neg
+    ld d, a
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_left_only_1:
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_up_only_1:
+    ld a, h
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_downright:
+    ld a, b
+    and DIR_ALLOW_DOWN
+    jp z, .player_fast_check_right_only_2
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_check_down_only_2
+    ld a, l
+    ld d, a
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_right_only_2:
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_down_only_2:
+    ld a, h
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_downleft:
+    ld a, b
+    and DIR_ALLOW_DOWN
+    jp z, .player_fast_check_left_only_3
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_check_down_only_3
+    ld a, l
+    neg
+    ld d, a
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_left_only_3:
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_down_only_3:
+    ld a, h
+    ld e, a
+
+.player_fast_apply_velocity:
+    push de
+    ld hl, entity_vel_x
+    ld e, c
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), d
+
+    push de
+    ld hl, entity_vel_y
+    ld e, c
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), e
+
+    ; Update entity_facing_dir based on input_state.
+    ; Match the generic input system so Player fast-path preserves the
+    ; same directional semantics used by ChangeSprite and sprite variants.
+    push af
+    ld a, (input_state)
+    or a
+    jr z, .player_fast_facing_done
+    cp 2
+    jr c, .player_fast_facing_up
+    cp 5
+    jr c, .player_fast_facing_right
+    jr z, .player_fast_facing_down
+    ld a, 1                     ; FACING_LEFT
+    jr .player_fast_facing_write
+.player_fast_facing_right:
+    ld a, 2                     ; FACING_RIGHT
+    jr .player_fast_facing_write
+.player_fast_facing_up:
+    ld a, 3                     ; FACING_UP
+    jr .player_fast_facing_write
+.player_fast_facing_down:
+    ld a, 4                     ; FACING_DOWN
+.player_fast_facing_write:
+    push hl
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    pop de
+    pop hl
+.player_fast_facing_done:
+    pop af
+
+    ; Sync directional sprite facing for input-driven entities.
+    ; Keep the same rule as the generic input system: skip when a
+    ; State Machine owns ChangeSprite for this entity.
+    push af
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_sm_ptr_l
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_sm_ptr_h
+    add hl, de
+    or (hl)
+    pop de
+    pop af
+    jr nz, .player_fast_skip_patrol_facing
+    push de
+    ld e, c
+    ld d, 0
+    call update_entity_patrol_facing
+    pop de
+.player_fast_skip_patrol_facing:
+
+.player_fast_after_input:
+    ; --------------------------------------------------------------
+    ; JUMP
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #01
+    jp z, .player_fast_after_jump
+
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jr z, .player_fast_jump_check
+
+    ld hl, entity_jump_count
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_jump_bonus
+    add hl, de
+    ld (hl), 0
+
+.player_fast_jump_check:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    jp z, .player_fast_after_jump
+    ld a, (input_btn_prev)
+    and INPUT_BTN_FIRE
+    jp nz, .player_fast_after_jump
+
+    ld hl, entity_jump_max
+    add hl, de
+    ld b, (hl)
+    ld hl, entity_jump_bonus
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld b, a
+
+    ld hl, entity_jump_count
+    add hl, de
+    ld a, (hl)
+    cp b
+    jr c, .player_fast_do_jump
+
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jp z, .player_fast_after_jump
+
+.player_fast_do_jump:
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jr nz, .player_fast_skip_bonus_consume
+
+    ld hl, entity_jump_count
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_jump_max
+    add hl, de
+    cp (hl)
+    jr c, .player_fast_skip_bonus_consume
+
+    ld hl, entity_jump_bonus
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .player_fast_skip_bonus_consume
+    dec (hl)
+
+.player_fast_skip_bonus_consume:
+    ld hl, entity_jump_count
+    add hl, de
+    inc (hl)
+
+    ld hl, entity_on_ground
+    add hl, de
+    res 0, (hl)
+
+    ld hl, entity_platform_id
+    add hl, de
+    ld (hl), 255
+
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #02
+    jp z, .player_fast_after_jump
+
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), #00
+    inc hl
+    ld (hl), #FC
+
+.player_fast_after_jump:
+    ; --------------------------------------------------------------
+    ; GRAVITY
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #02
+    jp z, .player_fast_after_gravity
+
+    ld hl, entity_on_ground
+    add hl, de
+    ld a, (hl)
+    bit 0, a
+    jr nz, .player_fast_gravity_grounded
+
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+
+    ld a, e
+    add a, #40
+    ld e, a
+    ld a, d
+    adc a, #00
+    ld d, a
+
+    ld a, d
+    bit 7, a
+    jr nz, .player_fast_store_gravity
+    cp #04
+    jr c, .player_fast_store_gravity
+    ld de, #0400
+
+.player_fast_store_gravity:
+    dec hl
+    ld (hl), e
+    inc hl
+    ld (hl), d
+
+    push de
+    ld hl, entity_vel_y
+    ld e, c
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), d
+    jr .player_fast_after_gravity
+
+.player_fast_gravity_grounded:
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), 0
+
+.player_fast_after_gravity:
+    ; --------------------------------------------------------------
+    ; POSITION
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    ld b, a
+    and COMP_MASK_POSITION
+    jp z, .player_fast_sync
+
+    ld a, b
+    and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
+    jp z, .player_fast_sync
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    ld b, a
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld (hl), a
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    bit 7, a
+    jr z, .player_fast_vy_positive
+    cp #F0
+    jr nc, .player_fast_vy_ready
+    ld a, #F0
+    jr .player_fast_vy_ready
+.player_fast_vy_positive:
+    cp #11
+    jr c, .player_fast_vy_ready
+    ld a, #10
+.player_fast_vy_ready:
+    ld b, a
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld (hl), a
+
+.player_fast_sync:
+    call sync_player_runtime_from_entity
+    ret
 `;
 
     return code;
@@ -434,6 +1040,13 @@ position_update_loop:
     ld c, (hl)                 ; C = entity index
     inc hl                     ; Advance list pointer
     push hl                    ; Save list pointer
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .position_check_mask
+    ld a, (player_entity_index)
+    cp c
+    jp z, .position_skip_fast_player
+.position_check_mask:
     ld e, c
     ld d, 0
     ld hl, entity_comp_masks
@@ -496,6 +1109,10 @@ position_update_loop:
 
     pop hl
     pop bc
+    jp position_next_entity
+
+.position_skip_fast_player:
+    pop hl
 
 position_next_entity:
     dec b
@@ -1774,6 +2391,13 @@ function generateInputSystem(): string {
             inc hl                     ; Advance list pointer
             push hl                    ; Save list pointer
             pop hl                     ; Restore list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .input_not_fast_player
+            ld a, (player_entity_index)
+            cp c
+            jp z, input_next_entity
+        .input_not_fast_player:
 
             ; input_entity_list already guarantees active + current_screen_id + input
 
@@ -2158,6 +2782,13 @@ gravity_update_loop:
             ld c, (hl)                 ; C = entity index
             inc hl                     ; Advance list pointer
             push hl                    ; Save list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .gravity_check_mask
+            ld a, (player_entity_index)
+            cp c
+            jp z, .gravity_skip_fast_player
+        .gravity_check_mask:
             ld e, c
             ld d, 0
             ld hl, entity_comp_masks_hi
@@ -2244,6 +2875,10 @@ gravity_grounded:
 gravity_done:
             pop hl
             pop bc
+            jp gravity_next_entity
+
+        .gravity_skip_fast_player:
+            pop hl
 
 gravity_next_entity:
             dec b
@@ -3331,6 +3966,13 @@ function generateJumpSystem(): string {
             ld c, (hl)                    ; C = entity index
             inc hl                        ; Advance list pointer
             push hl                       ; Save list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .jump_check_mask
+            ld a, (player_entity_index)
+            cp c
+            jp z, .jump_skip_fast_player
+        .jump_check_mask:
             ld e, c
             ld d, 0
             ld hl, entity_comp_masks_hi
@@ -3473,6 +4115,10 @@ function generateJumpSystem(): string {
 jump_done_entity:
             pop hl
             pop bc
+            jp jump_next_entity
+
+        .jump_skip_fast_player:
+            pop hl
 
         jump_next_entity:
             dec b

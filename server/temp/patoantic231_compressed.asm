@@ -30,39 +30,39 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 128642
+; Estimated payload bytes: 129059
 ; Estimated banks used: 16
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (2114 bytes)
 ; BANK 00 @#0842 : colors.asm (1895 bytes)
 ; BANK 00 @#0FA9 : components.asm (22 bytes)
 ; BANK 00 @#0FBF : entities.asm (4161 bytes)
-; BANK 01 @#0000 : entities.asm (3267 bytes)
-; BANK 01 @#0CC3 : worlds.asm (4925 bytes)
-; BANK 02 @#0000 : worlds.asm (3103 bytes)
-; BANK 02 @#0C1F : screens.asm part 1/5 (5089 bytes)
+; BANK 01 @#0000 : entities.asm (3675 bytes)
+; BANK 01 @#0E5B : worlds.asm (4517 bytes)
+; BANK 02 @#0000 : worlds.asm (3511 bytes)
+; BANK 02 @#0DB7 : screens.asm part 1/5 (4681 bytes)
 ; BANK 03 @#0000 : screens.asm part 2/5 (8192 bytes)
 ; BANK 04 @#0000 : screens.asm part 3/5 (8192 bytes)
 ; BANK 05 @#0000 : screens.asm part 4/5 (8192 bytes)
 ; BANK 06 @#0000 : screens.asm part 5/5 (8192 bytes)
-; BANK 07 @#0000 : screens.asm part 6/5 (1163 bytes)
-; BANK 07 @#048B : sprites.asm part 1/2 (7029 bytes)
-; BANK 08 @#0000 : sprites.asm part 2/2 (5574 bytes)
-; BANK 08 @#15C6 : font.asm (2618 bytes)
-; BANK 09 @#0000 : font.asm (869 bytes)
-; BANK 09 @#0365 : hud.asm (4290 bytes)
-; BANK 09 @#1427 : menus.asm (454 bytes)
-; BANK 09 @#15ED : sound.asm part 1/2 (2579 bytes)
-; BANK 10 @#0000 : sound.asm part 2/2 (6960 bytes)
-; BANK 10 @#1B30 : scroll.asm (1232 bytes)
-; BANK 11 @#0000 : scroll.asm (1121 bytes)
-; BANK 11 @#0461 : animtiles.asm (6239 bytes)
-; BANK 11 @#1CC0 : statemachine.asm part 1/3 (832 bytes)
+; BANK 07 @#0000 : screens.asm part 6/5 (1571 bytes)
+; BANK 07 @#0623 : sprites.asm part 1/2 (6621 bytes)
+; BANK 08 @#0000 : sprites.asm part 2/2 (5982 bytes)
+; BANK 08 @#175E : font.asm (2210 bytes)
+; BANK 09 @#0000 : font.asm (1277 bytes)
+; BANK 09 @#04FD : hud.asm (4290 bytes)
+; BANK 09 @#15BF : menus.asm (454 bytes)
+; BANK 09 @#1785 : sound.asm part 1/2 (2171 bytes)
+; BANK 10 @#0000 : sound.asm part 2/2 (7368 bytes)
+; BANK 10 @#1CC8 : scroll.asm (824 bytes)
+; BANK 11 @#0000 : scroll.asm (1529 bytes)
+; BANK 11 @#05F9 : animtiles.asm (6239 bytes)
+; BANK 11 @#1E58 : statemachine.asm part 1/3 (424 bytes)
 ; BANK 12 @#0000 : statemachine.asm part 2/3 (8192 bytes)
 ; BANK 13 @#0000 : statemachine.asm part 3/3 (8192 bytes)
-; BANK 14 @#0000 : statemachine.asm part 4/3 (488 bytes)
-; BANK 14 @#01E8 : gameflow.asm part 1/2 (7704 bytes)
-; BANK 15 @#0000 : gameflow.asm part 2/2 (5762 bytes)
+; BANK 14 @#0000 : statemachine.asm part 4/3 (896 bytes)
+; BANK 14 @#0380 : gameflow.asm part 1/2 (7296 bytes)
+; BANK 15 @#0000 : gameflow.asm part 2/2 (6179 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -1231,208 +1231,212 @@ current_screen_summary_flags EQU #D3E1   ; Runtime screen summary flags (music/h
 ; ==================================================================
 player_x            EQU #D3E2   ; Player X position (16-bit)
 player_y            EQU #D3E4   ; Player Y position (16-bit)
-player_health       EQU #D3E6   ; Player health points
-player_score        EQU #D3E7   ; Player score (16-bit)
-gem_count           EQU #D3E9   ; Collectible tile counter (8-bit)
-last_gem_char       EQU #D3EA   ; Char code of last collected gem tile (for SM VARIABLE_COMPARE)
+player_runtime_enabled EQU #D3E6   ; 1=player fast runtime bound to hero entity
+player_entity_index EQU #D3E7   ; Entity index used by player fast runtime (#FF=none)
+player_vx_runtime   EQU #D3E8   ; Cached player X velocity (signed 8-bit)
+player_vy_runtime   EQU #D3E9   ; Cached player Y velocity (signed 8-bit)
+player_health       EQU #D3EA   ; Player health points
+player_score        EQU #D3EB   ; Player score (16-bit)
+gem_count           EQU #D3ED   ; Collectible tile counter (8-bit)
+last_gem_char       EQU #D3EE   ; Char code of last collected gem tile (for SM VARIABLE_COMPARE)
 
 ; Persistent collectibles list (survives screen re-entry)
 MAX_COLLECTIBLES     EQU 64              ; Max persistent collectible records
-collected_count      EQU #D3EB   ; Number of collected tiles recorded (8-bit)
-collected_world      EQU #D3EC   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
-collected_screen     EQU #D42C   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
-collected_idx_l      EQU #D46C   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
-collected_idx_h      EQU #D4AC   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
+collected_count      EQU #D3EF   ; Number of collected tiles recorded (8-bit)
+collected_world      EQU #D3F0   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_screen     EQU #D430   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_idx_l      EQU #D470   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
+collected_idx_h      EQU #D4B0   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
 
 ; Timed bonus tile respawn slots (bonus gem regeneration)
 MAX_BONUS_RESPAWNS   EQU 16              ; Max timed bonus tiles waiting to respawn
-bonus_respawn_world  EQU #D4EC   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_screen EQU #D4FC   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_idx_l  EQU #D50C   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_idx_h  EQU #D51C   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_secs   EQU #D52C   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_frames EQU #D53C   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_world  EQU #D4F0   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_screen EQU #D500   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_l  EQU #D510   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_h  EQU #D520   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_secs   EQU #D530   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_frames EQU #D540   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
 
 ; ==================================================================
 ; AUXILIARY VARIABLES 
 ; ==================================================================
-deterministic        EQU #D54C   ; Deterministic mode flag
+deterministic        EQU #D550   ; Deterministic mode flag
 
 ; ==================================================================
 ; TEMPORARY VARIABLES (ALWAYS NEEDED)
 ; ==================================================================
-temp_word_1         EQU #D54D   ; Temporary 16-bit storage
-temp_word_2         EQU #D54F   ; Temporary 16-bit storage
-temp_byte_1         EQU #D551   ; Temporary 8-bit storage
-temp_byte_2         EQU #D552   ; Temporary 8-bit storage
-temp_byte_3         EQU #D553   ; Temporary 8-bit storage (32 bytes)
-temp_byte_4         EQU #D573   ; Temporary 8-bit storage (32 bytes)
-temp_byte_5         EQU #D593   ; Temporary 8-bit storage (32 bytes)
-temp_byte_6         EQU #D5B3   ; Temporary 8-bit storage (32 bytes)
+temp_word_1         EQU #D551   ; Temporary 16-bit storage
+temp_word_2         EQU #D553   ; Temporary 16-bit storage
+temp_byte_1         EQU #D555   ; Temporary 8-bit storage
+temp_byte_2         EQU #D556   ; Temporary 8-bit storage
+temp_byte_3         EQU #D557   ; Temporary 8-bit storage (32 bytes)
+temp_byte_4         EQU #D577   ; Temporary 8-bit storage (32 bytes)
+temp_byte_5         EQU #D597   ; Temporary 8-bit storage (32 bytes)
+temp_byte_6         EQU #D5B7   ; Temporary 8-bit storage (32 bytes)
 
 ; ==================================================================
 ; SOUND SYSTEM VARIABLES
 ; ==================================================================
-sfx_active          EQU #D5D3   ; 0=no SFX active, 1=playing
-sfx_timer           EQU #D5D4   ; Frames remaining for current SFX
-sfx_fadeout         EQU #D5D5   ; Reserved fadeout flag/state
-temp_byte_7         EQU #D5D6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_8         EQU #D5F6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_9         EQU #D616   ; Temporary 8-bit storage (32 bytes)
-temp_byte_10        EQU #D636   ; Temporary 8-bit storage (32 bytes)
-temp_byte_11        EQU #D656   ; Temporary 8-bit storage (32 bytes)
-temp_byte_12        EQU #D676   ; Temporary 8-bit storage (32 bytes)
-temp_byte_13        EQU #D696   ; Temporary 8-bit storage (32 bytes)
-temp_byte_14        EQU #D6B6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_15        EQU #D6D6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_16        EQU #D6F6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_17        EQU #D716   ; Temporary 8-bit storage (32 bytes)
-temp_byte_18        EQU #D736   ; Temporary 8-bit storage (32 bytes)
-temp_byte_19        EQU #D756   ; Temporary 8-bit storage (32 bytes)
-temp_byte_20        EQU #D776   ; Temporary 8-bit storage (32 bytes)
-temp_byte_21        EQU #D796   ; Temporary 8-bit storage (32 bytes)
-temp_byte_22        EQU #D7B6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_23        EQU #D7D6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_24        EQU #D7F6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_25        EQU #D816   ; Temporary 8-bit storage (32 bytes)
-temp_word_3         EQU #D836   ; Temporary 16-bit storage (64 bytes)
-temp_word_4         EQU #D876   ; Temporary 16-bit storage (64 bytes)
-temp_byte_26        EQU #D8B6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_27        EQU #D8D6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_28        EQU #D8F6   ; Temporary 8-bit storage (32 bytes)
-tileDead_dbg        EQU #D916   ; Debug byte: current hero deadly contact
-tileDead_latched_dbg EQU #D917   ; Debug byte: latched hero deadly contact
-tileDead_x_dbg      EQU #D918   ; Debug byte: last sampled deadly tile X
-tileDead_y_dbg      EQU #D919   ; Debug byte: last sampled deadly tile Y
-tileDead_value_dbg  EQU #D91A   ; Debug byte: last raw deadly behavior value
+sfx_active          EQU #D5D7   ; 0=no SFX active, 1=playing
+sfx_timer           EQU #D5D8   ; Frames remaining for current SFX
+sfx_fadeout         EQU #D5D9   ; Reserved fadeout flag/state
+temp_byte_7         EQU #D5DA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_8         EQU #D5FA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_9         EQU #D61A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_10        EQU #D63A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_11        EQU #D65A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_12        EQU #D67A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_13        EQU #D69A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_14        EQU #D6BA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_15        EQU #D6DA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_16        EQU #D6FA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_17        EQU #D71A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_18        EQU #D73A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_19        EQU #D75A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_20        EQU #D77A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_21        EQU #D79A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_22        EQU #D7BA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_23        EQU #D7DA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_24        EQU #D7FA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_25        EQU #D81A   ; Temporary 8-bit storage (32 bytes)
+temp_word_3         EQU #D83A   ; Temporary 16-bit storage (64 bytes)
+temp_word_4         EQU #D87A   ; Temporary 16-bit storage (64 bytes)
+temp_byte_26        EQU #D8BA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_27        EQU #D8DA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_28        EQU #D8FA   ; Temporary 8-bit storage (32 bytes)
+tileDead_dbg        EQU #D91A   ; Debug byte: current hero deadly contact
+tileDead_latched_dbg EQU #D91B   ; Debug byte: latched hero deadly contact
+tileDead_x_dbg      EQU #D91C   ; Debug byte: last sampled deadly tile X
+tileDead_y_dbg      EQU #D91D   ; Debug byte: last sampled deadly tile Y
+tileDead_value_dbg  EQU #D91E   ; Debug byte: last raw deadly behavior value
 
 ; Wall collision temporary variables
-wall_temp_x         EQU #D91B   ; Cached entity X for wall checks
-wall_temp_y         EQU #D91C   ; Cached entity Y for wall checks
-wall_hit_left       EQU #D91D   ; Hitbox left edge cache
-wall_hit_top        EQU #D91E   ; Hitbox top edge cache
-wall_hit_right      EQU #D91F   ; Hitbox right edge cache
-wall_hit_bottom     EQU #D920   ; Hitbox bottom edge cache
-wall_hit_w          EQU #D921   ; Hitbox width cache (min 1)
-wall_hit_h          EQU #D922   ; Hitbox height cache (min 1)
-wall_probe_left     EQU #D923   ; X probe near hitbox left (adaptive inset)
-wall_probe_right    EQU #D924   ; X probe near hitbox right (adaptive inset)
-wall_probe_top      EQU #D925   ; Y probe near hitbox top (adaptive inset)
-wall_probe_bottom   EQU #D926   ; Y probe near hitbox bottom (adaptive inset)
+wall_temp_x         EQU #D91F   ; Cached entity X for wall checks
+wall_temp_y         EQU #D920   ; Cached entity Y for wall checks
+wall_hit_left       EQU #D921   ; Hitbox left edge cache
+wall_hit_top        EQU #D922   ; Hitbox top edge cache
+wall_hit_right      EQU #D923   ; Hitbox right edge cache
+wall_hit_bottom     EQU #D924   ; Hitbox bottom edge cache
+wall_hit_w          EQU #D925   ; Hitbox width cache (min 1)
+wall_hit_h          EQU #D926   ; Hitbox height cache (min 1)
+wall_probe_left     EQU #D927   ; X probe near hitbox left (adaptive inset)
+wall_probe_right    EQU #D928   ; X probe near hitbox right (adaptive inset)
+wall_probe_top      EQU #D929   ; Y probe near hitbox top (adaptive inset)
+wall_probe_bottom   EQU #D92A   ; Y probe near hitbox bottom (adaptive inset)
 
 ; Unified update helpers
-active_entity_list  EQU #D927   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
-active_entity_count EQU #D947   ; Number of entries in active_entity_list
-hero_entity_id      EQU #D948   ; First current-screen entity flagged as player (#FF = none)
-active_entity_list_dirty EQU #D949   ; 1=rebuild active_entity_list required
-input_entity_list   EQU #D94A   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)
-input_entity_count  EQU #D96A   ; Number of entries in input_entity_list
-render_entity_list  EQU #D96B   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)
-render_entity_count EQU #D98B   ; Number of entries in render_entity_list
-collision_entity_list EQU #D98C   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)
-collision_entity_count EQU #D9AC   ; Number of entries in collision_entity_list
-ground_entity_list  EQU #D9AD   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)
-ground_entity_count EQU #D9CD   ; Number of entries in ground_entity_list
-anim_entity_list    EQU #D9CE   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)
-anim_entity_count   EQU #D9EE   ; Number of entries in anim_entity_list
+active_entity_list  EQU #D92B   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
+active_entity_count EQU #D94B   ; Number of entries in active_entity_list
+hero_entity_id      EQU #D94C   ; First current-screen entity flagged as player (#FF = none)
+active_entity_list_dirty EQU #D94D   ; 1=rebuild active_entity_list required
+input_entity_list   EQU #D94E   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)
+input_entity_count  EQU #D96E   ; Number of entries in input_entity_list
+render_entity_list  EQU #D96F   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)
+render_entity_count EQU #D98F   ; Number of entries in render_entity_list
+collision_entity_list EQU #D990   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)
+collision_entity_count EQU #D9B0   ; Number of entries in collision_entity_list
+ground_entity_list  EQU #D9B1   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)
+ground_entity_count EQU #D9D1   ; Number of entries in ground_entity_list
+anim_entity_list    EQU #D9D2   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)
+anim_entity_count   EQU #D9F2   ; Number of entries in anim_entity_list
 
 ; Entity-entity collision optimized variables
-coll_list           EQU #D9EF   ; Active collidable entity indices (MAX_ENTITIES bytes)
-coll_list_count     EQU #DA0F   ; Number of entities in coll_list
-coll_src_left       EQU #DA10   ; Source AABB left edge (scratch)
-coll_src_right      EQU #DA11   ; Source AABB right edge (scratch)
-coll_src_top        EQU #DA12   ; Source AABB top edge (scratch)
-coll_src_bottom     EQU #DA13   ; Source AABB bottom edge (scratch)
+coll_list           EQU #D9F3   ; Active collidable entity indices (MAX_ENTITIES bytes)
+coll_list_count     EQU #DA13   ; Number of entities in coll_list
+coll_src_left       EQU #DA14   ; Source AABB left edge (scratch)
+coll_src_right      EQU #DA15   ; Source AABB right edge (scratch)
+coll_src_top        EQU #DA16   ; Source AABB top edge (scratch)
+coll_src_bottom     EQU #DA17   ; Source AABB bottom edge (scratch)
 
 ; ==================================================================
 ; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
 ; ==================================================================
-task_table              EQU #DA14   ; Task table base (8 slots x 2 bytes = 16 bytes)
-task_0_ptr              EQU #DA14   ; Slot 0 pointer (2 bytes)
-task_1_ptr              EQU #DA16   ; Slot 1 pointer (2 bytes)
-task_2_ptr              EQU #DA18   ; Slot 2 pointer (2 bytes)
-task_3_ptr              EQU #DA1A   ; Slot 3 pointer (2 bytes)
-task_4_ptr              EQU #DA1C   ; Slot 4 pointer (2 bytes)
-task_5_ptr              EQU #DA1E   ; Slot 5 pointer (2 bytes)
-task_6_ptr              EQU #DA20   ; Slot 6 pointer (2 bytes)
-task_7_ptr              EQU #DA22   ; Slot 7 pointer (2 bytes)
-interrupt_system_enabled EQU #DA24   ; 0=disabled, 1=enabled (1 byte)
-old_htimi_hook          EQU #DA25   ; Original H.TIMI hook (5 bytes)
-interrupt_counter       EQU #DA2A   ; Frame counter (16-bit)
-task_exec_time          EQU #DA2C   ; Cycles used by tasks (16-bit, debug)
-vblank_flag             EQU #DA2E   ; Set to 1 on each VBlank (1 byte)
-RAM_INTERRUPT_END       EQU #DA2F   ; End of interrupt system
+task_table              EQU #DA18   ; Task table base (8 slots x 2 bytes = 16 bytes)
+task_0_ptr              EQU #DA18   ; Slot 0 pointer (2 bytes)
+task_1_ptr              EQU #DA1A   ; Slot 1 pointer (2 bytes)
+task_2_ptr              EQU #DA1C   ; Slot 2 pointer (2 bytes)
+task_3_ptr              EQU #DA1E   ; Slot 3 pointer (2 bytes)
+task_4_ptr              EQU #DA20   ; Slot 4 pointer (2 bytes)
+task_5_ptr              EQU #DA22   ; Slot 5 pointer (2 bytes)
+task_6_ptr              EQU #DA24   ; Slot 6 pointer (2 bytes)
+task_7_ptr              EQU #DA26   ; Slot 7 pointer (2 bytes)
+interrupt_system_enabled EQU #DA28   ; 0=disabled, 1=enabled (1 byte)
+old_htimi_hook          EQU #DA29   ; Original H.TIMI hook (5 bytes)
+interrupt_counter       EQU #DA2E   ; Frame counter (16-bit)
+task_exec_time          EQU #DA30   ; Cycles used by tasks (16-bit, debug)
+vblank_flag             EQU #DA32   ; Set to 1 on each VBlank (1 byte)
+RAM_INTERRUPT_END       EQU #DA33   ; End of interrupt system
 
 ; ==================================================================
 ; STATE MACHINE SOUND RUNTIME (one active sound asset)
 ; ==================================================================
-sm_sound_active       EQU #DA2F   ; 0=idle, 1=playing state-machine sound asset
-sm_sound_frames_left  EQU #DA30   ; Frames left for current state-machine sound asset
-sm_sound_ptr_l        EQU #DA31   ; Next sound frame pointer low byte
-sm_sound_ptr_h        EQU #DA32   ; Next sound frame pointer high byte
+sm_sound_active       EQU #DA33   ; 0=idle, 1=playing state-machine sound asset
+sm_sound_frames_left  EQU #DA34   ; Frames left for current state-machine sound asset
+sm_sound_ptr_l        EQU #DA35   ; Next sound frame pointer low byte
+sm_sound_ptr_h        EQU #DA36   ; Next sound frame pointer high byte
 
 ; ==================================================================
 ; TRACKER MUSIC RUNTIME
 ; ==================================================================
-music_active         EQU #DA33   ; 0=stopped, 1=track active
-music_muted          EQU #DA34   ; 0=audible, 1=muted/pause
-music_loop           EQU #DA35   ; 0=no loop, 1=loop enabled
-music_track_index    EQU #DA36   ; Current ROM track index
-music_row_frames     EQU #DA37   ; Frames per tracker row
-music_row_countdown  EQU #DA38   ; Countdown to next row
-music_order_pos      EQU #DA39   ; Current order position
-music_pattern_index  EQU #DA3A   ; Current pattern index
-music_pattern_row    EQU #DA3B   ; Current row inside pattern
-music_pattern_rows   EQU #DA3C   ; Cached rows in current pattern
-music_track_ptr_l    EQU #DA3D   ; Current track pointer low byte
-music_track_ptr_h    EQU #DA3E   ; Current track pointer high byte
-music_pattern_ptr_l  EQU #DA3F   ; Current pattern rows pointer low byte
-music_pattern_ptr_h  EQU #DA40   ; Current pattern rows pointer high byte
-music_mixer_shadow   EQU #DA41   ; PSG mixer shadow for music runtime
-music_ch_note_base EQU #DA42   ; Current note index (255=silent) (3 bytes)
-music_ch_a_note EQU #DA42   ; Channel A
-music_ch_b_note EQU #DA43   ; Channel B
-music_ch_c_note EQU #DA44   ; Channel C
-music_ch_instrument_base EQU #DA45   ; Current instrument id (0=none) (3 bytes)
-music_ch_a_instrument EQU #DA45   ; Channel A
-music_ch_b_instrument EQU #DA46   ; Channel B
-music_ch_c_instrument EQU #DA47   ; Channel C
-music_ch_ornament_base EQU #DA48   ; Current ornament id (0=none) (3 bytes)
-music_ch_a_ornament EQU #DA48   ; Channel A
-music_ch_b_ornament EQU #DA49   ; Channel B
-music_ch_c_ornament EQU #DA4A   ; Channel C
-music_ch_volume_base EQU #DA4B   ; Current base volume (0-15) (3 bytes)
-music_ch_a_volume EQU #DA4B   ; Channel A
-music_ch_b_volume EQU #DA4C   ; Channel B
-music_ch_c_volume EQU #DA4D   ; Channel C
-music_ch_vol_step_base EQU #DA4E   ; Reserved software volume envelope step (3 bytes)
-music_ch_a_vol_step EQU #DA4E   ; Channel A
-music_ch_b_vol_step EQU #DA4F   ; Channel B
-music_ch_c_vol_step EQU #DA50   ; Channel C
-music_ch_tone_step_base EQU #DA51   ; Reserved software tone envelope step (3 bytes)
-music_ch_a_tone_step EQU #DA51   ; Channel A
-music_ch_b_tone_step EQU #DA52   ; Channel B
-music_ch_c_tone_step EQU #DA53   ; Channel C
-music_ch_noise_step_base EQU #DA54   ; Reserved software noise envelope step (3 bytes)
-music_ch_a_noise_step EQU #DA54   ; Channel A
-music_ch_b_noise_step EQU #DA55   ; Channel B
-music_ch_c_noise_step EQU #DA56   ; Channel C
-music_ch_orn_step_base EQU #DA57   ; Reserved ornament step (3 bytes)
-music_ch_a_orn_step EQU #DA57   ; Channel A
-music_ch_b_orn_step EQU #DA58   ; Channel B
-music_ch_c_orn_step EQU #DA59   ; Channel C
+music_active         EQU #DA37   ; 0=stopped, 1=track active
+music_muted          EQU #DA38   ; 0=audible, 1=muted/pause
+music_loop           EQU #DA39   ; 0=no loop, 1=loop enabled
+music_track_index    EQU #DA3A   ; Current ROM track index
+music_row_frames     EQU #DA3B   ; Frames per tracker row
+music_row_countdown  EQU #DA3C   ; Countdown to next row
+music_order_pos      EQU #DA3D   ; Current order position
+music_pattern_index  EQU #DA3E   ; Current pattern index
+music_pattern_row    EQU #DA3F   ; Current row inside pattern
+music_pattern_rows   EQU #DA40   ; Cached rows in current pattern
+music_track_ptr_l    EQU #DA41   ; Current track pointer low byte
+music_track_ptr_h    EQU #DA42   ; Current track pointer high byte
+music_pattern_ptr_l  EQU #DA43   ; Current pattern rows pointer low byte
+music_pattern_ptr_h  EQU #DA44   ; Current pattern rows pointer high byte
+music_mixer_shadow   EQU #DA45   ; PSG mixer shadow for music runtime
+music_ch_note_base EQU #DA46   ; Current note index (255=silent) (3 bytes)
+music_ch_a_note EQU #DA46   ; Channel A
+music_ch_b_note EQU #DA47   ; Channel B
+music_ch_c_note EQU #DA48   ; Channel C
+music_ch_instrument_base EQU #DA49   ; Current instrument id (0=none) (3 bytes)
+music_ch_a_instrument EQU #DA49   ; Channel A
+music_ch_b_instrument EQU #DA4A   ; Channel B
+music_ch_c_instrument EQU #DA4B   ; Channel C
+music_ch_ornament_base EQU #DA4C   ; Current ornament id (0=none) (3 bytes)
+music_ch_a_ornament EQU #DA4C   ; Channel A
+music_ch_b_ornament EQU #DA4D   ; Channel B
+music_ch_c_ornament EQU #DA4E   ; Channel C
+music_ch_volume_base EQU #DA4F   ; Current base volume (0-15) (3 bytes)
+music_ch_a_volume EQU #DA4F   ; Channel A
+music_ch_b_volume EQU #DA50   ; Channel B
+music_ch_c_volume EQU #DA51   ; Channel C
+music_ch_vol_step_base EQU #DA52   ; Reserved software volume envelope step (3 bytes)
+music_ch_a_vol_step EQU #DA52   ; Channel A
+music_ch_b_vol_step EQU #DA53   ; Channel B
+music_ch_c_vol_step EQU #DA54   ; Channel C
+music_ch_tone_step_base EQU #DA55   ; Reserved software tone envelope step (3 bytes)
+music_ch_a_tone_step EQU #DA55   ; Channel A
+music_ch_b_tone_step EQU #DA56   ; Channel B
+music_ch_c_tone_step EQU #DA57   ; Channel C
+music_ch_noise_step_base EQU #DA58   ; Reserved software noise envelope step (3 bytes)
+music_ch_a_noise_step EQU #DA58   ; Channel A
+music_ch_b_noise_step EQU #DA59   ; Channel B
+music_ch_c_noise_step EQU #DA5A   ; Channel C
+music_ch_orn_step_base EQU #DA5B   ; Reserved ornament step (3 bytes)
+music_ch_a_orn_step EQU #DA5B   ; Channel A
+music_ch_b_orn_step EQU #DA5C   ; Channel B
+music_ch_c_orn_step EQU #DA5D   ; Channel C
 
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #DA5A   ; End of project variables (6746 bytes used)
+RAM_USAGE_END       EQU #DA5E   ; End of project variables (6750 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#DA5A: Project variables (6746 bytes)
-;   #DA5A-#F37F: Free RAM (~6438 bytes available)
+;   #C000-#DA5E: Project variables (6750 bytes)
+;   #DA5E-#F37F: Free RAM (~6434 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
@@ -2438,6 +2442,13 @@ position_update_loop:
     ld c, (hl)                 ; C = entity index
     inc hl                     ; Advance list pointer
     push hl                    ; Save list pointer
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .position_check_mask
+    ld a, (player_entity_index)
+    cp c
+    jp z, .position_skip_fast_player
+.position_check_mask:
     ld e, c
     ld d, 0
     ld hl, entity_comp_masks
@@ -2500,6 +2511,10 @@ position_update_loop:
 
     pop hl
     pop bc
+    jp position_next_entity
+
+.position_skip_fast_player:
+    pop hl
 
 position_next_entity:
     dec b
@@ -3684,6 +3699,13 @@ gbt_oob:
             inc hl                     ; Advance list pointer
             push hl                    ; Save list pointer
             pop hl                     ; Restore list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .input_not_fast_player
+            ld a, (player_entity_index)
+            cp c
+            jp z, input_next_entity
+        .input_not_fast_player:
 
             ; input_entity_list already guarantees active + current_screen_id + input
 
@@ -4549,6 +4571,13 @@ anim_done_entity:
             ld c, (hl)                    ; C = entity index
             inc hl                        ; Advance list pointer
             push hl                       ; Save list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .jump_check_mask
+            ld a, (player_entity_index)
+            cp c
+            jp z, .jump_skip_fast_player
+        .jump_check_mask:
             ld e, c
             ld d, 0
             ld hl, entity_comp_masks_hi
@@ -4691,6 +4720,10 @@ anim_done_entity:
 jump_done_entity:
             pop hl
             pop bc
+            jp jump_next_entity
+
+        .jump_skip_fast_player:
+            pop hl
 
         jump_next_entity:
             dec b
@@ -4723,6 +4756,13 @@ gravity_update_loop:
             ld c, (hl)                 ; C = entity index
             inc hl                     ; Advance list pointer
             push hl                    ; Save list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .gravity_check_mask
+            ld a, (player_entity_index)
+            cp c
+            jp z, .gravity_skip_fast_player
+        .gravity_check_mask:
             ld e, c
             ld d, 0
             ld hl, entity_comp_masks_hi
@@ -4809,6 +4849,10 @@ gravity_grounded:
 gravity_done:
             pop hl
             pop bc
+            jp gravity_next_entity
+
+        .gravity_skip_fast_player:
+            pop hl
 
 gravity_next_entity:
             dec b
@@ -7344,6 +7388,7 @@ update_all_entities:
     inc hl
     inc (hl)
     call update_sprite_component        ; 13. Sprite rendering
+    call sync_player_runtime_from_entity
     ret
 ; Total systems called: 17 (optimized from 16)
 
@@ -7619,6 +7664,634 @@ rebuild_used_entity_list:
 .rebuild_store_clean:
     xor a
     ld (active_entity_list_dirty), a
+    ret
+
+; ------------------------------------------------------------------
+; ensure_player_fast_runtime_bound
+; Keep the dedicated player runtime attached to the current hero entity.
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Bind the player fast-path runtime to the current hero entity.
+;   Inputs:
+;     - active_entity_list_dirty, hero_entity_id, current-screen filtered entity lists
+;   Outputs:
+;     - player_runtime_enabled, player_entity_index, player_x/player_y, player_vx_runtime/player_vy_runtime
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Notes:
+;     - Calls ensure_used_entity_list_current and resolve_runtime_hero_entity.
+
+ensure_player_fast_runtime_bound:
+    call ensure_used_entity_list_current
+    call resolve_runtime_hero_entity
+    cp #FF
+    jp nz, .bind_runtime
+
+    xor a
+    ld (player_runtime_enabled), a
+    ld (player_vx_runtime), a
+    ld (player_vy_runtime), a
+    ld (player_x), a
+    ld (player_x+1), a
+    ld (player_y), a
+    ld (player_y+1), a
+    ld a, #FF
+    ld (player_entity_index), a
+    ret
+
+.bind_runtime:
+    ld (player_entity_index), a
+    ld a, 1
+    ld (player_runtime_enabled), a
+    call sync_player_runtime_from_entity
+    ret
+
+; ------------------------------------------------------------------
+; sync_player_runtime_from_entity
+; Mirror hero ECS coordinates/velocity into player_* runtime vars.
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Copy the current bound hero entity state into player_* runtime variables.
+;   Inputs:
+;     - player_runtime_enabled, player_entity_index, entity_x_pos/y_pos, entity_vel_x/y
+;   Outputs:
+;     - player_x, player_y, player_vx_runtime, player_vy_runtime updated
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+
+sync_player_runtime_from_entity:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_x), a
+    xor a
+    ld (player_x+1), a
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_y), a
+    xor a
+    ld (player_y+1), a
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    ld (player_vx_runtime), a
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    ld (player_vy_runtime), a
+    ret
+
+; ------------------------------------------------------------------
+; update_player_fastpath
+; Dedicated hero update path executed before the generic ECS sweeps.
+; Mirrors the critical input->jump->gravity->position chain for the
+; current player entity without iterating over every active entity.
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Run the critical per-frame player update without ECS list iteration.
+;   Inputs:
+;     - task_update_input already refreshed input_state/input_btn_*
+;   Outputs:
+;     - Hero input/jump/gravity/position resolved into entity tables and player_* mirror
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Notes:
+;     - Global collision/wall/sprite systems still run later in the frame and may refine the final result.
+
+update_player_fastpath:
+    call ensure_player_fast_runtime_bound
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+
+    ; Require Input component to treat this entity as the player fast-path target.
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    jp z, .player_fast_sync
+
+    ; --------------------------------------------------------------
+    ; INPUT
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_input_disabled
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .player_fast_input_enabled
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    jp .player_fast_after_input
+
+.player_fast_input_enabled:
+    ld hl, entity_dir_mask
+    add hl, de
+    ld b, (hl)                    ; B = direction mask
+
+    ld hl, entity_input_speed
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .player_fast_speed_ok
+    ld a, 1
+.player_fast_speed_ok:
+    ld h, a                       ; H = cardinal speed
+    srl a
+    jr nz, .player_fast_diag_speed_ok
+    ld a, 1
+.player_fast_diag_speed_ok:
+    ld l, a                       ; L = diagonal speed
+
+    ld a, (input_state)
+    ld d, 0                       ; D = vel_x
+    ld e, 0                       ; E = vel_y
+    cp STICK_UP
+    jp z, .player_fast_input_up
+    cp STICK_DOWN
+    jp z, .player_fast_input_down
+    cp STICK_LEFT
+    jp z, .player_fast_input_left
+    cp STICK_RIGHT
+    jp z, .player_fast_input_right
+    cp STICK_UPRIGHT
+    jp z, .player_fast_input_upright
+    cp STICK_UPLEFT
+    jp z, .player_fast_input_upleft
+    cp STICK_DOWNRIGHT
+    jp z, .player_fast_input_downright
+    cp STICK_DOWNLEFT
+    jp z, .player_fast_input_downleft
+    jp .player_fast_apply_velocity
+
+.player_fast_input_up:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_down:
+    ld a, b
+    and DIR_ALLOW_DOWN
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_left:
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_right:
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_upright:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .player_fast_check_right_only
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_check_up_only
+    ld a, l
+    ld d, a
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_right_only:
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_up_only:
+    ld a, h
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_upleft:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .player_fast_check_left_only_1
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_check_up_only_1
+    ld a, l
+    neg
+    ld d, a
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_left_only_1:
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_up_only_1:
+    ld a, h
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_downright:
+    ld a, b
+    and DIR_ALLOW_DOWN
+    jp z, .player_fast_check_right_only_2
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_check_down_only_2
+    ld a, l
+    ld d, a
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_right_only_2:
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_down_only_2:
+    ld a, h
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_downleft:
+    ld a, b
+    and DIR_ALLOW_DOWN
+    jp z, .player_fast_check_left_only_3
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_check_down_only_3
+    ld a, l
+    neg
+    ld d, a
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_left_only_3:
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_down_only_3:
+    ld a, h
+    ld e, a
+
+.player_fast_apply_velocity:
+    push de
+    ld hl, entity_vel_x
+    ld e, c
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), d
+
+    push de
+    ld hl, entity_vel_y
+    ld e, c
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), e
+
+    ; Update entity_facing_dir based on input_state.
+    ; Match the generic input system so Player fast-path preserves the
+    ; same directional semantics used by ChangeSprite and sprite variants.
+    push af
+    ld a, (input_state)
+    or a
+    jr z, .player_fast_facing_done
+    cp 2
+    jr c, .player_fast_facing_up
+    cp 5
+    jr c, .player_fast_facing_right
+    jr z, .player_fast_facing_down
+    ld a, 1                     ; FACING_LEFT
+    jr .player_fast_facing_write
+.player_fast_facing_right:
+    ld a, 2                     ; FACING_RIGHT
+    jr .player_fast_facing_write
+.player_fast_facing_up:
+    ld a, 3                     ; FACING_UP
+    jr .player_fast_facing_write
+.player_fast_facing_down:
+    ld a, 4                     ; FACING_DOWN
+.player_fast_facing_write:
+    push hl
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    pop de
+    pop hl
+.player_fast_facing_done:
+    pop af
+
+    ; Sync directional sprite facing for input-driven entities.
+    ; Keep the same rule as the generic input system: skip when a
+    ; State Machine owns ChangeSprite for this entity.
+    push af
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_sm_ptr_l
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_sm_ptr_h
+    add hl, de
+    or (hl)
+    pop de
+    pop af
+    jr nz, .player_fast_skip_patrol_facing
+    push de
+    ld e, c
+    ld d, 0
+    call update_entity_patrol_facing
+    pop de
+.player_fast_skip_patrol_facing:
+
+.player_fast_after_input:
+    ; --------------------------------------------------------------
+    ; JUMP
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #01
+    jp z, .player_fast_after_jump
+
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jr z, .player_fast_jump_check
+
+    ld hl, entity_jump_count
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_jump_bonus
+    add hl, de
+    ld (hl), 0
+
+.player_fast_jump_check:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    jp z, .player_fast_after_jump
+    ld a, (input_btn_prev)
+    and INPUT_BTN_FIRE
+    jp nz, .player_fast_after_jump
+
+    ld hl, entity_jump_max
+    add hl, de
+    ld b, (hl)
+    ld hl, entity_jump_bonus
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld b, a
+
+    ld hl, entity_jump_count
+    add hl, de
+    ld a, (hl)
+    cp b
+    jr c, .player_fast_do_jump
+
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jp z, .player_fast_after_jump
+
+.player_fast_do_jump:
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jr nz, .player_fast_skip_bonus_consume
+
+    ld hl, entity_jump_count
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_jump_max
+    add hl, de
+    cp (hl)
+    jr c, .player_fast_skip_bonus_consume
+
+    ld hl, entity_jump_bonus
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .player_fast_skip_bonus_consume
+    dec (hl)
+
+.player_fast_skip_bonus_consume:
+    ld hl, entity_jump_count
+    add hl, de
+    inc (hl)
+
+    ld hl, entity_on_ground
+    add hl, de
+    res 0, (hl)
+
+    ld hl, entity_platform_id
+    add hl, de
+    ld (hl), 255
+
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #02
+    jp z, .player_fast_after_jump
+
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), #00
+    inc hl
+    ld (hl), #FC
+
+.player_fast_after_jump:
+    ; --------------------------------------------------------------
+    ; GRAVITY
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #02
+    jp z, .player_fast_after_gravity
+
+    ld hl, entity_on_ground
+    add hl, de
+    ld a, (hl)
+    bit 0, a
+    jr nz, .player_fast_gravity_grounded
+
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+
+    ld a, e
+    add a, #40
+    ld e, a
+    ld a, d
+    adc a, #00
+    ld d, a
+
+    ld a, d
+    bit 7, a
+    jr nz, .player_fast_store_gravity
+    cp #04
+    jr c, .player_fast_store_gravity
+    ld de, #0400
+
+.player_fast_store_gravity:
+    dec hl
+    ld (hl), e
+    inc hl
+    ld (hl), d
+
+    push de
+    ld hl, entity_vel_y
+    ld e, c
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), d
+    jr .player_fast_after_gravity
+
+.player_fast_gravity_grounded:
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), 0
+
+.player_fast_after_gravity:
+    ; --------------------------------------------------------------
+    ; POSITION
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    ld b, a
+    and COMP_MASK_POSITION
+    jp z, .player_fast_sync
+
+    ld a, b
+    and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
+    jp z, .player_fast_sync
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    ld b, a
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld (hl), a
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    bit 7, a
+    jr z, .player_fast_vy_positive
+    cp #F0
+    jr nc, .player_fast_vy_ready
+    ld a, #F0
+    jr .player_fast_vy_ready
+.player_fast_vy_positive:
+    cp #11
+    jr c, .player_fast_vy_ready
+    ld a, #10
+.player_fast_vy_ready:
+    ld b, a
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld (hl), a
+
+.player_fast_sync:
+    call sync_player_runtime_from_entity
     ret
 
 ; ==================================================================
@@ -11984,6 +12657,7 @@ init_entities:
 
     ; Ensure sprite system is reset whenever entities are initialized
     call init_sprites
+    call init_player_fast_runtime
 
     ; CRITICAL: Clear ALL entity component masks to prevent ghost entities
     ; RAM may contain random data - entities 0..N will be set by create_entity
@@ -12063,6 +12737,7 @@ init_entities:
     call init_pato_1
     call init_pato3
     call init_bola2
+    call init_player_from_hero_entity
     ret
 
 update_entities:
@@ -12961,6 +13636,64 @@ update_entity_patrol_facing:
     pop af
     ret
 
+; ------------------------------------------------------------------
+; init_player_fast_runtime
+; Reset the dedicated player fast-path runtime mirror.
+; ------------------------------------------------------------------
+init_player_fast_runtime:
+    xor a
+    ld (player_runtime_enabled), a
+    ld (player_vx_runtime), a
+    ld (player_vy_runtime), a
+    ld (player_x), a
+    ld (player_x+1), a
+    ld (player_y), a
+    ld (player_y+1), a
+    ld a, #FF
+    ld (player_entity_index), a
+    ret
+
+; ------------------------------------------------------------------
+; init_player_from_hero_entity
+; Seed player fast-path runtime from current hero_entity_id when available.
+; Safe to call before hero_entity_id has been resolved.
+; ------------------------------------------------------------------
+init_player_from_hero_entity:
+    ld a, (hero_entity_id)
+    cp #FF
+    ret z
+    ld (player_entity_index), a
+    ld c, a
+    ld a, 1
+    ld (player_runtime_enabled), a
+
+    ld e, c
+    ld d, 0
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_x), a
+    xor a
+    ld (player_x+1), a
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_y), a
+    xor a
+    ld (player_y+1), a
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    ld (player_vx_runtime), a
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    ld (player_vy_runtime), a
+    ret
 ; ==================================================================
 ; END OF ENTITIES
 ; ==================================================================
@@ -19938,6 +20671,7 @@ gameflow_world_game_loop:
     ; Poll input immediately after V-Blank edge so the hero uses
     ; the freshest input state in the same visible frame.
     call task_update_input
+    call update_player_fastpath
 
     ; Update per-screen countdown timer (60 seconds per stage)
     call update_world_screen_timer

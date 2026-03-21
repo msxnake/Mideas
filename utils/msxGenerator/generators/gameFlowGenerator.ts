@@ -674,6 +674,7 @@ gameflow_world_game_loop:
 ${frameAudioTickAsm}    ; Poll input immediately after V-Blank edge so the hero uses
     ; the freshest input state in the same visible frame.
     call task_update_input
+    call update_player_fastpath
 
 ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stage)
     call update_world_screen_timer
@@ -3514,6 +3515,7 @@ gameflow_world_game_loop:
 ${frameAudioTickAsm}    ; Poll input immediately after V-Blank so hero movement lands
     ; in the same frame that gets uploaded to SAT.
     call task_update_input
+    call update_player_fastpath
     call check_world_screen_transition
     call update_all_entities
     call execute_all_state_machines

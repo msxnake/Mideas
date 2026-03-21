@@ -426,6 +426,18 @@ MAX_ENTITIES        EQU 32
     code += `player_y            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player Y position (16-bit)\n`;
     currentAddress += 2;
 
+    code += `player_runtime_enabled EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=player fast runtime bound to hero entity\n`;
+    currentAddress++;
+
+    code += `player_entity_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity index used by player fast runtime (#FF=none)\n`;
+    currentAddress++;
+
+    code += `player_vx_runtime   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached player X velocity (signed 8-bit)\n`;
+    currentAddress++;
+
+    code += `player_vy_runtime   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached player Y velocity (signed 8-bit)\n`;
+    currentAddress++;
+
     code += `player_health       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player health points\n`;
     currentAddress++;
 
