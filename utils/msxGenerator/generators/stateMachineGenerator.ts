@@ -5,6 +5,7 @@
 
 import { StateMachine, StateMachineState, Action, Condition, ActionTypes, ConditionTypes } from '../../../statemachine.types';
 import { buildMSXDirectionalSpriteCatalog } from '../../../components/utils/spriteUtils';
+import { usesMapperBanking } from './romModeUtils';
 
 // =============================================================================
 // CONSTANTS & MAPPINGS
@@ -4946,9 +4947,11 @@ export function generateStateMachineSystem(
     tiles?: any[],
     templates?: any[],
     sounds?: any[],
-    trackIndexByAssetId?: Record<string, number>
+    trackIndexByAssetId?: Record<string, number>,
+    romMode: string = 'simple32k'
 ): string {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
+    const usesMapper = usesMapperBanking(romMode);
     const hasHardwareSprites = Array.isArray(sprites) && sprites.length > 0;
     const hasLivesGlobal = Array.isArray(globalVariables) &&
         globalVariables.some((variable: any) => String(variable?.asmName || '').trim() === 'global_var_lives');
@@ -4985,6 +4988,59 @@ Action_ExitCurrentWorld:`
         asm = asm.replace(
             /[ \t]*ld \(global_var_lives\), a\s*; Keep FSM global "Lives" in sync with entity health\r?\n/g,
             ''
+        );
+    }
+
+    if (!usesMapper) {
+        asm = asm.replace(
+            `    ; Update mutable screen layout map
+    push hl                 ; Save tile offset
+    ld de, (current_screen_layout)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+
+    ; Update mutable behavior map (0 = passable, 1 = solid)
+    push hl
+    ld de, (current_behavior_map)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_behavior_map_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    or a
+    jr z, .store_behavior_passable
+    ld a, 1
+.store_behavior_passable:
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+`,
+            `    ; Update mutable screen layout map
+    push hl                 ; Save tile offset
+    ld de, (current_screen_layout)
+    add hl, de
+    ld a, b
+    ld (hl), a
+    pop hl
+
+    ; Update mutable behavior map (0 = passable, 1 = solid)
+    push hl
+    ld de, (current_behavior_map)
+    add hl, de
+    ld a, b
+    or a
+    jr z, .store_behavior_passable
+    ld a, 1
+.store_behavior_passable:
+    ld (hl), a
+    pop hl
+`
         );
     }
 

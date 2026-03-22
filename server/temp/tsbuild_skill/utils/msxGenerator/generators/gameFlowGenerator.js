@@ -219,10 +219,10 @@ function getScreenLoadRoutineName(screen) {
     return `load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
 }
 /**
- * Resolve a global variable reference used by GameFlow nodes to a valid ASM symbol.
- * Returns null when the variable does not exist in analysis.globalVariables.
+ * Resolve a global variable reference used by GameFlow nodes.
+ * Returns the matching variable definition or null when not found.
  */
-function resolveGlobalVariableAsmName(variableName, analysis) {
+function resolveGlobalVariable(variableName, analysis) {
     const rawName = String(variableName || '').trim();
     if (!rawName)
         return null;
@@ -234,16 +234,75 @@ function resolveGlobalVariableAsmName(variableName, analysis) {
         const candidateName = String(v?.name || '').trim();
         const candidateAsmName = String(v?.asmName || '').trim();
         if (candidateName && candidateName.toLowerCase() === normalizedInput) {
-            return candidateAsmName || toDefaultAsmName(candidateName);
+            return v;
         }
         if (candidateAsmName && candidateAsmName.toLowerCase() === normalizedInput) {
-            return candidateAsmName;
+            return v;
         }
         if (candidateName && toDefaultAsmName(candidateName) === expectedAsmName) {
-            return candidateAsmName || toDefaultAsmName(candidateName);
+            return v;
         }
     }
     return null;
+}
+/**
+ * Resolve a global variable reference used by GameFlow nodes to a valid ASM symbol.
+ * Returns null when the variable does not exist in analysis.globalVariables.
+ */
+function resolveGlobalVariableAsmName(variableName, analysis) {
+    const rawName = String(variableName || '').trim();
+    if (!rawName)
+        return null;
+    const toDefaultAsmName = (name) => `global_var_${name.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '').replace(/[^a-z0-9_]/g, '_')}`;
+    const variable = resolveGlobalVariable(rawName, analysis);
+    if (!variable)
+        return null;
+    const candidateName = String(variable?.name || '').trim();
+    const candidateAsmName = String(variable?.asmName || '').trim();
+    return candidateAsmName || toDefaultAsmName(candidateName || rawName);
+}
+function getIfThenElseOperatorId(operator) {
+    switch (String(operator || '==').trim()) {
+        case '!=':
+            return 1;
+        case '>':
+            return 2;
+        case '<':
+            return 3;
+        case '>=':
+            return 4;
+        case '<=':
+            return 5;
+        case '==':
+        default:
+            return 0;
+    }
+}
+function resolveIfThenElseCompareValue(variable, rawCompareValue) {
+    if (typeof rawCompareValue === 'boolean') {
+        return rawCompareValue ? 1 : 0;
+    }
+    const parsedNumeric = Number(rawCompareValue);
+    if (Number.isFinite(parsedNumeric)) {
+        return Math.trunc(parsedNumeric);
+    }
+    const normalizedCompareValue = String(rawCompareValue ?? '').trim().toLowerCase();
+    const values = Array.isArray(variable?.values) ? variable.values : [];
+    const matchedValue = values.find((entry) => {
+        const label = String(entry?.label ?? '').trim().toLowerCase();
+        const value = String(entry?.value ?? '').trim().toLowerCase();
+        return label === normalizedCompareValue || value === normalizedCompareValue;
+    });
+    if (matchedValue) {
+        if (typeof matchedValue.value === 'boolean') {
+            return matchedValue.value ? 1 : 0;
+        }
+        const parsedMatchedValue = Number(matchedValue.value);
+        if (Number.isFinite(parsedMatchedValue)) {
+            return Math.trunc(parsedMatchedValue);
+        }
+    }
+    return 0;
 }
 /**
  * Get imported HUD frame draw routine name for a screen.
@@ -259,13 +318,14 @@ function getImportedHudFrameDrawRoutineName(screen) {
     return `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_draw`;
 }
 /**
- * Resolve runtime screen indexes where HUD has visible elements.
- * In world-based projects we map by world node index (current_screen_id runtime contract).
+ * Resolve runtime screen indexes where HUD must stay active.
+ * In world-based projects, a HUD/imported frame bootstrapped on any node of a world
+ * must keep refreshing on every node of that same world because screen transitions
+ * preserve the non-active HUD area between rooms.
  * Without worlds, fallback to screen array index.
  */
 function getHudRuntimeScreenIndexes(analysis) {
     const screenMaps = Array.isArray(analysis.screenMaps) ? analysis.screenMaps : [];
-    const hudScreenAssetIds = new Set();
     const hudCarrierScreenAssetIds = new Set();
     screenMaps.forEach((screen) => {
         const hasHudElems = Array.isArray(screen?.hudConfiguration?.elements) && screen.hudConfiguration.elements.length > 0;
@@ -274,23 +334,23 @@ function getHudRuntimeScreenIndexes(analysis) {
         if (!screen?.id) {
             return;
         }
-        if (hasHudElems) {
-            hudScreenAssetIds.add(String(screen.id));
-        }
         if (hasHudElems || hasImportedHudFrame) {
             hudCarrierScreenAssetIds.add(String(screen.id));
         }
     });
-    if (hudScreenAssetIds.size === 0)
+    if (hudCarrierScreenAssetIds.size === 0)
         return [];
     const worldMaps = Array.isArray(analysis.worldmaps) ? analysis.worldmaps : [];
     const runtimeIndexes = new Set();
     if (worldMaps.length > 0) {
         worldMaps.forEach((world) => {
             const nodes = Array.isArray(world?.nodes) ? world.nodes : [];
+            const worldHasHudCarrier = nodes.some((node) => hudCarrierScreenAssetIds.has(String(node?.screenAssetId || '')));
+            if (!worldHasHudCarrier) {
+                return;
+            }
             nodes.forEach((node, idx) => {
-                const screenAssetId = String(node?.screenAssetId || '');
-                if (hudCarrierScreenAssetIds.has(screenAssetId)) {
+                if (node?.screenAssetId) {
                     runtimeIndexes.add(idx);
                 }
             });
@@ -552,15 +612,10 @@ gameflow_world_game_loop:
 
     ; Frame sync first: start each tick exactly on V-Blank edge
     halt
-${frameAudioTickAsm}    ; Upload sprites right after V-Blank edge (60/50 Hz frame-paced)
-    call update_sprites_to_vram
-
-    ; Animated transform tiles do VRAM read-modify-write, so update them
-    ; near the V-Blank edge before the expensive gameplay work.
-    call update_animated_tiles
-
-    ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
+${frameAudioTickAsm}    ; Poll input immediately after V-Blank edge so the hero uses
+    ; the freshest input state in the same visible frame.
     call task_update_input
+    call update_player_fastpath
 
 ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stage)
     call update_world_screen_timer
@@ -572,13 +627,36 @@ ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stag
     ; Update all entities
     call update_all_entities
 
+    ; Refresh player deadly-tile state before state machines consume it.
+    call refresh_player_deadly_fastpath
+
+    ; Refresh player tile interactions without running bonus respawns twice.
+    call refresh_player_tile_interaction_fastpath
+
+    ; Run the player state machine before the generic SM sweep.
+    call refresh_player_state_machine_fastpath
+
     ; Execute all state machines
     call execute_all_state_machines
 
     ; Update timed PSG sound effects
     call sfx_update
 
-    ; Sprite SAT upload runs once per frame, outside ISR (done at frame start).
+    ; Refresh player animation with the final state of this frame.
+    call refresh_player_animation_fastpath
+
+    ; Refresh player sprite once with the final state of this frame.
+    call refresh_player_sprite_fastpath
+
+    ; Upload sprites after gameplay so the hero position computed this frame
+    ; is what gets shown on screen, instead of the previous frame's SAT.
+    call update_sprites_to_vram
+
+    ; Animated transform tiles do VRAM read-modify-write, so defer them until
+    ; after hero/entity work to keep player response prioritized.
+    call update_animated_tiles
+
+    ; Sprite SAT upload runs once per frame, outside ISR.
 ${hasHud ? `
     ; Render HUD only on screens that define HUD elements
 ${worldLoopHudRenderAsm}` : ``}
@@ -590,19 +668,27 @@ ${worldLoopHudRenderAsm}` : ``}
         code += `; ==================================================================
 ; SCREEN TIMER SUPPORT
 ; Resets TimeRemaining to 60 on every screen load/transition and
-; decrements it once per real second inside the WorldLink loop.
+; decrements it once per real second using interrupt_counter deltas.
 ; ==================================================================
 
-reload_world_screen_timer_frames:
-    push af
+get_world_screen_timer_frames_per_second:
     ld a, (isComputer50HzOr60Hz)
     or a
     ld a, 50
-    jr z, .store_screen_timer_frames
+    ret z
     ld a, 60
-.store_screen_timer_frames:
+    ret
+
+reload_world_screen_timer_frames:
+    call get_world_screen_timer_frames_per_second
     ld (time_second_frame_counter), a
-    pop af
+    ret
+
+snapshot_world_screen_timer_interrupt_counter:
+    ld a, (interrupt_counter)
+    ld (time_last_interrupt_counter), a
+    ld a, (interrupt_counter+1)
+    ld (time_last_interrupt_counter+1), a
     ret
 
 reset_world_screen_timer:
@@ -612,6 +698,7 @@ reset_world_screen_timer:
     xor a
     ld (${timeRemainingAsmName}+1), a
     call reload_world_screen_timer_frames
+    call snapshot_world_screen_timer_interrupt_counter
 ${hasHud ? `    ld a, 1
     ld (hud_dirty_flag), a
 ` : ``}    pop af
@@ -620,6 +707,7 @@ ${hasHud ? `    ld a, 1
 update_world_screen_timer:
     push af
     push bc
+    push de
     push hl
 
     ld a, (${timeRemainingAsmName})
@@ -628,6 +716,14 @@ update_world_screen_timer:
     or b
     jr z, .world_timer_done
 
+    ld hl, (interrupt_counter)
+    ld de, (time_last_interrupt_counter)
+    or a
+    sbc hl, de
+    jr z, .world_timer_done
+
+    call snapshot_world_screen_timer_interrupt_counter
+
     ld a, (time_second_frame_counter)
     or a
     jr nz, .world_timer_countdown_loaded
@@ -635,34 +731,76 @@ update_world_screen_timer:
     ld a, (time_second_frame_counter)
 
 .world_timer_countdown_loaded:
-    dec a
-    ld (time_second_frame_counter), a
-    jr nz, .world_timer_done
+    ld e, a
+    call get_world_screen_timer_frames_per_second
+    ld c, a
 
-    call reload_world_screen_timer_frames
+.world_timer_consume_elapsed_frames:
+    ld a, h
+    or l
+    jr z, .world_timer_store_countdown
 
-    ld hl, ${timeRemainingAsmName}
-    ld a, (hl)
+    ld a, h
+    or a
+    jr nz, .world_timer_hit_second_boundary
+    ld a, l
+    cp e
+    jr c, .world_timer_partial_consume
+
+.world_timer_hit_second_boundary:
+    ld a, l
+    sub e
+    ld l, a
+    jr nc, .world_timer_no_borrow
+    dec h
+.world_timer_no_borrow:
+    ld a, (${timeRemainingAsmName})
     or a
     jr nz, .world_timer_dec_low
-    inc hl
-    ld a, (hl)
+    ld a, (${timeRemainingAsmName}+1)
     or a
-    jr z, .world_timer_mark_dirty
-    dec (hl)
-    dec hl
-    ld (hl), 255
-    jr .world_timer_mark_dirty
+    jr z, .world_timer_reached_zero
+    dec a
+    ld (${timeRemainingAsmName}+1), a
+    ld a, 255
+    ld (${timeRemainingAsmName}), a
+    jr .world_timer_after_decrement
 
 .world_timer_dec_low:
-    dec (hl)
+    dec a
+    ld (${timeRemainingAsmName}), a
 
-.world_timer_mark_dirty:
+.world_timer_after_decrement:
 ${hasHud ? `    ld a, 1
     ld (hud_dirty_flag), a
 ` : ``}
+    ld a, (${timeRemainingAsmName})
+    ld b, a
+    ld a, (${timeRemainingAsmName}+1)
+    or b
+    jr z, .world_timer_reached_zero
+    ld e, c
+    jr .world_timer_consume_elapsed_frames
+
+.world_timer_partial_consume:
+    ld a, e
+    sub l
+    ld e, a
+    xor a
+    ld h, a
+    ld l, a
+    jr .world_timer_store_countdown
+
+.world_timer_reached_zero:
+    ld e, c
+
+.world_timer_store_countdown:
+    ld a, e
+    ld (time_second_frame_counter), a
+
 .world_timer_done:
     pop hl
+    pop de
     pop bc
     pop af
     ret
@@ -1035,6 +1173,14 @@ function generateNodeHandlers(nodeTypes, analysis, executionPlan) {
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
 
+    ; Sync SAT patterns using the slot table just filled by load_world.
+    ; force_update_entity_sprite (called during init_entities) ran before
+    ; load_sprite_patterns, so sprite_asset_base_pattern_slot_runtime was
+    ; all zeros then.  Calling update_sprite_component here recomputes the
+    ; correct slot->pattern mapping for all entities in the render list
+    ; so the very first update_sprites_to_vram below writes the right data.
+    call update_sprite_component
+
     ; Update sprites
     call update_sprites_to_vram
 ${hasHud ? `
@@ -1294,6 +1440,10 @@ show_menu_placeholder:
 .smp_loop:
     halt
 ${frameAudioTickAsm}
+    ; Defensive refresh: some projects keep background/runtime VRAM writers
+    ; active while the submenu is idle, which can trample ASCII font chars.
+    ; Re-apply the font after each VBlank before polling menu input.
+    call init_font_system
     ld a, 0
     call GTSTCK
     cp 1                          ; Up
@@ -1331,6 +1481,7 @@ ${frameAudioTickAsm}
 .smp_wait_fire_release:
     halt
 ${frameAudioTickAsm}
+    call init_font_system
     ld a, 0
     call GTTRIG
     or a
@@ -1341,6 +1492,7 @@ ${frameAudioTickAsm}
 .smp_wait_neutral_loop:
     halt
 ${frameAudioTickAsm}
+    call init_font_system
     ld a, 0
     call GTSTCK
     or a
@@ -2037,7 +2189,12 @@ ${frameAudioTickAsm}    pop bc
             case 'IfThenElse':
                 code += `gameflow_handle_ifthenelse:
     ; IfThenElse node - conditional branching
-    ; DE = condition data pointer (variable address, compare value, operator)
+    ; DE = condition data pointer
+    ;      dw variable address
+    ;      db compare value low
+    ;      db compare value high
+    ;      db operator
+    ;      db variable size (0=byte, 1=word)
     ; BC = connection table
     
     push bc         ; Save connection table
@@ -2048,18 +2205,106 @@ ${frameAudioTickAsm}    pop bc
     inc hl
     ld d, (hl)      ; DE = variable address
     inc hl
-    ld a, (hl)      ; A = compare value
+    ld c, (hl)      ; C = compare value low byte
     inc hl
-    ld c, (hl)      ; C = operator
+    ld b, (hl)      ; B = compare value high byte
+    inc hl
+    ld a, (hl)      ; A = operator
+    push af
+    inc hl
+    ld a, (hl)      ; A = variable size (0=byte, 1=word)
+    push af
     
     ; Load variable value
     ex de, hl
-    ld b, (hl)      ; B = current value
-    
-    ; Compare based on operator
-    ; For now, only == (operator 0)
+    pop af
+    ld e, (hl)      ; E = current value low byte
+    or a
+    jr z, .byte_value_loaded
+    inc hl
+    ld d, (hl)      ; D = current value high byte
+    jr .value_loaded
+
+.byte_value_loaded:
+    ld d, 0
+
+.value_loaded:
+    pop af
+
+    ; Compare DE (current value) against BC (compare value), unsigned.
+    cp 0
+    jr z, .compare_equals
+    cp 1
+    jr z, .compare_not_equals
+    cp 2
+    jr z, .compare_greater_than
+    cp 3
+    jr z, .compare_less_than
+    cp 4
+    jr z, .compare_greater_or_equal
+    cp 5
+    jr z, .compare_less_or_equal
+    jr .else_branch
+
+.compare_equals:
+    ld a, d
     cp b
+    jr nz, .else_branch
+    ld a, e
+    cp c
     jr z, .then_branch
+    jr .else_branch
+
+.compare_not_equals:
+    ld a, d
+    cp b
+    jr nz, .then_branch
+    ld a, e
+    cp c
+    jr nz, .then_branch
+    jr .else_branch
+
+.compare_greater_than:
+    ld a, d
+    cp b
+    jr c, .else_branch
+    jr nz, .then_branch
+    ld a, e
+    cp c
+    jr z, .else_branch
+    jr nc, .then_branch
+    jr .else_branch
+
+.compare_less_than:
+    ld a, d
+    cp b
+    jr c, .then_branch
+    jr nz, .else_branch
+    ld a, e
+    cp c
+    jr c, .then_branch
+    jr .else_branch
+
+.compare_greater_or_equal:
+    ld a, d
+    cp b
+    jr c, .else_branch
+    jr nz, .then_branch
+    ld a, e
+    cp c
+    jr c, .else_branch
+    jr .then_branch
+
+.compare_less_or_equal:
+    ld a, d
+    cp b
+    jr c, .then_branch
+    jr nz, .else_branch
+    ld a, e
+    cp c
+    jr c, .then_branch
+    jr z, .then_branch
+    jr .else_branch
     
 .else_branch:
     pop bc
@@ -2786,36 +3031,48 @@ ${nodeLabel}:
             case 'Text': {
                 const nodeId = sanitizeId(node.id);
                 const title = (node.title || node.name || '').replace(/"/g, '').replace(/\r?\n/g, ' ').trim().toUpperCase() || 'TEXT';
-                const message = (node.message || '').replace(/"/g, '').replace(/\r?\n/g, ' ');
+                const message = (node.message || '').replace(/"/g, '');
                 const bgHex = node.appearance?.colors?.background || '#000000';
                 const bgColor = hexToMSXColor(bgHex);
                 // Word-wrap message to 28 chars per line (leaving 2-char margin each side)
+                // Respect explicit line breaks (\n) from the user
                 const maxLineWidth = 28;
-                const words = message.split(' ');
+                const paragraphs = message.split(/\r?\n/);
                 const messageLines = [];
-                let currentLine = '';
-                for (const word of words) {
-                    const upperWord = word.toUpperCase();
-                    const testLine = currentLine ? currentLine + ' ' + upperWord : upperWord;
-                    if (testLine.length > maxLineWidth && currentLine) {
+                for (const paragraph of paragraphs) {
+                    const words = paragraph.split(' ');
+                    let currentLine = '';
+                    for (const word of words) {
+                        const upperWord = word.toUpperCase();
+                        const testLine = currentLine ? currentLine + ' ' + upperWord : upperWord;
+                        if (testLine.length > maxLineWidth && currentLine) {
+                            messageLines.push(currentLine);
+                            currentLine = upperWord;
+                        }
+                        else {
+                            currentLine = testLine;
+                        }
+                    }
+                    if (currentLine.trim())
                         messageLines.push(currentLine);
-                        currentLine = upperWord;
-                    }
-                    else {
-                        currentLine = testLine;
-                    }
+                    else
+                        messageLines.push(''); // empty line for blank paragraph
                 }
-                if (currentLine.trim())
-                    messageLines.push(currentLine);
                 const promptText = 'PRESS FIRE TO CONTINUE';
                 // Build lines array: title + message lines + prompt
                 const allLines = [];
                 // Title at row 3
                 allLines.push({ row: 3, text: title, label: `text_${nodeId}_title` });
-                // Message lines starting at row 7
-                messageLines.forEach((line, i) => {
-                    allLines.push({ row: 7 + i, text: line, label: `text_${nodeId}_msg${i}` });
-                });
+                // Message lines starting at row 7, skip empty lines (but advance row)
+                let msgRow = 7;
+                let msgLabelIdx = 0;
+                for (const line of messageLines) {
+                    if (line.trim()) {
+                        allLines.push({ row: msgRow, text: line, label: `text_${nodeId}_msg${msgLabelIdx}` });
+                        msgLabelIdx++;
+                    }
+                    msgRow++;
+                }
                 // Prompt at row 20
                 allLines.push({ row: 20, text: promptText, label: `text_${nodeId}_prompt` });
                 // Resolve background screen load function pointer
@@ -2889,16 +3146,25 @@ ${nodeLabel}:
             }
             case 'IfThenElse':
                 const varName = node.variableName || 'unknown';
+                const resolvedVar = resolveGlobalVariable(varName, analysis);
                 const asmVarName = resolveGlobalVariableAsmName(varName, analysis);
-                const compareValue = node.compareValue || 0;
+                const numericCompareValue = resolveIfThenElseCompareValue(resolvedVar, node.compareValue);
+                const operatorId = getIfThenElseOperatorId(node.operator);
+                const variableType = String(resolvedVar?.type || '').toLowerCase();
+                const isWordVariable = variableType === 'word' || variableType === '16bit';
+                const clampedCompareValue = isWordVariable
+                    ? Math.max(0, Math.min(65535, numericCompareValue))
+                    : Math.max(0, Math.min(255, numericCompareValue));
                 if (asmVarName) {
                     code += `    dw ${asmVarName}    ; Variable to check\n`;
                 }
                 else {
                     code += `    dw 0                 ; WARNING: Missing global variable "${varName}"\n`;
                 }
-                code += `    db ${compareValue}   ; Compare value\n`;
-                code += `    db 0                 ; Operator (0=equals)\n`;
+                code += `    db ${clampedCompareValue & 0xFF}   ; Compare value low byte\n`;
+                code += `    db ${(clampedCompareValue >> 8) & 0xFF}   ; Compare value high byte\n`;
+                code += `    db ${operatorId}   ; Operator (0===, 1=!=, 2=>, 3=<, 4=>=, 5=<=)\n`;
+                code += `    db ${isWordVariable ? 1 : 0}   ; Variable size (0=byte, 1=word)\n`;
                 break;
             case 'Globals':
                 if (node.variables && node.variables.length > 0) {
@@ -3124,15 +3390,20 @@ ${defaultStartHudAsm}` : ``}    ret
 
 gameflow_world_game_loop:
     halt                            ; Frame sync at loop start (V-Blank edge)
-${frameAudioTickAsm}    call update_sprites_to_vram     ; Frame-paced SAT upload (outside ISR)
-    ; Animated transform tiles do VRAM read-modify-write, so update them
-    ; near the V-Blank edge before the expensive gameplay work.
-    call update_animated_tiles
-    ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
+${frameAudioTickAsm}    ; Poll input immediately after V-Blank so hero movement lands
+    ; in the same frame that gets uploaded to SAT.
     call task_update_input
+    call update_player_fastpath
     call check_world_screen_transition
     call update_all_entities
+    call refresh_player_deadly_fastpath
+    call refresh_player_tile_interaction_fastpath
+    call refresh_player_state_machine_fastpath
     call execute_all_state_machines
+    call refresh_player_animation_fastpath
+    call refresh_player_sprite_fastpath
+    call update_sprites_to_vram     ; Upload current-frame sprite positions
+    call update_animated_tiles      ; Defer tile VRAM work behind hero updates
 ${defaultHasHud ? `    ; Render HUD only on screens that define HUD elements
 ${defaultLoopHudAsm}
 ` : ``}

@@ -7,6 +7,7 @@ import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { buildMSXDirectionalSpriteCatalog, generateSpriteASMCode } from '../../../components/utils/spriteUtils';
 import { analyzeComponentUsage } from '../utils/componentAnalyzer';
 import { MSX1_PALETTE } from '../../../constants';
+import { usesMapperBanking } from './romModeUtils';
 
 // Constants
 const SPRITE_INVISIBLE_VALUE = 224; // MSX: Y >= 209 hides sprite, but 224 is safer off-screen
@@ -416,7 +417,7 @@ export const buildScreenSpritePatternUsageSummaries = (analysis: ProjectAnalysis
  */
 export function generateSpritesFile(analysis: ProjectAnalysis, romMode: string = 'simple32k'): string {
   const sourceSprites = analysis.sprites || [];
-  const isSimple32k = romMode === 'simple32k';
+  const usesMapper = usesMapperBanking(romMode);
   const spriteCatalog = buildMSXDirectionalSpriteCatalog(sourceSprites);
   const sprites = spriteCatalog.sprites;
   const spriteNameToIndex = spriteCatalog.nameToIndex;
@@ -960,7 +961,7 @@ load_sprite_patterns_${pack.label}:
     ldir
     ld a, ${pack.placeholderSlot * 4}
     ld (sprite_placeholder_base_pattern_num), a
-${isSimple32k ? '' : '    call mapper_push_p2\n'}`;
+${usesMapper ? '    call mapper_push_p2\n' : ''}`;
 
     if (pack.spriteIndexes.length === 0) {
       code += `    ; No runtime sprites in this pack - placeholder only
@@ -976,7 +977,7 @@ ${isSimple32k ? '' : '    call mapper_push_p2\n'}`;
         for (let frameIndex = 0; frameIndex < usage.frameCount; frameIndex++) {
           const frameBaseSlot = basePatternSlot + (frameIndex * usage.layerCount);
           code += `    ; Sprite Asset ${spriteIndex}: ${sprite.name} frame ${frameIndex} (${usage.layerCount} layers)
-${isSimple32k ? '' : `    ld a, SPRITE_${spriteIndex}_PATTERN_BANK\n    call mapper_set_bank_p2\n`}    ld hl, ${safeSpriteName}_F${frameIndex}_LAYER${firstDrawableLayerIndex}
+${usesMapper ? `    ld a, SPRITE_${spriteIndex}_PATTERN_BANK\n    call mapper_set_bank_p2\n` : ''}    ld hl, ${safeSpriteName}_F${frameIndex}_LAYER${firstDrawableLayerIndex}
     ld de, SPRPAT + (${frameBaseSlot} * 32)
     ld bc, ${usage.layerCount * 32}
     call FAST_LDIRVM
@@ -986,11 +987,11 @@ ${isSimple32k ? '' : `    ld a, SPRITE_${spriteIndex}_PATTERN_BANK\n    call map
     }
 
     code += `    ; Placeholder sprite used by missing sprite refs
-${isSimple32k ? '' : '    ld a, SPRITE_PLACEHOLDER_PATTERN_BANK\n    call mapper_set_bank_p2\n'}    ld hl, SPRITE_PLACEHOLDER_PATTERN
+${usesMapper ? '    ld a, SPRITE_PLACEHOLDER_PATTERN_BANK\n    call mapper_set_bank_p2\n' : ''}    ld hl, SPRITE_PLACEHOLDER_PATTERN
     ld de, SPRPAT + (${pack.placeholderSlot} * 32)
     ld bc, 32
     call FAST_LDIRVM
-${isSimple32k ? '' : '    call mapper_pop_p2\n'}    ret
+${usesMapper ? '    call mapper_pop_p2\n' : ''}    ret
 `;
   });
 

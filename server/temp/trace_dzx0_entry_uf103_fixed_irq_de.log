@@ -1,0 +1,4 @@
+TRACE: loading ROM
+BP dzx0_standard HL=629E DE=E400 SP=F374 IFF=00
+SLOTS page0=0 X page1=1 X page2=1 X page3=3 X
+BYTES_HL {add    hl,hl       } 29

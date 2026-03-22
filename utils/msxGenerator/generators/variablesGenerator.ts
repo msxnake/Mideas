@@ -99,7 +99,15 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
 ; SYSTEM VARIABLES
 ; ==================================================================
 `;
-  code += `ROM_slot            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; ROM slot number (for SETPAGES32K)\n`;
+  code += `ROM_slot            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Expanded slot for normal page 1 ROM access\n`;
+  currentAddress++;
+  code += `slot_primary_normal EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Primary slot register snapshot for BIOS-ROM-ROM-RAM layout\n`;
+  currentAddress++;
+  code += `page0_bios_slot     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Expanded slot for normal BIOS page 0\n`;
+  currentAddress++;
+  code += `page2_normal_slot   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Expanded slot for normal page 2 layout\n`;
+  currentAddress++;
+  code += `page3_normal_slot   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Expanded slot for normal RAM page 3\n`;
   currentAddress++;
 
   code += `mapper_bank_p1_current EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mapper current bank for page/window 1\n`;
@@ -145,6 +153,8 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   currentAddress += 2;
   code += `prof_deadly_behavior_reads EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Deadly helper behavior-map reads\n`;
   currentAddress += 2;
+  code += `page0_transfer_buffer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary RAM buffer for page0 -> VRAM copies\n`;
+  currentAddress += 256;
 
   // Screen map pointers
   code += `
@@ -842,9 +852,25 @@ T_OLD_3         EQU #${hex(0x180)}  ; Tone table old 3
 T_OLD_0         EQU #${hex(0x182)}  ; Tone table old 0
 T_NEW_0         EQU #${hex(0x182)}  ; Tone table new 0
 T_NEW_2         EQU #${hex(0x19A)}  ; Tone table new 2 (last, ends at +0x1B2)
-`;
+    `;
     currentAddress = pt3Base + 0x240; // Reserve 576 bytes for PT3 workspace (RAM LENGTH per replayer spec)
   }
+
+  code += `
+; ==================================================================
+; ZX0 TEMPORARY RAM BUFFERS
+; ==================================================================
+; Fixed high-RAM scratch area used by compressed asset loaders and
+; plain48k page-0 decompression helpers.
+ZX0_SCREEN_BUFFER       EQU #DE00   ; Screen/layout scratch (768 bytes)
+ZX0_BEHAVIOR_BUFFER     EQU #E100   ; Behavior map scratch (768 bytes)
+ZX0_TILE_PATTERN_BUFFER EQU #E400   ; Tile pattern scratch (1488 bytes)
+ZX0_TILE_COLOR_BUFFER   EQU #EA00   ; Tile color scratch (1488 bytes)
+ZX0_FONT_PATTERN_BUFFER EQU #F000   ; Font pattern scratch (360 bytes)
+; Keep font buffers tightly packed to leave enough headroom below SP=#F380.
+; Old layout put FONT_COLOR at #F200, leaving only 24 bytes before the stack.
+ZX0_FONT_COLOR_BUFFER   EQU #F168   ; Font color scratch (360 bytes)
+`;
 
   // End marker
   code += `

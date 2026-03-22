@@ -4,8 +4,10 @@
  * Generates animtiles.asm with functions to update animated tiles in VRAM
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.collectAnimatedTileGroupSummaries = collectAnimatedTileGroupSummaries;
 exports.generateAnimatedTilesFile = generateAnimatedTilesFile;
 const tileUtils_1 = require("../../../components/utils/tileUtils");
+const romModeUtils_1 = require("./romModeUtils");
 const SCREEN2_MODE = 'SCREEN 2 (Graphics I)';
 function clampByte(value, fallback, min = 0, max = 255) {
     if (!Number.isFinite(value))
@@ -401,13 +403,24 @@ function prepareAnimationGroups(analysis) {
     }
     return { frameGroups: [...frameGroups, ...transformFrameGroups], transformGroups };
 }
+function collectAnimatedTileGroupSummaries(analysis) {
+    const { frameGroups } = prepareAnimationGroups(analysis);
+    return frameGroups.map((group) => ({
+        groupId: group.groupId,
+        targetTileId: group.targetTileId,
+        targetCharCode: group.targetCharCode,
+        charsPerTile: group.charsPerTile,
+        speed: group.speed,
+        frameCount: group.frameCount,
+    }));
+}
 /**
  * Generate animated tiles file (animtiles.asm)
  *
  * @param analysis - Project analysis
  * @returns ASM code string with animated tiles system
  */
-function generateAnimatedTilesFile(analysis) {
+function generateAnimatedTilesFile(analysis, romMode = 'simple32k') {
     const { frameGroups, transformGroups } = prepareAnimationGroups(analysis);
     const hasFrameAnimatedTiles = frameGroups.length > 0;
     const hasTransformAnimatedTiles = transformGroups.length > 0;
@@ -435,11 +448,11 @@ ${frames}
         : `anim_group_empty_data:
     db #00
 `;
+    const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
+    const mapperPush = usesMapper ? '    call mapper_push_p2\n    ld a, ANIM_TILE_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
+    const mapperPop = usesMapper ? '    call mapper_pop_p2' : '';
     const frameVramUpdateBlock = hasFrameAnimatedTiles
-        ? `    call mapper_push_p2
-    ld a, ANIM_TILE_DATA_BANK
-    call mapper_set_bank_p2
-
+        ? `${mapperPush}
     ld hl, anim_tile_table
 
 .anim_vram_loop:
@@ -533,7 +546,7 @@ ${frames}
     jr .anim_vram_loop
 
 .anim_vram_done:
-    call mapper_pop_p2`
+${mapperPop}`
         : '';
     const transformVramUpdateBlock = '';
     const updateVramBody = [frameVramUpdateBlock, transformVramUpdateBlock]
@@ -593,7 +606,12 @@ init_animated_tiles:
 ; Call this every frame from main loop
 ; ------------------------------------------------------------------
 update_animated_tiles:
-    ; Increment timer
+${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Skip animation work on screens with no animated tile groups
+    ld a, (current_screen_anim_group_count)
+    or a
+    ret z
+
+` : ``}    ; Increment timer
     ld a, (anim_tile_timer)
     inc a
     ld (anim_tile_timer), a
@@ -630,16 +648,11 @@ update_animated_tiles:
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
 update_animated_tiles_vram:
-    ; Protect VDP port sequence from ISR VRAM writes (sprite task, etc.)
-    ; Preserve prior interrupt state using LD A,I -> P/V = IFF2
-    ld a, i
-    push af
+    ; Protect VDP port sequence from ISR VRAM writes.
+    ; Always re-enables on exit (see FAST_LDIRVM note on LD A,I bug).
     di
 ${updateVramBody}
-    pop af
-    jp po, .anim_vram_irq_done
     ei
-.anim_vram_irq_done:
     ret
 
 ; ------------------------------------------------------------------

@@ -31,6 +31,7 @@ const interruptGenerator_1 = require("./generators/interruptGenerator");
 const soundGenerator_1 = require("./generators/soundGenerator");
 const scrollGenerator_1 = require("./generators/scrollGenerator");
 const animatedTilesGenerator_1 = require("./generators/animatedTilesGenerator");
+const page0Generator_1 = require("./generators/page0Generator");
 const executionPlan_1 = require("./planning/executionPlan");
 const executionValidators_1 = require("./planning/executionValidators");
 function resolveExecutionMode(config) {
@@ -176,32 +177,33 @@ function generateModularASM(projectName, assets, config = {}) {
     console.log(`🔧 Hardware Mode: ${hardwareMode.toUpperCase()}, Optimize: ${optimizeLevel}`);
     console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
     const files = {
+        'page0.asm': (0, page0Generator_1.generatePage0File)(analysis, romMode),
         'bios.asm': (0, biosGenerator_1.generateBIOSFile)({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
         'constants.asm': (0, constantsGenerator_1.generateConstantsFile)(analysis),
         'variables.asm': (0, variablesGenerator_1.generateVariablesFile)(analysis),
         'mapper.asm': (0, mapperGenerator_1.generateMapperFile)({ targetFormat, romMode, autoMegaROM }),
         'interrupt.asm': (0, interruptGenerator_1.generateInterruptFile)(analysis, { interruptDrivenComponents, romMode }, executionPlan),
-        'header.asm': (0, headerGenerator_1.generateHeaderFile)(projectName, analysis, executionPlan),
-        'patterns.asm': (0, patternsGenerator_1.generatePatternsFile)(analysis),
-        'colors.asm': (0, colorsGenerator_1.generateColorsFile)(analysis),
+        'header.asm': (0, headerGenerator_1.generateHeaderFile)(projectName, analysis, executionPlan, romMode),
+        'patterns.asm': (0, patternsGenerator_1.generatePatternsFile)(analysis, romMode),
+        'colors.asm': (0, colorsGenerator_1.generateColorsFile)(analysis, romMode),
         'components.asm': interruptDrivenComponents
             ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
             : (0, componentsGenerator_1.generateComponentsFile)(analysis, romMode),
         'entities.asm': (0, entitiesGenerator_1.generateEntitiesFile)(analysis),
         'worlds.asm': (0, worldGenerator_1.generateWorldsFile)(analysis),
-        'screens.asm': (0, screensGenerator_1.generateScreensFile)(analysis),
-        'sprites.asm': (0, spritesGenerator_1.generateSpritesFile)(analysis),
-        'font.asm': (0, fontGenerator_1.generateFontFile)(analysis),
+        'screens.asm': (0, screensGenerator_1.generateScreensFile)(analysis, romMode),
+        'sprites.asm': (0, spritesGenerator_1.generateSpritesFile)(analysis, romMode),
+        'font.asm': (0, fontGenerator_1.generateFontFile)(analysis, romMode),
         'hud.asm': (0, hudGenerator_1.generateHudFile)(analysis),
         'menus.asm': (0, menusGenerator_1.generateMenusFile)(analysis),
         'sound.asm': (0, soundGenerator_1.generateSoundFile)(analysis, executionPlan),
         'scroll.asm': (0, scrollGenerator_1.generateScrollFile)(analysis),
-        'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis),
+        'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis, romMode),
         'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
-            ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates, analysis.sounds, analysis.trackIndexByAssetId)
+            ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates, analysis.sounds, analysis.trackIndexByAssetId, romMode)
             : '; No State Machines\n',
         'gameflow.asm': (0, gameFlowGenerator_1.generateGameFlowFile)(analysis, executionPlan),
-        'main.asm': (0, mainGenerator_1.generateMainFile)(projectName, analysis),
+        'main.asm': (0, mainGenerator_1.generateMainFile)(projectName, analysis, romMode),
         'unitedFiles.asm': ''
     };
     // Generate unified file if requested
@@ -252,32 +254,33 @@ function generateModularASMFromSummary(summary, config = {}) {
     console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
     // Generate files using same logic as generateModularASM
     const files = {
+        'page0.asm': (0, page0Generator_1.generatePage0File)(analysis, romMode),
         'bios.asm': (0, biosGenerator_1.generateBIOSFile)({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
         'constants.asm': (0, constantsGenerator_1.generateConstantsFile)(analysis),
         'variables.asm': (0, variablesGenerator_1.generateVariablesFile)(analysis),
         'mapper.asm': (0, mapperGenerator_1.generateMapperFile)({ targetFormat, romMode, autoMegaROM }),
         'interrupt.asm': (0, interruptGenerator_1.generateInterruptFile)(analysis, { interruptDrivenComponents, romMode }, executionPlan),
-        'header.asm': (0, headerGenerator_1.generateHeaderFile)(summary.projectInfo.name, analysis, executionPlan),
-        'patterns.asm': (0, patternsGenerator_1.generatePatternsFile)(analysis),
-        'colors.asm': (0, colorsGenerator_1.generateColorsFile)(analysis),
+        'header.asm': (0, headerGenerator_1.generateHeaderFile)(summary.projectInfo.name, analysis, executionPlan, romMode),
+        'patterns.asm': (0, patternsGenerator_1.generatePatternsFile)(analysis, romMode),
+        'colors.asm': (0, colorsGenerator_1.generateColorsFile)(analysis, romMode),
         'components.asm': interruptDrivenComponents
             ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
             : (0, componentsGenerator_1.generateComponentsFile)(analysis, romMode),
         'entities.asm': (0, entitiesGenerator_1.generateEntitiesFile)(analysis),
         'worlds.asm': (0, worldGenerator_1.generateWorldsFile)(analysis),
-        'screens.asm': (0, screensGenerator_1.generateScreensFile)(analysis),
-        'sprites.asm': (0, spritesGenerator_1.generateSpritesFile)(analysis),
-        'font.asm': (0, fontGenerator_1.generateFontFile)(analysis),
+        'screens.asm': (0, screensGenerator_1.generateScreensFile)(analysis, romMode),
+        'sprites.asm': (0, spritesGenerator_1.generateSpritesFile)(analysis, romMode),
+        'font.asm': (0, fontGenerator_1.generateFontFile)(analysis, romMode),
         'hud.asm': (0, hudGenerator_1.generateHudFile)(analysis),
         'menus.asm': (0, menusGenerator_1.generateMenusFile)(analysis),
         'sound.asm': (0, soundGenerator_1.generateSoundFile)(analysis, executionPlan),
         'scroll.asm': (0, scrollGenerator_1.generateScrollFile)(analysis),
-        'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis),
+        'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis, romMode),
         'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
-            ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates, analysis.sounds, analysis.trackIndexByAssetId)
+            ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates, analysis.sounds, analysis.trackIndexByAssetId, romMode)
             : '; No State Machines\n',
         'gameflow.asm': (0, gameFlowGenerator_1.generateGameFlowFile)(analysis, executionPlan),
-        'main.asm': (0, mainGenerator_1.generateMainFile)(summary.projectInfo.name, analysis),
+        'main.asm': (0, mainGenerator_1.generateMainFile)(summary.projectInfo.name, analysis, romMode),
         'unitedFiles.asm': ''
     };
     // Generate unified file if requested

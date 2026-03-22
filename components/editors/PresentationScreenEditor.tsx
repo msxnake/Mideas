@@ -215,7 +215,10 @@ export const PresentationScreenEditor: React.FC<PresentationScreenEditorProps> =
     }
   };
 
-  const updateRuntime = (field: keyof PresentationScreenConfig['runtime'], value: boolean | number) => {
+  const updateRuntime = (
+    field: keyof PresentationScreenConfig['runtime'],
+    value: boolean | number | PresentationScreenConfig['runtime']['romDataGroup']
+  ) => {
     onUpdatePresentationScreen(prev => ({
       ...prev,
       runtime: {
@@ -540,6 +543,21 @@ export const PresentationScreenEditor: React.FC<PresentationScreenEditorProps> =
                 className="mt-1 w-full p-1 text-xs bg-msx-bgcolor border border-msx-border rounded"
               />
             </label>
+            <label className="block text-msx-textsecondary">
+              ROM data group
+              <select
+                value={presentationScreen.runtime.romDataGroup}
+                onChange={(e) => updateRuntime('romDataGroup', e.target.value as PresentationScreenConfig['runtime']['romDataGroup'])}
+                className="mt-1 w-full p-1 text-xs bg-msx-bgcolor border border-msx-border rounded"
+              >
+                <option value="auto">Auto-pack into Page 0 when possible</option>
+                <option value="default">Default ROM area</option>
+                <option value="page0">Force Page 0 group (48KB plain ROM)</option>
+              </select>
+            </label>
+            <div className="text-[11px] text-msx-textsecondary">
+              Page 0 is intended for cold data copied without BIOS. In plain 48KB mode, auto-pack prioritizes Presentation Screen first and keeps per-asset overrides available.
+            </div>
           </Panel>
 
           <Panel title="Compression" bodyClassName="p-3 space-y-2 text-xs">

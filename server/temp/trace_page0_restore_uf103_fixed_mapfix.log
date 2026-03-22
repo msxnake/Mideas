@@ -1,0 +1,3 @@
+TRACE: loading ROM
+HIT page0_restore_bios_rom PC=A948 SP=F37A HL=02D1 DE=E6A8
+SLOTS page0=1 X page1=1 X page2=1 X page3=3 X

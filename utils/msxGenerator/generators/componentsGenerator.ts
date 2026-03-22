@@ -7,6 +7,7 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { analyzeComponentUsage, ComponentUsageAnalysis } from '../utils/componentAnalyzer';
 import { buildRegisterContractComment } from './registerContract';
+import { usesMapperBanking } from './romModeUtils';
 
 // ============================================================================
 // OPTIMIZED UPDATE_ALL_ENTITIES GENERATOR
@@ -1154,6 +1155,13 @@ sprite_update_loop:
     inc hl                     ; Advance list pointer
     ld e, c
     ld d, 0
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .sprite_not_fast_player
+    ld a, (player_entity_index)
+    cp c
+    jp z, sprite_next_entity
+.sprite_not_fast_player:
 
     ; render_entity_list already guarantees active + current_screen_id + sprite
     push bc
@@ -1273,6 +1281,27 @@ sprite_next_entity:
     dec b
     jp nz, sprite_update_loop
 
+    ret
+
+; ==================================================================
+; PLAYER SPRITE FASTPATH
+; ==================================================================
+refresh_player_sprite_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_SPRITE
+    ret z
+    call force_update_entity_sprite
     ret
 
 ; ==================================================================
@@ -2221,6 +2250,7 @@ ${yDivisionCode}
  * Returns behavior value for a tile at (B=row, C=column) using current_behavior_map
  */
 function generateGetBehaviorTile(romMode: string = 'simple32k'): string {
+    const usesMapper = usesMapperBanking(romMode);
     return `
     ; ------------------------------------------------------------------
     ; get_behavior_tile
@@ -2313,12 +2343,12 @@ get_behavior_tile_nb:
     ld e, c
     ld d, 0
     add hl, de                    ; HL = row base + column
-${romMode === 'simple32k' ? `
+${!usesMapper ? `
     ; simple32k: behavior map is always resident in RAM (no bank switching needed).
     ; Skip mapper push/pop/set — saves ~169 cycles per call (41% overhead eliminated).
     ld a, (hl)                    ; A = behavior value (direct RAM read)
 ` : `
-    ; megarom: protect P2 bank around the read in case behavior map is in ROM bank.
+    ; Banked ROM build: protect P2 bank around the read in case behavior map is in ROM bank.
     call mapper_push_p2
     ld a, (current_behavior_map_bank)
     call mapper_set_bank_p2
@@ -3676,6 +3706,13 @@ function generateAnimationSystem(): string {
             ld e, c
             ld d, 0
             pop hl                     ; Restore list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .anim_not_fast_player
+            ld a, (player_entity_index)
+            cp c
+            jp z, .anim_next_entity
+        .anim_not_fast_player:
 
             ; anim_entity_list already guarantees active + current_screen_id + animation + sprite
 
@@ -3899,6 +3936,46 @@ anim_done_entity:
         .anim_next_entity:
             dec b
             jp nz, .anim_loop
+    ret
+
+refresh_player_animation_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+    cp COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+    ret nz
+
+    ld a, (player_runtime_enabled)
+    push af
+    ld a, (anim_entity_count)
+    push af
+    ld a, (anim_entity_list)
+    push af
+
+    xor a
+    ld (player_runtime_enabled), a
+    ld a, c
+    ld (anim_entity_list), a
+    ld a, 1
+    ld (anim_entity_count), a
+    call update_animation_component
+
+    pop af
+    ld (anim_entity_list), a
+    pop af
+    ld (anim_entity_count), a
+    pop af
+    ld (player_runtime_enabled), a
     ret
     `;
 }
@@ -5886,6 +5963,13 @@ update_deadly_tiles_component:
     ld c, (hl)
     inc hl
     push hl
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .deadly_not_fast_player
+    ld a, (player_entity_index)
+    cp c
+    jp z, .deadly_skip_fast_player
+.deadly_not_fast_player:
     ld e, c
     ld d, 0
     ld hl, entity_comp_masks_hi
@@ -5914,10 +5998,37 @@ update_deadly_tiles_component:
     push bc
     call update_entity_deadly_flag_runtime
     pop bc
+    jr .deadly_tiles_next
+
+.deadly_skip_fast_player:
+    pop hl
 
 .deadly_tiles_next:
     dec b
     jp nz, .deadly_tiles_loop
+    ret
+
+refresh_player_deadly_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #20
+    jr nz, .player_deadly_update
+    ld hl, entity_flag_deadly_tile
+    add hl, de
+    res 0, (hl)
+    ret
+.player_deadly_update:
+    call update_entity_deadly_flag_runtime
     ret
 `;
 }
@@ -6634,15 +6745,27 @@ ${bonusRespawnRuntimeCode}
 ;   - DE must survive the optional HUD/sound hooks until persistence logic runs
 ; ------------------------------------------------------------------
 check_tile_interaction:
+    call scan_tile_interaction_entities
+    call update_bonus_respawns
+    ret
+
+scan_tile_interaction_entities:
     ld a, (input_entity_count)
     or a
-    jp z, .ti_respawn_only         ; No active entities
+    ret z                         ; No active entities
 
     ld hl, input_entity_list
     ld b, a                        ; B = entity count
 
 .ti_loop:
     ld c, (hl)                     ; C = entity index
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .ti_process_entity
+    ld a, (player_entity_index)
+    cp c
+    jp z, .ti_skip_fast_player
+.ti_process_entity:
     push hl                        ; Save list pointer
     push bc                        ; Save count(B) + entity(C)
 
@@ -6814,11 +6937,51 @@ ${bonusRespawnContinuationCode}
     inc hl                         ; Advance to next entity
     dec b
     jp nz, .ti_loop                ; djnz replaced with jp nz (loop body > 127 bytes)
-    call update_bonus_respawns
     ret
 
-.ti_respawn_only:
-    call update_bonus_respawns
+.ti_skip_fast_player:
+    inc hl
+    dec b
+    jp nz, .ti_loop
+    ret
+
+refresh_player_tile_interaction_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    ret z
+
+    ld a, (player_runtime_enabled)
+    push af
+    ld a, (input_entity_count)
+    push af
+    ld a, (input_entity_list)
+    push af
+
+    xor a
+    ld (player_runtime_enabled), a
+    ld a, c
+    ld (input_entity_list), a
+    ld a, 1
+    ld (input_entity_count), a
+    call scan_tile_interaction_entities
+
+    pop af
+    ld (input_entity_list), a
+    pop af
+    ld (input_entity_count), a
+    pop af
+    ld (player_runtime_enabled), a
     ret
 `;
 }
@@ -7450,6 +7613,7 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
  * @returns ASM code string with ECS component systems
  */
 export function generateComponentsFile(analysis: ProjectAnalysis, romMode: string = 'simple32k'): string {
+    const usesMapper = usesMapperBanking(romMode);
     // Skip ECS system if no entities in project
     if (!analysis.entities || analysis.entities.length === 0) {
         return `; ==================================================================
@@ -7500,7 +7664,19 @@ init_entities:
     ret
 update_all_entities:
     ret
+update_player_fastpath:
+    ret
 execute_all_state_machines:
+    ret
+refresh_player_deadly_fastpath:
+    ret
+refresh_player_tile_interaction_fastpath:
+    ret
+refresh_player_state_machine_fastpath:
+    ret
+refresh_player_animation_fastpath:
+    ret
+refresh_player_sprite_fastpath:
     ret
 create_entity:
     ret
@@ -8221,6 +8397,15 @@ execute_all_state_machines:
     ld a, (hl)                    ; A = entity index
     inc hl                        ; Advance list pointer
     push hl                       ; Save list pointer
+    ld c, a
+    ld a, (player_runtime_enabled)
+    or a
+    jr z, .sm_entity_ready
+    ld a, (player_entity_index)
+    cp c
+    jr z, .skip_entity
+.sm_entity_ready:
+    ld a, c
 
     ; active_entity_list already guarantees active + current_screen_id
     ld e, a                       ; DE = entity index
@@ -8251,6 +8436,29 @@ execute_all_state_machines:
     
     ret
 
+refresh_player_state_machine_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+
+    ld e, a
+    ld d, 0
+    ld hl, entity_sm_ptr_l
+    add hl, de
+    ld c, (hl)
+    ld hl, entity_sm_ptr_h
+    add hl, de
+    ld a, (hl)
+    or c
+    ret z
+
+    ld a, e
+    call SM_Update
+    ret
+
 `;
     } else {
         code += `
@@ -8259,6 +8467,9 @@ execute_all_state_machines:
 ; ==================================================================
 ; No state machines are present in this build.
 execute_all_state_machines:
+    ret
+
+refresh_player_state_machine_fastpath:
     ret
 
 `;
@@ -8319,11 +8530,11 @@ get_tile_at_position:
     ; Read actual tile from current screen layout
     ld de, (current_screen_layout) ; DE = pointer to screen layout data
     add hl, de                    ; HL = pointer to tile at position
-${romMode !== 'simple32k' ? `    call mapper_push_p2
+${usesMapper ? `    call mapper_push_p2
     ld a, (current_screen_layout_bank)
     call mapper_set_bank_p2
 ` : ''}    ld a, (hl)                    ; A = tile ID from screen map
-${romMode !== 'simple32k' ? `    push af
+${usesMapper ? `    push af
     call mapper_pop_p2
     pop af
 ` : ''}

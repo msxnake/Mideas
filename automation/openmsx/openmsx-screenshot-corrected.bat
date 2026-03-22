@@ -22,6 +22,7 @@ if "%~1"=="" (
 REM Parámetros
 set "ROM_PATH=%~1"
 set "WAIT_SECONDS=%~2"
+set "ROM_TYPE=%~3"
 
 REM Valores por defecto
 if "%WAIT_SECONDS%"=="" set "WAIT_SECONDS=10"
@@ -122,7 +123,11 @@ echo.
 echo 🚀 Iniciando OpenMSX...
 
 REM Ejecutar OpenMSX
-start /wait "" "%OPENMSX_PATH%" -cart "%ROM_PATH%" -script "%TCL_FILE%"
+if "%ROM_TYPE%"=="" (
+    start /wait "" "%OPENMSX_PATH%" -cart "%ROM_PATH%" -script "%TCL_FILE%"
+) else (
+    start /wait "" "%OPENMSX_PATH%" -cart "%ROM_PATH%" -romtype %ROM_TYPE% -script "%TCL_FILE%"
+)
 
 echo.
 echo 🏁 OpenMSX terminado.

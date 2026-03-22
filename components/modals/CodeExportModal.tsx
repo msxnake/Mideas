@@ -34,7 +34,7 @@ interface CodeExportModalProps {
 }
 
 type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'asm_all_in_one' | 'tiles' | 'sprites' | 'screens' | 'entities';
-type RomMode = 'auto' | 'simple32k' | 'megarom';
+type RomMode = 'auto' | 'simple32k' | 'plain48k' | 'megarom';
 type MapperFormat = 'konami' | 'ascii8' | 'ascii16';
 type EngineExecutionMode = 'gameLoopHalt' | 'interruptTaskManager';
 type RomBuildConfig = {
@@ -247,6 +247,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const getModularFileOrder = () => [
     'unitedFiles.asm',
     'main.asm',
+    'page0.asm',
     'bios.asm',
     'constants.asm',
     'variables.asm',
@@ -354,14 +355,15 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
   };
 
-  const runOpenMSXRequest = async (romFile: string) => {
+  const runOpenMSXRequest = async (romFile: string, resolvedRomMode?: string) => {
     try {
+      const romType = resolvedRomMode === 'plain48k' ? 'Plain' : undefined;
       const response = await fetch(buildBackendUrl('/run-openmsx'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ romFile }),
+        body: JSON.stringify({ romFile, romType }),
       });
 
       const result = await response.json();
@@ -644,7 +646,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 const cleanRomConfig: RomBuildConfig = {
                   romMode: 'simple32k',
                   targetFormat: asmBundle.romConfig.targetFormat,
-                  autoMegaROM: false
+                  autoMegaROM: false,
+                  executionMode: asmBundle.romConfig.executionMode
                 };
                 asmBundle = await generateMapperReadyBundle(projectName, cleanRomConfig);
                 generatedRomConfig = asmBundle.romConfig;
@@ -837,7 +840,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
         const cleanRomConfig: RomBuildConfig = {
           romMode: 'simple32k',
           targetFormat: bundle.romConfig.targetFormat,
-          autoMegaROM: false
+          autoMegaROM: false,
+          executionMode: bundle.romConfig.executionMode
         };
         const cleanBundle = await generateMapperReadyBundle(bundle.projectName, cleanRomConfig);
         setGeneratedCode(cleanBundle.mainCode);
@@ -860,7 +864,10 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
         if (compileResult?.success && (compileResult as any).romFile) {
           setPipelineProgress(94);
           setPipelineStatus('Launching OpenMSX...');
-          const openMsxResult = await runOpenMSXRequest((compileResult as any).romFile);
+          const openMsxResult = await runOpenMSXRequest(
+            (compileResult as any).romFile,
+            compileResult?.resolvedRomConfig?.resolvedRomMode
+          );
           if (openMsxResult.success) {
             summary += `\nRun: OpenMSX launched (${(compileResult as any).romFile})`;
             if (openMsxResult.note) {
@@ -1189,6 +1196,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   >
                     <option value="auto">Auto (32KB -&gt; MegaROM)</option>
                     <option value="simple32k">Force Simple 32KB</option>
+                    <option value="plain48k">Force Plain 48KB</option>
                     <option value="megarom">Force MegaROM</option>
                   </select>
                 </div>
@@ -1567,7 +1575,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
 
-                        const zipSuccess = await downloadModularZip(bundle.modularFiles, bundle.projectName);
+                        const zipSuccess = await downloadModularZip(bundle.modularFiles as unknown as Record<string, string>, bundle.projectName);
                         const mainFileName = bundle.modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm';
 
                         alert(

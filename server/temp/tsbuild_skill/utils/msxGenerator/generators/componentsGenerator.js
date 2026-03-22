@@ -8,6 +8,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateComponentsFile = generateComponentsFile;
 const componentAnalyzer_1 = require("../utils/componentAnalyzer");
 const registerContract_1 = require("./registerContract");
+const romModeUtils_1 = require("./romModeUtils");
 // ============================================================================
 // OPTIMIZED UPDATE_ALL_ENTITIES GENERATOR
 // ============================================================================
@@ -122,6 +123,7 @@ update_all_entities:
             }
         }
     }
+    code += `    call sync_player_runtime_from_entity\n`;
     code += `    ret\n`;
     code += `; Total systems called: ${callCount} (optimized from 16)\n\n`;
     code += `
@@ -378,6 +380,611 @@ rebuild_used_entity_list:
     xor a
     ld (active_entity_list_dirty), a
     ret
+
+; ------------------------------------------------------------------
+; ensure_player_fast_runtime_bound
+; Keep the dedicated player runtime attached to the current hero entity.
+; ------------------------------------------------------------------
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Bind the player fast-path runtime to the current hero entity.',
+        inputs: ['active_entity_list_dirty, hero_entity_id, current-screen filtered entity lists'],
+        outputs: ['player_runtime_enabled, player_entity_index, player_x/player_y, player_vx_runtime/player_vy_runtime'],
+        clobbers: ['AF', 'BC', 'DE', 'HL'],
+        preserved: ['None'],
+        notes: ['Calls ensure_used_entity_list_current and resolve_runtime_hero_entity.'],
+    })}
+ensure_player_fast_runtime_bound:
+    call ensure_used_entity_list_current
+    call resolve_runtime_hero_entity
+    cp #FF
+    jp nz, .bind_runtime
+
+    xor a
+    ld (player_runtime_enabled), a
+    ld (player_vx_runtime), a
+    ld (player_vy_runtime), a
+    ld (player_x), a
+    ld (player_x+1), a
+    ld (player_y), a
+    ld (player_y+1), a
+    ld a, #FF
+    ld (player_entity_index), a
+    ret
+
+.bind_runtime:
+    ld (player_entity_index), a
+    ld a, 1
+    ld (player_runtime_enabled), a
+    call sync_player_runtime_from_entity
+    ret
+
+; ------------------------------------------------------------------
+; sync_player_runtime_from_entity
+; Mirror hero ECS coordinates/velocity into player_* runtime vars.
+; ------------------------------------------------------------------
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Copy the current bound hero entity state into player_* runtime variables.',
+        inputs: ['player_runtime_enabled, player_entity_index, entity_x_pos/y_pos, entity_vel_x/y'],
+        outputs: ['player_x, player_y, player_vx_runtime, player_vy_runtime updated'],
+        clobbers: ['AF', 'BC', 'DE', 'HL'],
+        preserved: ['None'],
+    })}
+sync_player_runtime_from_entity:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_x), a
+    xor a
+    ld (player_x+1), a
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_y), a
+    xor a
+    ld (player_y+1), a
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    ld (player_vx_runtime), a
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    ld (player_vy_runtime), a
+    ret
+
+; ------------------------------------------------------------------
+; update_player_fastpath
+; Dedicated hero update path executed before the generic ECS sweeps.
+; Mirrors the critical input->jump->gravity->position chain for the
+; current player entity without iterating over every active entity.
+; ------------------------------------------------------------------
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Run the critical per-frame player update without ECS list iteration.',
+        inputs: ['task_update_input already refreshed input_state/input_btn_*'],
+        outputs: ['Hero input/jump/gravity/position resolved into entity tables and player_* mirror'],
+        clobbers: ['AF', 'BC', 'DE', 'HL'],
+        preserved: ['None'],
+        notes: ['Global collision/wall/sprite systems still run later in the frame and may refine the final result.'],
+    })}
+update_player_fastpath:
+    call ensure_player_fast_runtime_bound
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+
+    ; Require Input component to treat this entity as the player fast-path target.
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    jp z, .player_fast_sync
+
+    ; --------------------------------------------------------------
+    ; INPUT
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_input_disabled
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .player_fast_input_enabled
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    jp .player_fast_after_input
+
+.player_fast_input_enabled:
+    ld hl, entity_dir_mask
+    add hl, de
+    ld b, (hl)                    ; B = direction mask
+
+    ld hl, entity_input_speed
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .player_fast_speed_ok
+    ld a, 1
+.player_fast_speed_ok:
+    ld h, a                       ; H = cardinal speed
+    srl a
+    jr nz, .player_fast_diag_speed_ok
+    ld a, 1
+.player_fast_diag_speed_ok:
+    ld l, a                       ; L = diagonal speed
+
+    ld a, (input_state)
+    ld d, 0                       ; D = vel_x
+    ld e, 0                       ; E = vel_y
+    cp STICK_UP
+    jp z, .player_fast_input_up
+    cp STICK_DOWN
+    jp z, .player_fast_input_down
+    cp STICK_LEFT
+    jp z, .player_fast_input_left
+    cp STICK_RIGHT
+    jp z, .player_fast_input_right
+    cp STICK_UPRIGHT
+    jp z, .player_fast_input_upright
+    cp STICK_UPLEFT
+    jp z, .player_fast_input_upleft
+    cp STICK_DOWNRIGHT
+    jp z, .player_fast_input_downright
+    cp STICK_DOWNLEFT
+    jp z, .player_fast_input_downleft
+    jp .player_fast_apply_velocity
+
+.player_fast_input_up:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_down:
+    ld a, b
+    and DIR_ALLOW_DOWN
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_left:
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_right:
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_upright:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .player_fast_check_right_only
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_check_up_only
+    ld a, l
+    ld d, a
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_right_only:
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_up_only:
+    ld a, h
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_upleft:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .player_fast_check_left_only_1
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_check_up_only_1
+    ld a, l
+    neg
+    ld d, a
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_left_only_1:
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_up_only_1:
+    ld a, h
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_downright:
+    ld a, b
+    and DIR_ALLOW_DOWN
+    jp z, .player_fast_check_right_only_2
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_check_down_only_2
+    ld a, l
+    ld d, a
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_right_only_2:
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_down_only_2:
+    ld a, h
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_downleft:
+    ld a, b
+    and DIR_ALLOW_DOWN
+    jp z, .player_fast_check_left_only_3
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_check_down_only_3
+    ld a, l
+    neg
+    ld d, a
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_left_only_3:
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_down_only_3:
+    ld a, h
+    ld e, a
+
+.player_fast_apply_velocity:
+    push de
+    ld hl, entity_vel_x
+    ld e, c
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), d
+
+    push de
+    ld hl, entity_vel_y
+    ld e, c
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), e
+
+    ; Update entity_facing_dir based on input_state.
+    ; Match the generic input system so Player fast-path preserves the
+    ; same directional semantics used by ChangeSprite and sprite variants.
+    push af
+    ld a, (input_state)
+    or a
+    jr z, .player_fast_facing_done
+    cp 2
+    jr c, .player_fast_facing_up
+    cp 5
+    jr c, .player_fast_facing_right
+    jr z, .player_fast_facing_down
+    ld a, 1                     ; FACING_LEFT
+    jr .player_fast_facing_write
+.player_fast_facing_right:
+    ld a, 2                     ; FACING_RIGHT
+    jr .player_fast_facing_write
+.player_fast_facing_up:
+    ld a, 3                     ; FACING_UP
+    jr .player_fast_facing_write
+.player_fast_facing_down:
+    ld a, 4                     ; FACING_DOWN
+.player_fast_facing_write:
+    push hl
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    pop de
+    pop hl
+.player_fast_facing_done:
+    pop af
+
+    ; Sync directional sprite facing for input-driven entities.
+    ; Keep the same rule as the generic input system: skip when a
+    ; State Machine owns ChangeSprite for this entity.
+    push af
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_sm_ptr_l
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_sm_ptr_h
+    add hl, de
+    or (hl)
+    pop de
+    pop af
+    jr nz, .player_fast_skip_patrol_facing
+    push de
+    ld e, c
+    ld d, 0
+    call update_entity_patrol_facing
+    pop de
+.player_fast_skip_patrol_facing:
+
+.player_fast_after_input:
+    ; --------------------------------------------------------------
+    ; JUMP
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #01
+    jp z, .player_fast_after_jump
+
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jr z, .player_fast_jump_check
+
+    ld hl, entity_jump_count
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_jump_bonus
+    add hl, de
+    ld (hl), 0
+
+.player_fast_jump_check:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    jp z, .player_fast_after_jump
+    ld a, (input_btn_prev)
+    and INPUT_BTN_FIRE
+    jp nz, .player_fast_after_jump
+
+    ld hl, entity_jump_max
+    add hl, de
+    ld b, (hl)
+    ld hl, entity_jump_bonus
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld b, a
+
+    ld hl, entity_jump_count
+    add hl, de
+    ld a, (hl)
+    cp b
+    jr c, .player_fast_do_jump
+
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jp z, .player_fast_after_jump
+
+.player_fast_do_jump:
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jr nz, .player_fast_skip_bonus_consume
+
+    ld hl, entity_jump_count
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_jump_max
+    add hl, de
+    cp (hl)
+    jr c, .player_fast_skip_bonus_consume
+
+    ld hl, entity_jump_bonus
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .player_fast_skip_bonus_consume
+    dec (hl)
+
+.player_fast_skip_bonus_consume:
+    ld hl, entity_jump_count
+    add hl, de
+    inc (hl)
+
+    ld hl, entity_on_ground
+    add hl, de
+    res 0, (hl)
+
+    ld hl, entity_platform_id
+    add hl, de
+    ld (hl), 255
+
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #02
+    jp z, .player_fast_after_jump
+
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), #00
+    inc hl
+    ld (hl), #FC
+
+.player_fast_after_jump:
+    ; --------------------------------------------------------------
+    ; GRAVITY
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #02
+    jp z, .player_fast_after_gravity
+
+    ld hl, entity_on_ground
+    add hl, de
+    ld a, (hl)
+    bit 0, a
+    jr nz, .player_fast_gravity_grounded
+
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+
+    ld a, e
+    add a, #40
+    ld e, a
+    ld a, d
+    adc a, #00
+    ld d, a
+
+    ld a, d
+    bit 7, a
+    jr nz, .player_fast_store_gravity
+    cp #04
+    jr c, .player_fast_store_gravity
+    ld de, #0400
+
+.player_fast_store_gravity:
+    dec hl
+    ld (hl), e
+    inc hl
+    ld (hl), d
+
+    push de
+    ld hl, entity_vel_y
+    ld e, c
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), d
+    jr .player_fast_after_gravity
+
+.player_fast_gravity_grounded:
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), 0
+
+.player_fast_after_gravity:
+    ; --------------------------------------------------------------
+    ; POSITION
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    ld b, a
+    and COMP_MASK_POSITION
+    jp z, .player_fast_sync
+
+    ld a, b
+    and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
+    jp z, .player_fast_sync
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    ld b, a
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld (hl), a
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    bit 7, a
+    jr z, .player_fast_vy_positive
+    cp #F0
+    jr nc, .player_fast_vy_ready
+    ld a, #F0
+    jr .player_fast_vy_ready
+.player_fast_vy_positive:
+    cp #11
+    jr c, .player_fast_vy_ready
+    ld a, #10
+.player_fast_vy_ready:
+    ld b, a
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld (hl), a
+
+.player_fast_sync:
+    call sync_player_runtime_from_entity
+    ret
 `;
     return code;
 }
@@ -421,6 +1028,13 @@ position_update_loop:
     ld c, (hl)                 ; C = entity index
     inc hl                     ; Advance list pointer
     push hl                    ; Save list pointer
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .position_check_mask
+    ld a, (player_entity_index)
+    cp c
+    jp z, .position_skip_fast_player
+.position_check_mask:
     ld e, c
     ld d, 0
     ld hl, entity_comp_masks
@@ -483,6 +1097,10 @@ position_update_loop:
 
     pop hl
     pop bc
+    jp position_next_entity
+
+.position_skip_fast_player:
+    pop hl
 
 position_next_entity:
     dec b
@@ -523,6 +1141,13 @@ sprite_update_loop:
     inc hl                     ; Advance list pointer
     ld e, c
     ld d, 0
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .sprite_not_fast_player
+    ld a, (player_entity_index)
+    cp c
+    jp z, sprite_next_entity
+.sprite_not_fast_player:
 
     ; render_entity_list already guarantees active + current_screen_id + sprite
     push bc
@@ -553,6 +1178,23 @@ sprite_update_loop:
     ld a, h
     or a
     jp z, sprite_continue      ; No layers -> skip rendering
+
+.sprite_layers_ready:
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .sprite_layers_legacy
+    push bc
+    push hl
+    call compute_entity_base_pattern
+    ld d, a                    ; D = current pattern number for layer 0
+    pop hl
+    pop bc
+    jr .sprite_layers_mode_ready
+
+.sprite_layers_legacy:
+    ld d, 0                    ; Legacy path recomputes pattern from HW slot each layer
+
+.sprite_layers_mode_ready:
     
     ; Loop through layers
     ; H = Remaining Layers
@@ -563,12 +1205,20 @@ sprite_update_loop:
 sprite_layer_loop:
     push hl                    ; Save counters
     push bc                    ; Save Position
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .sprite_layer_pattern_legacy
+    push de                    ; Preserve current pattern number across lookup/call
+    jr .sprite_layer_have_pattern
 
-    ; Calculate Pattern: Pattern = HW Sprite Index * 4 (for 16x16 sprites)
+.sprite_layer_pattern_legacy:
     ld a, l
-    sla a                      ; * 2
-    sla a                      ; * 4
+    sla a
+    sla a
     ld d, a                    ; D = Pattern (HW index * 4 for 16x16)
+    jr .sprite_layer_have_pattern
+
+.sprite_layer_have_pattern:
 
     ; Get Color from sprite_layer_colors table
     ; Table is indexed by HW Sprite Index (L)
@@ -587,11 +1237,25 @@ sprite_layer_loop:
     ; Call show_sprite (A=HW Sprite, B=X, C=Y, D=Pattern, E=Color)
     ld a, l                    ; A = HW Sprite
     call show_sprite
-    
+
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .sprite_layer_after_pattern_restore
+    pop de                     ; Restore current pattern number
+
+.sprite_layer_after_pattern_restore:
     pop bc                     ; Restore Position
     pop hl                     ; Restore counters
     
     inc l                      ; Next HW Sprite
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .sprite_layer_next
+    ld a, d
+    add a, 4                   ; Next 16x16 pattern
+    ld d, a
+
+.sprite_layer_next:
     dec h                      ; Decrement Layer Count
     jr nz, sprite_layer_loop
     
@@ -603,6 +1267,27 @@ sprite_next_entity:
     dec b
     jp nz, sprite_update_loop
 
+    ret
+
+; ==================================================================
+; PLAYER SPRITE FASTPATH
+; ==================================================================
+refresh_player_sprite_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_SPRITE
+    ret z
+    call force_update_entity_sprite
     ret
 
 ; ==================================================================
@@ -624,7 +1309,7 @@ force_update_entity_sprite:
     ld hl, entity_y_pos
     add hl, de
     ld c, (hl)                 ; C = Y
-    
+
     ; E still has Entity Index, D = 0
     ; B = X, C = Y
     
@@ -641,6 +1326,23 @@ force_update_entity_sprite:
     or a
     jr z, force_sprite_done    ; Skip if no layers for this entity
 
+.force_sprite_layers_ready:
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .force_sprite_layers_legacy
+    push bc
+    push hl
+    call compute_entity_base_pattern
+    ld d, a                    ; D = current pattern number for layer 0
+    pop hl
+    pop bc
+    jr .force_sprite_layers_mode_ready
+
+.force_sprite_layers_legacy:
+    ld d, 0                    ; Legacy path recomputes pattern from HW slot each layer
+
+.force_sprite_layers_mode_ready:
+
     ; Loop through layers
     ; H = Layer Count
     ; L = HW Sprite Index
@@ -648,12 +1350,20 @@ force_update_entity_sprite:
 force_sprite_layer_loop:
     push hl                    ; Save counters
     push bc                    ; Save Position
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .force_sprite_pattern_legacy
+    push de                    ; Preserve current pattern number across lookup/call
+    jr .force_sprite_have_pattern
 
-    ; Calculate Pattern: Pattern = HW Sprite Index * 4 (for 16x16 sprites)
+.force_sprite_pattern_legacy:
     ld a, l
-    sla a                      ; * 2
-    sla a                      ; * 4
+    sla a
+    sla a
     ld d, a                    ; D = Pattern (HW index * 4 for 16x16)
+    jr .force_sprite_have_pattern
+
+.force_sprite_have_pattern:
 
     ; Get Color
     push de
@@ -671,11 +1381,25 @@ force_sprite_layer_loop:
     ; Call show_sprite
     ld a, l                    ; A = HW Sprite
     call show_sprite
-    
+
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .force_sprite_after_pattern_restore
+    pop de                     ; Restore current pattern number
+
+.force_sprite_after_pattern_restore:
     pop bc                     ; Restore Position
     pop hl                     ; Restore counters
     
     inc l
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .force_sprite_next
+    ld a, d
+    add a, 4
+    ld d, a
+
+.force_sprite_next:
     dec h
     jr nz, force_sprite_layer_loop
 
@@ -1504,6 +2228,7 @@ ${yDivisionCode}
  * Returns behavior value for a tile at (B=row, C=column) using current_behavior_map
  */
 function generateGetBehaviorTile(romMode = 'simple32k') {
+    const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
     return `
     ; ------------------------------------------------------------------
     ; get_behavior_tile
@@ -1596,12 +2321,12 @@ get_behavior_tile_nb:
     ld e, c
     ld d, 0
     add hl, de                    ; HL = row base + column
-${romMode === 'simple32k' ? `
+${!usesMapper ? `
     ; simple32k: behavior map is always resident in RAM (no bank switching needed).
     ; Skip mapper push/pop/set — saves ~169 cycles per call (41% overhead eliminated).
     ld a, (hl)                    ; A = behavior value (direct RAM read)
 ` : `
-    ; megarom: protect P2 bank around the read in case behavior map is in ROM bank.
+    ; Banked ROM build: protect P2 bank around the read in case behavior map is in ROM bank.
     call mapper_push_p2
     ld a, (current_behavior_map_bank)
     call mapper_set_bank_p2
@@ -1673,6 +2398,13 @@ function generateInputSystem() {
             inc hl                     ; Advance list pointer
             push hl                    ; Save list pointer
             pop hl                     ; Restore list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .input_not_fast_player
+            ld a, (player_entity_index)
+            cp c
+            jp z, input_next_entity
+        .input_not_fast_player:
 
             ; input_entity_list already guarantees active + current_screen_id + input
 
@@ -2055,6 +2787,13 @@ gravity_update_loop:
             ld c, (hl)                 ; C = entity index
             inc hl                     ; Advance list pointer
             push hl                    ; Save list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .gravity_check_mask
+            ld a, (player_entity_index)
+            cp c
+            jp z, .gravity_skip_fast_player
+        .gravity_check_mask:
             ld e, c
             ld d, 0
             ld hl, entity_comp_masks_hi
@@ -2141,6 +2880,10 @@ gravity_grounded:
 gravity_done:
             pop hl
             pop bc
+            jp gravity_next_entity
+
+        .gravity_skip_fast_player:
+            pop hl
 
 gravity_next_entity:
             dec b
@@ -2730,30 +3473,41 @@ prepare_platform_detection:
     ; Entities that were on platforms get grace frames
     ; Collision detection will reset platform_id if still in contact
 
-    ld b, 32
-    ld hl, entity_platform_id
-    ld de, entity_platform_grace
-    ld c, 0
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
 
+    ld hl, active_entity_list
 .platform_clear_loop:
+    ld e, (hl)              ; E = entity index
+    ld d, 0                 ; DE = entity index (16-bit offset)
+    inc hl
+    push hl
+    push bc
+
+    ; Check entity_platform_id[entity]
+    ld hl, entity_platform_id
+    add hl, de
     ld a, (hl)              ; A = platform_id
     cp 255                  ; Check if on a platform
     jr z, .platform_skip_clear ; Already no platform, skip
 
     ; Entity was on a platform last frame
     ; Set grace frames to 6 (coyote time for leaving platform)
-    push hl
+    push hl                 ; Save entity_platform_id pointer
+    ld hl, entity_platform_grace
+    add hl, de
     ld a, 6
-    ld (de), a              ; Set grace frames
-    pop hl
+    ld (hl), a              ; Set grace frames
+    pop hl                  ; Restore entity_platform_id pointer
 
     ; Clear platform reference (collision will reset if still touching)
     ld (hl), 255
 
 .platform_skip_clear:
-    inc hl                  ; Next platform_id
-    inc de                  ; Next grace counter
-    inc c
+    pop bc
+    pop hl
     djnz .platform_clear_loop
     ret
 
@@ -2762,29 +3516,39 @@ update_platform_riding:
     ; Decrement grace frames for entities not on platforms
     ; (Entities on platforms have grace=0, set by handle_entity_collision)
 
-    ld b, 32
-    ld hl, entity_platform_grace
-    ld de, entity_platform_id
-    ld c, 0
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
 
+    ld hl, active_entity_list
 .grace_loop:
+    ld e, (hl)              ; E = entity index
+    ld d, 0                 ; DE = entity index (16-bit offset)
+    inc hl
+    push hl
+    push bc
+
     ; Check if entity has platform reference
-    ld a, (de)              ; A = platform_id
+    ld hl, entity_platform_id
+    add hl, de
+    ld a, (hl)              ; A = platform_id
     cp 255
-    jr nz, .grace_next      ; Has platform, skip grace decrement
+    jr nz, .grace_skip      ; Has platform, skip grace decrement
 
     ; No platform - decrement grace frames if > 0
+    ld hl, entity_platform_grace
+    add hl, de
     ld a, (hl)              ; A = grace frames
     or a
-    jr z, .grace_next       ; Already 0, skip
+    jr z, .grace_skip       ; Already 0, skip
 
     dec a                   ; Decrement grace
     ld (hl), a
 
-.grace_next:
-    inc hl                  ; Next grace counter
-    inc de                  ; Next platform_id
-    inc c
+.grace_skip:
+    pop bc
+    pop hl
     djnz .grace_loop
     ret
     `;
@@ -2829,10 +3593,76 @@ function generateAnimationSystem() {
             ldir
             ret
 
+        compute_entity_base_pattern:
+            ; Input: DE = entity index
+            ; Output: A = base pattern number for this entity's current frame
+            ; Clobbers: AF, BC, HL
+            ld a, SPRITE_PATTERN_PRELOAD_MODE
+            or a
+            jr z, .legacy_hw_pattern
+
+            ld hl, entity_sprite_asset_index
+            add hl, de
+            ld a, (hl)
+            cp #FF
+            jr z, .placeholder_pattern
+            cp SPRITE_ASSET_COUNT
+            jr nc, .placeholder_pattern
+
+            ld c, a
+            ld b, 0
+            ld hl, sprite_asset_base_pattern_slot_runtime
+            add hl, bc
+            ld a, (hl)                 ; A = base 16x16 pattern slot for this asset
+            push af                    ; Save base slot before HL is reused
+
+            ld hl, entity_anim_frame
+            add hl, de
+            ld c, (hl)                 ; C = current animation frame
+
+            ld hl, entity_sprite_config
+            add hl, de
+            add hl, de
+            inc hl
+            ld b, (hl)                 ; B = entity layer count (frame stride)
+
+            pop af                     ; A = base slot (restored)
+            ld l, a                    ; L = base slot (ready for stride loop)
+            ld a, c
+            or a
+            jr z, .slot_to_pattern
+
+        .frame_stride_loop:
+            ld a, l
+            add a, b
+            ld l, a
+            dec c
+            jr nz, .frame_stride_loop
+
+        .slot_to_pattern:
+            ld a, l
+            add a, a
+            add a, a
+            ret
+
+        .placeholder_pattern:
+            ld a, (sprite_placeholder_base_pattern_num)
+            ret
+
+        .legacy_hw_pattern:
+            ld hl, entity_sprite_config
+            add hl, de
+            add hl, de
+            ld a, (hl)
+            add a, a
+            add a, a
+            ret
+
         update_animation_component:
             ; Update animations for entities
             ; - Advances entity_anim_frame using entity_anim_tick/entity_anim_speed
-            ; - Copies the selected frame's patterns to VRAM for this entity
+            ; - In preload mode, sprite rendering picks the frame directly from SAT pattern indices
+            ; - In fallback mode, copies the selected frame's patterns to VRAM for this entity
             ld a, (anim_entity_count)
             or a
             ret z
@@ -2846,6 +3676,13 @@ function generateAnimationSystem() {
             ld e, c
             ld d, 0
             pop hl                     ; Restore list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .anim_not_fast_player
+            ld a, (player_entity_index)
+            cp c
+            jp z, .anim_next_entity
+        .anim_not_fast_player:
 
             ; anim_entity_list already guarantees active + current_screen_id + animation + sprite
 
@@ -2875,8 +3712,8 @@ function generateAnimationSystem() {
             jp z, anim_done_entity
 
         .tick:
-            ; ChangeSprite defers VRAM pattern uploads to the next animation
-            ; pass so the copy happens from the regular frame pipeline instead
+            ; ChangeSprite defers the frame sync to the next animation pass
+            ; so sprite changes happen from the regular frame pipeline instead
             ; of mid-frame inside the state-machine action path.
             ld hl, entity_anim_flags
             add hl, de
@@ -2982,6 +3819,16 @@ function generateAnimationSystem() {
             ld (hl), a                 ; store new frame index
 
         .anim_upload_frame:
+            push af                    ; Preserve frame index
+            ld a, SPRITE_PATTERN_PRELOAD_MODE
+            or a
+            jr z, .anim_upload_frame_fallback
+            pop af
+            jp anim_done_entity
+
+        .anim_upload_frame_fallback:
+            pop af
+
             ; Get pointer to this sprite asset's frame pointer list
             ld l, b
             ld h, 0
@@ -3060,6 +3907,46 @@ anim_done_entity:
             dec b
             jp nz, .anim_loop
     ret
+
+refresh_player_animation_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+    cp COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+    ret nz
+
+    ld a, (player_runtime_enabled)
+    push af
+    ld a, (anim_entity_count)
+    push af
+    ld a, (anim_entity_list)
+    push af
+
+    xor a
+    ld (player_runtime_enabled), a
+    ld a, c
+    ld (anim_entity_list), a
+    ld a, 1
+    ld (anim_entity_count), a
+    call update_animation_component
+
+    pop af
+    ld (anim_entity_list), a
+    pop af
+    ld (anim_entity_count), a
+    pop af
+    ld (player_runtime_enabled), a
+    ret
     `;
 }
 /**
@@ -3125,6 +4012,13 @@ function generateJumpSystem() {
             ld c, (hl)                    ; C = entity index
             inc hl                        ; Advance list pointer
             push hl                       ; Save list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .jump_check_mask
+            ld a, (player_entity_index)
+            cp c
+            jp z, .jump_skip_fast_player
+        .jump_check_mask:
             ld e, c
             ld d, 0
             ld hl, entity_comp_masks_hi
@@ -3267,6 +4161,10 @@ function generateJumpSystem() {
 jump_done_entity:
             pop hl
             pop bc
+            jp jump_next_entity
+
+        .jump_skip_fast_player:
+            pop hl
 
         jump_next_entity:
             dec b
@@ -4378,6 +5276,14 @@ function clampTileCollectorAmount(rawValue) {
         return 0;
     return Math.max(0, Math.min(65535, Math.round(parsed)));
 }
+function coerceTileCollectorAssignValue(rawValue) {
+    if (typeof rawValue === 'boolean')
+        return rawValue ? 1 : 0;
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed))
+        return 1;
+    return Math.max(0, Math.min(65535, Math.round(parsed)));
+}
 function clampTileCollectorByte(rawValue) {
     const parsed = Number(rawValue);
     if (!Number.isFinite(parsed) || parsed <= 0)
@@ -4448,6 +5354,8 @@ function extractTileCollectorConfig(candidate) {
         replacementTileId: candidate.replacementTileId,
         targetVariable: candidate.targetVariable ?? candidate.scoreVariable ?? candidate.scoreVariableName,
         incrementAmount: candidate.incrementAmount ?? candidate.scoreAmount ?? candidate.collectionValue ?? 0,
+        flagVariable: candidate.flagVariable ?? candidate.eventVariable ?? candidate.modifiedFlagVariable,
+        flagValue: candidate.flagValue ?? candidate.eventValue ?? 1,
         bonusTileId: candidate.bonusTileId,
         bonusReplacementTileId: candidate.bonusReplacementTileId,
         bonusSoundId: candidate.bonusSoundId,
@@ -4471,6 +5379,8 @@ function resolveTileCollectorRuntimeConfig(analysis) {
         const replacementTileChar = resolveTileCharCode(config.replacementTileId ?? 0, tileIdToCharCode);
         const targetVariable = resolveConfiguredVariableInfo(config.targetVariable, variableMap);
         const incrementAmount = clampTileCollectorAmount(config.incrementAmount);
+        const flagVariable = resolveConfiguredVariableInfo(config.flagVariable, variableMap);
+        const flagValue = coerceTileCollectorAssignValue(config.flagValue);
         const bonusTileChar = config.bonusTileId ? resolveTileCharCode(config.bonusTileId, tileIdToCharCode) : null;
         const bonusReplacementTileChar = resolveTileCharCode(config.bonusReplacementTileId ?? 0, tileIdToCharCode);
         const bonusSoundAssetIndex = resolveSoundAssetIndex(config.bonusSoundId, soundMap);
@@ -4484,6 +5394,7 @@ function resolveTileCollectorRuntimeConfig(analysis) {
         if (soundAssetIndex !== null ||
             replacementTileChar !== 0 ||
             (targetVariable && incrementAmount > 0) ||
+            flagVariable !== null ||
             bonusTileChar !== null ||
             bonusSoundAssetIndex !== null ||
             (bonusEntityEffect !== 'none' && bonusEffectAmount > 0) ||
@@ -4493,6 +5404,8 @@ function resolveTileCollectorRuntimeConfig(analysis) {
                 replacementTileChar,
                 targetVariable,
                 incrementAmount,
+                flagVariable,
+                flagValue,
                 bonusTileChar,
                 bonusReplacementTileChar,
                 bonusSoundAssetIndex,
@@ -4516,6 +5429,8 @@ function resolveTileCollectorRuntimeConfig(analysis) {
         const replacementTileChar = resolveTileCharCode(config.replacementTileId ?? 0, tileIdToCharCode);
         const targetVariable = resolveConfiguredVariableInfo(config.targetVariable, variableMap);
         const incrementAmount = clampTileCollectorAmount(config.incrementAmount);
+        const flagVariable = resolveConfiguredVariableInfo(config.flagVariable, variableMap);
+        const flagValue = coerceTileCollectorAssignValue(config.flagValue);
         const bonusTileChar = config.bonusTileId ? resolveTileCharCode(config.bonusTileId, tileIdToCharCode) : null;
         const bonusReplacementTileChar = resolveTileCharCode(config.bonusReplacementTileId ?? 0, tileIdToCharCode);
         const bonusSoundAssetIndex = resolveSoundAssetIndex(config.bonusSoundId, soundMap);
@@ -4529,6 +5444,7 @@ function resolveTileCollectorRuntimeConfig(analysis) {
         if (soundAssetIndex !== null ||
             replacementTileChar !== 0 ||
             (targetVariable && incrementAmount > 0) ||
+            flagVariable !== null ||
             bonusTileChar !== null ||
             bonusSoundAssetIndex !== null ||
             (bonusEntityEffect !== 'none' && bonusEffectAmount > 0) ||
@@ -4538,6 +5454,8 @@ function resolveTileCollectorRuntimeConfig(analysis) {
                 replacementTileChar,
                 targetVariable,
                 incrementAmount,
+                flagVariable,
+                flagValue,
                 bonusTileChar,
                 bonusReplacementTileChar,
                 bonusSoundAssetIndex,
@@ -4554,6 +5472,8 @@ function resolveTileCollectorRuntimeConfig(analysis) {
         replacementTileChar: 0,
         targetVariable: null,
         incrementAmount: 0,
+        flagVariable: null,
+        flagValue: 1,
         bonusTileChar: null,
         bonusReplacementTileChar: 0,
         bonusSoundAssetIndex: null,
@@ -4972,6 +5892,13 @@ update_deadly_tiles_component:
     ld c, (hl)
     inc hl
     push hl
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .deadly_not_fast_player
+    ld a, (player_entity_index)
+    cp c
+    jp z, .deadly_skip_fast_player
+.deadly_not_fast_player:
     ld e, c
     ld d, 0
     ld hl, entity_comp_masks_hi
@@ -5000,14 +5927,41 @@ update_deadly_tiles_component:
     push bc
     call update_entity_deadly_flag_runtime
     pop bc
+    jr .deadly_tiles_next
+
+.deadly_skip_fast_player:
+    pop hl
 
 .deadly_tiles_next:
     dec b
     jp nz, .deadly_tiles_loop
     ret
+
+refresh_player_deadly_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #20
+    jr nz, .player_deadly_update
+    ld hl, entity_flag_deadly_tile
+    add hl, de
+    res 0, (hl)
+    ret
+.player_deadly_update:
+    call update_entity_deadly_flag_runtime
+    ret
 `;
 }
-function generateTileInteractionSystem(tileCollectorConfig, canUseSoundAssetPlayback) {
+function generateTileInteractionSystem(tileCollectorConfig, canUseSoundAssetPlayback, _hasWallCollision = false) {
     const collectionSoundAssetIndex = tileCollectorConfig.soundAssetIndex;
     const replacementTileChar = tileCollectorConfig.replacementTileChar;
     const bonusSlashStrength = Math.max(1, Math.min(32, tileCollectorConfig.bonusSlashStrength || 8));
@@ -5043,21 +5997,22 @@ function generateTileInteractionSystem(tileCollectorConfig, canUseSoundAssetPlay
 `
             : `    ; No bonusSoundId configured.
 `;
-    const hudSyncCode = tileCollectorConfig.targetVariable?.asmName === 'global_var_score'
+    const buildHudSyncCode = (variableInfo) => variableInfo?.asmName === 'global_var_score'
         ? `    ; Keep HUD Score text in sync with the updated global variable.
     push de
     call force_render_hud
     pop de
 `
-        : tileCollectorConfig.targetVariable?.asmName === 'global_var_lives'
+        : variableInfo?.asmName === 'global_var_lives'
             ? `    ; Keep HUD Lives text in sync with the updated global variable.
     push de
-    ld a, (${tileCollectorConfig.targetVariable.asmName})
+    ld a, (${variableInfo.asmName})
     call update_hud_lives
     call force_render_hud
     pop de
 `
             : '';
+    const hudSyncCode = buildHudSyncCode(tileCollectorConfig.targetVariable);
     const variableIncrementCode = tileCollectorConfig.targetVariable && tileCollectorConfig.incrementAmount > 0
         ? tileCollectorConfig.targetVariable.isWord
             ? `    ; Tile Collector configured variable increment (16-bit).
@@ -5080,9 +6035,30 @@ ${hudSyncCode}
 `
         : `    ; No targetVariable/incrementAmount configured in the Tile Collector UI.
 `;
+    const flagAssignCode = tileCollectorConfig.flagVariable
+        ? tileCollectorConfig.flagVariable.isWord
+            ? `    ; Tile Collector pickup flag assignment (16-bit).
+    ld hl, ${tileCollectorConfig.flagVariable.asmName}
+    ld a, ${(tileCollectorConfig.flagValue & 0xFF)}
+    ld (hl), a
+    inc hl
+    ld a, ${((tileCollectorConfig.flagValue >> 8) & 0xFF)}
+    ld (hl), a
+${buildHudSyncCode(tileCollectorConfig.flagVariable)}
+`
+            : `    ; Tile Collector pickup flag assignment (8-bit).
+    ld hl, ${tileCollectorConfig.flagVariable.asmName}
+    ld a, ${Math.min(255, tileCollectorConfig.flagValue)}
+    ld (hl), a
+${buildHudSyncCode(tileCollectorConfig.flagVariable)}
+`
+        : `    ; No flagVariable configured in the Tile Collector UI.
+`;
+    const slashTotalPixels = bonusSlashStrength * 8; // 10 * 8 = 80px = 10 tiles
+    const slashTotalPixelsNeg = ((256 - slashTotalPixels) & 0xFF);
     const bonusEffectCode = tileCollectorConfig.bonusEntityEffect === 'grant_extra_jump' && tileCollectorConfig.bonusEffectAmount > 0
-        ? `    ; Bonus tile effect: arm an additive slash for the collecting entity.
-    ; Horizontal motion is applied by update_slash_component on subsequent frames.
+        ? `    ; Bonus tile effect: 8px-per-frame slash in current movement direction.
+    ; Covers ${bonusSlashStrength} tiles (${slashTotalPixels}px). Checks solid tiles each step.
     push de
     ld e, c
     ld d, 0
@@ -5094,160 +6070,59 @@ ${hudSyncCode}
     add hl, de
     ld (hl), 255
 
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld (hl), 0
-
-    ld hl, entity_dir_mask
-    add hl, de
-    ld b, (hl)                     ; B = direction permissions for this entity
-
-    ld a, (input_state)
-    or a
-    jp z, .ti_bonus_no_input
-    cp STICK_RIGHT
-    jp z, .ti_bonus_right
-    cp STICK_UPRIGHT
-    jp z, .ti_bonus_input_upright
-    cp STICK_DOWNRIGHT
-    jp z, .ti_bonus_downright
-    cp STICK_LEFT
-    jp z, .ti_bonus_left
-    cp STICK_UPLEFT
-    jp z, .ti_bonus_input_upleft
-    cp STICK_DOWNLEFT
-    jp z, .ti_bonus_downleft
-    cp STICK_DOWN
-    jp z, .ti_bonus_down
-    cp STICK_UP
-    jp z, .ti_bonus_input_up
-    jp .ti_bonus_facing_default
-
-.ti_bonus_no_input:
-    ; No directional cursor held: never infer horizontal slash from facing.
-    ; If UP is allowed, use the neutral upward pop; otherwise consume the
-    ; bonus tile without any forced movement.
-    ld a, b
-    and DIR_ALLOW_UP
-    jp nz, .ti_bonus_up
-    jp .ti_bonus_done
-
-.ti_bonus_input_upright:
-    ld a, b
-    and DIR_ALLOW_UP
-    jp z, .ti_bonus_right
-    jp .ti_bonus_upright
-
-.ti_bonus_input_upleft:
-    ld a, b
-    and DIR_ALLOW_UP
-    jp z, .ti_bonus_left
-    jp .ti_bonus_upleft
-
-.ti_bonus_input_up:
-    ld a, b
-    and DIR_ALLOW_UP
-    jp nz, .ti_bonus_up
-    jp .ti_bonus_facing_default
-
-.ti_bonus_facing_default:
-    ld hl, entity_facing_dir
+    ; --- Set slash_vel_x = sign(vel_x) * ${slashTotalPixels} ---
+    ld hl, entity_vel_x
     add hl, de
     ld a, (hl)
-    cp 1
-    jp z, .ti_bonus_left
-    cp 2
-    jp z, .ti_bonus_right
-    jp .ti_bonus_right
-
-.ti_bonus_right:
+    or a
+    jp z, .ti_slash_x_zero
+    bit 7, a
+    jp nz, .ti_slash_x_neg
+    ld a, ${slashTotalPixels}          ; +${slashTotalPixels} (moving right)
+    jp .ti_slash_x_set
+.ti_slash_x_neg:
+    ld a, #${slashTotalPixelsNeg.toString(16).toUpperCase().padStart(2, '0')}          ; -${slashTotalPixels} (moving left)
+.ti_slash_x_set:
     ld hl, entity_slash_vel_x
     add hl, de
-    ld (hl), ${bonusSlashStrength}
-    ld hl, entity_gravity_vel
-    add hl, de
-    add hl, de
-    ld (hl), 0
-    inc hl
-    ld (hl), #FF
-    jp .ti_bonus_done
-
-.ti_bonus_upright:
+    ld (hl), a
+    jp .ti_slash_x_done
+.ti_slash_x_zero:
     ld hl, entity_slash_vel_x
     add hl, de
-    ld (hl), ${bonusSlashUpStrength}
-    ld hl, entity_gravity_vel
-    add hl, de
-    add hl, de
     ld (hl), 0
-    inc hl
-    ld (hl), #FD
-    jp .ti_bonus_done
+.ti_slash_x_done:
 
-.ti_bonus_downright:
-    ld hl, entity_slash_vel_x
+    ; --- Set slash_vel_y = sign(vel_y) * ${slashTotalPixels} ---
+    ld hl, entity_vel_y
     add hl, de
-    ld (hl), ${bonusSlashDownStrength}
-    ld hl, entity_gravity_vel
+    ld a, (hl)
+    or a
+    jp z, .ti_slash_y_zero
+    bit 7, a
+    jp nz, .ti_slash_y_neg
+    ld a, ${slashTotalPixels}          ; +${slashTotalPixels} (moving down)
+    jp .ti_slash_y_set
+.ti_slash_y_neg:
+    ld a, #${slashTotalPixelsNeg.toString(16).toUpperCase().padStart(2, '0')}          ; -${slashTotalPixels} (moving up)
+.ti_slash_y_set:
+    ld hl, entity_slash_vel_y
     add hl, de
+    ld (hl), a
+    jp .ti_slash_y_done
+.ti_slash_y_zero:
+    ld hl, entity_slash_vel_y
     add hl, de
     ld (hl), 0
-    inc hl
-    ld (hl), #01
-    jp .ti_bonus_done
+.ti_slash_y_done:
 
-.ti_bonus_left:
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld (hl), ${bonusSlashLeftByte}
+    ; Zero gravity so it doesn't fight the vertical slash
     ld hl, entity_gravity_vel
     add hl, de
     add hl, de
     ld (hl), 0
     inc hl
-    ld (hl), #FF
-    jp .ti_bonus_done
-
-.ti_bonus_upleft:
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld (hl), ${bonusSlashUpLeftByte}
-    ld hl, entity_gravity_vel
-    add hl, de
-    add hl, de
     ld (hl), 0
-    inc hl
-    ld (hl), #FD
-    jp .ti_bonus_done
-
-.ti_bonus_downleft:
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld (hl), ${bonusSlashDownLeftByte}
-    ld hl, entity_gravity_vel
-    add hl, de
-    add hl, de
-    ld (hl), 0
-    inc hl
-    ld (hl), #01
-    jp .ti_bonus_done
-
-.ti_bonus_down:
-    ld hl, entity_gravity_vel
-    add hl, de
-    add hl, de
-    ld (hl), 0
-    inc hl
-    ld (hl), #02
-    jp .ti_bonus_done
-
-.ti_bonus_up:
-    ld hl, entity_gravity_vel
-    add hl, de
-    add hl, de
-    ld (hl), 0
-    inc hl
-    ld (hl), #FC
 
 .ti_bonus_done:
     pop de
@@ -5436,12 +6311,18 @@ init_tile_interaction_system:
     ld bc, 31
     ld (hl), 0
     ldir
+    ld hl, entity_slash_vel_y
+    ld de, entity_slash_vel_y+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
     ret
 
 ; ------------------------------------------------------------------
 ; update_slash_component
-; Add the temporary slash horizontal velocity on top of normal movement
-; and damp it over subsequent frames.
+; Tile-by-tile slash: moves entity exactly 8px per frame, checking
+; for solid tiles before each step.  Covers the remaining distance
+; stored in entity_slash_vel_x/y (decayed by 8 each frame).
 ; ------------------------------------------------------------------
 update_slash_component:
     ld a, (active_entity_count)
@@ -5456,44 +6337,285 @@ update_slash_component:
     push hl                    ; Save list pointer
     ld e, c
     ld d, 0
-    ; active_entity_list already guarantees current_screen_id membership
 
+    ; Check if entity has any slash velocity (X or Y)
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_slash_vel_y
+    add hl, de
+    or (hl)
+    jp z, .slash_next          ; both zero → skip
+
+    push bc
+
+    ; --- Build hitbox for tile checks (reuse wall_hit_* scratch) ---
+    ; hitbox_left = entity_x + collision_offset_x
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_x
+    add hl, de
+    add a, (hl)
+    ld (wall_hit_left), a
+
+    ; hitbox_right = left + w - 1
+    ld hl, entity_collision_hitbox_w
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .sl_w_ok
+    ld a, 1
+.sl_w_ok:
+    ld c, a
+    ld a, (wall_hit_left)
+    add a, c
+    dec a
+    ld (wall_hit_right), a
+
+    ; hitbox_top = entity_y + collision_offset_y
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_y
+    add hl, de
+    add a, (hl)
+    ld (wall_hit_top), a
+
+    ; hitbox_bottom = top + h - 1
+    ld hl, entity_collision_hitbox_h
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .sl_h_ok
+    ld a, 1
+.sl_h_ok:
+    ld c, a
+    ld a, (wall_hit_top)
+    add a, c
+    dec a
+    ld (wall_hit_bottom), a
+
+    ; ============ PROCESS X SLASH ============
     ld hl, entity_slash_vel_x
     add hl, de
     ld a, (hl)
     or a
-    jp z, .slash_next
+    jp z, .slash_x_done
+    bit 7, a
+    jp nz, .slash_x_left
 
+.slash_x_right:
+    ; Check tile at column (hitbox_right + 8) / 8
+    ld a, (wall_hit_right)
+    add a, 8
+    jp c, .slash_x_stop        ; overflow → screen edge
+    srl a
+    srl a
+    srl a
+    ld c, a                    ; C = probe column
+    ; Probe top row
+    ld a, (wall_hit_top)
+    srl a
+    srl a
+    srl a
+    ld b, a
     push bc
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    pop bc
+    jp nz, .slash_x_stop
+    ; Probe bottom row
+    ld a, (wall_hit_bottom)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jp nz, .slash_x_stop
 
-    ld b, a                    ; B = additive slash X velocity
+    ; Passable → override vel_x = +8, decay slash_vel_x by 8
     ld hl, entity_vel_x
     add hl, de
-    ld a, (hl)
-    add a, b
-    ld (hl), a
-
-    ; Dampen toward zero: +n -> +(n-2), -n -> -(n-2)
+    ld (hl), 8
     ld hl, entity_slash_vel_x
     add hl, de
     ld a, (hl)
-    bit 7, a
-    jp z, .slash_decay_positive
-
-    add a, 2
-    bit 7, a
-    jp nz, .slash_store_decay
+    sub 8
+    jp nc, .slash_x_store
     xor a
-    jp .slash_store_decay
-
-.slash_decay_positive:
-    sub 2
-    jp nc, .slash_store_decay
-    xor a
-
-.slash_store_decay:
+.slash_x_store:
     ld (hl), a
+    jp .slash_x_done
 
+.slash_x_left:
+    ; Check tile at column (hitbox_left - 8) / 8
+    ld a, (wall_hit_left)
+    cp 8
+    jp c, .slash_x_stop        ; < 8 → screen edge
+    sub 8
+    srl a
+    srl a
+    srl a
+    ld c, a                    ; C = probe column
+    ; Probe top row
+    ld a, (wall_hit_top)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    push bc
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    pop bc
+    jp nz, .slash_x_stop
+    ; Probe bottom row
+    ld a, (wall_hit_bottom)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jp nz, .slash_x_stop
+
+    ; Passable → override vel_x = -8, decay slash_vel_x by 8 toward 0
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), #F8               ; -8
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld a, (hl)
+    add a, 8                   ; negative + 8 → toward zero
+    bit 7, a
+    jp nz, .slash_x_store_l
+    xor a                      ; crossed zero → clamp
+.slash_x_store_l:
+    ld (hl), a
+    jp .slash_x_done
+
+.slash_x_stop:
+    ; Hit solid tile or screen edge → kill X slash and X velocity
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+
+.slash_x_done:
+
+    ; ============ PROCESS Y SLASH ============
+    ld hl, entity_slash_vel_y
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .slash_y_done
+    bit 7, a
+    jp nz, .slash_y_up
+
+.slash_y_down:
+    ; Check tile at row (hitbox_bottom + 8) / 8
+    ld a, (wall_hit_bottom)
+    add a, 8
+    cp 192
+    jp nc, .slash_y_stop       ; off-screen bottom
+    srl a
+    srl a
+    srl a
+    ld b, a                    ; B = probe row
+    ; Probe left column
+    ld a, (wall_hit_left)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    push bc
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    pop bc
+    jp nz, .slash_y_stop
+    ; Probe right column
+    ld a, (wall_hit_right)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jp nz, .slash_y_stop
+
+    ; Passable → override vel_y = +8, decay slash_vel_y by 8
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 8
+    ld hl, entity_slash_vel_y
+    add hl, de
+    ld a, (hl)
+    sub 8
+    jp nc, .slash_y_store
+    xor a
+.slash_y_store:
+    ld (hl), a
+    jp .slash_y_done
+
+.slash_y_up:
+    ; Check tile at row (hitbox_top - 8) / 8
+    ld a, (wall_hit_top)
+    cp 8
+    jp c, .slash_y_stop        ; < 8 → screen edge
+    sub 8
+    srl a
+    srl a
+    srl a
+    ld b, a                    ; B = probe row
+    ; Probe left column
+    ld a, (wall_hit_left)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    push bc
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    pop bc
+    jp nz, .slash_y_stop
+    ; Probe right column
+    ld a, (wall_hit_right)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jp nz, .slash_y_stop
+
+    ; Passable → override vel_y = -8, decay slash_vel_y by 8 toward 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), #F8               ; -8
+    ld hl, entity_slash_vel_y
+    add hl, de
+    ld a, (hl)
+    add a, 8                   ; negative + 8 → toward zero
+    bit 7, a
+    jp nz, .slash_y_store_u
+    xor a
+.slash_y_store_u:
+    ld (hl), a
+    jp .slash_y_done
+
+.slash_y_stop:
+    ; Hit solid tile or screen edge → kill Y slash and Y velocity
+    ld hl, entity_slash_vel_y
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+
+.slash_y_done:
     pop bc
 
 .slash_next:
@@ -5527,15 +6649,27 @@ ${bonusRespawnRuntimeCode}
 ;   - DE must survive the optional HUD/sound hooks until persistence logic runs
 ; ------------------------------------------------------------------
 check_tile_interaction:
+    call scan_tile_interaction_entities
+    call update_bonus_respawns
+    ret
+
+scan_tile_interaction_entities:
     ld a, (input_entity_count)
     or a
-    jp z, .ti_respawn_only         ; No active entities
+    ret z                         ; No active entities
 
     ld hl, input_entity_list
     ld b, a                        ; B = entity count
 
 .ti_loop:
     ld c, (hl)                     ; C = entity index
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .ti_process_entity
+    ld a, (player_entity_index)
+    cp c
+    jp z, .ti_skip_fast_player
+.ti_process_entity:
     push hl                        ; Save list pointer
     push bc                        ; Save count(B) + entity(C)
 
@@ -5651,6 +6785,7 @@ ${bonusCollectBranchCode}
     inc (hl)
 
 ${variableIncrementCode}
+${flagAssignCode}
 
 ${collectionSoundCode}
 
@@ -5706,11 +6841,51 @@ ${bonusRespawnContinuationCode}
     inc hl                         ; Advance to next entity
     dec b
     jp nz, .ti_loop                ; djnz replaced with jp nz (loop body > 127 bytes)
-    call update_bonus_respawns
     ret
 
-.ti_respawn_only:
-    call update_bonus_respawns
+.ti_skip_fast_player:
+    inc hl
+    dec b
+    jp nz, .ti_loop
+    ret
+
+refresh_player_tile_interaction_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    ret z
+
+    ld a, (player_runtime_enabled)
+    push af
+    ld a, (input_entity_count)
+    push af
+    ld a, (input_entity_list)
+    push af
+
+    xor a
+    ld (player_runtime_enabled), a
+    ld a, c
+    ld (input_entity_list), a
+    ld a, 1
+    ld (input_entity_count), a
+    call scan_tile_interaction_entities
+
+    pop af
+    ld (input_entity_list), a
+    pop af
+    ld (input_entity_count), a
+    pop af
+    ld (player_runtime_enabled), a
     ret
 `;
 }
@@ -6225,8 +7400,8 @@ function generateInitComponents(usage) {
     call init_health_system
     `;
     }
-    if (usedComponents.has('Animation')) {
-        code += `    ; Initialize animation system
+    if (usedComponents.has('Animation') || usedComponents.has('Sprite')) {
+        code += `    ; Initialize animation state defaults (also needed by sprite rendering frame selection)
     call init_animation_system
     `;
     }
@@ -6311,6 +7486,7 @@ function generateInitComponents(usage) {
  * @returns ASM code string with ECS component systems
  */
 function generateComponentsFile(analysis, romMode = 'simple32k') {
+    const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
     // Skip ECS system if no entities in project
     if (!analysis.entities || analysis.entities.length === 0) {
         return `; ==================================================================
@@ -6361,7 +7537,19 @@ init_entities:
     ret
 update_all_entities:
     ret
+update_player_fastpath:
+    ret
 execute_all_state_machines:
+    ret
+refresh_player_deadly_fastpath:
+    ret
+refresh_player_tile_interaction_fastpath:
+    ret
+refresh_player_state_machine_fastpath:
+    ret
+refresh_player_animation_fastpath:
+    ret
+refresh_player_sprite_fastpath:
     ret
 create_entity:
     ret
@@ -6491,6 +7679,7 @@ init_entity_sprite:
     ; Component Data Structure EQUs (referenced by state machine actions)
 entity_jump_vel_y   EQU temp_word_3
 entity_slash_vel_x  EQU temp_byte_3
+entity_slash_vel_y  EQU temp_byte_28
 entity_jump_count   EQU temp_byte_4
 entity_jump_max     EQU temp_byte_25
 entity_jump_bonus   EQU temp_byte_27
@@ -6631,6 +7820,7 @@ ANIM_DEFAULT_SPEED           EQU 8
     ; Using temporary storage for optional components to save RAM
 entity_jump_vel_y   EQU temp_word_3; Y velocity for jumping(signed word, 32 words = 64 bytes)
 entity_slash_vel_x  EQU temp_byte_3; Additive horizontal slash velocity from bonus tiles (32 bytes)
+entity_slash_vel_y  EQU temp_byte_28; Additive vertical slash velocity from bonus tiles (32 bytes)
 entity_jump_count   EQU temp_byte_4; Current jump count(0 = grounded, 1 = first jump, etc.)(32 bytes)
 entity_jump_max     EQU temp_byte_25; Configured max jumps for this entity (32 bytes)
 entity_jump_bonus   EQU temp_byte_27; Temporary extra jumps granted by bonus tiles (32 bytes)
@@ -7010,7 +8200,7 @@ update_collectible_component:
     // Generate Tile Interaction System (when project has Interactable tiles)
     // Detects tiles with mapId & #08 (INTERACTABLE flag) on the screen map.
     if (hasInteractableTiles && usedComponents.has('Input')) {
-        code += generateTileInteractionSystem(tileCollectorRuntimeConfig, hasStateMachineSoundPlayback);
+        code += generateTileInteractionSystem(tileCollectorRuntimeConfig, hasStateMachineSoundPlayback, usedComponents.has('WallCollision'));
         code += generateApplyCollectedTiles();
         console.log('  - Tile Interaction system: ENABLED (interactable tiles detected)');
     }
@@ -7064,6 +8254,15 @@ execute_all_state_machines:
     ld a, (hl)                    ; A = entity index
     inc hl                        ; Advance list pointer
     push hl                       ; Save list pointer
+    ld c, a
+    ld a, (player_runtime_enabled)
+    or a
+    jr z, .sm_entity_ready
+    ld a, (player_entity_index)
+    cp c
+    jr z, .skip_entity
+.sm_entity_ready:
+    ld a, c
 
     ; active_entity_list already guarantees active + current_screen_id
     ld e, a                       ; DE = entity index
@@ -7094,6 +8293,29 @@ execute_all_state_machines:
     
     ret
 
+refresh_player_state_machine_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+
+    ld e, a
+    ld d, 0
+    ld hl, entity_sm_ptr_l
+    add hl, de
+    ld c, (hl)
+    ld hl, entity_sm_ptr_h
+    add hl, de
+    ld a, (hl)
+    or c
+    ret z
+
+    ld a, e
+    call SM_Update
+    ret
+
 `;
     }
     else {
@@ -7103,6 +8325,9 @@ execute_all_state_machines:
 ; ==================================================================
 ; No state machines are present in this build.
 execute_all_state_machines:
+    ret
+
+refresh_player_state_machine_fastpath:
     ret
 
 `;
@@ -7162,14 +8387,14 @@ get_tile_at_position:
     ; Read actual tile from current screen layout
     ld de, (current_screen_layout) ; DE = pointer to screen layout data
     add hl, de                    ; HL = pointer to tile at position
-    call mapper_push_p2
+${usesMapper ? `    call mapper_push_p2
     ld a, (current_screen_layout_bank)
     call mapper_set_bank_p2
-    ld a, (hl)                    ; A = tile ID from screen map
-    push af
+` : ''}    ld a, (hl)                    ; A = tile ID from screen map
+${usesMapper ? `    push af
     call mapper_pop_p2
     pop af
-
+` : ''}
     or a                          ; Set flags based on tile ID
     ret                           ; Z flag set if tile == 0 (empty)
 

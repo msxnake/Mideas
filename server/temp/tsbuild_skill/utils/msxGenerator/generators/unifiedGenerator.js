@@ -6,6 +6,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateUnifiedFile = generateUnifiedFile;
 const bankPacker_1 = require("../utils/bankPacker");
+const page0Generator_1 = require("./page0Generator");
+const zx0Utils_1 = require("./zx0Utils");
 /**
  * Convert routine name to lowercase (for labels, CALL, JP, JR targets)
  */
@@ -38,6 +40,8 @@ function generateUnifiedFile(files, projectName, analysis, executionPlan, config
     targetFormat: 'konami',
     autoMegaROM: false
 }) {
+    const page0Plan = (0, page0Generator_1.buildPage0Plan)(analysis, config.romMode);
+    const hasPage0Data = (0, page0Generator_1.hasPage0DataGroups)(analysis, config.romMode);
     // Check what features are needed
     const hasPresentationScreenNode = analysis.gameFlow?.nodes?.some(node => node.type === 'PresentationScreen');
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
@@ -47,6 +51,7 @@ function generateUnifiedFile(files, projectName, analysis, executionPlan, config
     const bankPackReport = (0, bankPacker_1.buildBankPackReport)(files);
     const bankPackComments = (0, bankPacker_1.formatBankPackReportAsAsmComments)(bankPackReport);
     const executionPlanComments = formatExecutionPlanComments(executionPlan);
+    const needsZx0Decoder = (0, page0Generator_1.page0NeedsZx0Decoder)(analysis, config.romMode);
     return `; ==================================================================
 ; ${projectName.toUpperCase()} - UNIFIED FILE
 ; File: unitedFiles.asm
@@ -65,11 +70,24 @@ function generateUnifiedFile(files, projectName, analysis, executionPlan, config
 ; Mapper Target: ${config.targetFormat}
 ; Auto MegaROM: ${config.autoMegaROM ? 'Yes' : 'No'}
 ${executionPlanComments}; ==================================================================
-${config.romMode === 'plain48k' ? '; EXPERIMENTAL: plain48k plumbing is enabled, but page-0 asset packing is not implemented yet.\n' : ''}${bankPackComments}
+${config.romMode === 'plain48k' ? `; Linear48K Page0 Data: ${hasPage0Data ? 'Yes' : 'No'}\n; Page0 Used Bytes: ${page0Plan.usedBytes}\n; Page0 Remaining Bytes: ${page0Plan.remainingBytes}\n; EXPERIMENTAL: linear 48K page-0 data groups currently start with Presentation Screen.\n` : ''}${bankPackComments}
 
+${config.romMode === 'plain48k' ? `; ==================================================================
+; LINEAR 48K PAGE 0 SCAFFOLD
+; ==================================================================
+    org #0000
+${files['page0.asm']}
+    ds #4000 - $
+
+` : ''}
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
-; for the ROM to work correctly. EQUs can go after ORG.
+; for the ROM to work correctly after the optional page-0 scaffold.
 ${files['header.asm']}
+
+${needsZx0Decoder ? `; ZX0 decoder required by page-0 compressed cold data.
+${(0, zx0Utils_1.getZx0DecoderAsm)()}
+
+` : ''}
 
 ${files['bios.asm']}
 
@@ -123,6 +141,175 @@ ${files['worlds.asm']}
 ; This section only contains shared initialization and utility functions.
 ; ==================================================================
 
+;-----------------------------------------------
+; Capture the normal expanded slot used by each page.
+init_page0_runtime_state:
+    in a, (#A8)
+    ld (slot_primary_normal), a
+    ld e, a
+    ld a, e
+    and #03
+    call GETSLOT
+    ld (page0_bios_slot), a
+    ld a, e
+    rrca
+    rrca
+    and #03
+    call GETSLOT
+    ld (ROM_slot), a
+    ld a, e
+    rrca
+    rrca
+    rrca
+    rrca
+    and #03
+    call GETSLOT
+    ld (page2_normal_slot), a
+    ld a, e
+    rlca
+    rlca
+    and #03
+    call GETSLOT
+    ld (page3_normal_slot), a
+    ret
+
+;-----------------------------------------------
+; Map page 0 to the expanded slot passed in A while restoring page 3 afterwards.
+; input:
+;   a: expanded slot for page 0 target
+; output:
+;   page 0 remapped
+;   page 3 restored to its normal RAM slot
+;   interrupts remain disabled on return
+page0_map_expanded_slot:
+    ld c, a
+    ld a, (slot_primary_normal)
+    ; Keep pages 1-3 exactly as they were; only replace page 0 primary slot bits.
+    and #FC
+    ld b, a
+    ld a, c
+    and #03
+    or b
+    di
+    out (#A8), a
+
+    ld a, c
+    and #80
+    ret z
+    ld a, c
+    and #0C
+    rrca
+    rrca
+    ld b, a
+    ld a, (ROM_slot)
+    and #0C
+    or b
+    ld b, a
+    ld a, (page2_normal_slot)
+    and #0C
+    rlca
+    rlca
+    or b
+    ld b, a
+    ld a, (page3_normal_slot)
+    and #0C
+    rlca
+    rlca
+    rlca
+    rlca
+    or b
+    ld (#FFFF), a
+    ret
+
+;-----------------------------------------------
+; Switch page 0 to the cartridge ROM slot while keeping page 3 in RAM.
+page0_map_game_rom:
+    ; IRQs must stay disabled while BIOS page 0 is hidden, otherwise IM1 jumps to #0038
+    ; inside cartridge data/ZX0 blobs and execution derails.
+    di
+    ld a, (ROM_slot)
+    jp page0_map_expanded_slot
+
+;-----------------------------------------------
+; Restore the normal BIOS-ROM-ROM-RAM slot layout after a page-0 copy.
+page0_restore_bios_rom:
+    ld a, (page0_bios_slot)
+    call page0_map_expanded_slot
+    ei
+    ret
+
+;-----------------------------------------------
+; Copy one chunk from page 0 ROM into the RAM transfer buffer.
+; input:
+;   hl: source in page 0
+;   bc: chunk size (1..256)
+; output:
+;   hl: source advanced by chunk size
+page0_copy_chunk_to_buffer:
+    call page0_map_game_rom
+    ld de, page0_transfer_buffer
+    ldir
+    jp page0_restore_bios_rom
+
+;-----------------------------------------------
+; Decompress ZX0 data stored in page 0 into a RAM destination.
+; input:
+;   hl: compressed source in page 0
+;   de: destination in RAM
+page0_decompress_to_ram:
+    ; page0_map_game_rom uses E/C/B as scratch while rebuilding slot registers.
+    ; Preserve DE so dzx0_standard receives the caller's RAM destination intact.
+    push de
+    call page0_map_game_rom
+    pop de
+    call dzx0_standard
+    jp page0_restore_bios_rom
+
+;-----------------------------------------------
+; Copy cold data from page 0 ROM to VRAM using a RAM buffer.
+; input:
+;   hl: source in page 0
+;   de: destination VRAM
+;   bc: byte count
+page0_copy_to_vram:
+    ld a, b
+    or c
+    ret z
+.page0_copy_loop:
+    push bc
+    ld a, b
+    or a
+    jr z, .page0_copy_final_chunk
+    ld bc, #0100
+    jr .page0_copy_chunk_ready
+.page0_copy_final_chunk:
+    ; Final chunk keeps the original BC (1..255 bytes).
+.page0_copy_chunk_ready:
+    push bc
+    push de
+    call page0_copy_chunk_to_buffer
+    pop de
+    pop bc
+    push hl
+    push bc
+    ld hl, page0_transfer_buffer
+    call FAST_LDIRVM
+    pop bc
+    pop hl
+    ex de, hl
+    add hl, bc
+    ex de, hl
+    pop bc
+    ld a, b
+    or a
+    jr z, .page0_copy_done
+    dec b
+    ld a, b
+    or c
+    jp nz, .page0_copy_loop
+.page0_copy_done:
+    ret
+
 init_game_systems:
     call DISSCR               ; Disable screen while loading VRAM assets
 ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize component systems (entities detected)
@@ -168,6 +355,8 @@ ${needsFont ? `    ; Initialize font system
 load_game_screen:
     ret
 
-    end                 ; End of assembly
+${config.romMode === 'plain48k' ? `    ds #C000 - $        ; Pad linear 48K ROM to 49152 bytes
+
+` : ''}    end                 ; End of assembly
 `;
 }

@@ -1,0 +1,5 @@
+TRACE: loading ROM
+BP0038 PC=0038 SP=F2F8 IFF=00 AF=201A BC=1F01 DE=F0FF HL=0000 RET=0278
+SLOTS page0=0 X page1=0 X page2=3 X page3=3 X
+DISASM_0038 {jp     #18e6       } C3 E6 18
+DISASM_RET {out    (#98),a     } D3 98

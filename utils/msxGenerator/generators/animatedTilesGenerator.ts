@@ -5,6 +5,7 @@
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { generateTileColorBytes, generateTilePatternBytes } from '../../../components/utils/tileUtils';
+import { usesMapperBanking } from './romModeUtils';
 
 interface TileCharInfo {
   charCode: number;
@@ -568,8 +569,9 @@ ${frames}
     db #00
 `;
 
-  const mapperPush = romMode !== 'simple32k' ? '    call mapper_push_p2\n    ld a, ANIM_TILE_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
-  const mapperPop  = romMode !== 'simple32k' ? '    call mapper_pop_p2' : '';
+  const usesMapper = usesMapperBanking(romMode);
+  const mapperPush = usesMapper ? '    call mapper_push_p2\n    ld a, ANIM_TILE_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
+  const mapperPop  = usesMapper ? '    call mapper_pop_p2' : '';
 
   const frameVramUpdateBlock = hasFrameAnimatedTiles
     ? `${mapperPush}

@@ -699,6 +699,7 @@ export const DEFAULT_PRESENTATION_SCREEN_CONFIG: PresentationScreenConfig = {
     clearSpritesBeforeShow: true,
     waitForKey: true,
     waitForFrames: 0,
+    romDataGroup: 'auto',
   },
   updatedAt: null,
   lastImportError: null,

@@ -92,6 +92,7 @@ export interface ProjectSummary {
  * Generated ASM Files structure
  */
 export interface GeneratedASMFiles {
+  'page0.asm': string;
   'bios.asm': string;
   'constants.asm': string;
   'variables.asm': string;

@@ -4,6 +4,7 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import { usesMapperBanking } from './romModeUtils';
 
 /**
  * Generate font data file with MSX font patterns for Screen 2 text (font.asm)
@@ -172,9 +173,10 @@ print_string_screen2:
 
     indexAsm += `\nFONT_CHAR_COUNT EQU ${sortedCodes.length}\n`;
 
-    const mapperPushPat = romMode !== 'simple32k' ? '    call mapper_push_p2\n    ld a, FONT_PATTERN_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
-    const mapperPushCol = romMode !== 'simple32k' ? '    call mapper_push_p2\n    ld a, FONT_COLOR_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
-    const mapperPop    = romMode !== 'simple32k' ? '    call mapper_pop_p2\n' : '';
+    const usesMapper = usesMapperBanking(romMode);
+    const mapperPushPat = usesMapper ? '    call mapper_push_p2\n    ld a, FONT_PATTERN_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
+    const mapperPushCol = usesMapper ? '    call mapper_push_p2\n    ld a, FONT_COLOR_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
+    const mapperPop    = usesMapper ? '    call mapper_pop_p2\n' : '';
 
     return `; ==================================================================
 ; MSX FONT DATA FOR SCREEN 2 TEXT

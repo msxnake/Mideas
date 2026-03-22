@@ -9,6 +9,11 @@ const screenUtils_1 = require("../../../components/utils/screenUtils");
 const constants_1 = require("../../../constants");
 const types_1 = require("../../../types");
 const registerContract_1 = require("./registerContract");
+const animatedTilesGenerator_1 = require("./animatedTilesGenerator");
+const spritesGenerator_1 = require("./spritesGenerator");
+const screen2TileBanks_1 = require("../utils/screen2TileBanks");
+const page0Generator_1 = require("./page0Generator");
+const romModeUtils_1 = require("./romModeUtils");
 const SCREEN_WIDTH = 32;
 const SCREEN_HEIGHT = 24;
 const ASM_BYTES_PER_LINE = 16;
@@ -33,34 +38,7 @@ function clampByte(value, fallback = 0) {
     return Math.max(0, Math.min(255, value)) & 0xff;
 }
 function resolveTileBankDefinitions(screen, analysis) {
-    const screenTileBank = analysis.tileBanks?.find(tileBank => tileBank.id === screen.tileBankAssetId);
-    if (screenTileBank?.banks?.length) {
-        return screenTileBank.banks;
-    }
-    if (!analysis.tiles || analysis.tiles.length === 0) {
-        return undefined;
-    }
-    const baseDef = constants_1.DEFAULT_TILE_BANK_DEFINITIONS[1];
-    const globalBankDef = {
-        ...baseDef,
-        assignedTiles: {},
-        charsetRangeStart: 128,
-        charsetRangeEnd: 255,
-        enabled: true,
-    };
-    let nextCharCode = 128;
-    analysis.tiles.forEach((tileAsset) => {
-        if (!tileAsset?.id)
-            return;
-        const charsWide = Math.ceil(tileAsset.width / 8);
-        const charsHigh = Math.ceil(tileAsset.height / 8);
-        globalBankDef.assignedTiles[tileAsset.id] = {
-            charCode: nextCharCode,
-            assignedAt: Date.now(),
-        };
-        nextCharCode += charsWide * charsHigh;
-    });
-    return [globalBankDef, globalBankDef, globalBankDef];
+    return (0, screen2TileBanks_1.resolveRuntimeScreen2TileBankDefinitions)(analysis, screen.tileBankAssetId);
 }
 function buildLayerLayoutBytes(screen, layerName, analysis, tileBankDefinitions) {
     const exportScreen = {
@@ -98,7 +76,7 @@ function hasPresentationScreenData(analysis) {
         return false;
     return Array.isArray(config.data?.nameTable) && config.data.nameTable.length === (SCREEN_WIDTH * SCREEN_HEIGHT);
 }
-function generatePresentationScreenSection(analysis, hasSpriteAssets) {
+function generatePresentationScreenSection(analysis, hasSpriteAssets, romMode) {
     if (!hasPresentationScreenData(analysis)) {
         // Stub so GameFlow PresentationScreen nodes can always call show_presentation_screen
         return `show_presentation_screen:
@@ -108,6 +86,8 @@ function generatePresentationScreenSection(analysis, hasSpriteAssets) {
     }
     const presentationScreen = analysis.presentationScreen;
     const config = presentationScreen;
+    const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
+    const usePage0DataGroup = romMode === 'plain48k' && (0, page0Generator_1.presentationScreenUsesPage0Group)(analysis, romMode);
     const patternSize = Math.max(config.data.patternBank0.length, config.data.patternBank1.length, config.data.patternBank2.length);
     const colorSize = Math.max(config.data.colorBank0.length, config.data.colorBank1.length, config.data.colorBank2.length);
     const nameSize = config.data.nameTable.length;
@@ -119,15 +99,14 @@ function generatePresentationScreenSection(analysis, hasSpriteAssets) {
 ; PRESENTATION_SCREEN_COMPRESS_NAMETBL: ${config.compression.compressNameTable ? 1 : 0}
 ; PRESENTATION_SCREEN_COMPRESS_PATTERNS: ${config.compression.compressPatterns ? 1 : 0}
 ; PRESENTATION_SCREEN_COMPRESS_COLORS: ${config.compression.compressColors ? 1 : 0}
-
-PRESENTATION_SCREEN_NAMETBL_BANK EQU ((PRESENTATION_SCREEN_NAMETBL - #4000) / #2000)
+${usePage0DataGroup ? '; PRESENTATION_SCREEN_ROM_DATA_GROUP: page0\n' : `PRESENTATION_SCREEN_NAMETBL_BANK EQU ((PRESENTATION_SCREEN_NAMETBL - #4000) / #2000)
 PRESENTATION_SCREEN_PATTERNS_B0_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B0 - #4000) / #2000)
 PRESENTATION_SCREEN_PATTERNS_B1_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B1 - #4000) / #2000)
 PRESENTATION_SCREEN_PATTERNS_B2_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B2 - #4000) / #2000)
 PRESENTATION_SCREEN_COLORS_B0_BANK EQU ((PRESENTATION_SCREEN_COLORS_B0 - #4000) / #2000)
 PRESENTATION_SCREEN_COLORS_B1_BANK EQU ((PRESENTATION_SCREEN_COLORS_B1 - #4000) / #2000)
 PRESENTATION_SCREEN_COLORS_B2_BANK EQU ((PRESENTATION_SCREEN_COLORS_B2 - #4000) / #2000)
-PRESENTATION_SCREEN_NAMETBL_SIZE EQU ${nameSize}
+`}PRESENTATION_SCREEN_NAMETBL_SIZE EQU ${nameSize}
 PRESENTATION_SCREEN_PATTERN_B0_SIZE EQU ${config.data.patternBank0.length}
 PRESENTATION_SCREEN_PATTERN_B1_SIZE EQU ${config.data.patternBank1.length}
 PRESENTATION_SCREEN_PATTERN_B2_SIZE EQU ${config.data.patternBank2.length}
@@ -138,33 +117,38 @@ PRESENTATION_SCREEN_MAX_PATTERN_SIZE EQU ${patternSize}
 PRESENTATION_SCREEN_MAX_COLOR_SIZE EQU ${colorSize}
 
 `;
-    code += generateRawByteBlock('PRESENTATION_SCREEN_NAMETBL', config.data.nameTable, [
-        `${config.name} - Name table (32x24)`,
-    ]);
-    code += '\n';
-    code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B0', config.data.patternBank0, [
-        `${config.name} - Pattern bank 0`,
-    ]);
-    code += '\n';
-    code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B1', config.data.patternBank1, [
-        `${config.name} - Pattern bank 1`,
-    ]);
-    code += '\n';
-    code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B2', config.data.patternBank2, [
-        `${config.name} - Pattern bank 2`,
-    ]);
-    code += '\n';
-    code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B0', config.data.colorBank0, [
-        `${config.name} - Color bank 0`,
-    ]);
-    code += '\n';
-    code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B1', config.data.colorBank1, [
-        `${config.name} - Color bank 1`,
-    ]);
-    code += '\n';
-    code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B2', config.data.colorBank2, [
-        `${config.name} - Color bank 2`,
-    ]);
+    if (usePage0DataGroup) {
+        code += `; Data labels are emitted in page0.asm for linear 48K builds.\n`;
+    }
+    else {
+        code += generateRawByteBlock('PRESENTATION_SCREEN_NAMETBL', config.data.nameTable, [
+            `${config.name} - Name table (32x24)`,
+        ]);
+        code += '\n';
+        code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B0', config.data.patternBank0, [
+            `${config.name} - Pattern bank 0`,
+        ]);
+        code += '\n';
+        code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B1', config.data.patternBank1, [
+            `${config.name} - Pattern bank 1`,
+        ]);
+        code += '\n';
+        code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B2', config.data.patternBank2, [
+            `${config.name} - Pattern bank 2`,
+        ]);
+        code += '\n';
+        code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B0', config.data.colorBank0, [
+            `${config.name} - Color bank 0`,
+        ]);
+        code += '\n';
+        code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B1', config.data.colorBank1, [
+            `${config.name} - Color bank 1`,
+        ]);
+        code += '\n';
+        code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B2', config.data.colorBank2, [
+            `${config.name} - Color bank 2`,
+        ]);
+    }
     code += `\n${(0, registerContract_1.buildRegisterContractComment)({
         purpose: 'Wait a configurable number of frames after showing the presentation screen.',
         inputs: ['B = frame count'],
@@ -221,7 +205,105 @@ ${(0, registerContract_1.buildRegisterContractComment)({
     call update_sprites_to_vram
 `;
     }
-    code += `    call mapper_push_p2
+    code += usePage0DataGroup
+        ? `    ; Page 0 data is ZX0-compressed: decompress to RAM first, then upload to VRAM.
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B0
+    ld de, ZX0_TILE_PATTERN_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_TILE_PATTERN_BUFFER
+    ld de, CHRTBL2
+    ld bc, PRESENTATION_SCREEN_PATTERN_B0_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B1
+    ld de, ZX0_TILE_PATTERN_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_TILE_PATTERN_BUFFER
+    ld de, CHRTBL2 + #800
+    ld bc, PRESENTATION_SCREEN_PATTERN_B1_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B2
+    ld de, ZX0_TILE_PATTERN_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_TILE_PATTERN_BUFFER
+    ld de, CHRTBL2 + #1000
+    ld bc, PRESENTATION_SCREEN_PATTERN_B2_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_COLORS_B0
+    ld de, ZX0_TILE_COLOR_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_TILE_COLOR_BUFFER
+    ld de, CLRTBL2
+    ld bc, PRESENTATION_SCREEN_COLOR_B0_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_COLORS_B1
+    ld de, ZX0_TILE_COLOR_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_TILE_COLOR_BUFFER
+    ld de, CLRTBL2 + #800
+    ld bc, PRESENTATION_SCREEN_COLOR_B1_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_COLORS_B2
+    ld de, ZX0_TILE_COLOR_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_TILE_COLOR_BUFFER
+    ld de, CLRTBL2 + #1000
+    ld bc, PRESENTATION_SCREEN_COLOR_B2_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_NAMETBL
+    ld de, ZX0_SCREEN_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_SCREEN_BUFFER
+    ld de, NAMETBL
+    ld bc, PRESENTATION_SCREEN_NAMETBL_SIZE
+    call FAST_LDIRVM
+
+    call ENASCR
+`
+        : !usesMapper
+            ? `    ld hl, PRESENTATION_SCREEN_PATTERNS_B0
+    ld de, CHRTBL2
+    ld bc, PRESENTATION_SCREEN_PATTERN_B0_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B1
+    ld de, CHRTBL2 + #800
+    ld bc, PRESENTATION_SCREEN_PATTERN_B1_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B2
+    ld de, CHRTBL2 + #1000
+    ld bc, PRESENTATION_SCREEN_PATTERN_B2_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_COLORS_B0
+    ld de, CLRTBL2
+    ld bc, PRESENTATION_SCREEN_COLOR_B0_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_COLORS_B1
+    ld de, CLRTBL2 + #800
+    ld bc, PRESENTATION_SCREEN_COLOR_B1_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_COLORS_B2
+    ld de, CLRTBL2 + #1000
+    ld bc, PRESENTATION_SCREEN_COLOR_B2_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_NAMETBL
+    ld de, NAMETBL
+    ld bc, PRESENTATION_SCREEN_NAMETBL_SIZE
+    call FAST_LDIRVM
+
+    call ENASCR
+`
+            : `    call mapper_push_p2
     ld a, PRESENTATION_SCREEN_PATTERNS_B0_BANK
     call mapper_set_bank_p2
     ld hl, PRESENTATION_SCREEN_PATTERNS_B0
@@ -317,6 +399,139 @@ function buildEffectZoneBytes(screen) {
     });
     return bytes;
 }
+function buildScreenEntityCountMap(analysis) {
+    const counts = new Map();
+    for (const entity of analysis.entities || []) {
+        const screenId = String(entity?.screenAssetId || '').trim();
+        if (!screenId)
+            continue;
+        counts.set(screenId, (counts.get(screenId) || 0) + 1);
+    }
+    return counts;
+}
+function buildScreenWorldMembershipMap(analysis) {
+    const membership = new Map();
+    for (const world of (analysis.worldmaps || [])) {
+        const worldId = String(world?.id || '').trim();
+        if (!worldId)
+            continue;
+        for (const node of world?.nodes || []) {
+            const screenId = String(node?.screenAssetId || '').trim();
+            if (!screenId)
+                continue;
+            const worlds = membership.get(screenId) || new Set();
+            worlds.add(worldId);
+            membership.set(screenId, worlds);
+        }
+    }
+    return membership;
+}
+function isExportableMusicTrack(trackAssetId, analysis) {
+    const trimmedId = String(trackAssetId || '').trim();
+    if (!trimmedId)
+        return false;
+    const trackIndexMap = (analysis.trackIndexByAssetId || {});
+    if (trackIndexMap[trimmedId] !== undefined) {
+        return true;
+    }
+    return (analysis.tracks || []).some((track) => {
+        if (String(track?.id || '').trim() !== trimmedId)
+            return false;
+        return (track?.soundChip || 'PSG') === 'PSG';
+    });
+}
+function hasAnyGameplayMusicConfigured(analysis) {
+    return (analysis.gameFlow?.nodes || []).some((node) => {
+        if (node?.type !== 'Music')
+            return false;
+        if (node?.stop === true)
+            return false;
+        if (node?.autoPlay === false)
+            return false;
+        return isExportableMusicTrack(String(node?.trackAssetId || ''), analysis);
+    });
+}
+function buildWorldMusicFlagMap(analysis) {
+    const musicByWorldId = new Map();
+    const gameFlow = analysis.gameFlow;
+    const nodes = Array.isArray(gameFlow?.nodes) ? gameFlow.nodes : [];
+    if (nodes.length === 0)
+        return musicByWorldId;
+    const nodeById = new Map();
+    for (const node of nodes) {
+        const nodeId = String(node?.id || '').trim();
+        if (!nodeId)
+            continue;
+        nodeById.set(nodeId, node);
+    }
+    const adjacency = new Map();
+    for (const connection of Array.isArray(gameFlow?.connections) ? gameFlow.connections : []) {
+        const fromId = String(connection?.from?.nodeId || '').trim();
+        const toId = String(connection?.to?.nodeId || '').trim();
+        if (!fromId || !toId)
+            continue;
+        const next = adjacency.get(fromId) || [];
+        next.push(toId);
+        adjacency.set(fromId, next);
+    }
+    const startNodeId = String(gameFlow?.startNodeId || '').trim();
+    if (!startNodeId || !nodeById.has(startNodeId)) {
+        return musicByWorldId;
+    }
+    const queue = [{ nodeId: startNodeId, musicActive: 0 }];
+    const seenStates = new Set();
+    while (queue.length > 0) {
+        const state = queue.shift();
+        const stateKey = `${state.nodeId}|${state.musicActive}`;
+        if (seenStates.has(stateKey))
+            continue;
+        seenStates.add(stateKey);
+        const node = nodeById.get(state.nodeId);
+        if (!node)
+            continue;
+        let nextMusicActive = state.musicActive;
+        if (node.type === 'Music') {
+            if (node.stop === true) {
+                nextMusicActive = 0;
+            }
+            else if (node.autoPlay === false) {
+                nextMusicActive = state.musicActive;
+            }
+            else if (isExportableMusicTrack(String(node.trackAssetId || ''), analysis)) {
+                nextMusicActive = 1;
+            }
+        }
+        if (node.type === 'WorldLink') {
+            const worldId = String(node.worldAssetId || '').trim();
+            if (worldId) {
+                const prev = musicByWorldId.get(worldId) || 0;
+                musicByWorldId.set(worldId, prev | nextMusicActive);
+            }
+        }
+        for (const nextNodeId of adjacency.get(state.nodeId) || []) {
+            queue.push({ nodeId: nextNodeId, musicActive: nextMusicActive });
+        }
+    }
+    return musicByWorldId;
+}
+function countAnimatedGroupsInScreen(backgroundLayoutBytes, effectsLayoutBytes, animatedGroups) {
+    if (animatedGroups.length === 0)
+        return 0;
+    const presentChars = new Set([...backgroundLayoutBytes, ...effectsLayoutBytes]);
+    let count = 0;
+    for (const group of animatedGroups) {
+        let present = false;
+        for (let charCode = group.targetCharCode; charCode < group.targetCharCode + group.charsPerTile; charCode++) {
+            if (presentChars.has(charCode)) {
+                present = true;
+                break;
+            }
+        }
+        if (present)
+            count++;
+    }
+    return count;
+}
 /**
  * Generate screens file with screen layout and map data (screens.asm)
  *
@@ -326,8 +541,15 @@ function buildEffectZoneBytes(screen) {
  * @param analysis - Project analysis with screen maps and tiles
  * @returns ASM code string with screen layout data and loading functions
  */
-function generateScreensFile(analysis) {
+function generateScreensFile(analysis, romMode = 'simple32k') {
+    const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
     const hasSpriteAssets = !!analysis.sprites && analysis.sprites.length > 0;
+    const animatedTileGroups = (0, animatedTilesGenerator_1.collectAnimatedTileGroupSummaries)(analysis);
+    const screenEntityCounts = buildScreenEntityCountMap(analysis);
+    const screenSpriteUsage = new Map((0, spritesGenerator_1.buildScreenSpritePatternUsageSummaries)(analysis).map((summary) => [summary.screenId, summary.totalSlotsRequired]));
+    const screenWorldMembership = buildScreenWorldMembershipMap(analysis);
+    const worldMusicFlags = buildWorldMusicFlagMap(analysis);
+    const fallbackGameplayMusic = hasAnyGameplayMusicConfigured(analysis) ? 1 : 0;
     // Skip screen system if no screens in project
     if (!analysis.screenMaps || analysis.screenMaps.length === 0) {
         return `; ==================================================================
@@ -344,7 +566,7 @@ function generateScreensFile(analysis) {
 load_screen_default:
     ret
 
-${generatePresentationScreenSection(analysis, hasSpriteAssets)}
+${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode)}
 ; ==================================================================
 ; END OF SCREENS (MINIMAL VERSION)
 ; ==================================================================
@@ -359,8 +581,23 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets)}
         const hasEffectsLayoutData = effectsLayoutBytes.some(value => value !== 0);
         const effectZoneBytes = buildEffectZoneBytes(screen);
         const effectZoneCount = (screen.effectZones || []).length;
+        const screenId = String(screen.id || `screen_${index}`);
+        const animatedGroupCount = countAnimatedGroupsInScreen(backgroundLayoutBytes, effectsLayoutBytes, animatedTileGroups);
+        const entityCount = screenEntityCounts.get(screenId) || 0;
+        const spritePatternSlots = screenSpriteUsage.get(screenId) || 1;
+        const hasHudData = !!((screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0) ||
+            (screen.hudConfiguration?.importedFrame?.cells && screen.hudConfiguration.importedFrame.cells.length > 0));
+        const worldIds = screenWorldMembership.get(screenId);
+        const musicInGame = worldIds && worldIds.size > 0
+            ? Array.from(worldIds).some((worldId) => (worldMusicFlags.get(worldId) || 0) !== 0) ? 1 : 0
+            : fallbackGameplayMusic;
+        const summaryFlags = (musicInGame ? 0x01 : 0) |
+            (hasHudData ? 0x02 : 0) |
+            ((hasEffectsLayoutData || effectZoneCount > 0) ? 0x04 : 0) |
+            (animatedGroupCount > 0 ? 0x08 : 0);
         return {
             screen,
+            screenId,
             index,
             screenName,
             screenNameWithIndex,
@@ -369,6 +606,11 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets)}
             hasEffectsLayoutData,
             effectZoneBytes,
             effectZoneCount,
+            animatedGroupCount,
+            entityCount,
+            spritePatternSlots,
+            musicInGame,
+            summaryFlags,
         };
     });
     let code = `; ==================================================================
@@ -395,10 +637,19 @@ EFFECT_WIND_DIR_LEFT EQU ${WIND_DIRECTION_IDS.left}
 EFFECT_WIND_DIR_RIGHT EQU ${WIND_DIRECTION_IDS.right}
 EFFECT_WIND_DIR_UP EQU ${WIND_DIRECTION_IDS.up}
 EFFECT_WIND_DIR_DOWN EQU ${WIND_DIRECTION_IDS.down}
+SCREEN_RUNTIME_SUMMARY_ENTRY_SIZE EQU 4
+SCREEN_RUNTIME_SUMMARY_OFFS_ANIM_GROUPS EQU 0
+SCREEN_RUNTIME_SUMMARY_OFFS_ENTITY_COUNT EQU 1
+SCREEN_RUNTIME_SUMMARY_OFFS_SPRITE_PATTERN_SLOTS EQU 2
+SCREEN_RUNTIME_SUMMARY_OFFS_FLAGS EQU 3
+SCREEN_RUNTIME_SUMMARY_FLAG_MUSIC_IN_GAME EQU #01
+SCREEN_RUNTIME_SUMMARY_FLAG_HAS_HUD EQU #02
+SCREEN_RUNTIME_SUMMARY_FLAG_HAS_EFFECTS EQU #04
+SCREEN_RUNTIME_SUMMARY_FLAG_HAS_ANIM_TILES EQU #08
 
 `;
         screenExports.forEach((screenExport) => {
-            const { screenName, index, hasEffectsLayoutData, effectZoneCount } = screenExport;
+            const { screenName, index, hasEffectsLayoutData, effectZoneCount, animatedGroupCount, entityCount, spritePatternSlots, musicInGame, summaryFlags, } = screenExport;
             code += `SCREEN_${screenName}_${index}_ID EQU ${index}
 SCREEN_${screenName}_${index}_LAYOUT_BANK EQU ((SCREEN_${screenName}_${index}_LAYOUT - #4000) / #2000)
 BEHAVIOR_${screenName}_${index}_DATA_BANK EQU ((BEHAVIOR_${screenName}_${index}_DATA - #4000) / #2000)
@@ -408,6 +659,30 @@ SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_SIZE EQU ${SCREEN_WIDTH * SCREEN_HE
 SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK EQU ((SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE - #4000) / #2000)
 SCREEN_${screenName}_${index}_EFFECT_ZONE_COUNT EQU ${effectZoneCount}
 SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_SIZE EQU ${effectZoneCount * 8}
+SCREEN_${screenName}_${index}_ANIM_GROUP_COUNT EQU ${animatedGroupCount}
+SCREEN_${screenName}_${index}_ENTITY_COUNT EQU ${entityCount}
+SCREEN_${screenName}_${index}_SPRITE_PATTERN_SLOTS EQU ${spritePatternSlots}
+SCREEN_${screenName}_${index}_MUSIC_IN_GAME EQU ${musicInGame}
+SCREEN_${screenName}_${index}_SUMMARY_FLAGS EQU #${summaryFlags.toString(16).toUpperCase().padStart(2, '0')}
+`;
+        });
+        code += `
+; ==================================================================
+; SCREEN RUNTIME SUMMARY TABLE
+; anim_groups: animated tile groups visible in this screen
+; entity_count: entity instances assigned to this screen
+; sprite_pattern_slots: SPRPAT slots needed by this screen's entity runtime set
+; flags bit0=music_in_game, bit1=has_hud, bit2=has_effects, bit3=has_anim_tiles
+; ==================================================================
+
+screen_runtime_summary_table:
+`;
+        screenExports.forEach((screenExport) => {
+            const { screen, index, animatedGroupCount, entityCount, spritePatternSlots, summaryFlags, } = screenExport;
+            code += `    db ${animatedGroupCount}, ${entityCount}, ${spritePatternSlots}, #${summaryFlags
+                .toString(16)
+                .toUpperCase()
+                .padStart(2, '0')}    ; Screen ${index}: ${screen.name}
 `;
         });
         code += `
@@ -629,7 +904,7 @@ SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_SIZE EQU ${effectZoneCount * 8}
             }
             code += `\n`;
         });
-        code += generatePresentationScreenSection(analysis, hasSpriteAssets);
+        code += generatePresentationScreenSection(analysis, hasSpriteAssets, romMode);
         code += `; ==================================================================
 ; SCREEN LOADING FUNCTIONS
 ; ==================================================================
@@ -854,6 +1129,15 @@ load_screen:
             const borderColor = screen.borderColor !== undefined ? screen.borderColor : 1; // Default to black
             // Use screen ID suffix to make function name unique (handles same name in different worlds)
             const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+            const screenExport = screenExports[index];
+            const animatedGroupCount = screenExport?.animatedGroupCount || 0;
+            const entityCount = screenExport?.entityCount || 0;
+            const spritePatternSlots = screenExport?.spritePatternSlots || 1;
+            const tileBankLoadCode = screen.tileBankAssetId
+                ? `    call ${(0, screen2TileBanks_1.getScreen2TileBankPatternLoaderLabel)(screen.tileBankAssetId)}
+    call ${(0, screen2TileBanks_1.getScreen2TileBankColorLoaderLabel)(screen.tileBankAssetId)}
+`
+                : '';
             const rawActiveAreaX = screen.activeAreaX ?? 0;
             const rawActiveAreaY = screen.activeAreaY ?? 0;
             const rawActiveAreaWidth = screen.activeAreaWidth ?? screen.width ?? 32;
@@ -877,7 +1161,13 @@ load_screen:
                 .map((cell) => ({
                 x: cell.x | 0,
                 y: cell.y | 0,
-                charCode: cell.charCode & 0xFF
+                charCode: (() => {
+                    const runtimeCharCode = (0, screen2TileBanks_1.resolveRuntimeScreen2TileBankCharCode)(analysis, screen.hudConfiguration?.importedFrame?.sourceTileBankAssetId, cell.tileId, cell.y | 0, cell.subTileX | 0, cell.subTileY | 0);
+                    if (runtimeCharCode > 0) {
+                        return runtimeCharCode & 0xFF;
+                    }
+                    return (cell.charCode & 0xFF);
+                })()
             }));
             const hasImportedHudFrame = importedHudFrameCells.length > 0;
             const importedHudFrameLabelBase = `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
@@ -936,7 +1226,7 @@ ${importedHudFrameLabelBase}_draw_loop:
     ; Initialize character 0 (empty cells) with background color
     ld a, ${bgColor}           ; Background color for char 0
     call init_char0_color
-`;
+${tileBankLoadCode}`;
                 if (hasSpriteAssets) {
                     code += `    ; Clear hardware sprites on screen switch to avoid visual carry-over
     call clear_all_sprites
@@ -944,7 +1234,7 @@ ${importedHudFrameLabelBase}_draw_loop:
 `;
                 }
                 if (activeAreaWidth === 32) {
-                    code += `    ; Load active game area (contiguous rows)
+                    code += usesMapper ? `    ; Load active game area (contiguous rows)
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
@@ -954,10 +1244,16 @@ ${importedHudFrameLabelBase}_draw_loop:
     ld bc, ${activeAreaBytes}
     call FAST_LDIRVM
     call mapper_pop_p2
+` : `    ; Load active game area (contiguous rows)
+    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaOffset}
+    ld de, NAMETBL + ${activeAreaOffset}
+    ld bc, ${activeAreaBytes}
+    call FAST_LDIRVM
 `;
                 }
                 else {
-                    code += `    ; Load active game area (rectangular copy by rows)
+                    code += usesMapper ? `    ; Load active game area (rectangular copy by rows)
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
@@ -968,9 +1264,16 @@ ${importedHudFrameLabelBase}_draw_loop:
     ld c, ${activeAreaWidth}
     call copy_layout_rect_to_vram
     call mapper_pop_p2
+` : `    ; Load active game area (rectangular copy by rows)
+    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rectangle
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaOffset}
+    ld de, NAMETBL + ${activeAreaOffset}
+    ld a, ${activeAreaHeight}
+    ld c, ${activeAreaWidth}
+    call copy_layout_rect_to_vram
 `;
                 }
-                code += `    ; Build mutable runtime screen/effects/behavior maps in RAM
+                code += usesMapper ? `    ; Build mutable runtime screen/effects/behavior maps in RAM
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
@@ -1014,8 +1317,46 @@ ${importedHudFrameLabelBase}_draw_loop:
     ld bc, ${runtimeEffectZoneCount * 8}
     ldir
     call mapper_pop_p2
-.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
+` : `    ; Build mutable runtime screen/effects/behavior maps in RAM
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, runtime_background_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
+    ld de, runtime_effects_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, BEHAVIOR_${screenName}_${index}_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, .load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done
+    ld hl, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE
+    ld de, runtime_effect_zone_table
+    ld bc, ${runtimeEffectZoneCount * 8}
+    ldir
 `;
+                code += `.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
+    ld a, ${animatedGroupCount}
+    ld (current_screen_anim_group_count), a
+    ld a, ${entityCount}
+    ld (current_screen_entity_count), a
+    ld a, ${spritePatternSlots}
+    ld (current_screen_sprite_pattern_slots), a
+    ld a, SCREEN_${screenName}_${index}_SUMMARY_FLAGS
+    ld (current_screen_summary_flags), a
+${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
+` : ``}`;
                 if (hasImportedHudFrame) {
                     code += `    ; Imported HUD frame is drawn on world/game start only
 `;
@@ -1055,14 +1396,14 @@ ${importedHudFrameLabelBase}_draw_loop:
     ; Initialize character 0 (empty cells) with background color
     ld a, ${bgColor}           ; Background color for char 0
     call init_char0_color
-`;
+${tileBankLoadCode}`;
                 if (hasSpriteAssets) {
                     code += `    ; Clear hardware sprites on screen switch to avoid visual carry-over
     call clear_all_sprites
     call update_sprites_to_vram
 `;
                 }
-                code += `    ; Now load screen layout (full 32x24)
+                code += usesMapper ? `    ; Now load screen layout (full 32x24)
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
@@ -1071,8 +1412,13 @@ ${importedHudFrameLabelBase}_draw_loop:
     ld bc, SCREEN_${screenName}_${index}_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
+` : `    ; Now load screen layout (full 32x24)
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, NAMETBL
+    ld bc, SCREEN_${screenName}_${index}_SIZE
+    call FAST_LDIRVM           ; Fast VRAM write (direct port access)
 `;
-                code += `    ; Build mutable runtime screen/effects/behavior maps in RAM
+                code += usesMapper ? `    ; Build mutable runtime screen/effects/behavior maps in RAM
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
@@ -1116,8 +1462,46 @@ ${importedHudFrameLabelBase}_draw_loop:
     ld bc, ${runtimeEffectZoneCount * 8}
     ldir
     call mapper_pop_p2
-.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
+` : `    ; Build mutable runtime screen/effects/behavior maps in RAM
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, runtime_background_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
+    ld de, runtime_effects_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, BEHAVIOR_${screenName}_${index}_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, .load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done
+    ld hl, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE
+    ld de, runtime_effect_zone_table
+    ld bc, ${runtimeEffectZoneCount * 8}
+    ldir
 `;
+                code += `.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
+    ld a, ${animatedGroupCount}
+    ld (current_screen_anim_group_count), a
+    ld a, ${entityCount}
+    ld (current_screen_entity_count), a
+    ld a, ${spritePatternSlots}
+    ld (current_screen_sprite_pattern_slots), a
+    ld a, SCREEN_${screenName}_${index}_SUMMARY_FLAGS
+    ld (current_screen_summary_flags), a
+${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
+` : ``}`;
                 if (hasImportedHudFrame) {
                     code += `    ; Imported HUD frame is drawn on world/game start only
 `;

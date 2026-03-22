@@ -7,6 +7,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateStateMachineSystem = generateStateMachineSystem;
 const statemachine_types_1 = require("../../../statemachine.types");
 const spriteUtils_1 = require("../../../components/utils/spriteUtils");
+const romModeUtils_1 = require("./romModeUtils");
 // =============================================================================
 // CONSTANTS & MAPPINGS
 // =============================================================================
@@ -897,8 +898,8 @@ SM_FacingDirTablePtrs:
 ;   3. Reset de animación: pone entity_anim_frame y entity_anim_tick a 0.
 ;   4. Flags de animación: activa PLAYING, aplica el flag de LOOP del
 ;      sprite, borra ONLY_WHEN_MOVING y marca FORCE_UPLOAD para que el
-;      frame 0 se suba limpio al comienzo del siguiente ciclo normal de
-;      animación, fuera del path de cambio de sprite.
+;      próximo update_animation_component sincronice el frame actual
+;      fuera del path de cambio de sprite.
 ;   5. Colores de capas: actualiza sprite_layer_colors (tabla RAM) con
 ;      los colores del nuevo sprite desde SM_SpriteLayerColorTable.
 ;
@@ -935,7 +936,7 @@ SM_FacingDirTablePtrs:
 ;   bit 1 = ANIM_FLAG_LOOP          (1 = bucle infinito, 0 = one-shot)
 ;   bit 2 = ANIM_FLAG_ONLY_WHEN_MOVING (1 = solo anima si vel != 0)
 ;   bit 3 = ANIM_FLAG_COMPLETED     (1 = one-shot llegó al último frame)
-;   bit 4 = ANIM_FLAG_FORCE_UPLOAD  (1 = subir frame actual en el próximo update_animation_component)
+;   bit 4 = ANIM_FLAG_FORCE_UPLOAD  (1 = sincronizar frame actual en el próximo update_animation_component)
 ;
 ; NOTA: el bloque de redirect direccional usa B como registro temporal
 ; para guardar el sprite ID. Al salir del bloque, B queda corrupto.
@@ -1062,8 +1063,8 @@ Action_ChangeSprite:
     ;   - bit 0 (PLAYING)         → 1  (arrancar animación)
     ;   - bit 1 (LOOP)            → según sprite_loop_flags del nuevo sprite
     ;   - bit 2 (ONLY_WHEN_MOVING)→ 0  SIEMPRE, para cualquier sprite
-    ;   - bit 4 (FORCE_UPLOAD)    → 1  pedir subida del frame actual en el
-    ;                                 próximo update_animation_component
+    ;   - bit 4 (FORCE_UPLOAD)    → 1  pedir sincronización del frame actual
+    ;                                 en el próximo update_animation_component
     ;
     ; Razón de limpiar ONLY_WHEN_MOVING siempre:
     ;   Cuando el SM llama ChangeSprite, lo hace porque quiere mostrar ese
@@ -4851,8 +4852,9 @@ function generateStateMachineSoundTables(sounds) {
 /**
  * Generates the complete ASM file content for the State Machine system
  */
-function generateStateMachineSystem(stateMachines, globalVariables, sprites, tiles, templates, sounds, trackIndexByAssetId) {
+function generateStateMachineSystem(stateMachines, globalVariables, sprites, tiles, templates, sounds, trackIndexByAssetId, romMode = 'simple32k') {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
+    const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
     const hasHardwareSprites = Array.isArray(sprites) && sprites.length > 0;
     const hasLivesGlobal = Array.isArray(globalVariables) &&
         globalVariables.some((variable) => String(variable?.asmName || '').trim() === 'global_var_lives');
@@ -4881,6 +4883,55 @@ Action_ExitCurrentWorld:`);
     }
     if (!hasLivesGlobal) {
         asm = asm.replace(/[ \t]*ld \(global_var_lives\), a\s*; Keep FSM global "Lives" in sync with entity health\r?\n/g, '');
+    }
+    if (!usesMapper) {
+        asm = asm.replace(`    ; Update mutable screen layout map
+    push hl                 ; Save tile offset
+    ld de, (current_screen_layout)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+
+    ; Update mutable behavior map (0 = passable, 1 = solid)
+    push hl
+    ld de, (current_behavior_map)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_behavior_map_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    or a
+    jr z, .store_behavior_passable
+    ld a, 1
+.store_behavior_passable:
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+`, `    ; Update mutable screen layout map
+    push hl                 ; Save tile offset
+    ld de, (current_screen_layout)
+    add hl, de
+    ld a, b
+    ld (hl), a
+    pop hl
+
+    ; Update mutable behavior map (0 = passable, 1 = solid)
+    push hl
+    ld de, (current_behavior_map)
+    add hl, de
+    ld a, b
+    or a
+    jr z, .store_behavior_passable
+    ld a, 1
+.store_behavior_passable:
+    ld (hl), a
+    pop hl
+`);
     }
     // Build sprite name -> asset index map for CHANGE_SPRITE actions.
     // Must match spritesGenerator directional expansion to keep indexes aligned.

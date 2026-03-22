@@ -406,8 +406,10 @@ def maybe_run_post_asm_optimizer(
     return asm_output
 
 
-def launch_openmsx(openmsx_exec: str, rom_output: Path, project_root: Path) -> None:
+def launch_openmsx(openmsx_exec: str, rom_output: Path, project_root: Path, rom_mode: str | None = None) -> None:
     cmd = [openmsx_exec, "-cart", str(rom_output)]
+    if rom_mode == "plain48k":
+        cmd.extend(["-romtype", "Plain"])
     print("Running:", " ".join(cmd))
     if os.name == "nt":
         creationflags = 0x00000008 | 0x00000200
@@ -522,7 +524,7 @@ def main() -> int:
         except FileNotFoundError as exc:
             print(str(exc), file=sys.stderr)
             return 2
-        launch_openmsx(openmsx_exec, rom_output, project_root)
+        launch_openmsx(openmsx_exec, rom_output, project_root, args.rom_mode)
 
     return 0
 

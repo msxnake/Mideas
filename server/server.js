@@ -201,6 +201,10 @@ function sourceConfigHasMapperWritesEnabled(sourceConfig) {
 
 function sourceHasLinear48kLayout(sourceCode) {
   const text = String(sourceCode || '');
+  const explicitPage0Data = text.match(/^\s*;\s*Linear48K Page0 Data:\s*(Yes|No)\b/im)?.[1];
+  if (explicitPage0Data) {
+    return explicitPage0Data.toLowerCase() === 'yes';
+  }
   return /^\s*org\s+#0000\b/im.test(text) && /^\s*org\s+#4000\b/im.test(text);
 }
 
@@ -467,6 +471,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const compressPresentationName = parsePresentationCompressionFlag(sourceCode, 'PRESENTATION_SCREEN_COMPRESS_NAMETBL', true);
   const compressPresentationPatterns = parsePresentationCompressionFlag(sourceCode, 'PRESENTATION_SCREEN_COMPRESS_PATTERNS', true);
   const compressPresentationColors = parsePresentationCompressionFlag(sourceCode, 'PRESENTATION_SCREEN_COMPRESS_COLORS', true);
+  const presentationDataInPage0 = /^\s*;\s*PRESENTATION_SCREEN_ROM_DATA_GROUP:\s*page0\s*$/im.test(sourceCode);
   info.screenBufferSymbol = screenBufferSymbol;
   info.effectsBufferSymbol = 'runtime_effects_layout';
   info.behaviorBufferSymbol = behaviorBufferSymbol;
@@ -735,6 +740,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   let inActionChangeSprite = false;
   let inSubmenuPrepareCursor = false;
   let inShowPresentationScreen = false;
+  let presentationCopyUsesRamBuffer = false;
   let fontBlobInitInjected = false;
 
   for (const line of rebuilt) {
@@ -786,6 +792,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inActionChangeSprite = false;
       inSubmenuPrepareCursor = false;
       inShowPresentationScreen = true;
+      presentationCopyUsesRamBuffer = false;
       patched.push(line);
       continue;
     }
@@ -971,48 +978,51 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     }
 
     const hlPresentationNameMatch = line.match(/^\s*ld\s+hl,\s*(PRESENTATION_SCREEN_NAMETBL)\s*(?:;.*)?$/i);
-    if (inShowPresentationScreen && hlPresentationNameMatch) {
+    if (inShowPresentationScreen && !presentationDataInPage0 && hlPresentationNameMatch) {
       const label = hlPresentationNameMatch[1].toUpperCase();
       if (compressedLayoutLabels.has(label)) {
         patched.push('    ; Decompress ZX0 presentation name table into RAM buffer');
-        patched.push('    di');
         patched.push(`    ld hl, ${hlPresentationNameMatch[1]}`);
         patched.push(`    ld de, ${screenBufferSymbol}`);
-        patched.push('    call dzx0_standard');
-        patched.push('    ei');
+        patched.push(`    call ${presentationDataInPage0 ? 'page0_decompress_to_ram' : 'dzx0_standard'}`);
         patched.push(`    ld hl, ${screenBufferSymbol}`);
+        presentationCopyUsesRamBuffer = true;
         continue;
       }
     }
 
     const hlPresentationPatternMatch = line.match(/^\s*ld\s+hl,\s*(PRESENTATION_SCREEN_PATTERNS_B[0-2])\s*(?:;.*)?$/i);
-    if (inShowPresentationScreen && hlPresentationPatternMatch) {
+    if (inShowPresentationScreen && !presentationDataInPage0 && hlPresentationPatternMatch) {
       const label = hlPresentationPatternMatch[1].toUpperCase();
       if (compressedTilePatternLabels.has(label)) {
         patched.push('    ; Decompress ZX0 presentation pattern bank into RAM buffer');
-        patched.push('    di');
         patched.push(`    ld hl, ${hlPresentationPatternMatch[1]}`);
         patched.push(`    ld de, ${tilePatternBufferSymbol}`);
-        patched.push('    call dzx0_standard');
-        patched.push('    ei');
+        patched.push(`    call ${presentationDataInPage0 ? 'page0_decompress_to_ram' : 'dzx0_standard'}`);
         patched.push(`    ld hl, ${tilePatternBufferSymbol}`);
+        presentationCopyUsesRamBuffer = true;
         continue;
       }
     }
 
     const hlPresentationColorMatch = line.match(/^\s*ld\s+hl,\s*(PRESENTATION_SCREEN_COLORS_B[0-2])\s*(?:;.*)?$/i);
-    if (inShowPresentationScreen && hlPresentationColorMatch) {
+    if (inShowPresentationScreen && !presentationDataInPage0 && hlPresentationColorMatch) {
       const label = hlPresentationColorMatch[1].toUpperCase();
       if (compressedTileColorLabels.has(label)) {
         patched.push('    ; Decompress ZX0 presentation color bank into RAM buffer');
-        patched.push('    di');
         patched.push(`    ld hl, ${hlPresentationColorMatch[1]}`);
         patched.push(`    ld de, ${tileColorBufferSymbol}`);
-        patched.push('    call dzx0_standard');
-        patched.push('    ei');
+        patched.push(`    call ${presentationDataInPage0 ? 'page0_decompress_to_ram' : 'dzx0_standard'}`);
         patched.push(`    ld hl, ${tileColorBufferSymbol}`);
+        presentationCopyUsesRamBuffer = true;
         continue;
       }
+    }
+
+    if (inShowPresentationScreen && !presentationDataInPage0 && presentationCopyUsesRamBuffer && /^\s*call\s+page0_copy_to_vram\s*(?:;.*)?$/i.test(line)) {
+      patched.push('    call FAST_LDIRVM');
+      presentationCopyUsesRamBuffer = false;
+      continue;
     }
 
     if (compressedFontPatternLabels.size > 0 && /^\s*ld\s+iy,\s*FONT_PATTERN_DATA\s*(?:;.*)?$/i.test(line)) {
@@ -1033,6 +1043,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inUpdateAnimation = false;
       inActionChangeSprite = false;
       inShowPresentationScreen = false;
+      presentationCopyUsesRamBuffer = false;
       layoutDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;
@@ -1192,6 +1203,10 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     const dataBlock = `\n${extraDataBlocks.join('\n')}\n`;
     if (/^\s*end\b.*$/im.test(finalCode)) {
       finalCode = finalCode.replace(/^\s*end\b.*$/im, `${dataBlock}$&`);
+    } else if (/^\s*ds\s+#C000\s*-\s*[$][^\n]*/im.test(finalCode)) {
+      // plain48k: inject data BEFORE the final pad so blobs stay in #4000-#BFFF range
+      // Note: use [$] character class to match literal '$' (not end-of-line anchor)
+      finalCode = finalCode.replace(/^\s*ds\s+#C000\s*-\s*[$][^\n]*/im, `${dataBlock}\n    ds #C000 - $        ; Pad linear 48K ROM to 49152 bytes`);
     } else {
       finalCode = `${finalCode}${dataBlock}`;
     }
@@ -1284,6 +1299,24 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       finalCode = finalCode.replace(/^\s*end\b.*$/im, `${zx0Block}\n$&`);
     } else {
       finalCode = `${finalCode}\n${zx0Block}\n`;
+    }
+  }
+
+  // Keep the fixed-size 48KB pad as the last data reservation in plain48k builds.
+  // ZX0 injection appends helpers and routines near the end of the file; if the
+  // original `ds #C000 - $` remains before those blocks, the final ROM grows past
+  // 48KB even though the source intended a fixed linear image.
+  if (/^\s*;\s*Linear48K Page0 Data:\s*(Yes|No)\b/im.test(finalCode)) {
+    const plain48PadRegex = /^\s*ds\s+#C000\s*-\s*\$\s*(?:;.*)?$/im;
+    const padMatch = finalCode.match(plain48PadRegex);
+    if (padMatch) {
+      const padLine = padMatch[0];
+      finalCode = finalCode.replace(plain48PadRegex, '').replace(/\n{3,}/g, '\n\n');
+      if (/^\s*end\b.*$/im.test(finalCode)) {
+        finalCode = finalCode.replace(/^\s*end\b.*$/im, `${padLine}\n\n$&`);
+      } else {
+        finalCode = `${finalCode}\n${padLine}\n`;
+      }
     }
   }
 
@@ -2226,7 +2259,7 @@ app.get('/roms', (req, res) => {
  * @function
  */
 app.post('/run-openmsx', (req, res) => {
-  const { romFile } = req.body;
+  const { romFile, romType } = req.body;
 
   if (!romFile) {
     return res.status(400).send({ error: 'No ROM file specified' });
@@ -2251,7 +2284,10 @@ app.post('/run-openmsx', (req, res) => {
   console.log(`Starting OpenMSX with ROM: ${romFile}`);
 
   // Execute run script (doesn't wait - OpenMSX stays open)
-  const command = `"${runScript}" "${romPath}"`;
+  const romTypeArg = typeof romType === 'string' && romType.trim()
+    ? ` "${romType.trim()}"`
+    : '';
+  const command = `"${runScript}" "${romPath}"${romTypeArg}`;
 
   exec(command, (error, stdout, stderr) => {
     if (error) {
@@ -2269,6 +2305,7 @@ app.post('/run-openmsx', (req, res) => {
       success: true,
       message: 'OpenMSX started successfully',
       romFile: romFile,
+      romType: typeof romType === 'string' && romType.trim() ? romType.trim() : null,
       note: 'OpenMSX is running - close it manually when done testing'
     });
   });
@@ -2280,7 +2317,7 @@ app.post('/run-openmsx', (req, res) => {
  * @function
  */
 app.post('/generate-screenshot', (req, res) => {
-  const { romFile, waitSeconds = 10 } = req.body;
+  const { romFile, waitSeconds = 10, romType } = req.body;
 
   if (!romFile) {
     return res.status(400).send({ error: 'No ROM file specified' });
@@ -2305,7 +2342,10 @@ app.post('/generate-screenshot', (req, res) => {
   console.log(`Generating screenshot for ROM: ${romFile} (wait: ${waitSeconds}s)`);
 
   // Execute screenshot script and wait for completion
-  const command = `"${screenshotScript}" "${romPath}" ${waitSeconds}`;
+  const romTypeArg = typeof romType === 'string' && romType.trim()
+    ? ` "${romType.trim()}"`
+    : '';
+  const command = `"${screenshotScript}" "${romPath}" ${waitSeconds}${romTypeArg}`;
 
   exec(command, { timeout: (waitSeconds + 20) * 1000 }, (error, stdout, stderr) => {
     if (error) {

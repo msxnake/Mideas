@@ -10,7 +10,14 @@ import { ScreenMap, TileBank, normalizeEffectZoneParams, resolveEffectZoneType }
 import { buildRegisterContractComment } from './registerContract';
 import { collectAnimatedTileGroupSummaries } from './animatedTilesGenerator';
 import { buildScreenSpritePatternUsageSummaries } from './spritesGenerator';
-import { getScreen2TileBankColorLoaderLabel, getScreen2TileBankPatternLoaderLabel } from '../utils/screen2TileBanks';
+import {
+  getScreen2TileBankColorLoaderLabel,
+  getScreen2TileBankPatternLoaderLabel,
+  resolveRuntimeScreen2TileBankCharCode,
+  resolveRuntimeScreen2TileBankDefinitions,
+} from '../utils/screen2TileBanks';
+import { presentationScreenUsesPage0Group } from './page0Generator';
+import { usesMapperBanking } from './romModeUtils';
 
 const SCREEN_WIDTH = 32;
 const SCREEN_HEIGHT = 24;
@@ -39,37 +46,7 @@ function clampByte(value: number | undefined, fallback = 0): number {
 }
 
 function resolveTileBankDefinitions(screen: ScreenMap, analysis: ProjectAnalysis): TileBank['banks'] | undefined {
-  const screenTileBank = analysis.tileBanks?.find(tileBank => tileBank.id === screen.tileBankAssetId);
-  if (screenTileBank?.banks?.length) {
-    return screenTileBank.banks;
-  }
-
-  if (!analysis.tiles || analysis.tiles.length === 0) {
-    return undefined;
-  }
-
-  const baseDef = DEFAULT_TILE_BANK_DEFINITIONS[1] as any;
-  const globalBankDef: any = {
-    ...baseDef,
-    assignedTiles: {},
-    charsetRangeStart: 128,
-    charsetRangeEnd: 255,
-    enabled: true,
-  };
-
-  let nextCharCode = 128;
-  analysis.tiles.forEach((tileAsset) => {
-    if (!tileAsset?.id) return;
-    const charsWide = Math.ceil(tileAsset.width / 8);
-    const charsHigh = Math.ceil(tileAsset.height / 8);
-    globalBankDef.assignedTiles[tileAsset.id] = {
-      charCode: nextCharCode,
-      assignedAt: Date.now(),
-    };
-    nextCharCode += charsWide * charsHigh;
-  });
-
-  return [globalBankDef, globalBankDef, globalBankDef];
+  return resolveRuntimeScreen2TileBankDefinitions(analysis, screen.tileBankAssetId);
 }
 
 function buildLayerLayoutBytes(
@@ -123,7 +100,7 @@ function hasPresentationScreenData(analysis: ProjectAnalysis): boolean {
   return Array.isArray(config.data?.nameTable) && config.data.nameTable.length === (SCREEN_WIDTH * SCREEN_HEIGHT);
 }
 
-function generatePresentationScreenSection(analysis: ProjectAnalysis, hasSpriteAssets: boolean): string {
+function generatePresentationScreenSection(analysis: ProjectAnalysis, hasSpriteAssets: boolean, romMode: string): string {
   if (!hasPresentationScreenData(analysis)) {
     // Stub so GameFlow PresentationScreen nodes can always call show_presentation_screen
     return `show_presentation_screen:
@@ -134,6 +111,8 @@ function generatePresentationScreenSection(analysis: ProjectAnalysis, hasSpriteA
 
   const presentationScreen = analysis.presentationScreen!;
   const config = presentationScreen;
+  const usesMapper = usesMapperBanking(romMode);
+  const usePage0DataGroup = romMode === 'plain48k' && presentationScreenUsesPage0Group(analysis, romMode);
   const patternSize = Math.max(
     config.data.patternBank0.length,
     config.data.patternBank1.length,
@@ -154,15 +133,14 @@ function generatePresentationScreenSection(analysis: ProjectAnalysis, hasSpriteA
 ; PRESENTATION_SCREEN_COMPRESS_NAMETBL: ${config.compression.compressNameTable ? 1 : 0}
 ; PRESENTATION_SCREEN_COMPRESS_PATTERNS: ${config.compression.compressPatterns ? 1 : 0}
 ; PRESENTATION_SCREEN_COMPRESS_COLORS: ${config.compression.compressColors ? 1 : 0}
-
-PRESENTATION_SCREEN_NAMETBL_BANK EQU ((PRESENTATION_SCREEN_NAMETBL - #4000) / #2000)
+${usePage0DataGroup ? '; PRESENTATION_SCREEN_ROM_DATA_GROUP: page0\n' : `PRESENTATION_SCREEN_NAMETBL_BANK EQU ((PRESENTATION_SCREEN_NAMETBL - #4000) / #2000)
 PRESENTATION_SCREEN_PATTERNS_B0_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B0 - #4000) / #2000)
 PRESENTATION_SCREEN_PATTERNS_B1_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B1 - #4000) / #2000)
 PRESENTATION_SCREEN_PATTERNS_B2_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B2 - #4000) / #2000)
 PRESENTATION_SCREEN_COLORS_B0_BANK EQU ((PRESENTATION_SCREEN_COLORS_B0 - #4000) / #2000)
 PRESENTATION_SCREEN_COLORS_B1_BANK EQU ((PRESENTATION_SCREEN_COLORS_B1 - #4000) / #2000)
 PRESENTATION_SCREEN_COLORS_B2_BANK EQU ((PRESENTATION_SCREEN_COLORS_B2 - #4000) / #2000)
-PRESENTATION_SCREEN_NAMETBL_SIZE EQU ${nameSize}
+`}PRESENTATION_SCREEN_NAMETBL_SIZE EQU ${nameSize}
 PRESENTATION_SCREEN_PATTERN_B0_SIZE EQU ${config.data.patternBank0.length}
 PRESENTATION_SCREEN_PATTERN_B1_SIZE EQU ${config.data.patternBank1.length}
 PRESENTATION_SCREEN_PATTERN_B2_SIZE EQU ${config.data.patternBank2.length}
@@ -174,33 +152,37 @@ PRESENTATION_SCREEN_MAX_COLOR_SIZE EQU ${colorSize}
 
 `;
 
-  code += generateRawByteBlock('PRESENTATION_SCREEN_NAMETBL', config.data.nameTable, [
-    `${config.name} - Name table (32x24)`,
-  ]);
-  code += '\n';
-  code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B0', config.data.patternBank0, [
-    `${config.name} - Pattern bank 0`,
-  ]);
-  code += '\n';
-  code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B1', config.data.patternBank1, [
-    `${config.name} - Pattern bank 1`,
-  ]);
-  code += '\n';
-  code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B2', config.data.patternBank2, [
-    `${config.name} - Pattern bank 2`,
-  ]);
-  code += '\n';
-  code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B0', config.data.colorBank0, [
-    `${config.name} - Color bank 0`,
-  ]);
-  code += '\n';
-  code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B1', config.data.colorBank1, [
-    `${config.name} - Color bank 1`,
-  ]);
-  code += '\n';
-  code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B2', config.data.colorBank2, [
-    `${config.name} - Color bank 2`,
-  ]);
+  if (usePage0DataGroup) {
+    code += `; Data labels are emitted in page0.asm for linear 48K builds.\n`;
+  } else {
+    code += generateRawByteBlock('PRESENTATION_SCREEN_NAMETBL', config.data.nameTable, [
+      `${config.name} - Name table (32x24)`,
+    ]);
+    code += '\n';
+    code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B0', config.data.patternBank0, [
+      `${config.name} - Pattern bank 0`,
+    ]);
+    code += '\n';
+    code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B1', config.data.patternBank1, [
+      `${config.name} - Pattern bank 1`,
+    ]);
+    code += '\n';
+    code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B2', config.data.patternBank2, [
+      `${config.name} - Pattern bank 2`,
+    ]);
+    code += '\n';
+    code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B0', config.data.colorBank0, [
+      `${config.name} - Color bank 0`,
+    ]);
+    code += '\n';
+    code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B1', config.data.colorBank1, [
+      `${config.name} - Color bank 1`,
+    ]);
+    code += '\n';
+    code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B2', config.data.colorBank2, [
+      `${config.name} - Color bank 2`,
+    ]);
+  }
   code += `\n${buildRegisterContractComment({
     purpose: 'Wait a configurable number of frames after showing the presentation screen.',
     inputs: ['B = frame count'],
@@ -259,7 +241,105 @@ ${buildRegisterContractComment({
 `;
   }
 
-  code += `    call mapper_push_p2
+  code += usePage0DataGroup
+    ? `    ; Page 0 data is ZX0-compressed: decompress to RAM first, then upload to VRAM.
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B0
+    ld de, ZX0_TILE_PATTERN_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_TILE_PATTERN_BUFFER
+    ld de, CHRTBL2
+    ld bc, PRESENTATION_SCREEN_PATTERN_B0_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B1
+    ld de, ZX0_TILE_PATTERN_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_TILE_PATTERN_BUFFER
+    ld de, CHRTBL2 + #800
+    ld bc, PRESENTATION_SCREEN_PATTERN_B1_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B2
+    ld de, ZX0_TILE_PATTERN_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_TILE_PATTERN_BUFFER
+    ld de, CHRTBL2 + #1000
+    ld bc, PRESENTATION_SCREEN_PATTERN_B2_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_COLORS_B0
+    ld de, ZX0_TILE_COLOR_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_TILE_COLOR_BUFFER
+    ld de, CLRTBL2
+    ld bc, PRESENTATION_SCREEN_COLOR_B0_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_COLORS_B1
+    ld de, ZX0_TILE_COLOR_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_TILE_COLOR_BUFFER
+    ld de, CLRTBL2 + #800
+    ld bc, PRESENTATION_SCREEN_COLOR_B1_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_COLORS_B2
+    ld de, ZX0_TILE_COLOR_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_TILE_COLOR_BUFFER
+    ld de, CLRTBL2 + #1000
+    ld bc, PRESENTATION_SCREEN_COLOR_B2_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_NAMETBL
+    ld de, ZX0_SCREEN_BUFFER
+    call page0_decompress_to_ram
+    ld hl, ZX0_SCREEN_BUFFER
+    ld de, NAMETBL
+    ld bc, PRESENTATION_SCREEN_NAMETBL_SIZE
+    call FAST_LDIRVM
+
+    call ENASCR
+`
+    : !usesMapper
+    ? `    ld hl, PRESENTATION_SCREEN_PATTERNS_B0
+    ld de, CHRTBL2
+    ld bc, PRESENTATION_SCREEN_PATTERN_B0_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B1
+    ld de, CHRTBL2 + #800
+    ld bc, PRESENTATION_SCREEN_PATTERN_B1_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_PATTERNS_B2
+    ld de, CHRTBL2 + #1000
+    ld bc, PRESENTATION_SCREEN_PATTERN_B2_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_COLORS_B0
+    ld de, CLRTBL2
+    ld bc, PRESENTATION_SCREEN_COLOR_B0_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_COLORS_B1
+    ld de, CLRTBL2 + #800
+    ld bc, PRESENTATION_SCREEN_COLOR_B1_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_COLORS_B2
+    ld de, CLRTBL2 + #1000
+    ld bc, PRESENTATION_SCREEN_COLOR_B2_SIZE
+    call FAST_LDIRVM
+
+    ld hl, PRESENTATION_SCREEN_NAMETBL
+    ld de, NAMETBL
+    ld bc, PRESENTATION_SCREEN_NAMETBL_SIZE
+    call FAST_LDIRVM
+
+    call ENASCR
+`
+    : `    call mapper_push_p2
     ld a, PRESENTATION_SCREEN_PATTERNS_B0_BANK
     call mapper_set_bank_p2
     ld hl, PRESENTATION_SCREEN_PATTERNS_B0
@@ -521,7 +601,8 @@ function countAnimatedGroupsInScreen(
  * @param analysis - Project analysis with screen maps and tiles
  * @returns ASM code string with screen layout data and loading functions
  */
-export function generateScreensFile(analysis: ProjectAnalysis): string {
+export function generateScreensFile(analysis: ProjectAnalysis, romMode: string = 'simple32k'): string {
+  const usesMapper = usesMapperBanking(romMode);
   const hasSpriteAssets = !!analysis.sprites && analysis.sprites.length > 0;
   const animatedTileGroups = collectAnimatedTileGroupSummaries(analysis);
   const screenEntityCounts = buildScreenEntityCountMap(analysis);
@@ -547,7 +628,7 @@ export function generateScreensFile(analysis: ProjectAnalysis): string {
 load_screen_default:
     ret
 
-${generatePresentationScreenSection(analysis, hasSpriteAssets)}
+${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode)}
 ; ==================================================================
 ; END OF SCREENS (MINIMAL VERSION)
 ; ==================================================================
@@ -972,7 +1053,7 @@ screen_runtime_summary_table:
       code += `\n`;
     });
 
-    code += generatePresentationScreenSection(analysis, hasSpriteAssets);
+    code += generatePresentationScreenSection(analysis, hasSpriteAssets, romMode);
 
     code += `; ==================================================================
 ; SCREEN LOADING FUNCTIONS
@@ -1238,7 +1319,20 @@ load_screen:
         .map((cell: any) => ({
           x: cell.x | 0,
           y: cell.y | 0,
-          charCode: cell.charCode & 0xFF
+          charCode: (() => {
+            const runtimeCharCode = resolveRuntimeScreen2TileBankCharCode(
+              analysis,
+              screen.hudConfiguration?.importedFrame?.sourceTileBankAssetId,
+              cell.tileId,
+              cell.y | 0,
+              cell.subTileX | 0,
+              cell.subTileY | 0
+            );
+            if (runtimeCharCode > 0) {
+              return runtimeCharCode & 0xFF;
+            }
+            return (cell.charCode & 0xFF);
+          })()
         }));
 
       const hasImportedHudFrame = importedHudFrameCells.length > 0;
@@ -1311,7 +1405,7 @@ ${tileBankLoadCode}`;
         }
 
         if (activeAreaWidth === 32) {
-          code += `    ; Load active game area (contiguous rows)
+          code += usesMapper ? `    ; Load active game area (contiguous rows)
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
@@ -1321,9 +1415,15 @@ ${tileBankLoadCode}`;
     ld bc, ${activeAreaBytes}
     call FAST_LDIRVM
     call mapper_pop_p2
+` : `    ; Load active game area (contiguous rows)
+    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaOffset}
+    ld de, NAMETBL + ${activeAreaOffset}
+    ld bc, ${activeAreaBytes}
+    call FAST_LDIRVM
 `;
         } else {
-          code += `    ; Load active game area (rectangular copy by rows)
+          code += usesMapper ? `    ; Load active game area (rectangular copy by rows)
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
@@ -1334,10 +1434,17 @@ ${tileBankLoadCode}`;
     ld c, ${activeAreaWidth}
     call copy_layout_rect_to_vram
     call mapper_pop_p2
+` : `    ; Load active game area (rectangular copy by rows)
+    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rectangle
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaOffset}
+    ld de, NAMETBL + ${activeAreaOffset}
+    ld a, ${activeAreaHeight}
+    ld c, ${activeAreaWidth}
+    call copy_layout_rect_to_vram
 `;
         }
 
-        code += `    ; Build mutable runtime screen/effects/behavior maps in RAM
+        code += usesMapper ? `    ; Build mutable runtime screen/effects/behavior maps in RAM
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
@@ -1381,7 +1488,36 @@ ${tileBankLoadCode}`;
     ld bc, ${runtimeEffectZoneCount * 8}
     ldir
     call mapper_pop_p2
-.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
+` : `    ; Build mutable runtime screen/effects/behavior maps in RAM
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, runtime_background_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
+    ld de, runtime_effects_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, BEHAVIOR_${screenName}_${index}_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, .load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done
+    ld hl, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE
+    ld de, runtime_effect_zone_table
+    ld bc, ${runtimeEffectZoneCount * 8}
+    ldir
+`;
+        code += `.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
     ld a, ${animatedGroupCount}
     ld (current_screen_anim_group_count), a
     ld a, ${entityCount}
@@ -1439,7 +1575,7 @@ ${tileBankLoadCode}`;
     call update_sprites_to_vram
 `;
         }
-        code += `    ; Now load screen layout (full 32x24)
+        code += usesMapper ? `    ; Now load screen layout (full 32x24)
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
@@ -1448,8 +1584,13 @@ ${tileBankLoadCode}`;
     ld bc, SCREEN_${screenName}_${index}_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
+` : `    ; Now load screen layout (full 32x24)
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, NAMETBL
+    ld bc, SCREEN_${screenName}_${index}_SIZE
+    call FAST_LDIRVM           ; Fast VRAM write (direct port access)
 `;
-        code += `    ; Build mutable runtime screen/effects/behavior maps in RAM
+        code += usesMapper ? `    ; Build mutable runtime screen/effects/behavior maps in RAM
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
@@ -1493,7 +1634,36 @@ ${tileBankLoadCode}`;
     ld bc, ${runtimeEffectZoneCount * 8}
     ldir
     call mapper_pop_p2
-.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
+` : `    ; Build mutable runtime screen/effects/behavior maps in RAM
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, runtime_background_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
+    ld de, runtime_effects_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, BEHAVIOR_${screenName}_${index}_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, .load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done
+    ld hl, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE
+    ld de, runtime_effect_zone_table
+    ld bc, ${runtimeEffectZoneCount * 8}
+    ldir
+`;
+        code += `.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
     ld a, ${animatedGroupCount}
     ld (current_screen_anim_group_count), a
     ld a, ${entityCount}

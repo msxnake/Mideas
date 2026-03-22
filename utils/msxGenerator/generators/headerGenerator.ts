@@ -43,7 +43,12 @@ function generateTaskRegistration(analysis?: ProjectAnalysis, executionPlan?: Ex
  * @param analysis - Project analysis with GameFlow data
  * @returns ASM code string with ROM header and initialization
  */
-export function generateHeaderFile(projectName: string, analysis?: ProjectAnalysis, executionPlan?: ExecutionPlan): string {
+export function generateHeaderFile(
+  projectName: string,
+  analysis?: ProjectAnalysis,
+  executionPlan?: ExecutionPlan,
+  romMode: string = 'simple32k'
+): string {
   // Generate GameFlow comment for documentation
   let gameFlowComment = '';
 
@@ -84,6 +89,11 @@ export function generateHeaderFile(projectName: string, analysis?: ProjectAnalys
 
 `
     : '';
+  const initialPageSetupAsm = `    ; Cold boot path: ensure cartridge page 2 (8000h-BFFFh) is mapped to the cartridge slot.
+    ; Required for both simple32k and plain48k: the BIOS only maps page 1 when it finds "AB",
+    ; page 2 must be explicitly mapped via SETPAGES32K (reads page-1 slot, applies it to page 2).
+    call SETPAGES32K
+    jp restart_rom_continue`;
 
   return `; ==================================================================
 ; MSX CARTRIDGE ROM HEADER
@@ -115,9 +125,7 @@ init_rom:
     ; Initialize stack
     ld sp, #F380
 
-    ; Cold boot path: ensure cartridge pages are mapped.
-    call SETPAGES32K
-    jp restart_rom_continue
+${initialPageSetupAsm}
 
 ; Restart entry point for GameFlow Restart node.
 ; Reinitializes runtime safely without remapping cartridge pages.
@@ -127,6 +135,9 @@ restart_rom:
     ld sp, #F380
 
 restart_rom_continue:
+    ; Capture the normal slot state for optional linear 48K page-0 helpers.
+    call init_page0_runtime_state
+
     ; Initialize mapper runtime state (safe no-op in simple32k mode)
     call mapper_runtime_init
 

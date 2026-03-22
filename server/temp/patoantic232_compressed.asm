@@ -12,7 +12,7 @@
 ; Menus: Yes
 ; HUD: Yes
 ; State Machines: 1
-; ROM Mode: simple32k
+; ROM Mode: plain48k
 ; Mapper Target: konami
 ; Auto MegaROM: No
 ; Engine Execution Mode: interruptTaskManager
@@ -27,45 +27,313 @@
 ; Mainline: render -> render_hud (hud)
 ; Warning: none
 ; ==================================================================
+; Linear48K Page0 Data: Yes
+; Page0 Used Bytes: 6080
+; Page0 Remaining Bytes: 10304
+; EXPERIMENTAL: linear 48K page-0 data groups currently start with Presentation Screen.
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 128609
+; Estimated payload bytes: 126262
 ; Estimated banks used: 16
 ; ------------------------------------------------------------------
-; BANK 00 @#0000 : patterns.asm (2114 bytes)
-; BANK 00 @#0842 : colors.asm (1895 bytes)
-; BANK 00 @#0FA9 : components.asm (22 bytes)
-; BANK 00 @#0FBF : entities.asm (4161 bytes)
-; BANK 01 @#0000 : entities.asm (3267 bytes)
-; BANK 01 @#0CC3 : worlds.asm (4925 bytes)
-; BANK 02 @#0000 : worlds.asm (3103 bytes)
-; BANK 02 @#0C1F : screens.asm part 1/5 (5089 bytes)
-; BANK 03 @#0000 : screens.asm part 2/5 (8192 bytes)
-; BANK 04 @#0000 : screens.asm part 3/5 (8192 bytes)
-; BANK 05 @#0000 : screens.asm part 4/5 (8192 bytes)
-; BANK 06 @#0000 : screens.asm part 5/5 (8192 bytes)
-; BANK 07 @#0000 : screens.asm part 6/5 (1163 bytes)
-; BANK 07 @#048B : sprites.asm part 1/2 (7029 bytes)
-; BANK 08 @#0000 : sprites.asm part 2/2 (5574 bytes)
-; BANK 08 @#15C6 : font.asm (2618 bytes)
-; BANK 09 @#0000 : font.asm (869 bytes)
-; BANK 09 @#0365 : hud.asm (4290 bytes)
-; BANK 09 @#1427 : menus.asm (454 bytes)
-; BANK 09 @#15ED : sound.asm part 1/2 (2579 bytes)
-; BANK 10 @#0000 : sound.asm part 2/2 (6960 bytes)
-; BANK 10 @#1B30 : scroll.asm (1232 bytes)
-; BANK 11 @#0000 : scroll.asm (1121 bytes)
-; BANK 11 @#0461 : animtiles.asm (6239 bytes)
-; BANK 11 @#1CC0 : statemachine.asm part 1/3 (832 bytes)
+; BANK 00 @#0000 : page0.asm (7923 bytes)
+; BANK 00 @#1EF3 : patterns.asm (269 bytes)
+; BANK 01 @#0000 : patterns.asm (1821 bytes)
+; BANK 01 @#071D : colors.asm (1871 bytes)
+; BANK 01 @#0E6C : components.asm (22 bytes)
+; BANK 01 @#0E82 : entities.asm (4478 bytes)
+; BANK 02 @#0000 : entities.asm (3358 bytes)
+; BANK 02 @#0D1E : worlds.asm (4834 bytes)
+; BANK 03 @#0000 : worlds.asm (3194 bytes)
+; BANK 03 @#0C7A : screens.asm part 1/4 (4998 bytes)
+; BANK 04 @#0000 : screens.asm part 2/4 (8192 bytes)
+; BANK 05 @#0000 : screens.asm part 3/4 (8192 bytes)
+; BANK 06 @#0000 : screens.asm part 4/4 (8192 bytes)
+; BANK 07 @#0000 : screens.asm part 5/4 (611 bytes)
+; BANK 07 @#0263 : sprites.asm part 1/2 (7581 bytes)
+; BANK 08 @#0000 : sprites.asm part 2/2 (5022 bytes)
+; BANK 08 @#139E : font.asm (3170 bytes)
+; BANK 09 @#0000 : font.asm (317 bytes)
+; BANK 09 @#013D : hud.asm (4290 bytes)
+; BANK 09 @#11FF : menus.asm (454 bytes)
+; BANK 09 @#13C5 : sound.asm (3131 bytes)
+; BANK 10 @#0000 : sound.asm (4116 bytes)
+; BANK 10 @#1014 : scroll.asm (2353 bytes)
+; BANK 10 @#1945 : animtiles.asm (1723 bytes)
+; BANK 11 @#0000 : animtiles.asm (4516 bytes)
+; BANK 11 @#11A4 : statemachine.asm part 1/3 (3676 bytes)
 ; BANK 12 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 13 @#0000 : statemachine.asm part 3/3 (8192 bytes)
-; BANK 14 @#0000 : statemachine.asm part 4/3 (488 bytes)
-; BANK 14 @#01E8 : gameflow.asm part 1/2 (7704 bytes)
-; BANK 15 @#0000 : gameflow.asm part 2/2 (5729 bytes)
+; BANK 13 @#0000 : statemachine.asm part 3/3 (5836 bytes)
+; BANK 13 @#16CC : gameflow.asm part 1/2 (2356 bytes)
+; BANK 14 @#0000 : gameflow.asm part 2/2 (8192 bytes)
+; BANK 15 @#0000 : gameflow.asm part 3/2 (3382 bytes)
+
+; ==================================================================
+; LINEAR 48K PAGE 0 SCAFFOLD
+; ==================================================================
+    org #0000
+; ==================================================================
+; PAGE 0 DATA GROUPS
+; File: page0.asm
+; Description: Cold data packed in the 0000h-3FFFh window for linear 48K ROMs
+; ==================================================================
+
+; Page 0 Budget Planner
+; Budget: 16384 bytes
+; Used: 6080 bytes
+; Remaining: 10304 bytes
+; Selected groups:
+; - Presentation Screen: 6080 bytes [auto] Auto-packed into page 0 as highest-priority cold data.
+
+; ------------------------------------------------------------------
+; Group: Presentation Screen
+; Intended use:
+; - Copy cold data from page 0 to RAM/VRAM from page 1 helpers
+; - Keep BIOS visible during normal execution
+; ------------------------------------------------------------------
+
+; Presentation Screen - Name table (32x24)
+; Packed into page 0 group for plain48k layout.
+PRESENTATION_SCREEN_NAMETBL:
+    ; ZX0 compressed layout (768 -> 260 bytes)
+    DB #90,#00,#47,#80,#C1,#A8,#01,#02,#03,#04,#05,#06,#07,#08,#09,#16
+    DB #52,#0A,#0B,#0C,#0D,#0E,#0F,#10,#11,#12,#13,#14,#15,#16,#17,#04
+    DB #80,#77,#18,#19,#1A,#1B,#1C,#1D,#1E,#1F,#20,#21,#22,#23,#24,#25
+    DB #26,#27,#28,#CA,#18,#46,#29,#2A,#2B,#2C,#2D,#2E,#2F,#30,#31,#32
+    DB #33,#34,#35,#36,#37,#38,#39,#3A,#3B,#3C,#3D,#12,#15,#80,#3E,#3F
+    DB #40,#41,#42,#43,#44,#45,#46,#47,#48,#49,#4A,#4B,#4C,#4D,#4E,#4F
+    DB #50,#51,#52,#53,#54,#6D,#09,#C6,#F2,#97,#18,#D7,#08,#83,#24,#CE
+    DB #C0,#16,#5E,#2A,#5E,#40,#0E,#18,#49,#0C,#55,#56,#57,#58,#59,#5A
+    DB #5B,#5C,#5D,#5E,#5F,#60,#82,#82,#40,#80,#61,#62,#63,#64,#65,#66
+    DB #67,#68,#69,#6A,#6B,#6C,#6D,#6E,#6F,#70,#71,#72,#73,#74,#75,#76
+    DB #77,#78,#90,#60,#79,#7A,#7B,#7C,#7D,#7E,#7F,#80,#81,#82,#83,#84
+    DB #85,#86,#87,#88,#89,#8A,#8B,#8C,#8D,#8E,#8F,#90,#91,#21,#09,#92
+    DB #93,#94,#95,#96,#97,#98,#99,#9A,#9B,#9C,#9D,#9E,#9F,#A0,#A1,#A2
+    DB #A3,#A4,#A5,#08,#42,#A6,#A7,#A8,#A9,#AA,#AB,#AC,#AD,#AE,#AF,#B0
+    DB #B1,#B2,#B3,#B4,#B5,#B6,#B7,#B8,#B9,#0C,#D1,#FC,#E4,#C0,#CB,#E6
+    DB #21,#F4,#3C,#7A,#32,#DA,#72,#E2,#5D,#34,#E2,#32,#A9,#E0,#00,#FE
+    DB #11,#D5,#55,#60
+PRESENTATION_SCREEN_PATTERNS_B0:
+    ; ZX0 compressed tile_pattern (680 -> 461 bytes)
+    DB #91,#FF,#81,#AE,#40,#60,#FF,#01,#03,#07,#0F,#E0,#C0,#E0,#D4,#25
+    DB #B8,#03,#E0,#C1,#38,#30,#50,#20,#E1,#39,#F0,#03,#01,#01,#DF,#BE
+    DB #60,#0F,#3C,#E9,#FF,#BE,#40,#B7,#FF,#A0,#70,#AF,#30,#18,#80,#E0
+    DB #F0,#A3,#F7,#FF,#7E,#88,#F4,#F6,#70,#3C,#E0,#A0,#80,#EE,#10,#18
+    DB #0C,#07,#89,#10,#AD,#A0,#1C,#B8,#0F,#38,#18,#FF,#FE,#9A,#E0,#60
+    DB #40,#A6,#80,#C0,#83,#FF,#AA,#C0,#C1,#2E,#1E,#DF,#EE,#0F,#13,#E0
+    DB #FF,#A8,#01,#40,#9A,#83,#41,#C1,#FF,#43,#0B,#66,#BC,#AC,#FE,#F6
+    DB #E5,#CF,#1B,#0F,#0E,#3C,#78,#40,#63,#ED,#0E,#07,#FE,#1B,#46,#D8
+    DB #AF,#0E,#49,#7E,#B0,#7F,#2F,#F0,#FF,#FD,#EE,#A1,#33,#1C,#0E,#8B
+    DB #81,#02,#6B,#D6,#60,#8E,#0F,#80,#30,#CC,#BA,#06,#AD,#8E,#F6,#FF
+    DB #32,#84,#89,#E0,#07,#D0,#07,#81,#30,#38,#E0,#1E,#0C,#A4,#0D,#06
+    DB #86,#DF,#07,#80,#43,#43,#80,#01,#A7,#77,#68,#59,#A0,#DF,#61,#26
+    DB #AF,#D0,#51,#EE,#AF,#00,#D3,#37,#02,#03,#E3,#26,#F1,#F0,#80,#07
+    DB #37,#C1,#BF,#22,#95,#16,#DB,#FF,#04,#DD,#9B,#C5,#DE,#38,#50,#9A
+    DB #1E,#81,#01,#37,#1C,#58,#5F,#F3,#FF,#8D,#5E,#0B,#0E,#65,#C3,#88
+    DB #06,#06,#01,#09,#02,#06,#FF,#B6,#C0,#70,#19,#1E,#FF,#82,#C3,#C2
+    DB #1C,#FE,#8F,#80,#21,#9B,#E8,#FE,#81,#3B,#D3,#81,#FA,#2F,#BD,#F2
+    DB #7E,#81,#07,#01,#8C,#48,#E0,#F0,#70,#86,#C6,#0E,#83,#0A,#19,#80
+    DB #90,#E7,#55,#D1,#82,#80,#03,#A0,#FF,#15,#B3,#C0,#24,#CB,#88,#9B
+    DB #42,#70,#A6,#A4,#13,#13,#07,#DF,#97,#01,#66,#7D,#C1,#83,#78,#FE
+    DB #E9,#A3,#00,#4D,#D6,#97,#70,#6D,#08,#60,#E0,#FC,#71,#AD,#EB,#25
+    DB #F9,#0F,#BF,#F7,#06,#49,#D8,#FF,#64,#3F,#A0,#F2,#E8,#18,#81,#60
+    DB #04,#2E,#38,#98,#18,#88,#81,#DB,#FA,#08,#0C,#FD,#FF,#E0,#88,#0C
+    DB #F0,#28,#01,#3D,#CB,#8D,#A0,#DE,#90,#FF,#0A,#42,#83,#98,#07,#98
+    DB #03,#22,#07,#E0,#11,#0E,#08,#12,#0C,#1C,#06,#AA,#0E,#E0,#26,#15
+    DB #09,#05,#FF,#CE,#57,#5A,#F0,#35,#60,#30,#D2,#0B,#ED,#2A,#C0,#03
+    DB #09,#CE,#BF,#A6,#D2,#8A,#D6,#51,#18,#03,#06,#07,#C8,#C0,#33,#17
+    DB #29,#5C,#3D,#1C,#60,#02,#18,#60,#80,#EF,#F9,#5F,#B1,#C9,#A3,#61
+    DB #83,#C0,#1C,#01,#B4,#05,#38,#8D,#60,#3D,#06,#55,#56
+PRESENTATION_SCREEN_PATTERNS_B1:
+    ; ZX0 compressed tile_pattern (1488 -> 992 bytes)
+    DB #96,#FF,#5A,#81,#0E,#82,#C0,#0F,#03,#FF,#24,#C0,#E0,#FE,#D8,#C9
+    DB #26,#03,#F0,#4A,#01,#E0,#0A,#80,#03,#28,#5A,#C8,#03,#03,#03,#A8
+    DB #C0,#0C,#20,#C1,#0E,#F8,#D9,#FF,#88,#16,#06,#9A,#05,#85,#84,#88
+    DB #80,#01,#20,#AA,#FF,#38,#07,#41,#85,#6A,#84,#83,#80,#07,#80,#8B
+    DB #30,#E0,#60,#40,#01,#02,#18,#30,#90,#A0,#63,#60,#83,#0E,#0C,#82
+    DB #18,#AE,#76,#0F,#C9,#FB,#0F,#FD,#F1,#C3,#E5,#85,#33,#A7,#C0,#01
+    DB #81,#40,#C0,#40,#C0,#87,#38,#C3,#A2,#FF,#C0,#1E,#60,#70,#87,#C0
+    DB #F0,#1B,#78,#0F,#0C,#29,#D9,#E0,#E0,#01,#AD,#D9,#06,#98,#87,#60
+    DB #DD,#AE,#78,#02,#F0,#03,#5A,#8E,#C0,#81,#0D,#56,#A0,#E2,#31,#1C
+    DB #40,#C2,#10,#08,#02,#01,#A0,#04,#04,#0C,#FF,#FB,#98,#70,#6D,#B0
+    DB #FD,#AC,#B9,#8A,#A5,#07,#E0,#FB,#11,#01,#99,#F0,#88,#FE,#92,#C0
+    DB #80,#2A,#F0,#E0,#C0,#1A,#50,#2A,#60,#5A,#A0,#24,#12,#81,#64,#18
+    DB #83,#AA,#87,#06,#7B,#0A,#07,#70,#A4,#BD,#BA,#81,#AE,#C9,#FF,#FE
+    DB #9B,#86,#06,#FF,#6B,#7C,#B0,#E6,#ED,#DB,#07,#0E,#86,#BA,#C0,#4A
+    DB #6F,#A0,#21,#E1,#36,#DF,#B2,#7A,#31,#D0,#7B,#09,#06,#01,#A2,#8F
+    DB #FE,#C1,#C9,#81,#B5,#BD,#02,#0C,#C0,#23,#DB,#BD,#BA,#FE,#D1,#E1
+    DB #F4,#FE,#38,#BB,#DD,#EE,#E9,#58,#A0,#0E,#C1,#1C,#2D,#81,#C1,#C3
+    DB #43,#83,#F0,#E4,#0C,#95,#4B,#B2,#21,#86,#86,#12,#0D,#82,#92,#98
+    DB #0C,#C2,#16,#12,#32,#05,#38,#39,#28,#F0,#07,#2D,#09,#0C,#0E,#B2
+    DB #72,#E0,#63,#0F,#FF,#80,#BD,#DB,#01,#57,#A8,#6C,#E0,#D9,#77,#24
+    DB #40,#40,#40,#81,#30,#60,#9C,#40,#FF,#20,#DF,#89,#9F,#FE,#3A,#B2
+    DB #FA,#01,#20,#38,#BF,#10,#F0,#D6,#C3,#E4,#E3,#09,#78,#83,#62,#C1
+    DB #21,#31,#F6,#EB,#B0,#DB,#AC,#66,#00,#FF,#C1,#F1,#C5,#9F,#FD,#5D
+    DB #B3,#41,#77,#30,#DF,#A7,#BD,#68,#A7,#0A,#D9,#58,#BF,#E0,#0C,#07
+    DB #C5,#69,#6F,#81,#C6,#A5,#FF,#46,#FE,#A0,#34,#A8,#38,#38,#30,#10
+    DB #30,#80,#FA,#C1,#61,#1E,#08,#70,#06,#18,#3C,#73,#FF,#01,#20,#2E
+    DB #18,#78,#F0,#01,#F0,#B0,#30,#20,#60,#35,#87,#45,#C0,#0E,#70,#30
+    DB #70,#2D,#02,#D7,#CB,#99,#FF,#DE,#19,#F9,#59,#7D,#E8,#06,#20,#60
+    DB #20,#8F,#78,#80,#D7,#AA,#08,#C0,#29,#10,#70,#FE,#03,#83,#78,#FE
+    DB #47,#EB,#07,#95,#0E,#6D,#A2,#63,#67,#0F,#06,#86,#20,#7A,#C1,#C1
+    DB #02,#F1,#C0,#96,#07,#E1,#E1,#08,#FF,#81,#38,#DE,#82,#EC,#07,#C4
+    DB #8D,#40,#FB,#BF,#99,#70,#6A,#A9,#0D,#D8,#11,#96,#B5,#06,#DB,#F7
+    DB #48,#DA,#2F,#DA,#DB,#0F,#AF,#60,#34,#A7,#BE,#1F,#F0,#AB,#B1,#0B
+    DB #0C,#0C,#06,#0F,#4A,#1C,#6B,#0C,#30,#C0,#06,#7D,#D4,#B1,#D3,#08
+    DB #AF,#EF,#0E,#67,#63,#97,#70,#60,#B6,#5A,#11,#96,#8C,#CB,#02,#12
+    DB #FC,#D0,#C5,#8F,#2E,#CB,#62,#D1,#06,#06,#3C,#77,#CF,#22,#87,#26
+    DB #6E,#D2,#60,#24,#36,#7A,#D6,#36,#CD,#98,#FD,#8B,#FF,#F4,#30,#B3
+    DB #18,#8F,#26,#EE,#CA,#F0,#C5,#81,#DF,#48,#9B,#84,#10,#E3,#81,#FE
+    DB #0D,#40,#F0,#B3,#FD,#E5,#64,#B5,#D2,#CF,#BD,#DA,#6B,#BF,#30,#DA
+    DB #93,#C8,#A3,#06,#0B,#1C,#D7,#15,#2F,#26,#D1,#18,#22,#21,#D6,#3D
+    DB #4B,#C0,#D0,#30,#60,#13,#04,#5B,#E1,#10,#4C,#E7,#FC,#2B,#64,#F4
+    DB #9E,#BF,#BD,#83,#04,#F7,#9C,#97,#1B,#9A,#B5,#EC,#A7,#05,#02,#F6
+    DB #5F,#B7,#B0,#27,#E1,#E2,#18,#5E,#7F,#FE,#A5,#FF,#F2,#DD,#C6,#EF
+    DB #A2,#F5,#8E,#94,#D0,#D7,#D9,#E6,#75,#FF,#C1,#1C,#18,#28,#10,#EA
+    DB #D4,#01,#36,#BF,#97,#C0,#ED,#53,#72,#BC,#76,#C7,#D7,#5F,#CD,#F0
+    DB #E9,#FD,#E3,#99,#E3,#60,#61,#F6,#16,#1C,#DD,#FD,#B8,#8F,#30,#45
+    DB #67,#0E,#09,#50,#D0,#E1,#18,#F3,#A6,#18,#90,#04,#0A,#41,#35,#27
+    DB #CF,#30,#82,#09,#2D,#95,#1C,#D7,#E7,#DD,#2B,#F4,#0E,#49,#CF,#EE
+    DB #40,#60,#1C,#56,#1F,#32,#14,#70,#C7,#B6,#1E,#7B,#DA,#63,#F0,#37
+    DB #06,#86,#17,#5E,#BD,#CB,#74,#0F,#01,#30,#B5,#A2,#FD,#F0,#A7,#7F
+    DB #0E,#F5,#2E,#6C,#A7,#6F,#11,#31,#61,#FF,#63,#FA,#E7,#A9,#D0,#F7
+    DB #FB,#FE,#7F,#B9,#FE,#3D,#F6,#2A,#6C,#80,#CB,#8F,#20,#56,#4E,#D7
+    DB #67,#27,#62,#6E,#EA,#9D,#B5,#33,#3C,#05,#93,#23,#BC,#B7,#D2,#C2
+    DB #D1,#FB,#C5,#E1,#A6,#73,#48,#AD,#EC,#C0,#3D,#36,#CD,#61,#53,#7E
+    DB #82,#F1,#5B,#83,#39,#04,#08,#10,#20,#40,#2D,#B0,#33,#59,#CD,#2C
+    DB #E0,#CD,#61,#FB,#4F,#28,#8E,#A0,#02,#C6,#B9,#C7,#1C,#05,#A2,#FE
+    DB #1C,#3C,#CB,#E0,#4D,#87,#3F,#BA,#FE,#A7,#E0,#8D,#EB,#30,#87,#ED
+    DB #80,#33,#D3,#05,#35,#FC,#FB,#B2,#9F,#26,#03,#73,#3D,#37,#53,#A2
+    DB #7B,#DC,#BF,#F7,#50,#8C,#1F,#6E,#7E,#A2,#D8,#B1,#81,#AE,#0E,#B0
+    DB #C6,#36,#2C,#76,#6E,#E6,#63,#42,#41,#1E,#E6,#FF,#12,#21,#40,#37
+    DB #FE,#A8,#C0,#EC,#1C,#80,#5C,#2E,#58,#93,#E0,#20,#FF,#74,#30,#4C
+    DB #31,#11,#60,#F0,#60,#18,#81,#7E,#88,#46,#B4,#10,#7D,#26,#55,#56
+PRESENTATION_SCREEN_PATTERNS_B2:
+    ; ZX0 compressed tile_pattern (488 -> 291 bytes)
+    DB #96,#FF,#2A,#60,#01,#02,#2A,#03,#91,#FF,#9A,#01,#38,#F0,#89,#E0
+    DB #3B,#60,#03,#0C,#41,#1C,#FF,#F7,#C0,#E2,#C4,#E0,#80,#66,#03,#0F
+    DB #07,#3A,#DD,#03,#A6,#E0,#B8,#03,#A8,#BB,#C0,#C2,#DE,#80,#EF,#93
+    DB #07,#E7,#53,#ED,#0D,#1B,#15,#87,#97,#80,#83,#83,#82,#01,#92,#41
+    DB #82,#82,#01,#C2,#0E,#01,#4F,#D9,#8E,#83,#06,#02,#BC,#E1,#BB,#FF
+    DB #C0,#0A,#07,#07,#03,#D2,#CC,#7F,#CB,#FF,#F9,#0F,#D7,#E0,#E1,#F0
+    DB #E6,#51,#07,#09,#06,#FA,#08,#30,#FA,#8D,#F1,#C0,#86,#0C,#60,#80
+    DB #1E,#1E,#38,#88,#88,#83,#4C,#9B,#01,#06,#E0,#BD,#F4,#1D,#BE,#B6
+    DB #F7,#EC,#B7,#0F,#42,#D8,#C5,#B6,#08,#20,#E8,#EA,#75,#10,#0A,#81
+    DB #C1,#1C,#0C,#7F,#F0,#D0,#D0,#30,#CE,#1E,#2B,#0B,#0F,#38,#38,#03
+    DB #7D,#27,#43,#F7,#1D,#0D,#F4,#3F,#32,#8E,#C4,#30,#F7,#87,#F4,#36
+    DB #B4,#77,#C7,#A2,#FE,#87,#07,#92,#05,#04,#18,#1C,#83,#03,#EE,#B3
+    DB #20,#11,#0A,#83,#60,#18,#03,#62,#01,#70,#07,#FF,#80,#B7,#46,#A8
+    DB #42,#30,#32,#9E,#6B,#02,#E0,#FE,#BA,#18,#8E,#0E,#0C,#E1,#70,#3D
+    DB #B1,#BF,#1C,#23,#73,#E2,#21,#AF,#04,#06,#4F,#8E,#F9,#CB,#98,#AF
+    DB #30,#00,#E2,#D1,#01,#86,#4D,#E2,#64,#80,#19,#37,#E4,#8F,#23,#1C
+    DB #87,#B9,#7E,#B9,#A0,#60,#40,#06,#35,#F0,#A8,#50,#E0,#18,#07,#4C
+    DB #3C,#E7,#EA,#C1,#CC,#07,#5E,#D8,#3F,#04,#D0,#74,#AD,#DE,#18,#9D
+    DB #64,#55,#56
+PRESENTATION_SCREEN_COLORS_B0:
+    ; ZX0 compressed tile_color (680 -> 368 bytes)
+    DB #91,#11,#A9,#41,#8A,#11,#B1,#A1,#1A,#22,#1B,#AA,#08,#28,#1A,#A1
+    DB #B1,#1A,#9F,#BA,#1A,#F0,#E7,#E0,#9F,#FE,#B2,#F7,#F0,#8F,#D7,#B1
+    DB #61,#72,#29,#E1,#6F,#14,#5E,#7E,#FD,#FE,#09,#A6,#14,#41,#14,#44
+    DB #1A,#18,#48,#98,#81,#61,#BE,#86,#88,#E0,#22,#68,#86,#7B,#A1,#81
+    DB #81,#EE,#FF,#FF,#E1,#F5,#DA,#8E,#AA,#8A,#C9,#22,#68,#66,#FA,#61
+    DB #FE,#64,#3B,#4A,#EE,#FF,#76,#F4,#98,#1F,#EF,#1F,#F3,#42,#FB,#FE
+    DB #F0,#EE,#D9,#F3,#44,#19,#7E,#FE,#EF,#F9,#E0,#1F,#EE,#FF,#F9,#E9
+    DB #14,#FE,#EB,#A2,#18,#E7,#0E,#44,#44,#41,#9E,#57,#16,#11,#66,#A1
+    DB #3E,#F1,#68,#0F,#DE,#FA,#FB,#4D,#16,#BB,#16,#C3,#1F,#E9,#1D,#F0
+    DB #FF,#11,#1E,#EF,#E1,#E5,#CC,#EF,#2A,#F9,#B6,#60,#AA,#EB,#94,#1E
+    DB #BF,#2C,#F3,#D3,#FF,#E0,#43,#B3,#F2,#41,#16,#8F,#F1,#0E,#F6,#FE
+    DB #59,#41,#14,#E1,#F1,#FE,#E9,#19,#99,#9F,#F9,#99,#08,#E7,#E9,#F9
+    DB #FD,#F9,#19,#E9,#E2,#8F,#87,#F1,#1F,#ED,#FE,#AB,#73,#F1,#1E,#A2
+    DB #FE,#EF,#E9,#68,#F9,#A0,#F1,#A2,#E1,#6A,#9F,#E9,#99,#F9,#1F,#92
+    DB #F7,#F5,#BB,#FF,#07,#05,#BD,#FB,#FB,#B4,#F7,#19,#CF,#FE,#76,#FE
+    DB #58,#3A,#66,#F9,#9F,#FF,#EB,#C8,#91,#F6,#7D,#A3,#1E,#7D,#FB,#93
+    DB #D0,#A4,#F1,#B1,#89,#1B,#9B,#3D,#05,#FF,#84,#B0,#FF,#99,#97,#94
+    DB #67,#B8,#9E,#F7,#9F,#1F,#91,#FF,#DB,#1F,#85,#1E,#69,#E2,#9D,#1E
+    DB #1F,#EF,#9F,#C0,#D7,#FA,#CF,#FE,#F9,#48,#92,#E9,#E1,#F2,#F1,#E2
+    DB #79,#F9,#FE,#91,#FE,#F8,#9F,#E2,#B8,#F6,#D2,#9D,#9F,#9F,#6E,#DF
+    DB #A0,#E2,#F9,#72,#BE,#EF,#E1,#11,#E7,#BF,#D3,#F1,#E8,#3D,#FB,#33
+    DB #99,#0F,#DA,#FF,#BA,#3A,#16,#B6,#F0,#FF,#B1,#F6,#ED,#98,#E9,#66
+    DB #66,#B6,#8F,#6B,#6B,#C5,#E7,#E9,#C0,#5E,#0C,#35,#1B,#16,#55,#58
+PRESENTATION_SCREEN_COLORS_B1:
+    ; ZX0 compressed tile_color (1488 -> 835 bytes)
+    DB #96,#11,#22,#41,#14,#BB,#41,#F0,#CA,#FE,#99,#18,#E2,#69,#96,#F6
+    DB #5E,#E6,#6F,#1E,#E9,#9F,#FE,#6E,#FF,#59,#E6,#16,#F9,#9F,#6F,#96
+    DB #66,#89,#91,#E6,#4A,#F1,#64,#92,#FE,#FF,#9F,#F6,#E9,#E6,#AA,#61
+    DB #F6,#6A,#E6,#96,#E6,#F6,#7F,#F6,#E1,#98,#F8,#E6,#FE,#EF,#1E,#16
+    DB #FF,#DC,#8E,#F1,#E1,#FD,#1F,#1E,#EF,#9F,#66,#69,#B7,#EF,#FE,#66
+    DB #01,#AF,#16,#F1,#D9,#B6,#C3,#61,#F2,#FA,#85,#F0,#FF,#11,#F9,#FE
+    DB #EA,#EB,#FF,#61,#83,#B6,#BE,#EA,#75,#EF,#B9,#6B,#CC,#8E,#96,#1B
+    DB #FF,#6A,#11,#61,#91,#B1,#3F,#A7,#FE,#EE,#7A,#F8,#D9,#6F,#DC,#74
+    DB #47,#47,#72,#BA,#71,#48,#FA,#E6,#FE,#E1,#28,#F1,#2E,#16,#E8,#EE
+    DB #00,#D5,#7F,#6E,#FE,#1E,#DA,#E0,#E2,#E8,#EF,#EF,#FE,#E1,#DC,#DB
+    DB #66,#EE,#C3,#11,#6D,#C6,#BE,#B4,#6B,#D3,#BF,#96,#F0,#98,#E3,#EF
+    DB #1F,#E1,#A3,#11,#7F,#45,#F0,#FF,#E7,#97,#F0,#E9,#7B,#CF,#FE,#D8
+    DB #50,#A3,#FF,#E2,#F7,#35,#6E,#1F,#76,#8B,#27,#11,#11,#AD,#D2,#16
+    DB #FF,#7E,#E2,#68,#C0,#F6,#A1,#61,#ED,#AA,#ED,#EF,#16,#A7,#A8,#1B
+    DB #8A,#BB,#3F,#F0,#DB,#AF,#E7,#1B,#EE,#BB,#91,#B2,#F7,#EE,#06,#D7
+    DB #E0,#22,#74,#44,#37,#7C,#AD,#17,#9D,#6E,#B8,#E0,#FF,#21,#F6,#6F
+    DB #9F,#F1,#F7,#0F,#C7,#BC,#F6,#FE,#A7,#A1,#EE,#F2,#1A,#FF,#F2,#BA
+    DB #E2,#A8,#A1,#A1,#FF,#FE,#F1,#9E,#FE,#F0,#0E,#D4,#AF,#AA,#A0,#F3
+    DB #E0,#B8,#FE,#19,#9F,#14,#F4,#F5,#AE,#FB,#FF,#FE,#AF,#EE,#FB,#7D
+    DB #DC,#AD,#2B,#11,#F3,#CE,#46,#DB,#7D,#B1,#AA,#FE,#11,#86,#1B,#AC
+    DB #BB,#E1,#E0,#EE,#E3,#1F,#FB,#B9,#BB,#E7,#9B,#EB,#B6,#FF,#9B,#52
+    DB #DE,#D3,#DB,#D7,#B1,#F2,#36,#86,#3F,#F0,#B5,#B2,#E8,#D0,#14,#2E
+    DB #74,#FE,#8B,#11,#44,#DF,#F7,#49,#1B,#FD,#C4,#55,#F7,#B6,#C2,#A1
+    DB #A1,#76,#C5,#93,#B1,#9D,#F0,#A8,#74,#B1,#37,#92,#E3,#D0,#2F,#BA
+    DB #E7,#EB,#71,#76,#B1,#68,#40,#E6,#4E,#4F,#6B,#E4,#F4,#E4,#B6,#EE
+    DB #8A,#8D,#FE,#1F,#75,#9D,#CE,#55,#57,#FF,#6A,#9B,#91,#98,#E8,#96
+    DB #B8,#F9,#98,#61,#19,#86,#68,#0E,#D7,#5E,#B1,#B6,#BD,#1D,#D6,#81
+    DB #9B,#F0,#81,#8F,#B6,#8B,#8B,#8B,#6B,#9B,#9F,#B1,#B8,#E5,#63,#4E
+    DB #7E,#08,#FE,#70,#8E,#F2,#F9,#DB,#E4,#B7,#E4,#E6,#FE,#F4,#74,#14
+    DB #1B,#41,#FF,#1D,#01,#FE,#61,#AC,#DB,#86,#B6,#D6,#E8,#BF,#BA,#D0
+    DB #5D,#F0,#D9,#5A,#F8,#DB,#A4,#D9,#48,#3F,#B6,#A0,#81,#BA,#7C,#22
+    DB #BC,#EF,#09,#98,#5C,#D2,#9B,#6B,#B0,#82,#B4,#B4,#14,#86,#A2,#D1
+    DB #4B,#61,#64,#D4,#68,#68,#86,#63,#8C,#61,#79,#74,#9F,#8F,#F9,#F8
+    DB #F8,#1B,#6B,#6B,#96,#69,#D6,#CF,#17,#33,#FF,#0F,#F2,#33,#BC,#D7
+    DB #27,#E9,#8D,#2E,#DF,#97,#B4,#B3,#D5,#F4,#E1,#68,#8E,#B1,#44,#14
+    DB #BF,#75,#F4,#FF,#ED,#FF,#D1,#D5,#B0,#B7,#B6,#80,#0F,#9D,#F9,#94
+    DB #F4,#E7,#DE,#FE,#FE,#D4,#9D,#BA,#87,#BE,#CB,#D0,#68,#CB,#C2,#18
+    DB #D6,#CF,#37,#0B,#81,#81,#16,#68,#28,#1F,#FE,#D3,#BB,#7B,#81,#3E
+    DB #59,#1E,#D6,#4D,#26,#44,#41,#CE,#F4,#A0,#C8,#44,#03,#18,#8F,#F8
+    DB #89,#F8,#8F,#FE,#98,#68,#88,#9C,#86,#86,#D6,#3D,#45,#FB,#3F,#6E
+    DB #E2,#9D,#88,#18,#81,#A3,#38,#B9,#9B,#A6,#FE,#8B,#11,#91,#92,#19
+    DB #99,#9B,#B6,#1B,#B1,#1D,#48,#00,#76,#78,#FB,#FF,#6E,#7F,#E6,#0E
+    DB #E1,#00,#FA,#FE,#81,#FF,#EB,#F4,#FB,#FF,#F4,#18,#A4,#FE,#8A,#1A
+    DB #A8,#68,#18,#68,#18,#81,#18,#FA,#86,#88,#3F,#F3,#61,#EF,#DE,#25
+    DB #FF,#FF,#19,#B9,#F0,#CB,#62,#BD,#BC,#0B,#CD,#48,#23,#A5,#18,#E8
+    DB #52,#BA,#C7,#37,#BB,#A8,#24,#5D,#1B,#B5,#76,#9F,#22,#E7,#3F,#75
+    DB #F7,#EC,#B7,#1E,#35,#8D,#D8,#08,#B8,#74,#3D,#B4,#87,#B0,#7F,#DD
+    DB #38,#E6,#FF,#10,#09,#16,#86,#81,#81,#A3,#66,#FD,#1E,#1C,#FF,#18
+    DB #D0,#FE,#10,#D8,#EF,#DD,#16,#F1,#BF,#D2,#F2,#EB,#D0,#61,#A6,#E3
+    DB #16,#FA,#86,#F1,#FF,#E1,#5A,#F8,#0A,#9F,#B9,#F9,#CF,#7E,#16,#E8
+    DB #EF,#6F,#6F,#1F,#41,#C8,#C7,#B6,#85,#76,#B5,#FB,#34,#71,#61,#C6
+    DB #D5,#D6,#36,#3E,#C9,#AD,#23,#91,#1B,#6B,#8B,#9B,#BB,#7C,#DA,#D5
+    DB #7D,#55,#60
+PRESENTATION_SCREEN_COLORS_B2:
+    ; ZX0 compressed tile_color (488 -> 284 bytes)
+    DB #96,#11,#20,#41,#61,#AA,#81,#88,#46,#FF,#18,#DD,#FE,#AA,#C8,#68
+    DB #EE,#11,#F7,#18,#CF,#09,#11,#11,#16,#68,#EF,#E3,#86,#F4,#BF,#16
+    DB #D1,#B4,#BE,#81,#D5,#E6,#AE,#86,#72,#EB,#BD,#66,#A2,#FE,#44,#18
+    DB #A0,#11,#8A,#44,#E1,#26,#F1,#E1,#28,#1E,#18,#22,#8F,#D8,#98,#16
+    DB #88,#1E,#2A,#19,#E1,#61,#11,#BB,#60,#26,#9B,#8B,#1B,#16,#8B,#9B
+    DB #EB,#1B,#67,#B1,#91,#B1,#FB,#D3,#D0,#AA,#EF,#FB,#DE,#0D,#A2,#DA
+    DB #1E,#1F,#E3,#FE,#E6,#77,#F0,#F7,#16,#2B,#E4,#EF,#EC,#17,#FD,#F3
+    DB #EE,#FF,#CA,#0C,#6D,#CA,#8F,#D2,#F9,#A3,#E3,#81,#E8,#E1,#F6,#2E
+    DB #41,#41,#14,#14,#F4,#B8,#44,#FF,#2F,#14,#41,#14,#74,#F5,#FF,#FF
+    DB #EB,#F2,#E3,#D9,#FB,#4E,#4E,#DE,#C9,#E7,#F9,#26,#EE,#EE,#7D,#EF
+    DB #1E,#81,#E9,#8A,#3B,#E1,#FE,#D8,#1E,#C5,#E7,#E1,#91,#24,#FF,#87
+    DB #FF,#28,#FA,#9F,#F0,#41,#F9,#7D,#D4,#FB,#9C,#1B,#7A,#CB,#FF,#E1
+    DB #21,#88,#EF,#1F,#6F,#8F,#F8,#28,#98,#FF,#8F,#98,#0E,#F8,#8F,#FE
+    DB #1F,#18,#E9,#FE,#1E,#10,#7E,#9F,#FE,#FF,#80,#FF,#DE,#E6,#68,#39
+    DB #EC,#FF,#F2,#EE,#FD,#F1,#FE,#F3,#B0,#8E,#A8,#B0,#FE,#2C,#F0,#A6
+    DB #74,#22,#74,#47,#98,#E7,#88,#4F,#1F,#89,#EF,#E1,#B3,#FF,#FF,#1F
+    DB #5D,#37,#BF,#FF,#B9,#F1,#68,#FF,#CB,#F8,#E8,#81,#34,#6D,#3C,#BF
+    DB #2E,#0F,#F0,#FA,#20,#14,#4F,#F3,#9D,#F0,#55,#56
+    ds #4000 - $
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
-; for the ROM to work correctly. EQUs can go after ORG.
+; for the ROM to work correctly after the optional page-0 scaffold.
 ; ==================================================================
 ; MSX CARTRIDGE ROM HEADER
 ; File: header.asm
@@ -98,7 +366,9 @@ init_rom:
     ; Initialize stack
     ld sp, #F380
 
-    ; Cold boot path: ensure cartridge pages are mapped.
+    ; Cold boot path: ensure cartridge page 2 (8000h-BFFFh) is mapped to the cartridge slot.
+    ; Required for both simple32k and plain48k: the BIOS only maps page 1 when it finds "AB",
+    ; page 2 must be explicitly mapped via SETPAGES32K (reads page-1 slot, applies it to page 2).
     call SETPAGES32K
     jp restart_rom_continue
 
@@ -110,6 +380,9 @@ restart_rom:
     ld sp, #F380
 
 restart_rom_continue:
+    ; Capture the normal slot state for optional linear 48K page-0 helpers.
+    call init_page0_runtime_state
+
     ; Initialize mapper runtime state (safe no-op in simple32k mode)
     call mapper_runtime_init
 
@@ -162,7 +435,6 @@ restart_rom_continue:
 
     ; Register boot-time IRQ tasks defined by the engine execution plan.
     call init_default_tasks_from_plan
-
 
     ei
 
@@ -252,6 +524,68 @@ vdpLoop:
 ; END OF HEADER
 ; ==================================================================
 
+; ZX0 decoder required by page-0 compressed cold data.
+; -----------------------------------------------------------------------------
+; ZX0 decoder by Einar Saukas & Urusergi
+; "Standard" version (68 bytes only)
+; -----------------------------------------------------------------------------
+; Parameters:
+;   HL: source address (compressed data)
+;   DE: destination address (decompressing)
+; -----------------------------------------------------------------------------
+
+dzx0_standard:
+        ld      bc, $ffff               ; preserve default offset 1
+        push    bc
+        inc     bc
+        ld      a, $80
+dzx0s_literals:
+        call    dzx0s_elias             ; obtain length
+        ldir                            ; copy literals
+        add     a, a                    ; copy from last offset or new offset?
+        jr      c, dzx0s_new_offset
+        call    dzx0s_elias             ; obtain length
+dzx0s_copy:
+        ex      (sp), hl                ; preserve source, restore offset
+        push    hl                      ; preserve offset
+        add     hl, de                  ; calculate destination - offset
+        ldir                            ; copy from offset
+        pop     hl                      ; restore offset
+        ex      (sp), hl                ; preserve offset, restore source
+        add     a, a                    ; copy from literals or new offset?
+        jr      nc, dzx0s_literals
+dzx0s_new_offset:
+        pop     bc                      ; discard last offset
+        ld      c, $fe                  ; prepare negative offset
+        call    dzx0s_elias_loop        ; obtain offset MSB
+        inc     c
+        ret     z                       ; check end marker
+        ld      b, c
+        ld      c, (hl)                 ; obtain offset LSB
+        inc     hl
+        rr      b                       ; last offset bit becomes first length bit
+        rr      c
+        push    bc                      ; preserve new offset
+        ld      bc, 1                   ; obtain length
+        call    nc, dzx0s_elias_backtrack
+        inc     bc
+        jr      dzx0s_copy
+dzx0s_elias:
+        inc     c                       ; interlaced Elias gamma coding
+dzx0s_elias_loop:
+        add     a, a
+        jr      nz, dzx0s_elias_skip
+        ld      a, (hl)                 ; load another group of 8 bits
+        inc     hl
+        rla
+dzx0s_elias_skip:
+        ret     c
+dzx0s_elias_backtrack:
+        add     a, a
+        rl      c
+        rl      b
+        jr      dzx0s_elias_loop
+; -----------------------------------------------------------------------------
 
 ; ==================================================================
 ; MSX BIOS FUNCTIONS AND ADDRESSES
@@ -379,7 +713,6 @@ isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
 ; Compatibility: MSX1, MSX2, MSX2+
 ; ==================================================================
 
-
 ; ==================================================================
 ; FAST_LDIRVM - Fast Block Transfer to VRAM
 ; ==================================================================
@@ -458,7 +791,6 @@ FAST_LDIRVM:
     ei
     ret
 
-
 ; ==================================================================
 ; FAST_WRTVRM - Write Single Byte to VRAM
 ; ==================================================================
@@ -520,7 +852,6 @@ FAST_WRTVRM:
     pop bc
     ret
 
-
 ; ==================================================================
 ; FAST_RDVRM - Read Single Byte from VRAM
 ; ==================================================================
@@ -572,7 +903,6 @@ FAST_RDVRM:
     in a, (#98)            ; Actual byte from VRAM[HL]
     ret
 
-
 ; ==================================================================
 ; FAST_WRTVDP - Write VDP Register
 ; ==================================================================
@@ -622,7 +952,6 @@ FAST_WRTVDP:
     out (#99), a           ; Write register select (11 cycles)
     ret                    ; (10 cycles)
                            ; Total: ~25 cycles
-
 
 ; ==================================================================
 ; FAST_GTSTCK - Read Joystick Direction
@@ -725,7 +1054,6 @@ joystick_direction_table:
     db 0  ; 1110 = Invalid
     db 0  ; 1111 = All directions (invalid)
 
-
 ; ==================================================================
 ; FAST_GTTRIG - Read Joystick Trigger
 ; ==================================================================
@@ -781,7 +1109,6 @@ FAST_GTTRIG:
     ld a, #FF
     ret
 
-
 ; ==================================================================
 ; FAST_SNSMAT - Sense Keyboard Matrix Row
 ; ==================================================================
@@ -825,11 +1152,9 @@ FAST_SNSMAT:
     in a, (#A9)             ; Read keyboard matrix row
     ret
 
-
 ; ==================================================================
 ; END OF DIRECT HARDWARE ROUTINES
 ; ==================================================================
-
 
 ; ==================================================================
 ; MSX SYSTEM CONSTANTS
@@ -898,8 +1223,6 @@ SCREEN_TILES_X  EQU 16    ; Horizontal tiles (256px ÷ 16px)
 SCREEN_TILES_Y  EQU 12   ; Vertical tiles (192px ÷ 16px)
 MSX_CHARS_PER_TILE_X EQU 2  ; MSX characters wide per tile
 MSX_CHARS_PER_TILE_Y EQU 2 ; MSX characters high per tile
-
-
 
 ; ==================================================================
 ; MSX COLORS
@@ -987,7 +1310,6 @@ COLLISION_EVENT_ITEM        EQU #04
 ; MIDEAS GLOBAL VARIABLES - CONSTANTS FOR VALUES
 ; ==================================================================
 
-
 ; Score - Current player score (0-65535)
 UNKNOWN                 EQU 0    ; Score = "Custom Value"
 
@@ -998,7 +1320,6 @@ UNKNOWN                 EQU 0    ; Score = "Custom Value"
 ; TimeRemaining - Time remaining in seconds (0-65535)
 
 ; GemsModified - Auto-generated variable from Tile Collector
-
 
 ; ==================================================================
 ; GAME FLOW STATES (PROJECT-SPECIFIC)
@@ -1034,7 +1355,6 @@ NODE_TYPE_UNKNOWN       EQU 255  ; Unknown/unsupported node type
 ; Additional Game Flow States detected in project
 ; (Custom states would be added here if needed)
 
-
 ; ==================================================================
 ; PROJECT-SPECIFIC CONSTANTS
 ; ==================================================================
@@ -1047,7 +1367,6 @@ TOTAL_SCREENS           EQU 6
 ; ==================================================================
 ; END OF CONSTANTS
 ; ==================================================================
-
 
 ; ==================================================================
 ; RAM VARIABLES DEFINITIONS
@@ -1087,352 +1406,424 @@ global_var_gems_modified EQU #C016   ; Auto-generated variable from Tile Collect
 ; ==================================================================
 ; SYSTEM VARIABLES
 ; ==================================================================
-ROM_slot            EQU #C017   ; ROM slot number (for SETPAGES32K)
-mapper_bank_p1_current EQU #C018   ; Mapper current bank for page/window 1
-mapper_bank_p2_current EQU #C019   ; Mapper current bank for page/window 2
-mapper_bank_p3_current EQU #C01A   ; Mapper current bank for page/window 3
-mapper_bank_p4_current EQU #C01B   ; Mapper current bank for page/window 4
-mapper_saved_bank    EQU #C01C   ; Saved mapper bank for push/pop helpers
-mapper_saved_bank_p1 EQU #C01D   ; Saved mapper bank for page/window 1 helpers
-mapper_saved_bank_p3 EQU #C01E   ; Saved mapper bank for page/window 3 helpers
-mapper_saved_bank_p4 EQU #C01F   ; Saved mapper bank for page/window 4 helpers
-frame_counter       EQU #C020   ; Frame counter (16-bit)
+ROM_slot            EQU #C017   ; Expanded slot for normal page 1 ROM access
+slot_primary_normal EQU #C018   ; Primary slot register snapshot for BIOS-ROM-ROM-RAM layout
+page0_bios_slot     EQU #C019   ; Expanded slot for normal BIOS page 0
+page2_normal_slot   EQU #C01A   ; Expanded slot for normal page 2 layout
+page3_normal_slot   EQU #C01B   ; Expanded slot for normal RAM page 3
+mapper_bank_p1_current EQU #C01C   ; Mapper current bank for page/window 1
+mapper_bank_p2_current EQU #C01D   ; Mapper current bank for page/window 2
+mapper_bank_p3_current EQU #C01E   ; Mapper current bank for page/window 3
+mapper_bank_p4_current EQU #C01F   ; Mapper current bank for page/window 4
+mapper_saved_bank    EQU #C020   ; Saved mapper bank for push/pop helpers
+mapper_saved_bank_p1 EQU #C021   ; Saved mapper bank for page/window 1 helpers
+mapper_saved_bank_p3 EQU #C022   ; Saved mapper bank for page/window 3 helpers
+mapper_saved_bank_p4 EQU #C023   ; Saved mapper bank for page/window 4 helpers
+frame_counter       EQU #C024   ; Frame counter (16-bit)
 
 ; Profiling counters (16-bit, cumulative)
-prof_update_all_entities_calls EQU #C022   ; Calls to update_all_entities
-prof_execute_sm_calls EQU #C024   ; Calls to execute_all_state_machines
-prof_sm_update_calls  EQU #C026   ; Calls to SM_Update
-prof_collision_calls  EQU #C028   ; Calls to update_collision_component
-prof_wall_calls       EQU #C02A   ; Calls to update_wallcollision_component
-prof_deadly_calls     EQU #C02C   ; Calls to update_deadly_tiles_component
-prof_tile_interaction_calls EQU #C02E   ; Calls to check_tile_interaction
-prof_animation_calls  EQU #C030   ; Calls to update_animation_component
-prof_sprite_calls     EQU #C032   ; Calls to update_sprite_component
-prof_music_task_calls EQU #C034   ; Calls to task_update_music
-prof_deadly_behavior_reads EQU #C036   ; Deadly helper behavior-map reads
+prof_update_all_entities_calls EQU #C026   ; Calls to update_all_entities
+prof_execute_sm_calls EQU #C028   ; Calls to execute_all_state_machines
+prof_sm_update_calls  EQU #C02A   ; Calls to SM_Update
+prof_collision_calls  EQU #C02C   ; Calls to update_collision_component
+prof_wall_calls       EQU #C02E   ; Calls to update_wallcollision_component
+prof_deadly_calls     EQU #C030   ; Calls to update_deadly_tiles_component
+prof_tile_interaction_calls EQU #C032   ; Calls to check_tile_interaction
+prof_animation_calls  EQU #C034   ; Calls to update_animation_component
+prof_sprite_calls     EQU #C036   ; Calls to update_sprite_component
+prof_music_task_calls EQU #C038   ; Calls to task_update_music
+prof_deadly_behavior_reads EQU #C03A   ; Deadly helper behavior-map reads
+page0_transfer_buffer EQU #C03C   ; Temporary RAM buffer for page0 -> VRAM copies
 
 ; ==================================================================
 ; SCREEN MAP POINTERS (Current active screen)
 ; ==================================================================
-current_screen_layout   EQU #C038   ; Pointer to current screen layout data (16-bit)
-current_screen_layout_bank EQU #C03A   ; Mapper bank for current screen layout data
-current_behavior_map    EQU #C03B   ; Pointer to current behavior map data (16-bit)
-current_behavior_map_bank EQU #C03D   ; Mapper bank for current behavior map data
-behavior_cache_row     EQU #C03E   ; Cached behavior row (255=invalid)
-behavior_cache_map_l   EQU #C03F   ; Cached behavior map pointer low byte
-behavior_cache_map_h   EQU #C040   ; Cached behavior map pointer high byte
-behavior_cache_row_base EQU #C041   ; Cached row base address in behavior map (16-bit)
+current_screen_layout   EQU #C13C   ; Pointer to current screen layout data (16-bit)
+current_screen_layout_bank EQU #C13E   ; Mapper bank for current screen layout data
+current_behavior_map    EQU #C13F   ; Pointer to current behavior map data (16-bit)
+current_behavior_map_bank EQU #C141   ; Mapper bank for current behavior map data
+behavior_cache_row     EQU #C142   ; Cached behavior row (255=invalid)
+behavior_cache_map_l   EQU #C143   ; Cached behavior map pointer low byte
+behavior_cache_map_h   EQU #C144   ; Cached behavior map pointer high byte
+behavior_cache_row_base EQU #C145   ; Cached row base address in behavior map (16-bit)
 RUNTIME_SCREEN_MAP_SIZE EQU 768
 MAX_RUNTIME_EFFECT_ZONES EQU 64
-runtime_background_layout EQU #C043   ; Immutable copy of current background layout (32x24)
-runtime_screen_layout  EQU #C343   ; Mutable copy of current screen layout (32x24)
-runtime_behavior_map   EQU #C643   ; Mutable copy of current behavior map (32x24)
-runtime_effects_layout EQU #C943   ; Alternate effects layout copy for secret zones (32x24)
-runtime_effect_zone_table EQU #CC43   ; Current screen effect zone table (MAX_RUNTIME_EFFECT_ZONES * 8 bytes)
-current_effect_zone_count EQU #CE43   ; Number of effect zones copied into runtime_effect_zone_table
-secret_zone_active EQU #CE44   ; 1 if hero is currently inside an active secret zone
-secret_zone_rect_x EQU #CE45   ; Active secret zone rect X in cells
-secret_zone_rect_y EQU #CE46   ; Active secret zone rect Y in cells
-secret_zone_rect_w EQU #CE47   ; Active secret zone rect width in cells
-secret_zone_rect_h EQU #CE48   ; Active secret zone rect height in cells
+runtime_background_layout EQU #C147   ; Immutable copy of current background layout (32x24)
+runtime_screen_layout  EQU #C447   ; Mutable copy of current screen layout (32x24)
+runtime_behavior_map   EQU #C747   ; Mutable copy of current behavior map (32x24)
+runtime_effects_layout EQU #CA47   ; Alternate effects layout copy for secret zones (32x24)
+runtime_effect_zone_table EQU #CD47   ; Current screen effect zone table (MAX_RUNTIME_EFFECT_ZONES * 8 bytes)
+current_effect_zone_count EQU #CF47   ; Number of effect zones copied into runtime_effect_zone_table
+secret_zone_active EQU #CF48   ; 1 if hero is currently inside an active secret zone
+secret_zone_rect_x EQU #CF49   ; Active secret zone rect X in cells
+secret_zone_rect_y EQU #CF4A   ; Active secret zone rect Y in cells
+secret_zone_rect_w EQU #CF4B   ; Active secret zone rect width in cells
+secret_zone_rect_h EQU #CF4C   ; Active secret zone rect height in cells
 
 ; ==================================================================
 ; VIEWPORT/CAMERA VARIABLES (for scroll system)
 ; ==================================================================
-camera_x            EQU #CE49   ; Camera X position in pixels (16-bit)
-camera_y            EQU #CE4B   ; Camera Y position in pixels (16-bit)
-camera_tile_x       EQU #CE4D   ; Camera tile X (column)
-camera_tile_y       EQU #CE4E   ; Camera tile Y (row)
-world_width_tiles   EQU #CE4F   ; World width in tiles
-world_height_tiles  EQU #CE50   ; World height in tiles
-scroll_dirty_flag   EQU #CE51   ; 1=viewport changed, needs redraw
-hud_dirty_flag      EQU #CE52   ; 1=HUD needs redraw, 0=clean
-time_second_frame_counter EQU #CE53   ; VBlank frames remaining until the next TimeRemaining decrement
-time_last_interrupt_counter EQU #CE54   ; Last interrupt_counter snapshot used by TimeRemaining sync (16-bit)
+camera_x            EQU #CF4D   ; Camera X position in pixels (16-bit)
+camera_y            EQU #CF4F   ; Camera Y position in pixels (16-bit)
+camera_tile_x       EQU #CF51   ; Camera tile X (column)
+camera_tile_y       EQU #CF52   ; Camera tile Y (row)
+world_width_tiles   EQU #CF53   ; World width in tiles
+world_height_tiles  EQU #CF54   ; World height in tiles
+scroll_dirty_flag   EQU #CF55   ; 1=viewport changed, needs redraw
+hud_dirty_flag      EQU #CF56   ; 1=HUD needs redraw, 0=clean
+time_second_frame_counter EQU #CF57   ; VBlank frames remaining until the next TimeRemaining decrement
+time_last_interrupt_counter EQU #CF58   ; Last interrupt_counter snapshot used by TimeRemaining sync (16-bit)
 
 ; ==================================================================
 ; ANIMATED TILES VARIABLES
 ; ==================================================================
-anim_tile_timer     EQU #CE56   ; Animation frame timer
-anim_tile_frame     EQU #CE57   ; Current animation frame (0-3)
-anim_tile_speed     EQU #CE58   ; Frames between animation updates
-anim_tile_transform_flags EQU #CE59   ; Runtime flags for transform-mode tile animation (byte0=flags, byte1=opcode scratch)
-anim_tile_row_buffer EQU #CE5B   ; Temp buffer (8 bytes) for row transforms
+anim_tile_timer     EQU #CF5A   ; Animation frame timer
+anim_tile_frame     EQU #CF5B   ; Current animation frame (0-3)
+anim_tile_speed     EQU #CF5C   ; Frames between animation updates
+anim_tile_transform_flags EQU #CF5D   ; Runtime flags for transform-mode tile animation (byte0=flags, byte1=opcode scratch)
+anim_tile_row_buffer EQU #CF5F   ; Temp buffer (8 bytes) for row transforms
 
 ; ==================================================================
 ; ENTITY SYSTEM VARIABLES (Fixed 32 entities)
 ; ==================================================================
 MAX_ENTITIES        EQU 32
-entity_active       EQU #CE63   ; Entity active flags (32 bytes, 0=inactive, 1=active)
-entity_is_player    EQU #CE83   ; Entity hero/player flag (32 bytes, 0=no, 1=yes)
-entity_x_pos        EQU #CEA3   ; Entity X positions (32 bytes)
-entity_y_pos        EQU #CEC3   ; Entity Y positions (32 bytes)
-entity_vel_x        EQU #CEE3   ; Entity X velocity (32 bytes)
-entity_vel_y        EQU #CF03   ; Entity Y velocity (32 bytes)
-entity_comp_masks   EQU #CF23   ; Entity component masks (32 bytes)
-entity_comp_masks_hi EQU #CF43   ; Entity component masks high byte (32 bytes)
-entity_screen_id    EQU #CF63   ; Entity screen ID (32 bytes)
-entity_job_period   EQU #CF83   ; Entity job period in frames (32 bytes, 1=100%,2=50%,3=33%,4=25%)
-entity_job_entry    EQU #CFA3   ; Entity job entry slot within period window (32 bytes)
-entity_job_scheduler_active EQU #CFC3   ; 1 when any entity uses non-default job cadence
-entity_dir_mask     EQU #CFC4   ; Entity direction mask (32 bytes)
-entity_input_speed  EQU #CFE4   ; Entity input/cursor speed (32 bytes)
-entity_health       EQU #D004   ; Entity health (32 bytes)
-entity_anim_frame   EQU #D024   ; Entity animation frame (32 bytes)
-entity_anim_tick    EQU #D044   ; Entity animation tick counter (32 bytes)
-entity_anim_speed   EQU #D064   ; Entity animation speed (ticks per frame) (32 bytes)
-entity_anim_flags   EQU #D084   ; Entity animation flags (32 bytes)
-entity_sm_ptr_l     EQU #D0A4   ; Entity State Pointer Low (32 bytes)
-entity_sm_ptr_h     EQU #D0C4   ; Entity State Pointer High (32 bytes)
-entity_sm_timer_l   EQU #D0E4   ; Entity State Timer Low (32 bytes)
-entity_sm_timer_h   EQU #D104   ; Entity State Timer High (32 bytes)
-entity_sm_wait_timer EQU #D124   ; Entity State Wait Timer (32 bytes)
-entity_lifetime     EQU #D144   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
-entity_carried_by   EQU #D164   ; Entity carrier ID (32 bytes, 255=not carried)
-entity_template_token EQU #D184   ; Entity template token (32 bytes, 0=unknown)
-entity_facing_dir   EQU #D1A4   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
-entity_sm_var_0     EQU #D1C4   ; Entity Variable 0 (32 bytes)
-entity_sm_var_1     EQU #D1E4   ; Entity Variable 1 (32 bytes)
-entity_sm_var_2     EQU #D204   ; Entity Variable 2 (32 bytes)
-entity_sm_var_3     EQU #D224   ; Entity Variable 3 (32 bytes)
-entity_sm_var_4     EQU #D244   ; Entity Variable 4 (32 bytes)
-entity_sm_var_5     EQU #D264   ; Entity Variable 5 (32 bytes)
-entity_sm_var_6     EQU #D284   ; Entity Variable 6 (32 bytes)
-entity_sm_var_7     EQU #D2A4   ; Entity Variable 7 (32 bytes)
+entity_active       EQU #CF67   ; Entity active flags (32 bytes, 0=inactive, 1=active)
+entity_is_player    EQU #CF87   ; Entity hero/player flag (32 bytes, 0=no, 1=yes)
+entity_x_pos        EQU #CFA7   ; Entity X positions (32 bytes)
+entity_y_pos        EQU #CFC7   ; Entity Y positions (32 bytes)
+entity_vel_x        EQU #CFE7   ; Entity X velocity (32 bytes)
+entity_vel_y        EQU #D007   ; Entity Y velocity (32 bytes)
+entity_comp_masks   EQU #D027   ; Entity component masks (32 bytes)
+entity_comp_masks_hi EQU #D047   ; Entity component masks high byte (32 bytes)
+entity_screen_id    EQU #D067   ; Entity screen ID (32 bytes)
+entity_job_period   EQU #D087   ; Entity job period in frames (32 bytes, 1=100%,2=50%,3=33%,4=25%)
+entity_job_entry    EQU #D0A7   ; Entity job entry slot within period window (32 bytes)
+entity_job_scheduler_active EQU #D0C7   ; 1 when any entity uses non-default job cadence
+entity_dir_mask     EQU #D0C8   ; Entity direction mask (32 bytes)
+entity_input_speed  EQU #D0E8   ; Entity input/cursor speed (32 bytes)
+entity_health       EQU #D108   ; Entity health (32 bytes)
+entity_anim_frame   EQU #D128   ; Entity animation frame (32 bytes)
+entity_anim_tick    EQU #D148   ; Entity animation tick counter (32 bytes)
+entity_anim_speed   EQU #D168   ; Entity animation speed (ticks per frame) (32 bytes)
+entity_anim_flags   EQU #D188   ; Entity animation flags (32 bytes)
+entity_sm_ptr_l     EQU #D1A8   ; Entity State Pointer Low (32 bytes)
+entity_sm_ptr_h     EQU #D1C8   ; Entity State Pointer High (32 bytes)
+entity_sm_timer_l   EQU #D1E8   ; Entity State Timer Low (32 bytes)
+entity_sm_timer_h   EQU #D208   ; Entity State Timer High (32 bytes)
+entity_sm_wait_timer EQU #D228   ; Entity State Wait Timer (32 bytes)
+entity_lifetime     EQU #D248   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
+entity_carried_by   EQU #D268   ; Entity carrier ID (32 bytes, 255=not carried)
+entity_template_token EQU #D288   ; Entity template token (32 bytes, 0=unknown)
+entity_facing_dir   EQU #D2A8   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
+entity_sm_var_0     EQU #D2C8   ; Entity Variable 0 (32 bytes)
+entity_sm_var_1     EQU #D2E8   ; Entity Variable 1 (32 bytes)
+entity_sm_var_2     EQU #D308   ; Entity Variable 2 (32 bytes)
+entity_sm_var_3     EQU #D328   ; Entity Variable 3 (32 bytes)
+entity_sm_var_4     EQU #D348   ; Entity Variable 4 (32 bytes)
+entity_sm_var_5     EQU #D368   ; Entity Variable 5 (32 bytes)
+entity_sm_var_6     EQU #D388   ; Entity Variable 6 (32 bytes)
+entity_sm_var_7     EQU #D3A8   ; Entity Variable 7 (32 bytes)
 
 ; ==================================================================
 ; SPRITE SYSTEM VARIABLES
 ; ==================================================================
-entity_sprite_asset_index EQU #D2C4   ; Entity sprite asset index - RAM copy (32 bytes)
-active_sprite_count EQU #D2E4   ; Number of sprites currently active
-sprites_dirty      EQU #D2E5   ; 1=sprite_attributes changed, needs VRAM sync
-sprite_pattern      EQU #D2E6   ; Sprite pattern IDs (32 bytes)
-sprite_color        EQU #D306   ; Sprite colors (32 bytes)
-sprite_layer_colors EQU #D326   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
-sprite_asset_base_pattern_slot_runtime EQU #D346   ; Runtime base 16x16 slot per sprite asset (18 bytes)
-sprite_placeholder_base_pattern_num EQU #D358   ; Runtime placeholder pattern number (base slot * 4)
-sprite_attributes   EQU #D359   ; Interleaved sprite attributes (32 * 4 bytes)
+entity_sprite_asset_index EQU #D3C8   ; Entity sprite asset index - RAM copy (32 bytes)
+active_sprite_count EQU #D3E8   ; Number of sprites currently active
+sprites_dirty      EQU #D3E9   ; 1=sprite_attributes changed, needs VRAM sync
+sprite_pattern      EQU #D3EA   ; Sprite pattern IDs (32 bytes)
+sprite_color        EQU #D40A   ; Sprite colors (32 bytes)
+sprite_layer_colors EQU #D42A   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
+sprite_asset_base_pattern_slot_runtime EQU #D44A   ; Runtime base 16x16 slot per sprite asset (18 bytes)
+sprite_placeholder_base_pattern_num EQU #D45C   ; Runtime placeholder pattern number (base slot * 4)
+sprite_attributes   EQU #D45D   ; Interleaved sprite attributes (32 * 4 bytes)
 
 ; ==================================================================
 ; SCREEN SYSTEM VARIABLES (6 screens detected)
 ; ==================================================================
-current_screen_id   EQU #D3D9   ; Currently displayed screen ID
-screen_dirty_flag   EQU #D3DA   ; Screen needs redraw flag
-screen_transition_cooldown EQU #D3DB   ; Cooldown frames after screen transition
-current_world_id    EQU #D3DC   ; Current world ID (for multi-world support)
-current_screen_index EQU #D3DD   ; Current screen index within world
-current_screen_anim_group_count EQU #D3DE   ; Animated tile groups visible in current screen
-current_screen_entity_count EQU #D3DF   ; Entity instances assigned to current screen
-current_screen_sprite_pattern_slots EQU #D3E0   ; Sprite pattern slots needed by current screen
-current_screen_summary_flags EQU #D3E1   ; Runtime screen summary flags (music/hud/effects/anim)
+current_screen_id   EQU #D4DD   ; Currently displayed screen ID
+screen_dirty_flag   EQU #D4DE   ; Screen needs redraw flag
+screen_transition_cooldown EQU #D4DF   ; Cooldown frames after screen transition
+current_world_id    EQU #D4E0   ; Current world ID (for multi-world support)
+current_screen_index EQU #D4E1   ; Current screen index within world
+current_screen_anim_group_count EQU #D4E2   ; Animated tile groups visible in current screen
+current_screen_entity_count EQU #D4E3   ; Entity instances assigned to current screen
+current_screen_sprite_pattern_slots EQU #D4E4   ; Sprite pattern slots needed by current screen
+current_screen_summary_flags EQU #D4E5   ; Runtime screen summary flags (music/hud/effects/anim)
 
 ; ==================================================================
 ; PLAYER SYSTEM VARIABLES (player entity detected)
 ; ==================================================================
-player_x            EQU #D3E2   ; Player X position (16-bit)
-player_y            EQU #D3E4   ; Player Y position (16-bit)
-player_health       EQU #D3E6   ; Player health points
-player_score        EQU #D3E7   ; Player score (16-bit)
-gem_count           EQU #D3E9   ; Collectible tile counter (8-bit)
-last_gem_char       EQU #D3EA   ; Char code of last collected gem tile (for SM VARIABLE_COMPARE)
+player_x            EQU #D4E6   ; Player X position (16-bit)
+player_y            EQU #D4E8   ; Player Y position (16-bit)
+player_runtime_enabled EQU #D4EA   ; 1=player fast runtime bound to hero entity
+player_entity_index EQU #D4EB   ; Entity index used by player fast runtime (#FF=none)
+player_vx_runtime   EQU #D4EC   ; Cached player X velocity (signed 8-bit)
+player_vy_runtime   EQU #D4ED   ; Cached player Y velocity (signed 8-bit)
+player_health       EQU #D4EE   ; Player health points
+player_score        EQU #D4EF   ; Player score (16-bit)
+gem_count           EQU #D4F1   ; Collectible tile counter (8-bit)
+last_gem_char       EQU #D4F2   ; Char code of last collected gem tile (for SM VARIABLE_COMPARE)
 
 ; Persistent collectibles list (survives screen re-entry)
 MAX_COLLECTIBLES     EQU 64              ; Max persistent collectible records
-collected_count      EQU #D3EB   ; Number of collected tiles recorded (8-bit)
-collected_world      EQU #D3EC   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
-collected_screen     EQU #D42C   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
-collected_idx_l      EQU #D46C   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
-collected_idx_h      EQU #D4AC   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
+collected_count      EQU #D4F3   ; Number of collected tiles recorded (8-bit)
+collected_world      EQU #D4F4   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_screen     EQU #D534   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_idx_l      EQU #D574   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
+collected_idx_h      EQU #D5B4   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
 
 ; Timed bonus tile respawn slots (bonus gem regeneration)
 MAX_BONUS_RESPAWNS   EQU 16              ; Max timed bonus tiles waiting to respawn
-bonus_respawn_world  EQU #D4EC   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_screen EQU #D4FC   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_idx_l  EQU #D50C   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_idx_h  EQU #D51C   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_secs   EQU #D52C   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_frames EQU #D53C   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_world  EQU #D5F4   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_screen EQU #D604   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_l  EQU #D614   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_h  EQU #D624   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_secs   EQU #D634   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_frames EQU #D644   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
 
 ; ==================================================================
 ; AUXILIARY VARIABLES 
 ; ==================================================================
-deterministic        EQU #D54C   ; Deterministic mode flag
+deterministic        EQU #D654   ; Deterministic mode flag
 
 ; ==================================================================
 ; TEMPORARY VARIABLES (ALWAYS NEEDED)
 ; ==================================================================
-temp_word_1         EQU #D54D   ; Temporary 16-bit storage
-temp_word_2         EQU #D54F   ; Temporary 16-bit storage
-temp_byte_1         EQU #D551   ; Temporary 8-bit storage
-temp_byte_2         EQU #D552   ; Temporary 8-bit storage
-temp_byte_3         EQU #D553   ; Temporary 8-bit storage (32 bytes)
-temp_byte_4         EQU #D573   ; Temporary 8-bit storage (32 bytes)
-temp_byte_5         EQU #D593   ; Temporary 8-bit storage (32 bytes)
-temp_byte_6         EQU #D5B3   ; Temporary 8-bit storage (32 bytes)
+temp_word_1         EQU #D655   ; Temporary 16-bit storage
+temp_word_2         EQU #D657   ; Temporary 16-bit storage
+temp_byte_1         EQU #D659   ; Temporary 8-bit storage
+temp_byte_2         EQU #D65A   ; Temporary 8-bit storage
+temp_byte_3         EQU #D65B   ; Temporary 8-bit storage (32 bytes)
+temp_byte_4         EQU #D67B   ; Temporary 8-bit storage (32 bytes)
+temp_byte_5         EQU #D69B   ; Temporary 8-bit storage (32 bytes)
+temp_byte_6         EQU #D6BB   ; Temporary 8-bit storage (32 bytes)
 
 ; ==================================================================
 ; SOUND SYSTEM VARIABLES
 ; ==================================================================
-sfx_active          EQU #D5D3   ; 0=no SFX active, 1=playing
-sfx_timer           EQU #D5D4   ; Frames remaining for current SFX
-sfx_fadeout         EQU #D5D5   ; Reserved fadeout flag/state
-temp_byte_7         EQU #D5D6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_8         EQU #D5F6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_9         EQU #D616   ; Temporary 8-bit storage (32 bytes)
-temp_byte_10        EQU #D636   ; Temporary 8-bit storage (32 bytes)
-temp_byte_11        EQU #D656   ; Temporary 8-bit storage (32 bytes)
-temp_byte_12        EQU #D676   ; Temporary 8-bit storage (32 bytes)
-temp_byte_13        EQU #D696   ; Temporary 8-bit storage (32 bytes)
-temp_byte_14        EQU #D6B6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_15        EQU #D6D6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_16        EQU #D6F6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_17        EQU #D716   ; Temporary 8-bit storage (32 bytes)
-temp_byte_18        EQU #D736   ; Temporary 8-bit storage (32 bytes)
-temp_byte_19        EQU #D756   ; Temporary 8-bit storage (32 bytes)
-temp_byte_20        EQU #D776   ; Temporary 8-bit storage (32 bytes)
-temp_byte_21        EQU #D796   ; Temporary 8-bit storage (32 bytes)
-temp_byte_22        EQU #D7B6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_23        EQU #D7D6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_24        EQU #D7F6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_25        EQU #D816   ; Temporary 8-bit storage (32 bytes)
-temp_word_3         EQU #D836   ; Temporary 16-bit storage (64 bytes)
-temp_word_4         EQU #D876   ; Temporary 16-bit storage (64 bytes)
-temp_byte_26        EQU #D8B6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_27        EQU #D8D6   ; Temporary 8-bit storage (32 bytes)
-temp_byte_28        EQU #D8F6   ; Temporary 8-bit storage (32 bytes)
-tileDead_dbg        EQU #D916   ; Debug byte: current hero deadly contact
-tileDead_latched_dbg EQU #D917   ; Debug byte: latched hero deadly contact
-tileDead_x_dbg      EQU #D918   ; Debug byte: last sampled deadly tile X
-tileDead_y_dbg      EQU #D919   ; Debug byte: last sampled deadly tile Y
-tileDead_value_dbg  EQU #D91A   ; Debug byte: last raw deadly behavior value
+sfx_active          EQU #D6DB   ; 0=no SFX active, 1=playing
+sfx_timer           EQU #D6DC   ; Frames remaining for current SFX
+sfx_fadeout         EQU #D6DD   ; Reserved fadeout flag/state
+temp_byte_7         EQU #D6DE   ; Temporary 8-bit storage (32 bytes)
+temp_byte_8         EQU #D6FE   ; Temporary 8-bit storage (32 bytes)
+temp_byte_9         EQU #D71E   ; Temporary 8-bit storage (32 bytes)
+temp_byte_10        EQU #D73E   ; Temporary 8-bit storage (32 bytes)
+temp_byte_11        EQU #D75E   ; Temporary 8-bit storage (32 bytes)
+temp_byte_12        EQU #D77E   ; Temporary 8-bit storage (32 bytes)
+temp_byte_13        EQU #D79E   ; Temporary 8-bit storage (32 bytes)
+temp_byte_14        EQU #D7BE   ; Temporary 8-bit storage (32 bytes)
+temp_byte_15        EQU #D7DE   ; Temporary 8-bit storage (32 bytes)
+temp_byte_16        EQU #D7FE   ; Temporary 8-bit storage (32 bytes)
+temp_byte_17        EQU #D81E   ; Temporary 8-bit storage (32 bytes)
+temp_byte_18        EQU #D83E   ; Temporary 8-bit storage (32 bytes)
+temp_byte_19        EQU #D85E   ; Temporary 8-bit storage (32 bytes)
+temp_byte_20        EQU #D87E   ; Temporary 8-bit storage (32 bytes)
+temp_byte_21        EQU #D89E   ; Temporary 8-bit storage (32 bytes)
+temp_byte_22        EQU #D8BE   ; Temporary 8-bit storage (32 bytes)
+temp_byte_23        EQU #D8DE   ; Temporary 8-bit storage (32 bytes)
+temp_byte_24        EQU #D8FE   ; Temporary 8-bit storage (32 bytes)
+temp_byte_25        EQU #D91E   ; Temporary 8-bit storage (32 bytes)
+temp_word_3         EQU #D93E   ; Temporary 16-bit storage (64 bytes)
+temp_word_4         EQU #D97E   ; Temporary 16-bit storage (64 bytes)
+temp_byte_26        EQU #D9BE   ; Temporary 8-bit storage (32 bytes)
+temp_byte_27        EQU #D9DE   ; Temporary 8-bit storage (32 bytes)
+temp_byte_28        EQU #D9FE   ; Temporary 8-bit storage (32 bytes)
+tileDead_dbg        EQU #DA1E   ; Debug byte: current hero deadly contact
+tileDead_latched_dbg EQU #DA1F   ; Debug byte: latched hero deadly contact
+tileDead_x_dbg      EQU #DA20   ; Debug byte: last sampled deadly tile X
+tileDead_y_dbg      EQU #DA21   ; Debug byte: last sampled deadly tile Y
+tileDead_value_dbg  EQU #DA22   ; Debug byte: last raw deadly behavior value
 
 ; Wall collision temporary variables
-wall_temp_x         EQU #D91B   ; Cached entity X for wall checks
-wall_temp_y         EQU #D91C   ; Cached entity Y for wall checks
-wall_hit_left       EQU #D91D   ; Hitbox left edge cache
-wall_hit_top        EQU #D91E   ; Hitbox top edge cache
-wall_hit_right      EQU #D91F   ; Hitbox right edge cache
-wall_hit_bottom     EQU #D920   ; Hitbox bottom edge cache
-wall_hit_w          EQU #D921   ; Hitbox width cache (min 1)
-wall_hit_h          EQU #D922   ; Hitbox height cache (min 1)
-wall_probe_left     EQU #D923   ; X probe near hitbox left (adaptive inset)
-wall_probe_right    EQU #D924   ; X probe near hitbox right (adaptive inset)
-wall_probe_top      EQU #D925   ; Y probe near hitbox top (adaptive inset)
-wall_probe_bottom   EQU #D926   ; Y probe near hitbox bottom (adaptive inset)
+wall_temp_x         EQU #DA23   ; Cached entity X for wall checks
+wall_temp_y         EQU #DA24   ; Cached entity Y for wall checks
+wall_hit_left       EQU #DA25   ; Hitbox left edge cache
+wall_hit_top        EQU #DA26   ; Hitbox top edge cache
+wall_hit_right      EQU #DA27   ; Hitbox right edge cache
+wall_hit_bottom     EQU #DA28   ; Hitbox bottom edge cache
+wall_hit_w          EQU #DA29   ; Hitbox width cache (min 1)
+wall_hit_h          EQU #DA2A   ; Hitbox height cache (min 1)
+wall_probe_left     EQU #DA2B   ; X probe near hitbox left (adaptive inset)
+wall_probe_right    EQU #DA2C   ; X probe near hitbox right (adaptive inset)
+wall_probe_top      EQU #DA2D   ; Y probe near hitbox top (adaptive inset)
+wall_probe_bottom   EQU #DA2E   ; Y probe near hitbox bottom (adaptive inset)
 
 ; Unified update helpers
-active_entity_list  EQU #D927   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
-active_entity_count EQU #D947   ; Number of entries in active_entity_list
-hero_entity_id      EQU #D948   ; First current-screen entity flagged as player (#FF = none)
-active_entity_list_dirty EQU #D949   ; 1=rebuild active_entity_list required
-input_entity_list   EQU #D94A   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)
-input_entity_count  EQU #D96A   ; Number of entries in input_entity_list
-render_entity_list  EQU #D96B   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)
-render_entity_count EQU #D98B   ; Number of entries in render_entity_list
-collision_entity_list EQU #D98C   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)
-collision_entity_count EQU #D9AC   ; Number of entries in collision_entity_list
-ground_entity_list  EQU #D9AD   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)
-ground_entity_count EQU #D9CD   ; Number of entries in ground_entity_list
-anim_entity_list    EQU #D9CE   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)
-anim_entity_count   EQU #D9EE   ; Number of entries in anim_entity_list
+active_entity_list  EQU #DA2F   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
+active_entity_count EQU #DA4F   ; Number of entries in active_entity_list
+hero_entity_id      EQU #DA50   ; First current-screen entity flagged as player (#FF = none)
+active_entity_list_dirty EQU #DA51   ; 1=rebuild active_entity_list required
+input_entity_list   EQU #DA52   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)
+input_entity_count  EQU #DA72   ; Number of entries in input_entity_list
+render_entity_list  EQU #DA73   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)
+render_entity_count EQU #DA93   ; Number of entries in render_entity_list
+collision_entity_list EQU #DA94   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)
+collision_entity_count EQU #DAB4   ; Number of entries in collision_entity_list
+ground_entity_list  EQU #DAB5   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)
+ground_entity_count EQU #DAD5   ; Number of entries in ground_entity_list
+anim_entity_list    EQU #DAD6   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)
+anim_entity_count   EQU #DAF6   ; Number of entries in anim_entity_list
 
 ; Entity-entity collision optimized variables
-coll_list           EQU #D9EF   ; Active collidable entity indices (MAX_ENTITIES bytes)
-coll_list_count     EQU #DA0F   ; Number of entities in coll_list
-coll_src_left       EQU #DA10   ; Source AABB left edge (scratch)
-coll_src_right      EQU #DA11   ; Source AABB right edge (scratch)
-coll_src_top        EQU #DA12   ; Source AABB top edge (scratch)
-coll_src_bottom     EQU #DA13   ; Source AABB bottom edge (scratch)
+coll_list           EQU #DAF7   ; Active collidable entity indices (MAX_ENTITIES bytes)
+coll_list_count     EQU #DB17   ; Number of entities in coll_list
+coll_src_left       EQU #DB18   ; Source AABB left edge (scratch)
+coll_src_right      EQU #DB19   ; Source AABB right edge (scratch)
+coll_src_top        EQU #DB1A   ; Source AABB top edge (scratch)
+coll_src_bottom     EQU #DB1B   ; Source AABB bottom edge (scratch)
 
 ; ==================================================================
 ; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
 ; ==================================================================
-task_table              EQU #DA14   ; Task table base (8 slots x 2 bytes = 16 bytes)
-task_0_ptr              EQU #DA14   ; Slot 0 pointer (2 bytes)
-task_1_ptr              EQU #DA16   ; Slot 1 pointer (2 bytes)
-task_2_ptr              EQU #DA18   ; Slot 2 pointer (2 bytes)
-task_3_ptr              EQU #DA1A   ; Slot 3 pointer (2 bytes)
-task_4_ptr              EQU #DA1C   ; Slot 4 pointer (2 bytes)
-task_5_ptr              EQU #DA1E   ; Slot 5 pointer (2 bytes)
-task_6_ptr              EQU #DA20   ; Slot 6 pointer (2 bytes)
-task_7_ptr              EQU #DA22   ; Slot 7 pointer (2 bytes)
-interrupt_system_enabled EQU #DA24   ; 0=disabled, 1=enabled (1 byte)
-old_htimi_hook          EQU #DA25   ; Original H.TIMI hook (5 bytes)
-interrupt_counter       EQU #DA2A   ; Frame counter (16-bit)
-task_exec_time          EQU #DA2C   ; Cycles used by tasks (16-bit, debug)
-vblank_flag             EQU #DA2E   ; Set to 1 on each VBlank (1 byte)
-RAM_INTERRUPT_END       EQU #DA2F   ; End of interrupt system
+task_table              EQU #DB1C   ; Task table base (8 slots x 2 bytes = 16 bytes)
+task_0_ptr              EQU #DB1C   ; Slot 0 pointer (2 bytes)
+task_1_ptr              EQU #DB1E   ; Slot 1 pointer (2 bytes)
+task_2_ptr              EQU #DB20   ; Slot 2 pointer (2 bytes)
+task_3_ptr              EQU #DB22   ; Slot 3 pointer (2 bytes)
+task_4_ptr              EQU #DB24   ; Slot 4 pointer (2 bytes)
+task_5_ptr              EQU #DB26   ; Slot 5 pointer (2 bytes)
+task_6_ptr              EQU #DB28   ; Slot 6 pointer (2 bytes)
+task_7_ptr              EQU #DB2A   ; Slot 7 pointer (2 bytes)
+interrupt_system_enabled EQU #DB2C   ; 0=disabled, 1=enabled (1 byte)
+old_htimi_hook          EQU #DB2D   ; Original H.TIMI hook (5 bytes)
+interrupt_counter       EQU #DB32   ; Frame counter (16-bit)
+task_exec_time          EQU #DB34   ; Cycles used by tasks (16-bit, debug)
+vblank_flag             EQU #DB36   ; Set to 1 on each VBlank (1 byte)
+RAM_INTERRUPT_END       EQU #DB37   ; End of interrupt system
 
 ; ==================================================================
 ; STATE MACHINE SOUND RUNTIME (one active sound asset)
 ; ==================================================================
-sm_sound_active       EQU #DA2F   ; 0=idle, 1=playing state-machine sound asset
-sm_sound_frames_left  EQU #DA30   ; Frames left for current state-machine sound asset
-sm_sound_ptr_l        EQU #DA31   ; Next sound frame pointer low byte
-sm_sound_ptr_h        EQU #DA32   ; Next sound frame pointer high byte
+sm_sound_active       EQU #DB37   ; 0=idle, 1=playing state-machine sound asset
+sm_sound_frames_left  EQU #DB38   ; Frames left for current state-machine sound asset
+sm_sound_ptr_l        EQU #DB39   ; Next sound frame pointer low byte
+sm_sound_ptr_h        EQU #DB3A   ; Next sound frame pointer high byte
 
 ; ==================================================================
 ; TRACKER MUSIC RUNTIME
 ; ==================================================================
-music_active         EQU #DA33   ; 0=stopped, 1=track active
-music_muted          EQU #DA34   ; 0=audible, 1=muted/pause
-music_loop           EQU #DA35   ; 0=no loop, 1=loop enabled
-music_track_index    EQU #DA36   ; Current ROM track index
-music_row_frames     EQU #DA37   ; Frames per tracker row
-music_row_countdown  EQU #DA38   ; Countdown to next row
-music_order_pos      EQU #DA39   ; Current order position
-music_pattern_index  EQU #DA3A   ; Current pattern index
-music_pattern_row    EQU #DA3B   ; Current row inside pattern
-music_pattern_rows   EQU #DA3C   ; Cached rows in current pattern
-music_track_ptr_l    EQU #DA3D   ; Current track pointer low byte
-music_track_ptr_h    EQU #DA3E   ; Current track pointer high byte
-music_pattern_ptr_l  EQU #DA3F   ; Current pattern rows pointer low byte
-music_pattern_ptr_h  EQU #DA40   ; Current pattern rows pointer high byte
-music_mixer_shadow   EQU #DA41   ; PSG mixer shadow for music runtime
-music_ch_note_base EQU #DA42   ; Current note index (255=silent) (3 bytes)
-music_ch_a_note EQU #DA42   ; Channel A
-music_ch_b_note EQU #DA43   ; Channel B
-music_ch_c_note EQU #DA44   ; Channel C
-music_ch_instrument_base EQU #DA45   ; Current instrument id (0=none) (3 bytes)
-music_ch_a_instrument EQU #DA45   ; Channel A
-music_ch_b_instrument EQU #DA46   ; Channel B
-music_ch_c_instrument EQU #DA47   ; Channel C
-music_ch_ornament_base EQU #DA48   ; Current ornament id (0=none) (3 bytes)
-music_ch_a_ornament EQU #DA48   ; Channel A
-music_ch_b_ornament EQU #DA49   ; Channel B
-music_ch_c_ornament EQU #DA4A   ; Channel C
-music_ch_volume_base EQU #DA4B   ; Current base volume (0-15) (3 bytes)
-music_ch_a_volume EQU #DA4B   ; Channel A
-music_ch_b_volume EQU #DA4C   ; Channel B
-music_ch_c_volume EQU #DA4D   ; Channel C
-music_ch_vol_step_base EQU #DA4E   ; Reserved software volume envelope step (3 bytes)
-music_ch_a_vol_step EQU #DA4E   ; Channel A
-music_ch_b_vol_step EQU #DA4F   ; Channel B
-music_ch_c_vol_step EQU #DA50   ; Channel C
-music_ch_tone_step_base EQU #DA51   ; Reserved software tone envelope step (3 bytes)
-music_ch_a_tone_step EQU #DA51   ; Channel A
-music_ch_b_tone_step EQU #DA52   ; Channel B
-music_ch_c_tone_step EQU #DA53   ; Channel C
-music_ch_noise_step_base EQU #DA54   ; Reserved software noise envelope step (3 bytes)
-music_ch_a_noise_step EQU #DA54   ; Channel A
-music_ch_b_noise_step EQU #DA55   ; Channel B
-music_ch_c_noise_step EQU #DA56   ; Channel C
-music_ch_orn_step_base EQU #DA57   ; Reserved ornament step (3 bytes)
-music_ch_a_orn_step EQU #DA57   ; Channel A
-music_ch_b_orn_step EQU #DA58   ; Channel B
-music_ch_c_orn_step EQU #DA59   ; Channel C
+music_active         EQU #DB3B   ; 0=stopped, 1=track active
+music_muted          EQU #DB3C   ; 0=audible, 1=muted/pause
+music_loop           EQU #DB3D   ; 0=no loop, 1=loop enabled
+music_track_index    EQU #DB3E   ; Current ROM track index
+music_row_frames     EQU #DB3F   ; Frames per tracker row
+music_row_countdown  EQU #DB40   ; Countdown to next row
+music_order_pos      EQU #DB41   ; Current order position
+music_pattern_index  EQU #DB42   ; Current pattern index
+music_pattern_row    EQU #DB43   ; Current row inside pattern
+music_pattern_rows   EQU #DB44   ; Cached rows in current pattern
+music_track_ptr_l    EQU #DB45   ; Current track pointer low byte
+music_track_ptr_h    EQU #DB46   ; Current track pointer high byte
+music_pattern_ptr_l  EQU #DB47   ; Current pattern rows pointer low byte
+music_pattern_ptr_h  EQU #DB48   ; Current pattern rows pointer high byte
+music_mixer_shadow   EQU #DB49   ; PSG mixer shadow for music runtime
+music_ch_note_base EQU #DB4A   ; Current note index (255=silent) (3 bytes)
+music_ch_a_note EQU #DB4A   ; Channel A
+music_ch_b_note EQU #DB4B   ; Channel B
+music_ch_c_note EQU #DB4C   ; Channel C
+music_ch_instrument_base EQU #DB4D   ; Current instrument id (0=none) (3 bytes)
+music_ch_a_instrument EQU #DB4D   ; Channel A
+music_ch_b_instrument EQU #DB4E   ; Channel B
+music_ch_c_instrument EQU #DB4F   ; Channel C
+music_ch_ornament_base EQU #DB50   ; Current ornament id (0=none) (3 bytes)
+music_ch_a_ornament EQU #DB50   ; Channel A
+music_ch_b_ornament EQU #DB51   ; Channel B
+music_ch_c_ornament EQU #DB52   ; Channel C
+music_ch_volume_base EQU #DB53   ; Current base volume (0-15) (3 bytes)
+music_ch_a_volume EQU #DB53   ; Channel A
+music_ch_b_volume EQU #DB54   ; Channel B
+music_ch_c_volume EQU #DB55   ; Channel C
+music_ch_vol_step_base EQU #DB56   ; Reserved software volume envelope step (3 bytes)
+music_ch_a_vol_step EQU #DB56   ; Channel A
+music_ch_b_vol_step EQU #DB57   ; Channel B
+music_ch_c_vol_step EQU #DB58   ; Channel C
+music_ch_tone_step_base EQU #DB59   ; Reserved software tone envelope step (3 bytes)
+music_ch_a_tone_step EQU #DB59   ; Channel A
+music_ch_b_tone_step EQU #DB5A   ; Channel B
+music_ch_c_tone_step EQU #DB5B   ; Channel C
+music_ch_noise_step_base EQU #DB5C   ; Reserved software noise envelope step (3 bytes)
+music_ch_a_noise_step EQU #DB5C   ; Channel A
+music_ch_b_noise_step EQU #DB5D   ; Channel B
+music_ch_c_noise_step EQU #DB5E   ; Channel C
+music_ch_orn_step_base EQU #DB5F   ; Reserved ornament step (3 bytes)
+music_ch_a_orn_step EQU #DB5F   ; Channel A
+music_ch_b_orn_step EQU #DB60   ; Channel B
+music_ch_c_orn_step EQU #DB61   ; Channel C
+
+; ==================================================================
+; PT3 REPLAYER WORKSPACE (~448 bytes)
+; Layout matches PT3-ROM-alltables-glass.asm expected labels
+; ==================================================================
+PT3_SETUP       EQU #DB62   ; PT3 state flags (bit0=loop, bit7=song_ended)
+PT3_MODADDR     EQU #DB63   ; Module address pointer (2 bytes)
+PT3_CrPsPtr     EQU #DB65   ; Current position pointer
+PT3_SAMPTRS     EQU #DB67   ; Sample pointers base
+PT3_OrnPtrs     EQU #DB69   ; Ornament pointers base
+PT3_PDSP        EQU #DB6B   ; Pattern data start pointer
+PT3_CSP         EQU #DB6D   ; Saved SP (CHREGS SP trick)
+PT3_PSP         EQU #DB6F   ; PT3 stack pointer save
+PT3_PrNote      EQU #DB71   ; Previous note
+PT3_PrSlide     EQU #DB72   ; Previous slide (2 bytes)
+PT3_AdInPtA     EQU #DB74   ; Channel A inline pointer
+PT3_AdInPtB     EQU #DB76   ; Channel B inline pointer
+PT3_AdInPtC     EQU #DB78   ; Channel C inline pointer
+PT3_LPosPtr     EQU #DB7A   ; Loop position pointer
+PT3_PatsPtr     EQU #DB7C   ; Patterns table pointer
+PT3_Delay       EQU #DB7E   ; Song speed/delay
+PT3_AddToEn     EQU #DB7F   ; Add to envelope
+PT3_Env_Del     EQU #DB80   ; Envelope delay
+PT3_ESldAdd     EQU #DB81   ; Envelope slide add (2 bytes)
+PT3_NTL3        EQU #DB83   ; Note table link 3
+VARS            EQU #DB85   ; Channel vars base
+ChanA           EQU #DB85   ; Channel A data (29 bytes)
+ChanB           EQU #DBA2   ; Channel B data (29 bytes)
+ChanC           EQU #DBBF   ; Channel C data (29 bytes)
+DelyCnt         EQU #DBDC   ; Delay counter
+CurESld         EQU #DBDD   ; Current envelope slide (2 bytes)
+CurEDel         EQU #DBDF   ; Current envelope delay
+Ns_Base_AddToNs EQU #DBE0   ; Noise base + add to noise (combined)
+Ns_Base         EQU #DBE0   ; Noise base
+AddToNs         EQU #DBE1   ; Add to noise
+NT_             EQU #DBE2   ; Note table (192 bytes)
+AYREGS          EQU #DCA2  ; AY registers mirror (14 bytes)
+VT_             EQU #DCA2  ; Volume table base (alias for AYREGS)
+EnvBase         EQU #DCB0  ; Envelope base
+VAR0END         EQU #DCB2  ; End of fixed workspace
+T1_             EQU #DCB2  ; Tone tables start (unpacked by PT3_INIT)
+T_NEW_1         EQU #DCB2  ; Tone table new 1
+T_OLD_1         EQU #DCB2  ; Tone table old 1
+T_OLD_2         EQU #DCCA  ; Tone table old 2
+T_NEW_3         EQU #DCE2  ; Tone table new 3
+T_OLD_3         EQU #DCE2  ; Tone table old 3
+T_OLD_0         EQU #DCE4  ; Tone table old 0
+T_NEW_0         EQU #DCE4  ; Tone table new 0
+T_NEW_2         EQU #DCFC  ; Tone table new 2 (last, ends at +0x1B2)
+    
+; ==================================================================
+; ZX0 TEMPORARY RAM BUFFERS
+; ==================================================================
+; Fixed high-RAM scratch area used by compressed asset loaders and
+; plain48k page-0 decompression helpers.
+ZX0_SCREEN_BUFFER       EQU #DE00   ; Screen/layout scratch (768 bytes)
+ZX0_BEHAVIOR_BUFFER     EQU #E100   ; Behavior map scratch (768 bytes)
+ZX0_TILE_PATTERN_BUFFER EQU #E400   ; Tile pattern scratch (1488 bytes)
+ZX0_TILE_COLOR_BUFFER   EQU #EA00   ; Tile color scratch (1488 bytes)
+ZX0_FONT_PATTERN_BUFFER EQU #F000   ; Font pattern scratch (360 bytes)
+; Keep font buffers tightly packed to leave enough headroom below SP=#F380.
+; Old layout put FONT_COLOR at #F200, leaving only 24 bytes before the stack.
+ZX0_FONT_COLOR_BUFFER   EQU #F168   ; Font color scratch (360 bytes)
 
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #DA5A   ; End of project variables (6746 bytes used)
+RAM_USAGE_END       EQU #DDA2   ; End of project variables (7586 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#DA5A: Project variables (6746 bytes)
-;   #DA5A-#F37F: Free RAM (~6438 bytes available)
+;   #C000-#DDA2: Project variables (7586 bytes)
+;   #DDA2-#F37F: Free RAM (~5598 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
@@ -1440,19 +1831,21 @@ RAM_USAGE_END       EQU #DA5A   ; End of project variables (6746 bytes used)
 ;       Do NOT use ORG #C000 in cartridge ROMs!
 ; ==================================================================
 
-
 ; ==================================================================
 ; MAPPER RUNTIME API
 ; File: mapper.asm
 ; Description: Minimal compatibility stubs for simple32k builds
 ; Target mapper: konami
-; ROM mode: simple32k (autoMegaROM=false)
+; ROM mode: plain48k (autoMegaROM=false)
 ; ==================================================================
 ;
 ; This build runs without active mapper writes, so bank switching is not active.
 ; Keep mapper API labels as no-op stubs so generated gameplay code can
 ; call the same routines without conditional assembly branches.
-
+;
+; plain48k note:
+; The current generator only exposes the toolchain mode and runtime metadata.
+; Real page-0 packing for linear 48 KB ROMs is still pending.
 
 ; ------------------------------------------------------------------
 ; mapper_runtime_init
@@ -1549,7 +1942,6 @@ mapper_call_hl_p4:
 
 mapper_call_hl_auto:
     jp mapper_call_hl_p1
-
 
 ; ==================================================================
 ; INTERRUPT TASK SYSTEM - File: interrupt.asm
@@ -2194,7 +2586,6 @@ task_frame_counter:
 ;   CALL enable_task
 ; ==================================================================
 
-
 ; ==================================================================
 ; COMPONENT SYSTEMS (INLINED)
 ; Generated inside interrupt.asm because interruptDrivenComponents=true
@@ -2314,7 +2705,6 @@ entity_last_collision_entity EQU temp_byte_24 ; Last collided entity index (255=
 
     ; Input Disable Flag
 entity_input_disabled EQU temp_byte_26 ; 0=enabled, 1=disabled (32 bytes)
-
 
     ; ==================================================================
 ; CORE ECS SYSTEM FUNCTIONS
@@ -2438,6 +2828,13 @@ position_update_loop:
     ld c, (hl)                 ; C = entity index
     inc hl                     ; Advance list pointer
     push hl                    ; Save list pointer
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .position_check_mask
+    ld a, (player_entity_index)
+    cp c
+    jp z, .position_skip_fast_player
+.position_check_mask:
     ld e, c
     ld d, 0
     ld hl, entity_comp_masks
@@ -2500,6 +2897,10 @@ position_update_loop:
 
     pop hl
     pop bc
+    jp position_next_entity
+
+.position_skip_fast_player:
+    pop hl
 
 position_next_entity:
     dec b
@@ -2534,6 +2935,13 @@ sprite_update_loop:
     inc hl                     ; Advance list pointer
     ld e, c
     ld d, 0
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .sprite_not_fast_player
+    ld a, (player_entity_index)
+    cp c
+    jp z, sprite_next_entity
+.sprite_not_fast_player:
 
     ; render_entity_list already guarantees active + current_screen_id + sprite
     push bc
@@ -2653,6 +3061,27 @@ sprite_next_entity:
     dec b
     jp nz, sprite_update_loop
 
+    ret
+
+; ==================================================================
+; PLAYER SPRITE FASTPATH
+; ==================================================================
+refresh_player_sprite_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_SPRITE
+    ret z
+    call force_update_entity_sprite
     ret
 
 ; ==================================================================
@@ -3684,6 +4113,13 @@ gbt_oob:
             inc hl                     ; Advance list pointer
             push hl                    ; Save list pointer
             pop hl                     ; Restore list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .input_not_fast_player
+            ld a, (player_entity_index)
+            cp c
+            jp z, input_next_entity
+        .input_not_fast_player:
 
             ; input_entity_list already guarantees active + current_screen_id + input
 
@@ -4266,6 +4702,13 @@ increase_entity_lives:
             ld e, c
             ld d, 0
             pop hl                     ; Restore list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .anim_not_fast_player
+            ld a, (player_entity_index)
+            cp c
+            jp z, .anim_next_entity
+        .anim_not_fast_player:
 
             ; anim_entity_list already guarantees active + current_screen_id + animation + sprite
 
@@ -4490,6 +4933,46 @@ anim_done_entity:
             dec b
             jp nz, .anim_loop
     ret
+
+refresh_player_animation_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+    cp COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+    ret nz
+
+    ld a, (player_runtime_enabled)
+    push af
+    ld a, (anim_entity_count)
+    push af
+    ld a, (anim_entity_list)
+    push af
+
+    xor a
+    ld (player_runtime_enabled), a
+    ld a, c
+    ld (anim_entity_list), a
+    ld a, 1
+    ld (anim_entity_count), a
+    call update_animation_component
+
+    pop af
+    ld (anim_entity_list), a
+    pop af
+    ld (anim_entity_count), a
+    pop af
+    ld (player_runtime_enabled), a
+    ret
     
     ; ==================================================================
         ; JUMP COMPONENT SYSTEM
@@ -4549,6 +5032,13 @@ anim_done_entity:
             ld c, (hl)                    ; C = entity index
             inc hl                        ; Advance list pointer
             push hl                       ; Save list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .jump_check_mask
+            ld a, (player_entity_index)
+            cp c
+            jp z, .jump_skip_fast_player
+        .jump_check_mask:
             ld e, c
             ld d, 0
             ld hl, entity_comp_masks_hi
@@ -4691,6 +5181,10 @@ anim_done_entity:
 jump_done_entity:
             pop hl
             pop bc
+            jp jump_next_entity
+
+        .jump_skip_fast_player:
+            pop hl
 
         jump_next_entity:
             dec b
@@ -4723,6 +5217,13 @@ gravity_update_loop:
             ld c, (hl)                 ; C = entity index
             inc hl                     ; Advance list pointer
             push hl                    ; Save list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .gravity_check_mask
+            ld a, (player_entity_index)
+            cp c
+            jp z, .gravity_skip_fast_player
+        .gravity_check_mask:
             ld e, c
             ld d, 0
             ld hl, entity_comp_masks_hi
@@ -4809,6 +5310,10 @@ gravity_grounded:
 gravity_done:
             pop hl
             pop bc
+            jp gravity_next_entity
+
+        .gravity_skip_fast_player:
+            pop hl
 
 gravity_next_entity:
             dec b
@@ -6151,6 +6656,13 @@ update_deadly_tiles_component:
     ld c, (hl)
     inc hl
     push hl
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .deadly_not_fast_player
+    ld a, (player_entity_index)
+    cp c
+    jp z, .deadly_skip_fast_player
+.deadly_not_fast_player:
     ld e, c
     ld d, 0
     ld hl, entity_comp_masks_hi
@@ -6179,10 +6691,37 @@ update_deadly_tiles_component:
     push bc
     call update_entity_deadly_flag_runtime
     pop bc
+    jr .deadly_tiles_next
+
+.deadly_skip_fast_player:
+    pop hl
 
 .deadly_tiles_next:
     dec b
     jp nz, .deadly_tiles_loop
+    ret
+
+refresh_player_deadly_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #20
+    jr nz, .player_deadly_update
+    ld hl, entity_flag_deadly_tile
+    add hl, de
+    res 0, (hl)
+    ret
+.player_deadly_update:
+    call update_entity_deadly_flag_runtime
     ret
 
     ; Collectible system filtered out(not used)
@@ -6521,7 +7060,6 @@ update_slash_component:
     jp nz, .slash_loop
     ret
 
-
 record_bonus_respawn_slot:
     ld a, d
     push af
@@ -6658,7 +7196,6 @@ update_bonus_respawns:
     jp nz, .ubr_loop
     ret
 
-
 ; ------------------------------------------------------------------
 ; check_tile_interaction
 ; Purpose:
@@ -6682,15 +7219,27 @@ update_bonus_respawns:
 ;   - DE must survive the optional HUD/sound hooks until persistence logic runs
 ; ------------------------------------------------------------------
 check_tile_interaction:
+    call scan_tile_interaction_entities
+    call update_bonus_respawns
+    ret
+
+scan_tile_interaction_entities:
     ld a, (input_entity_count)
     or a
-    jp z, .ti_respawn_only         ; No active entities
+    ret z                         ; No active entities
 
     ld hl, input_entity_list
     ld b, a                        ; B = entity count
 
 .ti_loop:
     ld c, (hl)                     ; C = entity index
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .ti_process_entity
+    ld a, (player_entity_index)
+    cp c
+    jp z, .ti_skip_fast_player
+.ti_process_entity:
     push hl                        ; Save list pointer
     push bc                        ; Save count(B) + entity(C)
 
@@ -6794,7 +7343,6 @@ check_tile_interaction:
     cp 141
     jp z, .ti_collect_bonus
 
-
     jp .ti_collect_normal
 
 .ti_collect_normal:
@@ -6814,13 +7362,10 @@ check_tile_interaction:
     add a, 1
     ld (hl), a
 
-
     ; Tile Collector pickup flag assignment (8-bit).
     ld hl, global_var_gems_modified
     ld a, 1
     ld (hl), a
-
-
 
     ; Tile Collector UI-configured collection sound.
     ; Preserve DE because it still carries the tile index for persistence.
@@ -6828,7 +7373,6 @@ check_tile_interaction:
     ld a, 1
     call SM_PlaySoundAsset
     pop de
-
 
     ; 4. Record in persistent collected list (survives screen re-entry via apply_collected_tiles)
     ;    FAST_WRTVRM preserves all registers, so DE = idx is still valid here.
@@ -6937,14 +7481,11 @@ check_tile_interaction:
 .ti_bonus_done:
     pop de
 
-
     ; No bonusSoundId configured.
-
 
     ; Timed bonus respawn enabled: queue tile restoration and skip persistence.
     call record_bonus_respawn_slot
     jp .ti_next
-
 
 .ti_no_collect:
     pop hl                         ; Balance idx push
@@ -6955,11 +7496,51 @@ check_tile_interaction:
     inc hl                         ; Advance to next entity
     dec b
     jp nz, .ti_loop                ; djnz replaced with jp nz (loop body > 127 bytes)
-    call update_bonus_respawns
     ret
 
-.ti_respawn_only:
-    call update_bonus_respawns
+.ti_skip_fast_player:
+    inc hl
+    dec b
+    jp nz, .ti_loop
+    ret
+
+refresh_player_tile_interaction_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    ret z
+
+    ld a, (player_runtime_enabled)
+    push af
+    ld a, (input_entity_count)
+    push af
+    ld a, (input_entity_list)
+    push af
+
+    xor a
+    ld (player_runtime_enabled), a
+    ld a, c
+    ld (input_entity_list), a
+    ld a, 1
+    ld (input_entity_count), a
+    call scan_tile_interaction_entities
+
+    pop af
+    ld (input_entity_list), a
+    pop af
+    ld (input_entity_count), a
+    pop af
+    ld (player_runtime_enabled), a
     ret
 
 ; ------------------------------------------------------------------
@@ -7344,9 +7925,9 @@ update_all_entities:
     inc hl
     inc (hl)
     call update_sprite_component        ; 13. Sprite rendering
+    call sync_player_runtime_from_entity
     ret
 ; Total systems called: 17 (optimized from 16)
-
 
 ; ------------------------------------------------------------------
 ; mark_used_entity_list_dirty
@@ -7621,6 +8202,634 @@ rebuild_used_entity_list:
     ld (active_entity_list_dirty), a
     ret
 
+; ------------------------------------------------------------------
+; ensure_player_fast_runtime_bound
+; Keep the dedicated player runtime attached to the current hero entity.
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Bind the player fast-path runtime to the current hero entity.
+;   Inputs:
+;     - active_entity_list_dirty, hero_entity_id, current-screen filtered entity lists
+;   Outputs:
+;     - player_runtime_enabled, player_entity_index, player_x/player_y, player_vx_runtime/player_vy_runtime
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Notes:
+;     - Calls ensure_used_entity_list_current and resolve_runtime_hero_entity.
+
+ensure_player_fast_runtime_bound:
+    call ensure_used_entity_list_current
+    call resolve_runtime_hero_entity
+    cp #FF
+    jp nz, .bind_runtime
+
+    xor a
+    ld (player_runtime_enabled), a
+    ld (player_vx_runtime), a
+    ld (player_vy_runtime), a
+    ld (player_x), a
+    ld (player_x+1), a
+    ld (player_y), a
+    ld (player_y+1), a
+    ld a, #FF
+    ld (player_entity_index), a
+    ret
+
+.bind_runtime:
+    ld (player_entity_index), a
+    ld a, 1
+    ld (player_runtime_enabled), a
+    call sync_player_runtime_from_entity
+    ret
+
+; ------------------------------------------------------------------
+; sync_player_runtime_from_entity
+; Mirror hero ECS coordinates/velocity into player_* runtime vars.
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Copy the current bound hero entity state into player_* runtime variables.
+;   Inputs:
+;     - player_runtime_enabled, player_entity_index, entity_x_pos/y_pos, entity_vel_x/y
+;   Outputs:
+;     - player_x, player_y, player_vx_runtime, player_vy_runtime updated
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+
+sync_player_runtime_from_entity:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_x), a
+    xor a
+    ld (player_x+1), a
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_y), a
+    xor a
+    ld (player_y+1), a
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    ld (player_vx_runtime), a
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    ld (player_vy_runtime), a
+    ret
+
+; ------------------------------------------------------------------
+; update_player_fastpath
+; Dedicated hero update path executed before the generic ECS sweeps.
+; Mirrors the critical input->jump->gravity->position chain for the
+; current player entity without iterating over every active entity.
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Run the critical per-frame player update without ECS list iteration.
+;   Inputs:
+;     - task_update_input already refreshed input_state/input_btn_*
+;   Outputs:
+;     - Hero input/jump/gravity/position resolved into entity tables and player_* mirror
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Notes:
+;     - Global collision/wall/sprite systems still run later in the frame and may refine the final result.
+
+update_player_fastpath:
+    call ensure_player_fast_runtime_bound
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+
+    ; Require Input component to treat this entity as the player fast-path target.
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    jp z, .player_fast_sync
+
+    ; --------------------------------------------------------------
+    ; INPUT
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_input_disabled
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .player_fast_input_enabled
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    jp .player_fast_after_input
+
+.player_fast_input_enabled:
+    ld hl, entity_dir_mask
+    add hl, de
+    ld b, (hl)                    ; B = direction mask
+
+    ld hl, entity_input_speed
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .player_fast_speed_ok
+    ld a, 1
+.player_fast_speed_ok:
+    ld h, a                       ; H = cardinal speed
+    srl a
+    jr nz, .player_fast_diag_speed_ok
+    ld a, 1
+.player_fast_diag_speed_ok:
+    ld l, a                       ; L = diagonal speed
+
+    ld a, (input_state)
+    ld d, 0                       ; D = vel_x
+    ld e, 0                       ; E = vel_y
+    cp STICK_UP
+    jp z, .player_fast_input_up
+    cp STICK_DOWN
+    jp z, .player_fast_input_down
+    cp STICK_LEFT
+    jp z, .player_fast_input_left
+    cp STICK_RIGHT
+    jp z, .player_fast_input_right
+    cp STICK_UPRIGHT
+    jp z, .player_fast_input_upright
+    cp STICK_UPLEFT
+    jp z, .player_fast_input_upleft
+    cp STICK_DOWNRIGHT
+    jp z, .player_fast_input_downright
+    cp STICK_DOWNLEFT
+    jp z, .player_fast_input_downleft
+    jp .player_fast_apply_velocity
+
+.player_fast_input_up:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_down:
+    ld a, b
+    and DIR_ALLOW_DOWN
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_left:
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_right:
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_upright:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .player_fast_check_right_only
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_check_up_only
+    ld a, l
+    ld d, a
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_right_only:
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_up_only:
+    ld a, h
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_upleft:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .player_fast_check_left_only_1
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_check_up_only_1
+    ld a, l
+    neg
+    ld d, a
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_left_only_1:
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_up_only_1:
+    ld a, h
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_downright:
+    ld a, b
+    and DIR_ALLOW_DOWN
+    jp z, .player_fast_check_right_only_2
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_check_down_only_2
+    ld a, l
+    ld d, a
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_right_only_2:
+    ld a, b
+    and DIR_ALLOW_RIGHT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_down_only_2:
+    ld a, h
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_input_downleft:
+    ld a, b
+    and DIR_ALLOW_DOWN
+    jp z, .player_fast_check_left_only_3
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_check_down_only_3
+    ld a, l
+    neg
+    ld d, a
+    neg
+    ld e, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_left_only_3:
+    ld a, b
+    and DIR_ALLOW_LEFT
+    jp z, .player_fast_apply_velocity
+    ld a, h
+    neg
+    ld d, a
+    jp .player_fast_apply_velocity
+
+.player_fast_check_down_only_3:
+    ld a, h
+    ld e, a
+
+.player_fast_apply_velocity:
+    push de
+    ld hl, entity_vel_x
+    ld e, c
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), d
+
+    push de
+    ld hl, entity_vel_y
+    ld e, c
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), e
+
+    ; Update entity_facing_dir based on input_state.
+    ; Match the generic input system so Player fast-path preserves the
+    ; same directional semantics used by ChangeSprite and sprite variants.
+    push af
+    ld a, (input_state)
+    or a
+    jr z, .player_fast_facing_done
+    cp 2
+    jr c, .player_fast_facing_up
+    cp 5
+    jr c, .player_fast_facing_right
+    jr z, .player_fast_facing_down
+    ld a, 1                     ; FACING_LEFT
+    jr .player_fast_facing_write
+.player_fast_facing_right:
+    ld a, 2                     ; FACING_RIGHT
+    jr .player_fast_facing_write
+.player_fast_facing_up:
+    ld a, 3                     ; FACING_UP
+    jr .player_fast_facing_write
+.player_fast_facing_down:
+    ld a, 4                     ; FACING_DOWN
+.player_fast_facing_write:
+    push hl
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    pop de
+    pop hl
+.player_fast_facing_done:
+    pop af
+
+    ; Sync directional sprite facing for input-driven entities.
+    ; Keep the same rule as the generic input system: skip when a
+    ; State Machine owns ChangeSprite for this entity.
+    push af
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_sm_ptr_l
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_sm_ptr_h
+    add hl, de
+    or (hl)
+    pop de
+    pop af
+    jr nz, .player_fast_skip_patrol_facing
+    push de
+    ld e, c
+    ld d, 0
+    call update_entity_patrol_facing
+    pop de
+.player_fast_skip_patrol_facing:
+
+.player_fast_after_input:
+    ; --------------------------------------------------------------
+    ; JUMP
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #01
+    jp z, .player_fast_after_jump
+
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jr z, .player_fast_jump_check
+
+    ld hl, entity_jump_count
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_jump_bonus
+    add hl, de
+    ld (hl), 0
+
+.player_fast_jump_check:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    jp z, .player_fast_after_jump
+    ld a, (input_btn_prev)
+    and INPUT_BTN_FIRE
+    jp nz, .player_fast_after_jump
+
+    ld hl, entity_jump_max
+    add hl, de
+    ld b, (hl)
+    ld hl, entity_jump_bonus
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld b, a
+
+    ld hl, entity_jump_count
+    add hl, de
+    ld a, (hl)
+    cp b
+    jr c, .player_fast_do_jump
+
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jp z, .player_fast_after_jump
+
+.player_fast_do_jump:
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jr nz, .player_fast_skip_bonus_consume
+
+    ld hl, entity_jump_count
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_jump_max
+    add hl, de
+    cp (hl)
+    jr c, .player_fast_skip_bonus_consume
+
+    ld hl, entity_jump_bonus
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .player_fast_skip_bonus_consume
+    dec (hl)
+
+.player_fast_skip_bonus_consume:
+    ld hl, entity_jump_count
+    add hl, de
+    inc (hl)
+
+    ld hl, entity_on_ground
+    add hl, de
+    res 0, (hl)
+
+    ld hl, entity_platform_id
+    add hl, de
+    ld (hl), 255
+
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #02
+    jp z, .player_fast_after_jump
+
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), #00
+    inc hl
+    ld (hl), #FC
+
+.player_fast_after_jump:
+    ; --------------------------------------------------------------
+    ; GRAVITY
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #02
+    jp z, .player_fast_after_gravity
+
+    ld hl, entity_on_ground
+    add hl, de
+    ld a, (hl)
+    bit 0, a
+    jr nz, .player_fast_gravity_grounded
+
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+
+    ld a, e
+    add a, #40
+    ld e, a
+    ld a, d
+    adc a, #00
+    ld d, a
+
+    ld a, d
+    bit 7, a
+    jr nz, .player_fast_store_gravity
+    cp #04
+    jr c, .player_fast_store_gravity
+    ld de, #0400
+
+.player_fast_store_gravity:
+    dec hl
+    ld (hl), e
+    inc hl
+    ld (hl), d
+
+    push de
+    ld hl, entity_vel_y
+    ld e, c
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), d
+    jr .player_fast_after_gravity
+
+.player_fast_gravity_grounded:
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), 0
+
+.player_fast_after_gravity:
+    ; --------------------------------------------------------------
+    ; POSITION
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    ld b, a
+    and COMP_MASK_POSITION
+    jp z, .player_fast_sync
+
+    ld a, b
+    and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
+    jp z, .player_fast_sync
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    ld b, a
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld (hl), a
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    bit 7, a
+    jr z, .player_fast_vy_positive
+    cp #F0
+    jr nc, .player_fast_vy_ready
+    ld a, #F0
+    jr .player_fast_vy_ready
+.player_fast_vy_positive:
+    cp #11
+    jr c, .player_fast_vy_ready
+    ld a, #10
+.player_fast_vy_ready:
+    ld b, a
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld (hl), a
+
+.player_fast_sync:
+    call sync_player_runtime_from_entity
+    ret
+
 ; ==================================================================
 ; EXECUTE ALL STATE MACHINES - Called by GameFlow
 ; ==================================================================
@@ -7642,6 +8851,15 @@ execute_all_state_machines:
     ld a, (hl)                    ; A = entity index
     inc hl                        ; Advance list pointer
     push hl                       ; Save list pointer
+    ld c, a
+    ld a, (player_runtime_enabled)
+    or a
+    jr z, .sm_entity_ready
+    ld a, (player_entity_index)
+    cp c
+    jr z, .skip_entity
+.sm_entity_ready:
+    ld a, c
 
     ; active_entity_list already guarantees active + current_screen_id
     ld e, a                       ; DE = entity index
@@ -7672,6 +8890,28 @@ execute_all_state_machines:
     
     ret
 
+refresh_player_state_machine_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+
+    ld e, a
+    ld d, 0
+    ld hl, entity_sm_ptr_l
+    add hl, de
+    ld c, (hl)
+    ld hl, entity_sm_ptr_h
+    add hl, de
+    ld a, (hl)
+    or c
+    ret z
+
+    ld a, e
+    call SM_Update
+    ret
 
 ; ==================================================================
 ; TILE COLLISION SYSTEM
@@ -8117,7 +9357,6 @@ div_a_by_c:
     ld a, b
     ret
 
-
 ; ------------------------------------------------------------------
 ; update_secret_zone_component
 ; Hero-only secret zone runtime.
@@ -8408,7 +9647,6 @@ secret_zone_compute_offset:
     add hl, de
     ret
 
-
     ; ==================================================================
 ; END OF COMPONENT SYSTEMS
     ; ==================================================================
@@ -8416,8 +9654,6 @@ secret_zone_compute_offset:
 ; ==================================================================
 ; END OF INLINED COMPONENT SYSTEMS
 ; ==================================================================
-
-
 
 ; ==================================================================
 ; TILE PATTERN DATA
@@ -8506,21 +9742,21 @@ load_patterns_to_vram:
 tilebank_tilebank_1770753778086_load_pattern_bank0:
     ld hl, tilebank_pattern_data_0
     ld de, CHRTBL2 + (128 * 8)
-    ld bc, 256
+    ld bc, 240
     call FAST_LDIRVM
     ret
 
 tilebank_tilebank_1770753778086_load_pattern_bank1:
     ld hl, tilebank_pattern_data_0
     ld de, CHRTBL2 + #800 + (128 * 8)
-    ld bc, 256
+    ld bc, 240
     call FAST_LDIRVM
     ret
 
 tilebank_tilebank_1770753778086_load_pattern_bank2:
     ld hl, tilebank_pattern_data_0
     ld de, CHRTBL2 + #1000 + (128 * 8)
-    ld bc, 256
+    ld bc, 240
     call FAST_LDIRVM
     ret
 
@@ -8530,7 +9766,6 @@ load_tilebank_tilebank_1770753778086_patterns_to_vram:
     call tilebank_tilebank_1770753778086_load_pattern_bank2
     ret
 
-
 tilebank_pattern_data_0:
     db #00, #7F, #7F, #00, #E0, #EC, #00, #74, #00, #EF, #EF, #00, #11, #11, #00, #22
     db #71, #00, #F0, #F1, #00, #70, #70, #70, #41, #00, #11, #02, #00, #05, #20, #C2
@@ -8539,8 +9774,7 @@ tilebank_pattern_data_0:
     db #00, #FE, #EF, #D7, #AF, #D7, #FF, #7F, #00, #7F, #7F, #00, #80, #20, #00, #42
     db #00, #EF, #EF, #00, #09, #80, #00, #42, #08, #00, #02, #10, #00, #00, #00, #02
     db #09, #00, #00, #40, #00, #04, #01, #00, #00, #00, #38, #38, #38, #00, #00, #00
-    db #00, #FF, #EF, #C7, #83, #01, #FF, #FF, #00, #00, #00, #00, #00, #00, #00, #00
-    db #00, #00, #00, #00, #00, #00, #00, #00, #00, #10, #38, #7C, #38, #10, #00, #00
+    db #00, #FF, #EF, #C7, #83, #01, #FF, #FF, #00, #10, #38, #7C, #38, #10, #00, #00
     db #7E, #FE, #AE, #DE, #BE, #DE, #FC, #00, #10, #10, #10, #10, #38, #7C, #7C, #7C
     db #00, #1C, #3E, #7E, #7F, #7F, #7F, #7F, #00, #38, #7C, #7E, #EE, #D6, #EE, #FE
     db #7F, #7F, #3F, #3F, #1F, #0F, #07, #01, #FE, #FE, #FC, #FC, #F8, #F0, #E0, #80
@@ -8549,12 +9783,9 @@ tilebank_pattern_data_0:
     db #00, #00, #00, #00, #00, #00, #00, #FF, #66, #FF, #BF, #DF, #FF, #7E, #3C, #18
     db #3C, #42, #81, #B1, #89, #81, #42, #3C, #00, #18, #3C, #7E, #7E, #34, #18, #00
 
-
-
 ; ==================================================================
 ; END OF PATTERN DATA
 ; ==================================================================
-
 
 ; ==================================================================
 ; TILE COLOR DATA
@@ -8636,21 +9867,21 @@ load_colors_to_vram:
 tilebank_tilebank_1770753778086_load_color_bank0:
     ld hl, tilebank_color_data_0
     ld de, CLRTBL2 + (128 * 8)
-    ld bc, 256
+    ld bc, 240
     call FAST_LDIRVM
     ret
 
 tilebank_tilebank_1770753778086_load_color_bank1:
     ld hl, tilebank_color_data_0
     ld de, CLRTBL2 + #800 + (128 * 8)
-    ld bc, 256
+    ld bc, 240
     call FAST_LDIRVM
     ret
 
 tilebank_tilebank_1770753778086_load_color_bank2:
     ld hl, tilebank_color_data_0
     ld de, CLRTBL2 + #1000 + (128 * 8)
-    ld bc, 256
+    ld bc, 240
     call FAST_LDIRVM
     ret
 
@@ -8660,7 +9891,6 @@ load_tilebank_tilebank_1770753778086_colors_to_vram:
     call tilebank_tilebank_1770753778086_load_color_bank2
     ret
 
-
 tilebank_color_data_0:
     db #41, #41, #41, #51, #51, #41, #51, #51, #41, #41, #41, #51, #51, #51, #51, #51
     db #51, #51, #51, #51, #51, #41, #41, #51, #51, #51, #51, #51, #51, #41, #41, #51
@@ -8669,8 +9899,7 @@ tilebank_color_data_0:
     db #41, #51, #51, #51, #51, #51, #51, #41, #41, #41, #41, #51, #51, #41, #51, #51
     db #41, #41, #41, #51, #51, #51, #51, #51, #51, #51, #51, #51, #51, #41, #41, #51
     db #51, #51, #51, #51, #51, #41, #41, #51, #F1, #F1, #71, #E1, #E1, #F1, #F1, #F1
-    db #61, #61, #61, #91, #91, #81, #91, #91, #F0, #F0, #F0, #F0, #F0, #F0, #F0, #F0
-    db #F0, #F0, #F0, #F0, #F0, #F0, #F0, #F0, #F1, #F1, #F1, #71, #E1, #F1, #F1, #F1
+    db #61, #61, #61, #91, #91, #81, #91, #91, #F1, #F1, #F1, #71, #E1, #F1, #F1, #F1
     db #41, #51, #51, #51, #51, #51, #41, #41, #81, #81, #81, #91, #91, #91, #E1, #F1
     db #81, #91, #91, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61
     db #61, #61, #61, #61, #61, #61, #61, #81, #61, #81, #81, #81, #81, #81, #81, #81
@@ -8679,12 +9908,9 @@ tilebank_color_data_0:
     db #F1, #F1, #F1, #F1, #F1, #F1, #F1, #81, #81, #81, #81, #81, #81, #91, #91, #91
     db #F1, #E1, #E1, #F1, #E1, #E1, #E1, #E1, #A1, #A1, #A1, #A1, #A1, #A1, #A1, #A1
 
-
-
 ; ==================================================================
 ; END OF COLOR DATA
 ; ==================================================================
-
 
 ; ==================================================================
 ; SPRITE DATA
@@ -9088,7 +10314,6 @@ SPRITE_PLACEHOLDER_PATTERN:
     db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
 SPRITE_PLACEHOLDER_PATTERN_BANK EQU ((SPRITE_PLACEHOLDER_PATTERN - #4000) / #2000)
 
-
 ; ==================================================================
 ; SPRITE ANIMATION METADATA TABLES
 ; ==================================================================
@@ -9358,7 +10583,6 @@ init_sprites:
 load_sprite_patterns:
     call load_sprite_patterns_worldmap_1770754170935
     ret
-
 
 ; ------------------------------------------------------------------
 ; Runtime Sprite Pattern Pack: World "New Worldmap"
@@ -9662,7 +10886,6 @@ SPRITE_INVISIBLE    EQU 224
 ; active_sprite_count: db 0
 ; sprites_dirty: db 0
 
-
 ; ==================================================================
 ; SCREEN MAPS
 ; File: screens.asm
@@ -9706,8 +10929,8 @@ SCREEN_PAN1_0_EFFECT_ZONE_TABLE_SIZE EQU 0
 SCREEN_PAN1_0_ANIM_GROUP_COUNT EQU 3
 SCREEN_PAN1_0_ENTITY_COUNT EQU 2
 SCREEN_PAN1_0_SPRITE_PATTERN_SLOTS EQU 53
-SCREEN_PAN1_0_MUSIC_IN_GAME EQU 0
-SCREEN_PAN1_0_SUMMARY_FLAGS EQU #0E
+SCREEN_PAN1_0_MUSIC_IN_GAME EQU 1
+SCREEN_PAN1_0_SUMMARY_FLAGS EQU #0F
 SCREEN_PAN2_1_ID EQU 1
 SCREEN_PAN2_1_LAYOUT_BANK EQU ((SCREEN_PAN2_1_LAYOUT - #4000) / #2000)
 BEHAVIOR_PAN2_1_DATA_BANK EQU ((BEHAVIOR_PAN2_1_DATA - #4000) / #2000)
@@ -9720,8 +10943,8 @@ SCREEN_PAN2_1_EFFECT_ZONE_TABLE_SIZE EQU 0
 SCREEN_PAN2_1_ANIM_GROUP_COUNT EQU 2
 SCREEN_PAN2_1_ENTITY_COUNT EQU 0
 SCREEN_PAN2_1_SPRITE_PATTERN_SLOTS EQU 1
-SCREEN_PAN2_1_MUSIC_IN_GAME EQU 0
-SCREEN_PAN2_1_SUMMARY_FLAGS EQU #0E
+SCREEN_PAN2_1_MUSIC_IN_GAME EQU 1
+SCREEN_PAN2_1_SUMMARY_FLAGS EQU #0F
 SCREEN_PAN3_2_ID EQU 2
 SCREEN_PAN3_2_LAYOUT_BANK EQU ((SCREEN_PAN3_2_LAYOUT - #4000) / #2000)
 BEHAVIOR_PAN3_2_DATA_BANK EQU ((BEHAVIOR_PAN3_2_DATA - #4000) / #2000)
@@ -9734,8 +10957,8 @@ SCREEN_PAN3_2_EFFECT_ZONE_TABLE_SIZE EQU 0
 SCREEN_PAN3_2_ANIM_GROUP_COUNT EQU 2
 SCREEN_PAN3_2_ENTITY_COUNT EQU 2
 SCREEN_PAN3_2_SPRITE_PATTERN_SLOTS EQU 11
-SCREEN_PAN3_2_MUSIC_IN_GAME EQU 0
-SCREEN_PAN3_2_SUMMARY_FLAGS EQU #0E
+SCREEN_PAN3_2_MUSIC_IN_GAME EQU 1
+SCREEN_PAN3_2_SUMMARY_FLAGS EQU #0F
 SCREEN_PAN4_3_ID EQU 3
 SCREEN_PAN4_3_LAYOUT_BANK EQU ((SCREEN_PAN4_3_LAYOUT - #4000) / #2000)
 BEHAVIOR_PAN4_3_DATA_BANK EQU ((BEHAVIOR_PAN4_3_DATA - #4000) / #2000)
@@ -9748,8 +10971,8 @@ SCREEN_PAN4_3_EFFECT_ZONE_TABLE_SIZE EQU 0
 SCREEN_PAN4_3_ANIM_GROUP_COUNT EQU 2
 SCREEN_PAN4_3_ENTITY_COUNT EQU 0
 SCREEN_PAN4_3_SPRITE_PATTERN_SLOTS EQU 1
-SCREEN_PAN4_3_MUSIC_IN_GAME EQU 0
-SCREEN_PAN4_3_SUMMARY_FLAGS EQU #0E
+SCREEN_PAN4_3_MUSIC_IN_GAME EQU 1
+SCREEN_PAN4_3_SUMMARY_FLAGS EQU #0F
 SCREEN_PAN5_4_ID EQU 4
 SCREEN_PAN5_4_LAYOUT_BANK EQU ((SCREEN_PAN5_4_LAYOUT - #4000) / #2000)
 BEHAVIOR_PAN5_4_DATA_BANK EQU ((BEHAVIOR_PAN5_4_DATA - #4000) / #2000)
@@ -9762,8 +10985,8 @@ SCREEN_PAN5_4_EFFECT_ZONE_TABLE_SIZE EQU 8
 SCREEN_PAN5_4_ANIM_GROUP_COUNT EQU 1
 SCREEN_PAN5_4_ENTITY_COUNT EQU 0
 SCREEN_PAN5_4_SPRITE_PATTERN_SLOTS EQU 1
-SCREEN_PAN5_4_MUSIC_IN_GAME EQU 0
-SCREEN_PAN5_4_SUMMARY_FLAGS EQU #0C
+SCREEN_PAN5_4_MUSIC_IN_GAME EQU 1
+SCREEN_PAN5_4_SUMMARY_FLAGS EQU #0D
 SCREEN_PAN6_5_ID EQU 5
 SCREEN_PAN6_5_LAYOUT_BANK EQU ((SCREEN_PAN6_5_LAYOUT - #4000) / #2000)
 BEHAVIOR_PAN6_5_DATA_BANK EQU ((BEHAVIOR_PAN6_5_DATA - #4000) / #2000)
@@ -9776,8 +10999,8 @@ SCREEN_PAN6_5_EFFECT_ZONE_TABLE_SIZE EQU 0
 SCREEN_PAN6_5_ANIM_GROUP_COUNT EQU 3
 SCREEN_PAN6_5_ENTITY_COUNT EQU 0
 SCREEN_PAN6_5_SPRITE_PATTERN_SLOTS EQU 1
-SCREEN_PAN6_5_MUSIC_IN_GAME EQU 0
-SCREEN_PAN6_5_SUMMARY_FLAGS EQU #0C
+SCREEN_PAN6_5_MUSIC_IN_GAME EQU 1
+SCREEN_PAN6_5_SUMMARY_FLAGS EQU #0D
 
 ; ==================================================================
 ; SCREEN RUNTIME SUMMARY TABLE
@@ -9788,12 +11011,12 @@ SCREEN_PAN6_5_SUMMARY_FLAGS EQU #0C
 ; ==================================================================
 
 screen_runtime_summary_table:
-    db 3, 2, 53, #0E    ; Screen 0: pan1
-    db 2, 0, 1, #0E    ; Screen 1: pan2
-    db 2, 2, 11, #0E    ; Screen 2: pan3
-    db 2, 0, 1, #0E    ; Screen 3: pan4
-    db 1, 0, 1, #0C    ; Screen 4: pan5
-    db 3, 0, 1, #0C    ; Screen 5: pan6
+    db 3, 2, 53, #0F    ; Screen 0: pan1
+    db 2, 0, 1, #0F    ; Screen 1: pan2
+    db 2, 2, 11, #0F    ; Screen 2: pan3
+    db 2, 0, 1, #0F    ; Screen 3: pan4
+    db 1, 0, 1, #0D    ; Screen 4: pan5
+    db 3, 0, 1, #0D    ; Screen 5: pan6
 
 ; ==================================================================
 ; SCREEN MAP DATA
@@ -9812,15 +11035,15 @@ SCREEN_PAN1_0_SIZE      EQU 768
 
 SCREEN_PAN1_0_LAYOUT:
     ; ZX0 compressed layout (768 -> 174 bytes)
-    DB #84,#FF,#5B,#9D,#A6,#F3,#9E,#8E,#9F,#FC,#41,#98,#80,#80,#81,#7F
-    DB #FB,#FC,#18,#8F,#88,#92,#F0,#BC,#82,#88,#48,#EF,#82,#83,#FD,#80
+    DB #84,#FF,#5B,#9B,#A6,#F3,#9C,#8E,#9D,#FC,#41,#98,#80,#80,#81,#7F
+    DB #FB,#FC,#18,#8F,#88,#90,#F0,#BC,#82,#88,#48,#EF,#82,#83,#FD,#80
     DB #40,#53,#F4,#81,#FE,#7A,#81,#86,#15,#BF,#81,#05,#00,#88,#89,#8A
     DB #56,#24,#83,#83,#5F,#85,#BF,#91,#80,#F8,#91,#00,#E7,#CB,#8A,#8B
     DB #8C,#EE,#87,#F8,#80,#47,#A5,#51,#8C,#C8,#C6,#6F,#8E,#FF,#EF,#F0
-    DB #93,#FF,#B3,#F4,#F8,#0E,#38,#5B,#88,#FC,#FE,#2C,#33,#C0,#52,#90
+    DB #91,#FF,#B3,#F4,#F8,#0E,#38,#5B,#88,#FC,#FE,#2C,#33,#C0,#52,#90
     DB #83,#3D,#80,#6D,#89,#D6,#65,#C8,#79,#C0,#0E,#D1,#80,#8B,#E0,#B4
-    DB #D6,#80,#28,#83,#12,#19,#9C,#98,#99,#9A,#82,#7D,#5C,#7E,#FE,#9E
-    DB #9B,#80,#26,#88,#92,#92,#FF,#F8,#C0,#5E,#FA,#EA,#80,#85,#D3,#B8
+    DB #D6,#80,#28,#83,#12,#19,#9A,#96,#97,#98,#82,#7D,#5C,#7E,#FE,#9E
+    DB #99,#80,#26,#88,#90,#90,#FF,#F8,#C0,#5E,#FA,#EA,#80,#85,#D3,#B8
     DB #D3,#B0,#3D,#C0,#69,#80,#F7,#80,#F7,#30,#D0,#7D,#FC,#BF,#82,#FB
     DB #80,#0C,#BE,#44,#B5,#FC,#4B,#80,#E3,#FB,#D0,#55,#55,#80
 SCREEN_PAN1_0_EFFECTS_LAYOUT:
@@ -9829,7 +11052,6 @@ SCREEN_PAN1_0_EFFECTS_LAYOUT:
 SCREEN_PAN1_0_EFFECT_ZONE_TABLE:
     ; No effect zones exported for pan1
     DB #00
-
 
 ;; BEHAVIOR MAP: pan1_0 (32x24 tiles)
 ;; Total size: 768 bytes (Map IDs 0-255)
@@ -9854,7 +11076,7 @@ SCREEN_PAN2_1_LAYOUT:
     ; ZX0 compressed layout (768 -> 128 bytes)
     DB #85,#FF,#56,#3D,#80,#81,#FC,#1F,#BA,#F5,#3A,#2A,#80,#94,#86,#4F
     DB #46,#57,#C2,#C0,#81,#8D,#28,#82,#F4,#FC,#22,#89,#8A,#7C,#28,#E4
-    DB #54,#E0,#00,#E5,#6A,#F4,#54,#7B,#97,#93,#DA,#EA,#93,#DC,#30,#4F
+    DB #54,#E0,#00,#E5,#6A,#F4,#54,#7B,#97,#91,#DA,#EA,#91,#DC,#30,#4F
     DB #F6,#F7,#81,#6A,#56,#90,#FF,#0B,#86,#24,#30,#7F,#24,#7D,#3D,#FC
     DB #EF,#E4,#5A,#1B,#83,#E2,#FC,#8B,#8C,#02,#FD,#88,#E5,#84,#3B,#98
     DB #F3,#EE,#34,#03,#DD,#99,#D2,#1F,#5C,#B2,#86,#0E,#47,#68,#D8,#83
@@ -9866,7 +11088,6 @@ SCREEN_PAN2_1_EFFECTS_LAYOUT:
 SCREEN_PAN2_1_EFFECT_ZONE_TABLE:
     ; No effect zones exported for pan2
     DB #00
-
 
 ;; BEHAVIOR MAP: pan2_1 (32x24 tiles)
 ;; Total size: 768 bytes (Map IDs 0-255)
@@ -9903,7 +11124,6 @@ SCREEN_PAN3_2_EFFECT_ZONE_TABLE:
     ; No effect zones exported for pan3
     DB #00
 
-
 ;; BEHAVIOR MAP: pan3_2 (32x24 tiles)
 ;; Total size: 768 bytes (Map IDs 0-255)
 ;; Data format: HEX
@@ -9925,11 +11145,11 @@ SCREEN_PAN4_3_SIZE      EQU 768
 SCREEN_PAN4_3_LAYOUT:
     ; ZX0 compressed layout (768 -> 129 bytes)
     DB #85,#FF,#56,#3C,#80,#81,#FC,#4F,#C3,#F1,#F9,#88,#78,#C1,#91,#80
-    DB #82,#7F,#C9,#FB,#8A,#80,#86,#44,#DC,#F6,#E1,#80,#22,#94,#95,#0A
-    DB #FF,#66,#8D,#82,#83,#16,#96,#8D,#24,#96,#97,#7D,#D1,#96,#56,#2F
+    DB #82,#7F,#C9,#FB,#8A,#80,#86,#44,#DC,#F6,#E1,#80,#22,#92,#93,#0A
+    DB #FF,#66,#8D,#82,#83,#16,#96,#8D,#24,#94,#95,#7D,#D1,#96,#56,#2F
     DB #89,#8A,#FB,#DA,#80,#FF,#17,#C9,#E0,#FE,#8B,#8C,#82,#FB,#00,#91
     DB #82,#F6,#EF,#80,#43,#F8,#80,#6E,#4E,#81,#95,#86,#77,#80,#5F,#EF
-    DB #D3,#C0,#F4,#7B,#80,#BE,#93,#FF,#78,#0B,#88,#FD,#BA,#00,#3F,#FC
+    DB #D3,#C0,#F4,#7B,#80,#BE,#91,#FF,#78,#0B,#88,#FD,#BA,#00,#3F,#FC
     DB #C1,#80,#CD,#40,#7D,#80,#7D,#FE,#7A,#81,#80,#45,#A6,#FF,#95,#82
     DB #74,#D0,#C0,#99,#80,#81,#82,#47,#4B,#3A,#4D,#00,#0D,#B5,#26,#55
     DB #58
@@ -9939,7 +11159,6 @@ SCREEN_PAN4_3_EFFECTS_LAYOUT:
 SCREEN_PAN4_3_EFFECT_ZONE_TABLE:
     ; No effect zones exported for pan4
     DB #00
-
 
 ;; BEHAVIOR MAP: pan4_3 (32x24 tiles)
 ;; Total size: 768 bytes (Map IDs 0-255)
@@ -9963,14 +11182,14 @@ SCREEN_PAN5_4_SIZE      EQU 768
 SCREEN_PAN5_4_LAYOUT:
     ; ZX0 compressed layout (768 -> 157 bytes)
     DB #85,#FF,#56,#0E,#80,#81,#89,#8A,#FC,#78,#E6,#E0,#FC,#20,#93,#82
-    DB #83,#8B,#8C,#B8,#C0,#E7,#F1,#88,#92,#FC,#BD,#82,#66,#3A,#C3,#FF
+    DB #83,#8B,#8C,#B8,#C0,#E7,#F1,#88,#90,#FC,#BD,#82,#66,#3A,#C3,#FF
     DB #42,#21,#88,#81,#3C,#80,#FA,#F5,#81,#FF,#06,#80,#83,#7F,#FC,#FF
     DB #BE,#B3,#F8,#BD,#80,#80,#3C,#C2,#F3,#36,#BD,#DC,#80,#77,#71,#DF
     DB #4A,#ED,#85,#00,#9B,#8B,#8C,#88,#BF,#CC,#FF,#EC,#FD,#FF,#00,#78
     DB #FC,#F7,#F2,#F3,#FA,#84,#47,#F4,#5F,#C0,#79,#80,#7D,#EC,#44,#A4
     DB #86,#3C,#E8,#73,#E9,#73,#24,#5B,#00,#4D,#F0,#EF,#F4,#D6,#3C,#ED
     DB #D6,#B5,#00,#1F,#F0,#A0,#88,#D7,#CA,#D7,#78,#3C,#68,#FE,#E5,#90
-    DB #EA,#92,#F8,#88,#7F,#CE,#5D,#BA,#F3,#FE,#88,#81,#93,#93,#F7,#F0
+    DB #EA,#90,#F8,#88,#7F,#CE,#5D,#BA,#F3,#FE,#88,#81,#91,#91,#F7,#F0
     DB #87,#FC,#4D,#04,#D7,#D8,#E5,#F0,#F7,#FC,#55,#55,#80
 SCREEN_PAN5_4_EFFECTS_LAYOUT:
     ; ZX0 compressed effects (768 -> 132 bytes)
@@ -9979,15 +11198,14 @@ SCREEN_PAN5_4_EFFECTS_LAYOUT:
     DB #4F,#4E,#45,#1F,#26,#47,#E4,#81,#E6,#E4,#80,#56,#39,#86,#86,#FA
     DB #E5,#80,#3F,#D1,#FA,#78,#80,#5E,#FC,#38,#F2,#76,#5E,#11,#7D,#EC
     DB #44,#A4,#86,#3C,#E8,#75,#DC,#11,#24,#D6,#00,#D3,#F0,#7B,#F4,#CF
-    DB #D6,#ED,#5D,#11,#61,#00,#FA,#F0,#88,#09,#FF,#88,#92,#88,#F5,#F9
-    DB #FC,#F3,#68,#FB,#E5,#90,#92,#A9,#F8,#88,#E3,#CE,#FF,#F9,#FC,#C0
-    DB #78,#81,#8F,#93,#93,#F0,#78,#FC,#74,#DE,#04,#F1,#24,#88,#88,#3D
+    DB #D6,#ED,#5D,#11,#61,#00,#FA,#F0,#88,#09,#FF,#88,#90,#88,#F5,#F9
+    DB #FC,#F3,#68,#FB,#E5,#90,#90,#A9,#F8,#88,#E3,#CE,#FF,#F9,#FC,#C0
+    DB #78,#81,#8F,#91,#91,#F0,#78,#FC,#74,#DE,#04,#F1,#24,#88,#88,#3D
     DB #FC,#D5,#55,#60
 SCREEN_PAN5_4_EFFECT_ZONE_TABLE:
     ; Effect zones for pan5
     ; Entry format: x, y, width, height, effectType, param0, param1, reserved
     DB #0F,#04,#10,#07,#00,#00,#00,#00
-
 
 ;; BEHAVIOR MAP: pan5_4 (32x24 tiles)
 ;; Total size: 768 bytes (Map IDs 0-255)
@@ -10012,11 +11230,11 @@ SCREEN_PAN6_5_LAYOUT:
     ; ZX0 compressed layout (768 -> 122 bytes)
     DB #85,#FF,#56,#39,#80,#81,#FC,#BF,#8E,#FF,#F5,#84,#FC,#89,#82,#83
     DB #3B,#AA,#E1,#F5,#FC,#2F,#80,#00,#52,#95,#82,#78,#80,#56,#65,#88
-    DB #92,#88,#43,#DF,#78,#80,#45,#F7,#78,#D4,#80,#3D,#78,#73,#80,#15
-    DB #A1,#8D,#42,#F7,#86,#E4,#FC,#EC,#E8,#63,#89,#93,#D6,#FF,#2C,#2E
+    DB #90,#88,#43,#DF,#78,#80,#45,#F7,#78,#D4,#80,#3D,#78,#73,#80,#15
+    DB #A1,#8D,#42,#F7,#86,#E4,#FC,#EC,#E8,#63,#89,#91,#D6,#FF,#2C,#2E
     DB #8A,#E8,#BB,#8A,#FC,#9D,#F0,#73,#02,#8F,#ED,#8B,#8C,#FC,#7F,#D1
-    DB #F0,#A0,#88,#D8,#7E,#FF,#F9,#FC,#CF,#68,#E5,#EE,#90,#92,#F8,#A7
-    DB #88,#8E,#CE,#C2,#29,#92,#3F,#88,#FD,#31,#F9,#F0,#E1,#FC,#FD,#3D
+    DB #F0,#A0,#88,#D8,#7E,#FF,#F9,#FC,#CF,#68,#E5,#EE,#90,#90,#F8,#A7
+    DB #88,#8E,#CE,#C2,#29,#90,#3F,#88,#FD,#31,#F9,#F0,#E1,#FC,#FD,#3D
     DB #FC,#8E,#88,#88,#F0,#5F,#FC,#75,#55,#58
 SCREEN_PAN6_5_EFFECTS_LAYOUT:
     ; ZX0 compressed effects (768 -> 6 bytes)
@@ -10024,7 +11242,6 @@ SCREEN_PAN6_5_EFFECTS_LAYOUT:
 SCREEN_PAN6_5_EFFECT_ZONE_TABLE:
     ; No effect zones exported for pan6
     DB #00
-
 
 ;; BEHAVIOR MAP: pan6_5 (32x24 tiles)
 ;; Total size: 768 bytes (Map IDs 0-255)
@@ -10041,13 +11258,6 @@ BEHAVIOR_PAN6_5_DATA:
     DB #CC,#80,#56,#85,#08,#0F,#A7,#D7,#92,#DE,#E8,#C1,#F5,#04,#FF,#DE
     DB #6E,#F0,#5F,#FE,#5F,#C0,#5F,#E4,#76,#58,#1E,#F8,#5F,#CE,#F5,#C0
     DB #FF,#30,#F0,#39,#FE,#13,#55,#55,#80
-PRESENTATION_SCREEN_NAMETBL_BANK EQU ((PRESENTATION_SCREEN_NAMETBL - #4000) / #2000)
-PRESENTATION_SCREEN_PATTERNS_B0_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B0 - #4000) / #2000)
-PRESENTATION_SCREEN_PATTERNS_B1_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B1 - #4000) / #2000)
-PRESENTATION_SCREEN_PATTERNS_B2_BANK EQU ((PRESENTATION_SCREEN_PATTERNS_B2 - #4000) / #2000)
-PRESENTATION_SCREEN_COLORS_B0_BANK EQU ((PRESENTATION_SCREEN_COLORS_B0 - #4000) / #2000)
-PRESENTATION_SCREEN_COLORS_B1_BANK EQU ((PRESENTATION_SCREEN_COLORS_B1 - #4000) / #2000)
-PRESENTATION_SCREEN_COLORS_B2_BANK EQU ((PRESENTATION_SCREEN_COLORS_B2 - #4000) / #2000)
 PRESENTATION_SCREEN_NAMETBL_SIZE EQU 768
 PRESENTATION_SCREEN_PATTERN_B0_SIZE EQU 680
 PRESENTATION_SCREEN_PATTERN_B1_SIZE EQU 1488
@@ -10058,241 +11268,23 @@ PRESENTATION_SCREEN_COLOR_B2_SIZE EQU 488
 PRESENTATION_SCREEN_MAX_PATTERN_SIZE EQU 1488
 PRESENTATION_SCREEN_MAX_COLOR_SIZE EQU 1488
 
-PRESENTATION_SCREEN_NAMETBL:
-    ; ZX0 compressed layout (768 -> 260 bytes)
-    DB #90,#00,#47,#80,#C1,#A8,#01,#02,#03,#04,#05,#06,#07,#08,#09,#16
-    DB #52,#0A,#0B,#0C,#0D,#0E,#0F,#10,#11,#12,#13,#14,#15,#16,#17,#04
-    DB #80,#77,#18,#19,#1A,#1B,#1C,#1D,#1E,#1F,#20,#21,#22,#23,#24,#25
-    DB #26,#27,#28,#CA,#18,#46,#29,#2A,#2B,#2C,#2D,#2E,#2F,#30,#31,#32
-    DB #33,#34,#35,#36,#37,#38,#39,#3A,#3B,#3C,#3D,#12,#15,#80,#3E,#3F
-    DB #40,#41,#42,#43,#44,#45,#46,#47,#48,#49,#4A,#4B,#4C,#4D,#4E,#4F
-    DB #50,#51,#52,#53,#54,#6D,#09,#C6,#F2,#97,#18,#D7,#08,#83,#24,#CE
-    DB #C0,#16,#5E,#2A,#5E,#40,#0E,#18,#49,#0C,#55,#56,#57,#58,#59,#5A
-    DB #5B,#5C,#5D,#5E,#5F,#60,#82,#82,#40,#80,#61,#62,#63,#64,#65,#66
-    DB #67,#68,#69,#6A,#6B,#6C,#6D,#6E,#6F,#70,#71,#72,#73,#74,#75,#76
-    DB #77,#78,#90,#60,#79,#7A,#7B,#7C,#7D,#7E,#7F,#80,#81,#82,#83,#84
-    DB #85,#86,#87,#88,#89,#8A,#8B,#8C,#8D,#8E,#8F,#90,#91,#21,#09,#92
-    DB #93,#94,#95,#96,#97,#98,#99,#9A,#9B,#9C,#9D,#9E,#9F,#A0,#A1,#A2
-    DB #A3,#A4,#A5,#08,#42,#A6,#A7,#A8,#A9,#AA,#AB,#AC,#AD,#AE,#AF,#B0
-    DB #B1,#B2,#B3,#B4,#B5,#B6,#B7,#B8,#B9,#0C,#D1,#FC,#E4,#C0,#CB,#E6
-    DB #21,#F4,#3C,#7A,#32,#DA,#72,#E2,#5D,#34,#E2,#32,#A9,#E0,#00,#FE
-    DB #11,#D5,#55,#60
-PRESENTATION_SCREEN_PATTERNS_B0:
-    ; ZX0 compressed tile_pattern (680 -> 461 bytes)
-    DB #91,#FF,#81,#AE,#40,#60,#FF,#01,#03,#07,#0F,#E0,#C0,#E0,#D4,#25
-    DB #B8,#03,#E0,#C1,#38,#30,#50,#20,#E1,#39,#F0,#03,#01,#01,#DF,#BE
-    DB #60,#0F,#3C,#E9,#FF,#BE,#40,#B7,#FF,#A0,#70,#AF,#30,#18,#80,#E0
-    DB #F0,#A3,#F7,#FF,#7E,#88,#F4,#F6,#70,#3C,#E0,#A0,#80,#EE,#10,#18
-    DB #0C,#07,#89,#10,#AD,#A0,#1C,#B8,#0F,#38,#18,#FF,#FE,#9A,#E0,#60
-    DB #40,#A6,#80,#C0,#83,#FF,#AA,#C0,#C1,#2E,#1E,#DF,#EE,#0F,#13,#E0
-    DB #FF,#A8,#01,#40,#9A,#83,#41,#C1,#FF,#43,#0B,#66,#BC,#AC,#FE,#F6
-    DB #E5,#CF,#1B,#0F,#0E,#3C,#78,#40,#63,#ED,#0E,#07,#FE,#1B,#46,#D8
-    DB #AF,#0E,#49,#7E,#B0,#7F,#2F,#F0,#FF,#FD,#EE,#A1,#33,#1C,#0E,#8B
-    DB #81,#02,#6B,#D6,#60,#8E,#0F,#80,#30,#CC,#BA,#06,#AD,#8E,#F6,#FF
-    DB #32,#84,#89,#E0,#07,#D0,#07,#81,#30,#38,#E0,#1E,#0C,#A4,#0D,#06
-    DB #86,#DF,#07,#80,#43,#43,#80,#01,#A7,#77,#68,#59,#A0,#DF,#61,#26
-    DB #AF,#D0,#51,#EE,#AF,#00,#D3,#37,#02,#03,#E3,#26,#F1,#F0,#80,#07
-    DB #37,#C1,#BF,#22,#95,#16,#DB,#FF,#04,#DD,#9B,#C5,#DE,#38,#50,#9A
-    DB #1E,#81,#01,#37,#1C,#58,#5F,#F3,#FF,#8D,#5E,#0B,#0E,#65,#C3,#88
-    DB #06,#06,#01,#09,#02,#06,#FF,#B6,#C0,#70,#19,#1E,#FF,#82,#C3,#C2
-    DB #1C,#FE,#8F,#80,#21,#9B,#E8,#FE,#81,#3B,#D3,#81,#FA,#2F,#BD,#F2
-    DB #7E,#81,#07,#01,#8C,#48,#E0,#F0,#70,#86,#C6,#0E,#83,#0A,#19,#80
-    DB #90,#E7,#55,#D1,#82,#80,#03,#A0,#FF,#15,#B3,#C0,#24,#CB,#88,#9B
-    DB #42,#70,#A6,#A4,#13,#13,#07,#DF,#97,#01,#66,#7D,#C1,#83,#78,#FE
-    DB #E9,#A3,#00,#4D,#D6,#97,#70,#6D,#08,#60,#E0,#FC,#71,#AD,#EB,#25
-    DB #F9,#0F,#BF,#F7,#06,#49,#D8,#FF,#64,#3F,#A0,#F2,#E8,#18,#81,#60
-    DB #04,#2E,#38,#98,#18,#88,#81,#DB,#FA,#08,#0C,#FD,#FF,#E0,#88,#0C
-    DB #F0,#28,#01,#3D,#CB,#8D,#A0,#DE,#90,#FF,#0A,#42,#83,#98,#07,#98
-    DB #03,#22,#07,#E0,#11,#0E,#08,#12,#0C,#1C,#06,#AA,#0E,#E0,#26,#15
-    DB #09,#05,#FF,#CE,#57,#5A,#F0,#35,#60,#30,#D2,#0B,#ED,#2A,#C0,#03
-    DB #09,#CE,#BF,#A6,#D2,#8A,#D6,#51,#18,#03,#06,#07,#C8,#C0,#33,#17
-    DB #29,#5C,#3D,#1C,#60,#02,#18,#60,#80,#EF,#F9,#5F,#B1,#C9,#A3,#61
-    DB #83,#C0,#1C,#01,#B4,#05,#38,#8D,#60,#3D,#06,#55,#56
-PRESENTATION_SCREEN_PATTERNS_B1:
-    ; ZX0 compressed tile_pattern (1488 -> 992 bytes)
-    DB #96,#FF,#5A,#81,#0E,#82,#C0,#0F,#03,#FF,#24,#C0,#E0,#FE,#D8,#C9
-    DB #26,#03,#F0,#4A,#01,#E0,#0A,#80,#03,#28,#5A,#C8,#03,#03,#03,#A8
-    DB #C0,#0C,#20,#C1,#0E,#F8,#D9,#FF,#88,#16,#06,#9A,#05,#85,#84,#88
-    DB #80,#01,#20,#AA,#FF,#38,#07,#41,#85,#6A,#84,#83,#80,#07,#80,#8B
-    DB #30,#E0,#60,#40,#01,#02,#18,#30,#90,#A0,#63,#60,#83,#0E,#0C,#82
-    DB #18,#AE,#76,#0F,#C9,#FB,#0F,#FD,#F1,#C3,#E5,#85,#33,#A7,#C0,#01
-    DB #81,#40,#C0,#40,#C0,#87,#38,#C3,#A2,#FF,#C0,#1E,#60,#70,#87,#C0
-    DB #F0,#1B,#78,#0F,#0C,#29,#D9,#E0,#E0,#01,#AD,#D9,#06,#98,#87,#60
-    DB #DD,#AE,#78,#02,#F0,#03,#5A,#8E,#C0,#81,#0D,#56,#A0,#E2,#31,#1C
-    DB #40,#C2,#10,#08,#02,#01,#A0,#04,#04,#0C,#FF,#FB,#98,#70,#6D,#B0
-    DB #FD,#AC,#B9,#8A,#A5,#07,#E0,#FB,#11,#01,#99,#F0,#88,#FE,#92,#C0
-    DB #80,#2A,#F0,#E0,#C0,#1A,#50,#2A,#60,#5A,#A0,#24,#12,#81,#64,#18
-    DB #83,#AA,#87,#06,#7B,#0A,#07,#70,#A4,#BD,#BA,#81,#AE,#C9,#FF,#FE
-    DB #9B,#86,#06,#FF,#6B,#7C,#B0,#E6,#ED,#DB,#07,#0E,#86,#BA,#C0,#4A
-    DB #6F,#A0,#21,#E1,#36,#DF,#B2,#7A,#31,#D0,#7B,#09,#06,#01,#A2,#8F
-    DB #FE,#C1,#C9,#81,#B5,#BD,#02,#0C,#C0,#23,#DB,#BD,#BA,#FE,#D1,#E1
-    DB #F4,#FE,#38,#BB,#DD,#EE,#E9,#58,#A0,#0E,#C1,#1C,#2D,#81,#C1,#C3
-    DB #43,#83,#F0,#E4,#0C,#95,#4B,#B2,#21,#86,#86,#12,#0D,#82,#92,#98
-    DB #0C,#C2,#16,#12,#32,#05,#38,#39,#28,#F0,#07,#2D,#09,#0C,#0E,#B2
-    DB #72,#E0,#63,#0F,#FF,#80,#BD,#DB,#01,#57,#A8,#6C,#E0,#D9,#77,#24
-    DB #40,#40,#40,#81,#30,#60,#9C,#40,#FF,#20,#DF,#89,#9F,#FE,#3A,#B2
-    DB #FA,#01,#20,#38,#BF,#10,#F0,#D6,#C3,#E4,#E3,#09,#78,#83,#62,#C1
-    DB #21,#31,#F6,#EB,#B0,#DB,#AC,#66,#00,#FF,#C1,#F1,#C5,#9F,#FD,#5D
-    DB #B3,#41,#77,#30,#DF,#A7,#BD,#68,#A7,#0A,#D9,#58,#BF,#E0,#0C,#07
-    DB #C5,#69,#6F,#81,#C6,#A5,#FF,#46,#FE,#A0,#34,#A8,#38,#38,#30,#10
-    DB #30,#80,#FA,#C1,#61,#1E,#08,#70,#06,#18,#3C,#73,#FF,#01,#20,#2E
-    DB #18,#78,#F0,#01,#F0,#B0,#30,#20,#60,#35,#87,#45,#C0,#0E,#70,#30
-    DB #70,#2D,#02,#D7,#CB,#99,#FF,#DE,#19,#F9,#59,#7D,#E8,#06,#20,#60
-    DB #20,#8F,#78,#80,#D7,#AA,#08,#C0,#29,#10,#70,#FE,#03,#83,#78,#FE
-    DB #47,#EB,#07,#95,#0E,#6D,#A2,#63,#67,#0F,#06,#86,#20,#7A,#C1,#C1
-    DB #02,#F1,#C0,#96,#07,#E1,#E1,#08,#FF,#81,#38,#DE,#82,#EC,#07,#C4
-    DB #8D,#40,#FB,#BF,#99,#70,#6A,#A9,#0D,#D8,#11,#96,#B5,#06,#DB,#F7
-    DB #48,#DA,#2F,#DA,#DB,#0F,#AF,#60,#34,#A7,#BE,#1F,#F0,#AB,#B1,#0B
-    DB #0C,#0C,#06,#0F,#4A,#1C,#6B,#0C,#30,#C0,#06,#7D,#D4,#B1,#D3,#08
-    DB #AF,#EF,#0E,#67,#63,#97,#70,#60,#B6,#5A,#11,#96,#8C,#CB,#02,#12
-    DB #FC,#D0,#C5,#8F,#2E,#CB,#62,#D1,#06,#06,#3C,#77,#CF,#22,#87,#26
-    DB #6E,#D2,#60,#24,#36,#7A,#D6,#36,#CD,#98,#FD,#8B,#FF,#F4,#30,#B3
-    DB #18,#8F,#26,#EE,#CA,#F0,#C5,#81,#DF,#48,#9B,#84,#10,#E3,#81,#FE
-    DB #0D,#40,#F0,#B3,#FD,#E5,#64,#B5,#D2,#CF,#BD,#DA,#6B,#BF,#30,#DA
-    DB #93,#C8,#A3,#06,#0B,#1C,#D7,#15,#2F,#26,#D1,#18,#22,#21,#D6,#3D
-    DB #4B,#C0,#D0,#30,#60,#13,#04,#5B,#E1,#10,#4C,#E7,#FC,#2B,#64,#F4
-    DB #9E,#BF,#BD,#83,#04,#F7,#9C,#97,#1B,#9A,#B5,#EC,#A7,#05,#02,#F6
-    DB #5F,#B7,#B0,#27,#E1,#E2,#18,#5E,#7F,#FE,#A5,#FF,#F2,#DD,#C6,#EF
-    DB #A2,#F5,#8E,#94,#D0,#D7,#D9,#E6,#75,#FF,#C1,#1C,#18,#28,#10,#EA
-    DB #D4,#01,#36,#BF,#97,#C0,#ED,#53,#72,#BC,#76,#C7,#D7,#5F,#CD,#F0
-    DB #E9,#FD,#E3,#99,#E3,#60,#61,#F6,#16,#1C,#DD,#FD,#B8,#8F,#30,#45
-    DB #67,#0E,#09,#50,#D0,#E1,#18,#F3,#A6,#18,#90,#04,#0A,#41,#35,#27
-    DB #CF,#30,#82,#09,#2D,#95,#1C,#D7,#E7,#DD,#2B,#F4,#0E,#49,#CF,#EE
-    DB #40,#60,#1C,#56,#1F,#32,#14,#70,#C7,#B6,#1E,#7B,#DA,#63,#F0,#37
-    DB #06,#86,#17,#5E,#BD,#CB,#74,#0F,#01,#30,#B5,#A2,#FD,#F0,#A7,#7F
-    DB #0E,#F5,#2E,#6C,#A7,#6F,#11,#31,#61,#FF,#63,#FA,#E7,#A9,#D0,#F7
-    DB #FB,#FE,#7F,#B9,#FE,#3D,#F6,#2A,#6C,#80,#CB,#8F,#20,#56,#4E,#D7
-    DB #67,#27,#62,#6E,#EA,#9D,#B5,#33,#3C,#05,#93,#23,#BC,#B7,#D2,#C2
-    DB #D1,#FB,#C5,#E1,#A6,#73,#48,#AD,#EC,#C0,#3D,#36,#CD,#61,#53,#7E
-    DB #82,#F1,#5B,#83,#39,#04,#08,#10,#20,#40,#2D,#B0,#33,#59,#CD,#2C
-    DB #E0,#CD,#61,#FB,#4F,#28,#8E,#A0,#02,#C6,#B9,#C7,#1C,#05,#A2,#FE
-    DB #1C,#3C,#CB,#E0,#4D,#87,#3F,#BA,#FE,#A7,#E0,#8D,#EB,#30,#87,#ED
-    DB #80,#33,#D3,#05,#35,#FC,#FB,#B2,#9F,#26,#03,#73,#3D,#37,#53,#A2
-    DB #7B,#DC,#BF,#F7,#50,#8C,#1F,#6E,#7E,#A2,#D8,#B1,#81,#AE,#0E,#B0
-    DB #C6,#36,#2C,#76,#6E,#E6,#63,#42,#41,#1E,#E6,#FF,#12,#21,#40,#37
-    DB #FE,#A8,#C0,#EC,#1C,#80,#5C,#2E,#58,#93,#E0,#20,#FF,#74,#30,#4C
-    DB #31,#11,#60,#F0,#60,#18,#81,#7E,#88,#46,#B4,#10,#7D,#26,#55,#56
-PRESENTATION_SCREEN_PATTERNS_B2:
-    ; ZX0 compressed tile_pattern (488 -> 291 bytes)
-    DB #96,#FF,#2A,#60,#01,#02,#2A,#03,#91,#FF,#9A,#01,#38,#F0,#89,#E0
-    DB #3B,#60,#03,#0C,#41,#1C,#FF,#F7,#C0,#E2,#C4,#E0,#80,#66,#03,#0F
-    DB #07,#3A,#DD,#03,#A6,#E0,#B8,#03,#A8,#BB,#C0,#C2,#DE,#80,#EF,#93
-    DB #07,#E7,#53,#ED,#0D,#1B,#15,#87,#97,#80,#83,#83,#82,#01,#92,#41
-    DB #82,#82,#01,#C2,#0E,#01,#4F,#D9,#8E,#83,#06,#02,#BC,#E1,#BB,#FF
-    DB #C0,#0A,#07,#07,#03,#D2,#CC,#7F,#CB,#FF,#F9,#0F,#D7,#E0,#E1,#F0
-    DB #E6,#51,#07,#09,#06,#FA,#08,#30,#FA,#8D,#F1,#C0,#86,#0C,#60,#80
-    DB #1E,#1E,#38,#88,#88,#83,#4C,#9B,#01,#06,#E0,#BD,#F4,#1D,#BE,#B6
-    DB #F7,#EC,#B7,#0F,#42,#D8,#C5,#B6,#08,#20,#E8,#EA,#75,#10,#0A,#81
-    DB #C1,#1C,#0C,#7F,#F0,#D0,#D0,#30,#CE,#1E,#2B,#0B,#0F,#38,#38,#03
-    DB #7D,#27,#43,#F7,#1D,#0D,#F4,#3F,#32,#8E,#C4,#30,#F7,#87,#F4,#36
-    DB #B4,#77,#C7,#A2,#FE,#87,#07,#92,#05,#04,#18,#1C,#83,#03,#EE,#B3
-    DB #20,#11,#0A,#83,#60,#18,#03,#62,#01,#70,#07,#FF,#80,#B7,#46,#A8
-    DB #42,#30,#32,#9E,#6B,#02,#E0,#FE,#BA,#18,#8E,#0E,#0C,#E1,#70,#3D
-    DB #B1,#BF,#1C,#23,#73,#E2,#21,#AF,#04,#06,#4F,#8E,#F9,#CB,#98,#AF
-    DB #30,#00,#E2,#D1,#01,#86,#4D,#E2,#64,#80,#19,#37,#E4,#8F,#23,#1C
-    DB #87,#B9,#7E,#B9,#A0,#60,#40,#06,#35,#F0,#A8,#50,#E0,#18,#07,#4C
-    DB #3C,#E7,#EA,#C1,#CC,#07,#5E,#D8,#3F,#04,#D0,#74,#AD,#DE,#18,#9D
-    DB #64,#55,#56
-PRESENTATION_SCREEN_COLORS_B0:
-    ; ZX0 compressed tile_color (680 -> 368 bytes)
-    DB #91,#11,#A9,#41,#8A,#11,#B1,#A1,#1A,#22,#1B,#AA,#08,#28,#1A,#A1
-    DB #B1,#1A,#9F,#BA,#1A,#F0,#E7,#E0,#9F,#FE,#B2,#F7,#F0,#8F,#D7,#B1
-    DB #61,#72,#29,#E1,#6F,#14,#5E,#7E,#FD,#FE,#09,#A6,#14,#41,#14,#44
-    DB #1A,#18,#48,#98,#81,#61,#BE,#86,#88,#E0,#22,#68,#86,#7B,#A1,#81
-    DB #81,#EE,#FF,#FF,#E1,#F5,#DA,#8E,#AA,#8A,#C9,#22,#68,#66,#FA,#61
-    DB #FE,#64,#3B,#4A,#EE,#FF,#76,#F4,#98,#1F,#EF,#1F,#F3,#42,#FB,#FE
-    DB #F0,#EE,#D9,#F3,#44,#19,#7E,#FE,#EF,#F9,#E0,#1F,#EE,#FF,#F9,#E9
-    DB #14,#FE,#EB,#A2,#18,#E7,#0E,#44,#44,#41,#9E,#57,#16,#11,#66,#A1
-    DB #3E,#F1,#68,#0F,#DE,#FA,#FB,#4D,#16,#BB,#16,#C3,#1F,#E9,#1D,#F0
-    DB #FF,#11,#1E,#EF,#E1,#E5,#CC,#EF,#2A,#F9,#B6,#60,#AA,#EB,#94,#1E
-    DB #BF,#2C,#F3,#D3,#FF,#E0,#43,#B3,#F2,#41,#16,#8F,#F1,#0E,#F6,#FE
-    DB #59,#41,#14,#E1,#F1,#FE,#E9,#19,#99,#9F,#F9,#99,#08,#E7,#E9,#F9
-    DB #FD,#F9,#19,#E9,#E2,#8F,#87,#F1,#1F,#ED,#FE,#AB,#73,#F1,#1E,#A2
-    DB #FE,#EF,#E9,#68,#F9,#A0,#F1,#A2,#E1,#6A,#9F,#E9,#99,#F9,#1F,#92
-    DB #F7,#F5,#BB,#FF,#07,#05,#BD,#FB,#FB,#B4,#F7,#19,#CF,#FE,#76,#FE
-    DB #58,#3A,#66,#F9,#9F,#FF,#EB,#C8,#91,#F6,#7D,#A3,#1E,#7D,#FB,#93
-    DB #D0,#A4,#F1,#B1,#89,#1B,#9B,#3D,#05,#FF,#84,#B0,#FF,#99,#97,#94
-    DB #67,#B8,#9E,#F7,#9F,#1F,#91,#FF,#DB,#1F,#85,#1E,#69,#E2,#9D,#1E
-    DB #1F,#EF,#9F,#C0,#D7,#FA,#CF,#FE,#F9,#48,#92,#E9,#E1,#F2,#F1,#E2
-    DB #79,#F9,#FE,#91,#FE,#F8,#9F,#E2,#B8,#F6,#D2,#9D,#9F,#9F,#6E,#DF
-    DB #A0,#E2,#F9,#72,#BE,#EF,#E1,#11,#E7,#BF,#D3,#F1,#E8,#3D,#FB,#33
-    DB #99,#0F,#DA,#FF,#BA,#3A,#16,#B6,#F0,#FF,#B1,#F6,#ED,#98,#E9,#66
-    DB #66,#B6,#8F,#6B,#6B,#C5,#E7,#E9,#C0,#5E,#0C,#35,#1B,#16,#55,#58
-PRESENTATION_SCREEN_COLORS_B1:
-    ; ZX0 compressed tile_color (1488 -> 835 bytes)
-    DB #96,#11,#22,#41,#14,#BB,#41,#F0,#CA,#FE,#99,#18,#E2,#69,#96,#F6
-    DB #5E,#E6,#6F,#1E,#E9,#9F,#FE,#6E,#FF,#59,#E6,#16,#F9,#9F,#6F,#96
-    DB #66,#89,#91,#E6,#4A,#F1,#64,#92,#FE,#FF,#9F,#F6,#E9,#E6,#AA,#61
-    DB #F6,#6A,#E6,#96,#E6,#F6,#7F,#F6,#E1,#98,#F8,#E6,#FE,#EF,#1E,#16
-    DB #FF,#DC,#8E,#F1,#E1,#FD,#1F,#1E,#EF,#9F,#66,#69,#B7,#EF,#FE,#66
-    DB #01,#AF,#16,#F1,#D9,#B6,#C3,#61,#F2,#FA,#85,#F0,#FF,#11,#F9,#FE
-    DB #EA,#EB,#FF,#61,#83,#B6,#BE,#EA,#75,#EF,#B9,#6B,#CC,#8E,#96,#1B
-    DB #FF,#6A,#11,#61,#91,#B1,#3F,#A7,#FE,#EE,#7A,#F8,#D9,#6F,#DC,#74
-    DB #47,#47,#72,#BA,#71,#48,#FA,#E6,#FE,#E1,#28,#F1,#2E,#16,#E8,#EE
-    DB #00,#D5,#7F,#6E,#FE,#1E,#DA,#E0,#E2,#E8,#EF,#EF,#FE,#E1,#DC,#DB
-    DB #66,#EE,#C3,#11,#6D,#C6,#BE,#B4,#6B,#D3,#BF,#96,#F0,#98,#E3,#EF
-    DB #1F,#E1,#A3,#11,#7F,#45,#F0,#FF,#E7,#97,#F0,#E9,#7B,#CF,#FE,#D8
-    DB #50,#A3,#FF,#E2,#F7,#35,#6E,#1F,#76,#8B,#27,#11,#11,#AD,#D2,#16
-    DB #FF,#7E,#E2,#68,#C0,#F6,#A1,#61,#ED,#AA,#ED,#EF,#16,#A7,#A8,#1B
-    DB #8A,#BB,#3F,#F0,#DB,#AF,#E7,#1B,#EE,#BB,#91,#B2,#F7,#EE,#06,#D7
-    DB #E0,#22,#74,#44,#37,#7C,#AD,#17,#9D,#6E,#B8,#E0,#FF,#21,#F6,#6F
-    DB #9F,#F1,#F7,#0F,#C7,#BC,#F6,#FE,#A7,#A1,#EE,#F2,#1A,#FF,#F2,#BA
-    DB #E2,#A8,#A1,#A1,#FF,#FE,#F1,#9E,#FE,#F0,#0E,#D4,#AF,#AA,#A0,#F3
-    DB #E0,#B8,#FE,#19,#9F,#14,#F4,#F5,#AE,#FB,#FF,#FE,#AF,#EE,#FB,#7D
-    DB #DC,#AD,#2B,#11,#F3,#CE,#46,#DB,#7D,#B1,#AA,#FE,#11,#86,#1B,#AC
-    DB #BB,#E1,#E0,#EE,#E3,#1F,#FB,#B9,#BB,#E7,#9B,#EB,#B6,#FF,#9B,#52
-    DB #DE,#D3,#DB,#D7,#B1,#F2,#36,#86,#3F,#F0,#B5,#B2,#E8,#D0,#14,#2E
-    DB #74,#FE,#8B,#11,#44,#DF,#F7,#49,#1B,#FD,#C4,#55,#F7,#B6,#C2,#A1
-    DB #A1,#76,#C5,#93,#B1,#9D,#F0,#A8,#74,#B1,#37,#92,#E3,#D0,#2F,#BA
-    DB #E7,#EB,#71,#76,#B1,#68,#40,#E6,#4E,#4F,#6B,#E4,#F4,#E4,#B6,#EE
-    DB #8A,#8D,#FE,#1F,#75,#9D,#CE,#55,#57,#FF,#6A,#9B,#91,#98,#E8,#96
-    DB #B8,#F9,#98,#61,#19,#86,#68,#0E,#D7,#5E,#B1,#B6,#BD,#1D,#D6,#81
-    DB #9B,#F0,#81,#8F,#B6,#8B,#8B,#8B,#6B,#9B,#9F,#B1,#B8,#E5,#63,#4E
-    DB #7E,#08,#FE,#70,#8E,#F2,#F9,#DB,#E4,#B7,#E4,#E6,#FE,#F4,#74,#14
-    DB #1B,#41,#FF,#1D,#01,#FE,#61,#AC,#DB,#86,#B6,#D6,#E8,#BF,#BA,#D0
-    DB #5D,#F0,#D9,#5A,#F8,#DB,#A4,#D9,#48,#3F,#B6,#A0,#81,#BA,#7C,#22
-    DB #BC,#EF,#09,#98,#5C,#D2,#9B,#6B,#B0,#82,#B4,#B4,#14,#86,#A2,#D1
-    DB #4B,#61,#64,#D4,#68,#68,#86,#63,#8C,#61,#79,#74,#9F,#8F,#F9,#F8
-    DB #F8,#1B,#6B,#6B,#96,#69,#D6,#CF,#17,#33,#FF,#0F,#F2,#33,#BC,#D7
-    DB #27,#E9,#8D,#2E,#DF,#97,#B4,#B3,#D5,#F4,#E1,#68,#8E,#B1,#44,#14
-    DB #BF,#75,#F4,#FF,#ED,#FF,#D1,#D5,#B0,#B7,#B6,#80,#0F,#9D,#F9,#94
-    DB #F4,#E7,#DE,#FE,#FE,#D4,#9D,#BA,#87,#BE,#CB,#D0,#68,#CB,#C2,#18
-    DB #D6,#CF,#37,#0B,#81,#81,#16,#68,#28,#1F,#FE,#D3,#BB,#7B,#81,#3E
-    DB #59,#1E,#D6,#4D,#26,#44,#41,#CE,#F4,#A0,#C8,#44,#03,#18,#8F,#F8
-    DB #89,#F8,#8F,#FE,#98,#68,#88,#9C,#86,#86,#D6,#3D,#45,#FB,#3F,#6E
-    DB #E2,#9D,#88,#18,#81,#A3,#38,#B9,#9B,#A6,#FE,#8B,#11,#91,#92,#19
-    DB #99,#9B,#B6,#1B,#B1,#1D,#48,#00,#76,#78,#FB,#FF,#6E,#7F,#E6,#0E
-    DB #E1,#00,#FA,#FE,#81,#FF,#EB,#F4,#FB,#FF,#F4,#18,#A4,#FE,#8A,#1A
-    DB #A8,#68,#18,#68,#18,#81,#18,#FA,#86,#88,#3F,#F3,#61,#EF,#DE,#25
-    DB #FF,#FF,#19,#B9,#F0,#CB,#62,#BD,#BC,#0B,#CD,#48,#23,#A5,#18,#E8
-    DB #52,#BA,#C7,#37,#BB,#A8,#24,#5D,#1B,#B5,#76,#9F,#22,#E7,#3F,#75
-    DB #F7,#EC,#B7,#1E,#35,#8D,#D8,#08,#B8,#74,#3D,#B4,#87,#B0,#7F,#DD
-    DB #38,#E6,#FF,#10,#09,#16,#86,#81,#81,#A3,#66,#FD,#1E,#1C,#FF,#18
-    DB #D0,#FE,#10,#D8,#EF,#DD,#16,#F1,#BF,#D2,#F2,#EB,#D0,#61,#A6,#E3
-    DB #16,#FA,#86,#F1,#FF,#E1,#5A,#F8,#0A,#9F,#B9,#F9,#CF,#7E,#16,#E8
-    DB #EF,#6F,#6F,#1F,#41,#C8,#C7,#B6,#85,#76,#B5,#FB,#34,#71,#61,#C6
-    DB #D5,#D6,#36,#3E,#C9,#AD,#23,#91,#1B,#6B,#8B,#9B,#BB,#7C,#DA,#D5
-    DB #7D,#55,#60
-PRESENTATION_SCREEN_COLORS_B2:
-    ; ZX0 compressed tile_color (488 -> 284 bytes)
-    DB #96,#11,#20,#41,#61,#AA,#81,#88,#46,#FF,#18,#DD,#FE,#AA,#C8,#68
-    DB #EE,#11,#F7,#18,#CF,#09,#11,#11,#16,#68,#EF,#E3,#86,#F4,#BF,#16
-    DB #D1,#B4,#BE,#81,#D5,#E6,#AE,#86,#72,#EB,#BD,#66,#A2,#FE,#44,#18
-    DB #A0,#11,#8A,#44,#E1,#26,#F1,#E1,#28,#1E,#18,#22,#8F,#D8,#98,#16
-    DB #88,#1E,#2A,#19,#E1,#61,#11,#BB,#60,#26,#9B,#8B,#1B,#16,#8B,#9B
-    DB #EB,#1B,#67,#B1,#91,#B1,#FB,#D3,#D0,#AA,#EF,#FB,#DE,#0D,#A2,#DA
-    DB #1E,#1F,#E3,#FE,#E6,#77,#F0,#F7,#16,#2B,#E4,#EF,#EC,#17,#FD,#F3
-    DB #EE,#FF,#CA,#0C,#6D,#CA,#8F,#D2,#F9,#A3,#E3,#81,#E8,#E1,#F6,#2E
-    DB #41,#41,#14,#14,#F4,#B8,#44,#FF,#2F,#14,#41,#14,#74,#F5,#FF,#FF
-    DB #EB,#F2,#E3,#D9,#FB,#4E,#4E,#DE,#C9,#E7,#F9,#26,#EE,#EE,#7D,#EF
-    DB #1E,#81,#E9,#8A,#3B,#E1,#FE,#D8,#1E,#C5,#E7,#E1,#91,#24,#FF,#87
-    DB #FF,#28,#FA,#9F,#F0,#41,#F9,#7D,#D4,#FB,#9C,#1B,#7A,#CB,#FF,#E1
-    DB #21,#88,#EF,#1F,#6F,#8F,#F8,#28,#98,#FF,#8F,#98,#0E,#F8,#8F,#FE
-    DB #1F,#18,#E9,#FE,#1E,#10,#7E,#9F,#FE,#FF,#80,#FF,#DE,#E6,#68,#39
-    DB #EC,#FF,#F2,#EE,#FD,#F1,#FE,#F3,#B0,#8E,#A8,#B0,#FE,#2C,#F0,#A6
-    DB #74,#22,#74,#47,#98,#E7,#88,#4F,#1F,#89,#EF,#E1,#B3,#FF,#FF,#1F
-    DB #5D,#37,#BF,#FF,#B9,#F1,#68,#FF,#CB,#F8,#E8,#81,#34,#6D,#3C,#BF
-    DB #2E,#0F,#F0,#FA,#20,#14,#4F,#F3,#9D,#F0,#55,#56
+; Data labels are emitted in page0.asm for linear 48K builds.
+
+; Register Contract:
+;   Purpose: Wait a configurable number of frames after showing the presentation screen.
+;   Inputs:
+;     - B = frame count
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;     - B
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;     - IX
+;     - IY
 presentation_wait_frames:
     push bc
     ld a, b
@@ -10357,110 +11349,62 @@ show_presentation_screen:
     call CHGMOD
     call clear_all_sprites
     call update_sprites_to_vram
-    call mapper_push_p2
-    ld a, PRESENTATION_SCREEN_PATTERNS_B0_BANK
-    call mapper_set_bank_p2
-    ; Decompress ZX0 presentation pattern bank into RAM buffer
-    di
+    ; Page 0 data is ZX0-compressed: decompress to RAM first, then upload to VRAM.
     ld hl, PRESENTATION_SCREEN_PATTERNS_B0
     ld de, ZX0_TILE_PATTERN_BUFFER
-    call dzx0_standard
-    ei
+    call page0_decompress_to_ram
     ld hl, ZX0_TILE_PATTERN_BUFFER
     ld de, CHRTBL2
     ld bc, PRESENTATION_SCREEN_PATTERN_B0_SIZE
     call FAST_LDIRVM
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, PRESENTATION_SCREEN_PATTERNS_B1_BANK
-    call mapper_set_bank_p2
-    ; Decompress ZX0 presentation pattern bank into RAM buffer
-    di
     ld hl, PRESENTATION_SCREEN_PATTERNS_B1
     ld de, ZX0_TILE_PATTERN_BUFFER
-    call dzx0_standard
-    ei
+    call page0_decompress_to_ram
     ld hl, ZX0_TILE_PATTERN_BUFFER
     ld de, CHRTBL2 + #800
     ld bc, PRESENTATION_SCREEN_PATTERN_B1_SIZE
     call FAST_LDIRVM
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, PRESENTATION_SCREEN_PATTERNS_B2_BANK
-    call mapper_set_bank_p2
-    ; Decompress ZX0 presentation pattern bank into RAM buffer
-    di
     ld hl, PRESENTATION_SCREEN_PATTERNS_B2
     ld de, ZX0_TILE_PATTERN_BUFFER
-    call dzx0_standard
-    ei
+    call page0_decompress_to_ram
     ld hl, ZX0_TILE_PATTERN_BUFFER
     ld de, CHRTBL2 + #1000
     ld bc, PRESENTATION_SCREEN_PATTERN_B2_SIZE
     call FAST_LDIRVM
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, PRESENTATION_SCREEN_COLORS_B0_BANK
-    call mapper_set_bank_p2
-    ; Decompress ZX0 presentation color bank into RAM buffer
-    di
     ld hl, PRESENTATION_SCREEN_COLORS_B0
     ld de, ZX0_TILE_COLOR_BUFFER
-    call dzx0_standard
-    ei
+    call page0_decompress_to_ram
     ld hl, ZX0_TILE_COLOR_BUFFER
     ld de, CLRTBL2
     ld bc, PRESENTATION_SCREEN_COLOR_B0_SIZE
     call FAST_LDIRVM
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, PRESENTATION_SCREEN_COLORS_B1_BANK
-    call mapper_set_bank_p2
-    ; Decompress ZX0 presentation color bank into RAM buffer
-    di
     ld hl, PRESENTATION_SCREEN_COLORS_B1
     ld de, ZX0_TILE_COLOR_BUFFER
-    call dzx0_standard
-    ei
+    call page0_decompress_to_ram
     ld hl, ZX0_TILE_COLOR_BUFFER
     ld de, CLRTBL2 + #800
     ld bc, PRESENTATION_SCREEN_COLOR_B1_SIZE
     call FAST_LDIRVM
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, PRESENTATION_SCREEN_COLORS_B2_BANK
-    call mapper_set_bank_p2
-    ; Decompress ZX0 presentation color bank into RAM buffer
-    di
     ld hl, PRESENTATION_SCREEN_COLORS_B2
     ld de, ZX0_TILE_COLOR_BUFFER
-    call dzx0_standard
-    ei
+    call page0_decompress_to_ram
     ld hl, ZX0_TILE_COLOR_BUFFER
     ld de, CLRTBL2 + #1000
     ld bc, PRESENTATION_SCREEN_COLOR_B2_SIZE
     call FAST_LDIRVM
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, PRESENTATION_SCREEN_NAMETBL_BANK
-    call mapper_set_bank_p2
-    ; Decompress ZX0 presentation name table into RAM buffer
-    di
     ld hl, PRESENTATION_SCREEN_NAMETBL
     ld de, ZX0_SCREEN_BUFFER
-    call dzx0_standard
-    ei
+    call page0_decompress_to_ram
     ld hl, ZX0_SCREEN_BUFFER
     ld de, NAMETBL
     ld bc, PRESENTATION_SCREEN_NAMETBL_SIZE
     call FAST_LDIRVM
-    call mapper_pop_p2
 
     call ENASCR
     call presentation_wait_for_fire
@@ -10729,14 +11673,14 @@ hud_imported_frame_pan1_770754008863_data:
     DB #29,#00,#00
     DB #2A,#00,#00
     DB #2B,#00,#00
-    DB #2C,#00,#9D
+    DB #2C,#00,#9B
     DB #2D,#00,#00
     DB #2E,#00,#00
-    DB #2F,#00,#9E
+    DB #2F,#00,#9C
     DB #30,#00,#00
     DB #31,#00,#00
     DB #32,#00,#00
-    DB #33,#00,#9F
+    DB #33,#00,#9D
     DB #34,#00,#00
     DB #35,#00,#00
     DB #36,#00,#00
@@ -10827,9 +11771,6 @@ load_screen_pan1_770754008863:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Load active game area (contiguous rows)
-    call mapper_push_p2
-    ld a, SCREEN_PAN1_0_LAYOUT_BANK
-    call mapper_set_bank_p2
     ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
     ; Decompress ZX0 screen layout into RAM buffer
     di
@@ -10841,11 +11782,7 @@ load_screen_pan1_770754008863:
     ld de, NAMETBL + 96
     ld bc, 672
     call FAST_LDIRVM
-    call mapper_pop_p2
     ; Build mutable runtime screen/effects/behavior maps in RAM
-    call mapper_push_p2
-    ld a, SCREEN_PAN1_0_LAYOUT_BANK
-    call mapper_set_bank_p2
     ld hl, ZX0_SCREEN_BUFFER
     ld de, runtime_background_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
@@ -10854,11 +11791,7 @@ load_screen_pan1_770754008863:
     ld de, runtime_screen_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, SCREEN_PAN1_0_EFFECTS_LAYOUT_BANK
-    call mapper_set_bank_p2
     ; Decompress ZX0 effects layout directly into runtime_effects_layout
     di
     ld hl, SCREEN_PAN1_0_EFFECTS_LAYOUT
@@ -10869,11 +11802,7 @@ load_screen_pan1_770754008863:
     ld de, runtime_effects_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, BEHAVIOR_PAN1_0_DATA_BANK
-    call mapper_set_bank_p2
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN1_0_DATA
@@ -10884,20 +11813,15 @@ load_screen_pan1_770754008863:
     ld de, runtime_behavior_map
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
     ld a, 0
     ld (current_effect_zone_count), a
     or a
     jr z, .load_pan1_770754008863_zones_done
-    call mapper_push_p2
-    ld a, SCREEN_PAN1_0_EFFECT_ZONE_TABLE_BANK
-    call mapper_set_bank_p2
     ld hl, SCREEN_PAN1_0_EFFECT_ZONE_TABLE
     ld de, runtime_effect_zone_table
     ld bc, 0
     ldir
-    call mapper_pop_p2
 .load_pan1_770754008863_zones_done:
     ld a, 3
     ld (current_screen_anim_group_count), a
@@ -11076,9 +12000,6 @@ load_screen_pan2_771184738851:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Load active game area (contiguous rows)
-    call mapper_push_p2
-    ld a, SCREEN_PAN2_1_LAYOUT_BANK
-    call mapper_set_bank_p2
     ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
     ; Decompress ZX0 screen layout into RAM buffer
     di
@@ -11090,11 +12011,7 @@ load_screen_pan2_771184738851:
     ld de, NAMETBL + 96
     ld bc, 672
     call FAST_LDIRVM
-    call mapper_pop_p2
     ; Build mutable runtime screen/effects/behavior maps in RAM
-    call mapper_push_p2
-    ld a, SCREEN_PAN2_1_LAYOUT_BANK
-    call mapper_set_bank_p2
     ld hl, ZX0_SCREEN_BUFFER
     ld de, runtime_background_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
@@ -11103,11 +12020,7 @@ load_screen_pan2_771184738851:
     ld de, runtime_screen_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, SCREEN_PAN2_1_EFFECTS_LAYOUT_BANK
-    call mapper_set_bank_p2
     ; Decompress ZX0 effects layout directly into runtime_effects_layout
     di
     ld hl, SCREEN_PAN2_1_EFFECTS_LAYOUT
@@ -11118,11 +12031,7 @@ load_screen_pan2_771184738851:
     ld de, runtime_effects_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, BEHAVIOR_PAN2_1_DATA_BANK
-    call mapper_set_bank_p2
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN2_1_DATA
@@ -11133,20 +12042,15 @@ load_screen_pan2_771184738851:
     ld de, runtime_behavior_map
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
     ld a, 0
     ld (current_effect_zone_count), a
     or a
     jr z, .load_pan2_771184738851_zones_done
-    call mapper_push_p2
-    ld a, SCREEN_PAN2_1_EFFECT_ZONE_TABLE_BANK
-    call mapper_set_bank_p2
     ld hl, SCREEN_PAN2_1_EFFECT_ZONE_TABLE
     ld de, runtime_effect_zone_table
     ld bc, 0
     ldir
-    call mapper_pop_p2
 .load_pan2_771184738851_zones_done:
     ld a, 2
     ld (current_screen_anim_group_count), a
@@ -11325,9 +12229,6 @@ load_screen_pan3_771880109228:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Load active game area (contiguous rows)
-    call mapper_push_p2
-    ld a, SCREEN_PAN3_2_LAYOUT_BANK
-    call mapper_set_bank_p2
     ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
     ; Decompress ZX0 screen layout into RAM buffer
     di
@@ -11339,11 +12240,7 @@ load_screen_pan3_771880109228:
     ld de, NAMETBL + 96
     ld bc, 672
     call FAST_LDIRVM
-    call mapper_pop_p2
     ; Build mutable runtime screen/effects/behavior maps in RAM
-    call mapper_push_p2
-    ld a, SCREEN_PAN3_2_LAYOUT_BANK
-    call mapper_set_bank_p2
     ld hl, ZX0_SCREEN_BUFFER
     ld de, runtime_background_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
@@ -11352,11 +12249,7 @@ load_screen_pan3_771880109228:
     ld de, runtime_screen_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, SCREEN_PAN3_2_EFFECTS_LAYOUT_BANK
-    call mapper_set_bank_p2
     ; Decompress ZX0 effects layout directly into runtime_effects_layout
     di
     ld hl, SCREEN_PAN3_2_EFFECTS_LAYOUT
@@ -11367,11 +12260,7 @@ load_screen_pan3_771880109228:
     ld de, runtime_effects_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, BEHAVIOR_PAN3_2_DATA_BANK
-    call mapper_set_bank_p2
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN3_2_DATA
@@ -11382,20 +12271,15 @@ load_screen_pan3_771880109228:
     ld de, runtime_behavior_map
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
     ld a, 0
     ld (current_effect_zone_count), a
     or a
     jr z, .load_pan3_771880109228_zones_done
-    call mapper_push_p2
-    ld a, SCREEN_PAN3_2_EFFECT_ZONE_TABLE_BANK
-    call mapper_set_bank_p2
     ld hl, SCREEN_PAN3_2_EFFECT_ZONE_TABLE
     ld de, runtime_effect_zone_table
     ld bc, 0
     ldir
-    call mapper_pop_p2
 .load_pan3_771880109228_zones_done:
     ld a, 2
     ld (current_screen_anim_group_count), a
@@ -11574,9 +12458,6 @@ load_screen_pan4_772291683578:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Load active game area (contiguous rows)
-    call mapper_push_p2
-    ld a, SCREEN_PAN4_3_LAYOUT_BANK
-    call mapper_set_bank_p2
     ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
     ; Decompress ZX0 screen layout into RAM buffer
     di
@@ -11588,11 +12469,7 @@ load_screen_pan4_772291683578:
     ld de, NAMETBL + 96
     ld bc, 672
     call FAST_LDIRVM
-    call mapper_pop_p2
     ; Build mutable runtime screen/effects/behavior maps in RAM
-    call mapper_push_p2
-    ld a, SCREEN_PAN4_3_LAYOUT_BANK
-    call mapper_set_bank_p2
     ld hl, ZX0_SCREEN_BUFFER
     ld de, runtime_background_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
@@ -11601,11 +12478,7 @@ load_screen_pan4_772291683578:
     ld de, runtime_screen_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, SCREEN_PAN4_3_EFFECTS_LAYOUT_BANK
-    call mapper_set_bank_p2
     ; Decompress ZX0 effects layout directly into runtime_effects_layout
     di
     ld hl, SCREEN_PAN4_3_EFFECTS_LAYOUT
@@ -11616,11 +12489,7 @@ load_screen_pan4_772291683578:
     ld de, runtime_effects_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, BEHAVIOR_PAN4_3_DATA_BANK
-    call mapper_set_bank_p2
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN4_3_DATA
@@ -11631,20 +12500,15 @@ load_screen_pan4_772291683578:
     ld de, runtime_behavior_map
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
     ld a, 0
     ld (current_effect_zone_count), a
     or a
     jr z, .load_pan4_772291683578_zones_done
-    call mapper_push_p2
-    ld a, SCREEN_PAN4_3_EFFECT_ZONE_TABLE_BANK
-    call mapper_set_bank_p2
     ld hl, SCREEN_PAN4_3_EFFECT_ZONE_TABLE
     ld de, runtime_effect_zone_table
     ld bc, 0
     ldir
-    call mapper_pop_p2
 .load_pan4_772291683578_zones_done:
     ld a, 2
     ld (current_screen_anim_group_count), a
@@ -11696,9 +12560,6 @@ load_screen_pan5_773321312901:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Load active game area (contiguous rows)
-    call mapper_push_p2
-    ld a, SCREEN_PAN5_4_LAYOUT_BANK
-    call mapper_set_bank_p2
     ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
     ; Decompress ZX0 screen layout into RAM buffer
     di
@@ -11710,11 +12571,7 @@ load_screen_pan5_773321312901:
     ld de, NAMETBL + 96
     ld bc, 672
     call FAST_LDIRVM
-    call mapper_pop_p2
     ; Build mutable runtime screen/effects/behavior maps in RAM
-    call mapper_push_p2
-    ld a, SCREEN_PAN5_4_LAYOUT_BANK
-    call mapper_set_bank_p2
     ld hl, ZX0_SCREEN_BUFFER
     ld de, runtime_background_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
@@ -11723,11 +12580,7 @@ load_screen_pan5_773321312901:
     ld de, runtime_screen_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, SCREEN_PAN5_4_EFFECTS_LAYOUT_BANK
-    call mapper_set_bank_p2
     ; Decompress ZX0 effects layout directly into runtime_effects_layout
     di
     ld hl, SCREEN_PAN5_4_EFFECTS_LAYOUT
@@ -11738,11 +12591,7 @@ load_screen_pan5_773321312901:
     ld de, runtime_effects_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, BEHAVIOR_PAN5_4_DATA_BANK
-    call mapper_set_bank_p2
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN5_4_DATA
@@ -11753,20 +12602,15 @@ load_screen_pan5_773321312901:
     ld de, runtime_behavior_map
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
     ld a, 1
     ld (current_effect_zone_count), a
     or a
     jr z, .load_pan5_773321312901_zones_done
-    call mapper_push_p2
-    ld a, SCREEN_PAN5_4_EFFECT_ZONE_TABLE_BANK
-    call mapper_set_bank_p2
     ld hl, SCREEN_PAN5_4_EFFECT_ZONE_TABLE
     ld de, runtime_effect_zone_table
     ld bc, 8
     ldir
-    call mapper_pop_p2
 .load_pan5_773321312901_zones_done:
     ld a, 1
     ld (current_screen_anim_group_count), a
@@ -11817,9 +12661,6 @@ load_screen_pan6_773382451315:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Load active game area (contiguous rows)
-    call mapper_push_p2
-    ld a, SCREEN_PAN6_5_LAYOUT_BANK
-    call mapper_set_bank_p2
     ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
     ; Decompress ZX0 screen layout into RAM buffer
     di
@@ -11831,11 +12672,7 @@ load_screen_pan6_773382451315:
     ld de, NAMETBL + 96
     ld bc, 672
     call FAST_LDIRVM
-    call mapper_pop_p2
     ; Build mutable runtime screen/effects/behavior maps in RAM
-    call mapper_push_p2
-    ld a, SCREEN_PAN6_5_LAYOUT_BANK
-    call mapper_set_bank_p2
     ld hl, ZX0_SCREEN_BUFFER
     ld de, runtime_background_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
@@ -11844,11 +12681,7 @@ load_screen_pan6_773382451315:
     ld de, runtime_screen_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, SCREEN_PAN6_5_EFFECTS_LAYOUT_BANK
-    call mapper_set_bank_p2
     ; Decompress ZX0 effects layout directly into runtime_effects_layout
     di
     ld hl, SCREEN_PAN6_5_EFFECTS_LAYOUT
@@ -11859,11 +12692,7 @@ load_screen_pan6_773382451315:
     ld de, runtime_effects_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
-    call mapper_push_p2
-    ld a, BEHAVIOR_PAN6_5_DATA_BANK
-    call mapper_set_bank_p2
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN6_5_DATA
@@ -11874,20 +12703,15 @@ load_screen_pan6_773382451315:
     ld de, runtime_behavior_map
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    call mapper_pop_p2
 
     ld a, 0
     ld (current_effect_zone_count), a
     or a
     jr z, .load_pan6_773382451315_zones_done
-    call mapper_push_p2
-    ld a, SCREEN_PAN6_5_EFFECT_ZONE_TABLE_BANK
-    call mapper_set_bank_p2
     ld hl, SCREEN_PAN6_5_EFFECT_ZONE_TABLE
     ld de, runtime_effect_zone_table
     ld bc, 0
     ldir
-    call mapper_pop_p2
 .load_pan6_773382451315_zones_done:
     ld a, 3
     ld (current_screen_anim_group_count), a
@@ -11921,14 +12745,11 @@ load_screen_pan6_773382451315:
     ld (secret_zone_rect_h), a
     ret
 
-
 ; ==================================================================
 ; END OF SCREENS
 ; ==================================================================
 
-
 ; Components are generated inside interrupt.asm (interruptDrivenComponents=true)
-
 
 ; ==================================================================
 ; GAME ENTITIES
@@ -11984,6 +12805,7 @@ init_entities:
 
     ; Ensure sprite system is reset whenever entities are initialized
     call init_sprites
+    call init_player_fast_runtime
 
     ; CRITICAL: Clear ALL entity component masks to prevent ghost entities
     ; RAM may contain random data - entities 0..N will be set by create_entity
@@ -12063,6 +12885,7 @@ init_entities:
     call init_pato_1
     call init_pato3
     call init_bola2
+    call init_player_from_hero_entity
     ret
 
 update_entities:
@@ -12158,8 +12981,6 @@ init_hero_1:
     add hl, de
     ld (hl), 2
 
-
-
     ; Initialize Animation component
     ld hl, entity_anim_frame
     add hl, de
@@ -12176,8 +12997,6 @@ init_hero_1:
     ld hl, entity_anim_flags
     add hl, de
     ld (hl), #07           ; flags (playing/loop/onlyWhenMoving)
-
-
 
     ; Initialize Collision component (hitbox + layer masks)
     ld hl, entity_collision_hitbox_w
@@ -12213,7 +13032,6 @@ init_hero_1:
     add hl, de
     ld (hl), 2                ; Distinct color for debugging
 
-
     ; Set direction mask for Cursors component (if entity has Input component)
     ld hl, entity_dir_mask
     add hl, de
@@ -12229,7 +13047,6 @@ init_hero_1:
     add hl, de
     ld (hl), 1            ; Maximum jumps before touching ground
 
-
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 0
     ld a, (hl)
@@ -12241,8 +13058,6 @@ init_hero_1:
     ld c, 0             ; Entity Index
     call force_update_entity_sprite
 .skip_force_show_0:
-
-
 
     ; Initialize State Machine pointer to initial state (New Statemachine)
     ld hl, SM_New_Statemachine_state_1771533526010          ; HL = initial state address
@@ -12328,8 +13143,6 @@ init_pato_1:
     add hl, de
     ld (hl), 2
 
-
-
     ; Initialize Animation component
     ld hl, entity_anim_frame
     add hl, de
@@ -12346,7 +13159,6 @@ init_pato_1:
     ld hl, entity_anim_flags
     add hl, de
     ld (hl), #07           ; flags (playing/loop/onlyWhenMoving)
-
 
     ; === Patrol Component Init ===
     ; Waypoints: (96, 160) -> (144, 160)
@@ -12367,7 +13179,6 @@ init_pato_1:
     ld hl, entity_vel_y
     add hl, de
     ld (hl), 0           ; VelY = +0
-
 
     ; Initialize Collision component (hitbox + layer masks)
     ld hl, entity_collision_hitbox_w
@@ -12403,7 +13214,6 @@ init_pato_1:
     add hl, de
     ld (hl), 3                ; Distinct color for debugging
 
-
     ; Set direction mask for Cursors component (if entity has Input component)
     ld hl, entity_dir_mask
     add hl, de
@@ -12413,7 +13223,6 @@ init_pato_1:
     ld hl, entity_input_speed
     add hl, de
     ld (hl), 2            ; Cursor speed (px/frame)
-
 
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 1
@@ -12426,8 +13235,6 @@ init_pato_1:
     ld c, 1             ; Entity Index
     call force_update_entity_sprite
 .skip_force_show_1:
-
-
 
     ret
 
@@ -12525,8 +13332,6 @@ init_pato3:
     add hl, de
     ld (hl), 2
 
-
-
     ; Initialize Animation component
     ld hl, entity_anim_frame
     add hl, de
@@ -12543,7 +13348,6 @@ init_pato3:
     ld hl, entity_anim_flags
     add hl, de
     ld (hl), #03           ; flags (playing/loop/onlyWhenMoving)
-
 
     ; === Patrol Component Init ===
     ; Waypoints: (64, 32) -> (144, 32)
@@ -12564,7 +13368,6 @@ init_pato3:
     ld hl, entity_vel_y
     add hl, de
     ld (hl), 0           ; VelY = +0
-
 
     ; Initialize Collision component (hitbox + layer masks)
     ld hl, entity_collision_hitbox_w
@@ -12600,7 +13403,6 @@ init_pato3:
     add hl, de
     ld (hl), 4                ; Distinct color for debugging
 
-
     ; Set direction mask for Cursors component (if entity has Input component)
     ld hl, entity_dir_mask
     add hl, de
@@ -12610,7 +13412,6 @@ init_pato3:
     ld hl, entity_input_speed
     add hl, de
     ld (hl), 2            ; Cursor speed (px/frame)
-
 
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 2
@@ -12623,8 +13424,6 @@ init_pato3:
     ld c, 2             ; Entity Index
     call force_update_entity_sprite
 .skip_force_show_2:
-
-
 
     ret
 
@@ -12722,8 +13521,6 @@ init_bola2:
     add hl, de
     ld (hl), 2
 
-
-
     ; Initialize Animation component
     ld hl, entity_anim_frame
     add hl, de
@@ -12740,7 +13537,6 @@ init_bola2:
     ld hl, entity_anim_flags
     add hl, de
     ld (hl), #03           ; flags (playing/loop/onlyWhenMoving)
-
 
     ; === Patrol Component Init ===
     ; Waypoints: (120, 152) -> (216, 152)
@@ -12761,7 +13557,6 @@ init_bola2:
     ld hl, entity_vel_y
     add hl, de
     ld (hl), 0           ; VelY = +0
-
 
     ; Initialize Collision component (hitbox + layer masks)
     ld hl, entity_collision_hitbox_w
@@ -12797,7 +13592,6 @@ init_bola2:
     add hl, de
     ld (hl), 5                ; Distinct color for debugging
 
-
     ; Set direction mask for Cursors component (if entity has Input component)
     ld hl, entity_dir_mask
     add hl, de
@@ -12807,7 +13601,6 @@ init_bola2:
     ld hl, entity_input_speed
     add hl, de
     ld (hl), 2            ; Cursor speed (px/frame)
-
 
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 3
@@ -12820,8 +13613,6 @@ init_bola2:
     ld c, 3             ; Entity Index
     call force_update_entity_sprite
 .skip_force_show_3:
-
-
 
     ret
 
@@ -12872,7 +13663,6 @@ update_bola2:
     ; Sync sprite facing with current patrol velocity
     call update_entity_patrol_facing
     ret
-
 
 ; ------------------------------------------------------------------
 ; update_entity_patrol_facing
@@ -12961,10 +13751,67 @@ update_entity_patrol_facing:
     pop af
     ret
 
+; ------------------------------------------------------------------
+; init_player_fast_runtime
+; Reset the dedicated player fast-path runtime mirror.
+; ------------------------------------------------------------------
+init_player_fast_runtime:
+    xor a
+    ld (player_runtime_enabled), a
+    ld (player_vx_runtime), a
+    ld (player_vy_runtime), a
+    ld (player_x), a
+    ld (player_x+1), a
+    ld (player_y), a
+    ld (player_y+1), a
+    ld a, #FF
+    ld (player_entity_index), a
+    ret
+
+; ------------------------------------------------------------------
+; init_player_from_hero_entity
+; Seed player fast-path runtime from current hero_entity_id when available.
+; Safe to call before hero_entity_id has been resolved.
+; ------------------------------------------------------------------
+init_player_from_hero_entity:
+    ld a, (hero_entity_id)
+    cp #FF
+    ret z
+    ld (player_entity_index), a
+    ld c, a
+    ld a, 1
+    ld (player_runtime_enabled), a
+
+    ld e, c
+    ld d, 0
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_x), a
+    xor a
+    ld (player_x+1), a
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_y), a
+    xor a
+    ld (player_y+1), a
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    ld (player_vx_runtime), a
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    ld (player_vy_runtime), a
+    ret
 ; ==================================================================
 ; END OF ENTITIES
 ; ==================================================================
-
 
 ; ==================================================================
 ; GAME MENUS
@@ -13025,7 +13872,6 @@ handle_menu_gfn_1773429482585:
 ; END OF MENUS
 ; ==================================================================
 
-
 ; ==================================================================
 ; MSX FONT DATA FOR SCREEN 2 TEXT
 ; File: font.asm
@@ -13040,25 +13886,24 @@ FONT_COLOR_DATA_BANK   EQU ((FONT_COLOR_DATA - #4000) / #2000)
 ; ==================================================================
 
 FONT_PATTERN_DATA:
-    ; ZX0 compressed font_pattern (360 -> 215 bytes)
+    ; ZX0 compressed font_pattern (360 -> 214 bytes)
     DB #80,#00,#A8,#10,#A8,#7C,#10,#00,#68,#08,#FA,#EC,#7E,#F6,#FE,#A0
     DB #18,#89,#00,#3E,#7F,#73,#27,#7F,#3E,#00,#18,#38,#18,#E6,#CB,#E1
     DB #03,#3E,#60,#7E,#F0,#E9,#03,#D0,#6A,#06,#0E,#1E,#36,#7F,#06,#06
     DB #7F,#98,#60,#7E,#03,#7A,#F1,#63,#79,#E1,#FA,#03,#06,#0C,#9F,#A0
-    DB #A8,#63,#63,#62,#63,#3F,#09,#FE,#00,#36,#36,#FA,#49,#BA,#30,#C3
-    DB #30,#FE,#D0,#B4,#FF,#B0,#B5,#BF,#FB,#63,#07,#F7,#B9,#80,#31,#E4
-    DB #3C,#7E,#60,#FF,#88,#7E,#3C,#00,#7C,#7E,#66,#F8,#7E,#7C,#40,#F9
-    DB #7C,#60,#F7,#F0,#FE,#FF,#60,#27,#60,#67,#FB,#9B,#A5,#F8,#8E,#E1
-    DB #3E,#1C,#FF,#A2,#3E,#00,#1F,#AE,#06,#A1,#E1,#3C,#D1,#8B,#66,#6C
-    DB #78,#6C,#66,#60,#FE,#FE,#97,#B1,#67,#77,#7F,#6B,#82,#A1,#73,#7B
-    DB #6F,#67,#0F,#94,#F8,#81,#20,#F2,#60,#BC,#6B,#E0,#ED,#BD,#63,#E2
-    DB #70,#3E,#0F,#1B,#18,#FF,#FE,#30,#F8,#A0,#F0,#98,#36,#1C,#08,#27
-    DB #6B,#7F,#77,#F8,#B1,#E4,#E7,#36,#63,#F0,#FD,#B0,#A1,#BA,#13,#30
-    DB #97,#00,#F3,#FE,#55,#55,#80
+    DB #A8,#63,#63,#62,#63,#3F,#09,#FE,#00,#30,#30,#FA,#F0,#BF,#18,#C3
+    DB #F1,#FB,#D0,#B4,#FE,#B0,#B5,#FB,#FE,#63,#07,#F7,#80,#E7,#31,#3C
+    DB #7E,#60,#92,#FF,#7E,#3C,#00,#7C,#7E,#66,#23,#7E,#7C,#E3,#40,#7C
+    DB #60,#E7,#F7,#F0,#F8,#FF,#60,#9F,#60,#67,#9B,#EE,#A5,#F8,#E1,#3A
+    DB #3E,#1C,#FF,#3E,#8A,#00,#1F,#BB,#06,#A1,#3C,#86,#D1,#66,#6C,#78
+    DB #6C,#66,#2F,#60,#FE,#F9,#97,#B1,#9E,#77,#7F,#6B,#A1,#08,#73,#7B
+    DB #6F,#67,#3F,#94,#E3,#81,#20,#CA,#60,#6B,#F3,#E0,#B7,#BD,#63,#70
+    DB #88,#3E,#0F,#6F,#18,#FE,#FF,#30,#A0,#E2,#F0,#60,#36,#1C,#08,#9F
+    DB #6B,#7F,#77,#B1,#E3,#E4,#36,#63,#9F,#F0,#B0,#F6,#A1,#13,#EB,#30
+    DB #97,#00,#CD,#FE,#55,#56
 FONT_CHAR_INDEX:
     DB 32, 43, 44, 45, 46, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 62, 63, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 124
 FONT_CHAR_COUNT EQU 45
-
 
 ; ==================================================================
 ; FONT LOADING FUNCTIONS
@@ -13257,7 +14102,6 @@ init_font_system:
 ; ==================================================================
 ; END OF FONT DATA
 ; ==================================================================
-
 
 ; ==================================================================
 ; HUD SYSTEM - Screen 2 Text Rendering
@@ -13553,7 +14397,6 @@ render_hud:
     ld l, a
     ld h, 0
     call update_hud_dynamic_4
-
 
     pop ix
     pop hl
@@ -13918,8 +14761,6 @@ update_hud_dynamic_4:
     pop af
     ret
 
-
-
 ; ==================================================================
 ; PSG SOUND SYSTEM
 ; File: sound.asm
@@ -14028,7 +14869,6 @@ task_audio_tick:
 
     call music_update
     call SM_UpdateSound
-
 
     pop hl
     pop de
@@ -14432,21 +15272,14 @@ sfx_update:
     ret
 
 ; ==================================================================
-; TRACKER MUSIC RUNTIME (Phase 1)
-; Phase 1 plays row data and loop state in ROM; descriptor tables are
-; serialized now for compatibility and future expansion.
+; PT3 MUSIC BACKEND
+; Uses the PT3 replayer for AY-3-8910 music playback.
+; PT3_SETUP, ChanA, AYREGS, etc. are defined in variables.asm.
 ; ==================================================================
-
-MUSIC_TRACK_ORDER_TABLE     EQU 5
-MUSIC_TRACK_PATTERN_TABLE   EQU 7
-MUSIC_TRACK_INSTRUMENT_TABLE EQU 9
-MUSIC_TRACK_NOISE_DEFAULT   EQU 15
 
 ; ------------------------------------------------------------------
 ; music_init_system
-; Reset tracker runtime RAM and default PSG mixer shadow.
-; Input:  None
-; Output: music_active=0, music_muted=0, music_mixer_shadow=#3F
+; Reset PT3 music state. Call once at startup.
 ; Destroys: AF
 ; ------------------------------------------------------------------
 music_init_system:
@@ -14455,72 +15288,48 @@ music_init_system:
     ld (music_muted), a
     ld (music_loop), a
     ld (music_track_index), a
-    ld (music_row_frames), a
-    ld (music_row_countdown), a
-    ld (music_order_pos), a
-    ld (music_pattern_index), a
-    ld (music_pattern_row), a
-    ld (music_pattern_rows), a
-    ld (music_track_ptr_l), a
-    ld (music_track_ptr_h), a
-    ld (music_pattern_ptr_l), a
-    ld (music_pattern_ptr_h), a
-    ld a, #3F
-    ld (music_mixer_shadow), a
-    call music_reset_channel_state
+    ld (PT3_SETUP), a
     ret
 
-music_reset_channel_state:
-    ld a, #FF
-    ld (music_ch_a_note), a
-    ld (music_ch_b_note), a
-    ld (music_ch_c_note), a
-    xor a
-    ld (music_ch_a_instrument), a
-    ld (music_ch_b_instrument), a
-    ld (music_ch_c_instrument), a
-    ld (music_ch_a_ornament), a
-    ld (music_ch_b_ornament), a
-    ld (music_ch_c_ornament), a
-    ld (music_ch_a_vol_step), a
-    ld (music_ch_b_vol_step), a
-    ld (music_ch_c_vol_step), a
-    ld (music_ch_a_tone_step), a
-    ld (music_ch_b_tone_step), a
-    ld (music_ch_c_tone_step), a
-    ld (music_ch_a_noise_step), a
-    ld (music_ch_b_noise_step), a
-    ld (music_ch_c_noise_step), a
-    ld (music_ch_a_orn_step), a
-    ld (music_ch_b_orn_step), a
-    ld (music_ch_c_orn_step), a
-    ld a, #0F
-    ld (music_ch_a_volume), a
-    ld (music_ch_b_volume), a
-    ld (music_ch_c_volume), a
-    ret
-
+; ------------------------------------------------------------------
+; music_silence_channels
+; Silence all AY channels via BIOS WRTPSG.
+; Destroys: AF, E
+; ------------------------------------------------------------------
 music_silence_channels:
     xor a
-    ld b, 0
-    call psg_set_volume
+    ld b, a
+    call psg_set_volume     ; Channel A vol=0
     ld a, 1
     ld b, 0
-    call psg_set_volume
+    call psg_set_volume     ; Channel B vol=0
     ld a, 2
     ld b, 0
-    call psg_set_volume
-    ld a, #3F
-    call psg_set_mixer
+    call psg_set_volume     ; Channel C vol=0
+    ld a, PSG_MIXER
+    ld e, #3F
+    call WRTPSG             ; All tones+noise off
     ret
 
+; ------------------------------------------------------------------
+; music_stop
+; Stop music and silence channels.
+; Destroys: AF
+; ------------------------------------------------------------------
 music_stop:
     push af
-    call music_init_system
+    xor a
+    ld (music_active), a
+    ld (PT3_SETUP), a
     call music_silence_channels
     pop af
     ret
 
+; ------------------------------------------------------------------
+; music_mute
+; Mute music (keep track position).
+; Destroys: AF
+; ------------------------------------------------------------------
 music_mute:
     ld a, (music_active)
     or a
@@ -14530,22 +15339,25 @@ music_mute:
     call music_silence_channels
     ret
 
+; ------------------------------------------------------------------
+; music_resume
+; Resume muted music.
+; Destroys: AF
+; ------------------------------------------------------------------
 music_resume:
     ld a, (music_active)
     or a
     ret z
     xor a
     ld (music_muted), a
-    call music_update_channel_effects
     ret
 
 ; ------------------------------------------------------------------
 ; music_execute_command
-; Dispatch a compact music command stream used by Game Flow nodes.
+; Dispatch a music command from Game Flow nodes.
 ; Input:  DE -> [command, trackIndex, loopFlag]
-;         command: 0=stop, 1=play, 2=mute, 3=resume, #FF=no-op
-; Output: Selected command executed, DE may advance while parsing
-; Destroys: AF, BC (play path), DE (play path), HL (via callees)
+;         0=stop, 1=play, 2=mute, 3=resume, #FF=no-op
+; Destroys: AF, BC (play path), DE (play path), HL
 ; ------------------------------------------------------------------
 music_execute_command:
     ld a, (de)
@@ -14554,13 +15366,13 @@ music_execute_command:
     or a
     jp z, music_stop
     cp 1
-    jp z, .play_track
+    jp z, .pt3_exec_play
     cp 2
     jp z, music_mute
     cp 3
     jp z, music_resume
     ret
-.play_track:
+.pt3_exec_play:
     inc de
     ld a, (de)
     ld c, a
@@ -14571,582 +15383,48 @@ music_execute_command:
     call music_play_track
     ret
 
-music_load_track_pointer_from_index:
-    add a, a
-    ld e, a
-    ld d, 0
-    ld hl, music_track_ptr_table
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld a, e
-    ld (music_track_ptr_l), a
-    ld a, d
-    ld (music_track_ptr_h), a
-    ret
-
-music_get_track_ptr:
-    ld a, (music_track_ptr_l)
-    ld l, a
-    ld a, (music_track_ptr_h)
-    ld h, a
-    ret
-
-music_get_track_header_ptr:
-    ld e, a
-    ld d, 0
-    call music_get_track_ptr
-    add hl, de
-    ret
-
-music_read_track_byte:
-    call music_get_track_header_ptr
-    ld a, (hl)
-    ret
-
-music_read_track_word:
-    call music_get_track_header_ptr
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld h, d
-    ld l, e
-    ret
-
-music_get_instrument_ptr:
-    or a
-    jr z, .no_instrument
-    add a, a
-    ld e, a
-    ld d, 0
-    ld a, MUSIC_TRACK_INSTRUMENT_TABLE
-    call music_read_track_word
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld h, d
-    ld l, e
-    ret
-.no_instrument:
-    ld hl, 0
-    ret
-
-; ------------------------------------------------------------------
-; music_get_channel_instrument_ptr
-; Resolve current channel instrument pointer from the cached channel id.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: HL = instrument descriptor or 0 when none is active
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_get_channel_instrument_ptr:
-    ld hl, music_ch_instrument_base
-    call music_load_channel_byte
-    call music_get_instrument_ptr
-    ret
-
-; ------------------------------------------------------------------
-; music_channel_uses_hardware_env
-; Check if the active instrument routes channel volume through PSG ENV.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: A = 1 when PSG hardware envelope is enabled, else 0
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_channel_uses_hardware_env:
-    push hl
-    call music_get_channel_instrument_ptr
-    ld a, h
-    or l
-    jr z, music_channel_uses_hardware_env_no_hw_env
-    ld a, (hl)
-    and #04
-    jr z, music_channel_uses_hardware_env_no_hw_env
-    ld a, 1
-    pop hl
-    ret
-music_channel_uses_hardware_env_no_hw_env:
-    xor a
-    pop hl
-    ret
-
-; ------------------------------------------------------------------
-; music_trigger_channel_attack
-; Hook kept for compatibility. The preview-style hardware envelope is
-; emulated in software per channel, so new-note state is already reset
-; by music_apply_channel_cell before this helper is called.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: None
-; Destroys: None
-; ------------------------------------------------------------------
-music_trigger_channel_attack:
-    ret
-
-; ------------------------------------------------------------------
-; music_resolve_channel_volume
-; Resolve per-frame channel volume.
-; Current Phase 1 behavior:
-; - emulates AY hardware envelope shapes in software when ayEnvelopeShape is set
-; - falls back to music_ch_volume_base when no envelope data exists
-; - applies a simple software volumeEnvelope when present
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: B = PSG volume 0-15
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_resolve_channel_volume:
-    push af
-    push de
-    push hl
-    ld hl, music_ch_instrument_base
-    call music_load_channel_byte
-    or a
-    jp z, .fallback_base
-    call music_get_instrument_ptr
-    ld a, h
-    or l
-    jp z, .fallback_base
-    ld a, (hl)
-    and #04
-    jp nz, .hardware_env
-.check_software_env:
-    push hl
-    ld de, 8
-    add hl, de
-    ld b, (hl)
-    pop hl
-    ld a, b
-    or a
-    jp z, .fallback_base
-    push hl
-    ld de, 6
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    pop hl
-    push hl
-    ld hl, music_ch_vol_step_base
-    call music_load_channel_byte
-    cp b
-    jr c, .step_ok_restore
-    pop hl
-    push de
-    push hl
-    ld de, 9
-    add hl, de
-    ld a, (hl)
-    pop hl
-    pop de
-    cp b
-    jr c, .step_ok
-    ld a, b
-    push af
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    pop af
-    ld hl, music_ch_note_base
-    ld a, #FF
-    call music_store_channel_byte
-    xor a
-    ld b, a
-    jp .mrcv_done
-.step_ok_restore:
-    pop hl
-.step_ok:
-    push af
-    inc a
-    cp b
-    jr c, .next_step_ok
-    push de
-    push hl
-    ld de, 9
-    add hl, de
-    ld a, (hl)
-    pop hl
-    pop de
-    cp b
-    jr c, .next_step_ok
-    ld a, b
-.next_step_ok:
-    push de
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    pop de
-    pop af
-    ld l, a
-    ld h, 0
-    add hl, de
-    ld a, (hl)
-    cp 16
-    jr c, .env_volume_ok
-    ld a, 15
-.env_volume_ok:
-    ld b, a
-    jp .mrcv_done
-.hardware_env:
-    ld hl, music_ch_tone_step_base
-    call music_load_channel_byte
-    inc a
-    cp 2
-    jr c, .hw_store_counter
-    xor a
-    push af
-    ld hl, music_ch_tone_step_base
-    call music_store_channel_byte
-    pop af
-    ld hl, music_ch_vol_step_base
-    call music_load_channel_byte
-    cp 15
-    jr nc, .hw_phase_ready
-    inc a
-    push af
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    pop af
-    jr .hw_phase_ready
-.hw_store_counter:
-    push af
-    ld hl, music_ch_tone_step_base
-    call music_store_channel_byte
-    pop af
-    ld hl, music_ch_vol_step_base
-    call music_load_channel_byte
-.hw_phase_ready:
-    push af
-    call music_get_channel_instrument_ptr
-    ld a, h
-    or l
-    pop af
-    jr z, .hw_decay
-    push af
-    inc hl
-    inc hl
-    ld a, (hl)
-    and #04
-    pop af
-    jr z, .hw_decay
-    ld b, a
-    jp .mrcv_done
-.hw_decay:
-    ld e, a
-    ld a, 15
-    sub e
-    ld b, a
-    jp .mrcv_done
-.fallback_base:
-    ld hl, music_ch_volume_base
-    call music_load_channel_byte
-    ld b, a
-.mrcv_done:
-    pop hl
-    pop de
-    pop af
-    ret
-
-; ------------------------------------------------------------------
-; music_resolve_channel_noise
-; Resolve per-frame channel noise period, including the PT3-inspired
-; software noise macro appended to the instrument descriptor.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: A = PSG noise period 0-31
-; Destroys: AF, DE, HL
-; Preserves: Stack balance restored before return
-; ------------------------------------------------------------------
-music_resolve_channel_noise:
-    push de
-    push hl
-    ld hl, music_ch_instrument_base
-    call music_load_channel_byte
-    or a
-    jp z, .mrcn_track_default
-    call music_get_instrument_ptr
-    ld a, h
-    or l
-    jp z, .mrcn_track_default
-    push hl
-    ld de, 16
-    add hl, de
-    ld b, (hl)
-    pop hl
-    ld a, b
-    or a
-    jp z, .mrcn_static_noise
-    push hl
-    ld hl, music_ch_noise_step_base
-    call music_load_channel_byte
-    cp b
-    jr c, .mrcn_step_ok
-    ld a, b
-    dec a
-.mrcn_step_ok:
-    push af
-    pop af
-    pop hl
-    push af
-    inc a
-    cp b
-    jr c, .mrcn_store_next
-    push de
-    ld de, 17
-    add hl, de
-    ld a, (hl)
-    pop de
-    cp b
-    jr c, .mrcn_store_next
-    ld a, b
-    dec a
-.mrcn_store_next:
-    push hl
-    push af
-    ld hl, music_ch_noise_step_base
-    call music_store_channel_byte
-    pop af
-    pop hl
-    ld de, 14
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    pop af
-    ld l, a
-    ld h, 0
-    add hl, de
-    ld a, (hl)
-    and #1F
-    jp .mrcn_done
-.mrcn_static_noise:
-    push de
-    ld de, 3
-    add hl, de
-    ld a, (hl)
-    pop de
-    and #1F
-    jp .mrcn_done
-.mrcn_track_default:
-    ld a, MUSIC_TRACK_NOISE_DEFAULT
-    call music_read_track_byte
-    and #1F
-.mrcn_done:
-    pop hl
-    pop de
-    ret
-
 ; ------------------------------------------------------------------
 ; music_play_track
-; Start a serialized PSG tracker song from ROM.
-; Input:  A = track index in music_track_ptr_table
-;         B bit 0 = loop enabled flag
-; Output: music_active=1 and first row applied immediately
-; Destroys: AF, BC, DE, HL
-; Preserves: Stack balance restored on all exits
+; Start playing a PT3 track.
+; Input:  A = track index (0-based)
+;         B = loop flag (0=no loop, 1=loop)
+; Destroys: AF, BC, DE, HL, IX, IY
 ; ------------------------------------------------------------------
 music_play_track:
-    push bc
-    push de
-    push hl
-    ld hl, music_track_count
-    cp (hl)
-    jp nc, .mpt_done
     ld (music_track_index), a
-    call music_load_track_pointer_from_index
     ld a, b
     and 1
     ld (music_loop), a
-    xor a
-    ld (music_muted), a
-    ld (music_order_pos), a
-    ld (music_pattern_index), a
-    ld (music_pattern_row), a
-    ld a, 1
-    ld (music_active), a
-    call music_reset_channel_state
-    call music_apply_row
-.mpt_done:
-    pop hl
-    pop de
-    pop bc
-    ret
-
-music_store_channel_byte:
-    push de
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld (hl), a
-    pop de
-    ret
-
-music_load_channel_byte:
-    push de
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    pop de
-    ret
-
-music_apply_channel_cell:
-    ld c, a
-    ld d, 0
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jp z, .note_done
-    cp #FE
-    jp nz, .store_note
-    ld a, #FF
-    jr .store_note
-.store_note:
-    cp #FF
-    jr z, .store_note_value
-    ld d, 1
-.store_note_value:
-    push hl
-    ld hl, music_ch_note_base
-    call music_store_channel_byte
-    xor a
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    ld hl, music_ch_tone_step_base
-    call music_store_channel_byte
-    ld hl, music_ch_noise_step_base
-    call music_store_channel_byte
-    ld hl, music_ch_orn_step_base
-    call music_store_channel_byte
-    pop hl
-.note_done:
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jp z, .instrument_done
-    push hl
-    ld hl, music_ch_instrument_base
-    call music_store_channel_byte
-    pop hl
-.instrument_done:
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jp z, .ornament_done
-    push hl
-    ld hl, music_ch_ornament_base
-    call music_store_channel_byte
-    pop hl
-.ornament_done:
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jr z, .maybe_trigger_attack
-    push hl
-    ld hl, music_ch_volume_base
-    call music_store_channel_byte
-    pop hl
-.maybe_trigger_attack:
-    ld a, d
-    or a
-    ret z
-    push hl
-    call music_trigger_channel_attack
-    pop hl
-    ret
-
-; ------------------------------------------------------------------
-; music_apply_row
-; Decode current order/pattern row and cache channel state for A/B/C.
-; Input:  Runtime variables select track/order/pattern position
-; Output: Channel note/instrument/volume caches updated
-;         Row countdown reloaded and PSG refreshed once
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-music_apply_row:
-    ld a, MUSIC_TRACK_ORDER_TABLE
-    call music_read_track_word
-    ld a, (music_order_pos)
+    ld a, (music_track_index)
+    add a, a               ; *2 (DW entries)
     ld e, a
     ld d, 0
-    add hl, de
-    ld a, (hl)
-    ld (music_pattern_index), a
-    ld a, MUSIC_TRACK_PATTERN_TABLE
-    call music_read_track_word
-    ld a, (music_pattern_index)
-    ld e, a
-    ld d, 0
-    add hl, de
-    add hl, de
+    ld hl, music_pt3_track_table
     add hl, de
     ld e, (hl)
     inc hl
     ld d, (hl)
-    inc hl
-    ld a, (hl)
-    ld (music_pattern_rows), a
-    ld a, e
-    ld (music_pattern_ptr_l), a
-    ld a, d
-    ld (music_pattern_ptr_h), a
     ld h, d
-    ld l, e
-    ld a, (music_pattern_row)
-    or a
-    jp z, .row_ptr_ready
-    ld b, a
-.row_offset_loop:
-    ld de, 12
-    add hl, de
-    djnz .row_offset_loop
-.row_ptr_ready:
+    ld l, e                ; HL = adjusted module address
     xor a
-    call music_apply_channel_cell
+    ld (music_muted), a
+    ld (PT3_SETUP), a      ; Clear end-of-song flag
+    di                     ; Disable interrupts while initialising PT3
+    push ix
+    push iy
+    call PT3_INIT
+    pop iy
+    pop ix
     ld a, 1
-    call music_apply_channel_cell
-    ld a, 2
-    call music_apply_channel_cell
-    ld a, (music_pattern_row)
-    inc a
-    ld d, a
-    ld a, (music_pattern_rows)
-    cp d
-    jp z, .advance_order
-    jp c, .advance_order
-    ld a, d
-    ld (music_pattern_row), a
-    jp .row_done
-.advance_order:
-    xor a
-    ld (music_pattern_row), a
-    ld a, (music_order_pos)
-    inc a
-    ld d, a
-    ld a, 1
-    call music_read_track_byte
-    cp d
-    jp z, .end_of_order
-    jp c, .end_of_order
-    ld a, d
-    ld (music_order_pos), a
-    jp .row_done
-.end_of_order:
-    ld a, (music_loop)
-    or a
-    jp z, music_stop
-    ld a, 2
-    call music_read_track_byte
-    ld (music_order_pos), a
-.row_done:
-    xor a
-    call music_read_track_byte
-    ld (music_row_frames), a
-    ld (music_row_countdown), a
-    call music_update_channel_effects
+    ld (music_active), a   ; Enable playback AFTER PT3 is fully initialised
+    ei
     ret
 
 ; ------------------------------------------------------------------
 ; music_update
-; Advance the tracker once per game frame.
-; Input:  None
-; Output: Current channel PSG state refreshed; next row applied when due
-; Destroys: AF, BC, DE, HL
+; Update PT3 playback. Called every frame from the main loop or ISR.
+; Checks end-of-song flag, handles loop/stop, runs PT3_PLAY+PT3_ROUT.
+; Destroys: AF, HL, DE (saves/restores IX/IY around PT3 calls)
 ; ------------------------------------------------------------------
 music_update:
     ld a, (music_active)
@@ -15155,202 +15433,157 @@ music_update:
     ld a, (music_muted)
     or a
     ret nz
-    call music_update_channel_effects
-    ld a, (music_row_countdown)
+    ; Check if song ended (CHECKLP sets bit7 of PT3_SETUP)
+    ld a, (PT3_SETUP)
+    bit 7, a
+    jr z, .pt3_upd_play
+    ; Song ended - loop or stop?
+    ld a, (music_loop)
     or a
-    jp z, music_apply_row
-    dec a
-    ld (music_row_countdown), a
-    ret nz
-    call music_apply_row
-    ret
-
-; ------------------------------------------------------------------
-; music_update_channel_effects
-; Rebuild mixer bits and push current cached channel state to PSG.
-; Input:  music_ch_* caches already populated
-; Output: PSG tone/volume registers updated for channels A/B/C
-;         music_mixer_shadow rewritten with current enable bits
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-music_update_channel_effects:
-    ld a, #3F
-    ld (music_mixer_shadow), a
-    ld c, 0
-    call music_update_one_channel
-    ld c, 1
-    call music_update_one_channel
-    ld c, 2
-    call music_update_one_channel
-    ld a, (music_mixer_shadow)
-    call psg_set_mixer
-    ret
-
-; ------------------------------------------------------------------
-; music_update_one_channel
-; Apply one cached channel to PSG and update the mixer shadow bits.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: Channel PSG tone/volume updated or silenced
-;         music_mixer_shadow updated for that channel
-; Destroys: AF, BC, DE, HL
-; Preserves: Stack balance restored before return
-; ------------------------------------------------------------------
-music_update_one_channel:
-    push bc
-    push de
-    push hl
-    ld hl, music_ch_note_base
-    call music_load_channel_byte
-    cp #FF
-    jp z, .silent_channel
+    jr z, .pt3_upd_stop
+    ; Loop: reinitialise from same track
+    ld a, (music_track_index)
     add a, a
     ld e, a
     ld d, 0
-    ld hl, music_note_period_table
+    ld hl, music_pt3_track_table
     add hl, de
     ld e, (hl)
     inc hl
     ld d, (hl)
     ld h, d
     ld l, e
-    ld a, c
-    push bc
-    call psg_set_tone
-    pop bc
-    call music_resolve_channel_volume
-    ld a, c
-    push bc
-    call psg_set_volume
-    pop bc
-    ld d, 1
-    ld e, 0
-    call music_get_channel_instrument_ptr
-    ld a, h
-    or l
-    jr z, .apply_mixer_bits
-    ld a, (hl)
-    and #01
-    ld d, a
-    ld a, (hl)
-    and #02
-    srl a
-    ld e, a
-    ld a, e
-    or a
-    jr z, .apply_mixer_bits
-    push de
-    call music_resolve_channel_noise
-    call psg_set_noise
-    pop de
-.apply_mixer_bits:
-    ld a, (music_mixer_shadow)
-    ld b, a
-    ld a, c
-    cp 1
-    jp z, .enable_b
-    cp 2
-    jp z, .enable_c
-    ld a, b
-    bit 0, d
-    jr z, .a_tone_off
-    and #3E
-    jr .a_noise_gate
-.a_tone_off:
-    or #01
-.a_noise_gate:
-    bit 0, e
-    jr z, .a_noise_off
-    and #37
-    jp .store_mixer
-.a_noise_off:
-    or #08
-    jp .store_mixer
-.enable_b:
-    ld a, b
-    bit 0, d
-    jr z, .b_tone_off
-    and #3D
-    jr .b_noise_gate
-.b_tone_off:
-    or #02
-.b_noise_gate:
-    bit 0, e
-    jr z, .b_noise_off
-    and #2F
-    jp .store_mixer
-.b_noise_off:
-    or #10
-    jp .store_mixer
-.enable_c:
-    ld a, b
-    bit 0, d
-    jr z, .c_tone_off
-    and #3B
-    jr .c_noise_gate
-.c_tone_off:
-    or #04
-.c_noise_gate:
-    bit 0, e
-    jr z, .c_noise_off
-    and #1F
-    jp .store_mixer
-.c_noise_off:
-    or #20
-    jp .store_mixer
-.silent_channel:
-    ld b, 0
-    ld a, c
-    push bc
-    call psg_set_volume
-    pop bc
-    ld a, (music_mixer_shadow)
-    ld b, a
-    ld a, c
-    cp 1
-    jp z, .disable_b
-    cp 2
-    jp z, .disable_c
-    ld a, b
-    or #09
-    jp .store_mixer
-.disable_b:
-    ld a, b
-    or #12
-    jp .store_mixer
-.disable_c:
-    ld a, b
-    or #24
-.store_mixer:
-    ld (music_mixer_shadow), a
-    pop hl
-    pop de
-    pop bc
+    push ix
+    push iy
+    call PT3_INIT
+    pop iy
+    pop ix
+    ret
+.pt3_upd_stop:
+    xor a
+    ld (music_active), a
+    ret
+.pt3_upd_play:
+    push ix
+    push iy
+    call PT3_PLAY
+    call PT3_ROUT
+    pop iy
+    pop ix
     ret
 
-music_note_period_table:
-    DW #1AB9,#1939,#17CF,#1679,#1536,#1405,#12E5,#11D6
-    DW #10D6,#0FE4,#0EFF,#0E28,#0D5C,#0C9D,#0BE7,#0B3C
-    DW #0A9B,#0A02,#0973,#08EB,#086B,#07F2,#0780,#0714
-    DW #06AE,#064E,#05F4,#059E,#054D,#0501,#04B9,#0475
-    DW #0435,#03F9,#03C0,#038A,#0357,#0327,#02FA,#02CF
-    DW #02A7,#0281,#025D,#023B,#021B,#01FC,#01E0,#01C5
-    DW #01AC,#0194,#017D,#0168,#0153,#0140,#012E,#011D
-    DW #010D,#00FE,#00F0,#00E2,#00D6,#00CA,#00BE,#00B4
-    DW #00AA,#00A0,#0097,#008F,#0087,#007F,#0078,#0071
-    DW #006B,#0065,#005F,#005A,#0055,#0050,#004C,#0047
-    DW #0043,#0040,#003C,#0039,#0035,#0032,#0030,#002D
-    DW #002A,#0028,#0026,#0024,#0022,#0020,#001E,#001C
+; ------------------------------------------------------------------
+; PT3 REPLAYER (included from server root)
+; ------------------------------------------------------------------
+    include "../PT3-ROM-alltables-glass.asm"
 
-music_track_count:
+; ------------------------------------------------------------------
+; PT3 TRACK TABLE
+; ------------------------------------------------------------------
+music_pt3_track_count:
+    DB #01
+
+music_pt3_track_table:
+    DW pt3_track_0_data - 99    ; New Track (.99 stripped)
+
+; --- PT3 Track 0: New Track ---
+pt3_track_0_data:
+    DB #02,#06,#09,#00,#D3,#00,#00,#00,#BA,#05,#CC,#05,#E6,#05,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#0C,#06,#0F,#06,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#03,#06,#09,#0C,#0C,#0F,#06,#12,#FF
+    DB #FD,#00,#3C,#01,#49,#01,#CF,#01,#20,#02,#5F,#02,#CF,#01,#E5,#02
+    DB #5F,#02,#2F,#03,#45,#03,#55,#03,#7B,#03,#C0,#03,#08,#04,#8E,#04
+    DB #C7,#04,#00,#05,#66,#05,#7D,#05,#94,#05,#B1,#10,#C0,#F1,#04,#CB
+    DB #B1,#01,#7A,#7E,#77,#83,#B1,#02,#81,#77,#B1,#01,#7A,#7E,#77,#83
+    DB #81,#75,#81,#75,#7A,#7E,#77,#83,#B1,#02,#81,#77,#B1,#01,#7A,#7E
+    DB #77,#83,#81,#75,#81,#75,#7A,#7E,#77,#83,#B1,#02,#81,#77,#B1,#01
+    DB #7A,#7E,#77,#83,#81,#75,#81,#75,#00,#B1,#30,#C0,#F0,#06,#CE,#B1
+    DB #04,#86,#86,#86,#86,#00,#1E,#00,#4A,#02,#40,#CF,#B1,#02,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF
+    DB #00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#00,#F1,#04,#CB,#B1
+    DB #01,#7A,#7E,#77,#83,#B1,#02,#81,#77,#B1,#01,#7A,#7E,#77,#83,#81
+    DB #75,#B1,#02,#81,#B1,#01,#7A,#7E,#77,#83,#B1,#02,#81,#77,#B1,#01
+    DB #7A,#7E,#77,#83,#81,#75,#81,#75,#7A,#7E,#77,#83,#B1,#02,#81,#77
+    DB #B1,#01,#7A,#7E,#77,#83,#81,#75,#81,#75,#7A,#7E,#77,#83,#B1,#02
+    DB #81,#77,#B1,#01,#7A,#7E,#77,#83,#81,#75,#81,#75,#00,#F0,#06,#CE
+    DB #B1,#04,#86,#86,#86,#86,#B1,#02,#86,#88,#89,#8A,#B1,#01,#83,#B1
+    DB #02,#81,#B1,#01,#81,#B1,#02,#8A,#8A,#86,#88,#89,#8A,#B1,#01,#83
+    DB #B1,#02,#81,#B1,#01,#81,#B1,#02,#88,#7C,#86,#88,#89,#8A,#B1,#01
+    DB #83,#B1,#02,#81,#B1,#01,#81,#B1,#02,#8A,#8A,#00,#1E,#00,#4A,#02
+    DB #40,#CF,#B1,#02,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25
+    DB #6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25
+    DB #6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25
+    DB #6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#63,#5D,#BF,#00,#31
+    DB #69,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25
+    DB #6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#63,#5D,#BF,#00,#31
+    DB #69,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00,#25
+    DB #6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#63,#5D,#BF,#00,#31
+    DB #69,#00,#F0,#06,#CE,#B1,#01,#8B,#8D,#8B,#8D,#8A,#86,#83,#81,#B1
+    DB #02,#86,#83,#B1,#04,#86,#B1,#02,#86,#88,#89,#8A,#B1,#01,#83,#B1
+    DB #02,#81,#B1,#01,#81,#B1,#02,#8A,#8A,#86,#88,#89,#8A,#B1,#01,#83
+    DB #B1,#02,#81,#B1,#01,#81,#B1,#02,#88,#7C,#86,#88,#89,#8A,#B1,#01
+    DB #83,#B1,#02,#81,#B1,#01,#81,#B1,#02,#8A,#8A,#00,#F1,#04,#CB,#B1
+    DB #01,#7F,#81,#7F,#81,#7F,#81,#7F,#81,#75,#75,#77,#75,#75,#75,#77
+    DB #75,#00,#F0,#06,#CE,#B1,#01,#8B,#8D,#8B,#8D,#8B,#8D,#8B,#B1,#09
+    DB #8D,#00,#1E,#00,#63,#02,#40,#CF,#B1,#02,#5D,#BF,#00,#63,#5D,#BF
+    DB #00,#63,#5D,#BF,#00,#63,#5D,#BF,#00,#63,#5D,#BF,#00,#63,#5D,#BF
+    DB #00,#53,#60,#BF,#00,#4A,#62,#00,#F1,#04,#CB,#B1,#01,#73,#6E,#70
+    DB #6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#73,#6E,#70
+    DB #6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#73,#6E,#70
+    DB #6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#73,#6E,#70
+    DB #6E,#73,#6E,#70,#6E,#73,#6E,#70,#6E,#B1,#04,#70,#00,#F0,#06,#CE
+    DB #B1,#01,#8F,#8E,#8F,#8B,#92,#94,#92,#94,#8F,#8F,#B1,#02,#8F,#8F
+    DB #8F,#B1,#01,#8F,#8E,#8F,#8B,#92,#94,#92,#94,#8D,#8D,#B1,#02,#8D
+    DB #8D,#8D,#B1,#01,#8F,#8E,#8F,#8B,#92,#94,#92,#94,#8F,#8F,#B1,#02
+    DB #8F,#8F,#8F,#B1,#01,#8B,#8A,#8B,#86,#88,#8B,#84,#8B,#83,#8B,#8B
+    DB #8A,#B1,#04,#8B,#00,#1E,#00,#75,#02,#40,#CF,#B1,#02,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#75,#5A,#BF,#00,#37,#67,#BF,#00,#75,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#4A,#62,#BF,#00,#4A,#62,#BF,#00,#75,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#75,#5A,#BF,#00,#37,#67,#BF,#00,#58,#5F,#BF,#00
+    DB #58,#5F,#BF,#00,#53,#60,#BF,#00,#4A,#62,#BF,#00,#75,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#75,#5A,#BF,#00,#37,#67,#BF,#00,#75,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#4A,#62,#BF,#00,#4A,#62,#BF,#00,#75,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#75,#5A,#BF,#00,#37,#67,#BF,#00,#75,#5A,#BF,#00
+    DB #37,#67,#BF,#00,#4A,#62,#BF,#00,#4A,#62,#00,#B1,#01,#7A,#7E,#77
+    DB #83,#B1,#02,#81,#77,#B1,#01,#7A,#7E,#77,#83,#81,#75,#81,#75,#7A
+    DB #7E,#77,#83,#B1,#02,#81,#77,#B1,#01,#7A,#7E,#77,#83,#81,#75,#81
+    DB #75,#7A,#7E,#77,#83,#B1,#02,#81,#77,#B1,#01,#7A,#7E,#77,#83,#81
+    DB #75,#81,#75,#00,#F0,#06,#CE,#B1,#02,#86,#88,#89,#8A,#B1,#01,#83
+    DB #B1,#02,#81,#B1,#01,#81,#B1,#02,#8A,#8A,#86,#88,#89,#8A,#B1,#01
+    DB #83,#B1,#02,#81,#B1,#01,#81,#B1,#02,#7C,#7C,#86,#88,#89,#8A,#B1
+    DB #01,#83,#B1,#02,#81,#B1,#01,#81,#B1,#02,#8A,#8A,#00,#1E,#00,#4A
+    DB #02,#40,#CF,#B1,#02,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00
+    DB #25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#63,#5D,#BF,#00
+    DB #31,#69,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00
+    DB #25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#63,#5D,#BF,#00
+    DB #31,#69,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#4A,#62,#BF,#00
+    DB #25,#6E,#BF,#00,#4A,#62,#BF,#00,#25,#6E,#BF,#00,#63,#5D,#BF,#00
+    DB #31,#69,#00,#F1,#04,#CB,#B1,#01,#73,#75,#73,#75,#73,#75,#73,#75
+    DB #B1,#02,#69,#B1,#01,#6E,#B1,#05,#6E,#00,#F0,#06,#CE,#B1,#01,#88
+    DB #81,#88,#81,#88,#81,#88,#81,#B1,#02,#86,#B1,#01,#86,#B1,#05,#86
+    DB #00,#1E,#00,#63,#02,#40,#CF,#B1,#02,#5D,#BF,#00,#63,#5D,#BF,#00
+    DB #63,#5D,#BF,#00,#63,#5D,#BF,#00,#63,#5D,#BF,#00,#4A,#B1,#01,#62
+    DB #BF,#00,#4A,#B1,#05,#62,#00,#03,#04,#00,#8F,#00,#00,#00,#8F,#00
+    DB #00,#80,#8F,#00,#00,#81,#8E,#00,#00,#05,#06,#01,#8A,#00,#00,#01
+    DB #8D,#00,#00,#01,#8F,#00,#00,#01,#8E,#00,#00,#81,#89,#00,#00,#81
+    DB #86,#00,#00,#07,#09,#01,#8D,#00,#00,#01,#8E,#00,#00,#01,#8F,#FF
+    DB #FF,#01,#8F,#FF,#FF,#01,#8F,#FF,#FF,#01,#8F,#FF,#FF,#01,#8E,#00
+    DB #00,#01,#8D,#00,#00,#81,#8D,#00,#00,#00,#01,#00,#02,#03,#00,#0C
     DB #00
-
-music_track_ptr_table:
-    DW 0
 
 ; ==================================================================
 ; END OF PSG SOUND SYSTEM
 ; ==================================================================
-
 
 ; ==================================================================
 ; SCROLL SYSTEM
@@ -15694,7 +15927,6 @@ multiply_a_by_b:
 ; ==================================================================
 ; END OF SCROLL SYSTEM
 ; ==================================================================
-
 
 ; ==================================================================
 ; ANIMATED TILES SYSTEM
@@ -16509,7 +16741,6 @@ anim_transform_1_rajol_vermell:
     ; Frame 7: transform_step_7
     db #FF, #00, #FF, #EF, #C7, #83, #01, #FF, #91, #61, #61, #61, #91, #91, #81, #91
 
-
 ; ------------------------------------------------------------------
 ; register_animated_tile
 ; Runtime registration is not supported in this generator version.
@@ -16565,8 +16796,6 @@ get_tile_animation_frame:
 ; ==================================================================
 ; END OF ANIMATED TILES SYSTEM
 ; ==================================================================
-
-
 
     ; ------------------------------------------------------------------
     ; SM_Update
@@ -18769,8 +18998,6 @@ SM_New_Statemachine_state_1773007838313_Transitions_Actions_1:
     DB 10, 1        ; Lives (ID 10)
     DB 0xFF; END
 
-
-
 ; ==================================================================
 ; GAMEFLOW EXECUTION ENGINE
 ; File: gameflow.asm
@@ -18778,8 +19005,8 @@ SM_New_Statemachine_state_1773007838313_Transitions_Actions_1:
 ; ==================================================================
 ;
 ; GameFlow: Main
-; Total Nodes: 6
-; Total Connections: 7
+; Total Nodes: 7
+; Total Connections: 8
 ; Start Node: gf_start_1770754183471
 ;
 ; ARCHITECTURE:
@@ -18846,6 +19073,8 @@ gameflow_execute_node:
     jp z, gameflow_handle_submenu
     cp NODE_TYPE_PRESENTATION_SCREEN
     jp z, gameflow_handle_presentationscreen
+    cp NODE_TYPE_MUSIC
+    jp z, gameflow_handle_music
     
     ; Unknown node type - error
     ret
@@ -19241,6 +19470,10 @@ show_menu_placeholder:
 .smp_loop:
     halt
 
+    ; Defensive refresh: some projects keep background/runtime VRAM writers
+    ; active while the submenu is idle, which can trample ASCII font chars.
+    ; Re-apply the font after each VBlank before polling menu input.
+    call init_font_system
     ld a, 0
     call GTSTCK
     cp 1                          ; Up
@@ -19278,6 +19511,7 @@ show_menu_placeholder:
 .smp_wait_fire_release:
     halt
 
+    call init_font_system
     ld a, 0
     call GTTRIG
     or a
@@ -19288,6 +19522,7 @@ show_menu_placeholder:
 .smp_wait_neutral_loop:
     halt
 
+    call init_font_system
     ld a, 0
     call GTSTCK
     or a
@@ -19793,7 +20028,6 @@ submenu_cursor_sprite_pattern_table:
     dw SPRITE_8_PATTERN
     dw SPRITE_9_PATTERN
 
-
 gameflow_handle_presentationscreen:
     ; PresentationScreen node - show full-screen presentation image
     ; BC = connection table
@@ -19803,6 +20037,19 @@ gameflow_handle_presentationscreen:
     ; Game tile patterns live at char 128+ and are now corrupted.
     ; Reload game VRAM (patterns + colors) before entering gameplay.
     call init_game_systems
+    pop bc
+    call gameflow_get_default_connection
+    ld a, h
+    or l
+    ret z
+    jp gameflow_execute_node
+gameflow_handle_music:
+    ; Music node - play/stop music
+    ; DE = music data (command, track index, loop flag)
+    ; BC = connection table
+
+    push bc
+    call music_execute_command
     pop bc
     call gameflow_get_default_connection
     ld a, h
@@ -19935,19 +20182,13 @@ gameflow_world_game_loop:
 
     ; Frame sync first: start each tick exactly on V-Blank edge
     halt
-    ; Upload sprites right after V-Blank edge (60/50 Hz frame-paced)
-    call update_sprites_to_vram
-
-    ; Animated transform tiles do VRAM read-modify-write, so update them
-    ; near the V-Blank edge before the expensive gameplay work.
-    call update_animated_tiles
-
-    ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
+    ; Poll input immediately after V-Blank edge so the hero uses
+    ; the freshest input state in the same visible frame.
     call task_update_input
+    call update_player_fastpath
 
     ; Update per-screen countdown timer (60 seconds per stage)
     call update_world_screen_timer
-
 
     ; Handle world screen edge transitions (Preview parity)
     call check_world_screen_transition
@@ -19955,13 +20196,36 @@ gameflow_world_game_loop:
     ; Update all entities
     call update_all_entities
 
+    ; Refresh player deadly-tile state before state machines consume it.
+    call refresh_player_deadly_fastpath
+
+    ; Refresh player tile interactions without running bonus respawns twice.
+    call refresh_player_tile_interaction_fastpath
+
+    ; Run the player state machine before the generic SM sweep.
+    call refresh_player_state_machine_fastpath
+
     ; Execute all state machines
     call execute_all_state_machines
 
     ; Update timed PSG sound effects
     call sfx_update
 
-    ; Sprite SAT upload runs once per frame, outside ISR (done at frame start).
+    ; Refresh player animation with the final state of this frame.
+    call refresh_player_animation_fastpath
+
+    ; Refresh player sprite once with the final state of this frame.
+    call refresh_player_sprite_fastpath
+
+    ; Upload sprites after gameplay so the hero position computed this frame
+    ; is what gets shown on screen, instead of the previous frame's SAT.
+    call update_sprites_to_vram
+
+    ; Animated transform tiles do VRAM read-modify-write, so defer them until
+    ; after hero/entity work to keep player response prioritized.
+    call update_animated_tiles
+
+    ; Sprite SAT upload runs once per frame, outside ISR.
 
     ; Render HUD only on screens that define HUD elements
     ld a, (current_screen_id)
@@ -20297,9 +20561,22 @@ gameflow_node_gfn_1773690160008:
 
 gameflow_node_gfn_1773690160008_conn:
     db CONNECTION_DEFAULT
-    dw gameflow_node_gfn_1773429482585
+    dw gameflow_node_gfn_1774162961031
     db CONNECTION_END
 
+; Node: Music - "gfn_1774162961031"
+gameflow_node_gfn_1774162961031:
+    db NODE_TYPE_MUSIC
+    dw gameflow_node_gfn_1774162961031_data
+    dw gameflow_node_gfn_1774162961031_conn
+
+gameflow_node_gfn_1774162961031_data:
+    db 1, 0, 1    ; command, track index, loop flag
+
+gameflow_node_gfn_1774162961031_conn:
+    db CONNECTION_DEFAULT
+    dw gameflow_node_gfn_1773429482585
+    db CONNECTION_END
 
 ; ==================================================================
 ; INITIALIZATION UTILITY FUNCTIONS
@@ -20537,7 +20814,6 @@ empty_row_data:
 ; ==================================================================
 ; END OF GAMEFLOW
 ; ==================================================================
-
 
 ; ==================================================================
 ; WORLD MAPS
@@ -21483,7 +21759,6 @@ set_current_screen:
 ; END OF WORLDS
 ; ==================================================================
 
-
 ; ==================================================================
 ; GAME SYSTEM FUNCTIONS
 ; ==================================================================
@@ -21491,6 +21766,175 @@ set_current_screen:
 ; by GameFlow (see gameflow.asm section above).
 ; This section only contains shared initialization and utility functions.
 ; ==================================================================
+
+;-----------------------------------------------
+; Capture the normal expanded slot used by each page.
+init_page0_runtime_state:
+    in a, (#A8)
+    ld (slot_primary_normal), a
+    ld e, a
+    ld a, e
+    and #03
+    call GETSLOT
+    ld (page0_bios_slot), a
+    ld a, e
+    rrca
+    rrca
+    and #03
+    call GETSLOT
+    ld (ROM_slot), a
+    ld a, e
+    rrca
+    rrca
+    rrca
+    rrca
+    and #03
+    call GETSLOT
+    ld (page2_normal_slot), a
+    ld a, e
+    rlca
+    rlca
+    and #03
+    call GETSLOT
+    ld (page3_normal_slot), a
+    ret
+
+;-----------------------------------------------
+; Map page 0 to the expanded slot passed in A while restoring page 3 afterwards.
+; input:
+;   a: expanded slot for page 0 target
+; output:
+;   page 0 remapped
+;   page 3 restored to its normal RAM slot
+;   interrupts remain disabled on return
+page0_map_expanded_slot:
+    ld c, a
+    ld a, (slot_primary_normal)
+    ; Keep pages 1-3 exactly as they were; only replace page 0 primary slot bits.
+    and #FC
+    ld b, a
+    ld a, c
+    and #03
+    or b
+    di
+    out (#A8), a
+
+    ld a, c
+    and #80
+    ret z
+    ld a, c
+    and #0C
+    rrca
+    rrca
+    ld b, a
+    ld a, (ROM_slot)
+    and #0C
+    or b
+    ld b, a
+    ld a, (page2_normal_slot)
+    and #0C
+    rlca
+    rlca
+    or b
+    ld b, a
+    ld a, (page3_normal_slot)
+    and #0C
+    rlca
+    rlca
+    rlca
+    rlca
+    or b
+    ld (#FFFF), a
+    ret
+
+;-----------------------------------------------
+; Switch page 0 to the cartridge ROM slot while keeping page 3 in RAM.
+page0_map_game_rom:
+    ; IRQs must stay disabled while BIOS page 0 is hidden, otherwise IM1 jumps to #0038
+    ; inside cartridge data/ZX0 blobs and execution derails.
+    di
+    ld a, (ROM_slot)
+    jp page0_map_expanded_slot
+
+;-----------------------------------------------
+; Restore the normal BIOS-ROM-ROM-RAM slot layout after a page-0 copy.
+page0_restore_bios_rom:
+    ld a, (page0_bios_slot)
+    call page0_map_expanded_slot
+    ei
+    ret
+
+;-----------------------------------------------
+; Copy one chunk from page 0 ROM into the RAM transfer buffer.
+; input:
+;   hl: source in page 0
+;   bc: chunk size (1..256)
+; output:
+;   hl: source advanced by chunk size
+page0_copy_chunk_to_buffer:
+    call page0_map_game_rom
+    ld de, page0_transfer_buffer
+    ldir
+    jp page0_restore_bios_rom
+
+;-----------------------------------------------
+; Decompress ZX0 data stored in page 0 into a RAM destination.
+; input:
+;   hl: compressed source in page 0
+;   de: destination in RAM
+page0_decompress_to_ram:
+    ; page0_map_game_rom uses E/C/B as scratch while rebuilding slot registers.
+    ; Preserve DE so dzx0_standard receives the caller's RAM destination intact.
+    push de
+    call page0_map_game_rom
+    pop de
+    call dzx0_standard
+    jp page0_restore_bios_rom
+
+;-----------------------------------------------
+; Copy cold data from page 0 ROM to VRAM using a RAM buffer.
+; input:
+;   hl: source in page 0
+;   de: destination VRAM
+;   bc: byte count
+page0_copy_to_vram:
+    ld a, b
+    or c
+    ret z
+.page0_copy_loop:
+    push bc
+    ld a, b
+    or a
+    jr z, .page0_copy_final_chunk
+    ld bc, #0100
+    jr .page0_copy_chunk_ready
+.page0_copy_final_chunk:
+    ; Final chunk keeps the original BC (1..255 bytes).
+.page0_copy_chunk_ready:
+    push bc
+    push de
+    call page0_copy_chunk_to_buffer
+    pop de
+    pop bc
+    push hl
+    push bc
+    ld hl, page0_transfer_buffer
+    call FAST_LDIRVM
+    pop bc
+    pop hl
+    ex de, hl
+    add hl, bc
+    ex de, hl
+    pop bc
+    ld a, b
+    or a
+    jr z, .page0_copy_done
+    dec b
+    ld a, b
+    or c
+    jp nz, .page0_copy_loop
+.page0_copy_done:
+    ret
 
 init_game_systems:
     call DISSCR               ; Disable screen while loading VRAM assets
@@ -21709,46 +22153,10 @@ ZX0_SPRITE_FRAME_DATA_END_LABEL:
     DB #00
 
 ; ==================================================================
-; ZX0 SCREEN BUFFER (AUTO-INJECTED)
-; Free RAM buffer for screen layout decompression (768 bytes)
-; ==================================================================
-ZX0_SCREEN_BUFFER EQU #DB00
-
-; ==================================================================
-; ZX0 BEHAVIOR BUFFER (AUTO-INJECTED)
-; Free RAM buffer for behavior map decompression (768 bytes)
-; ==================================================================
-ZX0_BEHAVIOR_BUFFER EQU #DE00
-
-; ==================================================================
-; ZX0 TILE PATTERN BUFFER (AUTO-INJECTED)
-; Free RAM buffer for tile pattern data decompression (1488 bytes)
-; ==================================================================
-ZX0_TILE_PATTERN_BUFFER EQU #E100
-
-; ==================================================================
-; ZX0 TILE COLOR BUFFER (AUTO-INJECTED)
-; Free RAM buffer for tile color data decompression (1488 bytes)
-; ==================================================================
-ZX0_TILE_COLOR_BUFFER EQU #E700
-
-; ==================================================================
-; ZX0 FONT PATTERN BUFFER (AUTO-INJECTED)
-; Free RAM buffer for font pattern data decompression (360 bytes)
-; ==================================================================
-ZX0_FONT_PATTERN_BUFFER EQU #ED00
-
-; ==================================================================
-; ZX0 FONT COLOR BUFFER (AUTO-INJECTED)
-; Free RAM buffer for font color data decompression (360 bytes)
-; ==================================================================
-ZX0_FONT_COLOR_BUFFER EQU #EF00
-
-; ==================================================================
 ; ZX0 SPRITE FRAME BUFFER (AUTO-INJECTED)
 ; Shared RAM buffer for per-frame sprite decompression before VRAM upload (64 bytes)
 ; ==================================================================
-ZX0_SPRITE_FRAME_BUFFER EQU #F100
+ZX0_SPRITE_FRAME_BUFFER EQU #DE00
 
 ; ==================================================================
 ; ZX0 SPRITE LABEL REMAP (AUTO-INJECTED)
@@ -21859,73 +22267,7 @@ COPY_SPRITE_SRC_TO_VRAM_RAW:
     pop de
     jp FAST_LDIRVM
 
-; ==================================================================
-; ZX0 DECOMPRESSOR (AUTO-INJECTED)
-; ==================================================================
-; -----------------------------------------------------------------------------
-; ZX0 decoder by Einar Saukas & Urusergi
-; "Standard" version (68 bytes only)
-; -----------------------------------------------------------------------------
-; Parameters:
-;   HL: source address (compressed data)
-;   DE: destination address (decompressing)
-; -----------------------------------------------------------------------------
-
-dzx0_standard:
-        ld      bc, $ffff               ; preserve default offset 1
-        push    bc
-        inc     bc
-        ld      a, $80
-dzx0s_literals:
-        call    dzx0s_elias             ; obtain length
-        ldir                            ; copy literals
-        add     a, a                    ; copy from last offset or new offset?
-        jr      c, dzx0s_new_offset
-        call    dzx0s_elias             ; obtain length
-dzx0s_copy:
-        ex      (sp), hl                ; preserve source, restore offset
-        push    hl                      ; preserve offset
-        add     hl, de                  ; calculate destination - offset
-        ldir                            ; copy from offset
-        pop     hl                      ; restore offset
-        ex      (sp), hl                ; preserve offset, restore source
-        add     a, a                    ; copy from literals or new offset?
-        jr      nc, dzx0s_literals
-dzx0s_new_offset:
-        pop     bc                      ; discard last offset
-        ld      c, $fe                  ; prepare negative offset
-        call    dzx0s_elias_loop        ; obtain offset MSB
-        inc     c
-        ret     z                       ; check end marker
-        ld      b, c
-        ld      c, (hl)                 ; obtain offset LSB
-        inc     hl
-        rr      b                       ; last offset bit becomes first length bit
-        rr      c
-        push    bc                      ; preserve new offset
-        ld      bc, 1                   ; obtain length
-        call    nc, dzx0s_elias_backtrack
-        inc     bc
-        jr      dzx0s_copy
-dzx0s_elias:
-        inc     c                       ; interlaced Elias gamma coding
-dzx0s_elias_loop:
-        add     a, a
-        jr      nz, dzx0s_elias_skip
-        ld      a, (hl)                 ; load another group of 8 bits
-        inc     hl
-        rla
-dzx0s_elias_skip:
-        ret     c
-dzx0s_elias_backtrack:
-        add     a, a
-        rl      c
-        rl      b
-        jr      dzx0s_elias_loop
-; -----------------------------------------------------------------------------
-
-
-
+    ds #C000 - $        ; Pad linear 48K ROM to 49152 bytes
 
 
     end                 ; End of assembly

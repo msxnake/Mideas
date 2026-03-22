@@ -6,6 +6,7 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { generateTileColorBytes } from '../../../components/utils/tileUtils';
 import { buildReferencedScreen2TileBanks, getScreen2TileBankColorLoaderLabel } from '../utils/screen2TileBanks';
+import { usesMapperBanking } from './romModeUtils';
 
 /**
  * Generate color data file (colors.asm)
@@ -24,8 +25,9 @@ export function generateColorsFile(analysis: ProjectAnalysis, romMode: string = 
 `;
   }
 
-  const mapperPush = romMode !== 'simple32k' ? '    call mapper_push_p2\n    ld a, COLOR_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
-  const mapperPop  = romMode !== 'simple32k' ? '    call mapper_pop_p2\n' : '';
+  const usesMapper = usesMapperBanking(romMode);
+  const mapperPush = usesMapper ? '    call mapper_push_p2\n    ld a, COLOR_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
+  const mapperPop  = usesMapper ? '    call mapper_pop_p2\n' : '';
   const referencedTileBanks = buildReferencedScreen2TileBanks(analysis);
   const bankBaseExpressions = ['CLRTBL2', 'CLRTBL2 + #800', 'CLRTBL2 + #1000'];
 

@@ -1162,6 +1162,7 @@ export interface PresentationScreenRuntimeConfig {
   clearSpritesBeforeShow: boolean;
   waitForKey: boolean;
   waitForFrames: number;
+  romDataGroup: 'auto' | 'default' | 'page0';
 }
 
 export type PresentationScreenBankIndex = 0 | 1 | 2;

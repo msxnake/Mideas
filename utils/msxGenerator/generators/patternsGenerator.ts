@@ -6,6 +6,7 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { generateTilePatternBytes } from '../../../components/utils/tileUtils';
 import { buildReferencedScreen2TileBanks, getScreen2TileBankPatternLoaderLabel } from '../utils/screen2TileBanks';
+import { usesMapperBanking } from './romModeUtils';
 
 /**
  * Generate pattern data file (patterns.asm)
@@ -24,8 +25,9 @@ export function generatePatternsFile(analysis: ProjectAnalysis, romMode: string 
 `;
   }
 
-  const mapperPush = romMode !== 'simple32k' ? '    call mapper_push_p2\n    ld a, PATTERN_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
-  const mapperPop  = romMode !== 'simple32k' ? '    call mapper_pop_p2\n' : '';
+  const usesMapper = usesMapperBanking(romMode);
+  const mapperPush = usesMapper ? '    call mapper_push_p2\n    ld a, PATTERN_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
+  const mapperPop  = usesMapper ? '    call mapper_pop_p2\n' : '';
   const referencedTileBanks = buildReferencedScreen2TileBanks(analysis);
   const bankBaseExpressions = ['CHRTBL2', 'CHRTBL2 + #800', 'CHRTBL2 + #1000'];
 

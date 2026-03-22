@@ -686,11 +686,26 @@ ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stag
     ; Update all entities
     call update_all_entities
 
+    ; Refresh player deadly-tile state before state machines consume it.
+    call refresh_player_deadly_fastpath
+
+    ; Refresh player tile interactions without running bonus respawns twice.
+    call refresh_player_tile_interaction_fastpath
+
+    ; Run the player state machine before the generic SM sweep.
+    call refresh_player_state_machine_fastpath
+
     ; Execute all state machines
     call execute_all_state_machines
 
     ; Update timed PSG sound effects
     call sfx_update
+
+    ; Refresh player animation with the final state of this frame.
+    call refresh_player_animation_fastpath
+
+    ; Refresh player sprite once with the final state of this frame.
+    call refresh_player_sprite_fastpath
 
     ; Upload sprites after gameplay so the hero position computed this frame
     ; is what gets shown on screen, instead of the previous frame's SAT.
@@ -1504,6 +1519,10 @@ show_menu_placeholder:
 .smp_loop:
     halt
 ${frameAudioTickAsm}
+    ; Defensive refresh: some projects keep background/runtime VRAM writers
+    ; active while the submenu is idle, which can trample ASCII font chars.
+    ; Re-apply the font after each VBlank before polling menu input.
+    call init_font_system
     ld a, 0
     call GTSTCK
     cp 1                          ; Up
@@ -1541,6 +1560,7 @@ ${frameAudioTickAsm}
 .smp_wait_fire_release:
     halt
 ${frameAudioTickAsm}
+    call init_font_system
     ld a, 0
     call GTTRIG
     or a
@@ -1551,6 +1571,7 @@ ${frameAudioTickAsm}
 .smp_wait_neutral_loop:
     halt
 ${frameAudioTickAsm}
+    call init_font_system
     ld a, 0
     call GTSTCK
     or a
@@ -3518,7 +3539,12 @@ ${frameAudioTickAsm}    ; Poll input immediately after V-Blank so hero movement 
     call update_player_fastpath
     call check_world_screen_transition
     call update_all_entities
+    call refresh_player_deadly_fastpath
+    call refresh_player_tile_interaction_fastpath
+    call refresh_player_state_machine_fastpath
     call execute_all_state_machines
+    call refresh_player_animation_fastpath
+    call refresh_player_sprite_fastpath
     call update_sprites_to_vram     ; Upload current-frame sprite positions
     call update_animated_tiles      ; Defer tile VRAM work behind hero updates
 ${defaultHasHud ? `    ; Render HUD only on screens that define HUD elements

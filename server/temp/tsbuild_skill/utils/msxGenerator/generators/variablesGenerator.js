@@ -5,6 +5,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateVariablesFile = generateVariablesFile;
+const spriteUtils_1 = require("../../../components/utils/spriteUtils");
 /**
  * Generate RAM variables with EQU addresses (variables.asm)
  *
@@ -12,6 +13,7 @@ exports.generateVariablesFile = generateVariablesFile;
  * @returns ASM code string with variable definitions
  */
 function generateVariablesFile(analysis) {
+    const expandedSpriteCount = Math.max(1, (0, spriteUtils_1.buildMSXDirectionalSpriteCatalog)(analysis.sprites || []).sprites.length);
     let code = `; ==================================================================
 ; RAM VARIABLES DEFINITIONS
 ; File: variables.asm
@@ -85,7 +87,15 @@ function generateVariablesFile(analysis) {
 ; SYSTEM VARIABLES
 ; ==================================================================
 `;
-    code += `ROM_slot            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; ROM slot number (for SETPAGES32K)\n`;
+    code += `ROM_slot            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Expanded slot for normal page 1 ROM access\n`;
+    currentAddress++;
+    code += `slot_primary_normal EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Primary slot register snapshot for BIOS-ROM-ROM-RAM layout\n`;
+    currentAddress++;
+    code += `page0_bios_slot     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Expanded slot for normal BIOS page 0\n`;
+    currentAddress++;
+    code += `page2_normal_slot   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Expanded slot for normal page 2 layout\n`;
+    currentAddress++;
+    code += `page3_normal_slot   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Expanded slot for normal RAM page 3\n`;
     currentAddress++;
     code += `mapper_bank_p1_current EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mapper current bank for page/window 1\n`;
     currentAddress++;
@@ -128,6 +138,8 @@ function generateVariablesFile(analysis) {
     currentAddress += 2;
     code += `prof_deadly_behavior_reads EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Deadly helper behavior-map reads\n`;
     currentAddress += 2;
+    code += `page0_transfer_buffer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary RAM buffer for page0 -> VRAM copies\n`;
+    currentAddress += 256;
     // Screen map pointers
     code += `
 ; ==================================================================
@@ -196,8 +208,10 @@ function generateVariablesFile(analysis) {
     currentAddress++;
     code += `hud_dirty_flag      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=HUD needs redraw, 0=clean\n`;
     currentAddress++;
-    code += `time_second_frame_counter EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Countdown frames until the next TimeRemaining decrement\n`;
+    code += `time_second_frame_counter EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; VBlank frames remaining until the next TimeRemaining decrement\n`;
     currentAddress++;
+    code += `time_last_interrupt_counter EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Last interrupt_counter snapshot used by TimeRemaining sync (16-bit)\n`;
+    currentAddress += 2;
     // Animated tiles variables
     code += `
 ; ==================================================================
@@ -303,6 +317,10 @@ MAX_ENTITIES        EQU 32
     currentAddress += 32;
     code += `sprite_layer_colors EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)\n`;
     currentAddress += 32;
+    code += `sprite_asset_base_pattern_slot_runtime EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime base 16x16 slot per sprite asset (${expandedSpriteCount} bytes)\n`;
+    currentAddress += expandedSpriteCount;
+    code += `sprite_placeholder_base_pattern_num EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime placeholder pattern number (base slot * 4)\n`;
+    currentAddress++;
     // Interleaved sprite attribute buffer (Y, X, Pattern, Color per sprite)
     code += `sprite_attributes   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Interleaved sprite attributes (32 * 4 bytes)\n`;
     currentAddress += 32 * 4;
@@ -324,6 +342,14 @@ MAX_ENTITIES        EQU 32
         currentAddress++;
         code += `current_screen_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current screen index within world\n`;
         currentAddress++;
+        code += `current_screen_anim_group_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Animated tile groups visible in current screen\n`;
+        currentAddress++;
+        code += `current_screen_entity_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity instances assigned to current screen\n`;
+        currentAddress++;
+        code += `current_screen_sprite_pattern_slots EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite pattern slots needed by current screen\n`;
+        currentAddress++;
+        code += `current_screen_summary_flags EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime screen summary flags (music/hud/effects/anim)\n`;
+        currentAddress++;
     }
     // Player variables (always generated for compatibility)
     const hasPlayer = true; // Always generate player variables for game compatibility
@@ -337,6 +363,14 @@ MAX_ENTITIES        EQU 32
         currentAddress += 2;
         code += `player_y            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player Y position (16-bit)\n`;
         currentAddress += 2;
+        code += `player_runtime_enabled EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=player fast runtime bound to hero entity\n`;
+        currentAddress++;
+        code += `player_entity_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity index used by player fast runtime (#FF=none)\n`;
+        currentAddress++;
+        code += `player_vx_runtime   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached player X velocity (signed 8-bit)\n`;
+        currentAddress++;
+        code += `player_vy_runtime   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached player Y velocity (signed 8-bit)\n`;
+        currentAddress++;
         code += `player_health       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player health points\n`;
         currentAddress++;
         code += `player_score        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player score (16-bit)\n`;
@@ -458,6 +492,8 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     code += `temp_byte_26        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
     currentAddress += 32;
     code += `temp_byte_27        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+    currentAddress += 32;
+    code += `temp_byte_28        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
     currentAddress += 32;
     code += `tileDead_dbg        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Debug byte: current hero deadly contact\n`;
     currentAddress++;
@@ -684,9 +720,24 @@ T_OLD_3         EQU #${hex(0x180)}  ; Tone table old 3
 T_OLD_0         EQU #${hex(0x182)}  ; Tone table old 0
 T_NEW_0         EQU #${hex(0x182)}  ; Tone table new 0
 T_NEW_2         EQU #${hex(0x19A)}  ; Tone table new 2 (last, ends at +0x1B2)
-`;
+    `;
         currentAddress = pt3Base + 0x240; // Reserve 576 bytes for PT3 workspace (RAM LENGTH per replayer spec)
     }
+    code += `
+; ==================================================================
+; ZX0 TEMPORARY RAM BUFFERS
+; ==================================================================
+; Fixed high-RAM scratch area used by compressed asset loaders and
+; plain48k page-0 decompression helpers.
+ZX0_SCREEN_BUFFER       EQU #DE00   ; Screen/layout scratch (768 bytes)
+ZX0_BEHAVIOR_BUFFER     EQU #E100   ; Behavior map scratch (768 bytes)
+ZX0_TILE_PATTERN_BUFFER EQU #E400   ; Tile pattern scratch (1488 bytes)
+ZX0_TILE_COLOR_BUFFER   EQU #EA00   ; Tile color scratch (1488 bytes)
+ZX0_FONT_PATTERN_BUFFER EQU #F000   ; Font pattern scratch (360 bytes)
+; Keep font buffers tightly packed to leave enough headroom below SP=#F380.
+; Old layout put FONT_COLOR at #F200, leaving only 24 bytes before the stack.
+ZX0_FONT_COLOR_BUFFER   EQU #F168   ; Font color scratch (360 bytes)
+`;
     // End marker
     code += `
 ; ==================================================================

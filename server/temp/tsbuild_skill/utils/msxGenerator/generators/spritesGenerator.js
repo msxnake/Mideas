@@ -4,13 +4,16 @@
  * Generates sprites.asm with sprite definitions and management functions
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.buildScreenSpritePatternUsageSummaries = exports.buildRuntimeSpritePatternPacks = void 0;
 exports.generateSpritesFile = generateSpritesFile;
 const spriteUtils_1 = require("../../../components/utils/spriteUtils");
 const componentAnalyzer_1 = require("../utils/componentAnalyzer");
 const constants_1 = require("../../../constants");
+const romModeUtils_1 = require("./romModeUtils");
 // Constants
 const SPRITE_INVISIBLE_VALUE = 224; // MSX: Y >= 209 hides sprite, but 224 is safer off-screen
 const DEFAULT_DATA_FORMAT = 'hex';
+const SPRITE_PATTERN_SLOT_CAPACITY = 64; // MSX1 SPRPAT = 2048 bytes = 64 patterns of 16x16
 /**
  * Analyze drawable palette layers for a sprite across ALL frames.
  * Returns palette layer indexes that are really used at least once.
@@ -50,18 +53,289 @@ const findFirstDrawableLayerIndex = (sprite) => {
     const usedLayers = analyzeDrawableLayerIndexes(sprite);
     return usedLayers.length > 0 ? usedLayers[0] : -1;
 };
+const buildSpritePatternUsage = (sprites) => sprites.map((sprite, index) => {
+    const frameCount = Math.max(1, sprite?.frames?.length || 1);
+    const layerCount = Math.max(1, analyzeDrawableLayerIndexes(sprite).length);
+    return {
+        index,
+        name: sprite?.name || `sprite_${index}`,
+        frameCount,
+        layerCount,
+        slotCount: frameCount * layerCount,
+    };
+});
+const buildSpritePatternCapacityError = (usages, requiredSlots, scopeLabel) => {
+    const lines = usages
+        .slice()
+        .sort((a, b) => b.slotCount - a.slotCount || a.index - b.index)
+        .slice(0, 12)
+        .map(usage => `- Sprite ${usage.index} "${usage.name}": ${usage.frameCount} frame(s) x ${usage.layerCount} layer(s) = ${usage.slotCount} slots`);
+    return [
+        `Runtime sprite-pattern uploads are disabled for gameplay exports.`,
+        `${scopeLabel} needs ${requiredSlots} sprite pattern slots (including 1 placeholder), but MSX1 SPRPAT only fits ${SPRITE_PATTERN_SLOT_CAPACITY}.`,
+        `Reduce sprite frames/layers or split the runtime sprite set so it fits entirely in VRAM preload mode.`,
+        lines.length > 0 ? `Largest sprite consumers:\n${lines.join('\n')}` : '',
+    ]
+        .filter(Boolean)
+        .join('\n');
+};
+const toSpritePatternPackLabel = (value) => value.toLowerCase().replace(/[^a-z0-9]/g, '_');
+const resolveSpriteIndexByReference = (spriteRef, spriteNameToIndex, spriteCount) => {
+    if (typeof spriteRef === 'number' && Number.isInteger(spriteRef) && spriteRef >= 0 && spriteRef < spriteCount) {
+        return spriteRef;
+    }
+    if (typeof spriteRef !== 'string') {
+        return null;
+    }
+    const trimmed = spriteRef.trim();
+    if (!trimmed) {
+        return null;
+    }
+    const directIndex = spriteNameToIndex[trimmed];
+    if (directIndex !== undefined) {
+        return directIndex;
+    }
+    const lowerIndex = spriteNameToIndex[trimmed.toLowerCase()];
+    if (lowerIndex !== undefined) {
+        return lowerIndex;
+    }
+    const parsed = Number.parseInt(trimmed, 10);
+    return Number.isInteger(parsed) && parsed >= 0 && parsed < spriteCount ? parsed : null;
+};
+const findComponentPropertyName = (componentDef, predicate) => {
+    const prop = componentDef?.properties?.find((candidate) => predicate(candidate));
+    return prop?.name || null;
+};
+const resolveEntitySpriteAssetId = (entity, analysis) => {
+    const template = analysis.templates?.find((t) => t.id === entity.entityTemplateId);
+    const componentDefinitions = analysis.components || [];
+    if (entity?.componentOverrides) {
+        for (const compId of Object.keys(entity.componentOverrides)) {
+            const compDef = componentDefinitions.find((c) => c.id === compId);
+            const propName = findComponentPropertyName(compDef, (prop) => prop.type === 'sprite_ref');
+            if (propName && entity.componentOverrides[compId]?.[propName]) {
+                return entity.componentOverrides[compId][propName];
+            }
+        }
+    }
+    for (const comp of template?.components || []) {
+        const compDef = componentDefinitions.find((c) => c.id === comp.definitionId);
+        const propName = findComponentPropertyName(compDef, (prop) => prop.type === 'sprite_ref');
+        if (propName && comp.defaultValues?.[propName]) {
+            return comp.defaultValues[propName];
+        }
+    }
+    return undefined;
+};
+const resolveTemplateSpriteAssetId = (template, analysis) => {
+    const componentDefinitions = analysis.components || [];
+    for (const comp of template?.components || []) {
+        const compDef = componentDefinitions.find((c) => c.id === comp.definitionId);
+        const propName = findComponentPropertyName(compDef, (prop) => prop.type === 'sprite_ref');
+        if (propName && comp.defaultValues?.[propName]) {
+            return comp.defaultValues[propName];
+        }
+    }
+    return undefined;
+};
+const resolveEntityStateMachineAssetId = (entity, analysis) => {
+    const template = analysis.templates?.find((t) => t.id === entity.entityTemplateId);
+    const componentDefinitions = analysis.components || [];
+    if (entity?.componentOverrides) {
+        for (const compId of Object.keys(entity.componentOverrides)) {
+            const compDef = componentDefinitions.find((c) => c.id === compId);
+            const propName = findComponentPropertyName(compDef, (prop) => prop.type === 'statemachine_ref' || prop.name === 'stateMachineAssetId' || prop.name === 'state_machine');
+            if (propName && entity.componentOverrides[compId]?.[propName]) {
+                return entity.componentOverrides[compId][propName];
+            }
+        }
+    }
+    for (const comp of template?.components || []) {
+        const compDef = componentDefinitions.find((c) => c.id === comp.definitionId);
+        const propName = findComponentPropertyName(compDef, (prop) => prop.type === 'statemachine_ref' || prop.name === 'stateMachineAssetId' || prop.name === 'state_machine');
+        if (propName && comp.defaultValues?.[propName]) {
+            return comp.defaultValues[propName];
+        }
+    }
+    return undefined;
+};
+const resolveTemplateStateMachineAssetId = (template, analysis) => {
+    const componentDefinitions = analysis.components || [];
+    for (const comp of template?.components || []) {
+        const compDef = componentDefinitions.find((c) => c.id === comp.definitionId);
+        const propName = findComponentPropertyName(compDef, (prop) => prop.type === 'statemachine_ref' || prop.name === 'stateMachineAssetId' || prop.name === 'state_machine');
+        if (propName && comp.defaultValues?.[propName]) {
+            return comp.defaultValues[propName];
+        }
+    }
+    return undefined;
+};
+const collectStateMachineActions = (stateMachine) => {
+    const actions = [];
+    for (const state of stateMachine?.states || []) {
+        if (Array.isArray(state?.onEnter))
+            actions.push(...state.onEnter);
+        if (Array.isArray(state?.onExit))
+            actions.push(...state.onExit);
+    }
+    for (const transition of stateMachine?.transitions || []) {
+        if (Array.isArray(transition?.actions))
+            actions.push(...transition.actions);
+    }
+    return actions;
+};
+const createRuntimeSpritePatternPackBuilder = (analysis) => {
+    const spriteCatalog = (0, spriteUtils_1.buildMSXDirectionalSpriteCatalog)(analysis.sprites || []);
+    const spritePatternUsage = buildSpritePatternUsage(spriteCatalog.sprites);
+    const stateMachinesById = new Map((analysis.stateMachines || [])
+        .filter((sm) => sm?.id)
+        .map((sm) => [sm.id, sm]));
+    const templatesById = new Map((analysis.templates || [])
+        .filter((template) => template?.id)
+        .map((template) => [template.id, template]));
+    return (id, displayName, entities) => {
+        const spriteIndexes = new Set();
+        const queuedTemplateIds = new Set();
+        const processedTemplateIds = new Set();
+        const processedStateMachineIds = new Set();
+        const addSpriteReference = (spriteRef) => {
+            const spriteIndex = resolveSpriteIndexByReference(spriteRef, spriteCatalog.nameToIndex, spriteCatalog.sprites.length);
+            if (spriteIndex !== null) {
+                spriteIndexes.add(spriteIndex);
+            }
+        };
+        const queueTemplate = (templateId) => {
+            if (typeof templateId === 'string' && templateId) {
+                queuedTemplateIds.add(templateId);
+            }
+        };
+        const processStateMachine = (stateMachineId) => {
+            if (typeof stateMachineId !== 'string' || !stateMachineId || processedStateMachineIds.has(stateMachineId)) {
+                return;
+            }
+            processedStateMachineIds.add(stateMachineId);
+            const stateMachine = stateMachinesById.get(stateMachineId);
+            if (!stateMachine)
+                return;
+            for (const action of collectStateMachineActions(stateMachine)) {
+                if (!action || typeof action !== 'object')
+                    continue;
+                if (action.type === 'CHANGE_SPRITE') {
+                    addSpriteReference(action.params?.sprite ?? action.params?.spriteId);
+                }
+                else if (action.type === 'SPAWN_ENTITY') {
+                    queueTemplate(action.params?.templateId ?? action.params?.entityTemplateId ?? action.params?.entityId);
+                }
+            }
+        };
+        const processTemplate = (templateId) => {
+            if (processedTemplateIds.has(templateId))
+                return;
+            processedTemplateIds.add(templateId);
+            const template = templatesById.get(templateId);
+            if (!template)
+                return;
+            addSpriteReference(resolveTemplateSpriteAssetId(template, analysis));
+            processStateMachine(resolveTemplateStateMachineAssetId(template, analysis));
+        };
+        for (const entity of entities) {
+            addSpriteReference(resolveEntitySpriteAssetId(entity, analysis));
+            processStateMachine(resolveEntityStateMachineAssetId(entity, analysis));
+            queueTemplate(entity?.entityTemplateId);
+        }
+        while (queuedTemplateIds.size > 0) {
+            const templateId = queuedTemplateIds.values().next().value;
+            queuedTemplateIds.delete(templateId);
+            processTemplate(templateId);
+        }
+        const pendingDirectional = Array.from(spriteIndexes);
+        while (pendingDirectional.length > 0) {
+            const spriteIndex = pendingDirectional.pop();
+            const candidates = [
+                spriteCatalog.directionalLookupTables.left[spriteIndex],
+                spriteCatalog.directionalLookupTables.right[spriteIndex],
+                spriteCatalog.directionalLookupTables.up[spriteIndex],
+                spriteCatalog.directionalLookupTables.down[spriteIndex],
+            ];
+            for (const candidate of candidates) {
+                if (typeof candidate === 'number' && candidate >= 0 && candidate < spriteCatalog.sprites.length && !spriteIndexes.has(candidate)) {
+                    spriteIndexes.add(candidate);
+                    pendingDirectional.push(candidate);
+                }
+            }
+        }
+        const sortedSpriteIndexes = Array.from(spriteIndexes).sort((a, b) => a - b);
+        const baseSlotsBySpriteIndex = new Array(Math.max(1, spriteCatalog.sprites.length)).fill(0);
+        let nextSlot = 0;
+        const usedUsages = [];
+        for (const spriteIndex of sortedSpriteIndexes) {
+            const usage = spritePatternUsage[spriteIndex];
+            if (!usage)
+                continue;
+            baseSlotsBySpriteIndex[spriteIndex] = nextSlot;
+            nextSlot += usage.slotCount;
+            usedUsages.push(usage);
+        }
+        const totalSlotsRequired = nextSlot + 1;
+        if (totalSlotsRequired > SPRITE_PATTERN_SLOT_CAPACITY) {
+            throw new Error(buildSpritePatternCapacityError(usedUsages, totalSlotsRequired, displayName));
+        }
+        return {
+            id,
+            label: toSpritePatternPackLabel(id),
+            displayName,
+            spriteIndexes: sortedSpriteIndexes,
+            totalSlotsRequired,
+            placeholderSlot: nextSlot,
+            baseSlotsBySpriteIndex,
+        };
+    };
+};
+const buildRuntimeSpritePatternPacks = (analysis) => {
+    const buildPack = createRuntimeSpritePatternPackBuilder(analysis);
+    const worldMaps = (analysis.worldmaps || []);
+    if (worldMaps.length === 0) {
+        return [buildPack('default', 'Default runtime sprite set', analysis.entities || [])];
+    }
+    return worldMaps.map((world, index) => {
+        const worldId = world?.id || `world_${index}`;
+        const screenIds = new Set((world?.nodes || []).map((node) => node?.screenAssetId).filter(Boolean));
+        const worldEntities = (analysis.entities || []).filter((entity) => screenIds.has(entity?.screenAssetId));
+        return buildPack(worldId, `World "${world?.name || worldId}"`, worldEntities);
+    });
+};
+exports.buildRuntimeSpritePatternPacks = buildRuntimeSpritePatternPacks;
+const buildScreenSpritePatternUsageSummaries = (analysis) => {
+    const buildPack = createRuntimeSpritePatternPackBuilder(analysis);
+    const screens = Array.isArray(analysis.screenMaps) ? analysis.screenMaps : [];
+    return screens.map((screen, index) => {
+        const screenId = String(screen?.id || `screen_${index}`);
+        const screenName = String(screen?.name || `Screen ${index}`);
+        const screenEntities = (analysis.entities || []).filter((entity) => entity?.screenAssetId === screenId);
+        const pack = buildPack(screenId, `Screen "${screenName}"`, screenEntities);
+        return {
+            screenId,
+            screenName,
+            totalSlotsRequired: pack.totalSlotsRequired,
+        };
+    });
+};
+exports.buildScreenSpritePatternUsageSummaries = buildScreenSpritePatternUsageSummaries;
 /**
  * Generate sprite data file (sprites.asm)
  *
  * @param analysis - Project analysis with sprite assets
  * @returns ASM code string with sprite data and functions
  */
-function generateSpritesFile(analysis) {
+function generateSpritesFile(analysis, romMode = 'simple32k') {
     const sourceSprites = analysis.sprites || [];
+    const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
     const spriteCatalog = (0, spriteUtils_1.buildMSXDirectionalSpriteCatalog)(sourceSprites);
     const sprites = spriteCatalog.sprites;
     const spriteNameToIndex = spriteCatalog.nameToIndex;
     const directionalLookupTables = spriteCatalog.directionalLookupTables;
+    const runtimePatternPacks = (0, exports.buildRuntimeSpritePatternPacks)(analysis);
+    const defaultRuntimePatternPack = runtimePatternPacks[0];
     spriteCatalog.warnings.forEach(warning => {
         console.warn(`[Sprites Generator] ${warning}`);
     });
@@ -257,6 +531,7 @@ function generateSpritesFile(analysis) {
         });
         currentHwSpriteIndex += spriteInfo.colors.length;
     });
+    const spritePatternUsage = buildSpritePatternUsage(sprites);
     // Always reserve full hardware sprite table (32) in RAM.
     // VRAM upload can be smaller: active range + one SAT end marker sprite.
     // However, if any SubMenu node uses a sprite cursor (slots 28-31),
@@ -278,6 +553,8 @@ function generateSpritesFile(analysis) {
 ; Entities: ${activeEntities.length}
 ; Total Hardware Sprites (Layers): ${totalHardwareSprites}
 ; SAT Upload Sprites per frame: ${uploadHardwareSprites}
+; Sprite Pattern Preload Mode: STATIC_ALL_FRAMES
+; Runtime Sprite Pattern Packs: ${runtimePatternPacks.length}
 ; ==================================================================
 
 ; ==================================================================
@@ -346,6 +623,7 @@ sprite_asset_frame_count:
         code += `    db 1 ; Placeholder\n`;
     }
     code += `SPRITE_ASSET_COUNT EQU ${Math.max(1, sprites.length)}\n`;
+    code += `SPRITE_PATTERN_PRELOAD_MODE EQU 1\n`;
     code += `
 ; Table: Sprite Asset Loop Flags
 ; Format: db flags (bit 1: 1=loop, 0=once)
@@ -496,63 +774,78 @@ init_sprites:
     ld bc, 32
     ldir
     call clear_all_sprites
-    call load_sprite_patterns
-    xor a
+    ld hl, sprite_asset_base_pattern_slot_runtime
+    ld (hl), 0
+${Math.max(1, sprites.length) > 1 ? `    ld de, sprite_asset_base_pattern_slot_runtime+1
+    ld bc, ${Math.max(1, sprites.length) - 1}
+    ldir
+` : ``}    xor a
+    ld (sprite_placeholder_base_pattern_num), a
+${(analysis.worldmaps || []).length === 0 ? `    call load_sprite_patterns
+` : ``}    xor a
     ld (active_sprite_count), a
     ret
 
 load_sprite_patterns:
-    ; Load patterns for all active entities
-    call mapper_push_p2
+${defaultRuntimePatternPack ? `    call load_sprite_patterns_${defaultRuntimePatternPack.label}
+    ret
+` : `    ret
+`}
 `;
-    let patternsGenerated = false;
-    entityAllocations.forEach(alloc => {
-        if (alloc.layerCount === 0) {
-            return; // Skip entities with no sprite layers
+    runtimePatternPacks.forEach((pack) => {
+        code += `
+; ------------------------------------------------------------------
+; Runtime Sprite Pattern Pack: ${pack.displayName}
+; Slots required: ${pack.totalSlotsRequired}/${SPRITE_PATTERN_SLOT_CAPACITY}
+; ------------------------------------------------------------------
+sprite_asset_base_pattern_slot_${pack.label}:
+`;
+        const spriteCount = Math.max(1, sprites.length);
+        for (let index = 0; index < spriteCount; index++) {
+            const spriteName = sprites[index]?.name || 'Placeholder';
+            code += `    db ${pack.baseSlotsBySpriteIndex[index] || 0} ; Sprite ${index}: ${spriteName}\n`;
         }
-        // Use placeholder pattern for entities with missing sprite assets
-        const patternLabel = alloc.spriteAssetIndex < 0
-            ? 'SPRITE_PLACEHOLDER_PATTERN'
-            : `SPRITE_${alloc.spriteAssetIndex}_PATTERN`;
-        code += `    ; Entity ${alloc.entityIndex}: ${alloc.spriteName} (${alloc.layerCount} layers)
-    ; Base HW Sprite: ${alloc.baseHwSpriteIndex}
-    ld a, ${patternLabel}_BANK
-    call mapper_set_bank_p2
-    ld hl, ${patternLabel}
-    ld de, SPRPAT + (${alloc.baseHwSpriteIndex} * 32)
-    ld bc, ${alloc.layerCount * 32} ; Load ${alloc.layerCount} layers (32 bytes each)
-    call FAST_LDIRVM
-`;
-        patternsGenerated = true;
-    });
-    if (!patternsGenerated) {
-        if (sprites.length === 0) {
-            code += `    ; No sprites to load
+        code += `
+load_sprite_patterns_${pack.label}:
+    ld hl, sprite_asset_base_pattern_slot_${pack.label}
+    ld de, sprite_asset_base_pattern_slot_runtime
+    ld bc, SPRITE_ASSET_COUNT
+    ldir
+    ld a, ${pack.placeholderSlot * 4}
+    ld (sprite_placeholder_base_pattern_num), a
+${usesMapper ? '    call mapper_push_p2\n' : ''}`;
+        if (pack.spriteIndexes.length === 0) {
+            code += `    ; No runtime sprites in this pack - placeholder only
 `;
         }
         else {
-            code += `    ; No active entities detected, load all sprite assets sequentially
-`;
-            let fallbackPatternIndex = 0;
-            sprites.forEach((sprite, index) => {
-                const layerCount = getSpriteLayerColors(sprite).length || 1;
-                const frameCount = sprite.frames?.length || 1;
-                const bytesToCopy = layerCount * frameCount * 32; // 32 bytes per 16x16 layer per frame
-                code += `    ; Sprite Asset ${index}: ${sprite.name} (${frameCount} frames, ${layerCount} layers)
-    ld a, SPRITE_${index}_PATTERN_BANK
-    call mapper_set_bank_p2
-    ld hl, SPRITE_${index}_PATTERN
-    ld de, SPRPAT + (${fallbackPatternIndex} * 32)
-    ld bc, ${bytesToCopy}
+            pack.spriteIndexes.forEach((spriteIndex) => {
+                const sprite = sprites[spriteIndex];
+                const usage = spritePatternUsage[spriteIndex];
+                const basePatternSlot = pack.baseSlotsBySpriteIndex[spriteIndex] || 0;
+                const uniqueName = `${sprite.name}_${spriteIndex}`;
+                const safeSpriteName = uniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+                const firstDrawableLayerIndex = findFirstDrawableLayerIndex(sprite);
+                for (let frameIndex = 0; frameIndex < usage.frameCount; frameIndex++) {
+                    const frameBaseSlot = basePatternSlot + (frameIndex * usage.layerCount);
+                    code += `    ; Sprite Asset ${spriteIndex}: ${sprite.name} frame ${frameIndex} (${usage.layerCount} layers)
+${usesMapper ? `    ld a, SPRITE_${spriteIndex}_PATTERN_BANK\n    call mapper_set_bank_p2\n` : ''}    ld hl, ${safeSpriteName}_F${frameIndex}_LAYER${firstDrawableLayerIndex}
+    ld de, SPRPAT + (${frameBaseSlot} * 32)
+    ld bc, ${usage.layerCount * 32}
     call FAST_LDIRVM
 `;
-                fallbackPatternIndex += layerCount * frameCount;
+                }
             });
         }
-    }
-    code += `    call mapper_pop_p2
-    ret
-
+        code += `    ; Placeholder sprite used by missing sprite refs
+${usesMapper ? '    ld a, SPRITE_PLACEHOLDER_PATTERN_BANK\n    call mapper_set_bank_p2\n' : ''}    ld hl, SPRITE_PLACEHOLDER_PATTERN
+    ld de, SPRPAT + (${pack.placeholderSlot} * 32)
+    ld bc, 32
+    call FAST_LDIRVM
+${usesMapper ? '    call mapper_pop_p2\n' : ''}    ret
+`;
+    });
+    code += `
 ; ==================================================================
 ; SPRITE MANAGEMENT FUNCTIONS
 ; ==================================================================

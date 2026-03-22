@@ -31,6 +31,7 @@ import { generateInterruptFile } from './generators/interruptGenerator';
 import { generateSoundFile } from './generators/soundGenerator';
 import { generateScrollFile } from './generators/scrollGenerator';
 import { generateAnimatedTilesFile } from './generators/animatedTilesGenerator';
+import { generatePage0File } from './generators/page0Generator';
 import { buildExecutionPlan } from './planning/executionPlan';
 import { validateExecutionPlan } from './planning/executionValidators';
 import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes';
@@ -222,12 +223,13 @@ export function generateModularASM(
   console.log(`🔧 Hardware Mode: ${hardwareMode.toUpperCase()}, Optimize: ${optimizeLevel}`);
   console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
   const files: GeneratedASMFiles = {
+    'page0.asm': generatePage0File(analysis, romMode),
     'bios.asm': generateBIOSFile({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
-    'header.asm': generateHeaderFile(projectName, analysis, executionPlan),
+    'header.asm': generateHeaderFile(projectName, analysis, executionPlan, romMode),
     'patterns.asm': generatePatternsFile(analysis, romMode),
     'colors.asm': generateColorsFile(analysis, romMode),
     'components.asm': interruptDrivenComponents
@@ -235,7 +237,7 @@ export function generateModularASM(
       : generateComponentsFile(analysis, romMode),
     'entities.asm': generateEntitiesFile(analysis),
     'worlds.asm': generateWorldsFile(analysis),
-    'screens.asm': generateScreensFile(analysis),
+    'screens.asm': generateScreensFile(analysis, romMode),
     'sprites.asm': generateSpritesFile(analysis, romMode),
     'font.asm': generateFontFile(analysis, romMode),
     'hud.asm': generateHudFile(analysis),
@@ -244,10 +246,10 @@ export function generateModularASM(
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis, romMode),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
-      ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId)
+      ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId, romMode)
       : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis, executionPlan),
-    'main.asm': generateMainFile(projectName, analysis),
+    'main.asm': generateMainFile(projectName, analysis, romMode),
     'unitedFiles.asm': ''
   };
 
@@ -312,12 +314,13 @@ export function generateModularASMFromSummary(
 
   // Generate files using same logic as generateModularASM
   const files: GeneratedASMFiles = {
+    'page0.asm': generatePage0File(analysis, romMode),
     'bios.asm': generateBIOSFile({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
-    'header.asm': generateHeaderFile(summary.projectInfo.name, analysis, executionPlan),
+    'header.asm': generateHeaderFile(summary.projectInfo.name, analysis, executionPlan, romMode),
     'patterns.asm': generatePatternsFile(analysis, romMode),
     'colors.asm': generateColorsFile(analysis, romMode),
     'components.asm': interruptDrivenComponents
@@ -325,7 +328,7 @@ export function generateModularASMFromSummary(
       : generateComponentsFile(analysis, romMode),
     'entities.asm': generateEntitiesFile(analysis),
     'worlds.asm': generateWorldsFile(analysis),
-    'screens.asm': generateScreensFile(analysis),
+    'screens.asm': generateScreensFile(analysis, romMode),
     'sprites.asm': generateSpritesFile(analysis, romMode),
     'font.asm': generateFontFile(analysis, romMode),
     'hud.asm': generateHudFile(analysis),
@@ -334,10 +337,10 @@ export function generateModularASMFromSummary(
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis, romMode),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
-      ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId)
+      ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId, romMode)
       : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis, executionPlan),
-    'main.asm': generateMainFile(summary.projectInfo.name, analysis),
+    'main.asm': generateMainFile(summary.projectInfo.name, analysis, romMode),
     'unitedFiles.asm': ''
   };
 

@@ -5,6 +5,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateFontFile = generateFontFile;
+const romModeUtils_1 = require("./romModeUtils");
 /**
  * Generate font data file with MSX font patterns for Screen 2 text (font.asm)
  *
@@ -14,7 +15,7 @@ exports.generateFontFile = generateFontFile;
  * @param analysis - Project analysis (checks for menus/text usage)
  * @returns ASM code string with font patterns and loading functions
  */
-function generateFontFile(analysis) {
+function generateFontFile(analysis, romMode = 'simple32k') {
     // Check if font is needed (menus, text, or HUD elements)
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
     const hasText = analysis.screenMaps?.some(screen => screen.layers?.text || screen.textElements?.length > 0);
@@ -149,6 +150,10 @@ print_string_screen2:
         indexAsm += `${code}${i < sortedCodes.length - 1 ? ', ' : ''}`;
     });
     indexAsm += `\nFONT_CHAR_COUNT EQU ${sortedCodes.length}\n`;
+    const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
+    const mapperPushPat = usesMapper ? '    call mapper_push_p2\n    ld a, FONT_PATTERN_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
+    const mapperPushCol = usesMapper ? '    call mapper_push_p2\n    ld a, FONT_COLOR_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
+    const mapperPop = usesMapper ? '    call mapper_pop_p2\n' : '';
     return `; ==================================================================
 ; MSX FONT DATA FOR SCREEN 2 TEXT
 ; File: font.asm
@@ -202,10 +207,7 @@ load_all_font_banks:
 ; Helper: Load font patterns to a specific bank
 ; Input: DE = Bank Base Address
 load_font_patterns_to_bank:
-    call mapper_push_p2
-    ld a, FONT_PATTERN_DATA_BANK
-    call mapper_set_bank_p2
-    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
+${mapperPushPat}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
     ld iy, FONT_PATTERN_DATA      ; Pointer to pattern data
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 
@@ -241,8 +243,7 @@ load_font_patterns_to_bank:
     pop de                        ; Restore bank base
     pop bc                        ; Restore loop counter
     djnz .load_loop
-    call mapper_pop_p2
-    ret
+${mapperPop}    ret
 
 ; ==================================================================
 ; FONT COLOR ATTRIBUTES
@@ -269,10 +270,7 @@ load_font_colors_all_banks:
 ; Helper: Load font colors to a specific bank
 ; Input: DE = Bank Base Address
 load_font_colors_to_bank:
-    call mapper_push_p2
-    ld a, FONT_COLOR_DATA_BANK
-    call mapper_set_bank_p2
-    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
+${mapperPushCol}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
     ld iy, FONT_COLOR_DATA        ; Pointer to color data
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 
@@ -308,8 +306,7 @@ load_font_colors_to_bank:
     pop de                        ; Restore bank base
     pop bc                        ; Restore loop counter
     djnz .load_colors_loop
-    call mapper_pop_p2
-    ret
+${mapperPop}    ret
 
 ; ==================================================================
 ; TEXT RENDERING FUNCTIONS (Based on Mideas renderMSX1TextToDataURL)

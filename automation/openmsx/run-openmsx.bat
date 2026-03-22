@@ -13,7 +13,7 @@ echo ========================================
 if "%~1"=="" (
     echo ERROR: Especifique un archivo ROM
     echo.
-    echo Uso: %0 "archivo.rom"
+    echo Uso: %0 "archivo.rom" [romtype]
     echo.
     pause
     exit /b 1
@@ -22,6 +22,7 @@ if "%~1"=="" (
 REM Configuración
 set "ROM_PATH=%~1"
 set "ROM_NAME=%~n1"
+set "ROM_TYPE=%~2"
 set "OPENMSX_PATH=C:\Program Files\openMSX\openmsx.exe"
 
 REM Mostrar información
@@ -51,7 +52,11 @@ echo 🔄 Cierra OpenMSX manualmente cuando termines de probar
 echo.
 
 REM Ejecutar OpenMSX sin script - permanece abierto
-start "" "%OPENMSX_PATH%" -cart "%ROM_PATH%"
+if "%ROM_TYPE%"=="" (
+    start "" "%OPENMSX_PATH%" -cart "%ROM_PATH%"
+) else (
+    start "" "%OPENMSX_PATH%" -cart "%ROM_PATH%" -romtype %ROM_TYPE%
+)
 
 echo ✅ OpenMSX iniciado con el ROM
 echo 🎮 ¡Disfruta probando tu ROM!

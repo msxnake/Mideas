@@ -1,0 +1,4 @@
+TRACE: loading ROM
+BP init_game_systems count=1 PC=A9C1 SP=F378
+BP show_presentation_screen count=1 PC=70C9 SP=F37C
+BP page0_decompress_to_ram count=1 HL=0104 DE=E400 SP=F37A slots=0 X/1 X/1 X/3 X
