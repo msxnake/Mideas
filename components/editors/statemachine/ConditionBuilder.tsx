@@ -91,6 +91,8 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
       newCondition.conditions = [{ type: ConditionTypes.KEY_PRESSED, params: { key: '' } }];
     } else if (newType === 'NOT') {
       newCondition.conditions = [{ type: ConditionTypes.KEY_PRESSED, params: { key: '' } }];
+    } else if (newType === ConditionTypes.TIME_OUT) {
+      newCondition.params = { duration: 60 };
     } else {
       newCondition.params = {};
     }
@@ -142,10 +144,27 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
         return (
           <div className="space-y-2">
             <div className="text-xs text-msx-textsecondary">
-              Triggers when game time reaches 0 (GameTime {'<'} 1)
+              Triggers when the current state timer reaches the specified number of frames.
             </div>
             <div className="text-xs text-yellow-400 italic">
-              ℹ️ Requires GameTime variable to be tracked in your game logic
+              Resets automatically every time the entity changes state.
+            </div>
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-msx-textsecondary w-20">Duration</label>
+              <input
+                type="number"
+                min="1"
+                value={condition.params?.duration ?? 60}
+                onChange={(e) => {
+                  const raw = Number(e.target.value);
+                  const duration = Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 1;
+                  handleParamChange('duration', duration);
+                }}
+                className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+              />
+            </div>
+            <div className="text-xs text-yellow-400 italic">
+              Uses frames, not milliseconds. 50 = 1s at 50 Hz, 100 = 2s.
             </div>
             {/* condition.params?.collisionType === 'item' && (
               <>
