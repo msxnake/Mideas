@@ -6,6 +6,83 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { usesMapperBanking } from './romModeUtils';
 
+export interface FontRawData {
+    patternBytes: number[];
+    colorBytes: number[];
+    sortedCodes: number[];
+}
+
+/**
+ * Build raw font byte arrays from project analysis.
+ * Used by both generateFontFile (inline) and page0Generator (page0 group).
+ */
+export function getFontRawData(analysis: ProjectAnalysis): FontRawData {
+    const fontPatterns = new Map<number, number[]>();
+    const fontColors = new Map<number, number[]>();
+
+    const defaults = [
+        { code: 32, pattern: [0, 0, 0, 0, 0, 0, 0, 0] },
+        { code: 43, pattern: [0x00, 0x10, 0x10, 0x7C, 0x10, 0x10, 0x00, 0x00] },
+        { code: 45, pattern: [0x00, 0x00, 0x00, 0x7E, 0x00, 0x00, 0x00, 0x00] },
+        { code: 62, pattern: [0x00, 0x30, 0x18, 0x0C, 0x18, 0x30, 0x00, 0x00] },
+        { code: 124, pattern: [0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18] }
+    ];
+    defaults.forEach(d => {
+        fontPatterns.set(d.code, d.pattern);
+        fontColors.set(d.code, [0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0]);
+    });
+
+    const hexToMSX1Index = (hexColor: string): number => {
+        if (hexColor.startsWith('rgba(0,0,0,0)')) return 0;
+        const normalized = hexColor.toUpperCase();
+        const palette: Record<string, number> = {
+            'RGBA(0,0,0,0)': 0, '#000000': 1, '#21C842': 2, '#5EDC78': 3,
+            '#5455ED': 4, '#7D76FC': 5, '#D4524D': 6, '#42EBF5': 7,
+            '#FC5554': 8, '#FF7978': 9, '#D4C154': 10, '#E6CE80': 11,
+            '#21B03B': 12, '#C95BBA': 13, '#CCCCCC': 14, '#FFFFFF': 15
+        };
+        return palette[normalized] ?? 15;
+    };
+
+    if (analysis.fonts && analysis.fonts.length > 0) {
+        const fontAsset = analysis.fonts[0];
+        const fontData = (fontAsset.data as any).fontData || {};
+        const colorData = (fontAsset.data as any).fontColorAttributes || {};
+        Object.keys(fontData).forEach(key => {
+            const charCode = parseInt(key, 10);
+            const pattern = fontData[charCode];
+            if (Array.isArray(pattern) && pattern.length === 8) {
+                fontPatterns.set(charCode, pattern);
+                if (colorData[charCode] && Array.isArray(colorData[charCode])) {
+                    const rowColors = colorData[charCode];
+                    const colorBytes: number[] = [];
+                    for (let row = 0; row < 8; row++) {
+                        if (rowColors[row] && typeof rowColors[row] === 'object') {
+                            const fgIdx = hexToMSX1Index(rowColors[row].fg);
+                            const bgIdx = hexToMSX1Index(rowColors[row].bg);
+                            colorBytes.push((fgIdx << 4) | bgIdx);
+                        } else {
+                            colorBytes.push(0xF0);
+                        }
+                    }
+                    fontColors.set(charCode, colorBytes);
+                } else {
+                    fontColors.set(charCode, [0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0]);
+                }
+            }
+        });
+    } else {
+        for (let i = 48; i <= 57; i++) fontPatterns.set(i, [0x3E, 0x7F, 0x73, 0x73, 0x73, 0x7F, 0x3E, 0x00]);
+        for (let i = 65; i <= 90; i++) fontPatterns.set(i, [0x3E, 0x7F, 0x63, 0x7F, 0x7F, 0x63, 0x63, 0x00]);
+        defaults.forEach(d => fontPatterns.set(d.code, d.pattern));
+    }
+
+    const sortedCodes = Array.from(fontPatterns.keys()).filter(c => c < 128).sort((a, b) => a - b);
+    const patternBytes = sortedCodes.flatMap(code => fontPatterns.get(code)!);
+    const colorBytes = sortedCodes.flatMap(code => fontColors.get(code) || [0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0]);
+    return { patternBytes, colorBytes, sortedCodes };
+}
+
 /**
  * Generate font data file with MSX font patterns for Screen 2 text (font.asm)
  *
@@ -13,9 +90,10 @@ import { usesMapperBanking } from './romModeUtils';
  * Includes font loading functions for all three Screen 2 pattern banks.
  *
  * @param analysis - Project analysis (checks for menus/text usage)
+ * @param fontInPage0 - When true (plain48k), data blobs are emitted in page0.asm instead
  * @returns ASM code string with font patterns and loading functions
  */
-export function generateFontFile(analysis: ProjectAnalysis, romMode: string = 'simple32k'): string {
+export function generateFontFile(analysis: ProjectAnalysis, romMode: string = 'simple32k', fontInPage0: boolean = false): string {
     // Check if font is needed (menus, text, or HUD elements)
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
     const hasText = analysis.screenMaps?.some(screen =>
@@ -56,127 +134,58 @@ print_string_screen2:
     // ------------------------------------------------------------------
     // DYNAMIC FONT DATA GENERATION
     // ------------------------------------------------------------------
+    const { patternBytes, colorBytes, sortedCodes } = getFontRawData(analysis);
 
-    // 1. Collect all unique characters used in the project (optional optimization)
-    // For now, we'll load all characters defined in the font assets + defaults
-
-    const fontPatterns = new Map<number, number[]>();
-    const fontColors = new Map<number, number[]>();
-
-    // Default utility characters (if missing from font)
-    // 43 (+), 45 (-), 62 (>), 124 (|)
-    const defaults = [
-        { code: 32, pattern: [0, 0, 0, 0, 0, 0, 0, 0] }, // Space
-        { code: 43, pattern: [0x00, 0x10, 0x10, 0x7C, 0x10, 0x10, 0x00, 0x00] }, // +
-        { code: 45, pattern: [0x00, 0x00, 0x00, 0x7E, 0x00, 0x00, 0x00, 0x00] }, // -
-        { code: 62, pattern: [0x00, 0x30, 0x18, 0x0C, 0x18, 0x30, 0x00, 0x00] }, // >
-        { code: 124, pattern: [0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18] } // | (Thick vertical)
-    ];
-
-    defaults.forEach(d => {
-        fontPatterns.set(d.code, d.pattern);
-        // Default color: White (15) on Transparent (0)
-        fontColors.set(d.code, [0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0]);
-    });
-
-    //2. Extract data from Font Assets
-    if (analysis.fonts && analysis.fonts.length > 0) {
-        // Use the first font found (or iterate if we support multiple fonts merged)
-        const fontAsset = analysis.fonts[0];
-        const fontData = (fontAsset.data as any).fontData || {};
-        const colorData = (fontAsset.data as any).fontColorAttributes || {};
-
-        // Helper: Convert MSX1 hex color to palette index (0-15)
-        const hexToMSX1Index = (hexColor: string): number => {
-            // Handle transparent/rgba
-            if (hexColor.startsWith('rgba(0,0,0,0)')) return 0;
-
-            // Normalize hex to uppercase
-            const normalized = hexColor.toUpperCase();
-
-            // MSX1 palette (hardcoded for performance)
-            const palette: Record<string, number> = {
-                'RGBA(0,0,0,0)': 0, '#000000': 1, '#21C842': 2, '#5EDC78': 3,
-                '#5455ED': 4, '#7D76FC': 5, '#D4524D': 6, '#42EBF5': 7,
-                '#FC5554': 8, '#FF7978': 9, '#D4C154': 10, '#E6CE80': 11,
-                '#21B03B': 12, '#C95BBA': 13, '#CCCCCC': 14, '#FFFFFF': 15
-            };
-
-            return palette[normalized] ?? 15; // Default to white if not found
-        };
-
-        Object.keys(fontData).forEach(key => {
-            const charCode = parseInt(key, 10);
-            const pattern = fontData[charCode];
-            if (Array.isArray(pattern) && pattern.length === 8) {
-                fontPatterns.set(charCode, pattern);
-
-                // Extract colors - colorData[charCode] is an array of 8 row color objects
-                if (colorData[charCode] && Array.isArray(colorData[charCode])) {
-                    const rowColors = colorData[charCode];
-                    const colorBytes: number[] = [];
-
-                    for (let row = 0; row < 8; row++) {
-                        if (rowColors[row] && typeof rowColors[row] === 'object') {
-                            const fg = rowColors[row].fg;
-                            const bg = rowColors[row].bg;
-                            const fgIdx = hexToMSX1Index(fg);
-                            const bgIdx = hexToMSX1Index(bg);
-                            // MSX format: high nibble = FG, low nibble = BG
-                            colorBytes.push((fgIdx << 4) | bgIdx);
-                        } else {
-                            // Fallback if row data is missing
-                            colorBytes.push(0xF0); // White on transparent
-                        }
-                    }
-
-                    fontColors.set(charCode, colorBytes);
-                } else {
-                    // No color data for this character, use default
-                    fontColors.set(charCode, [0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0]);
-                }
-            }
-        });
-    } else {
-        // Fallback: Add basic ASCII if no font asset
-        // 0-9
-        for (let i = 48; i <= 57; i++) fontPatterns.set(i, [0x3E, 0x7F, 0x73, 0x73, 0x73, 0x7F, 0x3E, 0x00]); // Dummy box for numbers
-        // A-Z
-        for (let i = 65; i <= 90; i++) fontPatterns.set(i, [0x3E, 0x7F, 0x63, 0x7F, 0x7F, 0x63, 0x63, 0x00]); // Dummy box for letters
-
-        // Ensure defaults override dummies
-        defaults.forEach(d => fontPatterns.set(d.code, d.pattern));
-    }
-
-    // 3. Generate ASM Data
-    let patternAsm = `FONT_PATTERN_DATA:\n`;
-    let colorAsm = `FONT_COLOR_DATA:\n`;
+    // Build FONT_CHAR_INDEX blob (always emitted in font.asm)
     let indexAsm = `FONT_CHAR_INDEX:\n    DB `;
-
-    // CRITICAL FIX: Only include characters 0-127 to avoid overwriting game tiles at 128-255
-    const sortedCodes = Array.from(fontPatterns.keys())
-        .filter(code => code < 128)  // Exclude characters >= 128 (reserved for tiles)
-        .sort((a, b) => a - b);
-
     sortedCodes.forEach((code, i) => {
-        const pattern = fontPatterns.get(code)!;
-        const color = fontColors.get(code) || [0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0];
-
-        patternAsm += `    ; Char ${code} ('${String.fromCharCode(code)}')\n`;
-        patternAsm += `    DB ${pattern.map(b => '#' + b.toString(16).padStart(2, '0').toUpperCase()).join(', ')}\n`;
-
-        colorAsm += `    ; Char ${code}\n`;
-        colorAsm += `    DB ${color.map(b => '#' + b.toString(16).padStart(2, '0').toUpperCase()).join(', ')}\n`;
-
         indexAsm += `${code}${i < sortedCodes.length - 1 ? ', ' : ''}`;
     });
-
     indexAsm += `\nFONT_CHAR_COUNT EQU ${sortedCodes.length}\n`;
+
+    // Build FONT_PATTERN_DATA and FONT_COLOR_DATA blobs only when NOT in page0 mode
+    // (in page0 mode these labels/bytes are emitted by page0Generator.ts)
+    let patternAsm = '';
+    let colorAsm = '';
+    if (!fontInPage0) {
+        let patternAsmBlob = `FONT_PATTERN_DATA:\n`;
+        let colorAsmBlob = `FONT_COLOR_DATA:\n`;
+        sortedCodes.forEach((code, i) => {
+            const pattern = patternBytes.slice(i * 8, i * 8 + 8);
+            const color = colorBytes.slice(i * 8, i * 8 + 8);
+            patternAsmBlob += `    ; Char ${code} ('${String.fromCharCode(code)}')\n`;
+            patternAsmBlob += `    DB ${pattern.map(b => '#' + b.toString(16).padStart(2, '0').toUpperCase()).join(', ')}\n`;
+            colorAsmBlob += `    ; Char ${code}\n`;
+            colorAsmBlob += `    DB ${color.map(b => '#' + b.toString(16).padStart(2, '0').toUpperCase()).join(', ')}\n`;
+        });
+        patternAsm = patternAsmBlob;
+        colorAsm = colorAsmBlob;
+    }
 
     const usesMapper = usesMapperBanking(romMode);
     const mapperPushPat = usesMapper ? '    call mapper_push_p2\n    ld a, FONT_PATTERN_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
     const mapperPushCol = usesMapper ? '    call mapper_push_p2\n    ld a, FONT_COLOR_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
     const mapperPop    = usesMapper ? '    call mapper_pop_p2\n' : '';
+
+    const bankEqUs = fontInPage0 ? `; FONT_DATA_ROM_DATA_GROUP: page0
+; (FONT_PATTERN_DATA and FONT_COLOR_DATA are in page0.asm for plain48k ROMs)
+` : `FONT_PATTERN_DATA_BANK EQU ((FONT_PATTERN_DATA - #4000) / #2000)
+FONT_COLOR_DATA_BANK   EQU ((FONT_COLOR_DATA - #4000) / #2000)
+`;
+
+    const patternSection = fontInPage0 ? '; [FONT_PATTERN_DATA blob emitted in page0.asm]\n' : `; ==================================================================
+; FONT PATTERN DATA
+; ==================================================================
+
+${patternAsm}
+`;
+
+    const colorSection = fontInPage0 ? '; [FONT_COLOR_DATA blob emitted in page0.asm]\n' : `; ==================================================================
+; FONT COLOR ATTRIBUTES
+; ==================================================================
+
+${colorAsm}
+`;
 
     return `; ==================================================================
 ; MSX FONT DATA FOR SCREEN 2 TEXT
@@ -184,15 +193,8 @@ print_string_screen2:
 ; Description: Font pattern data generated from project assets
 ; ==================================================================
 
-FONT_PATTERN_DATA_BANK EQU ((FONT_PATTERN_DATA - #4000) / #2000)
-FONT_COLOR_DATA_BANK   EQU ((FONT_COLOR_DATA - #4000) / #2000)
-
-; ==================================================================
-; FONT PATTERN DATA
-; ==================================================================
-
-${patternAsm}
-
+${bankEqUs}
+${patternSection}
 ; Character index table (for quick lookup)
 ${indexAsm}
 
@@ -269,12 +271,7 @@ ${mapperPushPat}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
     djnz .load_loop
 ${mapperPop}    ret
 
-; ==================================================================
-; FONT COLOR ATTRIBUTES
-; ==================================================================
-
-${colorAsm}
-
+${colorSection}
 load_font_colors:
     ld de, CLRTBL2                ; Bank 0 Base
     call load_font_colors_to_bank

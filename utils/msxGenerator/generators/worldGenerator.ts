@@ -198,6 +198,7 @@ function emitDirectionalTransitionCode(
   screenIndex: number,
   direction: WorldDirection,
   targetScreenIndex: number,
+  targetGlobalScreenId: number,
   targetLoadRoutine: string,
   currentBounds: ScreenActiveAreaBounds,
   targetBounds: ScreenActiveAreaBounds
@@ -288,6 +289,7 @@ function emitDirectionalTransitionCode(
     pop de
     ld a, ${targetScreenIndex}
     ld (current_screen_index), a
+    ld a, ${targetGlobalScreenId}
     ld (current_screen_id), a
     ld hl, active_entity_list_dirty
     ld (hl), 1
@@ -405,10 +407,13 @@ WORLD_${worldName}_SCREEN_COUNT EQU ${world.nodes?.length || 0}
 
 `;
 
+  let worldGlobalOffset = 0;
   worldMaps.forEach((world: any) => {
     const worldId = world.id || 'unknown';
     const startScreenNodeId = world.startScreenNodeId;
     const nodes = world.nodes || [];
+    const currentWorldGlobalOffset = worldGlobalOffset;
+    worldGlobalOffset += nodes.length;
 
     code += `; ------------------------------------------------------------------
 ; Load World: ${world.name || 'Unnamed'}
@@ -471,6 +476,7 @@ ${spritePack ? `    call load_sprite_patterns_${spritePack.label}
 
     ld a, ${startNodeIndex}
     ld (current_screen_index), a
+    ld a, ${currentWorldGlobalOffset + startNodeIndex}
     ld (current_screen_id), a
     ld hl, active_entity_list_dirty
     ld (hl), 1
@@ -493,10 +499,13 @@ ${hasScreenTimer ? `    call reset_world_screen_timer
 
 `;
 
+  let transitionWorldGlobalOffset = 0;
   worldMaps.forEach((world: any) => {
     const worldId = world.id || 'unknown';
     const nodes = world.nodes || [];
     const connections = world.connections || [];
+    const currentTransitionWorldOffset = transitionWorldGlobalOffset;
+    transitionWorldGlobalOffset += nodes.length;
 
     if (connections.length === 0) {
       code += `; World ${world.name || 'Unnamed'} has no screen connections
@@ -535,6 +544,7 @@ ${hasScreenTimer ? `    call reset_world_screen_timer
 
       const toScreenId = toNode.screenAssetId;
       const toScreenIndex = nodes.findIndex((n: any) => n.id === toNode.id);
+      const toGlobalScreenId = currentTransitionWorldOffset + toScreenIndex;
       const toLoadRoutine = getScreenLoadRoutineName(toScreenId, analysis);
 
       code += `; Transition: ${fromNode.name || 'screen'} -> ${toNode.name || 'screen'}
@@ -545,6 +555,7 @@ transition_${toRoutineLabel(worldId)}_${connIndex}:
 
     ld a, ${toScreenIndex}
     ld (current_screen_index), a
+    ld a, ${toGlobalScreenId}
     ld (current_screen_id), a
     ld hl, active_entity_list_dirty
     ld (hl), 1
@@ -621,11 +632,14 @@ check_world_screen_transition:
 
 `;
 
+  let edgeTransitionGlobalOffset = 0;
   worldMaps.forEach((world: any, worldIndex: number) => {
     const worldId = world.id || `world_${worldIndex}`;
     const worldLabel = toRoutineLabel(worldId);
     const nodes = world.nodes || [];
     const connections = world.connections || [];
+    const currentEdgeWorldOffset = edgeTransitionGlobalOffset;
+    edgeTransitionGlobalOffset += nodes.length;
 
     code += `check_transition_world_${worldLabel}:
 `;
@@ -701,7 +715,8 @@ check_world_screen_transition:
         const targetLoadRoutine = getScreenLoadRoutineName(targetNode.screenAssetId, analysis);
         const currentBounds = getScreenActiveAreaBounds(node.screenAssetId, analysis);
         const targetBounds = getScreenActiveAreaBounds(targetNode.screenAssetId, analysis);
-        code += emitDirectionalTransitionCode(worldLabel, idx, direction, targetIndex, targetLoadRoutine, currentBounds, targetBounds);
+        const targetGlobalScreenId = currentEdgeWorldOffset + targetIndex;
+        code += emitDirectionalTransitionCode(worldLabel, idx, direction, targetIndex, targetGlobalScreenId, targetLoadRoutine, currentBounds, targetBounds);
         emittedAny = true;
       });
 

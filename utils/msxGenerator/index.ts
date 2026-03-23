@@ -22,7 +22,7 @@ import { generateSpritesFile } from './generators/spritesGenerator';
 import { generateComponentsFile } from './generators/componentsGenerator';
 import { generateEntitiesFile } from './generators/entitiesGenerator';
 import { generateScreensFile } from './generators/screensGenerator';
-import { generateFontFile } from './generators/fontGenerator';
+import { generateFontFile, getFontRawData } from './generators/fontGenerator';
 import { generateHudFile } from './generators/hudGenerator';
 import { generateWorldsFile } from './generators/worldGenerator';
 import { generateMenusFile } from './generators/menusGenerator';
@@ -222,8 +222,21 @@ export function generateModularASM(
   console.log('📝 [MSX GENERATOR] Generating all ASM files...');
   console.log(`🔧 Hardware Mode: ${hardwareMode.toUpperCase()}, Optimize: ${optimizeLevel}`);
   console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
+
+  // For plain48k ROMs, move font data to page 0 to free space in the main ROM window
+  const hasMenus = analysis.gameFlow?.nodes?.some((node: any) => node.type === 'SubMenu');
+  const hasText = analysis.screenMaps?.some((screen: any) =>
+    (screen.layers as any)?.text || (screen as any).textElements?.length > 0
+  );
+  const hasHudElements = analysis.screenMaps?.some((screen: any) =>
+    screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
+  );
+  const needsFont = !!(hasMenus || hasText || hasHudElements);
+  const fontInPage0 = romMode === 'plain48k' && needsFont;
+  const fontRawData = fontInPage0 ? getFontRawData(analysis) : undefined;
+
   const files: GeneratedASMFiles = {
-    'page0.asm': generatePage0File(analysis, romMode),
+    'page0.asm': generatePage0File(analysis, romMode, fontRawData),
     'bios.asm': generateBIOSFile({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
@@ -239,7 +252,7 @@ export function generateModularASM(
     'worlds.asm': generateWorldsFile(analysis),
     'screens.asm': generateScreensFile(analysis, romMode),
     'sprites.asm': generateSpritesFile(analysis, romMode),
-    'font.asm': generateFontFile(analysis, romMode),
+    'font.asm': generateFontFile(analysis, romMode, fontInPage0),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
     'sound.asm': generateSoundFile(analysis, executionPlan),
@@ -312,9 +325,21 @@ export function generateModularASMFromSummary(
 
   console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
 
+  // For plain48k ROMs, move font data to page 0 to free space in the main ROM window
+  const hasMenus2 = analysis.gameFlow?.nodes?.some((node: any) => node.type === 'SubMenu');
+  const hasText2 = analysis.screenMaps?.some((screen: any) =>
+    (screen.layers as any)?.text || (screen as any).textElements?.length > 0
+  );
+  const hasHudElements2 = analysis.screenMaps?.some((screen: any) =>
+    screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
+  );
+  const needsFont2 = !!(hasMenus2 || hasText2 || hasHudElements2);
+  const fontInPage02 = romMode === 'plain48k' && needsFont2;
+  const fontRawData2 = fontInPage02 ? getFontRawData(analysis) : undefined;
+
   // Generate files using same logic as generateModularASM
   const files: GeneratedASMFiles = {
-    'page0.asm': generatePage0File(analysis, romMode),
+    'page0.asm': generatePage0File(analysis, romMode, fontRawData2),
     'bios.asm': generateBIOSFile({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
@@ -330,7 +355,7 @@ export function generateModularASMFromSummary(
     'worlds.asm': generateWorldsFile(analysis),
     'screens.asm': generateScreensFile(analysis, romMode),
     'sprites.asm': generateSpritesFile(analysis, romMode),
-    'font.asm': generateFontFile(analysis, romMode),
+    'font.asm': generateFontFile(analysis, romMode, fontInPage02),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
     'sound.asm': generateSoundFile(analysis, executionPlan),

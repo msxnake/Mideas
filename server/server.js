@@ -472,6 +472,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const compressPresentationPatterns = parsePresentationCompressionFlag(sourceCode, 'PRESENTATION_SCREEN_COMPRESS_PATTERNS', true);
   const compressPresentationColors = parsePresentationCompressionFlag(sourceCode, 'PRESENTATION_SCREEN_COMPRESS_COLORS', true);
   const presentationDataInPage0 = /^\s*;\s*PRESENTATION_SCREEN_ROM_DATA_GROUP:\s*page0\s*$/im.test(sourceCode);
+  const fontDataInPage0 = /^\s*;\s*FONT_DATA_ROM_DATA_GROUP:\s*page0\s*$/im.test(sourceCode);
   info.screenBufferSymbol = screenBufferSymbol;
   info.effectsBufferSymbol = 'runtime_effects_layout';
   info.behaviorBufferSymbol = behaviorBufferSymbol;
@@ -820,19 +821,31 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       if (!fontBlobInitInjected) {
         if (compressedFontPatternLabels.size > 0) {
           patched.push('    ; Decompress ZX0 font pattern data into RAM buffer');
-          patched.push('    di');
-          patched.push('    ld hl, FONT_PATTERN_DATA');
-          patched.push(`    ld de, ${fontPatternBufferSymbol}`);
-          patched.push('    call dzx0_standard');
-          patched.push('    ei');
+          if (fontDataInPage0) {
+            patched.push('    ld hl, FONT_PATTERN_DATA');
+            patched.push(`    ld de, ${fontPatternBufferSymbol}`);
+            patched.push('    call page0_decompress_to_ram');
+          } else {
+            patched.push('    di');
+            patched.push('    ld hl, FONT_PATTERN_DATA');
+            patched.push(`    ld de, ${fontPatternBufferSymbol}`);
+            patched.push('    call dzx0_standard');
+            patched.push('    ei');
+          }
         }
         if (compressedFontColorLabels.size > 0) {
           patched.push('    ; Decompress ZX0 font color data into RAM buffer');
-          patched.push('    di');
-          patched.push('    ld hl, FONT_COLOR_DATA');
-          patched.push(`    ld de, ${fontColorBufferSymbol}`);
-          patched.push('    call dzx0_standard');
-          patched.push('    ei');
+          if (fontDataInPage0) {
+            patched.push('    ld hl, FONT_COLOR_DATA');
+            patched.push(`    ld de, ${fontColorBufferSymbol}`);
+            patched.push('    call page0_decompress_to_ram');
+          } else {
+            patched.push('    di');
+            patched.push('    ld hl, FONT_COLOR_DATA');
+            patched.push(`    ld de, ${fontColorBufferSymbol}`);
+            patched.push('    call dzx0_standard');
+            patched.push('    ei');
+          }
         }
         fontBlobInitInjected = true;
       }

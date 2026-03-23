@@ -7,6 +7,7 @@ import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { buildBankPackReport, formatBankPackReportAsAsmComments } from '../utils/bankPacker';
 import type { ExecutionPlan } from '../types/executionTypes';
 import { buildPage0Plan, hasPage0DataGroups, page0NeedsZx0Decoder } from './page0Generator';
+import { getFontRawData } from './fontGenerator';
 import { getZx0DecoderAsm } from './zx0Utils';
 
 /**
@@ -89,8 +90,6 @@ export function generateUnifiedFile(
         autoMegaROM: false
     }
 ): string {
-    const page0Plan = buildPage0Plan(analysis, config.romMode);
-    const hasPage0Data = hasPage0DataGroups(analysis, config.romMode);
     // Check what features are needed
     const hasPresentationScreenNode = analysis.gameFlow?.nodes?.some(node => node.type === 'PresentationScreen');
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
@@ -101,10 +100,14 @@ export function generateUnifiedFile(
         screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
     );
     const needsFont = hasMenus || hasText || hasHud;
+    const fontInPage0 = config.romMode === 'plain48k' && !!needsFont;
+    const fontRawData = fontInPage0 ? getFontRawData(analysis) : undefined;
+    const page0Plan = buildPage0Plan(analysis, config.romMode, fontRawData);
+    const hasPage0Data = hasPage0DataGroups(analysis, config.romMode, fontRawData);
     const bankPackReport = buildBankPackReport(files as unknown as Record<string, string>);
     const bankPackComments = formatBankPackReportAsAsmComments(bankPackReport);
     const executionPlanComments = formatExecutionPlanComments(executionPlan);
-    const needsZx0Decoder = page0NeedsZx0Decoder(analysis, config.romMode);
+    const needsZx0Decoder = page0NeedsZx0Decoder(analysis, config.romMode, fontRawData);
 
     return `; ==================================================================
 ; ${projectName.toUpperCase()} - UNIFIED FILE

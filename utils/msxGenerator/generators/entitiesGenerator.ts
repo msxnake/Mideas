@@ -69,13 +69,24 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
     (value & 0xFF).toString(16).toUpperCase().padStart(2, '0');
 
   const resolveEntityScreenId = (entity: any): number => {
+    const worldMaps = ((analysis as any).worldmaps || []) as any[];
+
+    // Helper: compute global screen ID = sum of all previous worlds' node counts + nodeIndex
+    const globalScreenId = (targetWorld: any, nodeIndex: number): number => {
+      let offset = 0;
+      for (const w of worldMaps) {
+        if (w === targetWorld) return offset + nodeIndex;
+        offset += (w?.nodes?.length || 0);
+      }
+      return nodeIndex;
+    };
+
     const directScreenAssetId = entity?.screenAssetId || entity?.screenId || entity?.screenMapId;
     if (directScreenAssetId) {
-      const worldMaps = ((analysis as any).worldmaps || []) as any[];
       for (const world of worldMaps) {
         const nodes = world?.nodes || [];
         const nodeIndex = nodes.findIndex((n: any) => n?.screenAssetId === directScreenAssetId);
-        if (nodeIndex >= 0) return nodeIndex;
+        if (nodeIndex >= 0) return globalScreenId(world, nodeIndex);
       }
     }
 
@@ -100,12 +111,11 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
       return fallbackScreenIndex;
     }
 
-    const worldMaps = ((analysis as any).worldmaps || []) as any[];
     for (const world of worldMaps) {
       const nodes = world?.nodes || [];
       const nodeIndex = nodes.findIndex((n: any) => n?.screenAssetId === entityScreenAssetId);
       if (nodeIndex >= 0) {
-        return nodeIndex;
+        return globalScreenId(world, nodeIndex);
       }
     }
 
