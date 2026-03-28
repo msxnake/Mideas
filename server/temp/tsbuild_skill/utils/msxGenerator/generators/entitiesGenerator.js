@@ -75,14 +75,24 @@ function generateEntitiesFile(analysis) {
     };
     const toHexByte = (value) => (value & 0xFF).toString(16).toUpperCase().padStart(2, '0');
     const resolveEntityScreenId = (entity) => {
+        const worldMaps = (analysis.worldmaps || []);
+        // Helper: compute global screen ID = sum of all previous worlds' node counts + nodeIndex
+        const globalScreenId = (targetWorld, nodeIndex) => {
+            let offset = 0;
+            for (const w of worldMaps) {
+                if (w === targetWorld)
+                    return offset + nodeIndex;
+                offset += (w?.nodes?.length || 0);
+            }
+            return nodeIndex;
+        };
         const directScreenAssetId = entity?.screenAssetId || entity?.screenId || entity?.screenMapId;
         if (directScreenAssetId) {
-            const worldMaps = (analysis.worldmaps || []);
             for (const world of worldMaps) {
                 const nodes = world?.nodes || [];
                 const nodeIndex = nodes.findIndex((n) => n?.screenAssetId === directScreenAssetId);
                 if (nodeIndex >= 0)
-                    return nodeIndex;
+                    return globalScreenId(world, nodeIndex);
             }
         }
         if (typeof entity?.screenIndex === 'number' && entity.screenIndex >= 0) {
@@ -102,12 +112,11 @@ function generateEntitiesFile(analysis) {
         if (!entityScreenAssetId) {
             return fallbackScreenIndex;
         }
-        const worldMaps = (analysis.worldmaps || []);
         for (const world of worldMaps) {
             const nodes = world?.nodes || [];
             const nodeIndex = nodes.findIndex((n) => n?.screenAssetId === entityScreenAssetId);
             if (nodeIndex >= 0) {
-                return nodeIndex;
+                return globalScreenId(world, nodeIndex);
             }
         }
         return fallbackScreenIndex;

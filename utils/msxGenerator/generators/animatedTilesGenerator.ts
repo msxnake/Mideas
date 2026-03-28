@@ -6,6 +6,14 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { generateTileColorBytes, generateTilePatternBytes } from '../../../components/utils/tileUtils';
 import { usesMapperBanking } from './romModeUtils';
+import {
+  buildMapperBankEqu,
+  buildMapperDataPopAsm,
+  buildMapperDataPushAsm,
+  buildMapperWindowedAddress,
+  getMapperWindowConfig,
+  type MapperTargetFormat,
+} from './mapperWindowUtils';
 
 interface TileCharInfo {
   charCode: number;
@@ -532,7 +540,11 @@ export function collectAnimatedTileGroupSummaries(analysis: ProjectAnalysis): An
  * @param analysis - Project analysis
  * @returns ASM code string with animated tiles system
  */
-export function generateAnimatedTilesFile(analysis: ProjectAnalysis, romMode: string = 'simple32k'): string {
+export function generateAnimatedTilesFile(
+  analysis: ProjectAnalysis,
+  romMode: string = 'simple32k',
+  targetFormat: MapperTargetFormat = 'konami'
+): string {
   const { frameGroups, transformGroups } = prepareAnimationGroups(analysis);
   const hasFrameAnimatedTiles = frameGroups.length > 0;
   const hasTransformAnimatedTiles = transformGroups.length > 0;
@@ -570,12 +582,14 @@ ${frames}
 `;
 
   const usesMapper = usesMapperBanking(romMode);
-  const mapperPush = usesMapper ? '    call mapper_push_p2\n    ld a, ANIM_TILE_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
-  const mapperPop  = usesMapper ? '    call mapper_pop_p2' : '';
+  const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
+  const mapperPush = usesMapper ? buildMapperDataPushAsm('ANIM_TILE_DATA_BANK', mapperWindow) : '';
+  const mapperPop  = usesMapper ? buildMapperDataPopAsm(mapperWindow).trimEnd() : '';
+  const animTileTableAddress = usesMapper ? buildMapperWindowedAddress('anim_tile_table', mapperWindow) : 'anim_tile_table';
 
   const frameVramUpdateBlock = hasFrameAnimatedTiles
     ? `${mapperPush}
-    ld hl, anim_tile_table
+    ld hl, ${animTileTableAddress}
 
 .anim_vram_loop:
     ld a, (hl)                      ; A = target char code
@@ -700,7 +714,7 @@ ANIM_SPEED_FAST         EQU 4       ; ~66ms (fire)
 MAX_ANIM_TILES          EQU ${maxAnimTiles}
 ANIM_TILE_ENTRY_SIZE    EQU 7       ; char, chars, frames, speed, bytesPerFrame, ptr(2)
 ANIM_TRANS_ENTRY_SIZE   EQU 4       ; char, chars, opCode, flags
-ANIM_TILE_DATA_BANK     EQU ((anim_tile_table - #4000) / #2000)
+ANIM_TILE_DATA_BANK     EQU ${buildMapperBankEqu('anim_tile_table', mapperWindow)}
 
 ; ==================================================================
 ; ANIMATED TILES INITIALIZATION

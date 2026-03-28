@@ -152,6 +152,8 @@ const COMPONENT_IDS = {
     'animation': 4,
     'comp_health': 5,
     'health': 5,
+    'comp_cursors': 6,
+    'cursors': 6,
 };
 const COMPONENT_PROPERTY_IDS = {
     'x': 1,
@@ -170,6 +172,8 @@ const COMPONENT_PROPERTY_IDS = {
     'isplaying': 9,
     'current': 10,
     'max': 11,
+    'inputspeed': 12,
+    'cursorspeed': 12,
 };
 /**
  * Build complete variable ID map including global variables
@@ -220,9 +224,15 @@ function resolveComponentId(value) {
     }
     return parseInt(serializeValue(value), 10) || 0;
 }
-function resolveComponentPropertyId(value) {
+function resolveComponentPropertyId(value, componentValue) {
     if (typeof value === 'string') {
+        const componentId = resolveComponentId(componentValue);
         const key = value.toLowerCase();
+        // "speed" is ambiguous: for Animation it means anim speed,
+        // for Cursors it means input/cursor speed.
+        if (key === 'speed' && componentId === COMPONENT_IDS.comp_cursors) {
+            return 12;
+        }
         const mapped = COMPONENT_PROPERTY_IDS[key];
         if (mapped !== undefined)
             return mapped;
@@ -1635,7 +1645,8 @@ Action_SetCompProp:
 ; Supports a compact set of common runtime fields.
 ; Property IDs:
 ;   1=x, 2=y, 3=vx, 4=vy, 5=sprite, 6=isVisible, 7=frame,
-;   8=animSpeed, 9=isPlaying, 10=healthCurrent, 11=healthMax.
+;   8=animSpeed, 9=isPlaying, 10=healthCurrent, 11=healthMax,
+;   12=inputSpeed.
     ld d, (hl)              ; D = ComponentID
     inc hl
     ld e, (hl)              ; E = PropertyID
@@ -1673,6 +1684,8 @@ Action_SetCompProp:
     jp z, .scp_set_health_current
     cp 11
     jp z, .scp_set_health_max
+    cp 12
+    jp z, .scp_set_input_speed
 
     ; Fallback by component when PropertyID is unknown.
     ld a, d                 ; A = ComponentID
@@ -1686,6 +1699,8 @@ Action_SetCompProp:
     jp z, .scp_set_anim_playing
     cp 5
     jp z, .scp_set_health_current
+    cp 6
+    jp z, .scp_set_input_speed
     jp .scp_done
 
 .scp_set_x:
@@ -1807,6 +1822,19 @@ Action_SetCompProp:
     ld de, entity_health_max
     add hl, de
     ld (hl), c
+    jp .scp_done
+
+.scp_set_input_speed:
+    ld l, b
+    ld h, 0
+    ld de, entity_input_speed
+    add hl, de
+    ld a, c
+    or a
+    jr nz, .scp_input_speed_ok
+    ld a, 1                 ; Cursor speed 0 would freeze the entity
+.scp_input_speed_ok:
+    ld (hl), a
 
 .scp_done:
     pop hl
@@ -5265,7 +5293,7 @@ function generateActionBytes(action, smName = '', variableIdMap, spriteNameToInd
             const propRaw = action.params.propertyName ?? action.params.prop ?? action.params.name ?? 0;
             const valueRaw = action.params.value ?? 0;
             const compId = resolveComponentId(compRaw);
-            const propId = resolveComponentPropertyId(propRaw);
+            const propId = resolveComponentPropertyId(propRaw, compRaw);
             let encodedValue = serializeValue(valueRaw);
             if (propId === 5 && typeof valueRaw === 'string' && spriteNameToIndex) {
                 const direct = spriteNameToIndex[valueRaw];

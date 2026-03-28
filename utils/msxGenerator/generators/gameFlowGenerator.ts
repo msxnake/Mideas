@@ -3035,7 +3035,9 @@ trans_fast_filvrm:
     ; PresentationScreen node - show full-screen presentation image
     ; BC = connection table
     push bc
-    call show_presentation_screen
+    ld a, ((show_presentation_screen - #4000) / #2000)
+    ld hl, show_presentation_screen
+    call mapper_call_hl_auto
     ; show_presentation_screen overwrites ALL of CHRTBL2 (chars 0-255 x 3 banks).
     ; Game tile patterns live at char 128+ and are now corrupted.
     ; Reload game VRAM (patterns + colors) before entering gameplay.

@@ -8,6 +8,13 @@ import { buildMSXDirectionalSpriteCatalog, generateSpriteASMCode } from '../../.
 import { analyzeComponentUsage } from '../utils/componentAnalyzer';
 import { MSX1_PALETTE } from '../../../constants';
 import { usesMapperBanking } from './romModeUtils';
+import {
+  buildMapperBankEqu,
+  buildMapperDataPopAsm,
+  buildMapperWindowedAddress,
+  getMapperWindowConfig,
+  type MapperTargetFormat,
+} from './mapperWindowUtils';
 
 // Constants
 const SPRITE_INVISIBLE_VALUE = 224; // MSX: Y >= 209 hides sprite, but 224 is safer off-screen
@@ -415,9 +422,15 @@ export const buildScreenSpritePatternUsageSummaries = (analysis: ProjectAnalysis
  * @param analysis - Project analysis with sprite assets
  * @returns ASM code string with sprite data and functions
  */
-export function generateSpritesFile(analysis: ProjectAnalysis, romMode: string = 'simple32k'): string {
+export function generateSpritesFile(
+  analysis: ProjectAnalysis,
+  romMode: string = 'simple32k',
+  targetFormat: MapperTargetFormat = 'konami'
+): string {
   const sourceSprites = analysis.sprites || [];
   const usesMapper = usesMapperBanking(romMode);
+  const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
+  const mapperPop = usesMapper ? buildMapperDataPopAsm(mapperWindow) : '';
   const spriteCatalog = buildMSXDirectionalSpriteCatalog(sourceSprites);
   const sprites = spriteCatalog.sprites;
   const spriteNameToIndex = spriteCatalog.nameToIndex;
@@ -705,12 +718,12 @@ export function generateSpritesFile(analysis: ProjectAnalysis, romMode: string =
     if (firstDrawableLayerIndex >= 0) {
       code += `\n; Unified pattern label for sprite ${index}
 SPRITE_${index}_PATTERN EQU ${safeSpriteName}_F0_LAYER${firstDrawableLayerIndex}
-SPRITE_${index}_PATTERN_BANK EQU ((SPRITE_${index}_PATTERN - #4000) / #2000)\n`;
+SPRITE_${index}_PATTERN_BANK EQU ${buildMapperBankEqu(`SPRITE_${index}_PATTERN`, mapperWindow)}\n`;
     } else {
       code += `\n; WARNING: No valid pattern layers found for sprite ${index}
 SPRITE_${index}_PATTERN:
     db 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
-SPRITE_${index}_PATTERN_BANK EQU ((SPRITE_${index}_PATTERN - #4000) / #2000)\n`;
+SPRITE_${index}_PATTERN_BANK EQU ${buildMapperBankEqu(`SPRITE_${index}_PATTERN`, mapperWindow)}\n`;
     }
 
   });
@@ -730,14 +743,14 @@ SPRITE_PLACEHOLDER_PATTERN:
     db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
     ; Right half bottom (8x8)
     db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
-SPRITE_PLACEHOLDER_PATTERN_BANK EQU ((SPRITE_PLACEHOLDER_PATTERN - #4000) / #2000)
+SPRITE_PLACEHOLDER_PATTERN_BANK EQU ${buildMapperBankEqu('SPRITE_PLACEHOLDER_PATTERN', mapperWindow)}
 
 `;
 
   if (sprites.length === 0) {
     code += `; No sprite assets found - using placeholder pattern only 
 SPRITE_0_PATTERN EQU SPRITE_PLACEHOLDER_PATTERN
-SPRITE_0_PATTERN_BANK EQU ((SPRITE_0_PATTERN - #4000) / #2000)\n`;
+SPRITE_0_PATTERN_BANK EQU ${buildMapperBankEqu('SPRITE_0_PATTERN', mapperWindow)}\n`;
   }
 
   // Sprite animation metadata tables
@@ -961,7 +974,7 @@ load_sprite_patterns_${pack.label}:
     ldir
     ld a, ${pack.placeholderSlot * 4}
     ld (sprite_placeholder_base_pattern_num), a
-${usesMapper ? '    call mapper_push_p2\n' : ''}`;
+${usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}\n` : ''}`;
 
     if (pack.spriteIndexes.length === 0) {
       code += `    ; No runtime sprites in this pack - placeholder only
@@ -977,7 +990,7 @@ ${usesMapper ? '    call mapper_push_p2\n' : ''}`;
         for (let frameIndex = 0; frameIndex < usage.frameCount; frameIndex++) {
           const frameBaseSlot = basePatternSlot + (frameIndex * usage.layerCount);
           code += `    ; Sprite Asset ${spriteIndex}: ${sprite.name} frame ${frameIndex} (${usage.layerCount} layers)
-${usesMapper ? `    ld a, SPRITE_${spriteIndex}_PATTERN_BANK\n    call mapper_set_bank_p2\n` : ''}    ld hl, ${safeSpriteName}_F${frameIndex}_LAYER${firstDrawableLayerIndex}
+${usesMapper ? `    ld a, SPRITE_${spriteIndex}_PATTERN_BANK\n    call mapper_set_bank_${mapperWindow.dataWindowPage}\n` : ''}    ld hl, ${usesMapper ? buildMapperWindowedAddress(`${safeSpriteName}_F${frameIndex}_LAYER${firstDrawableLayerIndex}`, mapperWindow) : `${safeSpriteName}_F${frameIndex}_LAYER${firstDrawableLayerIndex}`}
     ld de, SPRPAT + (${frameBaseSlot} * 32)
     ld bc, ${usage.layerCount * 32}
     call FAST_LDIRVM
@@ -987,11 +1000,11 @@ ${usesMapper ? `    ld a, SPRITE_${spriteIndex}_PATTERN_BANK\n    call mapper_se
     }
 
     code += `    ; Placeholder sprite used by missing sprite refs
-${usesMapper ? '    ld a, SPRITE_PLACEHOLDER_PATTERN_BANK\n    call mapper_set_bank_p2\n' : ''}    ld hl, SPRITE_PLACEHOLDER_PATTERN
+${usesMapper ? `    ld a, SPRITE_PLACEHOLDER_PATTERN_BANK\n    call mapper_set_bank_${mapperWindow.dataWindowPage}\n` : ''}    ld hl, ${usesMapper ? buildMapperWindowedAddress('SPRITE_PLACEHOLDER_PATTERN', mapperWindow) : 'SPRITE_PLACEHOLDER_PATTERN'}
     ld de, SPRPAT + (${pack.placeholderSlot} * 32)
     ld bc, 32
     call FAST_LDIRVM
-${usesMapper ? '    call mapper_pop_p2\n' : ''}    ret
+${mapperPop}    ret
 `;
   });
 

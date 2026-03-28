@@ -42,6 +42,7 @@ type RomBuildConfig = {
   targetFormat: MapperFormat;
   autoMegaROM: boolean;
   executionMode: EngineExecutionMode;
+  romSizeKB?: number;
 };
 
 interface Zx0CompressionOptions {
@@ -101,6 +102,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [projectAnalysis, setProjectAnalysis] = useState<any>(null);
   const [romMode, setRomMode] = useState<RomMode>('simple32k');
   const [mapperFormat, setMapperFormat] = useState<MapperFormat>('konami');
+  const [romSizeKB, setRomSizeKB] = useState<number | undefined>(undefined);
   const [executionMode, setExecutionMode] = useState<EngineExecutionMode>('interruptTaskManager');
   const [lastGeneratedRomConfig, setLastGeneratedRomConfig] = useState<RomBuildConfig | null>(null);
   const [isQuickValidating, setIsQuickValidating] = useState(false);
@@ -189,7 +191,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     romMode,
     targetFormat: mapperFormat,
     autoMegaROM: romMode === 'auto',
-    executionMode
+    executionMode,
+    romSizeKB
   });
 
   const isRomConfigDifferent = (generatedConfig: RomBuildConfig | null, currentConfig: RomBuildConfig) => {
@@ -197,12 +200,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     return generatedConfig.romMode !== currentConfig.romMode ||
       generatedConfig.targetFormat !== currentConfig.targetFormat ||
       generatedConfig.autoMegaROM !== currentConfig.autoMegaROM ||
-      generatedConfig.executionMode !== currentConfig.executionMode;
+      generatedConfig.executionMode !== currentConfig.executionMode ||
+      generatedConfig.romSizeKB !== currentConfig.romSizeKB;
   };
 
   const formatRomConfig = (config: RomBuildConfig | null) => {
     if (!config) return 'N/A';
-    return `mode=${config.romMode}, mapper=${config.targetFormat}, autoMegaROM=${config.autoMegaROM}, engine=${config.executionMode}`;
+    const sizeStr = config.romSizeKB ? `, size=${config.romSizeKB}KB` : '';
+    return `mode=${config.romMode}, mapper=${config.targetFormat}, autoMegaROM=${config.autoMegaROM}, engine=${config.executionMode}${sizeStr}`;
   };
 
   const getEnhancedAssets = () => {
@@ -311,7 +316,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           projectName: projectNameInput || currentProjectName || 'MSX_Game',
           romMode: romConfig.romMode,
           targetFormat: romConfig.targetFormat,
-          autoMegaROM: romConfig.autoMegaROM
+          autoMegaROM: romConfig.autoMegaROM,
+          romSizeKB: romConfig.romSizeKB
         }),
       });
 
@@ -1216,8 +1222,29 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   </select>
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-msx-textsecondary mb-2">
+                    ROM Size:
+                  </label>
+                  <select
+                    value={romSizeKB ?? 0}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10);
+                      setRomSizeKB(v === 0 ? undefined : v);
+                    }}
+                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                  >
+                    <option value={0}>Auto (32KB / 48KB / power-of-two)</option>
+                    <option value={32}>32 KB</option>
+                    <option value={48}>48 KB (plain48k)</option>
+                    <option value={64}>64 KB</option>
+                    <option value={128}>128 KB</option>
+                    <option value={256}>256 KB</option>
+                  </select>
+                </div>
+
                 <div className="bg-msx-bgcolor bg-opacity-40 border border-msx-border rounded p-2 text-xs text-msx-textsecondary">
-                  Active ROM config: mode=<strong>{romMode}</strong>, mapper=<strong>{mapperFormat}</strong>, engine=<strong>{executionMode}</strong>
+                  Active ROM config: mode=<strong>{romMode}</strong>, mapper=<strong>{mapperFormat}</strong>, size=<strong>{romSizeKB ? `${romSizeKB}KB` : 'auto'}</strong>, engine=<strong>{executionMode}</strong>
                   <div className="mt-1">
                     Last generated ASM config: <strong>{formatRomConfig(lastGeneratedRomConfig)}</strong>
                   </div>

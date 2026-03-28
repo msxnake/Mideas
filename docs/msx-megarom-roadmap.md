@@ -55,6 +55,30 @@ Acceptance results:
   - `Examples/ejemplo1.json`
   - `Examples/mini_game62.json`
 
+## Placement Policy To Preserve
+
+This is the current architectural rule for stable MegaROM work and should be
+treated as a build invariant, not as an optional optimization:
+
+- ZX0 data must be packed after compression, using final compressed size as the
+  allocator input.
+- Data must be assigned to hard placement zones and must not overflow them:
+  - `ascii8` / 8 KB windowed layouts: pack data in 8 KB zones.
+  - `ascii16` / 16 KB windowed layouts: pack data in 16 KB zones.
+- Code should prefer 16 KB-stable regions or larger contiguous areas whenever
+  possible, because routine splitting is expensive and fragile.
+- Code should only be split at explicit far-call boundaries; arbitrary slicing
+  of routines across banks is not an acceptable default strategy.
+- Diagnostics should report compressed size, assigned zone, remaining slack,
+  and any overflow before Glass/OpenMSX validation.
+
+Current limitation to keep in mind:
+
+- The present unified MegaROM packer still emits an 8 KB-first diagnostic view
+  and an 8 KB-oriented code layout.
+- That is useful for Konami and partial ASCII8 work, but it is not yet the
+  final zone-aware allocator required for stable `ascii8`/`ascii16` builds.
+
 ## Next Phases
 
 ### Phase 4: Far-call API for banked code (In progress)
@@ -97,6 +121,17 @@ Acceptance criteria:
 - User can switch `simple32k` vs `megarom` from UI.
 - Compile panel clearly displays active mapper config and resolved mapper mode.
 - One-click mapper validation available from IDE actions.
+
+### Phase 5.5: Zone-aware MegaROM allocator (Pending)
+
+- Replace the current 8 KB diagnostic-first packer with a real allocator driven
+  by mapper format and final compressed asset size.
+- Support data zones of 8 KB (`ascii8`) and 16 KB (`ascii16`) without allowing
+  a compressed asset to cross its assigned zone.
+- Keep hot/common code in stable 16 KB-friendly regions and move only explicit
+  far-call modules to split banks.
+- Emit allocator diagnostics that explain why each asset/routine was placed in
+  a given bank group.
 
 ### Phase 6: Emulator regression matrix (Pending)
 

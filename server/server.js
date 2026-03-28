@@ -267,7 +267,8 @@ function collectAsmDataBlocks(lines, labelRegex) {
         label,
         startLine: i,
         endLine: j - 1,
-        bytes
+        bytes,
+        lines: lines.slice(i, j)
       });
     }
 
@@ -275,6 +276,280 @@ function collectAsmDataBlocks(lines, labelRegex) {
   }
 
   return blocks;
+}
+
+function formatAsmAddress(value) {
+  return `#${value.toString(16).toUpperCase().padStart(4, '0')}`;
+}
+
+function countAsmBytesInLines(lines) {
+  let total = 0;
+  for (const line of lines) {
+    const parsed = parseDbLineBytes(line);
+    if (parsed) total += parsed.length;
+  }
+  return total;
+}
+
+function getMegaromDataGroupKey(label) {
+  const upper = String(label || '').toUpperCase();
+  if (upper.startsWith('TILE_PATTERN_') || upper.startsWith('TILEBANK_PATTERN_DATA_')) {
+    return 'patterns';
+  }
+  if (upper.startsWith('TILE_COLOR_') || upper.startsWith('TILEBANK_COLOR_DATA_')) {
+    return 'colors';
+  }
+  return upper;
+}
+
+function matchAsmLabelLoad(line, registerName, labelPattern) {
+  const register = String(registerName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const plainMatch = line.match(
+    new RegExp(
+      `^\\s*ld\\s+${register},\\s*(${labelPattern})(\\s*\\+\\s*\\d+)?\\s*(?:;.*)?$`,
+      'i'
+    )
+  );
+  if (plainMatch) {
+    return {
+      label: plainMatch[1],
+      offset: plainMatch[2] ? plainMatch[2].replace(/\s+/g, '') : '',
+      banked: false,
+    };
+  }
+
+  const bankedMatch = line.match(
+    new RegExp(
+      `^\\s*ld\\s+${register},\\s*\\(\\s*(${labelPattern})\\s*&\\s*#1FFF\\s*\\)\\s*\\|\\s*#8000(\\s*\\+\\s*\\d+)?\\s*(?:;.*)?$`,
+      'i'
+    )
+  );
+  if (bankedMatch) {
+    return {
+      label: bankedMatch[1],
+      offset: bankedMatch[2] ? bankedMatch[2].replace(/\s+/g, '') : '',
+      banked: true,
+    };
+  }
+
+  return null;
+}
+
+function repackMegaromZonedDataSection(sourceCode) {
+  const lines = String(sourceCode || '').split(/\r?\n/);
+  let sectionStart = lines.findIndex((line) => /;\s*DATA BANKS .+Zone-packed data/i.test(line));
+  if (sectionStart === -1) return sourceCode;
+  if (sectionStart > 0 && /^\s*;\s*=+\s*$/.test(lines[sectionStart - 1])) {
+    sectionStart -= 1;
+  }
+
+  const sectionEnd = lines.findIndex((line, idx) => idx > sectionStart && /^\s*end\b/i.test(line));
+  if (sectionEnd === -1) return sourceCode;
+
+  const sectionLines = lines.slice(sectionStart, sectionEnd);
+  const sectionText = sectionLines.join('\n');
+  const zoneSizeMatch = sectionText.match(/Zone-packed data \((\d+) bytes per zone\)/i);
+  if (!zoneSizeMatch) return sourceCode;
+  const zoneSize = parseInt(zoneSizeMatch[1], 10);
+  if (!Number.isFinite(zoneSize) || zoneSize <= 0) return sourceCode;
+
+  let dataStartAddress = null;
+  const dataStartMatch = sectionText.match(/Data start address:\s*#([0-9A-F]+)/i);
+  if (dataStartMatch) {
+    dataStartAddress = parseInt(dataStartMatch[1], 16);
+  }
+  if (!Number.isFinite(dataStartAddress)) {
+    const firstOrgMatch = sectionText.match(/^\s*org\s+#([0-9A-F]+)\s*$/im);
+    if (firstOrgMatch) {
+      dataStartAddress = parseInt(firstOrgMatch[1], 16);
+    }
+  }
+  if (!Number.isFinite(dataStartAddress)) return sourceCode;
+
+  const firstDiagSeparator = sectionLines.findIndex((line, idx) => idx > 0 && /^\s*;\s*-{10,}\s*$/.test(line));
+  if (firstDiagSeparator === -1) return sourceCode;
+  const introLines = sectionLines.slice(0, firstDiagSeparator);
+
+  const firstOrgIndex = sectionLines.findIndex((line) => /^\s*org\s+#/i.test(line));
+  if (firstOrgIndex === -1) return sourceCode;
+  const dataLines = sectionLines.slice(firstOrgIndex);
+
+  const blocks = [];
+  const prelude = [];
+  let currentLabel = null;
+  let currentLines = [];
+  let skipZoneBanner = 0;
+
+  const flushCurrent = () => {
+    if (!currentLabel) return;
+    blocks.push({
+      label: currentLabel,
+      groupKey: getMegaromDataGroupKey(currentLabel),
+      lines: currentLines.slice(),
+      byteSize: countAsmBytesInLines(currentLines),
+    });
+    currentLabel = null;
+    currentLines = [];
+  };
+
+  for (const line of dataLines) {
+    if (/^\s*org\s+#/i.test(line) || /^\s*ds\s+#/i.test(line)) {
+      flushCurrent();
+      prelude.length = 0;
+      skipZoneBanner = /^\s*org\s+#/i.test(line) ? 3 : 0;
+      continue;
+    }
+
+    if (skipZoneBanner > 0) {
+      if (/^\s*;\s*=+\s*$/.test(line) || /^\s*;\s*DATA ZONE\b/i.test(line) || /^\s*$/.test(line)) {
+        skipZoneBanner -= 1;
+        continue;
+      }
+      skipZoneBanner = 0;
+    }
+
+    const labelMatch = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*):(?:\s*;.*)?\s*$/);
+    if (labelMatch) {
+      flushCurrent();
+      currentLabel = labelMatch[1];
+      currentLines = [...prelude, line];
+      prelude.length = 0;
+      continue;
+    }
+
+    if (!currentLabel) {
+      if (line.trim() === '' || line.trim().startsWith(';')) {
+        prelude.push(line);
+      }
+      continue;
+    }
+
+    currentLines.push(line);
+  }
+  flushCurrent();
+
+  if (blocks.length === 0) return sourceCode;
+
+  const units = [];
+  for (const block of blocks) {
+    const shouldMerge = (block.groupKey === 'patterns' || block.groupKey === 'colors') &&
+      units.length > 0 &&
+      units[units.length - 1].groupKey === block.groupKey;
+
+    if (shouldMerge) {
+      const currentUnit = units[units.length - 1];
+      currentUnit.labels.push(block.label);
+      currentUnit.byteSize += block.byteSize;
+      if (currentUnit.lines.length > 0 && currentUnit.lines[currentUnit.lines.length - 1] !== '') {
+        currentUnit.lines.push('');
+      }
+      currentUnit.lines.push(...block.lines);
+      continue;
+    }
+
+    units.push({
+      groupKey: block.groupKey,
+      labels: [block.label],
+      lines: block.lines.slice(),
+      byteSize: block.byteSize,
+    });
+  }
+
+  const zones = [];
+  let currentZoneUnits = [];
+  let currentZoneUsed = 0;
+  let zoneIndex = 0;
+
+  const flushZone = () => {
+    if (currentZoneUnits.length === 0) return;
+    const orgAddress = dataStartAddress + (zoneIndex * zoneSize);
+    const endAddress = orgAddress + zoneSize;
+    zones.push({
+      zoneIndex,
+      orgAddress,
+      endAddress,
+      physicalBank: (orgAddress - 0x4000) / zoneSize,
+      usedBytes: currentZoneUsed,
+      remainingBytes: zoneSize - currentZoneUsed,
+      units: currentZoneUnits,
+    });
+    zoneIndex += 1;
+    currentZoneUnits = [];
+    currentZoneUsed = 0;
+  };
+
+  for (const unit of units) {
+    if (unit.byteSize > zoneSize) {
+      throw new Error(
+        `MegaROM ZX0 data zone overflow: ${unit.labels.join(', ')} ` +
+        `(${unit.byteSize} bytes > zone ${zoneSize})`
+      );
+    }
+
+    if (currentZoneUnits.length > 0 && currentZoneUsed + unit.byteSize > zoneSize) {
+      flushZone();
+    }
+
+    currentZoneUnits.push({
+      ...unit,
+      zoneOffset: currentZoneUsed,
+    });
+    currentZoneUsed += unit.byteSize;
+  }
+  flushZone();
+
+  const diagnosticsLines = [
+    '; ------------------------------------------------------------------',
+    '; MEGAROM DATA ZONE PACKER (post-ZX0 final sizes)',
+    `; Zone size: ${zoneSize} bytes`,
+    `; Data start address: ${formatAsmAddress(dataStartAddress)}`,
+    `; Total data bytes (post-ZX0 / final): ${units.reduce((sum, unit) => sum + unit.byteSize, 0)}`,
+    `; Zones used: ${zones.length}`,
+    '; ------------------------------------------------------------------',
+  ];
+
+  for (const zone of zones) {
+    diagnosticsLines.push(
+      `; ZONE ${zone.zoneIndex.toString().padStart(2, '0')} ` +
+      `[${formatAsmAddress(zone.orgAddress)}-${formatAsmAddress(zone.endAddress)}] ` +
+      `bank ${zone.physicalBank} used=${zone.usedBytes} slack=${zone.remainingBytes}`
+    );
+    for (const unit of zone.units) {
+      diagnosticsLines.push(
+        `;   + ${unit.labels.join(', ')} @ +${formatAsmAddress(unit.zoneOffset)} size=${unit.byteSize}`
+      );
+    }
+  }
+
+  const zoneAsmLines = [];
+  for (const zone of zones) {
+    zoneAsmLines.push(`    org ${formatAsmAddress(zone.orgAddress)}`);
+    zoneAsmLines.push('; ==================================================================');
+    zoneAsmLines.push(
+      `; DATA ZONE ${zone.zoneIndex.toString().padStart(2, '0')} ` +
+      `(bank ${zone.physicalBank}) used=${zone.usedBytes} slack=${zone.remainingBytes}`
+    );
+    zoneAsmLines.push('; ==================================================================');
+    for (const unit of zone.units) {
+      zoneAsmLines.push(...unit.lines);
+      zoneAsmLines.push('');
+    }
+    zoneAsmLines.push(`    ds ${formatAsmAddress(zone.endAddress)} - $, #FF`);
+    zoneAsmLines.push('');
+  }
+
+  const rebuiltSection = [
+    ...introLines,
+    ...diagnosticsLines,
+    '',
+    ...zoneAsmLines,
+  ];
+
+  return [
+    ...lines.slice(0, sectionStart),
+    ...rebuiltSection,
+    ...lines.slice(sectionEnd),
+  ].join('\n');
 }
 
 function countSymbolReferences(sourceCodeUpper, symbol) {
@@ -900,15 +1175,15 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       continue;
     }
 
-    const hlLayoutMatch = line.match(/^\s*ld\s+hl,\s*(SCREEN_[A-Z0-9_]+_\d+_LAYOUT)(\s*\+\s*\d+)?\s*(?:;.*)?$/i);
+    const hlLayoutMatch = matchAsmLabelLoad(line, 'hl', 'SCREEN_[A-Z0-9_]+_\\d+_LAYOUT');
     if (inLoadScreen && hlLayoutMatch) {
-      const layoutLabel = hlLayoutMatch[1].toUpperCase();
-      const offset = hlLayoutMatch[2] ? hlLayoutMatch[2].replace(/\s+/g, '') : '';
+      const layoutLabel = hlLayoutMatch.label.toUpperCase();
+      const offset = hlLayoutMatch.offset;
         if (compressedLayoutLabels.has(layoutLabel)) {
           if (!layoutDecompressedInCurrentFunction) {
             patched.push('    ; Decompress ZX0 screen layout into RAM buffer');
             patched.push('    di');
-            patched.push(`    ld hl, ${hlLayoutMatch[1]}`);
+            patched.push(`    ld hl, ${hlLayoutMatch.label}`);
             patched.push(`    ld de, ${screenBufferSymbol}`);
             patched.push('    call dzx0_standard');
             patched.push('    ei');
@@ -919,14 +1194,14 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
         }
     }
 
-    const hlBehaviorMatch = line.match(/^\s*ld\s+hl,\s*(BEHAVIOR_[A-Z0-9_]+_\d+_DATA)\s*(?:;.*)?$/i);
+    const hlBehaviorMatch = matchAsmLabelLoad(line, 'hl', 'BEHAVIOR_[A-Z0-9_]+_\\d+_DATA');
     if (inLoadScreen && hlBehaviorMatch) {
-      const behaviorLabel = hlBehaviorMatch[1].toUpperCase();
+      const behaviorLabel = hlBehaviorMatch.label.toUpperCase();
       if (compressedBehaviorLabels.has(behaviorLabel)) {
         if (!behaviorDecompressedInCurrentFunction) {
           patched.push('    ; Decompress ZX0 behavior map into RAM buffer');
           patched.push('    di');
-          patched.push(`    ld hl, ${hlBehaviorMatch[1]}`);
+          patched.push(`    ld hl, ${hlBehaviorMatch.label}`);
           patched.push(`    ld de, ${behaviorBufferSymbol}`);
           patched.push('    call dzx0_standard');
           patched.push('    ei');
@@ -937,13 +1212,13 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       }
     }
 
-    const hlEffectsMatch = line.match(/^\s*ld\s+hl,\s*(SCREEN_[A-Z0-9_]+_\d+_EFFECTS_LAYOUT)\s*(?:;.*)?$/i);
+    const hlEffectsMatch = matchAsmLabelLoad(line, 'hl', 'SCREEN_[A-Z0-9_]+_\\d+_EFFECTS_LAYOUT');
     if (inLoadScreen && hlEffectsMatch) {
-      const effectsLabel = hlEffectsMatch[1].toUpperCase();
+      const effectsLabel = hlEffectsMatch.label.toUpperCase();
       if (compressedEffectsLabels.has(effectsLabel)) {
         patched.push('    ; Decompress ZX0 effects layout directly into runtime_effects_layout');
         patched.push('    di');
-        patched.push(`    ld hl, ${hlEffectsMatch[1]}`);
+        patched.push(`    ld hl, ${hlEffectsMatch.label}`);
         patched.push('    ld de, runtime_effects_layout');
         patched.push('    call dzx0_standard');
         patched.push('    ei');
@@ -952,15 +1227,15 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       }
     }
 
-    const hlTilePatternMatch = line.match(/^\s*ld\s+hl,\s*(tile_pattern_[a-z0-9_]+)(\s*\+\s*\d+)?\s*(?:;.*)?$/i);
+    const hlTilePatternMatch = matchAsmLabelLoad(line, 'hl', '(?:tile_pattern_[a-z0-9_]+|tilebank_pattern_data_\\d+)');
     if (inLoadPattern && hlTilePatternMatch) {
-      const patternLabel = hlTilePatternMatch[1].toUpperCase();
-      const offset = hlTilePatternMatch[2] ? hlTilePatternMatch[2].replace(/\s+/g, '') : '';
+      const patternLabel = hlTilePatternMatch.label.toUpperCase();
+      const offset = hlTilePatternMatch.offset;
       if (compressedTilePatternLabels.has(patternLabel)) {
         if (!patternDecompressedInCurrentFunction) {
           patched.push('    ; Decompress ZX0 tile pattern data into RAM buffer');
           patched.push('    di');
-          patched.push(`    ld hl, ${hlTilePatternMatch[1]}`);
+          patched.push(`    ld hl, ${hlTilePatternMatch.label}`);
           patched.push(`    ld de, ${tilePatternBufferSymbol}`);
           patched.push('    call dzx0_standard');
           patched.push('    ei');
@@ -971,15 +1246,15 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       }
     }
 
-    const hlTileColorMatch = line.match(/^\s*ld\s+hl,\s*(tile_color_[a-z0-9_]+)(\s*\+\s*\d+)?\s*(?:;.*)?$/i);
+    const hlTileColorMatch = matchAsmLabelLoad(line, 'hl', '(?:tile_color_[a-z0-9_]+|tilebank_color_data_\\d+)');
     if (inLoadColor && hlTileColorMatch) {
-      const colorLabel = hlTileColorMatch[1].toUpperCase();
-      const offset = hlTileColorMatch[2] ? hlTileColorMatch[2].replace(/\s+/g, '') : '';
+      const colorLabel = hlTileColorMatch.label.toUpperCase();
+      const offset = hlTileColorMatch.offset;
       if (compressedTileColorLabels.has(colorLabel)) {
         if (!colorDecompressedInCurrentFunction) {
           patched.push('    ; Decompress ZX0 tile color data into RAM buffer');
           patched.push('    di');
-          patched.push(`    ld hl, ${hlTileColorMatch[1]}`);
+          patched.push(`    ld hl, ${hlTileColorMatch.label}`);
           patched.push(`    ld de, ${tileColorBufferSymbol}`);
           patched.push('    call dzx0_standard');
           patched.push('    ei');
@@ -990,12 +1265,12 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       }
     }
 
-    const hlPresentationNameMatch = line.match(/^\s*ld\s+hl,\s*(PRESENTATION_SCREEN_NAMETBL)\s*(?:;.*)?$/i);
+    const hlPresentationNameMatch = matchAsmLabelLoad(line, 'hl', 'PRESENTATION_SCREEN_NAMETBL');
     if (inShowPresentationScreen && !presentationDataInPage0 && hlPresentationNameMatch) {
-      const label = hlPresentationNameMatch[1].toUpperCase();
+      const label = hlPresentationNameMatch.label.toUpperCase();
       if (compressedLayoutLabels.has(label)) {
         patched.push('    ; Decompress ZX0 presentation name table into RAM buffer');
-        patched.push(`    ld hl, ${hlPresentationNameMatch[1]}`);
+        patched.push(`    ld hl, ${hlPresentationNameMatch.label}`);
         patched.push(`    ld de, ${screenBufferSymbol}`);
         patched.push(`    call ${presentationDataInPage0 ? 'page0_decompress_to_ram' : 'dzx0_standard'}`);
         patched.push(`    ld hl, ${screenBufferSymbol}`);
@@ -1004,12 +1279,12 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       }
     }
 
-    const hlPresentationPatternMatch = line.match(/^\s*ld\s+hl,\s*(PRESENTATION_SCREEN_PATTERNS_B[0-2])\s*(?:;.*)?$/i);
+    const hlPresentationPatternMatch = matchAsmLabelLoad(line, 'hl', 'PRESENTATION_SCREEN_PATTERNS_B[0-2]');
     if (inShowPresentationScreen && !presentationDataInPage0 && hlPresentationPatternMatch) {
-      const label = hlPresentationPatternMatch[1].toUpperCase();
+      const label = hlPresentationPatternMatch.label.toUpperCase();
       if (compressedTilePatternLabels.has(label)) {
         patched.push('    ; Decompress ZX0 presentation pattern bank into RAM buffer');
-        patched.push(`    ld hl, ${hlPresentationPatternMatch[1]}`);
+        patched.push(`    ld hl, ${hlPresentationPatternMatch.label}`);
         patched.push(`    ld de, ${tilePatternBufferSymbol}`);
         patched.push(`    call ${presentationDataInPage0 ? 'page0_decompress_to_ram' : 'dzx0_standard'}`);
         patched.push(`    ld hl, ${tilePatternBufferSymbol}`);
@@ -1018,12 +1293,12 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       }
     }
 
-    const hlPresentationColorMatch = line.match(/^\s*ld\s+hl,\s*(PRESENTATION_SCREEN_COLORS_B[0-2])\s*(?:;.*)?$/i);
+    const hlPresentationColorMatch = matchAsmLabelLoad(line, 'hl', 'PRESENTATION_SCREEN_COLORS_B[0-2]');
     if (inShowPresentationScreen && !presentationDataInPage0 && hlPresentationColorMatch) {
-      const label = hlPresentationColorMatch[1].toUpperCase();
+      const label = hlPresentationColorMatch.label.toUpperCase();
       if (compressedTileColorLabels.has(label)) {
         patched.push('    ; Decompress ZX0 presentation color bank into RAM buffer');
-        patched.push(`    ld hl, ${hlPresentationColorMatch[1]}`);
+        patched.push(`    ld hl, ${hlPresentationColorMatch.label}`);
         patched.push(`    ld de, ${tileColorBufferSymbol}`);
         patched.push(`    call ${presentationDataInPage0 ? 'page0_decompress_to_ram' : 'dzx0_standard'}`);
         patched.push(`    ld hl, ${tileColorBufferSymbol}`);
@@ -1038,12 +1313,12 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       continue;
     }
 
-    if (compressedFontPatternLabels.size > 0 && /^\s*ld\s+iy,\s*FONT_PATTERN_DATA\s*(?:;.*)?$/i.test(line)) {
+    if (compressedFontPatternLabels.size > 0 && matchAsmLabelLoad(line, 'iy', 'FONT_PATTERN_DATA')) {
       patched.push(`    ld iy, ${fontPatternBufferSymbol}`);
       continue;
     }
 
-    if (compressedFontColorLabels.size > 0 && /^\s*ld\s+iy,\s*FONT_COLOR_DATA\s*(?:;.*)?$/i.test(line)) {
+    if (compressedFontColorLabels.size > 0 && matchAsmLabelLoad(line, 'iy', 'FONT_COLOR_DATA')) {
       patched.push(`    ld iy, ${fontColorBufferSymbol}`);
       continue;
     }
@@ -1069,6 +1344,9 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   }
 
   let finalCode = patched.join('\n');
+  if (/;\s*DATA BANKS .+Zone-packed data/i.test(finalCode)) {
+    finalCode = repackMegaromZonedDataSection(finalCode);
+  }
   const extraEquBlocks = [];
   const maxLayoutSize = selectedLayoutBlocks.size > 0
     ? Math.max(...Array.from(selectedLayoutBlocks.values()).map(b => b.bytes.length))
@@ -1212,17 +1490,30 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     );
   }
 
+  // Detect megarom: ZX0 blobs + helpers must land in banks 0-3 (before ds #C000 - $)
+  const isMegarom = /^\s*;\s*ROM Mode:\s*megarom\b/im.test(finalCode);
+  // For megarom and plain48k: inject code before ds #C000 - $ to stay in addressable window
+  const injectBeforePad = isMegarom || /^\s*;\s*Linear48K Page0 Data:\s*(Yes|No)\b/im.test(finalCode);
+
+  function injectCodeBeforeEnd(block) {
+    if (injectBeforePad) {
+      const padMatch = finalCode.match(/^\s*ds\s+#C000\s*-\s*[$][^\n]*/im);
+      if (padMatch) {
+        // Re-use the existing pad line so comments are preserved
+        finalCode = finalCode.replace(/^\s*ds\s+#C000\s*-\s*[$][^\n]*/im, `${block}\n${padMatch[0]}`);
+        return;
+      }
+    }
+    if (/^\s*end\b.*$/im.test(finalCode)) {
+      finalCode = finalCode.replace(/^\s*end\b.*$/im, `${block}\n$&`);
+    } else {
+      finalCode = `${finalCode}${block}`;
+    }
+  }
+
   if (extraDataBlocks.length > 0) {
     const dataBlock = `\n${extraDataBlocks.join('\n')}\n`;
-    if (/^\s*end\b.*$/im.test(finalCode)) {
-      finalCode = finalCode.replace(/^\s*end\b.*$/im, `${dataBlock}$&`);
-    } else if (/^\s*ds\s+#C000\s*-\s*[$][^\n]*/im.test(finalCode)) {
-      // plain48k: inject data BEFORE the final pad so blobs stay in #4000-#BFFF range
-      // Note: use [$] character class to match literal '$' (not end-of-line anchor)
-      finalCode = finalCode.replace(/^\s*ds\s+#C000\s*-\s*[$][^\n]*/im, `${dataBlock}\n    ds #C000 - $        ; Pad linear 48K ROM to 49152 bytes`);
-    } else {
-      finalCode = `${finalCode}${dataBlock}`;
-    }
+    injectCodeBeforeEnd(dataBlock);
   }
 
   if (extraEquBlocks.length > 0) {
@@ -1281,11 +1572,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       ''
     ].join('\n');
 
-    if (/^\s*end\b.*$/im.test(finalCode)) {
-      finalCode = finalCode.replace(/^\s*end\b.*$/im, `${spriteCopyHelperBlock}\n$&`);
-    } else {
-      finalCode = `${finalCode}\n${spriteCopyHelperBlock}\n`;
-    }
+    injectCodeBeforeEnd(spriteCopyHelperBlock);
   }
 
   if (!/^\s*dzx0_standard:/im.test(finalCode)) {
@@ -1308,11 +1595,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       ''
     ].join('\n');
 
-    if (/^\s*end\b.*$/im.test(finalCode)) {
-      finalCode = finalCode.replace(/^\s*end\b.*$/im, `${zx0Block}\n$&`);
-    } else {
-      finalCode = `${finalCode}\n${zx0Block}\n`;
-    }
+    injectCodeBeforeEnd(zx0Block);
   }
 
   // Keep the fixed-size 48KB pad as the last data reservation in plain48k builds.
@@ -1358,7 +1641,7 @@ app.get('/', (req, res) => {
  * @function
  */
 app.post('/compile', async (req, res) => {
-  const { code, generateSymbols, projectName, screenCompression, romMode, targetFormat, autoMegaROM } = req.body;
+  const { code, generateSymbols, projectName, screenCompression, romMode, targetFormat, autoMegaROM, romSizeKB } = req.body;
 
   console.log('Compilation request received');
   console.log('  projectName:', projectName);
@@ -1623,6 +1906,7 @@ app.post('/compile', async (req, res) => {
         let paddingPolicy = 'minimum 32KB + power-of-two 8KB banks';
         let plain48kSupportWarning = null;
 
+        // plain48k mode: may override targetSize to 48KB if layout is present
         if (normalizedRomMode === 'plain48k') {
           if (aligned8KBSize > PLAIN48_ROM_LIMIT_BYTES) {
             plain48kSupportWarning = 'Requested plain48k, but final ROM exceeds 48KB.';
@@ -1632,6 +1916,21 @@ app.post('/compile', async (req, res) => {
           } else if (aligned8KBSize > SIMPLE_ROM_LIMIT_BYTES) {
             targetSize = PLAIN48_ROM_LIMIT_BYTES;
             paddingPolicy = 'linear plain48k (fixed 48KB image)';
+          }
+        }
+
+        // Explicit romSizeKB override has highest priority (runs after plain48k auto-logic)
+        const VALID_ROM_SIZES_KB = [32, 48, 64, 128, 256];
+        const requestedRomSizeKB = typeof romSizeKB === 'number' && VALID_ROM_SIZES_KB.includes(romSizeKB)
+          ? romSizeKB
+          : null;
+        if (requestedRomSizeKB !== null) {
+          const requestedBytes = requestedRomSizeKB * 1024;
+          if (originalSize > requestedBytes) {
+            console.warn(`Requested ROM size ${requestedRomSizeKB}KB is smaller than compiled output (${originalSize} bytes). Ignoring size override.`);
+          } else {
+            targetSize = requestedBytes;
+            paddingPolicy = `forced ${requestedRomSizeKB}KB`;
           }
         }
 
@@ -1848,6 +2147,7 @@ app.post('/compile', async (req, res) => {
             paddedSize: paddedData.length,
             paddingAdded: paddedData.length - originalSize,
             paddingPolicy: paddingPolicy,
+            requestedRomSizeKB: requestedRomSizeKB,
             minimumFlashcartSize: MIN_FLASHCART_ROM_BYTES,
             aligned8KBSize: aligned8KBSize,
             aligned8KBBanks: aligned8KBBanks,

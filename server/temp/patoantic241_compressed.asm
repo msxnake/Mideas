@@ -19737,7 +19737,7 @@ SM_New_Statemachine_state_walk_right_fast_1774181000002_Transitions:
     DB 14; VARIABLE_COMPARE 
     DB 4, 0, 0; isOnGround (ID 4) == 0
     DB 14; VARIABLE_COMPARE 
-    DB 3, 2, 127; vy (ID 3) > 127
+    DB 3, 3, 128; vy (ID 3) < 128
     DW SM_New_Statemachine_state_1772025558931 
     DW 0 
 
@@ -19797,7 +19797,7 @@ SM_New_Statemachine_state_walk_left_fast_1774181000004_Transitions:
     DB 1; AND 
     DB 1 
     DB 14; VARIABLE_COMPARE 
-    DB 2, 2, 127; vx (ID 2) > 127
+    DB 2, 3, 128; vx (ID 2) < 128
     DW SM_New_Statemachine_state_walk_right_fast_1774181000002 
     DW 0 
     DB 1; AND 
@@ -19805,7 +19805,7 @@ SM_New_Statemachine_state_walk_left_fast_1774181000004_Transitions:
     DB 14; VARIABLE_COMPARE 
     DB 4, 0, 0; isOnGround (ID 4) == 0
     DB 14; VARIABLE_COMPARE 
-    DB 3, 2, 127; vy (ID 3) > 127
+    DB 3, 2, 128; vy (ID 3) > 128
     DW SM_New_Statemachine_state_1772025558931 
     DW 0 
 

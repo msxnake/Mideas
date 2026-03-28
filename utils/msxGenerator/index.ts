@@ -233,6 +233,7 @@ export function generateModularASM(
   );
   const needsFont = !!(hasMenus || hasText || hasHudElements);
   const fontInPage0 = romMode === 'plain48k' && needsFont;
+  const fontInBank4 = romMode === 'megarom' && needsFont;
   const fontRawData = fontInPage0 ? getFontRawData(analysis) : undefined;
 
   const files: GeneratedASMFiles = {
@@ -243,21 +244,21 @@ export function generateModularASM(
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
     'header.asm': generateHeaderFile(projectName, analysis, executionPlan, romMode),
-    'patterns.asm': generatePatternsFile(analysis, romMode),
-    'colors.asm': generateColorsFile(analysis, romMode),
-    'components.asm': interruptDrivenComponents
+    'patterns.asm': generatePatternsFile(analysis, romMode, romMode === 'megarom', targetFormat),
+    'colors.asm': generateColorsFile(analysis, romMode, romMode === 'megarom', targetFormat),
+    'components.asm': (interruptDrivenComponents && romMode !== 'megarom')
       ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
       : generateComponentsFile(analysis, romMode),
     'entities.asm': generateEntitiesFile(analysis),
-    'worlds.asm': generateWorldsFile(analysis),
-    'screens.asm': generateScreensFile(analysis, romMode),
-    'sprites.asm': generateSpritesFile(analysis, romMode),
-    'font.asm': generateFontFile(analysis, romMode, fontInPage0),
+    'worlds.asm': generateWorldsFile(analysis, romMode),
+    'screens.asm': generateScreensFile(analysis, romMode, romMode === 'megarom', targetFormat),
+    'sprites.asm': generateSpritesFile(analysis, romMode, targetFormat),
+    'font.asm': generateFontFile(analysis, romMode, fontInPage0, fontInBank4, targetFormat),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
     'sound.asm': generateSoundFile(analysis, executionPlan),
     'scroll.asm': generateScrollFile(analysis),
-    'animtiles.asm': generateAnimatedTilesFile(analysis, romMode),
+    'animtiles.asm': generateAnimatedTilesFile(analysis, romMode, targetFormat),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
       ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId, romMode)
       : '; No State Machines\n',
@@ -335,6 +336,7 @@ export function generateModularASMFromSummary(
   );
   const needsFont2 = !!(hasMenus2 || hasText2 || hasHudElements2);
   const fontInPage02 = romMode === 'plain48k' && needsFont2;
+  const fontInBank42 = romMode === 'megarom' && needsFont2;
   const fontRawData2 = fontInPage02 ? getFontRawData(analysis) : undefined;
 
   // Generate files using same logic as generateModularASM
@@ -346,21 +348,21 @@ export function generateModularASMFromSummary(
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
     'header.asm': generateHeaderFile(summary.projectInfo.name, analysis, executionPlan, romMode),
-    'patterns.asm': generatePatternsFile(analysis, romMode),
-    'colors.asm': generateColorsFile(analysis, romMode),
-    'components.asm': interruptDrivenComponents
+    'patterns.asm': generatePatternsFile(analysis, romMode, romMode === 'megarom', targetFormat),
+    'colors.asm': generateColorsFile(analysis, romMode, romMode === 'megarom', targetFormat),
+    'components.asm': (interruptDrivenComponents && romMode !== 'megarom')
       ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
       : generateComponentsFile(analysis, romMode),
     'entities.asm': generateEntitiesFile(analysis),
-    'worlds.asm': generateWorldsFile(analysis),
-    'screens.asm': generateScreensFile(analysis, romMode),
-    'sprites.asm': generateSpritesFile(analysis, romMode),
-    'font.asm': generateFontFile(analysis, romMode, fontInPage02),
+    'worlds.asm': generateWorldsFile(analysis, romMode),
+    'screens.asm': generateScreensFile(analysis, romMode, romMode === 'megarom', targetFormat),
+    'sprites.asm': generateSpritesFile(analysis, romMode, targetFormat),
+    'font.asm': generateFontFile(analysis, romMode, fontInPage02, fontInBank42, targetFormat),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
     'sound.asm': generateSoundFile(analysis, executionPlan),
     'scroll.asm': generateScrollFile(analysis),
-    'animtiles.asm': generateAnimatedTilesFile(analysis, romMode),
+    'animtiles.asm': generateAnimatedTilesFile(analysis, romMode, targetFormat),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
       ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId, romMode)
       : '; No State Machines\n',

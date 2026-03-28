@@ -144,7 +144,20 @@
       "Bash(mv \"C:/Users/salam/Documents/Programacion/Mideas/utils/msxECSGenerators.ts\" \"C:/Users/salam/Documents/Programacion/Mideas/utils/backup_old_generators/msxECSGenerators.ts\")",
       "Bash(wc -c \"C:/Users/salam/Downloads/unitedCompressedFiles\\(98\\).asm\")",
       "Bash(stat -c%s \"C:/Users/salam/Downloads/unitedCompressedFiles\\(98\\).asm\")",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Read(//c/Users/salam/**)",
+      "Bash(java -jar glass.jar \"C:/Users/salam/Downloads/unitedCompressedFiles\\(106\\).asm\" /tmp/test_megarom.rom)",
+      "Bash(java -jar glass.jar \"/c/Users/salam/Downloads/unitedCompressedFiles\\(106\\).asm\" \"/tmp/test_megarom.rom\")",
+      "Read(//mnt/c/Users/salam/server/**)",
+      "Read(//c//**)",
+      "Bash(wslpath \"C:/Users/salam/server\")",
+      "Bash(java -jar server/glass.jar \"Downloads/unitedCompressedFiles\\(106\\).asm\" \"/tmp/test_megarom.rom\")",
+      "Bash(wc -l \"Downloads/unitedCompressedFiles\\(106\\).asm\")",
+      "Bash(head -100 \"C:/Users/salam/Downloads/unitedCompressedFiles\\(106\\).asm\")",
+      "Bash(wc -l \"C:/Users/salam/Downloads/unitedCompressedFiles\\(106\\).asm\")",
+      "Bash(cd:*)",
+      "Bash(npx esbuild:*)",
+      "Bash(head -10 grep -n \"render_menu\\\\|init_menu_system\" /c/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/generators/gameFlowGenerator.js)"
     ],
     "deny": [],
     "ask": []

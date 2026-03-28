@@ -176,29 +176,37 @@ function generateModularASM(projectName, assets, config = {}) {
     console.log('📝 [MSX GENERATOR] Generating all ASM files...');
     console.log(`🔧 Hardware Mode: ${hardwareMode.toUpperCase()}, Optimize: ${optimizeLevel}`);
     console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
+    // For plain48k ROMs, move font data to page 0 to free space in the main ROM window
+    const hasMenus = analysis.gameFlow?.nodes?.some((node) => node.type === 'SubMenu');
+    const hasText = analysis.screenMaps?.some((screen) => screen.layers?.text || screen.textElements?.length > 0);
+    const hasHudElements = analysis.screenMaps?.some((screen) => screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
+    const needsFont = !!(hasMenus || hasText || hasHudElements);
+    const fontInPage0 = romMode === 'plain48k' && needsFont;
+    const fontInBank4 = romMode === 'megarom' && needsFont;
+    const fontRawData = fontInPage0 ? (0, fontGenerator_1.getFontRawData)(analysis) : undefined;
     const files = {
-        'page0.asm': (0, page0Generator_1.generatePage0File)(analysis, romMode),
+        'page0.asm': (0, page0Generator_1.generatePage0File)(analysis, romMode, fontRawData),
         'bios.asm': (0, biosGenerator_1.generateBIOSFile)({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
         'constants.asm': (0, constantsGenerator_1.generateConstantsFile)(analysis),
         'variables.asm': (0, variablesGenerator_1.generateVariablesFile)(analysis),
         'mapper.asm': (0, mapperGenerator_1.generateMapperFile)({ targetFormat, romMode, autoMegaROM }),
         'interrupt.asm': (0, interruptGenerator_1.generateInterruptFile)(analysis, { interruptDrivenComponents, romMode }, executionPlan),
         'header.asm': (0, headerGenerator_1.generateHeaderFile)(projectName, analysis, executionPlan, romMode),
-        'patterns.asm': (0, patternsGenerator_1.generatePatternsFile)(analysis, romMode),
-        'colors.asm': (0, colorsGenerator_1.generateColorsFile)(analysis, romMode),
-        'components.asm': interruptDrivenComponents
+        'patterns.asm': (0, patternsGenerator_1.generatePatternsFile)(analysis, romMode, romMode === 'megarom', targetFormat),
+        'colors.asm': (0, colorsGenerator_1.generateColorsFile)(analysis, romMode, romMode === 'megarom', targetFormat),
+        'components.asm': (interruptDrivenComponents && romMode !== 'megarom')
             ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
             : (0, componentsGenerator_1.generateComponentsFile)(analysis, romMode),
         'entities.asm': (0, entitiesGenerator_1.generateEntitiesFile)(analysis),
-        'worlds.asm': (0, worldGenerator_1.generateWorldsFile)(analysis),
-        'screens.asm': (0, screensGenerator_1.generateScreensFile)(analysis, romMode),
-        'sprites.asm': (0, spritesGenerator_1.generateSpritesFile)(analysis, romMode),
-        'font.asm': (0, fontGenerator_1.generateFontFile)(analysis, romMode),
+        'worlds.asm': (0, worldGenerator_1.generateWorldsFile)(analysis, romMode),
+        'screens.asm': (0, screensGenerator_1.generateScreensFile)(analysis, romMode, romMode === 'megarom', targetFormat),
+        'sprites.asm': (0, spritesGenerator_1.generateSpritesFile)(analysis, romMode, targetFormat),
+        'font.asm': (0, fontGenerator_1.generateFontFile)(analysis, romMode, fontInPage0, fontInBank4, targetFormat),
         'hud.asm': (0, hudGenerator_1.generateHudFile)(analysis),
         'menus.asm': (0, menusGenerator_1.generateMenusFile)(analysis),
         'sound.asm': (0, soundGenerator_1.generateSoundFile)(analysis, executionPlan),
         'scroll.asm': (0, scrollGenerator_1.generateScrollFile)(analysis),
-        'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis, romMode),
+        'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis, romMode, targetFormat),
         'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
             ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates, analysis.sounds, analysis.trackIndexByAssetId, romMode)
             : '; No State Machines\n',
@@ -252,30 +260,38 @@ function generateModularASMFromSummary(summary, config = {}) {
     const autoMegaROM = config.autoMegaROM ?? false;
     const executionPlan = buildValidatedExecutionPlan(analysis, config);
     console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
+    // For plain48k ROMs, move font data to page 0 to free space in the main ROM window
+    const hasMenus2 = analysis.gameFlow?.nodes?.some((node) => node.type === 'SubMenu');
+    const hasText2 = analysis.screenMaps?.some((screen) => screen.layers?.text || screen.textElements?.length > 0);
+    const hasHudElements2 = analysis.screenMaps?.some((screen) => screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
+    const needsFont2 = !!(hasMenus2 || hasText2 || hasHudElements2);
+    const fontInPage02 = romMode === 'plain48k' && needsFont2;
+    const fontInBank42 = romMode === 'megarom' && needsFont2;
+    const fontRawData2 = fontInPage02 ? (0, fontGenerator_1.getFontRawData)(analysis) : undefined;
     // Generate files using same logic as generateModularASM
     const files = {
-        'page0.asm': (0, page0Generator_1.generatePage0File)(analysis, romMode),
+        'page0.asm': (0, page0Generator_1.generatePage0File)(analysis, romMode, fontRawData2),
         'bios.asm': (0, biosGenerator_1.generateBIOSFile)({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
         'constants.asm': (0, constantsGenerator_1.generateConstantsFile)(analysis),
         'variables.asm': (0, variablesGenerator_1.generateVariablesFile)(analysis),
         'mapper.asm': (0, mapperGenerator_1.generateMapperFile)({ targetFormat, romMode, autoMegaROM }),
         'interrupt.asm': (0, interruptGenerator_1.generateInterruptFile)(analysis, { interruptDrivenComponents, romMode }, executionPlan),
         'header.asm': (0, headerGenerator_1.generateHeaderFile)(summary.projectInfo.name, analysis, executionPlan, romMode),
-        'patterns.asm': (0, patternsGenerator_1.generatePatternsFile)(analysis, romMode),
-        'colors.asm': (0, colorsGenerator_1.generateColorsFile)(analysis, romMode),
-        'components.asm': interruptDrivenComponents
+        'patterns.asm': (0, patternsGenerator_1.generatePatternsFile)(analysis, romMode, romMode === 'megarom', targetFormat),
+        'colors.asm': (0, colorsGenerator_1.generateColorsFile)(analysis, romMode, romMode === 'megarom', targetFormat),
+        'components.asm': (interruptDrivenComponents && romMode !== 'megarom')
             ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
             : (0, componentsGenerator_1.generateComponentsFile)(analysis, romMode),
         'entities.asm': (0, entitiesGenerator_1.generateEntitiesFile)(analysis),
-        'worlds.asm': (0, worldGenerator_1.generateWorldsFile)(analysis),
-        'screens.asm': (0, screensGenerator_1.generateScreensFile)(analysis, romMode),
-        'sprites.asm': (0, spritesGenerator_1.generateSpritesFile)(analysis, romMode),
-        'font.asm': (0, fontGenerator_1.generateFontFile)(analysis, romMode),
+        'worlds.asm': (0, worldGenerator_1.generateWorldsFile)(analysis, romMode),
+        'screens.asm': (0, screensGenerator_1.generateScreensFile)(analysis, romMode, romMode === 'megarom', targetFormat),
+        'sprites.asm': (0, spritesGenerator_1.generateSpritesFile)(analysis, romMode, targetFormat),
+        'font.asm': (0, fontGenerator_1.generateFontFile)(analysis, romMode, fontInPage02, fontInBank42, targetFormat),
         'hud.asm': (0, hudGenerator_1.generateHudFile)(analysis),
         'menus.asm': (0, menusGenerator_1.generateMenusFile)(analysis),
         'sound.asm': (0, soundGenerator_1.generateSoundFile)(analysis, executionPlan),
         'scroll.asm': (0, scrollGenerator_1.generateScrollFile)(analysis),
-        'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis, romMode),
+        'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis, romMode, targetFormat),
         'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
             ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates, analysis.sounds, analysis.trackIndexByAssetId, romMode)
             : '; No State Machines\n',

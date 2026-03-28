@@ -7,7 +7,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateUnifiedFile = generateUnifiedFile;
 const bankPacker_1 = require("../utils/bankPacker");
 const page0Generator_1 = require("./page0Generator");
+const fontGenerator_1 = require("./fontGenerator");
+const screensGenerator_1 = require("./screensGenerator");
+const patternsGenerator_1 = require("./patternsGenerator");
+const colorsGenerator_1 = require("./colorsGenerator");
 const zx0Utils_1 = require("./zx0Utils");
+const mapperWindowUtils_1 = require("./mapperWindowUtils");
+const megaromDataPacker_1 = require("../utils/megaromDataPacker");
 /**
  * Convert routine name to lowercase (for labels, CALL, JP, JR targets)
  */
@@ -40,18 +46,24 @@ function generateUnifiedFile(files, projectName, analysis, executionPlan, config
     targetFormat: 'konami',
     autoMegaROM: false
 }) {
-    const page0Plan = (0, page0Generator_1.buildPage0Plan)(analysis, config.romMode);
-    const hasPage0Data = (0, page0Generator_1.hasPage0DataGroups)(analysis, config.romMode);
     // Check what features are needed
     const hasPresentationScreenNode = analysis.gameFlow?.nodes?.some(node => node.type === 'PresentationScreen');
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
     const hasText = analysis.screenMaps?.some(screen => screen.layers?.text || screen.textElements?.length > 0);
     const hasHud = analysis.screenMaps?.some(screen => screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
     const needsFont = hasMenus || hasText || hasHud;
+    const fontInPage0 = config.romMode === 'plain48k' && !!needsFont;
+    const fontRawData = fontInPage0 ? (0, fontGenerator_1.getFontRawData)(analysis) : undefined;
+    const page0Plan = (0, page0Generator_1.buildPage0Plan)(analysis, config.romMode, fontRawData);
+    const hasPage0Data = (0, page0Generator_1.hasPage0DataGroups)(analysis, config.romMode, fontRawData);
     const bankPackReport = (0, bankPacker_1.buildBankPackReport)(files);
     const bankPackComments = (0, bankPacker_1.formatBankPackReportAsAsmComments)(bankPackReport);
     const executionPlanComments = formatExecutionPlanComments(executionPlan);
-    const needsZx0Decoder = (0, page0Generator_1.page0NeedsZx0Decoder)(analysis, config.romMode);
+    const needsZx0Decoder = (0, page0Generator_1.page0NeedsZx0Decoder)(analysis, config.romMode, fontRawData);
+    // Megarom uses a completely separate bank-aware layout
+    if (config.romMode === 'megarom') {
+        return generateMegaromUnifiedFile(files, projectName, analysis, executionPlan, config, { bankPackComments, executionPlanComments, hasMenus, needsFont, hasHud, hasPresentationScreenNode });
+    }
     return `; ==================================================================
 ; ${projectName.toUpperCase()} - UNIFIED FILE
 ; File: unitedFiles.asm
@@ -358,5 +370,656 @@ load_game_screen:
 ${config.romMode === 'plain48k' ? `    ds #C000 - $        ; Pad linear 48K ROM to 49152 bytes
 
 ` : ''}    end                 ; End of assembly
+`;
+}
+// ==================================================================
+// MEGAROM UNIFIED FILE GENERATOR
+// ==================================================================
+// Layout: N banks × 8KB, static 4-bank mapping + dynamic data banking
+//
+// STATIC MAP (always visible, set at boot in restart_rom_continue):
+//   Bank 0 @ 4000h-5FFFh : Bootstrap (header, bios, mapper, interrupt, init helpers)
+//   Bank 1 @ 6000h-7FFFh : Game code A (components, scroll, gameflow, worlds)
+//   Bank 2 @ 8000h-9FFFh : Game data  (sprites, patterns, colors, screens, animtiles)
+//   Bank 3 @ A000h-BFFFh : Game code B (entities, statemachine, font, menus, hud, sound)
+//
+// DYNAMIC BANKING (P2 window, bank 4+):
+//   Large data that overflows bank 2 is placed in banks 4+ (ORG #C000, #E000, #10000…).
+//   Loading routines switch P2 to the target bank, copy via FAST_LDIRVM, then restore P2.
+//   Data HL address uses (label & #1FFF) | #8000 (window-relative formula).
+//
+// BANK NUMBER FORMULA (assembly-time constant):
+//   BANK_N EQU ((label - #4000) / #2000)
+//   Works for all ORG values: #4000→0, #6000→1, #8000→2, #A000→3,
+//   #C000→4, #E000→5, #10000→6, #12000→7, …
+//
+// Note: DS padding between banks produces a compile error if a bank overflows 8KB.
+// For large projects (>8KB per bank section), split into additional banks.
+// ==================================================================
+// ==================================================================
+// FFD (First-Fit Decreasing) Bank Packer for MegaROM code banks 1-3
+// ==================================================================
+const MEGAROM_BANK_SIZE = 8192;
+// FFD packer threshold: use full 8KB.
+// estimateAsmBytesLocal overestimates by ~5-10x so virtually every module exceeds this
+// and gets its own bank slot — which is intentional (one module per physical bank).
+const MEGAROM_CODE_BANK_SIZE = MEGAROM_BANK_SIZE; // 8192 bytes
+// Resident execution kernel for MegaROM.
+// These modules must remain in the three fixed windows because the boot code,
+// main game loop, and entity/state updates execute every frame.
+const RESIDENT_MODULE_WINDOW_ORDER = [
+    { key: 'components', orgAddress: 0x6000, endAddress: 0x8000, windowPage: 1 },
+    { key: 'statemachine', orgAddress: 0x8000, endAddress: 0xA000, windowPage: 2 },
+    { key: 'gameflow', orgAddress: 0xA000, endAddress: 0xC000, windowPage: 3 },
+];
+const RESIDENT_MODULE_KEYS = new Set(RESIDENT_MODULE_WINDOW_ORDER.map((slot) => slot.key));
+function estimateAsmBytesLocal(asm) {
+    if (!asm)
+        return 0;
+    let dataBytes = 0;
+    const lines = asm.split(/\r?\n/);
+    for (const line of lines) {
+        const clean = line.split(';')[0].trim();
+        if (!clean)
+            continue;
+        const dbMatch = clean.match(/^db\s+(.+)$/i);
+        if (dbMatch) {
+            dataBytes += dbMatch[1].split(',').filter(t => t.trim().length > 0).length;
+            continue;
+        }
+        const dwMatch = clean.match(/^dw\s+(.+)$/i);
+        if (dwMatch) {
+            dataBytes += dwMatch[1].split(',').filter(t => t.trim().length > 0).length * 2;
+            continue;
+        }
+        const dsMatch = clean.match(/^ds\s+([^,]+)/i);
+        if (dsMatch) {
+            const v = dsMatch[1].trim().toLowerCase();
+            const n = /^\d+$/.test(v) ? parseInt(v, 10) : /^#([0-9a-f]+)$/.test(v) ? parseInt(v.slice(1), 16) : 0;
+            if (n > 0)
+                dataBytes += n;
+        }
+    }
+    const textBytes = asm.length;
+    return Math.max(dataBytes, Math.floor(textBytes * 0.28));
+}
+// Cyclic ORG/end addresses for code slots (P1, P2, P3 windows)
+const CODE_SLOT_ORG = [0x6000, 0x8000, 0xA000];
+const CODE_SLOT_END = [0x8000, 0xA000, 0xC000];
+const CODE_SLOT_PAGE = [1, 2, 3]; // mapper window page index
+function packModulesFFD(modules) {
+    const banks = [];
+    // Keep the resident execution kernel in fixed windows 1-3.
+    RESIDENT_MODULE_WINDOW_ORDER.forEach((slot, index) => {
+        const module = modules.find((candidate) => candidate.key === slot.key);
+        banks.push({
+            physicalBank: index + 1,
+            orgAddress: slot.orgAddress,
+            endAddress: slot.endAddress,
+            modules: module ? [module] : [],
+            usedBytes: module ? module.estimatedBytes : 0,
+            isFar: false,
+            windowPage: slot.windowPage,
+        });
+    });
+    // Everything else is explicitly banked and accessed through bank-0 wrappers/trampolines.
+    const bankedModules = modules
+        .filter((module) => !RESIDENT_MODULE_KEYS.has(module.key))
+        .sort((a, b) => b.estimatedBytes - a.estimatedBytes);
+    for (const module of bankedModules) {
+        const slotIndex = banks.length;
+        const physicalBank = slotIndex + 1;
+        const cycleIdx = slotIndex % 3;
+        banks.push({
+            physicalBank,
+            orgAddress: CODE_SLOT_ORG[cycleIdx],
+            endAddress: CODE_SLOT_END[cycleIdx],
+            modules: [module],
+            usedBytes: module.estimatedBytes,
+            isFar: true,
+            windowPage: CODE_SLOT_PAGE[cycleIdx],
+        });
+    }
+    return banks;
+}
+function formatPackedBankLayoutComment(banks) {
+    const lines = [
+        '; ------------------------------------------------------------------',
+        '; DYNAMIC BANK PACKER (FFD) — Estimated layout for code banks',
+        '; ------------------------------------------------------------------',
+    ];
+    for (const bank of banks) {
+        const orgHex = bank.orgAddress.toString(16).toUpperCase().padStart(4, '0');
+        const endHex = bank.endAddress.toString(16).toUpperCase().padStart(4, '0');
+        const moduleList = bank.modules.map(m => m.key).join(', ') || '(empty)';
+        const farTag = bank.isFar ? ' [FAR — accessed via trampoline]' : '';
+        lines.push(`; Bank ${bank.physicalBank} [#${orgHex}-#${endHex}]: ${moduleList} (${bank.usedBytes}/${MEGAROM_CODE_BANK_SIZE} bytes est.)${farTag}`);
+    }
+    lines.push('; Bank 4+ (data) [#C000+]: DATA (patterns, colors, screens, font, presentation)');
+    lines.push('; ------------------------------------------------------------------');
+    return lines.join('\n');
+}
+// ==================================================================
+// FAR-CALL TRAMPOLINE SUPPORT
+// ==================================================================
+// Far banks (physicalBank > 3) are not statically mapped at boot.
+// Callers in bank 0 use trampolines that:
+//   1. push/save the current P1 bank
+//   2. map the far bank to P1 (#6000)
+//   3. call the routine (which runs at its normal ORG address in P1)
+//   4. restore the original P1 bank
+//
+// The far bank's modules are assembled with the same ORG as their
+// windowPage (e.g. #6000 for windowPage=1). Because they contain
+// different labels from the primary bank at the same ORG, Glass
+// has no label conflicts. At runtime the CPU executes from the
+// correct physical bank via the trampoline.
+// ==================================================================
+/**
+ * Return the known callable entry points for a given module key.
+ * These are the labels that can be invoked from bank 0 / primary banks.
+ */
+function getKnownEntryPoints(moduleKey, analysis) {
+    switch (moduleKey) {
+        case 'patterns_code':
+            return [
+                'load_pattern_bank0',
+                'load_pattern_bank1',
+                'load_pattern_bank2',
+                'load_patterns_to_vram',
+            ];
+        case 'colors_code':
+            return [
+                'load_color_bank0',
+                'load_color_bank1',
+                'load_color_bank2',
+                'load_colors_to_vram',
+            ];
+        case 'entities':
+            return ['init_entities'];
+        case 'worlds': {
+            const worldMaps = analysis.worldmaps || [];
+            const pts = ['load_world_default', 'check_world_screen_transition'];
+            worldMaps.forEach((world, _wi) => {
+                const worldId = (world.id || 'unknown').toLowerCase().replace(/[^a-z0-9_]/g, '_');
+                pts.push(`load_world_${worldId}`);
+                const connections = world.connections || [];
+                connections.forEach((_c, ci) => {
+                    pts.push(`transition_${worldId}_${ci}`);
+                });
+            });
+            return pts;
+        }
+        case 'screens_code': {
+            const screenMaps = analysis.screenMaps || [];
+            return screenMaps.map((screen) => {
+                const screenName = (screen.name || 'unknown').toUpperCase().replace(/[^A-Z0-9]/g, '_').toLowerCase();
+                const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+                return `load_screen_${screenName}${screenIdSuffix.toLowerCase()}`;
+            });
+        }
+        case 'font':
+            return ['init_font_system'];
+        case 'menus':
+            return ['render_menu', 'init_menu_system'];
+        case 'hud':
+            return ['render_hud', 'force_render_hud', 'imprimir_marco', 'init_hud'];
+        case 'sound':
+            return ['init_sound_system', 'task_audio_tick', 'sfx_update', 'music_update', 'music_play_track'];
+        case 'statemachine':
+            return ['init_statemachine_system', 'update_statemachine_system', 'execute_all_state_machines'];
+        case 'gameflow':
+            return ['game_loop', 'gameflow_update'];
+        case 'sprites':
+            return ['update_sprites_to_vram', 'clear_all_sprites'];
+        case 'animtiles':
+            return ['init_animated_tiles', 'update_animated_tiles', 'update_animated_tiles_vram'];
+        default:
+            return [];
+    }
+}
+/**
+ * Generate far-call trampolines in bank 0 for all far-bank modules.
+ * Each trampoline uses the correct mapper window (pX) matching the far bank's ORG address:
+ *   windowPage 1 (#6000) → mapper_push_p1 / mapper_set_bank_p1 / mapper_pop_p1
+ *   windowPage 2 (#8000) → mapper_push_p2 / mapper_set_bank_p2 / mapper_pop_p2
+ *   windowPage 3 (#A000) → mapper_push_p3 / mapper_set_bank_p3 / mapper_pop_p3
+ * All trampolines live in bank 0 (fixed #4000-#5FFF) so they are always reachable.
+ */
+function generateFarCallTrampolines(farBanks, analysis) {
+    if (farBanks.length === 0)
+        return '';
+    let asm = `; ==================================================================
+; FAR-CALL TRAMPOLINES — bank 0 (always accessible at #4000-#5FFF)
+; Far banks are mapped to their window temporarily, routine is called,
+; then the original bank is restored. Window used matches the bank ORG.
+; ==================================================================
+
+`;
+    for (const bank of farBanks) {
+        const bankNum = bank.physicalBank;
+        const wp = bank.windowPage; // 1, 2 or 3
+        const orgHex = bank.orgAddress.toString(16).toUpperCase().padStart(4, '0');
+        asm += `; --- Far bank ${bankNum} [#${orgHex}, window P${wp}] trampolines ---\n`;
+        asm += `FAR_BANK_${bankNum} EQU ${bankNum}\n\n`;
+        for (const mod of bank.modules) {
+            const eps = getKnownEntryPoints(mod.key, analysis);
+            const content = mod.content || '';
+            for (const ep of eps) {
+                // Only generate trampolines for labels actually defined in the module
+                const labelPattern = new RegExp(`^${ep}:`, 'm');
+                if (!labelPattern.test(content)) {
+                    continue; // Skip — label not defined in this module
+                }
+                asm += `${ep}_far:\n`;
+                asm += `    push af\n`;
+                asm += `    call mapper_push_p${wp}\n`;
+                asm += `    ld a, FAR_BANK_${bankNum}\n`;
+                asm += `    call mapper_set_bank_p${wp}\n`;
+                asm += `    call ${ep}\n`;
+                asm += `    call mapper_pop_p${wp}\n`;
+                asm += `    pop af\n`;
+                asm += `    ret\n\n`;
+            }
+        }
+    }
+    return asm;
+}
+/**
+ * Given the set of far module keys, return the correct call label for an entry point.
+ * If the entry point is in a far module → append "_far", else use it directly.
+ */
+function farCallLabel(ep, farModuleKeys, moduleKey) {
+    return farModuleKeys.has(moduleKey) ? `${ep}_far` : ep;
+}
+function replaceCallInstruction(asm, fromLabel, toLabel) {
+    const pattern = new RegExp(`\\bcall\\s+${fromLabel}\\b`, 'g');
+    return asm.replace(pattern, `call ${toLabel}`);
+}
+function rewriteResidentCallSites(files) {
+    const rewritten = { ...files };
+    const replacements = [
+        ['check_world_screen_transition', 'call_check_world_screen_transition_resident'],
+        ['init_font_system', 'call_init_font_system_resident'],
+        ['render_hud', 'call_render_hud_resident'],
+        ['force_render_hud', 'call_force_render_hud_resident'],
+        ['init_sound_system', 'call_init_sound_system_resident'],
+        ['task_audio_tick', 'call_task_audio_tick_resident'],
+        ['music_update', 'call_music_update_resident'],
+        ['sfx_update', 'call_sfx_update_resident'],
+        ['music_play_track', 'call_music_play_track_resident'],
+        ['update_sprites_to_vram', 'call_update_sprites_to_vram_resident'],
+        ['clear_all_sprites', 'call_clear_all_sprites_resident'],
+        ['init_animated_tiles', 'call_init_animated_tiles_resident'],
+        ['update_animated_tiles', 'call_update_animated_tiles_resident'],
+        ['update_animated_tiles_vram', 'call_update_animated_tiles_vram_resident'],
+        ['load_colors_to_vram', 'call_load_colors_to_vram_resident'],
+    ];
+    Object.keys(rewritten).forEach((fileKey) => {
+        let asm = rewritten[fileKey];
+        for (const [fromLabel, toLabel] of replacements) {
+            asm = replaceCallInstruction(asm, fromLabel, toLabel);
+        }
+        rewritten[fileKey] = asm;
+    });
+    return rewritten;
+}
+function generateResidentCallWrappers(farModuleKeys) {
+    const checkWorldScreenTransitionCall = farCallLabel('check_world_screen_transition', farModuleKeys, 'worlds');
+    const initFontCall = farCallLabel('init_font_system', farModuleKeys, 'font');
+    const renderHudCall = farCallLabel('render_hud', farModuleKeys, 'hud');
+    const forceRenderHudCall = farCallLabel('force_render_hud', farModuleKeys, 'hud');
+    const initSoundCall = farCallLabel('init_sound_system', farModuleKeys, 'sound');
+    const taskAudioTickCall = farCallLabel('task_audio_tick', farModuleKeys, 'sound');
+    const musicUpdateCall = farCallLabel('music_update', farModuleKeys, 'sound');
+    const sfxUpdateCall = farCallLabel('sfx_update', farModuleKeys, 'sound');
+    const musicPlayTrackCall = farCallLabel('music_play_track', farModuleKeys, 'sound');
+    const updateSpritesCall = farCallLabel('update_sprites_to_vram', farModuleKeys, 'sprites');
+    const clearAllSpritesCall = farCallLabel('clear_all_sprites', farModuleKeys, 'sprites');
+    const initAnimatedTilesCall = farCallLabel('init_animated_tiles', farModuleKeys, 'animtiles');
+    const updateAnimatedTilesCall = farCallLabel('update_animated_tiles', farModuleKeys, 'animtiles');
+    const updateAnimatedTilesVramCall = farCallLabel('update_animated_tiles_vram', farModuleKeys, 'animtiles');
+    const loadColorsToVramCall = farCallLabel('load_colors_to_vram', farModuleKeys, 'colors_code');
+    return `; ==================================================================
+; RESIDENT CALL WRAPPERS — bank 0 stable entrypoints
+; Mainline code calls these labels instead of calling banked modules directly.
+; Each wrapper dispatches to the local label or its _far trampoline.
+; ==================================================================
+call_check_world_screen_transition_resident:
+    jp ${checkWorldScreenTransitionCall}
+
+call_init_font_system_resident:
+    jp ${initFontCall}
+
+call_render_hud_resident:
+    jp ${renderHudCall}
+
+call_force_render_hud_resident:
+    jp ${forceRenderHudCall}
+
+call_init_sound_system_resident:
+    jp ${initSoundCall}
+
+call_task_audio_tick_resident:
+    jp ${taskAudioTickCall}
+
+call_music_update_resident:
+    jp ${musicUpdateCall}
+
+call_sfx_update_resident:
+    jp ${sfxUpdateCall}
+
+call_music_play_track_resident:
+    jp ${musicPlayTrackCall}
+
+call_update_sprites_to_vram_resident:
+    jp ${updateSpritesCall}
+
+call_clear_all_sprites_resident:
+    jp ${clearAllSpritesCall}
+
+call_init_animated_tiles_resident:
+    jp ${initAnimatedTilesCall}
+
+call_update_animated_tiles_resident:
+    jp ${updateAnimatedTilesCall}
+
+call_update_animated_tiles_vram_resident:
+    jp ${updateAnimatedTilesVramCall}
+
+call_load_colors_to_vram_resident:
+    jp ${loadColorsToVramCall}
+
+`;
+}
+function generateMegaromUnifiedFile(files, projectName, analysis, executionPlan, config, options) {
+    const { bankPackComments, executionPlanComments, hasMenus, needsFont, hasHud, hasPresentationScreenNode } = options;
+    // NOTE 2026-03-26:
+    // The current MegaROM code layout below is still driven by an 8KB-first packer.
+    // The long-term rule is stricter:
+    // - place ZX0 assets after compression, using their final compressed sizes,
+    // - keep data inside hard 8KB/16KB zones depending on mapper format,
+    // - keep code in 16KB-stable regions where possible, only splitting at
+    //   explicit far-call boundaries.
+    // The data allocator below now enforces hard mapper-sized zones with
+    // explicit padding between zones so post-export ZX0 rewrites cannot make
+    // blocks drift across zone boundaries. Code placement is still an
+    // implementation step, not the final 16KB-stable policy.
+    // Build FFD packer layout for diagnostic comment
+    // Modules are the CODE sections (data goes to bank4, so patterns/colors/screens are code-only here)
+    const codeModules = [
+        { key: 'components', content: files['components.asm'], estimatedBytes: estimateAsmBytesLocal(files['components.asm']) },
+        { key: 'sprites', content: files['sprites.asm'], estimatedBytes: estimateAsmBytesLocal(files['sprites.asm']) },
+        { key: 'animtiles', content: files['animtiles.asm'], estimatedBytes: estimateAsmBytesLocal(files['animtiles.asm']) },
+        { key: 'scroll', content: files['scroll.asm'], estimatedBytes: estimateAsmBytesLocal(files['scroll.asm']) },
+        { key: 'patterns_code', content: files['patterns.asm'], estimatedBytes: estimateAsmBytesLocal(files['patterns.asm']) },
+        { key: 'colors_code', content: files['colors.asm'], estimatedBytes: estimateAsmBytesLocal(files['colors.asm']) },
+        { key: 'screens_code', content: files['screens.asm'], estimatedBytes: estimateAsmBytesLocal(files['screens.asm']) },
+        ...(analysis.gameFlow ? [{ key: 'gameflow', content: files['gameflow.asm'], estimatedBytes: estimateAsmBytesLocal(files['gameflow.asm']) }] : []),
+        { key: 'worlds', content: files['worlds.asm'], estimatedBytes: estimateAsmBytesLocal(files['worlds.asm']) },
+        ...(analysis.entities && analysis.entities.length > 0 ? [{ key: 'entities', content: files['entities.asm'], estimatedBytes: estimateAsmBytesLocal(files['entities.asm']) }] : []),
+        ...(files['statemachine.asm'] && files['statemachine.asm'].trim() !== '; No State Machines' ? [{ key: 'statemachine', content: files['statemachine.asm'], estimatedBytes: estimateAsmBytesLocal(files['statemachine.asm']) }] : []),
+        ...(needsFont ? [{ key: 'font', content: files['font.asm'], estimatedBytes: estimateAsmBytesLocal(files['font.asm']) }] : []),
+        ...(hasMenus ? [{ key: 'menus', content: files['menus.asm'], estimatedBytes: estimateAsmBytesLocal(files['menus.asm']) }] : []),
+        ...(hasHud ? [{ key: 'hud', content: files['hud.asm'], estimatedBytes: estimateAsmBytesLocal(files['hud.asm']) }] : []),
+        { key: 'sound', content: files['sound.asm'], estimatedBytes: estimateAsmBytesLocal(files['sound.asm']) },
+    ].filter(m => m.estimatedBytes > 0);
+    const packedBanks = packModulesFFD(codeModules);
+    const packerLayoutComment = formatPackedBankLayoutComment(packedBanks);
+    // Build bank4 section: pattern data + color data + screen data + font data + presentation screen
+    // assembled at org #C000. Labels accessed via P2 window using (label & #1FFF) | #8000.
+    const presentationBank4Data = (0, screensGenerator_1.getPresentationScreenBank4Data)(analysis);
+    const fontBank4Data = needsFont ? (0, fontGenerator_1.getFontBank4Data)(analysis) : '';
+    const patternsBank4Data = analysis.tiles && analysis.tiles.length > 0 ? (0, patternsGenerator_1.getPatternsBank4Data)(analysis) : '';
+    const colorsBank4Data = analysis.tiles && analysis.tiles.length > 0 ? (0, colorsGenerator_1.getColorsBank4Data)(analysis) : '';
+    const screensBank4Data = analysis.screenMaps && analysis.screenMaps.length > 0
+        ? (0, screensGenerator_1.getScreensBank4Data)(analysis, config.targetFormat) : '';
+    // Separate primary banks (1-3, always mapped) from far banks (4+, trampoline accessed)
+    const primaryBanks = packedBanks.filter(b => !b.isFar);
+    const farCodeBanks = packedBanks.filter(b => b.isFar);
+    // Build set of module keys that ended up in far banks
+    const farModuleKeySet = new Set(farCodeBanks.flatMap(b => b.modules.map(m => m.key)));
+    // Generate far-call trampolines for bank 0
+    const farTrampolines = generateFarCallTrampolines(farCodeBanks, analysis);
+    const residentCallWrappers = generateResidentCallWrappers(farModuleKeySet);
+    const emittedFiles = rewriteResidentCallSites(files);
+    // Determine whether init_entities and init_font_system are in far banks
+    const initEntitiesCall = farModuleKeySet.has('entities') ? 'init_entities_far' : 'init_entities';
+    const initFontCall = farModuleKeySet.has('font') ? 'init_font_system_far' : 'init_font_system';
+    const loadPatternBank0Call = farCallLabel('load_pattern_bank0', farModuleKeySet, 'patterns_code');
+    const loadPatternBank1Call = farCallLabel('load_pattern_bank1', farModuleKeySet, 'patterns_code');
+    const loadPatternBank2Call = farCallLabel('load_pattern_bank2', farModuleKeySet, 'patterns_code');
+    const loadColorBank0Call = farCallLabel('load_color_bank0', farModuleKeySet, 'colors_code');
+    const loadColorBank1Call = farCallLabel('load_color_bank1', farModuleKeySet, 'colors_code');
+    const loadColorBank2Call = farCallLabel('load_color_bank2', farModuleKeySet, 'colors_code');
+    const initAnimatedTilesCall = farCallLabel('init_animated_tiles', farModuleKeySet, 'animtiles');
+    const mapperWindow = (0, mapperWindowUtils_1.getMapperWindowConfig)(config.romMode, config.targetFormat);
+    const dataZoneSize = mapperWindow.dataZoneSize;
+    const totalCodeBanks = packedBanks.length; // primary + far code banks (boot bank 0 not counted)
+    const emittedCodeBytes = (totalCodeBanks + 1) * 0x2000; // bank0 bootstrap + packed 8KB code banks
+    const alignedDataOffset = Math.ceil(emittedCodeBytes / dataZoneSize) * dataZoneSize;
+    const dataOrgAddress = 0x4000 + alignedDataOffset;
+    const dataStartPhysBank = (dataOrgAddress - 0x4000) / dataZoneSize;
+    const dataPack = (0, megaromDataPacker_1.packMegaromDataGroups)([
+        { groupName: 'patterns', asm: patternsBank4Data },
+        { groupName: 'colors', asm: colorsBank4Data },
+        { groupName: 'screens', asm: screensBank4Data },
+        { groupName: 'font', asm: fontBank4Data },
+        { groupName: 'presentation', asm: presentationBank4Data },
+    ].filter((group) => group.asm.trim().length > 0), dataOrgAddress, dataZoneSize);
+    if (dataPack.overflowBlocks.length > 0) {
+        const overflowSummary = dataPack.overflowBlocks
+            .map((block) => `${block.label} (${block.byteSize} bytes > zone ${dataZoneSize})`)
+            .join(', ');
+        throw new Error(`MegaROM data zone overflow: ${overflowSummary}`);
+    }
+    const overflowDataSection = `; ==================================================================
+; DATA BANKS — Zone-packed data (${dataZoneSize} bytes per zone)
+; First data bank: ${dataStartPhysBank}
+; Accessed through mapper ${mapperWindow.dataWindowPage.toUpperCase()} using
+; (label & ${mapperWindow.windowMaskExpr}) | ${mapperWindow.windowBaseExpr}.
+; BANK_NUMBER = ((label - #4000) / ${mapperWindow.bankDivisorExpr})
+; NOTE: Each zone is explicitly padded to preserve bank placement even after
+;       server-side ZX0 block rewrites shrink individual data blobs.
+; ==================================================================
+${dataPack.diagnosticsComment}
+
+${dataPack.asm}`;
+    const farCodeBanksAsmComment = farCodeBanks.length > 0
+        ? `; Far code banks: ${farCodeBanks.map(b => `bank${b.physicalBank}(${b.modules.map(m => m.key).join(',')})`).join(' ')}\n`
+        : '';
+    return `; ==================================================================
+; ${projectName.toUpperCase()} - MEGAROM UNIFIED FILE
+; File: unitedFiles.asm
+; ROM Mode: megarom (multi-bank, 8KB banks, ASCII8K/Konami pattern)
+; Mapper: ${config.targetFormat}
+;
+; Bank 0 [#4000-#5FFFh] : Bootstrap (header, bios, mapper, interrupt, init)
+; Banks 1-3 [#6000-#BFFFh] : Game code — FFD-packed primary (see layout below)
+; Bank 4+ (code) [far]  : Far code banks — accessed via trampolines in bank 0
+; Bank 4+ (data) [#C000h+] : DATA TABLES (patterns, colors, screens, font - P2 switch)
+;
+; Tiles: ${analysis.tiles?.length || 0}
+; Sprites: ${analysis.sprites?.length || 0}
+; Screens: ${analysis.screenMaps?.length || 0}
+; Entities: ${analysis.entities?.length || 0}
+; Menus: ${hasMenus ? 'Yes' : 'No'}
+; HUD: ${hasHud ? 'Yes' : 'No'}
+; State Machines: ${analysis.stateMachines?.length || 0}
+${executionPlanComments}${packerLayoutComment}
+${farCodeBanksAsmComment}${bankPackComments}; ==================================================================
+
+; ##################################################################
+; BANK 0 — Bootstrap (#4000h-#5FFFh, FIXED window in Konami mapper)
+; Contains: header, bios, constants, variables, mapper, interrupt,
+;           page-0 stubs, far-call trampolines, init_game_systems.
+; All mapper_set_bank calls are here so they execute from this fixed bank.
+; ##################################################################
+
+; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
+${emittedFiles['header.asm']}
+
+${emittedFiles['bios.asm']}
+
+${emittedFiles['constants.asm']}
+
+${emittedFiles['variables.asm']}
+
+${emittedFiles['mapper.asm']}
+
+; ==================================================================
+; PAGE-0 STUBS — labels required by header.asm, no-ops in megarom
+; ==================================================================
+init_page0_runtime_state:
+    ret
+
+page0_map_expanded_slot:
+    ret
+
+page0_map_game_rom:
+    ret
+
+page0_restore_bios_rom:
+    ret
+
+page0_copy_chunk_to_buffer:
+    ret
+
+page0_decompress_to_ram:
+    ret
+
+page0_copy_to_vram:
+    ret
+
+${emittedFiles['interrupt.asm']}
+
+${farTrampolines}${residentCallWrappers}; ==================================================================
+; INIT_GAME_SYSTEMS — in bank 0 so it is reachable from any bank
+; Calls routines in statically-mapped primary banks (1-3) via CALL.
+; Routines in far banks (4+) are called via _far trampolines above.
+; ==================================================================
+init_game_systems:
+    call DISSCR               ; Disable screen while loading VRAM assets
+${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize component systems (entities detected)
+    call init_components
+` : `    ; No entities - skipping component system initialization
+`}
+${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load pattern and color data (tiles detected)
+    call ${loadPatternBank0Call}
+    call ${loadPatternBank1Call}
+    call ${loadPatternBank2Call}
+    call ${loadColorBank0Call}
+    call ${loadColorBank1Call}
+    call ${loadColorBank2Call}
+` : `    ; No tiles detected - skipping pattern/color loading
+`}
+    ; Initialize animated tile runtime (safe no-op if no animated groups)
+    call ${initAnimatedTilesCall}
+
+${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize game entities with real positions from JSON
+    call ${initEntitiesCall}
+` : `    ; No entities to initialize
+`}
+${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load the first game screen
+    call load_game_screen
+    call rebuild_used_entity_list
+` : `    ; No screens - skip screen loading
+`}
+${needsFont ? `    ; Initialize font system
+    call ${initFontCall}
+` : `    ; No text/menus - skip font initialization
+`}${hasHud ? `    ; HUD dirty flag - will be rendered after screen loading (by GameFlow WorldLink)
+    ld a, 1
+    ld (hud_dirty_flag), a
+` : ``}    call ENASCR               ; Re-enable screen after VRAM updates
+    ret
+
+load_game_screen:
+    ret
+
+${!needsFont ? `init_font_system:
+    ret
+
+` : ''}; --- End of Bank 0 — pad to 8KB boundary ---
+    ds #6000 - $, #FF
+
+${primaryBanks.map(bank => {
+        const orgHex = bank.orgAddress.toString(16).toUpperCase().padStart(4, '0');
+        const endHex = bank.endAddress.toString(16).toUpperCase().padStart(4, '0');
+        const moduleList = bank.modules.map(m => m.key).join(', ') || '(empty)';
+        const moduleContents = bank.modules.map(m => {
+            switch (m.key) {
+                case 'components': return emittedFiles['components.asm'];
+                case 'sprites': return emittedFiles['sprites.asm'];
+                case 'animtiles': return emittedFiles['animtiles.asm'];
+                case 'scroll': return emittedFiles['scroll.asm'];
+                case 'patterns_code': return emittedFiles['patterns.asm'];
+                case 'colors_code': return emittedFiles['colors.asm'];
+                case 'screens_code': return emittedFiles['screens.asm'];
+                case 'gameflow': return emittedFiles['gameflow.asm'];
+                case 'worlds': return emittedFiles['worlds.asm'];
+                case 'entities': return emittedFiles['entities.asm'];
+                case 'statemachine': return emittedFiles['statemachine.asm'];
+                case 'font': return emittedFiles['font.asm'];
+                case 'menus': return emittedFiles['menus.asm'];
+                case 'hud': return emittedFiles['hud.asm'];
+                case 'sound': return emittedFiles['sound.asm'];
+                default: return m.content;
+            }
+        }).join('\n\n');
+        return `; ##################################################################
+; BANK ${bank.physicalBank} — [#${orgHex}h-#${endHex}h] PRIMARY: ${moduleList}
+; (Always mapped at boot: bank1→P1, bank2→P2, bank3→P3)
+; ##################################################################
+    org #${orgHex}
+
+${moduleContents || '; (empty bank)'}
+
+; --- End of Bank ${bank.physicalBank} — pad to 8KB boundary ---
+    ds #${endHex} - $, #FF`;
+    }).join('\n\n')}
+
+${farCodeBanks.length > 0 ? `${farCodeBanks.map(bank => {
+        const orgHex = bank.orgAddress.toString(16).toUpperCase().padStart(4, '0');
+        const endHex = bank.endAddress.toString(16).toUpperCase().padStart(4, '0');
+        const moduleList = bank.modules.map(m => m.key).join(', ') || '(empty)';
+        const moduleContents = bank.modules.map(m => {
+            switch (m.key) {
+                case 'components': return emittedFiles['components.asm'];
+                case 'sprites': return emittedFiles['sprites.asm'];
+                case 'animtiles': return emittedFiles['animtiles.asm'];
+                case 'scroll': return emittedFiles['scroll.asm'];
+                case 'patterns_code': return emittedFiles['patterns.asm'];
+                case 'colors_code': return emittedFiles['colors.asm'];
+                case 'screens_code': return emittedFiles['screens.asm'];
+                case 'gameflow': return emittedFiles['gameflow.asm'];
+                case 'worlds': return emittedFiles['worlds.asm'];
+                case 'entities': return emittedFiles['entities.asm'];
+                case 'statemachine': return emittedFiles['statemachine.asm'];
+                case 'font': return emittedFiles['font.asm'];
+                case 'menus': return emittedFiles['menus.asm'];
+                case 'hud': return emittedFiles['hud.asm'];
+                case 'sound': return emittedFiles['sound.asm'];
+                default: return m.content;
+            }
+        }).join('\n\n');
+        return `; ##################################################################
+; FAR BANK ${bank.physicalBank} — [#${orgHex}h-#${endHex}h] FAR CODE: ${moduleList}
+; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
+; At runtime: bank0 saves P${bank.windowPage}, maps bank${bank.physicalBank} to P${bank.windowPage},
+; calls routine, then restores P${bank.windowPage}.
+; NOTE: routines in this bank MUST only call code in bank 0 or
+;       primary banks (1-3). No far-to-far calls allowed.
+; ##################################################################
+    org #${orgHex}
+
+${moduleContents || '; (empty far bank)'}
+
+; --- End of Far Bank ${bank.physicalBank} — pad to 8KB boundary ---
+    ds #${endHex} - $, #FF`;
+    }).join('\n\n')}` : ''}
+
+${overflowDataSection}
+    end                 ; End of assembly
 `;
 }

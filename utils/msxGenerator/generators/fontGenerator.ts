@@ -5,6 +5,14 @@
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { usesMapperBanking } from './romModeUtils';
+import {
+    buildMapperBankEqu,
+    buildMapperDataPopAsm,
+    buildMapperDataPushAsm,
+    buildMapperWindowedAddress,
+    getMapperWindowConfig,
+    type MapperTargetFormat,
+} from './mapperWindowUtils';
 
 export interface FontRawData {
     patternBytes: number[];
@@ -93,7 +101,13 @@ export function getFontRawData(analysis: ProjectAnalysis): FontRawData {
  * @param fontInPage0 - When true (plain48k), data blobs are emitted in page0.asm instead
  * @returns ASM code string with font patterns and loading functions
  */
-export function generateFontFile(analysis: ProjectAnalysis, romMode: string = 'simple32k', fontInPage0: boolean = false): string {
+export function generateFontFile(
+    analysis: ProjectAnalysis,
+    romMode: string = 'simple32k',
+    fontInPage0: boolean = false,
+    fontInBank4: boolean = false,
+    targetFormat: MapperTargetFormat = 'konami'
+): string {
     // Check if font is needed (menus, text, or HUD elements)
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
     const hasText = analysis.screenMaps?.some(screen =>
@@ -143,11 +157,12 @@ print_string_screen2:
     });
     indexAsm += `\nFONT_CHAR_COUNT EQU ${sortedCodes.length}\n`;
 
-    // Build FONT_PATTERN_DATA and FONT_COLOR_DATA blobs only when NOT in page0 mode
+    // Build FONT_PATTERN_DATA and FONT_COLOR_DATA blobs only when NOT in page0/bank4 mode
     // (in page0 mode these labels/bytes are emitted by page0Generator.ts)
+    // (in bank4 mode these labels/bytes are emitted in the org #C000 bank4 section)
     let patternAsm = '';
     let colorAsm = '';
-    if (!fontInPage0) {
+    if (!fontInPage0 && !fontInBank4) {
         let patternAsmBlob = `FONT_PATTERN_DATA:\n`;
         let colorAsmBlob = `FONT_COLOR_DATA:\n`;
         sortedCodes.forEach((code, i) => {
@@ -163,24 +178,35 @@ print_string_screen2:
     }
 
     const usesMapper = usesMapperBanking(romMode);
-    const mapperPushPat = usesMapper ? '    call mapper_push_p2\n    ld a, FONT_PATTERN_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
-    const mapperPushCol = usesMapper ? '    call mapper_push_p2\n    ld a, FONT_COLOR_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
-    const mapperPop    = usesMapper ? '    call mapper_pop_p2\n' : '';
+    const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
+    const mapperPushPat = usesMapper ? buildMapperDataPushAsm('FONT_PATTERN_DATA_BANK', mapperWindow) : '';
+    const mapperPushCol = usesMapper ? buildMapperDataPushAsm('FONT_COLOR_DATA_BANK', mapperWindow) : '';
+    const mapperPop    = usesMapper ? buildMapperDataPopAsm(mapperWindow) : '';
+    const bankedPatternAddress = buildMapperWindowedAddress('FONT_PATTERN_DATA', mapperWindow);
+    const bankedColorAddress = buildMapperWindowedAddress('FONT_COLOR_DATA', mapperWindow);
 
     const bankEqUs = fontInPage0 ? `; FONT_DATA_ROM_DATA_GROUP: page0
 ; (FONT_PATTERN_DATA and FONT_COLOR_DATA are in page0.asm for plain48k ROMs)
-` : `FONT_PATTERN_DATA_BANK EQU ((FONT_PATTERN_DATA - #4000) / #2000)
-FONT_COLOR_DATA_BANK   EQU ((FONT_COLOR_DATA - #4000) / #2000)
+` : fontInBank4 ? `; FONT_DATA_ROM_DATA_GROUP: bank4
+; (FONT_PATTERN_DATA and FONT_COLOR_DATA are in bank4 section, org #C000, for megarom builds)
+FONT_PATTERN_DATA_BANK EQU ${buildMapperBankEqu('FONT_PATTERN_DATA', mapperWindow)}
+FONT_COLOR_DATA_BANK   EQU ${buildMapperBankEqu('FONT_COLOR_DATA', mapperWindow)}
+` : `FONT_PATTERN_DATA_BANK EQU ${buildMapperBankEqu('FONT_PATTERN_DATA', mapperWindow)}
+FONT_COLOR_DATA_BANK   EQU ${buildMapperBankEqu('FONT_COLOR_DATA', mapperWindow)}
 `;
 
-    const patternSection = fontInPage0 ? '; [FONT_PATTERN_DATA blob emitted in page0.asm]\n' : `; ==================================================================
+    const patternSection = fontInPage0 ? '; [FONT_PATTERN_DATA blob emitted in page0.asm]\n'
+        : fontInBank4 ? '; [FONT_PATTERN_DATA blob emitted in bank4 section (org #C000)]\n'
+        : `; ==================================================================
 ; FONT PATTERN DATA
 ; ==================================================================
 
 ${patternAsm}
 `;
 
-    const colorSection = fontInPage0 ? '; [FONT_COLOR_DATA blob emitted in page0.asm]\n' : `; ==================================================================
+    const colorSection = fontInPage0 ? '; [FONT_COLOR_DATA blob emitted in page0.asm]\n'
+        : fontInBank4 ? '; [FONT_COLOR_DATA blob emitted in bank4 section (org #C000)]\n'
+        : `; ==================================================================
 ; FONT COLOR ATTRIBUTES
 ; ==================================================================
 
@@ -234,7 +260,7 @@ load_all_font_banks:
 ; Input: DE = Bank Base Address
 load_font_patterns_to_bank:
 ${mapperPushPat}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
-    ld iy, FONT_PATTERN_DATA      ; Pointer to pattern data
+    ld iy, ${fontInBank4 ? bankedPatternAddress : 'FONT_PATTERN_DATA'}      ; Pointer to pattern data (window addr for bank4)
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 
 .load_loop:
@@ -292,7 +318,7 @@ load_font_colors_all_banks:
 ; Input: DE = Bank Base Address
 load_font_colors_to_bank:
 ${mapperPushCol}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
-    ld iy, FONT_COLOR_DATA        ; Pointer to color data
+    ld iy, ${fontInBank4 ? bankedColorAddress : 'FONT_COLOR_DATA'}        ; Pointer to color data (window addr for bank4)
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 
 .load_colors_loop:
@@ -377,4 +403,32 @@ init_font_system:
 ; END OF FONT DATA
 ; ==================================================================
 `;
+}
+
+/**
+ * Returns only the DB byte blocks for font data, for bank4 placement.
+ * Used by unifiedGenerator when romMode === 'megarom' to emit data after org #C000.
+ */
+export function getFontBank4Data(analysis: ProjectAnalysis): string {
+    const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
+    const hasText = analysis.screenMaps?.some(screen =>
+        (screen.layers as any)?.text || (screen as any).textElements?.length > 0
+    );
+    const hasHUD = analysis.screenMaps?.some(screen =>
+        screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
+    );
+    if (!hasMenus && !hasText && !hasHUD) return '';
+
+    const { patternBytes, colorBytes, sortedCodes } = getFontRawData(analysis);
+    let patternAsmBlob = `FONT_PATTERN_DATA:\n`;
+    let colorAsmBlob = `FONT_COLOR_DATA:\n`;
+    sortedCodes.forEach((code, i) => {
+        const pattern = patternBytes.slice(i * 8, i * 8 + 8);
+        const color = colorBytes.slice(i * 8, i * 8 + 8);
+        patternAsmBlob += `    ; Char ${code} ('${String.fromCharCode(code)}')\n`;
+        patternAsmBlob += `    DB ${pattern.map(b => '#' + b.toString(16).padStart(2, '0').toUpperCase()).join(', ')}\n`;
+        colorAsmBlob += `    ; Char ${code}\n`;
+        colorAsmBlob += `    DB ${color.map(b => '#' + b.toString(16).padStart(2, '0').toUpperCase()).join(', ')}\n`;
+    });
+    return patternAsmBlob + '\n' + colorAsmBlob;
 }

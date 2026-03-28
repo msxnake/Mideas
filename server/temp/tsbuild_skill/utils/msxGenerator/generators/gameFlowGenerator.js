@@ -10,6 +10,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateGameFlowFile = generateGameFlowFile;
 const constants_1 = require("../../../constants");
+const spriteUtils_1 = require("../../../components/utils/spriteUtils");
 function hasFrameAudio(analysis) {
     return ((analysis.tracks?.length || 0) > 0) || ((analysis.stateMachines?.length || 0) > 0);
 }
@@ -150,7 +151,7 @@ function getSpriteLayerConfigForSubmenuCursor(sprite) {
     if (selectedLayers.length === 0) {
         return { layerOffsets: [0], layerColors: [15] };
     }
-    const layerOffsets = selectedLayers.map((_idx, compactIndex) => compactIndex);
+    const layerOffsets = selectedLayers.slice();
     const layerColors = selectedLayers.map((idx) => {
         const hex = palette[idx];
         if (!hex || (bg && hex === bg))
@@ -217,6 +218,12 @@ function getScreenLoadRoutineName(screen) {
     const screenName = (screen.name || 'DEFAULT').toUpperCase().replace(/[^A-Z0-9]/g, '_');
     const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
     return `load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
+}
+function getSpriteFrameLayerLabel(sprite, spriteIndex, frameIndex, layerIndex) {
+    const spriteName = sprite?.name || `sprite_${spriteIndex}`;
+    const uniqueName = `${spriteName}_${spriteIndex}`;
+    const safeSpriteName = uniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+    return `${safeSpriteName}_F${frameIndex}_LAYER${layerIndex}`;
 }
 /**
  * Resolve a global variable reference used by GameFlow nodes.
@@ -1355,10 +1362,30 @@ str_credits:
                 break;
             case 'SubMenu':
                 {
-                    const submenuCursorPatternCount = Math.max((analysis.sprites?.length || 0), 1);
+                    // Use the expanded directional sprite catalog so label names match spritesGenerator.
+                    const spriteCatalog = (0, spriteUtils_1.buildMSXDirectionalSpriteCatalog)(analysis.sprites || []);
+                    const sprites = spriteCatalog.sprites;
+                    const submenuCursorPatternCount = Math.max(sprites.length, 1);
                     let submenuCursorPatternTable = '';
+                    let submenuCursorLayerPtrTable = '';
+                    let submenuCursorLayerBankTable = '';
                     for (let i = 0; i < submenuCursorPatternCount; i++) {
+                        const sprite = sprites[i];
                         submenuCursorPatternTable += `    dw SPRITE_${i}_PATTERN\n`;
+                        const selectedLayers = sprite
+                            ? analyzeDrawableLayerIndexes(sprite).slice(0, 4)
+                            : [];
+                        for (let layerSlot = 0; layerSlot < 4; layerSlot++) {
+                            const sourceLayerIndex = selectedLayers[layerSlot];
+                            if (sourceLayerIndex === undefined) {
+                                submenuCursorLayerPtrTable += `    dw 0\n`;
+                                submenuCursorLayerBankTable += `    db 0\n`;
+                                continue;
+                            }
+                            const layerLabel = getSpriteFrameLayerLabel(sprite, i, 0, sourceLayerIndex);
+                            submenuCursorLayerPtrTable += `    dw ${layerLabel}\n`;
+                            submenuCursorLayerBankTable += `    db ((${layerLabel} - #4000) / #2000)\n`;
+                        }
                     }
                     code += `gameflow_handle_submenu:
     ; SubMenu node - interactive navigation
@@ -1784,23 +1811,22 @@ submenu_prepare_cursor_sprite:
 .sps_layer_ok:
     ld (gameflow_submenu_cursor_layer_count), a
 
-    ; Copy selected source layers to reserved cursor slots.
-    ; Header offsets +3..+6 are kept for format compatibility, but sprite
-    ; export is compact (layer0..layerN-1), so we upload a contiguous block:
-    ; bytes = layer_count * 32.
-    ; In ZX0-compressed exports, server-side preprocessing rewrites this
-    ; FAST_LDIRVM call to COPY_SPRITE_SRC_TO_VRAM.
-    pop hl                        ; HL = source pattern base
+    ; Upload all layers as one contiguous block.
+    ; SPRITE_X_PATTERN points to layer0 data; layers are stored sequentially
+    ; in ROM so layer_count * 32 bytes covers all of them.
+    ; SPRPAT + (SUBMENU_CURSOR_BASE_SPRITE * 32) is an assembly-time constant
+    ; (no 8-bit runtime overflow).
+    pop hl                        ; HL = source pattern base (SPRITE_X_PATTERN)
     ld a, (gameflow_submenu_cursor_layer_count)
     add a, a                      ; *2
     add a, a                      ; *4
     add a, a                      ; *8
     add a, a                      ; *16
-    add a, a                      ; *32
+    add a, a                      ; *32  (layer_count <= 4, max 128 — fits in A)
     ld c, a
-    ld b, 0
+    ld b, 0                       ; BC = layer_count * 32
     ld de, SPRPAT + (SUBMENU_CURSOR_BASE_SPRITE * 32)
-    call FAST_LDIRVM
+    call COPY_SPRITE_SRC_TO_VRAM
 
 .sps_enable_cursor:
 
@@ -1982,12 +2008,70 @@ submenu_get_cursor_pattern_ptr:
     scf
     ret
 
+; ------------------------------------------------------------------
+; submenu_get_cursor_layer_source
+; Input: A = sprite asset index, C = compact layer slot (0..3)
+; Output: HL = source label, A = source bank, CF=1 on invalid/missing layer
+; ------------------------------------------------------------------
+submenu_get_cursor_layer_source:
+    cp SUBMENU_CURSOR_PATTERN_COUNT
+    jr nc, .sgcls_invalid
+    ld b, a
+    ld a, c
+    cp 4
+    jr nc, .sgcls_invalid
+
+    ; Pattern pointer table offset = sprite_index * 8 + layer_slot * 2
+    ld l, b
+    ld h, 0
+    add hl, hl                    ; *2
+    add hl, hl                    ; *4
+    add hl, hl                    ; *8
+    ld a, c
+    add a, a                      ; layer_slot * 2
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld de, submenu_cursor_sprite_layer_pattern_table
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, d
+    or e
+    jr z, .sgcls_invalid
+    ex de, hl
+
+    ; Bank table offset = sprite_index * 4 + layer_slot
+    ld l, b
+    ld h, 0
+    add hl, hl                    ; *2
+    add hl, hl                    ; *4
+    ld d, 0
+    ld e, c
+    add hl, de
+    ld de, submenu_cursor_sprite_layer_bank_table
+    add hl, de
+    ld a, (hl)
+    or a                          ; clear carry
+    ret
+
+.sgcls_invalid:
+    scf
+    ret
+
 SUBMENU_CURSOR_BASE_SPRITE EQU 28
 SUBMENU_CURSOR_MAX_LAYERS  EQU 4
 SUBMENU_CURSOR_PATTERN_COUNT EQU ${submenuCursorPatternCount}
 
 submenu_cursor_sprite_pattern_table:
 ${submenuCursorPatternTable}
+
+submenu_cursor_sprite_layer_pattern_table:
+${submenuCursorLayerPtrTable}
+
+submenu_cursor_sprite_layer_bank_table:
+${submenuCursorLayerBankTable}
 
 `;
                     break;
@@ -2860,7 +2944,9 @@ trans_fast_filvrm:
     ; PresentationScreen node - show full-screen presentation image
     ; BC = connection table
     push bc
-    call show_presentation_screen
+    ld a, ((show_presentation_screen - #4000) / #2000)
+    ld hl, show_presentation_screen
+    call mapper_call_hl_auto
     ; show_presentation_screen overwrites ALL of CHRTBL2 (chars 0-255 x 3 banks).
     ; Game tile patterns live at char 128+ and are now corrupted.
     ; Reload game VRAM (patterns + colors) before entering gameplay.

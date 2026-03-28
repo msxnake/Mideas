@@ -38,7 +38,8 @@ function generateInterruptFile(analysis, config = {}, executionPlan) {
     // Optional: Generate full component systems inside interrupt.asm
     // This makes interrupt.asm self-contained for all ECS routines.
     // NOTE: In this mode, components.asm should be skipped/emptied by the caller to avoid duplicate labels.
-    if (config.interruptDrivenComponents) {
+    // For megarom: components go in bank 1 as a separate module — never inline here.
+    if (config.interruptDrivenComponents && config.romMode !== 'megarom') {
         code += `\n; ==================================================================\n`;
         code += `; COMPONENT SYSTEMS (INLINED)\n`;
         code += `; Generated inside interrupt.asm because interruptDrivenComponents=true\n`;

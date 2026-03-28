@@ -8,6 +8,7 @@ exports.collectAnimatedTileGroupSummaries = collectAnimatedTileGroupSummaries;
 exports.generateAnimatedTilesFile = generateAnimatedTilesFile;
 const tileUtils_1 = require("../../../components/utils/tileUtils");
 const romModeUtils_1 = require("./romModeUtils");
+const mapperWindowUtils_1 = require("./mapperWindowUtils");
 const SCREEN2_MODE = 'SCREEN 2 (Graphics I)';
 function clampByte(value, fallback, min = 0, max = 255) {
     if (!Number.isFinite(value))
@@ -420,7 +421,7 @@ function collectAnimatedTileGroupSummaries(analysis) {
  * @param analysis - Project analysis
  * @returns ASM code string with animated tiles system
  */
-function generateAnimatedTilesFile(analysis, romMode = 'simple32k') {
+function generateAnimatedTilesFile(analysis, romMode = 'simple32k', targetFormat = 'konami') {
     const { frameGroups, transformGroups } = prepareAnimationGroups(analysis);
     const hasFrameAnimatedTiles = frameGroups.length > 0;
     const hasTransformAnimatedTiles = transformGroups.length > 0;
@@ -449,11 +450,13 @@ ${frames}
     db #00
 `;
     const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
-    const mapperPush = usesMapper ? '    call mapper_push_p2\n    ld a, ANIM_TILE_DATA_BANK\n    call mapper_set_bank_p2\n' : '';
-    const mapperPop = usesMapper ? '    call mapper_pop_p2' : '';
+    const mapperWindow = (0, mapperWindowUtils_1.getMapperWindowConfig)(romMode, targetFormat);
+    const mapperPush = usesMapper ? (0, mapperWindowUtils_1.buildMapperDataPushAsm)('ANIM_TILE_DATA_BANK', mapperWindow) : '';
+    const mapperPop = usesMapper ? (0, mapperWindowUtils_1.buildMapperDataPopAsm)(mapperWindow).trimEnd() : '';
+    const animTileTableAddress = usesMapper ? (0, mapperWindowUtils_1.buildMapperWindowedAddress)('anim_tile_table', mapperWindow) : 'anim_tile_table';
     const frameVramUpdateBlock = hasFrameAnimatedTiles
         ? `${mapperPush}
-    ld hl, anim_tile_table
+    ld hl, ${animTileTableAddress}
 
 .anim_vram_loop:
     ld a, (hl)                      ; A = target char code
@@ -575,7 +578,7 @@ ANIM_SPEED_FAST         EQU 4       ; ~66ms (fire)
 MAX_ANIM_TILES          EQU ${maxAnimTiles}
 ANIM_TILE_ENTRY_SIZE    EQU 7       ; char, chars, frames, speed, bytesPerFrame, ptr(2)
 ANIM_TRANS_ENTRY_SIZE   EQU 4       ; char, chars, opCode, flags
-ANIM_TILE_DATA_BANK     EQU ((anim_tile_table - #4000) / #2000)
+ANIM_TILE_DATA_BANK     EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)('anim_tile_table', mapperWindow)}
 
 ; ==================================================================
 ; ANIMATED TILES INITIALIZATION

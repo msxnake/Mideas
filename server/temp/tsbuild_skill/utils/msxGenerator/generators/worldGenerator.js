@@ -166,7 +166,7 @@ function getWorldImportedHudFrameDrawRoutineName(world, analysis) {
 /**
  * Emit transition runtime snippet for one exit direction.
  */
-function emitDirectionalTransitionCode(worldLabel, screenIndex, direction, targetScreenIndex, targetLoadRoutine, currentBounds, targetBounds) {
+function emitDirectionalTransitionCode(worldLabel, screenIndex, direction, targetScreenIndex, targetGlobalScreenId, targetLoadRoutine, currentBounds, targetBounds, useFarCall = false) {
     const skipLabel = `check_transition_${worldLabel}_s${screenIndex}_skip_${direction}`;
     const applyLabel = `check_transition_${worldLabel}_s${screenIndex}_apply_${direction}`;
     let conditionCode = '';
@@ -245,14 +245,15 @@ function emitDirectionalTransitionCode(worldLabel, screenIndex, direction, targe
     ld (hl), ${targetBounds.enterSouthY}
 `;
     }
+    const screenCallCode = useFarCall
+        ? `    call ${targetLoadRoutine}_far\n`
+        : `    ld a, ((${targetLoadRoutine} - #4000) / #2000)\n    ld hl, ${targetLoadRoutine}\n    call mapper_call_hl_auto\n`;
     return `${conditionCode}${applyLabel}:
     push de
-    ld a, ((${targetLoadRoutine} - #4000) / #2000)
-    ld hl, ${targetLoadRoutine}
-    call mapper_call_hl_auto
-    pop de
+${screenCallCode}    pop de
     ld a, ${targetScreenIndex}
     ld (current_screen_index), a
+    ld a, ${targetGlobalScreenId}
     ld (current_screen_id), a
     ld hl, active_entity_list_dirty
     ld (hl), 1
@@ -289,7 +290,8 @@ ${skipLabel}:
  * @param analysis - Project analysis with world maps and screens
  * @returns ASM code string with world map data and loading functions
  */
-function generateWorldsFile(analysis) {
+function generateWorldsFile(analysis, romMode = 'simple32k') {
+    const useFarCall = romMode === 'megarom';
     // Check if we have world maps in the analysis
     const worldMaps = analysis.worldmaps || [];
     const runtimePatternPackById = new Map((0, spritesGenerator_1.buildRuntimeSpritePatternPacks)(analysis).map((pack) => [pack.id, pack]));
@@ -357,10 +359,13 @@ WORLD_${worldName}_SCREEN_COUNT EQU ${world.nodes?.length || 0}
 ; ==================================================================
 
 `;
+    let worldGlobalOffset = 0;
     worldMaps.forEach((world) => {
         const worldId = world.id || 'unknown';
         const startScreenNodeId = world.startScreenNodeId;
         const nodes = world.nodes || [];
+        const currentWorldGlobalOffset = worldGlobalOffset;
+        worldGlobalOffset += nodes.length;
         code += `; ------------------------------------------------------------------
 ; Load World: ${world.name || 'Unnamed'}
 ; World ID: ${worldId}
@@ -390,13 +395,13 @@ load_world_${toRoutineLabel(worldId)}:
         const loadRoutine = getScreenLoadRoutineName(startScreenAssetId, analysis);
         const worldImportedHudFrameDrawRoutine = getWorldImportedHudFrameDrawRoutineName(world, analysis);
         const spritePack = runtimePatternPackById.get(worldId);
+        const startScreenCallCode = useFarCall
+            ? `    call ${loadRoutine}_far\n`
+            : `    ld a, ((${loadRoutine} - #4000) / #2000)\n    ld hl, ${loadRoutine}\n    call mapper_call_hl_auto\n`;
         code += `    ; Load runtime sprite patterns for this world
 ${spritePack ? `    call load_sprite_patterns_${spritePack.label}
 ` : ''}    ; Load start screen: ${startNode.name || 'unknown'} (${startScreenAssetId})
-    ld a, ((${loadRoutine} - #4000) / #2000)
-    ld hl, ${loadRoutine}
-    call mapper_call_hl_auto
-
+${startScreenCallCode}
 `;
         if (worldImportedHudFrameDrawRoutine) {
             code += `    ; Draw imported HUD frame once at world start
@@ -416,6 +421,7 @@ ${spritePack ? `    call load_sprite_patterns_${spritePack.label}
 
     ld a, ${startNodeIndex}
     ld (current_screen_index), a
+    ld a, ${currentWorldGlobalOffset + startNodeIndex}
     ld (current_screen_id), a
     ld hl, active_entity_list_dirty
     ld (hl), 1
@@ -436,10 +442,13 @@ ${hasScreenTimer ? `    call reset_world_screen_timer
 ; ==================================================================
 
 `;
+    let transitionWorldGlobalOffset = 0;
     worldMaps.forEach((world) => {
         const worldId = world.id || 'unknown';
         const nodes = world.nodes || [];
         const connections = world.connections || [];
+        const currentTransitionWorldOffset = transitionWorldGlobalOffset;
+        transitionWorldGlobalOffset += nodes.length;
         if (connections.length === 0) {
             code += `; World ${world.name || 'Unnamed'} has no screen connections
 
@@ -471,15 +480,17 @@ ${hasScreenTimer ? `    call reset_world_screen_timer
             }
             const toScreenId = toNode.screenAssetId;
             const toScreenIndex = nodes.findIndex((n) => n.id === toNode.id);
+            const toGlobalScreenId = currentTransitionWorldOffset + toScreenIndex;
             const toLoadRoutine = getScreenLoadRoutineName(toScreenId, analysis);
+            const transitionScreenCallCode = useFarCall
+                ? `    call ${toLoadRoutine}_far\n`
+                : `    ld a, ((${toLoadRoutine} - #4000) / #2000)\n    ld hl, ${toLoadRoutine}\n    call mapper_call_hl_auto\n`;
             code += `; Transition: ${fromNode.name || 'screen'} -> ${toNode.name || 'screen'}
 transition_${toRoutineLabel(worldId)}_${connIndex}:
-    ld a, ((${toLoadRoutine} - #4000) / #2000)
-    ld hl, ${toLoadRoutine}
-    call mapper_call_hl_auto
-
+${transitionScreenCallCode}
     ld a, ${toScreenIndex}
     ld (current_screen_index), a
+    ld a, ${toGlobalScreenId}
     ld (current_screen_id), a
     ld hl, active_entity_list_dirty
     ld (hl), 1
@@ -491,6 +502,18 @@ ${hasScreenTimer ? `    call reset_world_screen_timer
 `;
         });
     });
+    // Add load_world_default alias pointing to the first world
+    // Required by megarom trampolines (getKnownEntryPoints includes 'load_world_default')
+    if (worldMaps.length > 0) {
+        const firstWorldId = worldMaps[0].id || 'unknown';
+        code += `; ------------------------------------------------------------------
+; load_world_default: alias for the first world (required by megarom trampolines)
+; ------------------------------------------------------------------
+load_world_default:
+    jp load_world_${toRoutineLabel(firstWorldId)}
+
+`;
+    }
     // Generate runtime edge transition checker (Preview parity)
     code += `; ==================================================================
 ; SCREEN EDGE TRANSITION RUNTIME
@@ -552,11 +575,14 @@ check_world_screen_transition:
     code += `    ret
 
 `;
+    let edgeTransitionGlobalOffset = 0;
     worldMaps.forEach((world, worldIndex) => {
         const worldId = world.id || `world_${worldIndex}`;
         const worldLabel = toRoutineLabel(worldId);
         const nodes = world.nodes || [];
         const connections = world.connections || [];
+        const currentEdgeWorldOffset = edgeTransitionGlobalOffset;
+        edgeTransitionGlobalOffset += nodes.length;
         code += `check_transition_world_${worldLabel}:
 `;
         if (nodes.length === 0 || connections.length === 0) {
@@ -623,7 +649,8 @@ check_world_screen_transition:
                 const targetLoadRoutine = getScreenLoadRoutineName(targetNode.screenAssetId, analysis);
                 const currentBounds = getScreenActiveAreaBounds(node.screenAssetId, analysis);
                 const targetBounds = getScreenActiveAreaBounds(targetNode.screenAssetId, analysis);
-                code += emitDirectionalTransitionCode(worldLabel, idx, direction, targetIndex, targetLoadRoutine, currentBounds, targetBounds);
+                const targetGlobalScreenId = currentEdgeWorldOffset + targetIndex;
+                code += emitDirectionalTransitionCode(worldLabel, idx, direction, targetIndex, targetGlobalScreenId, targetLoadRoutine, currentBounds, targetBounds, useFarCall);
                 emittedAny = true;
             });
             if (!emittedAny) {

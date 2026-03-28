@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PAGE0_BUDGET_BYTES = void 0;
 exports.buildPage0Plan = buildPage0Plan;
 exports.presentationScreenUsesPage0Group = presentationScreenUsesPage0Group;
+exports.fontDataUsesPage0Group = fontDataUsesPage0Group;
 exports.hasPage0DataGroups = hasPage0DataGroups;
 exports.page0NeedsZx0Decoder = page0NeedsZx0Decoder;
 exports.formatPage0PlanComments = formatPage0PlanComments;
@@ -41,7 +42,7 @@ function getPresentationScreenTotalBytes(analysis) {
         config.data.colorBank2,
     ].reduce((total, bytes) => total + (Array.isArray(bytes) ? bytes.length : 0), 0);
 }
-function buildPage0Plan(analysis, romMode = 'simple32k') {
+function buildPage0Plan(analysis, romMode = 'simple32k', fontRawData) {
     if (romMode !== 'plain48k') {
         return EMPTY_PAGE0_PLAN;
     }
@@ -52,45 +53,70 @@ function buildPage0Plan(analysis, romMode = 'simple32k') {
         selectedGroups: [],
         rejectedGroups: [],
     };
-    if (!hasValidPresentationScreenData(analysis)) {
-        return plan;
+    // Group: Presentation Screen (priority 10)
+    if (hasValidPresentationScreenData(analysis)) {
+        const presentationScreen = analysis.presentationScreen;
+        const mode = presentationScreen.runtime?.romDataGroup ?? 'auto';
+        const sizeBytes = getPresentationScreenTotalBytes(analysis);
+        const baseGroup = {
+            id: 'presentationScreen',
+            label: 'Presentation Screen',
+            sizeBytes,
+            priority: 10,
+        };
+        if (mode === 'default') {
+            plan.rejectedGroups.push({
+                ...baseGroup,
+                mode,
+                reason: 'Asset override keeps this group in the standard ROM area.',
+            });
+        }
+        else if (sizeBytes <= plan.remainingBytes) {
+            plan.selectedGroups.push({
+                ...baseGroup,
+                mode,
+                reason: mode === 'page0'
+                    ? 'Forced into page 0 by asset override.'
+                    : 'Auto-packed into page 0 as highest-priority cold data.',
+            });
+            plan.usedBytes += sizeBytes;
+            plan.remainingBytes -= sizeBytes;
+        }
+        else {
+            plan.rejectedGroups.push({
+                ...baseGroup,
+                mode,
+                reason: mode === 'page0'
+                    ? `Forced page 0 placement requested, but ${sizeBytes} bytes exceeds remaining budget.`
+                    : `Auto-pack skipped because ${sizeBytes} bytes exceeds remaining page-0 budget.`,
+            });
+        }
     }
-    const presentationScreen = analysis.presentationScreen;
-    const mode = presentationScreen.runtime?.romDataGroup ?? 'auto';
-    const sizeBytes = getPresentationScreenTotalBytes(analysis);
-    const baseGroup = {
-        id: 'presentationScreen',
-        label: 'Presentation Screen',
-        sizeBytes,
-        priority: 10,
-    };
-    if (mode === 'default') {
-        plan.rejectedGroups.push({
-            ...baseGroup,
-            mode,
-            reason: 'Asset override keeps this group in the standard ROM area.',
-        });
-        return plan;
-    }
-    if (sizeBytes <= plan.remainingBytes) {
-        plan.selectedGroups.push({
-            ...baseGroup,
-            mode,
-            reason: mode === 'page0'
-                ? 'Forced into page 0 by asset override.'
-                : 'Auto-packed into page 0 as highest-priority cold data.',
-        });
-        plan.usedBytes += sizeBytes;
-        plan.remainingBytes -= sizeBytes;
-    }
-    else {
-        plan.rejectedGroups.push({
-            ...baseGroup,
-            mode,
-            reason: mode === 'page0'
-                ? `Forced page 0 placement requested, but ${sizeBytes} bytes exceeds remaining budget.`
-                : `Auto-pack skipped because ${sizeBytes} bytes exceeds remaining page-0 budget.`,
-        });
+    // Group: Font Data (priority 5) — moved to page0 to free space in main ROM
+    if (fontRawData && fontRawData.patternBytes.length > 0) {
+        const sizeBytes = fontRawData.patternBytes.length + fontRawData.colorBytes.length;
+        const baseGroup = {
+            id: 'fontData',
+            label: 'Font Data (patterns + colors)',
+            sizeBytes,
+            priority: 5,
+        };
+        if (sizeBytes <= plan.remainingBytes) {
+            plan.selectedGroups.push({
+                ...baseGroup,
+                mode: 'auto',
+                reason: 'Auto-packed into page 0 to free space in main plain48k ROM.',
+            });
+            plan.usedBytes += sizeBytes;
+            plan.remainingBytes -= sizeBytes;
+        }
+        else {
+            plan.rejectedGroups.push({
+                ...baseGroup,
+                mode: 'auto',
+                reason: `Auto-pack skipped because ${sizeBytes} bytes exceeds remaining page-0 budget.`,
+            });
+        }
     }
     return plan;
 }
@@ -114,10 +140,17 @@ function generateRawByteBlock(label, bytes, comments = []) {
 function presentationScreenUsesPage0Group(analysis, romMode = 'plain48k') {
     return buildPage0Plan(analysis, romMode).selectedGroups.some(group => group.id === 'presentationScreen');
 }
-function hasPage0DataGroups(analysis, romMode = 'simple32k') {
-    return buildPage0Plan(analysis, romMode).selectedGroups.length > 0;
+function fontDataUsesPage0Group(analysis, romMode = 'plain48k', fontRawData) {
+    return buildPage0Plan(analysis, romMode, fontRawData).selectedGroups.some(group => group.id === 'fontData');
 }
-function page0NeedsZx0Decoder(analysis, romMode = 'simple32k') {
+function hasPage0DataGroups(analysis, romMode = 'simple32k', fontRawData) {
+    return buildPage0Plan(analysis, romMode, fontRawData).selectedGroups.length > 0;
+}
+function page0NeedsZx0Decoder(analysis, romMode = 'simple32k', fontRawData) {
+    // Font data in page0 is always ZX0-compressed by server.js
+    if (fontRawData && fontDataUsesPage0Group(analysis, romMode, fontRawData)) {
+        return true;
+    }
     if (!presentationScreenUsesPage0Group(analysis, romMode)) {
         return false;
     }
@@ -146,8 +179,8 @@ function formatPage0PlanComments(plan) {
     }
     return lines.join('\n');
 }
-function generatePage0File(analysis, romMode = 'simple32k') {
-    const plan = buildPage0Plan(analysis, romMode);
+function generatePage0File(analysis, romMode = 'simple32k', fontRawData) {
+    const plan = buildPage0Plan(analysis, romMode, fontRawData);
     if (plan.selectedGroups.length === 0) {
         return `; ==================================================================
 ; PAGE 0 DATA GROUPS
@@ -157,8 +190,6 @@ function generatePage0File(analysis, romMode = 'simple32k') {
 ${formatPage0PlanComments(plan)}
 `;
     }
-    const presentationScreen = analysis.presentationScreen;
-    const config = presentationScreen;
     let code = `; ==================================================================
 ; PAGE 0 DATA GROUPS
 ; File: page0.asm
@@ -167,42 +198,64 @@ ${formatPage0PlanComments(plan)}
 
 ${formatPage0PlanComments(plan)}
 
-; ------------------------------------------------------------------
+`;
+    // Presentation Screen group
+    if (plan.selectedGroups.some(g => g.id === 'presentationScreen')) {
+        const config = analysis.presentationScreen;
+        code += `; ------------------------------------------------------------------
 ; Group: Presentation Screen
-; Intended use:
-; - Copy cold data from page 0 to RAM/VRAM from page 1 helpers
-; - Keep BIOS visible during normal execution
+; PRESENTATION_SCREEN_ROM_DATA_GROUP: page0
 ; ------------------------------------------------------------------
 
 `;
-    code += generateRawByteBlock('PRESENTATION_SCREEN_NAMETBL', config.data.nameTable, [
-        `${config.name} - Name table (32x24)`,
-        'Packed into page 0 group for plain48k layout.'
-    ]);
-    code += '\n';
-    code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B0', config.data.patternBank0, [
-        `${config.name} - Pattern bank 0`,
-    ]);
-    code += '\n';
-    code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B1', config.data.patternBank1, [
-        `${config.name} - Pattern bank 1`,
-    ]);
-    code += '\n';
-    code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B2', config.data.patternBank2, [
-        `${config.name} - Pattern bank 2`,
-    ]);
-    code += '\n';
-    code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B0', config.data.colorBank0, [
-        `${config.name} - Color bank 0`,
-    ]);
-    code += '\n';
-    code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B1', config.data.colorBank1, [
-        `${config.name} - Color bank 1`,
-    ]);
-    code += '\n';
-    code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B2', config.data.colorBank2, [
-        `${config.name} - Color bank 2`,
-    ]);
-    code += '\n';
+        code += generateRawByteBlock('PRESENTATION_SCREEN_NAMETBL', config.data.nameTable, [
+            `${config.name} - Name table (32x24)`,
+            'Packed into page 0 group for plain48k layout.'
+        ]);
+        code += '\n';
+        code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B0', config.data.patternBank0, [
+            `${config.name} - Pattern bank 0`,
+        ]);
+        code += '\n';
+        code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B1', config.data.patternBank1, [
+            `${config.name} - Pattern bank 1`,
+        ]);
+        code += '\n';
+        code += generateRawByteBlock('PRESENTATION_SCREEN_PATTERNS_B2', config.data.patternBank2, [
+            `${config.name} - Pattern bank 2`,
+        ]);
+        code += '\n';
+        code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B0', config.data.colorBank0, [
+            `${config.name} - Color bank 0`,
+        ]);
+        code += '\n';
+        code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B1', config.data.colorBank1, [
+            `${config.name} - Color bank 1`,
+        ]);
+        code += '\n';
+        code += generateRawByteBlock('PRESENTATION_SCREEN_COLORS_B2', config.data.colorBank2, [
+            `${config.name} - Color bank 2`,
+        ]);
+        code += '\n';
+    }
+    // Font Data group
+    if (fontRawData && plan.selectedGroups.some(g => g.id === 'fontData')) {
+        code += `; ------------------------------------------------------------------
+; Group: Font Data
+; FONT_DATA_ROM_DATA_GROUP: page0
+; server.js will ZX0-compress these blobs and patch init_font_system
+; to call page0_decompress_to_ram instead of dzx0_standard.
+; ------------------------------------------------------------------
+
+`;
+        code += generateRawByteBlock('FONT_PATTERN_DATA', fontRawData.patternBytes, [
+            'Font pattern data (raw, ZX0-compressed by server.js)',
+        ]);
+        code += '\n';
+        code += generateRawByteBlock('FONT_COLOR_DATA', fontRawData.colorBytes, [
+            'Font color attribute data (raw, ZX0-compressed by server.js)',
+        ]);
+        code += '\n';
+    }
     return code;
 }

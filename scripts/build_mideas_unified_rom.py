@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -367,6 +368,37 @@ def compile_with_glass(
     run_command(cmd, cwd=project_root)
 
 
+def ensure_sprite_copy_helper(asm_output: Path) -> None:
+    asm_code = asm_output.read_text(encoding="utf-8", errors="ignore")
+    if "COPY_SPRITE_SRC_TO_VRAM" not in asm_code:
+        return
+    if re.search(r"^\s*COPY_SPRITE_SRC_TO_VRAM:\s*$", asm_code, re.MULTILINE):
+        return
+
+    helper = """
+; ==================================================================
+; COPY_SPRITE_SRC_TO_VRAM stub (CLI builder fallback)
+; Input: HL=source (ROM), DE=VRAM destination, BC=byte count
+; ==================================================================
+COPY_SPRITE_SRC_TO_VRAM:
+    jp FAST_LDIRVM
+"""
+
+    if re.search(r"^\s*end\b.*$", asm_code, re.IGNORECASE | re.MULTILINE):
+        asm_code = re.sub(
+            r"^\s*end\b.*$",
+            f"{helper}\n\nend",
+            asm_code,
+            count=1,
+            flags=re.IGNORECASE | re.MULTILINE,
+        )
+    else:
+        asm_code = f"{asm_code.rstrip()}\n\n{helper}\n"
+
+    asm_output.write_text(asm_code, encoding="utf-8")
+    print("Injected COPY_SPRITE_SRC_TO_VRAM fallback stub into ASM output.")
+
+
 def maybe_run_post_asm_optimizer(
     project_root: Path,
     asm_output: Path,
@@ -406,10 +438,25 @@ def maybe_run_post_asm_optimizer(
     return asm_output
 
 
-def launch_openmsx(openmsx_exec: str, rom_output: Path, project_root: Path, rom_mode: str | None = None) -> None:
+def launch_openmsx(
+    openmsx_exec: str,
+    rom_output: Path,
+    project_root: Path,
+    rom_mode: str | None = None,
+    target_format: str | None = None,
+) -> None:
     cmd = [openmsx_exec, "-cart", str(rom_output)]
     if rom_mode == "plain48k":
         cmd.extend(["-romtype", "Plain"])
+    elif rom_mode == "megarom":
+        mapper_to_romtype = {
+            "konami": "konami",
+            "ascii8": "ascii8",
+            "ascii16": "ascii16",
+        }
+        romtype = mapper_to_romtype.get((target_format or "").lower())
+        if romtype:
+            cmd.extend(["-romtype", romtype])
     print("Running:", " ".join(cmd))
     if os.name == "nt":
         creationflags = 0x00000008 | 0x00000200
@@ -488,6 +535,7 @@ def main() -> int:
         rules=args.post_asm_rules,
         explicit_output=args.post_asm_output,
     )
+    ensure_sprite_copy_helper(asm_to_compile)
 
     compile_with_glass(
         glass_jar=glass_jar,
@@ -524,7 +572,7 @@ def main() -> int:
         except FileNotFoundError as exc:
             print(str(exc), file=sys.stderr)
             return 2
-        launch_openmsx(openmsx_exec, rom_output, project_root, args.rom_mode)
+        launch_openmsx(openmsx_exec, rom_output, project_root, args.rom_mode, args.target_format)
 
     return 0
 

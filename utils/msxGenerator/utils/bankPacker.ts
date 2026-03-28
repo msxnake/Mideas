@@ -1,6 +1,10 @@
 /**
  * @fileoverview Bank packer utilities
  * Produces a deterministic 8KB bank packing report for diagnostics.
+ * This is not the final placement policy for MegaROM generation:
+ * - ZX0 data placement should be decided after compression.
+ * - ASCII8 data should be constrained to 8KB zones.
+ * - ASCII16 code/data needs a 16KB-aware allocator.
  */
 
 const BANK_SIZE_8K = 8192;
