@@ -21,6 +21,7 @@ import {
 import { presentationScreenUsesPage0Group } from './page0Generator';
 import { usesMapperBanking } from './romModeUtils';
 import { buildResourceIdLabelFromAsmLabel } from '../utils/megaromResourceArtifacts';
+import { buildScreenBlockMapFromBytes } from '../../screenOptimization/blockMapBuilder';
 import {
   buildMapperBankEqu,
   buildMapperWindowedAddress,
@@ -100,6 +101,35 @@ function generateRawByteBlock(label: string, bytes: number[], comments: string[]
     const formatted = chunk.map(value => `#${value.toString(16).padStart(2, '0').toUpperCase()}`);
     asm += `    DB ${formatted.join(',')}\n`;
   }
+  return asm;
+}
+
+function generateBackgroundBlockDataSection(
+  screenName: string,
+  index: number,
+  displayName: string,
+  blockMap: NonNullable<ReturnType<typeof buildScreenBlockMapFromBytes>>
+): string {
+  const labelBase = `SCREEN_${screenName}_${index}`;
+  let asm = '';
+  asm += generateRawByteBlock(
+    `${labelBase}_BLOCK_CATALOG`,
+    blockMap.catalogFlatBytes,
+    [
+      `${displayName} - background block catalog (${blockMap.blockWidth}x${blockMap.blockHeight})`,
+      `${blockMap.catalog.length} unique blocks, ${blockMap.catalogLengthBytes} bytes total`,
+    ]
+  );
+  asm += `\n`;
+  asm += generateRawByteBlock(
+    `${labelBase}_BLOCK_MAP`,
+    blockMap.mapIndices,
+    [
+      `${displayName} - background block index map (${blockMap.mapWidth}x${blockMap.mapHeight})`,
+      `${blockMap.optimizedLengthBytes} bytes optimized vs ${blockMap.sourceLengthBytes} raw (${blockMap.savingsBytes} byte delta)`,
+    ]
+  );
+  asm += `\n`;
   return asm;
 }
 
@@ -843,6 +873,12 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, targetFo
     const screenNameWithIndex = `${screen.name}_${index}`;
     const tileBankDefinitions = resolveTileBankDefinitions(screen, analysis);
     const backgroundLayoutBytes = buildLayerLayoutBytes(screen, 'background', analysis, tileBankDefinitions);
+    const backgroundBlockMap = buildScreenBlockMapFromBytes({
+      bytes: backgroundLayoutBytes,
+      width: SCREEN_WIDTH,
+      height: SCREEN_HEIGHT,
+      mode: screen.blockOptimization?.backgroundMode,
+    });
     const effectsLayoutBytes = buildLayerLayoutBytes(screen, 'effects', analysis, tileBankDefinitions);
     const hasEffectsLayoutData = effectsLayoutBytes.some(value => value !== 0);
     const effectZoneBytes = buildEffectZoneBytes(screen);
@@ -876,6 +912,7 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, targetFo
       screenName,
       screenNameWithIndex,
       backgroundLayoutBytes,
+      backgroundBlockMap,
       effectsLayoutBytes,
       hasEffectsLayoutData,
       effectZoneBytes,
@@ -948,6 +985,14 @@ SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_SIZE EQU ${SCREEN_WIDTH * SCREEN_HE
 SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK EQU ${buildMapperBankEqu(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`, mapperWindow)}
 SCREEN_${screenName}_${index}_EFFECT_ZONE_COUNT EQU ${effectZoneCount}
 SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_SIZE EQU ${effectZoneCount * 8}
+SCREEN_${screenName}_${index}_BLOCK_LAYOUT_PRESENT EQU ${screenExport.backgroundBlockMap ? 1 : 0}
+SCREEN_${screenName}_${index}_BLOCK_LAYOUT_MODE EQU ${screenExport.backgroundBlockMap?.blockWidth ?? 0}
+SCREEN_${screenName}_${index}_BLOCK_CATALOG_COUNT EQU ${screenExport.backgroundBlockMap?.catalog.length ?? 0}
+SCREEN_${screenName}_${index}_BLOCK_CATALOG_SIZE EQU ${screenExport.backgroundBlockMap?.catalogLengthBytes ?? 0}
+SCREEN_${screenName}_${index}_BLOCK_MAP_WIDTH EQU ${screenExport.backgroundBlockMap?.mapWidth ?? 0}
+SCREEN_${screenName}_${index}_BLOCK_MAP_HEIGHT EQU ${screenExport.backgroundBlockMap?.mapHeight ?? 0}
+SCREEN_${screenName}_${index}_BLOCK_MAP_SIZE EQU ${screenExport.backgroundBlockMap?.mapLengthBytes ?? 0}
+SCREEN_${screenName}_${index}_BLOCK_TOTAL_SIZE EQU ${screenExport.backgroundBlockMap?.optimizedLengthBytes ?? 0}
 SCREEN_${screenName}_${index}_ANIM_GROUP_COUNT EQU ${animatedGroupCount}
 SCREEN_${screenName}_${index}_ENTITY_COUNT EQU ${entityCount}
 SCREEN_${screenName}_${index}_SPRITE_PATTERN_SLOTS EQU ${spritePatternSlots}
@@ -991,11 +1036,15 @@ screen_runtime_summary_table:
 `;
 
     screenExports.forEach((screenExport) => {
-      const { screen, index, screenName, screenNameWithIndex, backgroundLayoutBytes, effectsLayoutBytes, hasEffectsLayoutData, effectZoneBytes, effectZoneCount } = screenExport;
+      const { screen, index, screenName, screenNameWithIndex, backgroundLayoutBytes, backgroundBlockMap, effectsLayoutBytes, hasEffectsLayoutData, effectZoneBytes, effectZoneCount } = screenExport;
       if (screen.layers && screen.layers.background) {
         if (dataInBank4) {
           // Data tables are emitted in bank4 section; skip here
           code += `; [SCREEN_${screenName}_${index}_LAYOUT emitted in bank4 section]\n`;
+          if (backgroundBlockMap) {
+            code += `; [SCREEN_${screenName}_${index}_BLOCK_CATALOG emitted in bank4 section]\n`;
+            code += `; [SCREEN_${screenName}_${index}_BLOCK_MAP emitted in bank4 section]\n`;
+          }
           code += `; [SCREEN_${screenName}_${index}_EFFECTS_LAYOUT emitted in bank4 section]\n`;
           code += `; [SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE emitted in bank4 section]\n`;
           code += `; [BEHAVIOR_${screenName}_${index}_DATA emitted in bank4 section]\n\n`;
@@ -1015,6 +1064,9 @@ screen_runtime_summary_table:
 
         code += asmCode;
         code += `\n`;
+        if (backgroundBlockMap) {
+          code += generateBackgroundBlockDataSection(screenName, index, screen.name, backgroundBlockMap);
+        }
         code += generateRawByteBlock(
           `SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`,
           effectsLayoutBytes,
@@ -2054,6 +2106,12 @@ export function getScreensBank4Data(analysis: ProjectAnalysis, romMode: string =
     const screenNameWithIndex = `${screen.name}_${index}`;
     const tileBankDefinitions = resolveTileBankDefinitions(screen, analysis);
     const backgroundLayoutBytes = buildLayerLayoutBytes(screen, 'background', analysis, tileBankDefinitions);
+    const backgroundBlockMap = buildScreenBlockMapFromBytes({
+      bytes: backgroundLayoutBytes,
+      width: SCREEN_WIDTH,
+      height: SCREEN_HEIGHT,
+      mode: screen.blockOptimization?.backgroundMode,
+    });
     const effectsLayoutBytes = buildLayerLayoutBytes(screen, 'effects', analysis, tileBankDefinitions);
     const hasEffectsLayoutData = effectsLayoutBytes.some(value => value !== 0);
     const effectZoneBytes = buildEffectZoneBytes(screen);
@@ -2083,6 +2141,7 @@ export function getScreensBank4Data(analysis: ProjectAnalysis, romMode: string =
       screenName,
       screenNameWithIndex,
       backgroundLayoutBytes,
+      backgroundBlockMap,
       effectsLayoutBytes,
       hasEffectsLayoutData,
       effectZoneBytes,
@@ -2102,7 +2161,7 @@ export function getScreensBank4Data(analysis: ProjectAnalysis, romMode: string =
 `;
 
   screenExports.forEach((screenExport) => {
-    const { screen, index, screenName, screenNameWithIndex, backgroundLayoutBytes, effectsLayoutBytes, hasEffectsLayoutData, effectZoneBytes, effectZoneCount } = screenExport;
+    const { screen, index, screenName, screenNameWithIndex, backgroundLayoutBytes, backgroundBlockMap, effectsLayoutBytes, hasEffectsLayoutData, effectZoneBytes, effectZoneCount } = screenExport;
 
     if (screen.layers && screen.layers.background) {
       // Background layout
@@ -2116,6 +2175,9 @@ export function getScreensBank4Data(analysis: ProjectAnalysis, romMode: string =
       );
       asm += asmCode;
       asm += `\n`;
+      if (backgroundBlockMap) {
+        asm += generateBackgroundBlockDataSection(screenName, index, screen.name, backgroundBlockMap);
+      }
 
       // Effects layout
       asm += generateRawByteBlock(

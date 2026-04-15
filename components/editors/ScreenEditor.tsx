@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem, TileStamp, resolveEffectZoneType } from '../../types';
+import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem, TileStamp, ScreenBlockExportMode, resolveEffectZoneType } from '../../types';
 import { Panel } from '../common/Panel';
 import { DEFAULT_SCREEN_WIDTH_TILES, DEFAULT_SCREEN_HEIGHT_TILES, MSX_SCREEN5_PALETTE, MSX1_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, DEFAULT_TILE_BANK_DEFINITIONS, EDITOR_BASE_TILE_DIM_S2 as CONST_EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE_EDITOR } from '../../constants';
 import { ExportLayoutASMModal } from '../modals/ExportLayoutASMModal';
@@ -21,6 +21,7 @@ import { ScreenEditorStatusBar } from '../screen_editor/ScreenEditorStatusBar';
 import { ScreenSelectionToolsPanel } from '../screen_editor/ScreenSelectionToolsPanel';
 import { PatrolPathLayer } from '../screen_editor/PatrolPathLayer';
 import { getScreenModeMetrics, isScreen2Mode } from '../../utils/screenModeConfig';
+import { buildScreenBlockMapFromBytes } from '../../utils/screenOptimization/blockMapBuilder';
 
 /**
  * Props for the ScreenEditor component.
@@ -385,6 +386,41 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     const asset = allProjectAssets.find(projectAsset => projectAsset.id === screenMap.tileBankAssetId && projectAsset.type === 'tilebank');
     return asset ? asset.data as TileBank : null;
   }, [allProjectAssets, screenMap.tileBankAssetId]);
+
+  const tileBankDefinitions = useMemo(() => (
+    isScreen2 && tileBanks && tileBanks.length > 0
+      ? tileBanks.flatMap(tb => tb.banks || [])
+      : undefined
+  ), [isScreen2, tileBanks]);
+
+  const backgroundBlockMode: ScreenBlockExportMode = screenMap.blockOptimization?.backgroundMode ?? 'raw';
+
+  const backgroundBlockPreview = useMemo(() => {
+    if (backgroundBlockMode === 'raw') {
+      return null;
+    }
+
+    const layoutBytes = generateScreenMapLayoutBytes(screenMap, tileset, tileBankDefinitions, currentScreenMode);
+    const blockMap = buildScreenBlockMapFromBytes({
+      bytes: layoutBytes,
+      width: screenMap.width,
+      height: screenMap.height,
+      mode: backgroundBlockMode,
+    });
+
+    if (!blockMap) {
+      return null;
+    }
+
+    return {
+      blockWidth: blockMap.blockWidth,
+      blockHeight: blockMap.blockHeight,
+      uniqueBlockCount: blockMap.catalog.length,
+      optimizedLengthBytes: blockMap.optimizedLengthBytes,
+      sourceLengthBytes: blockMap.sourceLengthBytes,
+      savingsBytes: blockMap.savingsBytes,
+    };
+  }, [backgroundBlockMode, currentScreenMode, screenMap, tileBankDefinitions, tileset]);
 
   const canAddSecretText = useMemo(() => {
     return !!selectedEffectZone
@@ -876,13 +912,6 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
   const prepareAndOpenLayoutExportModal = () => {
-    // Extract TileBankDefinition[] from TileBank[] wrapper
-    // tileBanks prop is TileBank[] where each TileBank has banks: TileBankDefinition[]
-    // We need to flatten all banks from all TileBank assets into a single array
-    const tileBankDefinitions = isScreen2 && tileBanks && tileBanks.length > 0
-      ? tileBanks.flatMap(tb => tb.banks || [])
-      : undefined;
-
     if (isScreen2) {
       // DEBUG: Log TileBank info
       console.log('?? Layout Export Debug:');
@@ -1101,6 +1130,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
     const copiedData: CopiedScreenData = {
       layers: copiedLayers,
+      blockOptimization: screenMap.blockOptimization ? JSON.parse(JSON.stringify(screenMap.blockOptimization)) : undefined,
       effectZones: effectZones ? JSON.parse(JSON.stringify(effectZones)) : undefined,
       activeAreaX,
       activeAreaY,
@@ -1117,6 +1147,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
     const updatedScreenMapData: Partial<ScreenMap> = {
       layers: { ...screenMap.layers },
+      blockOptimization: copiedScreenBuffer.blockOptimization ? JSON.parse(JSON.stringify(copiedScreenBuffer.blockOptimization)) : undefined,
       effectZones: copiedScreenBuffer.effectZones ? JSON.parse(JSON.stringify(copiedScreenBuffer.effectZones)) : [],
       hudConfiguration: copiedScreenBuffer.hudConfiguration ? JSON.parse(JSON.stringify(copiedScreenBuffer.hudConfiguration)) : undefined,
     };
@@ -1322,6 +1353,16 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     setStatusBarMessage(`Border color changed to: ${colorIndex}`);
   };
 
+  const handleBackgroundBlockModeChange = useCallback((mode: ScreenBlockExportMode) => {
+    onUpdate({
+      blockOptimization: {
+        ...(screenMap.blockOptimization || {}),
+        backgroundMode: mode,
+      },
+    });
+    setStatusBarMessage(`Background export mode set to: ${mode}`);
+  }, [onUpdate, screenMap.blockOptimization, setStatusBarMessage]);
+
   return (
     <Panel title={`Screen Editor: ${screenMap.name} (Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden select-none">
       <ScreenEditorToolbar
@@ -1359,6 +1400,9 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         borderColor={screenMap.borderColor}
         onBackgroundColorChange={handleBackgroundColorChange}
         onBorderColorChange={handleBorderColorChange}
+        backgroundBlockMode={backgroundBlockMode}
+        onBackgroundBlockModeChange={handleBackgroundBlockModeChange}
+        backgroundBlockPreview={backgroundBlockPreview}
       />
 
       <div className="flex flex-grow overflow-hidden">

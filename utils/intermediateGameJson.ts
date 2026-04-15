@@ -16,6 +16,7 @@ import {
   WorldMapGraph,
 } from '../types';
 import { MSX1_PALETTE_MAP } from '../constants';
+import { buildScreenBlockMapFromBytes } from './screenOptimization/blockMapBuilder';
 
 export interface IntermediateGameJsonV1 {
   schema: 'mideas.intermediate_game.v1';
@@ -263,9 +264,26 @@ export interface IntermediateScreen {
     emptyValue: 0;
     tileTable: Array<{ index: number; tileId: string; subTileX?: number; subTileY?: number }>;
     background: { hex: string; lengthBytes: number };
+    backgroundBlocks?: {
+      encoding: 'screen2-blockmap-idx-hex-v1';
+      mode: 'blocks2x2' | 'blocks4x4';
+      blockWidth: number;
+      blockHeight: number;
+      mapWidth: number;
+      mapHeight: number;
+      emptyValue: 0;
+      catalogEntryCount: number;
+      catalogBytesPerEntry: number;
+      catalog: { hex: string; lengthBytes: number };
+      map: { hex: string; lengthBytes: number; bytesPerRow: number };
+      sourceLengthBytes: number;
+      optimizedLengthBytes: number;
+      savingsBytes: number;
+    };
     collision: { hex: string; lengthBytes: number };
     effects: { hex: string; lengthBytes: number };
   };
+  blockOptimization?: ScreenMap['blockOptimization'];
   effectZones?: ScreenMap['effectZones'];
   activeAreaX?: ScreenMap['activeAreaX'];
   activeAreaY?: ScreenMap['activeAreaY'];
@@ -590,6 +608,16 @@ function buildIntermediateScreen({
   const backgroundBytes = encodeScreen2LayerToIndices({ layer: screen.layers.background, width, height, keyToIndex, warnings, screenName: screen.name, layerName: 'background' });
   const collisionBytes = encodeScreen2LayerToIndices({ layer: screen.layers.collision, width, height, keyToIndex, warnings, screenName: screen.name, layerName: 'collision' });
   const effectsBytes = encodeScreen2LayerToIndices({ layer: screen.layers.effects, width, height, keyToIndex, warnings, screenName: screen.name, layerName: 'effects' });
+  const backgroundBlockMap = buildScreenBlockMapFromBytes({
+    bytes: backgroundBytes,
+    width,
+    height,
+    mode: screen.blockOptimization?.backgroundMode,
+  });
+
+  if (screen.blockOptimization?.backgroundMode && screen.blockOptimization.backgroundMode !== 'raw' && !backgroundBlockMap) {
+    warnings.push(`Screen "${screen.name}" background block optimization "${screen.blockOptimization.backgroundMode}" could not be built; raw background export was preserved.`);
+  }
 
   const buildEntityTemplateTable = () => {
     const used = new Set<string>();
@@ -651,9 +679,35 @@ function buildIntermediateScreen({
       emptyValue: 0,
       tileTable,
       background: { hex: toHex(backgroundBytes), lengthBytes: backgroundBytes.length },
+      ...(backgroundBlockMap ? {
+        backgroundBlocks: {
+          encoding: 'screen2-blockmap-idx-hex-v1' as const,
+          mode: backgroundBlockMap.mode,
+          blockWidth: backgroundBlockMap.blockWidth,
+          blockHeight: backgroundBlockMap.blockHeight,
+          mapWidth: backgroundBlockMap.mapWidth,
+          mapHeight: backgroundBlockMap.mapHeight,
+          emptyValue: 0 as const,
+          catalogEntryCount: backgroundBlockMap.catalog.length,
+          catalogBytesPerEntry: backgroundBlockMap.blockWidth * backgroundBlockMap.blockHeight,
+          catalog: {
+            hex: toHex(Uint8Array.from(backgroundBlockMap.catalogFlatBytes)),
+            lengthBytes: backgroundBlockMap.catalogLengthBytes,
+          },
+          map: {
+            hex: toHex(Uint8Array.from(backgroundBlockMap.mapIndices)),
+            lengthBytes: backgroundBlockMap.mapLengthBytes,
+            bytesPerRow: backgroundBlockMap.mapWidth,
+          },
+          sourceLengthBytes: backgroundBlockMap.sourceLengthBytes,
+          optimizedLengthBytes: backgroundBlockMap.optimizedLengthBytes,
+          savingsBytes: backgroundBlockMap.savingsBytes,
+        }
+      } : {}),
       collision: { hex: toHex(collisionBytes), lengthBytes: collisionBytes.length },
       effects: { hex: toHex(effectsBytes), lengthBytes: effectsBytes.length },
     },
+    blockOptimization: screen.blockOptimization,
     effectZones: screen.effectZones,
     activeAreaX: screen.activeAreaX,
     activeAreaY: screen.activeAreaY,

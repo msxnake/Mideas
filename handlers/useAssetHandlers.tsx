@@ -173,6 +173,9 @@ export const useAssetHandlers = ({
             effects: createEmptyLayer(),
             entities: []
           },
+          blockOptimization: {
+            backgroundMode: 'raw'
+          },
           effectZones: [],
           activeAreaX: 0,
           activeAreaY: 0,

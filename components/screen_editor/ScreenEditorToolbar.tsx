@@ -7,7 +7,7 @@
 import React from 'react';
 import { Button } from '../common/Button';
 import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
-import { ScreenMap, ProjectAsset } from '../../types';
+import { ScreenBlockExportMode, ScreenMap, ProjectAsset } from '../../types';
 import { MSX1_PALETTE } from '../../constants';
 import { getBackgroundColorHex, isScreen2Mode } from '../../utils/screenModeConfig';
 
@@ -93,6 +93,19 @@ interface ScreenEditorToolbarProps {
   onBackgroundColorChange: (colorIndex: number) => void;
   /** Callback when border color changes. */
   onBorderColorChange: (colorIndex: number) => void;
+  /** Current background export optimization mode. */
+  backgroundBlockMode: ScreenBlockExportMode;
+  /** Callback when background export optimization mode changes. */
+  onBackgroundBlockModeChange: (mode: ScreenBlockExportMode) => void;
+  /** Optional optimization preview for the current background mode. */
+  backgroundBlockPreview?: {
+    blockWidth: number;
+    blockHeight: number;
+    uniqueBlockCount: number;
+    optimizedLengthBytes: number;
+    sourceLengthBytes: number;
+    savingsBytes: number;
+  } | null;
 }
 
 /**
@@ -112,7 +125,8 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   onCopyLayer, onPasteLayer, isCopyLayerDisabled, isPasteLayerDisabled,
   onAddNewEffectZone, canAddNewEffectZone = false,
   currentScreenMode, selectedTileBankId, onTileBankChange, allProjectAssets,
-  backgroundColor = 1, borderColor = 1, onBackgroundColorChange, onBorderColorChange
+  backgroundColor = 1, borderColor = 1, onBackgroundColorChange, onBorderColorChange,
+  backgroundBlockMode, onBackgroundBlockModeChange, backgroundBlockPreview
 }) => {
 
   const tileBankAssets = allProjectAssets?.filter(asset => asset.type === 'tilebank') || [];
@@ -208,6 +222,29 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
             title={MSX1_PALETTE[borderColor]?.name || 'Black'}
           />
         </div>
+      </div>
+
+      <div className="flex items-center space-x-1 border-l border-msx-border/50 pl-2">
+        <label htmlFor="backgroundBlockMode" className="pixel-font text-msx-textsecondary text-xs">Export:</label>
+        <select
+          id="backgroundBlockMode"
+          value={backgroundBlockMode}
+          onChange={(e) => onBackgroundBlockModeChange(e.target.value as ScreenBlockExportMode)}
+          className="p-1 bg-msx-bgcolor border-msx-border rounded text-msx-textprimary text-xs focus:ring-msx-accent focus:border-msx-accent"
+          title="Background export optimization mode"
+        >
+          <option value="raw">Raw tiles</option>
+          <option value="blocks2x2">Blocks 2x2</option>
+          <option value="blocks4x4">Blocks 4x4</option>
+        </select>
+        {backgroundBlockPreview && (
+          <span
+            className={`text-[11px] ${backgroundBlockPreview.savingsBytes >= 0 ? 'text-msx-textsecondary' : 'text-msx-warning'}`}
+            title={`${backgroundBlockPreview.blockWidth}x${backgroundBlockPreview.blockHeight} blocks`}
+          >
+            {backgroundBlockPreview.uniqueBlockCount} uniq | {backgroundBlockPreview.optimizedLengthBytes}B
+          </span>
+        )}
       </div>
 
       <div className="flex items-center">

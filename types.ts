@@ -519,6 +519,15 @@ export interface EffectZone {
 }
 // --- End Effect Zone Types ---
 
+/** Export strategy for block-based screen optimization. */
+export type ScreenBlockExportMode = 'raw' | 'blocks2x2' | 'blocks4x4';
+
+/** Optional build-time optimization settings for screen exports. */
+export interface ScreenBlockOptimization {
+  /** Background export strategy. `raw` preserves the current 32x24 tile stream. */
+  backgroundMode?: ScreenBlockExportMode;
+}
+
 /**
  * Represents a screen map asset, containing tile layers and entity instances.
  */
@@ -538,6 +547,8 @@ export interface ScreenMap {
     effects: ScreenLayerData;
     entities: EntityInstance[];
   };
+  /** Optional build-time export optimization settings. */
+  blockOptimization?: ScreenBlockOptimization;
   /** An array of rectangular effect zones on the map. */
   effectZones?: EffectZone[];
   /** The x-coordinate of the active (playable) area of the map. */
@@ -577,6 +588,8 @@ export interface CopiedScreenData {
     collision: ScreenLayerData;
     effects: ScreenLayerData;
   };
+  /** Optional build-time export optimization settings copied with the screen. */
+  blockOptimization?: ScreenBlockOptimization;
   /** The effect zones within the copied area. */
   effectZones?: EffectZone[];
   /** The x-coordinate of the copied active area. */
