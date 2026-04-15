@@ -85,6 +85,11 @@ def parse_args() -> argparse.Namespace:
         "--post-asm-output",
         help="Explicit optimized ASM output path (default: <asm>.optimized.asm)",
     )
+    parser.add_argument(
+        "--skip-zx0-preprocess",
+        action="store_true",
+        help="Skip server-side ZX0 preprocessing and compile the raw unified ASM",
+    )
     return parser.parse_args()
 
 
@@ -184,14 +189,72 @@ def ensure_parent(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
-def pad_rom_to_8kb(rom_path: Path) -> tuple[int, int]:
+def extract_comment_artifacts(asm_text: str) -> dict[str, str]:
+    artifacts: dict[str, list[str]] = {}
+    current_name: str | None = None
+
+    for raw_line in asm_text.splitlines():
+        begin_match = re.match(r"^\s*;\s*\[\[\[MIDEAS_ARTIFACT:(.+?):BEGIN\]\]\]\s*$", raw_line)
+        if begin_match:
+            current_name = begin_match.group(1)
+            artifacts[current_name] = []
+            continue
+
+        end_match = re.match(r"^\s*;\s*\[\[\[MIDEAS_ARTIFACT:(.+?):END\]\]\]\s*$", raw_line)
+        if end_match:
+            current_name = None
+            continue
+
+        if current_name is None:
+            continue
+
+        content_match = re.match(r"^\s*;(?:\s?(.*))?$", raw_line)
+        if content_match:
+            artifacts[current_name].append(content_match.group(1) or "")
+        else:
+            artifacts[current_name].append(raw_line)
+
+    return {name: "\n".join(lines).rstrip() + "\n" for name, lines in artifacts.items()}
+
+
+def write_generated_artifacts(asm_path: Path) -> Path | None:
+    asm_text = asm_path.read_text(encoding="utf-8", errors="ignore")
+    artifacts = extract_comment_artifacts(asm_text)
+    if not artifacts:
+        return None
+
+    artifact_dir = asm_path.parent / f"{asm_path.stem}_generated"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    for file_name, content in artifacts.items():
+        output_path = artifact_dir / file_name
+        ensure_parent(output_path)
+        output_path.write_text(content, encoding="utf-8")
+
+    return artifact_dir
+
+
+def _next_power_of_two(value: int) -> int:
+    if value <= 1:
+        return 1
+    return 1 << (value - 1).bit_length()
+
+
+def pad_rom_to_valid_size(rom_path: Path, rom_mode: str, target_format: str) -> tuple[int, int]:
     rom_data = rom_path.read_bytes()
     original_size = len(rom_data)
     if original_size == 0:
         raise RuntimeError(f"Generated ROM is empty: {rom_path}")
 
-    kb8 = 8192
-    padded_size = ((original_size + kb8 - 1) // kb8) * kb8
+    if rom_mode == "megarom":
+        segment_size = 16384 if target_format == "ascii16" else 8192
+        segment_count = (original_size + segment_size - 1) // segment_size
+        padded_segment_count = _next_power_of_two(segment_count)
+        padded_size = padded_segment_count * segment_size
+    else:
+        kb8 = 8192
+        padded_size = ((original_size + kb8 - 1) // kb8) * kb8
+
     if padded_size != original_size:
         rom_data += bytes([0xFF]) * (padded_size - original_size)
         rom_path.write_bytes(rom_data)
@@ -362,10 +425,97 @@ def compile_with_glass(
     sym_output: Path | None,
     project_root: Path,
 ) -> None:
-    cmd = ["java", "-jar", str(glass_jar), str(asm_output), str(rom_output)]
+    cmd = ["java", "-jar", str(glass_jar)]
+    server_include = project_root / "server"
+    if server_include.exists():
+        cmd.extend(["-I", str(server_include)])
+    cmd.extend([str(asm_output), str(rom_output)])
     if sym_output:
         cmd.append(str(sym_output))
     run_command(cmd, cwd=project_root)
+
+
+def maybe_run_zx0_preprocess(
+    project_root: Path,
+    asm_output: Path,
+    enabled: bool,
+) -> tuple[Path, dict | None]:
+    if not enabled:
+        return asm_output, None
+
+    server_js = project_root / "server" / "server.js"
+    if not server_js.exists():
+        raise FileNotFoundError(f"ZX0 preprocess entrypoint not found: {server_js}")
+
+    compressed_output = asm_output.with_name(f"{asm_output.stem}_compressed.asm")
+    temp_dir = (project_root / "server" / "temp").resolve()
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    node_script = r"""
+const fs = require("fs");
+const path = require("path");
+const { injectZx0IntoUnifiedAsm } = require(process.argv[2]);
+
+async function main() {
+  const inputPath = process.argv[3];
+  const outputPath = process.argv[4];
+  const tempDir = process.argv[5];
+  const source = fs.readFileSync(inputPath, "utf8");
+  const result = await injectZx0IntoUnifiedAsm(source, tempDir);
+  fs.writeFileSync(outputPath, result.code, "utf8");
+  process.stdout.write(JSON.stringify({
+    outputPath,
+    info: result.info || null
+  }));
+}
+
+main().catch((error) => {
+  const message = error && error.stack ? error.stack : String(error);
+  process.stderr.write(message + "\n");
+  process.exit(1);
+});
+"""
+
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".cjs",
+        delete=False,
+        encoding="utf-8",
+    ) as tmp_file:
+        tmp_file.write(node_script)
+        tmp_script_path = Path(tmp_file.name)
+
+    try:
+        completed = run_command(
+            [
+                "node",
+                str(tmp_script_path),
+                str(server_js),
+                str(asm_output),
+                str(compressed_output),
+                str(temp_dir),
+            ],
+            cwd=project_root,
+        )
+    finally:
+        try:
+            tmp_script_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    stdout_text = completed.stdout.decode("utf-8", errors="replace").strip()
+    info = None
+    if stdout_text:
+        try:
+            payload = json.loads(stdout_text.splitlines()[-1])
+            info = payload.get("info")
+            output_path = payload.get("outputPath")
+            if output_path:
+                compressed_output = Path(output_path).resolve()
+        except json.JSONDecodeError:
+            pass
+
+    return compressed_output, info
 
 
 def ensure_sprite_copy_helper(asm_output: Path) -> None:
@@ -384,7 +534,35 @@ COPY_SPRITE_SRC_TO_VRAM:
     jp FAST_LDIRVM
 """
 
-    if re.search(r"^\s*end\b.*$", asm_code, re.IGNORECASE | re.MULTILINE):
+    plain48_pad_pattern = r"^\s*ds\s+#C000\s*-\s*\$\s*(?:;.*)?$"
+    has_linear48_layout = re.search(
+        r"^\s*;\s*Linear48K Page0 Data:\s*(Yes|No)\b",
+        asm_code,
+        re.IGNORECASE | re.MULTILINE,
+    )
+
+    if has_linear48_layout and re.search(plain48_pad_pattern, asm_code, re.IGNORECASE | re.MULTILINE):
+        pad_match = re.search(plain48_pad_pattern, asm_code, re.IGNORECASE | re.MULTILINE)
+        pad_line = pad_match.group(0) if pad_match else None
+        asm_code = re.sub(
+            plain48_pad_pattern,
+            "",
+            asm_code,
+            count=1,
+            flags=re.IGNORECASE | re.MULTILINE,
+        ).rstrip()
+
+        if pad_line and re.search(r"^\s*end\b.*$", asm_code, re.IGNORECASE | re.MULTILINE):
+            asm_code = re.sub(
+                r"^\s*end\b.*$",
+                f"{helper}\n\n{pad_line}\n\nend",
+                asm_code,
+                count=1,
+                flags=re.IGNORECASE | re.MULTILINE,
+            )
+        elif pad_line:
+            asm_code = f"{asm_code}\n\n{helper}\n\n{pad_line}\n"
+    elif re.search(r"^\s*end\b.*$", asm_code, re.IGNORECASE | re.MULTILINE):
         asm_code = re.sub(
             r"^\s*end\b.*$",
             f"{helper}\n\nend",
@@ -525,10 +703,17 @@ def main() -> int:
         execution_mode=args.execution_mode,
         auto_megarom=args.auto_megarom,
     )
+    artifact_dir = write_generated_artifacts(asm_output)
+
+    zx0_asm, zx0_info = maybe_run_zx0_preprocess(
+        project_root=project_root,
+        asm_output=asm_output,
+        enabled=not args.skip_zx0_preprocess,
+    )
 
     asm_to_compile = maybe_run_post_asm_optimizer(
         project_root=project_root,
-        asm_output=asm_output,
+        asm_output=zx0_asm,
         glass_jar=glass_jar,
         enabled=args.post_asm_opt,
         check_only=args.post_asm_check_only,
@@ -545,14 +730,23 @@ def main() -> int:
         project_root=project_root,
     )
 
-    original_size, padded_size = pad_rom_to_8kb(rom_output)
+    original_size, padded_size = pad_rom_to_valid_size(rom_output, args.rom_mode, args.target_format)
 
     print("")
     print("Done.")
     print(f"Project: {project_name}")
     print(f"JSON: {json_path}")
     print(f"ASM: {asm_output} ({asm_chars} chars)")
-    if asm_to_compile != asm_output:
+    if artifact_dir:
+        print(f"Generated artifacts: {artifact_dir}")
+    if zx0_asm != asm_output:
+        print(f"ZX0 ASM: {zx0_asm}")
+    if zx0_info is not None:
+        applied = zx0_info.get("applied")
+        net_saved = zx0_info.get("netSavedBytes")
+        warning = zx0_info.get("warning")
+        print(f"ZX0: applied={applied}, netSavedBytes={net_saved}, warning={warning or 'none'}")
+    if asm_to_compile != zx0_asm:
         print(f"Optimized ASM: {asm_to_compile}")
     print(f"ROM: {rom_output} (original={original_size} bytes, padded={padded_size} bytes)")
     print(f"Glass: {glass_jar}")

@@ -11,9 +11,13 @@ const fontGenerator_1 = require("./fontGenerator");
 const screensGenerator_1 = require("./screensGenerator");
 const patternsGenerator_1 = require("./patternsGenerator");
 const colorsGenerator_1 = require("./colorsGenerator");
+const spritesGenerator_1 = require("./spritesGenerator");
+const soundGenerator_1 = require("./soundGenerator");
+const worldGenerator_1 = require("./worldGenerator");
 const zx0Utils_1 = require("./zx0Utils");
 const mapperWindowUtils_1 = require("./mapperWindowUtils");
 const megaromDataPacker_1 = require("../utils/megaromDataPacker");
+const megaromResourceArtifacts_1 = require("../utils/megaromResourceArtifacts");
 /**
  * Convert routine name to lowercase (for labels, CALL, JP, JR targets)
  */
@@ -131,7 +135,7 @@ init_font_system:
 
 `}
 
-${hasHud ? files['hud.asm'] : '; [hud.asm skipped - no HUD elements]\n'}
+${files['hud.asm']}
 
 ${files['sound.asm']}
 
@@ -269,13 +273,16 @@ page0_copy_chunk_to_buffer:
 ;   hl: compressed source in page 0
 ;   de: destination in RAM
 page0_decompress_to_ram:
-    ; page0_map_game_rom uses E/C/B as scratch while rebuilding slot registers.
+${needsZx0Decoder ? `    ; page0_map_game_rom uses E/C/B as scratch while rebuilding slot registers.
     ; Preserve DE so dzx0_standard receives the caller's RAM destination intact.
     push de
     call page0_map_game_rom
     pop de
     call dzx0_standard
     jp page0_restore_bios_rom
+` : `    ; No page-0 ZX0 blocks in this build. Keep the label for compatibility.
+    ret
+`}
 
 ;-----------------------------------------------
 ; Copy cold data from page 0 ROM to VRAM using a RAM buffer.
@@ -552,11 +559,14 @@ function getKnownEntryPoints(moduleKey, analysis) {
         }
         case 'screens_code': {
             const screenMaps = analysis.screenMaps || [];
-            return screenMaps.map((screen) => {
-                const screenName = (screen.name || 'unknown').toUpperCase().replace(/[^A-Z0-9]/g, '_').toLowerCase();
-                const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
-                return `load_screen_${screenName}${screenIdSuffix.toLowerCase()}`;
-            });
+            return [
+                ...screenMaps.map((screen) => {
+                    const screenName = (screen.name || 'unknown').toUpperCase().replace(/[^A-Z0-9]/g, '_').toLowerCase();
+                    const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+                    return `load_screen_${screenName}${screenIdSuffix.toLowerCase()}`;
+                }),
+                'show_presentation_screen',
+            ];
         }
         case 'font':
             return ['init_font_system'];
@@ -632,6 +642,17 @@ function generateFarCallTrampolines(farBanks, analysis) {
 function farCallLabel(ep, farModuleKeys, moduleKey) {
     return farModuleKeys.has(moduleKey) ? `${ep}_far` : ep;
 }
+function collectDefinedLabels(files) {
+    const labels = new Set();
+    const labelPattern = /^([A-Za-z_][A-Za-z0-9_]*):/gm;
+    Object.keys(files).forEach((fileKey) => {
+        const asm = files[fileKey] || '';
+        for (const match of asm.matchAll(labelPattern)) {
+            labels.add(match[1]);
+        }
+    });
+    return labels;
+}
 function replaceCallInstruction(asm, fromLabel, toLabel) {
     const pattern = new RegExp(`\\bcall\\s+${fromLabel}\\b`, 'g');
     return asm.replace(pattern, `call ${toLabel}`);
@@ -664,22 +685,26 @@ function rewriteResidentCallSites(files) {
     });
     return rewritten;
 }
-function generateResidentCallWrappers(farModuleKeys) {
-    const checkWorldScreenTransitionCall = farCallLabel('check_world_screen_transition', farModuleKeys, 'worlds');
-    const initFontCall = farCallLabel('init_font_system', farModuleKeys, 'font');
-    const renderHudCall = farCallLabel('render_hud', farModuleKeys, 'hud');
-    const forceRenderHudCall = farCallLabel('force_render_hud', farModuleKeys, 'hud');
-    const initSoundCall = farCallLabel('init_sound_system', farModuleKeys, 'sound');
-    const taskAudioTickCall = farCallLabel('task_audio_tick', farModuleKeys, 'sound');
-    const musicUpdateCall = farCallLabel('music_update', farModuleKeys, 'sound');
-    const sfxUpdateCall = farCallLabel('sfx_update', farModuleKeys, 'sound');
-    const musicPlayTrackCall = farCallLabel('music_play_track', farModuleKeys, 'sound');
-    const updateSpritesCall = farCallLabel('update_sprites_to_vram', farModuleKeys, 'sprites');
-    const clearAllSpritesCall = farCallLabel('clear_all_sprites', farModuleKeys, 'sprites');
-    const initAnimatedTilesCall = farCallLabel('init_animated_tiles', farModuleKeys, 'animtiles');
-    const updateAnimatedTilesCall = farCallLabel('update_animated_tiles', farModuleKeys, 'animtiles');
-    const updateAnimatedTilesVramCall = farCallLabel('update_animated_tiles_vram', farModuleKeys, 'animtiles');
-    const loadColorsToVramCall = farCallLabel('load_colors_to_vram', farModuleKeys, 'colors_code');
+function generateResidentCallWrappers(farModuleKeys, availableLabels) {
+    const resolveResidentTarget = (label, moduleKey) => {
+        const target = farCallLabel(label, farModuleKeys, moduleKey);
+        return availableLabels.has(target) ? target : 'resident_noop';
+    };
+    const checkWorldScreenTransitionCall = resolveResidentTarget('check_world_screen_transition', 'worlds');
+    const initFontCall = resolveResidentTarget('init_font_system', 'font');
+    const renderHudCall = resolveResidentTarget('render_hud', 'hud');
+    const forceRenderHudCall = resolveResidentTarget('force_render_hud', 'hud');
+    const initSoundCall = resolveResidentTarget('init_sound_system', 'sound');
+    const taskAudioTickCall = resolveResidentTarget('task_audio_tick', 'sound');
+    const musicUpdateCall = resolveResidentTarget('music_update', 'sound');
+    const sfxUpdateCall = resolveResidentTarget('sfx_update', 'sound');
+    const musicPlayTrackCall = resolveResidentTarget('music_play_track', 'sound');
+    const updateSpritesCall = resolveResidentTarget('update_sprites_to_vram', 'sprites');
+    const clearAllSpritesCall = resolveResidentTarget('clear_all_sprites', 'sprites');
+    const initAnimatedTilesCall = resolveResidentTarget('init_animated_tiles', 'animtiles');
+    const updateAnimatedTilesCall = resolveResidentTarget('update_animated_tiles', 'animtiles');
+    const updateAnimatedTilesVramCall = resolveResidentTarget('update_animated_tiles_vram', 'animtiles');
+    const loadColorsToVramCall = resolveResidentTarget('load_colors_to_vram', 'colors_code');
     return `; ==================================================================
 ; RESIDENT CALL WRAPPERS — bank 0 stable entrypoints
 ; Mainline code calls these labels instead of calling banked modules directly.
@@ -730,6 +755,9 @@ call_update_animated_tiles_vram_resident:
 call_load_colors_to_vram_resident:
     jp ${loadColorsToVramCall}
 
+resident_noop:
+    ret
+
 `;
 }
 function generateMegaromUnifiedFile(files, projectName, analysis, executionPlan, config, options) {
@@ -761,17 +789,21 @@ function generateMegaromUnifiedFile(files, projectName, analysis, executionPlan,
         ...(files['statemachine.asm'] && files['statemachine.asm'].trim() !== '; No State Machines' ? [{ key: 'statemachine', content: files['statemachine.asm'], estimatedBytes: estimateAsmBytesLocal(files['statemachine.asm']) }] : []),
         ...(needsFont ? [{ key: 'font', content: files['font.asm'], estimatedBytes: estimateAsmBytesLocal(files['font.asm']) }] : []),
         ...(hasMenus ? [{ key: 'menus', content: files['menus.asm'], estimatedBytes: estimateAsmBytesLocal(files['menus.asm']) }] : []),
-        ...(hasHud ? [{ key: 'hud', content: files['hud.asm'], estimatedBytes: estimateAsmBytesLocal(files['hud.asm']) }] : []),
+        // Keep HUD stubs in unified output even with zero elements. Resident
+        // wrappers always reference render_hud/force_render_hud.
+        { key: 'hud', content: files['hud.asm'], estimatedBytes: estimateAsmBytesLocal(files['hud.asm']) },
         { key: 'sound', content: files['sound.asm'], estimatedBytes: estimateAsmBytesLocal(files['sound.asm']) },
     ].filter(m => m.estimatedBytes > 0);
     const packedBanks = packModulesFFD(codeModules);
     const packerLayoutComment = formatPackedBankLayoutComment(packedBanks);
-    // Build bank4 section: pattern data + color data + screen data + font data + presentation screen
+    // Build bank4 section: sprite data + pattern data + color data + screen data + font data + presentation screen
     // assembled at org #C000. Labels accessed via P2 window using (label & #1FFF) | #8000.
     const presentationBank4Data = (0, screensGenerator_1.getPresentationScreenBank4Data)(analysis);
     const fontBank4Data = needsFont ? (0, fontGenerator_1.getFontBank4Data)(analysis) : '';
+    const spritesBank4Data = (0, spritesGenerator_1.getSpritesBank4Data)(analysis);
     const patternsBank4Data = analysis.tiles && analysis.tiles.length > 0 ? (0, patternsGenerator_1.getPatternsBank4Data)(analysis) : '';
     const colorsBank4Data = analysis.tiles && analysis.tiles.length > 0 ? (0, colorsGenerator_1.getColorsBank4Data)(analysis) : '';
+    const soundBank4Data = (0, soundGenerator_1.getSoundBank4Data)(analysis);
     const screensBank4Data = analysis.screenMaps && analysis.screenMaps.length > 0
         ? (0, screensGenerator_1.getScreensBank4Data)(analysis, config.targetFormat) : '';
     // Separate primary banks (1-3, always mapped) from far banks (4+, trampoline accessed)
@@ -779,19 +811,20 @@ function generateMegaromUnifiedFile(files, projectName, analysis, executionPlan,
     const farCodeBanks = packedBanks.filter(b => b.isFar);
     // Build set of module keys that ended up in far banks
     const farModuleKeySet = new Set(farCodeBanks.flatMap(b => b.modules.map(m => m.key)));
+    const emittedFiles = rewriteResidentCallSites(files);
+    const availableLabels = collectDefinedLabels(emittedFiles);
     // Generate far-call trampolines for bank 0
     const farTrampolines = generateFarCallTrampolines(farCodeBanks, analysis);
-    const residentCallWrappers = generateResidentCallWrappers(farModuleKeySet);
-    const emittedFiles = rewriteResidentCallSites(files);
+    const availableWrapperTargets = new Set([
+        ...availableLabels,
+        ...collectDefinedLabels({ 'main.asm': farTrampolines }),
+    ]);
+    const residentCallWrappers = generateResidentCallWrappers(farModuleKeySet, availableWrapperTargets);
     // Determine whether init_entities and init_font_system are in far banks
     const initEntitiesCall = farModuleKeySet.has('entities') ? 'init_entities_far' : 'init_entities';
     const initFontCall = farModuleKeySet.has('font') ? 'init_font_system_far' : 'init_font_system';
-    const loadPatternBank0Call = farCallLabel('load_pattern_bank0', farModuleKeySet, 'patterns_code');
-    const loadPatternBank1Call = farCallLabel('load_pattern_bank1', farModuleKeySet, 'patterns_code');
-    const loadPatternBank2Call = farCallLabel('load_pattern_bank2', farModuleKeySet, 'patterns_code');
-    const loadColorBank0Call = farCallLabel('load_color_bank0', farModuleKeySet, 'colors_code');
-    const loadColorBank1Call = farCallLabel('load_color_bank1', farModuleKeySet, 'colors_code');
-    const loadColorBank2Call = farCallLabel('load_color_bank2', farModuleKeySet, 'colors_code');
+    const loadPatternsToVramCall = farCallLabel('load_patterns_to_vram', farModuleKeySet, 'patterns_code');
+    const loadColorsToVramCall = farCallLabel('load_colors_to_vram', farModuleKeySet, 'colors_code');
     const initAnimatedTilesCall = farCallLabel('init_animated_tiles', farModuleKeySet, 'animtiles');
     const mapperWindow = (0, mapperWindowUtils_1.getMapperWindowConfig)(config.romMode, config.targetFormat);
     const dataZoneSize = mapperWindow.dataZoneSize;
@@ -801,9 +834,11 @@ function generateMegaromUnifiedFile(files, projectName, analysis, executionPlan,
     const dataOrgAddress = 0x4000 + alignedDataOffset;
     const dataStartPhysBank = (dataOrgAddress - 0x4000) / dataZoneSize;
     const dataPack = (0, megaromDataPacker_1.packMegaromDataGroups)([
+        { groupName: 'sprites', asm: spritesBank4Data },
         { groupName: 'patterns', asm: patternsBank4Data },
         { groupName: 'colors', asm: colorsBank4Data },
         { groupName: 'screens', asm: screensBank4Data },
+        { groupName: 'sound', asm: soundBank4Data },
         { groupName: 'font', asm: fontBank4Data },
         { groupName: 'presentation', asm: presentationBank4Data },
     ].filter((group) => group.asm.trim().length > 0), dataOrgAddress, dataZoneSize);
@@ -813,6 +848,17 @@ function generateMegaromUnifiedFile(files, projectName, analysis, executionPlan,
             .join(', ');
         throw new Error(`MegaROM data zone overflow: ${overflowSummary}`);
     }
+    const generatedArtifacts = (0, megaromResourceArtifacts_1.buildMegaromGeneratedArtifacts)(dataPack, mapperWindow);
+    const generatedArtifactMap = new Map(generatedArtifacts.map((artifact) => [artifact.fileName, artifact.content]));
+    const generatedArtifactBlocks = [
+        (0, megaromResourceArtifacts_1.renderMegaromGeneratedArtifactsAsCommentBlocks)(dataPack, mapperWindow),
+        (0, megaromResourceArtifacts_1.renderNamedArtifactAsCommentBlock)('resource_manager.asm', files['resource_manager.asm']),
+        (0, megaromResourceArtifacts_1.renderNamedArtifactAsCommentBlock)('world_music_policy.txt', (0, worldGenerator_1.buildWorldMusicPolicyManifest)(analysis)),
+        (0, megaromResourceArtifacts_1.renderNamedArtifactAsCommentBlock)('world_sprite_pattern_policy.txt', (0, spritesGenerator_1.buildWorldSpritePatternPolicyManifest)(analysis)),
+        (0, megaromResourceArtifacts_1.renderNamedArtifactAsCommentBlock)('screen_resource_policy.txt', (0, screensGenerator_1.buildScreenResourcePolicyManifest)(analysis)),
+    ].join('\n\n');
+    const resourceIdsAsm = generatedArtifactMap.get('resource_ids.asm') || files['resource_ids.asm'];
+    const resourceTableAsm = generatedArtifactMap.get('resource_table.asm') || files['resource_table.asm'];
     const overflowDataSection = `; ==================================================================
 ; DATA BANKS — Zone-packed data (${dataZoneSize} bytes per zone)
 ; First data bank: ${dataStartPhysBank}
@@ -838,6 +884,7 @@ ${dataPack.asm}`;
 ; Banks 1-3 [#6000-#BFFFh] : Game code — FFD-packed primary (see layout below)
 ; Bank 4+ (code) [far]  : Far code banks — accessed via trampolines in bank 0
 ; Bank 4+ (data) [#C000h+] : DATA TABLES (patterns, colors, screens, font - P2 switch)
+; Generated artifacts: resource_ids.asm, resource_table.asm, resource_manager.asm, packing_manifest.txt
 ;
 ; Tiles: ${analysis.tiles?.length || 0}
 ; Sprites: ${analysis.sprites?.length || 0}
@@ -848,6 +895,8 @@ ${dataPack.asm}`;
 ; State Machines: ${analysis.stateMachines?.length || 0}
 ${executionPlanComments}${packerLayoutComment}
 ${farCodeBanksAsmComment}${bankPackComments}; ==================================================================
+
+${generatedArtifactBlocks}
 
 ; ##################################################################
 ; BANK 0 — Bootstrap (#4000h-#5FFFh, FIXED window in Konami mapper)
@@ -866,6 +915,12 @@ ${emittedFiles['constants.asm']}
 ${emittedFiles['variables.asm']}
 
 ${emittedFiles['mapper.asm']}
+
+${resourceIdsAsm}
+
+${resourceTableAsm}
+
+${files['resource_manager.asm']}
 
 ; ==================================================================
 ; PAGE-0 STUBS — labels required by header.asm, no-ops in megarom
@@ -904,13 +959,9 @@ ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize componen
     call init_components
 ` : `    ; No entities - skipping component system initialization
 `}
-${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load pattern and color data (tiles detected)
-    call ${loadPatternBank0Call}
-    call ${loadPatternBank1Call}
-    call ${loadPatternBank2Call}
-    call ${loadColorBank0Call}
-    call ${loadColorBank1Call}
-    call ${loadColorBank2Call}
+${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load shared gameplay pattern/color data once unless VRAM was invalidated.
+    call ${loadPatternsToVramCall}
+    call ${loadColorsToVramCall}
 ` : `    ; No tiles detected - skipping pattern/color loading
 `}
     ; Initialize animated tile runtime (safe no-op if no animated groups)

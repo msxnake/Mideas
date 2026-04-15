@@ -26,6 +26,10 @@ function sanitizeAsmFragment(value: string): string {
     .toLowerCase() || 'default';
 }
 
+function sanitizeAsmFragmentUpper(value: string): string {
+  return sanitizeAsmFragment(value).toUpperCase();
+}
+
 function buildEmptyPayload(): Screen2TileBankPayload {
   return {
     startChar: 0,
@@ -241,6 +245,10 @@ function buildBankPayload(bankDef: any, tileById: Map<string, any>): Screen2Tile
 
 export function getScreen2TileBankLabelBase(tileBankId: string): string {
   return `tilebank_${sanitizeAsmFragment(tileBankId)}`;
+}
+
+export function getScreen2TileBankIdLabel(tileBankId: string): string {
+  return `SCREEN2_TILEBANK_${sanitizeAsmFragmentUpper(tileBankId)}_ID`;
 }
 
 export function getScreen2TileBankPatternLoaderLabel(tileBankId: string): string {

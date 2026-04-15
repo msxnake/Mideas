@@ -1,0 +1,11 @@
+boot trace loaded
+hit init_rom                     PC=4010 SP=F2EC AF=1F08 P1=FF P2=FF P3=FF
+hit restart_rom_continue         PC=4022 SP=F380 AF=D484 P1=FF P2=FF P3=FF
+hit mapper_runtime_init          PC=414E SP=F37E AF=D484 P1=FF P2=FF P3=FF
+hit resource_manager_init        PC=45FA SP=F37E AF=0344 P1=00 P2=01 P3=02
+hit gameflow_start               PC=A008 SP=F380 AF=E2A4 P1=01 P2=02 P3=03
+hit gameflow_execute_node        PC=A00E SP=F380 AF=E2A4 P1=01 P2=02 P3=03
+hit gameflow_handle_start        PC=A036 SP=F380 AF=0042 P1=01 P2=02 P3=03
+hit start_init                   PC=A6A4 SP=F37A AF=03A4 P1=01 P2=02 P3=03
+final PC=108B SP=F2FE AF=0048 P1=0D P2=08 P3=03
+boot trace finished

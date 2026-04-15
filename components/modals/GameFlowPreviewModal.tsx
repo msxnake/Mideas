@@ -5,9 +5,9 @@ import { CRTShaderOverlay, CRTShaderConfig, defaultCRTConfig } from '../../src/c
 import { CRTConfigModal } from '../../src/components/CRTConfigModal';
 import {
     GameFlowGraph,
+    GameFlowGlobalInitializationConfig,
     ProjectAsset,
     GameFlowNode,
-    GameFlowStartNode,
     GameFlowSubMenuNode,
     GameFlowWorldLinkNode,
     GameFlowTextNode,
@@ -459,8 +459,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         });
     }, [setGameGlobalVariables]);
     const allGlobalVariables = useMemo(() => getAllGlobalVariables(allAssets), [allAssets]);
-    const applyStartNodeGlobalInitialization = useCallback((startNode: GameFlowStartNode) => {
-        const initConfig = startNode.initializeGlobals;
+    const applyNodeGlobalInitialization = useCallback((initConfig?: GameFlowGlobalInitializationConfig) => {
         if (!initConfig?.enabled) return;
 
         const explicitVariables = Array.isArray(initConfig.variables) ? initConfig.variables : [];
@@ -543,10 +542,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const currentNode = nodes.find(node => node.id === currentNodeId);
 
     useEffect(() => {
-        if (currentNode?.type === 'Start') {
-            applyStartNodeGlobalInitialization(currentNode as GameFlowStartNode);
+        if (currentNode?.type === 'Start' || currentNode?.type === 'WorldLink') {
+            applyNodeGlobalInitialization(currentNode.initializeGlobals);
         }
-    }, [currentNodeId, currentNode, applyStartNodeGlobalInitialization]);
+    }, [currentNodeId, currentNode, applyNodeGlobalInitialization]);
 
 
     // Refs to share state between callbacks and effects
@@ -1229,7 +1228,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             case 'VARIABLE_COMPARE': {
                 const variable = condition.params?.variable || 'x';
                 const operator = condition.params?.operator || '==';
+                const valueSource = condition.params?.valueSource === 'variable' ? 'variable' : 'constant';
                 const rawValue = condition.params?.value ?? 0;
+                const compareVariableName = condition.params?.valueVariable || variable;
 
                 // Helper to normalize values for comparison (handles booleans, numbers, strings)
                 const normalizeValue = (value: any): boolean | number | string => {
@@ -1250,52 +1251,42 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     return value;
                 };
 
-                // Primero intentar acceder a variables de la entidad (x, y, vx, vy)
-                // Si no existe, buscar en las variables globales
-                //
                 // Z80 velocity mapping: SM conditions use Z80 8-bit unsigned values where
                 // 128+ means negative (two's complement). The simulator uses signed floats.
-                // Convert: sim vy < 0 (rising) → Z80 byte 128..255, sim vy >= 0 → Z80 byte 0..127
                 const simVelToZ80Byte = (v: number): number => {
-                    // Clamp to Z80 signed byte range (-128..127) by scaling:
-                    // Simulator vy is in pixels/frame (~-6 to +6), Z80 is fixed-point 8.8 high byte
-                    // For condition purposes: negative → 128+, zero → 0, positive → 1..127
                     if (v < 0) {
-                        // Map negative velocity to 128..255 (Z80 two's complement)
                         const clamped = Math.max(-128, Math.round(v));
-                        return 256 + clamped; // e.g. -6 → 250, -1 → 255
+                        return 256 + clamped;
                     }
-                    // Map positive velocity to 0..127
+
                     return Math.min(127, Math.round(v));
                 };
 
-                const leftValue = (() => {
-                    // Variables de la entidad (acceso directo - siempre son números)
-                    switch (variable) {
-                        case 'x': return Number.isFinite(entity.x) ? entity.x : 0;
-                        case 'y': return Number.isFinite(entity.y) ? entity.y : 0;
-                        case 'vx': return Number.isFinite(entity.vx) ? entity.vx : 0;
+                const resolveVariableValue = (variableName: string, compareHint?: boolean | number | string): boolean | number | string => {
+                    switch (variableName) {
+                        case 'x':
+                            return Number.isFinite(entity.x) ? entity.x : 0;
+                        case 'y':
+                            return Number.isFinite(entity.y) ? entity.y : 0;
+                        case 'vx':
+                            return Number.isFinite(entity.vx) ? entity.vx : 0;
                         case 'vy': {
                             const vy = Number.isFinite(entity.vy) ? entity.vy : 0;
-                            // If comparison value is in Z80 byte range (>=64), convert sim vy to Z80 byte
-                            // Values 0..~10 are plausible simulator-scale; 64+ are clearly Z80-scale
-                            const rv = Number(rawValue);
-                            if (!Number.isNaN(rv) && rv >= 64) {
+                            const numericHint = typeof compareHint === 'number' ? compareHint : Number(compareHint);
+                            if (!Number.isNaN(numericHint) && numericHint >= 64) {
                                 return simVelToZ80Byte(vy);
                             }
                             return vy;
                         }
                         default: {
-                            // Intentar buscar en variables globales
-                            const resolvedVarName = normalizeVariableName(variable) ?? variable;
+                            const resolvedVarName = normalizeVariableName(variableName) ?? variableName;
                             const globalValue = gameGlobalVariablesRef.current?.[resolvedVarName];
 
                             if (globalValue !== undefined) {
                                 return normalizeValue(globalValue);
                             }
 
-                            // Fallback: intentar acceder a otras propiedades de la entidad
-                            const entityProp = (entity as any)?.[variable];
+                            const entityProp = (entity as any)?.[variableName];
                             if (entityProp !== undefined) {
                                 return normalizeValue(entityProp);
                             }
@@ -1303,9 +1294,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             return 0;
                         }
                     }
-                })();
+                };
 
-                const rightValue = normalizeValue(rawValue);
+                const rightValue = valueSource === 'variable'
+                    ? resolveVariableValue(compareVariableName)
+                    : normalizeValue(rawValue);
+
+                const leftValue = (() => {
+                    return resolveVariableValue(variable, rightValue);
+                })();
 
                 // Type-aware comparison
                 const leftType = typeof leftValue;
@@ -1339,7 +1336,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 return condition.conditions?.some((c: any) => evaluateCondition(c, entity)) ?? false;
 
             case 'NOT':
-                return !condition.conditions?.every((c: any) => evaluateCondition(c, entity)) ?? true;
+                return condition.conditions
+                    ? !condition.conditions.every((c: any) => evaluateCondition(c, entity))
+                    : true;
 
             default:
                 return false;

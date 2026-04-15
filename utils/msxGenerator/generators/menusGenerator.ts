@@ -226,7 +226,7 @@ handle_main_menu:
     jp z, menu_down
 
     ; Check for selection (space or fire button)
-    call GTTRIG
+    ld a, (input_fire)
     or a
     jp nz, menu_select
 

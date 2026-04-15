@@ -15,6 +15,7 @@ import {
   getMapperWindowConfig,
   type MapperTargetFormat,
 } from './mapperWindowUtils';
+import { buildResourceIdLabelFromAsmLabel } from '../utils/megaromResourceArtifacts';
 
 /**
  * Generate color data file (colors.asm)
@@ -42,6 +43,7 @@ export function generateColorsFile(
   }
 
   const usesMapper = usesMapperBanking(romMode);
+  const useResourceManager = romMode === 'megarom';
   const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
   const mapperPush = usesMapper ? buildMapperDataPushAsm('COLOR_DATA_BANK', mapperWindow) : '';
   const mapperPop  = usesMapper ? buildMapperDataPopAsm(mapperWindow) : '';
@@ -49,6 +51,7 @@ export function generateColorsFile(
   const dataHl = (label: string) => usesMapper ? buildMapperWindowedAddress(label, mapperWindow) : label;
   const referencedTileBanks = buildReferencedScreen2TileBanks(analysis);
   const bankBaseExpressions = ['CLRTBL2', 'CLRTBL2 + #800', 'CLRTBL2 + #1000'];
+  const colorDataResourceId = buildResourceIdLabelFromAsmLabel('tile_color_bank0');
 
   const formatBytes = (bytes: number[]): string => {
     if (bytes.length === 0) return '    db #00\n';
@@ -81,12 +84,20 @@ export function generateColorsFile(
       }
 
       if (bank.byteCount > 0) {
+        const dataResourceId = buildResourceIdLabelFromAsmLabel(dataLabel);
         asm += `${runtime.labelBase}_load_color_bank${bankIndex}:\n`;
-        asm += `${mapperPush}    ld hl, ${dataHl(dataLabel)}\n`;
-        asm += `    ld de, ${bankBaseExpressions[bankIndex]} + (${bank.startChar} * 8)\n`;
-        asm += `    ld bc, ${bank.byteCount}\n`;
-        asm += `    call FAST_LDIRVM\n`;
-        asm += `${mapperPop}    ret\n\n`;
+        if (useResourceManager) {
+          asm += `    ld a, ${dataResourceId}\n`;
+          asm += `    ld de, ${bankBaseExpressions[bankIndex]} + (${bank.startChar} * 8)\n`;
+          asm += `    call resource_load_to_vram_by_id\n`;
+          asm += `    ret\n\n`;
+        } else {
+          asm += `${mapperPush}    ld hl, ${dataHl(dataLabel)}\n`;
+          asm += `    ld de, ${bankBaseExpressions[bankIndex]} + (${bank.startChar} * 8)\n`;
+          asm += `    ld bc, ${bank.byteCount}\n`;
+          asm += `    call FAST_LDIRVM\n`;
+          asm += `${mapperPop}    ret\n\n`;
+        }
       }
     });
 
@@ -146,36 +157,50 @@ ${dataSection}
 load_color_bank0:
     ; Load color bank 0 to VRAM (base colors)
     ; Fast direct port access (no BIOS overhead)
-${mapperPush}    ld hl, ${dataHl('tile_color_bank0')}
+${useResourceManager ? `    ld a, ${colorDataResourceId}
+    ld de, CLRTBL2 + (128 * 8)    ; VRAM color table bank 0 (start at char 128)
+    call resource_load_to_vram_by_id
+    ret` : `${mapperPush}    ld hl, ${dataHl('tile_color_bank0')}
     ld de, CLRTBL2 + (128 * 8)    ; VRAM color table bank 0 (start at char 128)
     ld bc, ${totalColorBytes}     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
-${mapperPop}    ret
+${mapperPop}    ret`}
 
 load_color_bank1:
     ; Load color bank 1: same colors as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
-${mapperPush}    ld hl, ${dataHl('tile_color_bank0')}       ; Same source as Bank 0
+${useResourceManager ? `    ld a, ${colorDataResourceId}
+    ld de, CLRTBL2 + #800 + (128 * 8) ; VRAM color table bank 1 (+#800 offset + char 128)
+    call resource_load_to_vram_by_id
+    ret` : `${mapperPush}    ld hl, ${dataHl('tile_color_bank0')}       ; Same source as Bank 0
     ld de, CLRTBL2 + #800 + (128 * 8) ; VRAM color table bank 1 (+#800 offset + char 128)
     ld bc, ${totalColorBytes}     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
-${mapperPop}    ret
+${mapperPop}    ret`}
 
 load_color_bank2:
     ; Load color bank 2: same colors as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
-${mapperPush}    ld hl, ${dataHl('tile_color_bank0')}       ; Same source as Bank 0
+${useResourceManager ? `    ld a, ${colorDataResourceId}
+    ld de, CLRTBL2 + #1000 + (128 * 8) ; VRAM color table bank 2 (+#1000 offset + char 128)
+    call resource_load_to_vram_by_id
+    ret` : `${mapperPush}    ld hl, ${dataHl('tile_color_bank0')}       ; Same source as Bank 0
     ld de, CLRTBL2 + #1000 + (128 * 8) ; VRAM color table bank 2 (+#1000 offset + char 128)
     ld bc, ${totalColorBytes}     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
-${mapperPop}    ret
+${mapperPop}    ret`}
 
 load_colors_to_vram:
     ; Load all color banks to VRAM (required for SCREEN 2)
     ; This loads the same colors to all 3 banks (standard MSX Screen 2 setup)
+    ld a, (vram_cache_tile_colors_ready)
+    or a
+    ret nz
     call load_color_bank0
     call load_color_bank1
     call load_color_bank2
+    ld a, 1
+    ld (vram_cache_tile_colors_ready), a
     ret
 
 ${tileBankRuntimeAsm}${tilebankDataSection}

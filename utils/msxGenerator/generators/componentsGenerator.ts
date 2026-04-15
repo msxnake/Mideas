@@ -7183,6 +7183,44 @@ update_collectible_component:
     `;
 }
 
+function generateResolveRuntimeHeroEntityHelper(): string {
+    return `
+; ------------------------------------------------------------------
+; resolve_runtime_hero_entity
+; Preferred order:
+;   1) hero_entity_id if valid
+;   2) first input entity of current screen
+;   3) entity 0 if still active (legacy compatibility)
+; Output: A = entity index, or #FF when unavailable
+; Clobbers: AF, HL
+; ------------------------------------------------------------------
+resolve_runtime_hero_entity:
+    ld a, (hero_entity_id)
+    cp #FF
+    ret nz
+    ld a, (input_entity_count)
+    or a
+    jr z, .resolve_legacy_entity0
+    ld hl, input_entity_list
+    ld a, (hl)
+    ld (hero_entity_id), a
+    ret
+
+.resolve_legacy_entity0:
+    ld a, (entity_active)
+    or a
+    jr z, .resolve_none
+    xor a
+    ld (hero_entity_id), a
+    ret
+
+.resolve_none:
+    ld a, #FF
+    ret
+
+`;
+}
+
 /**
  * Generate entity management helper functions
  */
@@ -8025,6 +8063,9 @@ init_sprite_system:
 update_sprite_component:
     ret
 
+refresh_player_sprite_fastpath:
+    ret
+
 force_update_entity_sprite:
     ret
     `;
@@ -8083,6 +8124,9 @@ init_input_system:
 
 update_input_component:
     ret
+
+update_player_fastpath:
+    ret
     `;
     }
 
@@ -8124,6 +8168,9 @@ init_animation_system:
     ret
 
 update_animation_component:
+    ret
+
+refresh_player_animation_fastpath:
     ret
     `;
     }
@@ -8316,6 +8363,9 @@ init_deadly_tiles_system:
 
 update_deadly_tiles_component:
     ret
+
+refresh_player_deadly_fastpath:
+    ret
     `;
     } else {
         code += generateDeadlyTilesSystem();
@@ -8351,6 +8401,9 @@ update_slash_component:
     ret
 
 check_tile_interaction:
+    ret
+
+refresh_player_tile_interaction_fastpath:
     ret
 
 ; Stub: apply_collected_tiles (no interactable tiles in project)
@@ -8676,6 +8729,10 @@ div_a_by_c:
 
 `;
 
+    if (usedComponents.has('Collectible') || hasSecretZones) {
+        code += generateResolveRuntimeHeroEntityHelper();
+    }
+
     if (hasSecretZones) {
         code += `
 ; ------------------------------------------------------------------
@@ -8824,39 +8881,6 @@ update_secret_zone_component:
     ret z
     call secret_zone_restore_current_rect
     call secret_zone_clear_state
-    ret
-
-; ------------------------------------------------------------------
-; resolve_runtime_hero_entity
-; Preferred order:
-;   1) hero_entity_id if valid
-;   2) first input entity of current screen
-;   3) entity 0 if still active (legacy compatibility)
-; Output: A = entity index, or #FF when unavailable
-; Clobbers: AF, HL
-; ------------------------------------------------------------------
-resolve_runtime_hero_entity:
-    ld a, (hero_entity_id)
-    cp #FF
-    ret nz
-    ld a, (input_entity_count)
-    or a
-    jr z, .resolve_legacy_entity0
-    ld hl, input_entity_list
-    ld a, (hl)
-    ld (hero_entity_id), a
-    ret
-
-.resolve_legacy_entity0:
-    ld a, (entity_active)
-    or a
-    jr z, .resolve_none
-    xor a
-    ld (hero_entity_id), a
-    ret
-
-.resolve_none:
-    ld a, #FF
     ret
 
 ; ------------------------------------------------------------------

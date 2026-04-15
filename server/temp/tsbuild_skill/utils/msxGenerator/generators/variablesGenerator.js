@@ -6,6 +6,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateVariablesFile = generateVariablesFile;
 const spriteUtils_1 = require("../../../components/utils/spriteUtils");
+const soundGenerator_1 = require("./soundGenerator");
 /**
  * Generate RAM variables with EQU addresses (variables.asm)
  *
@@ -14,6 +15,7 @@ const spriteUtils_1 = require("../../../components/utils/spriteUtils");
  */
 function generateVariablesFile(analysis) {
     const expandedSpriteCount = Math.max(1, (0, spriteUtils_1.buildMSXDirectionalSpriteCatalog)(analysis.sprites || []).sprites.length);
+    const serializedTrackerMusicBufferSize = (0, soundGenerator_1.getSerializedTrackerMusicBufferSize)(analysis);
     let code = `; ==================================================================
 ; RAM VARIABLES DEFINITIONS
 ; File: variables.asm
@@ -113,6 +115,36 @@ function generateVariablesFile(analysis) {
     currentAddress++;
     code += `mapper_saved_bank_p4 EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Saved mapper bank for page/window 4 helpers\n`;
     currentAddress++;
+    code += `resource_descriptor_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Pointer to cached resource descriptor entry (16-bit)\n`;
+    currentAddress += 2;
+    code += `resource_descriptor_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id\n`;
+    currentAddress++;
+    code += `resource_descriptor_type EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource type\n`;
+    currentAddress++;
+    code += `resource_descriptor_group EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource group\n`;
+    currentAddress++;
+    code += `resource_descriptor_bank EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource bank\n`;
+    currentAddress++;
+    code += `resource_descriptor_addr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource visible address (16-bit)\n`;
+    currentAddress += 2;
+    code += `resource_descriptor_size EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource size (16-bit)\n`;
+    currentAddress += 2;
+    code += `vram_cache_tile_patterns_ready EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when shared gameplay tile patterns are already resident in VRAM\n`;
+    currentAddress++;
+    code += `vram_cache_tile_colors_ready EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when shared gameplay tile colors are already resident in VRAM\n`;
+    currentAddress++;
+    code += `vram_cache_font_ready EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when shared font patterns/colors are already resident in VRAM\n`;
+    currentAddress++;
+    code += `resource_ram_cache_screen_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_background_layout source\n`;
+    currentAddress++;
+    code += `resource_ram_cache_effects_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effects_layout source\n`;
+    currentAddress++;
+    code += `resource_ram_cache_behavior_map_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for pristine behavior-map RAM copy\n`;
+    currentAddress++;
+    code += `resource_ram_cache_effect_zone_table_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effect_zone_table source\n`;
+    currentAddress++;
+    code += `current_screen2_tilebank_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current SCREEN 2 shared tilebank loaded in VRAM (#FF=none/unknown)\n`;
+    currentAddress++;
     code += `frame_counter       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame counter (16-bit)\n`;
     currentAddress += 2;
     code += `\n; Profiling counters (16-bit, cumulative)\n`;
@@ -167,6 +199,8 @@ function generateVariablesFile(analysis) {
     code += `runtime_background_layout EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Immutable copy of current background layout (32x24)\n`;
     currentAddress += 768;
     code += `runtime_screen_layout  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current screen layout (32x24)\n`;
+    currentAddress += 768;
+    code += `resource_ram_cache_behavior_map EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Pristine behavior map cache for current banked resource (32x24)\n`;
     currentAddress += 768;
     code += `runtime_behavior_map   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current behavior map (32x24)\n`;
     currentAddress += 768;
@@ -320,6 +354,8 @@ MAX_ENTITIES        EQU 32
     code += `sprite_asset_base_pattern_slot_runtime EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime base 16x16 slot per sprite asset (${expandedSpriteCount} bytes)\n`;
     currentAddress += expandedSpriteCount;
     code += `sprite_placeholder_base_pattern_num EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime placeholder pattern number (base slot * 4)\n`;
+    currentAddress++;
+    code += `current_sprite_pattern_pack_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active runtime sprite pattern pack id (#FF=none loaded)\n`;
     currentAddress++;
     // Interleaved sprite attribute buffer (Y, X, Pattern, Color per sprite)
     code += `sprite_attributes   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Interleaved sprite attributes (32 * 4 bytes)\n`;
@@ -624,6 +660,10 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     currentAddress++;
     code += `music_track_index    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current ROM track index\n`;
     currentAddress++;
+    if (serializedTrackerMusicBufferSize > 0) {
+        code += `music_loaded_track_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached tracker track index loaded in RAM (#FF=none)\n`;
+        currentAddress++;
+    }
     code += `music_row_frames     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames per tracker row\n`;
     currentAddress++;
     code += `music_row_countdown  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Countdown to next row\n`;
@@ -664,6 +704,10 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
             code += `${def.prefix}_${channelName}_${def.suffix} EQU #${(baseAddress + index).toString(16).toUpperCase().padStart(4, '0')}   ; Channel ${channelName.toUpperCase()}\n`;
         });
         currentAddress += 3;
+    }
+    if (serializedTrackerMusicBufferSize > 0) {
+        code += `music_track_buffer   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Serialized tracker song buffer (${serializedTrackerMusicBufferSize} bytes)\n`;
+        currentAddress += serializedTrackerMusicBufferSize;
     }
     // PT3 workspace (if any track uses external PT3 backend)
     const hasPT3 = Array.isArray(analysis.tracks) &&
@@ -723,20 +767,31 @@ T_NEW_2         EQU #${hex(0x19A)}  ; Tone table new 2 (last, ends at +0x1B2)
     `;
         currentAddress = pt3Base + 0x240; // Reserve 576 bytes for PT3 workspace (RAM LENGTH per replayer spec)
     }
+    const ZX0_LARGE_SCRATCH_SIZE = 1488;
+    const ZX0_FONT_SCRATCH_SIZE = 360;
+    const ZX0_RAM_LIMIT = 0xF380;
+    const align256 = (value) => (value + 0xFF) & 0xFF00;
+    const align16 = (value) => (value + 0x0F) & 0xFFF0;
+    const zx0LargeScratchBase = align256(currentAddress);
+    const zx0FontPatternBase = align16(zx0LargeScratchBase + ZX0_LARGE_SCRATCH_SIZE);
+    const zx0FontColorBase = align16(zx0FontPatternBase + ZX0_FONT_SCRATCH_SIZE);
+    const zx0ScratchEnd = zx0FontColorBase + ZX0_FONT_SCRATCH_SIZE;
+    if (zx0ScratchEnd > ZX0_RAM_LIMIT) {
+        throw new Error(`ZX0 scratch RAM overflow: need up to #${zx0ScratchEnd.toString(16).toUpperCase()}, limit is #${ZX0_RAM_LIMIT.toString(16).toUpperCase()}`);
+    }
     code += `
 ; ==================================================================
 ; ZX0 TEMPORARY RAM BUFFERS
 ; ==================================================================
-; Fixed high-RAM scratch area used by compressed asset loaders and
-; plain48k page-0 decompression helpers.
-ZX0_SCREEN_BUFFER       EQU #DE00   ; Screen/layout scratch (768 bytes)
-ZX0_BEHAVIOR_BUFFER     EQU #E100   ; Behavior map scratch (768 bytes)
-ZX0_TILE_PATTERN_BUFFER EQU #E400   ; Tile pattern scratch (1488 bytes)
-ZX0_TILE_COLOR_BUFFER   EQU #EA00   ; Tile color scratch (1488 bytes)
-ZX0_FONT_PATTERN_BUFFER EQU #F000   ; Font pattern scratch (360 bytes)
-; Keep font buffers tightly packed to leave enough headroom below SP=#F380.
-; Old layout put FONT_COLOR at #F200, leaving only 24 bytes before the stack.
-ZX0_FONT_COLOR_BUFFER   EQU #F168   ; Font color scratch (360 bytes)
+; Compact scratch layout placed strictly after RAM_USAGE_END.
+; Screen/behavior/tile buffers share the same large work area because
+; they are decompressed and consumed sequentially, never concurrently.
+ZX0_SCREEN_BUFFER       EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Screen/layout scratch (768 bytes, shared area)
+ZX0_BEHAVIOR_BUFFER     EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Behavior map scratch (768 bytes, shared area)
+ZX0_TILE_PATTERN_BUFFER EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile pattern scratch (1488 bytes, shared area)
+ZX0_TILE_COLOR_BUFFER   EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile color scratch (1488 bytes, shared area)
+ZX0_FONT_PATTERN_BUFFER EQU #${zx0FontPatternBase.toString(16).toUpperCase().padStart(4, '0')}   ; Font pattern scratch (360 bytes)
+ZX0_FONT_COLOR_BUFFER   EQU #${zx0FontColorBase.toString(16).toUpperCase().padStart(4, '0')}   ; Font color scratch (360 bytes)
 `;
     // End marker
     code += `

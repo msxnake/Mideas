@@ -405,13 +405,14 @@ function generateConditionalRenderHudAsm(runtimeScreenIndexes, labelBase, setDir
  * @param analysis - Project analysis with GameFlow data
  * @returns Complete ASM code for GameFlow execution
  */
-function generateGameFlowFile(analysis, executionPlan) {
+function generateGameFlowFile(analysis, executionPlan, romMode = 'simple32k') {
     // If no GameFlow exists, generate a minimal default one
     if (!analysis.gameFlow) {
-        return generateDefaultGameFlow(analysis, executionPlan);
+        return generateDefaultGameFlow(analysis, executionPlan, romMode);
     }
     const gameFlow = analysis.gameFlow;
     const frameAudioTickAsm = buildGameFlowAudioTickAsm(analysis, executionPlan);
+    const useFarCall = romMode === 'megarom';
     let code = `; ==================================================================
 ; GAMEFLOW EXECUTION ENGINE
 ; File: gameflow.asm
@@ -511,7 +512,7 @@ gameflow_execute_node:
 ; ==================================================================
 
 `;
-    code += generateNodeHandlers(nodeTypes, analysis, executionPlan);
+    code += generateNodeHandlers(nodeTypes, analysis, executionPlan, romMode);
     // ===================================================================
     // SECTION 4: CONNECTION UTILITIES
     // ===================================================================
@@ -826,7 +827,7 @@ ${hasHud ? `    ld a, 1
     // Generate node structures and connection tables
     if (gameFlow.nodes && gameFlow.nodes.length > 0) {
         gameFlow.nodes.forEach((node) => {
-            code += generateNodeStructure(node, gameFlow, analysis);
+            code += generateNodeStructure(node, gameFlow, analysis, romMode);
         });
     }
     // ===================================================================
@@ -1098,7 +1099,8 @@ empty_row_data:
 /**
  * Generate handlers for all node types
  */
-function generateNodeHandlers(nodeTypes, analysis, executionPlan) {
+function generateNodeHandlers(nodeTypes, analysis, executionPlan, romMode = 'simple32k') {
+    const useFarCall = romMode === 'megarom';
     let code = '';
     const frameAudioTickAsm = buildGameFlowAudioTickAsm(analysis, executionPlan);
     const hudRuntimeScreenIndexes = getHudRuntimeScreenIndexes(analysis);
@@ -1150,19 +1152,21 @@ function generateNodeHandlers(nodeTypes, analysis, executionPlan) {
                 code += `gameflow_handle_worldlink:
     ; WorldLink node - load world and enter game loop
     ; DE = world data pointer:
-    ;   [load_world_ptr DW][load_world_bank DB]
+    ;   [load_world_ptr DW][load_world_bank DB][init_ptr DW][init_bank DB]
     ; BC = connection table (for exit)
 
     push bc         ; Save connection table
 
     ; Load the world
-    ; DE points to: dw load_world_X, db load_world_bank
+    ; DE points to: dw load_world_X, db load_world_bank, dw init_routine, db init_bank
     ex de, hl
     ld e, (hl)
     inc hl
     ld d, (hl)
     inc hl
     ld b, (hl)      ; B = load_world_X bank
+    inc hl
+    push hl         ; Save pointer to optional WorldLink init routine
     ld h, d
     ld l, e         ; HL = load_world_X address
 
@@ -1174,6 +1178,22 @@ function generateNodeHandlers(nodeTypes, analysis, executionPlan) {
     call mapper_call_hl_auto
 
 .after_load:
+    ; Optional per-world globals initialization
+    pop hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    inc hl
+    ld b, (hl)      ; B = init routine bank
+    ld h, d
+    ld l, e         ; HL = init routine address
+    ld a, h
+    or l
+    jr z, .after_init
+    ld a, b
+    call mapper_call_hl_auto
+
+.after_init:
     ; Set game state
     xor a
     ld (gameflow_exit_requested), a
@@ -1500,8 +1520,7 @@ ${frameAudioTickAsm}
     jr .smp_wait_neutral
 
 .smp_check_fire:
-    ld a, 0
-    call GTTRIG
+    call gameflow_read_confirm_direct
     or a
     jr z, .smp_loop
 
@@ -1509,8 +1528,7 @@ ${frameAudioTickAsm}
     halt
 ${frameAudioTickAsm}
     call init_font_system
-    ld a, 0
-    call GTTRIG
+    call gameflow_read_confirm_direct
     or a
     jr nz, .smp_wait_fire_release
     jr .smp_exit
@@ -2234,7 +2252,7 @@ show_text_screen:
 
 ; ------------------------------------------------------------------
 ; wait_for_fire
-; Wait for fire button press and release
+; Wait for confirm key press and release outside gameplay loops
 ; ------------------------------------------------------------------
 wait_for_fire:
     push bc
@@ -2243,8 +2261,7 @@ wait_for_fire:
 .wait_press:
     halt
 ${frameAudioTickAsm}
-    ld a, 0                       ; Trigger 0 = space bar
-    call GTTRIG
+    call gameflow_read_confirm_direct
     or a
     jr z, .wait_press
 
@@ -2252,8 +2269,7 @@ ${frameAudioTickAsm}
 .wait_release:
     halt
 ${frameAudioTickAsm}
-    ld a, 0
-    call GTTRIG
+    call gameflow_read_confirm_direct
     or a
     jr nz, .wait_release
 
@@ -2266,6 +2282,24 @@ ${frameAudioTickAsm}    pop bc
     djnz .delay_loop
 
     pop bc
+    ret
+
+; ------------------------------------------------------------------
+; gameflow_read_confirm_direct
+; Read submenu/text confirm input directly from keyboard matrix.
+; Output: A = 1 when SPACE is pressed, A = 0 otherwise
+; Clobbers: AF
+; Preserves: BC, DE, HL, IX, IY
+; ------------------------------------------------------------------
+gameflow_read_confirm_direct:
+    ld a, 8
+    call FAST_SNSMAT
+    bit 0, a
+    jr z, .grcd_pressed
+    xor a
+    ret
+.grcd_pressed:
+    ld a, 1
     ret
 
 `;
@@ -2477,10 +2511,12 @@ ${frameAudioTickAsm}    pop bc
     call execute_transition_effect
     ; Restore VRAM after transition:
     ; 1. Tile colors (chars 128+) — corrupted by color-table effects (#11 = black)
+    call resource_invalidate_color_vram_cache
     call load_colors_to_vram
     ; 2. Font patterns + colors (chars 0-127) — also zeroed by color-table effects.
     ;    init_font_system reloads both pattern bytes and color attributes for all
     ;    font characters.  If no font is used in the project this is a no-op (ret).
+    call resource_invalidate_font_vram_cache
     call init_font_system
     pop bc                        ; Restore connection table AFTER VRAM restore
     call gameflow_get_default_connection
@@ -2944,9 +2980,7 @@ trans_fast_filvrm:
     ; PresentationScreen node - show full-screen presentation image
     ; BC = connection table
     push bc
-    ld a, ((show_presentation_screen - #4000) / #2000)
-    ld hl, show_presentation_screen
-    call mapper_call_hl_auto
+${useFarCall ? `    call show_presentation_screen_far` : `    call show_presentation_screen`}
     ; show_presentation_screen overwrites ALL of CHRTBL2 (chars 0-255 x 3 banks).
     ; Game tile patterns live at char 128+ and are now corrupted.
     ; Reload game VRAM (patterns + colors) before entering gameplay.
@@ -3015,7 +3049,8 @@ print_string_vram:
 /**
  * Generate node structure and connection table for a specific node
  */
-function generateNodeStructure(node, gameFlow, analysis) {
+function generateNodeStructure(node, gameFlow, analysis, romMode = 'simple32k') {
+    const useFarCall = romMode === 'megarom';
     const nodeLabel = `gameflow_node_${sanitizeId(node.id)}`;
     const connLabel = `${nodeLabel}_conn`;
     // Check if node has data
@@ -3043,8 +3078,13 @@ ${nodeLabel}:
                 break;
             case 'WorldLink':
                 const worldAssetId = node.worldAssetId || 'default';
-                code += `    dw load_world_${sanitizeId(worldAssetId)}\n`;
-                code += `    db ((load_world_${sanitizeId(worldAssetId)} - #4000) / #2000)\n`;
+                const worldLoadLabel = useFarCall
+                    ? `load_world_${sanitizeId(worldAssetId)}_far`
+                    : `load_world_${sanitizeId(worldAssetId)}`;
+                code += `    dw ${worldLoadLabel}\n`;
+                code += `    db ((${worldLoadLabel} - #4000) / #2000)\n`;
+                code += `    dw ${nodeLabel}_init\n`;
+                code += `    db ((${nodeLabel}_init - #4000) / #2000)\n`;
                 break;
             case 'SubMenu':
                 {
@@ -3086,7 +3126,8 @@ ${nodeLabel}:
                         if (bgScreen) {
                             const sName = bgScreen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
                             const sIdSuffix = bgScreen.id ? `_${bgScreen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
-                            submenuBgScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
+                            const baseScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
+                            submenuBgScreenLabel = useFarCall ? `${baseScreenLabel}_far` : baseScreenLabel;
                         }
                     }
                     const submenuBgScreenBankExpr = submenuBgScreenLabel === '0'
@@ -3169,7 +3210,8 @@ ${nodeLabel}:
                     if (bgScreen) {
                         const sName = bgScreen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
                         const sIdSuffix = bgScreen.id ? `_${bgScreen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
-                        bgScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
+                        const baseScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
+                        bgScreenLabel = useFarCall ? `${baseScreenLabel}_far` : baseScreenLabel;
                     }
                 }
                 const bgScreenBankExpr = bgScreenLabel === '0'
@@ -3345,6 +3387,65 @@ ${nodeLabel}:
     if (node.type === 'Start') {
         code += generateStartNodeInitRoutine(node, nodeLabel, analysis);
     }
+    if (node.type === 'WorldLink') {
+        code += generateWorldLinkNodeInitRoutine(node, nodeLabel, analysis);
+    }
+    return code;
+}
+function generateGlobalInitializationAsm(initGlobals, analysis) {
+    if (!initGlobals?.enabled) {
+        return '';
+    }
+    const toDefaultAsmName = (name) => `global_var_${name.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '').replace(/[^a-z0-9_]/g, '_')}`;
+    let code = `    ; === Global Variables Initialization ===\n`;
+    const explicitVariables = Array.isArray(initGlobals.variables) ? initGlobals.variables : [];
+    if (explicitVariables.length > 0) {
+        explicitVariables.forEach((entry) => {
+            const rawVarName = String(entry?.variableName || '').trim();
+            if (!rawVarName)
+                return;
+            const resolvedVar = resolveGlobalVariable(rawVarName, analysis);
+            const varName = String(resolvedVar?.name || rawVarName);
+            const asmVarName = String(resolvedVar?.asmName || toDefaultAsmName(varName));
+            const type = String(resolvedVar?.type || '').toLowerCase();
+            let numericValue = 0;
+            if (typeof entry.value === 'boolean') {
+                numericValue = entry.value ? 1 : 0;
+            }
+            else {
+                const parsedValue = Number(entry.value);
+                numericValue = Number.isFinite(parsedValue) ? Math.trunc(parsedValue) : 0;
+            }
+            if (type === 'word' || type === '16bit') {
+                const wordValue = Math.max(0, Math.min(65535, numericValue));
+                code += `    ld a, ${wordValue & 0xFF}\n`;
+                code += `    ld (${asmVarName}), a    ; ${varName} low byte = ${wordValue}\n`;
+                code += `    ld a, ${(wordValue >> 8) & 0xFF}\n`;
+                code += `    ld (${asmVarName}+1), a    ; ${varName} high byte = ${wordValue}\n`;
+                return;
+            }
+            const byteValue = Math.max(0, Math.min(255, numericValue));
+            code += `    ld a, ${byteValue}\n`;
+            code += `    ld (${asmVarName}), a    ; ${varName} = ${byteValue}\n`;
+        });
+    }
+    else {
+        code += `    ; Initialize all global variables to default values\n`;
+        code += `    call init_all_global_variables\n`;
+    }
+    code += `\n`;
+    return code;
+}
+function generateWorldLinkNodeInitRoutine(node, nodeLabel, analysis) {
+    let code = `; ------------------------------------------------------------------
+; ${nodeLabel}_init
+; Initialization routine for WorldLink node
+; Applies optional per-world global values when entering the world
+; ------------------------------------------------------------------
+${nodeLabel}_init:
+`;
+    code += generateGlobalInitializationAsm(node.initializeGlobals, analysis);
+    code += `    ret\n\n`;
     return code;
 }
 /**
@@ -3358,7 +3459,6 @@ function generateStartNodeInitRoutine(node, nodeLabel, analysis) {
 ; ------------------------------------------------------------------
 ${nodeLabel}_init:
 `;
-    const initGlobals = node.initializeGlobals;
     const systemConfig = node.systemConfig;
     // CRITICAL: Always call init_game_systems to initialize ECS components,
     // entities, and load game assets. Without this, the screen stays black
@@ -3386,54 +3486,7 @@ ${nodeLabel}_init:
         }
     }
     // 2. Initialize Global Variables (if configured)
-    if (initGlobals && initGlobals.enabled) {
-        code += `    ; === Global Variables Initialization ===\n`;
-        if (initGlobals.variables && initGlobals.variables.length > 0) {
-            // Use specified variables
-            initGlobals.variables.forEach((v) => {
-                const rawVarName = String(v?.variableName || '').trim();
-                if (!rawVarName)
-                    return;
-                const globals = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
-                const normalizedVarName = rawVarName.toLowerCase();
-                const resolvedVar = globals.find((candidate) => {
-                    const candidateName = String(candidate?.name || '').trim().toLowerCase();
-                    const candidateAsmName = String(candidate?.asmName || '').trim().toLowerCase();
-                    return candidateName === normalizedVarName || candidateAsmName === normalizedVarName;
-                });
-                const varName = String(resolvedVar?.name || rawVarName);
-                const asmVarName = String(resolvedVar?.asmName ||
-                    `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`);
-                const type = String(resolvedVar?.type || '').toLowerCase();
-                let numericValue = 0;
-                if (typeof v.value === 'boolean') {
-                    numericValue = v.value ? 1 : 0;
-                }
-                else {
-                    const parsedValue = Number(v.value);
-                    numericValue = Number.isFinite(parsedValue) ? Math.trunc(parsedValue) : 0;
-                }
-                if (type === 'word' || type === '16bit') {
-                    const wordValue = Math.max(0, Math.min(65535, numericValue));
-                    code += `    ld a, ${wordValue & 0xFF}\n`;
-                    code += `    ld (${asmVarName}), a    ; ${varName} low byte = ${wordValue}\n`;
-                    code += `    ld a, ${(wordValue >> 8) & 0xFF}\n`;
-                    code += `    ld (${asmVarName}+1), a    ; ${varName} high byte = ${wordValue}\n`;
-                }
-                else {
-                    const byteValue = Math.max(0, Math.min(255, numericValue));
-                    code += `    ld a, ${byteValue}\n`;
-                    code += `    ld (${asmVarName}), a    ; ${varName} = ${byteValue}\n`;
-                }
-            });
-        }
-        else {
-            // Initialize all global variables to their default values
-            code += `    ; Initialize all global variables to default values\n`;
-            code += `    call init_all_global_variables\n`;
-        }
-        code += `\n`;
-    }
+    code += generateGlobalInitializationAsm(node.initializeGlobals, analysis);
     // 3. Initial delay (if configured)
     if (systemConfig && systemConfig.initialDelayFrames && systemConfig.initialDelayFrames > 0) {
         code += `    ; Initial delay\n`;
@@ -3448,7 +3501,7 @@ ${nodeLabel}_init:
 /**
  * Generate default GameFlow when none exists
  */
-function generateDefaultGameFlow(analysis, executionPlan) {
+function generateDefaultGameFlow(analysis, executionPlan, romMode = 'simple32k') {
     const defaultHudRuntimeScreenIndexes = getHudRuntimeScreenIndexes(analysis);
     const defaultHasHud = defaultHudRuntimeScreenIndexes.length > 0;
     const defaultStartHudAsm = generateConditionalRenderHudAsm(defaultHudRuntimeScreenIndexes, 'gf_default_start_hud', true);
@@ -3456,8 +3509,9 @@ function generateDefaultGameFlow(analysis, executionPlan) {
     const frameAudioTickAsm = buildGameFlowAudioTickAsm(analysis, executionPlan);
     const firstScreen = analysis.screenMaps && analysis.screenMaps.length > 0 ? analysis.screenMaps[0] : null;
     const firstImportedHudFrameDrawRoutine = firstScreen ? getImportedHudFrameDrawRoutineName(firstScreen) : null;
+    const useFarCall = romMode === 'megarom';
     const firstScreenLoadCode = firstScreen
-        ? `    call ${getScreenLoadRoutineName(firstScreen)}\n`
+        ? `    call ${getScreenLoadRoutineName(firstScreen)}${useFarCall ? '_far' : ''}\n`
         : `    ; No screens available\n`;
     return `; ==================================================================
 ; DEFAULT GAMEFLOW (No GameFlow defined in project)

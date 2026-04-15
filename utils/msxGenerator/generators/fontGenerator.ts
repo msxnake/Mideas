@@ -13,11 +13,22 @@ import {
     getMapperWindowConfig,
     type MapperTargetFormat,
 } from './mapperWindowUtils';
+import { buildResourceIdLabelFromAsmLabel } from '../utils/megaromResourceArtifacts';
 
 export interface FontRawData {
     patternBytes: number[];
     colorBytes: number[];
     sortedCodes: number[];
+}
+
+function formatAsmCharComment(code: number): string {
+    if (code >= 32 && code <= 126) {
+        const char = String.fromCharCode(code)
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'");
+        return `'${char}'`;
+    }
+    return `0x${code.toString(16).toUpperCase().padStart(2, '0')}`;
 }
 
 /**
@@ -168,7 +179,7 @@ print_string_screen2:
         sortedCodes.forEach((code, i) => {
             const pattern = patternBytes.slice(i * 8, i * 8 + 8);
             const color = colorBytes.slice(i * 8, i * 8 + 8);
-            patternAsmBlob += `    ; Char ${code} ('${String.fromCharCode(code)}')\n`;
+            patternAsmBlob += `    ; Char ${code} (${formatAsmCharComment(code)})\n`;
             patternAsmBlob += `    DB ${pattern.map(b => '#' + b.toString(16).padStart(2, '0').toUpperCase()).join(', ')}\n`;
             colorAsmBlob += `    ; Char ${code}\n`;
             colorAsmBlob += `    DB ${color.map(b => '#' + b.toString(16).padStart(2, '0').toUpperCase()).join(', ')}\n`;
@@ -178,12 +189,15 @@ print_string_screen2:
     }
 
     const usesMapper = usesMapperBanking(romMode);
+    const useResourceManager = romMode === 'megarom';
     const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
     const mapperPushPat = usesMapper ? buildMapperDataPushAsm('FONT_PATTERN_DATA_BANK', mapperWindow) : '';
     const mapperPushCol = usesMapper ? buildMapperDataPushAsm('FONT_COLOR_DATA_BANK', mapperWindow) : '';
     const mapperPop    = usesMapper ? buildMapperDataPopAsm(mapperWindow) : '';
     const bankedPatternAddress = buildMapperWindowedAddress('FONT_PATTERN_DATA', mapperWindow);
     const bankedColorAddress = buildMapperWindowedAddress('FONT_COLOR_DATA', mapperWindow);
+    const fontPatternResourceId = buildResourceIdLabelFromAsmLabel('FONT_PATTERN_DATA');
+    const fontColorResourceId = buildResourceIdLabelFromAsmLabel('FONT_COLOR_DATA');
 
     const bankEqUs = fontInPage0 ? `; FONT_DATA_ROM_DATA_GROUP: page0
 ; (FONT_PATTERN_DATA and FONT_COLOR_DATA are in page0.asm for plain48k ROMs)
@@ -259,9 +273,18 @@ load_all_font_banks:
 ; Helper: Load font patterns to a specific bank
 ; Input: DE = Bank Base Address
 load_font_patterns_to_bank:
-${mapperPushPat}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
+${useResourceManager ? `    ld a, ${fontPatternResourceId}
+    call resource_find_by_id
+    ret c
+    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
+    ld hl, (resource_descriptor_addr)
+    push hl
+    pop iy
+    ld b, FONT_CHAR_COUNT         ; Number of characters to load
+` : `${mapperPushPat}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
     ld iy, ${fontInBank4 ? bankedPatternAddress : 'FONT_PATTERN_DATA'}      ; Pointer to pattern data (window addr for bank4)
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
+`}
 
 .load_loop:
     push bc                       ; Save loop counter
@@ -286,7 +309,8 @@ ${mapperPushPat}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
 
     ; Copy 8 bytes
     ld bc, 8
-    call FAST_LDIRVM              ; Copy from HL(RAM) to DE(VRAM)
+${useResourceManager ? `    ld a, (resource_descriptor_bank)
+    call resource_copy_from_bank_to_vram` : `    call FAST_LDIRVM              ; Copy from HL(RAM) to DE(VRAM)`}
 
     ; Advance source pointer
     ld bc, 8
@@ -295,7 +319,7 @@ ${mapperPushPat}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
     pop de                        ; Restore bank base
     pop bc                        ; Restore loop counter
     djnz .load_loop
-${mapperPop}    ret
+${useResourceManager ? `    ret` : `${mapperPop}    ret`}
 
 ${colorSection}
 load_font_colors:
@@ -317,9 +341,18 @@ load_font_colors_all_banks:
 ; Helper: Load font colors to a specific bank
 ; Input: DE = Bank Base Address
 load_font_colors_to_bank:
-${mapperPushCol}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
+${useResourceManager ? `    ld a, ${fontColorResourceId}
+    call resource_find_by_id
+    ret c
+    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
+    ld hl, (resource_descriptor_addr)
+    push hl
+    pop iy
+    ld b, FONT_CHAR_COUNT         ; Number of characters to load
+` : `${mapperPushCol}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
     ld iy, ${fontInBank4 ? bankedColorAddress : 'FONT_COLOR_DATA'}        ; Pointer to color data (window addr for bank4)
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
+`}
 
 .load_colors_loop:
     push bc                       ; Save loop counter
@@ -344,7 +377,8 @@ ${mapperPushCol}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
 
     ; Copy 8 bytes
     ld bc, 8
-    call FAST_LDIRVM              ; Copy from HL(RAM) to DE(VRAM)
+${useResourceManager ? `    ld a, (resource_descriptor_bank)
+    call resource_copy_from_bank_to_vram` : `    call FAST_LDIRVM              ; Copy from HL(RAM) to DE(VRAM)`}
 
     ; Advance source pointer
     ld bc, 8
@@ -353,7 +387,7 @@ ${mapperPushCol}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
     pop de                        ; Restore bank base
     pop bc                        ; Restore loop counter
     djnz .load_colors_loop
-${mapperPop}    ret
+${useResourceManager ? `    ret` : `${mapperPop}    ret`}
 
 ; ==================================================================
 ; TEXT RENDERING FUNCTIONS (Based on Mideas renderMSX1TextToDataURL)
@@ -394,9 +428,14 @@ print_string_end:
 
 ; Initialize font system for Screen 2 text rendering
 init_font_system:
+    ld a, (vram_cache_font_ready)
+    or a
+    ret nz
     ; Load custom font patterns and colors
     call load_all_font_banks       ; Load patterns to all banks
     call load_font_colors_all_banks ; Load colors to all banks
+    ld a, 1
+    ld (vram_cache_font_ready), a
     ret
 
 ; ==================================================================
@@ -425,7 +464,7 @@ export function getFontBank4Data(analysis: ProjectAnalysis): string {
     sortedCodes.forEach((code, i) => {
         const pattern = patternBytes.slice(i * 8, i * 8 + 8);
         const color = colorBytes.slice(i * 8, i * 8 + 8);
-        patternAsmBlob += `    ; Char ${code} ('${String.fromCharCode(code)}')\n`;
+        patternAsmBlob += `    ; Char ${code} (${formatAsmCharComment(code)})\n`;
         patternAsmBlob += `    DB ${pattern.map(b => '#' + b.toString(16).padStart(2, '0').toUpperCase()).join(', ')}\n`;
         colorAsmBlob += `    ; Char ${code}\n`;
         colorAsmBlob += `    DB ${color.map(b => '#' + b.toString(16).padStart(2, '0').toUpperCase()).join(', ')}\n`;

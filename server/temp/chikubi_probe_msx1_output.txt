@@ -1,0 +1,7 @@
+machine=machine1
+
+Cart. slot: A (slot 1)
+File:       C:/Users/salam/Downloads/chikubi.rom
+Status:     Unknown
+Mapper:     Mirrored
+

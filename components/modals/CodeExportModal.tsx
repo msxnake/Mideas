@@ -81,6 +81,15 @@ interface Zx0CompressionJobProgress {
   phase?: string;
 }
 
+interface MapperReadyBundle {
+  projectName: string;
+  romConfig: RomBuildConfig;
+  modularFiles: Record<string, string>;
+  files: GeneratedFile[];
+  mainCode: string;
+  activeIndex: number;
+}
+
 export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   isOpen,
   onClose,
@@ -180,6 +189,53 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
   };
 
+  const unifiedAsmNeedsRequiredZx0Preprocess = (
+    sourceCode: string,
+    romConfig: RomBuildConfig | null | undefined
+  ) => {
+    if (!sourceCode.trim() || !romConfig || romConfig.romMode !== 'plain48k') {
+      return false;
+    }
+
+    if (!/;\s*File:\s*unitedFiles\.asm/i.test(sourceCode)) {
+      return false;
+    }
+
+    return (
+      /^\s*;\s*Linear48K Page0 Data:\s*Yes\b/im.test(sourceCode) ||
+      /^\s*;\s*FONT_DATA_ROM_DATA_GROUP:\s*page0\s*$/im.test(sourceCode) ||
+      /^\s*;\s*PRESENTATION_SCREEN_ROM_DATA_GROUP:\s*page0\s*$/im.test(sourceCode)
+    );
+  };
+
+  const mergeCompressedAsmIntoFiles = (files: GeneratedFile[], result: any) => {
+    const compressedFileName = result.unitedCompressedAsmFile || 'unitedCompressedFiles.asm';
+    const compressedContent = String(result.compressedCode || '');
+    const existingWithoutCompressed = files.filter(
+      f => f.name !== compressedFileName && f.name !== (result.compressedAsmFile || '')
+    );
+
+    const unifiedIndex = existingWithoutCompressed.findIndex(f => f.name === 'unitedFiles.asm');
+    const compressedFileEntry: GeneratedFile = { name: compressedFileName, content: compressedContent };
+
+    const nextFiles = unifiedIndex >= 0
+      ? [
+          ...existingWithoutCompressed.slice(0, unifiedIndex + 1),
+          compressedFileEntry,
+          ...existingWithoutCompressed.slice(unifiedIndex + 1)
+        ]
+      : [compressedFileEntry, ...existingWithoutCompressed];
+
+    const compressedIndex = nextFiles.findIndex(f => f.name === compressedFileName);
+
+    return {
+      nextFiles,
+      compressedIndex: compressedIndex >= 0 ? compressedIndex : 0,
+      compressedFileName,
+      compressedContent
+    };
+  };
+
   const handleFileTabChange = (index: number) => {
     setActiveFileIndex(index);
     if (generatedFiles[index]) {
@@ -273,7 +329,10 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     'gameflow.asm'
   ];
 
-  const generateMapperReadyBundle = async (projectNameInput?: string, romConfigInput?: RomBuildConfig) => {
+  const generateMapperReadyBundle = async (
+    projectNameInput?: string,
+    romConfigInput?: RomBuildConfig
+  ): Promise<MapperReadyBundle> => {
     const projectName = projectNameInput || currentProjectName || 'MSX_Game';
     const romConfig = romConfigInput || buildCurrentRomConfig();
     const { generateModularASM } = await import('../../utils/msxGenerator');
@@ -495,6 +554,38 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
   };
 
+  const maybeAutoCompressMapperReadyBundle = async (bundle: MapperReadyBundle) => {
+    const sourceCode = bundle.modularFiles['unitedFiles.asm'] || bundle.mainCode;
+    if (!unifiedAsmNeedsRequiredZx0Preprocess(sourceCode, bundle.romConfig)) {
+      return { bundle, compressionResult: null };
+    }
+
+    const result = await runCompressRequest(sourceCode, bundle.projectName, zx0Options);
+    if (!result.success) {
+      throw new Error(result.message || 'Plain 48KB ASM requires ZX0 preprocessing before export.');
+    }
+
+    if (!result.applied || !result.compressedCode) {
+      throw new Error(result.message || 'Plain 48KB ASM requires ZX0-compressed page0 data, but compression was skipped.');
+    }
+
+    const merged = mergeCompressedAsmIntoFiles(bundle.files, result);
+
+    return {
+      compressionResult: result,
+      bundle: {
+        ...bundle,
+        modularFiles: {
+          ...bundle.modularFiles,
+          [merged.compressedFileName]: merged.compressedContent
+        },
+        files: merged.nextFiles,
+        mainCode: merged.compressedContent,
+        activeIndex: merged.compressedIndex
+      }
+    };
+  };
+
   const buildMapperSummary = (compileResult: any, projectNameInput?: string) => {
     const projectName = projectNameInput || currentProjectName || 'MSX_Game';
     const requested = compileResult?.requestedRomConfig || {};
@@ -666,6 +757,16 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
               console.warn('Auto-clean probe skipped (compile probe failed):', probeError);
             }
           }
+
+          const autoCompressedBundle = await maybeAutoCompressMapperReadyBundle(asmBundle);
+          asmBundle = autoCompressedBundle.bundle;
+          if (autoCompressedBundle.compressionResult) {
+            setAsmCompressionResult(autoCompressedBundle.compressionResult);
+          }
+          generatedRomConfig = asmBundle.romConfig;
+          files = asmBundle.files;
+          code = asmBundle.mainCode;
+          nextActiveFileIndex = asmBundle.activeIndex;
           break;
 
         case 'entities':
@@ -949,29 +1050,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
         return;
       }
 
-      const compressedFileName = result.unitedCompressedAsmFile || 'unitedCompressedFiles.asm';
-      const compressedContent = result.compressedCode as string;
-
-      const existingWithoutCompressed = generatedFiles.filter(
-        f => f.name !== compressedFileName && f.name !== (result.compressedAsmFile || '')
-      );
-
-      const unifiedIndex = existingWithoutCompressed.findIndex(f => f.name === 'unitedFiles.asm');
-      const compressedFileEntry: GeneratedFile = { name: compressedFileName, content: compressedContent };
-
-      const nextFiles = unifiedIndex >= 0
-        ? [
-            ...existingWithoutCompressed.slice(0, unifiedIndex + 1),
-            compressedFileEntry,
-            ...existingWithoutCompressed.slice(unifiedIndex + 1)
-          ]
-        : [compressedFileEntry, ...existingWithoutCompressed];
-
-      const compressedIndex = nextFiles.findIndex(f => f.name === compressedFileName);
+      const merged = mergeCompressedAsmIntoFiles(generatedFiles, result);
       startTransition(() => {
-        setGeneratedFiles(nextFiles);
-        setActiveFileIndex(compressedIndex >= 0 ? compressedIndex : 0);
-        setGeneratedCode(compressedContent);
+        setGeneratedFiles(merged.nextFiles);
+        setActiveFileIndex(merged.compressedIndex);
+        setGeneratedCode(merged.compressedContent);
       });
 
       const info = result.compressionInfo || {};
@@ -995,17 +1078,42 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
   };
 
-  const handleSaveCode = () => {
+  const handleSaveCode = async () => {
     if (!generatedCode.trim()) {
       alert('No code to save');
       return;
     }
 
-    const currentFile = generatedFiles[activeFileIndex];
-    const filename = currentFile ? currentFile.name : `${exportType}_code_${new Date().toISOString().split('T')[0]}.asm`;
+    let codeToSave = generatedCode;
+    let filename = generatedFiles[activeFileIndex]
+      ? generatedFiles[activeFileIndex].name
+      : `${exportType}_code_${new Date().toISOString().split('T')[0]}.asm`;
+
+    if (unifiedAsmNeedsRequiredZx0Preprocess(generatedCode, lastGeneratedRomConfig) && filename === 'unitedFiles.asm') {
+      setIsCompressingAsm(true);
+      try {
+        const result = await runCompressRequest(generatedCode, currentProjectName || 'MSX_Game', zx0Options);
+        if (!result.success || !result.applied || !result.compressedCode) {
+          alert(`Compression failed: ${result.message || 'Plain 48KB ASM requires ZX0 preprocessing before saving.'}`);
+          return;
+        }
+
+        const merged = mergeCompressedAsmIntoFiles(generatedFiles, result);
+        codeToSave = merged.compressedContent;
+        filename = merged.compressedFileName;
+        setAsmCompressionResult(result);
+        startTransition(() => {
+          setGeneratedFiles(merged.nextFiles);
+          setActiveFileIndex(merged.compressedIndex);
+          setGeneratedCode(merged.compressedContent);
+        });
+      } finally {
+        setIsCompressingAsm(false);
+      }
+    }
 
     // Save the ASM file
-    const blob = new Blob([generatedCode], { type: 'text/plain' });
+    const blob = new Blob([codeToSave], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1586,28 +1694,35 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       setIsGenerating(true);
                       try {
                         const bundle = await generateMapperReadyBundle(currentProjectName || 'MSX_Game', buildCurrentRomConfig());
+                        const autoCompressedBundle = await maybeAutoCompressMapperReadyBundle(bundle);
+                        const finalBundle = autoCompressedBundle.bundle;
 
-                        setGeneratedCode(bundle.mainCode);
-                        setGeneratedFiles(bundle.files);
-                        setActiveFileIndex(bundle.activeIndex);
-                        setLastGeneratedRomConfig(bundle.romConfig);
+                        if (autoCompressedBundle.compressionResult) {
+                          setAsmCompressionResult(autoCompressedBundle.compressionResult);
+                        }
 
-                        const blob = new Blob([bundle.mainCode], { type: 'text/plain' });
+                        setGeneratedCode(finalBundle.mainCode);
+                        setGeneratedFiles(finalBundle.files);
+                        setActiveFileIndex(finalBundle.activeIndex);
+                        setLastGeneratedRomConfig(finalBundle.romConfig);
+
+                        const activeFile = finalBundle.files[finalBundle.activeIndex];
+                        const mainFileName = activeFile?.name || (finalBundle.modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm');
+                        const blob = new Blob([finalBundle.mainCode], { type: 'text/plain' });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = bundle.modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm';
+                        a.download = mainFileName;
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
 
-                        const zipSuccess = await downloadModularZip(bundle.modularFiles as unknown as Record<string, string>, bundle.projectName);
-                        const mainFileName = bundle.modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm';
+                        const zipSuccess = await downloadModularZip(finalBundle.modularFiles, finalBundle.projectName);
 
                         alert(
                           zipSuccess
-                            ? `Modular ASM project generated.\n\nMain file: ${mainFileName}\nZIP: ${bundle.projectName.toLowerCase()}_modular_project.zip\n\nReady for glass.jar compile.`
+                            ? `Modular ASM project generated.\n\nMain file: ${mainFileName}\nZIP: ${finalBundle.projectName.toLowerCase()}_modular_project.zip\n\nReady for glass.jar compile.`
                             : `ASM generated as ${mainFileName}, but ZIP generation failed.`
                         );
                       } catch (error) {

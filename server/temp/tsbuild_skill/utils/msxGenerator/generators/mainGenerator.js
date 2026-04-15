@@ -60,7 +60,14 @@ include "variables.asm"
 ; 3.5. Mapper runtime API
 include "mapper.asm"
 
-; 3.6. Interrupt System (Konami-style task system)
+${romMode === 'megarom' ? `; 3.6. Generated banked resource metadata
+include "resource_ids.asm"
+include "resource_table.asm"
+
+; 3.7. Resource manager (bank-safe resource access API)
+include "resource_manager.asm"
+
+` : ''}; 3.8. Interrupt System (Konami-style task system)
 include "interrupt.asm"
 
 ; 4. ROM Header (depends on variables and interrupt system)
@@ -245,13 +252,16 @@ page0_copy_chunk_to_buffer:
 ;   hl: compressed source in page 0
 ;   de: destination in RAM
 page0_decompress_to_ram:
-    ; page0_map_game_rom uses E/C/B as scratch while rebuilding slot registers.
+${needsZx0Decoder ? `    ; page0_map_game_rom uses E/C/B as scratch while rebuilding slot registers.
     ; Preserve DE so dzx0_standard receives the caller's RAM destination intact.
     push de
     call page0_map_game_rom
     pop de
     call dzx0_standard
     jp page0_restore_bios_rom
+` : `    ; No page-0 ZX0 blocks in this build. Keep the label for compatibility.
+    ret
+`}
 
 ;-----------------------------------------------
 ; Copy cold data from page 0 ROM to VRAM using a RAM buffer.

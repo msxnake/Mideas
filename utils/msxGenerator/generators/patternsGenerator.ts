@@ -5,7 +5,11 @@
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { generateTilePatternBytes } from '../../../components/utils/tileUtils';
-import { buildReferencedScreen2TileBanks, getScreen2TileBankPatternLoaderLabel } from '../utils/screen2TileBanks';
+import {
+  buildReferencedScreen2TileBanks,
+  getScreen2TileBankIdLabel,
+  getScreen2TileBankPatternLoaderLabel,
+} from '../utils/screen2TileBanks';
 import { usesMapperBanking } from './romModeUtils';
 import {
   buildMapperBankEqu,
@@ -15,6 +19,7 @@ import {
   getMapperWindowConfig,
   type MapperTargetFormat,
 } from './mapperWindowUtils';
+import { buildResourceIdLabelFromAsmLabel } from '../utils/megaromResourceArtifacts';
 
 /**
  * Generate pattern data file (patterns.asm)
@@ -42,6 +47,7 @@ export function generatePatternsFile(
   }
 
   const usesMapper = usesMapperBanking(romMode);
+  const useResourceManager = romMode === 'megarom';
   const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
   const mapperPush = usesMapper ? buildMapperDataPushAsm('PATTERN_DATA_BANK', mapperWindow) : '';
   const mapperPop  = usesMapper ? buildMapperDataPopAsm(mapperWindow) : '';
@@ -52,6 +58,10 @@ export function generatePatternsFile(
   const dataHl = (label: string) => usesMapper ? buildMapperWindowedAddress(label, mapperWindow) : label;
   const referencedTileBanks = buildReferencedScreen2TileBanks(analysis);
   const bankBaseExpressions = ['CHRTBL2', 'CHRTBL2 + #800', 'CHRTBL2 + #1000'];
+  const patternDataResourceId = buildResourceIdLabelFromAsmLabel('tile_pattern_bank0');
+  const tileBankIdSection = referencedTileBanks.length > 0
+    ? `SCREEN2_TILEBANK_INVALID EQU #FF\n${referencedTileBanks.map((runtime, index) => `${getScreen2TileBankIdLabel(runtime.tileBankId)} EQU ${index}`).join('\n')}\n\n`
+    : `SCREEN2_TILEBANK_INVALID EQU #FF\n\n`;
 
   const formatBytes = (bytes: number[]): string => {
     if (bytes.length === 0) return '    db #00\n';
@@ -84,12 +94,20 @@ export function generatePatternsFile(
       }
 
       if (bank.byteCount > 0) {
+        const dataResourceId = buildResourceIdLabelFromAsmLabel(dataLabel);
         asm += `${runtime.labelBase}_load_pattern_bank${bankIndex}:\n`;
-        asm += `${mapperPush}    ld hl, ${dataHl(dataLabel)}\n`;
-        asm += `    ld de, ${bankBaseExpressions[bankIndex]} + (${bank.startChar} * 8)\n`;
-        asm += `    ld bc, ${bank.byteCount}\n`;
-        asm += `    call FAST_LDIRVM\n`;
-        asm += `${mapperPop}    ret\n\n`;
+        if (useResourceManager) {
+          asm += `    ld a, ${dataResourceId}\n`;
+          asm += `    ld de, ${bankBaseExpressions[bankIndex]} + (${bank.startChar} * 8)\n`;
+          asm += `    call resource_load_to_vram_by_id\n`;
+          asm += `    ret\n\n`;
+        } else {
+          asm += `${mapperPush}    ld hl, ${dataHl(dataLabel)}\n`;
+          asm += `    ld de, ${bankBaseExpressions[bankIndex]} + (${bank.startChar} * 8)\n`;
+          asm += `    ld bc, ${bank.byteCount}\n`;
+          asm += `    call FAST_LDIRVM\n`;
+          asm += `${mapperPop}    ret\n\n`;
+        }
       }
     });
 
@@ -160,6 +178,7 @@ tile_pattern_bank0:\n`;
 ; ==================================================================
 
 PATTERN_DATA_BANK EQU ${buildMapperBankEqu('tile_pattern_bank0', mapperWindow)}
+${tileBankIdSection}
 
 ${dataSection}
 ; ==================================================================
@@ -168,36 +187,50 @@ ${dataSection}
 load_pattern_bank0:
     ; Load pattern bank 0 to VRAM (base patterns)
     ; Fast direct port access (no BIOS overhead)
-${mapperPush}    ld hl, ${dataHl('tile_pattern_bank0')}
+${useResourceManager ? `    ld a, ${patternDataResourceId}
+    ld de, CHRTBL2 + (128 * 8)    ; VRAM pattern table bank 0 (start at char 128)
+    call resource_load_to_vram_by_id
+    ret` : `${mapperPush}    ld hl, ${dataHl('tile_pattern_bank0')}
     ld de, CHRTBL2 + (128 * 8)    ; VRAM pattern table bank 0 (start at char 128)
     ld bc, ${totalPatternBytes}    ; Total bytes for all tile characters (16x16 tiles = 4 chars each)
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
-${mapperPop}    ret
+${mapperPop}    ret`}
 
 load_pattern_bank1:
     ; Load pattern bank 1: same patterns as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
-${mapperPush}    ld hl, ${dataHl('tile_pattern_bank0')}     ; Same source as Bank 0
+${useResourceManager ? `    ld a, ${patternDataResourceId}
+    ld de, CHRTBL2 + #800 + (128 * 8) ; VRAM pattern table bank 1 (+#800 offset + char 128)
+    call resource_load_to_vram_by_id
+    ret` : `${mapperPush}    ld hl, ${dataHl('tile_pattern_bank0')}     ; Same source as Bank 0
     ld de, CHRTBL2 + #800 + (128 * 8) ; VRAM pattern table bank 1 (+#800 offset + char 128)
     ld bc, ${totalPatternBytes}    ; Total bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
-${mapperPop}    ret
+${mapperPop}    ret`}
 
 load_pattern_bank2:
     ; Load pattern bank 2: same patterns as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
-${mapperPush}    ld hl, ${dataHl('tile_pattern_bank0')}     ; Same source as Bank 0
+${useResourceManager ? `    ld a, ${patternDataResourceId}
+    ld de, CHRTBL2 + #1000 + (128 * 8) ; VRAM pattern table bank 2 (+#1000 offset + char 128)
+    call resource_load_to_vram_by_id
+    ret` : `${mapperPush}    ld hl, ${dataHl('tile_pattern_bank0')}     ; Same source as Bank 0
     ld de, CHRTBL2 + #1000 + (128 * 8) ; VRAM pattern table bank 2 (+#1000 offset + char 128)
     ld bc, ${totalPatternBytes}    ; Total bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
-${mapperPop}    ret
+${mapperPop}    ret`}
 
 load_patterns_to_vram:
     ; Load all pattern banks to VRAM (required for SCREEN 2)
     ; This loads the same patterns to all 3 banks (standard MSX Screen 2 setup)
+    ld a, (vram_cache_tile_patterns_ready)
+    or a
+    ret nz
     call load_pattern_bank0
     call load_pattern_bank1
     call load_pattern_bank2
+    ld a, 1
+    ld (vram_cache_tile_patterns_ready), a
     ret
 
 ${tileBankRuntimeAsm}${tilebankDataSection}

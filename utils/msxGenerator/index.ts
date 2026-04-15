@@ -15,6 +15,7 @@ import { generateHeaderFile } from './generators/headerGenerator';
 import { generateGameFlowFile } from './generators/gameFlowGenerator';
 import { generateMainFile } from './generators/mainGenerator';
 import { generateMapperFile } from './generators/mapperGenerator';
+import { generateResourceManagerFile } from './generators/resourceManagerGenerator';
 import { generatePatternsFile } from './generators/patternsGenerator';
 import { generateColorsFile } from './generators/colorsGenerator';
 import { generateUnifiedFile } from './generators/unifiedGenerator';
@@ -32,6 +33,7 @@ import { generateSoundFile } from './generators/soundGenerator';
 import { generateScrollFile } from './generators/scrollGenerator';
 import { generateAnimatedTilesFile } from './generators/animatedTilesGenerator';
 import { generatePage0File } from './generators/page0Generator';
+import { getMapperWindowConfig } from './generators/mapperWindowUtils';
 import { buildExecutionPlan } from './planning/executionPlan';
 import { validateExecutionPlan } from './planning/executionValidators';
 import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes';
@@ -84,6 +86,26 @@ function buildValidatedExecutionPlan(
   return plan;
 }
 
+function buildRuntimeTrackIndexByAssetId(tracks: any[]): Record<string, number> {
+  const psgTracks = (tracks || [])
+    .filter((track: any) => (track?.soundChip || 'PSG') === 'PSG')
+    .map((track: any) => ({
+      ...track,
+      soundChip: track?.soundChip || 'PSG'
+    }));
+  const pt3Tracks = psgTracks.filter((track: any) => track?.playbackBackend === 'external-pt3');
+  const runtimeTracks = pt3Tracks.length > 0
+    ? pt3Tracks
+    : psgTracks.filter((track: any) => track?.playbackBackend !== 'external-pt3');
+
+  return runtimeTracks.reduce((map: Record<string, number>, track: any, index: number) => {
+    if (track?.id) {
+      map[track.id] = index;
+    }
+    return map;
+  }, {} as Record<string, number>);
+}
+
 /**
  * Convert ProjectSummary to ProjectAnalysis format
  */
@@ -96,15 +118,10 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
       ...track,
       soundChip: track?.soundChip || 'PSG'
     }));
-  // Only external-pt3 tracks are in music_pt3_track_table (soundGenerator uses same filter).
-  // Indexing all PSG tracks would produce wrong table offsets when non-pt3 tracks exist.
-  let pt3TrackIndex = 0;
-  const trackIndexByAssetId = tracks.reduce((map: Record<string, number>, track: any) => {
-    if (track?.id && track?.playbackBackend === 'external-pt3') {
-      map[track.id] = pt3TrackIndex++;
-    }
-    return map;
-  }, {} as Record<string, number>);
+  // Keep Game Flow/state-machine track indices aligned with the backend that
+  // soundGenerator will actually export: PT3 if any PT3 exists, otherwise
+  // serialized PSG tracker tracks.
+  const trackIndexByAssetId = buildRuntimeTrackIndexByAssetId(summary.assets.tracks || []);
 
   const analysis: ProjectAnalysis = {
     hasSprites: summary.assets.sprites.length > 0,
@@ -217,6 +234,7 @@ export function generateModularASM(
   const romMode: MSXRomMode = config.romMode || 'simple32k';
   const autoMegaROM = config.autoMegaROM ?? false;
   const executionPlan = buildValidatedExecutionPlan(analysis, config);
+  const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
 
   // Generate individual files
   console.log('📝 [MSX GENERATOR] Generating all ASM files...');
@@ -242,6 +260,9 @@ export function generateModularASM(
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
+    'resource_ids.asm': '; Resource ids are emitted by the unified MegaROM backend when available.\nRESOURCE_ID_INVALID EQU #FF\n',
+    'resource_table.asm': '; Resource table is emitted by the unified MegaROM backend when available.\nRESOURCE_TABLE_ENTRY_SIZE EQU 8\nRESOURCE_TABLE_COUNT EQU 0\nresource_table:\n',
+    'resource_manager.asm': generateResourceManagerFile(mapperWindow),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
     'header.asm': generateHeaderFile(projectName, analysis, executionPlan, romMode),
     'patterns.asm': generatePatternsFile(analysis, romMode, romMode === 'megarom', targetFormat),
@@ -252,17 +273,17 @@ export function generateModularASM(
     'entities.asm': generateEntitiesFile(analysis),
     'worlds.asm': generateWorldsFile(analysis, romMode),
     'screens.asm': generateScreensFile(analysis, romMode, romMode === 'megarom', targetFormat),
-    'sprites.asm': generateSpritesFile(analysis, romMode, targetFormat),
+    'sprites.asm': generateSpritesFile(analysis, romMode, romMode === 'megarom', targetFormat),
     'font.asm': generateFontFile(analysis, romMode, fontInPage0, fontInBank4, targetFormat),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
-    'sound.asm': generateSoundFile(analysis, executionPlan),
+    'sound.asm': generateSoundFile(analysis, executionPlan, romMode),
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis, romMode, targetFormat),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
       ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId, romMode)
       : '; No State Machines\n',
-    'gameflow.asm': generateGameFlowFile(analysis, executionPlan),
+    'gameflow.asm': generateGameFlowFile(analysis, executionPlan, romMode),
     'main.asm': generateMainFile(projectName, analysis, romMode),
     'unitedFiles.asm': ''
   };
@@ -323,6 +344,7 @@ export function generateModularASMFromSummary(
   const romMode: MSXRomMode = config.romMode || 'simple32k';
   const autoMegaROM = config.autoMegaROM ?? false;
   const executionPlan = buildValidatedExecutionPlan(analysis, config);
+  const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
 
   console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
 
@@ -346,6 +368,9 @@ export function generateModularASMFromSummary(
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
+    'resource_ids.asm': '; Resource ids are emitted by the unified MegaROM backend when available.\nRESOURCE_ID_INVALID EQU #FF\n',
+    'resource_table.asm': '; Resource table is emitted by the unified MegaROM backend when available.\nRESOURCE_TABLE_ENTRY_SIZE EQU 8\nRESOURCE_TABLE_COUNT EQU 0\nresource_table:\n',
+    'resource_manager.asm': generateResourceManagerFile(mapperWindow),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
     'header.asm': generateHeaderFile(summary.projectInfo.name, analysis, executionPlan, romMode),
     'patterns.asm': generatePatternsFile(analysis, romMode, romMode === 'megarom', targetFormat),
@@ -356,17 +381,17 @@ export function generateModularASMFromSummary(
     'entities.asm': generateEntitiesFile(analysis),
     'worlds.asm': generateWorldsFile(analysis, romMode),
     'screens.asm': generateScreensFile(analysis, romMode, romMode === 'megarom', targetFormat),
-    'sprites.asm': generateSpritesFile(analysis, romMode, targetFormat),
+    'sprites.asm': generateSpritesFile(analysis, romMode, romMode === 'megarom', targetFormat),
     'font.asm': generateFontFile(analysis, romMode, fontInPage02, fontInBank42, targetFormat),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
-    'sound.asm': generateSoundFile(analysis, executionPlan),
+    'sound.asm': generateSoundFile(analysis, executionPlan, romMode),
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis, romMode, targetFormat),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
       ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId, romMode)
       : '; No State Machines\n',
-    'gameflow.asm': generateGameFlowFile(analysis, executionPlan),
+    'gameflow.asm': generateGameFlowFile(analysis, executionPlan, romMode),
     'main.asm': generateMainFile(summary.projectInfo.name, analysis, romMode),
     'unitedFiles.asm': ''
   };

@@ -1,0 +1,295 @@
+import type { MapperWindowConfig } from '../generators/mapperWindowUtils';
+import type { MegaromDataPackResult, MegaromPackedDataBlock } from './megaromDataPacker';
+
+export interface MegaromResourceDescriptor {
+  id: number;
+  label: string;
+  resourceIdLabel: string;
+  resourceTypeKey: string;
+  resourceGroupKey: string;
+  physicalBank: number;
+  physicalAddress: number;
+  windowAddress: number;
+  zoneOffset: number;
+  size: number;
+  sourceIndex: number;
+}
+
+export interface MegaromGeneratedArtifact {
+  fileName: string;
+  content: string;
+}
+
+function sanitizeAsmKey(value: string): string {
+  return value
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toUpperCase();
+}
+
+export function buildResourceIdLabelFromAsmLabel(label: string): string {
+  return `RESOURCE_ID_${sanitizeAsmKey(label)}`;
+}
+
+function formatHex(value: number, digits = 4): string {
+  return `#${value.toString(16).toUpperCase().padStart(digits, '0')}`;
+}
+
+function inferResourceGroupKey(groupName: string): string {
+  const normalized = groupName.trim().toLowerCase();
+  switch (normalized) {
+    case 'sprites':
+      return 'SPRITES';
+    case 'patterns':
+      return 'PATTERNS';
+    case 'colors':
+      return 'COLORS';
+    case 'screens':
+      return 'SCREENS';
+    case 'font':
+      return 'FONT';
+    case 'presentation':
+      return 'PRESENTATION';
+    case 'sound':
+      return 'SOUND';
+    default:
+      return sanitizeAsmKey(normalized || 'misc');
+  }
+}
+
+function inferResourceTypeKey(groupName: string, label: string): string {
+  const group = groupName.trim().toLowerCase();
+  const upperLabel = label.toUpperCase();
+
+  if (group === 'patterns') {
+    return upperLabel.includes('SPRITE') ? 'SPRITE_PATTERNS' : 'TILE_PATTERNS';
+  }
+
+  if (group === 'sprites') {
+    return 'SPRITE_PATTERNS';
+  }
+
+  if (group === 'colors') {
+    return 'TILE_COLORS';
+  }
+
+  if (group === 'font') {
+    return upperLabel.includes('COLOR') ? 'FONT_COLORS' : 'FONT_PATTERNS';
+  }
+
+  if (group === 'presentation') {
+    if (upperLabel.includes('NAMETBL')) return 'SCREEN_NAME_TABLE';
+    if (upperLabel.includes('COLOR')) return 'SCREEN_COLORS';
+    if (upperLabel.includes('PATTERN')) return 'SCREEN_PATTERNS';
+    return 'PRESENTATION_DATA';
+  }
+
+  if (group === 'sound') {
+    if (upperLabel.startsWith('MUSIC_TRACK_')) return 'MUSIC_TRACK';
+    return 'SOUND_DATA';
+  }
+
+  if (group === 'screens') {
+    if (upperLabel.includes('EFFECT_ZONE_TABLE')) return 'SCREEN_EFFECT_ZONE_TABLE';
+    if (upperLabel.startsWith('BEHAVIOR_')) return 'SCREEN_BEHAVIOR_MAP';
+    if (upperLabel.includes('EFFECTS_LAYOUT')) return 'SCREEN_EFFECTS_LAYOUT';
+    if (upperLabel.includes('LAYOUT')) return 'SCREEN_LAYOUT';
+    return 'SCREEN_DATA';
+  }
+
+  return 'GENERIC_DATA';
+}
+
+function buildGroupCodeMap(resources: MegaromResourceDescriptor[]): Map<string, number> {
+  const groupMap = new Map<string, number>();
+  let nextCode = 1;
+  for (const resource of resources) {
+    if (!groupMap.has(resource.resourceGroupKey)) {
+      groupMap.set(resource.resourceGroupKey, nextCode++);
+    }
+  }
+  return groupMap;
+}
+
+function buildTypeCodeMap(resources: MegaromResourceDescriptor[]): Map<string, number> {
+  const typeMap = new Map<string, number>();
+  let nextCode = 1;
+  for (const resource of resources) {
+    if (!typeMap.has(resource.resourceTypeKey)) {
+      typeMap.set(resource.resourceTypeKey, nextCode++);
+    }
+  }
+  return typeMap;
+}
+
+function buildResourceDescriptors(
+  packResult: MegaromDataPackResult,
+  mapperWindow: MapperWindowConfig
+): MegaromResourceDescriptor[] {
+  return packResult.zones
+    .flatMap((zone) => zone.blocks)
+    .sort((left, right) => left.sourceIndex - right.sourceIndex)
+    .map((block, index) => buildResourceDescriptor(block, index, mapperWindow));
+}
+
+function buildResourceDescriptor(
+  block: MegaromPackedDataBlock,
+  id: number,
+  mapperWindow: MapperWindowConfig
+): MegaromResourceDescriptor {
+  const resourceIdLabel = buildResourceIdLabelFromAsmLabel(block.label);
+  return {
+    id,
+    label: block.label,
+    resourceIdLabel,
+    resourceTypeKey: inferResourceTypeKey(block.groupName, block.label),
+    resourceGroupKey: inferResourceGroupKey(block.groupName),
+    physicalBank: Math.trunc((block.physicalAddress - 0x4000) / mapperWindow.dataZoneSize),
+    physicalAddress: block.physicalAddress,
+    windowAddress: parseInt(mapperWindow.windowBaseExpr.slice(1), 16) + block.zoneOffset,
+    zoneOffset: block.zoneOffset,
+    size: block.byteSize,
+    sourceIndex: block.sourceIndex,
+  };
+}
+
+function buildResourceIdsAsm(resources: MegaromResourceDescriptor[]): string {
+  const lines: string[] = [];
+  lines.push('; ==================================================================');
+  lines.push('; GENERATED RESOURCE IDS');
+  lines.push('; Generated by MegaROM export backend.');
+  lines.push('; ==================================================================');
+  lines.push('RESOURCE_ID_INVALID EQU #FF');
+  lines.push('');
+  for (const resource of resources) {
+    lines.push(`${resource.resourceIdLabel.padEnd(40)} EQU ${resource.id}`);
+  }
+  return lines.join('\n').trimEnd();
+}
+
+function buildResourceTableAsm(resources: MegaromResourceDescriptor[]): string {
+  const groupCodes = buildGroupCodeMap(resources);
+  const typeCodes = buildTypeCodeMap(resources);
+  const lines: string[] = [];
+  lines.push('; ==================================================================');
+  lines.push('; GENERATED RESOURCE TABLE');
+  lines.push('; Descriptor format: db id, type, group, bank / dw address / dw size');
+  lines.push('; Address is the mapper-window address visible after selecting bank.');
+  lines.push('; ==================================================================');
+  lines.push(`RESOURCE_TABLE_ENTRY_SIZE EQU 8`);
+  lines.push('');
+
+  for (const [groupKey, code] of groupCodes) {
+    lines.push(`${`RESOURCE_GROUP_${groupKey}`.padEnd(40)} EQU ${code}`);
+  }
+  if (groupCodes.size > 0) {
+    lines.push('');
+  }
+
+  for (const [typeKey, code] of typeCodes) {
+    lines.push(`${`RESOURCE_TYPE_${typeKey}`.padEnd(40)} EQU ${code}`);
+  }
+  if (typeCodes.size > 0) {
+    lines.push('');
+  }
+
+  lines.push(`RESOURCE_TABLE_COUNT EQU ${resources.length}`);
+  lines.push('');
+  lines.push('resource_table:');
+  if (resources.length === 0) {
+    lines.push('    ; No banked resources generated for this build.');
+  }
+
+  for (const resource of resources) {
+    lines.push(`    ; ${resource.label}`);
+    lines.push(
+      `    db ${resource.resourceIdLabel}, ` +
+      `RESOURCE_TYPE_${resource.resourceTypeKey}, ` +
+      `RESOURCE_GROUP_${resource.resourceGroupKey}, ` +
+      `${resource.physicalBank}`
+    );
+    lines.push(`    dw ${formatHex(resource.windowAddress)}`);
+    lines.push(`    dw ${resource.size}`);
+  }
+
+  return lines.join('\n').trimEnd();
+}
+
+function buildPackingManifestText(
+  packResult: MegaromDataPackResult,
+  resources: MegaromResourceDescriptor[]
+): string {
+  const resourceByLabel = new Map(resources.map((resource) => [resource.label, resource]));
+  const lines: string[] = [];
+  lines.push('MEGAROM PACKING MANIFEST');
+  lines.push(`Zone size: ${packResult.zoneSize}`);
+  lines.push(`Data start address: ${formatHex(packResult.dataStartAddress)}`);
+  lines.push(`Total resource blocks: ${resources.length}`);
+  lines.push('');
+
+  for (const zone of packResult.zones) {
+    lines.push(`BANK ${zone.physicalBank.toString().padStart(2, '0')} used ${zone.usedBytes} / ${packResult.zoneSize}`);
+    for (const block of zone.blocks) {
+      const resource = resourceByLabel.get(block.label);
+      if (!resource) {
+        continue;
+      }
+      lines.push(
+        `- ${resource.label.padEnd(32)} ` +
+        `${resource.size.toString().padStart(5, ' ')} bytes ` +
+        `@ ${formatHex(resource.windowAddress)} ` +
+        `(rom ${formatHex(resource.physicalAddress)}, offset +${formatHex(resource.zoneOffset)}) ` +
+        `[${resource.resourceGroupKey}/${resource.resourceTypeKey}]`
+      );
+    }
+    lines.push(`FREE ${zone.remainingBytes}`);
+    lines.push('');
+  }
+
+  if (packResult.overflowBlocks.length > 0) {
+    lines.push('OVERFLOW BLOCKS');
+    for (const block of packResult.overflowBlocks) {
+      lines.push(`- ${block.label} ${block.byteSize} bytes`);
+    }
+  }
+
+  return lines.join('\n').trimEnd();
+}
+
+export function renderNamedArtifactAsCommentBlock(fileName: string, content: string): string {
+  const lines = content.split(/\r?\n/);
+  const commented = lines.map((line) => (line.length > 0 ? `; ${line}` : ';')).join('\n');
+  return `; [[[MIDEAS_ARTIFACT:${fileName}:BEGIN]]]\n${commented}\n; [[[MIDEAS_ARTIFACT:${fileName}:END]]]`;
+}
+
+export function buildMegaromGeneratedArtifacts(
+  packResult: MegaromDataPackResult,
+  mapperWindow: MapperWindowConfig
+): MegaromGeneratedArtifact[] {
+  const resources = buildResourceDescriptors(packResult, mapperWindow);
+  return [
+    {
+      fileName: 'resource_ids.asm',
+      content: buildResourceIdsAsm(resources),
+    },
+    {
+      fileName: 'resource_table.asm',
+      content: buildResourceTableAsm(resources),
+    },
+    {
+      fileName: 'packing_manifest.txt',
+      content: buildPackingManifestText(packResult, resources),
+    },
+  ];
+}
+
+export function renderMegaromGeneratedArtifactsAsCommentBlocks(
+  packResult: MegaromDataPackResult,
+  mapperWindow: MapperWindowConfig
+): string {
+  return buildMegaromGeneratedArtifacts(packResult, mapperWindow)
+    .map((artifact) => renderNamedArtifactAsCommentBlock(artifact.fileName, artifact.content))
+    .join('\n\n');
+}

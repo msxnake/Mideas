@@ -839,6 +839,25 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const selectedFontColorBlocks = new Map();
   const selectedSpritePatternGroups = [];
   let spriteGroups = [];
+  let forcedPage0BlockCount = 0;
+
+  function shouldForcePage0BlockCompression(block, kind) {
+    const label = String(block?.label || '').toUpperCase();
+    if (!label) return false;
+
+    if (presentationDataInPage0) {
+      if (kind === 'layout' && label === 'PRESENTATION_SCREEN_NAMETBL') return true;
+      if (kind === 'tile_pattern' && /^PRESENTATION_SCREEN_PATTERNS_B[0-2]$/.test(label)) return true;
+      if (kind === 'tile_color' && /^PRESENTATION_SCREEN_COLORS_B[0-2]$/.test(label)) return true;
+    }
+
+    if (fontDataInPage0) {
+      if (kind === 'font_pattern' && label === 'FONT_PATTERN_DATA') return true;
+      if (kind === 'font_color' && label === 'FONT_COLOR_DATA') return true;
+    }
+
+    return false;
+  }
 
   if (spritePatterns && spritePatternBlocks.length > 0) {
     spriteGroups = buildSpriteFrameGroups(spritePatternBlocks, sourceCode);
@@ -849,14 +868,18 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       const block = blocks[index];
       emitProgress(`${phaseLabel} ${index + 1}/${blocks.length}`, phaseKey);
       info.originalBytes += block.bytes.length;
+      const forceCompression = shouldForcePage0BlockCompression(block, kind);
       try {
         const compressed = await runZx0CompressionAsync(block.bytes, tempDir);
-        if (compressed.length < block.bytes.length) {
+        if (compressed.length < block.bytes.length || forceCompression) {
           const selected = {
             ...block,
             kind,
             compressedBytes: Array.from(compressed.values())
           };
+          if (forceCompression) {
+            forcedPage0BlockCount += 1;
+          }
           if (kind === 'layout') {
             selectedLayoutBlocks.set(block.label.toUpperCase(), selected);
             info.compressedScreens += 1;
@@ -952,7 +975,9 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const runtimeOverhead = compressedBlockCount * ZX0_PER_BLOCK_RUNTIME_OVERHEAD_BYTES;
   info.netSavedBytes = info.savedBytes - routineOverhead - runtimeOverhead;
 
-  if (compressedBlockCount === 0 || info.netSavedBytes <= 0) {
+  const mustApplyPage0Compression = forcedPage0BlockCount > 0;
+
+  if (compressedBlockCount === 0 || (!mustApplyPage0Compression && info.netSavedBytes <= 0)) {
     emitProgress('ZX0 compression finished', 'finalize', totalProgressSteps, totalProgressSteps);
     return { code: sourceCode, info };
   }
@@ -1762,10 +1787,11 @@ app.post('/compile', async (req, res) => {
     }
 
     const jarPath = path.join(__dirname, 'glass.jar');
+    const includeServerPath = __dirname;
     // Add symbol file path if generateSymbols is true
     const command = symbolFilePath
-      ? `java -jar "${jarPath}" "${tempFilePath}" "${outputFilePath}" "${symbolFilePath}"`
-      : `java -jar "${jarPath}" "${tempFilePath}" "${outputFilePath}"`;
+      ? `java -jar "${jarPath}" -I "${includeServerPath}" "${tempFilePath}" "${outputFilePath}" "${symbolFilePath}"`
+      : `java -jar "${jarPath}" -I "${includeServerPath}" "${tempFilePath}" "${outputFilePath}"`;
 
     console.log(`Executing Glass: ${command}`);
     if (generateSymbols) {

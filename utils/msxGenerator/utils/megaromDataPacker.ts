@@ -11,8 +11,10 @@ export interface MegaromDataBlock {
 }
 
 export interface MegaromPackedDataBlock extends MegaromDataBlock {
+  sourceIndex: number;
   zoneIndex: number;
   zoneOffset: number;
+  physicalAddress: number;
 }
 
 export interface MegaromDataZone {
@@ -133,11 +135,12 @@ function formatDiagnosticsComment(
 ): string {
   const lines: string[] = [];
   lines.push('; ------------------------------------------------------------------');
-  lines.push('; MEGAROM DATA ZONE PACKER');
+  lines.push('; MEGAROM DATA ZONE PACKER (FIRST-FIT DECREASING)');
   lines.push(`; Zone size: ${zoneSize} bytes`);
   lines.push(`; Data start address: ${formatHex(dataStartAddress)}`);
   lines.push(`; Total data bytes (source blocks): ${totalBlockBytes}`);
   lines.push(`; Zones used: ${zones.length}`);
+  lines.push('; Placement policy: sort blocks by size descending, then first-fit by zone.');
   lines.push('; ------------------------------------------------------------------');
 
   if (zones.length === 0) {
@@ -173,53 +176,58 @@ export function packMegaromDataGroups(
   dataStartAddress: number,
   zoneSize: number
 ): MegaromDataPackResult {
-  const blocks = groups
+  const sourceBlocks = groups
     .flatMap(splitDataBlocks)
     .filter((block) => block.asm.trim().length > 0);
+  const indexedBlocks = sourceBlocks.map((block, sourceIndex) => ({
+    ...block,
+    sourceIndex,
+  }));
+  const orderedBlocks = [...indexedBlocks].sort((left, right) => {
+    if (right.byteSize !== left.byteSize) {
+      return right.byteSize - left.byteSize;
+    }
+    return left.sourceIndex - right.sourceIndex;
+  });
 
   const overflowBlocks: MegaromDataBlock[] = [];
   const zones: MegaromDataZone[] = [];
-  let currentZoneBlocks: MegaromPackedDataBlock[] = [];
-  let currentZoneUsed = 0;
-  let zoneIndex = 0;
-
-  const flushZone = () => {
-    if (currentZoneBlocks.length === 0) return;
+  const createZone = (): MegaromDataZone => {
+    const zoneIndex = zones.length;
     const orgAddress = dataStartAddress + (zoneIndex * zoneSize);
-    const endAddress = orgAddress + zoneSize;
-    zones.push({
+    return {
       zoneIndex,
       orgAddress,
-      endAddress,
-      usedBytes: currentZoneUsed,
-      remainingBytes: zoneSize - currentZoneUsed,
+      endAddress: orgAddress + zoneSize,
+      usedBytes: 0,
+      remainingBytes: zoneSize,
       physicalBank: (orgAddress - 0x4000) / zoneSize,
-      blocks: currentZoneBlocks,
-    });
-    zoneIndex += 1;
-    currentZoneBlocks = [];
-    currentZoneUsed = 0;
+      blocks: [],
+    };
   };
 
-  for (const block of blocks) {
+  for (const block of orderedBlocks) {
     if (block.byteSize > zoneSize) {
       overflowBlocks.push(block);
       continue;
     }
 
-    if (currentZoneBlocks.length > 0 && currentZoneUsed + block.byteSize > zoneSize) {
-      flushZone();
+    let targetZone = zones.find((zone) => zone.remainingBytes >= block.byteSize);
+    if (!targetZone) {
+      targetZone = createZone();
+      zones.push(targetZone);
     }
 
-    currentZoneBlocks.push({
+    const zoneOffset = targetZone.usedBytes;
+    targetZone.blocks.push({
       ...block,
-      zoneIndex,
-      zoneOffset: currentZoneUsed,
+      zoneIndex: targetZone.zoneIndex,
+      zoneOffset,
+      physicalAddress: targetZone.orgAddress + zoneOffset,
     });
-    currentZoneUsed += block.byteSize;
+    targetZone.usedBytes += block.byteSize;
+    targetZone.remainingBytes = zoneSize - targetZone.usedBytes;
   }
-
-  flushZone();
 
   const asmParts: string[] = [];
   for (const zone of zones) {
@@ -235,7 +243,7 @@ export function packMegaromDataGroups(
     asmParts.push('');
   }
 
-  const totalBlockBytes = blocks.reduce((sum, block) => sum + block.byteSize, 0);
+  const totalBlockBytes = sourceBlocks.reduce((sum, block) => sum + block.byteSize, 0);
 
   return {
     zoneSize,

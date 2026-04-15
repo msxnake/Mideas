@@ -1,0 +1,20 @@
+pattern trace loaded
+hit init_rom                 #1 PC=4010 SP=F2EC AF=1F08 P1=FF P2=FF P3=FF
+hit res_load_vram            #1 PC=4037 SP=F380 AF=0344 P1=01 P2=02 P3=02
+hit load_pat_b0              #1 PC=6000 SP=F376 AF=A2A4 P1=01 P2=02 P3=03
+hit load_patterns            #1 PC=601B SP=F372 AF=0D00 P1=0D P2=02 P3=03
+hit load_pat_b0              #2 PC=6000 SP=F370 AF=0044 P1=0D P2=02 P3=03
+hit res_find                 #1 PC=4661 SP=F36A AF=3C44 P1=0D P2=02 P3=03
+hit fast_ldirvm              #1 PC=40C6 SP=F36C AF=1300 P1=0D P2=13 P3=03
+hit load_pat_b1              #1 PC=6009 SP=F370 AF=0200 P1=0D P2=02 P3=03
+hit res_find                 #2 PC=4661 SP=F36A AF=3C00 P1=0D P2=02 P3=03
+hit fast_ldirvm              #2 PC=40C6 SP=F36C AF=1300 P1=0D P2=13 P3=03
+count fast_ldirvm              2
+count init_rom                 1
+count load_pat_b0              2
+count load_pat_b1              1
+count load_patterns            1
+count res_find                 2
+count res_load_vram            1
+final PC=108B SP=F2FE AF=0048 P1=0D P2=08 P3=03
+pattern trace finished

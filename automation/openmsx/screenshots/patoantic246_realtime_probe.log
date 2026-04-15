@@ -1,0 +1,8 @@
+probe loaded
+callback T+0.5s entered
+T+0.5s PC=108B SP=F2FE AF=0048 BC=7884 DE=19C4 HL=880C P1=FF P2=FF P3=FF
+callback T+2.0s entered
+T+2.0s PC=108B SP=F2FE AF=0048 BC=2D84 DE=19C4 HL=880C P1=FF P2=FF P3=FF
+callback T+5.0s entered
+T+5.0s PC=108B SP=F2FE AF=0048 BC=2984 DE=19C4 HL=880C P1=0D P2=08 P3=03
+probe finished

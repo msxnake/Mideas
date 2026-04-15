@@ -6,10 +6,42 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { PT3Instrument, PT3Ornament, TrackerCell, TrackerSongData } from '../../../types';
 import type { ExecutionPlan } from '../types/executionTypes';
+import { buildResourceIdLabelFromAsmLabel } from '../utils/megaromResourceArtifacts';
 
 const ASM_NOTE_KEEP = 0xFF;
 const ASM_NOTE_CUT = 0xFE;
 const TRACK_CHANNELS = ['A', 'B', 'C'] as const;
+
+interface SerializedTrackBuildOptions {
+  relativePointers?: boolean;
+}
+
+function countAsmDataBytes(asm: string): number {
+  const lines = asm.split(/\r?\n/);
+  let total = 0;
+  for (const line of lines) {
+    const clean = line.split(';')[0].trim();
+    if (!clean) continue;
+    const dbMatch = clean.match(/^db\s+(.+)$/i);
+    if (dbMatch) {
+      total += dbMatch[1]
+        .split(',')
+        .map((token) => token.trim())
+        .filter((token) => token.length > 0)
+        .length;
+      continue;
+    }
+    const dwMatch = clean.match(/^dw\s+(.+)$/i);
+    if (dwMatch) {
+      total += dwMatch[1]
+        .split(',')
+        .map((token) => token.trim())
+        .filter((token) => token.length > 0)
+        .length * 2;
+    }
+  }
+  return total;
+}
 
 /**
  * Generate sound file with PSG functions and effects (sound.asm)
@@ -17,12 +49,17 @@ const TRACK_CHANNELS = ['A', 'B', 'C'] as const;
  * @param analysis - Project analysis (future: could include sound effect definitions)
  * @returns ASM code string with PSG sound system
  */
-export function generateSoundFile(analysis: ProjectAnalysis, executionPlan?: ExecutionPlan): string {
+export function generateSoundFile(
+  analysis: ProjectAnalysis,
+  executionPlan?: ExecutionPlan,
+  romMode: string = 'simple32k'
+): string {
   const pt3Tracks = collectPT3Tracks(analysis);
   const tracks = pt3Tracks.length > 0 ? [] : collectPsgTracks(analysis);
+  const bankedTrackData = romMode === 'megarom' && pt3Tracks.length === 0 && tracks.length > 0;
   const musicBlock = pt3Tracks.length > 0
     ? buildPT3MusicBlock(pt3Tracks)
-    : buildTrackerMusicBlock(tracks);
+    : buildTrackerMusicBlock(tracks, bankedTrackData);
   const usesInterruptAudio = executionPlan?.tasks.some((task) => task.responsibility === 'audio') ?? false;
   return `; ==================================================================
 ; PSG SOUND SYSTEM
@@ -618,6 +655,44 @@ function collectPT3Tracks(analysis: ProjectAnalysis): TrackerSongData[] {
   return projectTracks.filter((track) => track?.playbackBackend === 'external-pt3');
 }
 
+function collectSerializedTrackerTracks(analysis: ProjectAnalysis): TrackerSongData[] {
+  const pt3Tracks = collectPT3Tracks(analysis);
+  return pt3Tracks.length > 0 ? [] : collectPsgTracks(analysis);
+}
+
+export function getSerializedTrackerMusicBufferSize(analysis: ProjectAnalysis): number {
+  const tracks = collectSerializedTrackerTracks(analysis);
+  let maxSize = 0;
+  tracks.forEach((track, index) => {
+    const serialized = buildTrackData(track, index, { relativePointers: true });
+    if (serialized.byteSize > maxSize) {
+      maxSize = serialized.byteSize;
+    }
+  });
+  return maxSize;
+}
+
+export function getSoundBank4Data(analysis: ProjectAnalysis): string {
+  const tracks = collectSerializedTrackerTracks(analysis);
+  if (tracks.length === 0) {
+    return '';
+  }
+  const serializedTracks = tracks.map((track, index) => buildTrackData(track, index, { relativePointers: true }));
+  const lines: string[] = [
+    '; ==================================================================',
+    '; TRACKER MUSIC DATA (MEGAROM BANKED RESOURCES)',
+    '; Runtime stays resident in sound.asm; serialized tracks are copied',
+    '; to RAM on demand through resource_manager.',
+    '; ==================================================================',
+    '',
+  ];
+  serializedTracks.forEach((track) => {
+    lines.push(track.asm);
+    lines.push('');
+  });
+  return lines.join('\n').trimEnd();
+}
+
 function getInstrumentMap(song: TrackerSongData): Map<number, PT3Instrument> {
   const instrumentMap = new Map<number, PT3Instrument>();
   for (const instrument of song.instruments || []) {
@@ -757,8 +832,25 @@ function buildNotePeriodTable(): string {
   return buildDwLines('music_note_period_table', periods);
 }
 
-function buildTrackData(song: TrackerSongData, trackIndex: number): { labelBase: string; asm: string } {
+function buildTrackData(
+  song: TrackerSongData,
+  trackIndex: number,
+  options: SerializedTrackBuildOptions = {}
+): { labelBase: string; dataLabel: string; asm: string; byteSize: number } {
   const labelBase = `music_track_${trackIndex}_${sanitizeLabel(song.name || `track_${trackIndex}`)}`;
+  const dataLabel = `${labelBase}_data`;
+  const useRelativePointers = options.relativePointers === true;
+  const orderTableLabel = useRelativePointers ? '.order_table' : `${labelBase}_order_table`;
+  const patternTableLabel = useRelativePointers ? '.pattern_table' : `${labelBase}_pattern_table`;
+  const instrumentPtrTableLabel = useRelativePointers ? '.instrument_ptr_table' : `${labelBase}_instrument_ptr_table`;
+  const ornamentPtrTableLabel = useRelativePointers ? '.ornament_ptr_table' : `${labelBase}_ornament_ptr_table`;
+  const patternRowsLabel = (patternIndex: number) => useRelativePointers ? `.pattern_${patternIndex}_rows` : `${labelBase}_pattern_${patternIndex}_rows`;
+  const instrumentLabel = (instrumentId: number) => useRelativePointers ? `.inst_${instrumentId}` : `${labelBase}_inst_${instrumentId}`;
+  const instrumentVolEnvLabel = (instrumentId: number) => useRelativePointers ? `.inst_${instrumentId}_vol_env` : `${labelBase}_inst_${instrumentId}_vol_env`;
+  const instrumentToneEnvLabel = (instrumentId: number) => useRelativePointers ? `.inst_${instrumentId}_tone_env` : `${labelBase}_inst_${instrumentId}_tone_env`;
+  const instrumentNoiseEnvLabel = (instrumentId: number) => useRelativePointers ? `.inst_${instrumentId}_noise_env` : `${labelBase}_inst_${instrumentId}_noise_env`;
+  const ornamentLabel = (ornamentId: number) => useRelativePointers ? `.orn_${ornamentId}` : `${labelBase}_orn_${ornamentId}`;
+  const ornamentDataLabel = (ornamentId: number) => useRelativePointers ? `.orn_${ornamentId}_data` : `${labelBase}_orn_${ornamentId}_data`;
   const instrumentMap = getInstrumentMap(song);
   const ornamentMap = getOrnamentMap(song);
   const warnings: string[] = [];
@@ -772,41 +864,46 @@ function buildTrackData(song: TrackerSongData, trackIndex: number): { labelBase:
   lines.push(`; ------------------------------------------------------------------`);
   lines.push(`; Tracker Song ${trackIndex}: ${song.name}`);
   lines.push(`; ------------------------------------------------------------------`);
-  lines.push(`${labelBase}_data:`);
+  lines.push(`${dataLabel}:`);
   lines.push(`    DB ${toAsmByte(computeRowFrames(song))}`);
   lines.push(`    DB ${toAsmByte(order.length)}`);
   lines.push(`    DB ${toAsmByte(restartPosition)}`);
   lines.push(`    DB #01`);
   lines.push(`    DB ${toAsmByte(patterns.length)}`);
-  lines.push(`    DW ${labelBase}_order_table`);
-  lines.push(`    DW ${labelBase}_pattern_table`);
-  lines.push(`    DW ${labelBase}_instrument_ptr_table`);
-  lines.push(`    DW ${labelBase}_ornament_ptr_table`);
+  lines.push(`    DW ${useRelativePointers ? `${orderTableLabel} - ${dataLabel}` : orderTableLabel}`);
+  lines.push(`    DW ${useRelativePointers ? `${patternTableLabel} - ${dataLabel}` : patternTableLabel}`);
+  lines.push(`    DW ${useRelativePointers ? `${instrumentPtrTableLabel} - ${dataLabel}` : instrumentPtrTableLabel}`);
+  lines.push(`    DW ${useRelativePointers ? `${ornamentPtrTableLabel} - ${dataLabel}` : ornamentPtrTableLabel}`);
   lines.push(`    DW ${toAsmWord(toAyHardwareEnvelopePeriod(song.ayHardwareEnvelopePeriod))}`);
   lines.push(`    DB ${toAsmByte(clampByte(song.ayNoisePeriod ?? 16, 0, 31))}`);
   lines.push('');
-  lines.push(buildDbLines(`${labelBase}_order_table`, order.map((value) => clampByte(value, 0, Math.max(0, patterns.length - 1)))));
+  lines.push(buildDbLines(orderTableLabel, order.map((value) => clampByte(value, 0, Math.max(0, patterns.length - 1)))));
   lines.push('');
-  lines.push(`${labelBase}_pattern_table:`);
+  lines.push(`${patternTableLabel}:`);
   patterns.forEach((pattern, patternIndex) => {
-    lines.push(`    DW ${labelBase}_pattern_${patternIndex}_rows`);
+    const rowsLabel = patternRowsLabel(patternIndex);
+    lines.push(`    DW ${useRelativePointers ? `${rowsLabel} - ${dataLabel}` : rowsLabel}`);
     lines.push(`    DB ${toAsmByte(clampByte(pattern?.numRows || pattern?.rows?.length || 1, 1, 255))}`);
   });
   lines.push('');
-  lines.push(`${labelBase}_instrument_ptr_table:`);
+  lines.push(`${instrumentPtrTableLabel}:`);
   for (let instrumentId = 0; instrumentId <= 31; instrumentId++) {
-    lines.push(`    DW ${instrumentId > 0 && instrumentMap.has(instrumentId) ? `${labelBase}_inst_${instrumentId}` : '0'}`);
+    lines.push(`    DW ${instrumentId > 0 && instrumentMap.has(instrumentId)
+      ? (useRelativePointers ? `${instrumentLabel(instrumentId)} - ${dataLabel}` : instrumentLabel(instrumentId))
+      : '0'}`);
   }
   lines.push('');
-  lines.push(`${labelBase}_ornament_ptr_table:`);
+  lines.push(`${ornamentPtrTableLabel}:`);
   for (let ornamentId = 0; ornamentId <= 15; ornamentId++) {
-    lines.push(`    DW ${ornamentId > 0 && ornamentMap.has(ornamentId) ? `${labelBase}_orn_${ornamentId}` : '0'}`);
+    lines.push(`    DW ${ornamentId > 0 && ornamentMap.has(ornamentId)
+      ? (useRelativePointers ? `${ornamentLabel(ornamentId)} - ${dataLabel}` : ornamentLabel(ornamentId))
+      : '0'}`);
   }
   lines.push('');
 
   patterns.forEach((pattern, patternIndex) => {
     const rowCount = clampByte(pattern?.numRows || pattern?.rows?.length || 1, 1, 255);
-    lines.push(`${labelBase}_pattern_${patternIndex}_rows:`);
+    lines.push(`${patternRowsLabel(patternIndex)}:`);
     for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
       const row = pattern?.rows?.[rowIndex] || {};
       const rowBytes: number[] = [];
@@ -846,24 +943,30 @@ function buildTrackData(song: TrackerSongData, trackIndex: number): { labelBase:
       ? volumeEnvelope[0]
       : 15;
 
-    lines.push(`${labelBase}_inst_${instrumentId}:`);
+    lines.push(`${instrumentLabel(instrumentId)}:`);
     lines.push(`    DB ${toAsmByte(flags)}`);
     lines.push(`    DB ${toAsmByte(defaultVolume)}`);
     lines.push(`    DB ${toAsmByte(clampByte(instrument.ayEnvelopeShape ?? 0, 0, 15))}`);
     lines.push(`    DB ${toAsmByte(clampByte(instrument.noiseBaseFrequency ?? song.ayNoisePeriod ?? 16, 0, 31))}`);
     lines.push(`    DW ${toAsmWord(toAyHardwareEnvelopePeriod(instrument.hardwareEnvelopePeriod ?? song.ayHardwareEnvelopePeriod))}`);
-    lines.push(`    DW ${volumeEnvelope.length > 0 ? `${labelBase}_inst_${instrumentId}_vol_env` : '0'}`);
+    lines.push(`    DW ${volumeEnvelope.length > 0
+      ? (useRelativePointers ? `${instrumentVolEnvLabel(instrumentId)} - ${dataLabel}` : instrumentVolEnvLabel(instrumentId))
+      : '0'}`);
     lines.push(`    DB ${toAsmByte(volumeEnvelope.length)}`);
     lines.push(`    DB ${toAsmByte(volumeLoop)}`);
-    lines.push(`    DW ${toneEnvelope.length > 0 ? `${labelBase}_inst_${instrumentId}_tone_env` : '0'}`);
+    lines.push(`    DW ${toneEnvelope.length > 0
+      ? (useRelativePointers ? `${instrumentToneEnvLabel(instrumentId)} - ${dataLabel}` : instrumentToneEnvLabel(instrumentId))
+      : '0'}`);
     lines.push(`    DB ${toAsmByte(toneEnvelope.length)}`);
     lines.push(`    DB ${toAsmByte(toneLoop)}`);
-    lines.push(`    DW ${noiseEnvelope.length > 0 ? `${labelBase}_inst_${instrumentId}_noise_env` : '0'}`);
+    lines.push(`    DW ${noiseEnvelope.length > 0
+      ? (useRelativePointers ? `${instrumentNoiseEnvLabel(instrumentId)} - ${dataLabel}` : instrumentNoiseEnvLabel(instrumentId))
+      : '0'}`);
     lines.push(`    DB ${toAsmByte(noiseEnvelope.length)}`);
     lines.push(`    DB ${toAsmByte(noiseLoop)}`);
-    if (volumeEnvelope.length > 0) lines.push(buildDbLines(`${labelBase}_inst_${instrumentId}_vol_env`, volumeEnvelope));
-    if (toneEnvelope.length > 0) lines.push(buildDbLines(`${labelBase}_inst_${instrumentId}_tone_env`, toneEnvelope));
-    if (noiseEnvelope.length > 0) lines.push(buildDbLines(`${labelBase}_inst_${instrumentId}_noise_env`, noiseEnvelope));
+    if (volumeEnvelope.length > 0) lines.push(buildDbLines(instrumentVolEnvLabel(instrumentId), volumeEnvelope));
+    if (toneEnvelope.length > 0) lines.push(buildDbLines(instrumentToneEnvLabel(instrumentId), toneEnvelope));
+    if (noiseEnvelope.length > 0) lines.push(buildDbLines(instrumentNoiseEnvLabel(instrumentId), noiseEnvelope));
     lines.push('');
   });
 
@@ -873,11 +976,13 @@ function buildTrackData(song: TrackerSongData, trackIndex: number): { labelBase:
       ? clampByte(ornament.loopPosition, 0, ornamentData.length - 1)
       : 0xff;
 
-    lines.push(`${labelBase}_orn_${ornamentId}:`);
-    lines.push(`    DW ${ornamentData.length > 0 ? `${labelBase}_orn_${ornamentId}_data` : '0'}`);
+    lines.push(`${ornamentLabel(ornamentId)}:`);
+    lines.push(`    DW ${ornamentData.length > 0
+      ? (useRelativePointers ? `${ornamentDataLabel(ornamentId)} - ${dataLabel}` : ornamentDataLabel(ornamentId))
+      : '0'}`);
     lines.push(`    DB ${toAsmByte(ornamentData.length)}`);
     lines.push(`    DB ${toAsmByte(loopPosition)}`);
-    if (ornamentData.length > 0) lines.push(buildDbLines(`${labelBase}_orn_${ornamentId}_data`, ornamentData));
+    if (ornamentData.length > 0) lines.push(buildDbLines(ornamentDataLabel(ornamentId), ornamentData));
     lines.push('');
   });
 
@@ -885,7 +990,13 @@ function buildTrackData(song: TrackerSongData, trackIndex: number): { labelBase:
     lines.splice(3, 0, ...warnings.map((warning) => `; WARNING: ${warning}`));
   }
 
-  return { labelBase, asm: lines.join('\n') };
+  const asm = lines.join('\n');
+  return {
+    labelBase,
+    dataLabel,
+    asm,
+    byteSize: countAsmDataBytes(asm),
+  };
 }
 
 function buildPT3MusicBlock(tracks: TrackerSongData[]): string {
@@ -1092,9 +1203,11 @@ function buildPT3MusicBlock(tracks: TrackerSongData[]): string {
     '    ret',
     '',
     '; ------------------------------------------------------------------',
-    '; PT3 REPLAYER (included from server root)',
+    '; PT3 REPLAYER',
+    '; Uses a bare include so exported ASM can compile outside server/temp',
+    '; when Glass receives the project server/ directory in its include path.',
     '; ------------------------------------------------------------------',
-    '    include "../PT3-ROM-alltables-glass.asm"',
+    '    include "PT3-ROM-alltables-glass.asm"',
     '',
     '; ------------------------------------------------------------------',
     '; PT3 TRACK TABLE',
@@ -1145,8 +1258,8 @@ function buildPT3MusicBlock(tracks: TrackerSongData[]): string {
   return lines.join('\n');
 }
 
-function buildTrackerMusicBlock(tracks: TrackerSongData[]): string {
-  const serializedTracks = tracks.map((track, index) => buildTrackData(track, index));
+function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: boolean = false): string {
+  const serializedTracks = tracks.map((track, index) => buildTrackData(track, index, { relativePointers: bankedTrackData }));
   const trackTableLines: string[] = [
     '; ==================================================================',
     '; TRACKER MUSIC RUNTIME (Phase 1)',
@@ -1182,6 +1295,10 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[]): string {
     '    ld (music_track_ptr_h), a',
     '    ld (music_pattern_ptr_l), a',
     '    ld (music_pattern_ptr_h), a',
+    ...(bankedTrackData ? [
+      '    ld a, #FF',
+      '    ld (music_loaded_track_index), a',
+    ] : []),
     '    ld a, #3F',
     '    ld (music_mixer_shadow), a',
     '    call music_reset_channel_state',
@@ -1289,19 +1406,55 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[]): string {
     '    ret',
     '',
     'music_load_track_pointer_from_index:',
-    '    add a, a',
-    '    ld e, a',
-    '    ld d, 0',
-    '    ld hl, music_track_ptr_table',
-    '    add hl, de',
-    '    ld e, (hl)',
-    '    inc hl',
-    '    ld d, (hl)',
-    '    ld a, e',
-    '    ld (music_track_ptr_l), a',
-    '    ld a, d',
-    '    ld (music_track_ptr_h), a',
-    '    ret',
+    ...(bankedTrackData ? [
+      '    push bc',
+      '    ld e, a',
+      '    ld d, 0',
+      '    ld a, (music_loaded_track_index)',
+      '    cp e',
+      '    jr z, .track_ready',
+      '    ld hl, music_track_resource_id_table',
+      '    add hl, de',
+      '    ld a, (hl)',
+      '    ld de, music_track_buffer',
+      '    call resource_load_to_ram_by_id',
+      '    jr c, .load_fail',
+      '    ld a, (music_track_index)',
+      '    ld (music_loaded_track_index), a',
+      '.track_ready:',
+      '    ld hl, music_track_buffer',
+      '    ld a, l',
+      '    ld (music_track_ptr_l), a',
+      '    ld a, h',
+      '    ld (music_track_ptr_h), a',
+      '    pop bc',
+      '    or a',
+      '    ret',
+      '.load_fail:',
+      '    xor a',
+      '    ld (music_track_ptr_l), a',
+      '    ld (music_track_ptr_h), a',
+      '    ld a, #FF',
+      '    ld (music_loaded_track_index), a',
+      '    pop bc',
+      '    scf',
+      '    ret',
+    ] : [
+      '    add a, a',
+      '    ld e, a',
+      '    ld d, 0',
+      '    ld hl, music_track_ptr_table',
+      '    add hl, de',
+      '    ld e, (hl)',
+      '    inc hl',
+      '    ld d, (hl)',
+      '    ld a, e',
+      '    ld (music_track_ptr_l), a',
+      '    ld a, d',
+      '    ld (music_track_ptr_h), a',
+      '    or a',
+      '    ret',
+    ]),
     '',
     'music_get_track_ptr:',
     '    ld a, (music_track_ptr_l)',
@@ -1322,14 +1475,36 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[]): string {
     '    ld a, (hl)',
     '    ret',
     '',
-    'music_read_track_word:',
-    '    call music_get_track_header_ptr',
-    '    ld e, (hl)',
-    '    inc hl',
-    '    ld d, (hl)',
-    '    ld h, d',
-    '    ld l, e',
-    '    ret',
+    ...(bankedTrackData ? [
+      'music_resolve_track_relative_ptr_at_hl:',
+      '    ld e, (hl)',
+      '    inc hl',
+      '    ld d, (hl)',
+      '    ld a, d',
+      '    or e',
+      '    jr z, .null_ptr',
+      '    push de',
+      '    call music_get_track_ptr',
+      '    pop de',
+      '    add hl, de',
+      '    ret',
+      '.null_ptr:',
+      '    ld hl, 0',
+      '    ret',
+      '',
+      'music_read_track_word:',
+      '    call music_get_track_header_ptr',
+      '    jp music_resolve_track_relative_ptr_at_hl',
+    ] : [
+      'music_read_track_word:',
+      '    call music_get_track_header_ptr',
+      '    ld e, (hl)',
+      '    inc hl',
+      '    ld d, (hl)',
+      '    ld h, d',
+      '    ld l, e',
+      '    ret',
+    ]),
     '',
     'music_get_instrument_ptr:',
     '    or a',
@@ -1340,12 +1515,16 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[]): string {
     '    ld a, MUSIC_TRACK_INSTRUMENT_TABLE',
     '    call music_read_track_word',
     '    add hl, de',
-    '    ld e, (hl)',
-    '    inc hl',
-    '    ld d, (hl)',
-    '    ld h, d',
-    '    ld l, e',
-    '    ret',
+    ...(bankedTrackData ? [
+      '    jp music_resolve_track_relative_ptr_at_hl',
+    ] : [
+      '    ld e, (hl)',
+      '    inc hl',
+      '    ld d, (hl)',
+      '    ld h, d',
+      '    ld l, e',
+      '    ret',
+    ]),
     '.no_instrument:',
     '    ld hl, 0',
     '    ret',
@@ -1437,9 +1616,15 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[]): string {
     '    push hl',
     '    ld de, 6',
     '    add hl, de',
-    '    ld e, (hl)',
-    '    inc hl',
-    '    ld d, (hl)',
+    ...(bankedTrackData ? [
+      '    call music_resolve_track_relative_ptr_at_hl',
+      '    ld e, l',
+      '    ld d, h',
+    ] : [
+      '    ld e, (hl)',
+      '    inc hl',
+      '    ld d, (hl)',
+    ]),
     '    pop hl',
     '    push hl',
     '    ld hl, music_ch_vol_step_base',
@@ -1621,9 +1806,15 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[]): string {
     '    pop hl',
     '    ld de, 14',
     '    add hl, de',
-    '    ld e, (hl)',
-    '    inc hl',
-    '    ld d, (hl)',
+    ...(bankedTrackData ? [
+      '    call music_resolve_track_relative_ptr_at_hl',
+      '    ld e, l',
+      '    ld d, h',
+    ] : [
+      '    ld e, (hl)',
+      '    inc hl',
+      '    ld d, (hl)',
+    ]),
     '    pop af',
     '    ld l, a',
     '    ld h, 0',
@@ -1666,6 +1857,7 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[]): string {
     '    jp nc, .mpt_done',
     '    ld (music_track_index), a',
     '    call music_load_track_pointer_from_index',
+    '    jp c, .mpt_done',
     '    ld a, b',
     '    and 1',
     '    ld (music_loop), a',
@@ -1792,18 +1984,36 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[]): string {
     '    add hl, de',
     '    add hl, de',
     '    add hl, de',
-    '    ld e, (hl)',
-    '    inc hl',
-    '    ld d, (hl)',
-    '    inc hl',
-    '    ld a, (hl)',
-    '    ld (music_pattern_rows), a',
-    '    ld a, e',
-    '    ld (music_pattern_ptr_l), a',
-    '    ld a, d',
-    '    ld (music_pattern_ptr_h), a',
-    '    ld h, d',
-    '    ld l, e',
+    ...(bankedTrackData ? [
+      '    push hl',
+      '    call music_resolve_track_relative_ptr_at_hl',
+      '    ld a, l',
+      '    ld (music_pattern_ptr_l), a',
+      '    ld a, h',
+      '    ld (music_pattern_ptr_h), a',
+      '    pop hl',
+      '    inc hl',
+      '    inc hl',
+      '    ld a, (hl)',
+      '    ld (music_pattern_rows), a',
+      '    ld a, (music_pattern_ptr_h)',
+      '    ld h, a',
+      '    ld a, (music_pattern_ptr_l)',
+      '    ld l, a',
+    ] : [
+      '    ld e, (hl)',
+      '    inc hl',
+      '    ld d, (hl)',
+      '    inc hl',
+      '    ld a, (hl)',
+      '    ld (music_pattern_rows), a',
+      '    ld a, e',
+      '    ld (music_pattern_ptr_l), a',
+      '    ld a, d',
+      '    ld (music_pattern_ptr_h), a',
+      '    ld h, d',
+      '    ld l, e',
+    ]),
     '    ld a, (music_pattern_row)',
     '    or a',
     '    jp z, .row_ptr_ready',
@@ -2049,18 +2259,26 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[]): string {
     'music_track_count:',
     `    DB ${toAsmByte(serializedTracks.length)}`,
     '',
-    'music_track_ptr_table:',
+    ...(bankedTrackData ? [
+      'music_track_resource_id_table:',
+    ] : [
+      'music_track_ptr_table:',
+    ]),
   ];
 
   if (serializedTracks.length === 0) {
-    trackTableLines.push('    DW 0');
+    trackTableLines.push(bankedTrackData ? '    DB RESOURCE_ID_INVALID' : '    DW 0');
   } else {
     serializedTracks.forEach((track) => {
-      trackTableLines.push(`    DW ${track.labelBase}_data`);
+      if (bankedTrackData) {
+        trackTableLines.push(`    DB ${buildResourceIdLabelFromAsmLabel(track.dataLabel)}`);
+      } else {
+        trackTableLines.push(`    DW ${track.dataLabel}`);
+      }
     });
   }
 
-  if (serializedTracks.length > 0) {
+  if (!bankedTrackData && serializedTracks.length > 0) {
     trackTableLines.push('');
     serializedTracks.forEach((track) => {
       trackTableLines.push(track.asm);

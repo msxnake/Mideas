@@ -4289,7 +4289,8 @@ Condition_KeyAndMove:
     ret
 
 Condition_VariableCompare:
-    ; Params: VarID (1 byte), Operator (1 byte), Value (1 byte)
+    ; Params: VarID (1 byte), Operator (1 byte), CompareSource (1 byte), ValueOrVarID (1 byte)
+    ; CompareSource: 0 = constant byte, 1 = variable ID
     ; Input: B = Entity Index, HL = Params Ptr
     ; Output: A = 1 (true) or 0 (false), HL = Updated Ptr
     ; Supports entity variables (ID 0-5) and global variables (ID 6+)
@@ -4298,104 +4299,35 @@ Condition_VariableCompare:
     inc hl
     ld c, (hl)              ; C = Operator ID
     inc hl
-    ld d, (hl)              ; D = Compare Value
+    ld d, (hl)              ; D = CompareSource
+    inc hl
+    ld e, (hl)              ; E = Compare Value or Variable ID
     inc hl
 
     push hl                 ; Save updated params ptr
     push bc                 ; Save Operator and Entity Index
-    push de                 ; Save Compare Value
+    push de                 ; Save CompareSource/ValueOrVarID
 
-    ; Check if VarID < 6 (entity variable) or >= 6 (global variable)
-    cp 6
-    jr nc, .get_global_var
+    call .load_variable_value
+    ld d, e                 ; D = left value
 
-    ; Entity variables (ID 0-5)
-    ld c, b                 ; C = Entity Index
-    ld b, 0                 ; BC = Entity Index
+    pop hl                  ; H = CompareSource, L = Compare Value / VarID
+    ld a, h
+    or a
+    jr z, .compare_constant
 
-    cp 0                    ; Check if x
-    jr z, .get_x
-    cp 1                    ; Check if y
-    jr z, .get_y
-    cp 2                    ; Check if vx
-    jr z, .get_vx
-    cp 3                    ; Check if vy
-    jr z, .get_vy
-    cp 4                    ; Check if isOnGround
-    jr z, .get_on_ground
-    ; cp 5: health (fall through)
-
-.get_health:
-    ld hl, entity_health_current
-    add hl, bc
-    ld e, (hl)
+    ld a, l                 ; Resolve right-side variable
+    call .load_variable_value
     jr .do_compare
 
-.get_global_var:
-    ; VarID >= 6: Global variable
-    ; Get address from SM_GlobalVarTable
-    sub 6                   ; A = VarID - 6
-    ld l, a
-    ld h, 0
-    add hl, hl              ; HL = (VarID - 6) * 2
-
-    push de                 ; Save Compare Value
-    ld de, SM_GlobalVarTable
-    add hl, de              ; HL = &SM_GlobalVarTable[VarID - 6]
-
-    ; Read address from table
-    ld e, (hl)
-    inc hl
-    ld d, (hl)              ; DE = address of global variable
-
-    ; Read value. Restore compare-value pair first, then copy the
-    ; global byte into E so the compare sees the actual variable value.
-    ld a, (de)              ; A = global variable value
-    pop de                  ; Restore Compare Value to D
-    ld e, a                 ; E = variable value
-    jr .do_compare
-
-.get_x:
-    ld hl, entity_x_pos
-    add hl, bc
-    ld e, (hl)              ; E = entity x position
-    jr .do_compare
-
-.get_y:
-    ld hl, entity_y_pos
-    add hl, bc
-    ld e, (hl)              ; E = entity y position
-    jr .do_compare
-
-.get_vx:
-    ld hl, entity_vel_x
-    add hl, bc
-    ld e, (hl)              ; E = entity x velocity
-    jr .do_compare
-
-.get_vy:
-    ld hl, entity_vel_y
-    add hl, bc
-    ld e, (hl)              ; E = entity y velocity
-    jr .do_compare
-
-.get_on_ground:
-    ld hl, entity_on_ground
-    add hl, bc
-    ld a, (hl)
-    and #01                 ; Extract bit 0
-    ld e, a                 ; E = 1 if on ground, 0 if in air
-    jr .do_compare
+.compare_constant:
+    ld e, l                 ; E = right constant value
 
 .do_compare:
-    ; E = Variable Value
-    ; Stack: Compare Value (D), Operator (C in saved BC), Entity Index
-    pop hl                  ; HL = Compare Value (D in H)
-    ld d, h                 ; D = Compare Value
     pop bc                  ; C = Operator ID, B = Entity Index (restore)
     pop hl                  ; HL = Updated Params Ptr
     
-    ; Now: E = Variable Value, D = Compare Value, C = Operator
+    ; Now: D = Left Value, E = Right Value, C = Operator
     ; Perform comparison based on operator
     ld a, c                 ; A = Operator ID
     
@@ -4417,42 +4349,117 @@ Condition_VariableCompare:
     ret
 
 .op_equals:
-    ld a, e                 ; A = Variable Value
-    cp d                    ; Compare with D
+    ld a, d
+    cp e
     jr z, .return_true
     jr .return_false
 
 .op_not_equals:
-    ld a, e
-    cp d
+    ld a, d
+    cp e
     jr nz, .return_true
     jr .return_false
 
 .op_greater:
-    ld a, e
-    cp d
-    jr z, .return_false     ; If equal, not greater
-    jr nc, .return_true     ; If no carry, E >= D, so E > D (since not equal)
+    ld a, d
+    cp e
+    jr z, .return_false
+    jr nc, .return_true
     jr .return_false
 
 .op_less:
-    ld a, e
-    cp d
-    jr c, .return_true      ; If carry, E < D
+    ld a, d
+    cp e
+    jr c, .return_true
     jr .return_false
 
 .op_greater_equal:
-    ld a, e
-    cp d
-    jr nc, .return_true     ; If no carry, E >= D
+    ld a, d
+    cp e
+    jr nc, .return_true
     jr .return_false
 
 .op_less_equal:
-    ld a, e
-    cp d
-    jr z, .return_true      ; If equal
-    jr c, .return_true      ; If carry, E < D
+    ld a, d
+    cp e
+    jr z, .return_true
+    jr c, .return_true
     jr .return_false
+
+.load_variable_value:
+    push bc
+
+    cp 6
+    jr nc, .load_global_var
+
+    ld c, b
+    ld b, 0
+
+    cp 0
+    jr z, .load_x
+    cp 1
+    jr z, .load_y
+    cp 2
+    jr z, .load_vx
+    cp 3
+    jr z, .load_vy
+    cp 4
+    jr z, .load_on_ground
+
+.load_health:
+    ld hl, entity_health_current
+    add hl, bc
+    ld e, (hl)
+    jr .load_done
+
+.load_global_var:
+    sub 6
+    ld l, a
+    ld h, 0
+    add hl, hl
+    ld de, SM_GlobalVarTable
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, (de)
+    ld e, a
+    jr .load_done
+
+.load_x:
+    ld hl, entity_x_pos
+    add hl, bc
+    ld e, (hl)
+    jr .load_done
+
+.load_y:
+    ld hl, entity_y_pos
+    add hl, bc
+    ld e, (hl)
+    jr .load_done
+
+.load_vx:
+    ld hl, entity_vel_x
+    add hl, bc
+    ld e, (hl)
+    jr .load_done
+
+.load_vy:
+    ld hl, entity_vel_y
+    add hl, bc
+    ld e, (hl)
+    jr .load_done
+
+.load_on_ground:
+    ld hl, entity_on_ground
+    add hl, bc
+    ld a, (hl)
+    and #01
+    ld e, a
+
+.load_done:
+    pop bc
+    ret
 
 .return_true:
     ld a, 1
@@ -5699,16 +5706,29 @@ function generateConditionBytes(condition: Condition, variableIdMap?: Record<str
             // Get variable name with proper fallback
             const variableName = condition.params?.variable || 'x';
             const varId = variableIdMap?.[variableName];
+            const compareSource = condition.params?.valueSource === 'variable' ? 1 : 0;
+            const compareVariableName = condition.params?.valueVariable || variableName;
+            const compareVarId = compareSource === 1 ? variableIdMap?.[compareVariableName] : undefined;
 
             // If variable is not in the map, log warning and use fallback
             if (varId === undefined) {
                 console.warn(`[State Machine Generator] Unknown variable "${variableName}" in VARIABLE_COMPARE. Using x (ID 0) as fallback.`);
-                // Use variable ID 0 (x position) as fallback
-                bytes += `    DB 0, ${OPERATOR_IDS[condition.params?.operator || '=='] || 0}, ${serializeValue(condition.params?.value || 0)}; FALLBACK: unknown var "${variableName}" -> x ${condition.params?.operator || '=='} ${condition.params?.value || 0}\n`;
+                const fallbackValue = compareSource === 1
+                    ? (compareVarId ?? 0)
+                    : serializeValue(condition.params?.value || 0);
+                bytes += `    DB 0, ${OPERATOR_IDS[condition.params?.operator || '=='] || 0}, ${compareSource}, ${fallbackValue}; FALLBACK: unknown var "${variableName}" -> x ${condition.params?.operator || '=='} ${compareSource === 1 ? compareVariableName : (condition.params?.value || 0)}\n`;
+            } else if (compareSource === 1 && compareVarId === undefined) {
+                console.warn(`[State Machine Generator] Unknown compare variable "${compareVariableName}" in VARIABLE_COMPARE. Using x (ID 0) as fallback.`);
+                const opId = OPERATOR_IDS[condition.params?.operator || '=='] || 0;
+                bytes += `    DB ${varId}, ${opId}, 1, 0; ${variableName} (ID ${varId}) ${condition.params?.operator || '=='} x (fallback for "${compareVariableName}")\n`;
             } else {
                 const opId = OPERATOR_IDS[condition.params?.operator || '=='] || 0;
                 const value = condition.params?.value || 0;
-                bytes += `    DB ${varId}, ${opId}, ${serializeValue(value)}; ${variableName} (ID ${varId}) ${condition.params?.operator || '=='} ${value}\n`;
+                if (compareSource === 1) {
+                    bytes += `    DB ${varId}, ${opId}, 1, ${compareVarId}; ${variableName} (ID ${varId}) ${condition.params?.operator || '=='} ${compareVariableName} (ID ${compareVarId})\n`;
+                } else {
+                    bytes += `    DB ${varId}, ${opId}, 0, ${serializeValue(value)}; ${variableName} (ID ${varId}) ${condition.params?.operator || '=='} ${value}\n`;
+                }
             }
             break;
         }

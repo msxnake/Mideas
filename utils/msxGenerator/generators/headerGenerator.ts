@@ -86,9 +86,7 @@ export function generateHeaderFile(
   const presentationBootAsm = shouldShowPresentationAtBoot
     ? `    ; Optional Presentation Screen configured in project data
 ${romMode === 'megarom'
-      ? `    ld a, ((show_presentation_screen - #4000) / #2000)
-    ld hl, show_presentation_screen
-    call mapper_call_hl_auto`
+      ? `    call show_presentation_screen_far`
       : `    call show_presentation_screen`}
 
 `
@@ -145,6 +143,8 @@ restart_rom_continue:
     ; Initialize mapper runtime state (safe no-op in simple32k mode)
     call mapper_runtime_init
 ${romMode === 'megarom' ? `
+    ; Initialize cached resource descriptor mirrors used by banked resources.
+    call resource_manager_init
     ; MEGAROM: Static bank setup — map physical banks 1-3 to their pages.
     ; Konami4 register layout: write to 6000h→6000-7FFFh, 8000h→8000-9FFFh, A000h→A000-BFFFh
     ; p1 writes to reg #6000, p2 to #8000, p3 to #A000.

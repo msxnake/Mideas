@@ -15,6 +15,7 @@ import {
   getMapperWindowConfig,
   type MapperTargetFormat,
 } from './mapperWindowUtils';
+import { buildResourceIdLabelFromAsmLabel } from '../utils/megaromResourceArtifacts';
 
 // Constants
 const SPRITE_INVISIBLE_VALUE = 224; // MSX: Y >= 209 hides sprite, but 224 is safer off-screen
@@ -62,6 +63,39 @@ const findFirstDrawableLayerIndex = (sprite: any): number => {
   const usedLayers = analyzeDrawableLayerIndexes(sprite);
   return usedLayers.length > 0 ? usedLayers[0] : -1;
 };
+
+function buildSpritePatternDataSection(sprites: any[]): string {
+  let code = `; ==================================================================
+; SPRITE PATTERN DATA
+; ==================================================================
+`;
+
+  sprites.forEach((sprite, index) => {
+    const suffix = `_${index}`;
+    const uniqueName = sprite.name + suffix;
+    const spriteASM = generateSpriteASMCode(sprite, DEFAULT_DATA_FORMAT, index);
+
+    code += `\n; Sprite Asset ${index}: ${sprite.name}\n${spriteASM}`;
+  });
+
+  code += `
+; ==================================================================
+; PLACEHOLDER SPRITE PATTERN (for entities with missing sprite assets)
+; ==================================================================
+; 16x16 white square sprite (solid fill)
+SPRITE_PLACEHOLDER_PATTERN:
+    ; Top half (8x8)
+    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
+    ; Bottom half (8x8)
+    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
+    ; Right half top (8x8)
+    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
+    ; Right half bottom (8x8)
+    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
+`;
+
+  return code;
+}
 
 type SpritePatternUsage = {
   index: number;
@@ -416,6 +450,60 @@ export const buildScreenSpritePatternUsageSummaries = (analysis: ProjectAnalysis
   });
 };
 
+export function buildWorldSpritePatternPolicyManifest(analysis: ProjectAnalysis): string {
+  const spriteCatalog = buildMSXDirectionalSpriteCatalog(analysis.sprites || []);
+  const runtimePatternPacks = buildRuntimeSpritePatternPacks(analysis);
+  const worldMaps = (analysis.worldmaps || []) as any[];
+  const lines: string[] = [];
+
+  lines.push('WORLD SPRITE PATTERN POLICY');
+  lines.push('Source: runtime sprite packs inferred from entities present in each world.');
+  lines.push(`Pack capacity: ${SPRITE_PATTERN_SLOT_CAPACITY} slots (including placeholder).`);
+  lines.push('');
+
+  if (runtimePatternPacks.length === 0) {
+    lines.push('No runtime sprite packs generated.');
+    return lines.join('\n');
+  }
+
+  lines.push('PACKS');
+  runtimePatternPacks.forEach((pack, packIndex) => {
+    lines.push(`PACK ${packIndex.toString().padStart(2, '0')} ${pack.label}`);
+    lines.push(`- display: ${pack.displayName}`);
+    lines.push(`- slots: ${pack.totalSlotsRequired}/${SPRITE_PATTERN_SLOT_CAPACITY}`);
+    lines.push(`- placeholder_slot: ${pack.placeholderSlot}`);
+    if (pack.spriteIndexes.length === 0) {
+      lines.push(`- sprites: none`);
+    } else {
+      lines.push(`- sprites:`);
+      pack.spriteIndexes.forEach((spriteIndex) => {
+        const spriteName = spriteCatalog.sprites[spriteIndex]?.name || `sprite_${spriteIndex}`;
+        const baseSlot = pack.baseSlotsBySpriteIndex[spriteIndex] || 0;
+        lines.push(`  ${spriteIndex}: ${spriteName} @ slot ${baseSlot}`);
+      });
+    }
+    lines.push('');
+  });
+
+  if (worldMaps.length > 0) {
+    lines.push('WORLD -> PACK');
+    worldMaps.forEach((world: any, worldIndex: number) => {
+      const worldId = String(world?.id || `world_${worldIndex}`);
+      const worldName = String(world?.name || `world_${worldIndex}`);
+      const pack = runtimePatternPacks[worldIndex];
+      lines.push(
+        `${worldIndex.toString().padStart(2, '0')} ${worldName} (${worldId}) -> ` +
+        `${pack ? `${pack.label} [id=${worldIndex}]` : 'none'}`
+      );
+    });
+  } else {
+    lines.push('WORLD -> PACK');
+    lines.push(`00 default -> ${runtimePatternPacks[0].label} [id=0]`);
+  }
+
+  return lines.join('\n').trimEnd();
+}
+
 /**
  * Generate sprite data file (sprites.asm)
  *
@@ -425,10 +513,12 @@ export const buildScreenSpritePatternUsageSummaries = (analysis: ProjectAnalysis
 export function generateSpritesFile(
   analysis: ProjectAnalysis,
   romMode: string = 'simple32k',
+  dataInBank4: boolean = false,
   targetFormat: MapperTargetFormat = 'konami'
 ): string {
   const sourceSprites = analysis.sprites || [];
   const usesMapper = usesMapperBanking(romMode);
+  const useResourceManager = romMode === 'megarom';
   const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
   const mapperPop = usesMapper ? buildMapperDataPopAsm(mapperWindow) : '';
   const spriteCatalog = buildMSXDirectionalSpriteCatalog(sourceSprites);
@@ -437,6 +527,7 @@ export function generateSpritesFile(
   const directionalLookupTables = spriteCatalog.directionalLookupTables;
   const runtimePatternPacks = buildRuntimeSpritePatternPacks(analysis);
   const defaultRuntimePatternPack = runtimePatternPacks[0];
+  const worldMaps = (analysis.worldmaps || []) as any[];
 
   spriteCatalog.warnings.forEach(warning => {
     console.warn(`[Sprites Generator] ${warning}`);
@@ -697,23 +788,22 @@ export function generateSpritesFile(
 ; Sprite Pattern Preload Mode: STATIC_ALL_FRAMES
 ; Runtime Sprite Pattern Packs: ${runtimePatternPacks.length}
 ; ==================================================================
-
-; ==================================================================
-; SPRITE PATTERN DATA
-; ==================================================================
 `;
 
-  // Generate sprite patterns (for all sprite assets)
+  if (!dataInBank4) {
+    code += buildSpritePatternDataSection(sprites);
+  } else {
+    code += `; SPRITE_DATA_ROM_DATA_GROUP: bank4\n`;
+    code += `; (sprite pattern blobs are emitted in bank4 data zones for megarom builds)\n`;
+  }
+
+  // Generate sprite pattern aliases and bank constants
   sprites.forEach((sprite, index) => {
-    const suffix = `_${index}`;
-    const uniqueName = sprite.name + suffix;
+    const uniqueName = `${sprite.name}_${index}`;
     const safeSpriteName = uniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-    const spriteASM = generateSpriteASMCode(sprite, DEFAULT_DATA_FORMAT, index);
 
     // Find first layer that actually has pixel data
     const firstDrawableLayerIndex = findFirstDrawableLayerIndex(sprite);
-
-    code += `\n; Sprite Asset ${index}: ${sprite.name}\n${spriteASM}`;
 
     if (firstDrawableLayerIndex >= 0) {
       code += `\n; Unified pattern label for sprite ${index}
@@ -728,21 +818,7 @@ SPRITE_${index}_PATTERN_BANK EQU ${buildMapperBankEqu(`SPRITE_${index}_PATTERN`,
 
   });
 
-  // Generate placeholder sprite pattern (white 16x16 square for missing sprites)
   code += `
-; ==================================================================
-; PLACEHOLDER SPRITE PATTERN (for entities with missing sprite assets)
-; ==================================================================
-; 16x16 white square sprite (solid fill)
-SPRITE_PLACEHOLDER_PATTERN:
-    ; Top half (8x8)
-    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
-    ; Bottom half (8x8)
-    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
-    ; Right half top (8x8)
-    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
-    ; Right half bottom (8x8)
-    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
 SPRITE_PLACEHOLDER_PATTERN_BANK EQU ${buildMapperBankEqu('SPRITE_PLACEHOLDER_PATTERN', mapperWindow)}
 
 `;
@@ -940,6 +1016,8 @@ ${Math.max(1, sprites.length) > 1 ? `    ld de, sprite_asset_base_pattern_slot_r
     ldir
 ` : ``}    xor a
     ld (sprite_placeholder_base_pattern_num), a
+    ld a, #FF
+    ld (current_sprite_pattern_pack_id), a
 ${(analysis.worldmaps || []).length === 0 ? `    call load_sprite_patterns
 ` : ``}    xor a
     ld (active_sprite_count), a
@@ -952,12 +1030,31 @@ ${defaultRuntimePatternPack ? `    call load_sprite_patterns_${defaultRuntimePat
 `}
 `;
 
+  code += `
+SPRITE_PATTERN_PACK_INVALID EQU #FF
+SPRITE_PATTERN_PACK_COUNT EQU ${runtimePatternPacks.length}
+`;
+
+  if (worldMaps.length > 0) {
+    code += `
+; World index -> runtime sprite pattern pack id
+world_sprite_pattern_pack_table:
+`;
+    worldMaps.forEach((world: any, index: number) => {
+      const worldId = world?.id || `world_${index}`;
+      const packLabel = toSpritePatternPackLabel(worldId).toUpperCase();
+      code += `    db SPRITE_PATTERN_PACK_${packLabel}_ID ; World ${index}: ${world?.name || worldId}\n`;
+    });
+  }
+
   runtimePatternPacks.forEach((pack) => {
     code += `
 ; ------------------------------------------------------------------
 ; Runtime Sprite Pattern Pack: ${pack.displayName}
 ; Slots required: ${pack.totalSlotsRequired}/${SPRITE_PATTERN_SLOT_CAPACITY}
 ; ------------------------------------------------------------------
+SPRITE_PATTERN_PACK_${pack.label.toUpperCase()}_ID EQU ${runtimePatternPacks.indexOf(pack)}
+
 sprite_asset_base_pattern_slot_${pack.label}:
 `;
     const spriteCount = Math.max(1, sprites.length);
@@ -974,7 +1071,7 @@ load_sprite_patterns_${pack.label}:
     ldir
     ld a, ${pack.placeholderSlot * 4}
     ld (sprite_placeholder_base_pattern_num), a
-${usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}\n` : ''}`;
+${usesMapper && !useResourceManager ? `    call mapper_push_${mapperWindow.dataWindowPage}\n` : ''}`;
 
     if (pack.spriteIndexes.length === 0) {
       code += `    ; No runtime sprites in this pack - placeholder only
@@ -987,26 +1084,115 @@ ${usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}\n` : ''}`;
         const uniqueName = `${sprite.name}_${spriteIndex}`;
         const safeSpriteName = uniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
         const firstDrawableLayerIndex = findFirstDrawableLayerIndex(sprite);
+        const drawableLayerIndexes = analyzeDrawableLayerIndexes(sprite);
         for (let frameIndex = 0; frameIndex < usage.frameCount; frameIndex++) {
           const frameBaseSlot = basePatternSlot + (frameIndex * usage.layerCount);
-          code += `    ; Sprite Asset ${spriteIndex}: ${sprite.name} frame ${frameIndex} (${usage.layerCount} layers)
+          if (useResourceManager && drawableLayerIndexes.length > 0) {
+            code += `    ; Sprite Asset ${spriteIndex}: ${sprite.name} frame ${frameIndex} (${usage.layerCount} layers)\n`;
+            drawableLayerIndexes.forEach((layerIndex, layerOffset) => {
+              const frameLayerLabel = `${safeSpriteName}_F${frameIndex}_LAYER${layerIndex}`;
+              const frameLayerResourceId = buildResourceIdLabelFromAsmLabel(frameLayerLabel);
+              code += `    ld a, ${frameLayerResourceId}\n`;
+              code += `    ld de, SPRPAT + (${frameBaseSlot + layerOffset} * 32)\n`;
+              code += `    call resource_load_to_vram_by_id\n`;
+            });
+          } else {
+            code += `    ; Sprite Asset ${spriteIndex}: ${sprite.name} frame ${frameIndex} (${usage.layerCount} layers)
 ${usesMapper ? `    ld a, SPRITE_${spriteIndex}_PATTERN_BANK\n    call mapper_set_bank_${mapperWindow.dataWindowPage}\n` : ''}    ld hl, ${usesMapper ? buildMapperWindowedAddress(`${safeSpriteName}_F${frameIndex}_LAYER${firstDrawableLayerIndex}`, mapperWindow) : `${safeSpriteName}_F${frameIndex}_LAYER${firstDrawableLayerIndex}`}
     ld de, SPRPAT + (${frameBaseSlot} * 32)
     ld bc, ${usage.layerCount * 32}
     call FAST_LDIRVM
 `;
+          }
         }
       });
     }
 
     code += `    ; Placeholder sprite used by missing sprite refs
-${usesMapper ? `    ld a, SPRITE_PLACEHOLDER_PATTERN_BANK\n    call mapper_set_bank_${mapperWindow.dataWindowPage}\n` : ''}    ld hl, ${usesMapper ? buildMapperWindowedAddress('SPRITE_PLACEHOLDER_PATTERN', mapperWindow) : 'SPRITE_PLACEHOLDER_PATTERN'}
+${useResourceManager ? `    ld a, ${buildResourceIdLabelFromAsmLabel('SPRITE_PLACEHOLDER_PATTERN')}
+    ld de, SPRPAT + (${pack.placeholderSlot} * 32)
+    call resource_load_to_vram_by_id
+    ld a, SPRITE_PATTERN_PACK_${pack.label.toUpperCase()}_ID
+    ld (current_sprite_pattern_pack_id), a
+    ret
+` : `${usesMapper ? `    ld a, SPRITE_PLACEHOLDER_PATTERN_BANK\n    call mapper_set_bank_${mapperWindow.dataWindowPage}\n` : ''}    ld hl, ${usesMapper ? buildMapperWindowedAddress('SPRITE_PLACEHOLDER_PATTERN', mapperWindow) : 'SPRITE_PLACEHOLDER_PATTERN'}
     ld de, SPRPAT + (${pack.placeholderSlot} * 32)
     ld bc, 32
     call FAST_LDIRVM
+    ld a, SPRITE_PATTERN_PACK_${pack.label.toUpperCase()}_ID
+    ld (current_sprite_pattern_pack_id), a
 ${mapperPop}    ret
+`}
+`;
+
+    code += `
+ensure_sprite_patterns_${pack.label}:
+    ld a, (current_sprite_pattern_pack_id)
+    cp SPRITE_PATTERN_PACK_${pack.label.toUpperCase()}_ID
+    ret z
+    jp load_sprite_patterns_${pack.label}
 `;
   });
+
+  if (runtimePatternPacks.length > 0) {
+    code += `
+; ------------------------------------------------------------------
+; Generic sprite pattern dispatchers
+; ------------------------------------------------------------------
+load_sprite_patterns_by_pack_id:
+    cp SPRITE_PATTERN_PACK_INVALID
+    ret z
+`;
+    runtimePatternPacks.forEach((pack) => {
+      code += `    cp SPRITE_PATTERN_PACK_${pack.label.toUpperCase()}_ID\n`;
+      code += `    jp z, load_sprite_patterns_${pack.label}\n`;
+    });
+    code += `    ret
+
+ensure_sprite_patterns_by_pack_id:
+    cp SPRITE_PATTERN_PACK_INVALID
+    ret z
+`;
+    runtimePatternPacks.forEach((pack) => {
+      code += `    cp SPRITE_PATTERN_PACK_${pack.label.toUpperCase()}_ID\n`;
+      code += `    jp z, ensure_sprite_patterns_${pack.label}\n`;
+    });
+    code += `    ret
+`;
+  } else {
+    code += `
+load_sprite_patterns_by_pack_id:
+    ret
+
+ensure_sprite_patterns_by_pack_id:
+    ret
+`;
+  }
+
+  if (worldMaps.length > 0) {
+    code += `
+; ------------------------------------------------------------------
+; ensure_sprite_patterns_for_world_id
+; Input:  A = world id
+; Output: matching sprite pack ensured when world id is valid
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+ensure_sprite_patterns_for_world_id:
+    cp ${worldMaps.length}
+    ret nc
+    ld e, a
+    ld d, 0
+    ld hl, world_sprite_pattern_pack_table
+    add hl, de
+    ld a, (hl)
+    jp ensure_sprite_patterns_by_pack_id
+`;
+  } else {
+    code += `
+ensure_sprite_patterns_for_world_id:
+    ret
+`;
+  }
 
   code += `
 ; ==================================================================
@@ -1115,4 +1301,10 @@ SPRITE_INVISIBLE    EQU ${SPRITE_INVISIBLE_VALUE}
 `;
 
   return code;
+}
+
+export function getSpritesBank4Data(analysis: ProjectAnalysis): string {
+  const sourceSprites = analysis.sprites || [];
+  const spriteCatalog = buildMSXDirectionalSpriteCatalog(sourceSprites);
+  return buildSpritePatternDataSection(spriteCatalog.sprites);
 }

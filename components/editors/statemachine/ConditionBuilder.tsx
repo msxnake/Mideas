@@ -317,11 +317,14 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
       case ConditionTypes.VARIABLE_COMPARE: {
         const selectedVarName = condition.params?.variable || (allVariables[0]?.name || 'x');
         const selectedVar = allVariables.find(v => v.name === selectedVarName);
+        const valueSource = condition.params?.valueSource === 'variable' ? 'variable' : 'constant';
+        const selectedCompareVarName = condition.params?.valueVariable || selectedVarName;
+        const selectedCompareVar = allVariables.find(v => v.name === selectedCompareVarName);
         const isBoolean = selectedVar?.type === 'boolean';
 
         return (
           <div className="space-y-2">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               <div>
                 <label className="text-xs text-msx-textsecondary">Variable</label>
                 <select
@@ -352,8 +355,56 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
                 </select>
               </div>
               <div>
-                <label className="text-xs text-msx-textsecondary">Value</label>
-                {isBoolean ? (
+                <label className="text-xs text-msx-textsecondary">Compare Against</label>
+                <select
+                  value={valueSource}
+                  onChange={(e) => {
+                    const nextSource = e.target.value === 'variable' ? 'variable' : 'constant';
+                    const baseParams = { ...condition.params, valueSource: nextSource };
+
+                    if (nextSource === 'variable') {
+                      onUpdate({
+                        ...condition,
+                        params: {
+                          ...baseParams,
+                          valueVariable: selectedCompareVarName || selectedVarName,
+                        }
+                      });
+                      return;
+                    }
+
+                    const { valueVariable, ...restParams } = baseParams;
+                    onUpdate({
+                      ...condition,
+                      params: {
+                        ...restParams,
+                        value: isBoolean ? false : 0,
+                      }
+                    });
+                  }}
+                  className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                >
+                  <option value="constant">Constant</option>
+                  <option value="variable">Variable</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-msx-textsecondary">
+                  {valueSource === 'variable' ? 'Variable' : 'Value'}
+                </label>
+                {valueSource === 'variable' ? (
+                  <select
+                    value={selectedCompareVarName}
+                    onChange={(e) => handleParamChange('valueVariable', e.target.value)}
+                    className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                  >
+                    {allVariables.map((variable) => (
+                      <option key={variable.name} value={variable.name}>
+                        {`${variable.category} → ${variable.name}`}
+                      </option>
+                    ))}
+                  </select>
+                ) : isBoolean ? (
                   <select
                     value={String(condition.params?.value ?? 'false')}
                     onChange={(e) => handleParamChange('value', e.target.value === 'true')}
@@ -374,11 +425,11 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             </div>
             {selectedVar && (
               <div className="text-xs text-msx-textsecondary">
-                📊 Type: {selectedVar.type} | Category: {selectedVar.category}
+                📊 Left: {selectedVar.type} | Right: {valueSource === 'variable' ? (selectedCompareVar?.type || 'unknown') : 'constant'}
               </div>
             )}
             <div className="text-xs text-yellow-400 italic">
-              💡 Example: Use "x &gt; 240" to detect when entity reaches right edge of screen
+              💡 Example: Use "gem_count &gt;= RequiredGems" to make exits depend on world-specific goals
             </div>
           </div>
         );

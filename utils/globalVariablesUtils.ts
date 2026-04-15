@@ -30,15 +30,12 @@ export function buildGlobalVariableConstantPrefix(variableName: string): string 
  * @returns Combined array of global variables (defaults + custom)
  */
 export function getAllGlobalVariables(assets: ProjectAsset[]): MideasGlobalVariable[] {
-  // Find the globalvariables asset
-  const globalVarsAsset = assets.find(asset => asset.type === 'globalvariables');
+  const globalVarsAssets = assets.filter(asset => asset.type === 'globalvariables' && asset.data);
 
-  if (!globalVarsAsset || !globalVarsAsset.data) {
+  if (globalVarsAssets.length === 0) {
     // No custom variables, return only defaults
     return [...MIDEAS_GLOBAL_VARIABLES];
   }
-
-  const customVariables = (globalVarsAsset.data as any).customVariables || [];
 
   // Create a map to avoid duplicates (custom overrides default)
   const variablesMap = new Map<string, MideasGlobalVariable>();
@@ -49,16 +46,21 @@ export function getAllGlobalVariables(assets: ProjectAsset[]): MideasGlobalVaria
     variablesMap.set(normalizedName, { ...variable, name: normalizedName });
   });
 
-  // Add/override with custom variables
-  customVariables.forEach((variable: MideasGlobalVariable) => {
-    const normalizedName = normalizeGlobalVariableName(variable.name);
-    if (!normalizedName) return;
+  // Add/override with custom variables from every GlobalVariables asset.
+  // Later assets override earlier ones when names collide because globals
+  // share one runtime namespace.
+  globalVarsAssets.forEach(asset => {
+    const customVariables = (asset.data as any).customVariables || [];
+    customVariables.forEach((variable: MideasGlobalVariable) => {
+      const normalizedName = normalizeGlobalVariableName(variable.name);
+      if (!normalizedName) return;
 
-    variablesMap.set(normalizedName, {
-      ...variable,
-      name: normalizedName,
-      asmName: buildGlobalVariableAsmName(normalizedName),
-      constantPrefix: variable.constantPrefix || buildGlobalVariableConstantPrefix(normalizedName),
+      variablesMap.set(normalizedName, {
+        ...variable,
+        name: normalizedName,
+        asmName: buildGlobalVariableAsmName(normalizedName),
+        constantPrefix: variable.constantPrefix || buildGlobalVariableConstantPrefix(normalizedName),
+      });
     });
   });
 
@@ -103,26 +105,26 @@ export function getGlobalVariableByName(
  * @returns Array of only custom user-defined global variables
  */
 export function getCustomGlobalVariables(assets: ProjectAsset[]): MideasGlobalVariable[] {
-  // Find the globalvariables asset
-  const globalVarsAsset = assets.find(asset => asset.type === 'globalvariables');
+  const globalVarsAssets = assets.filter(asset => asset.type === 'globalvariables' && asset.data);
 
-  if (!globalVarsAsset || !globalVarsAsset.data) {
-    // No custom variables asset found
+  if (globalVarsAssets.length === 0) {
     return [];
   }
 
-  const customVariables = (globalVarsAsset.data as any).customVariables || [];
   const normalizedVariables = new Map<string, MideasGlobalVariable>();
 
-  customVariables.forEach((variable: MideasGlobalVariable) => {
-    const normalizedName = normalizeGlobalVariableName(variable.name);
-    if (!normalizedName) return;
+  globalVarsAssets.forEach(asset => {
+    const customVariables = (asset.data as any).customVariables || [];
+    customVariables.forEach((variable: MideasGlobalVariable) => {
+      const normalizedName = normalizeGlobalVariableName(variable.name);
+      if (!normalizedName) return;
 
-    normalizedVariables.set(normalizedName, {
-      ...variable,
-      name: normalizedName,
-      asmName: buildGlobalVariableAsmName(normalizedName),
-      constantPrefix: variable.constantPrefix || buildGlobalVariableConstantPrefix(normalizedName),
+      normalizedVariables.set(normalizedName, {
+        ...variable,
+        name: normalizedName,
+        asmName: buildGlobalVariableAsmName(normalizedName),
+        constantPrefix: variable.constantPrefix || buildGlobalVariableConstantPrefix(normalizedName),
+      });
     });
   });
 
@@ -163,8 +165,15 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
   const gameFlowAsset = assets.find(a => a.type === 'gameflow');
   const ifThenElseVariableNames = new Set<string>();
   const globalsVariableNames = new Set<string>();
+  const initGlobalsVariableNames = new Set<string>();
   const tileCollectorVariableNames = new Set<string>();
   const hudVariableNames = new Set<string>();
+  const addInitGlobalVariableName = (rawValue: any) => {
+    if (typeof rawValue !== 'string') return;
+    const variableName = normalizeGlobalVariableName(rawValue);
+    if (!variableName) return;
+    initGlobalsVariableNames.add(variableName);
+  };
   const addHudVariableName = (rawValue: any) => {
     if (typeof rawValue !== 'string') return;
     const variableName = normalizeGlobalVariableName(rawValue);
@@ -205,6 +214,12 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
                 globalsVariableNames.add(normalizedName);
               }
             }
+          });
+        }
+
+        if ((node.type === 'Start' || node.type === 'WorldLink') && node.initializeGlobals?.variables && Array.isArray(node.initializeGlobals.variables)) {
+          node.initializeGlobals.variables.forEach((varAssignment: any) => {
+            addInitGlobalVariableName(varAssignment?.variableName);
           });
         }
       });
@@ -279,11 +294,12 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
 
     // Check 3: Variable is set by a Globals node
     const isUsedInGlobals = globalsVariableNames.has(normalizedVariableName);
+    const isUsedInInitGlobals = initGlobalsVariableNames.has(normalizedVariableName);
     const isUsedInTileCollector = tileCollectorVariableNames.has(normalizedVariableName);
 
     const isUsedInHud = hudVariableNames.has(normalizedVariableName);
 
-    if ((isUsedInCode || isUsedInIfThenElse || isUsedInGlobals || isUsedInTileCollector || isUsedInHud) && !usedVariableNames.has(normalizedVariableName)) {
+    if ((isUsedInCode || isUsedInIfThenElse || isUsedInGlobals || isUsedInInitGlobals || isUsedInTileCollector || isUsedInHud) && !usedVariableNames.has(normalizedVariableName)) {
       usedVariables.push(variable);
       usedVariableNames.add(normalizedVariableName);
     }
@@ -301,6 +317,24 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
         constantPrefix: buildGlobalVariableConstantPrefix(normalizedName),
         type: '8bit',
         description: `Auto-generated variable from Globals node`,
+        values: [{ label: '0', value: 0 }],
+        category: 'special'
+      });
+      usedVariableNames.add(normalizedName);
+    }
+  });
+
+  // 6b. Add any missing variables referenced by Start/WorldLink initialization
+  initGlobalsVariableNames.forEach(varName => {
+    const normalizedName = normalizeGlobalVariableName(varName);
+    if (!usedVariableNames.has(normalizedName)) {
+      const asmName = buildGlobalVariableAsmName(normalizedName);
+      usedVariables.push({
+        name: normalizedName,
+        asmName,
+        constantPrefix: buildGlobalVariableConstantPrefix(normalizedName),
+        type: '8bit',
+        description: 'Auto-generated variable from node initialization',
         values: [{ label: '0', value: 0 }],
         category: 'special'
       });

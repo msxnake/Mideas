@@ -4,7 +4,6 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
-import { buildRuntimeSpritePatternPacks } from './spritesGenerator';
 
 type WorldDirection = 'north' | 'south' | 'east' | 'west';
 
@@ -23,6 +22,11 @@ type ScreenActiveAreaBounds = {
   enterSouthY: number;
 };
 
+type WorldMusicPolicy =
+  | { mode: 'preserve' }
+  | { mode: 'stop' }
+  | { mode: 'play'; trackIndex: number; loopFlag: number };
+
 /**
  * Convert name to valid ASM label (lowercase)
  */
@@ -40,6 +44,137 @@ function toConstantName(name: string): string {
 function hasGlobalVariableAsmName(analysis: ProjectAnalysis, asmName: string): boolean {
   const globals = Array.isArray((analysis as any).globalVariables) ? (analysis as any).globalVariables : [];
   return globals.some((variable: any) => String(variable?.asmName || '').trim().toLowerCase() === asmName.toLowerCase());
+}
+
+function getExportableTrackIndex(trackAssetId: string, analysis: ProjectAnalysis): number | null {
+  const trimmedId = String(trackAssetId || '').trim();
+  if (!trimmedId) return null;
+
+  const trackIndexMap = ((analysis as any).trackIndexByAssetId || {}) as Record<string, number>;
+  const trackIndex = trackIndexMap[trimmedId];
+  return trackIndex !== undefined ? trackIndex : null;
+}
+
+function buildWorldMusicPolicyMap(analysis: ProjectAnalysis): Map<string, WorldMusicPolicy> {
+  const policies = new Map<string, WorldMusicPolicy>();
+  const gameFlow = analysis.gameFlow as any;
+  const nodes = Array.isArray(gameFlow?.nodes) ? gameFlow.nodes : [];
+  if (nodes.length === 0) return policies;
+
+  const nodeById = new Map<string, any>();
+  for (const node of nodes) {
+    const nodeId = String(node?.id || '').trim();
+    if (!nodeId) continue;
+    nodeById.set(nodeId, node);
+  }
+
+  const adjacency = new Map<string, string[]>();
+  for (const connection of Array.isArray(gameFlow?.connections) ? gameFlow.connections : []) {
+    const fromId = String(connection?.from?.nodeId || '').trim();
+    const toId = String(connection?.to?.nodeId || '').trim();
+    if (!fromId || !toId) continue;
+    const next = adjacency.get(fromId) || [];
+    next.push(toId);
+    adjacency.set(fromId, next);
+  }
+
+  const startNodeId = String(gameFlow?.startNodeId || '').trim();
+  if (!startNodeId || !nodeById.has(startNodeId)) {
+    return policies;
+  }
+
+  const initialPolicy: WorldMusicPolicy = { mode: 'stop' };
+  const queue: Array<{ nodeId: string; policy: WorldMusicPolicy }> = [{ nodeId: startNodeId, policy: initialPolicy }];
+  const seenStates = new Set<string>();
+
+  const serializePolicy = (policy: WorldMusicPolicy): string => {
+    if (policy.mode !== 'play') return policy.mode;
+    return `play:${policy.trackIndex}:${policy.loopFlag}`;
+  };
+
+  const samePolicy = (left: WorldMusicPolicy, right: WorldMusicPolicy): boolean => {
+    if (left.mode !== right.mode) return false;
+    if (left.mode !== 'play' || right.mode !== 'play') return true;
+    return left.trackIndex === right.trackIndex && left.loopFlag === right.loopFlag;
+  };
+
+  while (queue.length > 0) {
+    const state = queue.shift()!;
+    const stateKey = `${state.nodeId}|${serializePolicy(state.policy)}`;
+    if (seenStates.has(stateKey)) continue;
+    seenStates.add(stateKey);
+
+    const node = nodeById.get(state.nodeId);
+    if (!node) continue;
+
+    let nextPolicy = state.policy;
+    if (node.type === 'Music') {
+      if (node.stop === true) {
+        nextPolicy = { mode: 'stop' };
+      } else if (node.autoPlay === false) {
+        nextPolicy = state.policy;
+      } else {
+        const trackIndex = getExportableTrackIndex(String(node.trackAssetId || ''), analysis);
+        if (trackIndex !== null) {
+          nextPolicy = {
+            mode: 'play',
+            trackIndex,
+            loopFlag: node.loop === false ? 0 : 1,
+          };
+        }
+      }
+    }
+
+    if (node.type === 'WorldLink') {
+      const worldId = String(node.worldAssetId || '').trim();
+      if (worldId) {
+        const previous = policies.get(worldId);
+        if (!previous) {
+          policies.set(worldId, nextPolicy);
+        } else if (!samePolicy(previous, nextPolicy)) {
+          policies.set(worldId, { mode: 'preserve' });
+        }
+      }
+    }
+
+    for (const nextNodeId of adjacency.get(state.nodeId) || []) {
+      queue.push({ nodeId: nextNodeId, policy: nextPolicy });
+    }
+  }
+
+  return policies;
+}
+
+export function buildWorldMusicPolicyManifest(analysis: ProjectAnalysis): string {
+  const worldMaps = (analysis as any).worldmaps || [];
+  const policies = buildWorldMusicPolicyMap(analysis);
+  const lines: string[] = [];
+
+  lines.push('WORLD MUSIC POLICY');
+  lines.push('Source: inferred from Game Flow paths reaching each WorldLink.');
+  lines.push('Mode preserve: multiple different music states can reach the same world.');
+  lines.push('');
+
+  if (worldMaps.length === 0) {
+    lines.push('No worlds detected.');
+    return lines.join('\n');
+  }
+
+  worldMaps.forEach((world: any, index: number) => {
+    const worldName = String(world?.name || `world_${index}`).trim() || `world_${index}`;
+    const worldId = String(world?.id || '').trim() || `world_${index}`;
+    const policy = policies.get(worldId) || { mode: 'preserve' } as WorldMusicPolicy;
+    const header = `WORLD ${index.toString().padStart(2, '0')} ${worldName} (${worldId})`;
+    lines.push(header);
+    if (policy.mode === 'play') {
+      lines.push(`- policy: play track ${policy.trackIndex} loop=${policy.loopFlag}`);
+    } else {
+      lines.push(`- policy: ${policy.mode}`);
+    }
+    lines.push('');
+  });
+
+  return lines.join('\n').trimEnd();
 }
 
 /**
@@ -332,9 +467,7 @@ export function generateWorldsFile(analysis: ProjectAnalysis, romMode: string = 
   const useFarCall = romMode === 'megarom';
   // Check if we have world maps in the analysis
   const worldMaps = (analysis as any).worldmaps || [];
-  const runtimePatternPackById = new Map(
-    buildRuntimeSpritePatternPacks(analysis).map((pack) => [pack.id, pack])
-  );
+  const worldMusicPolicies = buildWorldMusicPolicyMap(analysis);
   const hasHudElements = !!analysis.screenMaps?.some((screen: any) =>
     Array.isArray(screen?.hudConfiguration?.elements) && screen.hudConfiguration.elements.length > 0
   );
@@ -354,6 +487,9 @@ load_world_default:
     ret
 
 check_world_screen_transition:
+    ret
+
+ensure_music_for_world_id:
     ret
 
 ; ==================================================================
@@ -402,6 +538,83 @@ WORLD_${worldName}_SCREEN_COUNT EQU ${world.nodes?.length || 0}
     code += `\n`;
   });
 
+  code += `; ==================================================================
+; WORLD MUSIC POLICY
+; preserve (#FE): do not touch current music when Game Flow can reach the
+; world with multiple different music states.
+; stop     (#FF): stop music on world enter.
+; play     (0-254): ensure this track index is active on world enter.
+; ==================================================================
+
+world_music_policy_track_table:
+`;
+
+  worldMaps.forEach((world: any, index: number) => {
+    const worldName = toConstantName(world.name || `world_${index}`);
+    const policy = worldMusicPolicies.get(String(world.id || '').trim()) || { mode: 'preserve' } as WorldMusicPolicy;
+    if (policy.mode === 'play') {
+      code += `    db ${policy.trackIndex}    ; WORLD_${worldName}_ID -> track ${policy.trackIndex}\n`;
+    } else if (policy.mode === 'stop') {
+      code += `    db #FF    ; WORLD_${worldName}_ID -> stop\n`;
+    } else {
+      code += `    db #FE    ; WORLD_${worldName}_ID -> preserve\n`;
+    }
+  });
+
+  code += `
+world_music_policy_loop_table:
+`;
+
+  worldMaps.forEach((world: any, index: number) => {
+    const worldName = toConstantName(world.name || `world_${index}`);
+    const policy = worldMusicPolicies.get(String(world.id || '').trim()) || { mode: 'preserve' } as WorldMusicPolicy;
+    const loopFlag = policy.mode === 'play' ? policy.loopFlag : 0;
+    code += `    db ${loopFlag}    ; WORLD_${worldName}_ID loop\n`;
+  });
+
+  code += `
+; ------------------------------------------------------------------
+; ensure_music_for_world_id
+; Input:  A = WORLD_*_ID
+; Output: Starts/stops music only when the world policy is unambiguous.
+;         #FE preserve entries leave current music untouched.
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+ensure_music_for_world_id:
+    ld e, a
+    ld d, 0
+    ld hl, world_music_policy_track_table
+    add hl, de
+    ld a, (hl)
+    cp #FE
+    ret z
+    cp #FF
+    jr nz, ensure_music_for_world_id_play_or_keep
+    ld a, (music_active)
+    or a
+    ret z
+    jp music_stop
+ensure_music_for_world_id_play_or_keep:
+    ld c, a
+    ld hl, world_music_policy_loop_table
+    add hl, de
+    ld b, (hl)
+    ld a, (music_active)
+    or a
+    jr z, ensure_music_for_world_id_play_track
+    ld a, (music_track_index)
+    cp c
+    jr nz, ensure_music_for_world_id_play_track
+    ld a, (music_loop)
+    and 1
+    cp b
+    ret z
+ensure_music_for_world_id_play_track:
+    ld a, c
+    jp music_play_track
+
+`;
+
   // Generate load_world_X functions for each world
   code += `; ==================================================================
 ; WORLD LOADING FUNCTIONS
@@ -449,14 +662,17 @@ load_world_${toRoutineLabel(worldId)}:
 
     const loadRoutine = getScreenLoadRoutineName(startScreenAssetId, analysis);
     const worldImportedHudFrameDrawRoutine = getWorldImportedHudFrameDrawRoutineName(world, analysis);
-    const spritePack = runtimePatternPackById.get(worldId);
 
     const startScreenCallCode = useFarCall
       ? `    call ${loadRoutine}_far\n`
       : `    ld a, ((${loadRoutine} - #4000) / #2000)\n    ld hl, ${loadRoutine}\n    call mapper_call_hl_auto\n`;
-    code += `    ; Load runtime sprite patterns for this world
-${spritePack ? `    call load_sprite_patterns_${spritePack.label}
-` : ''}    ; Load start screen: ${startNode.name || 'unknown'} (${startScreenAssetId})
+    code += `    ; Ensure default music policy for this world when unambiguous
+    ld a, WORLD_${toConstantName(world.name || 'unnamed')}_ID
+    call ensure_music_for_world_id
+    ; Load runtime sprite patterns for this world
+    ld a, WORLD_${toConstantName(world.name || 'unnamed')}_ID
+    call ensure_sprite_patterns_for_world_id
+    ; Load start screen: ${startNode.name || 'unknown'} (${startScreenAssetId})
 ${startScreenCallCode}
 `;
     if (worldImportedHudFrameDrawRoutine) {

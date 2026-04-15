@@ -11,6 +11,7 @@ import { Button } from '../common/Button';
 import { TrashIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { StartNodeEditor } from '../editors/StartNodeEditor';
+import { GameFlowGlobalInitializationEditor } from '../editors/GameFlowGlobalInitializationEditor';
 
 const CHILD_LINK_COMPONENT_ID = 'comp_child_link';
 const ENTITY_JOB_RATE_OPTIONS = [100, 50, 33, 25] as const;
@@ -1234,6 +1235,27 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           }}
           allAssets={allAssets}
         />
+      );
+    }
+    if (gameFlowNode.type === 'WorldLink') {
+      const node = gameFlowNode as any;
+      return (
+        <div className="space-y-4 p-4">
+          <Panel title="World Entry">
+            <p className="text-sm text-msx-textsecondary">
+              Configure what happens when this world starts. These values are applied once when the flow enters the world.
+            </p>
+          </Panel>
+
+          <GameFlowGlobalInitializationEditor
+            config={node.initializeGlobals}
+            onChange={(initializeGlobals) => onUpdateGameFlowNode(node.id, { initializeGlobals })}
+            allAssets={allAssets}
+            title="World Entry Globals"
+            enabledLabel="Initialize global variables when entering this world"
+            disabledHint="If disabled, this world inherits the current global values"
+          />
+        </div>
       );
     }
     return <p className="text-msx-textsecondary">Selected node type: {gameFlowNode.type}</p>;

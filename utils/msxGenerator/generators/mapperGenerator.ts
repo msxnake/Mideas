@@ -20,6 +20,95 @@ interface MapperRegisterLayout {
   notes: string[];
 }
 
+function buildMapperAutoCallSection(format: MapperFormat): string {
+  if (format === 'konami') {
+    return `; ------------------------------------------------------------------
+; mapper_call_hl_fixed
+; Direct call helper for Konami fixed window (#4000-#5FFF).
+; Input:
+;   HL = target routine address in fixed window
+; ------------------------------------------------------------------
+mapper_call_hl_fixed:
+    ld de, .return_fixed
+    push de
+    jp (hl)
+.return_fixed:
+    ret
+
+; ------------------------------------------------------------------
+; mapper_call_hl_auto
+; Auto-select mapper window from HL target address range:
+;   4000-5FFF -> fixed
+;   6000-7FFF -> p1
+;   8000-9FFF -> p2
+;   A000-BFFF -> p3
+; Input:
+;   A = target bank
+;   HL = target routine address
+; ------------------------------------------------------------------
+mapper_call_hl_auto:
+    push af
+    ld a, h
+    cp #60
+    jr c, .use_fixed
+    cp #80
+    jr c, .use_p1
+    cp #A0
+    jr c, .use_p2
+    pop af
+    jp mapper_call_hl_p3
+
+.use_fixed:
+    pop af
+    jp mapper_call_hl_fixed
+
+.use_p1:
+    pop af
+    jp mapper_call_hl_p1
+
+.use_p2:
+    pop af
+    jp mapper_call_hl_p2
+`;
+  }
+
+  return `; ------------------------------------------------------------------
+; mapper_call_hl_auto
+; Auto-select mapper window from HL target address range:
+;   4000-5FFF -> p1
+;   6000-7FFF -> p2
+;   8000-9FFF -> p3
+;   A000-BFFF -> p4
+; Input:
+;   A = target bank
+;   HL = target routine address
+; ------------------------------------------------------------------
+mapper_call_hl_auto:
+    push af
+    ld a, h
+    cp #60
+    jr c, .use_p1
+    cp #80
+    jr c, .use_p2
+    cp #A0
+    jr c, .use_p3
+    pop af
+    jp mapper_call_hl_p4
+
+.use_p1:
+    pop af
+    jp mapper_call_hl_p1
+
+.use_p2:
+    pop af
+    jp mapper_call_hl_p2
+
+.use_p3:
+    pop af
+    jp mapper_call_hl_p3
+`;
+}
+
 function resolveMapperRegisterLayout(format: MapperFormat): MapperRegisterLayout {
   if (format === 'ascii8') {
     return {
@@ -187,6 +276,7 @@ mapper_call_hl_auto:
   }
 
   const layout = resolveMapperRegisterLayout(targetFormat);
+  const mapperAutoCallSection = buildMapperAutoCallSection(targetFormat);
   const writeComment = mapperWritesEnabled
     ? '; Mapper register writes are enabled for this build configuration.'
     : '; Mapper register writes are disabled (simple32k mode).';
@@ -351,38 +441,6 @@ mapper_call_hl_p4:
     ret
 
 ; ------------------------------------------------------------------
-; mapper_call_hl_auto
-; Auto-select mapper window from HL target address range:
-;   4000-5FFF -> p1
-;   6000-7FFF -> p2
-;   8000-9FFF -> p3
-;   A000-BFFF -> p4
-; Input:
-;   A = target bank
-;   HL = target routine address
-; ------------------------------------------------------------------
-mapper_call_hl_auto:
-    push af
-    ld a, h
-    cp #60
-    jr c, .use_p1
-    cp #80
-    jr c, .use_p2
-    cp #A0
-    jr c, .use_p3
-    pop af
-    jp mapper_call_hl_p4
-
-.use_p1:
-    pop af
-    jp mapper_call_hl_p1
-
-.use_p2:
-    pop af
-    jp mapper_call_hl_p2
-
-.use_p3:
-    pop af
-    jp mapper_call_hl_p3
+${mapperAutoCallSection}
 `;
 }

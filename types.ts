@@ -1225,14 +1225,7 @@ export interface GameFlowNode_Base {
 export interface GameFlowStartNode extends GameFlowNode_Base {
   type: 'Start';
   /** Configuration for initializing global variables at game start */
-  initializeGlobals?: {
-    enabled: boolean;
-    /** Variables to initialize with their values. If empty, uses default values from GlobalVariables asset */
-    variables?: Array<{
-      variableName: string;
-      value: number | boolean;
-    }>;
-  };
+  initializeGlobals?: GameFlowGlobalInitializationConfig;
   /** Configuration for MSX system initialization */
   systemConfig?: {
     initPSG: boolean;          // Initialize PSG (silence all channels)
@@ -1241,6 +1234,17 @@ export interface GameFlowStartNode extends GameFlowNode_Base {
     clearVRAM: boolean;        // Clear VRAM (patterns, colors, sprites)
     initialDelayFrames?: number; // Initial delay before continuing (default: 0)
   };
+}
+
+export interface GameFlowGlobalInitializationConfig {
+  enabled: boolean;
+  /** Optional source GlobalVariables asset used by the editor to scope the variable list */
+  globalVariablesAssetId?: string;
+  /** Variables to initialize with their values. If empty, uses default values from GlobalVariables asset */
+  variables?: Array<{
+    variableName: string;
+    value: number | boolean;
+  }>;
 }
 
 /** Represents a single option in a submenu node. */
@@ -1280,6 +1284,8 @@ export interface GameFlowSubMenuNode extends GameFlowNode_Base {
 export interface GameFlowWorldLinkNode extends GameFlowNode_Base {
   type: 'WorldLink';
   worldAssetId: string;
+  /** Optional global initialization applied when entering this world */
+  initializeGlobals?: GameFlowGlobalInitializationConfig;
 }
 
 /** Represents an end point of the game flow (e.g., victory or game over). */

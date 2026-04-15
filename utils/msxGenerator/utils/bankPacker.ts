@@ -15,6 +15,9 @@ const CORE_MODULES = new Set([
   'constants.asm',
   'variables.asm',
   'mapper.asm',
+  'resource_ids.asm',
+  'resource_table.asm',
+  'resource_manager.asm',
   'interrupt.asm',
   'main.asm',
   'unitedFiles.asm'

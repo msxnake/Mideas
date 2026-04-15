@@ -97,6 +97,9 @@ export interface GeneratedASMFiles {
   'constants.asm': string;
   'variables.asm': string;
   'mapper.asm': string;
+  'resource_ids.asm': string;
+  'resource_table.asm': string;
+  'resource_manager.asm': string;
   'interrupt.asm': string;
   'header.asm': string;
   'patterns.asm': string;
