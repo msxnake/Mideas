@@ -187,6 +187,18 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     return 'background'; // Default fallback
   };
 
+  const getInitialOptimizationOverlayMode = (): 'off' | 'blocks2x2' | 'blocks4x4' => {
+    try {
+      const savedMode = localStorage.getItem('screenEditorOptimizationOverlayMode');
+      if (savedMode === 'off' || savedMode === 'blocks2x2' || savedMode === 'blocks4x4') {
+        return savedMode;
+      }
+    } catch (error) {
+      console.warn('Failed to load optimization overlay mode from localStorage:', error);
+    }
+    return 'off';
+  };
+
   const [activeLayer, setActiveLayerInternal] = useState<ScreenEditorLayerName>(getInitialActiveLayer);
   const [lastClickedCell, setLastClickedCell] = useState<Point | null>(null);
 
@@ -214,7 +226,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   // Stamp tool state
   const [stamps, setStamps] = useState<TileStamp[]>([]);
   const [selectedStampId, setSelectedStampId] = useState<string | null>(null);
-  const [optimizationOverlayMode, setOptimizationOverlayMode] = useState<'off' | 'blocks2x2' | 'blocks4x4'>('off');
+  const [optimizationOverlayMode, setOptimizationOverlayMode] = useState<'off' | 'blocks2x2' | 'blocks4x4'>(getInitialOptimizationOverlayMode);
 
   const getNextEntityInstanceName = useCallback((template: EntityTemplate): string => {
     const baseName = (template.name || 'Entity').trim() || 'Entity';
@@ -482,6 +494,20 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     }
     return null;
   }, [backgroundOptimizationAnalysis, optimizationOverlayMode]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('screenEditorOptimizationOverlayMode', optimizationOverlayMode);
+    } catch (error) {
+      console.warn('Failed to save optimization overlay mode to localStorage:', error);
+    }
+  }, [optimizationOverlayMode]);
+
+  useEffect(() => {
+    if (optimizationOverlayMode !== 'off' && !backgroundOptimizationOverlay) {
+      setOptimizationOverlayMode('off');
+    }
+  }, [backgroundOptimizationOverlay, optimizationOverlayMode]);
 
   const canAddSecretText = useMemo(() => {
     return !!selectedEffectZone
