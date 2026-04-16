@@ -44,6 +44,8 @@ interface ScreenSelectionToolsPanelProps {
   isPasteDisabled: boolean;
   /** Callback function to create a stamp from the current selection. */
   onCreateStamp: () => void;
+  /** Optional additional CSS classes for the panel container. */
+  className?: string;
 }
 
 /**
@@ -69,6 +71,7 @@ export const ScreenSelectionToolsPanel: React.FC<ScreenSelectionToolsPanelProps>
   onPasteScreen,
   isPasteDisabled,
   onCreateStamp,
+  className = '',
 }) => {
   const selectedTileForFillOperations = tileset.find(t => t.id === selectedTileId);
   const isZigZagPossible = selectedTileForFillOperations &&
@@ -82,7 +85,7 @@ export const ScreenSelectionToolsPanel: React.FC<ScreenSelectionToolsPanelProps>
     `w-full mt-1 p-1 text-xs rounded ${currentScreenTool === tool ? 'bg-msx-highlight text-msx-bgcolor' : 'bg-msx-border text-msx-textsecondary hover:bg-msx-highlight/70'}`;
 
   return (
-    <Panel title="Selection Tools" className="w-48 p-2 border-l border-msx-border flex-shrink-0 text-xs">
+    <Panel title="Selection Tools" className={`w-48 p-2 border-l border-msx-border flex-shrink-0 text-xs ${className}`}>
       <div className="space-y-1.5">
         <Button
           onClick={() => onSetScreenTool('select')}

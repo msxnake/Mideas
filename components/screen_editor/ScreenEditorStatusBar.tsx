@@ -3,7 +3,7 @@
 
 
 import React from 'react';
-import { Point, ScreenMap, Tile, MockEntityType } from '../../types';
+import { Point, ScreenMap, Tile, MockEntityType, ScreenBlockExportMode } from '../../types';
 
 /**
  * Represents the name of a layer in the screen editor.
@@ -30,6 +30,8 @@ interface ScreenEditorStatusBarProps {
   screenMap: ScreenMap;
   /** The coordinates of the last clicked cell. */
   lastClickedCell: Point | null;
+  /** Current background export mode. */
+  backgroundBlockMode: ScreenBlockExportMode;
 }
 
 /**
@@ -47,6 +49,7 @@ export const ScreenEditorStatusBar: React.FC<ScreenEditorStatusBarProps> = ({
   tileset,
   screenMap,
   lastClickedCell,
+  backgroundBlockMode,
 }) => {
   let toolMessage = "Eraser";
   if (activeLayer === 'entities') {
@@ -61,6 +64,7 @@ export const ScreenEditorStatusBar: React.FC<ScreenEditorStatusBarProps> = ({
     <div className="p-2 border-t border-msx-border text-xs text-msx-textsecondary pixel-font">
       Selected Tool: {toolMessage} |
       Layer: {activeLayer} | Map Size (cells): {screenMap.width}x{screenMap.height} |
+      Export: {backgroundBlockMode} |
       Active Area: X:{screenMap.activeAreaX ?? 0} Y:{screenMap.activeAreaY ?? 0} W:{screenMap.activeAreaWidth ?? screenMap.width} H:{screenMap.activeAreaHeight ?? screenMap.height} |
       Last Click: {lastClickedCell ? `(${lastClickedCell.x}, ${lastClickedCell.y})` : 'N/A'}
     </div>

@@ -12,6 +12,21 @@ import { createTileDataURL, createSpriteDataURL } from '../utils/screenUtils';
  */
 type LayerName = keyof ScreenMap['layers'] | 'entities' | 'effects';
 
+export interface ScreenGridOptimizationOverlayBlock {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  catalogIndex: number;
+  usageCount: number;
+  isRepeated: boolean;
+}
+
+export interface ScreenGridOptimizationOverlay {
+  mode: 'blocks2x2' | 'blocks4x4';
+  blocks: ScreenGridOptimizationOverlayBlock[];
+}
+
 /**
  * Props for the {@link ScreenGrid} component.
  * @category ScreenEditor
@@ -79,6 +94,8 @@ export interface ScreenGridProps {
   showSectorLines: boolean;
   /** The currently selected stamp for placement. */
   selectedStamp?: TileStamp | null;
+  /** Optional preview overlay showing repeated vs unique optimized blocks. */
+  optimizationOverlay?: ScreenGridOptimizationOverlay | null;
 }
 
 /**
@@ -95,7 +112,8 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
   hudElements, editorBaseTileDim, tileBanks, msxFont, msxFontColorAttributes,
   selectedEntityInstanceId, effectZones, selectedEffectZoneId,
   currentScreenTool, selectionRect, onSelectionChange,
-  componentDefinitions, entityTemplates, waypointPickerState, onWaypointPicked, showSectorLines, selectedStamp
+  componentDefinitions, entityTemplates, waypointPickerState, onWaypointPicked, showSectorLines, selectedStamp,
+  optimizationOverlay
 }) => {
   const [isMouseDown, setIsMouseDown] = useState(false);
   const [startSelectionPoint, setStartSelectionPoint] = useState<Point | null>(null);
@@ -506,6 +524,43 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
           );
         })
       )}
+      {optimizationOverlay && optimizationOverlay.blocks.map((block) => {
+        const showUsageLabel = (block.width * gridPixelSize) >= 24 && (block.height * gridPixelSize) >= 16;
+        const borderColor = block.isRepeated ? 'rgba(0, 220, 180, 0.95)' : 'rgba(255, 196, 0, 0.95)';
+        const backgroundColor = block.isRepeated ? 'rgba(0, 220, 180, 0.18)' : 'rgba(255, 196, 0, 0.14)';
+
+        return (
+          <div
+            key={`optimization-overlay-${optimizationOverlay.mode}-${block.x}-${block.y}`}
+            className="absolute pointer-events-none"
+            style={{
+              left: block.x * gridPixelSize,
+              top: block.y * gridPixelSize,
+              width: block.width * gridPixelSize,
+              height: block.height * gridPixelSize,
+              border: `1px solid ${borderColor}`,
+              backgroundColor,
+              boxSizing: 'border-box',
+              zIndex: 12,
+            }}
+            aria-hidden="true"
+          >
+            {showUsageLabel && (
+              <span
+                className="absolute left-0 top-0 px-1 text-[0.55rem] leading-4 text-black"
+                style={{
+                  backgroundColor: borderColor,
+                  maxWidth: '100%',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                }}
+              >
+                {block.isRepeated ? `x${block.usageCount}` : '1x'}
+              </span>
+            )}
+          </div>
+        );
+      })}
       {/* Render Effect Zones if 'effects' layer is active */}
       {activeLayer === 'effects' && effectZones.map(zone => {
         const isSelected = zone.id === selectedEffectZoneId;

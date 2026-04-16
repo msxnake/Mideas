@@ -14,11 +14,12 @@ import { PencilIcon, TilesetIcon } from '../icons/MsxIcons';
 
 
 // Import new sub-components
-import { ScreenGrid } from '../screen_editor/ScreenGrid';
+import { ScreenGrid, ScreenGridOptimizationOverlay } from '../screen_editor/ScreenGrid';
 import { ScreenEditorToolbar } from '../screen_editor/ScreenEditorToolbar';
 import { ScreenTilesetPanel } from '../screen_editor/ScreenTilesetPanel';
 import { ScreenEditorStatusBar } from '../screen_editor/ScreenEditorStatusBar';
 import { ScreenSelectionToolsPanel } from '../screen_editor/ScreenSelectionToolsPanel';
+import { ScreenOptimizationPanel } from '../screen_editor/ScreenOptimizationPanel';
 import { PatrolPathLayer } from '../screen_editor/PatrolPathLayer';
 import { getScreenModeMetrics, isScreen2Mode } from '../../utils/screenModeConfig';
 import { buildScreenBlockMapFromBytes } from '../../utils/screenOptimization/blockMapBuilder';
@@ -213,6 +214,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   // Stamp tool state
   const [stamps, setStamps] = useState<TileStamp[]>([]);
   const [selectedStampId, setSelectedStampId] = useState<string | null>(null);
+  const [optimizationOverlayMode, setOptimizationOverlayMode] = useState<'off' | 'blocks2x2' | 'blocks4x4'>('off');
 
   const getNextEntityInstanceName = useCallback((template: EntityTemplate): string => {
     const baseName = (template.name || 'Entity').trim() || 'Entity';
@@ -395,32 +397,91 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
   const backgroundBlockMode: ScreenBlockExportMode = screenMap.blockOptimization?.backgroundMode ?? 'raw';
 
-  const backgroundBlockPreview = useMemo(() => {
-    if (backgroundBlockMode === 'raw') {
-      return null;
-    }
-
+  const backgroundOptimizationAnalysis = useMemo(() => {
     const layoutBytes = generateScreenMapLayoutBytes(screenMap, tileset, tileBankDefinitions, currentScreenMode);
-    const blockMap = buildScreenBlockMapFromBytes({
-      bytes: layoutBytes,
-      width: screenMap.width,
-      height: screenMap.height,
-      mode: backgroundBlockMode,
-    });
+    const buildPreview = (mode: Extract<ScreenBlockExportMode, 'blocks2x2' | 'blocks4x4'>) => {
+      const blockMap = buildScreenBlockMapFromBytes({
+        bytes: layoutBytes,
+        width: screenMap.width,
+        height: screenMap.height,
+        mode,
+      });
 
-    if (!blockMap) {
-      return null;
-    }
+      if (!blockMap) {
+        return null;
+      }
+
+      const usageCountByCatalogIndex = blockMap.mapIndices.reduce<number[]>(
+        (counts, catalogIndex) => {
+          counts[catalogIndex] = (counts[catalogIndex] ?? 0) + 1;
+          return counts;
+        },
+        Array.from({ length: blockMap.catalog.length }, () => 0)
+      );
+
+      const overlay: ScreenGridOptimizationOverlay = {
+        mode,
+        blocks: blockMap.mapIndices.map((catalogIndex, index) => ({
+          x: (index % blockMap.mapWidth) * blockMap.blockWidth,
+          y: Math.floor(index / blockMap.mapWidth) * blockMap.blockHeight,
+          width: blockMap.blockWidth,
+          height: blockMap.blockHeight,
+          catalogIndex,
+          usageCount: usageCountByCatalogIndex[catalogIndex] ?? 0,
+          isRepeated: (usageCountByCatalogIndex[catalogIndex] ?? 0) > 1,
+        })),
+      };
+
+      return {
+        blockWidth: blockMap.blockWidth,
+        blockHeight: blockMap.blockHeight,
+        uniqueBlockCount: blockMap.catalog.length,
+        repeatedBlockCount: blockMap.repeatedBlockCount,
+        optimizedLengthBytes: blockMap.optimizedLengthBytes,
+        sourceLengthBytes: blockMap.sourceLengthBytes,
+        savingsBytes: blockMap.savingsBytes,
+        overlay,
+      };
+    };
+
+    const blocks2x2 = buildPreview('blocks2x2');
+    const blocks4x4 = buildPreview('blocks4x4');
+    const candidates = [
+      { mode: 'raw' as const, optimizedLengthBytes: layoutBytes.length },
+      ...(blocks2x2 ? [{ mode: 'blocks2x2' as const, optimizedLengthBytes: blocks2x2.optimizedLengthBytes }] : []),
+      ...(blocks4x4 ? [{ mode: 'blocks4x4' as const, optimizedLengthBytes: blocks4x4.optimizedLengthBytes }] : []),
+    ];
+    const bestCandidate = candidates.reduce((best, current) =>
+      current.optimizedLengthBytes < best.optimizedLengthBytes ? current : best
+    );
 
     return {
-      blockWidth: blockMap.blockWidth,
-      blockHeight: blockMap.blockHeight,
-      uniqueBlockCount: blockMap.catalog.length,
-      optimizedLengthBytes: blockMap.optimizedLengthBytes,
-      sourceLengthBytes: blockMap.sourceLengthBytes,
-      savingsBytes: blockMap.savingsBytes,
+      rawLengthBytes: layoutBytes.length,
+      blocks2x2,
+      blocks4x4,
+      recommendedMode: bestCandidate.mode,
     };
-  }, [backgroundBlockMode, currentScreenMode, screenMap, tileBankDefinitions, tileset]);
+  }, [currentScreenMode, screenMap, tileBankDefinitions, tileset]);
+
+  const backgroundBlockPreview = useMemo(() => {
+    if (backgroundBlockMode === 'blocks2x2') {
+      return backgroundOptimizationAnalysis.blocks2x2;
+    }
+    if (backgroundBlockMode === 'blocks4x4') {
+      return backgroundOptimizationAnalysis.blocks4x4;
+    }
+    return null;
+  }, [backgroundBlockMode, backgroundOptimizationAnalysis]);
+
+  const backgroundOptimizationOverlay = useMemo<ScreenGridOptimizationOverlay | null>(() => {
+    if (optimizationOverlayMode === 'blocks2x2') {
+      return backgroundOptimizationAnalysis.blocks2x2?.overlay ?? null;
+    }
+    if (optimizationOverlayMode === 'blocks4x4') {
+      return backgroundOptimizationAnalysis.blocks4x4?.overlay ?? null;
+    }
+    return null;
+  }, [backgroundOptimizationAnalysis, optimizationOverlayMode]);
 
   const canAddSecretText = useMemo(() => {
     return !!selectedEffectZone
@@ -1475,6 +1536,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             onWaypointPicked={onWaypointPicked}
             showSectorLines={showSectorLines}
             selectedStamp={selectedStampId ? stamps.find(s => s.id === selectedStampId) : null}
+            optimizationOverlay={backgroundOptimizationOverlay}
           />
           <PatrolPathLayer
             selectedEntity={selectedEntity}
@@ -1485,23 +1547,36 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             currentScreenMode={currentScreenMode}
           />
         </div >
-        <ScreenSelectionToolsPanel
-          currentScreenTool={currentScreenTool}
-          onSetScreenTool={handleSetScreenTool}
-          selectionRect={selectionRect}
-          onClearSelection={handleClearSelection}
-          onUnselect={handleUnselect}
-          selectedTileId={selectedTileId}
-          editorBaseTileDim={EDITOR_BASE_TILE_DIM}
-          tileset={tileset}
-          activeLayerIsEditable={activeLayer !== 'entities'}
-          onFillSelection={handleFillSelection}
-          onZigZagFillSelection={handleZigZagFillSelection}
-          onCopyScreen={handleCopyScreen}
-          onPasteScreen={handlePasteScreen}
-          isPasteDisabled={!copiedScreenBuffer}
-          onCreateStamp={handleCreateStamp}
-        />
+        <div className="w-56 p-2 border-l border-msx-border flex-shrink-0 flex flex-col gap-2 overflow-y-auto">
+          <ScreenSelectionToolsPanel
+            currentScreenTool={currentScreenTool}
+            onSetScreenTool={handleSetScreenTool}
+            selectionRect={selectionRect}
+            onClearSelection={handleClearSelection}
+            onUnselect={handleUnselect}
+            selectedTileId={selectedTileId}
+            editorBaseTileDim={EDITOR_BASE_TILE_DIM}
+            tileset={tileset}
+            activeLayerIsEditable={activeLayer !== 'entities'}
+            onFillSelection={handleFillSelection}
+            onZigZagFillSelection={handleZigZagFillSelection}
+            onCopyScreen={handleCopyScreen}
+            onPasteScreen={handlePasteScreen}
+            isPasteDisabled={!copiedScreenBuffer}
+            onCreateStamp={handleCreateStamp}
+            className="w-full border-0"
+          />
+          <ScreenOptimizationPanel
+            currentMode={backgroundBlockMode}
+            rawLengthBytes={backgroundOptimizationAnalysis.rawLengthBytes}
+            blocks2x2={backgroundOptimizationAnalysis.blocks2x2}
+            blocks4x4={backgroundOptimizationAnalysis.blocks4x4}
+            recommendedMode={backgroundOptimizationAnalysis.recommendedMode}
+            overlayMode={optimizationOverlayMode}
+            onOverlayModeChange={setOptimizationOverlayMode}
+            className="w-full"
+          />
+        </div>
       </div >
       <ScreenEditorStatusBar
         activeLayer={activeLayer}
@@ -1511,6 +1586,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         tileset={tileset}
         screenMap={screenMap}
         lastClickedCell={lastClickedCell}
+        backgroundBlockMode={backgroundBlockMode}
       />
       {isExportLayoutModalOpen && layoutASMExportData && (<ExportLayoutASMModal isOpen={isExportLayoutModalOpen} onClose={() => setIsExportLayoutModalOpen(false)} {...layoutASMExportData} />)}
       {isExportBehaviorMapModalOpen && behaviorMapASMExportData && (<ExportBehaviorMapASMModal isOpen={isExportBehaviorMapModalOpen} onClose={() => setIsExportBehaviorMapModalOpen(false)} {...behaviorMapASMExportData} />)}

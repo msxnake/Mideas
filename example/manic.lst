@@ -1,0 +1,679 @@
+# source: C:\Users\salam\Documents\Programacion\Mideas\example\manicMiner.asm
+   1	0000					; ==============================================================================
+   2	0000					; MINI MANIC MINER MSX1 - Glass Z80 Assembler (CORREGIDO)
+   3	0000					; ==============================================================================
+   4	0000					; Controles: Cursores Izq/Der, Espacio para saltar
+   5	0000					; Objetivo: Recoger las gemas, evitar los fantasmas
+   6	0000					; ==============================================================================
+   7	0000					
+   8	0000					    org 0x4000
+   9	4000					
+  10	4000					    ; --- Cabecera ROM MSX 16KB ---
+  11	4000	41	42			    db "AB"               ; Firma
+  12	4002	0E	40			    dw Inicio             ; Punto de entrada
+  13	4004	00	00	00	00	00	00	00	00	00	00	    dw 0, 0, 0, 0, 0     ; Relleno
+  14	400E					
+  15	400E					; --- Constantes ---
+  16	400E					SCREEN2_NT   equ 0x1800  ; Name Table
+  17	400E					SCREEN2_CT   equ 0x2000  ; Color Table
+  18	400E					SCREEN2_PT   equ 0x0000  ; Pattern Table
+  19	400E					SCREEN2_SAT  equ 0x1B00  ; Sprite Attribute Table
+  20	400E					SCREEN2_SGT  equ 0x3800  ; Sprite Pattern Table
+  21	400E					
+  22	400E					VDP_PORT0    equ 0x98    ; Puerto VRAM Data
+  23	400E					VDP_PORT1    equ 0x99    ; Puerto VRAM Regs/Status
+  24	400E					
+  25	400E					PPI_PORT_A   equ 0xA9    ; Teclado
+  26	400E					
+  27	400E					TILE_VACIO   equ 0
+  28	400E					TILE_PARED   equ 11
+  29	400E					TILE_GEMA    equ 12
+  30	400E					
+  31	400E					; ==============================================================================
+  32	400E					; INICIO DEL PROGRAMA
+  33	400E					; ==============================================================================
+  34	400E					Inicio:
+  35	400E	F3				    di                  ; Deshabilitar interrupciones
+  36	400F					    
+  37	400F	CD	35	40		    call InitScreen2
+  38	4012	CD	60	40		    call CargarTiles
+  39	4015	CD	97	40		    call CargarSprites
+  40	4018	CD	AD	40		    call InitMapa
+  41	401B	CD	C3	40		    call InitVariables
+  42	401E					    
+  43	401E					BuclePrincipal:
+  44	401E	CD	F9	40		    call EsperarVBlank
+  45	4021	CD	04	41		    call LeerTeclado
+  46	4024	CD	0E	41		    call MoverJugador
+  47	4027	CD	D5	41		    call MoverEnemigos
+  48	402A	CD	17	42		    call CheckColisiones
+  49	402D	CD	20	43		    call ActualizarScoreVRAM
+  50	4030	CD	CB	42		    call ActualizarSpritesVRAM
+  51	4033	18	E9			    jr BuclePrincipal
+  52	4035					
+  53	4035					; ==============================================================================
+  54	4035					; INICIALIZACIÓN Y GRÁFICOS
+  55	4035					; ==============================================================================
+  56	4035					InitScreen2:
+  57	4035	21	58	40		    ld hl, VDPRegs
+  58	4038	06	08			    ld b, 8
+  59	403A	0E	00			    ld c, 0
+  60	403C					InitVDP_Loop:
+  61	403C	7E				    ld a, (hl)
+  62	403D	D3	99			    out (VDP_PORT1), a
+  63	403F	79				    ld a, c
+  64	4040	D3	99			    out (VDP_PORT1), a
+  65	4042	23				    inc hl
+  66	4043	0C				    inc c
+  67	4044	10	F6			    djnz InitVDP_Loop
+  68	4046					    
+  69	4046					    ; Limpiar VRAM
+  70	4046	21	00	00		    ld hl, 0x0000
+  71	4049	CD	43	43		    call SetVDPWrite
+  72	404C	01	00	40		    ld bc, 0x4000
+  73	404F					CleanVRAM_Loop:
+  74	404F	AF				    xor a
+  75	4050	D3	98			    out (VDP_PORT0), a
+  76	4052	0B				    dec bc
+  77	4053	78				    ld a, b
+  78	4054	B1				    or c
+  79	4055	20	F8			    jr nz, CleanVRAM_Loop
+  80	4057	C9				    ret
+  81	4058					
+  82	4058					VDPRegs:
+  83	4058	02	62	06	80	00	36	07	01	    db 0x02, 0x62, 0x06, 0x80, 0x00, 0x36, 0x07, 0x01
+  84	4060					
+  85	4060					CargarTiles:
+  86	4060	21	4C	43		    ld hl, TileData
+  87	4063	11	00	00		    ld de, SCREEN2_PT
+  88	4066	CD	43	43		    call SetVDPWrite
+  89	4069	01	80	00		    ld bc, 8*16
+  90	406C	CD	8B	40		    call CopiarVRAM
+  91	406F	CD	8B	40		    call CopiarVRAM
+  92	4072	CD	8B	40		    call CopiarVRAM
+  93	4075					    
+  94	4075	21	B4	43		    ld hl, ColorData
+  95	4078	11	00	20		    ld de, SCREEN2_CT
+  96	407B	CD	43	43		    call SetVDPWrite
+  97	407E	01	80	00		    ld bc, 8*16
+  98	4081	CD	8B	40		    call CopiarVRAM
+  99	4084	CD	8B	40		    call CopiarVRAM
+ 100	4087	CD	8B	40		    call CopiarVRAM
+ 101	408A	C9				    ret
+ 102	408B					
+ 103	408B					CopiarVRAM:
+ 104	408B	C5				    push bc
+ 105	408C					Copiar_Loop:
+ 106	408C	7E				    ld a, (hl)
+ 107	408D	D3	98			    out (VDP_PORT0), a
+ 108	408F	23				    inc hl
+ 109	4090	0B				    dec bc
+ 110	4091	78				    ld a, b
+ 111	4092	B1				    or c
+ 112	4093	20	F7			    jr nz, Copiar_Loop
+ 113	4095	C1				    pop bc
+ 114	4096	C9				    ret
+ 115	4097					
+ 116	4097					CargarSprites:
+ 117	4097	21	1C	44		    ld hl, SpriteData
+ 118	409A	11	00	38		    ld de, SCREEN2_SGT
+ 119	409D	CD	43	43		    call SetVDPWrite
+ 120	40A0	01	60	00		    ld bc, 32*3
+ 121	40A3					Spr_Loop:
+ 122	40A3	7E				    ld a, (hl)
+ 123	40A4	D3	98			    out (VDP_PORT0), a
+ 124	40A6	23				    inc hl
+ 125	40A7	0B				    dec bc
+ 126	40A8	78				    ld a, b
+ 127	40A9	B1				    or c
+ 128	40AA	20	F7			    jr nz, Spr_Loop
+ 129	40AC	C9				    ret
+ 130	40AD					
+ 131	40AD					InitMapa:
+ 132	40AD	21	7C	44		    ld hl, MapaLogico
+ 133	40B0	11	00	18		    ld de, SCREEN2_NT
+ 134	40B3	CD	43	43		    call SetVDPWrite
+ 135	40B6	01	00	03		    ld bc, 768
+ 136	40B9					Map_Loop:
+ 137	40B9	7E				    ld a, (hl)
+ 138	40BA	D3	98			    out (VDP_PORT0), a
+ 139	40BC	23				    inc hl
+ 140	40BD	0B				    dec bc
+ 141	40BE	78				    ld a, b
+ 142	40BF	B1				    or c
+ 143	40C0	20	F7			    jr nz, Map_Loop
+ 144	40C2	C9				    ret
+ 145	40C3					
+ 146	40C3					InitVariables:
+ 147	40C3	3E	28			    ld a, 40
+ 148	40C5	32	00	C0		    ld (PlayerX), a
+ 149	40C8	3E	88			    ld a, 136            ; Alineado sobre la plataforma inferior
+ 150	40CA	32	01	C0		    ld (PlayerY), a
+ 151	40CD	AF				    xor a
+ 152	40CE	32	02	C0		    ld (PlayerVY), a
+ 153	40D1	32	03	C0		    ld (PlayerOnFloor), a
+ 154	40D4	32	04	C0		    ld (Score), a
+ 155	40D7	32	05	C0		    ld (Score+1), a
+ 156	40DA					    
+ 157	40DA	3E	64			    ld a, 100
+ 158	40DC	32	07	C0		    ld (Enemigo1X), a
+ 159	40DF	3E	88			    ld a, 136            ; En la plataforma inferior
+ 160	40E1	32	08	C0		    ld (Enemigo1Y), a
+ 161	40E4	3E	01			    ld a, 1
+ 162	40E6	32	09	C0		    ld (Enemigo1VX), a
+ 163	40E9					    
+ 164	40E9	3E	B4			    ld a, 180
+ 165	40EB	32	0A	C0		    ld (Enemigo2X), a
+ 166	40EE	3E	58			    ld a, 88             ; En la plataforma del medio (Fila 13 * 8 - 16)
+ 167	40F0	32	0B	C0		    ld (Enemigo2Y), a
+ 168	40F3	3E	FF			    ld a, -1
+ 169	40F5	32	0C	C0		    ld (Enemigo2VX), a
+ 170	40F8	C9				    ret
+ 171	40F9					
+ 172	40F9					; ==============================================================================
+ 173	40F9					; LÓGICA DEL JUEGO
+ 174	40F9					; ==============================================================================
+ 175	40F9					EsperarVBlank:
+ 176	40F9	DB	99			    in a, (VDP_PORT1)
+ 177	40FB	07				    rlca
+ 178	40FC	38	FB			    jr c, EsperarVBlank
+ 179	40FE					EspVBlank2:
+ 180	40FE	DB	99			    in a, (VDP_PORT1)
+ 181	4100	07				    rlca
+ 182	4101	30	FB			    jr nc, EspVBlank2
+ 183	4103	C9				    ret
+ 184	4104					
+ 185	4104					LeerTeclado:
+ 186	4104	3E	08			    ld a, 8
+ 187	4106	D3	AA			    out (PPI_PORT_A+1), a
+ 188	4108	DB	A9			    in a, (PPI_PORT_A)
+ 189	410A	32	06	C0		    ld (InputState), a
+ 190	410D	C9				    ret
+ 191	410E					
+ 192	410E					MoverJugador:
+ 193	410E					    ; Gravedad
+ 194	410E	3A	02	C0		    ld a, (PlayerVY)
+ 195	4111	3C				    inc a
+ 196	4112	FE	05			    cp 5
+ 197	4114	20	02			    jr nz, NoMaxVY
+ 198	4116	3E	04			    ld a, 4
+ 199	4118					NoMaxVY:
+ 200	4118	32	02	C0		    ld (PlayerVY), a
+ 201	411B					    
+ 202	411B					    ; Aplicar Velocidad Vertical
+ 203	411B	47				    ld b, a
+ 204	411C	3A	01	C0		    ld a, (PlayerY)
+ 205	411F	80				    add a, b
+ 206	4120	32	01	C0		    ld (PlayerY), a
+ 207	4123					    
+ 208	4123					    ; Comprobar Suelo (Tile debajo a la izquierda y derecha, a los PIES del sprite Y+16)
+ 209	4123	3A	01	C0		    ld a, (PlayerY)
+ 210	4126	C6	10			    add a, 16
+ 211	4128	57				    ld d, a
+ 212	4129	3A	00	C0		    ld a, (PlayerX)
+ 213	412C	C6	03			    add a, 3
+ 214	412E	5F				    ld e, a
+ 215	412F	CD	B1	42		    call GetTile
+ 216	4132	FE	0B			    cp TILE_PARED
+ 217	4134	28	13			    jr z, TocarSuelo
+ 218	4136					    
+ 219	4136	3A	01	C0		    ld a, (PlayerY)
+ 220	4139	C6	10			    add a, 16
+ 221	413B	57				    ld d, a
+ 222	413C	3A	00	C0		    ld a, (PlayerX)
+ 223	413F	C6	0C			    add a, 12
+ 224	4141	5F				    ld e, a
+ 225	4142	CD	B1	42		    call GetTile
+ 226	4145	FE	0B			    cp TILE_PARED
+ 227	4147	20	13			    jr nz, NoTocaSuelo
+ 228	4149					
+ 229	4149					TocarSuelo:
+ 230	4149					    ; Alinear Y hacia arriba para que no penetre el tile
+ 231	4149	7A				    ld a, d              ; D contiene la Y del pie (PlayerY + 16)
+ 232	414A	E6	F8			    and 0xF8             ; Redondear al tile actual
+ 233	414C	D6	10			    sub 16               ; Restar la altura del sprite
+ 234	414E	32	01	C0		    ld (PlayerY), a
+ 235	4151	AF				    xor a
+ 236	4152	32	02	C0		    ld (PlayerVY), a
+ 237	4155	3E	01			    ld a, 1
+ 238	4157	32	03	C0		    ld (PlayerOnFloor), a
+ 239	415A	18	04			    jr MoverHoriz
+ 240	415C					
+ 241	415C					NoTocaSuelo:
+ 242	415C	AF				    xor a
+ 243	415D	32	03	C0		    ld (PlayerOnFloor), a
+ 244	4160					
+ 245	4160					MoverHoriz:
+ 246	4160	3A	06	C0		    ld a, (InputState)
+ 247	4163	CB	67			    bit 4, a
+ 248	4165	20	0C			    jr nz, NoIzq
+ 249	4167	3A	00	C0		    ld a, (PlayerX)
+ 250	416A	FE	00			    cp 0
+ 251	416C	28	05			    jr z, NoIzq
+ 252	416E	D6	02			    sub 2
+ 253	4170	32	00	C0		    ld (PlayerX), a
+ 254	4173					NoIzq:
+ 255	4173	3A	06	C0		    ld a, (InputState)
+ 256	4176	CB	4F			    bit 1, a
+ 257	4178	20	0C			    jr nz, NoDer
+ 258	417A	3A	00	C0		    ld a, (PlayerX)
+ 259	417D	FE	F0			    cp 240
+ 260	417F	28	05			    jr z, NoDer
+ 261	4181	C6	02			    add a, 2
+ 262	4183	32	00	C0		    ld (PlayerX), a
+ 263	4186					NoDer:
+ 264	4186	3A	06	C0		    ld a, (InputState)
+ 265	4189	CB	47			    bit 0, a
+ 266	418B	20	0C			    jr nz, NoSalto
+ 267	418D	3A	03	C0		    ld a, (PlayerOnFloor)
+ 268	4190	FE	01			    cp 1
+ 269	4192	20	05			    jr nz, NoSalto
+ 270	4194	3E	FA			    ld a, -6
+ 271	4196	32	02	C0		    ld (PlayerVY), a
+ 272	4199					NoSalto:
+ 273	4199					    
+ 274	4199					    ; Colisión Horizontal con Paredes (En el centro del sprite Y+8)
+ 275	4199	3A	00	C0		    ld a, (PlayerX)
+ 276	419C	C6	02			    add a, 2
+ 277	419E	5F				    ld e, a
+ 278	419F	3A	01	C0		    ld a, (PlayerY)
+ 279	41A2	C6	08			    add a, 8
+ 280	41A4	57				    ld d, a
+ 281	41A5	CD	B1	42		    call GetTile
+ 282	41A8	FE	0B			    cp TILE_PARED
+ 283	41AA	20	0A			    jr nz, CheckDer
+ 284	41AC	3A	00	C0		    ld a, (PlayerX)
+ 285	41AF	C6	02			    add a, 2
+ 286	41B1	E6	F8			    and 0xF8
+ 287	41B3	32	00	C0		    ld (PlayerX), a
+ 288	41B6					CheckDer:
+ 289	41B6	3A	00	C0		    ld a, (PlayerX)
+ 290	41B9	C6	0D			    add a, 13
+ 291	41BB	5F				    ld e, a
+ 292	41BC	3A	01	C0		    ld a, (PlayerY)
+ 293	41BF	C6	08			    add a, 8
+ 294	41C1	57				    ld d, a
+ 295	41C2	CD	B1	42		    call GetTile
+ 296	41C5	FE	0B			    cp TILE_PARED
+ 297	41C7	20	0B			    jr nz, EndMove
+ 298	41C9	3A	00	C0		    ld a, (PlayerX)
+ 299	41CC	C6	0D			    add a, 13
+ 300	41CE	E6	F8			    and 0xF8
+ 301	41D0	3D				    dec a
+ 302	41D1	32	00	C0		    ld (PlayerX), a
+ 303	41D4					EndMove:
+ 304	41D4	C9				    ret
+ 305	41D5					
+ 306	41D5					MoverEnemigos:
+ 307	41D5	21	07	C0		    ld hl, Enemigo1X
+ 308	41D8	CD	E2	41		    call MoverFantasma
+ 309	41DB	21	0A	C0		    ld hl, Enemigo2X
+ 310	41DE	CD	E2	41		    call MoverFantasma
+ 311	41E1	C9				    ret
+ 312	41E2					
+ 313	41E2					MoverFantasma:
+ 314	41E2	7E				    ld a, (hl)
+ 315	41E3	5F				    ld e, a
+ 316	41E4	23				    inc hl
+ 317	41E5	7E				    ld a, (hl)
+ 318	41E6	57				    ld d, a
+ 319	41E7	23				    inc hl
+ 320	41E8	7E				    ld a, (hl)
+ 321	41E9	47				    ld b, a
+ 322	41EA					    
+ 323	41EA	7B				    ld a, e
+ 324	41EB	80				    add a, b
+ 325	41EC	5F				    ld e, a
+ 326	41ED	32	0D	C0		    ld (EnemigoX_Temp), a
+ 327	41F0					    
+ 328	41F0	E5				    push hl
+ 329	41F1	78				    ld a, b
+ 330	41F2	FE	01			    cp 1
+ 331	41F4	28	06			    jr z, CheckE_Der
+ 332	41F6					CheckE_Izq:
+ 333	41F6	7B				    ld a, e
+ 334	41F7	C6	02			    add a, 2
+ 335	41F9	5F				    ld e, a
+ 336	41FA	18	04			    jr DoCheckE
+ 337	41FC					CheckE_Der:
+ 338	41FC	7B				    ld a, e
+ 339	41FD	C6	0D			    add a, 13
+ 340	41FF	5F				    ld e, a
+ 341	4200					DoCheckE:
+ 342	4200	7A				    ld a, d
+ 343	4201	C6	08			    add a, 8
+ 344	4203	57				    ld d, a
+ 345	4204	CD	B1	42		    call GetTile
+ 346	4207	E1				    pop hl
+ 347	4208	FE	0B			    cp TILE_PARED
+ 348	420A	20	07			    jr nz, GuardarEnemigo
+ 349	420C	78				    ld a, b
+ 350	420D	ED	44			    neg
+ 351	420F	77				    ld (hl), a
+ 352	4210	7B				    ld a, e
+ 353	4211	90				    sub b
+ 354	4212	5F				    ld e, a
+ 355	4213					GuardarEnemigo:
+ 356	4213	2B				    dec hl
+ 357	4214	7B				    ld a, e
+ 358	4215	77				    ld (hl), a
+ 359	4216	C9				    ret
+ 360	4217					
+ 361	4217					CheckColisiones:
+ 362	4217					    ; Recoger Gema (Centro del sprite)
+ 363	4217	3A	00	C0		    ld a, (PlayerX)
+ 364	421A	C6	08			    add a, 8
+ 365	421C	5F				    ld e, a
+ 366	421D	3A	01	C0		    ld a, (PlayerY)
+ 367	4220	C6	08			    add a, 8
+ 368	4222	57				    ld d, a
+ 369	4223	CD	B1	42		    call GetTile
+ 370	4226	FE	0C			    cp TILE_GEMA
+ 371	4228	20	15			    jr nz, CheckEnemigos
+ 372	422A					    
+ 373	422A	CD	8C	42		    call BorrarGemaMapa
+ 374	422D					    ; Sumar 10 puntos en BCD
+ 375	422D	3A	04	C0		    ld a, (Score)
+ 376	4230	C6	10			    add a, 0x10
+ 377	4232	27				    daa
+ 378	4233	32	04	C0		    ld (Score), a
+ 379	4236	3A	05	C0		    ld a, (Score+1)
+ 380	4239	CE	00			    adc a, 0
+ 381	423B	27				    daa
+ 382	423C	32	05	C0		    ld (Score+1), a
+ 383	423F					    
+ 384	423F					CheckEnemigos:
+ 385	423F	CD	46	42		    call CheckEnemigo1
+ 386	4242	CD	4D	42		    call CheckEnemigo2
+ 387	4245	C9				    ret
+ 388	4246					
+ 389	4246					CheckEnemigo1:
+ 390	4246	3A	07	C0		    ld a, (Enemigo1X)
+ 391	4249	CD	54	42		    call CheckEnemigoGenerico
+ 392	424C	C9				    ret
+ 393	424D					CheckEnemigo2:
+ 394	424D	3A	0A	C0		    ld a, (Enemigo2X)
+ 395	4250	CD	54	42		    call CheckEnemigoGenerico
+ 396	4253	C9				    ret
+ 397	4254					
+ 398	4254					CheckEnemigoGenerico:
+ 399	4254	47				    ld b, a
+ 400	4255	3A	00	C0		    ld a, (PlayerX)
+ 401	4258	90				    sub b
+ 402	4259	30	02			    jr nc, NoAbs1
+ 403	425B	ED	44			    neg
+ 404	425D					NoAbs1:
+ 405	425D	FE	0C			    cp 12
+ 406	425F	D0				    ret nc
+ 407	4260					    
+ 408	4260	C5				    push bc
+ 409	4261	CD	80	42		    call GetEnemigoYTemp
+ 410	4264	C1				    pop bc
+ 411	4265	4F				    ld c, a
+ 412	4266	3A	01	C0		    ld a, (PlayerY)
+ 413	4269	91				    sub c
+ 414	426A	30	02			    jr nc, NoAbs2
+ 415	426C	ED	44			    neg
+ 416	426E					NoAbs2:
+ 417	426E	FE	0C			    cp 12
+ 418	4270	D0				    ret nc
+ 419	4271					    
+ 420	4271					    ; ¡MUERTE! Reiniciar posición
+ 421	4271	3E	28			    ld a, 40
+ 422	4273	32	00	C0		    ld (PlayerX), a
+ 423	4276	3E	88			    ld a, 136
+ 424	4278	32	01	C0		    ld (PlayerY), a
+ 425	427B	AF				    xor a
+ 426	427C	32	02	C0		    ld (PlayerVY), a
+ 427	427F	C9				    ret
+ 428	4280					
+ 429	4280					GetEnemigoYTemp:
+ 430	4280	FE	07			    cp Enemigo1X
+ 431	4282	20	04			    jr nz, EsEnemigo2
+ 432	4284	3A	08	C0		    ld a, (Enemigo1Y)
+ 433	4287	C9				    ret
+ 434	4288					EsEnemigo2:
+ 435	4288	3A	0B	C0		    ld a, (Enemigo2Y)
+ 436	428B	C9				    ret
+ 437	428C					
+ 438	428C					BorrarGemaMapa:
+ 439	428C					    ; D=Y, E=X
+ 440	428C	7A				    ld a, d
+ 441	428D	E6	F8			    and 0xF8
+ 442	428F	6F				    ld l, a
+ 443	4290	26	00			    ld h, 0
+ 444	4292	29				    add hl, hl
+ 445	4293	29				    add hl, hl           ; HL = (Y / 8) * 32
+ 446	4294	7B				    ld a, e
+ 447	4295	0F				    rrca
+ 448	4296	0F				    rrca
+ 449	4297	0F				    rrca
+ 450	4298	E6	1F			    and 0x1F
+ 451	429A	85				    add a, l
+ 452	429B	6F				    ld l, a
+ 453	429C	26	00			    ld h, 0
+ 454	429E					    
+ 455	429E	E5				    push hl               ; Guardar offset
+ 456	429F					    
+ 457	429F	01	7C	44		    ld bc, MapaLogico
+ 458	42A2	09				    add hl, bc
+ 459	42A3	36	00			    ld (hl), TILE_VACIO   ; Borrar de RAM
+ 460	42A5					    
+ 461	42A5	E1				    pop hl                ; Recuperar offset
+ 462	42A6	01	00	18		    ld bc, SCREEN2_NT
+ 463	42A9	09				    add hl, bc
+ 464	42AA	CD	43	43		    call SetVDPWrite      ; Borrar de VRAM
+ 465	42AD	AF				    xor a
+ 466	42AE	D3	98			    out (VDP_PORT0), a
+ 467	42B0	C9				    ret
+ 468	42B1					
+ 469	42B1					GetTile:
+ 470	42B1					    ; Entrada: D=Y, E=X. Salida: A=TileID
+ 471	42B1	E5				    push hl
+ 472	42B2	C5				    push bc
+ 473	42B3	7A				    ld a, d
+ 474	42B4	E6	F8			    and 0xF8
+ 475	42B6	6F				    ld l, a
+ 476	42B7	26	00			    ld h, 0
+ 477	42B9	29				    add hl, hl
+ 478	42BA	29				    add hl, hl           ; HL = (Y / 8) * 32
+ 479	42BB	7B				    ld a, e
+ 480	42BC	0F				    rrca
+ 481	42BD	0F				    rrca
+ 482	42BE	0F				    rrca
+ 483	42BF	E6	1F			    and 0x1F
+ 484	42C1	85				    add a, l
+ 485	42C2	6F				    ld l, a
+ 486	42C3	01	7C	44		    ld bc, MapaLogico
+ 487	42C6	09				    add hl, bc
+ 488	42C7	7E				    ld a, (hl)
+ 489	42C8	C1				    pop bc
+ 490	42C9	E1				    pop hl
+ 491	42CA	C9				    ret
+ 492	42CB					
+ 493	42CB					; ==============================================================================
+ 494	42CB					; ACTUALIZACIÓN VRAM (Sprites y Puntuación)
+ 495	42CB					; ==============================================================================
+ 496	42CB					ActualizarSpritesVRAM:
+ 497	42CB	21	00	1B		    ld hl, SCREEN2_SAT
+ 498	42CE	CD	43	43		    call SetVDPWrite
+ 499	42D1					    
+ 500	42D1					    ; Sprite 0: Jugador Color 1 (Fondo, Color 9 - Rojo)
+ 501	42D1	3A	01	C0		    ld a, (PlayerY)
+ 502	42D4	D3	98			    out (VDP_PORT0), a
+ 503	42D6	3A	00	C0		    ld a, (PlayerX)
+ 504	42D9	D3	98			    out (VDP_PORT0), a
+ 505	42DB	AF				    xor a
+ 506	42DC	D3	98			    out (VDP_PORT0), a
+ 507	42DE	3E	09			    ld a, 9
+ 508	42E0	D3	98			    out (VDP_PORT0), a
+ 509	42E2					    
+ 510	42E2					    ; Sprite 1: Jugador Color 2 (Contorno, Color 15 - Blanco)
+ 511	42E2	3A	01	C0		    ld a, (PlayerY)
+ 512	42E5	D3	98			    out (VDP_PORT0), a
+ 513	42E7	3A	00	C0		    ld a, (PlayerX)
+ 514	42EA	D3	98			    out (VDP_PORT0), a
+ 515	42EC	3E	01			    ld a, 1
+ 516	42EE	D3	98			    out (VDP_PORT0), a
+ 517	42F0	3E	0F			    ld a, 15
+ 518	42F2	D3	98			    out (VDP_PORT0), a
+ 519	42F4					    
+ 520	42F4					    ; Sprite 2: Fantasma 1
+ 521	42F4	3A	08	C0		    ld a, (Enemigo1Y)
+ 522	42F7	D3	98			    out (VDP_PORT0), a
+ 523	42F9	3A	07	C0		    ld a, (Enemigo1X)
+ 524	42FC	D3	98			    out (VDP_PORT0), a
+ 525	42FE	3E	02			    ld a, 2
+ 526	4300	D3	98			    out (VDP_PORT0), a
+ 527	4302	3E	05			    ld a, 5
+ 528	4304	D3	98			    out (VDP_PORT0), a
+ 529	4306					    
+ 530	4306					    ; Sprite 3: Fantasma 2
+ 531	4306	3A	0B	C0		    ld a, (Enemigo2Y)
+ 532	4309	D3	98			    out (VDP_PORT0), a
+ 533	430B	3A	0A	C0		    ld a, (Enemigo2X)
+ 534	430E	D3	98			    out (VDP_PORT0), a
+ 535	4310	3E	02			    ld a, 2
+ 536	4312	D3	98			    out (VDP_PORT0), a
+ 537	4314	3E	06			    ld a, 6
+ 538	4316	D3	98			    out (VDP_PORT0), a
+ 539	4318					    
+ 540	4318					    ; Rellenar resto de SAT vacío (8 sprites max)
+ 541	4318	06	10			    ld b, 4*4
+ 542	431A					CleanSAT_Loop:
+ 543	431A	AF				    xor a
+ 544	431B	D3	98			    out (VDP_PORT0), a
+ 545	431D	10	FB			    djnz CleanSAT_Loop
+ 546	431F	C9				    ret
+ 547	4320					
+ 548	4320					ActualizarScoreVRAM:
+ 549	4320	2A	04	C0		    ld hl, (Score)
+ 550	4323	11	07	18		    ld de, SCREEN2_NT + 7
+ 551	4326	CD	43	43		    call SetVDPWrite
+ 552	4329					    
+ 553	4329	7C				    ld a, h
+ 554	432A	CD	32	43		    call EscribirByteScore
+ 555	432D	7D				    ld a, l
+ 556	432E	CD	32	43		    call EscribirByteScore
+ 557	4331	C9				    ret
+ 558	4332					
+ 559	4332					EscribirByteScore:
+ 560	4332	F5				    push af
+ 561	4333	0F				    rrca
+ 562	4334	0F				    rrca
+ 563	4335	0F				    rrca
+ 564	4336	0F				    rrca
+ 565	4337	E6	0F			    and 0x0F
+ 566	4339	3C				    inc a
+ 567	433A	D3	98			    out (VDP_PORT0), a
+ 568	433C	F1				    pop af
+ 569	433D	E6	0F			    and 0x0F
+ 570	433F	3C				    inc a
+ 571	4340	D3	98			    out (VDP_PORT0), a
+ 572	4342	C9				    ret
+ 573	4343					
+ 574	4343					; ==============================================================================
+ 575	4343					; UTILIDADES VRAM
+ 576	4343					; ==============================================================================
+ 577	4343					SetVDPWrite:
+ 578	4343	7D				    ld a, l
+ 579	4344	D3	99			    out (VDP_PORT1), a
+ 580	4346	7C				    ld a, h
+ 581	4347	F6	40			    or 0x40
+ 582	4349	D3	99			    out (VDP_PORT1), a
+ 583	434B	C9				    ret
+ 584	434C					
+ 585	434C					; ==============================================================================
+ 586	434C					; DATOS DEL JUEGO
+ 587	434C					; ==============================================================================
+ 588	434C					TileData:
+ 589	434C	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0
+ 590	4354	7C	C6	CE	D6	E6	C6	7C	00	    db 0x7C,0xC6,0xCE,0xD6,0xE6,0xC6,0x7C,0x00 ; 0
+ 591	435C	18	38	18	18	18	18	7E	00	    db 0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00 ; 1
+ 592	4364	7C	C6	06	1C	30	60	FE	00	    db 0x7C,0xC6,0x06,0x1C,0x30,0x60,0xFE,0x00 ; 2
+ 593	436C	7C	C6	06	3C	06	C6	7C	00	    db 0x7C,0xC6,0x06,0x3C,0x06,0xC6,0x7C,0x00 ; 3
+ 594	4374	1C	3C	6C	CC	FE	0C	1E	00	    db 0x1C,0x3C,0x6C,0xCC,0xFE,0x0C,0x1E,0x00 ; 4
+ 595	437C	FE	C0	FC	06	06	C6	7C	00	    db 0xFE,0xC0,0xFC,0x06,0x06,0xC6,0x7C,0x00 ; 5
+ 596	4384	38	60	C0	FC	C6	C6	7C	00	    db 0x38,0x60,0xC0,0xFC,0xC6,0xC6,0x7C,0x00 ; 6
+ 597	438C	FE	C6	0C	18	30	30	30	00	    db 0xFE,0xC6,0x0C,0x18,0x30,0x30,0x30,0x00 ; 7
+ 598	4394	7C	C6	C6	7C	C6	C6	7C	00	    db 0x7C,0xC6,0xC6,0x7C,0xC6,0xC6,0x7C,0x00 ; 8
+ 599	439C	7C	C6	C6	7E	06	0C	78	00	    db 0x7C,0xC6,0xC6,0x7E,0x06,0x0C,0x78,0x00 ; 9
+ 600	43A4	FF	80	80	80	FF	01	01	01	    db 0xFF,0x80,0x80,0x80,0xFF,0x01,0x01,0x01 ; PARED
+ 601	43AC	18	3C	7E	FF	FF	7E	3C	18	    db 0x18,0x3C,0x7E,0xFF,0xFF,0x7E,0x3C,0x18 ; GEMA
+ 602	43B4					
+ 603	43B4					ColorData:
+ 604	43B4	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0
+ 605	43BC	0F	0F	0F	0F	0F	0F	0F	0F	    db 15,15,15,15,15,15,15,15
+ 606	43C4	0F	0F	0F	0F	0F	0F	0F	0F	    db 15,15,15,15,15,15,15,15
+ 607	43CC	0F	0F	0F	0F	0F	0F	0F	0F	    db 15,15,15,15,15,15,15,15
+ 608	43D4	0F	0F	0F	0F	0F	0F	0F	0F	    db 15,15,15,15,15,15,15,15
+ 609	43DC	0F	0F	0F	0F	0F	0F	0F	0F	    db 15,15,15,15,15,15,15,15
+ 610	43E4	0F	0F	0F	0F	0F	0F	0F	0F	    db 15,15,15,15,15,15,15,15
+ 611	43EC	0F	0F	0F	0F	0F	0F	0F	0F	    db 15,15,15,15,15,15,15,15
+ 612	43F4	0F	0F	0F	0F	0F	0F	0F	0F	    db 15,15,15,15,15,15,15,15
+ 613	43FC	0F	0F	0F	0F	0F	0F	0F	0F	    db 15,15,15,15,15,15,15,15
+ 614	4404	0F	0F	0F	0F	0F	0F	0F	0F	    db 15,15,15,15,15,15,15,15
+ 615	440C	09	09	09	09	09	09	09	09	    db 9,9,9,9,9,9,9,9
+ 616	4414	05	05	05	05	05	05	05	05	    db 5,5,5,5,5,5,5,5
+ 617	441C					
+ 618	441C					SpriteData:
+ 619	441C					    ; Sprite 0: Jugador Color 1 (Interior Rojo)
+ 620	441C	00	3C	7E	7E	7E	7E	3C	00	    db 0x00,0x3C,0x7E,0x7E,0x7E,0x7E,0x3C,0x00 
+ 621	4424	00	3C	7E	7E	7E	7E	3C	00	    db 0x00,0x3C,0x7E,0x7E,0x7E,0x7E,0x3C,0x00 
+ 622	442C	00	3C	7E	7E	7E	7E	3C	00	    db 0x00,0x3C,0x7E,0x7E,0x7E,0x7E,0x3C,0x00 
+ 623	4434	00	3C	7E	7E	7E	7E	3C	00	    db 0x00,0x3C,0x7E,0x7E,0x7E,0x7E,0x3C,0x00 
+ 624	443C					    
+ 625	443C					    ; Sprite 1: Jugador Color 2 (Contorno Blanco)
+ 626	443C	FF	C3	81	81	81	81	C3	FF	    db 0xFF,0xC3,0x81,0x81,0x81,0x81,0xC3,0xFF 
+ 627	4444	FF	C3	81	81	81	81	C3	FF	    db 0xFF,0xC3,0x81,0x81,0x81,0x81,0xC3,0xFF 
+ 628	444C	FF	C3	81	81	81	81	C3	FF	    db 0xFF,0xC3,0x81,0x81,0x81,0x81,0xC3,0xFF 
+ 629	4454	FF	C3	81	81	81	81	C3	FF	    db 0xFF,0xC3,0x81,0x81,0x81,0x81,0xC3,0xFF 
+ 630	445C					    
+ 631	445C					    ; Sprite 2: Fantasma
+ 632	445C	3C	7E	FF	FF	FF	FF	FF	00	    db 0x3C,0x7E,0xFF,0xFF,0xFF,0xFF,0xFF,0x00 
+ 633	4464	3C	7E	FF	FF	FF	FF	FF	00	    db 0x3C,0x7E,0xFF,0xFF,0xFF,0xFF,0xFF,0x00 
+ 634	446C	00	00	FF	FF	FF	E7	DB	00	    db 0x00,0x00,0xFF,0xFF,0xFF,0xE7,0xDB,0x00 
+ 635	4474	00	00	FF	FF	FF	E7	DB	00	    db 0x00,0x00,0xFF,0xFF,0xFF,0xE7,0xDB,0x00 
+ 636	447C					
+ 637	447C					MapaLogico:
+ 638	447C	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 0
+ 639	449C	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 1
+ 640	44BC	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 2
+ 641	44DC	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 3
+ 642	44FC	00	00	00	00	00	00	00	00	00	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,11,11,11,11,11,11,11,11,11,11,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 4
+ 643	451C	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 5
+ 644	453C	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	0C	0C	0C	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,12,12,0,0,0,0,0,0 ; 6
+ 645	455B	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	0B	0B	0B	0B	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,11,11,11,0,0,0,0,0,0 ; 7
+ 646	457A	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 8
+ 647	459A	00	00	00	00	0C	0C	0C	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,12,12,12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 9
+ 648	45B9	00	00	00	0B	0B	0B	0B	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,11,11,11,11,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 10
+ 649	45D8	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 11
+ 650	45F8	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	0C	0C	0C	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,12,12,0,0,0,0,0,0,0,0,0 ; 12
+ 651	4617	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	0B	0B	0B	0B	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,11,11,11,0,0,0,0,0,0,0,0,0 ; 13
+ 652	4636	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 14
+ 653	4656	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 15
+ 654	4676	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 16
+ 655	4696	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 17
+ 656	46B6	00	00	0C	0C	0C	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	0C	0C	0C	00	00	00	    db 0,0,12,12,12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,12,12,0,0,0 ; 18
+ 657	46D6	00	00	0B	0B	0B	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	0B	0B	0B	00	00	00	    db 0,0,11,11,11,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,11,11,0,0,0 ; 19
+ 658	46F6	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 20
+ 659	4716	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	00	    db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 21
+ 660	4736	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	    db 11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11 ; 22
+ 661	4756	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	0B	    db 11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11 ; 23
+ 662	4776					
+ 663	4776					; --- Variables en RAM ---
+ 664	4776					    org 0xC000
+ 665	C000	00				PlayerX:       ds 1
+ 666	C001	00				PlayerY:       ds 1
+ 667	C002	00				PlayerVY:      ds 1
+ 668	C003	00				PlayerOnFloor: ds 1
+ 669	C004	00	00			Score:         ds 2     ; 16-bit BCD
+ 670	C006	00				InputState:    ds 1
+ 671	C007	00				Enemigo1X:     ds 1
+ 672	C008	00				Enemigo1Y:     ds 1
+ 673	C009	00				Enemigo1VX:    ds 1
+ 674	C00A	00				Enemigo2X:     ds 1
+ 675	C00B	00				Enemigo2Y:     ds 1
+ 676	C00C	00				Enemigo2VX:    ds 1
+ 677	C00D	00				EnemigoX_Temp: ds 1
+ 678	C00E					
