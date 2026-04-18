@@ -185,6 +185,26 @@ function generatePresentationScreenSection(
   const presentationColorsB0ResourceId = buildResourceId('PRESENTATION_SCREEN_COLORS_B0');
   const presentationColorsB1ResourceId = buildResourceId('PRESENTATION_SCREEN_COLORS_B1');
   const presentationColorsB2ResourceId = buildResourceId('PRESENTATION_SCREEN_COLORS_B2');
+  const emitPage0PresentationTransfer = (
+    label: string,
+    ramBuffer: string,
+    vramDestination: string,
+    sizeSymbol: string,
+    compressed: boolean
+  ) => compressed
+    ? `    ld hl, ${label}
+    ld de, ${ramBuffer}
+    call page0_decompress_to_ram
+    ld hl, ${ramBuffer}
+    ld de, ${vramDestination}
+    ld bc, ${sizeSymbol}
+    call FAST_LDIRVM
+`
+    : `    ld hl, ${label}
+    ld de, ${vramDestination}
+    ld bc, ${sizeSymbol}
+    call page0_copy_to_vram
+`;
 
   let code = `; ==================================================================
 ; PRESENTATION SCREEN DATA
@@ -340,63 +360,56 @@ ${useResourceManager
   }
 
   code += usePage0DataGroup
-    ? `    ; Page 0 data is ZX0-compressed: decompress to RAM first, then upload to VRAM.
-    ld hl, PRESENTATION_SCREEN_PATTERNS_B0
-    ld de, ZX0_TILE_PATTERN_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_TILE_PATTERN_BUFFER
-    ld de, CHRTBL2
-    ld bc, PRESENTATION_SCREEN_PATTERN_B0_SIZE
-    call FAST_LDIRVM
-
-    ld hl, PRESENTATION_SCREEN_PATTERNS_B1
-    ld de, ZX0_TILE_PATTERN_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_TILE_PATTERN_BUFFER
-    ld de, CHRTBL2 + #800
-    ld bc, PRESENTATION_SCREEN_PATTERN_B1_SIZE
-    call FAST_LDIRVM
-
-    ld hl, PRESENTATION_SCREEN_PATTERNS_B2
-    ld de, ZX0_TILE_PATTERN_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_TILE_PATTERN_BUFFER
-    ld de, CHRTBL2 + #1000
-    ld bc, PRESENTATION_SCREEN_PATTERN_B2_SIZE
-    call FAST_LDIRVM
-
-    ld hl, PRESENTATION_SCREEN_COLORS_B0
-    ld de, ZX0_TILE_COLOR_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_TILE_COLOR_BUFFER
-    ld de, CLRTBL2
-    ld bc, PRESENTATION_SCREEN_COLOR_B0_SIZE
-    call FAST_LDIRVM
-
-    ld hl, PRESENTATION_SCREEN_COLORS_B1
-    ld de, ZX0_TILE_COLOR_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_TILE_COLOR_BUFFER
-    ld de, CLRTBL2 + #800
-    ld bc, PRESENTATION_SCREEN_COLOR_B1_SIZE
-    call FAST_LDIRVM
-
-    ld hl, PRESENTATION_SCREEN_COLORS_B2
-    ld de, ZX0_TILE_COLOR_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_TILE_COLOR_BUFFER
-    ld de, CLRTBL2 + #1000
-    ld bc, PRESENTATION_SCREEN_COLOR_B2_SIZE
-    call FAST_LDIRVM
-
-    ld hl, PRESENTATION_SCREEN_NAMETBL
-    ld de, ZX0_SCREEN_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_SCREEN_BUFFER
-    ld de, NAMETBL
-    ld bc, PRESENTATION_SCREEN_NAMETBL_SIZE
-    call FAST_LDIRVM
-
+    ? `    ; Page 0 presentation data may mix raw and ZX0-compressed blocks.
+${emitPage0PresentationTransfer(
+      'PRESENTATION_SCREEN_PATTERNS_B0',
+      'ZX0_TILE_PATTERN_BUFFER',
+      'CHRTBL2',
+      'PRESENTATION_SCREEN_PATTERN_B0_SIZE',
+      config.compression.compressPatterns
+    )}
+${emitPage0PresentationTransfer(
+      'PRESENTATION_SCREEN_PATTERNS_B1',
+      'ZX0_TILE_PATTERN_BUFFER',
+      'CHRTBL2 + #800',
+      'PRESENTATION_SCREEN_PATTERN_B1_SIZE',
+      config.compression.compressPatterns
+    )}
+${emitPage0PresentationTransfer(
+      'PRESENTATION_SCREEN_PATTERNS_B2',
+      'ZX0_TILE_PATTERN_BUFFER',
+      'CHRTBL2 + #1000',
+      'PRESENTATION_SCREEN_PATTERN_B2_SIZE',
+      config.compression.compressPatterns
+    )}
+${emitPage0PresentationTransfer(
+      'PRESENTATION_SCREEN_COLORS_B0',
+      'ZX0_TILE_COLOR_BUFFER',
+      'CLRTBL2',
+      'PRESENTATION_SCREEN_COLOR_B0_SIZE',
+      config.compression.compressColors
+    )}
+${emitPage0PresentationTransfer(
+      'PRESENTATION_SCREEN_COLORS_B1',
+      'ZX0_TILE_COLOR_BUFFER',
+      'CLRTBL2 + #800',
+      'PRESENTATION_SCREEN_COLOR_B1_SIZE',
+      config.compression.compressColors
+    )}
+${emitPage0PresentationTransfer(
+      'PRESENTATION_SCREEN_COLORS_B2',
+      'ZX0_TILE_COLOR_BUFFER',
+      'CLRTBL2 + #1000',
+      'PRESENTATION_SCREEN_COLOR_B2_SIZE',
+      config.compression.compressColors
+    )}
+${emitPage0PresentationTransfer(
+      'PRESENTATION_SCREEN_NAMETBL',
+      'ZX0_SCREEN_BUFFER',
+      'NAMETBL',
+      'PRESENTATION_SCREEN_NAMETBL_SIZE',
+      config.compression.compressNameTable
+    )}
     call ENASCR
 `
     : !usesMapper

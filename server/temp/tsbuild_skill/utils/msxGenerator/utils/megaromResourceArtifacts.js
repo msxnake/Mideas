@@ -75,6 +75,10 @@ function inferResourceTypeKey(groupName, label) {
             return 'SCREEN_BEHAVIOR_MAP';
         if (upperLabel.includes('EFFECTS_LAYOUT'))
             return 'SCREEN_EFFECTS_LAYOUT';
+        if (upperLabel.includes('BLOCK_CATALOG'))
+            return 'SCREEN_BLOCK_CATALOG';
+        if (upperLabel.includes('BLOCK_MAP'))
+            return 'SCREEN_BLOCK_MAP';
         if (upperLabel.includes('LAYOUT'))
             return 'SCREEN_LAYOUT';
         return 'SCREEN_DATA';

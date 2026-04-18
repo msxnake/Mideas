@@ -15,8 +15,8 @@
 ; ROM Mode: simple32k
 ; Mapper Target: konami
 ; Auto MegaROM: No
-; Engine Execution Mode: gameLoopHalt
-; IRQ Task: none
+; Engine Execution Mode: interruptTaskManager
+; IRQ Task: slot 1 -> task_frame_counter (timer, every 1 frame)
 ; Mainline: postHalt -> update_sprites_to_vram (sprites)
 ; Mainline: preUpdate -> check_world_screen_transition (screenFlow)
 ; Mainline: postUpdate -> update_all_entities (entities)
@@ -152,7 +152,8 @@ restart_rom_continue:
     di
 
     ; Register default tasks based on project needs
-        ; GameLoop+HALT mode: keep gameplay/audio ticks in the main GameFlow loops.
+        ; Register boot-time IRQ tasks defined by the engine execution plan.
+    call init_default_tasks_from_plan
 
 
     ei
@@ -1981,17 +1982,20 @@ get_frame_count:
 ;   Notes:
 ;     - Calls enable_task once per enabled task.
 init_default_tasks_from_plan:
+    ld a, 1
+    ld hl, task_frame_counter
+    call enable_task
     ret
 
 ; ==================================================================
-; DEFAULT INTERRUPT TASKS (60Hz Execution)
+; SHARED MAINLINE TASK WRAPPERS
+; ==================================================================
+; These wrappers stay available in interruptTaskManager mode because
+; the HALT-driven GameFlow loops still call them directly.
 ; ==================================================================
 
 ; ==================================================================
-; TASK_UPDATE_INPUT - Joystick/Cursor polling at 60Hz
-; ==================================================================
-; This task guarantees responsive input (no missed button presses)
-; Compatible with update_input_component existing function
+; TASK_UPDATE_INPUT - Joystick/Cursor polling wrapper
 ; ==================================================================
 ; Register Contract:
 ;   Purpose: Poll joystick + keyboard fallback and update input state buffers.
@@ -2150,67 +2154,33 @@ task_update_input:
     pop af
     ret
 
-; Task 1 (Physics): Not generated (no entities detected)
-
 ; ==================================================================
-; TASK_UPDATE_COLLISION - Collision detection
+; ENGINE EXECUTION PLAN TASKS
 ; ==================================================================
-; Detects collisions using collision layers (bitmask system)
-; AABB collision for 16x16 sprites
-; ==================================================================
-; Register Contract:
-;   Purpose: Interrupt task wrapper for collision system (placeholder).
-;   Inputs:
-;     - Entity collision data
-;   Outputs:
-;     - Collision flags/tables (when implemented)
-;   Clobbers:
-;     - AF
-;     - BC
-;     - DE
-;     - HL
-;   Preserved:
-;     - AF
-;     - BC
-;     - DE
-;     - HL (by push/pop wrapper)
-task_update_collision:
-    push af
-    push bc
-    push de
-    push hl
 
-    ; TODO: Implement collision detection
-    ; Loop over entities with COMP_MASK_COLLISION
-    ; Check: collisionLayer & collidesWith for each pair
-    ; AABB test: |X1-X2| < 16 && |Y1-Y2| < 16
-
-    pop hl
-    pop de
-    pop bc
-    pop af
-    ret
-
-; Task 3 (Sprites): Not generated (no sprites in project)
-
-; TASK_UPDATE_MUSIC: Not generated (no tracker/state-machine audio in project)
+; Slot 1: frame_counter -> task_frame_counter (period=1)
 
 ; ==================================================================
 ; TASK_FRAME_COUNTER - Custom timing/animations
 ; ==================================================================
 ; Placeholder for user-defined frame-based timing
-; Example: Increment animation timers, etc.
+; interrupt_counter is already incremented in dispatcher
 ; ==================================================================
 ; Register Contract:
-;   Purpose: Reserved slot for user timing logic.
+;   Purpose: Optional per-frame timing hook for lightweight counters/animations.
 ;   Inputs:
 ;     - None
 ;   Outputs:
-;     - None by default
+;     - None
 ;   Clobbers:
-;     - None by default
+;     - None
 ;   Preserved:
-;     - All (default empty implementation)
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - No registers modified in the default implementation
 task_frame_counter:
     ; Placeholder - counter is already incremented in dispatcher
     ; Add custom timing logic here if needed
@@ -7288,6 +7258,13 @@ page0_copy_to_vram:
 
 init_game_systems:
     call DISSCR               ; Disable screen while loading VRAM assets
+    ; Cold boot / restart must not trust cached VRAM state from RAM contents.
+    xor a
+    ld (vram_cache_tile_patterns_ready), a
+    ld (vram_cache_tile_colors_ready), a
+    ld (vram_cache_font_ready), a
+    ld a, #FF
+    ld (current_screen2_tilebank_id), a
     ; No entities - skipping component system initialization
 
     ; Load pattern and color data (tiles detected)

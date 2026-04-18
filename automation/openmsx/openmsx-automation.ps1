@@ -237,9 +237,9 @@ function Start-OpenMsxAutomation {
 
     # Construir argumentos para OpenMSX
     $arguments = @(
-        $Rom,
-        "-script", $TclScript,
-        "-machine", $MachineType
+        "-machine", $MachineType,
+        "-cart", $Rom,
+        "-script", $TclScript
     )
 
     try {

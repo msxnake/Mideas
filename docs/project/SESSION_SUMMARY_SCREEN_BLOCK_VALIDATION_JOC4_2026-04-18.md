@@ -51,6 +51,10 @@ Continue the 2026-04-16 screen block runtime session with a real end-to-end expo
     - `SCREEN_PAN1_0_BLOCK_MAP_SIZE EQU 192`
 - Ran OpenMSX automatically with the `blocks4x4` ROM and captured a screenshot:
   - `server/temp/joc4_openmsx.png`
+- Confirmed project startup wiring is correct:
+  - world start node points to `pan1`
+  - generated ASM startup calls `load_screen_pan1_...`
+- Despite that, the current OpenMSX screenshot result is still black, so there is likely a runtime/render issue still pending after successful export + Glass compilation.
 
 ## Fix required during validation
 
@@ -65,6 +69,19 @@ An unrelated generator regression blocked Glass compilation before the screen-bl
     - `Can not redefine symbol: update_player_fastpath`
 - fix:
   - removed the duplicate stub from the `Input`-filtered fallback branch
+
+## Extra fix during continuation
+
+Another unrelated issue was found in the OpenMSX screenshot automation:
+
+- file:
+  - `automation/openmsx/openmsx-automation.ps1`
+- issue:
+  - it launched OpenMSX passing the ROM as a positional argument instead of `-cart`
+  - this made the automation unreliable / able to exit without loading the ROM
+- fix:
+  - changed launch arguments to:
+    - `-machine <id> -cart <rom> -script <tcl>`
 
 ## Outputs
 
@@ -91,6 +108,7 @@ The 2026-04-16 screen block runtime work is now validated for both `blocks4x4` a
 ## Still pending
 
 - Manual visual parity review of the captured OpenMSX output versus editor/play preview.
+- Debug why OpenMSX boots the ROM but still shows a black screen even though startup data points to `pan1`.
 - Extra runtime checks for:
   - active-area partial loads
   - secret-zone restore behavior

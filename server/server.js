@@ -241,6 +241,7 @@ function collectAsmDataBlocks(lines, labelRegex) {
     const bytes = [];
     let j = i + 1;
     let seenData = false;
+    let alreadyCompressed = false;
 
     while (j < lines.length) {
       const trimmed = lines[j].trim();
@@ -253,6 +254,9 @@ function collectAsmDataBlocks(lines, labelRegex) {
       }
 
       if (trimmed === '' || trimmed.startsWith(';')) {
+        if (!seenData && /^\s*;\s*ZX0 compressed\b/i.test(lines[j])) {
+          alreadyCompressed = true;
+        }
         j++;
         continue;
       }
@@ -267,6 +271,7 @@ function collectAsmDataBlocks(lines, labelRegex) {
         label,
         startLine: i,
         endLine: j - 1,
+        alreadyCompressed,
         bytes,
         lines: lines.slice(i, j)
       });
@@ -840,6 +845,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const selectedSpritePatternGroups = [];
   let spriteGroups = [];
   let forcedPage0BlockCount = 0;
+  let alreadyCompressedBlockCount = 0;
 
   function shouldForcePage0BlockCompression(block, kind) {
     const label = String(block?.label || '').toUpperCase();
@@ -868,6 +874,13 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       const block = blocks[index];
       emitProgress(`${phaseLabel} ${index + 1}/${blocks.length}`, phaseKey);
       info.originalBytes += block.bytes.length;
+      if (block.alreadyCompressed) {
+        alreadyCompressedBlockCount += 1;
+        info.compressedBytes += block.bytes.length;
+        completedProgressSteps += 1;
+        emitProgress(`${phaseLabel} ${Math.min(index + 1, blocks.length)}/${blocks.length}`, phaseKey);
+        continue;
+      }
       const forceCompression = shouldForcePage0BlockCompression(block, kind);
       try {
         const compressed = await runZx0CompressionAsync(block.bytes, tempDir);
@@ -976,8 +989,18 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   info.netSavedBytes = info.savedBytes - routineOverhead - runtimeOverhead;
 
   const mustApplyPage0Compression = forcedPage0BlockCount > 0;
+  const alreadyCompressedSource = alreadyCompressedBlockCount > 0;
 
-  if (compressedBlockCount === 0 || (!mustApplyPage0Compression && info.netSavedBytes <= 0)) {
+  if (compressedBlockCount === 0) {
+    if (alreadyCompressedSource) {
+      info.applied = true;
+      info.alreadyCompressed = true;
+    }
+    emitProgress('ZX0 compression finished', 'finalize', totalProgressSteps, totalProgressSteps);
+    return { code: sourceCode, info };
+  }
+
+  if (!mustApplyPage0Compression && info.netSavedBytes <= 0) {
     emitProgress('ZX0 compression finished', 'finalize', totalProgressSteps, totalProgressSteps);
     return { code: sourceCode, info };
   }
@@ -1642,6 +1665,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   }
 
   info.applied = true;
+  info.alreadyCompressed = alreadyCompressedSource;
   emitProgress('ZX0 compression finished', 'finalize', totalProgressSteps, totalProgressSteps);
   return { code: finalCode, info };
 }
@@ -2267,7 +2291,9 @@ app.post('/compress-unified-asm', (req, res) => {
     return {
       success: true,
       applied: true,
-      message: 'Unified ASM compressed with ZX0 successfully',
+      message: info.alreadyCompressed
+        ? 'Unified ASM already contains ZX0-compressed data'
+        : 'Unified ASM compressed with ZX0 successfully',
       compressedCode: preprocessed.code,
       compressionInfo: info,
       compressedAsmFile: compressedAsmFileName,
@@ -2350,7 +2376,9 @@ app.post('/compress-unified-asm-job', (req, res) => {
     return {
       success: true,
       applied: true,
-      message: 'Unified ASM compressed with ZX0 successfully',
+      message: info.alreadyCompressed
+        ? 'Unified ASM already contains ZX0-compressed data'
+        : 'Unified ASM compressed with ZX0 successfully',
       compressedCode: preprocessed.code,
       compressionInfo: info,
       compressedAsmFile: compressedAsmFileName,

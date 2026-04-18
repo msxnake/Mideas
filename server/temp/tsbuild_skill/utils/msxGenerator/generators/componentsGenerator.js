@@ -7988,9 +7988,6 @@ init_input_system:
 
 update_input_component:
     ret
-
-update_player_fastpath:
-    ret
     `;
     }
     // Generate Behavior System (if used)

@@ -18,6 +18,7 @@ const screen2TileBanks_1 = require("../utils/screen2TileBanks");
 const page0Generator_1 = require("./page0Generator");
 const romModeUtils_1 = require("./romModeUtils");
 const megaromResourceArtifacts_1 = require("../utils/megaromResourceArtifacts");
+const blockMapBuilder_1 = require("../../screenOptimization/blockMapBuilder");
 const mapperWindowUtils_1 = require("./mapperWindowUtils");
 const SCREEN_WIDTH = 32;
 const SCREEN_HEIGHT = 24;
@@ -75,6 +76,21 @@ function generateRawByteBlock(label, bytes, comments = []) {
     }
     return asm;
 }
+function generateBackgroundBlockDataSection(screenName, index, displayName, blockMap) {
+    const labelBase = `SCREEN_${screenName}_${index}`;
+    let asm = '';
+    asm += generateRawByteBlock(`${labelBase}_BLOCK_CATALOG`, blockMap.catalogFlatBytes, [
+        `${displayName} - background block catalog (${blockMap.blockWidth}x${blockMap.blockHeight})`,
+        `${blockMap.catalog.length} unique blocks, ${blockMap.catalogLengthBytes} bytes total`,
+    ]);
+    asm += `\n`;
+    asm += generateRawByteBlock(`${labelBase}_BLOCK_MAP`, blockMap.mapIndices, [
+        `${displayName} - background block index map (${blockMap.mapWidth}x${blockMap.mapHeight})`,
+        `${blockMap.optimizedLengthBytes} bytes optimized vs ${blockMap.sourceLengthBytes} raw (${blockMap.savingsBytes} byte delta)`,
+    ]);
+    asm += `\n`;
+    return asm;
+}
 function hasPresentationScreenData(analysis) {
     const config = analysis.presentationScreen;
     if (!config?.enabled)
@@ -112,6 +128,20 @@ function generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, t
     const presentationColorsB0ResourceId = buildResourceId('PRESENTATION_SCREEN_COLORS_B0');
     const presentationColorsB1ResourceId = buildResourceId('PRESENTATION_SCREEN_COLORS_B1');
     const presentationColorsB2ResourceId = buildResourceId('PRESENTATION_SCREEN_COLORS_B2');
+    const emitPage0PresentationTransfer = (label, ramBuffer, vramDestination, sizeSymbol, compressed) => compressed
+        ? `    ld hl, ${label}
+    ld de, ${ramBuffer}
+    call page0_decompress_to_ram
+    ld hl, ${ramBuffer}
+    ld de, ${vramDestination}
+    ld bc, ${sizeSymbol}
+    call FAST_LDIRVM
+`
+        : `    ld hl, ${label}
+    ld de, ${vramDestination}
+    ld bc, ${sizeSymbol}
+    call page0_copy_to_vram
+`;
     let code = `; ==================================================================
 ; PRESENTATION SCREEN DATA
 ; ==================================================================
@@ -265,63 +295,14 @@ ${useResourceManager
 `;
     }
     code += usePage0DataGroup
-        ? `    ; Page 0 data is ZX0-compressed: decompress to RAM first, then upload to VRAM.
-    ld hl, PRESENTATION_SCREEN_PATTERNS_B0
-    ld de, ZX0_TILE_PATTERN_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_TILE_PATTERN_BUFFER
-    ld de, CHRTBL2
-    ld bc, PRESENTATION_SCREEN_PATTERN_B0_SIZE
-    call FAST_LDIRVM
-
-    ld hl, PRESENTATION_SCREEN_PATTERNS_B1
-    ld de, ZX0_TILE_PATTERN_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_TILE_PATTERN_BUFFER
-    ld de, CHRTBL2 + #800
-    ld bc, PRESENTATION_SCREEN_PATTERN_B1_SIZE
-    call FAST_LDIRVM
-
-    ld hl, PRESENTATION_SCREEN_PATTERNS_B2
-    ld de, ZX0_TILE_PATTERN_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_TILE_PATTERN_BUFFER
-    ld de, CHRTBL2 + #1000
-    ld bc, PRESENTATION_SCREEN_PATTERN_B2_SIZE
-    call FAST_LDIRVM
-
-    ld hl, PRESENTATION_SCREEN_COLORS_B0
-    ld de, ZX0_TILE_COLOR_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_TILE_COLOR_BUFFER
-    ld de, CLRTBL2
-    ld bc, PRESENTATION_SCREEN_COLOR_B0_SIZE
-    call FAST_LDIRVM
-
-    ld hl, PRESENTATION_SCREEN_COLORS_B1
-    ld de, ZX0_TILE_COLOR_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_TILE_COLOR_BUFFER
-    ld de, CLRTBL2 + #800
-    ld bc, PRESENTATION_SCREEN_COLOR_B1_SIZE
-    call FAST_LDIRVM
-
-    ld hl, PRESENTATION_SCREEN_COLORS_B2
-    ld de, ZX0_TILE_COLOR_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_TILE_COLOR_BUFFER
-    ld de, CLRTBL2 + #1000
-    ld bc, PRESENTATION_SCREEN_COLOR_B2_SIZE
-    call FAST_LDIRVM
-
-    ld hl, PRESENTATION_SCREEN_NAMETBL
-    ld de, ZX0_SCREEN_BUFFER
-    call page0_decompress_to_ram
-    ld hl, ZX0_SCREEN_BUFFER
-    ld de, NAMETBL
-    ld bc, PRESENTATION_SCREEN_NAMETBL_SIZE
-    call FAST_LDIRVM
-
+        ? `    ; Page 0 presentation data may mix raw and ZX0-compressed blocks.
+${emitPage0PresentationTransfer('PRESENTATION_SCREEN_PATTERNS_B0', 'ZX0_TILE_PATTERN_BUFFER', 'CHRTBL2', 'PRESENTATION_SCREEN_PATTERN_B0_SIZE', config.compression.compressPatterns)}
+${emitPage0PresentationTransfer('PRESENTATION_SCREEN_PATTERNS_B1', 'ZX0_TILE_PATTERN_BUFFER', 'CHRTBL2 + #800', 'PRESENTATION_SCREEN_PATTERN_B1_SIZE', config.compression.compressPatterns)}
+${emitPage0PresentationTransfer('PRESENTATION_SCREEN_PATTERNS_B2', 'ZX0_TILE_PATTERN_BUFFER', 'CHRTBL2 + #1000', 'PRESENTATION_SCREEN_PATTERN_B2_SIZE', config.compression.compressPatterns)}
+${emitPage0PresentationTransfer('PRESENTATION_SCREEN_COLORS_B0', 'ZX0_TILE_COLOR_BUFFER', 'CLRTBL2', 'PRESENTATION_SCREEN_COLOR_B0_SIZE', config.compression.compressColors)}
+${emitPage0PresentationTransfer('PRESENTATION_SCREEN_COLORS_B1', 'ZX0_TILE_COLOR_BUFFER', 'CLRTBL2 + #800', 'PRESENTATION_SCREEN_COLOR_B1_SIZE', config.compression.compressColors)}
+${emitPage0PresentationTransfer('PRESENTATION_SCREEN_COLORS_B2', 'ZX0_TILE_COLOR_BUFFER', 'CLRTBL2 + #1000', 'PRESENTATION_SCREEN_COLOR_B2_SIZE', config.compression.compressColors)}
+${emitPage0PresentationTransfer('PRESENTATION_SCREEN_NAMETBL', 'ZX0_SCREEN_BUFFER', 'NAMETBL', 'PRESENTATION_SCREEN_NAMETBL_SIZE', config.compression.compressNameTable)}
     call ENASCR
 `
         : !usesMapper
@@ -682,7 +663,13 @@ function buildScreenResourcePolicyManifest(analysis) {
         lines.push(`- tile_bank: ${tileBankId}`);
         lines.push(`- sprite_pattern_slots: ${spritePatternSlots}`);
         lines.push(`- music_in_game: ${musicInGame}`);
-        lines.push(`- layout: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_LAYOUT`)}`);
+        if (screen?.blockOptimization?.backgroundMode && screen.blockOptimization.backgroundMode !== 'raw') {
+            lines.push(`- background_block_catalog: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_BLOCK_CATALOG`)}`);
+            lines.push(`- background_block_map: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_BLOCK_MAP`)}`);
+        }
+        else {
+            lines.push(`- layout: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_LAYOUT`)}`);
+        }
         lines.push(`- effects_layout: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_EFFECTS_LAYOUT`)}`);
         lines.push(`- effect_zone_table: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_EFFECT_ZONE_TABLE`)}`);
         lines.push(`- behavior: ${buildResourceId(`BEHAVIOR_${screenNameAsm}_${index}_DATA`)}`);
@@ -756,6 +743,12 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, targetFo
         const screenNameWithIndex = `${screen.name}_${index}`;
         const tileBankDefinitions = resolveTileBankDefinitions(screen, analysis);
         const backgroundLayoutBytes = buildLayerLayoutBytes(screen, 'background', analysis, tileBankDefinitions);
+        const backgroundBlockMap = (0, blockMapBuilder_1.buildScreenBlockMapFromBytes)({
+            bytes: backgroundLayoutBytes,
+            width: SCREEN_WIDTH,
+            height: SCREEN_HEIGHT,
+            mode: screen.blockOptimization?.backgroundMode,
+        });
         const effectsLayoutBytes = buildLayerLayoutBytes(screen, 'effects', analysis, tileBankDefinitions);
         const hasEffectsLayoutData = effectsLayoutBytes.some(value => value !== 0);
         const effectZoneBytes = buildEffectZoneBytes(screen);
@@ -781,6 +774,7 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, targetFo
             screenName,
             screenNameWithIndex,
             backgroundLayoutBytes,
+            backgroundBlockMap,
             effectsLayoutBytes,
             hasEffectsLayoutData,
             effectZoneBytes,
@@ -830,7 +824,7 @@ SCREEN_RUNTIME_SUMMARY_FLAG_HAS_ANIM_TILES EQU #08
         screenExports.forEach((screenExport) => {
             const { screenName, index, hasEffectsLayoutData, effectZoneCount, animatedGroupCount, entityCount, spritePatternSlots, musicInGame, summaryFlags, } = screenExport;
             code += `SCREEN_${screenName}_${index}_ID EQU ${index}
-SCREEN_${screenName}_${index}_LAYOUT_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_LAYOUT`, mapperWindow)}
+SCREEN_${screenName}_${index}_LAYOUT_BANK EQU ${screenExport.backgroundBlockMap ? 0 : (0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_LAYOUT`, mapperWindow)}
 BEHAVIOR_${screenName}_${index}_DATA_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)(`BEHAVIOR_${screenName}_${index}_DATA`, mapperWindow)}
 SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`, mapperWindow)}
 SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_PRESENT EQU ${hasEffectsLayoutData ? 1 : 0}
@@ -838,6 +832,16 @@ SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_SIZE EQU ${SCREEN_WIDTH * SCREEN_HE
 SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`, mapperWindow)}
 SCREEN_${screenName}_${index}_EFFECT_ZONE_COUNT EQU ${effectZoneCount}
 SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_SIZE EQU ${effectZoneCount * 8}
+SCREEN_${screenName}_${index}_BLOCK_LAYOUT_PRESENT EQU ${screenExport.backgroundBlockMap ? 1 : 0}
+SCREEN_${screenName}_${index}_BLOCK_LAYOUT_MODE EQU ${screenExport.backgroundBlockMap?.blockWidth ?? 0}
+SCREEN_${screenName}_${index}_BLOCK_CATALOG_BANK EQU ${screenExport.backgroundBlockMap ? (0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`, mapperWindow) : 0}
+SCREEN_${screenName}_${index}_BLOCK_CATALOG_COUNT EQU ${screenExport.backgroundBlockMap?.catalog.length ?? 0}
+SCREEN_${screenName}_${index}_BLOCK_CATALOG_SIZE EQU ${screenExport.backgroundBlockMap?.catalogLengthBytes ?? 0}
+SCREEN_${screenName}_${index}_BLOCK_MAP_BANK EQU ${screenExport.backgroundBlockMap ? (0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_BLOCK_MAP`, mapperWindow) : 0}
+SCREEN_${screenName}_${index}_BLOCK_MAP_WIDTH EQU ${screenExport.backgroundBlockMap?.mapWidth ?? 0}
+SCREEN_${screenName}_${index}_BLOCK_MAP_HEIGHT EQU ${screenExport.backgroundBlockMap?.mapHeight ?? 0}
+SCREEN_${screenName}_${index}_BLOCK_MAP_SIZE EQU ${screenExport.backgroundBlockMap?.mapLengthBytes ?? 0}
+SCREEN_${screenName}_${index}_BLOCK_TOTAL_SIZE EQU ${screenExport.backgroundBlockMap?.optimizedLengthBytes ?? 0}
 SCREEN_${screenName}_${index}_ANIM_GROUP_COUNT EQU ${animatedGroupCount}
 SCREEN_${screenName}_${index}_ENTITY_COUNT EQU ${entityCount}
 SCREEN_${screenName}_${index}_SPRITE_PATTERN_SLOTS EQU ${spritePatternSlots}
@@ -871,22 +875,34 @@ screen_runtime_summary_table:
 
 `;
         screenExports.forEach((screenExport) => {
-            const { screen, index, screenName, screenNameWithIndex, backgroundLayoutBytes, effectsLayoutBytes, hasEffectsLayoutData, effectZoneBytes, effectZoneCount } = screenExport;
+            const { screen, index, screenName, screenNameWithIndex, backgroundLayoutBytes, backgroundBlockMap, effectsLayoutBytes, hasEffectsLayoutData, effectZoneBytes, effectZoneCount } = screenExport;
             if (screen.layers && screen.layers.background) {
                 if (dataInBank4) {
                     // Data tables are emitted in bank4 section; skip here
-                    code += `; [SCREEN_${screenName}_${index}_LAYOUT emitted in bank4 section]\n`;
+                    if (backgroundBlockMap) {
+                        code += `; [SCREEN_${screenName}_${index}_BLOCK_LAYOUT replaces raw SCREEN_${screenName}_${index}_LAYOUT in bank4 section]\n`;
+                        code += `; [SCREEN_${screenName}_${index}_BLOCK_CATALOG emitted in bank4 section]\n`;
+                        code += `; [SCREEN_${screenName}_${index}_BLOCK_MAP emitted in bank4 section]\n`;
+                    }
+                    else {
+                        code += `; [SCREEN_${screenName}_${index}_LAYOUT emitted in bank4 section]\n`;
+                    }
                     code += `; [SCREEN_${screenName}_${index}_EFFECTS_LAYOUT emitted in bank4 section]\n`;
                     code += `; [SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE emitted in bank4 section]\n`;
                     code += `; [BEHAVIOR_${screenName}_${index}_DATA emitted in bank4 section]\n\n`;
                 }
                 else { // not dataInBank4 - emit all data inline
-                    const referenceComments = [];
-                    referenceComments.push(`; Generated using exact Screen Editor layout export logic`);
-                    referenceComments.push(`; Byte values represent actual character codes in VRAM`);
-                    const asmCode = (0, screenUtils_1.generateScreenLayoutASMCode)(screenNameWithIndex, SCREEN_WIDTH, SCREEN_HEIGHT, backgroundLayoutBytes, referenceComments, 'hex');
-                    code += asmCode;
-                    code += `\n`;
+                    if (backgroundBlockMap) {
+                        code += generateBackgroundBlockDataSection(screenName, index, screen.name, backgroundBlockMap);
+                    }
+                    else {
+                        const referenceComments = [];
+                        referenceComments.push(`; Generated using exact Screen Editor layout export logic`);
+                        referenceComments.push(`; Byte values represent actual character codes in VRAM`);
+                        const asmCode = (0, screenUtils_1.generateScreenLayoutASMCode)(screenNameWithIndex, SCREEN_WIDTH, SCREEN_HEIGHT, backgroundLayoutBytes, referenceComments, 'hex');
+                        code += asmCode;
+                        code += `\n`;
+                    }
                     code += generateRawByteBlock(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`, effectsLayoutBytes, hasEffectsLayoutData
                         ? [
                             `Alternate Effects layer for ${screen.name}`,
@@ -1304,6 +1320,199 @@ copy_layout_rect_ram_to_ram:
     pop bc
     jr .copy_rect_ram_row_loop
 
+${(0, registerContract_1.buildRegisterContractComment)({
+            purpose: 'Expand a block-optimized screen background into the linear 32x24 runtime layout buffer.',
+            inputs: ['A = block width/mode (2 or 4)', 'HL = block catalog source pointer', 'DE = block index map source pointer'],
+            outputs: ['runtime_background_layout rebuilt as a linear 32x24 byte map'],
+            clobbers: ['AF', 'BC', 'DE', 'HL'],
+            preserved: ['IX', 'IY'],
+            notes: ['Uses screen_block_catalog_ptr and screen_block_map_ptr as scratch pointers.', 'Callers should copy runtime_background_layout to runtime_screen_layout after expansion.']
+        })}expand_screen_block_layout_to_background:
+    ld (screen_block_catalog_ptr), hl
+    ld (screen_block_map_ptr), de
+    cp 4
+    jp z, expand_screen_block_layout_4x4
+    cp 2
+    jp z, expand_screen_block_layout_2x2
+    ret
+
+expand_screen_block_layout_2x2:
+    ld de, runtime_background_layout
+    ld c, 12
+.expand2x2_row_loop:
+    ld b, 16
+.expand2x2_col_loop:
+    push bc
+    push de
+    ld hl, (screen_block_map_ptr)
+    ld a, (hl)
+    inc hl
+    ld (screen_block_map_ptr), hl
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    ld bc, (screen_block_catalog_ptr)
+    add hl, bc
+    pop de
+    push de
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    pop de
+    push de
+    inc hl
+    push bc
+    ld bc, 32
+    ex de, hl
+    add hl, bc
+    ex de, hl
+    pop bc
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    pop de
+    inc de
+    inc de
+    pop bc
+    dec b
+    jp nz, .expand2x2_col_loop
+    push bc
+    ld bc, 32
+    ex de, hl
+    add hl, bc
+    ex de, hl
+    pop bc
+    dec c
+    jp nz, .expand2x2_row_loop
+    ret
+
+expand_screen_block_layout_4x4:
+    ld de, runtime_background_layout
+    ld c, 6
+.expand4x4_row_loop:
+    ld b, 8
+.expand4x4_col_loop:
+    push bc
+    push de
+    ld hl, (screen_block_map_ptr)
+    ld a, (hl)
+    inc hl
+    ld (screen_block_map_ptr), hl
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld bc, (screen_block_catalog_ptr)
+    add hl, bc
+    pop de
+    push de
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    pop de
+    push de
+    push bc
+    ld bc, 32
+    ex de, hl
+    add hl, bc
+    ex de, hl
+    pop bc
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    pop de
+    push de
+    push bc
+    ld bc, 64
+    ex de, hl
+    add hl, bc
+    ex de, hl
+    pop bc
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    pop de
+    push de
+    push bc
+    ld bc, 96
+    ex de, hl
+    add hl, bc
+    ex de, hl
+    pop bc
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    inc hl
+    inc de
+    ld a, (hl)
+    ld (de), a
+    pop de
+    inc de
+    inc de
+    inc de
+    inc de
+    pop bc
+    dec b
+    jp nz, .expand4x4_col_loop
+    push bc
+    ld bc, 96
+    ex de, hl
+    add hl, bc
+    ex de, hl
+    pop bc
+    dec c
+    jp nz, .expand4x4_row_loop
+    ret
+
 load_screen:
 
     ; Load screen (A = screen ID)
@@ -1347,7 +1556,10 @@ ${tileBankReadyLabel}:
             const activeAreaOffset = (activeAreaY * 32) + activeAreaX;
             const activeAreaBytes = activeAreaWidth * activeAreaHeight;
             const runtimeEffectZoneCount = Math.min((screen.effectZones || []).length, MAX_RUNTIME_EFFECT_ZONES);
+            const hasBackgroundBlockMap = !!screenExport?.backgroundBlockMap;
             const layoutResourceId = buildResourceId(`SCREEN_${screenName}_${index}_LAYOUT`);
+            const blockCatalogResourceId = buildResourceId(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`);
+            const blockMapResourceId = buildResourceId(`SCREEN_${screenName}_${index}_BLOCK_MAP`);
             const effectsLayoutResourceId = buildResourceId(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`);
             const behaviorResourceId = buildResourceId(`BEHAVIOR_${screenName}_${index}_DATA`);
             const effectZoneTableResourceId = buildResourceId(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`);
@@ -1370,6 +1582,182 @@ ${tileBankReadyLabel}:
             }));
             const hasImportedHudFrame = importedHudFrameCells.length > 0;
             const importedHudFrameLabelBase = `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
+            const zoneDoneLabel = `.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done`;
+            const backgroundRuntimeLoadCode = hasBackgroundBlockMap
+                ? useResourceManager ? `    ; Load optimized background block data into RAM scratch buffers and expand it
+    ld a, ${blockCatalogResourceId}
+    ld de, runtime_effects_layout
+    call resource_load_to_ram_by_id
+    ld a, ${blockMapResourceId}
+    ld de, runtime_screen_layout
+    call resource_load_to_ram_by_id
+    ld hl, runtime_effects_layout
+    ld de, runtime_screen_layout
+    ld a, SCREEN_${screenName}_${index}_BLOCK_LAYOUT_MODE
+    call expand_screen_block_layout_to_background
+    ld hl, runtime_background_layout
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+`
+                    : usesMapper ? `    ; Load optimized background block data into RAM scratch buffers and expand it
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_BLOCK_CATALOG_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`)}
+    ld de, runtime_effects_layout
+    ld bc, SCREEN_${screenName}_${index}_BLOCK_CATALOG_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_BLOCK_MAP_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_BLOCK_MAP`)}
+    ld de, runtime_screen_layout
+    ld bc, SCREEN_${screenName}_${index}_BLOCK_MAP_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+
+    ld hl, runtime_effects_layout
+    ld de, runtime_screen_layout
+    ld a, SCREEN_${screenName}_${index}_BLOCK_LAYOUT_MODE
+    call expand_screen_block_layout_to_background
+    ld hl, runtime_background_layout
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+`
+                        : `    ; Load optimized background block data into RAM scratch buffers and expand it
+    ld hl, SCREEN_${screenName}_${index}_BLOCK_CATALOG
+    ld de, runtime_effects_layout
+    ld bc, SCREEN_${screenName}_${index}_BLOCK_CATALOG_SIZE
+    ldir
+    ld hl, SCREEN_${screenName}_${index}_BLOCK_MAP
+    ld de, runtime_screen_layout
+    ld bc, SCREEN_${screenName}_${index}_BLOCK_MAP_SIZE
+    ldir
+    ld hl, runtime_effects_layout
+    ld de, runtime_screen_layout
+    ld a, SCREEN_${screenName}_${index}_BLOCK_LAYOUT_MODE
+    call expand_screen_block_layout_to_background
+    ld hl, runtime_background_layout
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+`
+                : useResourceManager ? `    ; Rebuild mutable runtime screen background from RAM cache
+    ld a, ${layoutResourceId}
+    call resource_load_screen_layout_cached
+`
+                    : usesMapper ? `    ; Build mutable runtime screen background maps in RAM
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
+    ld de, runtime_background_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+`
+                        : `    ; Build mutable runtime screen background maps in RAM
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
+    ld de, runtime_background_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+`;
+            const effectsBehaviorRuntimeLoadCode = useResourceManager ? `    ld a, ${effectsLayoutResourceId}
+    call resource_load_effects_layout_cached
+    ld a, ${behaviorResourceId}
+    call resource_load_behavior_map_cached
+    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, ${zoneDoneLabel}
+    ld a, ${effectZoneTableResourceId}
+    call resource_load_effect_zone_table_cached
+${zoneDoneLabel}:
+`
+                : usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`)}
+    ld de, runtime_effects_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, BEHAVIOR_${screenName}_${index}_DATA_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`BEHAVIOR_${screenName}_${index}_DATA`)}
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+
+    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, ${zoneDoneLabel}
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`)}
+    ld de, runtime_effect_zone_table
+    ld bc, ${runtimeEffectZoneCount * 8}
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+${zoneDoneLabel}:
+`
+                    : `    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
+    ld de, runtime_effects_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, BEHAVIOR_${screenName}_${index}_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, ${zoneDoneLabel}
+    ld hl, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE
+    ld de, runtime_effect_zone_table
+    ld bc, ${runtimeEffectZoneCount * 8}
+    ldir
+${zoneDoneLabel}:
+`;
+            const vramCopyCode = shouldPreserveHudArea
+                ? activeAreaWidth === 32 ? `    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
+    ld hl, runtime_screen_layout + ${activeAreaOffset}
+    ld de, NAMETBL + ${activeAreaOffset}
+    ld bc, ${activeAreaBytes}
+    call FAST_LDIRVM
+`
+                    : `    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rectangle
+    ld hl, runtime_screen_layout + ${activeAreaOffset}
+    ld de, NAMETBL + ${activeAreaOffset}
+    ld a, ${activeAreaHeight}
+    ld c, ${activeAreaWidth}
+    call copy_layout_rect_to_vram
+`
+                : `    ; Now load screen layout (full 32x24) from runtime RAM buffer
+    ld hl, runtime_screen_layout
+    ld de, NAMETBL
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    call FAST_LDIRVM           ; Fast VRAM write (direct port access)
+`;
             if (hasImportedHudFrame) {
                 code += `${importedHudFrameLabelBase}_data:
     ; Imported HUD frame snapshot for ${screen.name} (${importedHudFrameCells.length} cells)
@@ -1432,161 +1820,7 @@ ${tileBankLoadCode}`;
     call update_sprites_to_vram
 `;
                 }
-                if (activeAreaWidth === 32) {
-                    code += useResourceManager ? `    ; Rebuild mutable runtime screen/effects/behavior maps from RAM cache
-    ld a, ${layoutResourceId}
-    call resource_load_screen_layout_cached
-    ld a, ${effectsLayoutResourceId}
-    call resource_load_effects_layout_cached
-    ld a, ${behaviorResourceId}
-    call resource_load_behavior_map_cached
-    ld a, ${runtimeEffectZoneCount}
-    ld (current_effect_zone_count), a
-    or a
-    jr z, .load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done
-    ld a, ${effectZoneTableResourceId}
-    call resource_load_effect_zone_table_cached
-.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
-    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
-    ld hl, runtime_screen_layout + ${activeAreaOffset}
-    ld de, NAMETBL + ${activeAreaOffset}
-    ld bc, ${activeAreaBytes}
-    call FAST_LDIRVM
-` : usesMapper ? `    ; Load active game area (contiguous rows)
-    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
-    call mapper_set_bank_${mapperWindow.dataWindowPage}
-    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)} + ${activeAreaOffset}
-    ld de, NAMETBL + ${activeAreaOffset}
-    ld bc, ${activeAreaBytes}
-    call FAST_LDIRVM
-    call mapper_pop_${mapperWindow.dataWindowPage}
-` : `    ; Load active game area (contiguous rows)
-    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)} + ${activeAreaOffset}
-    ld de, NAMETBL + ${activeAreaOffset}
-    ld bc, ${activeAreaBytes}
-    call FAST_LDIRVM
-`;
-                }
-                else {
-                    code += useResourceManager ? `    ; Rebuild mutable runtime screen/effects/behavior maps from RAM cache
-    ld a, ${layoutResourceId}
-    call resource_load_screen_layout_cached
-    ld a, ${effectsLayoutResourceId}
-    call resource_load_effects_layout_cached
-    ld a, ${behaviorResourceId}
-    call resource_load_behavior_map_cached
-    ld a, ${runtimeEffectZoneCount}
-    ld (current_effect_zone_count), a
-    or a
-    jr z, .load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done
-    ld a, ${effectZoneTableResourceId}
-    call resource_load_effect_zone_table_cached
-.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
-    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rectangle
-    ld hl, runtime_screen_layout + ${activeAreaOffset}
-    ld de, NAMETBL + ${activeAreaOffset}
-    ld a, ${activeAreaHeight}
-    ld c, ${activeAreaWidth}
-    call copy_layout_rect_to_vram
-` : usesMapper ? `    ; Load active game area (rectangular copy by rows)
-    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
-    call mapper_set_bank_${mapperWindow.dataWindowPage}
-    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rectangle
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)} + ${activeAreaOffset}
-    ld de, NAMETBL + ${activeAreaOffset}
-    ld a, ${activeAreaHeight}
-    ld c, ${activeAreaWidth}
-    call copy_layout_rect_to_vram
-    call mapper_pop_${mapperWindow.dataWindowPage}
-` : `    ; Load active game area (rectangular copy by rows)
-    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rectangle
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)} + ${activeAreaOffset}
-    ld de, NAMETBL + ${activeAreaOffset}
-    ld a, ${activeAreaHeight}
-    ld c, ${activeAreaWidth}
-    call copy_layout_rect_to_vram
-`;
-                }
-                code += useResourceManager ? `    ; Runtime maps were already populated via resource manager above
-` : usesMapper ? `    ; Build mutable runtime screen/effects/behavior maps in RAM
-    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
-    call mapper_set_bank_${mapperWindow.dataWindowPage}
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
-    ld de, runtime_background_layout
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
-    ld de, runtime_screen_layout
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-    call mapper_pop_${mapperWindow.dataWindowPage}
-
-    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_BANK
-    call mapper_set_bank_${mapperWindow.dataWindowPage}
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`)}
-    ld de, runtime_effects_layout
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-    call mapper_pop_${mapperWindow.dataWindowPage}
-
-    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, BEHAVIOR_${screenName}_${index}_DATA_BANK
-    call mapper_set_bank_${mapperWindow.dataWindowPage}
-    ld hl, ${mapperAddr(`BEHAVIOR_${screenName}_${index}_DATA`)}
-    ld de, runtime_behavior_map
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-    call mapper_pop_${mapperWindow.dataWindowPage}
-
-    ld a, ${runtimeEffectZoneCount}
-    ld (current_effect_zone_count), a
-    or a
-    jr z, .load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done
-    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK
-    call mapper_set_bank_${mapperWindow.dataWindowPage}
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`)}
-    ld de, runtime_effect_zone_table
-    ld bc, ${runtimeEffectZoneCount * 8}
-    ldir
-    call mapper_pop_${mapperWindow.dataWindowPage}
-` : `    ; Build mutable runtime screen/effects/behavior maps in RAM
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
-    ld de, runtime_background_layout
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
-    ld de, runtime_screen_layout
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-
-    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
-    ld de, runtime_effects_layout
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-
-    ld hl, BEHAVIOR_${screenName}_${index}_DATA
-    ld de, runtime_behavior_map
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-
-    ld a, ${runtimeEffectZoneCount}
-    ld (current_effect_zone_count), a
-    or a
-    jr z, .load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done
-    ld hl, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE
-    ld de, runtime_effect_zone_table
-    ld bc, ${runtimeEffectZoneCount * 8}
-    ldir
-`;
-                code += `${useResourceManager ? '' : `.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
-`}    ld a, ${animatedGroupCount}
+                code += `${backgroundRuntimeLoadCode}${effectsBehaviorRuntimeLoadCode}${vramCopyCode}    ld a, ${animatedGroupCount}
     ld (current_screen_anim_group_count), a
     ld a, ${entityCount}
     ld (current_screen_entity_count), a
@@ -1642,116 +1876,7 @@ ${tileBankLoadCode}`;
     call update_sprites_to_vram
 `;
                 }
-                code += useResourceManager ? `    ; Rebuild mutable runtime screen/effects/behavior maps from RAM cache
-    ld a, ${layoutResourceId}
-    call resource_load_screen_layout_cached
-    ld a, ${effectsLayoutResourceId}
-    call resource_load_effects_layout_cached
-    ld a, ${behaviorResourceId}
-    call resource_load_behavior_map_cached
-    ld a, ${runtimeEffectZoneCount}
-    ld (current_effect_zone_count), a
-    or a
-    jr z, .load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done
-    ld a, ${effectZoneTableResourceId}
-    call resource_load_effect_zone_table_cached
-.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
-    ; Now load screen layout (full 32x24) from runtime RAM buffer
-    ld hl, runtime_screen_layout
-    ld de, NAMETBL
-    ld bc, SCREEN_${screenName}_${index}_SIZE
-    call FAST_LDIRVM           ; Fast VRAM write (direct port access)
-` : usesMapper ? `    ; Now load screen layout (full 32x24)
-    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
-    call mapper_set_bank_${mapperWindow.dataWindowPage}
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
-    ld de, NAMETBL
-    ld bc, SCREEN_${screenName}_${index}_SIZE
-    call FAST_LDIRVM           ; Fast VRAM write (direct port access)
-    call mapper_pop_${mapperWindow.dataWindowPage}
-` : `    ; Now load screen layout (full 32x24)
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
-    ld de, NAMETBL
-    ld bc, SCREEN_${screenName}_${index}_SIZE
-    call FAST_LDIRVM           ; Fast VRAM write (direct port access)
-`;
-                code += useResourceManager ? `    ; Runtime maps were already populated via resource manager above
-` : usesMapper ? `    ; Build mutable runtime screen/effects/behavior maps in RAM
-    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
-    call mapper_set_bank_${mapperWindow.dataWindowPage}
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
-    ld de, runtime_background_layout
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
-    ld de, runtime_screen_layout
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-    call mapper_pop_${mapperWindow.dataWindowPage}
-
-    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_BANK
-    call mapper_set_bank_${mapperWindow.dataWindowPage}
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`)}
-    ld de, runtime_effects_layout
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-    call mapper_pop_${mapperWindow.dataWindowPage}
-
-    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, BEHAVIOR_${screenName}_${index}_DATA_BANK
-    call mapper_set_bank_${mapperWindow.dataWindowPage}
-    ld hl, ${mapperAddr(`BEHAVIOR_${screenName}_${index}_DATA`)}
-    ld de, runtime_behavior_map
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-    call mapper_pop_${mapperWindow.dataWindowPage}
-
-    ld a, ${runtimeEffectZoneCount}
-    ld (current_effect_zone_count), a
-    or a
-    jr z, .load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done
-    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK
-    call mapper_set_bank_${mapperWindow.dataWindowPage}
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`)}
-    ld de, runtime_effect_zone_table
-    ld bc, ${runtimeEffectZoneCount * 8}
-    ldir
-    call mapper_pop_${mapperWindow.dataWindowPage}
-` : `    ; Build mutable runtime screen/effects/behavior maps in RAM
-    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
-    ld de, runtime_background_layout
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-    ld hl, SCREEN_${screenName}_${index}_LAYOUT
-    ld de, runtime_screen_layout
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-
-    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
-    ld de, runtime_effects_layout
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-
-    ld hl, BEHAVIOR_${screenName}_${index}_DATA
-    ld de, runtime_behavior_map
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-
-    ld a, ${runtimeEffectZoneCount}
-    ld (current_effect_zone_count), a
-    or a
-    jr z, .load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done
-    ld hl, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE
-    ld de, runtime_effect_zone_table
-    ld bc, ${runtimeEffectZoneCount * 8}
-    ldir
-`;
-                code += `${useResourceManager ? '' : `.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done:
-`}    ld a, ${animatedGroupCount}
+                code += `${backgroundRuntimeLoadCode}${effectsBehaviorRuntimeLoadCode}${vramCopyCode}    ld a, ${animatedGroupCount}
     ld (current_screen_anim_group_count), a
     ld a, ${entityCount}
     ld (current_screen_entity_count), a
@@ -1851,6 +1976,12 @@ function getScreensBank4Data(analysis, romMode = 'simple32k') {
         const screenNameWithIndex = `${screen.name}_${index}`;
         const tileBankDefinitions = resolveTileBankDefinitions(screen, analysis);
         const backgroundLayoutBytes = buildLayerLayoutBytes(screen, 'background', analysis, tileBankDefinitions);
+        const backgroundBlockMap = (0, blockMapBuilder_1.buildScreenBlockMapFromBytes)({
+            bytes: backgroundLayoutBytes,
+            width: SCREEN_WIDTH,
+            height: SCREEN_HEIGHT,
+            mode: screen.blockOptimization?.backgroundMode,
+        });
         const effectsLayoutBytes = buildLayerLayoutBytes(screen, 'effects', analysis, tileBankDefinitions);
         const hasEffectsLayoutData = effectsLayoutBytes.some(value => value !== 0);
         const effectZoneBytes = buildEffectZoneBytes(screen);
@@ -1876,6 +2007,7 @@ function getScreensBank4Data(analysis, romMode = 'simple32k') {
             screenName,
             screenNameWithIndex,
             backgroundLayoutBytes,
+            backgroundBlockMap,
             effectsLayoutBytes,
             hasEffectsLayoutData,
             effectZoneBytes,
@@ -1893,12 +2025,16 @@ function getScreensBank4Data(analysis, romMode = 'simple32k') {
 
 `;
     screenExports.forEach((screenExport) => {
-        const { screen, index, screenName, screenNameWithIndex, backgroundLayoutBytes, effectsLayoutBytes, hasEffectsLayoutData, effectZoneBytes, effectZoneCount } = screenExport;
+        const { screen, index, screenName, screenNameWithIndex, backgroundLayoutBytes, backgroundBlockMap, effectsLayoutBytes, hasEffectsLayoutData, effectZoneBytes, effectZoneCount } = screenExport;
         if (screen.layers && screen.layers.background) {
-            // Background layout
-            const asmCode = (0, screenUtils_1.generateScreenLayoutASMCode)(screenNameWithIndex, SCREEN_WIDTH, SCREEN_HEIGHT, backgroundLayoutBytes, [], 'hex');
-            asm += asmCode;
-            asm += `\n`;
+            if (backgroundBlockMap) {
+                asm += generateBackgroundBlockDataSection(screenName, index, screen.name, backgroundBlockMap);
+            }
+            else {
+                const asmCode = (0, screenUtils_1.generateScreenLayoutASMCode)(screenNameWithIndex, SCREEN_WIDTH, SCREEN_HEIGHT, backgroundLayoutBytes, [], 'hex');
+                asm += asmCode;
+                asm += `\n`;
+            }
             // Effects layout
             asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`, effectsLayoutBytes, hasEffectsLayoutData
                 ? [`Alternate Effects layer for ${screen.name}`]

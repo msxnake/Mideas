@@ -396,6 +396,13 @@ page0_copy_to_vram:
 
 init_game_systems:
     call DISSCR               ; Disable screen while loading VRAM assets
+    ; Cold boot / restart must not trust cached VRAM state from RAM contents.
+    xor a
+    ld (vram_cache_tile_patterns_ready), a
+    ld (vram_cache_tile_colors_ready), a
+    ld (vram_cache_font_ready), a
+    ld a, #FF
+    ld (current_screen2_tilebank_id), a
 ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize component systems (entities detected)
     call init_components
 ` : `    ; No entities - skipping component system initialization
@@ -1096,6 +1103,13 @@ ${farTrampolines}${residentCallWrappers}; ======================================
 ; ==================================================================
 init_game_systems:
     call DISSCR               ; Disable screen while loading VRAM assets
+    ; Cold boot / restart must not trust cached VRAM state from RAM contents.
+    xor a
+    ld (vram_cache_tile_patterns_ready), a
+    ld (vram_cache_tile_colors_ready), a
+    ld (vram_cache_font_ready), a
+    ld a, #FF
+    ld (current_screen2_tilebank_id), a
 ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize component systems (entities detected)
     call init_components
 ` : `    ; No entities - skipping component system initialization

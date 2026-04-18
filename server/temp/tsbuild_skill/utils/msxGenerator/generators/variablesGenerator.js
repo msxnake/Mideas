@@ -206,6 +206,10 @@ function generateVariablesFile(analysis) {
     currentAddress += 768;
     code += `runtime_effects_layout EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Alternate effects layout copy for secret zones (32x24)\n`;
     currentAddress += 768;
+    code += `screen_block_catalog_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Scratch pointer to current screen block catalog during layout expansion\n`;
+    currentAddress += 2;
+    code += `screen_block_map_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Scratch pointer to current screen block index map during layout expansion\n`;
+    currentAddress += 2;
     code += `runtime_effect_zone_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current screen effect zone table (MAX_RUNTIME_EFFECT_ZONES * 8 bytes)\n`;
     currentAddress += 64 * 8;
     code += `current_effect_zone_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of effect zones copied into runtime_effect_zone_table\n`;
