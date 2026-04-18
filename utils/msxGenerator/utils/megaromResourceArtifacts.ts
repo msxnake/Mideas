@@ -95,6 +95,8 @@ function inferResourceTypeKey(groupName: string, label: string): string {
     if (upperLabel.includes('EFFECT_ZONE_TABLE')) return 'SCREEN_EFFECT_ZONE_TABLE';
     if (upperLabel.startsWith('BEHAVIOR_')) return 'SCREEN_BEHAVIOR_MAP';
     if (upperLabel.includes('EFFECTS_LAYOUT')) return 'SCREEN_EFFECTS_LAYOUT';
+    if (upperLabel.includes('BLOCK_CATALOG')) return 'SCREEN_BLOCK_CATALOG';
+    if (upperLabel.includes('BLOCK_MAP')) return 'SCREEN_BLOCK_MAP';
     if (upperLabel.includes('LAYOUT')) return 'SCREEN_LAYOUT';
     return 'SCREEN_DATA';
   }

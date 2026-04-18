@@ -88,6 +88,20 @@ function renderModeSummary(
   );
 }
 
+function renderOverlayLegendItem(
+  swatchClassName: string,
+  label: string,
+  description: string
+) {
+  return (
+    <div className="flex items-center gap-2 rounded border border-msx-border/50 bg-msx-bgcolor/30 px-2 py-1">
+      <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-sm ${swatchClassName}`} aria-hidden="true" />
+      <span className="text-msx-textprimary">{label}</span>
+      <span className="text-msx-textsecondary">{description}</span>
+    </div>
+  );
+}
+
 export const ScreenOptimizationPanel: React.FC<ScreenOptimizationPanelProps> = ({
   currentMode,
   rawLengthBytes,
@@ -168,6 +182,14 @@ export const ScreenOptimizationPanel: React.FC<ScreenOptimizationPanelProps> = (
           </button>
         </div>
         <div className="mt-2 text-msx-textsecondary">{overlayStatusText}</div>
+        <div className="mt-2 space-y-1">
+          <div className="text-msx-textprimary">Legend</div>
+          <div className="space-y-1">
+            {renderOverlayLegendItem('bg-cyan-400', 'Cyan', '= reused block')}
+            {renderOverlayLegendItem('bg-amber-400', 'Amber', '= unique block')}
+            {renderOverlayLegendItem('bg-msx-highlight', 'xN', '= total occurrences in the exported block map')}
+          </div>
+        </div>
       </div>
 
       <div className="space-y-2">
