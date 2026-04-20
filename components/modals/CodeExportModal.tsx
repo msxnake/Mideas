@@ -47,6 +47,7 @@ type RomBuildConfig = {
 
 interface Zx0CompressionOptions {
   screens: boolean;
+  screenBlockMaps: boolean;
   effects: boolean;
   behaviorMaps: boolean;
   tilePatterns: boolean;
@@ -59,6 +60,7 @@ interface Zx0CompressionOptions {
 
 const DEFAULT_ZX0_OPTIONS: Zx0CompressionOptions = {
   screens: true,
+  screenBlockMaps: true,
   effects: true,
   behaviorMaps: true,
   tilePatterns: true,
@@ -67,6 +69,32 @@ const DEFAULT_ZX0_OPTIONS: Zx0CompressionOptions = {
   fontColors: true,
   spritePatterns: true,
   presentationScreen: true,
+};
+
+const ZX0_OPTION_ITEMS: { key: keyof Zx0CompressionOptions; label: string }[] = [
+  { key: 'screens',            label: 'Screens (layout maps)' },
+  { key: 'screenBlockMaps',    label: 'Screen block maps (2x2/4x4)' },
+  { key: 'effects',            label: 'Effects (secret layouts)' },
+  { key: 'behaviorMaps',       label: 'Behavior maps' },
+  { key: 'tilePatterns',       label: 'Tile patterns' },
+  { key: 'tileColors',         label: 'Tile colors' },
+  { key: 'fontPatterns',       label: 'Font patterns' },
+  { key: 'fontColors',         label: 'Font colors' },
+  { key: 'spritePatterns',     label: 'Sprite patterns' },
+  { key: 'presentationScreen', label: 'Presentation Screen' },
+];
+
+const ZX0_NONE_OPTIONS: Zx0CompressionOptions = {
+  screens: false,
+  screenBlockMaps: false,
+  effects: false,
+  behaviorMaps: false,
+  tilePatterns: false,
+  tileColors: false,
+  fontPatterns: false,
+  fontColors: false,
+  spritePatterns: false,
+  presentationScreen: false,
 };
 
 interface GeneratedFile {
@@ -1061,6 +1089,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       alert(
         `ZX0 compression applied.\n\n` +
         `Screens: ${info.compressedScreens || 0}/${info.candidateScreens || 0}\n` +
+        `Screen block maps: ${info.compressedScreenBlockMaps || 0}/${info.candidateScreenBlockMaps || 0}\n` +
         `Effects: ${info.compressedEffects || 0}/${info.candidateEffects || 0}\n` +
         `Behavior maps: ${info.compressedBehaviorMaps || 0}/${info.candidateBehaviorMaps || 0}\n` +
         `Tile patterns: ${info.compressedTilePatterns || 0}/${info.candidateTilePatterns || 0}\n` +
@@ -1488,17 +1517,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 <p className="text-xs text-msx-textsecondary mb-1">
                   Data blocks to compress with ZX0:
                 </p>
-                {([
-                  { key: 'screens',            label: 'Screens (layout maps)' },
-                  { key: 'effects',            label: 'Effects (secret layouts)' },
-                  { key: 'behaviorMaps',       label: 'Behavior maps' },
-                  { key: 'tilePatterns',       label: 'Tile patterns' },
-                  { key: 'tileColors',         label: 'Tile colors' },
-                  { key: 'fontPatterns',       label: 'Font patterns' },
-                  { key: 'fontColors',         label: 'Font colors' },
-                  { key: 'spritePatterns',     label: 'Sprite patterns' },
-                  { key: 'presentationScreen', label: 'Presentation Screen' },
-                ] as { key: keyof Zx0CompressionOptions; label: string }[]).map(({ key, label }) => (
+                {ZX0_OPTION_ITEMS.map(({ key, label }) => (
                   <div key={key} className="flex items-center space-x-2">
                     <input
                       type="checkbox"
@@ -1521,7 +1540,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   </button>
                   <button
                     className="text-xs text-msx-textsecondary underline"
-                    onClick={() => setZx0Options({ screens: false, effects: false, behaviorMaps: false, tilePatterns: false, tileColors: false, fontPatterns: false, fontColors: false, spritePatterns: false, presentationScreen: false })}
+                    onClick={() => setZx0Options(ZX0_NONE_OPTIONS)}
                   >
                     None
                   </button>
@@ -1555,7 +1574,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   variant="secondary"
                   className="w-full"
                 >
-                  {isCompressingAsm ? 'Compressing...' : 'Compress Screen + Effects + Behavior + Tiles + Font (ZX0)'}
+                  {isCompressingAsm ? 'Compressing...' : 'Compress Screen + Block Maps + Effects + Behavior + Tiles + Font (ZX0)'}
                 </Button>
 
                 <Button
@@ -1601,6 +1620,9 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     <div className="font-semibold text-green-400">ZX0 Compression Applied</div>
                   <div>
                     Screens: {asmCompressionResult?.compressionInfo?.compressedScreens ?? 0}/{asmCompressionResult?.compressionInfo?.candidateScreens ?? 0}
+                  </div>
+                  <div>
+                    Screen block maps: {asmCompressionResult?.compressionInfo?.compressedScreenBlockMaps ?? 0}/{asmCompressionResult?.compressionInfo?.candidateScreenBlockMaps ?? 0}
                   </div>
                   <div>
                     Effects: {asmCompressionResult?.compressionInfo?.compressedEffects ?? 0}/{asmCompressionResult?.compressionInfo?.candidateEffects ?? 0}

@@ -667,6 +667,7 @@ function buildSpriteFrameGroups(spritePatternBlocks, sourceCode) {
 async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProgress = null) {
   const {
     screens             = true,
+    screenBlockMaps     = true,
     effects             = true,
     behaviorMaps        = true,
     tilePatterns        = true,
@@ -681,6 +682,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     applied: false,
     method: 'ZX0',
     candidateScreens: 0,
+    candidateScreenBlockMaps: 0,
     candidateEffects: 0,
     candidateBehaviorMaps: 0,
     candidateTilePatterns: 0,
@@ -689,6 +691,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     candidateFontColors: 0,
     candidateSpritePatterns: 0,
     compressedScreens: 0,
+    compressedScreenBlockMaps: 0,
     compressedEffects: 0,
     compressedBehaviorMaps: 0,
     compressedTilePatterns: 0,
@@ -715,6 +718,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     return { code: sourceCode, info };
   }
   const hasLayoutData = /SCREEN_[A-Z0-9_]+_\d+_LAYOUT:/.test(sourceCode);
+  const hasBlockCatalogData = /SCREEN_[A-Z0-9_]+_\d+_BLOCK_CATALOG:/.test(sourceCode);
+  const hasBlockMapData = /SCREEN_[A-Z0-9_]+_\d+_BLOCK_MAP:/.test(sourceCode);
   const hasEffectsData = /SCREEN_[A-Z0-9_]+_\d+_EFFECTS_LAYOUT:/.test(sourceCode);
   const hasBehaviorData = /BEHAVIOR_[A-Z0-9_]+_\d+_DATA:/.test(sourceCode);
   const hasPresentationNameData = /^\s*PRESENTATION_SCREEN_NAMETBL:\s*$/im.test(sourceCode);
@@ -727,6 +732,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const hasSpritePatternData = /^\s*(?:[A-Z][A-Z0-9_]*_F\d+_LAYER\d+|SPRITE_PLACEHOLDER_PATTERN):\s*$/im.test(sourceCode);
   if (
     !hasLayoutData &&
+    !hasBlockCatalogData &&
+    !hasBlockMapData &&
     !hasEffectsData &&
     !hasBehaviorData &&
     !hasPresentationNameData &&
@@ -764,6 +771,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   info.attempted = true;
   const lines = sourceCode.split(/\r?\n/);
   const layoutBlocks = collectAsmDataBlocks(lines, /^\s*(SCREEN_[A-Z0-9_]+_\d+_LAYOUT):\s*$/);
+  const blockCatalogBlocks = collectAsmDataBlocks(lines, /^\s*(SCREEN_[A-Z0-9_]+_\d+_BLOCK_CATALOG):\s*$/);
+  const blockMapBlocks = collectAsmDataBlocks(lines, /^\s*(SCREEN_[A-Z0-9_]+_\d+_BLOCK_MAP):\s*$/);
   const effectsBlocks = collectAsmDataBlocks(lines, /^\s*(SCREEN_[A-Z0-9_]+_\d+_EFFECTS_LAYOUT):\s*$/);
   const behaviorBlocks = collectAsmDataBlocks(lines, /^\s*(BEHAVIOR_[A-Z0-9_]+_\d+_DATA):\s*$/);
   const presentationNameBlocks = (presentationScreen && compressPresentationName)
@@ -783,6 +792,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
   if (
     layoutBlocks.length === 0 &&
+    blockCatalogBlocks.length === 0 &&
+    blockMapBlocks.length === 0 &&
     presentationNameBlocks.length === 0 &&
     effectsBlocks.length === 0 &&
     behaviorBlocks.length === 0 &&
@@ -798,10 +809,12 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   }
 
   const allLayoutBlocks = [...layoutBlocks, ...presentationNameBlocks];
+  const allScreenBlockMapBlocks = [...blockCatalogBlocks, ...blockMapBlocks];
   const allTilePatternBlocks = [...tilePatternBlocks, ...presentationPatternBlocks];
   const allTileColorBlocks = [...tileColorBlocks, ...presentationColorBlocks];
 
   info.candidateScreens = allLayoutBlocks.length;
+  info.candidateScreenBlockMaps = allScreenBlockMapBlocks.length;
   info.candidateEffects = effectsBlocks.length;
   info.candidateBehaviorMaps = behaviorBlocks.length;
   info.candidateTilePatterns = allTilePatternBlocks.length;
@@ -812,6 +825,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
   const enabledProgressGroups = [
     screens ? { phase: 'screens', label: 'Compress screen layouts', count: allLayoutBlocks.length } : null,
+    screenBlockMaps ? { phase: 'screenBlockMaps', label: 'Compress screen block maps', count: allScreenBlockMapBlocks.length } : null,
     effects ? { phase: 'effects', label: 'Compress effects layouts', count: effectsBlocks.length } : null,
     behaviorMaps ? { phase: 'behaviorMaps', label: 'Compress behavior maps', count: behaviorBlocks.length } : null,
     tilePatterns ? { phase: 'tilePatterns', label: 'Compress tile patterns', count: allTilePatternBlocks.length } : null,
@@ -836,6 +850,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   };
 
   const selectedLayoutBlocks = new Map();
+  const selectedBlockCatalogBlocks = new Map();
+  const selectedBlockMapBlocks = new Map();
   const selectedEffectsBlocks = new Map();
   const selectedBehaviorBlocks = new Map();
   const selectedTilePatternBlocks = new Map();
@@ -896,6 +912,12 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
           if (kind === 'layout') {
             selectedLayoutBlocks.set(block.label.toUpperCase(), selected);
             info.compressedScreens += 1;
+          } else if (kind === 'screen_block_catalog') {
+            selectedBlockCatalogBlocks.set(block.label.toUpperCase(), selected);
+            info.compressedScreenBlockMaps += 1;
+          } else if (kind === 'screen_block_map') {
+            selectedBlockMapBlocks.set(block.label.toUpperCase(), selected);
+            info.compressedScreenBlockMaps += 1;
           } else if (kind === 'effects') {
             selectedEffectsBlocks.set(block.label.toUpperCase(), selected);
             info.compressedEffects += 1;
@@ -934,6 +956,10 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   emitProgress('Preparing ZX0 blocks...', 'prepare', 0, totalProgressSteps);
 
   if (screens)      await processBlocks(allLayoutBlocks, 'layout', 'Compress screen layouts', 'screens');
+  if (screenBlockMaps) {
+    await processBlocks(blockCatalogBlocks, 'screen_block_catalog', 'Compress screen block catalogs', 'screenBlockMaps');
+    await processBlocks(blockMapBlocks, 'screen_block_map', 'Compress screen block maps', 'screenBlockMaps');
+  }
   if (effects)      await processBlocks(effectsBlocks, 'effects', 'Compress effects layouts', 'effects');
   if (behaviorMaps) await processBlocks(behaviorBlocks, 'behavior', 'Compress behavior maps', 'behaviorMaps');
   if (tilePatterns) await processBlocks(allTilePatternBlocks, 'tile_pattern', 'Compress tile patterns', 'tilePatterns');
@@ -977,6 +1003,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
 
   const compressedBlockCount =
     selectedLayoutBlocks.size +
+    selectedBlockCatalogBlocks.size +
+    selectedBlockMapBlocks.size +
     selectedEffectsBlocks.size +
     selectedBehaviorBlocks.size +
     selectedTilePatternBlocks.size +
@@ -1008,6 +1036,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const replacementByStart = new Map();
   const allSelectedBlocks = [
     ...selectedLayoutBlocks.values(),
+    ...selectedBlockCatalogBlocks.values(),
+    ...selectedBlockMapBlocks.values(),
     ...selectedEffectsBlocks.values(),
     ...selectedBehaviorBlocks.values(),
     ...selectedTilePatternBlocks.values(),
@@ -1024,6 +1054,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   }
 
   const compressedLayoutLabels = new Set(Array.from(selectedLayoutBlocks.keys()));
+  const compressedBlockCatalogLabels = new Set(Array.from(selectedBlockCatalogBlocks.keys()));
+  const compressedBlockMapLabels = new Set(Array.from(selectedBlockMapBlocks.keys()));
   const compressedEffectsLabels = new Set(Array.from(selectedEffectsBlocks.keys()));
   const compressedBehaviorLabels = new Set(Array.from(selectedBehaviorBlocks.keys()));
   const compressedTilePatternLabels = new Set(Array.from(selectedTilePatternBlocks.keys()));
@@ -1056,6 +1088,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   let inLoadPattern = false;
   let inLoadColor = false;
   let layoutDecompressedInCurrentFunction = false;
+  let blockCatalogDecompressedInCurrentFunction = false;
+  let blockMapDecompressedInCurrentFunction = false;
   let behaviorDecompressedInCurrentFunction = false;
   let patternDecompressedInCurrentFunction = false;
   let colorDecompressedInCurrentFunction = false;
@@ -1184,6 +1218,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inSubmenuPrepareCursor = false;
       inShowPresentationScreen = false;
       layoutDecompressedInCurrentFunction = false;
+      blockCatalogDecompressedInCurrentFunction = false;
+      blockMapDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;
       colorDecompressedInCurrentFunction = false;
@@ -1200,6 +1236,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inSubmenuPrepareCursor = false;
       inShowPresentationScreen = false;
       layoutDecompressedInCurrentFunction = false;
+      blockCatalogDecompressedInCurrentFunction = false;
+      blockMapDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;
       colorDecompressedInCurrentFunction = false;
@@ -1216,6 +1254,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inSubmenuPrepareCursor = false;
       inShowPresentationScreen = false;
       layoutDecompressedInCurrentFunction = false;
+      blockCatalogDecompressedInCurrentFunction = false;
+      blockMapDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;
       colorDecompressedInCurrentFunction = false;
@@ -1256,6 +1296,44 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
           behaviorDecompressedInCurrentFunction = true;
         }
         patched.push(`    ld hl, ${behaviorBufferSymbol}`);
+        continue;
+      }
+    }
+
+    const hlBlockCatalogMatch = matchAsmLabelLoad(line, 'hl', 'SCREEN_[A-Z0-9_]+_\\d+_BLOCK_CATALOG');
+    if (inLoadScreen && hlBlockCatalogMatch) {
+      const blockCatalogLabel = hlBlockCatalogMatch.label.toUpperCase();
+      const offset = hlBlockCatalogMatch.offset;
+      if (compressedBlockCatalogLabels.has(blockCatalogLabel)) {
+        if (!blockCatalogDecompressedInCurrentFunction) {
+          patched.push('    ; Decompress ZX0 screen block catalog into runtime_effects_layout');
+          patched.push('    di');
+          patched.push(`    ld hl, ${hlBlockCatalogMatch.label}`);
+          patched.push('    ld de, runtime_effects_layout');
+          patched.push('    call dzx0_standard');
+          patched.push('    ei');
+          blockCatalogDecompressedInCurrentFunction = true;
+        }
+        patched.push(`    ld hl, runtime_effects_layout${offset}`);
+        continue;
+      }
+    }
+
+    const hlBlockMapMatch = matchAsmLabelLoad(line, 'hl', 'SCREEN_[A-Z0-9_]+_\\d+_BLOCK_MAP');
+    if (inLoadScreen && hlBlockMapMatch) {
+      const blockMapLabel = hlBlockMapMatch.label.toUpperCase();
+      const offset = hlBlockMapMatch.offset;
+      if (compressedBlockMapLabels.has(blockMapLabel)) {
+        if (!blockMapDecompressedInCurrentFunction) {
+          patched.push('    ; Decompress ZX0 screen block map into runtime_screen_layout');
+          patched.push('    di');
+          patched.push(`    ld hl, ${hlBlockMapMatch.label}`);
+          patched.push('    ld de, runtime_screen_layout');
+          patched.push('    call dzx0_standard');
+          patched.push('    ei');
+          blockMapDecompressedInCurrentFunction = true;
+        }
+        patched.push(`    ld hl, runtime_screen_layout${offset}`);
         continue;
       }
     }
@@ -1381,6 +1459,8 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       inShowPresentationScreen = false;
       presentationCopyUsesRamBuffer = false;
       layoutDecompressedInCurrentFunction = false;
+      blockCatalogDecompressedInCurrentFunction = false;
+      blockMapDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;
       colorDecompressedInCurrentFunction = false;
@@ -1742,6 +1822,7 @@ app.post('/compile', async (req, res) => {
     applied: false,
     method: 'ZX0',
     candidateScreens: 0,
+    candidateScreenBlockMaps: 0,
     candidateEffects: 0,
     candidateBehaviorMaps: 0,
     candidateTilePatterns: 0,
@@ -1750,6 +1831,7 @@ app.post('/compile', async (req, res) => {
     candidateFontColors: 0,
     candidateSpritePatterns: 0,
     compressedScreens: 0,
+    compressedScreenBlockMaps: 0,
     compressedEffects: 0,
     compressedBehaviorMaps: 0,
     compressedTilePatterns: 0,

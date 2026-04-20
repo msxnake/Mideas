@@ -29,7 +29,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 43042
+; Estimated payload bytes: 43162
 ; Estimated banks used: 6
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : page0.asm (96 bytes)
@@ -39,20 +39,20 @@
 ; BANK 00 @#093E : entities.asm (303 bytes)
 ; BANK 00 @#0A6D : worlds.asm (1793 bytes)
 ; BANK 00 @#116E : screens.asm (3730 bytes)
-; BANK 01 @#0000 : screens.asm (2644 bytes)
-; BANK 01 @#0A54 : sprites.asm (2569 bytes)
-; BANK 01 @#145D : font.asm (2979 bytes)
-; BANK 02 @#0000 : font.asm (477 bytes)
-; BANK 02 @#01DD : hud.asm (3480 bytes)
-; BANK 02 @#0F75 : menus.asm (168 bytes)
-; BANK 02 @#101D : sound.asm part 1/2 (4067 bytes)
-; BANK 03 @#0000 : sound.asm part 2/2 (5474 bytes)
-; BANK 03 @#1562 : scroll.asm (2353 bytes)
-; BANK 03 @#1E93 : animtiles.asm (365 bytes)
-; BANK 04 @#0000 : animtiles.asm (4248 bytes)
-; BANK 04 @#1098 : statemachine.asm (5 bytes)
-; BANK 04 @#109D : gameflow.asm (3939 bytes)
-; BANK 05 @#0000 : gameflow.asm (2082 bytes)
+; BANK 01 @#0000 : screens.asm (2764 bytes)
+; BANK 01 @#0ACC : sprites.asm (2569 bytes)
+; BANK 01 @#14D5 : font.asm (2859 bytes)
+; BANK 02 @#0000 : font.asm (597 bytes)
+; BANK 02 @#0255 : hud.asm (3480 bytes)
+; BANK 02 @#0FED : menus.asm (168 bytes)
+; BANK 02 @#1095 : sound.asm part 1/2 (3947 bytes)
+; BANK 03 @#0000 : sound.asm part 2/2 (5594 bytes)
+; BANK 03 @#15DA : scroll.asm (2353 bytes)
+; BANK 03 @#1F0B : animtiles.asm (245 bytes)
+; BANK 04 @#0000 : animtiles.asm (4368 bytes)
+; BANK 04 @#1110 : statemachine.asm (5 bytes)
+; BANK 04 @#1115 : gameflow.asm (3819 bytes)
+; BANK 05 @#0000 : gameflow.asm (2202 bytes)
 
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
@@ -2452,8 +2452,9 @@ SCREEN2_TILEBANK_TILEBANK_1776511918552_ID EQU 0
 ; TILE PATTERN BANK 0 (Base patterns)
 ; ==================================================================
 tile_pattern_bank0:
-    ; ZX0 compressed tile_pattern (40 -> 10 bytes)
-    DB #95,#FF,#62,#7E,#42,#3F,#F8,#55,#55,#80
+    ; ZX0 compressed tile_pattern (40 -> 21 bytes)
+    DB #21,#7E,#FF,#BC,#FE,#F0,#89,#7F,#FE,#22,#7E,#7F,#58,#FF,#7E,#42
+    DB #FF,#F8,#55,#55,#80
 load_pattern_bank0:
     ; Load pattern bank 0 to VRAM (base patterns)
     ; Fast direct port access (no BIOS overhead)
@@ -2544,8 +2545,8 @@ load_tilebank_tilebank_1776511918552_patterns_to_vram:
     ret
 
 tilebank_pattern_data_0:
-    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
-    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
+    db #7E, #FF, #FF, #FF, #FF, #FF, #FF, #FE, #7E, #FF, #FF, #FF, #FF, #FF, #FF, #7F
+    db #FE, #FF, #FF, #FF, #FF, #FF, #FF, #7E, #7F, #FF, #FF, #FF, #FF, #FF, #FF, #7E
     db #7E, #42, #42, #42, #7E, #42, #42, #42
 
 
@@ -3019,13 +3020,13 @@ SCREEN_PAN1_0_EFFECT_ZONE_TABLE_SIZE EQU 0
 SCREEN_PAN1_0_BLOCK_LAYOUT_PRESENT EQU 1
 SCREEN_PAN1_0_BLOCK_LAYOUT_MODE EQU 4
 SCREEN_PAN1_0_BLOCK_CATALOG_BANK EQU ((SCREEN_PAN1_0_BLOCK_CATALOG - #4000) / #2000)
-SCREEN_PAN1_0_BLOCK_CATALOG_COUNT EQU 3
-SCREEN_PAN1_0_BLOCK_CATALOG_SIZE EQU 48
+SCREEN_PAN1_0_BLOCK_CATALOG_COUNT EQU 9
+SCREEN_PAN1_0_BLOCK_CATALOG_SIZE EQU 144
 SCREEN_PAN1_0_BLOCK_MAP_BANK EQU ((SCREEN_PAN1_0_BLOCK_MAP - #4000) / #2000)
 SCREEN_PAN1_0_BLOCK_MAP_WIDTH EQU 8
 SCREEN_PAN1_0_BLOCK_MAP_HEIGHT EQU 6
 SCREEN_PAN1_0_BLOCK_MAP_SIZE EQU 48
-SCREEN_PAN1_0_BLOCK_TOTAL_SIZE EQU 96
+SCREEN_PAN1_0_BLOCK_TOTAL_SIZE EQU 192
 SCREEN_PAN1_0_ANIM_GROUP_COUNT EQU 0
 SCREEN_PAN1_0_ENTITY_COUNT EQU 0
 SCREEN_PAN1_0_SPRITE_PATTERN_SLOTS EQU 1
@@ -3049,17 +3050,23 @@ screen_runtime_summary_table:
 
 SCREEN_PAN1_0_BLOCK_CATALOG:
     ; pan1 - background block catalog (4x4)
-    ; 3 unique blocks, 48 bytes total
+    ; 9 unique blocks, 144 bytes total
     DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #80,#81,#80,#81,#82,#83,#82,#83,#80,#81,#80,#81,#82,#83,#82,#83
+    DB #80,#81,#80,#81,#82,#83,#82,#83,#80,#81,#FF,#FF,#82,#83,#FF,#FF
     DB #80,#81,#80,#81,#82,#83,#82,#83,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #80,#81,#80,#81,#82,#83,#82,#83,#FF,#FF,#80,#81,#FF,#FF,#82,#83
+    DB #80,#81,#FF,#FF,#82,#83,#FF,#FF,#80,#81,#FF,#FF,#82,#83,#FF,#FF
+    DB #FF,#FF,#80,#81,#FF,#FF,#82,#83,#FF,#FF,#80,#81,#FF,#FF,#82,#83
+    DB #80,#81,#FF,#FF,#82,#83,#FF,#FF,#80,#81,#80,#81,#82,#83,#82,#83
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#80,#81,#80,#81,#82,#83,#82,#83
+    DB #FF,#FF,#80,#81,#FF,#FF,#82,#83,#80,#81,#80,#81,#82,#83,#82,#83
 
 SCREEN_PAN1_0_BLOCK_MAP:
     ; pan1 - background block index map (8x6)
-    ; 96 bytes optimized vs 768 raw (672 byte delta)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#02,#02,#02,#02,#02,#02,#01
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    ; 192 bytes optimized vs 768 raw (576 byte delta)
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#02,#02,#02,#02,#02,#02,#03
+    DB #04,#00,#00,#00,#00,#00,#00,#05,#04,#00,#00,#00,#00,#00,#00,#05
+    DB #04,#00,#00,#00,#00,#00,#00,#05,#06,#07,#07,#07,#07,#07,#07,#08
 
 SCREEN_PAN1_0_EFFECTS_LAYOUT:
     ; ZX0 compressed effects (768 -> 6 bytes)
