@@ -1550,7 +1550,29 @@ export const PROPERTY_FLAGS = {
 } as const;
 export type PropertyFlagKey = keyof typeof PROPERTY_FLAGS;
 
-export interface LayoutASMExportData { mapName: string; mapWidth: number; mapHeight: number; mapIndices: number[]; referenceComments: string[]; dataFormat: DataFormat; }
+export interface LayoutBlockExportData {
+  mode: Extract<ScreenBlockExportMode, 'blocks2x2' | 'blocks4x4'>;
+  blockWidth: number;
+  blockHeight: number;
+  catalogEntryCount: number;
+  catalogLengthBytes: number;
+  mapLengthBytes: number;
+  optimizedLengthBytes: number;
+  catalogBytes: number[];
+  mapIndices: number[];
+  mapWidth: number;
+  mapHeight: number;
+}
+export interface LayoutASMExportData {
+  mapName: string;
+  mapWidth: number;
+  mapHeight: number;
+  mapIndices: number[];
+  referenceComments: string[];
+  dataFormat: DataFormat;
+  exportMode?: ScreenBlockExportMode;
+  blockData?: LayoutBlockExportData | null;
+}
 export interface BehaviorMapASMExportData { mapName: string; mapWidth: number; mapHeight: number; behaviorMapData: number[]; dataFormat: DataFormat; }
 export interface PletterExportData { mapName: string; mapWidth: number; mapHeight: number; pletterDataBytes: number[]; tilePartReferences: { byteValue: number; tileId: string | null; subTileX?: number; subTileY?: number, name?: string }[]; }
 export interface SuperRLEExportData { mapName: string; mapWidth: number; mapHeight: number; originalSize: number; compressedSize: number; superRLEDataBytes: number[]; tilePartReferences?: { byteValue: number; tileId: string | null; subTileX?: number; subTileY?: number, name?: string }[]; compressionMethodName: 'SuperRLE'; }

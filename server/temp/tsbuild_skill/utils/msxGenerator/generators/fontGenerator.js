@@ -7,9 +7,26 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getFontRawData = getFontRawData;
 exports.generateFontFile = generateFontFile;
 exports.getFontBank4Data = getFontBank4Data;
+const msxFontData_1 = require("../../../data/msxFontData");
 const romModeUtils_1 = require("./romModeUtils");
 const mapperWindowUtils_1 = require("./mapperWindowUtils");
 const megaromResourceArtifacts_1 = require("../utils/megaromResourceArtifacts");
+function normalizeFontColorRows(input) {
+    if (Array.isArray(input)) {
+        return input.filter((row) => !!row && typeof row === 'object');
+    }
+    if (input && typeof input === 'object') {
+        return Array.from({ length: 8 }, () => input);
+    }
+    return null;
+}
+function getBuiltInMsxFontData() {
+    const parsed = JSON.parse(msxFontData_1.msxFontJsonString);
+    return {
+        charset: parsed.charset || {},
+        colorAttributes: parsed.colorAttributes || {},
+    };
+}
 function formatAsmCharComment(code) {
     if (code >= 32 && code <= 126) {
         const char = String.fromCharCode(code)
@@ -26,6 +43,7 @@ function formatAsmCharComment(code) {
 function getFontRawData(analysis) {
     const fontPatterns = new Map();
     const fontColors = new Map();
+    const builtInFontData = getBuiltInMsxFontData();
     const defaults = [
         { code: 32, pattern: [0, 0, 0, 0, 0, 0, 0, 0] },
         { code: 43, pattern: [0x00, 0x10, 0x10, 0x7C, 0x10, 0x10, 0x00, 0x00] },
@@ -58,13 +76,14 @@ function getFontRawData(analysis) {
             const pattern = fontData[charCode];
             if (Array.isArray(pattern) && pattern.length === 8) {
                 fontPatterns.set(charCode, pattern);
-                if (colorData[charCode] && Array.isArray(colorData[charCode])) {
-                    const rowColors = colorData[charCode];
+                const rowColors = normalizeFontColorRows(colorData[charCode]);
+                if (rowColors && rowColors.length > 0) {
                     const colorBytes = [];
                     for (let row = 0; row < 8; row++) {
-                        if (rowColors[row] && typeof rowColors[row] === 'object') {
-                            const fgIdx = hexToMSX1Index(rowColors[row].fg);
-                            const bgIdx = hexToMSX1Index(rowColors[row].bg);
+                        const rowColor = rowColors[Math.min(row, rowColors.length - 1)];
+                        if (rowColor && typeof rowColor === 'object') {
+                            const fgIdx = hexToMSX1Index(String(rowColor.fg || '#FFFFFF'));
+                            const bgIdx = hexToMSX1Index(String(rowColor.bg || '#000000'));
                             colorBytes.push((fgIdx << 4) | bgIdx);
                         }
                         else {
@@ -80,11 +99,22 @@ function getFontRawData(analysis) {
         });
     }
     else {
-        for (let i = 48; i <= 57; i++)
-            fontPatterns.set(i, [0x3E, 0x7F, 0x73, 0x73, 0x73, 0x7F, 0x3E, 0x00]);
-        for (let i = 65; i <= 90; i++)
-            fontPatterns.set(i, [0x3E, 0x7F, 0x63, 0x7F, 0x7F, 0x63, 0x63, 0x00]);
-        defaults.forEach(d => fontPatterns.set(d.code, d.pattern));
+        Object.keys(builtInFontData.charset).forEach((key) => {
+            const charCode = parseInt(key, 10);
+            const pattern = builtInFontData.charset[key];
+            if (!Number.isNaN(charCode) && Array.isArray(pattern) && pattern.length === 8) {
+                fontPatterns.set(charCode, pattern);
+                fontColors.set(charCode, [0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0]);
+            }
+        });
+        defaults.forEach(d => {
+            if (!fontPatterns.has(d.code)) {
+                fontPatterns.set(d.code, d.pattern);
+            }
+            if (!fontColors.has(d.code)) {
+                fontColors.set(d.code, [0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0]);
+            }
+        });
     }
     const sortedCodes = Array.from(fontPatterns.keys()).filter(c => c < 128).sort((a, b) => a - b);
     const patternBytes = sortedCodes.flatMap(code => fontPatterns.get(code));

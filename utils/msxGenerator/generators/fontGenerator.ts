@@ -4,6 +4,7 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import { msxFontJsonString } from '../../../data/msxFontData';
 import { usesMapperBanking } from './romModeUtils';
 import {
     buildMapperBankEqu,
@@ -19,6 +20,26 @@ export interface FontRawData {
     patternBytes: number[];
     colorBytes: number[];
     sortedCodes: number[];
+}
+
+type FontColorRow = { fg?: string; bg?: string };
+
+function normalizeFontColorRows(input: unknown): FontColorRow[] | null {
+    if (Array.isArray(input)) {
+        return input.filter((row): row is FontColorRow => !!row && typeof row === 'object');
+    }
+    if (input && typeof input === 'object') {
+        return Array.from({ length: 8 }, () => input as FontColorRow);
+    }
+    return null;
+}
+
+function getBuiltInMsxFontData(): { charset: Record<string, number[]>; colorAttributes?: Record<string, FontColorRow[] | FontColorRow> } {
+    const parsed = JSON.parse(msxFontJsonString);
+    return {
+        charset: parsed.charset || {},
+        colorAttributes: parsed.colorAttributes || {},
+    };
 }
 
 function formatAsmCharComment(code: number): string {
@@ -38,6 +59,7 @@ function formatAsmCharComment(code: number): string {
 export function getFontRawData(analysis: ProjectAnalysis): FontRawData {
     const fontPatterns = new Map<number, number[]>();
     const fontColors = new Map<number, number[]>();
+    const builtInFontData = getBuiltInMsxFontData();
 
     const defaults = [
         { code: 32, pattern: [0, 0, 0, 0, 0, 0, 0, 0] },
@@ -72,13 +94,14 @@ export function getFontRawData(analysis: ProjectAnalysis): FontRawData {
             const pattern = fontData[charCode];
             if (Array.isArray(pattern) && pattern.length === 8) {
                 fontPatterns.set(charCode, pattern);
-                if (colorData[charCode] && Array.isArray(colorData[charCode])) {
-                    const rowColors = colorData[charCode];
+                const rowColors = normalizeFontColorRows(colorData[charCode]);
+                if (rowColors && rowColors.length > 0) {
                     const colorBytes: number[] = [];
                     for (let row = 0; row < 8; row++) {
-                        if (rowColors[row] && typeof rowColors[row] === 'object') {
-                            const fgIdx = hexToMSX1Index(rowColors[row].fg);
-                            const bgIdx = hexToMSX1Index(rowColors[row].bg);
+                        const rowColor = rowColors[Math.min(row, rowColors.length - 1)];
+                        if (rowColor && typeof rowColor === 'object') {
+                            const fgIdx = hexToMSX1Index(String(rowColor.fg || '#FFFFFF'));
+                            const bgIdx = hexToMSX1Index(String(rowColor.bg || '#000000'));
                             colorBytes.push((fgIdx << 4) | bgIdx);
                         } else {
                             colorBytes.push(0xF0);
@@ -91,9 +114,22 @@ export function getFontRawData(analysis: ProjectAnalysis): FontRawData {
             }
         });
     } else {
-        for (let i = 48; i <= 57; i++) fontPatterns.set(i, [0x3E, 0x7F, 0x73, 0x73, 0x73, 0x7F, 0x3E, 0x00]);
-        for (let i = 65; i <= 90; i++) fontPatterns.set(i, [0x3E, 0x7F, 0x63, 0x7F, 0x7F, 0x63, 0x63, 0x00]);
-        defaults.forEach(d => fontPatterns.set(d.code, d.pattern));
+        Object.keys(builtInFontData.charset).forEach((key) => {
+            const charCode = parseInt(key, 10);
+            const pattern = builtInFontData.charset[key];
+            if (!Number.isNaN(charCode) && Array.isArray(pattern) && pattern.length === 8) {
+                fontPatterns.set(charCode, pattern);
+                fontColors.set(charCode, [0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0]);
+            }
+        });
+        defaults.forEach(d => {
+            if (!fontPatterns.has(d.code)) {
+                fontPatterns.set(d.code, d.pattern);
+            }
+            if (!fontColors.has(d.code)) {
+                fontColors.set(d.code, [0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0]);
+            }
+        });
     }
 
     const sortedCodes = Array.from(fontPatterns.keys()).filter(c => c < 128).sort((a, b) => a - b);

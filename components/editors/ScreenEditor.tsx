@@ -317,6 +317,162 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     onUpdate({ [prop]: value.trim() === "" ? (prop.includes("Width") || prop.includes("Height") ? 1 : 0) : numValue });
   };
 
+  const backgroundBlockMode: ScreenBlockExportMode = screenMap.blockOptimization?.backgroundMode ?? 'raw';
+
+  const activeAreaBlockAlignment = useMemo(() => {
+    if (backgroundBlockMode === 'raw') {
+      return {
+        blockSize: null,
+        isValid: true,
+        canSnap: false,
+        message: 'Raw mode ignores block alignment.',
+        nextX: screenMap.activeAreaX ?? 0,
+        nextY: screenMap.activeAreaY ?? 0,
+        nextWidth: screenMap.activeAreaWidth ?? screenMap.width,
+        nextHeight: screenMap.activeAreaHeight ?? screenMap.height,
+      };
+    }
+
+    const blockSize = backgroundBlockMode === 'blocks4x4' ? 4 : 2;
+    const activeX = screenMap.activeAreaX ?? 0;
+    const activeY = screenMap.activeAreaY ?? 0;
+    const activeWidth = screenMap.activeAreaWidth ?? screenMap.width;
+    const activeHeight = screenMap.activeAreaHeight ?? screenMap.height;
+    const isFullWidthHudRowsMode = activeX === 0 && activeWidth === screenMap.width;
+
+    if (isFullWidthHudRowsMode) {
+      const topHudRows = activeY;
+      const bottomHudRows = Math.max(0, screenMap.height - (activeY + activeHeight));
+      const gameplayRowsAligned = activeHeight % blockSize === 0;
+      const topHudAligned = topHudRows % blockSize === 0;
+      const bottomHudAligned = bottomHudRows % blockSize === 0;
+      const isValid = gameplayRowsAligned && topHudAligned && bottomHudAligned;
+      const snappedTopHudRows = Math.ceil(topHudRows / blockSize) * blockSize;
+      const snappedBottomHudRows = Math.ceil(bottomHudRows / blockSize) * blockSize;
+      const nextHeight = screenMap.height - snappedTopHudRows - snappedBottomHudRows;
+      const canSnap = !isValid && nextHeight >= blockSize && nextHeight % blockSize === 0;
+
+      if (isValid) {
+        return {
+          blockSize,
+          isValid: true,
+          canSnap: false,
+          message: `HUD rows aligned for ${blockSize}x${blockSize}: top ${topHudRows}, gameplay ${activeHeight}, bottom ${bottomHudRows}.`,
+          nextX: 0,
+          nextY: activeY,
+          nextWidth: screenMap.width,
+          nextHeight: activeHeight,
+        };
+      }
+
+      if (canSnap) {
+        return {
+          blockSize,
+          isValid: false,
+          canSnap: true,
+          message: `HUD rows not aligned for ${blockSize}x${blockSize}. Snap to top ${snappedTopHudRows}, gameplay ${nextHeight}, bottom ${snappedBottomHudRows}.`,
+          nextX: 0,
+          nextY: snappedTopHudRows,
+          nextWidth: screenMap.width,
+          nextHeight,
+        };
+      }
+
+      return {
+        blockSize,
+        isValid: false,
+        canSnap: false,
+        message: `HUD rows consume too much space for a valid ${blockSize}x${blockSize} gameplay band.`,
+        nextX: 0,
+        nextY: activeY,
+        nextWidth: screenMap.width,
+        nextHeight: activeHeight,
+      };
+    }
+
+    const widthAligned = activeWidth % blockSize === 0;
+    const heightAligned = activeHeight % blockSize === 0;
+    const originAligned = activeX % blockSize === 0 && activeY % blockSize === 0;
+    const nextWidth = Math.floor(activeWidth / blockSize) * blockSize;
+    const nextHeight = Math.floor(activeHeight / blockSize) * blockSize;
+    const isValid = originAligned && widthAligned && heightAligned;
+    const canSnap = !isValid && nextWidth >= blockSize && nextHeight >= blockSize;
+
+    if (isValid) {
+      return {
+        blockSize,
+        isValid: true,
+        canSnap: false,
+        message: `General area aligned for ${blockSize}x${blockSize}. For HUD rows, prefer full-width gameplay with top/bottom bands.`,
+        nextX: activeX,
+        nextY: activeY,
+        nextWidth: activeWidth,
+        nextHeight: activeHeight,
+      };
+    }
+
+    if (canSnap) {
+      return {
+        blockSize,
+        isValid: false,
+        canSnap: true,
+        message: `Falls back to raw. Snap gameplay area to ${nextWidth}x${nextHeight}. For HUD rows, prefer full-width gameplay with aligned top/bottom bands.`,
+        nextX: activeX,
+        nextY: activeY,
+        nextWidth,
+        nextHeight,
+      };
+    }
+
+    return {
+      blockSize,
+      isValid: false,
+      canSnap: false,
+      message: `Current Active Area is too small for ${blockSize}x${blockSize} block export.`,
+      nextX: activeX,
+      nextY: activeY,
+      nextWidth,
+      nextHeight,
+    };
+  }, [
+    backgroundBlockMode,
+    screenMap.activeAreaX,
+    screenMap.activeAreaY,
+    screenMap.activeAreaHeight,
+    screenMap.activeAreaWidth,
+    screenMap.height,
+    screenMap.width,
+  ]);
+
+  const handleSnapActiveAreaToBlockMode = useCallback(() => {
+    if (backgroundBlockMode === 'raw') {
+      setStatusBarMessage('Raw mode does not need Active Area snapping.');
+      return;
+    }
+
+    if (!activeAreaBlockAlignment.canSnap || !activeAreaBlockAlignment.blockSize) {
+      setStatusBarMessage(activeAreaBlockAlignment.message);
+      return;
+    }
+
+    const nextX = activeAreaBlockAlignment.nextX;
+    const nextY = activeAreaBlockAlignment.nextY;
+    const nextWidth = activeAreaBlockAlignment.nextWidth;
+    const nextHeight = activeAreaBlockAlignment.nextHeight;
+
+    setLocalActiveX(String(nextX));
+    setLocalActiveY(String(nextY));
+    setLocalActiveW(String(nextWidth));
+    setLocalActiveH(String(nextHeight));
+    onUpdate({
+      activeAreaX: nextX,
+      activeAreaY: nextY,
+      activeAreaWidth: nextWidth,
+      activeAreaHeight: nextHeight,
+    });
+    setStatusBarMessage(`Active Area snapped to X=${nextX}, Y=${nextY}, W=${nextWidth}, H=${nextHeight} for ${activeAreaBlockAlignment.blockSize}x${activeAreaBlockAlignment.blockSize} mode.`);
+  }, [activeAreaBlockAlignment, backgroundBlockMode, onUpdate, setStatusBarMessage]);
+
   const handleEntityPlace = useCallback((point: Point) => {
     if (!currentEntityTypeToPlace) {
       return;
@@ -407,15 +563,17 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       : undefined
   ), [isScreen2, tileBanks]);
 
-  const backgroundBlockMode: ScreenBlockExportMode = screenMap.blockOptimization?.backgroundMode ?? 'raw';
-
   const backgroundOptimizationAnalysis = useMemo(() => {
+    const activeAreaX = screenMap.activeAreaX ?? 0;
+    const activeAreaY = screenMap.activeAreaY ?? 0;
+    const activeAreaWidth = screenMap.activeAreaWidth ?? screenMap.width;
+    const activeAreaHeight = screenMap.activeAreaHeight ?? screenMap.height;
     const layoutBytes = generateScreenMapLayoutBytes(screenMap, tileset, tileBankDefinitions, currentScreenMode);
     const buildPreview = (mode: Extract<ScreenBlockExportMode, 'blocks2x2' | 'blocks4x4'>) => {
       const blockMap = buildScreenBlockMapFromBytes({
         bytes: layoutBytes,
-        width: screenMap.width,
-        height: screenMap.height,
+        width: activeAreaWidth,
+        height: activeAreaHeight,
         mode,
       });
 
@@ -434,8 +592,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       const overlay: ScreenGridOptimizationOverlay = {
         mode,
         blocks: blockMap.mapIndices.map((catalogIndex, index) => ({
-          x: (index % blockMap.mapWidth) * blockMap.blockWidth,
-          y: Math.floor(index / blockMap.mapWidth) * blockMap.blockHeight,
+          x: activeAreaX + ((index % blockMap.mapWidth) * blockMap.blockWidth),
+          y: activeAreaY + (Math.floor(index / blockMap.mapWidth) * blockMap.blockHeight),
           width: blockMap.blockWidth,
           height: blockMap.blockHeight,
           catalogIndex,
@@ -1031,8 +1189,15 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       }
     }
 
-
+    const activeAreaWidth = screenMap.activeAreaWidth ?? screenMap.width;
+    const activeAreaHeight = screenMap.activeAreaHeight ?? screenMap.height;
     const layoutBytes = generateScreenMapLayoutBytes(screenMap, tileset, tileBankDefinitions, currentScreenMode);
+    const backgroundBlockMap = buildScreenBlockMapFromBytes({
+      bytes: layoutBytes,
+      width: activeAreaWidth,
+      height: activeAreaHeight,
+      mode: backgroundBlockMode,
+    });
     const comments: string[] = [];
     if (!isScreen2) {
       const tempMap = new Map<number, { name: string, tileId: string, subX: number, subY: number }>();
@@ -1054,11 +1219,25 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
     setLayoutASMExportData({
       mapName: screenMap.name,
-      mapWidth: screenMap.activeAreaWidth ?? screenMap.width,
-      mapHeight: screenMap.activeAreaHeight ?? screenMap.height,
+      mapWidth: activeAreaWidth,
+      mapHeight: activeAreaHeight,
       mapIndices: Array.from(layoutBytes),
       referenceComments: comments,
-      dataFormat: dataOutputFormat
+      dataFormat: dataOutputFormat,
+      exportMode: backgroundBlockMap ? backgroundBlockMode : 'raw',
+      blockData: backgroundBlockMap ? {
+        mode: backgroundBlockMap.mode,
+        blockWidth: backgroundBlockMap.blockWidth,
+        blockHeight: backgroundBlockMap.blockHeight,
+        catalogEntryCount: backgroundBlockMap.catalog.length,
+        catalogLengthBytes: backgroundBlockMap.catalogLengthBytes,
+        mapLengthBytes: backgroundBlockMap.mapLengthBytes,
+        optimizedLengthBytes: backgroundBlockMap.optimizedLengthBytes,
+        catalogBytes: [...backgroundBlockMap.catalogFlatBytes],
+        mapIndices: [...backgroundBlockMap.mapIndices],
+        mapWidth: backgroundBlockMap.mapWidth,
+        mapHeight: backgroundBlockMap.mapHeight,
+      } : null,
     });
     setIsExportLayoutModalOpen(true);
   };
@@ -1441,14 +1620,70 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
   const handleBackgroundBlockModeChange = useCallback((mode: ScreenBlockExportMode) => {
+    if (mode === 'raw') {
+      onUpdate({
+        blockOptimization: {
+          ...(screenMap.blockOptimization || {}),
+          backgroundMode: mode,
+        },
+      });
+      setStatusBarMessage('Background export mode set to raw.');
+      return;
+    }
+
+    const blockSize = mode === 'blocks4x4' ? 4 : 2;
+    const currentActiveX = screenMap.activeAreaX ?? 0;
+    const currentActiveY = screenMap.activeAreaY ?? 0;
+    const currentActiveHeight = screenMap.activeAreaHeight ?? screenMap.height;
+    const topHudRows = currentActiveY;
+    const bottomHudRows = Math.max(0, screenMap.height - (currentActiveY + currentActiveHeight));
+    const snappedTopHudRows = Math.ceil(topHudRows / blockSize) * blockSize;
+    const snappedBottomHudRows = Math.ceil(bottomHudRows / blockSize) * blockSize;
+    const nextHeight = screenMap.height - snappedTopHudRows - snappedBottomHudRows;
+
+    if (nextHeight < blockSize || nextHeight % blockSize !== 0) {
+      onUpdate({
+        blockOptimization: {
+          ...(screenMap.blockOptimization || {}),
+          backgroundMode: mode,
+        },
+      });
+      setStatusBarMessage(`Background mode set to ${mode}, but current HUD strips do not allow a valid full-width ${blockSize}x${blockSize} gameplay band. Export will fall back to raw until you adjust Active Area.`);
+      return;
+    }
+
+    setLocalActiveX('0');
+    setLocalActiveY(String(snappedTopHudRows));
+    setLocalActiveW(String(screenMap.width));
+    setLocalActiveH(String(nextHeight));
+
     onUpdate({
       blockOptimization: {
         ...(screenMap.blockOptimization || {}),
         backgroundMode: mode,
       },
+      activeAreaX: 0,
+      activeAreaY: snappedTopHudRows,
+      activeAreaWidth: screenMap.width,
+      activeAreaHeight: nextHeight,
     });
-    setStatusBarMessage(`Background export mode set to: ${mode}`);
-  }, [onUpdate, screenMap.blockOptimization, setStatusBarMessage]);
+
+    const sideMarginNote = currentActiveX !== 0 || (screenMap.activeAreaWidth ?? screenMap.width) !== screenMap.width
+      ? ' Side HUD margins were cleared; optimized modes now use full-width gameplay plus top/bottom HUD rows.'
+      : '';
+
+    setStatusBarMessage(`Background mode set to ${mode}. Active Area normalized to full width with HUD rows top=${snappedTopHudRows}, bottom=${snappedBottomHudRows}.${sideMarginNote}`);
+  }, [
+    onUpdate,
+    screenMap.activeAreaHeight,
+    screenMap.activeAreaWidth,
+    screenMap.activeAreaX,
+    screenMap.activeAreaY,
+    screenMap.blockOptimization,
+    screenMap.height,
+    screenMap.width,
+    setStatusBarMessage,
+  ]);
 
   return (
     <Panel title={`Screen Editor: ${screenMap.name} (Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden select-none">
@@ -1489,6 +1724,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         onBorderColorChange={handleBorderColorChange}
         backgroundBlockMode={backgroundBlockMode}
         onBackgroundBlockModeChange={handleBackgroundBlockModeChange}
+        isBackgroundBlockAlignmentValid={activeAreaBlockAlignment.isValid}
+        backgroundBlockAlignmentMessage={activeAreaBlockAlignment.message}
+        onSnapActiveAreaToBlockMode={handleSnapActiveAreaToBlockMode}
+        canSnapActiveAreaToBlockMode={activeAreaBlockAlignment.canSnap}
         backgroundBlockPreview={backgroundBlockPreview}
       />
 

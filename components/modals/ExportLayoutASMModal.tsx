@@ -3,32 +3,19 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
 import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
-import { DataFormat } from '../../types';
-import { generateScreenLayoutASMCode } from '../utils/screenUtils'; 
+import { LayoutASMExportData } from '../../types';
+import { generateScreenLayoutExportASMCode, generateScreenLayoutExportBinary } from '../utils/screenUtils'; 
 
 /**
  * Props for the ExportLayoutASMModal component.
  */
-interface ExportLayoutASMModalProps {
+interface ExportLayoutASMModalProps extends LayoutASMExportData {
   /** Whether the modal is currently open. */
   isOpen: boolean;
   /** Callback function to close the modal. */
   onClose: () => void;
-  /** The name of the map. */
-  mapName: string;
-  /** The width of the map in tiles. */
-  mapWidth: number;
-  /** The height of the map in tiles. */
-  mapHeight: number;
-  /** The map layout data, as an array of tile indices. */
-  mapIndices: number[];
-  /** Optional comments providing context for tile indices. */
-  referenceComments: string[];
-  /** The data format for exporting to ASM. */
-  dataFormat: DataFormat; 
 }
 
-const ASM_BYTES_PER_LINE = 16;
 const MODAL_DEFAULT_FONT_SIZE = 13; 
 const MODAL_LINE_HEIGHT_MULTIPLIER = 1.5;
 
@@ -38,23 +25,33 @@ const MODAL_LINE_HEIGHT_MULTIPLIER = 1.5;
 /**
  * A modal dialog for exporting a screen map layout as Z80 assembly code or a binary file.
  */
-export const ExportLayoutASMModal: React.FC<ExportLayoutASMModalProps> = ({
-  isOpen,
-  onClose,
-  mapName,
-  mapWidth,
-  mapHeight,
-  mapIndices,
-  referenceComments,
-  dataFormat, 
-}) => {
+export const ExportLayoutASMModal: React.FC<ExportLayoutASMModalProps> = (props) => {
+  const {
+    isOpen,
+    onClose,
+    mapName,
+    mapWidth,
+    mapHeight,
+    mapIndices,
+    referenceComments,
+    dataFormat,
+  } = props;
   const [asmCode, setAsmCode] = useState('');
 
   useEffect(() => {
     if (isOpen) {
-      setAsmCode(generateScreenLayoutASMCode(mapName, mapWidth, mapHeight, mapIndices, referenceComments, dataFormat));
+      setAsmCode(generateScreenLayoutExportASMCode({
+        mapName,
+        mapWidth,
+        mapHeight,
+        mapIndices,
+        referenceComments,
+        dataFormat,
+        exportMode: props.exportMode,
+        blockData: props.blockData,
+      }));
     }
-  }, [isOpen, mapName, mapWidth, mapHeight, mapIndices, referenceComments, dataFormat]);
+  }, [isOpen, mapName, mapWidth, mapHeight, mapIndices, referenceComments, dataFormat, props.exportMode, props.blockData]);
 
   if (!isOpen) {
     return null;
@@ -68,7 +65,9 @@ export const ExportLayoutASMModal: React.FC<ExportLayoutASMModalProps> = ({
 
   const handleDownloadASM = () => {
     const safeMapName = mapName.replace(/[^a-zA-Z0-9_]/g, '_');
-    const filename = `${safeMapName}_layout.asm`;
+    const filename = props.exportMode && props.exportMode !== 'raw'
+      ? `${safeMapName}_${props.exportMode}.asm`
+      : `${safeMapName}_layout.asm`;
     const blob = new Blob([asmCode], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -82,8 +81,19 @@ export const ExportLayoutASMModal: React.FC<ExportLayoutASMModalProps> = ({
 
   const handleDownloadBIN = () => {
     const safeMapName = mapName.replace(/[^a-zA-Z0-9_]/g, '_');
-    const filename = `${safeMapName}_layout.bin`;
-    const byteArray = new Uint8Array(mapIndices); // mapIndices are already 0-255
+    const filename = props.exportMode && props.exportMode !== 'raw'
+      ? `${safeMapName}_${props.exportMode}.bin`
+      : `${safeMapName}_layout.bin`;
+    const byteArray = generateScreenLayoutExportBinary({
+      mapName,
+      mapWidth,
+      mapHeight,
+      mapIndices,
+      referenceComments,
+      dataFormat,
+      exportMode: props.exportMode,
+      blockData: props.blockData,
+    });
     const blob = new Blob([byteArray], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -96,6 +106,11 @@ export const ExportLayoutASMModal: React.FC<ExportLayoutASMModalProps> = ({
   };
   
   const editorLineHeight = MODAL_DEFAULT_FONT_SIZE * MODAL_LINE_HEIGHT_MULTIPLIER;
+  const isBlockExport = props.exportMode === 'blocks2x2' || props.exportMode === 'blocks4x4';
+  const packedSizeBytes = props.blockData?.optimizedLengthBytes ?? mapIndices.length;
+  const modalTitle = isBlockExport
+    ? `Export Map Layout (${props.blockData?.blockWidth}x${props.blockData?.blockHeight} Block Map): ${mapName}`
+    : `Export Map Layout: ${mapName}`;
 
   return (
     <div 
@@ -109,7 +124,12 @@ export const ExportLayoutASMModal: React.FC<ExportLayoutASMModalProps> = ({
         className="bg-msx-panelbg p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-2xl animate-slideIn font-sans flex flex-col max-h-[90vh]" 
         onClick={e => e.stopPropagation()}
       >
-        <h2 id="exportLayoutAsmModalTitle" className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4">Export Map Layout: {mapName}</h2>
+        <h2 id="exportLayoutAsmModalTitle" className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4">{modalTitle}</h2>
+
+        <div className="text-xs text-msx-textsecondary mb-2">
+          <p>Mode: {isBlockExport ? props.exportMode : 'raw'} | Size: {mapWidth}x{mapHeight}</p>
+          <p>Raw: {mapIndices.length} bytes | Exported: {packedSizeBytes} bytes{isBlockExport ? ' (+4B header in BIN)' : ''}</p>
+        </div>
 
         <div className="flex-grow overflow-auto mb-3 sm:mb-4">
             <Z80SyntaxHighlighter

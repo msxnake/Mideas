@@ -97,6 +97,18 @@ function hasPresentationScreenData(analysis) {
         return false;
     return Array.isArray(config.data?.nameTable) && config.data.nameTable.length === (SCREEN_WIDTH * SCREEN_HEIGHT);
 }
+function hasUsableImportedHudFrameSnapshot(screen) {
+    const cells = screen?.hudConfiguration?.importedFrame?.cells;
+    if (!Array.isArray(cells) || cells.length === 0) {
+        return false;
+    }
+    return cells.some((cell) => {
+        if (cell?.tileId)
+            return true;
+        const charCode = Number(cell?.charCode);
+        return Number.isFinite(charCode) && charCode > 0;
+    });
+}
 function buildResourceId(label) {
     return (0, megaromResourceArtifacts_1.buildResourceIdLabelFromAsmLabel)(label);
 }
@@ -758,7 +770,7 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, targetFo
         const entityCount = screenEntityCounts.get(screenId) || 0;
         const spritePatternSlots = screenSpriteUsage.get(screenId) || 1;
         const hasHudData = !!((screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0) ||
-            (screen.hudConfiguration?.importedFrame?.cells && screen.hudConfiguration.importedFrame.cells.length > 0));
+            hasUsableImportedHudFrameSnapshot(screen));
         const worldIds = screenWorldMembership.get(screenId);
         const musicInGame = worldIds && worldIds.size > 0
             ? Array.from(worldIds).some((worldId) => (worldMusicFlags.get(worldId) || 0) !== 0) ? 1 : 0
@@ -1394,13 +1406,14 @@ expand_screen_block_layout_2x2:
     ret
 
 expand_screen_block_layout_4x4:
+    push ix
+    push iy
     ld de, runtime_background_layout
     ld c, 6
 .expand4x4_row_loop:
     ld b, 8
 .expand4x4_col_loop:
     push bc
-    push de
     ld hl, (screen_block_map_ptr)
     ld a, (hl)
     inc hl
@@ -1413,93 +1426,78 @@ expand_screen_block_layout_4x4:
     add hl, hl
     ld bc, (screen_block_catalog_ptr)
     add hl, bc
-    pop de
+    push hl
+    pop ix                    ; IX = source block base (16 bytes)
     push de
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    pop de
-    push de
+    pop iy                    ; IY = destination block base in runtime_background_layout
+
+    ; Row 0: copy catalog bytes +0..+3 to destination +0..+3
     push bc
+    push ix
+    pop hl
+    push iy
+    pop de
+    ld bc, 4
+    ldir
+    pop bc
+
+    ; Row 1: copy catalog bytes +4..+7 to destination +32..+35
+    push bc
+    push ix
+    pop hl
+    ld bc, 4
+    add hl, bc
+    push hl
+    push iy
+    pop hl
     ld bc, 32
-    ex de, hl
     add hl, bc
     ex de, hl
+    pop hl
+    ld bc, 4
+    ldir
     pop bc
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    pop de
-    push de
+
+    ; Row 2: copy catalog bytes +8..+11 to destination +64..+67
     push bc
+    push ix
+    pop hl
+    ld bc, 8
+    add hl, bc
+    push hl
+    push iy
+    pop hl
     ld bc, 64
-    ex de, hl
     add hl, bc
     ex de, hl
+    pop hl
+    ld bc, 4
+    ldir
     pop bc
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    pop de
-    push de
+
+    ; Row 3: copy catalog bytes +12..+15 to destination +96..+99
     push bc
+    push ix
+    pop hl
+    ld bc, 12
+    add hl, bc
+    push hl
+    push iy
+    pop hl
     ld bc, 96
-    ex de, hl
     add hl, bc
     ex de, hl
+    pop hl
+    ld bc, 4
+    ldir
     pop bc
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    pop de
-    inc de
-    inc de
-    inc de
-    inc de
+
+    ; Advance destination base by one 4-char block horizontally
+    push iy
+    pop hl
+    ld bc, 4
+    add hl, bc
+    ex de, hl
     pop bc
     dec b
     jp nz, .expand4x4_col_loop
@@ -1511,6 +1509,8 @@ expand_screen_block_layout_4x4:
     pop bc
     dec c
     jp nz, .expand4x4_row_loop
+    pop iy
+    pop ix
     ret
 
 load_screen:
@@ -1539,6 +1539,9 @@ load_screen:
     call ${(0, screen2TileBanks_1.getScreen2TileBankColorLoaderLabel)(screen.tileBankAssetId)}
     ld a, ${(0, screen2TileBanks_1.getScreen2TileBankIdLabel)(screen.tileBankAssetId)}
     ld (current_screen2_tilebank_id), a
+    xor a
+    ld (vram_cache_font_ready), a
+    call init_font_system
 ${tileBankReadyLabel}:
 `
                 : '';
@@ -1551,19 +1554,9 @@ ${tileBankReadyLabel}:
             const activeAreaY = Math.max(0, Math.min(23, rawActiveAreaY));
             const activeAreaWidth = Math.max(0, Math.min(32 - activeAreaX, rawActiveAreaWidth));
             const activeAreaHeight = Math.max(0, Math.min(24 - activeAreaY, rawActiveAreaHeight));
-            const hasHudFrameArea = activeAreaX > 0 || activeAreaY > 0 || activeAreaWidth < 32 || activeAreaHeight < 24;
-            const shouldPreserveHudArea = hasHudFrameArea && activeAreaWidth > 0 && activeAreaHeight > 0;
-            const activeAreaOffset = (activeAreaY * 32) + activeAreaX;
-            const activeAreaBytes = activeAreaWidth * activeAreaHeight;
-            const runtimeEffectZoneCount = Math.min((screen.effectZones || []).length, MAX_RUNTIME_EFFECT_ZONES);
-            const hasBackgroundBlockMap = !!screenExport?.backgroundBlockMap;
-            const layoutResourceId = buildResourceId(`SCREEN_${screenName}_${index}_LAYOUT`);
-            const blockCatalogResourceId = buildResourceId(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`);
-            const blockMapResourceId = buildResourceId(`SCREEN_${screenName}_${index}_BLOCK_MAP`);
-            const effectsLayoutResourceId = buildResourceId(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`);
-            const behaviorResourceId = buildResourceId(`BEHAVIOR_${screenName}_${index}_DATA`);
-            const effectZoneTableResourceId = buildResourceId(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`);
-            const importedHudFrameCells = (screen.hudConfiguration?.importedFrame?.cells || [])
+            const importedHudFrameCells = (hasUsableImportedHudFrameSnapshot(screen)
+                ? (screen.hudConfiguration?.importedFrame?.cells || [])
+                : [])
                 .filter((cell) => typeof cell?.x === 'number' &&
                 typeof cell?.y === 'number' &&
                 typeof cell?.charCode === 'number' &&
@@ -1580,6 +1573,21 @@ ${tileBankReadyLabel}:
                     return (cell.charCode & 0xFF);
                 })()
             }));
+            const hasHudFrameArea = activeAreaX > 0 || activeAreaY > 0 || activeAreaWidth < 32 || activeAreaHeight < 24;
+            // Only preserve the non-active area when a HUD frame snapshot exists to redraw it.
+            // A reduced active area by itself is also used for block-mode authoring, and those
+            // screens still need the full authored background loaded into VRAM.
+            const shouldPreserveHudArea = importedHudFrameCells.length > 0 && hasHudFrameArea && activeAreaWidth > 0 && activeAreaHeight > 0;
+            const activeAreaOffset = (activeAreaY * 32) + activeAreaX;
+            const activeAreaBytes = activeAreaWidth * activeAreaHeight;
+            const runtimeEffectZoneCount = Math.min((screen.effectZones || []).length, MAX_RUNTIME_EFFECT_ZONES);
+            const hasBackgroundBlockMap = !!screenExport?.backgroundBlockMap;
+            const layoutResourceId = buildResourceId(`SCREEN_${screenName}_${index}_LAYOUT`);
+            const blockCatalogResourceId = buildResourceId(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`);
+            const blockMapResourceId = buildResourceId(`SCREEN_${screenName}_${index}_BLOCK_MAP`);
+            const effectsLayoutResourceId = buildResourceId(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`);
+            const behaviorResourceId = buildResourceId(`BEHAVIOR_${screenName}_${index}_DATA`);
+            const effectZoneTableResourceId = buildResourceId(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`);
             const hasImportedHudFrame = importedHudFrameCells.length > 0;
             const importedHudFrameLabelBase = `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
             const zoneDoneLabel = `.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done`;

@@ -97,6 +97,14 @@ interface ScreenEditorToolbarProps {
   backgroundBlockMode: ScreenBlockExportMode;
   /** Callback when background export optimization mode changes. */
   onBackgroundBlockModeChange: (mode: ScreenBlockExportMode) => void;
+  /** Whether the current Active Area is compatible with the selected block mode. */
+  isBackgroundBlockAlignmentValid?: boolean;
+  /** Human-readable Active Area compatibility summary for the selected block mode. */
+  backgroundBlockAlignmentMessage?: string;
+  /** Callback to snap Active Area to the current block mode while preserving current HUD margins. */
+  onSnapActiveAreaToBlockMode?: () => void;
+  /** Whether snapping Active Area is currently possible. */
+  canSnapActiveAreaToBlockMode?: boolean;
   /** Optional optimization preview for the current background mode. */
   backgroundBlockPreview?: {
     blockWidth: number;
@@ -126,7 +134,12 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   onAddNewEffectZone, canAddNewEffectZone = false,
   currentScreenMode, selectedTileBankId, onTileBankChange, allProjectAssets,
   backgroundColor = 1, borderColor = 1, onBackgroundColorChange, onBorderColorChange,
-  backgroundBlockMode, onBackgroundBlockModeChange, backgroundBlockPreview
+  backgroundBlockMode, onBackgroundBlockModeChange,
+  isBackgroundBlockAlignmentValid = true,
+  backgroundBlockAlignmentMessage,
+  onSnapActiveAreaToBlockMode,
+  canSnapActiveAreaToBlockMode = false,
+  backgroundBlockPreview
 }) => {
 
   const tileBankAssets = allProjectAssets?.filter(asset => asset.type === 'tilebank') || [];
@@ -270,6 +283,26 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
         <input title="Active Area Width (cells)" type="number" id="activeW" value={isNaN(activeAreaWidth) ? '' : activeAreaWidth} onChange={(e) => onActiveAreaChange('activeAreaWidth', e.target.value)} min="1" max={maxActiveAreaWidth} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded"/>
         <label htmlFor="activeH" className="text-msx-textsecondary sr-only">Active Height</label>
         <input title="Active Area Height (cells)" type="number" id="activeH" value={isNaN(activeAreaHeight) ? '' : activeAreaHeight} onChange={(e) => onActiveAreaChange('activeAreaHeight', e.target.value)} min="1" max={maxActiveAreaHeight} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded"/>
+        {backgroundBlockMode !== 'raw' && (
+          <>
+            <span
+              className={`max-w-[20rem] text-[11px] ${isBackgroundBlockAlignmentValid ? 'text-msx-textsecondary' : 'text-msx-warning'}`}
+              title={backgroundBlockAlignmentMessage}
+            >
+              {backgroundBlockAlignmentMessage}
+            </span>
+            <Button
+              onClick={onSnapActiveAreaToBlockMode}
+              size="sm"
+              variant="ghost"
+              className="text-[11px]"
+              title="Snap Active Area to the current block mode while preserving current HUD/non-active margins"
+              disabled={!canSnapActiveAreaToBlockMode}
+            >
+              Snap AA
+            </Button>
+          </>
+        )}
       </div>
 
       <div className="flex items-center space-x-1 ml-auto">

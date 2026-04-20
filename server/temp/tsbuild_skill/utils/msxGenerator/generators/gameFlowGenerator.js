@@ -320,6 +320,15 @@ function getImportedHudFrameDrawRoutineName(screen) {
     if (!Array.isArray(importedCells) || importedCells.length === 0) {
         return null;
     }
+    const hasUsableSnapshot = importedCells.some((cell) => {
+        if (cell?.tileId)
+            return true;
+        const charCode = Number(cell?.charCode);
+        return Number.isFinite(charCode) && charCode > 0;
+    });
+    if (!hasUsableSnapshot) {
+        return null;
+    }
     const screenName = (screen.name || 'DEFAULT').toUpperCase().replace(/[^A-Z0-9]/g, '_');
     const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
     return `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_draw`;
@@ -337,7 +346,13 @@ function getHudRuntimeScreenIndexes(analysis) {
     screenMaps.forEach((screen) => {
         const hasHudElems = Array.isArray(screen?.hudConfiguration?.elements) && screen.hudConfiguration.elements.length > 0;
         const hasImportedHudFrame = Array.isArray(screen?.hudConfiguration?.importedFrame?.cells)
-            && screen.hudConfiguration.importedFrame.cells.length > 0;
+            && screen.hudConfiguration.importedFrame.cells.length > 0
+            && screen.hudConfiguration.importedFrame.cells.some((cell) => {
+                if (cell?.tileId)
+                    return true;
+                const charCode = Number(cell?.charCode);
+                return Number.isFinite(charCode) && charCode > 0;
+            });
         if (!screen?.id) {
             return;
         }

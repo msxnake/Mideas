@@ -403,6 +403,7 @@ init_game_systems:
     ld (vram_cache_font_ready), a
     ld a, #FF
     ld (current_screen2_tilebank_id), a
+    call init_all_global_variables
 ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize component systems (entities detected)
     call init_components
 ` : `    ; No entities - skipping component system initialization

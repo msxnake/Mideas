@@ -328,6 +328,23 @@ const raw = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
 const name = forcedName || raw.name || "mideas_project";
 const assets = Array.isArray(raw.assets) ? [...raw.assets] : [];
 const knownAssetIds = new Set(assets.map(a => a && a.id).filter(Boolean));
+const hasFontAsset = assets.some(a => a && a.type === "font");
+
+if (!hasFontAsset && raw.msxFont && typeof raw.msxFont === "object") {
+  assets.push({
+    id: "__project_font__",
+    name: "Project Font",
+    type: "font",
+    data: {
+      fontData: raw.msxFont,
+      // Project-level msxFontColorAttributes in saved JSON are editor/global state,
+      // not always the per-row runtime format expected by the ASM generator.
+      // Inject only font patterns here; runtime color falls back to the generator default.
+      fontColorAttributes: {},
+    },
+  });
+  knownAssetIds.add("__project_font__");
+}
 
 if (Array.isArray(raw.componentDefinitions)) {
   for (const comp of raw.componentDefinitions) {

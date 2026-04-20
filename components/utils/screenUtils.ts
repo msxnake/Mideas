@@ -1,4 +1,4 @@
-import { ScreenMap, Tile, TileBank, TileBankDefinition, ScreenTile, SuperRLEExportData, ScreenLayerData, SpriteFrame, ProjectAsset } from '../../types';
+import { ScreenMap, Tile, TileBank, TileBankDefinition, ScreenTile, SuperRLEExportData, ScreenLayerData, SpriteFrame, ProjectAsset, LayoutASMExportData } from '../../types';
 import { EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../../constants'; 
 import { getBackgroundColorHex, isScreen2Mode } from '../../utils/screenModeConfig';
 
@@ -312,6 +312,90 @@ export const generateScreenLayoutASMCode = (
   }
 
   return asmString;
+};
+
+export const generateScreenLayoutExportASMCode = ({
+  mapName,
+  mapWidth,
+  mapHeight,
+  mapIndices,
+  referenceComments,
+  dataFormat,
+  exportMode = 'raw',
+  blockData,
+}: LayoutASMExportData): string => {
+  if (exportMode === 'raw' || !blockData) {
+    return generateScreenLayoutASMCode(mapName, mapWidth, mapHeight, mapIndices, referenceComments, dataFormat);
+  }
+
+  const ASM_BYTES_PER_LINE = 16;
+  const safeMapName = mapName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+  const formatByte = (value: number) => (
+    dataFormat === 'hex'
+      ? `#${value.toString(16).padStart(2, '0').toUpperCase()}`
+      : value.toString(10)
+  );
+  const appendByteBlock = (label: string, bytes: number[]) => {
+    let blockAsm = `${label}:\n`;
+    for (let i = 0; i < bytes.length; i += ASM_BYTES_PER_LINE) {
+      const chunk = bytes.slice(i, i + ASM_BYTES_PER_LINE).map(formatByte);
+      blockAsm += `    DB ${chunk.join(',')}\n`;
+    }
+    return blockAsm;
+  };
+
+  let asmString = `;; MAP: ${mapName} (${mapWidth}x${mapHeight} tiles)\n`;
+  asmString += `;; EXPORT MODE: ${blockData.blockWidth}x${blockData.blockHeight} block map\n`;
+  asmString += `;; Raw Size: ${mapIndices.length} bytes\n`;
+  asmString += `;; Packed Size: ${blockData.optimizedLengthBytes} bytes (${blockData.catalogLengthBytes}B catalog + ${blockData.mapLengthBytes}B map)\n\n`;
+
+  if (referenceComments.length > 0) {
+    asmString += `;; --- TILE INDEX REFERENCES for ${safeMapName} ---\n`;
+    asmString += referenceComments.join('\n') + '\n\n';
+  }
+
+  asmString += `SCREEN_${safeMapName}_WIDTH                 EQU ${mapWidth}\n`;
+  asmString += `SCREEN_${safeMapName}_HEIGHT                EQU ${mapHeight}\n`;
+  asmString += `SCREEN_${safeMapName}_RAW_SIZE              EQU ${mapIndices.length}\n`;
+  asmString += `SCREEN_${safeMapName}_BLOCK_LAYOUT_PRESENT  EQU 1\n`;
+  asmString += `SCREEN_${safeMapName}_BLOCK_LAYOUT_MODE     EQU ${blockData.blockWidth}\n`;
+  asmString += `SCREEN_${safeMapName}_BLOCK_CATALOG_COUNT   EQU ${blockData.catalogEntryCount}\n`;
+  asmString += `SCREEN_${safeMapName}_BLOCK_CATALOG_SIZE    EQU ${blockData.catalogLengthBytes}\n`;
+  asmString += `SCREEN_${safeMapName}_BLOCK_MAP_WIDTH       EQU ${blockData.mapWidth}\n`;
+  asmString += `SCREEN_${safeMapName}_BLOCK_MAP_HEIGHT      EQU ${blockData.mapHeight}\n`;
+  asmString += `SCREEN_${safeMapName}_BLOCK_MAP_SIZE        EQU ${blockData.mapLengthBytes}\n`;
+  asmString += `SCREEN_${safeMapName}_BLOCK_TOTAL_SIZE      EQU ${blockData.optimizedLengthBytes}\n\n`;
+
+  asmString += `;; Packed layout: catalog first, then block index map.\n`;
+  asmString += `;; BIN export uses a 4-byte header: [mode, mapWidth, mapHeight, catalogCount].\n\n`;
+  asmString += appendByteBlock(`SCREEN_${safeMapName}_BLOCK_CATALOG`, blockData.catalogBytes);
+  asmString += `\n`;
+  asmString += appendByteBlock(`SCREEN_${safeMapName}_BLOCK_MAP`, blockData.mapIndices);
+
+  return asmString;
+};
+
+export const generateScreenLayoutExportBinary = ({
+  mapIndices,
+  exportMode = 'raw',
+  blockData,
+}: LayoutASMExportData): Uint8Array => {
+  if (exportMode === 'raw' || !blockData) {
+    return new Uint8Array(mapIndices);
+  }
+
+  const header = [
+    blockData.blockWidth & 0xff,
+    blockData.mapWidth & 0xff,
+    blockData.mapHeight & 0xff,
+    blockData.catalogEntryCount & 0xff,
+  ];
+
+  return new Uint8Array([
+    ...header,
+    ...blockData.catalogBytes,
+    ...blockData.mapIndices,
+  ]);
 };
 
 /**

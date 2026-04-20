@@ -291,6 +291,15 @@ function getImportedHudFrameDrawRoutineName(screenAssetId: string, analysis: Pro
     return null;
   }
 
+  const hasUsableSnapshot = importedCells.some((cell: any) => {
+    if (cell?.tileId) return true;
+    const charCode = Number(cell?.charCode);
+    return Number.isFinite(charCode) && charCode > 0;
+  });
+  if (!hasUsableSnapshot) {
+    return null;
+  }
+
   const screenName = screenAsset?.name?.toUpperCase().replace(/[^A-Z0-9]/g, '_') || 'UNKNOWN';
   const screenIdSuffix = screenAssetId
     ? `_${screenAssetId.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}`
