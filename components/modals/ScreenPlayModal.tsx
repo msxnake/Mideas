@@ -678,9 +678,26 @@ const AVAILABLE_ENGINES: EngineRegistry = {
 
                     // Check if entity has gravity component
                     const hasGravity = entity.template.components.some(c => c.definitionId === 'comp_gravity');
+                    const airControlComp = entity.template.components.find(c => c.definitionId === 'comp_air_control');
+                    const airControlProps = airControlComp
+                        ? {
+                            ...airControlComp.defaultValues,
+                            ...(entity.instance.componentOverrides?.['comp_air_control'] || {})
+                        }
+                        : null;
+                    const airControlEnabled = !!airControlProps && airControlProps.isEnabled !== false && airControlProps.isEnabled !== 'false';
+                    const airControlMode = airControlEnabled
+                        ? String(airControlProps?.airControlMode || 'locked').trim().toLowerCase()
+                        : 'full';
+                    const airControlLocked = hasGravity
+                        && airControlMode === 'locked'
+                        && !entity.isOnLadder
+                        && !(entity.isOnGround || entity.isGrounded);
 
-                    // Reset horizontal velocity
-                    entity.vx = 0;
+                    if (!airControlLocked) {
+                        // Reset horizontal velocity only when air control allows new input this frame.
+                        entity.vx = 0;
+                    }
 
                     // Only reset vertical velocity if entity doesn't have gravity
                     if (!hasGravity) {
@@ -716,30 +733,32 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                         }
                     }
 
-                    // Horizontal movement (always allowed)
-                    if (allowLeft && (currentPressedKeys.has('ArrowLeft') || currentPressedKeys.has('KeyA'))) {
-                        const newX = entity.x - speed;
-                        const exitDirection = detectScreenExit(entity, newX, entity.y);
+                    if (!airControlLocked) {
+                        // Horizontal movement
+                        if (allowLeft && (currentPressedKeys.has('ArrowLeft') || currentPressedKeys.has('KeyA'))) {
+                            const newX = entity.x - speed;
+                            const exitDirection = detectScreenExit(entity, newX, entity.y);
 
-                        if (exitDirection) {
-                            // Permitir movimiento y marcar cambio de pantalla
-                            entity.vx = -speed;
-                            screenExitDetectedRef.current = exitDirection;
-                        } else if (!wouldCollideWithWall(entity, newX, entity.y)) {
-                            entity.vx = -speed;
+                            if (exitDirection) {
+                                // Permitir movimiento y marcar cambio de pantalla
+                                entity.vx = -speed;
+                                screenExitDetectedRef.current = exitDirection;
+                            } else if (!wouldCollideWithWall(entity, newX, entity.y)) {
+                                entity.vx = -speed;
+                            }
                         }
-                    }
 
-                    if (allowRight && (currentPressedKeys.has('ArrowRight') || currentPressedKeys.has('KeyD'))) {
-                        const newX = entity.x + speed;
-                        const exitDirection = detectScreenExit(entity, newX, entity.y);
+                        if (allowRight && (currentPressedKeys.has('ArrowRight') || currentPressedKeys.has('KeyD'))) {
+                            const newX = entity.x + speed;
+                            const exitDirection = detectScreenExit(entity, newX, entity.y);
 
-                        if (exitDirection) {
-                            // Permitir movimiento y marcar cambio de pantalla
-                            entity.vx = speed;
-                            screenExitDetectedRef.current = exitDirection;
-                        } else if (!wouldCollideWithWall(entity, newX, entity.y)) {
-                            entity.vx = speed;
+                            if (exitDirection) {
+                                // Permitir movimiento y marcar cambio de pantalla
+                                entity.vx = speed;
+                                screenExitDetectedRef.current = exitDirection;
+                            } else if (!wouldCollideWithWall(entity, newX, entity.y)) {
+                                entity.vx = speed;
+                            }
                         }
                     }
                 }
@@ -1310,6 +1329,11 @@ interface AnimatedEntity {
     jumpData?: {
         bonusCharges: number;
     };
+    wallJumpData?: {
+        lockFramesRemaining: number;
+        lockedVx: number;
+    };
+    isWallGrabbing?: boolean;
     tileCollectorData?: {
         bonusRespawns: Array<{
             position: { x: number; y: number };
@@ -2526,9 +2550,96 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                             }
                         }
 
-                        // Reset jump key processed when not pressing space and on ground
-                        if (!spacePressed && entity.isOnGround) {
+                        // Match Z80 edge-triggered jump: releasing the key rearms it immediately.
+                        if (!spacePressed) {
                             jumpKeyProcessed.current = false;
+                        }
+                    }
+
+                    const wallGrabComp = entity.template.components.find(c => c.definitionId === 'comp_wall_grab');
+                    if (wallGrabComp) {
+                        const wallGrabProps = { ...wallGrabComp.defaultValues, ...(entity.instance.componentOverrides?.['comp_wall_grab'] || {}) };
+                        const wallGrabEnabled = wallGrabProps.isEnabled !== false && wallGrabProps.isEnabled !== 'false';
+                        const hasGravity = entity.template.components.some(c => c.definitionId === 'comp_gravity');
+                        const grabPressed = currentPressedKeys.has('KeyN');
+                        const onGroundNow = !!entity.isOnGround || !!entity.isGrounded;
+                        const touchingWall = !!entity.isTouchingWallLeft || !!entity.isTouchingWallRight;
+                        entity.isWallGrabbing = false;
+
+                        if (wallGrabEnabled && hasGravity && grabPressed && !onGroundNow && !entity.isOnLadder && touchingWall) {
+                            const grabFallSpeed = Math.max(0, Number(wallGrabProps.grabFallSpeed ?? 0) || 0);
+                            entity.vx = 0;
+                            entity.vy = grabFallSpeed;
+                            entity.gravityVel = (grabFallSpeed << 8) & 0xFFFF;
+                            entity.isWallGrabbing = true;
+                        }
+                    } else {
+                        entity.isWallGrabbing = false;
+                    }
+
+                    const wallJumpComp = entity.template.components.find(c => c.definitionId === 'comp_wall_jump');
+                    if (wallJumpComp) {
+                        const wallJumpProps = { ...wallJumpComp.defaultValues, ...(entity.instance.componentOverrides?.['comp_wall_jump'] || {}) };
+                        const wallJumpEnabled = wallJumpProps.isEnabled !== false && wallJumpProps.isEnabled !== 'false';
+                        if (!entity.wallJumpData) {
+                            entity.wallJumpData = { lockFramesRemaining: 0, lockedVx: 0 };
+                        }
+
+                        if (wallJumpEnabled) {
+                            const hasGravity = entity.template.components.some(c => c.definitionId === 'comp_gravity');
+                            const spacePressed = currentPressedKeys.has('Space');
+                            const onGroundNow = !!entity.isOnGround || !!entity.isGrounded;
+                            const touchingLeft = !!entity.isTouchingWallLeft;
+                            const touchingRight = !!entity.isTouchingWallRight;
+                            const touchingWall = touchingLeft || touchingRight;
+
+                            if (onGroundNow) {
+                                entity.wallJumpData.lockFramesRemaining = 0;
+                            } else if (entity.wallJumpData.lockFramesRemaining > 0) {
+                                entity.wallJumpData.lockFramesRemaining--;
+                                entity.vx = entity.wallJumpData.lockedVx;
+                            }
+
+                            const slideFallSpeed = Math.max(0, Number(wallJumpProps.slideFallSpeed ?? 2) || 0);
+                            if (hasGravity && !onGroundNow && !entity.isOnLadder && touchingWall && slideFallSpeed > 0 && entity.vy > slideFallSpeed) {
+                                entity.vy = slideFallSpeed;
+                                entity.gravityVel = (slideFallSpeed << 8) & 0xFFFF;
+                            }
+
+                            const canWallJump = hasGravity && !onGroundNow && !entity.isOnLadder && touchingWall && spacePressed && !jumpKeyProcessed.current;
+                            if (canWallJump) {
+                                const leftPressed = currentPressedKeys.has('ArrowLeft') || currentPressedKeys.has('KeyA');
+                                const rightPressed = currentPressedKeys.has('ArrowRight') || currentPressedKeys.has('KeyD');
+                                const requireAway = wallJumpProps.requirePressAwayFromWall === true || wallJumpProps.requirePressAwayFromWall === 'true';
+                                let jumpFromLeftWall = false;
+                                let jumpFromRightWall = false;
+
+                                if (requireAway) {
+                                    jumpFromLeftWall = touchingLeft && rightPressed;
+                                    jumpFromRightWall = touchingRight && leftPressed;
+                                } else {
+                                    jumpFromLeftWall = touchingLeft && (!touchingRight || rightPressed || !leftPressed);
+                                    jumpFromRightWall = !jumpFromLeftWall && touchingRight;
+                                }
+
+                                if (jumpFromLeftWall || jumpFromRightWall) {
+                                    const horizontalPush = Math.max(1, Number(wallJumpProps.horizontalPush ?? 3) || 3);
+                                    const verticalMagnitude = Math.max(1, Number(wallJumpProps.verticalImpulse ?? 1024) || 1024);
+                                    const jumpImpulse = ((0x10000 - verticalMagnitude) & 0xFFFF) >>> 0;
+                                    const jumpVx = jumpFromLeftWall ? horizontalPush : -horizontalPush;
+                                    const lockFrames = Math.max(0, Number(wallJumpProps.lockFrames ?? 8) || 0);
+                                    const hi = (jumpImpulse >> 8) & 0xFF;
+
+                                    entity.vx = jumpVx;
+                                    entity.wallJumpData.lockedVx = jumpVx;
+                                    entity.wallJumpData.lockFramesRemaining = lockFrames;
+                                    entity.gravityVel = jumpImpulse;
+                                    entity.vy = hi >= 0x80 ? hi - 0x100 : hi;
+                                    entity.isOnGround = false;
+                                    entity.isGrounded = false;
+                                    jumpKeyProcessed.current = true;
+                                }
+                            }
                         }
                     }
                 });

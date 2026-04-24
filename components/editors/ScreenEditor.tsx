@@ -1,12 +1,12 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem, TileStamp, ScreenBlockExportMode, resolveEffectZoneType } from '../../types';
+import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem, TileStamp, ScreenBlockExportMode, ScreenBehaviorSource, resolveEffectZoneType } from '../../types';
 import { Panel } from '../common/Panel';
 import { DEFAULT_SCREEN_WIDTH_TILES, DEFAULT_SCREEN_HEIGHT_TILES, MSX_SCREEN5_PALETTE, MSX1_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, DEFAULT_TILE_BANK_DEFINITIONS, EDITOR_BASE_TILE_DIM_S2 as CONST_EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE_EDITOR } from '../../constants';
 import { ExportLayoutASMModal } from '../modals/ExportLayoutASMModal';
 import { ExportBehaviorMapASMModal } from '../modals/ExportBehaviorMapASMModal';
 import { HUDEditorModal } from './HUDEditorModal';
-import { generateSuperRLEData, deepCompareTiles, generateScreenMapLayoutBytes, generateOptimizedRLEData } from '../utils/screenUtils'; // New Import
+import { generateSuperRLEData, deepCompareTiles, generateScreenMapLayoutBytes, generateOptimizedRLEData, generateBehaviorMapData, resolveScreenBehaviorSource } from '../utils/screenUtils'; // New Import
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { NewEffectZoneModal } from '../modals/NewEffectZoneModal';
 import { AddSecretTextModal } from '../modals/AddSecretTextModal';
@@ -318,6 +318,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
   const backgroundBlockMode: ScreenBlockExportMode = screenMap.blockOptimization?.backgroundMode ?? 'raw';
+  const behaviorSource: ScreenBehaviorSource = resolveScreenBehaviorSource(screenMap);
 
   const activeAreaBlockAlignment = useMemo(() => {
     if (backgroundBlockMode === 'raw') {
@@ -1245,22 +1246,11 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
 
   const handleExportBehaviorMapASM = () => {
-    const behaviorMapData: number[] = [];
-    const activeCollisionLayer = screenMap.layers.collision;
-
-    for (let r = 0; r < (screenMap.activeAreaHeight ?? screenMap.height); r++) {
-      const mapY = (screenMap.activeAreaY ?? 0) + r;
-      for (let c = 0; c < (screenMap.activeAreaWidth ?? screenMap.width); c++) {
-        const mapX = (screenMap.activeAreaX ?? 0) + c;
-        const screenTile = activeCollisionLayer[mapY]?.[mapX];
-        if (screenTile?.tileId) {
-          const tileAsset = tileset.find(t => t.id === screenTile.tileId);
-          behaviorMapData.push(tileAsset?.logicalProperties?.mapId ?? 0);
-        } else {
-          behaviorMapData.push(0);
-        }
-      }
-    }
+    const behaviorMapData = generateBehaviorMapData(screenMap, tileset, {
+      source: behaviorSource,
+      tileBanks: tileBankDefinitions,
+      currentScreenMode,
+    });
     setBehaviorMapASMExportData({
       mapName: screenMap.name,
       mapWidth: screenMap.activeAreaWidth ?? screenMap.width,
@@ -1397,6 +1387,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     const copiedData: CopiedScreenData = {
       layers: copiedLayers,
       blockOptimization: screenMap.blockOptimization ? JSON.parse(JSON.stringify(screenMap.blockOptimization)) : undefined,
+      behaviorConfig: screenMap.behaviorConfig ? JSON.parse(JSON.stringify(screenMap.behaviorConfig)) : undefined,
       effectZones: effectZones ? JSON.parse(JSON.stringify(effectZones)) : undefined,
       activeAreaX,
       activeAreaY,
@@ -1414,6 +1405,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     const updatedScreenMapData: Partial<ScreenMap> = {
       layers: { ...screenMap.layers },
       blockOptimization: copiedScreenBuffer.blockOptimization ? JSON.parse(JSON.stringify(copiedScreenBuffer.blockOptimization)) : undefined,
+      behaviorConfig: copiedScreenBuffer.behaviorConfig ? JSON.parse(JSON.stringify(copiedScreenBuffer.behaviorConfig)) : undefined,
       effectZones: copiedScreenBuffer.effectZones ? JSON.parse(JSON.stringify(copiedScreenBuffer.effectZones)) : [],
       hudConfiguration: copiedScreenBuffer.hudConfiguration ? JSON.parse(JSON.stringify(copiedScreenBuffer.hudConfiguration)) : undefined,
     };
@@ -1619,6 +1611,21 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     setStatusBarMessage(`Border color changed to: ${colorIndex}`);
   };
 
+  const handleBehaviorSourceChange = useCallback((source: ScreenBehaviorSource) => {
+    onUpdate({
+      behaviorConfig: {
+        ...(screenMap.behaviorConfig || {}),
+        source,
+      },
+    });
+
+    setStatusBarMessage(
+      source === 'backgroundChars'
+        ? 'Behavior source set to background chars. ROM export derives runtime behavior from the background layer.'
+        : 'Behavior source set to collision layer.'
+    );
+  }, [onUpdate, screenMap.behaviorConfig, setStatusBarMessage]);
+
   const handleBackgroundBlockModeChange = useCallback((mode: ScreenBlockExportMode) => {
     if (mode === 'raw') {
       onUpdate({
@@ -1724,6 +1731,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         onBorderColorChange={handleBorderColorChange}
         backgroundBlockMode={backgroundBlockMode}
         onBackgroundBlockModeChange={handleBackgroundBlockModeChange}
+        behaviorSource={behaviorSource}
+        onBehaviorSourceChange={handleBehaviorSourceChange}
         isBackgroundBlockAlignmentValid={activeAreaBlockAlignment.isValid}
         backgroundBlockAlignmentMessage={activeAreaBlockAlignment.message}
         onSnapActiveAreaToBlockMode={handleSnapActiveAreaToBlockMode}

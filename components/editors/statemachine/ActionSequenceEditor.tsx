@@ -10,6 +10,9 @@ const ACTION_LABELS: Partial<Record<ActionType, string>> = {
   [ActionTypes.REGENERATE_HUD]: 'Refresh HUD',
   [ActionTypes.CLEAN_SPRITES]: 'Clean Sprites',
   [ActionTypes.EXIT_CURRENT_WORLD]: 'Exit Current GameFlow Node',
+  [ActionTypes.REPLACE_TILE_AT]: 'Replace Tile At (X,Y)',
+  [ActionTypes.MOVE_TILE_AREA]: 'Move Tile Area',
+  [ActionTypes.SHIFT_TILE_AREA]: 'Shift Tile Area',
 };
 
 const getActionLabel = (type: ActionType): string => ACTION_LABELS[type] || type;

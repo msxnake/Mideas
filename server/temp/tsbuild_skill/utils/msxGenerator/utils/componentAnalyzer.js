@@ -30,11 +30,15 @@ const STANDARD_COMPONENT_IDS = {
     'comp_jump': 'Jump',
     'comp_damage': 'Damage',
     'comp_deadly_tiles': 'DeadlyTiles',
+    'comp_wall_jump': 'WallJump',
+    'comp_wall_grab': 'WallGrab',
+    'comp_air_control': 'AirControl',
     'comp_statemachine': 'StateMachine',
     'comp_cursors': 'Cursors',
     'comp_carry': 'Carry',
     'comp_collectible': 'Collectible',
-    'comp_patrol': 'Patrol'
+    'comp_patrol': 'Patrol',
+    'comp_retractable_gate': 'RetractableGate'
 };
 /**
  * Resolve final spriteId for an entity (defaults + overrides)
@@ -163,6 +167,8 @@ function generateEntityComponentMask(entity, template, analysis) {
         'Animation': 7, // Bit 7  - #0080
         'Jump': 8, // Bit 8  - #0100 (NEW)
         'Gravity': 9, // Bit 9  - #0200 (NEW)
+        'WallJump': 14, // Bit 14 - #4000
+        'AirControl': 15, // Bit 15 - #8000
         'DeadlyTiles': 13 // Bit 13 - #2000
     };
     // Track if entity has sprite component defined

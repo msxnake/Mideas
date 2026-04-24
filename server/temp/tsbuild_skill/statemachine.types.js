@@ -64,6 +64,9 @@ exports.ActionTypes = {
     // Tile Manipulation
     BREAK_TILE: 'BREAK_TILE',
     REPLACE_TILE: 'REPLACE_TILE',
+    REPLACE_TILE_AT: 'REPLACE_TILE_AT',
+    MOVE_TILE_AREA: 'MOVE_TILE_AREA',
+    SHIFT_TILE_AREA: 'SHIFT_TILE_AREA',
     // Math
     RND: 'RND',
     POINT_AT: 'POINT_AT',

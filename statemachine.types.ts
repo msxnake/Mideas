@@ -190,6 +190,9 @@ export const ActionTypes = {
   // Tile Manipulation
   BREAK_TILE: 'BREAK_TILE',
   REPLACE_TILE: 'REPLACE_TILE',
+  REPLACE_TILE_AT: 'REPLACE_TILE_AT',
+  MOVE_TILE_AREA: 'MOVE_TILE_AREA',
+  SHIFT_TILE_AREA: 'SHIFT_TILE_AREA',
 
   // Math
   RND: 'RND',
@@ -221,7 +224,59 @@ export interface Action {
  */
 export interface TileActionParams {
   /** Direction relative to the player where the tile is located */
-  direction: 'up' | 'down' | 'left' | 'right';
+  direction: 'here' | 'up' | 'down' | 'left' | 'right' | 'up-right' | 'up-left' | 'down-right' | 'down-left';
   /** ID of the replacement tile (only for REPLACE_TILE action) */
   replacementTileId?: string;
+}
+
+/**
+ * Parameters for REPLACE_TILE_AT action
+ */
+export interface TileAtActionParams {
+  /** Absolute tile X coordinate in the current screen (0..31) */
+  x: number;
+  /** Absolute tile Y coordinate in the current screen (0..23) */
+  y: number;
+  /** ID of the replacement tile. Empty removes the tile. */
+  replacementTileId?: string;
+}
+
+/**
+ * Parameters for MOVE_TILE_AREA action
+ */
+export interface MoveTileAreaActionParams {
+  /** Absolute source tile X coordinate in the current screen (0..31) */
+  x: number;
+  /** Absolute source tile Y coordinate in the current screen (0..23) */
+  y: number;
+  /** Width of the moved area in chars */
+  width: number;
+  /** Height of the moved area in chars */
+  height: number;
+  /** Direction where the area will move */
+  direction: 'up' | 'down' | 'left' | 'right';
+  /** Number of chars displaced in the selected direction */
+  distance: number;
+  /** Tile used to fill the vacated area. Empty removes/frees the area. */
+  fillTileId?: string;
+}
+
+/**
+ * Parameters for SHIFT_TILE_AREA action
+ */
+export interface ShiftTileAreaActionParams {
+  /** Absolute source tile X coordinate in the current screen (0..31) */
+  x: number;
+  /** Absolute source tile Y coordinate in the current screen (0..23) */
+  y: number;
+  /** Width of the shifted area in chars */
+  width: number;
+  /** Height of the shifted area in chars */
+  height: number;
+  /** Direction where the content will shift inside the area */
+  direction: 'up' | 'down' | 'left' | 'right';
+  /** Number of chars displaced in the selected direction */
+  distance: number;
+  /** Tile used to fill the newly exposed edge. Empty removes/frees the area. */
+  fillTileId?: string;
 }

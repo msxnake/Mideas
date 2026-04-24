@@ -7,7 +7,7 @@
 import React from 'react';
 import { Button } from '../common/Button';
 import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
-import { ScreenBlockExportMode, ScreenMap, ProjectAsset } from '../../types';
+import { ScreenBlockExportMode, ScreenBehaviorSource, ScreenMap, ProjectAsset } from '../../types';
 import { MSX1_PALETTE } from '../../constants';
 import { getBackgroundColorHex, isScreen2Mode } from '../../utils/screenModeConfig';
 
@@ -97,6 +97,10 @@ interface ScreenEditorToolbarProps {
   backgroundBlockMode: ScreenBlockExportMode;
   /** Callback when background export optimization mode changes. */
   onBackgroundBlockModeChange: (mode: ScreenBlockExportMode) => void;
+  /** Current behavior source mode. */
+  behaviorSource: ScreenBehaviorSource;
+  /** Callback when behavior source mode changes. */
+  onBehaviorSourceChange: (source: ScreenBehaviorSource) => void;
   /** Whether the current Active Area is compatible with the selected block mode. */
   isBackgroundBlockAlignmentValid?: boolean;
   /** Human-readable Active Area compatibility summary for the selected block mode. */
@@ -135,6 +139,7 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   currentScreenMode, selectedTileBankId, onTileBankChange, allProjectAssets,
   backgroundColor = 1, borderColor = 1, onBackgroundColorChange, onBorderColorChange,
   backgroundBlockMode, onBackgroundBlockModeChange,
+  behaviorSource, onBehaviorSourceChange,
   isBackgroundBlockAlignmentValid = true,
   backgroundBlockAlignmentMessage,
   onSnapActiveAreaToBlockMode,
@@ -256,6 +261,28 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
             title={`${backgroundBlockPreview.blockWidth}x${backgroundBlockPreview.blockHeight} blocks`}
           >
             {backgroundBlockPreview.uniqueBlockCount} uniq | {backgroundBlockPreview.optimizedLengthBytes}B
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center space-x-1 border-l border-msx-border/50 pl-2">
+        <label htmlFor="behaviorSourceMode" className="pixel-font text-msx-textsecondary text-xs">Behavior:</label>
+        <select
+          id="behaviorSourceMode"
+          value={behaviorSource}
+          onChange={(e) => onBehaviorSourceChange(e.target.value as ScreenBehaviorSource)}
+          className="p-1 bg-msx-bgcolor border-msx-border rounded text-msx-textprimary text-xs focus:ring-msx-accent focus:border-msx-accent"
+          title="Select how runtime collision/behavior is generated for this screen"
+        >
+          <option value="collisionLayer">Collision layer</option>
+          <option value="backgroundChars">Background chars</option>
+        </select>
+        {behaviorSource === 'backgroundChars' && (
+          <span
+            className="max-w-[17rem] text-[11px] text-msx-warning"
+            title="ROM export and play preview derive behavior from background chars. Collision layer is ignored in this mode."
+          >
+            Uses background chars; collision layer ignored.
           </span>
         )}
       </div>

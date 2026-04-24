@@ -7,6 +7,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateEntitiesFile = generateEntitiesFile;
 const componentAnalyzer_1 = require("../utils/componentAnalyzer");
+const spriteUtils_1 = require("../../../components/utils/spriteUtils");
 /**
  * Generate game entities file (entities.asm)
  *
@@ -41,6 +42,12 @@ function generateEntitiesFile(analysis) {
             return defaultValue;
         return Math.max(0, Math.min(255, num | 0));
     };
+    const parseWord = (value, defaultValue) => {
+        const num = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
+        if (Number.isNaN(num))
+            return Math.max(0, Math.min(65535, defaultValue | 0));
+        return Math.max(0, Math.min(65535, num | 0));
+    };
     const parseOffsetByte = (value, defaultValue) => {
         const num = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
         if (Number.isNaN(num))
@@ -74,6 +81,84 @@ function generateEntitiesFile(analysis) {
         return ((raw % safePeriod) + safePeriod) % safePeriod;
     };
     const toHexByte = (value) => (value & 0xFF).toString(16).toUpperCase().padStart(2, '0');
+    const resolveSpriteAssetIndex = (spriteRef, spriteNameToIndex, spriteCount) => {
+        if (typeof spriteRef === 'number' && Number.isInteger(spriteRef) && spriteRef >= 0 && spriteRef < spriteCount) {
+            return spriteRef;
+        }
+        const trimmed = String(spriteRef ?? '').trim();
+        if (!trimmed)
+            return 0xFF;
+        const direct = spriteNameToIndex[trimmed];
+        if (direct !== undefined)
+            return direct;
+        const lower = spriteNameToIndex[trimmed.toLowerCase()];
+        return lower !== undefined ? lower : 0xFF;
+    };
+    const buildTileIdToBaseCharMap = (tiles) => {
+        const map = {};
+        if (!tiles || tiles.length === 0)
+            return map;
+        let nextCharCode = 128;
+        tiles.forEach((tile) => {
+            if (!tile || !tile.id)
+                return;
+            map[tile.id] = nextCharCode;
+            if (tile.name) {
+                map[String(tile.name)] = nextCharCode;
+                map[String(tile.name).toLowerCase()] = nextCharCode;
+            }
+            const charsWide = Math.max(1, Math.ceil((Number(tile.width) || 8) / 8));
+            const charsHigh = Math.max(1, Math.ceil((Number(tile.height) || 8) / 8));
+            nextCharCode += charsWide * charsHigh;
+        });
+        return map;
+    };
+    const resolveTileCharCode = (value, tileIdToCharCode) => {
+        if (typeof value === 'string' && tileIdToCharCode) {
+            if (tileIdToCharCode[value] !== undefined)
+                return tileIdToCharCode[value];
+            const lower = value.toLowerCase();
+            if (tileIdToCharCode[lower] !== undefined)
+                return tileIdToCharCode[lower];
+        }
+        const parsed = parseInt(String(value ?? ''), 10);
+        return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(255, parsed | 0));
+    };
+    const buildGlobalVariableInfoMap = (analysis) => {
+        const variableMap = {};
+        const globalVariables = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
+        for (const variable of globalVariables) {
+            const name = typeof variable?.name === 'string' ? variable.name.trim() : '';
+            const asmName = typeof variable?.asmName === 'string' ? variable.asmName.trim() : '';
+            if (!name || !asmName)
+                continue;
+            const type = String(variable?.type || '').toLowerCase();
+            const isWord = type === 'word' || type === '16bit';
+            variableMap[name] = { asmName, isWord };
+            variableMap[name.toLowerCase()] = { asmName, isWord };
+            variableMap[asmName] = { asmName, isWord };
+            variableMap[asmName.toLowerCase()] = { asmName, isWord };
+        }
+        return variableMap;
+    };
+    const getComponentDefinitionDefaults = (definitionId) => {
+        const definition = (analysis.components || []).find((component) => component?.id === definitionId);
+        const defaults = {};
+        for (const property of definition?.properties || []) {
+            if (!property?.name)
+                continue;
+            defaults[property.name] = property.defaultValue;
+        }
+        return defaults;
+    };
+    const resolveConfiguredVariableInfo = (variableRef, variableMap) => {
+        if (typeof variableRef !== 'string')
+            return null;
+        const trimmed = variableRef.trim();
+        if (!trimmed)
+            return null;
+        return variableMap[trimmed] || variableMap[trimmed.toLowerCase()] || null;
+    };
     const resolveEntityScreenId = (entity) => {
         const worldMaps = (analysis.worldmaps || []);
         // Helper: compute global screen ID = sum of all previous worlds' node counts + nodeIndex
@@ -141,12 +226,32 @@ function generateEntitiesFile(analysis) {
         });
         return map;
     };
+    const collectStateMachineActions = (stateMachine) => {
+        const actions = [];
+        for (const state of stateMachine?.states || []) {
+            if (Array.isArray(state?.onEnter))
+                actions.push(...state.onEnter);
+            if (Array.isArray(state?.onExit))
+                actions.push(...state.onExit);
+        }
+        for (const transition of stateMachine?.transitions || []) {
+            if (Array.isArray(transition?.actions))
+                actions.push(...transition.actions);
+        }
+        return actions;
+    };
+    const stateMachineControlsSprite = (stateMachine) => collectStateMachineActions(stateMachine).some((action) => action?.type === 'CHANGE_SPRITE');
     // INTELLIGENT FILTERING: Analyze which entities are actually used
     const componentUsage = (0, componentAnalyzer_1.analyzeComponentUsage)(analysis);
     const activeEntities = componentUsage.activeEntities;
+    const spriteCatalog = (0, spriteUtils_1.buildMSXDirectionalSpriteCatalog)((analysis.sprites || []));
+    const spriteNameToIndex = spriteCatalog.nameToIndex;
+    const spriteCount = Math.max(1, spriteCatalog.sprites.length);
     const COMP_MASK_SPRITE = 0x02; // Bit used for sprite component
     const COMP_MASK_INPUT = 0x10; // Bit used for input component
     const templateTokenMap = buildTemplateTokenMap(analysis.templates);
+    const tileIdToCharCode = buildTileIdToBaseCharMap(analysis.tiles);
+    const globalVariableInfoMap = buildGlobalVariableInfoMap(analysis);
     const hasExplicitPlayerTemplate = Array.isArray(analysis.templates)
         && analysis.templates.some((tpl) => parseBool(tpl?.isPlayer, false));
     const sanitizeEntityName = (rawName) => {
@@ -164,6 +269,10 @@ function generateEntitiesFile(analysis) {
         entityNameCounts.set(base, seen);
         return seen === 1 ? base : `${base}_${seen}`;
     });
+    const retractableGateConfigs = [];
+    const wallJumpConfigs = [];
+    const wallGrabConfigs = [];
+    const airControlConfigs = [];
     console.log('🎯 Generating optimized entities.asm...');
     console.log(`  - Total entity templates in JSON: ${analysis.templates?.length || 0}`);
     console.log(`  - Actually instantiated entities: ${activeEntities.length}`);
@@ -293,6 +402,12 @@ init_entities:
 
     ld hl, entity_sm_wait_timer
     ld de, entity_sm_wait_timer+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_sm_sprite_control
+    ld de, entity_sm_sprite_control+1
     ld bc, 31
     ld (hl), 0
     ldir
@@ -578,9 +693,11 @@ update_entities:
             const smOverride = entity.componentOverrides?.['comp_statemachine'];
             const smTemplateComp = template?.components?.find((c) => c.definitionId === 'comp_statemachine');
             const smAssetId = smOverride?.stateMachineAssetId || smTemplateComp?.defaultValues?.stateMachineAssetId;
+            let smControlsSprite = false;
             if (smAssetId && analysis.stateMachines) {
                 const sm = analysis.stateMachines.find((s) => s.id === smAssetId);
                 if (sm && sm.states && sm.states.length > 0) {
+                    smControlsSprite = stateMachineControlsSprite(sm);
                     // Use initialStateId if available, otherwise fall back to first state
                     let initialState = sm.states[0];
                     if (sm.initialStateId) {
@@ -612,6 +729,147 @@ update_entities:
 `;
                 }
             }
+            let gateInitAsm = '';
+            let retractableGateConfig = {
+                enabled: 0,
+                x: 0,
+                y: 0,
+                width: 1,
+                height: 1,
+                direction: 1,
+                fillChar: 0,
+                totalSteps: 0,
+                stepDelay: 1,
+                triggerAsmName: null,
+                triggerIsWord: 0,
+                triggerOperator: 0,
+                triggerValue: 0,
+            };
+            const gateTemplateComp = template?.components?.find((c) => c.definitionId === 'comp_retractable_gate');
+            if (gateTemplateComp) {
+                const gateDefinitionDefaults = getComponentDefinitionDefaults('comp_retractable_gate');
+                const gateDefaults = {
+                    ...gateDefinitionDefaults,
+                    ...(gateTemplateComp.defaultValues || {}),
+                };
+                const gateOverrides = entity.componentOverrides?.['comp_retractable_gate'] || {};
+                const gateValues = { ...gateDefaults, ...gateOverrides };
+                const gateEnabled = parseBool(gateValues.isEnabled, true);
+                const gateVariableInfo = resolveConfiguredVariableInfo(gateValues.triggerVariable, globalVariableInfoMap);
+                const gateDirectionName = String(gateValues.direction || 'up').toLowerCase();
+                const gateDirectionIdMap = { up: 1, down: 2, left: 3, right: 4 };
+                const gateOperatorName = String(gateValues.triggerOperator || '==').trim();
+                const gateOperatorIdMap = { '==': 0, '!=': 1, '>': 2, '<': 3, '>=': 4, '<=': 5 };
+                const gateDirectionId = gateDirectionIdMap[gateDirectionName] || 1;
+                const gateOperatorId = gateOperatorIdMap[gateOperatorName] ?? 0;
+                const gateWidth = Math.max(1, parseByte(gateValues.width, 1));
+                const gateHeight = Math.max(1, parseByte(gateValues.height, 1));
+                const gateTotalSteps = Math.max(1, gateDirectionId >= 3 ? gateWidth : gateHeight);
+                const gateDurationMs = Math.max(1, parseWord(gateValues.durationMs, 2000));
+                const gateDurationFrames = Math.max(1, Math.round((gateDurationMs * 50) / 1000));
+                const gateStepDelay = Math.max(1, Math.ceil(gateDurationFrames / Math.max(1, gateTotalSteps - 1)));
+                const gateTriggerValue = parseWord(gateValues.triggerValue, 1);
+                const gateFillChar = resolveTileCharCode(gateValues.fillTileId ?? 0, tileIdToCharCode);
+                if (gateEnabled && gateVariableInfo) {
+                    retractableGateConfig = {
+                        enabled: 1,
+                        x: parseByte(gateValues.screenX, 0),
+                        y: parseByte(gateValues.screenY, 0),
+                        width: gateWidth,
+                        height: gateHeight,
+                        direction: gateDirectionId,
+                        fillChar: gateFillChar,
+                        totalSteps: gateTotalSteps,
+                        stepDelay: gateStepDelay,
+                        triggerAsmName: gateVariableInfo.asmName,
+                        triggerIsWord: gateVariableInfo.isWord ? 1 : 0,
+                        triggerOperator: gateOperatorId,
+                        triggerValue: gateTriggerValue,
+                    };
+                }
+            }
+            retractableGateConfigs.push(retractableGateConfig);
+            let wallJumpConfig = {
+                enabled: 0,
+                horizontalPush: 0,
+                verticalImpulseWord: 0,
+                animationSprite: 0xFF,
+                slideFallSpeed: 0,
+                lockFrames: 0,
+                requirePressAway: 0,
+            };
+            const wallJumpTemplateComp = template?.components?.find((c) => c.definitionId === 'comp_wall_jump');
+            if (wallJumpTemplateComp) {
+                const wallJumpDefinitionDefaults = getComponentDefinitionDefaults('comp_wall_jump');
+                const wallJumpTemplateDefaults = wallJumpTemplateComp.defaultValues || {};
+                const wallJumpDefaults = {
+                    ...wallJumpDefinitionDefaults,
+                    ...wallJumpTemplateDefaults,
+                };
+                const wallJumpOverrides = entity.componentOverrides?.['comp_wall_jump'] || {};
+                const wallJumpValues = { ...wallJumpDefaults, ...wallJumpOverrides };
+                const wallJumpEnabled = parseBool(wallJumpValues.isEnabled, true);
+                const wallJumpHorizontalPush = wallJumpOverrides.horizontalPush ?? wallJumpTemplateDefaults.horizontalPush ?? 7;
+                const wallJumpVerticalImpulse = wallJumpOverrides.verticalImpulse ?? wallJumpTemplateDefaults.verticalImpulse ?? 1280;
+                const wallJumpLockFrames = wallJumpOverrides.lockFrames ?? wallJumpTemplateDefaults.lockFrames ?? 16;
+                const wallJumpVerticalMagnitude = Math.max(1, parseWord(wallJumpVerticalImpulse, 1280));
+                const wallJumpAnimationSprite = resolveSpriteAssetIndex(wallJumpValues.animationSpriteAssetId ?? wallJumpValues.wallJumpAnimationSprite ?? wallJumpValues.animationSprite, spriteNameToIndex, spriteCount);
+                if (wallJumpEnabled) {
+                    wallJumpConfig = {
+                        enabled: 1,
+                        horizontalPush: Math.max(1, parseByte(wallJumpHorizontalPush, 7)),
+                        verticalImpulseWord: ((0x10000 - wallJumpVerticalMagnitude) & 0xFFFF),
+                        animationSprite: wallJumpAnimationSprite,
+                        slideFallSpeed: parseByte(wallJumpValues.slideFallSpeed, 2),
+                        lockFrames: parseByte(wallJumpLockFrames, 16),
+                        requirePressAway: parseBool(wallJumpValues.requirePressAwayFromWall, false) ? 1 : 0,
+                    };
+                }
+            }
+            wallJumpConfigs.push(wallJumpConfig);
+            let wallGrabConfig = {
+                enabled: 0,
+                fallSpeed: 0,
+            };
+            const wallGrabTemplateComp = template?.components?.find((c) => c.definitionId === 'comp_wall_grab');
+            if (wallGrabTemplateComp) {
+                const wallGrabDefinitionDefaults = getComponentDefinitionDefaults('comp_wall_grab');
+                const wallGrabDefaults = {
+                    ...wallGrabDefinitionDefaults,
+                    ...(wallGrabTemplateComp.defaultValues || {}),
+                };
+                const wallGrabOverrides = entity.componentOverrides?.['comp_wall_grab'] || {};
+                const wallGrabValues = { ...wallGrabDefaults, ...wallGrabOverrides };
+                const wallGrabEnabled = parseBool(wallGrabValues.isEnabled, true);
+                if (wallGrabEnabled) {
+                    wallGrabConfig = {
+                        enabled: 1,
+                        fallSpeed: parseByte(wallGrabValues.grabFallSpeed, 0),
+                    };
+                }
+            }
+            wallGrabConfigs.push(wallGrabConfig);
+            let airControlConfig = {
+                mode: 0,
+            };
+            const airControlTemplateComp = template?.components?.find((c) => c.definitionId === 'comp_air_control');
+            if (airControlTemplateComp) {
+                const airControlDefinitionDefaults = getComponentDefinitionDefaults('comp_air_control');
+                const airControlDefaults = {
+                    ...airControlDefinitionDefaults,
+                    ...(airControlTemplateComp.defaultValues || {}),
+                };
+                const airControlOverrides = entity.componentOverrides?.['comp_air_control'] || {};
+                const airControlValues = { ...airControlDefaults, ...airControlOverrides };
+                const airControlEnabled = parseBool(airControlValues.isEnabled, true);
+                const airControlMode = String(airControlValues.airControlMode || 'locked').trim().toLowerCase();
+                if (airControlEnabled) {
+                    airControlConfig = {
+                        mode: airControlMode === 'locked' ? 1 : 0,
+                    };
+                }
+            }
+            airControlConfigs.push(airControlConfig);
             // === Generate entity update function (patrol bounce or standard input check) ===
             let updateEntityAsm = '';
             if (hasPatrol) {
@@ -777,6 +1035,12 @@ update_entities:
     add hl, de
     ld (hl), ${templateToken}
 
+    ; Mark whether this entity's state machine actually owns sprite changes.
+    ; Plain state machines without ChangeSprite should keep auto-facing active.
+    ld hl, entity_sm_sprite_control
+    add hl, de
+    ld (hl), ${smControlsSprite ? 1 : 0}
+
 ${hasSprite && hasInput ? `    ; Deterministic spawn facing: right.
     ; This keeps the first SM ChangeSprite aligned with the same default
     ; world-facing direction used by Preview/runtime web.
@@ -788,6 +1052,7 @@ ${hasSprite && hasInput ? `    ; Deterministic spawn facing: right.
 ${animationInitAsm}
 ${patrolInitAsm}
 ${collisionInitAsm}
+${gateInitAsm}
 ${hasSprite ? `    ; Set sprite pattern and color (renderable entity)
     ld hl, sprite_pattern
     add hl, de
@@ -833,8 +1098,67 @@ ${smInitAsm}
 ${updateEntityAsm}
 `;
         });
-        if (needsPatrolFacingHelper) {
-            code += `
+        code += `; ------------------------------------------------------------------
+; RETRACTABLE GATE STATIC CONFIG TABLES (ROM)
+; Indexed by entity slot (0..31)
+; ------------------------------------------------------------------
+entity_gate_cfg_enabled:
+    DB ${Array.from({ length: 32 }, (_, i) => retractableGateConfigs[i]?.enabled ?? 0).join(', ')}
+entity_gate_cfg_x:
+    DB ${Array.from({ length: 32 }, (_, i) => retractableGateConfigs[i]?.x ?? 0).join(', ')}
+entity_gate_cfg_y:
+    DB ${Array.from({ length: 32 }, (_, i) => retractableGateConfigs[i]?.y ?? 0).join(', ')}
+entity_gate_cfg_width:
+    DB ${Array.from({ length: 32 }, (_, i) => retractableGateConfigs[i]?.width ?? 0).join(', ')}
+entity_gate_cfg_height:
+    DB ${Array.from({ length: 32 }, (_, i) => retractableGateConfigs[i]?.height ?? 0).join(', ')}
+entity_gate_cfg_direction:
+    DB ${Array.from({ length: 32 }, (_, i) => retractableGateConfigs[i]?.direction ?? 0).join(', ')}
+entity_gate_cfg_fill_char:
+    DB ${Array.from({ length: 32 }, (_, i) => retractableGateConfigs[i]?.fillChar ?? 0).join(', ')}
+entity_gate_cfg_total_steps:
+    DB ${Array.from({ length: 32 }, (_, i) => retractableGateConfigs[i]?.totalSteps ?? 0).join(', ')}
+entity_gate_cfg_step_delay:
+    DB ${Array.from({ length: 32 }, (_, i) => retractableGateConfigs[i]?.stepDelay ?? 0).join(', ')}
+entity_gate_cfg_trigger_ptr:
+${Array.from({ length: 32 }, (_, i) => {
+            const asmName = retractableGateConfigs[i]?.triggerAsmName;
+            return asmName ? `    DW ${asmName}` : `    DW 0`;
+        }).join('\n')}
+entity_gate_cfg_trigger_is_word:
+    DB ${Array.from({ length: 32 }, (_, i) => retractableGateConfigs[i]?.triggerIsWord ?? 0).join(', ')}
+entity_gate_cfg_trigger_operator:
+    DB ${Array.from({ length: 32 }, (_, i) => retractableGateConfigs[i]?.triggerOperator ?? 0).join(', ')}
+entity_gate_cfg_trigger_value:
+${Array.from({ length: 32 }, (_, i) => `    DW ${retractableGateConfigs[i]?.triggerValue ?? 0}`).join('\n')}
+
+; ------------------------------------------------------------------
+; WALL JUMP STATIC CONFIG TABLES (ROM)
+; Indexed by entity slot (0..31)
+; ------------------------------------------------------------------
+entity_walljump_cfg_enabled:
+    DB ${Array.from({ length: 32 }, (_, i) => wallJumpConfigs[i]?.enabled ?? 0).join(', ')}
+entity_walljump_cfg_horizontal_push:
+    DB ${Array.from({ length: 32 }, (_, i) => wallJumpConfigs[i]?.horizontalPush ?? 0).join(', ')}
+entity_walljump_cfg_vertical_impulse:
+${Array.from({ length: 32 }, (_, i) => `    DW ${wallJumpConfigs[i]?.verticalImpulseWord ?? 0}`).join('\n')}
+entity_walljump_cfg_animation_sprite:
+    DB ${Array.from({ length: 32 }, (_, i) => wallJumpConfigs[i]?.animationSprite ?? 0xFF).join(', ')}
+entity_walljump_cfg_slide_fall_speed:
+    DB ${Array.from({ length: 32 }, (_, i) => wallJumpConfigs[i]?.slideFallSpeed ?? 0).join(', ')}
+entity_walljump_cfg_lock_frames:
+    DB ${Array.from({ length: 32 }, (_, i) => wallJumpConfigs[i]?.lockFrames ?? 0).join(', ')}
+entity_walljump_cfg_require_away:
+    DB ${Array.from({ length: 32 }, (_, i) => wallJumpConfigs[i]?.requirePressAway ?? 0).join(', ')}
+entity_wallgrab_cfg_enabled:
+    DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.enabled ?? 0).join(', ')}
+entity_wallgrab_cfg_fall_speed:
+    DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.fallSpeed ?? 0).join(', ')}
+entity_aircontrol_cfg_mode:
+    DB ${Array.from({ length: 32 }, (_, i) => airControlConfigs[i]?.mode ?? 0).join(', ')}
+
+`;
+        code += `
 ; ------------------------------------------------------------------
 ; update_entity_patrol_facing
 ; Input: DE = entity index
@@ -923,7 +1247,6 @@ update_entity_patrol_facing:
     ret
 
 `;
-        }
         code += `; ------------------------------------------------------------------
 ; init_player_fast_runtime
 ; Reset the dedicated player fast-path runtime mirror.

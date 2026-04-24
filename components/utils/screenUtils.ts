@@ -1,4 +1,4 @@
-import { ScreenMap, Tile, TileBank, TileBankDefinition, ScreenTile, SuperRLEExportData, ScreenLayerData, SpriteFrame, ProjectAsset, LayoutASMExportData } from '../../types';
+import { ScreenMap, Tile, TileBank, TileBankDefinition, ScreenTile, SuperRLEExportData, ScreenLayerData, SpriteFrame, ProjectAsset, LayoutASMExportData, ScreenBehaviorSource, TileLogicalProperties, TILE_INTERACTION_TYPES, TileInteractionType } from '../../types';
 import { EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../../constants'; 
 import { getBackgroundColorHex, isScreen2Mode } from '../../utils/screenModeConfig';
 
@@ -440,6 +440,179 @@ export const generateBehaviorMapASMCode = (
   return asmString;
 };
 
+export const resolveScreenBehaviorSource = (screenMap: ScreenMap): ScreenBehaviorSource => (
+  screenMap.behaviorConfig?.source === 'backgroundChars' ? 'backgroundChars' : 'collisionLayer'
+);
+
+export const getScreenBehaviorLayer = (screenMap: ScreenMap): ScreenLayerData => (
+  resolveScreenBehaviorSource(screenMap) === 'backgroundChars'
+    ? screenMap.layers.background
+    : screenMap.layers.collision
+);
+
+const SCREEN_WIDTH = 32;
+const SCREEN_HEIGHT = 24;
+const INTERACTION_TYPE_ID_BY_KEY = new Map<TileInteractionType, number>(
+  TILE_INTERACTION_TYPES.map(interaction => [interaction.key, interaction.id])
+);
+
+export const isTriggeredTileInteractionType = (
+  interactionType: TileInteractionType
+): boolean => interactionType !== 'none' && interactionType !== 'ladder';
+
+export const normalizeTileInteractionType = (
+  logicalProperties?: TileLogicalProperties | null
+): TileInteractionType => {
+  if (!logicalProperties) {
+    return 'none';
+  }
+
+  const explicitType = logicalProperties.interactionType;
+  if (explicitType && explicitType !== 'none') {
+    return explicitType;
+  }
+
+  if (logicalProperties.isInteractable || logicalProperties.isInteractiveSwitch) {
+    return 'collect_gem';
+  }
+
+  return 'none';
+};
+
+export const encodeInteractionTypeIdFromLogicalProperties = (
+  logicalProperties?: TileLogicalProperties | null
+): number => {
+  const interactionType = normalizeTileInteractionType(logicalProperties);
+  return INTERACTION_TYPE_ID_BY_KEY.get(interactionType) ?? 0;
+};
+
+export const encodeInteractionValueFromLogicalProperties = (
+  logicalProperties?: TileLogicalProperties | null
+): number => {
+  if (!logicalProperties) {
+    return 0;
+  }
+
+  const parsed = Number(logicalProperties.interactionValue ?? 1);
+  if (!Number.isFinite(parsed)) {
+    return 1;
+  }
+
+  return Math.max(0, Math.min(255, Math.floor(parsed)));
+};
+
+export const encodeInteractionTargetFromLogicalProperties = (
+  logicalProperties?: TileLogicalProperties | null
+): string | null => {
+  if (!logicalProperties) {
+    return null;
+  }
+
+  const target = typeof logicalProperties.interactionTarget === 'string'
+    ? logicalProperties.interactionTarget.trim()
+    : '';
+  return target || null;
+};
+
+export const encodeBehaviorByteFromLogicalProperties = (
+  logicalProperties?: TileLogicalProperties | null
+): number => {
+  if (!logicalProperties) {
+    return 0;
+  }
+
+  const familyId = logicalProperties.familyId ?? (logicalProperties.isSolid ? 1 : 0);
+  const interactionType = normalizeTileInteractionType(logicalProperties);
+  let flagBits = 0;
+  if (logicalProperties.isBreakable) flagBits |= 0x01;
+  if (logicalProperties.isMovable) flagBits |= 0x02;
+  if (logicalProperties.causesDamage) flagBits |= 0x04;
+  if (isTriggeredTileInteractionType(interactionType)) flagBits |= 0x08;
+  return ((familyId & 0x0f) << 4) | (flagBits & 0x0f);
+};
+
+const mergeBehaviorBytes = (existing: number, next: number): number => {
+  if (existing === 0) return next;
+  if (next === 0 || existing === next) return existing;
+
+  const existingFamily = (existing >> 4) & 0x0f;
+  const nextFamily = (next >> 4) & 0x0f;
+  const mergedFamily = existingFamily === 0
+    ? nextFamily
+    : nextFamily === 0
+      ? existingFamily
+      : Math.max(existingFamily, nextFamily);
+
+  return ((mergedFamily & 0x0f) << 4) | ((existing | next) & 0x0f);
+};
+
+export const buildScreenCharBehaviorTable = (
+  screenMapData: ScreenMap,
+  tileset: Tile[],
+  tileBanks?: TileBankDefinition[],
+  currentScreenMode = "SCREEN 2 (Graphics I)"
+): number[] => {
+  const fullScreenMap: ScreenMap = {
+    ...screenMapData,
+    activeAreaX: 0,
+    activeAreaY: 0,
+    activeAreaWidth: screenMapData.width,
+    activeAreaHeight: screenMapData.height,
+  };
+
+  const layoutBytes = Array.from(generateScreenMapLayoutBytes(fullScreenMap, tileset, tileBanks, currentScreenMode));
+  const tileById = new Map(tileset.map(tile => [tile.id, tile]));
+  const charBehaviorTable = Array.from({ length: 256 }, () => 0);
+
+  for (let row = 0; row < (screenMapData.height ?? 0); row++) {
+    for (let col = 0; col < (screenMapData.width ?? 0); col++) {
+      const charCode = layoutBytes[(row * (screenMapData.width ?? 0)) + col] ?? 0;
+      const tileId = screenMapData.layers.background[row]?.[col]?.tileId;
+      const behaviorByte = encodeBehaviorByteFromLogicalProperties(
+        tileId ? tileById.get(tileId)?.logicalProperties : undefined
+      );
+      charBehaviorTable[charCode & 0xff] = mergeBehaviorBytes(charBehaviorTable[charCode & 0xff], behaviorByte);
+    }
+  }
+
+  return charBehaviorTable;
+};
+
+export const buildScreenInteractionMaps = (
+  screenMapData: ScreenMap,
+  tileset: Tile[]
+): {
+  typeMap: number[];
+  valueMap: number[];
+  targetMap: Array<string | null>;
+} => {
+  const sourceLayer = getScreenBehaviorLayer(screenMapData) || [];
+  const sourceRows = sourceLayer.length;
+  const sourceCols = sourceLayer[0]?.length ?? 0;
+  const tileById = new Map(tileset.map(tile => [tile.id, tile]));
+  const typeMap: number[] = [];
+  const valueMap: number[] = [];
+  const targetMap: Array<string | null> = [];
+
+  for (let row = 0; row < SCREEN_HEIGHT; row++) {
+    for (let col = 0; col < SCREEN_WIDTH; col++) {
+      const srcRow = sourceRows > 0
+        ? Math.min(sourceRows - 1, Math.floor((row * sourceRows) / SCREEN_HEIGHT))
+        : 0;
+      const srcCol = sourceCols > 0
+        ? Math.min(sourceCols - 1, Math.floor((col * sourceCols) / SCREEN_WIDTH))
+        : 0;
+      const tileId = sourceLayer[srcRow]?.[srcCol]?.tileId;
+      const logicalProperties = tileId ? tileById.get(tileId)?.logicalProperties : undefined;
+      typeMap.push(encodeInteractionTypeIdFromLogicalProperties(logicalProperties));
+      valueMap.push(encodeInteractionValueFromLogicalProperties(logicalProperties));
+      targetMap.push(encodeInteractionTargetFromLogicalProperties(logicalProperties));
+    }
+  }
+
+  return { typeMap, valueMap, targetMap };
+};
+
 /**
  * Generates behavior map data from collision layer.
  * This uses the same logic as the Screen Editor's "Download ASM" button.
@@ -449,10 +622,35 @@ export const generateBehaviorMapASMCode = (
  */
 export const generateBehaviorMapData = (
   screenMapData: ScreenMap,
-  tileset: Tile[]
+  tileset: Tile[],
+  options?: {
+    source?: ScreenBehaviorSource;
+    tileBanks?: TileBankDefinition[];
+    currentScreenMode?: string;
+  }
 ): number[] => {
+  const source = options?.source ?? resolveScreenBehaviorSource(screenMapData);
+  if (source === 'backgroundChars') {
+    const charBehaviorTable = buildScreenCharBehaviorTable(
+      screenMapData,
+      tileset,
+      options?.tileBanks,
+      options?.currentScreenMode
+    );
+    const layoutBytes = Array.from(
+      generateScreenMapLayoutBytes(
+        screenMapData,
+        tileset,
+        options?.tileBanks,
+        options?.currentScreenMode ?? "SCREEN 2 (Graphics I)"
+      )
+    );
+    return layoutBytes.map(value => charBehaviorTable[value & 0xff] ?? 0);
+  }
+
   const behaviorMapData: number[] = [];
   const activeCollisionLayer = screenMapData.layers.collision;
+  const tileById = new Map(tileset.map(tile => [tile.id, tile]));
 
   for (let r = 0; r < (screenMapData.activeAreaHeight ?? screenMapData.height); r++) {
     const mapY = (screenMapData.activeAreaY ?? 0) + r;
@@ -460,8 +658,8 @@ export const generateBehaviorMapData = (
       const mapX = (screenMapData.activeAreaX ?? 0) + c;
       const screenTile = activeCollisionLayer[mapY]?.[mapX];
       if (screenTile?.tileId) {
-        const tileAsset = tileset.find(t => t.id === screenTile.tileId);
-        behaviorMapData.push(tileAsset?.logicalProperties?.mapId ?? 0);
+        const tileAsset = tileById.get(screenTile.tileId);
+        behaviorMapData.push(encodeBehaviorByteFromLogicalProperties(tileAsset?.logicalProperties));
       } else {
         behaviorMapData.push(0);
       }

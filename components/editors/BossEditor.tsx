@@ -252,7 +252,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
             id, name, width: tileW, height: tileH,
             data: Array(tileH).fill(null).map(() => Array(tileW).fill(initialColor)),
             ...(isScreen2 && { lineAttributes: createDefaultLineAttributes(tileW, tileH, DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR) }),
-            logicalProperties: { mapId: 0, familyId: 0, instanceId: 0, isSolid: false, isBreakable: false, isMovable: false, causesDamage: false, isInteractiveSwitch: false }
+            logicalProperties: { mapId: 0, familyId: 0, instanceId: 0, isSolid: false, isBreakable: false, isMovable: false, causesDamage: false, isInteractiveSwitch: false, isInteractable: false, interactionType: 'none', interactionValue: 1, interactionTarget: '' }
         };
 
         const newAsset: ProjectAsset = { id, name, type: 'tile', data: newTileData };

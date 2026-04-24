@@ -131,7 +131,8 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
         const defaultLogicalProps: TileLogicalProperties = {
             mapId: 0, familyId: 0, instanceId: 0,
             isSolid: false, isBreakable: false, causesDamage: false,
-            isMovable: false, isInteractiveSwitch: false
+            isMovable: false, isInteractiveSwitch: false,
+            isInteractable: false, interactionType: 'none', interactionValue: 1, interactionTarget: ''
           };
 
         const newProjectAssets: ProjectAsset[] = loadedTilesData.map((tileData, index) => {

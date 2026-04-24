@@ -29,7 +29,7 @@ import {
 } from '../../types';
 import { Button } from '../common/Button';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
-import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
+import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, normalizeTileInteractionType } from '../utils/screenUtils';
 import { drawPresentationScreenPreview } from '../utils/presentationScreenUtils';
 import type { PresentationScreenConfig } from '../../types';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
@@ -100,6 +100,15 @@ interface AnimatedEntity {
     stateMachine?: StateMachine;
     currentState?: string;
     isOnGround: boolean;
+    isOnLadder?: boolean;
+    isTouchingCeiling?: boolean;
+    isTouchingWallLeft?: boolean;
+    isTouchingWallRight?: boolean;
+    wallJumpData?: {
+        lockFramesRemaining: number;
+        lockedVx: number;
+    };
+    isWallGrabbing?: boolean;
     spawnTime: number; // Timestamp when entity was created
     animationHasCompleted?: boolean; // True when a non-looping animation reaches its last frame
     lastAnimationState?: string; // Track which state's animation was playing
@@ -113,6 +122,7 @@ interface AnimatedEntity {
     parentEntityId?: string | null; // ID of parent entity (for riding platforms)
     platformUnderneath?: AnimatedEntity | null; // Reference to platform entity this entity is standing on
     platformGraceFramesLeft?: number; // Small grace period to keep grounded after brief de-anchoring
+    screenAssetId?: string | null; // Screen where this runtime entity was created
     // Carry mechanics
     carriedBox?: AnimatedEntity | null; // Reference to the box currently carried (only meaningful for hero)
     // Box persistence
@@ -141,6 +151,9 @@ interface AnimatedEntity {
     // Lifetime
     lifetimeMs?: number;
     expiresAt?: number;
+    activeButtonInteractionKey?: string | null;
+    retractableGateCurrentStep?: number;
+    retractableGateNextStepAt?: number;
 }
 
 /** Animated tile group state for Z80-faithful tile animation in the simulator */
@@ -417,6 +430,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // Tile collection persistence registry: tracks interactable tiles collected (mapId & 0x08)
     // Key: "${screenId}@${tileX},${tileY}", Value: true if collected (should not respawn)
     const collectedTilesRegistry = useRef<Set<string>>(new Set());
+    const consumedInteractionRegistry = useRef<Set<string>>(new Set());
     // Secret passage tiles registry: tracks which background tiles have been revealed (made invisible)
     // Key: "${screenId}_${x}_${y}", Value: true if revealed (should stay hidden)
     const revealedSecretTiles = useRef<Set<string>>(new Set());
@@ -936,9 +950,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (axX >= AXIS_THRESHOLD) newKeys.add('ArrowRight');
             if (axY <= -AXIS_THRESHOLD) newKeys.add('ArrowUp');
             if (axY >= AXIS_THRESHOLD) newKeys.add('ArrowDown');
-            // Buttons: 0 (A) -> Fire (KeyX), 1 (B) -> Jump (Space)
+            // Buttons: 0 (A) -> Fire (KeyX), 1 (B) -> Jump (Space), 2 (X) -> Grab (KeyN)
             if (pressed(0)) newKeys.add('KeyX');
             if (pressed(1)) newKeys.add(' ');
+            if (pressed(2)) newKeys.add('KeyN');
         }
 
         const prev = prevGamepadKeysRef.current;
@@ -1087,6 +1102,218 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
         tileBufferNeedsUpdate.current = true;
 
+    }, []);
+
+    const moveTileAreaInLayer = useCallback((
+        sourceX: number,
+        sourceY: number,
+        width: number,
+        height: number,
+        direction: 'up' | 'down' | 'left' | 'right',
+        distance: number,
+        fillTileId: string | null
+    ) => {
+        const currentLayer = runtimeCollisionLayerRef.current;
+        const maxRows = currentLayer.length || currentScreenMapRef.current?.height || 0;
+        const maxCols = (currentLayer[0]?.length ?? currentScreenMapRef.current?.width) || 0;
+        if (width <= 0 || height <= 0 || distance <= 0 || maxRows <= 0 || maxCols <= 0) {
+            return;
+        }
+
+        const offsets: Record<'up' | 'down' | 'left' | 'right', { x: number; y: number }> = {
+            up: { x: 0, y: -1 },
+            down: { x: 0, y: 1 },
+            left: { x: -1, y: 0 },
+            right: { x: 1, y: 0 },
+        };
+        const offset = offsets[direction] || offsets.up;
+        const safeSourceX = Math.trunc(sourceX);
+        const safeSourceY = Math.trunc(sourceY);
+        const safeWidth = Math.max(1, Math.trunc(width));
+        const safeHeight = Math.max(1, Math.trunc(height));
+        const safeDistance = Math.max(1, Math.trunc(distance));
+        const sourceSnapshot: { tileId: string | null }[][] = [];
+
+        for (let row = 0; row < safeHeight; row++) {
+            const snapshotRow: { tileId: string | null }[] = [];
+            for (let col = 0; col < safeWidth; col++) {
+                const sampleX = safeSourceX + col;
+                const sampleY = safeSourceY + row;
+                snapshotRow.push({
+                    tileId: sampleX >= 0 && sampleX < maxCols && sampleY >= 0 && sampleY < maxRows
+                        ? (currentLayer[sampleY]?.[sampleX]?.tileId ?? null)
+                        : null,
+                });
+            }
+            sourceSnapshot.push(snapshotRow);
+        }
+
+        setRuntimeCollisionLayer(prev => {
+            const nextLayer = JSON.parse(JSON.stringify(prev));
+
+            for (let row = 0; row < safeHeight; row++) {
+                for (let col = 0; col < safeWidth; col++) {
+                    const clearX = safeSourceX + col;
+                    const clearY = safeSourceY + row;
+                    if (clearX >= 0 && clearX < maxCols && clearY >= 0 && clearY < maxRows) {
+                        if (!nextLayer[clearY]) nextLayer[clearY] = [];
+                        nextLayer[clearY][clearX] = { tileId: fillTileId };
+                    }
+                }
+            }
+
+            const targetBaseX = safeSourceX + (offset.x * safeDistance);
+            const targetBaseY = safeSourceY + (offset.y * safeDistance);
+
+            for (let row = 0; row < safeHeight; row++) {
+                for (let col = 0; col < safeWidth; col++) {
+                    const destX = targetBaseX + col;
+                    const destY = targetBaseY + row;
+                    if (destX >= 0 && destX < maxCols && destY >= 0 && destY < maxRows) {
+                        if (!nextLayer[destY]) nextLayer[destY] = [];
+                        nextLayer[destY][destX] = { tileId: sourceSnapshot[row]?.[col]?.tileId ?? null };
+                    }
+                }
+            }
+
+            runtimeCollisionLayerRef.current = nextLayer;
+            return nextLayer;
+        });
+
+        tileBufferNeedsUpdate.current = true;
+    }, []);
+
+    const shiftTileAreaInLayer = useCallback((
+        sourceX: number,
+        sourceY: number,
+        width: number,
+        height: number,
+        direction: 'up' | 'down' | 'left' | 'right',
+        distance: number,
+        fillTileId: string | null
+    ) => {
+        const currentLayer = runtimeCollisionLayerRef.current;
+        const maxRows = currentLayer.length || currentScreenMapRef.current?.height || 0;
+        const maxCols = (currentLayer[0]?.length ?? currentScreenMapRef.current?.width) || 0;
+        if (width <= 0 || height <= 0 || distance <= 0 || maxRows <= 0 || maxCols <= 0) {
+            return;
+        }
+
+        const safeSourceX = Math.trunc(sourceX);
+        const safeSourceY = Math.trunc(sourceY);
+        const safeWidth = Math.max(1, Math.trunc(width));
+        const safeHeight = Math.max(1, Math.trunc(height));
+        const safeDistance = Math.max(1, Math.trunc(distance));
+
+        setRuntimeCollisionLayer(prev => {
+            const nextLayer = JSON.parse(JSON.stringify(prev));
+
+            for (let step = 0; step < safeDistance; step++) {
+                if (direction === 'up') {
+                    for (let row = 0; row < safeHeight - 1; row++) {
+                        for (let col = 0; col < safeWidth; col++) {
+                            const destX = safeSourceX + col;
+                            const destY = safeSourceY + row;
+                            const srcY = destY + 1;
+                            if (destX < 0 || destX >= maxCols || destY < 0 || destY >= maxRows || srcY < 0 || srcY >= maxRows) continue;
+                            if (!nextLayer[destY]) nextLayer[destY] = [];
+                            nextLayer[destY][destX] = { tileId: nextLayer[srcY]?.[destX]?.tileId ?? null };
+                        }
+                    }
+                    const fillY = safeSourceY + safeHeight - 1;
+                    for (let col = 0; col < safeWidth; col++) {
+                        const fillX = safeSourceX + col;
+                        if (fillX < 0 || fillX >= maxCols || fillY < 0 || fillY >= maxRows) continue;
+                        if (!nextLayer[fillY]) nextLayer[fillY] = [];
+                        nextLayer[fillY][fillX] = { tileId: fillTileId };
+                    }
+                } else if (direction === 'down') {
+                    for (let row = safeHeight - 1; row > 0; row--) {
+                        for (let col = 0; col < safeWidth; col++) {
+                            const destX = safeSourceX + col;
+                            const destY = safeSourceY + row;
+                            const srcY = destY - 1;
+                            if (destX < 0 || destX >= maxCols || destY < 0 || destY >= maxRows || srcY < 0 || srcY >= maxRows) continue;
+                            if (!nextLayer[destY]) nextLayer[destY] = [];
+                            nextLayer[destY][destX] = { tileId: nextLayer[srcY]?.[destX]?.tileId ?? null };
+                        }
+                    }
+                    const fillY = safeSourceY;
+                    for (let col = 0; col < safeWidth; col++) {
+                        const fillX = safeSourceX + col;
+                        if (fillX < 0 || fillX >= maxCols || fillY < 0 || fillY >= maxRows) continue;
+                        if (!nextLayer[fillY]) nextLayer[fillY] = [];
+                        nextLayer[fillY][fillX] = { tileId: fillTileId };
+                    }
+                } else if (direction === 'left') {
+                    for (let col = 0; col < safeWidth - 1; col++) {
+                        for (let row = 0; row < safeHeight; row++) {
+                            const destX = safeSourceX + col;
+                            const destY = safeSourceY + row;
+                            const srcX = destX + 1;
+                            if (destX < 0 || destX >= maxCols || destY < 0 || destY >= maxRows || srcX < 0 || srcX >= maxCols) continue;
+                            if (!nextLayer[destY]) nextLayer[destY] = [];
+                            nextLayer[destY][destX] = { tileId: nextLayer[destY]?.[srcX]?.tileId ?? null };
+                        }
+                    }
+                    const fillX = safeSourceX + safeWidth - 1;
+                    for (let row = 0; row < safeHeight; row++) {
+                        const fillY = safeSourceY + row;
+                        if (fillX < 0 || fillX >= maxCols || fillY < 0 || fillY >= maxRows) continue;
+                        if (!nextLayer[fillY]) nextLayer[fillY] = [];
+                        nextLayer[fillY][fillX] = { tileId: fillTileId };
+                    }
+                } else {
+                    for (let col = safeWidth - 1; col > 0; col--) {
+                        for (let row = 0; row < safeHeight; row++) {
+                            const destX = safeSourceX + col;
+                            const destY = safeSourceY + row;
+                            const srcX = destX - 1;
+                            if (destX < 0 || destX >= maxCols || destY < 0 || destY >= maxRows || srcX < 0 || srcX >= maxCols) continue;
+                            if (!nextLayer[destY]) nextLayer[destY] = [];
+                            nextLayer[destY][destX] = { tileId: nextLayer[destY]?.[srcX]?.tileId ?? null };
+                        }
+                    }
+                    const fillX = safeSourceX;
+                    for (let row = 0; row < safeHeight; row++) {
+                        const fillY = safeSourceY + row;
+                        if (fillX < 0 || fillX >= maxCols || fillY < 0 || fillY >= maxRows) continue;
+                        if (!nextLayer[fillY]) nextLayer[fillY] = [];
+                        nextLayer[fillY][fillX] = { tileId: fillTileId };
+                    }
+                }
+            }
+
+            runtimeCollisionLayerRef.current = nextLayer;
+            return nextLayer;
+        });
+
+        tileBufferNeedsUpdate.current = true;
+    }, []);
+
+    const evaluateRetractableGateTrigger = useCallback((values: Record<string, any> | null): boolean => {
+        if (!values || values.isEnabled === false || values.isEnabled === 'false') return false;
+        const variableName = String(values.triggerVariable || '').trim();
+        if (!variableName) return false;
+
+        const rawCurrent = (gameGlobalVariablesRef.current as any)?.[variableName];
+        const rawTarget = values.triggerValue ?? 1;
+        const currentNum = Number(rawCurrent ?? 0);
+        const targetNum = Number(rawTarget ?? 0);
+        const currentValue = Number.isFinite(currentNum) ? currentNum : 0;
+        const targetValue = Number.isFinite(targetNum) ? targetNum : 0;
+        const operator = String(values.triggerOperator || '==').trim();
+
+        switch (operator) {
+            case '!=': return currentValue !== targetValue;
+            case '>': return currentValue > targetValue;
+            case '<': return currentValue < targetValue;
+            case '>=': return currentValue >= targetValue;
+            case '<=': return currentValue <= targetValue;
+            case '==':
+            default:
+                return currentValue === targetValue;
+        }
     }, []);
 
     // Disparar un evento para una entidad
@@ -1945,7 +2172,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             stateMachine,
             currentState,
             isOnGround: false,
+            isOnLadder: false,
             spawnTime: performance.now(),
+            screenAssetId: currentScreenMapRef.current?.id,
             parentEntityId: null,
             platformGraceFramesLeft: 0,
             childLink,
@@ -2418,6 +2647,7 @@ break;
 
     // Compute the tile position based on player's facing direction
     const offsets: Record<string, { x: number; y: number }> = {
+        here: { x: 0, y: 0 },
         up: { x: 0, y: -1 },
         down: { x: 0, y: 1 },
         left: { x: -1, y: 0 },
@@ -2434,8 +2664,9 @@ break;
     const playerTileY = Math.floor((entity.y + entity.sprite.size.height / 2) / 8);
 
     // Target tile position
-    const targetTileX = playerTileX + offsets[dir].x;
-    const targetTileY = playerTileY + offsets[dir].y;
+    const selectedOffset = offsets[dir] || offsets.up;
+    const targetTileX = playerTileX + selectedOffset.x;
+    const targetTileY = playerTileY + selectedOffset.y;
 
     // Ensure the target tile exists (using the ref for synchronous access)
     const targetTile = runtimeCollisionLayerRef.current[targetTileY]?.[targetTileX];
@@ -2463,6 +2694,72 @@ break;
         }
     } else {
     }
+    break;
+}
+
+                case 'REPLACE_TILE_AT': {
+    const params = action.params;
+    const targetTileX = Number(params.x ?? 0);
+    const targetTileY = Number(params.y ?? 0);
+    const newTileId = params.replacementTileId || null;
+
+    if (!Number.isFinite(targetTileX) || !Number.isFinite(targetTileY)) {
+        break;
+    }
+
+    modifyTileInLayer(Math.trunc(targetTileX), Math.trunc(targetTileY), newTileId);
+    break;
+}
+
+                case 'MOVE_TILE_AREA': {
+    const params = action.params;
+    const sourceX = Number(params.x ?? 0);
+    const sourceY = Number(params.y ?? 0);
+    const width = Number(params.width ?? 1);
+    const height = Number(params.height ?? 1);
+    const distance = Number(params.distance ?? 1);
+    const direction = String(params.direction || 'up').toLowerCase() as 'up' | 'down' | 'left' | 'right';
+    const fillTileId = params.fillTileId || null;
+
+    if (!Number.isFinite(sourceX) || !Number.isFinite(sourceY) || !Number.isFinite(width) || !Number.isFinite(height) || !Number.isFinite(distance)) {
+        break;
+    }
+
+    moveTileAreaInLayer(
+        Math.trunc(sourceX),
+        Math.trunc(sourceY),
+        Math.max(1, Math.trunc(width)),
+        Math.max(1, Math.trunc(height)),
+        direction,
+        Math.max(1, Math.trunc(distance)),
+        fillTileId
+    );
+    break;
+}
+
+                case 'SHIFT_TILE_AREA': {
+    const params = action.params;
+    const sourceX = Number(params.x ?? 0);
+    const sourceY = Number(params.y ?? 0);
+    const width = Number(params.width ?? 1);
+    const height = Number(params.height ?? 1);
+    const distance = Number(params.distance ?? 1);
+    const direction = String(params.direction || 'up').toLowerCase() as 'up' | 'down' | 'left' | 'right';
+    const fillTileId = params.fillTileId || null;
+
+    if (!Number.isFinite(sourceX) || !Number.isFinite(sourceY) || !Number.isFinite(width) || !Number.isFinite(height) || !Number.isFinite(distance)) {
+        break;
+    }
+
+    shiftTileAreaInLayer(
+        Math.trunc(sourceX),
+        Math.trunc(sourceY),
+        Math.max(1, Math.trunc(width)),
+        Math.max(1, Math.trunc(height)),
+        direction,
+        Math.max(1, Math.trunc(distance)),
+        fillTileId
+    );
     break;
 }
 
@@ -2740,6 +3037,7 @@ useEffect(() => {
         try { boxPickedUpRegistry.current.clear(); } catch { }
         try { collectedItemsRegistry.current.clear(); } catch { }
         try { collectedTilesRegistry.current.clear(); } catch { }
+        try { consumedInteractionRegistry.current.clear(); } catch { }
         hudImportedFrameRef.current = null;
         hudConfigRef.current = null;
         try { revealedSecretTiles.current.clear(); } catch { }
@@ -2956,6 +3254,7 @@ const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
                     try { boxPickedUpRegistry.current.clear(); } catch { }
                     try { collectedItemsRegistry.current.clear(); } catch { }
                     try { collectedTilesRegistry.current.clear(); } catch { }
+                    try { consumedInteractionRegistry.current.clear(); } catch { }
         hudImportedFrameRef.current = null;
         hudConfigRef.current = null;
                     try { revealedSecretTiles.current.clear(); } catch { }
@@ -3158,8 +3457,9 @@ useEffect(() => {
 
 
     // Initialize runtime collision layer (cloned from screenMap for in-game modifications)
-    if (currentScreenMap.layers?.collision) {
-        const clonedLayer = JSON.parse(JSON.stringify(currentScreenMap.layers.collision));
+    const effectiveBehaviorLayer = getScreenBehaviorLayer(currentScreenMap);
+    if (effectiveBehaviorLayer) {
+        const clonedLayer = JSON.parse(JSON.stringify(effectiveBehaviorLayer));
         runtimeCollisionLayerRef.current = clonedLayer;
         setRuntimeCollisionLayer(clonedLayer);
     } else {
@@ -3322,7 +3622,8 @@ useEffect(() => {
             instance, template, sprite, spriteAssetId, x: startX, y: startY, vx, vy,
             gravityVel: 0,
             frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
-            stateMachine, currentState, isOnGround: false, spawnTime: performance.now(),
+                    stateMachine, currentState, isOnGround: false, isOnLadder: false, spawnTime: performance.now(),
+            screenAssetId: currentScreenMap.id,
             globalX, globalY, originScreenId, parentEntityId: null, platformGraceFramesLeft: 0,
             ownerScreenId,
             childLink,
@@ -3585,7 +3886,7 @@ useEffect(() => {
 
         // Use runtimeCollisionLayerRef when rendering the active screen so tile edits are respected
         const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
-        const collisionLayer = useRuntimeLayer ? runtimeCollisionLayerRef.current : screenMap.layers.collision;
+        const collisionLayer = useRuntimeLayer ? runtimeCollisionLayerRef.current : getScreenBehaviorLayer(screenMap);
         const tileOnLayer = collisionLayer[tileY]?.[tileX];
 
         if (!tileOnLayer || !tileOnLayer.tileId) return false;
@@ -3618,7 +3919,7 @@ useEffect(() => {
         if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
 
         const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
-        const collisionLayer = useRuntimeLayer ? runtimeCollisionLayerRef.current : screenMap.layers.collision;
+        const collisionLayer = useRuntimeLayer ? runtimeCollisionLayerRef.current : getScreenBehaviorLayer(screenMap);
         const tileOnLayer = collisionLayer[tileY]?.[tileX];
 
         if (!tileOnLayer || !tileOnLayer.tileId) return false;
@@ -3626,124 +3927,221 @@ useEffect(() => {
         return tile?.logicalProperties?.causesDamage ?? false;
     };
 
+    const isLadderTileAt = (x: number, y: number, screenMap: ScreenMap) => {
+        const tileX = Math.floor(x / TILE_SIZE);
+        const tileY = Math.floor(y / TILE_SIZE);
+        if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
+
+        const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
+        const collisionLayer = useRuntimeLayer ? runtimeCollisionLayerRef.current : getScreenBehaviorLayer(screenMap);
+        const tileOnLayer = collisionLayer[tileY]?.[tileX];
+        if (!tileOnLayer?.tileId) return false;
+
+        const tile = tileset.find(t => t.id === tileOnLayer.tileId);
+        return normalizeTileInteractionType(tile?.logicalProperties) === 'ladder';
+    };
+
+    const detectLadderStateForEntity = (entity: AnimatedEntity, screenMap: ScreenMap | null) => {
+        if (!screenMap) return false;
+        const centerX = entity.x + Math.floor(entity.sprite.size.width / 2);
+        const centerY = entity.y + Math.floor(entity.sprite.size.height / 2);
+        const feetY = entity.y + Math.max(0, entity.sprite.size.height - 2);
+        return isLadderTileAt(centerX, centerY, screenMap) || isLadderTileAt(centerX, feetY, screenMap);
+    };
+
     // === TILE INTERACTION (Z80 check_tile_interaction equivalent) ===
-    // Checks if entity center overlaps an INTERACTABLE tile (mapId & 0x08),
-    // collects it (clears from collision + background layers), increments gem_count,
-    // and persists across screen re-entry.
+    // Dispatches per-tile interactions from the effective behavior layer.
     const checkTileInteraction = (entity: AnimatedEntity, screenMap: ScreenMap | null) => {
         if (!screenMap) return;
-        // Only entities with Input or TileCollector can collect tiles (matching Z80: COMP_MASK_INPUT check)
         const hasInput = entity.template.components?.some(c =>
             c.definitionId === 'comp_cursors' || c.definitionId === 'comp_input' || c.definitionId === 'comp_player_input'
         );
         const hasTileCollector = entity.template.components?.some(c => c.definitionId === 'comp_tile_collector');
         if (!hasInput && !hasTileCollector) return;
 
-        // Get entity center (matching Z80: x+8, y+8)
         const centerX = Math.floor(entity.x + 8);
         const centerY = Math.floor(entity.y + 8);
-
-        // Convert to tile coords (matching Z80: rrca x3 + and #1F = div 8)
         const tileX = Math.floor(centerX / TILE_SIZE);
         const tileY = Math.floor(centerY / TILE_SIZE);
-
-        // Check collision layer for INTERACTABLE tile
-        // Always prefer runtime layer (mutable copy) when available
         const collisionLayer = runtimeCollisionLayerRef.current.length > 0
             ? runtimeCollisionLayerRef.current
-            : screenMap.layers.collision;
-
-        // Bounds check against actual collision layer dimensions (may differ from screenMap.width/height)
+            : getScreenBehaviorLayer(screenMap);
         const layerRows = collisionLayer.length;
         const layerCols = collisionLayer[0]?.length ?? 0;
-        if (tileX < 0 || tileX >= layerCols || tileY < 0 || tileY >= layerRows) return;
+        if (tileX < 0 || tileX >= layerCols || tileY < 0 || tileY >= layerRows) {
+            entity.activeButtonInteractionKey = null;
+            return;
+        }
+
+        const screenId = currentScreenMapRef.current?.id ?? screenMap.id ?? '';
+        const interactionKey = `${screenId}@${tileX},${tileY}`;
+        if (collectedTilesRegistry.current.has(interactionKey) || consumedInteractionRegistry.current.has(interactionKey)) {
+            entity.activeButtonInteractionKey = null;
+            return;
+        }
 
         const tileOnLayer = collisionLayer[tileY]?.[tileX];
-        if (!tileOnLayer || !tileOnLayer.tileId) return;
+        if (!tileOnLayer || !tileOnLayer.tileId) {
+            entity.activeButtonInteractionKey = null;
+            return;
+        }
 
         const tile = tileset.find(t => t.id === tileOnLayer.tileId);
-        if (!tile?.logicalProperties) return;
-
-        const mapId = tile.logicalProperties.mapId ?? 0;
-        // INTERACTABLE flag = bit 3 (0x08), matching Z80: and #08
-        // Also accept isInteractiveSwitch directly (same semantic)
-        const isInteractable = (mapId & 0x08) !== 0 || tile.logicalProperties.isInteractiveSwitch === true;
-        if (!isInteractable) return;
-
-        // *** COLLECT! ***
-        console.log(`[TileCollect] ${entity.template.name} collected "${tile.name}" at (${tileX},${tileY}) mapId=${mapId}`);
-        const screenId = currentScreenMapRef.current?.id ?? '';
-
-        // 1. Clear from runtime collision layer (prevents double-collect, matching Z80: ld (hl), 0)
-        if (runtimeCollisionLayerRef.current[tileY]?.[tileX]) {
-            runtimeCollisionLayerRef.current[tileY][tileX] = { tileId: null };
+        if (!tile?.logicalProperties) {
+            entity.activeButtonInteractionKey = null;
+            return;
+        }
+        const interactionType = normalizeTileInteractionType(tile.logicalProperties);
+        if (interactionType === 'none' || interactionType === 'ladder') {
+            entity.activeButtonInteractionKey = null;
+            return;
+        }
+        if (interactionType !== 'button_press') {
+            entity.activeButtonInteractionKey = null;
         }
 
-        // 2. Clear from background layer visually (matching Z80: FAST_WRTVRM NAMETBL+idx, 0)
-        //    We repaint the tile buffer at that position with empty/transparent
+        const interactionValueRaw = Number(tile.logicalProperties.interactionValue ?? 0);
+        const interactionValue = Number.isFinite(interactionValueRaw) ? Math.max(0, Math.trunc(interactionValueRaw)) : 0;
+        const interactionTarget = normalizeVariableName(tile.logicalProperties.interactionTarget)
+            ?? (typeof tile.logicalProperties.interactionTarget === 'string' ? tile.logicalProperties.interactionTarget.trim() : '');
         const bufferCanvas = tileBufferRef.current;
-        if (bufferCanvas) {
-            const ctx = bufferCanvas.getContext('2d');
-            if (ctx) {
-                ctx.clearRect(tileX * TILE_SIZE, tileY * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        const clearTileVisually = () => {
+            if (runtimeCollisionLayerRef.current[tileY]?.[tileX]) {
+                runtimeCollisionLayerRef.current[tileY][tileX] = { tileId: null };
             }
-        }
-
-        // 2b. Remove position from animated tile groups (prevents animation from re-painting the gem)
-        for (const group of tileAnimGroupsRef.current) {
-            const idx = group.positions.findIndex(p => p.x === tileX && p.y === tileY);
-            if (idx !== -1) {
-                group.positions.splice(idx, 1);
+            if (bufferCanvas) {
+                const ctx = bufferCanvas.getContext('2d');
+                if (ctx) {
+                    ctx.clearRect(tileX * TILE_SIZE, tileY * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
             }
-        }
-
-        // 3. Increment gem_count (matching Z80: inc (gem_count))
-        //    Store in game global variable "gem_count"
-        updateGameGlobalVariables((prev: Record<string, any>) => {
-            const current = Number(prev.gem_count ?? 0);
-            return { ...prev, gem_count: current + 1 };
-        });
-
-        // Also increment targetVariable if comp_tile_collector specifies one
-        if (hasTileCollector) {
-            const tileCollectorComp = entity.template.components.find(c => c.definitionId === 'comp_tile_collector');
-            const tileCollectorProps = {
-                ...(tileCollectorComp?.defaultValues || {}),
-                ...(entity.instance.componentOverrides?.['comp_tile_collector'] || {})
-            };
-            const targetVar = tileCollectorProps.targetVariable;
-            const incrementAmount = Number(tileCollectorProps.incrementAmount ?? 0);
-            if (targetVar && incrementAmount > 0) {
-                updateGameGlobalVariables((prev: Record<string, any>) => {
-                    const current = Number(prev[targetVar] ?? 0);
-                    return { ...prev, [targetVar]: current + incrementAmount };
-                });
+            for (const group of tileAnimGroupsRef.current) {
+                const idx = group.positions.findIndex(p => p.x === tileX && p.y === tileY);
+                if (idx !== -1) {
+                    group.positions.splice(idx, 1);
+                }
             }
-            const rawFlagVar = tileCollectorProps.flagVariable;
-            const flagVar = normalizeVariableName(rawFlagVar) ?? (typeof rawFlagVar === 'string' ? rawFlagVar.trim() : '');
-            const rawFlagValue = tileCollectorProps.flagValue;
-            const flagValue = typeof rawFlagValue === 'boolean'
-                ? rawFlagValue
-                : (() => {
-                    const parsed = Number(rawFlagValue ?? 1);
-                    return Number.isNaN(parsed) ? 1 : parsed;
-                })();
-            if (flagVar) {
-                updateGameGlobalVariables((prev: Record<string, any>) => ({
-                    ...prev,
-                    [flagVar]: flagValue
-                }));
-            }
-        }
+        };
+        const addToTargetVariable = (fallbackAmount = 1) => {
+            if (!interactionTarget) return;
+            const amount = interactionValue > 0 ? interactionValue : fallbackAmount;
+            updateGameGlobalVariables((prev: Record<string, any>) => {
+                const current = Number(prev[interactionTarget] ?? 0);
+                return { ...prev, [interactionTarget]: current + amount };
+            });
+        };
+        const toggleTargetVariable = () => {
+            if (!interactionTarget) return;
+            updateGameGlobalVariables((prev: Record<string, any>) => {
+                const current = Number(prev[interactionTarget] ?? 0);
+                return { ...prev, [interactionTarget]: current ? 0 : 1 };
+            });
+        };
+        const increaseEntityLives = (fallbackAmount = 1) => {
+            const increaseAmount = interactionValue > 0 ? interactionValue : fallbackAmount;
+            const healthComp = entity.template.components.find(c => c.definitionId === 'comp_health');
+            if (!healthComp) return;
+            if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {} as any;
+            if (!entity.instance.componentOverrides['comp_health']) entity.instance.componentOverrides['comp_health'] = {};
+            const overrides = entity.instance.componentOverrides['comp_health'];
+            const currentLives = Number(overrides.current ?? healthComp.defaultValues?.current ?? 3);
+            const maxLives = Number(overrides.max ?? healthComp.defaultValues?.max ?? 3);
+            const nextLives = Math.min(maxLives, currentLives + increaseAmount);
+            overrides.current = nextLives;
+            updateGameGlobalVariables(prev => ({ ...prev, Lives: nextLives }));
+        };
 
-        // 4. Store last_gem_char (tile ID for SM conditions)
         updateGameGlobalVariables((prev: Record<string, any>) => ({
-            ...prev, last_gem_char: tile.id
+            ...prev,
+            last_interaction_char: tile.id,
+            last_gem_char: tile.id,
+            last_interaction_type: interactionType,
+            last_interaction_value: interactionValue,
+            last_interaction_target: interactionTarget,
+            last_interaction_x: tileX,
+            last_interaction_y: tileY,
+            last_interaction_entity: entity.instance.id ?? entity.instance.name ?? entity.template.id
         }));
 
-        // 5. Persist collection (matching Z80: collected_screen/collected_idx arrays)
-        const persistKey = `${screenId}@${tileX},${tileY}`;
-        collectedTilesRegistry.current.add(persistKey);
+        switch (interactionType) {
+            case 'collect_gem': {
+                clearTileVisually();
+                collectedTilesRegistry.current.add(interactionKey);
+                updateGameGlobalVariables((prev: Record<string, any>) => {
+                    const current = Number(prev.gem_count ?? 0);
+                    return { ...prev, gem_count: current + 1 };
+                });
+                if (hasTileCollector) {
+                    const tileCollectorComp = entity.template.components.find(c => c.definitionId === 'comp_tile_collector');
+                    const tileCollectorProps = {
+                        ...(tileCollectorComp?.defaultValues || {}),
+                        ...(entity.instance.componentOverrides?.['comp_tile_collector'] || {})
+                    };
+                    const targetVar = normalizeVariableName(tileCollectorProps.targetVariable)
+                        ?? (typeof tileCollectorProps.targetVariable === 'string' ? tileCollectorProps.targetVariable.trim() : '');
+                    const incrementAmount = Number(tileCollectorProps.incrementAmount ?? 0);
+                    if (targetVar && incrementAmount > 0) {
+                        updateGameGlobalVariables((prev: Record<string, any>) => {
+                            const current = Number(prev[targetVar] ?? 0);
+                            return { ...prev, [targetVar]: current + incrementAmount };
+                        });
+                    }
+                    const rawFlagVar = tileCollectorProps.flagVariable;
+                    const flagVar = normalizeVariableName(rawFlagVar) ?? (typeof rawFlagVar === 'string' ? rawFlagVar.trim() : '');
+                    const rawFlagValue = tileCollectorProps.flagValue;
+                    const flagValue = typeof rawFlagValue === 'boolean'
+                        ? rawFlagValue
+                        : (() => {
+                            const parsed = Number(rawFlagValue ?? 1);
+                            return Number.isNaN(parsed) ? 1 : parsed;
+                        })();
+                    if (flagVar) {
+                        updateGameGlobalVariables((prev: Record<string, any>) => ({
+                            ...prev,
+                            [flagVar]: flagValue
+                        }));
+                    }
+                }
+                addToTargetVariable(1);
+                break;
+            }
+            case 'collect_item':
+                clearTileVisually();
+                collectedTilesRegistry.current.add(interactionKey);
+                addToTargetVariable(1);
+                break;
+            case 'add_energy':
+                clearTileVisually();
+                collectedTilesRegistry.current.add(interactionKey);
+                increaseEntityLives(1);
+                addToTargetVariable(1);
+                break;
+            case 'lever_toggle':
+                consumedInteractionRegistry.current.add(interactionKey);
+                toggleTargetVariable();
+                break;
+            case 'button_press':
+                if (entity.activeButtonInteractionKey === interactionKey) {
+                    break;
+                }
+                entity.activeButtonInteractionKey = interactionKey;
+                updateGameGlobalVariables((prev: Record<string, any>) => ({
+                    ...prev,
+                    last_interaction_pending: true
+                }));
+                break;
+            case 'jumper': {
+                const jumpStrength = Math.max(8, interactionValue > 0 ? interactionValue : 8);
+                entity.isOnGround = false;
+                entity.platformUnderneath = null;
+                entity.platformGraceFramesLeft = 0;
+                entity.gravityVel = 0;
+                entity.vy = -jumpStrength;
+                break;
+            }
+            default:
+                break;
+        }
     };
 
     // Re-apply collected tiles after screen load (matching Z80: apply_collected_tiles)
@@ -4180,7 +4578,7 @@ useEffect(() => {
         // Prefer runtime collision layer when available (reflects tile changes during play)
         const collisionLayer: ScreenTile[][] = (runtimeCollisionLayerRef.current && runtimeCollisionLayerRef.current.length > 0)
             ? runtimeCollisionLayerRef.current
-            : map.layers.collision;
+            : getScreenBehaviorLayer(map);
 
         if (!collisionLayer) return;
 
@@ -4386,6 +4784,7 @@ useEffect(() => {
             currentFrame: 0,
             lastFrameUpdateTime: performance.now(),
             isOnGround: false,
+            isOnLadder: false,
             spawnTime: performance.now(),
             parentEntityId: shooter.instance.id,
             platformGraceFramesLeft: 0,
@@ -4946,6 +5345,9 @@ useEffect(() => {
 
     const handleTilemapCollision = (entity: AnimatedEntity, screenMap: ScreenMap, tileset: Tile[], collisionCompDef: ComponentDefinition) => {
         if (!screenMap || !tileset || !collisionCompDef) return;
+        entity.isTouchingCeiling = false;
+        entity.isTouchingWallLeft = false;
+        entity.isTouchingWallRight = false;
         const entityCollisionProps = {
             ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {}),
             ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
@@ -4991,6 +5393,7 @@ useEffect(() => {
                     const tileLeftEdge = Math.floor((tentativeHitbox.x + tentativeHitbox.width) / TILE_SIZE) * TILE_SIZE;
                     tentativeX = tileLeftEdge - Number(entityCollisionProps.offsetX ?? 0) - tentativeHitbox.width;
                     entity.vx = 0;
+                    entity.isTouchingWallRight = true;
                     registerWallCollisionEvent('right');
                 }
             } else if (entity.vx < 0) { // Izquierda
@@ -5000,6 +5403,7 @@ useEffect(() => {
                     const tileRightEdge = Math.ceil(tentativeHitbox.x / TILE_SIZE) * TILE_SIZE;
                     tentativeX = tileRightEdge - Number(entityCollisionProps.offsetX ?? 0);
                     entity.vx = 0;
+                    entity.isTouchingWallLeft = true;
                     registerWallCollisionEvent('left');
                 }
             }
@@ -5034,6 +5438,7 @@ useEffect(() => {
                     tentativeY = tileBottomEdge - Number(entityCollisionProps.offsetY ?? 0);
                     entity.vy = 0; // Stop vertical velocity after touching the ceiling
                     entity.gravityVel = 0; // Z80: cancel gravity accumulator on ceiling hit
+                    entity.isTouchingCeiling = true;
                     registerWallCollisionEvent('up');
 
 
@@ -5383,6 +5788,10 @@ useEffect(() => {
         }
 
         const now = performance.now();
+        updateGameGlobalVariables(prev => ({
+            ...prev,
+            last_interaction_pending: false
+        }));
         // Lifetime expiration: mark entities whose time is over
         entitiesRef.current.forEach(e => {
             if (e.expiresAt !== undefined && now >= e.expiresAt) {
@@ -5620,7 +6029,7 @@ useEffect(() => {
 
             // --- Handle Landing (Revert Jump Sprite) ---
             const wasJumping = entityA.instance.componentOverrides?.['comp_jump']?.isJumping;
-            if (entityA.isOnGround && wasJumping) {
+            if ((entityA.isOnGround || entityA.isOnLadder) && wasJumping) {
                 // Reset jumping flag
                 if (!entityA.instance.componentOverrides) entityA.instance.componentOverrides = {};
                 if (!entityA.instance.componentOverrides['comp_jump']) entityA.instance.componentOverrides['comp_jump'] = {};
@@ -5667,7 +6076,7 @@ useEffect(() => {
 
                 // Check if there's a background tile but no collision tile
                 const bgTile = screenMapToRender.layers.background[playerTileY]?.[playerTileX];
-                const collTile = screenMapToRender.layers.collision[playerTileY]?.[playerTileX];
+                const collTile = getScreenBehaviorLayer(screenMapToRender)[playerTileY]?.[playerTileX];
 
                 if (bgTile?.tileId && (!collTile?.tileId || !checkCollisionAt(entityA.x + 4, entityA.y + 4, screenMapToRender))) {
                     // Player is in a secret passage! Reveal nearby background tiles
@@ -5679,7 +6088,7 @@ useEffect(() => {
 
                             if (ty >= 0 && ty < screenMapToRender.height && tx >= 0 && tx < screenMapToRender.width) {
                                 const bgTileCheck = screenMapToRender.layers.background[ty]?.[tx];
-                                const collTileCheck = screenMapToRender.layers.collision[ty]?.[tx];
+                                const collTileCheck = getScreenBehaviorLayer(screenMapToRender)[ty]?.[tx];
 
                                 // Only reveal if there's background but no solid collision
                                 if (bgTileCheck?.tileId && !collTileCheck?.tileId) {
@@ -5713,14 +6122,30 @@ useEffect(() => {
                 // Check if current state allows input
                 const statesWithoutInput = ['Dead', 'GameOver', 'Stunned', 'Frozen']; // States that disable controls
                 const canProcessInput = !entityA.currentState || !statesWithoutInput.includes(entityA.currentState);
+                entityA.isOnLadder = detectLadderStateForEntity(entityA, screenMapToRender ?? null);
 
                 // Process input (cursors, jump, actions) - Only if state allows it
                 if (canProcessInput) {
                     const hasGravity = entityA.template.components.some(c => c.definitionId === 'comp_gravity') || !!(entityA.instance.componentOverrides?.['comp_gravity']);
                     const cursorsComp = entityA.template.components.find(c => c.definitionId === 'comp_cursors');
+                    const airControlComp = entityA.template.components.find(c => c.definitionId === 'comp_air_control');
+                    const airControlProps = airControlComp
+                        ? {
+                            ...airControlComp.defaultValues,
+                            ...(entityA.instance.componentOverrides?.['comp_air_control'] || {})
+                        }
+                        : null;
+                    const airControlEnabled = !!airControlProps && airControlProps.isEnabled !== false && airControlProps.isEnabled !== 'false';
+                    const airControlMode = airControlEnabled
+                        ? String(airControlProps?.airControlMode || 'locked').trim().toLowerCase()
+                        : 'full';
+                    const airControlLocked = hasGravity
+                        && airControlMode === 'locked'
+                        && !entityA.isOnLadder
+                        && !entityA.isOnGround;
 
                     // Horizontal Movement
-                    if (cursorsComp) {
+                    if (cursorsComp && !airControlLocked) {
                         const cursorsProps = {
                             ...cursorsComp.defaultValues,
                             ...(entityA.instance.componentOverrides?.['comp_cursors'] || {})
@@ -5746,8 +6171,8 @@ useEffect(() => {
                         }
                     }
 
-                    // Vertical Movement (only for non-gravity entities)
-                    if (!hasGravity && cursorsComp) {
+                    // Vertical Movement (non-gravity entities, plus gravity entities while climbing a ladder)
+                    if (((!hasGravity) || entityA.isOnLadder) && cursorsComp) {
                         const cursorsProps = {
                             ...cursorsComp.defaultValues,
                             ...(entityA.instance.componentOverrides?.['comp_cursors'] || {})
@@ -5780,7 +6205,7 @@ useEffect(() => {
                         const requireKeyRelease = jumpProps.requireKeyRelease !== 'false' && jumpProps.requireKeyRelease !== false;
                         const spacePressed = pressedKeys.current.has(' ');
 
-                        if (hasGravity && entityA.isOnGround && spacePressed) {
+                        if (hasGravity && entityA.isOnGround && !entityA.isOnLadder && spacePressed) {
                             // Check if we can jump based on requireKeyRelease setting
                             const canJump = !requireKeyRelease || !jumpKeyProcessed.current;
 
@@ -5844,8 +6269,8 @@ useEffect(() => {
                             }
                         }
 
-                        // Reset jump key processed when not pressing space and on ground
-                        if (!spacePressed && entityA.isOnGround) {
+                        // Match Z80 edge-triggered jump: releasing the key rearms it immediately.
+                        if (!spacePressed) {
                             jumpKeyProcessed.current = false;
                         }
                     }
@@ -6029,7 +6454,9 @@ useEffect(() => {
                 const gravityComp = entityA.template.components.find(c => c.definitionId === 'comp_gravity');
                 const gravityOverride = entityA.instance.componentOverrides?.['comp_gravity'];
                 const gravityEnabled = !!gravityComp || !!gravityOverride; // allow instance-level activation
-                if (!skipPhysics && gravityEnabled && !entityA.isOnGround) {
+                if (!skipPhysics && gravityEnabled && entityA.isOnLadder) {
+                    entityA.gravityVel = 0;
+                } else if (!skipPhysics && gravityEnabled && !entityA.isOnGround) {
                     // Z80-faithful 8.8 fixed-point gravity (matching update_gravity_component)
                     // Gravity accel: add 0x0040 (64) per frame = 0.25 px/frame²
                     // Terminal velocity: cap at 0x0400 (1024) = 4 px/frame downward
@@ -6056,6 +6483,108 @@ useEffect(() => {
                 } else if (!skipPhysics && gravityEnabled && entityA.isOnGround) {
                     // Z80: gravity_grounded resets gravity_vel to 0
                     entityA.gravityVel = 0;
+                }
+
+                // --- Wall Grab ---
+                const wallGrabComp = entityA.template.components.find(c => c.definitionId === 'comp_wall_grab');
+                if (!skipPhysics && wallGrabComp) {
+                    const wallGrabProps = {
+                        ...wallGrabComp.defaultValues,
+                        ...(entityA.instance.componentOverrides?.['comp_wall_grab'] || {})
+                    };
+                    const wallGrabEnabled = wallGrabProps.isEnabled !== false && wallGrabProps.isEnabled !== 'false';
+                    const grabPressed = pressedKeys.current.has('KeyN') || pressedKeys.current.has('n') || pressedKeys.current.has('N');
+                    const onGroundNow = !!entityA.isOnGround;
+                    const touchingWall = !!entityA.isTouchingWallLeft || !!entityA.isTouchingWallRight;
+                    entityA.isWallGrabbing = false;
+
+                    if (wallGrabEnabled && gravityEnabled && grabPressed && !onGroundNow && !entityA.isOnLadder && touchingWall) {
+                        const grabFallSpeed = Math.max(0, Number(wallGrabProps.grabFallSpeed ?? 0) || 0);
+                        entityA.vx = 0;
+                        entityA.vy = grabFallSpeed;
+                        entityA.gravityVel = (grabFallSpeed << 8) & 0xFFFF;
+                        entityA.isWallGrabbing = true;
+                    }
+                } else {
+                    entityA.isWallGrabbing = false;
+                }
+
+                // --- Wall Jump / Wall Slide ---
+                const wallJumpComp = entityA.template.components.find(c => c.definitionId === 'comp_wall_jump');
+                if (!skipPhysics && wallJumpComp) {
+                    const wallJumpProps = {
+                        ...wallJumpComp.defaultValues,
+                        ...(entityA.instance.componentOverrides?.['comp_wall_jump'] || {})
+                    };
+                    const wallJumpEnabled = wallJumpProps.isEnabled !== false && wallJumpProps.isEnabled !== 'false';
+                    if (!entityA.wallJumpData) {
+                        entityA.wallJumpData = { lockFramesRemaining: 0, lockedVx: 0 };
+                    }
+
+                    if (wallJumpEnabled) {
+                        const onGroundNow = !!entityA.isOnGround;
+                        const touchingLeft = !!entityA.isTouchingWallLeft;
+                        const touchingRight = !!entityA.isTouchingWallRight;
+                        const touchingWall = touchingLeft || touchingRight;
+                        const slideFallSpeed = Math.max(0, Number(wallJumpProps.slideFallSpeed ?? 2) || 0);
+                        const spacePressed = pressedKeys.current.has(' ');
+
+                        if (onGroundNow || entityA.isOnLadder) {
+                            entityA.wallJumpData.lockFramesRemaining = 0;
+                            entityA.wallJumpData.lockedVx = 0;
+                        } else if (entityA.wallJumpData.lockedVx !== 0) {
+                            if (entityA.vy < 0) {
+                                entityA.vx = entityA.wallJumpData.lockedVx;
+                                if (entityA.wallJumpData.lockFramesRemaining > 0) {
+                                    entityA.wallJumpData.lockFramesRemaining--;
+                                }
+                            } else {
+                                entityA.wallJumpData.lockFramesRemaining = 0;
+                                entityA.wallJumpData.lockedVx = 0;
+                            }
+                        }
+
+                        if (gravityEnabled && !onGroundNow && !entityA.isOnLadder && touchingWall && slideFallSpeed > 0 && entityA.vy > slideFallSpeed) {
+                            entityA.vy = slideFallSpeed;
+                            entityA.gravityVel = (slideFallSpeed << 8) & 0xFFFF;
+                        }
+
+                        const canWallJump = gravityEnabled && !onGroundNow && !entityA.isOnLadder && touchingWall && spacePressed && !jumpKeyProcessed.current;
+                        if (canWallJump) {
+                            const leftPressed = pressedKeys.current.has('ArrowLeft') || pressedKeys.current.has('a') || pressedKeys.current.has('A');
+                            const rightPressed = pressedKeys.current.has('ArrowRight') || pressedKeys.current.has('d') || pressedKeys.current.has('D');
+                            const requireAway = wallJumpProps.requirePressAwayFromWall === true || wallJumpProps.requirePressAwayFromWall === 'true';
+                            let jumpFromLeftWall = false;
+                            let jumpFromRightWall = false;
+
+                            if (requireAway) {
+                                jumpFromLeftWall = touchingLeft && rightPressed;
+                                jumpFromRightWall = touchingRight && leftPressed;
+                            } else {
+                                jumpFromLeftWall = touchingLeft && (!touchingRight || rightPressed || !leftPressed);
+                                jumpFromRightWall = !jumpFromLeftWall && touchingRight;
+                            }
+
+                            if (jumpFromLeftWall || jumpFromRightWall) {
+                                const horizontalPush = Math.max(1, Number(wallJumpProps.horizontalPush ?? 3) || 3);
+                                const verticalMagnitude = Math.max(1, Number(wallJumpProps.verticalImpulse ?? 1024) || 1024);
+                                const jumpImpulse = ((0x10000 - verticalMagnitude) & 0xFFFF) >>> 0;
+                                const jumpVx = jumpFromLeftWall ? horizontalPush : -horizontalPush;
+                                const lockFrames = Math.max(0, Number(wallJumpProps.lockFrames ?? 8) || 0);
+                                const hi = (jumpImpulse >> 8) & 0xFF;
+
+                                entityA.vx = jumpVx;
+                                entityA.wallJumpData.lockedVx = jumpVx;
+                                entityA.wallJumpData.lockFramesRemaining = lockFrames;
+                                entityA.gravityVel = jumpImpulse;
+                                entityA.vy = hi >= 0x80 ? hi - 0x100 : hi;
+                                entityA.x += Math.sign(jumpVx);
+                                entityA.isOnGround = false;
+                                entityA.platformUnderneath = null;
+                                jumpKeyProcessed.current = true;
+                            }
+                        }
+                    }
                 }
 
                 // --- Friction (for boxes on ground) ---
@@ -6898,6 +7427,56 @@ useEffect(() => {
                 if (now % 1000 < 16) {
                 }
             }
+        });
+
+        const activeScreenId = currentScreenMapRef.current?.id || null;
+        entitiesRef.current.forEach(entity => {
+            if (entity.screenAssetId && activeScreenId && entity.screenAssetId !== activeScreenId) return;
+
+            const gateProps = getMergedComponentValues(entity, 'comp_retractable_gate');
+            if (!gateProps) return;
+
+            const width = Math.max(1, Number(gateProps.width ?? 1) || 1);
+            const height = Math.max(1, Number(gateProps.height ?? 1) || 1);
+            const direction = String(gateProps.direction || 'up').toLowerCase() as 'up' | 'down' | 'left' | 'right';
+            const totalSteps = Math.max(1, direction === 'left' || direction === 'right' ? width : height);
+            const currentStep = entity.retractableGateCurrentStep ?? 0;
+            if (currentStep >= totalSteps) return;
+
+            if (!evaluateRetractableGateTrigger(gateProps)) return;
+
+            const durationMs = Math.max(1, Number(gateProps.durationMs ?? 2000) || 2000);
+            const stepDelayMs = Math.max(1, Math.ceil(durationMs / Math.max(1, totalSteps - 1)));
+
+            if (entity.retractableGateCurrentStep === undefined || entity.retractableGateCurrentStep === 0) {
+                shiftTileAreaInLayer(
+                    Math.trunc(Number(gateProps.screenX ?? 0)),
+                    Math.trunc(Number(gateProps.screenY ?? 0)),
+                    width,
+                    height,
+                    direction,
+                    1,
+                    gateProps.fillTileId || null
+                );
+                entity.retractableGateCurrentStep = 1;
+                entity.retractableGateNextStepAt = now + stepDelayMs;
+                return;
+            }
+
+            const nextStepAt = entity.retractableGateNextStepAt ?? (now + stepDelayMs);
+            if (now < nextStepAt) return;
+
+            shiftTileAreaInLayer(
+                Math.trunc(Number(gateProps.screenX ?? 0)),
+                Math.trunc(Number(gateProps.screenY ?? 0)),
+                width,
+                height,
+                direction,
+                1,
+                gateProps.fillTileId || null
+            );
+            entity.retractableGateCurrentStep = currentStep + 1;
+            entity.retractableGateNextStepAt = now + stepDelayMs;
         });
 
         // HUD overlay (pre-rendered to avoid per-frame text building)

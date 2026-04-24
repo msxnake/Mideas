@@ -76,6 +76,14 @@ export interface TileLogicalProperties {
   causesDamage?: boolean;
   /** Whether the tile is an interactive switch (derived from instanceId). */
   isInteractiveSwitch?: boolean;
+  /** Explicit interactable marker used by the generic tile-interaction runtime. */
+  isInteractable?: boolean;
+  /** Programmed interaction behavior for this tile. */
+  interactionType?: TileInteractionType;
+  /** Optional numeric parameter interpreted by the selected interaction type. */
+  interactionValue?: number;
+  /** Optional target variable / hook name used by programmable interactions. */
+  interactionTarget?: string;
 }
 
 /**
@@ -522,10 +530,19 @@ export interface EffectZone {
 /** Export strategy for block-based screen optimization. */
 export type ScreenBlockExportMode = 'raw' | 'blocks2x2' | 'blocks4x4';
 
+/** Source used to build the runtime behavior/collision map for a screen. */
+export type ScreenBehaviorSource = 'collisionLayer' | 'backgroundChars';
+
 /** Optional build-time optimization settings for screen exports. */
 export interface ScreenBlockOptimization {
   /** Background export strategy. `raw` preserves the current 32x24 tile stream. */
   backgroundMode?: ScreenBlockExportMode;
+}
+
+/** Optional behavior generation settings for a screen. */
+export interface ScreenBehaviorConfig {
+  /** Chooses whether behavior comes from the legacy collision layer or from background chars. */
+  source?: ScreenBehaviorSource;
 }
 
 /**
@@ -549,6 +566,8 @@ export interface ScreenMap {
   };
   /** Optional build-time export optimization settings. */
   blockOptimization?: ScreenBlockOptimization;
+  /** Optional behavior generation settings. */
+  behaviorConfig?: ScreenBehaviorConfig;
   /** An array of rectangular effect zones on the map. */
   effectZones?: EffectZone[];
   /** The x-coordinate of the active (playable) area of the map. */
@@ -590,6 +609,8 @@ export interface CopiedScreenData {
   };
   /** Optional build-time export optimization settings copied with the screen. */
   blockOptimization?: ScreenBlockOptimization;
+  /** Optional behavior generation settings copied with the screen. */
+  behaviorConfig?: ScreenBehaviorConfig;
   /** The effect zones within the copied area. */
   effectZones?: EffectZone[];
   /** The x-coordinate of the copied active area. */
@@ -1549,6 +1570,18 @@ export const PROPERTY_FLAGS = {
   isInteractiveSwitch: { bit: 3, label: "Interactable" },
 } as const;
 export type PropertyFlagKey = keyof typeof PROPERTY_FLAGS;
+
+export const TILE_INTERACTION_TYPES = [
+  { id: 0, key: 'none', label: 'None' },
+  { id: 1, key: 'collect_gem', label: 'Collect Gem' },
+  { id: 2, key: 'collect_item', label: 'Collect Item' },
+  { id: 3, key: 'add_energy', label: 'Add Energy' },
+  { id: 4, key: 'lever_toggle', label: 'Lever Toggle' },
+  { id: 5, key: 'button_press', label: 'Button Press' },
+  { id: 6, key: 'jumper', label: 'Jumper' },
+  { id: 7, key: 'ladder', label: 'Ladder' },
+] as const;
+export type TileInteractionType = typeof TILE_INTERACTION_TYPES[number]['key'];
 
 export interface LayoutBlockExportData {
   mode: Extract<ScreenBlockExportMode, 'blocks2x2' | 'blocks4x4'>;

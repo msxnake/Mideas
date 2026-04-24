@@ -29,7 +29,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 43162
+; Estimated payload bytes: 43498
 ; Estimated banks used: 6
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : page0.asm (96 bytes)
@@ -39,20 +39,20 @@
 ; BANK 00 @#093E : entities.asm (303 bytes)
 ; BANK 00 @#0A6D : worlds.asm (1793 bytes)
 ; BANK 00 @#116E : screens.asm (3730 bytes)
-; BANK 01 @#0000 : screens.asm (2764 bytes)
-; BANK 01 @#0ACC : sprites.asm (2569 bytes)
-; BANK 01 @#14D5 : font.asm (2859 bytes)
-; BANK 02 @#0000 : font.asm (597 bytes)
-; BANK 02 @#0255 : hud.asm (3480 bytes)
-; BANK 02 @#0FED : menus.asm (168 bytes)
-; BANK 02 @#1095 : sound.asm part 1/2 (3947 bytes)
-; BANK 03 @#0000 : sound.asm part 2/2 (5594 bytes)
-; BANK 03 @#15DA : scroll.asm (2353 bytes)
-; BANK 03 @#1F0B : animtiles.asm (245 bytes)
-; BANK 04 @#0000 : animtiles.asm (4368 bytes)
-; BANK 04 @#1110 : statemachine.asm (5 bytes)
-; BANK 04 @#1115 : gameflow.asm (3819 bytes)
-; BANK 05 @#0000 : gameflow.asm (2202 bytes)
+; BANK 01 @#0000 : screens.asm (3100 bytes)
+; BANK 01 @#0C1C : sprites.asm (2569 bytes)
+; BANK 01 @#1625 : font.asm (2523 bytes)
+; BANK 02 @#0000 : font.asm (933 bytes)
+; BANK 02 @#03A5 : hud.asm (3480 bytes)
+; BANK 02 @#113D : menus.asm (168 bytes)
+; BANK 02 @#11E5 : sound.asm part 1/2 (3611 bytes)
+; BANK 03 @#0000 : sound.asm part 2/2 (5930 bytes)
+; BANK 03 @#172A : scroll.asm (2262 bytes)
+; BANK 04 @#0000 : scroll.asm (91 bytes)
+; BANK 04 @#005B : animtiles.asm (4613 bytes)
+; BANK 04 @#1260 : statemachine.asm (5 bytes)
+; BANK 04 @#1265 : gameflow.asm (3483 bytes)
+; BANK 05 @#0000 : gameflow.asm (2538 bytes)
 
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
@@ -1114,307 +1114,308 @@ runtime_background_layout EQU #C154   ; Immutable copy of current background lay
 runtime_screen_layout  EQU #C454   ; Mutable copy of current screen layout (32x24)
 resource_ram_cache_behavior_map EQU #C754   ; Pristine behavior map cache for current banked resource (32x24)
 runtime_behavior_map   EQU #CA54   ; Mutable copy of current behavior map (32x24)
-runtime_effects_layout EQU #CD54   ; Alternate effects layout copy for secret zones (32x24)
-screen_block_catalog_ptr EQU #D054   ; Scratch pointer to current screen block catalog during layout expansion
-screen_block_map_ptr EQU #D056   ; Scratch pointer to current screen block index map during layout expansion
-runtime_effect_zone_table EQU #D058   ; Current screen effect zone table (MAX_RUNTIME_EFFECT_ZONES * 8 bytes)
-current_effect_zone_count EQU #D258   ; Number of effect zones copied into runtime_effect_zone_table
-secret_zone_active EQU #D259   ; 1 if hero is currently inside an active secret zone
-secret_zone_rect_x EQU #D25A   ; Active secret zone rect X in cells
-secret_zone_rect_y EQU #D25B   ; Active secret zone rect Y in cells
-secret_zone_rect_w EQU #D25C   ; Active secret zone rect width in cells
-secret_zone_rect_h EQU #D25D   ; Active secret zone rect height in cells
+runtime_char_behavior_table EQU #CD54   ; Current screen char -> behavior lookup table (256 bytes)
+runtime_effects_layout EQU #CE54   ; Alternate effects layout copy for secret zones (32x24)
+screen_block_catalog_ptr EQU #D154   ; Scratch pointer to current screen block catalog during layout expansion
+screen_block_map_ptr EQU #D156   ; Scratch pointer to current screen block index map during layout expansion
+runtime_effect_zone_table EQU #D158   ; Current screen effect zone table (MAX_RUNTIME_EFFECT_ZONES * 8 bytes)
+current_effect_zone_count EQU #D358   ; Number of effect zones copied into runtime_effect_zone_table
+secret_zone_active EQU #D359   ; 1 if hero is currently inside an active secret zone
+secret_zone_rect_x EQU #D35A   ; Active secret zone rect X in cells
+secret_zone_rect_y EQU #D35B   ; Active secret zone rect Y in cells
+secret_zone_rect_w EQU #D35C   ; Active secret zone rect width in cells
+secret_zone_rect_h EQU #D35D   ; Active secret zone rect height in cells
 
 ; ==================================================================
 ; VIEWPORT/CAMERA VARIABLES (for scroll system)
 ; ==================================================================
-camera_x            EQU #D25E   ; Camera X position in pixels (16-bit)
-camera_y            EQU #D260   ; Camera Y position in pixels (16-bit)
-camera_tile_x       EQU #D262   ; Camera tile X (column)
-camera_tile_y       EQU #D263   ; Camera tile Y (row)
-world_width_tiles   EQU #D264   ; World width in tiles
-world_height_tiles  EQU #D265   ; World height in tiles
-scroll_dirty_flag   EQU #D266   ; 1=viewport changed, needs redraw
-hud_dirty_flag      EQU #D267   ; 1=HUD needs redraw, 0=clean
-time_second_frame_counter EQU #D268   ; VBlank frames remaining until the next TimeRemaining decrement
-time_last_interrupt_counter EQU #D269   ; Last interrupt_counter snapshot used by TimeRemaining sync (16-bit)
+camera_x            EQU #D35E   ; Camera X position in pixels (16-bit)
+camera_y            EQU #D360   ; Camera Y position in pixels (16-bit)
+camera_tile_x       EQU #D362   ; Camera tile X (column)
+camera_tile_y       EQU #D363   ; Camera tile Y (row)
+world_width_tiles   EQU #D364   ; World width in tiles
+world_height_tiles  EQU #D365   ; World height in tiles
+scroll_dirty_flag   EQU #D366   ; 1=viewport changed, needs redraw
+hud_dirty_flag      EQU #D367   ; 1=HUD needs redraw, 0=clean
+time_second_frame_counter EQU #D368   ; VBlank frames remaining until the next TimeRemaining decrement
+time_last_interrupt_counter EQU #D369   ; Last interrupt_counter snapshot used by TimeRemaining sync (16-bit)
 
 ; ==================================================================
 ; ANIMATED TILES VARIABLES
 ; ==================================================================
-anim_tile_timer     EQU #D26B   ; Animation frame timer
-anim_tile_frame     EQU #D26C   ; Current animation frame (0-3)
-anim_tile_speed     EQU #D26D   ; Frames between animation updates
-anim_tile_transform_flags EQU #D26E   ; Runtime flags for transform-mode tile animation (byte0=flags, byte1=opcode scratch)
-anim_tile_row_buffer EQU #D270   ; Temp buffer (8 bytes) for row transforms
+anim_tile_timer     EQU #D36B   ; Animation frame timer
+anim_tile_frame     EQU #D36C   ; Current animation frame (0-3)
+anim_tile_speed     EQU #D36D   ; Frames between animation updates
+anim_tile_transform_flags EQU #D36E   ; Runtime flags for transform-mode tile animation (byte0=flags, byte1=opcode scratch)
+anim_tile_row_buffer EQU #D370   ; Temp buffer (8 bytes) for row transforms
 
 ; ==================================================================
 ; ENTITY SYSTEM VARIABLES (Fixed 32 entities)
 ; ==================================================================
 MAX_ENTITIES        EQU 32
-entity_active       EQU #D278   ; Entity active flags (32 bytes, 0=inactive, 1=active)
-entity_is_player    EQU #D298   ; Entity hero/player flag (32 bytes, 0=no, 1=yes)
-entity_x_pos        EQU #D2B8   ; Entity X positions (32 bytes)
-entity_y_pos        EQU #D2D8   ; Entity Y positions (32 bytes)
-entity_vel_x        EQU #D2F8   ; Entity X velocity (32 bytes)
-entity_vel_y        EQU #D318   ; Entity Y velocity (32 bytes)
-entity_comp_masks   EQU #D338   ; Entity component masks (32 bytes)
-entity_comp_masks_hi EQU #D358   ; Entity component masks high byte (32 bytes)
-entity_screen_id    EQU #D378   ; Entity screen ID (32 bytes)
-entity_job_period   EQU #D398   ; Entity job period in frames (32 bytes, 1=100%,2=50%,3=33%,4=25%)
-entity_job_entry    EQU #D3B8   ; Entity job entry slot within period window (32 bytes)
-entity_job_scheduler_active EQU #D3D8   ; 1 when any entity uses non-default job cadence
-entity_dir_mask     EQU #D3D9   ; Entity direction mask (32 bytes)
-entity_input_speed  EQU #D3F9   ; Entity input/cursor speed (32 bytes)
-entity_health       EQU #D419   ; Entity health (32 bytes)
-entity_anim_frame   EQU #D439   ; Entity animation frame (32 bytes)
-entity_anim_tick    EQU #D459   ; Entity animation tick counter (32 bytes)
-entity_anim_speed   EQU #D479   ; Entity animation speed (ticks per frame) (32 bytes)
-entity_anim_flags   EQU #D499   ; Entity animation flags (32 bytes)
-entity_sm_ptr_l     EQU #D4B9   ; Entity State Pointer Low (32 bytes)
-entity_sm_ptr_h     EQU #D4D9   ; Entity State Pointer High (32 bytes)
-entity_sm_timer_l   EQU #D4F9   ; Entity State Timer Low (32 bytes)
-entity_sm_timer_h   EQU #D519   ; Entity State Timer High (32 bytes)
-entity_sm_wait_timer EQU #D539   ; Entity State Wait Timer (32 bytes)
-entity_lifetime     EQU #D559   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
-entity_carried_by   EQU #D579   ; Entity carrier ID (32 bytes, 255=not carried)
-entity_template_token EQU #D599   ; Entity template token (32 bytes, 0=unknown)
-entity_facing_dir   EQU #D5B9   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
-entity_sm_var_0     EQU #D5D9   ; Entity Variable 0 (32 bytes)
-entity_sm_var_1     EQU #D5F9   ; Entity Variable 1 (32 bytes)
-entity_sm_var_2     EQU #D619   ; Entity Variable 2 (32 bytes)
-entity_sm_var_3     EQU #D639   ; Entity Variable 3 (32 bytes)
-entity_sm_var_4     EQU #D659   ; Entity Variable 4 (32 bytes)
-entity_sm_var_5     EQU #D679   ; Entity Variable 5 (32 bytes)
-entity_sm_var_6     EQU #D699   ; Entity Variable 6 (32 bytes)
-entity_sm_var_7     EQU #D6B9   ; Entity Variable 7 (32 bytes)
+entity_active       EQU #D378   ; Entity active flags (32 bytes, 0=inactive, 1=active)
+entity_is_player    EQU #D398   ; Entity hero/player flag (32 bytes, 0=no, 1=yes)
+entity_x_pos        EQU #D3B8   ; Entity X positions (32 bytes)
+entity_y_pos        EQU #D3D8   ; Entity Y positions (32 bytes)
+entity_vel_x        EQU #D3F8   ; Entity X velocity (32 bytes)
+entity_vel_y        EQU #D418   ; Entity Y velocity (32 bytes)
+entity_comp_masks   EQU #D438   ; Entity component masks (32 bytes)
+entity_comp_masks_hi EQU #D458   ; Entity component masks high byte (32 bytes)
+entity_screen_id    EQU #D478   ; Entity screen ID (32 bytes)
+entity_job_period   EQU #D498   ; Entity job period in frames (32 bytes, 1=100%,2=50%,3=33%,4=25%)
+entity_job_entry    EQU #D4B8   ; Entity job entry slot within period window (32 bytes)
+entity_job_scheduler_active EQU #D4D8   ; 1 when any entity uses non-default job cadence
+entity_dir_mask     EQU #D4D9   ; Entity direction mask (32 bytes)
+entity_input_speed  EQU #D4F9   ; Entity input/cursor speed (32 bytes)
+entity_health       EQU #D519   ; Entity health (32 bytes)
+entity_anim_frame   EQU #D539   ; Entity animation frame (32 bytes)
+entity_anim_tick    EQU #D559   ; Entity animation tick counter (32 bytes)
+entity_anim_speed   EQU #D579   ; Entity animation speed (ticks per frame) (32 bytes)
+entity_anim_flags   EQU #D599   ; Entity animation flags (32 bytes)
+entity_sm_ptr_l     EQU #D5B9   ; Entity State Pointer Low (32 bytes)
+entity_sm_ptr_h     EQU #D5D9   ; Entity State Pointer High (32 bytes)
+entity_sm_timer_l   EQU #D5F9   ; Entity State Timer Low (32 bytes)
+entity_sm_timer_h   EQU #D619   ; Entity State Timer High (32 bytes)
+entity_sm_wait_timer EQU #D639   ; Entity State Wait Timer (32 bytes)
+entity_lifetime     EQU #D659   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
+entity_carried_by   EQU #D679   ; Entity carrier ID (32 bytes, 255=not carried)
+entity_template_token EQU #D699   ; Entity template token (32 bytes, 0=unknown)
+entity_facing_dir   EQU #D6B9   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
+entity_sm_var_0     EQU #D6D9   ; Entity Variable 0 (32 bytes)
+entity_sm_var_1     EQU #D6F9   ; Entity Variable 1 (32 bytes)
+entity_sm_var_2     EQU #D719   ; Entity Variable 2 (32 bytes)
+entity_sm_var_3     EQU #D739   ; Entity Variable 3 (32 bytes)
+entity_sm_var_4     EQU #D759   ; Entity Variable 4 (32 bytes)
+entity_sm_var_5     EQU #D779   ; Entity Variable 5 (32 bytes)
+entity_sm_var_6     EQU #D799   ; Entity Variable 6 (32 bytes)
+entity_sm_var_7     EQU #D7B9   ; Entity Variable 7 (32 bytes)
 
 ; ==================================================================
 ; SPRITE SYSTEM VARIABLES
 ; ==================================================================
-entity_sprite_asset_index EQU #D6D9   ; Entity sprite asset index - RAM copy (32 bytes)
-active_sprite_count EQU #D6F9   ; Number of sprites currently active
-sprites_dirty      EQU #D6FA   ; 1=sprite_attributes changed, needs VRAM sync
-sprite_pattern      EQU #D6FB   ; Sprite pattern IDs (32 bytes)
-sprite_color        EQU #D71B   ; Sprite colors (32 bytes)
-sprite_layer_colors EQU #D73B   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
-sprite_asset_base_pattern_slot_runtime EQU #D75B   ; Runtime base 16x16 slot per sprite asset (1 bytes)
-sprite_placeholder_base_pattern_num EQU #D75C   ; Runtime placeholder pattern number (base slot * 4)
-current_sprite_pattern_pack_id EQU #D75D   ; Active runtime sprite pattern pack id (#FF=none loaded)
-sprite_attributes   EQU #D75E   ; Interleaved sprite attributes (32 * 4 bytes)
+entity_sprite_asset_index EQU #D7D9   ; Entity sprite asset index - RAM copy (32 bytes)
+active_sprite_count EQU #D7F9   ; Number of sprites currently active
+sprites_dirty      EQU #D7FA   ; 1=sprite_attributes changed, needs VRAM sync
+sprite_pattern      EQU #D7FB   ; Sprite pattern IDs (32 bytes)
+sprite_color        EQU #D81B   ; Sprite colors (32 bytes)
+sprite_layer_colors EQU #D83B   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
+sprite_asset_base_pattern_slot_runtime EQU #D85B   ; Runtime base 16x16 slot per sprite asset (1 bytes)
+sprite_placeholder_base_pattern_num EQU #D85C   ; Runtime placeholder pattern number (base slot * 4)
+current_sprite_pattern_pack_id EQU #D85D   ; Active runtime sprite pattern pack id (#FF=none loaded)
+sprite_attributes   EQU #D85E   ; Interleaved sprite attributes (32 * 4 bytes)
 
 ; ==================================================================
 ; SCREEN SYSTEM VARIABLES (1 screens detected)
 ; ==================================================================
-current_screen_id   EQU #D7DE   ; Currently displayed screen ID
-screen_dirty_flag   EQU #D7DF   ; Screen needs redraw flag
-screen_transition_cooldown EQU #D7E0   ; Cooldown frames after screen transition
-current_world_id    EQU #D7E1   ; Current world ID (for multi-world support)
-current_screen_index EQU #D7E2   ; Current screen index within world
-current_screen_anim_group_count EQU #D7E3   ; Animated tile groups visible in current screen
-current_screen_entity_count EQU #D7E4   ; Entity instances assigned to current screen
-current_screen_sprite_pattern_slots EQU #D7E5   ; Sprite pattern slots needed by current screen
-current_screen_summary_flags EQU #D7E6   ; Runtime screen summary flags (music/hud/effects/anim)
+current_screen_id   EQU #D8DE   ; Currently displayed screen ID
+screen_dirty_flag   EQU #D8DF   ; Screen needs redraw flag
+screen_transition_cooldown EQU #D8E0   ; Cooldown frames after screen transition
+current_world_id    EQU #D8E1   ; Current world ID (for multi-world support)
+current_screen_index EQU #D8E2   ; Current screen index within world
+current_screen_anim_group_count EQU #D8E3   ; Animated tile groups visible in current screen
+current_screen_entity_count EQU #D8E4   ; Entity instances assigned to current screen
+current_screen_sprite_pattern_slots EQU #D8E5   ; Sprite pattern slots needed by current screen
+current_screen_summary_flags EQU #D8E6   ; Runtime screen summary flags (music/hud/effects/anim)
 
 ; ==================================================================
 ; PLAYER SYSTEM VARIABLES (player entity detected)
 ; ==================================================================
-player_x            EQU #D7E7   ; Player X position (16-bit)
-player_y            EQU #D7E9   ; Player Y position (16-bit)
-player_runtime_enabled EQU #D7EB   ; 1=player fast runtime bound to hero entity
-player_entity_index EQU #D7EC   ; Entity index used by player fast runtime (#FF=none)
-player_vx_runtime   EQU #D7ED   ; Cached player X velocity (signed 8-bit)
-player_vy_runtime   EQU #D7EE   ; Cached player Y velocity (signed 8-bit)
-player_health       EQU #D7EF   ; Player health points
-player_score        EQU #D7F0   ; Player score (16-bit)
-gem_count           EQU #D7F2   ; Collectible tile counter (8-bit)
-last_gem_char       EQU #D7F3   ; Char code of last collected gem tile (for SM VARIABLE_COMPARE)
+player_x            EQU #D8E7   ; Player X position (16-bit)
+player_y            EQU #D8E9   ; Player Y position (16-bit)
+player_runtime_enabled EQU #D8EB   ; 1=player fast runtime bound to hero entity
+player_entity_index EQU #D8EC   ; Entity index used by player fast runtime (#FF=none)
+player_vx_runtime   EQU #D8ED   ; Cached player X velocity (signed 8-bit)
+player_vy_runtime   EQU #D8EE   ; Cached player Y velocity (signed 8-bit)
+player_health       EQU #D8EF   ; Player health points
+player_score        EQU #D8F0   ; Player score (16-bit)
+gem_count           EQU #D8F2   ; Collectible tile counter (8-bit)
+last_gem_char       EQU #D8F3   ; Char code of last collected gem tile (for SM VARIABLE_COMPARE)
 
 ; Persistent collectibles list (survives screen re-entry)
 MAX_COLLECTIBLES     EQU 64              ; Max persistent collectible records
-collected_count      EQU #D7F4   ; Number of collected tiles recorded (8-bit)
-collected_world      EQU #D7F5   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
-collected_screen     EQU #D835   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
-collected_idx_l      EQU #D875   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
-collected_idx_h      EQU #D8B5   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
+collected_count      EQU #D8F4   ; Number of collected tiles recorded (8-bit)
+collected_world      EQU #D8F5   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_screen     EQU #D935   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_idx_l      EQU #D975   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
+collected_idx_h      EQU #D9B5   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
 
 ; Timed bonus tile respawn slots (bonus gem regeneration)
 MAX_BONUS_RESPAWNS   EQU 16              ; Max timed bonus tiles waiting to respawn
-bonus_respawn_world  EQU #D8F5   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_screen EQU #D905   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_idx_l  EQU #D915   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_idx_h  EQU #D925   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_secs   EQU #D935   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_frames EQU #D945   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_world  EQU #D9F5   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_screen EQU #DA05   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_l  EQU #DA15   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_h  EQU #DA25   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_secs   EQU #DA35   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_frames EQU #DA45   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
 
 ; ==================================================================
 ; AUXILIARY VARIABLES 
 ; ==================================================================
-deterministic        EQU #D955   ; Deterministic mode flag
+deterministic        EQU #DA55   ; Deterministic mode flag
 
 ; ==================================================================
 ; TEMPORARY VARIABLES (ALWAYS NEEDED)
 ; ==================================================================
-temp_word_1         EQU #D956   ; Temporary 16-bit storage
-temp_word_2         EQU #D958   ; Temporary 16-bit storage
-temp_byte_1         EQU #D95A   ; Temporary 8-bit storage
-temp_byte_2         EQU #D95B   ; Temporary 8-bit storage
-temp_byte_3         EQU #D95C   ; Temporary 8-bit storage (32 bytes)
-temp_byte_4         EQU #D97C   ; Temporary 8-bit storage (32 bytes)
-temp_byte_5         EQU #D99C   ; Temporary 8-bit storage (32 bytes)
-temp_byte_6         EQU #D9BC   ; Temporary 8-bit storage (32 bytes)
+temp_word_1         EQU #DA56   ; Temporary 16-bit storage
+temp_word_2         EQU #DA58   ; Temporary 16-bit storage
+temp_byte_1         EQU #DA5A   ; Temporary 8-bit storage
+temp_byte_2         EQU #DA5B   ; Temporary 8-bit storage
+temp_byte_3         EQU #DA5C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_4         EQU #DA7C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_5         EQU #DA9C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_6         EQU #DABC   ; Temporary 8-bit storage (32 bytes)
 
 ; ==================================================================
 ; SOUND SYSTEM VARIABLES
 ; ==================================================================
-sfx_active          EQU #D9DC   ; 0=no SFX active, 1=playing
-sfx_timer           EQU #D9DD   ; Frames remaining for current SFX
-sfx_fadeout         EQU #D9DE   ; Reserved fadeout flag/state
-temp_byte_7         EQU #D9DF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_8         EQU #D9FF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_9         EQU #DA1F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_10        EQU #DA3F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_11        EQU #DA5F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_12        EQU #DA7F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_13        EQU #DA9F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_14        EQU #DABF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_15        EQU #DADF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_16        EQU #DAFF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_17        EQU #DB1F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_18        EQU #DB3F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_19        EQU #DB5F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_20        EQU #DB7F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_21        EQU #DB9F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_22        EQU #DBBF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_23        EQU #DBDF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_24        EQU #DBFF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_25        EQU #DC1F   ; Temporary 8-bit storage (32 bytes)
-temp_word_3         EQU #DC3F   ; Temporary 16-bit storage (64 bytes)
-temp_word_4         EQU #DC7F   ; Temporary 16-bit storage (64 bytes)
-temp_byte_26        EQU #DCBF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_27        EQU #DCDF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_28        EQU #DCFF   ; Temporary 8-bit storage (32 bytes)
-tileDead_dbg        EQU #DD1F   ; Debug byte: current hero deadly contact
-tileDead_latched_dbg EQU #DD20   ; Debug byte: latched hero deadly contact
-tileDead_x_dbg      EQU #DD21   ; Debug byte: last sampled deadly tile X
-tileDead_y_dbg      EQU #DD22   ; Debug byte: last sampled deadly tile Y
-tileDead_value_dbg  EQU #DD23   ; Debug byte: last raw deadly behavior value
+sfx_active          EQU #DADC   ; 0=no SFX active, 1=playing
+sfx_timer           EQU #DADD   ; Frames remaining for current SFX
+sfx_fadeout         EQU #DADE   ; Reserved fadeout flag/state
+temp_byte_7         EQU #DADF   ; Temporary 8-bit storage (32 bytes)
+temp_byte_8         EQU #DAFF   ; Temporary 8-bit storage (32 bytes)
+temp_byte_9         EQU #DB1F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_10        EQU #DB3F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_11        EQU #DB5F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_12        EQU #DB7F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_13        EQU #DB9F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_14        EQU #DBBF   ; Temporary 8-bit storage (32 bytes)
+temp_byte_15        EQU #DBDF   ; Temporary 8-bit storage (32 bytes)
+temp_byte_16        EQU #DBFF   ; Temporary 8-bit storage (32 bytes)
+temp_byte_17        EQU #DC1F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_18        EQU #DC3F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_19        EQU #DC5F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_20        EQU #DC7F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_21        EQU #DC9F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_22        EQU #DCBF   ; Temporary 8-bit storage (32 bytes)
+temp_byte_23        EQU #DCDF   ; Temporary 8-bit storage (32 bytes)
+temp_byte_24        EQU #DCFF   ; Temporary 8-bit storage (32 bytes)
+temp_byte_25        EQU #DD1F   ; Temporary 8-bit storage (32 bytes)
+temp_word_3         EQU #DD3F   ; Temporary 16-bit storage (64 bytes)
+temp_word_4         EQU #DD7F   ; Temporary 16-bit storage (64 bytes)
+temp_byte_26        EQU #DDBF   ; Temporary 8-bit storage (32 bytes)
+temp_byte_27        EQU #DDDF   ; Temporary 8-bit storage (32 bytes)
+temp_byte_28        EQU #DDFF   ; Temporary 8-bit storage (32 bytes)
+tileDead_dbg        EQU #DE1F   ; Debug byte: current hero deadly contact
+tileDead_latched_dbg EQU #DE20   ; Debug byte: latched hero deadly contact
+tileDead_x_dbg      EQU #DE21   ; Debug byte: last sampled deadly tile X
+tileDead_y_dbg      EQU #DE22   ; Debug byte: last sampled deadly tile Y
+tileDead_value_dbg  EQU #DE23   ; Debug byte: last raw deadly behavior value
 
 ; Wall collision temporary variables
-wall_temp_x         EQU #DD24   ; Cached entity X for wall checks
-wall_temp_y         EQU #DD25   ; Cached entity Y for wall checks
-wall_hit_left       EQU #DD26   ; Hitbox left edge cache
-wall_hit_top        EQU #DD27   ; Hitbox top edge cache
-wall_hit_right      EQU #DD28   ; Hitbox right edge cache
-wall_hit_bottom     EQU #DD29   ; Hitbox bottom edge cache
-wall_hit_w          EQU #DD2A   ; Hitbox width cache (min 1)
-wall_hit_h          EQU #DD2B   ; Hitbox height cache (min 1)
-wall_probe_left     EQU #DD2C   ; X probe near hitbox left (adaptive inset)
-wall_probe_right    EQU #DD2D   ; X probe near hitbox right (adaptive inset)
-wall_probe_top      EQU #DD2E   ; Y probe near hitbox top (adaptive inset)
-wall_probe_bottom   EQU #DD2F   ; Y probe near hitbox bottom (adaptive inset)
+wall_temp_x         EQU #DE24   ; Cached entity X for wall checks
+wall_temp_y         EQU #DE25   ; Cached entity Y for wall checks
+wall_hit_left       EQU #DE26   ; Hitbox left edge cache
+wall_hit_top        EQU #DE27   ; Hitbox top edge cache
+wall_hit_right      EQU #DE28   ; Hitbox right edge cache
+wall_hit_bottom     EQU #DE29   ; Hitbox bottom edge cache
+wall_hit_w          EQU #DE2A   ; Hitbox width cache (min 1)
+wall_hit_h          EQU #DE2B   ; Hitbox height cache (min 1)
+wall_probe_left     EQU #DE2C   ; X probe near hitbox left (adaptive inset)
+wall_probe_right    EQU #DE2D   ; X probe near hitbox right (adaptive inset)
+wall_probe_top      EQU #DE2E   ; Y probe near hitbox top (adaptive inset)
+wall_probe_bottom   EQU #DE2F   ; Y probe near hitbox bottom (adaptive inset)
 
 ; Unified update helpers
-active_entity_list  EQU #DD30   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
-active_entity_count EQU #DD50   ; Number of entries in active_entity_list
-hero_entity_id      EQU #DD51   ; First current-screen entity flagged as player (#FF = none)
-active_entity_list_dirty EQU #DD52   ; 1=rebuild active_entity_list required
-input_entity_list   EQU #DD53   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)
-input_entity_count  EQU #DD73   ; Number of entries in input_entity_list
-render_entity_list  EQU #DD74   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)
-render_entity_count EQU #DD94   ; Number of entries in render_entity_list
-collision_entity_list EQU #DD95   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)
-collision_entity_count EQU #DDB5   ; Number of entries in collision_entity_list
-ground_entity_list  EQU #DDB6   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)
-ground_entity_count EQU #DDD6   ; Number of entries in ground_entity_list
-anim_entity_list    EQU #DDD7   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)
-anim_entity_count   EQU #DDF7   ; Number of entries in anim_entity_list
+active_entity_list  EQU #DE30   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
+active_entity_count EQU #DE50   ; Number of entries in active_entity_list
+hero_entity_id      EQU #DE51   ; First current-screen entity flagged as player (#FF = none)
+active_entity_list_dirty EQU #DE52   ; 1=rebuild active_entity_list required
+input_entity_list   EQU #DE53   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)
+input_entity_count  EQU #DE73   ; Number of entries in input_entity_list
+render_entity_list  EQU #DE74   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)
+render_entity_count EQU #DE94   ; Number of entries in render_entity_list
+collision_entity_list EQU #DE95   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)
+collision_entity_count EQU #DEB5   ; Number of entries in collision_entity_list
+ground_entity_list  EQU #DEB6   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)
+ground_entity_count EQU #DED6   ; Number of entries in ground_entity_list
+anim_entity_list    EQU #DED7   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)
+anim_entity_count   EQU #DEF7   ; Number of entries in anim_entity_list
 
 ; Entity-entity collision optimized variables
-coll_list           EQU #DDF8   ; Active collidable entity indices (MAX_ENTITIES bytes)
-coll_list_count     EQU #DE18   ; Number of entities in coll_list
-coll_src_left       EQU #DE19   ; Source AABB left edge (scratch)
-coll_src_right      EQU #DE1A   ; Source AABB right edge (scratch)
-coll_src_top        EQU #DE1B   ; Source AABB top edge (scratch)
-coll_src_bottom     EQU #DE1C   ; Source AABB bottom edge (scratch)
+coll_list           EQU #DEF8   ; Active collidable entity indices (MAX_ENTITIES bytes)
+coll_list_count     EQU #DF18   ; Number of entities in coll_list
+coll_src_left       EQU #DF19   ; Source AABB left edge (scratch)
+coll_src_right      EQU #DF1A   ; Source AABB right edge (scratch)
+coll_src_top        EQU #DF1B   ; Source AABB top edge (scratch)
+coll_src_bottom     EQU #DF1C   ; Source AABB bottom edge (scratch)
 
 ; ==================================================================
 ; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
 ; ==================================================================
-task_table              EQU #DE1D   ; Task table base (8 slots x 2 bytes = 16 bytes)
-task_0_ptr              EQU #DE1D   ; Slot 0 pointer (2 bytes)
-task_1_ptr              EQU #DE1F   ; Slot 1 pointer (2 bytes)
-task_2_ptr              EQU #DE21   ; Slot 2 pointer (2 bytes)
-task_3_ptr              EQU #DE23   ; Slot 3 pointer (2 bytes)
-task_4_ptr              EQU #DE25   ; Slot 4 pointer (2 bytes)
-task_5_ptr              EQU #DE27   ; Slot 5 pointer (2 bytes)
-task_6_ptr              EQU #DE29   ; Slot 6 pointer (2 bytes)
-task_7_ptr              EQU #DE2B   ; Slot 7 pointer (2 bytes)
-interrupt_system_enabled EQU #DE2D   ; 0=disabled, 1=enabled (1 byte)
-old_htimi_hook          EQU #DE2E   ; Original H.TIMI hook (5 bytes)
-interrupt_counter       EQU #DE33   ; Frame counter (16-bit)
-task_exec_time          EQU #DE35   ; Cycles used by tasks (16-bit, debug)
-vblank_flag             EQU #DE37   ; Set to 1 on each VBlank (1 byte)
-RAM_INTERRUPT_END       EQU #DE38   ; End of interrupt system
+task_table              EQU #DF1D   ; Task table base (8 slots x 2 bytes = 16 bytes)
+task_0_ptr              EQU #DF1D   ; Slot 0 pointer (2 bytes)
+task_1_ptr              EQU #DF1F   ; Slot 1 pointer (2 bytes)
+task_2_ptr              EQU #DF21   ; Slot 2 pointer (2 bytes)
+task_3_ptr              EQU #DF23   ; Slot 3 pointer (2 bytes)
+task_4_ptr              EQU #DF25   ; Slot 4 pointer (2 bytes)
+task_5_ptr              EQU #DF27   ; Slot 5 pointer (2 bytes)
+task_6_ptr              EQU #DF29   ; Slot 6 pointer (2 bytes)
+task_7_ptr              EQU #DF2B   ; Slot 7 pointer (2 bytes)
+interrupt_system_enabled EQU #DF2D   ; 0=disabled, 1=enabled (1 byte)
+old_htimi_hook          EQU #DF2E   ; Original H.TIMI hook (5 bytes)
+interrupt_counter       EQU #DF33   ; Frame counter (16-bit)
+task_exec_time          EQU #DF35   ; Cycles used by tasks (16-bit, debug)
+vblank_flag             EQU #DF37   ; Set to 1 on each VBlank (1 byte)
+RAM_INTERRUPT_END       EQU #DF38   ; End of interrupt system
 
 ; ==================================================================
 ; STATE MACHINE SOUND RUNTIME (one active sound asset)
 ; ==================================================================
-sm_sound_active       EQU #DE38   ; 0=idle, 1=playing state-machine sound asset
-sm_sound_frames_left  EQU #DE39   ; Frames left for current state-machine sound asset
-sm_sound_ptr_l        EQU #DE3A   ; Next sound frame pointer low byte
-sm_sound_ptr_h        EQU #DE3B   ; Next sound frame pointer high byte
+sm_sound_active       EQU #DF38   ; 0=idle, 1=playing state-machine sound asset
+sm_sound_frames_left  EQU #DF39   ; Frames left for current state-machine sound asset
+sm_sound_ptr_l        EQU #DF3A   ; Next sound frame pointer low byte
+sm_sound_ptr_h        EQU #DF3B   ; Next sound frame pointer high byte
 
 ; ==================================================================
 ; TRACKER MUSIC RUNTIME
 ; ==================================================================
-music_active         EQU #DE3C   ; 0=stopped, 1=track active
-music_muted          EQU #DE3D   ; 0=audible, 1=muted/pause
-music_loop           EQU #DE3E   ; 0=no loop, 1=loop enabled
-music_track_index    EQU #DE3F   ; Current ROM track index
-music_row_frames     EQU #DE40   ; Frames per tracker row
-music_row_countdown  EQU #DE41   ; Countdown to next row
-music_order_pos      EQU #DE42   ; Current order position
-music_pattern_index  EQU #DE43   ; Current pattern index
-music_pattern_row    EQU #DE44   ; Current row inside pattern
-music_pattern_rows   EQU #DE45   ; Cached rows in current pattern
-music_track_ptr_l    EQU #DE46   ; Current track pointer low byte
-music_track_ptr_h    EQU #DE47   ; Current track pointer high byte
-music_pattern_ptr_l  EQU #DE48   ; Current pattern rows pointer low byte
-music_pattern_ptr_h  EQU #DE49   ; Current pattern rows pointer high byte
-music_mixer_shadow   EQU #DE4A   ; PSG mixer shadow for music runtime
-music_ch_note_base EQU #DE4B   ; Current note index (255=silent) (3 bytes)
-music_ch_a_note EQU #DE4B   ; Channel A
-music_ch_b_note EQU #DE4C   ; Channel B
-music_ch_c_note EQU #DE4D   ; Channel C
-music_ch_instrument_base EQU #DE4E   ; Current instrument id (0=none) (3 bytes)
-music_ch_a_instrument EQU #DE4E   ; Channel A
-music_ch_b_instrument EQU #DE4F   ; Channel B
-music_ch_c_instrument EQU #DE50   ; Channel C
-music_ch_ornament_base EQU #DE51   ; Current ornament id (0=none) (3 bytes)
-music_ch_a_ornament EQU #DE51   ; Channel A
-music_ch_b_ornament EQU #DE52   ; Channel B
-music_ch_c_ornament EQU #DE53   ; Channel C
-music_ch_volume_base EQU #DE54   ; Current base volume (0-15) (3 bytes)
-music_ch_a_volume EQU #DE54   ; Channel A
-music_ch_b_volume EQU #DE55   ; Channel B
-music_ch_c_volume EQU #DE56   ; Channel C
-music_ch_vol_step_base EQU #DE57   ; Reserved software volume envelope step (3 bytes)
-music_ch_a_vol_step EQU #DE57   ; Channel A
-music_ch_b_vol_step EQU #DE58   ; Channel B
-music_ch_c_vol_step EQU #DE59   ; Channel C
-music_ch_tone_step_base EQU #DE5A   ; Reserved software tone envelope step (3 bytes)
-music_ch_a_tone_step EQU #DE5A   ; Channel A
-music_ch_b_tone_step EQU #DE5B   ; Channel B
-music_ch_c_tone_step EQU #DE5C   ; Channel C
-music_ch_noise_step_base EQU #DE5D   ; Reserved software noise envelope step (3 bytes)
-music_ch_a_noise_step EQU #DE5D   ; Channel A
-music_ch_b_noise_step EQU #DE5E   ; Channel B
-music_ch_c_noise_step EQU #DE5F   ; Channel C
-music_ch_orn_step_base EQU #DE60   ; Reserved ornament step (3 bytes)
-music_ch_a_orn_step EQU #DE60   ; Channel A
-music_ch_b_orn_step EQU #DE61   ; Channel B
-music_ch_c_orn_step EQU #DE62   ; Channel C
+music_active         EQU #DF3C   ; 0=stopped, 1=track active
+music_muted          EQU #DF3D   ; 0=audible, 1=muted/pause
+music_loop           EQU #DF3E   ; 0=no loop, 1=loop enabled
+music_track_index    EQU #DF3F   ; Current ROM track index
+music_row_frames     EQU #DF40   ; Frames per tracker row
+music_row_countdown  EQU #DF41   ; Countdown to next row
+music_order_pos      EQU #DF42   ; Current order position
+music_pattern_index  EQU #DF43   ; Current pattern index
+music_pattern_row    EQU #DF44   ; Current row inside pattern
+music_pattern_rows   EQU #DF45   ; Cached rows in current pattern
+music_track_ptr_l    EQU #DF46   ; Current track pointer low byte
+music_track_ptr_h    EQU #DF47   ; Current track pointer high byte
+music_pattern_ptr_l  EQU #DF48   ; Current pattern rows pointer low byte
+music_pattern_ptr_h  EQU #DF49   ; Current pattern rows pointer high byte
+music_mixer_shadow   EQU #DF4A   ; PSG mixer shadow for music runtime
+music_ch_note_base EQU #DF4B   ; Current note index (255=silent) (3 bytes)
+music_ch_a_note EQU #DF4B   ; Channel A
+music_ch_b_note EQU #DF4C   ; Channel B
+music_ch_c_note EQU #DF4D   ; Channel C
+music_ch_instrument_base EQU #DF4E   ; Current instrument id (0=none) (3 bytes)
+music_ch_a_instrument EQU #DF4E   ; Channel A
+music_ch_b_instrument EQU #DF4F   ; Channel B
+music_ch_c_instrument EQU #DF50   ; Channel C
+music_ch_ornament_base EQU #DF51   ; Current ornament id (0=none) (3 bytes)
+music_ch_a_ornament EQU #DF51   ; Channel A
+music_ch_b_ornament EQU #DF52   ; Channel B
+music_ch_c_ornament EQU #DF53   ; Channel C
+music_ch_volume_base EQU #DF54   ; Current base volume (0-15) (3 bytes)
+music_ch_a_volume EQU #DF54   ; Channel A
+music_ch_b_volume EQU #DF55   ; Channel B
+music_ch_c_volume EQU #DF56   ; Channel C
+music_ch_vol_step_base EQU #DF57   ; Reserved software volume envelope step (3 bytes)
+music_ch_a_vol_step EQU #DF57   ; Channel A
+music_ch_b_vol_step EQU #DF58   ; Channel B
+music_ch_c_vol_step EQU #DF59   ; Channel C
+music_ch_tone_step_base EQU #DF5A   ; Reserved software tone envelope step (3 bytes)
+music_ch_a_tone_step EQU #DF5A   ; Channel A
+music_ch_b_tone_step EQU #DF5B   ; Channel B
+music_ch_c_tone_step EQU #DF5C   ; Channel C
+music_ch_noise_step_base EQU #DF5D   ; Reserved software noise envelope step (3 bytes)
+music_ch_a_noise_step EQU #DF5D   ; Channel A
+music_ch_b_noise_step EQU #DF5E   ; Channel B
+music_ch_c_noise_step EQU #DF5F   ; Channel C
+music_ch_orn_step_base EQU #DF60   ; Reserved ornament step (3 bytes)
+music_ch_a_orn_step EQU #DF60   ; Channel A
+music_ch_b_orn_step EQU #DF61   ; Channel B
+music_ch_c_orn_step EQU #DF62   ; Channel C
 
 ; ==================================================================
 ; ZX0 TEMPORARY RAM BUFFERS
@@ -1422,24 +1423,24 @@ music_ch_c_orn_step EQU #DE62   ; Channel C
 ; Compact scratch layout placed strictly after RAM_USAGE_END.
 ; Screen/behavior/tile buffers share the same large work area because
 ; they are decompressed and consumed sequentially, never concurrently.
-ZX0_SCREEN_BUFFER       EQU #DF00   ; Screen/layout scratch (768 bytes, shared area)
-ZX0_BEHAVIOR_BUFFER     EQU #DF00   ; Behavior map scratch (768 bytes, shared area)
-ZX0_TILE_PATTERN_BUFFER EQU #DF00   ; Tile pattern scratch (1488 bytes, shared area)
-ZX0_TILE_COLOR_BUFFER   EQU #DF00   ; Tile color scratch (1488 bytes, shared area)
-ZX0_FONT_PATTERN_BUFFER EQU #E4D0   ; Font pattern scratch (360 bytes)
-ZX0_FONT_COLOR_BUFFER   EQU #E640   ; Font color scratch (360 bytes)
+ZX0_SCREEN_BUFFER       EQU #E000   ; Screen/layout scratch (768 bytes, shared area)
+ZX0_BEHAVIOR_BUFFER     EQU #E000   ; Behavior map scratch (768 bytes, shared area)
+ZX0_TILE_PATTERN_BUFFER EQU #E000   ; Tile pattern scratch (1488 bytes, shared area)
+ZX0_TILE_COLOR_BUFFER   EQU #E000   ; Tile color scratch (1488 bytes, shared area)
+ZX0_FONT_PATTERN_BUFFER EQU #E5D0   ; Font pattern scratch (360 bytes)
+ZX0_FONT_COLOR_BUFFER   EQU #E740   ; Font color scratch (360 bytes)
 
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #DE63   ; End of project variables (7779 bytes used)
+RAM_USAGE_END       EQU #DF63   ; End of project variables (8035 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#DE63: Project variables (7779 bytes)
-;   #DE63-#F37F: Free RAM (~5405 bytes available)
+;   #C000-#DF63: Project variables (8035 bytes)
+;   #DF63-#F37F: Free RAM (~5149 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
@@ -3010,7 +3011,10 @@ SCREEN_RUNTIME_SUMMARY_FLAG_HAS_ANIM_TILES EQU #08
 
 SCREEN_PAN1_0_ID EQU 0
 SCREEN_PAN1_0_LAYOUT_BANK EQU 0
+SCREEN_PAN1_0_BEHAVIOR_SOURCE EQU 0
 BEHAVIOR_PAN1_0_DATA_BANK EQU ((BEHAVIOR_PAN1_0_DATA - #4000) / #2000)
+SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE_BANK EQU 0
+SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE_SIZE EQU 0
 SCREEN_PAN1_0_EFFECTS_LAYOUT_BANK EQU ((SCREEN_PAN1_0_EFFECTS_LAYOUT - #4000) / #2000)
 SCREEN_PAN1_0_EFFECTS_LAYOUT_PRESENT EQU 1
 SCREEN_PAN1_0_EFFECTS_LAYOUT_SIZE EQU 768
@@ -3482,6 +3486,47 @@ expand_screen_block_layout_4x4:
     pop iy
     pop ix
     ret
+
+; Register Contract:
+;   Purpose: Rebuild runtime_behavior_map from the current runtime_screen_layout using the per-screen char behavior table.
+;   Inputs:
+;     - HL = source screen layout pointer (normally runtime_screen_layout)
+;   Outputs:
+;     - runtime_behavior_map rebuilt in RAM
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - IX
+;     - IY
+;   Notes:
+;     - Uses screen_block_catalog_ptr and screen_block_map_ptr as generic scratch pointers during the rebuild.
+build_runtime_behavior_map_from_screen_layout:
+    ld (screen_block_map_ptr), hl
+    ld hl, runtime_behavior_map
+    ld (screen_block_catalog_ptr), hl
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+.build_behavior_loop:
+    ld a, b
+    or c
+    ret z
+    ld hl, (screen_block_map_ptr)
+    ld a, (hl)
+    inc hl
+    ld (screen_block_map_ptr), hl
+    ld l, a
+    ld h, 0
+    ld de, runtime_char_behavior_table
+    add hl, de
+    ld a, (hl)
+    ld hl, (screen_block_catalog_ptr)
+    ld (hl), a
+    inc hl
+    ld (screen_block_catalog_ptr), hl
+    dec bc
+    jr .build_behavior_loop
 
 load_screen:
 

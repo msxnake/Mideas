@@ -37,10 +37,10 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   code += `prev_input_state    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous direction state (0-8)\n`;
   currentAddress++;
 
-  code += `input_btn_curr      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current input buttons bitmask (bit0=fire)\n`;
+  code += `input_btn_curr      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current input buttons bitmask (bit0=fire, bit1=grab)\n`;
   currentAddress++;
 
-  code += `input_btn_prev      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous input buttons bitmask (bit0=fire)\n`;
+  code += `input_btn_prev      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous input buttons bitmask (bit0=fire, bit1=grab)\n`;
   currentAddress++;
 
   code += `input_fire          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Fire button state (0=released, 1=pressed)\n`;
@@ -220,6 +220,14 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   currentAddress += 768;
   code += `runtime_behavior_map   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current behavior map (32x24)\n`;
   currentAddress += 768;
+  code += `runtime_interaction_type_map EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current interaction type map (32x24)\n`;
+  currentAddress += 768;
+  code += `runtime_interaction_value_map EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current interaction value map (32x24)\n`;
+  currentAddress += 768;
+  code += `runtime_interaction_target_map EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current interaction target map (32x24)\n`;
+  currentAddress += 768;
+  code += `runtime_char_behavior_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current screen char -> behavior lookup table (256 bytes)\n`;
+  currentAddress += 256;
   code += `runtime_effects_layout EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Alternate effects layout copy for secret zones (32x24)\n`;
   currentAddress += 768;
   code += `screen_block_catalog_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Scratch pointer to current screen block catalog during layout expansion\n`;
@@ -300,6 +308,29 @@ MAX_ENTITIES        EQU 32
   code += `entity_is_player    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity hero/player flag (32 bytes, 0=no, 1=yes)\n`;
   currentAddress += 32;
 
+  code += `entity_button_contact_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 while entity stays on the same button tile (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_button_contact_x EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Button tile X currently latched per entity (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_button_contact_y EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Button tile Y currently latched per entity (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_on_ladder   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 while entity is centered on a ladder tile (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_gate_current_step EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current applied retract step (32 bytes)\n`;
+  currentAddress += 32;
+  code += `entity_gate_step_timer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Countdown until next retract step (32 bytes)\n`;
+  currentAddress += 32;
+  code += `entity_walljump_lock EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Remaining horizontal lock frames after wall jump (32 bytes)\n`;
+  currentAddress += 32;
+  code += `entity_walljump_locked_vx EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Horizontal velocity preserved while wall jump lock is active (32 bytes)\n`;
+  currentAddress += 32;
+  code += `entity_walljump_anim_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Wall jump one-shot animation is waiting to restore base sprite (32 bytes)\n`;
+  currentAddress += 32;
+
   code += `entity_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity X positions (32 bytes)\n`;
   currentAddress += 32;
 
@@ -365,6 +396,9 @@ MAX_ENTITIES        EQU 32
   currentAddress += 32;
 
   code += `entity_sm_wait_timer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity State Wait Timer (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_sm_sprite_control EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when the assigned state machine explicitly drives sprite changes (32 bytes)\n`;
   currentAddress += 32;
 
   code += `entity_lifetime     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)\n`;
@@ -497,7 +531,22 @@ MAX_ENTITIES        EQU 32
     code += `gem_count           EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Collectible tile counter (8-bit)\n`;
     currentAddress++;
 
-    code += `last_gem_char       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Char code of last collected gem tile (for SM VARIABLE_COMPARE)\n`;
+    code += `last_interaction_char EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Char code of last interacted tile (for SM VARIABLE_COMPARE)\n`;
+    currentAddress++;
+    code += `last_gem_char       EQU last_interaction_char   ; Backwards-compatible alias for collectible SM checks\n`;
+    code += `last_interaction_pending EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when a new tile interaction is pending for State Machine logic\n`;
+    currentAddress++;
+    code += `last_interaction_type EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Interaction type id of last interacted tile\n`;
+    currentAddress++;
+    code += `last_interaction_value EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Interaction value byte of last interacted tile\n`;
+    currentAddress++;
+    code += `last_interaction_target EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Interaction target id of last interacted tile\n`;
+    currentAddress++;
+    code += `last_interaction_x  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Tile X coordinate of last interaction\n`;
+    currentAddress++;
+    code += `last_interaction_y  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Tile Y coordinate of last interaction\n`;
+    currentAddress++;
+    code += `last_interaction_entity EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity index that triggered the last interaction\n`;
     currentAddress++;
 
     code += `\n; Persistent collectibles list (survives screen re-entry)\n`;

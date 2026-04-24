@@ -60,6 +60,85 @@ function buildLayerLayoutBytes(screen, layerName, analysis, tileBankDefinitions)
     };
     return Array.from((0, screenUtils_1.generateScreenMapLayoutBytes)(exportScreen, analysis.tiles || [], tileBankDefinitions, 'SCREEN 2 (Graphics I)'));
 }
+function buildBehaviorMapDataFromCollisionLayer(screen, analysis) {
+    const collisionLayer = screen.layers.collision || [];
+    const behaviorMapData = [];
+    const collisionRows = collisionLayer.length;
+    const collisionCols = collisionLayer[0]?.length ?? 0;
+    const tileById = new Map((analysis.tiles || []).map((tile) => [tile.id, tile]));
+    for (let row = 0; row < SCREEN_HEIGHT; row++) {
+        for (let col = 0; col < SCREEN_WIDTH; col++) {
+            const srcRow = collisionRows > 0
+                ? Math.min(collisionRows - 1, Math.floor((row * collisionRows) / SCREEN_HEIGHT))
+                : 0;
+            const srcCol = collisionCols > 0
+                ? Math.min(collisionCols - 1, Math.floor((col * collisionCols) / SCREEN_WIDTH))
+                : 0;
+            const tileId = collisionLayer[srcRow]?.[srcCol]?.tileId;
+            behaviorMapData.push((0, screenUtils_1.encodeBehaviorByteFromLogicalProperties)(tileId ? tileById.get(tileId)?.logicalProperties : undefined));
+        }
+    }
+    return behaviorMapData;
+}
+function buildBehaviorGenerationArtifacts(screen, analysis, tileBankDefinitions, backgroundLayoutBytes) {
+    const behaviorSource = (0, screenUtils_1.resolveScreenBehaviorSource)(screen);
+    if (behaviorSource === 'backgroundChars') {
+        const charBehaviorTable = (0, screenUtils_1.buildScreenCharBehaviorTable)({
+            ...screen,
+            activeAreaX: 0,
+            activeAreaY: 0,
+            activeAreaWidth: SCREEN_WIDTH,
+            activeAreaHeight: SCREEN_HEIGHT,
+        }, analysis.tiles || [], tileBankDefinitions, 'SCREEN 2 (Graphics I)');
+        return {
+            behaviorSource,
+            behaviorMapData: backgroundLayoutBytes.map(value => charBehaviorTable[value & 0xff] ?? 0),
+            charBehaviorTable,
+        };
+    }
+    return {
+        behaviorSource,
+        behaviorMapData: buildBehaviorMapDataFromCollisionLayer(screen, analysis),
+        charBehaviorTable: null,
+    };
+}
+function buildInteractionTargetIdMap(analysis) {
+    const targetIdByKey = new Map();
+    const globalVariables = Array.isArray(analysis.globalVariables)
+        ? analysis.globalVariables
+        : [];
+    let nextId = 1;
+    for (const variable of globalVariables) {
+        const name = typeof variable?.name === 'string' ? variable.name.trim() : '';
+        const asmName = typeof variable?.asmName === 'string' ? variable.asmName.trim() : '';
+        if (!asmName)
+            continue;
+        const existingId = targetIdByKey.get(asmName) ?? targetIdByKey.get(asmName.toLowerCase());
+        const targetId = existingId ?? nextId++;
+        targetIdByKey.set(asmName, targetId);
+        targetIdByKey.set(asmName.toLowerCase(), targetId);
+        if (name) {
+            targetIdByKey.set(name, targetId);
+            targetIdByKey.set(name.toLowerCase(), targetId);
+        }
+    }
+    return targetIdByKey;
+}
+function buildInteractionGenerationArtifacts(screen, analysis, interactionTargetIdMap) {
+    const interactionMaps = (0, screenUtils_1.buildScreenInteractionMaps)(screen, analysis.tiles || []);
+    return {
+        interactionTypeMap: interactionMaps.typeMap,
+        interactionValueMap: interactionMaps.valueMap,
+        interactionTargetMap: interactionMaps.targetMap.map((targetRef) => {
+            if (typeof targetRef !== 'string')
+                return 0;
+            const trimmed = targetRef.trim();
+            if (!trimmed)
+                return 0;
+            return interactionTargetIdMap.get(trimmed) ?? interactionTargetIdMap.get(trimmed.toLowerCase()) ?? 0;
+        }),
+    };
+}
 function generateRawByteBlock(label, bytes, comments = []) {
     let asm = `${label}:\n`;
     for (const comment of comments) {
@@ -618,6 +697,7 @@ function buildScreenResourcePolicyManifest(analysis) {
     const screens = Array.isArray(analysis.screenMaps) ? analysis.screenMaps : [];
     const screenSpriteUsage = new Map((0, spritesGenerator_1.buildScreenSpritePatternUsageSummaries)(analysis).map((summary) => [summary.screenId, summary.totalSlotsRequired]));
     const screenWorldMembership = buildScreenWorldMembershipMap(analysis);
+    const interactionTargetIdMap = buildInteractionTargetIdMap(analysis);
     const worldMusicFlags = buildWorldMusicFlagMap(analysis);
     const fallbackGameplayMusic = hasAnyGameplayMusicConfigured(analysis) ? 1 : 0;
     const referencedTileBanks = (0, screen2TileBanks_1.buildReferencedScreen2TileBanks)(analysis);
@@ -684,7 +764,16 @@ function buildScreenResourcePolicyManifest(analysis) {
         }
         lines.push(`- effects_layout: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_EFFECTS_LAYOUT`)}`);
         lines.push(`- effect_zone_table: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_EFFECT_ZONE_TABLE`)}`);
-        lines.push(`- behavior: ${buildResourceId(`BEHAVIOR_${screenNameAsm}_${index}_DATA`)}`);
+        lines.push(`- interaction_type_map: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_INTERACTION_TYPE_MAP`)}`);
+        lines.push(`- interaction_value_map: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_INTERACTION_VALUE_MAP`)}`);
+        lines.push(`- interaction_target_map: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_INTERACTION_TARGET_MAP`)}`);
+        if ((0, screenUtils_1.resolveScreenBehaviorSource)(screen) === 'backgroundChars') {
+            lines.push(`- char_behavior_table: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_CHAR_BEHAVIOR_TABLE`)}`);
+            lines.push(`- behavior: runtime rebuilt from screen layout + char table`);
+        }
+        else {
+            lines.push(`- behavior: ${buildResourceId(`BEHAVIOR_${screenNameAsm}_${index}_DATA`)}`);
+        }
         lines.push('');
     });
     return lines.join('\n').trimEnd();
@@ -726,6 +815,7 @@ function generateScreensFile(analysis, romMode = 'simple32k', dataInBank4 = fals
     const screenEntityCounts = buildScreenEntityCountMap(analysis);
     const screenSpriteUsage = new Map((0, spritesGenerator_1.buildScreenSpritePatternUsageSummaries)(analysis).map((summary) => [summary.screenId, summary.totalSlotsRequired]));
     const screenWorldMembership = buildScreenWorldMembershipMap(analysis);
+    const interactionTargetIdMap = buildInteractionTargetIdMap(analysis);
     const worldMusicFlags = buildWorldMusicFlagMap(analysis);
     const fallbackGameplayMusic = hasAnyGameplayMusicConfigured(analysis) ? 1 : 0;
     // Skip screen system if no screens in project
@@ -755,6 +845,8 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, targetFo
         const screenNameWithIndex = `${screen.name}_${index}`;
         const tileBankDefinitions = resolveTileBankDefinitions(screen, analysis);
         const backgroundLayoutBytes = buildLayerLayoutBytes(screen, 'background', analysis, tileBankDefinitions);
+        const behaviorArtifacts = buildBehaviorGenerationArtifacts(screen, analysis, tileBankDefinitions, backgroundLayoutBytes);
+        const interactionArtifacts = buildInteractionGenerationArtifacts(screen, analysis, interactionTargetIdMap);
         const backgroundBlockMap = (0, blockMapBuilder_1.buildScreenBlockMapFromBytes)({
             bytes: backgroundLayoutBytes,
             width: SCREEN_WIDTH,
@@ -786,6 +878,12 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, targetFo
             screenName,
             screenNameWithIndex,
             backgroundLayoutBytes,
+            behaviorSource: behaviorArtifacts.behaviorSource,
+            behaviorMapData: behaviorArtifacts.behaviorMapData,
+            charBehaviorTable: behaviorArtifacts.charBehaviorTable,
+            interactionTypeMap: interactionArtifacts.interactionTypeMap,
+            interactionValueMap: interactionArtifacts.interactionValueMap,
+            interactionTargetMap: interactionArtifacts.interactionTargetMap,
             backgroundBlockMap,
             effectsLayoutBytes,
             hasEffectsLayoutData,
@@ -837,7 +935,13 @@ SCREEN_RUNTIME_SUMMARY_FLAG_HAS_ANIM_TILES EQU #08
             const { screenName, index, hasEffectsLayoutData, effectZoneCount, animatedGroupCount, entityCount, spritePatternSlots, musicInGame, summaryFlags, } = screenExport;
             code += `SCREEN_${screenName}_${index}_ID EQU ${index}
 SCREEN_${screenName}_${index}_LAYOUT_BANK EQU ${screenExport.backgroundBlockMap ? 0 : (0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_LAYOUT`, mapperWindow)}
-BEHAVIOR_${screenName}_${index}_DATA_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)(`BEHAVIOR_${screenName}_${index}_DATA`, mapperWindow)}
+SCREEN_${screenName}_${index}_BEHAVIOR_SOURCE EQU ${screenExport.behaviorSource === 'backgroundChars' ? 1 : 0}
+BEHAVIOR_${screenName}_${index}_DATA_BANK EQU ${screenExport.behaviorSource === 'collisionLayer' ? (0, mapperWindowUtils_1.buildMapperBankEqu)(`BEHAVIOR_${screenName}_${index}_DATA`, mapperWindow) : 0}
+SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE_BANK EQU ${screenExport.behaviorSource === 'backgroundChars' ? (0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`, mapperWindow) : 0}
+SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE_SIZE EQU ${screenExport.behaviorSource === 'backgroundChars' ? 256 : 0}
+SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`, mapperWindow)}
+SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`, mapperWindow)}
+SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`, mapperWindow)}
 SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`, mapperWindow)}
 SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_PRESENT EQU ${hasEffectsLayoutData ? 1 : 0}
 SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_SIZE EQU ${SCREEN_WIDTH * SCREEN_HEIGHT}
@@ -901,7 +1005,12 @@ screen_runtime_summary_table:
                     }
                     code += `; [SCREEN_${screenName}_${index}_EFFECTS_LAYOUT emitted in bank4 section]\n`;
                     code += `; [SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE emitted in bank4 section]\n`;
-                    code += `; [BEHAVIOR_${screenName}_${index}_DATA emitted in bank4 section]\n\n`;
+                    code += `; [SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP emitted in bank4 section]\n`;
+                    code += `; [SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP emitted in bank4 section]\n`;
+                    code += `; [SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP emitted in bank4 section]\n`;
+                    code += screenExport.behaviorSource === 'backgroundChars'
+                        ? `; [SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE emitted in bank4 section]\n\n`
+                        : `; [BEHAVIOR_${screenName}_${index}_DATA emitted in bank4 section]\n\n`;
                 }
                 else { // not dataInBank4 - emit all data inline
                     if (backgroundBlockMap) {
@@ -1053,58 +1162,16 @@ screen_runtime_summary_table:
                         // Add the screen layout data
                         code += asmCode;
                     }
-                    // Also generate collision/behavior map if available
-                    if (screen.layers.collision && analysis.tiles) {
-                        const collisionLayer = screen.layers.collision;
-                        const behaviorMapData = [];
-                        // CRITICAL: Behavior map must ALWAYS be 32x24 (one entry per 8x8 MSX char cell).
-                        // The collision layer may use larger logical tiles (e.g. 16x12 for 16x16 tiles).
-                        // We expand each collision tile to cover its corresponding 8x8 char cells.
-                        const collisionRows = collisionLayer.length;
-                        const collisionCols = collisionLayer[0]?.length ?? 0;
-                        for (let r = 0; r < SCREEN_HEIGHT; r++) {
-                            for (let c = 0; c < SCREEN_WIDTH; c++) {
-                                // Use proportional mapping instead of rounded scale factors.
-                                // This keeps runtime_behavior_map aligned even when the logical
-                                // collision grid does not divide 32x24 exactly.
-                                const srcRow = collisionRows > 0
-                                    ? Math.min(collisionRows - 1, Math.floor((r * collisionRows) / SCREEN_HEIGHT))
-                                    : 0;
-                                const srcCol = collisionCols > 0
-                                    ? Math.min(collisionCols - 1, Math.floor((c * collisionCols) / SCREEN_WIDTH))
-                                    : 0;
-                                const tile = collisionLayer[srcRow]?.[srcCol];
-                                if (tile?.tileId) {
-                                    const tileAsset = analysis.tiles?.find((t) => t.id === tile.tileId);
-                                    // Compute behavior byte from boolean flags directly (not mapId).
-                                    // Play mode reads causesDamage/isSolid booleans; mapId may be desynchronized.
-                                    const lp = tileAsset?.logicalProperties;
-                                    if (lp) {
-                                        const familyId = lp.familyId ?? (lp.isSolid ? 1 : 0);
-                                        let flagBits = 0;
-                                        if (lp.isBreakable)
-                                            flagBits |= 0x01;
-                                        if (lp.isMovable)
-                                            flagBits |= 0x02;
-                                        if (lp.causesDamage)
-                                            flagBits |= 0x04;
-                                        if (lp.isInteractiveSwitch)
-                                            flagBits |= 0x08;
-                                        behaviorMapData.push((familyId << 4) | flagBits);
-                                    }
-                                    else {
-                                        behaviorMapData.push(0);
-                                    }
-                                }
-                                else {
-                                    behaviorMapData.push(0);
-                                }
-                            }
-                        }
-                        // Generate behavior map ASM
-                        const behaviorASM = (0, screenUtils_1.generateBehaviorMapASMCode)(screenNameWithIndex, SCREEN_WIDTH, SCREEN_HEIGHT, behaviorMapData, 'hex');
+                    if (screenExport.behaviorSource === 'backgroundChars' && screenExport.charBehaviorTable) {
+                        code += `\n${generateRawByteBlock(`SCREEN_${screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_${analysis.screenMaps.indexOf(screen)}_CHAR_BEHAVIOR_TABLE`, screenExport.charBehaviorTable, [`${screen.name} - background char -> behavior lookup table`])}`;
+                    }
+                    else if (screenExport.behaviorMapData) {
+                        const behaviorASM = (0, screenUtils_1.generateBehaviorMapASMCode)(screenNameWithIndex, SCREEN_WIDTH, SCREEN_HEIGHT, screenExport.behaviorMapData, 'hex');
                         code += `\n${behaviorASM}`;
                     }
+                    code += `\n${generateRawByteBlock(`SCREEN_${screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_${analysis.screenMaps.indexOf(screen)}_INTERACTION_TYPE_MAP`, screenExport.interactionTypeMap, [`${screen.name} - per-cell interaction type map`])}`;
+                    code += `\n${generateRawByteBlock(`SCREEN_${screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_${analysis.screenMaps.indexOf(screen)}_INTERACTION_VALUE_MAP`, screenExport.interactionValueMap, [`${screen.name} - per-cell interaction value map`])}`;
+                    code += `\n${generateRawByteBlock(`SCREEN_${screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_${analysis.screenMaps.indexOf(screen)}_INTERACTION_TARGET_MAP`, screenExport.interactionTargetMap, [`${screen.name} - per-cell interaction target map`])}`;
                 } // end else (not dataInBank4)
             }
             else {
@@ -1117,6 +1184,19 @@ screen_runtime_summary_table:
     db 0, 0, 0, 0, 0, 0, 0, 0
 
 `;
+                if ((0, screenUtils_1.resolveScreenBehaviorSource)(screen) === 'backgroundChars') {
+                    code += generateRawByteBlock(`SCREEN_${screenName}_${screenIndex}_CHAR_BEHAVIOR_TABLE`, Array.from({ length: 256 }, () => 0));
+                    code += `\n`;
+                }
+                else {
+                    code += `BEHAVIOR_${screenName}_${screenIndex}_DATA:\n    db 0\n\n`;
+                }
+                code += generateRawByteBlock(`SCREEN_${screenName}_${screenIndex}_INTERACTION_TYPE_MAP`, Array.from({ length: SCREEN_WIDTH * SCREEN_HEIGHT }, () => 0));
+                code += `\n`;
+                code += generateRawByteBlock(`SCREEN_${screenName}_${screenIndex}_INTERACTION_VALUE_MAP`, Array.from({ length: SCREEN_WIDTH * SCREEN_HEIGHT }, () => 0));
+                code += `\n`;
+                code += generateRawByteBlock(`SCREEN_${screenName}_${screenIndex}_INTERACTION_TARGET_MAP`, Array.from({ length: SCREEN_WIDTH * SCREEN_HEIGHT }, () => 0));
+                code += `\n`;
             }
             code += `\n`;
         });
@@ -1513,6 +1593,38 @@ expand_screen_block_layout_4x4:
     pop ix
     ret
 
+${(0, registerContract_1.buildRegisterContractComment)({
+            purpose: 'Rebuild runtime_behavior_map from the current runtime_screen_layout using the per-screen char behavior table.',
+            inputs: ['HL = source screen layout pointer (normally runtime_screen_layout)'],
+            outputs: ['runtime_behavior_map rebuilt in RAM'],
+            clobbers: ['AF', 'BC', 'DE', 'HL'],
+            preserved: ['IX', 'IY'],
+            notes: ['Uses screen_block_catalog_ptr and screen_block_map_ptr as generic scratch pointers during the rebuild.']
+        })}build_runtime_behavior_map_from_screen_layout:
+    ld (screen_block_map_ptr), hl
+    ld hl, runtime_behavior_map
+    ld (screen_block_catalog_ptr), hl
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+.build_behavior_loop:
+    ld a, b
+    or c
+    ret z
+    ld hl, (screen_block_map_ptr)
+    ld a, (hl)
+    inc hl
+    ld (screen_block_map_ptr), hl
+    ld l, a
+    ld h, 0
+    ld de, runtime_char_behavior_table
+    add hl, de
+    ld a, (hl)
+    ld hl, (screen_block_catalog_ptr)
+    ld (hl), a
+    inc hl
+    ld (screen_block_catalog_ptr), hl
+    dec bc
+    jr .build_behavior_loop
+
 load_screen:
 
     ; Load screen (A = screen ID)
@@ -1582,11 +1694,16 @@ ${tileBankReadyLabel}:
             const activeAreaBytes = activeAreaWidth * activeAreaHeight;
             const runtimeEffectZoneCount = Math.min((screen.effectZones || []).length, MAX_RUNTIME_EFFECT_ZONES);
             const hasBackgroundBlockMap = !!screenExport?.backgroundBlockMap;
+            const behaviorSource = screenExport?.behaviorSource ?? 'collisionLayer';
             const layoutResourceId = buildResourceId(`SCREEN_${screenName}_${index}_LAYOUT`);
             const blockCatalogResourceId = buildResourceId(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`);
             const blockMapResourceId = buildResourceId(`SCREEN_${screenName}_${index}_BLOCK_MAP`);
             const effectsLayoutResourceId = buildResourceId(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`);
             const behaviorResourceId = buildResourceId(`BEHAVIOR_${screenName}_${index}_DATA`);
+            const charBehaviorTableResourceId = buildResourceId(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`);
+            const interactionTypeMapResourceId = buildResourceId(`SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`);
+            const interactionValueMapResourceId = buildResourceId(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`);
+            const interactionTargetMapResourceId = buildResourceId(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`);
             const effectZoneTableResourceId = buildResourceId(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`);
             const hasImportedHudFrame = importedHudFrameCells.length > 0;
             const importedHudFrameLabelBase = `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
@@ -1682,10 +1799,23 @@ ${tileBankReadyLabel}:
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
 `;
-            const effectsBehaviorRuntimeLoadCode = useResourceManager ? `    ld a, ${effectsLayoutResourceId}
+            const effectsBehaviorRuntimeLoadCode = behaviorSource === 'backgroundChars'
+                ? useResourceManager ? `    ld a, ${effectsLayoutResourceId}
     call resource_load_effects_layout_cached
-    ld a, ${behaviorResourceId}
-    call resource_load_behavior_map_cached
+    ld a, ${charBehaviorTableResourceId}
+    ld de, runtime_char_behavior_table
+    call resource_load_to_ram_by_id
+    ld a, ${interactionTypeMapResourceId}
+    ld de, runtime_interaction_type_map
+    call resource_load_to_ram_by_id
+    ld a, ${interactionValueMapResourceId}
+    ld de, runtime_interaction_value_map
+    call resource_load_to_ram_by_id
+    ld a, ${interactionTargetMapResourceId}
+    ld de, runtime_interaction_target_map
+    call resource_load_to_ram_by_id
+    ld hl, runtime_screen_layout
+    call build_runtime_behavior_map_from_screen_layout
     ld a, ${runtimeEffectZoneCount}
     ld (current_effect_zone_count), a
     or a
@@ -1694,7 +1824,128 @@ ${tileBankReadyLabel}:
     call resource_load_effect_zone_table_cached
 ${zoneDoneLabel}:
 `
-                : usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}
+                    : usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`)}
+    ld de, runtime_effects_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`)}
+    ld de, runtime_char_behavior_table
+    ld bc, SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`)}
+    ld de, runtime_interaction_type_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`)}
+    ld de, runtime_interaction_value_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`)}
+    ld de, runtime_interaction_target_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+
+    ld hl, runtime_screen_layout
+    call build_runtime_behavior_map_from_screen_layout
+
+    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, ${zoneDoneLabel}
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`)}
+    ld de, runtime_effect_zone_table
+    ld bc, ${runtimeEffectZoneCount * 8}
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+${zoneDoneLabel}:
+`
+                        : `    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
+    ld de, runtime_effects_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE
+    ld de, runtime_char_behavior_table
+    ld bc, SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE_SIZE
+    ldir
+
+    ld hl, SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP
+    ld de, runtime_interaction_type_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP
+    ld de, runtime_interaction_value_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP
+    ld de, runtime_interaction_target_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, runtime_screen_layout
+    call build_runtime_behavior_map_from_screen_layout
+
+    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, ${zoneDoneLabel}
+    ld hl, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE
+    ld de, runtime_effect_zone_table
+    ld bc, ${runtimeEffectZoneCount * 8}
+    ldir
+${zoneDoneLabel}:
+`
+                : useResourceManager ? `    ld a, ${effectsLayoutResourceId}
+    call resource_load_effects_layout_cached
+    ld a, ${behaviorResourceId}
+    call resource_load_behavior_map_cached
+    ld a, ${interactionTypeMapResourceId}
+    ld de, runtime_interaction_type_map
+    call resource_load_to_ram_by_id
+    ld a, ${interactionValueMapResourceId}
+    ld de, runtime_interaction_value_map
+    call resource_load_to_ram_by_id
+    ld a, ${interactionTargetMapResourceId}
+    ld de, runtime_interaction_target_map
+    call resource_load_to_ram_by_id
+    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, ${zoneDoneLabel}
+    ld a, ${effectZoneTableResourceId}
+    call resource_load_effect_zone_table_cached
+${zoneDoneLabel}:
+`
+                    : usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}
     ld a, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_BANK
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`)}
@@ -1708,6 +1959,33 @@ ${zoneDoneLabel}:
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`BEHAVIOR_${screenName}_${index}_DATA`)}
     ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`)}
+    ld de, runtime_interaction_type_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`)}
+    ld de, runtime_interaction_value_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`)}
+    ld de, runtime_interaction_target_map
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
     call mapper_pop_${mapperWindow.dataWindowPage}
@@ -1726,13 +2004,28 @@ ${zoneDoneLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 ${zoneDoneLabel}:
 `
-                    : `    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
+                        : `    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
     ld de, runtime_effects_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
 
     ld hl, BEHAVIOR_${screenName}_${index}_DATA
     ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP
+    ld de, runtime_interaction_type_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP
+    ld de, runtime_interaction_value_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP
+    ld de, runtime_interaction_target_map
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
 
@@ -1863,6 +2156,11 @@ ${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
     ld (secret_zone_rect_y), a
     ld (secret_zone_rect_w), a
     ld (secret_zone_rect_h), a
+    ld hl, entity_button_contact_active
+    ld de, entity_button_contact_active + 1
+    ld bc, 31
+    ld (hl), a
+    ldir
     ret
 
 `;
@@ -1919,6 +2217,11 @@ ${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
     ld (secret_zone_rect_y), a
     ld (secret_zone_rect_w), a
     ld (secret_zone_rect_h), a
+    ld hl, entity_button_contact_active
+    ld de, entity_button_contact_active + 1
+    ld bc, 31
+    ld (hl), a
+    ldir
     ret
 
 `;
@@ -1977,6 +2280,7 @@ function getScreensBank4Data(analysis, romMode = 'simple32k') {
     const screenEntityCounts = buildScreenEntityCountMap(analysis);
     const screenSpriteUsage = new Map((0, spritesGenerator_1.buildScreenSpritePatternUsageSummaries)(analysis).map((summary) => [summary.screenId, summary.totalSlotsRequired]));
     const screenWorldMembership = buildScreenWorldMembershipMap(analysis);
+    const interactionTargetIdMap = buildInteractionTargetIdMap(analysis);
     const worldMusicFlags = buildWorldMusicFlagMap(analysis);
     const fallbackGameplayMusic = hasAnyGameplayMusicConfigured(analysis) ? 1 : 0;
     const screenExports = analysis.screenMaps.map((screen, index) => {
@@ -1984,6 +2288,8 @@ function getScreensBank4Data(analysis, romMode = 'simple32k') {
         const screenNameWithIndex = `${screen.name}_${index}`;
         const tileBankDefinitions = resolveTileBankDefinitions(screen, analysis);
         const backgroundLayoutBytes = buildLayerLayoutBytes(screen, 'background', analysis, tileBankDefinitions);
+        const behaviorArtifacts = buildBehaviorGenerationArtifacts(screen, analysis, tileBankDefinitions, backgroundLayoutBytes);
+        const interactionArtifacts = buildInteractionGenerationArtifacts(screen, analysis, interactionTargetIdMap);
         const backgroundBlockMap = (0, blockMapBuilder_1.buildScreenBlockMapFromBytes)({
             bytes: backgroundLayoutBytes,
             width: SCREEN_WIDTH,
@@ -2015,6 +2321,12 @@ function getScreensBank4Data(analysis, romMode = 'simple32k') {
             screenName,
             screenNameWithIndex,
             backgroundLayoutBytes,
+            behaviorSource: behaviorArtifacts.behaviorSource,
+            behaviorMapData: behaviorArtifacts.behaviorMapData,
+            charBehaviorTable: behaviorArtifacts.charBehaviorTable,
+            interactionTypeMap: interactionArtifacts.interactionTypeMap,
+            interactionValueMap: interactionArtifacts.interactionValueMap,
+            interactionTargetMap: interactionArtifacts.interactionTargetMap,
             backgroundBlockMap,
             effectsLayoutBytes,
             hasEffectsLayoutData,
@@ -2053,60 +2365,42 @@ function getScreensBank4Data(analysis, romMode = 'simple32k') {
                 ? [`Effect zones for ${screen.name}`, `Entry format: x, y, width, height, effectType, param0, param1, reserved`]
                 : [`No effect zones for ${screen.name}`]);
             asm += `\n`;
-            // Behavior map
-            if (screen.layers.collision && analysis.tiles) {
-                const collisionLayer = screen.layers.collision;
-                const behaviorMapData = [];
-                const collisionRows = collisionLayer.length;
-                const collisionCols = collisionLayer[0]?.length ?? 0;
-                for (let r = 0; r < SCREEN_HEIGHT; r++) {
-                    for (let c = 0; c < SCREEN_WIDTH; c++) {
-                        const srcRow = collisionRows > 0
-                            ? Math.min(collisionRows - 1, Math.floor((r * collisionRows) / SCREEN_HEIGHT))
-                            : 0;
-                        const srcCol = collisionCols > 0
-                            ? Math.min(collisionCols - 1, Math.floor((c * collisionCols) / SCREEN_WIDTH))
-                            : 0;
-                        const tile = collisionLayer[srcRow]?.[srcCol];
-                        if (tile?.tileId) {
-                            const tileAsset = analysis.tiles?.find((t) => t.id === tile.tileId);
-                            const lp = tileAsset?.logicalProperties;
-                            if (lp) {
-                                const familyId = lp.familyId ?? (lp.isSolid ? 1 : 0);
-                                let flagBits = 0;
-                                if (lp.isBreakable)
-                                    flagBits |= 0x01;
-                                if (lp.isMovable)
-                                    flagBits |= 0x02;
-                                if (lp.causesDamage)
-                                    flagBits |= 0x04;
-                                if (lp.isInteractiveSwitch)
-                                    flagBits |= 0x08;
-                                behaviorMapData.push((familyId << 4) | flagBits);
-                            }
-                            else {
-                                behaviorMapData.push(0);
-                            }
-                        }
-                        else {
-                            behaviorMapData.push(0);
-                        }
-                    }
-                }
-                asm += (0, screenUtils_1.generateBehaviorMapASMCode)(screenNameWithIndex, SCREEN_WIDTH, SCREEN_HEIGHT, behaviorMapData, 'hex');
+            if (screenExport.behaviorSource === 'backgroundChars' && screenExport.charBehaviorTable) {
+                asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`, screenExport.charBehaviorTable, [`${screen.name} - background char -> behavior lookup table`]);
+                asm += `\n`;
+            }
+            else if (screenExport.behaviorMapData) {
+                asm += (0, screenUtils_1.generateBehaviorMapASMCode)(screenNameWithIndex, SCREEN_WIDTH, SCREEN_HEIGHT, screenExport.behaviorMapData, 'hex');
                 asm += `\n`;
             }
             else {
-                // Emit stub behavior map label so BANK EQU resolves
                 asm += `BEHAVIOR_${screenName.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_${index}_DATA:\n    db 0\n\n`;
             }
+            asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`, screenExport.interactionTypeMap, [`${screen.name} - per-cell interaction type map`]);
+            asm += `\n`;
+            asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`, screenExport.interactionValueMap, [`${screen.name} - per-cell interaction value map`]);
+            asm += `\n`;
+            asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`, screenExport.interactionTargetMap, [`${screen.name} - per-cell interaction target map`]);
+            asm += `\n`;
         }
         else {
             // Placeholder for screens without background layer
             asm += `SCREEN_${screenName}_${index}_LAYOUT:\n    db 0, 0, 0, 0, 0, 0, 0, 0\n\n`;
             asm += `SCREEN_${screenName}_${index}_EFFECTS_LAYOUT:\n    db 0\n\n`;
             asm += `SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE:\n    db 0\n\n`;
-            asm += `BEHAVIOR_${screenName}_${index}_DATA:\n    db 0\n\n`;
+            if ((0, screenUtils_1.resolveScreenBehaviorSource)(screen) === 'backgroundChars') {
+                asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`, Array.from({ length: 256 }, () => 0));
+                asm += `\n`;
+            }
+            else {
+                asm += `BEHAVIOR_${screenName}_${index}_DATA:\n    db 0\n\n`;
+            }
+            asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`, Array.from({ length: SCREEN_WIDTH * SCREEN_HEIGHT }, () => 0));
+            asm += `\n`;
+            asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`, Array.from({ length: SCREEN_WIDTH * SCREEN_HEIGHT }, () => 0));
+            asm += `\n`;
+            asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`, Array.from({ length: SCREEN_WIDTH * SCREEN_HEIGHT }, () => 0));
+            asm += `\n`;
         }
     });
     return asm;

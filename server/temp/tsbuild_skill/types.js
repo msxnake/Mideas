@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PROPERTY_FLAGS = exports.SOLIDITY_TYPES = exports.DITHER_BRUSH_DIAMETERS = exports.EditorType = exports.resolveEffectZoneType = exports.normalizeEffectZoneParams = exports.getDefaultEffectZoneParams = exports.DEFAULT_WIND_EFFECT_ZONE_PARAMS = exports.EFFECT_ZONE_TYPE_CONFIG = exports.LEGACY_EFFECT_ZONE_FLAGS = exports.HUDElementType = void 0;
+exports.TILE_INTERACTION_TYPES = exports.PROPERTY_FLAGS = exports.SOLIDITY_TYPES = exports.DITHER_BRUSH_DIAMETERS = exports.EditorType = exports.resolveEffectZoneType = exports.normalizeEffectZoneParams = exports.getDefaultEffectZoneParams = exports.DEFAULT_WIND_EFFECT_ZONE_PARAMS = exports.EFFECT_ZONE_TYPE_CONFIG = exports.LEGACY_EFFECT_ZONE_FLAGS = exports.HUDElementType = void 0;
 /**
  * An enumeration of all possible HUD element types.
  */
@@ -133,4 +133,14 @@ exports.PROPERTY_FLAGS = {
     causesDamage: { bit: 2, label: "Deadly" },
     isInteractiveSwitch: { bit: 3, label: "Interactable" },
 };
+exports.TILE_INTERACTION_TYPES = [
+    { id: 0, key: 'none', label: 'None' },
+    { id: 1, key: 'collect_gem', label: 'Collect Gem' },
+    { id: 2, key: 'collect_item', label: 'Collect Item' },
+    { id: 3, key: 'add_energy', label: 'Add Energy' },
+    { id: 4, key: 'lever_toggle', label: 'Lever Toggle' },
+    { id: 5, key: 'button_press', label: 'Button Press' },
+    { id: 6, key: 'jumper', label: 'Jumper' },
+    { id: 7, key: 'ladder', label: 'Ladder' },
+];
 // --- End Centralized History System ---

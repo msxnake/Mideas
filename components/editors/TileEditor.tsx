@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Tile, MSXColor, MSXColorValue, PixelData, Point, LineColorAttribute, MSX1ColorValue, MSX1Color, SymmetrySettings, ProjectAsset, DataFormat, TileLogicalProperties, DrawingTool, DITHER_BRUSH_DIAMETERS, DitherBrushDiameter, SolidityTypeId, SOLIDITY_TYPES, PROPERTY_FLAGS, PropertyFlagKey, TextureGeneratorType, RockGeneratorParams, BrickGeneratorParams, LadderGeneratorParams, AllGeneratorParams, CellBarsGeneratorParams, IceGeneratorParams, GrassGeneratorParams, StylizedGrassGeneratorParams, FrameGeneratorParams, Screen5PaletteSlot, TileAnimationSettings, TileAnimationMode, TileTransformEffect } from '../../types';
+import { Tile, MSXColor, MSXColorValue, PixelData, Point, LineColorAttribute, MSX1ColorValue, MSX1Color, SymmetrySettings, ProjectAsset, DataFormat, TileLogicalProperties, DrawingTool, DITHER_BRUSH_DIAMETERS, DitherBrushDiameter, SolidityTypeId, SOLIDITY_TYPES, PROPERTY_FLAGS, PropertyFlagKey, TextureGeneratorType, RockGeneratorParams, BrickGeneratorParams, LadderGeneratorParams, AllGeneratorParams, CellBarsGeneratorParams, IceGeneratorParams, GrassGeneratorParams, StylizedGrassGeneratorParams, FrameGeneratorParams, Screen5PaletteSlot, TileAnimationSettings, TileAnimationMode, TileTransformEffect, TileInteractionType, TILE_INTERACTION_TYPES } from '../../types';
 import { Panel } from '../common/Panel';
 import { Tooltip } from '../common/Tooltip';
 import {
@@ -28,6 +28,7 @@ import {
 } from '../utils/tileUtils';
 import { TileEditorAdvancedLayout } from './TileEditorAdvancedLayout';
 import { ensureScreen5PaletteSlots, getScreen5PaletteColor, screen5SlotsToMsxColors } from '../../utils/screen5PaletteUtils';
+import { isTriggeredTileInteractionType } from '../utils/screenUtils';
 
 
 /**
@@ -1326,6 +1327,7 @@ interface TileEditorProps {
 const defaultLogicalProps: TileLogicalProperties = {
   mapId: 0, familyId: 0, instanceId: 0,
   isSolid: false, isBreakable: false, isMovable: false, causesDamage: false, isInteractiveSwitch: false,
+  isInteractable: false, interactionType: 'none', interactionValue: 1, interactionTarget: '',
 };
 
 const DEFAULT_TILE_ANIMATION_SPEED = 8;
@@ -1551,6 +1553,9 @@ export const TileEditor: React.FC<TileEditorProps> = ({
   const [flagStates, setFlagStates] = useState<Record<PropertyFlagKey, boolean>>({
     isBreakable: false, isMovable: false, causesDamage: false, isInteractiveSwitch: false,
   });
+  const [selectedInteractionType, setSelectedInteractionType] = useState<TileInteractionType>('none');
+  const [interactionValue, setInteractionValue] = useState<number>(1);
+  const [interactionTarget, setInteractionTarget] = useState<string>('');
   const [isGeneratorModalOpen, setIsGeneratorModalOpen] = useState(false);
   const [isAnimationPreviewPlaying, setIsAnimationPreviewPlaying] = useState(true);
   const [animationPreviewFrameIndex, setAnimationPreviewFrameIndex] = useState(0);
@@ -1685,6 +1690,16 @@ export const TileEditor: React.FC<TileEditorProps> = ({
       newFlagStates[flagKey] = (instanceId & (1 << PROPERTY_FLAGS[flagKey].bit)) !== 0;
     }
     setFlagStates(newFlagStates);
+
+    const interactableFlag = newFlagStates.isInteractiveSwitch || props.isInteractable === true;
+    const interactionType = props.interactionType && props.interactionType !== 'none'
+      ? props.interactionType
+      : interactableFlag
+        ? 'collect_gem'
+        : 'none';
+    setSelectedInteractionType(interactionType);
+    setInteractionValue(clampInt(Number(props.interactionValue ?? 1), 0, 255, 1));
+    setInteractionTarget(typeof props.interactionTarget === 'string' ? props.interactionTarget : '');
   }, [tile.logicalProperties]);
 
 
@@ -2271,14 +2286,27 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     `px-2 py-1 ${currentTool === toolName ? 'bg-msx-highlight text-msx-bgcolor' : 'bg-msx-border text-msx-textsecondary hover:bg-opacity-80'}`;
 
 
-  const updateTileLogicalProperties = (newFamilyId?: SolidityTypeId, newFlagStates?: Record<PropertyFlagKey, boolean>) => {
+  const updateTileLogicalProperties = (
+    newFamilyId?: SolidityTypeId,
+    newFlagStates?: Record<PropertyFlagKey, boolean>,
+    interactionOverrides?: Partial<{ type: TileInteractionType; value: number; target: string }>
+  ) => {
     const familyIdToUse = newFamilyId !== undefined ? newFamilyId : selectedSolidityFamilyId;
     const flagsToUse = newFlagStates || flagStates;
+    const interactionTypeToUse = interactionOverrides?.type ?? selectedInteractionType;
+    const interactionValueToUse = clampInt(interactionOverrides?.value ?? interactionValue, 0, 255, 1);
+    const interactionTargetToUse = interactionOverrides?.target ?? interactionTarget;
+    const interactionUsesTrigger = isTriggeredTileInteractionType(interactionTypeToUse);
+    const interactableEnabled = flagsToUse.isInteractiveSwitch || interactionUsesTrigger;
+    const normalizedFlags = {
+      ...flagsToUse,
+      isInteractiveSwitch: interactableEnabled,
+    };
 
     let newInstanceId = 0;
     for (const key in PROPERTY_FLAGS) {
       const flagKey = key as PropertyFlagKey;
-      if (flagsToUse[flagKey]) {
+      if (normalizedFlags[flagKey]) {
         newInstanceId |= (1 << PROPERTY_FLAGS[flagKey].bit);
       }
     }
@@ -2293,10 +2321,14 @@ export const TileEditor: React.FC<TileEditorProps> = ({
       familyId: familyIdToUse,
       instanceId: newInstanceId,
       isSolid: newIsSolid,
-      isBreakable: flagsToUse.isBreakable,
-      isMovable: flagsToUse.isMovable,
-      causesDamage: flagsToUse.causesDamage,
-      isInteractiveSwitch: flagsToUse.isInteractiveSwitch,
+      isBreakable: normalizedFlags.isBreakable,
+      isMovable: normalizedFlags.isMovable,
+      causesDamage: normalizedFlags.causesDamage,
+      isInteractiveSwitch: normalizedFlags.isInteractiveSwitch,
+      isInteractable: interactionUsesTrigger,
+      interactionType: interactionTypeToUse,
+      interactionValue: interactionValueToUse,
+      interactionTarget: interactionTargetToUse,
     };
     onUpdate({ logicalProperties: updatedLogicalProps });
   };
@@ -2308,8 +2340,37 @@ export const TileEditor: React.FC<TileEditorProps> = ({
 
   const handlePropertyFlagChange = (flagKey: PropertyFlagKey, newValue: boolean) => {
     const newFlags = { ...flagStates, [flagKey]: newValue };
+    let nextInteractionType = selectedInteractionType;
+    if (flagKey === 'isInteractiveSwitch') {
+      if (newValue && selectedInteractionType === 'none') {
+        nextInteractionType = 'collect_gem';
+        setSelectedInteractionType(nextInteractionType);
+      }
+      if (!newValue) {
+        nextInteractionType = 'none';
+        setSelectedInteractionType('none');
+      }
+    }
     setFlagStates(newFlags);
-    updateTileLogicalProperties(undefined, newFlags);
+    updateTileLogicalProperties(undefined, newFlags, { type: nextInteractionType });
+  };
+
+  const handleInteractionTypeChange = (newType: TileInteractionType) => {
+    setSelectedInteractionType(newType);
+    const nextFlags = { ...flagStates, isInteractiveSwitch: isTriggeredTileInteractionType(newType) };
+    setFlagStates(nextFlags);
+    updateTileLogicalProperties(undefined, nextFlags, { type: newType });
+  };
+
+  const handleInteractionValueChange = (newValue: number) => {
+    const clamped = clampInt(newValue, 0, 255, 1);
+    setInteractionValue(clamped);
+    updateTileLogicalProperties(undefined, undefined, { value: clamped });
+  };
+
+  const handleInteractionTargetChange = (newTarget: string) => {
+    setInteractionTarget(newTarget);
+    updateTileLogicalProperties(undefined, undefined, { target: newTarget });
   };
 
   const currentDisplayedMapId = (selectedSolidityFamilyId << 4) |
@@ -2620,6 +2681,45 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                 </div>
                 <div className="pt-1 border-t border-msx-border/50 text-msx-textsecondary text-center">
                   Final Map ID Byte: <span className="font-mono text-msx-highlight">{currentDisplayedMapId}</span> (Hex: <span className="font-mono text-msx-highlight">0x{currentDisplayedMapId.toString(16).padStart(2, '0').toUpperCase()}</span>)
+                </div>
+                <div className="pt-1 border-t border-msx-border/50 space-y-2">
+                  <div>
+                    <label className="block mb-0.5">Interaction Type:</label>
+                    <select
+                      value={selectedInteractionType}
+                      onChange={(e) => handleInteractionTypeChange(e.target.value as TileInteractionType)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded text-xs"
+                    >
+                      {TILE_INTERACTION_TYPES.map(interaction => (
+                        <option key={interaction.key} value={interaction.key}>{interaction.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {selectedInteractionType !== 'none' && (
+                    <>
+                      <div>
+                        <label className="block mb-0.5">Interaction Value:</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={255}
+                          value={interactionValue}
+                          onChange={(e) => handleInteractionValueChange(Number(e.target.value))}
+                          className="w-full p-1 bg-msx-bgcolor border border-msx-border rounded text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block mb-0.5">Interaction Target:</label>
+                        <input
+                          type="text"
+                          value={interactionTarget}
+                          onChange={(e) => handleInteractionTargetChange(e.target.value)}
+                          placeholder="global variable / hook"
+                          className="w-full p-1 bg-msx-bgcolor border border-msx-border rounded text-xs"
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </CollapsiblePanel>

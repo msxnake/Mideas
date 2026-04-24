@@ -54,6 +54,9 @@ const ACTION_IDS: Record<string, number> = {
     [ActionTypes.ENABLE_INPUT]: 38,
     [ActionTypes.CLEAN_SPRITES]: 39,
     [ActionTypes.EXIT_CURRENT_WORLD]: 40,
+    [ActionTypes.REPLACE_TILE_AT]: 41,
+    [ActionTypes.MOVE_TILE_AREA]: 42,
+    [ActionTypes.SHIFT_TILE_AREA]: 43,
     // Special
     END: 0xFF
 };
@@ -77,6 +80,22 @@ const CONDITION_IDS: Record<string, number> = {
 };
 
 // Variable IDs for VARIABLE_COMPARE condition
+const SM_SYSTEM_GLOBAL_START_ID = 6;
+const SM_SYSTEM_VARIABLE_IDS: Record<string, number> = {
+    'gem_count': 6,                 // gem_count RAM variable
+    'last_interaction_char': 7,     // char code of last interacted tile
+    'last_gem_char': 7,             // backwards-compatible alias
+    'last_interaction_pending': 8,  // one-frame latch exposed to State Machine
+    'last_interaction_type': 9,     // interaction type enum id
+    'last_interaction_value': 10,   // interaction payload byte
+    'last_interaction_target': 11,  // interaction target id (ASM-side)
+    'last_interaction_x': 12,       // tile X of last interaction
+    'last_interaction_y': 13,       // tile Y of last interaction
+    'last_interaction_entity': 14,  // entity index that triggered the interaction
+};
+
+const USER_GLOBAL_VARIABLE_START_ID = 15;
+
 const VARIABLE_IDS: Record<string, number> = {
     'x': 0,             // entity_x_pos
     'y': 1,             // entity_y_pos
@@ -84,10 +103,7 @@ const VARIABLE_IDS: Record<string, number> = {
     'vy': 3,            // entity_vel_y
     'isOnGround': 4,    // entity_on_ground (bit 0)
     'health': 5,        // entity_health_current
-    // System global variables (IDs 6-7, always prepended to SM_GlobalVarTable)
-    'gem_count': 6,     // gem_count RAM variable
-    'last_gem_char': 7, // char code of last collected gem tile
-    // User-defined global variables start at ID 8
+    ...SM_SYSTEM_VARIABLE_IDS,
 };
 
 // Operator IDs for VARIABLE_COMPARE condition
@@ -139,14 +155,15 @@ const COLLISION_TYPE_IDS: Record<string, number> = {
 };
 
 const TILE_DIRECTION_IDS: Record<string, number> = {
-    'up': 0,
-    'down': 1,
-    'left': 2,
-    'right': 3,
-    'up-right': 4,
-    'up-left': 5,
-    'down-right': 6,
-    'down-left': 7,
+    'here': 0,
+    'up': 1,
+    'down': 2,
+    'left': 3,
+    'right': 4,
+    'up-right': 5,
+    'up-left': 6,
+    'down-right': 7,
+    'down-left': 8,
 };
 
 // Compact IDs for SET_COMPONENT_PROPERTY runtime encoding.
@@ -194,11 +211,10 @@ const COMPONENT_PROPERTY_IDS: Record<string, number> = {
 function buildVariableIdMap(globalVariables?: any[]): Record<string, number> {
     const map: Record<string, number> = { ...VARIABLE_IDS };
 
-    // Add user-defined global variables starting from ID 8
-    // (IDs 6-7 are reserved for system variables: gem_count, last_gem_char)
+    // Add user-defined global variables after reserved State Machine system slots.
     if (globalVariables && globalVariables.length > 0) {
         globalVariables.forEach((variable, index) => {
-            const varId = 8 + index;
+            const varId = USER_GLOBAL_VARIABLE_START_ID + index;
             map[variable.name] = varId;
             // Also map by asmName for flexibility
             if (variable.asmName) {
@@ -806,6 +822,9 @@ SM_ActionTable:
     DW Action_EnableInput; 38
     DW Action_CleanSprites; 39
     DW Action_ExitCurrentWorld; 40
+    DW Action_ReplaceTileAt; 41
+    DW Action_MoveTileArea; 42
+    DW Action_ShiftTileArea; 43
 
     ; ------------------------------------------------------------------
 ; ACTION HANDLERS IMPLEMENTATION
@@ -1360,15 +1379,17 @@ Action_StopMusic:
     ret
 
 Action_SetVariable:
-; Params: VarID(1 byte), Value(1 byte)
+; Params: VarID(1 byte), ValueLo(1 byte), ValueHi(1 byte)
 ; Supports both entity variables (ID 0-5) and global variables (ID 6+)
     ld a, (hl)              ; A = VarID
     inc hl
-    ld c, (hl)              ; C = Value
+    ld c, (hl)              ; C = ValueLo
+    inc hl
+    ld e, (hl)              ; E = ValueHi
     inc hl
 
     push hl                 ; Save Params Ptr
-    push bc                 ; Save Value and Entity Index
+    push bc                 ; Save ValueLo and Entity Index for the entity-variable path
 
     ; Check if VarID < 6 (entity variable)
     cp 6
@@ -1378,24 +1399,56 @@ Action_SetVariable:
     ; VarID >= 6: Global variable
     ; Calculate table offset: (VarID - 6) * 2
     sub 6                   ; A = VarID - 6
+    ld b, a                 ; B = global variable table index
     ld l, a
     ld h, 0
     add hl, hl              ; HL = (VarID - 6) * 2
 
     ; Get address from SM_GlobalVarTable
+    push de                 ; Preserve ValueHi while resolving the address
     ld de, SM_GlobalVarTable
     add hl, de              ; HL = &SM_GlobalVarTable[VarID - 6]
 
     ; Read address from table (16-bit)
     ld e, (hl)
     inc hl
-    ld d, (hl)              ; DE = address of global variable
+    ld d, (hl)
+    ex de, hl               ; HL = address of global variable
+    pop de                  ; Restore ValueHi in E
+    push hl                 ; Preserve target address
+    ld a, b
+    ld l, a
+    ld h, 0
+    push de                 ; Preserve ValueHi while checking word flag
+    ld de, SM_GlobalVarWordTable
+    add hl, de
+    ld a, (hl)              ; A = 1 when the target global variable is word-sized
+    pop de                  ; E = ValueHi
+    pop hl                  ; HL = address of global variable
+    or a
+    jr z, .store_global_byte
 
-    ; Store value
-    pop bc                  ; Restore Value in C
-    ld a, c
-    ld (de), a              ; Store value in global variable
+.store_global_word:
+    ld (hl), c              ; Store low byte
+    inc hl
+    ld (hl), e              ; Store high byte
+    jr .set_global_sync
 
+.store_global_byte:
+    ld (hl), c              ; Store value in byte global variable
+
+.set_global_sync:
+    push af
+    push bc
+    push de
+    push hl
+    call force_render_hud   ; Keep HUD text synchronized with SM global writes
+    pop hl
+    pop de
+    pop bc
+    pop af
+
+    pop bc                  ; Discard saved ValueLo/Entity Index from the entity-variable path
     pop hl                  ; Restore Params Ptr
     ret
 
@@ -1423,7 +1476,7 @@ Action_SetVariable:
 .set_health:
     ld hl, entity_health_current
     add hl, bc
-    pop bc                  ; C = Value
+    pop bc                  ; C = ValueLo
     ld (hl), c
     pop hl
     ret
@@ -1431,7 +1484,7 @@ Action_SetVariable:
 .set_x:
     ld hl, entity_x_pos
     add hl, bc
-    pop bc
+    pop bc                  ; C = ValueLo
     ld (hl), c
     pop hl
     ret
@@ -1439,7 +1492,7 @@ Action_SetVariable:
 .set_y:
     ld hl, entity_y_pos
     add hl, bc
-    pop bc
+    pop bc                  ; C = ValueLo
     ld (hl), c
     pop hl
     ret
@@ -1447,7 +1500,7 @@ Action_SetVariable:
 .set_vx:
     ld hl, entity_vel_x
     add hl, bc
-    pop bc
+    pop bc                  ; C = ValueLo
     ld (hl), c
     pop hl
     ret
@@ -1455,7 +1508,7 @@ Action_SetVariable:
 .set_vy:
     ld hl, entity_vel_y
     add hl, bc
-    pop bc
+    pop bc                  ; C = ValueLo
     ld (hl), c
     pop hl
     ret
@@ -1463,7 +1516,7 @@ Action_SetVariable:
 .set_on_ground:
     ld hl, entity_on_ground
     add hl, bc
-    pop bc                  ; C = Value
+    pop bc                  ; C = ValueLo
     ld a, c
     or a
     jr z, .clear_ground
@@ -1476,11 +1529,13 @@ Action_SetVariable:
     ret
 
 Action_IncVariable:
-; Params: VarID(1 byte), Amount(1 byte)
+; Params: VarID(1 byte), AmountLo(1 byte), AmountHi(1 byte)
 ; Supports both entity variables (ID 0-5) and global variables (ID 6+)
     ld a, (hl)              ; A = VarID
     inc hl
-    ld c, (hl)              ; C = Amount
+    ld c, (hl)              ; C = AmountLo
+    inc hl
+    ld e, (hl)              ; E = AmountHi
     inc hl
 
     push hl                 ; Save Params Ptr
@@ -1538,32 +1593,71 @@ Action_IncVariable:
 .inc_global:
     ; VarID >= 6: Global variable
     sub 6                   ; A = VarID - 6
+    ld b, a                 ; B = global variable table index
     ld l, a
     ld h, 0
     add hl, hl              ; HL = (VarID - 6) * 2
 
+    push de                 ; Preserve AmountHi while resolving the address
     ld de, SM_GlobalVarTable
     add hl, de              ; HL = &SM_GlobalVarTable[VarID - 6]
 
     ; Read address from table
     ld e, (hl)
     inc hl
-    ld d, (hl)              ; DE = address of global variable
+    ld d, (hl)
+    ex de, hl               ; HL = address of global variable
+    pop de                  ; Restore AmountHi in E
+    push hl                 ; Preserve target address
+    ld a, b
+    ld l, a
+    ld h, 0
+    push de                 ; Preserve AmountHi while checking word flag
+    ld de, SM_GlobalVarWordTable
+    add hl, de
+    ld a, (hl)              ; A = 1 when the target global variable is word-sized
+    pop de                  ; E = AmountHi
+    pop hl                  ; HL = address of global variable
+    or a
+    jr z, .inc_global_byte
 
-    ; Increment value
-    ld a, (de)              ; Get current value
+.inc_global_word:
+    ld a, (hl)              ; Add low byte
+    add a, c
+    ld (hl), a
+    inc hl
+    ld a, (hl)              ; Add high byte + carry
+    adc a, e
+    ld (hl), a
+    jr .inc_global_sync
+
+.inc_global_byte:
+    ld a, (hl)              ; Get current value
     add a, c                ; Add amount
-    ld (de), a              ; Store new value
+    ld (hl), a              ; Store new value
+
+.inc_global_sync:
+    push af
+    push bc
+    push de
+    push hl
+    call force_render_hud   ; Keep HUD text synchronized with SM global increments
+    pop hl
+    pop de
+    pop bc
+    pop af
 
     pop hl                  ; Restore Params Ptr
     ret
 
 Action_DecVariable:
-; Params: VarID(1 byte), Amount(1 byte)
+; Params: VarID(1 byte), AmountLo(1 byte), AmountHi(1 byte)
 ; Supports both entity variables (ID 0-5) and global variables (ID 6+)
     ld a, (hl)              ; A = VarID
     inc hl
-    ld c, (hl)              ; C = Amount
+    ld c, (hl)              ; C = AmountLo
+    inc hl
+    ld e, (hl)              ; E = AmountHi
     inc hl
 
     push hl                 ; Save Params Ptr
@@ -1620,22 +1714,59 @@ Action_DecVariable:
 .dec_global:
     ; VarID >= 6: Global variable
     sub 6                   ; A = VarID - 6
+    ld b, a                 ; B = global variable table index
     ld l, a
     ld h, 0
     add hl, hl              ; HL = (VarID - 6) * 2
 
+    push de                 ; Preserve AmountHi while resolving the address
     ld de, SM_GlobalVarTable
     add hl, de              ; HL = &SM_GlobalVarTable[VarID - 6]
 
     ; Read address from table
     ld e, (hl)
     inc hl
-    ld d, (hl)              ; DE = address of global variable
+    ld d, (hl)
+    ex de, hl               ; HL = address of global variable
+    pop de                  ; Restore AmountHi in E
+    push hl                 ; Preserve target address
+    ld a, b
+    ld l, a
+    ld h, 0
+    push de                 ; Preserve AmountHi while checking word flag
+    ld de, SM_GlobalVarWordTable
+    add hl, de
+    ld a, (hl)              ; A = 1 when the target global variable is word-sized
+    pop de                  ; E = AmountHi
+    pop hl                  ; HL = address of global variable
+    or a
+    jr z, .dec_global_byte
 
-    ; Decrement value
-    ld a, (de)              ; Get current value
+.dec_global_word:
+    ld a, (hl)              ; Subtract low byte
+    sub c
+    ld (hl), a
+    inc hl
+    ld a, (hl)              ; Subtract high byte + borrow
+    sbc a, e
+    ld (hl), a
+    jr .dec_global_sync
+
+.dec_global_byte:
+    ld a, (hl)              ; Get current value
     sub c                   ; Subtract amount
-    ld (de), a              ; Store new value
+    ld (hl), a              ; Store new value
+
+.dec_global_sync:
+    push af
+    push bc
+    push de
+    push hl
+    call force_render_hud   ; Keep HUD text synchronized with SM global decrements
+    pop hl
+    pop de
+    pop bc
+    pop af
 
     pop hl                  ; Restore Params Ptr
     ret
@@ -2268,6 +2399,604 @@ Action_ReplaceTile:
     pop hl
     ret
 
+Action_ReplaceTileAt:
+; Params: TileID(1 byte), X(1 byte), Y(1 byte)
+; Replaces/removes a tile at absolute screen coordinates.
+    ld a, (hl)              ; A = replacement tile ID
+    inc hl
+    ld d, (hl)              ; D = tile X
+    inc hl
+    ld e, (hl)              ; E = tile Y
+    inc hl
+    push hl
+    call SM_WriteTileAtXY
+    pop hl
+    ret
+
+Action_MoveTileArea:
+; Params: FillTileID, X, Y, Width, Height, Direction, Distance (7 bytes)
+; Moves a rectangular block of chars/tiles and fills the vacated area.
+    ld a, (hl)
+    ld (temp_byte_1), a     ; Fill tile char
+    inc hl
+    ld a, (hl)
+    ld (temp_byte_2), a     ; Source X
+    inc hl
+    ld a, (hl)
+    ld (temp_byte_3), a     ; Source Y
+    inc hl
+    ld a, (hl)
+    ld (temp_byte_4), a     ; Width
+    inc hl
+    ld a, (hl)
+    ld (temp_byte_5), a     ; Height
+    inc hl
+    ld a, (hl)
+    ld (temp_byte_6), a     ; Direction
+    inc hl
+    ld a, (hl)
+    ld (temp_byte_7), a     ; Distance
+    inc hl
+    push hl
+
+    ld a, (temp_byte_4)
+    or a
+    jp z, .smta_done
+    ld a, (temp_byte_5)
+    or a
+    jp z, .smta_done
+    ld a, (temp_byte_7)
+    or a
+    jp z, .smta_done
+
+    ld a, (temp_byte_2)
+    ld (temp_byte_10), a    ; Dest X starts at source X
+    ld a, (temp_byte_3)
+    ld (temp_byte_11), a    ; Dest Y starts at source Y
+
+    ld a, (temp_byte_6)
+    cp 2
+    jp z, .smta_dest_down
+    cp 3
+    jp z, .smta_dest_left
+    cp 4
+    jp z, .smta_dest_right
+    ; Default to up
+.smta_dest_up:
+    ld a, (temp_byte_11)
+    ld b, a
+    ld a, (temp_byte_7)
+    ld c, a
+    ld a, b
+    sub c
+    ld (temp_byte_11), a
+    jp .smta_copy_buffer
+.smta_dest_down:
+    ld a, (temp_byte_11)
+    ld b, a
+    ld a, (temp_byte_7)
+    ld c, a
+    ld a, b
+    add a, c
+    ld (temp_byte_11), a
+    jp .smta_copy_buffer
+.smta_dest_left:
+    ld a, (temp_byte_10)
+    ld b, a
+    ld a, (temp_byte_7)
+    ld c, a
+    ld a, b
+    sub c
+    ld (temp_byte_10), a
+    jp .smta_copy_buffer
+.smta_dest_right:
+    ld a, (temp_byte_10)
+    ld b, a
+    ld a, (temp_byte_7)
+    ld c, a
+    ld a, b
+    add a, c
+    ld (temp_byte_10), a
+
+.smta_copy_buffer:
+    ld hl, ZX0_SCREEN_BUFFER
+    xor a
+    ld (temp_byte_8), a     ; Row index
+.smta_copy_row_loop:
+    ld a, (temp_byte_8)
+    ld b, a
+    ld a, (temp_byte_5)
+    cp b
+    jp z, .smta_clear_source
+    xor a
+    ld (temp_byte_9), a     ; Column index
+.smta_copy_col_loop:
+    ld a, (temp_byte_9)
+    ld b, a
+    ld a, (temp_byte_4)
+    cp b
+    jp z, .smta_copy_next_row
+    ld a, (temp_byte_2)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_8)
+    ld b, a
+    ld a, (temp_byte_3)
+    add a, b
+    ld e, a
+    push hl
+    call SM_ReadTileAtXY
+    pop hl
+    ld (hl), a
+    inc hl
+    ld a, (temp_byte_9)
+    inc a
+    ld (temp_byte_9), a
+    jp .smta_copy_col_loop
+.smta_copy_next_row:
+    ld a, (temp_byte_8)
+    inc a
+    ld (temp_byte_8), a
+    jp .smta_copy_row_loop
+
+.smta_clear_source:
+    xor a
+    ld (temp_byte_8), a
+.smta_clear_row_loop:
+    ld a, (temp_byte_8)
+    ld b, a
+    ld a, (temp_byte_5)
+    cp b
+    jp z, .smta_paste_buffer
+    xor a
+    ld (temp_byte_9), a
+.smta_clear_col_loop:
+    ld a, (temp_byte_9)
+    ld b, a
+    ld a, (temp_byte_4)
+    cp b
+    jp z, .smta_clear_next_row
+    ld a, (temp_byte_2)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_8)
+    ld b, a
+    ld a, (temp_byte_3)
+    add a, b
+    ld e, a
+    ld a, (temp_byte_1)
+    call SM_WriteTileAtXY
+    ld a, (temp_byte_9)
+    inc a
+    ld (temp_byte_9), a
+    jp .smta_clear_col_loop
+.smta_clear_next_row:
+    ld a, (temp_byte_8)
+    inc a
+    ld (temp_byte_8), a
+    jp .smta_clear_row_loop
+
+.smta_paste_buffer:
+    ld hl, ZX0_SCREEN_BUFFER
+    xor a
+    ld (temp_byte_8), a
+.smta_paste_row_loop:
+    ld a, (temp_byte_8)
+    ld b, a
+    ld a, (temp_byte_5)
+    cp b
+    jp z, .smta_done
+    xor a
+    ld (temp_byte_9), a
+.smta_paste_col_loop:
+    ld a, (temp_byte_9)
+    ld b, a
+    ld a, (temp_byte_4)
+    cp b
+    jp z, .smta_paste_next_row
+    ld a, (temp_byte_10)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_8)
+    ld b, a
+    ld a, (temp_byte_11)
+    add a, b
+    ld e, a
+    ld a, (hl)
+    push hl
+    call SM_WriteTileAtXY
+    pop hl
+    inc hl
+    ld a, (temp_byte_9)
+    inc a
+    ld (temp_byte_9), a
+    jp .smta_paste_col_loop
+.smta_paste_next_row:
+    ld a, (temp_byte_8)
+    inc a
+    ld (temp_byte_8), a
+    jp .smta_paste_row_loop
+
+.smta_done:
+    pop hl
+    ret
+
+Action_ShiftTileArea:
+; Params: FillTileID, X, Y, Width, Height, Direction, Distance (7 bytes)
+; Shifts content inside a rectangular area and fills the newly exposed edge.
+    ld a, (hl)
+    ld (temp_byte_1), a     ; Fill tile char
+    inc hl
+    ld a, (hl)
+    ld (temp_byte_2), a     ; Source X
+    inc hl
+    ld a, (hl)
+    ld (temp_byte_3), a     ; Source Y
+    inc hl
+    ld a, (hl)
+    ld (temp_byte_4), a     ; Width
+    inc hl
+    ld a, (hl)
+    ld (temp_byte_5), a     ; Height
+    inc hl
+    ld a, (hl)
+    ld (temp_byte_6), a     ; Direction
+    inc hl
+    ld a, (hl)
+    ld (temp_byte_7), a     ; Distance
+    inc hl
+    push hl
+
+    ld a, (temp_byte_4)
+    or a
+    jp z, .ssta_done
+    ld a, (temp_byte_5)
+    or a
+    jp z, .ssta_done
+    ld a, (temp_byte_7)
+    or a
+    jp z, .ssta_done
+
+    xor a
+    ld (temp_byte_8), a     ; Step counter
+.ssta_step_loop:
+    ld a, (temp_byte_8)
+    ld b, a
+    ld a, (temp_byte_7)
+    cp b
+    jp z, .ssta_done
+
+    ld a, (temp_byte_6)
+    cp 2
+    jp z, .ssta_down
+    cp 3
+    jp z, .ssta_left
+    cp 4
+    jp z, .ssta_right
+    jp .ssta_up
+
+.ssta_up:
+    xor a
+    ld (temp_byte_9), a     ; Row index
+.ssta_up_row_loop:
+    ld a, (temp_byte_9)
+    ld b, a
+    ld a, (temp_byte_5)
+    dec a
+    cp b
+    jp z, .ssta_up_fill_last_row
+    xor a
+    ld (temp_byte_10), a    ; Column index
+.ssta_up_col_loop:
+    ld a, (temp_byte_10)
+    ld b, a
+    ld a, (temp_byte_4)
+    cp b
+    jp z, .ssta_up_next_row
+    ld a, (temp_byte_2)
+    ld b, a
+    ld a, (temp_byte_10)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld b, a
+    ld a, (temp_byte_9)
+    inc a
+    add a, b
+    ld e, a
+    call SM_ReadTileAtXY
+    push af
+    ld a, (temp_byte_2)
+    ld b, a
+    ld a, (temp_byte_10)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld b, a
+    ld a, (temp_byte_9)
+    add a, b
+    ld e, a
+    pop af
+    call SM_WriteTileAtXY
+    ld a, (temp_byte_10)
+    inc a
+    ld (temp_byte_10), a
+    jp .ssta_up_col_loop
+.ssta_up_next_row:
+    ld a, (temp_byte_9)
+    inc a
+    ld (temp_byte_9), a
+    jp .ssta_up_row_loop
+.ssta_up_fill_last_row:
+    ld a, (temp_byte_5)
+    dec a
+    ld (temp_byte_9), a
+    xor a
+    ld (temp_byte_10), a
+.ssta_up_fill_col_loop:
+    ld a, (temp_byte_10)
+    ld b, a
+    ld a, (temp_byte_4)
+    cp b
+    jp z, .ssta_step_done
+    ld a, (temp_byte_2)
+    ld b, a
+    ld a, (temp_byte_10)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld b, a
+    ld a, (temp_byte_9)
+    add a, b
+    ld e, a
+    ld a, (temp_byte_1)
+    call SM_WriteTileAtXY
+    ld a, (temp_byte_10)
+    inc a
+    ld (temp_byte_10), a
+    jp .ssta_up_fill_col_loop
+
+.ssta_down:
+    ld a, (temp_byte_5)
+    dec a
+    ld (temp_byte_9), a     ; Row index
+.ssta_down_row_loop:
+    ld a, (temp_byte_9)
+    or a
+    jp z, .ssta_down_fill_first_row
+    xor a
+    ld (temp_byte_10), a
+.ssta_down_col_loop:
+    ld a, (temp_byte_10)
+    ld b, a
+    ld a, (temp_byte_4)
+    cp b
+    jp z, .ssta_down_prev_row
+    ld a, (temp_byte_2)
+    ld b, a
+    ld a, (temp_byte_10)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld b, a
+    ld a, (temp_byte_9)
+    dec a
+    add a, b
+    ld e, a
+    call SM_ReadTileAtXY
+    push af
+    ld a, (temp_byte_2)
+    ld b, a
+    ld a, (temp_byte_10)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld b, a
+    ld a, (temp_byte_9)
+    add a, b
+    ld e, a
+    pop af
+    call SM_WriteTileAtXY
+    ld a, (temp_byte_10)
+    inc a
+    ld (temp_byte_10), a
+    jp .ssta_down_col_loop
+.ssta_down_prev_row:
+    ld a, (temp_byte_9)
+    dec a
+    ld (temp_byte_9), a
+    jp .ssta_down_row_loop
+.ssta_down_fill_first_row:
+    xor a
+    ld (temp_byte_9), a
+    xor a
+    ld (temp_byte_10), a
+.ssta_down_fill_col_loop:
+    ld a, (temp_byte_10)
+    ld b, a
+    ld a, (temp_byte_4)
+    cp b
+    jp z, .ssta_step_done
+    ld a, (temp_byte_2)
+    ld b, a
+    ld a, (temp_byte_10)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld e, a
+    ld a, (temp_byte_1)
+    call SM_WriteTileAtXY
+    ld a, (temp_byte_10)
+    inc a
+    ld (temp_byte_10), a
+    jp .ssta_down_fill_col_loop
+
+.ssta_left:
+    xor a
+    ld (temp_byte_10), a    ; Column index
+.ssta_left_col_loop:
+    ld a, (temp_byte_10)
+    ld b, a
+    ld a, (temp_byte_4)
+    dec a
+    cp b
+    jp z, .ssta_left_fill_last_col
+    xor a
+    ld (temp_byte_9), a     ; Row index
+.ssta_left_row_loop:
+    ld a, (temp_byte_9)
+    ld b, a
+    ld a, (temp_byte_5)
+    cp b
+    jp z, .ssta_left_next_col
+    ld a, (temp_byte_2)
+    ld b, a
+    ld a, (temp_byte_10)
+    inc a
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld b, a
+    ld a, (temp_byte_9)
+    add a, b
+    ld e, a
+    call SM_ReadTileAtXY
+    push af
+    ld a, (temp_byte_2)
+    ld b, a
+    ld a, (temp_byte_10)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld b, a
+    ld a, (temp_byte_9)
+    add a, b
+    ld e, a
+    pop af
+    call SM_WriteTileAtXY
+    ld a, (temp_byte_9)
+    inc a
+    ld (temp_byte_9), a
+    jp .ssta_left_row_loop
+.ssta_left_next_col:
+    ld a, (temp_byte_10)
+    inc a
+    ld (temp_byte_10), a
+    jp .ssta_left_col_loop
+.ssta_left_fill_last_col:
+    ld a, (temp_byte_4)
+    dec a
+    ld (temp_byte_10), a
+    xor a
+    ld (temp_byte_9), a
+.ssta_left_fill_row_loop:
+    ld a, (temp_byte_9)
+    ld b, a
+    ld a, (temp_byte_5)
+    cp b
+    jp z, .ssta_step_done
+    ld a, (temp_byte_2)
+    ld b, a
+    ld a, (temp_byte_10)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld b, a
+    ld a, (temp_byte_9)
+    add a, b
+    ld e, a
+    ld a, (temp_byte_1)
+    call SM_WriteTileAtXY
+    ld a, (temp_byte_9)
+    inc a
+    ld (temp_byte_9), a
+    jp .ssta_left_fill_row_loop
+
+.ssta_right:
+    ld a, (temp_byte_4)
+    dec a
+    ld (temp_byte_10), a    ; Column index
+.ssta_right_col_loop:
+    ld a, (temp_byte_10)
+    or a
+    jp z, .ssta_right_fill_first_col
+    xor a
+    ld (temp_byte_9), a
+.ssta_right_row_loop:
+    ld a, (temp_byte_9)
+    ld b, a
+    ld a, (temp_byte_5)
+    cp b
+    jp z, .ssta_right_prev_col
+    ld a, (temp_byte_2)
+    ld b, a
+    ld a, (temp_byte_10)
+    dec a
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld b, a
+    ld a, (temp_byte_9)
+    add a, b
+    ld e, a
+    call SM_ReadTileAtXY
+    push af
+    ld a, (temp_byte_2)
+    ld b, a
+    ld a, (temp_byte_10)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld b, a
+    ld a, (temp_byte_9)
+    add a, b
+    ld e, a
+    pop af
+    call SM_WriteTileAtXY
+    ld a, (temp_byte_9)
+    inc a
+    ld (temp_byte_9), a
+    jp .ssta_right_row_loop
+.ssta_right_prev_col:
+    ld a, (temp_byte_10)
+    dec a
+    ld (temp_byte_10), a
+    jp .ssta_right_col_loop
+.ssta_right_fill_first_col:
+    xor a
+    ld (temp_byte_10), a
+    xor a
+    ld (temp_byte_9), a
+.ssta_right_fill_row_loop:
+    ld a, (temp_byte_9)
+    ld b, a
+    ld a, (temp_byte_5)
+    cp b
+    jp z, .ssta_step_done
+    ld a, (temp_byte_2)
+    ld d, a
+    ld a, (temp_byte_3)
+    ld b, a
+    ld a, (temp_byte_9)
+    add a, b
+    ld e, a
+    ld a, (temp_byte_1)
+    call SM_WriteTileAtXY
+    ld a, (temp_byte_9)
+    inc a
+    ld (temp_byte_9), a
+    jp .ssta_right_fill_row_loop
+
+.ssta_step_done:
+    ld a, (temp_byte_8)
+    inc a
+    ld (temp_byte_8), a
+    jp .ssta_step_loop
+
+.ssta_done:
+    pop hl
+    ret
+
 Action_Rnd:
 ; Params: VarID(1 byte), DataType(1 byte)
     ld a, (hl)              ; A = VarID
@@ -2834,35 +3563,37 @@ SM_WriteTileRelativeToEntity:
 
     ; Apply direction offset with bounds checks
     or a
-    jr z, .swt_up
+    jr z, .swt_apply
     cp 1
-    jr z, .swt_down
+    jr z, .swt_up
     cp 2
-    jr z, .swt_left
+    jr z, .swt_down
     cp 3
-    jr z, .swt_right
+    jr z, .swt_left
     cp 4
-    jr z, .swt_up_right
+    jr z, .swt_right
     cp 5
-    jr z, .swt_up_left
+    jr z, .swt_up_right
     cp 6
-    jr z, .swt_down_right
+    jr z, .swt_up_left
     cp 7
+    jr z, .swt_down_right
+    cp 8
     jr z, .swt_down_left
     jp .swt_out
-
-.swt_up:
-    ld a, c
-    or a
-    jp z, .swt_out
-    dec c
-    jr .swt_apply
 
 .swt_down:
     ld a, c
     cp 23
     jp nc, .swt_out
     inc c
+    jr .swt_apply
+
+.swt_up:
+    ld a, c
+    or a
+    jp z, .swt_out
+    dec c
     jr .swt_apply
 
 .swt_left:
@@ -2978,6 +3709,115 @@ SM_WriteTileRelativeToEntity:
     ret
 
 .swt_out:
+    pop af
+    ret
+
+SM_ReadTileAtXY:
+    ; Input: D = tile X (0..31), E = tile Y (0..23)
+    ; Output: A = tile char ID or 0 if out of bounds
+    ld a, d
+    cp 32
+    jr nc, .srta_out
+    ld a, e
+    cp 24
+    jr nc, .srta_out
+
+    ; HL = tile offset = (tileY * 32) + tileX
+    ld l, e
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl              ; *32
+    ld e, d
+    ld d, 0
+    add hl, de
+
+    ; Read tile character from mutable screen layout map
+    push hl
+    ld de, (current_screen_layout)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
+    ld a, (hl)
+    ld b, a
+    call mapper_pop_p2
+    pop hl
+    ld a, b
+    ret
+
+.srta_out:
+    xor a
+    ret
+
+SM_WriteTileAtXY:
+    ; Input: A = tile char ID, D = tile X (0..31), E = tile Y (0..23)
+    ; Writes directly to the mutable screen maps and VRAM Name Table.
+    push af
+    ld a, d
+    cp 32
+    jp nc, .swta_out
+    ld a, e
+    cp 24
+    jp nc, .swta_out
+    pop af
+
+    ; HL = tile offset = (tileY * 32) + tileX
+    ld l, e
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl              ; *32
+    ld e, d
+    ld d, 0
+    add hl, de
+
+    ld b, a                 ; Preserve tile ID in B
+
+    ; Update mutable screen layout map
+    push hl                 ; Save tile offset
+    ld de, (current_screen_layout)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+
+    ; Update mutable behavior map (0 = passable, 1 = solid)
+    push hl
+    ld de, (current_behavior_map)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_behavior_map_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    or a
+    jr z, .swta_store_behavior_passable
+    ld a, 1
+.swta_store_behavior_passable:
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+
+    ; Invalidate cached behavior row after map mutation
+    ld a, #FF
+    ld (behavior_cache_row), a
+
+    ; Write tile character to VRAM Name Table
+    ld de, NAMETBL
+    add hl, de
+    ld a, b
+    call WRTVRM
+    ret
+
+.swta_out:
     pop af
     ret
 
@@ -3138,6 +3978,13 @@ SM_WriteVar:
     ld d, (hl)
     ld a, c
     ld (de), a
+    push af
+    push bc
+    push hl
+    call force_render_hud   ; Keep HUD text synchronized with helper-based global writes
+    pop hl
+    pop bc
+    pop af
     pop de
     ret
 
@@ -4675,8 +5522,20 @@ function applyConditionalHandlers(
         asm = patchActionEntry(asm, 'Action_BreakTile');
     }
     if (!hasAction(ActionTypes.REPLACE_TILE)) {
-        asm = stripSection(asm, 'Action_ReplaceTile', 'Action_Rnd');
+        asm = stripSection(asm, 'Action_ReplaceTile', 'Action_ReplaceTileAt');
         asm = patchActionEntry(asm, 'Action_ReplaceTile');
+    }
+    if (!hasAction(ActionTypes.REPLACE_TILE_AT)) {
+        asm = stripSection(asm, 'Action_ReplaceTileAt', 'Action_MoveTileArea');
+        asm = patchActionEntry(asm, 'Action_ReplaceTileAt');
+    }
+    if (!hasAction(ActionTypes.MOVE_TILE_AREA)) {
+        asm = stripSection(asm, 'Action_MoveTileArea', 'Action_ShiftTileArea');
+        asm = patchActionEntry(asm, 'Action_MoveTileArea');
+    }
+    if (!hasAction(ActionTypes.SHIFT_TILE_AREA)) {
+        asm = stripSection(asm, 'Action_ShiftTileArea', 'Action_Rnd');
+        asm = patchActionEntry(asm, 'Action_ShiftTileArea');
     }
     if (!hasAction(ActionTypes.RND)) {
         asm = stripSection(asm, 'Action_Rnd', 'Action_PointAt');
@@ -4703,8 +5562,8 @@ function applyConditionalHandlers(
     if (!needsRandomHelpers) {
         asm = stripSection(asm, 'SM_RandomByte', 'SM_WriteTileRelativeToEntity');
     }
-    // SM_WriteTileRelativeToEntity is only used by BreakTile / ReplaceTile
-    if (!hasAction(ActionTypes.BREAK_TILE, ActionTypes.REPLACE_TILE)) {
+    // SM_WriteTileRelativeToEntity / SM_ReadTileAtXY / SM_WriteTileAtXY are only used by tile actions
+    if (!hasAction(ActionTypes.BREAK_TILE, ActionTypes.REPLACE_TILE, ActionTypes.REPLACE_TILE_AT, ActionTypes.MOVE_TILE_AREA)) {
         asm = stripSection(asm, 'SM_WriteTileRelativeToEntity', 'SM_ReadVar');
     }
 
@@ -5029,8 +5888,7 @@ Action_ExitCurrentWorld:`
     }
 
     if (!usesMapper) {
-        asm = asm.replace(
-            `    ; Update mutable screen layout map
+        const mapperTileWriteBlock = `    ; Update mutable screen layout map
     push hl                 ; Save tile offset
     ld de, (current_screen_layout)
     add hl, de
@@ -5057,8 +5915,8 @@ Action_ExitCurrentWorld:`
     ld (hl), a
     call mapper_pop_p2
     pop hl
-`,
-            `    ; Update mutable screen layout map
+`;
+        const plainTileWriteBlock = `    ; Update mutable screen layout map
     push hl                 ; Save tile offset
     ld de, (current_screen_layout)
     add hl, de
@@ -5077,8 +5935,86 @@ Action_ExitCurrentWorld:`
 .store_behavior_passable:
     ld (hl), a
     pop hl
-`
-        );
+`;
+        while (asm.includes(mapperTileWriteBlock)) {
+            asm = asm.replace(mapperTileWriteBlock, plainTileWriteBlock);
+        }
+
+        const mapperTileWriteAtXYBlock = `    ; Update mutable screen layout map
+    push hl                 ; Save tile offset
+    ld de, (current_screen_layout)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+
+    ; Update mutable behavior map (0 = passable, 1 = solid)
+    push hl
+    ld de, (current_behavior_map)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_behavior_map_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    or a
+    jr z, .swta_store_behavior_passable
+    ld a, 1
+.swta_store_behavior_passable:
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+`;
+        const plainTileWriteAtXYBlock = `    ; Update mutable screen layout map
+    push hl                 ; Save tile offset
+    ld de, (current_screen_layout)
+    add hl, de
+    ld a, b
+    ld (hl), a
+    pop hl
+
+    ; Update mutable behavior map (0 = passable, 1 = solid)
+    push hl
+    ld de, (current_behavior_map)
+    add hl, de
+    ld a, b
+    or a
+    jr z, .swta_store_behavior_passable
+    ld a, 1
+.swta_store_behavior_passable:
+    ld (hl), a
+    pop hl
+`;
+        while (asm.includes(mapperTileWriteAtXYBlock)) {
+            asm = asm.replace(mapperTileWriteAtXYBlock, plainTileWriteAtXYBlock);
+        }
+
+        const mapperTileReadAtXYBlock = `    ; Read tile character from mutable screen layout map
+    push hl
+    ld de, (current_screen_layout)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
+    ld a, (hl)
+    ld b, a
+    call mapper_pop_p2
+    pop hl
+    ld a, b
+`;
+        const plainTileReadAtXYBlock = `    ; Read tile character from mutable screen layout map
+    push hl
+    ld de, (current_screen_layout)
+    add hl, de
+    ld a, (hl)
+    pop hl
+`;
+        while (asm.includes(mapperTileReadAtXYBlock)) {
+            asm = asm.replace(mapperTileReadAtXYBlock, plainTileReadAtXYBlock);
+        }
     }
 
     // Build sprite name -> asset index map for CHANGE_SPRITE actions.
@@ -5094,17 +6030,42 @@ Action_ExitCurrentWorld:`
     asm += '; GLOBAL VARIABLES TABLE\n';
     asm += '; ==================================================================\n';
     // SM_GlobalVarTable maps VarID-6 to RAM address.
-    // IDs 6-7 are system variables (always present).
-    // IDs 8+ are user-defined global variables.
+    // IDs 6-14 are State Machine system variables (always present).
+    // IDs 15+ are user-defined global variables.
     asm += '; Maps variable IDs (6+) to their RAM addresses\n';
-    asm += '; ID 6 = gem_count, ID 7 = last_gem_char, ID 8+ = user globals\n';
+    asm += '; ID 6 = gem_count, ID 7 = last_interaction_char, ID 8 = pending, ID 9+ = interaction context, ID 15+ = user globals\n';
     asm += 'SM_GlobalVarTable:\n';
     asm += `    DW gem_count            ; ID 6: gem_count\n`;
-    asm += `    DW last_gem_char        ; ID 7: last_gem_char (char of last collected tile)\n`;
+    asm += `    DW last_interaction_char ; ID 7: last_interaction_char\n`;
+    asm += `    DW last_interaction_pending ; ID 8: last_interaction_pending\n`;
+    asm += `    DW last_interaction_type ; ID 9: last_interaction_type\n`;
+    asm += `    DW last_interaction_value ; ID 10: last_interaction_value\n`;
+    asm += `    DW last_interaction_target ; ID 11: last_interaction_target\n`;
+    asm += `    DW last_interaction_x   ; ID 12: last_interaction_x\n`;
+    asm += `    DW last_interaction_y   ; ID 13: last_interaction_y\n`;
+    asm += `    DW last_interaction_entity ; ID 14: last_interaction_entity\n`;
     if (globalVariables && globalVariables.length > 0) {
         globalVariables.forEach((variable, index) => {
-            const varId = 8 + index; // User globals start at ID 8
+            const varId = USER_GLOBAL_VARIABLE_START_ID + index; // User globals start after reserved SM system vars
             asm += `    DW ${variable.asmName}            ; ID ${varId}: ${variable.name}\n`;
+        });
+    }
+    asm += '\n';
+    asm += '; Global variable width flags: 1 = word, 0 = byte\n';
+    asm += 'SM_GlobalVarWordTable:\n';
+    asm += `    DB 0 ; ID 6: gem_count\n`;
+    asm += `    DB 0 ; ID 7: last_interaction_char\n`;
+    asm += `    DB 0 ; ID 8: last_interaction_pending\n`;
+    asm += `    DB 0 ; ID 9: last_interaction_type\n`;
+    asm += `    DB 0 ; ID 10: last_interaction_value\n`;
+    asm += `    DB 0 ; ID 11: last_interaction_target\n`;
+    asm += `    DB 0 ; ID 12: last_interaction_x\n`;
+    asm += `    DB 0 ; ID 13: last_interaction_y\n`;
+    asm += `    DB 0 ; ID 14: last_interaction_entity\n`;
+    if (globalVariables && globalVariables.length > 0) {
+        globalVariables.forEach((variable, index) => {
+            const varId = USER_GLOBAL_VARIABLE_START_ID + index;
+            asm += `    DB ${String(variable?.type || '').trim().toLowerCase() === 'word' ? 1 : 0} ; ID ${varId}: ${variable.name}\n`;
         });
     }
     asm += '\n';
@@ -5283,6 +6244,16 @@ function serializeValue(value: any): string {
     return '0';
 }
 
+function serializeWordBytes(value: any): { low: number; high: number; word: number } {
+    const parsed = parseInt(serializeValue(value), 10);
+    const normalized = Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(0xFFFF, parsed | 0));
+    return {
+        low: normalized & 0xFF,
+        high: (normalized >> 8) & 0xFF,
+        word: normalized,
+    };
+}
+
 function resolveTrackIndex(value: any, trackIndexByAssetId?: Record<string, number>): number {
     if (typeof value === 'string') {
         const direct = trackIndexByAssetId?.[value];
@@ -5400,7 +6371,8 @@ function generateActionBytes(
             // Look up variable ID in map
             const varId = variableIdMap?.[variableName] ?? 0;
             const value = action.params.value ?? action.params.amount ?? 0;
-            bytes += `    DB ${varId}, ${serializeValue(value)}        ; ${variableName} (ID ${varId})\n`;
+            const { low, high, word } = serializeWordBytes(value);
+            bytes += `    DB ${varId}, ${low}, ${high}        ; ${variableName} (ID ${varId}) = ${word}\n`;
             break;
         }
 
@@ -5497,6 +6469,43 @@ function generateActionBytes(
             const replacementRaw = action.params.replacementTileId ?? action.params.tileId ?? 0;
             const replacementTileChar = resolveTileCharCode(replacementRaw, tileIdToCharCode);
             bytes += `    DB ${replacementTileChar}, ${directionId}        ; REPLACE_TILE tile=${replacementRaw}=>${replacementTileChar}, dir=${directionName}\n`;
+            break;
+        }
+
+        case ActionTypes.REPLACE_TILE_AT: {
+            const x = serializeValue(action.params.x ?? 0);
+            const y = serializeValue(action.params.y ?? 0);
+            const replacementRaw = action.params.replacementTileId ?? action.params.tileId ?? 0;
+            const replacementTileChar = resolveTileCharCode(replacementRaw, tileIdToCharCode);
+            bytes += `    DB ${replacementTileChar}, ${x}, ${y}        ; REPLACE_TILE_AT tile=${replacementRaw}=>${replacementTileChar}, x=${x}, y=${y}\n`;
+            break;
+        }
+
+        case ActionTypes.MOVE_TILE_AREA: {
+            const x = serializeValue(action.params.x ?? 0);
+            const y = serializeValue(action.params.y ?? 0);
+            const width = serializeValue(action.params.width ?? 1);
+            const height = serializeValue(action.params.height ?? 1);
+            const distance = serializeValue(action.params.distance ?? 1);
+            const directionName = String(action.params.direction || 'up').toLowerCase();
+            const directionId = TILE_DIRECTION_IDS[directionName] ?? TILE_DIRECTION_IDS.up;
+            const fillRaw = action.params.fillTileId ?? action.params.replacementTileId ?? action.params.tileId ?? 0;
+            const fillTileChar = resolveTileCharCode(fillRaw, tileIdToCharCode);
+            bytes += `    DB ${fillTileChar}, ${x}, ${y}, ${width}, ${height}, ${directionId}, ${distance}        ; MOVE_TILE_AREA fill=${fillRaw}=>${fillTileChar}, x=${x}, y=${y}, w=${width}, h=${height}, dir=${directionName}, dist=${distance}\n`;
+            break;
+        }
+
+        case ActionTypes.SHIFT_TILE_AREA: {
+            const x = serializeValue(action.params.x ?? 0);
+            const y = serializeValue(action.params.y ?? 0);
+            const width = serializeValue(action.params.width ?? 1);
+            const height = serializeValue(action.params.height ?? 1);
+            const distance = serializeValue(action.params.distance ?? 1);
+            const directionName = String(action.params.direction || 'up').toLowerCase();
+            const directionId = TILE_DIRECTION_IDS[directionName] ?? TILE_DIRECTION_IDS.up;
+            const fillRaw = action.params.fillTileId ?? action.params.replacementTileId ?? action.params.tileId ?? 0;
+            const fillTileChar = resolveTileCharCode(fillRaw, tileIdToCharCode);
+            bytes += `    DB ${fillTileChar}, ${x}, ${y}, ${width}, ${height}, ${directionId}, ${distance}        ; SHIFT_TILE_AREA fill=${fillRaw}=>${fillTileChar}, x=${x}, y=${y}, w=${width}, h=${height}, dir=${directionName}, dist=${distance}\n`;
             break;
         }
 

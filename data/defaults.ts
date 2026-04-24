@@ -136,6 +136,35 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: "Defines collision detection with solid tiles in the collision layer (walls, obstacles)."
   },
   {
+    id: "comp_wall_jump", name: "Wall Jump",
+    description: "Permite deslizarse por paredes y saltar/rebotar desde ellas con impulso horizontal y vertical configurables.",
+    properties: [
+      { name: "horizontalPush", type: "byte", defaultValue: "7", description: "Velocidad horizontal aplicada al saltar desde la pared." },
+      { name: "verticalImpulse", type: "word", defaultValue: "1280", description: "Impulso vertical 8.8 aplicado al wall jump (1280 = #0500 de magnitud)." },
+      { name: "animationSpriteAssetId", type: "sprite_ref", defaultValue: "", description: "Animacion/sprite one-shot que se reproduce al saltar desde una pared. Al terminar, vuelve al sprite base mirando en direccion contraria al muro." },
+      { name: "slideFallSpeed", type: "byte", defaultValue: "2", description: "Velocidad maxima de caida mientras se desliza por la pared. 0 desactiva el slide." },
+      { name: "lockFrames", type: "byte", defaultValue: "16", description: "Frames minimos durante los que se mantiene el impulso horizontal del wall jump. Si la entidad sigue ascendiendo, el impulso se conserva hasta la cima del salto." },
+      { name: "requirePressAwayFromWall", type: "boolean", defaultValue: "false", description: "Si es true, exige pulsar la direccion contraria a la pared para saltar." },
+      { name: "isEnabled", type: "boolean", defaultValue: "true", description: "Activa o desactiva el wall jump para esta entidad." }
+    ],
+  },
+  {
+    id: "comp_wall_grab", name: "Wall Grab",
+    description: "Permite agarrarse a una pared mientras se mantiene Boton 2/N. Ideal para un control tipo Celeste.",
+    properties: [
+      { name: "grabFallSpeed", type: "byte", defaultValue: "0", description: "Velocidad vertical mientras se agarra a la pared. 0 = quedarse quieto, 1+ = deslizarse lentamente." },
+      { name: "isEnabled", type: "boolean", defaultValue: "true", description: "Activa o desactiva el wall grab para esta entidad." }
+    ],
+  },
+  {
+    id: "comp_air_control", name: "Air Control",
+    description: "Controla si la entidad puede cambiar su movimiento horizontal mientras esta en el aire.",
+    properties: [
+      { name: "airControlMode", type: "string", defaultValue: "locked", description: "Modo de control aereo: full o locked. locked conserva la velocidad horizontal hasta tocar suelo o escalera." },
+      { name: "isEnabled", type: "boolean", defaultValue: "true", description: "Activa o desactiva esta regla de control aereo." }
+    ],
+  },
+  {
     id: "comp_physics", name: "Physics",
     properties: [
       { name: "velocityX", type: "word", defaultValue: "0", description: "Horizontal speed (fixed-point 8.8 or integer)." },
@@ -305,6 +334,23 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "bonusSlashStrength", type: 'byte', defaultValue: '8', description: "Horizontal strength of the bonus slash impulse (used by grant_extra_jump slash behavior)." },
       { name: "bonusRespawnSeconds", type: 'byte', defaultValue: '0', description: "0 = disabled. 1-255 = seconds until the bonus tile respawns after collection." },
       { name: "isEnabled", type: 'boolean', defaultValue: 'true', description: "Whether tile collection is active." }
+    ],
+  },
+  {
+    id: "comp_retractable_gate", name: "Retractable Gate",
+    description: "Animates a door/gate by retracting its chars over time when a global trigger condition becomes true.",
+    properties: [
+      { name: "screenX", type: "byte", defaultValue: "0", description: "Gate area X coordinate in chars (0..31)." },
+      { name: "screenY", type: "byte", defaultValue: "0", description: "Gate area Y coordinate in chars (0..23)." },
+      { name: "width", type: "byte", defaultValue: "1", description: "Gate width in chars." },
+      { name: "height", type: "byte", defaultValue: "2", description: "Gate height in chars." },
+      { name: "direction", type: "string", defaultValue: "up", description: "Retract direction: up, down, left or right." },
+      { name: "fillTileId", type: "tile_ref", defaultValue: "", description: "Tile used to fill the exposed edge. Empty removes chars." },
+      { name: "triggerVariable", type: "string", defaultValue: "", description: "Global variable name or asmName that triggers the opening." },
+      { name: "triggerOperator", type: "string", defaultValue: "==", description: "Comparison operator: ==, !=, >, <, >=, <=." },
+      { name: "triggerValue", type: "word", defaultValue: "1", description: "Value compared against the trigger variable." },
+      { name: "durationMs", type: "word", defaultValue: "2000", description: "Total opening duration in milliseconds." },
+      { name: "isEnabled", type: "boolean", defaultValue: "true", description: "Whether the gate runtime is active." }
     ],
   },
   {

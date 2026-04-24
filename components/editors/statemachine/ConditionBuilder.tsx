@@ -17,6 +17,71 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
   // Get all variables (default + custom + entity properties)
   const allVariables = useMemo(() => {
     const globalVars = getAllGlobalVariables(allAssets);
+    const stateMachineSystemVariables = [
+      {
+        name: 'gem_count',
+        asmName: 'gem_count',
+        constantPrefix: 'GEM_COUNT_',
+        type: 'byte' as const,
+        description: 'Collected gem counter',
+        category: 'special' as const,
+        values: [{ label: 'Custom Value', value: 'number' }]
+      },
+      {
+        name: 'last_interaction_pending',
+        asmName: 'last_interaction_pending',
+        constantPrefix: 'INTERACTION_PENDING_',
+        type: 'boolean' as const,
+        description: 'True for one frame after entering an interactable button tile',
+        category: 'special' as const,
+        values: []
+      },
+      {
+        name: 'last_interaction_type',
+        asmName: 'last_interaction_type',
+        constantPrefix: 'INTERACTION_TYPE_',
+        type: 'byte' as const,
+        description: 'Numeric interaction type of the last tile event',
+        category: 'special' as const,
+        values: [
+          { label: 'None', value: 0 },
+          { label: 'Collect Gem', value: 1 },
+          { label: 'Collect Item', value: 2 },
+          { label: 'Add Energy', value: 3 },
+          { label: 'Lever Toggle', value: 4 },
+          { label: 'Button Press', value: 5 },
+          { label: 'Jumper', value: 6 },
+          { label: 'Ladder', value: 7 },
+        ]
+      },
+      {
+        name: 'last_interaction_value',
+        asmName: 'last_interaction_value',
+        constantPrefix: 'INTERACTION_VALUE_',
+        type: 'byte' as const,
+        description: 'Value payload from the last interaction tile',
+        category: 'special' as const,
+        values: [{ label: 'Custom Value', value: 'number' }]
+      },
+      {
+        name: 'last_interaction_x',
+        asmName: 'last_interaction_x',
+        constantPrefix: 'INTERACTION_X_',
+        type: 'byte' as const,
+        description: 'Tile X coordinate of the last interaction event',
+        category: 'special' as const,
+        values: [{ label: 'Custom Value', value: 'number' }]
+      },
+      {
+        name: 'last_interaction_y',
+        asmName: 'last_interaction_y',
+        constantPrefix: 'INTERACTION_Y_',
+        type: 'byte' as const,
+        description: 'Tile Y coordinate of the last interaction event',
+        category: 'special' as const,
+        values: [{ label: 'Custom Value', value: 'number' }]
+      },
+    ];
 
     // Add entity-specific variables at the beginning
     const entityVariables = [
@@ -67,7 +132,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
       }
     ];
 
-    return [...entityVariables, ...globalVars];
+    return [...entityVariables, ...stateMachineSystemVariables, ...globalVars];
   }, [allAssets]);
 
   // Handle null condition gracefully: offer to create a default condition
@@ -321,6 +386,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
         const selectedCompareVarName = condition.params?.valueVariable || selectedVarName;
         const selectedCompareVar = allVariables.find(v => v.name === selectedCompareVarName);
         const isBoolean = selectedVar?.type === 'boolean';
+        const hasEnumValues = (selectedVar?.values || []).length > 0 && !selectedVar?.values?.some(v => v.value === 'number');
 
         return (
           <div className="space-y-2">
@@ -413,6 +479,18 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
                     <option value="true">true</option>
                     <option value="false">false</option>
                   </select>
+                ) : hasEnumValues ? (
+                  <select
+                    value={String(condition.params?.value ?? selectedVar?.values?.[0]?.value ?? 0)}
+                    onChange={(e) => handleParamChange('value', Number(e.target.value))}
+                    className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                  >
+                    {selectedVar?.values?.map(option => (
+                      <option key={`${selectedVar.name}_${option.value}`} value={String(option.value)}>
+                        {`${option.label} (${option.value})`}
+                      </option>
+                    ))}
+                  </select>
                 ) : (
                   <input
                     type="number"
@@ -429,7 +507,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
               </div>
             )}
             <div className="text-xs text-yellow-400 italic">
-              💡 Example: Use "gem_count &gt;= RequiredGems" to make exits depend on world-specific goals
+              💡 Button flow: `last_interaction_pending == true` AND `last_interaction_type == Button Press`
             </div>
           </div>
         );

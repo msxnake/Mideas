@@ -11,7 +11,7 @@ interface ActionParamsEditorProps {
   entityTemplates?: EntityTemplate[];
 }
 
-const ParamInput = ({ label, value, onChange, type = "text" }) => (
+const ParamInput = ({ label, value, onChange, type = "text", ...rest }: any) => (
   <div className="flex items-center space-x-2">
     <label className="text-xs text-gray-400 w-16">{label}</label>
     <input
@@ -19,6 +19,7 @@ const ParamInput = ({ label, value, onChange, type = "text" }) => (
       value={value ?? ''}
       onChange={onChange}
       step={type === "number" ? "any" : undefined}
+      {...rest}
       className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
     />
   </div>
@@ -611,6 +612,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
                 onChange={(e) => handleParamChange('direction', e.target.value)}
                 className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
               >
+                <option value="here">Here (Current tile)</option>
                 <option value="up">â¬†ï¸ Up (Above player)</option>
                 <option value="down">â¬‡ï¸ Down (Below player)</option>
                 <option value="left">â¬…ï¸ Left (Left of player)</option>
@@ -647,6 +649,191 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
             </div>
           </div>
         );
+
+      case ActionTypes.REPLACE_TILE_AT: {
+        const availableTiles = allAssets.filter(a => a.type === 'tile');
+        return (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex items-center space-x-2">
+                <label className="text-xs text-gray-400 w-12">X</label>
+                <ParamInput
+                  label=""
+                  type="number"
+                  value={action.params.x ?? ''}
+                  min={0}
+                  max={31}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const parsed = val === '' ? undefined : parseInt(val, 10);
+                    handleParamChange('x', Number.isNaN(parsed) ? undefined : parsed);
+                  }}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <label className="text-xs text-gray-400 w-12">Y</label>
+                <ParamInput
+                  label=""
+                  type="number"
+                  value={action.params.y ?? ''}
+                  min={0}
+                  max={23}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const parsed = val === '' ? undefined : parseInt(val, 10);
+                    handleParamChange('y', Number.isNaN(parsed) ? undefined : parsed);
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-20">Replace with</label>
+              <select
+                value={action.params.replacementTileId || ''}
+                onChange={(e) => handleParamChange('replacementTileId', e.target.value)}
+                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+              >
+                <option value="">-- Empty (remove tile) --</option>
+                {availableTiles.map((tileAsset) => (
+                  <option key={tileAsset.id} value={tileAsset.id}>
+                    {tileAsset.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="text-xs text-yellow-400 italic p-2 bg-black bg-opacity-30 rounded">
+              Replaces a tile at absolute screen coordinates in the current screen. Use several actions to open a door area.
+            </div>
+          </div>
+        );
+      }
+
+      case ActionTypes.MOVE_TILE_AREA:
+      case ActionTypes.SHIFT_TILE_AREA: {
+        const availableTiles = allAssets.filter(a => a.type === 'tile');
+        const isShiftAction = action.type === ActionTypes.SHIFT_TILE_AREA;
+        return (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex items-center space-x-2">
+                <label className="text-xs text-gray-400 w-12">X</label>
+                <ParamInput
+                  label=""
+                  type="number"
+                  value={action.params.x ?? ''}
+                  min={0}
+                  max={31}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const parsed = val === '' ? undefined : parseInt(val, 10);
+                    handleParamChange('x', Number.isNaN(parsed) ? undefined : parsed);
+                  }}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <label className="text-xs text-gray-400 w-12">Y</label>
+                <ParamInput
+                  label=""
+                  type="number"
+                  value={action.params.y ?? ''}
+                  min={0}
+                  max={23}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const parsed = val === '' ? undefined : parseInt(val, 10);
+                    handleParamChange('y', Number.isNaN(parsed) ? undefined : parsed);
+                  }}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <label className="text-xs text-gray-400 w-12">W</label>
+                <ParamInput
+                  label=""
+                  type="number"
+                  value={action.params.width ?? 1}
+                  min={1}
+                  max={32}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const parsed = val === '' ? undefined : parseInt(val, 10);
+                    handleParamChange('width', Number.isNaN(parsed) ? undefined : parsed);
+                  }}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <label className="text-xs text-gray-400 w-12">H</label>
+                <ParamInput
+                  label=""
+                  type="number"
+                  value={action.params.height ?? 1}
+                  min={1}
+                  max={24}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const parsed = val === '' ? undefined : parseInt(val, 10);
+                    handleParamChange('height', Number.isNaN(parsed) ? undefined : parsed);
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex items-center space-x-2">
+                <label className="text-xs text-gray-400 w-20">Direction</label>
+                <select
+                  value={action.params.direction || 'up'}
+                  onChange={(e) => handleParamChange('direction', e.target.value)}
+                  className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                >
+                  <option value="up">Up</option>
+                  <option value="down">Down</option>
+                  <option value="left">Left</option>
+                  <option value="right">Right</option>
+                </select>
+              </div>
+              <div className="flex items-center space-x-2">
+                <label className="text-xs text-gray-400 w-20">Distance</label>
+                <ParamInput
+                  label=""
+                  type="number"
+                  value={action.params.distance ?? 1}
+                  min={1}
+                  max={31}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const parsed = val === '' ? undefined : parseInt(val, 10);
+                    handleParamChange('distance', Number.isNaN(parsed) ? undefined : parsed);
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-20">Fill with</label>
+              <select
+                value={action.params.fillTileId || ''}
+                onChange={(e) => handleParamChange('fillTileId', e.target.value)}
+                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+              >
+                <option value="">-- Empty (clear vacated area) --</option>
+                {availableTiles.map((tileAsset) => (
+                  <option key={tileAsset.id} value={tileAsset.id}>
+                    {tileAsset.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="text-xs text-yellow-400 italic p-2 bg-black bg-opacity-30 rounded">
+              {isShiftAction
+                ? 'Shifts the contents inside the selected area and fills the newly uncovered edge. Useful for retractable doors and gates.'
+                : 'Moves a rectangular block of chars/tiles in the current screen by the selected distance. Useful for doors and gates; chain with WAIT actions if you want a stepped animation.'}
+            </div>
+          </div>
+        );
+      }
 
       case ActionTypes.SET_COMPONENT_PROPERTY: {
         const compDefs = DEFAULT_COMPONENT_DEFINITIONS;

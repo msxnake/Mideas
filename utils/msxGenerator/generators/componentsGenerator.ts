@@ -74,11 +74,14 @@ update_all_entities:
         ['Behavior', 'update_behavior_component', '3. Behavior/AI'],
         ['Patrol', 'update_entities', '3b. Patrol/per-entity update'],
         ['StateMachine', 'update_statemachine_component', '3c. State machine logic'],
+        ['RetractableGate', 'update_retractable_gate_component', '3d. Retractable gate logic'],
         ['Jump', 'update_jump_component', '4. Jump impulse'],
         ['Movement', 'update_movement_component', '5. Movement'],
         ['Cursors', 'update_cursors_component', '5b. Cursors movement'], // comp_cursors
         ['Gravity', 'update_gravity_component', '6. Gravity'],
-        ['TileInteraction', 'update_slash_component', '6b. Additive slash velocity'],
+        ['WallGrab', 'update_wallgrab_component', '6a. Wall grab'],
+        ['WallJump', 'update_walljump_component', '6b. Wall jump / wall slide'],
+        ['TileInteraction', 'update_slash_component', '6c. Additive slash velocity'],
         ['Position', 'update_position_component', '7. Apply velocity'], // Always needed
         ['Collision', 'prepare_platform_detection', '8a. Clear platform refs'],
         ['Collision', 'update_collision_component', '8b. Collision detection'],
@@ -513,6 +516,9 @@ update_player_fastpath:
     ; --------------------------------------------------------------
     ld e, c
     ld d, 0
+    call update_entity_ladder_state_c
+    ld e, c
+    ld d, 0
     ld hl, entity_input_disabled
     add hl, de
     ld a, (hl)
@@ -528,6 +534,11 @@ update_player_fastpath:
     jp .player_fast_after_input
 
 .player_fast_input_enabled:
+    call aircontrol_should_lock_horizontal_c
+    jp nz, .player_fast_after_input
+
+    ld e, c
+    ld d, 0
     ld hl, entity_dir_mask
     add hl, de
     ld b, (hl)                    ; B = direction mask
@@ -761,18 +772,15 @@ update_player_fastpath:
     pop af
 
     ; Sync directional sprite facing for input-driven entities.
-    ; Keep the same rule as the generic input system: skip when a
-    ; State Machine owns ChangeSprite for this entity.
+    ; Keep the same rule as the generic input system: skip only when
+    ; the assigned State Machine explicitly uses ChangeSprite.
     push af
     push de
     ld e, c
     ld d, 0
-    ld hl, entity_sm_ptr_l
+    ld hl, entity_sm_sprite_control
     add hl, de
     ld a, (hl)
-    ld hl, entity_sm_ptr_h
-    add hl, de
-    or (hl)
     pop de
     pop af
     jr nz, .player_fast_skip_patrol_facing
@@ -784,6 +792,31 @@ update_player_fastpath:
 .player_fast_skip_patrol_facing:
 
 .player_fast_after_input:
+    ; --------------------------------------------------------------
+    ; WALL JUMP PRIORITY
+    ; --------------------------------------------------------------
+    ; A wall jump must win over the regular Jump component. Otherwise the
+    ; same SPACE edge can be partially handled as a normal air jump first,
+    ; making the wall rebound feel weak or inconsistent.
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #40                       ; COMP_MASK_WALL_JUMP (#4000) => high byte bit 6
+    jp z, .player_fast_walljump_priority_done
+    push bc
+    call walljump_process_entity_c
+    pop bc
+    ld e, c
+    ld d, 0
+    ld hl, entity_walljump_locked_vx
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .player_fast_after_jump
+.player_fast_walljump_priority_done:
+
     ; --------------------------------------------------------------
     ; JUMP
     ; --------------------------------------------------------------
@@ -808,6 +841,12 @@ update_player_fastpath:
     ld (hl), 0
 
 .player_fast_jump_check:
+    ld hl, entity_on_ladder
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .player_fast_after_jump
+
     ld a, (input_btn_curr)
     and INPUT_BTN_FIRE
     jp z, .player_fast_after_jump
@@ -900,6 +939,14 @@ update_player_fastpath:
     bit 0, a
     jr nz, .player_fast_gravity_grounded
 
+    ld hl, entity_on_ladder
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .player_fast_apply_gravity
+    jr .player_fast_gravity_grounded
+
+.player_fast_apply_gravity:
     ld hl, entity_gravity_vel
     add hl, de
     add hl, de
@@ -945,6 +992,27 @@ update_player_fastpath:
     ld (hl), 0
 
 .player_fast_after_gravity:
+    ; --------------------------------------------------------------
+    ; WALL GRAB
+    ; --------------------------------------------------------------
+    push bc
+    call wallgrab_process_entity_c
+    pop bc
+
+    ; --------------------------------------------------------------
+    ; WALL JUMP / WALL SLIDE
+    ; --------------------------------------------------------------
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #40                       ; COMP_MASK_WALL_JUMP (#4000) => high byte bit 6
+    jp z, .player_fast_after_walljump
+    push bc
+    call walljump_process_entity_c
+    pop bc
+.player_fast_after_walljump:
     ; --------------------------------------------------------------
     ; POSITION
     ; --------------------------------------------------------------
@@ -2403,6 +2471,107 @@ function generateInputSystem(): string {
             ld bc, 31
             ld (hl), 0
             ldir
+
+            ; Initialize ladder state flags to 0
+            ld hl, entity_on_ladder
+            ld de, entity_on_ladder + 1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+            ret
+
+get_runtime_interaction_type_tile:
+            ; Input: B = row (0..23), C = col (0..31)
+            ; Output: A = interaction type id, 0 if out of bounds
+            ; Clobbers: AF, DE, HL
+            ld a, b
+            cp 24
+            jr nc, .gritt_oob
+            ld a, c
+            cp 32
+            jr nc, .gritt_oob
+            ld l, b
+            ld h, 0
+            add hl, hl
+            add hl, hl
+            add hl, hl
+            add hl, hl
+            add hl, hl
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld de, runtime_interaction_type_map
+            add hl, de
+            ld a, (hl)
+            ret
+.gritt_oob:
+            xor a
+            ret
+
+update_entity_ladder_state_c:
+            ; Input: C = entity index
+            ; Output: A = 1 when entity center/feet overlap a ladder tile, else 0
+            ; Clobbers: AF, DE, HL
+            ; Preserves: BC
+            push bc
+            ld e, c
+            ld d, 0
+
+            ; Sample center tile
+            ld hl, entity_x_pos
+            add hl, de
+            ld a, (hl)
+            add a, 8
+            rrca
+            rrca
+            rrca
+            and #1F
+            ld c, a
+
+            ld hl, entity_y_pos
+            add hl, de
+            ld a, (hl)
+            add a, 8
+            rrca
+            rrca
+            rrca
+            and #1F
+            ld b, a
+            push de
+            call get_runtime_interaction_type_tile
+            pop de
+            cp 7
+            jr z, .uelt_store_active
+
+            ; Sample near feet too, so 16x16 player sprites keep climbing smoothly.
+            ld hl, entity_y_pos
+            add hl, de
+            ld a, (hl)
+            add a, 14
+            rrca
+            rrca
+            rrca
+            and #1F
+            ld b, a
+            push de
+            call get_runtime_interaction_type_tile
+            pop de
+            cp 7
+            jr z, .uelt_store_active
+
+            xor a
+            jr .uelt_store
+
+.uelt_store_active:
+            ld a, 1
+
+.uelt_store:
+            push af
+            ld hl, entity_on_ladder
+            add hl, de
+            ld (hl), a
+            pop af
+            pop bc
             ret
 
         update_input_component:
@@ -2428,6 +2597,10 @@ function generateInputSystem(): string {
             cp c
             jp z, input_next_entity
         .input_not_fast_player:
+
+            push hl
+            call update_entity_ladder_state_c
+            pop hl
 
             ; input_entity_list already guarantees active + current_screen_id + input
 
@@ -2458,6 +2631,13 @@ function generateInputSystem(): string {
             ; Apply input to entity movement (real implementation)
             push bc
             push hl
+
+            call aircontrol_should_lock_horizontal_c
+            jp z, .input_aircontrol_continue
+            pop hl
+            pop bc
+            jp input_next_entity
+.input_aircontrol_continue:
 
             ; Get direction mask for this entity
             ld hl, entity_dir_mask
@@ -2712,16 +2892,12 @@ function generateInputSystem(): string {
 
             ; Sync directional sprite facing for input-driven entities.
             ; Uses sprite_dir_* lookup tables (left/right/up/down variants).
-            ; SKIP if entity has a State Machine: SM controls sprite via ChangeSprite.
-            ; Calling patrol facing for SM entities overwrites entity_sprite_asset_index
-            ; every frame, undoing what ChangeSprite set (walk sprite would revert to idle).
+            ; Skip only when the assigned state machine explicitly uses ChangeSprite.
+            ; Plain state machines without sprite actions must keep auto-facing active.
             push af
-            ld hl, entity_sm_ptr_l
+            ld hl, entity_sm_sprite_control
             add hl, de              ; DE = (0, entity_index)
             ld a, (hl)
-            ld hl, entity_sm_ptr_h
-            add hl, de
-            or (hl)                 ; A != 0 if SM pointer is set
             pop af
             jr nz, .skip_patrol_facing
             call update_entity_patrol_facing
@@ -2842,6 +3018,12 @@ gravity_update_loop:
             ld a, (hl)
             bit 0, a; Check ground flag
             jr nz, gravity_grounded; Skip gravity if on ground
+
+            ld hl, entity_on_ladder
+            add hl, de
+            ld a, (hl)
+            or a
+            jr nz, gravity_grounded
 
     ; Apply gravity acceleration
             ld hl, entity_gravity_vel
@@ -3798,7 +3980,21 @@ function generateAnimationSystem(): string {
             add hl, de
             ld a, (hl)                 ; A = frameCount
             cp 2
-            jp c, anim_done_entity     ; 0/1 frames -> no animation
+            jp nc, .anim_has_multiple_frames
+
+            ; 0/1-frame one-shots must still complete. This lets temporary
+            ; sprites such as wall-jump poses restore automatically.
+            ld e, c
+            ld d, 0
+            ld hl, entity_anim_flags
+            add hl, de
+            bit 1, (hl)                ; loop flag
+            jp nz, anim_done_entity
+            set 3, (hl)                ; ANIM_FLAG_COMPLETED
+            res 0, (hl)                ; clear ANIM_FLAG_PLAYING
+            jp anim_done_entity
+
+.anim_has_multiple_frames:
             push af                    ; Save frameCount on stack
 
             ; Advance frame (entity_anim_frame++)
@@ -4093,6 +4289,12 @@ function generateJumpSystem(): string {
             ld (hl), 0
 
         .jump_check:
+            ld hl, entity_on_ladder
+            add hl, de
+            ld a, (hl)
+            or a
+            jp nz, jump_done_entity
+
             ; --- Jump trigger edge (fire pressed now, not pressed previous frame) ---
             ld a, (input_btn_curr)
             and INPUT_BTN_FIRE
@@ -4200,6 +4402,725 @@ jump_done_entity:
         jump_next_entity:
             dec b
             jp nz, jump_update_loop
+    ret
+    `;
+}
+
+function generateAirControlHelpers(): string {
+    return `
+    ; ==================================================================
+    ; AIR CONTROL HELPERS
+    ; ==================================================================
+    ; aircontrol_should_lock_horizontal_c
+    ; Input: C = entity index
+    ; Output: A = 1 when horizontal input must be ignored, else 0
+    ; Clobbers: AF, DE, HL
+    ; Preserves: BC
+aircontrol_should_lock_horizontal_c:
+    push bc
+    ld e, c
+    ld d, 0
+
+    ; An active wall jump owns horizontal velocity while the entity is
+    ; still ascending, regardless of generic air-control settings.
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #40                       ; COMP_MASK_WALL_JUMP (#4000)
+    jp z, .aircontrol_check_component_lock
+
+    ld hl, entity_walljump_locked_vx
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .aircontrol_check_component_lock
+
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jp nz, .aircontrol_clear_walljump_state
+
+    ld hl, entity_on_ladder
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .aircontrol_clear_walljump_state
+
+    ld l, c
+    ld h, 0
+    add hl, hl
+    push de
+    ld de, entity_gravity_vel
+    add hl, de
+    pop de
+    inc hl
+    ld a, (hl)
+    bit 7, a
+    jp z, .aircontrol_clear_walljump_state
+
+    ld a, 1
+    or a
+    pop bc
+    ret
+
+.aircontrol_clear_walljump_state:
+    call walljump_clear_active_state_c
+
+.aircontrol_check_component_lock:
+    ; Requires both Gravity and AirControl components.
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #82                       ; COMP_MASK_AIR_CONTROL(#8000) + COMP_MASK_GRAVITY(#0200)
+    cp #82
+    jp nz, .aircontrol_no_lock
+
+    ld hl, entity_aircontrol_cfg_mode
+    add hl, de
+    ld a, (hl)
+    cp 1                          ; AIR_CONTROL_MODE_LOCKED
+    jp nz, .aircontrol_no_lock
+
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    jp nz, .aircontrol_no_lock
+
+    ld hl, entity_on_ladder
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .aircontrol_no_lock
+
+    ld a, 1
+    or a
+    pop bc
+    ret
+
+.aircontrol_no_lock:
+    xor a
+    pop bc
+    ret
+    `;
+}
+
+function generateWallGrabSystem(): string {
+    return `
+    ; ==================================================================
+    ; WALL GRAB COMPONENT SYSTEM
+    ; ==================================================================
+    ; Holds the entity against a wall while INPUT_BTN_GRAB is held.
+    ; Runs after Gravity and before WallJump/Position.
+
+init_wallgrab_system:
+    ret
+
+update_wallgrab_component:
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+.wallgrab_loop:
+    ld c, (hl)
+    inc hl
+    push hl
+    ld a, (player_runtime_enabled)
+    or a
+    jr z, .wallgrab_process
+    ld a, (player_entity_index)
+    cp c
+    jr z, .wallgrab_next
+.wallgrab_process:
+    push bc
+    call wallgrab_process_entity_c
+    pop bc
+.wallgrab_next:
+    pop hl
+    djnz .wallgrab_loop
+    ret
+
+wallgrab_process_entity_c:
+    ld e, c
+    ld d, 0
+
+    ld hl, entity_wallgrab_cfg_enabled
+    add hl, de
+    ld a, (hl)
+    or a
+    ret z
+
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #02                       ; Require Gravity component
+    ret z
+
+    ld hl, entity_on_ground
+    add hl, de
+    bit 0, (hl)
+    ret nz
+
+    ld hl, entity_on_ladder
+    add hl, de
+    ld a, (hl)
+    or a
+    ret nz
+
+    ld a, (input_btn_curr)
+    and INPUT_BTN_GRAB
+    ret z
+
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    ld a, (hl)
+    and #0C                       ; LEFT/RIGHT wall flags
+    ret z
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+
+    ld hl, entity_wallgrab_cfg_fall_speed
+    add hl, de
+    ld a, (hl)
+    ld b, a
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), b
+
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), b
+    ret
+    `;
+}
+
+function generateWallJumpSystem(): string {
+    return `
+    ; ==================================================================
+    ; WALL JUMP COMPONENT SYSTEM
+    ; ==================================================================
+    ; Uses wall flags produced by the previous WallCollision pass.
+    ; Runs after Gravity and before Position so slide/jump impulses affect
+    ; the current frame movement without being overwritten by gravity.
+
+init_walljump_system:
+    ld hl, entity_walljump_lock
+    ld de, entity_walljump_lock+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
+
+    ld hl, entity_walljump_locked_vx
+    ld de, entity_walljump_locked_vx+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
+
+    ld hl, entity_walljump_anim_active
+    ld de, entity_walljump_anim_active+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
+    ret
+
+update_walljump_component:
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+.walljump_loop:
+    ld c, (hl)
+    inc hl
+    push hl
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .walljump_check_mask
+    ld a, (player_entity_index)
+    cp c
+    jp z, .walljump_skip_fast_player
+.walljump_check_mask:
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    pop hl
+    and #40                       ; COMP_MASK_WALL_JUMP (#4000) => high byte bit 6
+    jp z, .walljump_next
+
+    push bc
+    push hl
+    call walljump_process_entity_c
+    pop hl
+    pop bc
+    jp .walljump_next
+
+.walljump_skip_fast_player:
+    pop hl
+
+.walljump_next:
+    dec b
+    jp nz, .walljump_loop
+    ret
+
+; ------------------------------------------------------------------
+; walljump_process_entity_c
+; Input: C = entity index
+; Output: none
+; Clobbers: AF, BC, DE, HL
+; ------------------------------------------------------------------
+walljump_process_entity_c:
+    ld b, 0
+
+    ld hl, entity_walljump_cfg_enabled
+    add hl, bc
+    ld a, (hl)
+    or a
+    ret z
+
+    call walljump_restore_animation_if_done_c
+    ld b, 0
+
+    ld hl, entity_on_ground
+    add hl, bc
+    bit 0, (hl)
+    jp z, .walljump_airborne
+    call walljump_clear_active_state_c
+    ret
+
+.walljump_airborne:
+    ld hl, entity_on_ladder
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp z, .walljump_check_locked_impulse
+    call walljump_clear_active_state_c
+    ret
+
+    ; Keep the horizontal wall-jump impulse alive for the whole ascent.
+    ; lock_frames is now only the minimum guaranteed duration.
+.walljump_check_locked_impulse:
+    ld hl, entity_walljump_locked_vx
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp z, .walljump_check_wall_flags
+    push af
+
+    ld l, c
+    ld h, 0
+    add hl, hl
+    ld de, entity_gravity_vel
+    add hl, de
+    inc hl
+    ld a, (hl)
+    bit 7, a
+    jp nz, .walljump_restore_locked_impulse
+    pop af
+    jp .walljump_clear_locked_impulse
+
+.walljump_restore_locked_impulse:
+    pop af
+    ld hl, entity_vel_x
+    add hl, bc
+    ld (hl), a
+    ld hl, entity_walljump_lock
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp z, .walljump_check_wall_flags
+    dec (hl)
+    jp .walljump_check_wall_flags
+
+.walljump_clear_locked_impulse:
+    call walljump_clear_active_state_c
+
+.walljump_check_wall_flags:
+    ld hl, entity_wall_collision_flags
+    add hl, bc
+    ld a, (hl)
+    and #0C
+    ret z
+    ld e, a                       ; E = wall flags (bits 2/3)
+
+    ; Optional wall slide: clamp fall speed while touching a wall.
+    ld hl, entity_walljump_cfg_slide_fall_speed
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr z, .walljump_check_jump
+    ld d, a                       ; D = slide cap
+    ld hl, entity_vel_y
+    add hl, bc
+    ld a, (hl)
+    bit 7, a
+    jr nz, .walljump_check_jump   ; moving up -> don't clamp
+    cp d
+    jr c, .walljump_check_jump
+    jr z, .walljump_check_jump
+    ld (hl), d
+    ld hl, entity_gravity_vel
+    add hl, bc
+    add hl, bc
+    ld (hl), 0
+    inc hl
+    ld (hl), d
+
+.walljump_check_jump:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    ret z
+    ld a, (input_btn_prev)
+    and INPUT_BTN_FIRE
+    ret nz
+
+    ld hl, entity_walljump_cfg_require_away
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr z, .walljump_select_free
+
+    ld a, e
+    bit 2, a
+    jr z, .walljump_require_right_wall
+    call walljump_input_is_right
+    or a
+    jr nz, .walljump_from_left
+.walljump_require_right_wall:
+    ld a, e
+    bit 3, a
+    ret z
+    call walljump_input_is_left
+    or a
+    jr nz, .walljump_from_right
+    ret
+
+.walljump_select_free:
+    ld a, e
+    bit 2, a
+    jr z, .walljump_select_right_only
+    bit 3, a
+    jr z, .walljump_from_left
+    call walljump_input_is_right
+    or a
+    jr nz, .walljump_from_left
+    call walljump_input_is_left
+    or a
+    jr nz, .walljump_from_right
+    jr .walljump_from_left
+
+.walljump_select_right_only:
+    ld a, e
+    bit 3, a
+    ret z
+    jr .walljump_from_right
+
+.walljump_from_left:
+    ld hl, entity_walljump_cfg_horizontal_push
+    add hl, bc
+    ld a, (hl)
+    ld d, a
+    jr .walljump_apply
+
+.walljump_from_right:
+    ld hl, entity_walljump_cfg_horizontal_push
+    add hl, bc
+    ld a, (hl)
+    neg
+    ld d, a
+
+.walljump_apply:
+    ld hl, entity_vel_x
+    add hl, bc
+    ld (hl), d
+    ld hl, entity_walljump_locked_vx
+    add hl, bc
+    ld (hl), d
+    ld a, d
+    bit 7, a
+    jr z, .walljump_face_right
+    ld a, 1                       ; FACING_LEFT: jumped away from a right wall
+    jr .walljump_store_facing
+.walljump_face_right:
+    ld a, 2                       ; FACING_RIGHT: jumped away from a left wall
+.walljump_store_facing:
+    ld hl, entity_facing_dir
+    add hl, bc
+    ld (hl), a
+
+    ; Detach the hitbox from the wall immediately so the rebound has
+    ; a visible opposite push from the first frame.
+    ld a, d
+    or a
+    jr z, .walljump_store_lock
+    ld hl, entity_x_pos
+    add hl, bc
+    bit 7, a
+    jr z, .walljump_detach_right
+    dec (hl)
+    jr .walljump_store_lock
+.walljump_detach_right:
+    inc (hl)
+
+.walljump_store_lock:
+    ld hl, entity_walljump_cfg_lock_frames
+    add hl, bc
+    ld a, (hl)
+    ld hl, entity_walljump_lock
+    add hl, bc
+    ld (hl), a
+
+    ld l, c
+    ld h, 0
+    add hl, hl
+    ld de, entity_walljump_cfg_vertical_impulse
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+
+    push de
+    ld hl, entity_gravity_vel
+    ld e, c
+    ld d, 0
+    add hl, de
+    add hl, de
+    pop de
+    ld (hl), e
+    inc hl
+    ld (hl), d
+
+    ld a, d
+    ld e, c
+    ld d, 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ld hl, entity_on_ground
+    add hl, de
+    res 0, (hl)
+
+    ld hl, entity_platform_id
+    add hl, de
+    ld (hl), 255
+    call walljump_start_jump_animation_c
+    ret
+
+; ------------------------------------------------------------------
+; walljump_restore_animation_if_done_c
+; Input: C = entity index
+; Restores the entity's base directional sprite after the configured
+; wall-jump one-shot animation reaches ANIM_FLAG_COMPLETED.
+; Clobbers: AF, BC, DE, HL
+; ------------------------------------------------------------------
+walljump_restore_animation_if_done_c:
+    ld b, 0
+    ld hl, entity_walljump_anim_active
+    add hl, bc
+    ld a, (hl)
+    or a
+    ret z
+
+    ld hl, entity_anim_flags
+    add hl, bc
+    bit 3, (hl)                    ; ANIM_FLAG_COMPLETED
+    ret z
+    res 3, (hl)
+
+    ld hl, entity_walljump_anim_active
+    add hl, bc
+    xor a
+    ld (hl), a
+
+    ld hl, entity_sprite_asset_index_init
+    add hl, bc
+    ld a, (hl)
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld d, a                        ; D = base sprite asset
+
+    ld hl, entity_facing_dir
+    add hl, bc
+    ld a, (hl)
+    cp 1
+    jp z, wj_anim_restore_left
+    cp 2
+    jp z, wj_anim_restore_right
+    ld a, d
+    jp wj_anim_restore_commit
+
+wj_anim_restore_left:
+    ld hl, sprite_dir_left_table
+    jp wj_anim_restore_lookup
+
+wj_anim_restore_right:
+    ld hl, sprite_dir_right_table
+
+wj_anim_restore_lookup:
+    ld e, d
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+
+wj_anim_restore_commit:
+    push af
+    ld e, a
+    ld d, 0
+    ld hl, sprite_loop_flags
+    add hl, de
+    ld e, (hl)                     ; Native loop flag for restored sprite
+    pop af
+    call walljump_commit_sprite_c
+    ret
+
+; ------------------------------------------------------------------
+; walljump_start_jump_animation_c
+; Input: C = entity index
+; Starts the configured wall-jump animation as a one-shot. #FF means none.
+; Clobbers: AF, BC, DE, HL
+; ------------------------------------------------------------------
+walljump_start_jump_animation_c:
+    ld b, 0
+    ld hl, entity_walljump_cfg_animation_sprite
+    add hl, bc
+    ld a, (hl)
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    push af
+    ld hl, entity_walljump_anim_active
+    add hl, bc
+    ld (hl), 1
+    pop af
+    ld e, 0                        ; Force one-shot so completion restores base facing
+    call walljump_commit_sprite_c
+    ret
+
+; ------------------------------------------------------------------
+; walljump_commit_sprite_c
+; Input: C = entity index, A = sprite asset index, E = loop flag (#00/#02)
+; Clobbers: AF, BC, DE, HL
+; ------------------------------------------------------------------
+walljump_commit_sprite_c:
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld d, a                        ; D = sprite asset index
+    ld b, 0
+
+    ld hl, entity_sprite_asset_index
+    add hl, bc
+    ld (hl), d
+
+    ld hl, entity_anim_frame
+    add hl, bc
+    ld (hl), 0
+
+    ld hl, entity_anim_tick
+    add hl, bc
+    ld (hl), 0
+
+    ld hl, entity_anim_flags
+    add hl, bc
+    ld a, ANIM_FLAG_PLAYING | ANIM_FLAG_FORCE_UPLOAD
+    or e
+    ld (hl), a
+
+    ; Update runtime layer colors so the temporary animation and restored
+    ; sprite render with their own palette immediately.
+    push de
+    ld h, 0
+    ld l, c
+    add hl, hl
+    ld de, entity_sprite_config
+    add hl, de
+    ld c, (hl)                     ; C = base HW sprite slot
+    pop de                         ; D = sprite asset index
+
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+wj_commit_mul_layers:
+    add hl, de
+    djnz wj_commit_mul_layers
+    ld de, SM_SpriteLayerColorTable
+    add hl, de
+
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+wj_commit_color_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_colors
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz wj_commit_color_loop
+    ret
+
+walljump_clear_active_state_c:
+    push de
+    ld e, c
+    ld d, 0
+    xor a
+    ld hl, entity_walljump_lock
+    add hl, de
+    ld (hl), a
+    ld hl, entity_walljump_locked_vx
+    add hl, de
+    ld (hl), a
+    pop de
+    ret
+
+walljump_input_is_left:
+    ld a, (input_state)
+    cp STICK_DOWNLEFT
+    jr c, .walljump_input_left_false
+    cp 9
+    jr c, .walljump_input_left_true
+.walljump_input_left_false:
+    xor a
+    ret
+.walljump_input_left_true:
+    ld a, 1
+    ret
+
+walljump_input_is_right:
+    ld a, (input_state)
+    cp STICK_UPRIGHT
+    jr c, .walljump_input_right_false
+    cp STICK_DOWN
+    jr c, .walljump_input_right_true
+.walljump_input_right_false:
+    xor a
+    ret
+.walljump_input_right_true:
+    ld a, 1
     ret
     `;
 }
@@ -5376,6 +6297,29 @@ function buildGlobalVariableInfoMap(analysis: ProjectAnalysis): Record<string, {
     return variableMap;
 }
 
+function buildOrderedGlobalVariableInfos(analysis: ProjectAnalysis): Array<{ asmName: string; isWord: boolean }> {
+    const orderedVariables: Array<{ asmName: string; isWord: boolean }> = [];
+    const seenAsmNames = new Set<string>();
+    const globalVariables = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
+
+    for (const variable of globalVariables as any[]) {
+        const asmName = typeof variable?.asmName === 'string' ? variable.asmName.trim() : '';
+        if (!asmName) continue;
+
+        const key = asmName.toLowerCase();
+        if (seenAsmNames.has(key)) continue;
+        seenAsmNames.add(key);
+
+        const type = String(variable?.type || '').toLowerCase();
+        orderedVariables.push({
+            asmName,
+            isWord: type === 'word' || type === '16bit',
+        });
+    }
+
+    return orderedVariables;
+}
+
 function resolveConfiguredVariableInfo(
     variableRef: any,
     variableMap: Record<string, { asmName: string; isWord: boolean }>
@@ -6034,6 +6978,7 @@ refresh_player_deadly_fastpath:
 }
 
 function generateTileInteractionSystem(
+    analysis: ProjectAnalysis,
     tileCollectorConfig: {
         soundAssetIndex: number | null;
         replacementTileChar: number;
@@ -6054,6 +6999,7 @@ function generateTileInteractionSystem(
     _hasWallCollision: boolean = false
 ): string {
     const collectionSoundAssetIndex = tileCollectorConfig.soundAssetIndex;
+    const interactionTargetVariables = buildOrderedGlobalVariableInfos(analysis);
     const replacementTileChar = tileCollectorConfig.replacementTileChar;
     const bonusSlashStrength = Math.max(1, Math.min(32, tileCollectorConfig.bonusSlashStrength || 8));
     const bonusSlashUpStrength = Math.max(1, bonusSlashStrength - 1);
@@ -6105,6 +7051,14 @@ function generateTileInteractionSystem(
     pop de
 `
             : '';
+    const interactionTargetPointerTableCode = `interaction_target_variable_ptr_table:
+    dw 0
+${interactionTargetVariables.map((variable) => `    dw ${variable.asmName}`).join('\n')}
+`;
+    const interactionTargetWordFlagTableCode = `interaction_target_variable_word_table:
+    db 0
+${interactionTargetVariables.map((variable) => `    db ${variable.isWord ? 1 : 0}`).join('\n')}
+`;
     const hudSyncCode = buildHudSyncCode(tileCollectorConfig.targetVariable);
 
     const variableIncrementCode = tileCollectorConfig.targetVariable && tileCollectorConfig.incrementAmount > 0
@@ -6401,6 +7355,9 @@ update_bonus_respawns:
 ; Called once per frame from update_all_entities.
 ; ------------------------------------------------------------------
 
+${interactionTargetPointerTableCode}
+${interactionTargetWordFlagTableCode}
+
 init_tile_interaction_system:
     ld hl, entity_slash_vel_x
     ld de, entity_slash_vel_x+1
@@ -6412,6 +7369,23 @@ init_tile_interaction_system:
     ld bc, 31
     ld (hl), 0
     ldir
+    ld hl, entity_button_contact_active
+    ld de, entity_button_contact_active+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    ld hl, entity_button_contact_x
+    ld de, entity_button_contact_x+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    ld hl, entity_button_contact_y
+    ld de, entity_button_contact_y+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    xor a
+    ld (last_interaction_pending), a
     ret
 
 ; ------------------------------------------------------------------
@@ -6723,28 +7697,169 @@ update_slash_component:
 ${bonusRespawnRuntimeCode}
 
 ; ------------------------------------------------------------------
+; Generic interaction helpers
+; ------------------------------------------------------------------
+resolve_interaction_target_ptr:
+    push de
+    ld e, a
+    ld d, 0
+    push de
+    ld hl, interaction_target_variable_ptr_table
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+    pop de
+    push hl
+    ld hl, interaction_target_variable_word_table
+    add hl, de
+    ld a, (hl)
+    pop hl
+    pop de
+    ret
+
+interaction_add_last_value_default1:
+    push bc
+    push de
+    ld a, (last_interaction_target)
+    or a
+    jr z, .iat_add_done
+    call resolve_interaction_target_ptr
+    ld b, a
+    ld a, h
+    or l
+    jr z, .iat_add_done
+    ld a, (last_interaction_value)
+    or a
+    jr nz, .iat_add_have_amount
+    ld a, 1
+.iat_add_have_amount:
+    ld c, a
+    ld a, b
+    or a
+    jr z, .iat_add_byte
+    ld a, (hl)
+    add a, c
+    ld (hl), a
+    inc hl
+    ld a, (hl)
+    adc a, 0
+    ld (hl), a
+    jr .iat_add_sync
+.iat_add_byte:
+    ld a, (hl)
+    add a, c
+    ld (hl), a
+.iat_add_sync:
+    call force_render_hud
+.iat_add_done:
+    pop de
+    pop bc
+    ret
+
+interaction_set_last_value_default1:
+    push bc
+    push de
+    ld a, (last_interaction_target)
+    or a
+    jr z, .iat_set_done
+    call resolve_interaction_target_ptr
+    ld b, a
+    ld a, h
+    or l
+    jr z, .iat_set_done
+    ld a, (last_interaction_value)
+    or a
+    jr nz, .iat_set_have_value
+    ld a, 1
+.iat_set_have_value:
+    ld c, a
+    ld a, b
+    or a
+    jr z, .iat_set_byte
+    ld a, c
+    ld (hl), a
+    inc hl
+    xor a
+    ld (hl), a
+    jr .iat_set_sync
+.iat_set_byte:
+    ld a, c
+    ld (hl), a
+.iat_set_sync:
+    call force_render_hud
+.iat_set_done:
+    pop de
+    pop bc
+    ret
+
+interaction_toggle_target_lowbit:
+    push bc
+    push de
+    ld a, (last_interaction_target)
+    or a
+    jr z, .iat_toggle_done
+    call resolve_interaction_target_ptr
+    ld a, h
+    or l
+    jr z, .iat_toggle_done
+    ld a, (hl)
+    xor 1
+    ld (hl), a
+    call force_render_hud
+.iat_toggle_done:
+    pop de
+    pop bc
+    ret
+
+interaction_clear_button_contact_c:
+    push hl
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_button_contact_active
+    add hl, de
+    ld (hl), 0
+    pop de
+    pop hl
+    ret
+
+interaction_clear_behavior_at_de:
+    push hl
+    ld hl, runtime_behavior_map
+    add hl, de
+    ld (hl), 0
+    pop hl
+    ret
+
+interaction_clear_vram_tile_at_de:
+    push hl
+    ld hl, NAMETBL
+    add hl, de
+    ld a, ${replacementTileChar}
+    call FAST_WRTVRM
+    pop hl
+    ret
+
+; ------------------------------------------------------------------
 ; check_tile_interaction
 ; Purpose:
 ;   Scan active input-driven entities against the interactable tile map,
-;   collect matching tiles, update counters, optional target variable, sound,
-;   persistent collected-tile state, and late-frame deadly-tile contact.
+;   dispatch the configured per-tile interaction, and update persistence/runtime state.
 ; Input:
-;   None (reads active_entity_list / active_entity_count and runtime maps)
+;   None (reads active_entity_list / input_entity_count and runtime maps)
 ; Output:
 ;   None
 ; Clobbers:
 ;   AF, BC, DE, HL
 ; Preserves:
 ;   IX, IY, SP
-; Stack:
-;   Uses balanced push/pop pairs for list pointer, loop counter/entity index,
-;   and temporary tile index saves on all exit paths.
-; Notes:
-;   - Returns immediately if active_entity_count = 0
-;   - Relies on FAST_WRTVRM preserving all registers
-;   - DE must survive the optional HUD/sound hooks until persistence logic runs
 ; ------------------------------------------------------------------
 check_tile_interaction:
+    xor a
+    ld (last_interaction_pending), a
     call scan_tile_interaction_entities
     call update_bonus_respawns
     ret
@@ -6813,6 +7928,8 @@ scan_tile_interaction_entities:
     and #1F
     ld e, a                        ; E = tileY (0-23)
 
+    push de                        ; Save tileX/tileY for last_interaction_*
+
     ; Compute idx = tileY * 32 + tileX
     ld h, 0
     ld l, e                        ; HL = tileY
@@ -6834,21 +7951,20 @@ scan_tile_interaction_entities:
     and #08                        ; INTERACTABLE flag (bit 3)
     jp z, .ti_no_collect
 
-    ; *** COLLECT! ***
-    ; Stack at this point: [idx (as HL), BC_saved, list_ptr]
-    ; HL = &runtime_behavior_map[idx]
-
-    ; 1. Clear behavior map entry FIRST while HL is still correct
-    ld (hl), 0                     ; Prevents double-collect next frame
-
-    ; Recover tile index in DE and restore entity index in C for optional bonus effects.
-    pop de                         ; DE = idx. Stack: [BC_saved, list_ptr]
-    pop bc                         ; B = loop count, C = entity index. Stack: [list_ptr]
+    ; Recover tile index and tile coordinates for the interaction dispatcher.
+    pop de                         ; DE = idx
+    pop hl                         ; H = tileX, L = tileY
+    pop bc                         ; B = loop count, C = entity index
     push bc                        ; Restore loop state for .ti_next
+    ld a, h
+    ld (last_interaction_x), a
+    ld a, l
+    ld (last_interaction_y), a
+    ld a, c
+    ld (last_interaction_entity), a
 
     ; 0. Read char code from VRAM Name Table BEFORE clearing VRAM.
-    ;    Stored in last_gem_char so SM can identify WHICH tile was collected
-    ;    via VARIABLE_COMPARE last_gem_char == <charCode>.
+    ;    Stored in last_interaction_char / last_gem_char for SM comparisons.
     push de                        ; Preserve DE = idx across VRAM read setup
     ld hl, NAMETBL
     add hl, de                     ; HL = NAMETBL + idx (VRAM address to read)
@@ -6861,20 +7977,60 @@ scan_tile_interaction_entities:
     nop                            ; Short delay for VDP address latch
     nop
     in a, (#98)                    ; A = char code from VRAM data port
-    ld (last_gem_char), a          ; Store for SM: VARIABLE_COMPARE last_gem_char
+    ld (last_interaction_char), a
     ld b, a                        ; Preserve collected char code for bonus-tile compare
     pop de                         ; Restore DE = idx
 
+    push de
+    ld hl, runtime_interaction_type_map
+    add hl, de
+    ld a, (hl)
+    ld (last_interaction_type), a
+    pop de
+
+    push de
+    ld hl, runtime_interaction_value_map
+    add hl, de
+    ld a, (hl)
+    ld (last_interaction_value), a
+    pop de
+
+    push de
+    ld hl, runtime_interaction_target_map
+    add hl, de
+    ld a, (hl)
+    ld (last_interaction_target), a
+    pop de
+
+    ld a, (last_interaction_type)
+    cp 5
+    jr z, .ti_dispatch_ready
+    call interaction_clear_button_contact_c
+.ti_dispatch_ready:
+    ld a, (last_interaction_type)
+    cp 1
+    jp z, .ti_collect_gem
+    cp 2
+    jp z, .ti_collect_item
+    cp 3
+    jp z, .ti_add_energy
+    cp 4
+    jp z, .ti_lever_toggle
+    cp 5
+    jp z, .ti_button_press
+    cp 6
+    jp z, .ti_jumper
+    cp 7
+    jp z, .ti_next
+    jp .ti_next
+
+.ti_collect_gem:
+    call interaction_clear_behavior_at_de
 ${bonusCollectBranchCode}
+    jp .ti_collect_gem_normal
 
-    jp .ti_collect_normal
-
-.ti_collect_normal:
-    ; 2. Replace tile in VRAM Name Table (#1800 + idx)
-    ld hl, NAMETBL
-    add hl, de                     ; HL = NAMETBL + idx
-    ld a, ${replacementTileChar}   ; Replacement tile char (0 = empty)
-    call FAST_WRTVRM
+.ti_collect_gem_normal:
+    call interaction_clear_vram_tile_at_de
 
     ; 3. Increment gem_count
     ld hl, gem_count
@@ -6882,6 +8038,7 @@ ${bonusCollectBranchCode}
 
 ${variableIncrementCode}
 ${flagAssignCode}
+    call interaction_add_last_value_default1
 
 ${collectionSoundCode}
 
@@ -6915,12 +8072,105 @@ ${collectionSoundCode}
 
     jp .ti_next
 
+.ti_collect_item:
+    call interaction_clear_behavior_at_de
+    call interaction_clear_vram_tile_at_de
+    call interaction_add_last_value_default1
+    jp .ti_record_persistent
+
+.ti_add_energy:
+    call interaction_clear_behavior_at_de
+    call interaction_clear_vram_tile_at_de
+    ld a, (last_interaction_value)
+    or a
+    jr nz, .ti_add_energy_amount_ready
+    ld a, 1
+.ti_add_energy_amount_ready:
+    call increase_entity_lives
+    call interaction_add_last_value_default1
+    jp .ti_record_persistent
+
+.ti_lever_toggle:
+    call interaction_clear_behavior_at_de
+    call interaction_toggle_target_lowbit
+    jp .ti_next
+
+.ti_button_press:
+    ld e, c
+    ld d, 0
+    ld hl, entity_button_contact_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .ti_button_press_arm
+
+    push hl
+    ld hl, entity_button_contact_x
+    add hl, de
+    ld a, (last_interaction_x)
+    cp (hl)
+    jr nz, .ti_button_press_rearm
+    ld hl, entity_button_contact_y
+    add hl, de
+    ld a, (last_interaction_y)
+    cp (hl)
+    jr nz, .ti_button_press_rearm
+    pop hl
+    jp .ti_next
+
+.ti_button_press_rearm:
+    pop hl
+.ti_button_press_arm:
+    ld (hl), 1
+    ld hl, entity_button_contact_x
+    add hl, de
+    ld a, (last_interaction_x)
+    ld (hl), a
+    ld hl, entity_button_contact_y
+    add hl, de
+    ld a, (last_interaction_y)
+    ld (hl), a
+    ld a, 1
+    ld (last_interaction_pending), a
+    jp .ti_next
+
+.ti_jumper:
+    ld a, (last_interaction_value)
+    cp 8
+    jr nc, .ti_jumper_strength_ready
+    ld a, 8
+.ti_jumper_strength_ready:
+    push af
+    ld e, c
+    ld d, 0
+    ld hl, entity_on_ground
+    add hl, de
+    res 0, (hl)
+    ld hl, entity_platform_id
+    add hl, de
+    ld (hl), 255
+    ld hl, entity_gravity_vel
+    add hl, de
+    xor a
+    ld (hl), a
+    inc hl
+    ld (hl), a
+    pop af
+    cpl
+    inc a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+    jp .ti_next
+
 .ti_collect_bonus:
     ; Bonus tile path: independent from normal collectible gem logic.
+    push hl
     ld hl, NAMETBL
     add hl, de                     ; HL = NAMETBL + idx
     ld a, ${tileCollectorConfig.bonusReplacementTileChar}
     call FAST_WRTVRM
+    pop hl
 
 ${bonusEffectCode}
 
@@ -6930,6 +8180,10 @@ ${bonusRespawnContinuationCode}
 
 .ti_no_collect:
     pop hl                         ; Balance idx push
+    pop de                         ; Balance tileX/tileY push
+    pop bc                         ; Restore B=count, C=entity
+    push bc
+    call interaction_clear_button_contact_c
 
 .ti_next:
     pop bc                         ; Restore B=count, C=entity
@@ -7181,6 +8435,692 @@ update_collectible_component:
     inc c
     jr .collect_loop
     `;
+}
+
+function generateRetractableGateSystem(): string {
+    return `
+init_retractable_gate_system:
+    ld hl, entity_gate_current_step
+    ld de, entity_gate_current_step + 1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
+
+    ld hl, entity_gate_step_timer
+    ld de, entity_gate_step_timer + 1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
+    ret
+
+; ------------------------------------------------------------------
+; update_retractable_gate_component
+; Drives one-shot retractable gates with timed per-char shifting.
+; Entity arrays hold gate geometry and a global variable trigger.
+; ------------------------------------------------------------------
+update_retractable_gate_component:
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld d, a
+    ld hl, active_entity_list
+
+.rg_loop:
+    ld a, d
+    or a
+    ret z
+
+    ld c, (hl)
+    inc hl
+    push hl
+    push de
+    ld b, 0
+
+    ld hl, entity_gate_cfg_enabled
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp z, .rg_next
+
+    ld hl, entity_gate_current_step
+    add hl, bc
+    ld e, (hl)
+    ld hl, entity_gate_cfg_total_steps
+    add hl, bc
+    ld a, (hl)
+    cp e
+    jp z, .rg_next
+    jp c, .rg_next
+
+    push bc
+    call gate_trigger_condition_true
+    pop bc
+    or a
+    jp z, .rg_next
+
+    ld hl, entity_gate_current_step
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr nz, .rg_check_timer
+
+    push bc
+    call gate_shift_area_one_step
+    pop bc
+
+    ld hl, entity_gate_current_step
+    add hl, bc
+    inc (hl)
+
+    ld hl, entity_gate_cfg_step_delay
+    add hl, bc
+    ld a, (hl)
+    ld e, a
+    ld hl, entity_gate_step_timer
+    add hl, bc
+    ld (hl), e
+    jr .rg_next
+
+.rg_check_timer:
+    ld hl, entity_gate_step_timer
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr z, .rg_arm_timer
+    dec (hl)
+    jr nz, .rg_next
+
+    push bc
+    call gate_shift_area_one_step
+    pop bc
+
+    ld hl, entity_gate_current_step
+    add hl, bc
+    inc (hl)
+
+    ld hl, entity_gate_cfg_step_delay
+    add hl, bc
+    ld a, (hl)
+    ld e, a
+    ld hl, entity_gate_step_timer
+    add hl, bc
+    ld (hl), e
+    jr .rg_next
+
+.rg_arm_timer:
+    ld hl, entity_gate_cfg_step_delay
+    add hl, bc
+    ld a, (hl)
+    ld e, a
+    ld hl, entity_gate_step_timer
+    add hl, bc
+    ld (hl), e
+
+.rg_next:
+    pop de
+    pop hl
+    dec d
+    jr .rg_loop
+
+; ------------------------------------------------------------------
+; gate_trigger_condition_true
+; Input: C = entity index
+; Output: A = 1 when trigger condition is true, 0 otherwise
+; Clobbers: AF, BC, DE, HL
+; ------------------------------------------------------------------
+gate_trigger_condition_true:
+    ld b, 0
+
+    ld l, c
+    ld h, 0
+    add hl, hl
+    ld de, entity_gate_cfg_trigger_ptr
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+
+    ld hl, entity_gate_cfg_trigger_is_word
+    add hl, bc
+    ld a, (hl)
+    or a
+    ld hl, 0
+    jr z, .rg_trigger_read_byte
+    ld a, (de)
+    ld l, a
+    inc de
+    ld a, (de)
+    ld h, a
+    jr .rg_trigger_current_ready
+
+.rg_trigger_read_byte:
+    ld a, (de)
+    ld l, a
+
+.rg_trigger_current_ready:
+    ex de, hl                 ; DE = current value
+    push de                   ; Preserve current value while loading target/operator
+
+    ld l, c
+    ld h, 0
+    add hl, hl
+    ld de, entity_gate_cfg_trigger_value
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a                   ; HL = target value
+
+    push hl
+    ld hl, entity_gate_cfg_trigger_operator
+    add hl, bc
+    ld a, (hl)
+    pop hl
+    pop de                    ; DE = current value
+
+    cp 1
+    jr z, .rg_cmp_ne
+    cp 2
+    jr z, .rg_cmp_gt
+    cp 3
+    jr z, .rg_cmp_lt
+    cp 4
+    jr z, .rg_cmp_ge
+    cp 5
+    jr z, .rg_cmp_le
+
+.rg_cmp_eq:
+    ld a, d
+    cp h
+    jr nz, .rg_false
+    ld a, e
+    cp l
+    jr nz, .rg_false
+    jr .rg_true
+
+.rg_cmp_ne:
+    ld a, d
+    cp h
+    jr nz, .rg_true
+    ld a, e
+    cp l
+    jr nz, .rg_true
+    jr .rg_false
+
+.rg_cmp_gt:
+    or a
+    sbc hl, de                ; target - current
+    jr c, .rg_true
+    jr .rg_false
+
+.rg_cmp_lt:
+    or a
+    sbc hl, de                ; target - current
+    jr z, .rg_false
+    jr nc, .rg_true
+    jr .rg_false
+
+.rg_cmp_ge:
+    or a
+    sbc hl, de                ; target - current
+    jr c, .rg_true
+    jr z, .rg_true
+    jr .rg_false
+
+.rg_cmp_le:
+    or a
+    sbc hl, de                ; target - current
+    jr nc, .rg_true
+    jr .rg_false
+
+.rg_true:
+    ld a, 1
+    ret
+
+.rg_false:
+    xor a
+    ret
+
+; ------------------------------------------------------------------
+; gate_shift_area_one_step
+; Input: C = entity index
+; Shifts the configured gate window by exactly one char.
+; ------------------------------------------------------------------
+gate_shift_area_one_step:
+    ld b, 0
+
+    ld hl, entity_gate_cfg_fill_char
+    add hl, bc
+    ld a, (hl)
+    ld (temp_byte_1), a
+
+    ld hl, entity_gate_cfg_x
+    add hl, bc
+    ld a, (hl)
+    ld (temp_byte_2), a
+
+    ld hl, entity_gate_cfg_y
+    add hl, bc
+    ld a, (hl)
+    ld (temp_byte_3), a
+
+    ld hl, entity_gate_cfg_width
+    add hl, bc
+    ld a, (hl)
+    ld (temp_byte_4), a
+
+    ld hl, entity_gate_cfg_height
+    add hl, bc
+    ld a, (hl)
+    ld (temp_byte_5), a
+
+    ld hl, entity_gate_cfg_direction
+    add hl, bc
+    ld a, (hl)
+    cp 2
+    jp z, .rg_shift_down
+    cp 3
+    jp z, .rg_shift_left
+    cp 4
+    jp z, .rg_shift_right
+
+.rg_shift_up:
+    xor a
+    ld (temp_byte_6), a       ; row
+.rg_up_row_loop:
+    ld a, (temp_byte_6)
+    ld b, a
+    ld a, (temp_byte_5)
+    dec a
+    cp b
+    jr c, .rg_up_fill_last_row
+    jr z, .rg_up_fill_last_row
+    xor a
+    ld (temp_byte_7), a       ; col
+.rg_up_col_loop:
+    ld a, (temp_byte_7)
+    ld b, a
+    ld a, (temp_byte_4)
+    cp b
+    jr z, .rg_up_next_row
+    ld a, (temp_byte_2)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld e, a
+    ld a, (temp_byte_6)
+    inc a
+    add a, e
+    ld e, a
+    call gate_read_tile_at_xy
+    ld b, a
+    ld a, (temp_byte_2)
+    ld d, a
+    ld a, (temp_byte_7)
+    add a, d
+    ld d, a
+    ld a, (temp_byte_3)
+    ld e, a
+    ld a, (temp_byte_6)
+    add a, e
+    ld e, a
+    ld a, b
+    call gate_write_tile_at_xy
+    ld a, (temp_byte_7)
+    inc a
+    ld (temp_byte_7), a
+    jr .rg_up_col_loop
+.rg_up_next_row:
+    ld a, (temp_byte_6)
+    inc a
+    ld (temp_byte_6), a
+    jr .rg_up_row_loop
+.rg_up_fill_last_row:
+    xor a
+    ld (temp_byte_7), a
+.rg_up_fill_loop:
+    ld a, (temp_byte_7)
+    ld b, a
+    ld a, (temp_byte_4)
+    cp b
+    ret z
+    ld a, (temp_byte_2)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld e, a
+    ld a, (temp_byte_5)
+    dec a
+    add a, e
+    ld e, a
+    ld a, (temp_byte_1)
+    call gate_write_tile_at_xy
+    ld a, (temp_byte_7)
+    inc a
+    ld (temp_byte_7), a
+    jr .rg_up_fill_loop
+
+.rg_shift_down:
+    ld a, (temp_byte_5)
+    dec a
+    ld (temp_byte_6), a       ; row = height - 1
+.rg_down_row_loop:
+    ld a, (temp_byte_6)
+    or a
+    jr z, .rg_down_fill_first_row
+    xor a
+    ld (temp_byte_7), a
+.rg_down_col_loop:
+    ld a, (temp_byte_7)
+    ld b, a
+    ld a, (temp_byte_4)
+    cp b
+    jr z, .rg_down_prev_row
+    ld a, (temp_byte_2)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld e, a
+    ld a, (temp_byte_6)
+    dec a
+    add a, e
+    ld e, a
+    call gate_read_tile_at_xy
+    ld b, a
+    ld a, (temp_byte_2)
+    ld d, a
+    ld a, (temp_byte_7)
+    add a, d
+    ld d, a
+    ld a, (temp_byte_3)
+    ld e, a
+    ld a, (temp_byte_6)
+    add a, e
+    ld e, a
+    ld a, b
+    call gate_write_tile_at_xy
+    ld a, (temp_byte_7)
+    inc a
+    ld (temp_byte_7), a
+    jr .rg_down_col_loop
+.rg_down_prev_row:
+    ld a, (temp_byte_6)
+    dec a
+    ld (temp_byte_6), a
+    jr .rg_down_row_loop
+.rg_down_fill_first_row:
+    xor a
+    ld (temp_byte_7), a
+.rg_down_fill_loop:
+    ld a, (temp_byte_7)
+    ld b, a
+    ld a, (temp_byte_4)
+    cp b
+    ret z
+    ld a, (temp_byte_2)
+    add a, b
+    ld d, a
+    ld a, (temp_byte_3)
+    ld e, a
+    ld a, (temp_byte_1)
+    call gate_write_tile_at_xy
+    ld a, (temp_byte_7)
+    inc a
+    ld (temp_byte_7), a
+    jr .rg_down_fill_loop
+
+.rg_shift_left:
+    xor a
+    ld (temp_byte_6), a       ; col
+.rg_left_col_loop:
+    ld a, (temp_byte_6)
+    ld b, a
+    ld a, (temp_byte_4)
+    dec a
+    cp b
+    jr c, .rg_left_fill_last_col
+    jr z, .rg_left_fill_last_col
+    xor a
+    ld (temp_byte_7), a       ; row
+.rg_left_row_loop:
+    ld a, (temp_byte_7)
+    ld b, a
+    ld a, (temp_byte_5)
+    cp b
+    jr z, .rg_left_next_col
+    ld a, (temp_byte_2)
+    ld d, a
+    ld a, (temp_byte_6)
+    inc a
+    add a, d
+    ld d, a
+    ld a, (temp_byte_3)
+    ld e, a
+    ld a, (temp_byte_7)
+    add a, e
+    ld e, a
+    call gate_read_tile_at_xy
+    ld b, a
+    ld a, (temp_byte_2)
+    ld d, a
+    ld a, (temp_byte_6)
+    add a, d
+    ld d, a
+    ld a, (temp_byte_3)
+    ld e, a
+    ld a, (temp_byte_7)
+    add a, e
+    ld e, a
+    ld a, b
+    call gate_write_tile_at_xy
+    ld a, (temp_byte_7)
+    inc a
+    ld (temp_byte_7), a
+    jr .rg_left_row_loop
+.rg_left_next_col:
+    ld a, (temp_byte_6)
+    inc a
+    ld (temp_byte_6), a
+    jr .rg_left_col_loop
+.rg_left_fill_last_col:
+    xor a
+    ld (temp_byte_7), a
+.rg_left_fill_loop:
+    ld a, (temp_byte_7)
+    ld b, a
+    ld a, (temp_byte_5)
+    cp b
+    ret z
+    ld a, (temp_byte_2)
+    ld d, a
+    ld a, (temp_byte_4)
+    dec a
+    add a, d
+    ld d, a
+    ld a, (temp_byte_3)
+    ld e, a
+    ld a, (temp_byte_7)
+    add a, e
+    ld e, a
+    ld a, (temp_byte_1)
+    call gate_write_tile_at_xy
+    ld a, (temp_byte_7)
+    inc a
+    ld (temp_byte_7), a
+    jr .rg_left_fill_loop
+
+.rg_shift_right:
+    ld a, (temp_byte_4)
+    dec a
+    ld (temp_byte_6), a       ; col = width - 1
+.rg_right_col_loop:
+    ld a, (temp_byte_6)
+    or a
+    jr z, .rg_right_fill_first_col
+    xor a
+    ld (temp_byte_7), a       ; row
+.rg_right_row_loop:
+    ld a, (temp_byte_7)
+    ld b, a
+    ld a, (temp_byte_5)
+    cp b
+    jr z, .rg_right_prev_col
+    ld a, (temp_byte_2)
+    ld d, a
+    ld a, (temp_byte_6)
+    dec a
+    add a, d
+    ld d, a
+    ld a, (temp_byte_3)
+    ld e, a
+    ld a, (temp_byte_7)
+    add a, e
+    ld e, a
+    call gate_read_tile_at_xy
+    ld b, a
+    ld a, (temp_byte_2)
+    ld d, a
+    ld a, (temp_byte_6)
+    add a, d
+    ld d, a
+    ld a, (temp_byte_3)
+    ld e, a
+    ld a, (temp_byte_7)
+    add a, e
+    ld e, a
+    ld a, b
+    call gate_write_tile_at_xy
+    ld a, (temp_byte_7)
+    inc a
+    ld (temp_byte_7), a
+    jr .rg_right_row_loop
+.rg_right_prev_col:
+    ld a, (temp_byte_6)
+    dec a
+    ld (temp_byte_6), a
+    jr .rg_right_col_loop
+.rg_right_fill_first_col:
+    xor a
+    ld (temp_byte_7), a
+.rg_right_fill_loop:
+    ld a, (temp_byte_7)
+    ld b, a
+    ld a, (temp_byte_5)
+    cp b
+    ret z
+    ld a, (temp_byte_2)
+    ld d, a
+    ld a, (temp_byte_3)
+    ld e, a
+    ld a, (temp_byte_7)
+    add a, e
+    ld e, a
+    ld a, (temp_byte_1)
+    call gate_write_tile_at_xy
+    ld a, (temp_byte_7)
+    inc a
+    ld (temp_byte_7), a
+    jr .rg_right_fill_loop
+
+gate_read_tile_at_xy:
+    ld a, d
+    cp 32
+    jr nc, .rg_read_out
+    ld a, e
+    cp 24
+    jr nc, .rg_read_out
+
+    ld l, e
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld e, d
+    ld d, 0
+    add hl, de
+
+    push hl
+    ld de, (current_screen_layout)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
+    ld a, (hl)
+    ld b, a
+    call mapper_pop_p2
+    pop hl
+    ld a, b
+    ret
+
+.rg_read_out:
+    xor a
+    ret
+
+gate_write_tile_at_xy:
+    push af
+    ld a, d
+    cp 32
+    jr nc, .rg_write_out
+    ld a, e
+    cp 24
+    jr nc, .rg_write_out
+    pop af
+
+    ld l, e
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld e, d
+    ld d, 0
+    add hl, de
+    ld b, a
+
+    push hl
+    ld de, (current_screen_layout)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+
+    push hl
+    ld de, (current_behavior_map)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_behavior_map_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    or a
+    jr z, .rg_write_store_passable
+    ld a, 1
+.rg_write_store_passable:
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+
+    ld a, #FF
+    ld (behavior_cache_row), a
+
+    ld de, NAMETBL
+    add hl, de
+    ld a, b
+    call WRTVRM
+    ret
+
+.rg_write_out:
+    pop af
+    ret
+`;
 }
 
 function generateResolveRuntimeHeroEntityHelper(): string {
@@ -7470,7 +9410,7 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
     ; Cartridge RAM is not guaranteed to be zeroed.
         ld hl, gem_count
         ld de, gem_count + 1
-        ld bc, 354                 ; bytes to clear - 1 (gem_count..bonus_respawn_frames)
+        ld bc, 361                 ; bytes to clear - 1 (gem_count..bonus_respawn_frames, including last_interaction_*)
         xor a
         ld (hl), a
         ldir
@@ -7566,6 +9506,18 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
     `;
     }
 
+    if (usedComponents.has('WallGrab')) {
+        code += `    ; Initialize wall grab system
+    call init_wallgrab_system
+    `;
+    }
+
+    if (usedComponents.has('WallJump')) {
+        code += `    ; Initialize wall jump system
+    call init_walljump_system
+    `;
+    }
+
     // Always initialize auto-destroy system (lightweight, always available)
     code += `    ; Initialize auto-destroy system
     call init_auto_destroy_system
@@ -7580,6 +9532,12 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
     if (usedComponents.has('StateMachine')) {
         code += `    ; Initialize state machine system (stub)
     call init_statemachine_system
+    `;
+    }
+
+    if (usedComponents.has('RetractableGate')) {
+        code += `    ; Initialize retractable gate system
+    call init_retractable_gate_system
     `;
     }
 
@@ -7694,6 +9652,8 @@ COMP_MASK_JUMP       EQU #0100
 COMP_MASK_GRAVITY    EQU #0200
 COMP_MASK_DEADLY_TILES EQU #2000
 COMP_MASK_AUTO_DESTROY EQU #0400
+COMP_MASK_WALL_JUMP EQU #4000
+COMP_MASK_AIR_CONTROL EQU #8000
 
     ; Minimal stub functions for compatibility
 init_components:
@@ -7953,6 +9913,7 @@ COMP_ANIMATION  EQU 7; Animation state component
 COMP_JUMP       EQU 8; Jump behavior component(platformer physics)
 COMP_GRAVITY    EQU 9; Gravity physics component
 COMP_DEADLY_TILES EQU 13; Deadly behavior-map tile detection marker
+COMP_AIR_CONTROL EQU 15; Air control restrictions while airborne
 
     ; Component flags for entity filtering(16 - bit masks for 10 + components)
 COMP_MASK_POSITION   EQU #0001; Binary: 0000000000000001
@@ -7967,6 +9928,8 @@ COMP_MASK_JUMP       EQU #0100; Binary: 0000000100000000
 COMP_MASK_GRAVITY    EQU #0200; Binary: 0000001000000000
 COMP_MASK_AUTO_DESTROY EQU #0400; Binary: 0000010000000000
 COMP_MASK_DEADLY_TILES EQU #2000; Binary: 0010000000000000
+COMP_MASK_WALL_JUMP EQU #4000; Binary: 0100000000000000
+COMP_MASK_AIR_CONTROL EQU #8000; Binary: 1000000000000000
 
 ; ==================================================================
 ; ANIMATION FLAGS (entity_anim_flags)
@@ -8200,6 +10163,57 @@ update_gravity_component:
     `;
     }
 
+    if (usedComponents.has('AirControl')) {
+        code += generateAirControlHelpers();
+    } else {
+        code += `
+    ; AirControl helpers filtered out (not used)
+aircontrol_should_lock_horizontal_c:
+    xor a
+    ret
+    `;
+    }
+
+    if (usedComponents.has('WallGrab')) {
+        code += generateWallGrabSystem();
+    } else {
+        code += `
+    ; WallGrab system filtered out (not used)
+init_wallgrab_system:
+    ret
+
+update_wallgrab_component:
+    ret
+
+wallgrab_process_entity_c:
+    ret
+    `;
+    }
+
+    if (usedComponents.has('WallJump')) {
+        code += generateWallJumpSystem();
+    } else {
+        code += `
+    ; WallJump system filtered out (not used)
+init_walljump_system:
+    ret
+
+update_walljump_component:
+    ret
+
+walljump_process_entity_c:
+    ret
+
+walljump_input_is_left:
+    xor a
+    ret
+
+walljump_input_is_right:
+    xor a
+    ret
+    `;
+    }
+
     // Generate Auto-Destroy System (always available - lightweight feature)
     code += generateAutoDestroySystem();
 
@@ -8291,6 +10305,19 @@ update_statemachine_component:
     inc c
     jr .sm_comp_loop
     `;
+    }
+
+    if (!usedComponents.has('RetractableGate')) {
+        code += `
+    ; RetractableGate system filtered out(not used)
+init_retractable_gate_system:
+    ret
+
+update_retractable_gate_component:
+    ret
+    `;
+    } else {
+        code += generateRetractableGateSystem();
     }
 
     // Generate Carry System stub (if used)
@@ -8385,7 +10412,7 @@ update_collectible_component:
     // Generate Tile Interaction System (when project has Interactable tiles)
     // Detects tiles with mapId & #08 (INTERACTABLE flag) on the screen map.
     if (hasInteractableTiles && usedComponents.has('Input')) {
-        code += generateTileInteractionSystem(tileCollectorRuntimeConfig, hasStateMachineSoundPlayback, usedComponents.has('WallCollision'));
+        code += generateTileInteractionSystem(analysis, tileCollectorRuntimeConfig, hasStateMachineSoundPlayback, usedComponents.has('WallCollision'));
         code += generateApplyCollectedTiles();
         console.log('  - Tile Interaction system: ENABLED (interactable tiles detected)');
     } else {
@@ -8726,9 +10753,7 @@ div_a_by_c:
 
 `;
 
-    if (usedComponents.has('Collectible') || hasSecretZones) {
-        code += generateResolveRuntimeHeroEntityHelper();
-    }
+    code += generateResolveRuntimeHeroEntityHelper();
 
     if (hasSecretZones) {
         code += `

@@ -73,6 +73,11 @@ export const wallCollisionEngine: GameEngine = {
             if (entity.isTouchingWallLeft === undefined) entity.isTouchingWallLeft = false;
             if (entity.isTouchingWallRight === undefined) entity.isTouchingWallRight = false;
 
+            // Recompute directional contact flags every frame.
+            entity.isTouchingCeiling = false;
+            entity.isTouchingWallLeft = false;
+            entity.isTouchingWallRight = false;
+
             // unify velocity properties (prefer vx/vy, fallback a velocityX/velocityY)
             let vx = typeof entity.vx === 'number' ? entity.vx : (typeof entity.velocityX === 'number' ? entity.velocityX : 0);
             let vy = typeof entity.vy === 'number' ? entity.vy : (typeof entity.velocityY === 'number' ? entity.velocityY : 0);

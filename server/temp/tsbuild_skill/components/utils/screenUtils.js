@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.renderScreenToCanvas = exports.deepCompareTiles = exports.generateSuperRLEData = exports.generateOptimizedRLEData = exports.generateBehaviorMapData = exports.generateBehaviorMapASMCode = exports.generateScreenLayoutExportBinary = exports.generateScreenLayoutExportASMCode = exports.generateScreenLayoutASMCode = exports.generateScreenMapLayoutBytes = void 0;
+exports.renderScreenToCanvas = exports.deepCompareTiles = exports.generateSuperRLEData = exports.generateOptimizedRLEData = exports.generateBehaviorMapData = exports.buildScreenInteractionMaps = exports.buildScreenCharBehaviorTable = exports.encodeBehaviorByteFromLogicalProperties = exports.encodeInteractionTargetFromLogicalProperties = exports.encodeInteractionValueFromLogicalProperties = exports.encodeInteractionTypeIdFromLogicalProperties = exports.normalizeTileInteractionType = exports.isTriggeredTileInteractionType = exports.getScreenBehaviorLayer = exports.resolveScreenBehaviorSource = exports.generateBehaviorMapASMCode = exports.generateScreenLayoutExportBinary = exports.generateScreenLayoutExportASMCode = exports.generateScreenLayoutASMCode = exports.generateScreenMapLayoutBytes = void 0;
 exports.createTileDataURL = createTileDataURL;
 exports.createSpriteDataURL = createSpriteDataURL;
+const types_1 = require("../../types");
 const constants_1 = require("../../constants");
 const screenModeConfig_1 = require("../../utils/screenModeConfig");
 const RLE_MARKER_PLETTER = 0xC9;
@@ -360,6 +361,137 @@ const generateBehaviorMapASMCode = (mapName, mapWidth, mapHeight, behaviorMapDat
     return asmString;
 };
 exports.generateBehaviorMapASMCode = generateBehaviorMapASMCode;
+const resolveScreenBehaviorSource = (screenMap) => (screenMap.behaviorConfig?.source === 'backgroundChars' ? 'backgroundChars' : 'collisionLayer');
+exports.resolveScreenBehaviorSource = resolveScreenBehaviorSource;
+const getScreenBehaviorLayer = (screenMap) => ((0, exports.resolveScreenBehaviorSource)(screenMap) === 'backgroundChars'
+    ? screenMap.layers.background
+    : screenMap.layers.collision);
+exports.getScreenBehaviorLayer = getScreenBehaviorLayer;
+const SCREEN_WIDTH = 32;
+const SCREEN_HEIGHT = 24;
+const INTERACTION_TYPE_ID_BY_KEY = new Map(types_1.TILE_INTERACTION_TYPES.map(interaction => [interaction.key, interaction.id]));
+const isTriggeredTileInteractionType = (interactionType) => interactionType !== 'none' && interactionType !== 'ladder';
+exports.isTriggeredTileInteractionType = isTriggeredTileInteractionType;
+const normalizeTileInteractionType = (logicalProperties) => {
+    if (!logicalProperties) {
+        return 'none';
+    }
+    const explicitType = logicalProperties.interactionType;
+    if (explicitType && explicitType !== 'none') {
+        return explicitType;
+    }
+    if (logicalProperties.isInteractable || logicalProperties.isInteractiveSwitch) {
+        return 'collect_gem';
+    }
+    return 'none';
+};
+exports.normalizeTileInteractionType = normalizeTileInteractionType;
+const encodeInteractionTypeIdFromLogicalProperties = (logicalProperties) => {
+    const interactionType = (0, exports.normalizeTileInteractionType)(logicalProperties);
+    return INTERACTION_TYPE_ID_BY_KEY.get(interactionType) ?? 0;
+};
+exports.encodeInteractionTypeIdFromLogicalProperties = encodeInteractionTypeIdFromLogicalProperties;
+const encodeInteractionValueFromLogicalProperties = (logicalProperties) => {
+    if (!logicalProperties) {
+        return 0;
+    }
+    const parsed = Number(logicalProperties.interactionValue ?? 1);
+    if (!Number.isFinite(parsed)) {
+        return 1;
+    }
+    return Math.max(0, Math.min(255, Math.floor(parsed)));
+};
+exports.encodeInteractionValueFromLogicalProperties = encodeInteractionValueFromLogicalProperties;
+const encodeInteractionTargetFromLogicalProperties = (logicalProperties) => {
+    if (!logicalProperties) {
+        return null;
+    }
+    const target = typeof logicalProperties.interactionTarget === 'string'
+        ? logicalProperties.interactionTarget.trim()
+        : '';
+    return target || null;
+};
+exports.encodeInteractionTargetFromLogicalProperties = encodeInteractionTargetFromLogicalProperties;
+const encodeBehaviorByteFromLogicalProperties = (logicalProperties) => {
+    if (!logicalProperties) {
+        return 0;
+    }
+    const familyId = logicalProperties.familyId ?? (logicalProperties.isSolid ? 1 : 0);
+    const interactionType = (0, exports.normalizeTileInteractionType)(logicalProperties);
+    let flagBits = 0;
+    if (logicalProperties.isBreakable)
+        flagBits |= 0x01;
+    if (logicalProperties.isMovable)
+        flagBits |= 0x02;
+    if (logicalProperties.causesDamage)
+        flagBits |= 0x04;
+    if ((0, exports.isTriggeredTileInteractionType)(interactionType))
+        flagBits |= 0x08;
+    return ((familyId & 0x0f) << 4) | (flagBits & 0x0f);
+};
+exports.encodeBehaviorByteFromLogicalProperties = encodeBehaviorByteFromLogicalProperties;
+const mergeBehaviorBytes = (existing, next) => {
+    if (existing === 0)
+        return next;
+    if (next === 0 || existing === next)
+        return existing;
+    const existingFamily = (existing >> 4) & 0x0f;
+    const nextFamily = (next >> 4) & 0x0f;
+    const mergedFamily = existingFamily === 0
+        ? nextFamily
+        : nextFamily === 0
+            ? existingFamily
+            : Math.max(existingFamily, nextFamily);
+    return ((mergedFamily & 0x0f) << 4) | ((existing | next) & 0x0f);
+};
+const buildScreenCharBehaviorTable = (screenMapData, tileset, tileBanks, currentScreenMode = "SCREEN 2 (Graphics I)") => {
+    const fullScreenMap = {
+        ...screenMapData,
+        activeAreaX: 0,
+        activeAreaY: 0,
+        activeAreaWidth: screenMapData.width,
+        activeAreaHeight: screenMapData.height,
+    };
+    const layoutBytes = Array.from((0, exports.generateScreenMapLayoutBytes)(fullScreenMap, tileset, tileBanks, currentScreenMode));
+    const tileById = new Map(tileset.map(tile => [tile.id, tile]));
+    const charBehaviorTable = Array.from({ length: 256 }, () => 0);
+    for (let row = 0; row < (screenMapData.height ?? 0); row++) {
+        for (let col = 0; col < (screenMapData.width ?? 0); col++) {
+            const charCode = layoutBytes[(row * (screenMapData.width ?? 0)) + col] ?? 0;
+            const tileId = screenMapData.layers.background[row]?.[col]?.tileId;
+            const behaviorByte = (0, exports.encodeBehaviorByteFromLogicalProperties)(tileId ? tileById.get(tileId)?.logicalProperties : undefined);
+            charBehaviorTable[charCode & 0xff] = mergeBehaviorBytes(charBehaviorTable[charCode & 0xff], behaviorByte);
+        }
+    }
+    return charBehaviorTable;
+};
+exports.buildScreenCharBehaviorTable = buildScreenCharBehaviorTable;
+const buildScreenInteractionMaps = (screenMapData, tileset) => {
+    const sourceLayer = (0, exports.getScreenBehaviorLayer)(screenMapData) || [];
+    const sourceRows = sourceLayer.length;
+    const sourceCols = sourceLayer[0]?.length ?? 0;
+    const tileById = new Map(tileset.map(tile => [tile.id, tile]));
+    const typeMap = [];
+    const valueMap = [];
+    const targetMap = [];
+    for (let row = 0; row < SCREEN_HEIGHT; row++) {
+        for (let col = 0; col < SCREEN_WIDTH; col++) {
+            const srcRow = sourceRows > 0
+                ? Math.min(sourceRows - 1, Math.floor((row * sourceRows) / SCREEN_HEIGHT))
+                : 0;
+            const srcCol = sourceCols > 0
+                ? Math.min(sourceCols - 1, Math.floor((col * sourceCols) / SCREEN_WIDTH))
+                : 0;
+            const tileId = sourceLayer[srcRow]?.[srcCol]?.tileId;
+            const logicalProperties = tileId ? tileById.get(tileId)?.logicalProperties : undefined;
+            typeMap.push((0, exports.encodeInteractionTypeIdFromLogicalProperties)(logicalProperties));
+            valueMap.push((0, exports.encodeInteractionValueFromLogicalProperties)(logicalProperties));
+            targetMap.push((0, exports.encodeInteractionTargetFromLogicalProperties)(logicalProperties));
+        }
+    }
+    return { typeMap, valueMap, targetMap };
+};
+exports.buildScreenInteractionMaps = buildScreenInteractionMaps;
 /**
  * Generates behavior map data from collision layer.
  * This uses the same logic as the Screen Editor's "Download ASM" button.
@@ -367,17 +499,24 @@ exports.generateBehaviorMapASMCode = generateBehaviorMapASMCode;
  * @param tileset Array of available tiles.
  * @returns Array of behavior map IDs.
  */
-const generateBehaviorMapData = (screenMapData, tileset) => {
+const generateBehaviorMapData = (screenMapData, tileset, options) => {
+    const source = options?.source ?? (0, exports.resolveScreenBehaviorSource)(screenMapData);
+    if (source === 'backgroundChars') {
+        const charBehaviorTable = (0, exports.buildScreenCharBehaviorTable)(screenMapData, tileset, options?.tileBanks, options?.currentScreenMode);
+        const layoutBytes = Array.from((0, exports.generateScreenMapLayoutBytes)(screenMapData, tileset, options?.tileBanks, options?.currentScreenMode ?? "SCREEN 2 (Graphics I)"));
+        return layoutBytes.map(value => charBehaviorTable[value & 0xff] ?? 0);
+    }
     const behaviorMapData = [];
     const activeCollisionLayer = screenMapData.layers.collision;
+    const tileById = new Map(tileset.map(tile => [tile.id, tile]));
     for (let r = 0; r < (screenMapData.activeAreaHeight ?? screenMapData.height); r++) {
         const mapY = (screenMapData.activeAreaY ?? 0) + r;
         for (let c = 0; c < (screenMapData.activeAreaWidth ?? screenMapData.width); c++) {
             const mapX = (screenMapData.activeAreaX ?? 0) + c;
             const screenTile = activeCollisionLayer[mapY]?.[mapX];
             if (screenTile?.tileId) {
-                const tileAsset = tileset.find(t => t.id === screenTile.tileId);
-                behaviorMapData.push(tileAsset?.logicalProperties?.mapId ?? 0);
+                const tileAsset = tileById.get(screenTile.tileId);
+                behaviorMapData.push((0, exports.encodeBehaviorByteFromLogicalProperties)(tileAsset?.logicalProperties));
             }
             else {
                 behaviorMapData.push(0);
