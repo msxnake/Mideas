@@ -9382,7 +9382,6 @@ ${A("PRESENTATION_SCREEN_COLORS_B0","ZX0_TILE_COLOR_BUFFER","CLRTBL2","PRESENTAT
 ${A("PRESENTATION_SCREEN_COLORS_B1","ZX0_TILE_COLOR_BUFFER","CLRTBL2 + #800","PRESENTATION_SCREEN_COLOR_B1_SIZE",o.compression.compressColors)}
 ${A("PRESENTATION_SCREEN_COLORS_B2","ZX0_TILE_COLOR_BUFFER","CLRTBL2 + #1000","PRESENTATION_SCREEN_COLOR_B2_SIZE",o.compression.compressColors)}
 ${A("PRESENTATION_SCREEN_NAMETBL","ZX0_SCREEN_BUFFER","NAMETBL","PRESENTATION_SCREEN_NAMETBL_SIZE",o.compression.compressNameTable)}
-    call ENASCR
 `:i?d?`    ld a, ${S}
     ld de, CHRTBL2
     call resource_load_to_vram_by_id
@@ -11307,7 +11306,8 @@ ${s?`    ; Initialize font system
 `}${d?`    ; HUD dirty flag - will be rendered after screen loading (by GameFlow WorldLink)
     ld a, 1
     ld (hud_dirty_flag), a
-`:""}    call ENASCR               ; Re-enable screen after VRAM updates
+`:""}
+    call ENASCR               ; Re-enable screen after VRAM updates
     ret
 
 ; ==================================================================

@@ -185,12 +185,6 @@ ${romMode === 'megarom' ? `
     ; Change screen mode to SCREEN 2
     ld a, 2
     call CHGMOD
-    ; DIAG BOOT: reached after SCREEN 2 setup
-    ld a, #06
-    ld (BAKCLR), a
-    ld (BDRCLR), a
-    call CHGCLR
-    call ENASCR
 
     ; Configure 16x16 sprites
     ; VDP Register #01: activate sprites, generate interrupts, 16x16 sprites
@@ -215,12 +209,6 @@ ${romMode === 'megarom' ? `
     ; Register default tasks based on project needs
     ${generateTaskRegistration(analysis, executionPlan)}
     ei
-    ; DIAG BOOT: interrupt/task setup completed
-    ld a, #08
-    ld (BAKCLR), a
-    ld (BDRCLR), a
-    call CHGCLR
-    call ENASCR
 
 ${analysis.hasGameFlow ? `    ; ====================================================
     ; GAMEFLOW INITIALIZATION
@@ -231,11 +219,6 @@ ${presentationBootAsm}    ; Initialize GameFlow system
     ; Start execution from GameFlow Start node
     ; GameFlow is now the sole orchestrator
     call ENASCR
-    ; DIAG BOOT: jumping to GameFlow
-    ld a, #0A
-    ld (BAKCLR), a
-    ld (BDRCLR), a
-    call CHGCLR
     jp gameflow_start` : `    ; ====================================================
     ; SIMPLE GAME LOOP (No GameFlow)
     ; ====================================================

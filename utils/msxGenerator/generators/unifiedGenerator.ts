@@ -395,12 +395,6 @@ page0_copy_to_vram:
     ret
 
 init_game_systems:
-    ; DIAG INIT: entered init_game_systems
-    ld a, #04
-    ld (BAKCLR), a
-    ld (BDRCLR), a
-    call CHGCLR
-    call ENASCR
     call DISSCR               ; Disable screen while loading VRAM assets
     ; Cold boot / restart must not trust cached VRAM state from RAM contents.
     xor a
@@ -423,12 +417,6 @@ ${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load pattern and color da
     call load_color_bank0
     call load_color_bank1
     call load_color_bank2
-    ; DIAG INIT: pattern/color loading completed
-    ld a, #05
-    ld (BAKCLR), a
-    ld (BDRCLR), a
-    call CHGCLR
-    call ENASCR
 ` : `    ; No tiles detected - skipping pattern/color loading
 `}
     ; Initialize animated tile runtime (safe no-op if no animated groups)
@@ -449,11 +437,7 @@ ${needsFont ? `    ; Initialize font system
 `}${hasHud ? `    ; HUD dirty flag - will be rendered after screen loading (by GameFlow WorldLink)
     ld a, 1
     ld (hud_dirty_flag), a
-` : ``}    ; DIAG INIT: init_game_systems completed
-    ld a, #0D
-    ld (BAKCLR), a
-    ld (BDRCLR), a
-    call CHGCLR
+` : ``}
     call ENASCR               ; Re-enable screen after VRAM updates
     ret
 
