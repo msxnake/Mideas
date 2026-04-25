@@ -515,6 +515,12 @@ gameflow_init:
 ; Main entry point - called from init_rom
 ; This is where the game STARTS
 gameflow_start:
+    ; DIAG GAMEFLOW: entered GameFlow start
+    ld a, #03
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
+    call ENASCR
     ; Load the Start node
 ${gameFlow.startNodeId ? `    ld hl, gameflow_node_${sanitizeId(gameFlow.startNodeId)}` : `    ; ERROR: No start node defined!
     ret`}
@@ -1214,6 +1220,12 @@ function generateNodeHandlers(
     ; BC = connection table
 
     push bc         ; Save connection table
+    ; DIAG GAMEFLOW: Start handler before init routine
+    ld a, #09
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
+    call ENASCR
 
     ; Execute initialization routine
     ; DE points to start_init_data structure
@@ -1236,6 +1248,12 @@ function generateNodeHandlers(
     call mapper_call_hl_auto
 
 .skip_init:
+    ; DIAG GAMEFLOW: Start init completed
+    ld a, #0B
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
+    call ENASCR
     ; Continue to next node
     pop bc
     call gameflow_get_default_connection

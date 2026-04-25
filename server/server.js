@@ -749,6 +749,14 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   }
 
   const sourceHasZx0Routine = /^\s*dzx0_standard:/im.test(sourceCode);
+  const usesResourceManager = /^\s*resource_table:\s*$/im.test(sourceCode);
+  if (usesResourceManager) {
+    // Resource-table descriptors currently store only bank/address/uncompressed
+    // size. Until the resource manager carries compression metadata and a
+    // banked decompression path, keep table-backed resources raw.
+    info.warning = 'ZX0 skipped: resource_table-backed assets require raw banked resources';
+    return { code: sourceCode, info };
+  }
   const screenBufferSymbol = hasEquSymbol(sourceCode, 'LEVEL_MAP_RAM') ? 'LEVEL_MAP_RAM' : 'ZX0_SCREEN_BUFFER';
   const behaviorBufferSymbol = hasEquSymbol(sourceCode, 'BEHAVIOR_MAP_RAM') ? 'BEHAVIOR_MAP_RAM' : 'ZX0_BEHAVIOR_BUFFER';
   const tilePatternBufferSymbol = hasEquSymbol(sourceCode, 'ZX0_TILE_PATTERN_BUFFER') ? 'ZX0_TILE_PATTERN_BUFFER' : 'ZX0_TILE_PATTERN_BUFFER';
@@ -1528,21 +1536,24 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     !/^\s*ZX0_SPRITE_FRAME_BUFFER\s+EQU\s+/im.test(finalCode);
 
   const buffersToAllocate = [];
-  if (needsScreenBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_SCREEN_BUFFER', size: Math.max(1, maxLayoutSize), title: 'ZX0 SCREEN BUFFER', note: 'Free RAM buffer for screen layout decompression' });
+  const SHARED_ZX0_SCRATCH_A = 'sharedA';
+  const SHARED_ZX0_SCRATCH_B = 'sharedB';
+  if (needsScreenBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_SCREEN_BUFFER', size: Math.max(1, maxLayoutSize), title: 'ZX0 SCREEN BUFFER', note: 'Shared scratch buffer for screen layout decompression', scratchGroup: SHARED_ZX0_SCRATCH_A });
   if (selectedEffectsBlocks.size > 0 && maxEffectsSize <= 0) {
     throw new Error('Effects ZX0 compression selected but no effects block size was resolved');
   }
-  if (needsBehaviorBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_BEHAVIOR_BUFFER', size: Math.max(1, maxBehaviorSize), title: 'ZX0 BEHAVIOR BUFFER', note: 'Free RAM buffer for behavior map decompression' });
-  if (needsTilePatternBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_TILE_PATTERN_BUFFER', size: Math.max(1, maxTilePatternSize), title: 'ZX0 TILE PATTERN BUFFER', note: 'Free RAM buffer for tile pattern data decompression' });
-  if (needsTileColorBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_TILE_COLOR_BUFFER', size: Math.max(1, maxTileColorSize), title: 'ZX0 TILE COLOR BUFFER', note: 'Free RAM buffer for tile color data decompression' });
-  if (needsFontPatternBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_FONT_PATTERN_BUFFER', size: Math.max(1, maxFontPatternSize), title: 'ZX0 FONT PATTERN BUFFER', note: 'Free RAM buffer for font pattern data decompression' });
-  if (needsFontColorBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_FONT_COLOR_BUFFER', size: Math.max(1, maxFontColorSize), title: 'ZX0 FONT COLOR BUFFER', note: 'Free RAM buffer for font color data decompression' });
+  if (needsBehaviorBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_BEHAVIOR_BUFFER', size: Math.max(1, maxBehaviorSize), title: 'ZX0 BEHAVIOR BUFFER', note: 'Shared scratch buffer for behavior map decompression', scratchGroup: SHARED_ZX0_SCRATCH_A });
+  if (needsTilePatternBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_TILE_PATTERN_BUFFER', size: Math.max(1, maxTilePatternSize), title: 'ZX0 TILE PATTERN BUFFER', note: 'Shared scratch buffer for tile pattern data decompression', scratchGroup: SHARED_ZX0_SCRATCH_A });
+  if (needsTileColorBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_TILE_COLOR_BUFFER', size: Math.max(1, maxTileColorSize), title: 'ZX0 TILE COLOR BUFFER', note: 'Shared scratch buffer for tile color data decompression', scratchGroup: SHARED_ZX0_SCRATCH_A });
+  if (needsFontPatternBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_FONT_PATTERN_BUFFER', size: Math.max(1, maxFontPatternSize), title: 'ZX0 FONT PATTERN BUFFER', note: 'Shared scratch buffer for font pattern data decompression', scratchGroup: SHARED_ZX0_SCRATCH_A });
+  if (needsFontColorBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_FONT_COLOR_BUFFER', size: Math.max(1, maxFontColorSize), title: 'ZX0 FONT COLOR BUFFER', note: 'Second scratch buffer for font color data while font pattern data is still live', scratchGroup: needsFontPatternBufferEqu ? SHARED_ZX0_SCRATCH_B : SHARED_ZX0_SCRATCH_A });
   if (needsSpriteFrameBufferEqu) {
     buffersToAllocate.push({
       symbol: 'ZX0_SPRITE_FRAME_BUFFER',
       size: Math.max(1, maxSpriteFrameSize),
       title: 'ZX0 SPRITE FRAME BUFFER',
-      note: 'Shared RAM buffer for per-frame sprite decompression before VRAM upload'
+      note: 'Shared scratch buffer for per-frame sprite decompression before VRAM upload',
+      scratchGroup: SHARED_ZX0_SCRATCH_A
     });
   }
 
@@ -1556,16 +1567,30 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     const RAM_BUFFER_BASE = Math.max(DEFAULT_RAM_BUFFER_BASE, (ramUsageEnd + 0xFF) & 0xFF00);
     let nextAddress = RAM_BUFFER_BASE;
 
-    const allocated = [];
+    const scratchGroups = [];
     for (const buf of buffersToAllocate) {
+      const groupName = buf.scratchGroup || buf.symbol;
+      let group = scratchGroups.find((candidate) => candidate.name === groupName);
+      if (!group) {
+        group = { name: groupName, size: 0, buffers: [] };
+        scratchGroups.push(group);
+      }
+      group.size = Math.max(group.size, buf.size);
+      group.buffers.push(buf);
+    }
+
+    const allocated = [];
+    for (const group of scratchGroups) {
       nextAddress = (nextAddress + 0xFF) & 0xFF00; // align at 256-byte boundary
       const start = nextAddress;
-      const endExclusive = start + buf.size;
+      const endExclusive = start + group.size;
       if (endExclusive > RAM_BUFFER_LIMIT) {
-        info.warning = `ZX0 buffer allocation overflow (${buf.symbol}, ${buf.size} bytes).`;
+        info.warning = `ZX0 scratch RAM overflow: need up to #${endExclusive.toString(16).toUpperCase().padStart(4, '0')}, limit is #${RAM_BUFFER_LIMIT.toString(16).toUpperCase().padStart(4, '0')}`;
         return { code: sourceCode, info };
       }
-      allocated.push({ ...buf, start, endExclusive });
+      for (const buf of group.buffers) {
+        allocated.push({ ...buf, start, endExclusive: start + buf.size, scratchSize: group.size });
+      }
       nextAddress = endExclusive;
     }
 
@@ -1574,7 +1599,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       extraEquBlocks.push(
         '; ==================================================================',
         `; ${buf.title} (AUTO-INJECTED)`,
-        `; ${buf.note} (${buf.size} bytes)`,
+        `; ${buf.note} (${buf.size} bytes, scratch slot ${buf.scratchSize} bytes)`,
         '; ==================================================================',
         `${buf.symbol} EQU #${startHex}`,
         ''

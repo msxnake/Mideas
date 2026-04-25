@@ -352,6 +352,8 @@ MAX_ENTITIES        EQU 32
     currentAddress += 32;
     code += `entity_lifetime     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)\n`;
     currentAddress += 32;
+    code += `entity_collectible_enabled EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when entity has Collectible component (32 bytes)\n`;
+    currentAddress += 32;
     code += `entity_carried_by   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity carrier ID (32 bytes, 255=not carried)\n`;
     currentAddress += 32;
     code += `entity_template_token EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity template token (32 bytes, 0=unknown)\n`;
@@ -815,14 +817,10 @@ T_NEW_2         EQU #${hex(0x19A)}  ; Tone table new 2 (last, ends at +0x1B2)
         currentAddress = pt3Base + 0x240; // Reserve 576 bytes for PT3 workspace (RAM LENGTH per replayer spec)
     }
     const ZX0_LARGE_SCRATCH_SIZE = 1488;
-    const ZX0_FONT_SCRATCH_SIZE = 360;
     const ZX0_RAM_LIMIT = 0xF380;
     const align256 = (value) => (value + 0xFF) & 0xFF00;
-    const align16 = (value) => (value + 0x0F) & 0xFFF0;
     const zx0LargeScratchBase = align256(currentAddress);
-    const zx0FontPatternBase = align16(zx0LargeScratchBase + ZX0_LARGE_SCRATCH_SIZE);
-    const zx0FontColorBase = align16(zx0FontPatternBase + ZX0_FONT_SCRATCH_SIZE);
-    const zx0ScratchEnd = zx0FontColorBase + ZX0_FONT_SCRATCH_SIZE;
+    const zx0ScratchEnd = zx0LargeScratchBase + ZX0_LARGE_SCRATCH_SIZE;
     if (zx0ScratchEnd > ZX0_RAM_LIMIT) {
         throw new Error(`ZX0 scratch RAM overflow: need up to #${zx0ScratchEnd.toString(16).toUpperCase()}, limit is #${ZX0_RAM_LIMIT.toString(16).toUpperCase()}`);
     }
@@ -831,14 +829,14 @@ T_NEW_2         EQU #${hex(0x19A)}  ; Tone table new 2 (last, ends at +0x1B2)
 ; ZX0 TEMPORARY RAM BUFFERS
 ; ==================================================================
 ; Compact scratch layout placed strictly after RAM_USAGE_END.
-; Screen/behavior/tile buffers share the same large work area because
-; they are decompressed and consumed sequentially, never concurrently.
+; Screen/behavior/tile buffers share the same large work area because they
+; are decompressed and consumed sequentially, never concurrently.
+; Font and sprite frame buffers are injected later by the ZX0 post-processor
+; only when compression selects those blocks; they share scratch there too.
 ZX0_SCREEN_BUFFER       EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Screen/layout scratch (768 bytes, shared area)
 ZX0_BEHAVIOR_BUFFER     EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Behavior map scratch (768 bytes, shared area)
 ZX0_TILE_PATTERN_BUFFER EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile pattern scratch (1488 bytes, shared area)
 ZX0_TILE_COLOR_BUFFER   EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile color scratch (1488 bytes, shared area)
-ZX0_FONT_PATTERN_BUFFER EQU #${zx0FontPatternBase.toString(16).toUpperCase().padStart(4, '0')}   ; Font pattern scratch (360 bytes)
-ZX0_FONT_COLOR_BUFFER   EQU #${zx0FontColorBase.toString(16).toUpperCase().padStart(4, '0')}   ; Font color scratch (360 bytes)
 `;
     // End marker
     code += `

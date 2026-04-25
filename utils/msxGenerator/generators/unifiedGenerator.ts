@@ -395,6 +395,12 @@ page0_copy_to_vram:
     ret
 
 init_game_systems:
+    ; DIAG INIT: entered init_game_systems
+    ld a, #04
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
+    call ENASCR
     call DISSCR               ; Disable screen while loading VRAM assets
     ; Cold boot / restart must not trust cached VRAM state from RAM contents.
     xor a
@@ -403,7 +409,9 @@ init_game_systems:
     ld (vram_cache_font_ready), a
     ld a, #FF
     ld (current_screen2_tilebank_id), a
-    call init_all_global_variables
+${analysis.globalVariables && analysis.globalVariables.length > 0 ? `    call init_all_global_variables
+` : `    ; No global variables - skip initialization
+`}
 ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize component systems (entities detected)
     call init_components
 ` : `    ; No entities - skipping component system initialization
@@ -415,6 +423,12 @@ ${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load pattern and color da
     call load_color_bank0
     call load_color_bank1
     call load_color_bank2
+    ; DIAG INIT: pattern/color loading completed
+    ld a, #05
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
+    call ENASCR
 ` : `    ; No tiles detected - skipping pattern/color loading
 `}
     ; Initialize animated tile runtime (safe no-op if no animated groups)
@@ -435,7 +449,12 @@ ${needsFont ? `    ; Initialize font system
 `}${hasHud ? `    ; HUD dirty flag - will be rendered after screen loading (by GameFlow WorldLink)
     ld a, 1
     ld (hud_dirty_flag), a
-` : ``}    call ENASCR               ; Re-enable screen after VRAM updates
+` : ``}    ; DIAG INIT: init_game_systems completed
+    ld a, #0D
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
+    call ENASCR               ; Re-enable screen after VRAM updates
     ret
 
 ; ==================================================================
@@ -670,7 +689,7 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
         case 'hud':
             return ['render_hud', 'force_render_hud', 'imprimir_marco', 'init_hud'];
         case 'sound':
-            return ['init_sound_system', 'task_audio_tick', 'sfx_update', 'music_update', 'music_play_track'];
+            return ['init_sound_system', 'task_audio_tick', 'sfx_update', 'music_update', 'music_play_track', 'music_execute_command'];
         case 'statemachine':
             return ['init_statemachine_system', 'update_statemachine_system', 'execute_all_state_machines'];
         case 'gameflow':
@@ -721,11 +740,13 @@ function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAna
                 }
                 asm += `${ep}_far:\n`;
                 asm += `    push af\n`;
-                asm += `    call mapper_push_p${wp}\n`;
+                asm += `    ld a, (mapper_bank_p${wp}_current)\n`;
+                asm += `    push af\n`;
                 asm += `    ld a, FAR_BANK_${bankNum}\n`;
                 asm += `    call mapper_set_bank_p${wp}\n`;
                 asm += `    call ${ep}\n`;
-                asm += `    call mapper_pop_p${wp}\n`;
+                asm += `    pop af\n`;
+                asm += `    call mapper_set_bank_p${wp}\n`;
                 asm += `    pop af\n`;
                 asm += `    ret\n\n`;
             }
@@ -774,6 +795,7 @@ function rewriteResidentCallSites(files: GeneratedASMFiles): GeneratedASMFiles {
         ['music_update', 'call_music_update_resident'],
         ['sfx_update', 'call_sfx_update_resident'],
         ['music_play_track', 'call_music_play_track_resident'],
+        ['music_execute_command', 'call_music_execute_command_resident'],
         ['update_sprites_to_vram', 'call_update_sprites_to_vram_resident'],
         ['clear_all_sprites', 'call_clear_all_sprites_resident'],
         ['init_animated_tiles', 'call_init_animated_tiles_resident'],
@@ -807,10 +829,10 @@ function generateResidentCallWrappers(
     const renderHudCall = resolveResidentTarget('render_hud', 'hud');
     const forceRenderHudCall = resolveResidentTarget('force_render_hud', 'hud');
     const initSoundCall = resolveResidentTarget('init_sound_system', 'sound');
-    const taskAudioTickCall = resolveResidentTarget('task_audio_tick', 'sound');
     const musicUpdateCall = resolveResidentTarget('music_update', 'sound');
     const sfxUpdateCall = resolveResidentTarget('sfx_update', 'sound');
     const musicPlayTrackCall = resolveResidentTarget('music_play_track', 'sound');
+    const musicExecuteCommandCall = resolveResidentTarget('music_execute_command', 'sound');
     const updateSpritesCall = resolveResidentTarget('update_sprites_to_vram', 'sprites');
     const clearAllSpritesCall = resolveResidentTarget('clear_all_sprites', 'sprites');
     const initAnimatedTilesCall = resolveResidentTarget('init_animated_tiles', 'animtiles');
@@ -839,7 +861,21 @@ call_init_sound_system_resident:
     jp ${initSoundCall}
 
 call_task_audio_tick_resident:
-    jp ${taskAudioTickCall}
+    ; Keep IRQ audio dispatch resident: music_update may live in a far
+    ; sound bank, while SM_UpdateSound lives in the primary statemachine
+    ; window. Running the original task_audio_tick inside the sound bank
+    ; would hide SM_UpdateSound and jump into the wrong bank.
+    push af
+    push bc
+    push de
+    push hl
+    call call_music_update_resident
+${availableLabels.has('SM_UpdateSound') ? `    call SM_UpdateSound
+` : ``}    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
 
 call_music_update_resident:
     jp ${musicUpdateCall}
@@ -849,6 +885,9 @@ call_sfx_update_resident:
 
 call_music_play_track_resident:
     jp ${musicPlayTrackCall}
+
+call_music_execute_command_resident:
+    jp ${musicExecuteCommandCall}
 
 call_update_sprites_to_vram_resident:
     jp ${updateSpritesCall}

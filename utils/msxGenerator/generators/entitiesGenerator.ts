@@ -721,8 +721,14 @@ update_entities:
         const collisionTemplateComp = template?.components?.find((c: any) =>
           c.definitionId === 'comp_collision' || c.definitionName === 'Collision'
         );
-        const collisionDefaults = collisionTemplateComp?.defaultValues || {};
-        const collisionOverrides = entity.componentOverrides?.['comp_collision'] || {};
+        const wallCollisionTemplateComp = template?.components?.find((c: any) =>
+          c.definitionId === 'comp_wall_collision' || c.definitionName === 'Wall Collision'
+        );
+        const collisionDefaults = collisionTemplateComp?.defaultValues || wallCollisionTemplateComp?.defaultValues || {};
+        const collisionOverrides = {
+          ...(entity.componentOverrides?.['comp_collision'] || {}),
+          ...(collisionTemplateComp ? {} : (entity.componentOverrides?.['comp_wall_collision'] || {})),
+        };
         const collisionValues = { ...collisionDefaults, ...collisionOverrides };
 
         const hitboxWidth = parseByte(collisionValues.hitboxWidth, 16);
@@ -759,6 +765,127 @@ update_entities:
     ld hl, entity_collides_with
     add hl, de
     ld (hl), #${toHexByte(collidesWith)}      ; collidesWith
+`;
+      }
+
+      // Health component initialization
+      let healthInitAsm = '';
+      if (componentMask & 0x0040) { // COMP_MASK_HEALTH
+        const healthTemplateComp = template?.components?.find((c: any) =>
+          c.definitionId === 'comp_health' || c.definitionName === 'Health'
+        );
+        const healthDefaults = {
+          ...getComponentDefinitionDefaults('comp_health'),
+          ...(healthTemplateComp?.defaultValues || {}),
+        };
+        const healthOverrides = entity.componentOverrides?.['comp_health'] || {};
+        const healthValues = { ...healthDefaults, ...healthOverrides };
+        const currentHealth = parseByte(healthValues.current, 1);
+        const maxHealth = parseByte(healthValues.max, currentHealth || 1);
+
+        healthInitAsm = `
+    ; Initialize Health component
+    ld hl, entity_health_current
+    add hl, de
+    ld (hl), #${toHexByte(currentHealth)}      ; current health
+
+    ld hl, entity_health_max
+    add hl, de
+    ld (hl), #${toHexByte(maxHealth)}      ; max health
+`;
+      }
+
+      // Lifetime component initialization (stored as 50Hz frame countdown)
+      let lifetimeInitAsm = '';
+      if (componentMask & 0x0400) { // COMP_MASK_AUTO_DESTROY
+        const lifetimeTemplateComp = template?.components?.find((c: any) =>
+          c.definitionId === 'comp_lifetime' || c.definitionName === 'Lifetime'
+        );
+        const lifetimeDefaults = {
+          ...getComponentDefinitionDefaults('comp_lifetime'),
+          ...(lifetimeTemplateComp?.defaultValues || {}),
+        };
+        const lifetimeOverrides = entity.componentOverrides?.['comp_lifetime'] || {};
+        const lifetimeValues = { ...lifetimeDefaults, ...lifetimeOverrides };
+        const lifetimeMs = parseWord(lifetimeValues.lifetimeMs, 0);
+        const lifetimeFrames = lifetimeMs <= 0 ? 0 : Math.max(1, Math.min(255, Math.round((lifetimeMs * 50) / 1000)));
+
+        lifetimeInitAsm = `
+    ; Initialize Lifetime component (${lifetimeMs} ms -> ${lifetimeFrames} frames)
+    ld hl, entity_lifetime
+    add hl, de
+    ld (hl), #${toHexByte(lifetimeFrames)}      ; 0 means infinite
+`;
+      }
+
+      // Damage component initialization
+      let damageInitAsm = '';
+      if (componentMask & 0x0800) { // COMP_MASK_DAMAGE
+        const damageTemplateComp = template?.components?.find((c: any) =>
+          c.definitionId === 'comp_damage' || c.definitionName === 'Damage'
+        );
+        const damageDefaults = {
+          ...getComponentDefinitionDefaults('comp_damage'),
+          ...(damageTemplateComp?.defaultValues || {}),
+        };
+        const damageOverrides = entity.componentOverrides?.['comp_damage'] || {};
+        const damageValues = { ...damageDefaults, ...damageOverrides };
+        const damageAmount = parseByte(damageValues.damageAmount ?? damageValues.damage, 1);
+
+        damageInitAsm = `
+    ; Initialize Damage component
+    ld hl, entity_damage_amount
+    add hl, de
+    ld (hl), #${toHexByte(damageAmount)}      ; damage amount
+`;
+      }
+
+      // Shoot component initialization
+      let shootInitAsm = '';
+      if (componentMask & 0x1000) { // COMP_MASK_SHOOT
+        const shootTemplateComp = template?.components?.find((c: any) =>
+          c.definitionId === 'comp_shoot' || c.definitionName === 'Shoot'
+        );
+        const shootDefaults = {
+          ...getComponentDefinitionDefaults('comp_shoot'),
+          ...(shootTemplateComp?.defaultValues || {}),
+        };
+        const shootOverrides = entity.componentOverrides?.['comp_shoot'] || {};
+        const shootValues = { ...shootDefaults, ...shootOverrides };
+        const shootSpeed = parseByte(shootValues.speed ?? shootValues.velocityX, 3);
+        const projectileSprite = resolveSpriteAssetIndex(
+          shootValues.spriteAssetId ?? shootValues.spriteId ?? shootValues.sprite,
+          spriteNameToIndex,
+          spriteCount
+        );
+
+        shootInitAsm = `
+    ; Initialize Shoot component
+    ld hl, entity_shoot_cooldown
+    add hl, de
+    ld (hl), 0                    ; can shoot immediately
+
+    ld hl, entity_shoot_speed
+    add hl, de
+    ld (hl), #${toHexByte(shootSpeed)}      ; projectile speed
+
+    ld hl, entity_shoot_sprite_id
+    add hl, de
+    ld (hl), #${toHexByte(projectileSprite)}      ; projectile sprite asset index
+`;
+      }
+
+      // Collectible component marker used by update_collectible_component.
+      let collectibleInitAsm = '';
+      const collectibleTemplateComp = template?.components?.find((c: any) =>
+        c.definitionId === 'comp_collectible' || c.definitionName === 'Collectible'
+      );
+      if (collectibleTemplateComp || entity.componentOverrides?.['comp_collectible']) {
+        collectibleInitAsm = `
+    ; Initialize Collectible component marker
+    ld hl, entity_collectible_enabled
+    add hl, de
+    ld (hl), 1
 `;
       }
 
@@ -1148,6 +1275,11 @@ ${hasSprite && hasInput ? `    ; Deterministic spawn facing: right.
 ${animationInitAsm}
 ${patrolInitAsm}
 ${collisionInitAsm}
+${healthInitAsm}
+${lifetimeInitAsm}
+${damageInitAsm}
+${shootInitAsm}
+${collectibleInitAsm}
 ${gateInitAsm}
 ${hasSprite ? `    ; Set sprite pattern and color (renderable entity)
     ld hl, sprite_pattern

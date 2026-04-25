@@ -462,6 +462,12 @@ ${buildRegisterContractComment({
     preserved: ['IX', 'IY'],
     notes: ['Loads pattern/color banks 0..2 and the 32x24 name table.', 'Optional wait/key behavior comes from Presentation Screen config.']
   })}show_presentation_screen:
+    ; DIAG PRESENTATION: entered show_presentation_screen
+    ld a, #07
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
+    call ENASCR
     call DISSCR
     ld a, 2
     call CHGMOD
@@ -533,6 +539,11 @@ ${emitPage0PresentationTransfer(
       'PRESENTATION_SCREEN_NAMETBL_SIZE',
       config.compression.compressNameTable
     )}
+    ; DIAG PRESENTATION: resource loads completed
+    ld a, #0F
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
     call ENASCR
 `
     : !usesMapper

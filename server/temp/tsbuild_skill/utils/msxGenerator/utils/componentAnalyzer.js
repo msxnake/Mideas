@@ -18,6 +18,7 @@ const STANDARD_COMPONENT_IDS = {
     'comp_sprite': 'Sprite',
     'comp_movement': 'Movement',
     'comp_velocity': 'Movement',
+    'comp_physics': 'Movement',
     'comp_collision': 'Collision',
     'comp_wall_collision': 'WallCollision',
     'comp_player_input': 'Input',
@@ -26,6 +27,7 @@ const STANDARD_COMPONENT_IDS = {
     'comp_behavior': 'Behavior',
     'comp_health': 'Health',
     'comp_animation': 'Animation',
+    'comp_lifetime': 'AutoDestroy',
     'comp_gravity': 'Gravity',
     'comp_jump': 'Jump',
     'comp_damage': 'Damage',
@@ -37,7 +39,9 @@ const STANDARD_COMPONENT_IDS = {
     'comp_cursors': 'Cursors',
     'comp_carry': 'Carry',
     'comp_collectible': 'Collectible',
+    'comp_tile_collector': 'TileInteraction',
     'comp_patrol': 'Patrol',
+    'comp_shoot': 'Shoot',
     'comp_retractable_gate': 'RetractableGate'
 };
 /**
@@ -167,6 +171,9 @@ function generateEntityComponentMask(entity, template, analysis) {
         'Animation': 7, // Bit 7  - #0080
         'Jump': 8, // Bit 8  - #0100 (NEW)
         'Gravity': 9, // Bit 9  - #0200 (NEW)
+        'AutoDestroy': 10, // Bit 10 - #0400
+        'Damage': 11, // Bit 11 - #0800
+        'Shoot': 12, // Bit 12 - #1000
         'WallJump': 14, // Bit 14 - #4000
         'AirControl': 15, // Bit 15 - #8000
         'DeadlyTiles': 13 // Bit 13 - #2000
@@ -184,6 +191,10 @@ function generateEntityComponentMask(entity, template, analysis) {
                     hasSpriteComponent = true;
                 }
             }
+            // WallCollision reuses the Collision hot path and hitbox arrays in ASM.
+            if (standardName === 'WallCollision') {
+                mask |= (1 << COMP_BIT_POSITION['Collision']);
+            }
             // Patrol requires Movement to be active (update_position_component moves the entity)
             if (standardName === 'Patrol') {
                 mask |= (1 << COMP_BIT_POSITION['Movement']);
@@ -199,6 +210,9 @@ function generateEntityComponentMask(entity, template, analysis) {
                 if (standardName === 'Sprite') {
                     hasSpriteComponent = true;
                 }
+            }
+            if (standardName === 'WallCollision') {
+                mask |= (1 << COMP_BIT_POSITION['Collision']);
             }
         });
     }

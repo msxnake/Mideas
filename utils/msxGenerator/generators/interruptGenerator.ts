@@ -39,7 +39,7 @@ export function generateInterruptFile(
   code += generateStopInterruptSystem();
   code += generateInterruptDispatcher();
   code += generateTaskManagementFunctions();
-  code += generateInitDefaultTasksFromPlan(executionPlan);
+  code += generateInitDefaultTasksFromPlan(executionPlan, config.romMode);
 
   // Default tasks
   if (executionPlan?.mode === 'interruptTaskManager') {
@@ -452,7 +452,7 @@ get_frame_count:
 `;
 }
 
-function generateInitDefaultTasksFromPlan(executionPlan?: ExecutionPlan): string {
+function generateInitDefaultTasksFromPlan(executionPlan?: ExecutionPlan, romMode: string = 'simple32k'): string {
   const tasks = executionPlan?.mode === 'interruptTaskManager'
     ? executionPlan.tasks.filter((task) => task.enabledAtBoot)
     : [];
@@ -476,9 +476,19 @@ function generateInitDefaultTasksFromPlan(executionPlan?: ExecutionPlan): string
     return code;
   }
 
+  const resolveTaskLabel = (label: string): string => {
+    if (romMode !== 'megarom') return label;
+    const residentTaskLabels: Record<string, string> = {
+      task_audio_tick: 'call_task_audio_tick_resident',
+      music_update: 'call_music_update_resident',
+      sfx_update: 'call_sfx_update_resident',
+    };
+    return residentTaskLabels[label] || label;
+  };
+
   tasks.forEach((task) => {
     code += `    ld a, ${task.slot}\n`;
-    code += `    ld hl, ${task.routineLabel}\n`;
+    code += `    ld hl, ${resolveTaskLabel(task.routineLabel)}\n`;
     code += `    call enable_task\n`;
   });
   code += `    ret\n\n`;

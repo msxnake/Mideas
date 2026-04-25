@@ -27,7 +27,6 @@ function generateUpdateAllEntities(
     avoidStateMachineDuplication: boolean,
     hasSecretZones: boolean
 ): string {
-    const emitInc16 = (symbol: string) => `    ld hl, ${symbol}\n    inc (hl)\n    jr nz, $+4\n    inc hl\n    inc (hl)\n`;
     let code = `
 ; ==================================================================
 ; UPDATE ALL ENTITIES - Called by GameFlow (OPTIMIZED)
@@ -47,12 +46,6 @@ ${buildRegisterContractComment({
   notes: ['Do not assume any register survives this routine.'],
 })}
 update_all_entities:
-    ld hl, prof_update_all_entities_calls
-    inc (hl)
-    jr nz, .prof_update_all_entities_counted
-    inc hl
-    inc (hl)
-.prof_update_all_entities_counted:
     ; Fast path: when all entities use default job cadence (period=1, entry=0),
     ; rebuild the compact list only when entity/screen membership changes.
     ld a, (entity_job_scheduler_active)
@@ -114,18 +107,6 @@ update_all_entities:
             // Avoid duplicate function calls (e.g., multiple Collision entries)
               if (!processedFunctions.has(funcCall)) {
                   processedFunctions.add(funcCall);
-                  const profileCounterByFunc: Record<string, string> = {
-                      update_collision_component: 'prof_collision_calls',
-                      update_wallcollision_component: 'prof_wall_calls',
-                      update_deadly_tiles_component: 'prof_deadly_calls',
-                      check_tile_interaction: 'prof_tile_interaction_calls',
-                      update_animation_component: 'prof_animation_calls',
-                      update_sprite_component: 'prof_sprite_calls',
-                  };
-                  const profileCounter = profileCounterByFunc[funcCall];
-                  if (profileCounter) {
-                      code += emitInc16(profileCounter);
-                  }
                   code += `    call ${funcCall.padEnd(30)} ; ${comment}\n`;
                   if (funcCall === 'update_shoot_component') {
                       code += `    ; Shooting may spawn entities, rebuild only if marked dirty\n`;
@@ -476,6 +457,100 @@ sync_player_runtime_from_entity:
     add hl, de
     ld a, (hl)
     ld (player_vy_runtime), a
+    ret
+
+get_runtime_interaction_type_tile:
+    ; Input: B = row (0..23), C = col (0..31)
+    ; Output: A = interaction type id, 0 if out of bounds
+    ; Clobbers: AF, DE, HL
+    ld a, b
+    cp 24
+    jr nc, .gritt_oob
+    ld a, c
+    cp 32
+    jr nc, .gritt_oob
+    ld l, b
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld de, runtime_interaction_type_map
+    add hl, de
+    ld a, (hl)
+    ret
+.gritt_oob:
+    xor a
+    ret
+
+update_entity_ladder_state_c:
+    ; Input: C = entity index
+    ; Output: A = 1 when entity center/feet overlap a ladder tile, else 0
+    ; Clobbers: AF, DE, HL
+    ; Preserves: BC
+    push bc
+    ld e, c
+    ld d, 0
+
+    ; Sample center tile
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    rrca
+    rrca
+    rrca
+    and #1F
+    ld c, a
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    rrca
+    rrca
+    rrca
+    and #1F
+    ld b, a
+    push de
+    call get_runtime_interaction_type_tile
+    pop de
+    cp 7
+    jr z, .uelt_store_active
+
+    ; Sample near feet too, so 16x16 player sprites keep climbing smoothly.
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, 14
+    rrca
+    rrca
+    rrca
+    and #1F
+    ld b, a
+    push de
+    call get_runtime_interaction_type_tile
+    pop de
+    cp 7
+    jr z, .uelt_store_active
+
+    xor a
+    jr .uelt_store
+
+.uelt_store_active:
+    ld a, 1
+
+.uelt_store:
+    push af
+    ld hl, entity_on_ladder
+    add hl, de
+    ld (hl), a
+    pop af
+    pop bc
     ret
 
 ; ------------------------------------------------------------------
@@ -1490,6 +1565,71 @@ force_sprite_done:
     pop de
     pop bc
     ret
+
+compute_entity_base_pattern:
+    ; Input: DE = entity index
+    ; Output: A = base pattern number for this entity's current frame
+    ; Clobbers: AF, BC, HL
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .legacy_hw_pattern
+
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    ld a, (hl)
+    cp #FF
+    jr z, .placeholder_pattern
+    cp SPRITE_ASSET_COUNT
+    jr nc, .placeholder_pattern
+
+    ld c, a
+    ld b, 0
+    ld hl, sprite_asset_base_pattern_slot_runtime
+    add hl, bc
+    ld a, (hl)                 ; A = base 16x16 pattern slot for this asset
+    push af                    ; Save base slot before HL is reused
+
+    ld hl, entity_anim_frame
+    add hl, de
+    ld c, (hl)                 ; C = current animation frame
+
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de
+    inc hl
+    ld b, (hl)                 ; B = entity layer count (frame stride)
+
+    pop af                     ; A = base slot (restored)
+    ld l, a                    ; L = base slot (ready for stride loop)
+    ld a, c
+    or a
+    jr z, .slot_to_pattern
+
+.frame_stride_loop:
+    ld a, l
+    add a, b
+    ld l, a
+    dec c
+    jr nz, .frame_stride_loop
+
+.slot_to_pattern:
+    ld a, l
+    add a, a
+    add a, a
+    ret
+
+.placeholder_pattern:
+    ld a, (sprite_placeholder_base_pattern_num)
+    ret
+
+.legacy_hw_pattern:
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    add a, a
+    add a, a
+    ret
 `;
 }
 function generateMovementSystem(): string {
@@ -2480,100 +2620,6 @@ function generateInputSystem(): string {
             ldir
             ret
 
-get_runtime_interaction_type_tile:
-            ; Input: B = row (0..23), C = col (0..31)
-            ; Output: A = interaction type id, 0 if out of bounds
-            ; Clobbers: AF, DE, HL
-            ld a, b
-            cp 24
-            jr nc, .gritt_oob
-            ld a, c
-            cp 32
-            jr nc, .gritt_oob
-            ld l, b
-            ld h, 0
-            add hl, hl
-            add hl, hl
-            add hl, hl
-            add hl, hl
-            add hl, hl
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld de, runtime_interaction_type_map
-            add hl, de
-            ld a, (hl)
-            ret
-.gritt_oob:
-            xor a
-            ret
-
-update_entity_ladder_state_c:
-            ; Input: C = entity index
-            ; Output: A = 1 when entity center/feet overlap a ladder tile, else 0
-            ; Clobbers: AF, DE, HL
-            ; Preserves: BC
-            push bc
-            ld e, c
-            ld d, 0
-
-            ; Sample center tile
-            ld hl, entity_x_pos
-            add hl, de
-            ld a, (hl)
-            add a, 8
-            rrca
-            rrca
-            rrca
-            and #1F
-            ld c, a
-
-            ld hl, entity_y_pos
-            add hl, de
-            ld a, (hl)
-            add a, 8
-            rrca
-            rrca
-            rrca
-            and #1F
-            ld b, a
-            push de
-            call get_runtime_interaction_type_tile
-            pop de
-            cp 7
-            jr z, .uelt_store_active
-
-            ; Sample near feet too, so 16x16 player sprites keep climbing smoothly.
-            ld hl, entity_y_pos
-            add hl, de
-            ld a, (hl)
-            add a, 14
-            rrca
-            rrca
-            rrca
-            and #1F
-            ld b, a
-            push de
-            call get_runtime_interaction_type_tile
-            pop de
-            cp 7
-            jr z, .uelt_store_active
-
-            xor a
-            jr .uelt_store
-
-.uelt_store_active:
-            ld a, 1
-
-.uelt_store:
-            push af
-            ld hl, entity_on_ladder
-            add hl, de
-            ld (hl), a
-            pop af
-            pop bc
-            ret
-
         update_input_component:
             ; Update input handling for player entities
             ; NOTE: input_state/prev_input_state are polled by interrupt task_update_input
@@ -3116,12 +3162,12 @@ init_health_system:
     ; Initialize health for all entities with Health component
     ; Default: current = 3, max = 3 (configurable per entity)
     ld b, 32                      ; Loop all entities
-    ld hl, entity_comp_masks_hi   ; Check high byte for Health bit
+    ld hl, entity_comp_masks      ; Check low byte for Health bit
     ld c, 0                       ; Entity index
 
 .init_loop:
     ld a, (hl)
-    and #04                       ; COMP_MASK_HEALTH (bit 2 in high byte = #0400)
+    and COMP_MASK_HEALTH          ; COMP_MASK_HEALTH (#0040, low byte bit 6)
     jr z, .init_next_entity       ; Skip if no health component
 
     ; Initialize current health (default: 3)
@@ -3161,11 +3207,11 @@ update_health_component:
     push hl                       ; Save list pointer
     ld e, c
     ld d, 0
-    ld hl, entity_comp_masks_hi
+    ld hl, entity_comp_masks
     add hl, de
     ld a, (hl)
     pop hl                        ; Restore list pointer
-    and #04                       ; COMP_MASK_HEALTH
+    and COMP_MASK_HEALTH
     jr z, .health_next_entity
 
     ; Check current health
@@ -3447,7 +3493,7 @@ update_shoot_component:
     ld a, (hl)
     pop hl                        ; Restore list pointer
     and #10                       ; COMP_MASK_SHOOT (bit 4 in high byte = #1000)
-    jr z, .shoot_next_entity      ; Skip if no shoot component
+    jp z, .shoot_next_entity      ; Skip if no shoot component
 
     ; Decrement cooldown if > 0
     push bc
@@ -3464,17 +3510,17 @@ update_shoot_component:
     ; Decrement cooldown
     dec a
     ld (hl), a
-    jr .shoot_done                ; Still cooling down, skip
+    jp .shoot_done                ; Still cooling down, skip
 
 .usc_check_fire:
     ; Check if fire button is pressed
     ld a, (input_fire)
     or a
-    jr z, .shoot_done             ; Fire not pressed, skip
+    jp z, .shoot_done             ; Fire not pressed, skip
 
     ; Fire button pressed - spawn projectile
     call .spawn_projectile
-    jr .shoot_done
+    jp .shoot_done
 
 .spawn_projectile:
     ; Spawn projectile entity
@@ -3516,39 +3562,52 @@ update_shoot_component:
 .found_free_slot:
     ; D = Free entity index for projectile
     ; C = Shooter entity index
-    pop de                        ; Discard saved DE
-    push bc                       ; Save shooter index
-    push de                       ; Save for later
+    ; Preserve both indexes in H/L while unwinding this helper's stack.
+    ld h, c                       ; H = shooter entity index
+    ld l, d                       ; L = projectile entity index
+    pop de                        ; Restore caller DE saved at helper entry
+    pop bc                        ; Restore caller BC saved at helper entry
+    ld c, h                       ; C = shooter entity index
+    ld b, l                       ; B = projectile entity index
 
-    ; Get shooter position
+    ; Copy shooter X + center offset into projectile X
+    push bc
     ld hl, entity_x_pos
     ld e, c
-    ld b, 0
-    ld c, b
-    add hl, bc
-    ld a, (hl)                    ; A = shooter X
-    add a, 8                      ; Offset to center (8 pixels)
-    ld b, a                       ; B = projectile X
-
-    ld hl, entity_y_pos
-    add hl, bc
-    ld a, (hl)                    ; A = shooter Y
-    add a, 8                      ; Offset to center
-    ld c, a                       ; C = projectile Y
-
-    ; Set projectile position
-    ld hl, entity_x_pos
-    ld e, d
-    push de
     ld d, 0
     add hl, de
-    ld (hl), b                    ; Set projectile X
-
-    ld hl, entity_y_pos
+    ld a, (hl)                    ; A = shooter X
+    add a, 8                      ; Offset to center (8 pixels)
+    pop bc
+    push bc
+    ld hl, entity_x_pos
+    ld e, b
+    ld d, 0
     add hl, de
-    ld (hl), c                    ; Set projectile Y
+    ld (hl), a                    ; Set projectile X
 
-    ; Activate projectile with Position + Sprite + Movement
+    ; Copy shooter Y + center offset into projectile Y
+    pop bc
+    push bc
+    ld hl, entity_y_pos
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = shooter Y
+    add a, 8                      ; Offset to center
+    pop bc
+    push bc
+    ld hl, entity_y_pos
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld (hl), a                    ; Set projectile Y
+
+    ; Mark projectile active and attach minimal runtime components.
+    ld hl, entity_active
+    add hl, de
+    ld (hl), 1
+
     ld hl, entity_comp_masks
     add hl, de
     ld (hl), #07                  ; POSITION | SPRITE | MOVEMENT (low byte)
@@ -3557,14 +3616,42 @@ update_shoot_component:
     add hl, de
     ld (hl), 0                    ; High byte = 0
 
-    ; Set projectile velocity based on shooter's facing direction
-    ; Determine direction from shooter's current velocity
-    pop de                        ; DE = projectile index
-    pop bc                        ; BC = shooter index
-    push bc
-    push de
+    ld hl, entity_screen_id
+    add hl, de
+    ld a, (current_screen_id)
+    ld (hl), a
 
-    ; Get shooter's velocity X to determine facing direction
+    ; Use the projectile sprite configured on the shooter, if any.
+    pop bc
+    push bc
+    ld hl, entity_shoot_sprite_id
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    pop bc
+    push bc
+    ld hl, entity_sprite_asset_index
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld (hl), a
+
+    ; Assign a deterministic fallback hardware pattern/color for the new slot.
+    ld a, b
+    add a, a
+    add a, a
+    ld hl, sprite_pattern
+    add hl, de
+    ld (hl), a
+    ld hl, sprite_color
+    add hl, de
+    ld (hl), 15
+
+    ; Set projectile velocity based on shooter's facing direction
+    ; Get shooter's velocity X to determine facing direction.
+    pop bc
+    push bc
     ld hl, entity_vel_x
     ld e, c                       ; Shooter index
     ld d, 0
@@ -3577,38 +3664,36 @@ update_shoot_component:
 
 .shoot_facing_left:
     ; Shooter facing left - projectile velocity should be negative
+    pop bc
+    push bc
     ld hl, entity_shoot_speed
     ld e, c                       ; Shooter index
     ld d, 0
     add hl, de
     ld a, (hl)                    ; A = shoot speed (positive)
     neg                           ; Negate to make it negative
-
-    pop de                        ; DE = projectile index
-    ld hl, entity_vel_x
-    push de
-    add hl, de
-    ld (hl), a                    ; Set velocity X = -speed
     jr .shoot_vel_set
 
 .shoot_facing_right:
     ; Shooter facing right - projectile velocity is positive
+    pop bc
+    push bc
     ld hl, entity_shoot_speed
     ld e, c                       ; Shooter index
     ld d, 0
     add hl, de
     ld a, (hl)                    ; A = shoot speed (positive)
 
-    pop de                        ; DE = projectile index
-    ld hl, entity_vel_x
-    push de
-    add hl, de
-    ld (hl), a                    ; Set velocity X = speed
-
 .shoot_vel_set:
+    pop bc
+    push bc
+    ld hl, entity_vel_x
+    ld e, b                       ; Projectile index
+    ld d, 0
+    add hl, de
+    ld (hl), a                    ; Set velocity X
 
     ld hl, entity_vel_y
-    pop de
     add hl, de
     ld (hl), 0                    ; Set velocity Y = 0 (horizontal)
 
@@ -3622,16 +3707,23 @@ update_shoot_component:
     add hl, de
     ld (hl), 2                    ; Collides with enemies
 
-    ; Set cooldown (15 frames @ 60fps ≈ 250ms)
-    pop bc                        ; BC = shooter index
+    ld hl, entity_collision_hitbox_w
+    add hl, de
+    ld (hl), 4
+
+    ld hl, entity_collision_hitbox_h
+    add hl, de
+    ld (hl), 6
+
+    ; Set cooldown (15 frames @ 60fps ~= 250ms)
+    pop bc                        ; B = projectile index, C = shooter index
     ld hl, entity_shoot_cooldown
     ld e, c
     ld d, 0
     add hl, de
     ld (hl), 15
 
-    pop de
-    pop bc
+    call mark_used_entity_list_dirty
     ret
 
 .shoot_done:
@@ -3803,71 +3895,6 @@ function generateAnimationSystem(): string {
             ld bc, 31
             ld (hl), ANIM_FLAG_PLAYING | ANIM_FLAG_LOOP
             ldir
-            ret
-
-        compute_entity_base_pattern:
-            ; Input: DE = entity index
-            ; Output: A = base pattern number for this entity's current frame
-            ; Clobbers: AF, BC, HL
-            ld a, SPRITE_PATTERN_PRELOAD_MODE
-            or a
-            jr z, .legacy_hw_pattern
-
-            ld hl, entity_sprite_asset_index
-            add hl, de
-            ld a, (hl)
-            cp #FF
-            jr z, .placeholder_pattern
-            cp SPRITE_ASSET_COUNT
-            jr nc, .placeholder_pattern
-
-            ld c, a
-            ld b, 0
-            ld hl, sprite_asset_base_pattern_slot_runtime
-            add hl, bc
-            ld a, (hl)                 ; A = base 16x16 pattern slot for this asset
-            push af                    ; Save base slot before HL is reused
-
-            ld hl, entity_anim_frame
-            add hl, de
-            ld c, (hl)                 ; C = current animation frame
-
-            ld hl, entity_sprite_config
-            add hl, de
-            add hl, de
-            inc hl
-            ld b, (hl)                 ; B = entity layer count (frame stride)
-
-            pop af                     ; A = base slot (restored)
-            ld l, a                    ; L = base slot (ready for stride loop)
-            ld a, c
-            or a
-            jr z, .slot_to_pattern
-
-        .frame_stride_loop:
-            ld a, l
-            add a, b
-            ld l, a
-            dec c
-            jr nz, .frame_stride_loop
-
-        .slot_to_pattern:
-            ld a, l
-            add a, a
-            add a, a
-            ret
-
-        .placeholder_pattern:
-            ld a, (sprite_placeholder_base_pattern_num)
-            ret
-
-        .legacy_hw_pattern:
-            ld hl, entity_sprite_config
-            add hl, de
-            add hl, de
-            ld a, (hl)
-            add a, a
-            add a, a
             ret
 
         update_animation_component:
@@ -8336,6 +8363,12 @@ function generateCollectibleSystem(): string {
     ; Increments score/counters and deactivates item
 
 init_collectible_system:
+    ld hl, entity_collectible_enabled
+    ld de, entity_collectible_enabled + 1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
     ret
 
 ; ------------------------------------------------------------------
@@ -8363,7 +8396,17 @@ update_collectible_component:
     or a
     jr z, .collect_next
 
-    ; TODO: Check if entity has COLLECTIBLE component mask
+    ; Skip the hero and any non-collectible entities.
+    ld a, (hero_entity_id)
+    cp c
+    jr z, .collect_next
+    ld hl, entity_collectible_enabled
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .collect_next
 
     ; Check collision against resolved hero entity
     ; Get collectible position
@@ -9518,10 +9561,11 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
     `;
     }
 
-    // Always initialize auto-destroy system (lightweight, always available)
-    code += `    ; Initialize auto-destroy system
+    if (usedComponents.has('AutoDestroy')) {
+        code += `    ; Initialize auto-destroy system
     call init_auto_destroy_system
     `;
+    }
 
     if (usedComponents.has('Cursors')) {
         code += `    ; Initialize cursors system (stub)
@@ -9650,8 +9694,10 @@ COMP_MASK_HEALTH     EQU #0040
 COMP_MASK_ANIMATION  EQU #0080
 COMP_MASK_JUMP       EQU #0100
 COMP_MASK_GRAVITY    EQU #0200
-COMP_MASK_DEADLY_TILES EQU #2000
 COMP_MASK_AUTO_DESTROY EQU #0400
+COMP_MASK_DAMAGE     EQU #0800
+COMP_MASK_SHOOT      EQU #1000
+COMP_MASK_DEADLY_TILES EQU #2000
 COMP_MASK_WALL_JUMP EQU #4000
 COMP_MASK_AIR_CONTROL EQU #8000
 
@@ -10214,8 +10260,18 @@ walljump_input_is_right:
     `;
     }
 
-    // Generate Auto-Destroy System (always available - lightweight feature)
-    code += generateAutoDestroySystem();
+    if (usedComponents.has('AutoDestroy')) {
+        code += generateAutoDestroySystem();
+    } else {
+        code += `
+    ; AutoDestroy system filtered out(not used)
+init_auto_destroy_system:
+    ret
+
+update_auto_destroy_component:
+    ret
+    `;
+    }
 
     // Generate Cursors System stub (if used)
     if (!usedComponents.has('Cursors')) {
@@ -10235,6 +10291,17 @@ update_cursors_component:
     if (!usedComponents.has('StateMachine')) {
         code += `
     ; StateMachine system filtered out(not used)
+init_statemachine_system:
+    ret
+
+update_statemachine_component:
+    ret
+    `;
+    } else if ((analysis as any).hasGameFlow) {
+        code += `
+    ; StateMachine per-entity component tick filtered out.
+    ; GameFlow calls execute_all_state_machines once per frame, so this
+    ; resident component wrapper must stay a no-op to avoid duplicate SM ticks.
 init_statemachine_system:
     ret
 
@@ -10458,12 +10525,6 @@ apply_collected_tiles:
 ; ==================================================================
 ; This function executes the state machine for each entity that has one
 execute_all_state_machines:
-    ld hl, prof_execute_sm_calls
-    inc (hl)
-    jr nz, .prof_execute_sm_counted
-    inc hl
-    inc (hl)
-.prof_execute_sm_counted:
     ld a, (active_entity_count)
     or a
     ret z
@@ -10557,126 +10618,38 @@ refresh_player_state_machine_fastpath:
 ; ==================================================================
 ; TILE COLLISION SYSTEM
 ; ==================================================================
-; Provides functions for checking collision with background tiles
-; Uses behavior maps generated from screen collision layers
+; Legacy compatibility labels. Current WallCollision and TileInteraction
+; use get_behavior_tile directly, so keep this path compact in resident ROM.
 ; ==================================================================
 
-; ------------------------------------------------------------------
-; get_tile_at_position
-; Convert pixel coordinates to tile coordinates and get tile ID
-; Input:  D = X position (pixels), E = Y position (pixels)
-; Output: A = Tile ID at that position, Z flag set if out of bounds
-; Destroys: BC, HL
-; ------------------------------------------------------------------
 get_tile_at_position:
-    ; Convert X pixel to tile column (divide by 8 - MSX Screen 2 character cell)
-    ; Screen layout is ALWAYS 32x24 grid of 8x8 cells regardless of project tile size
+    ; Deprecated: callers should use get_behavior_tile with B=row/C=column.
+    xor a
+    ret
+
+get_tile_behavior:
+    ; Deprecated ID-based lookup. Preserve label, return passable.
+    xor a
+    ret
+
+tile_behavior_table:
+    db TILE_PASSABLE
+
+check_collision_at_point:
+    ; Input: D=x pixels, E=y pixels. Convert to Screen 2 cell coords.
     ld a, d
     srl a
     srl a
-    srl a                         ; A = X / 8 = tile column
-    ld b, a                       ; B = tile column
-
-    ; Convert Y pixel to tile row (divide by 8 - MSX Screen 2 character cell)
+    srl a
+    ld c, a
     ld a, e
     srl a
     srl a
-    srl a                         ; A = Y / 8 = tile row
-    ld c, a                       ; C = tile row
-
-    ; Check bounds (assume 32x24 tile screen for now)
-    ld a, b
-    cp 32
-    jr nc, .out_of_bounds
-    ld a, c
-    cp 24
-    jr nc, .out_of_bounds
-
-    ; Calculate tile index: index = row * 32 + column (16-bit to avoid overflow)
-    ld l, c
-    ld h, 0                       ; HL = row (16-bit)
-    add hl, hl                    ; HL = row * 2
-    add hl, hl                    ; HL = row * 4
-    add hl, hl                    ; HL = row * 8
-    add hl, hl                    ; HL = row * 16
-    add hl, hl                    ; HL = row * 32
-    ld e, b
-    ld d, 0
-    add hl, de                    ; HL = row * 32 + column
-
-    ; Read actual tile from current screen layout
-    ld de, (current_screen_layout) ; DE = pointer to screen layout data
-    add hl, de                    ; HL = pointer to tile at position
-${usesMapper ? `    call mapper_push_p2
-    ld a, (current_screen_layout_bank)
-    call mapper_set_bank_p2
-` : ''}    ld a, (hl)                    ; A = tile ID from screen map
-${usesMapper ? `    push af
-    call mapper_pop_p2
-    pop af
-` : ''}
-    or a                          ; Set flags based on tile ID
-    ret                           ; Z flag set if tile == 0 (empty)
-
-.out_of_bounds:
-    xor a                         ; A = 0
-    ret                           ; Z flag set (out of bounds)
-
-; ------------------------------------------------------------------
-; get_tile_behavior
-; Get behavior/collision type of a tile
-; Input:  A = Tile ID (character code from screen map)
-; Output: A = Behavior flags (TILE_SOLID, TILE_PLATFORM, etc.)
-; Destroys: HL
-; ------------------------------------------------------------------
-get_tile_behavior:
-    ; Tile ID 0 is always passable (empty tile)
-    or a
-    jr z, .passable
-
-    ; Look up tile behavior from tile_behavior_table
-    ; The table is indexed by tile ID
-    ld l, a
-    ld h, 0
-    ld de, tile_behavior_table
-    add hl, de                    ; HL = &tile_behavior_table[tile_id]
-    ld a, (hl)                    ; A = behavior flags
+    srl a
+    ld b, a
+    call get_behavior_tile
+    and #F0                       ; family bits: 0=passable, #10+=solid
     ret
-
-.passable:
-    ld a, TILE_PASSABLE
-    ret
-
-; ------------------------------------------------------------------
-; Tile Behavior Table
-; Maps character IDs (0-255) to behavior flags
-; NOTE: Wall collision uses behavior map directly (get_behavior_tile).
-; This table is used by check_collision_at_point and deadly tile checks.
-; Character 0 = empty (passable). Characters >= 128 = project tiles (solid).
-; ------------------------------------------------------------------
-tile_behavior_table:
-    ; Index 0-127: Default passable (background, empty space)
-    db TILE_PASSABLE              ; 0: Empty tile
-    ${Array(127).fill(0).map((_, i) => `db TILE_PASSABLE              ; ${i + 1}: Passable`).join('\n    ')}
-
-    ; Index 128-255: Project tile characters (solid by default)
-    ; MSX Screen 2 assigns character IDs >= 128 to project tiles
-    ${Array(128).fill(0).map((_, i) => `db TILE_SOLID                 ; ${128 + i}: Solid`).join('\n    ')}
-
-; ------------------------------------------------------------------
-; check_collision_at_point
-; Check if there's a solid tile at given pixel coordinates
-; Input:  D = X position, E = Y position
-; Output: Z flag set if passable, cleared if solid
-;         A = Behavior flags of tile at that position
-; Destroys: BC, HL
-; ------------------------------------------------------------------
-check_collision_at_point:
-    call get_tile_at_position
-    ret z                         ; Out of bounds = passable
-    call get_tile_behavior
-    and TILE_SOLID | TILE_PLATFORM
-    ret                           ; Z if passable, NZ if solid
 
 ; ------------------------------------------------------------------
 ; check_collision_box
@@ -10687,50 +10660,8 @@ check_collision_at_point:
 ; Destroys: BC, HL
 ; ------------------------------------------------------------------
 check_collision_box:
-    ; Check 4 corners of 16x16 box:
-    ; Top-left (X, Y)
-    push de
-    call check_collision_at_point
-    jr nz, .collision_found
-
-    ; Top-right (X+15, Y)
-    pop de
-    push de
-    ld a, d
-    add a, 15
-    ld d, a
-    call check_collision_at_point
-    jr nz, .collision_found
-
-    ; Bottom-left (X, Y+15)
-    pop de
-    push de
-    ld a, e
-    add a, 15
-    ld e, a
-    call check_collision_at_point
-    jr nz, .collision_found
-
-    ; Bottom-right (X+15, Y+15)
-    pop de
-    push de
-    ld a, d
-    add a, 15
-    ld d, a
-    ld a, e
-    add a, 15
-    ld e, a
-    call check_collision_at_point
-    jr nz, .collision_found
-
-    ; No collision
-    pop de
-    xor a                         ; Z flag set
-    ret
-
-.collision_found:
-    pop de
-    or a                          ; Clear Z flag
+    ; Deprecated legacy helper. WallCollision uses behavior maps directly.
+    xor a                         ; passable/no collision
     ret
 
 ; ------------------------------------------------------------------

@@ -91,7 +91,11 @@ ${romMode === 'megarom'
 
 `
     : '';
-  const initialPageSetupAsm = `    ; Cold boot path: ensure cartridge page 2 (8000h-BFFFh) is mapped to the cartridge slot.
+  const initialPageSetupAsm = romMode === 'megarom'
+    ? `    ; MegaROM cold boot: do not run the linear 32K SETPAGES32K slot remapper.
+    ; The mapper registers below define the visible 8KB banks explicitly.
+    jp restart_rom_continue`
+    : `    ; Cold boot path: ensure cartridge page 2 (8000h-BFFFh) is mapped to the cartridge slot.
     ; Required for both simple32k and plain48k: the BIOS only maps page 1 when it finds "AB",
     ; page 2 must be explicitly mapped via SETPAGES32K (reads page-1 slot, applies it to page 2).
     call SETPAGES32K
@@ -181,6 +185,12 @@ ${romMode === 'megarom' ? `
     ; Change screen mode to SCREEN 2
     ld a, 2
     call CHGMOD
+    ; DIAG BOOT: reached after SCREEN 2 setup
+    ld a, #06
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
+    call ENASCR
 
     ; Configure 16x16 sprites
     ; VDP Register #01: activate sprites, generate interrupts, 16x16 sprites
@@ -205,6 +215,12 @@ ${romMode === 'megarom' ? `
     ; Register default tasks based on project needs
     ${generateTaskRegistration(analysis, executionPlan)}
     ei
+    ; DIAG BOOT: interrupt/task setup completed
+    ld a, #08
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
+    call ENASCR
 
 ${analysis.hasGameFlow ? `    ; ====================================================
     ; GAMEFLOW INITIALIZATION
@@ -215,15 +231,25 @@ ${presentationBootAsm}    ; Initialize GameFlow system
     ; Start execution from GameFlow Start node
     ; GameFlow is now the sole orchestrator
     call ENASCR
+    ; DIAG BOOT: jumping to GameFlow
+    ld a, #0A
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
     jp gameflow_start` : `    ; ====================================================
     ; SIMPLE GAME LOOP (No GameFlow)
     ; ====================================================
     ; Initialize game entities
-${presentationBootAsm}    call init_game_entities
+${presentationBootAsm}    call init_entities
     call load_game_screen
     call rebuild_used_entity_list
     call ENASCR
     jp main_loop`}
+
+main_loop:
+    halt
+    call update_all_entities
+    jp main_loop
 
 ; ==================================================================
 ; AUXILIARY FUNCTIONS

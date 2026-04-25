@@ -72,7 +72,11 @@ ${romMode === 'megarom'
 
 `
         : '';
-    const initialPageSetupAsm = `    ; Cold boot path: ensure cartridge page 2 (8000h-BFFFh) is mapped to the cartridge slot.
+    const initialPageSetupAsm = romMode === 'megarom'
+        ? `    ; MegaROM cold boot: do not run the linear 32K SETPAGES32K slot remapper.
+    ; The mapper registers below define the visible 8KB banks explicitly.
+    jp restart_rom_continue`
+        : `    ; Cold boot path: ensure cartridge page 2 (8000h-BFFFh) is mapped to the cartridge slot.
     ; Required for both simple32k and plain48k: the BIOS only maps page 1 when it finds "AB",
     ; page 2 must be explicitly mapped via SETPAGES32K (reads page-1 slot, applies it to page 2).
     call SETPAGES32K
@@ -199,11 +203,16 @@ ${presentationBootAsm}    ; Initialize GameFlow system
     ; SIMPLE GAME LOOP (No GameFlow)
     ; ====================================================
     ; Initialize game entities
-${presentationBootAsm}    call init_game_entities
+${presentationBootAsm}    call init_entities
     call load_game_screen
     call rebuild_used_entity_list
     call ENASCR
     jp main_loop`}
+
+main_loop:
+    halt
+    call update_all_entities
+    jp main_loop
 
 ; ==================================================================
 ; AUXILIARY FUNCTIONS
