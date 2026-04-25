@@ -20749,7 +20749,7 @@ init_behavior_system:
 
 update_behavior_component:
     ret
-    `,a.has("Health")?_+=Nd():_+=`
+    `,a.has("Health")||a.has("Damage")?_+=Nd():_+=`
     ; Health system filtered out(not used)
 init_health_system:
     ret
@@ -20827,7 +20827,15 @@ init_cursors_system:
 
 update_cursors_component:
     ret
-    `,a.has("StateMachine")?e.hasGameFlow?_+=`
+    `,a.has("StateMachine")?!Array.isArray(e.stateMachines)||e.stateMachines.length===0?_+=`
+    ; StateMachine component present but no state machine assets are defined.
+    ; Keep the component safe for reusable templates.
+init_statemachine_system:
+    ret
+
+update_statemachine_component:
+    ret
+    `:e.hasGameFlow?_+=`
     ; StateMachine per-entity component tick filtered out.
     ; GameFlow calls execute_all_state_machines once per frame, so this
     ; resident component wrapper must stay a no-op to avoid duplicate SM ticks.

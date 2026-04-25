@@ -127,6 +127,17 @@ Orden recomendado de trabajo:
 - `test/test_msx_2d_rom_contract.js`: valida que las plantillas canonicas usan
   componentes conocidos por `componentAnalyzer` y con runtime/simbolo esperado
   en el generador ASM.
+- `test/test_msx_2d_minimal_generation.js`: genera proyectos minimos para las
+  cinco plantillas canonicas y valida que el ASM unificado contiene los
+  sistemas esperados sin llamadas invalidas a `SM_Update` cuando no hay assets
+  de maquina de estados.
+- `test/test_msx_2d_glass_compile.js`: recompila esas cinco salidas minimas con
+  `glass.jar`, aplica padding `0xFF` a multiplo de 8KB y falla si aparece una
+  excepcion de Glass o no se produce ROM.
+
+Validacion actual: las cinco salidas minimas (`platform`, `topdown`, `shooter`,
+`projectile`, `patrol_enemy`) ensamblan con `glass.jar` en modo `simple32k` y
+quedan alineadas para MSX/OpenMSX.
 
 ## Criterio de terminado por componente
 

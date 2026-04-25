@@ -1,20 +1,19 @@
+"use strict";
 /**
  * @fileoverview Components Generator - ECS component systems
  * Generates components.asm with Position, Sprite, Movement, Collision, Input, and Behavior systems
  * NOW WITH INTELLIGENT FILTERING - Only generates code for components actually used
  */
-
-import { ProjectAnalysis } from '../../asmTemplateGenerator';
-import { analyzeComponentUsage, ComponentUsageAnalysis } from '../utils/componentAnalyzer';
-import { buildRegisterContractComment } from './registerContract';
-import { usesMapperBanking } from './romModeUtils';
-
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateComponentsFile = generateComponentsFile;
+const componentAnalyzer_1 = require("../utils/componentAnalyzer");
+const registerContract_1 = require("./registerContract");
+const romModeUtils_1 = require("./romModeUtils");
 // ============================================================================
 // OPTIMIZED UPDATE_ALL_ENTITIES GENERATOR
 // ============================================================================
 // Only generates CALLs for components that are actually used in the project
 // This saves Z80 cycles by avoiding calls to empty stubs
-
 /**
  * Generate optimized update_all_entities function
  * Only includes CALLs to systems that are actually used
@@ -22,29 +21,25 @@ import { usesMapperBanking } from './romModeUtils';
  * @param avoidStateMachineDuplication - true when GameFlow already executes execute_all_state_machines
  * @returns ASM code for update_all_entities
  */
-function generateUpdateAllEntities(
-    usedComponents: Set<string>,
-    avoidStateMachineDuplication: boolean,
-    hasSecretZones: boolean
-): string {
+function generateUpdateAllEntities(usedComponents, avoidStateMachineDuplication, hasSecretZones) {
     let code = `
 ; ==================================================================
 ; UPDATE ALL ENTITIES - Called by GameFlow (OPTIMIZED)
 ; ==================================================================
 ; Only calls component systems that are actually used in this project
 ; Unused systems are NOT called (saves Z80 cycles)
-${buildRegisterContractComment({
-  purpose: 'Main ECS tick entrypoint for one frame.',
-  inputs: ['Entity/component tables in RAM'],
-  outputs: ['Components updated in fixed order'],
-  clobbers: ['AF', 'BC', 'DE', 'HL'],
-  preserved: ['None (callers should save what they need)'],
-  usage: [
-    'Registers are scratch across component CALL chain',
-    'Contract intentionally conservative to prevent hidden coupling',
-  ],
-  notes: ['Do not assume any register survives this routine.'],
-})}
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Main ECS tick entrypoint for one frame.',
+        inputs: ['Entity/component tables in RAM'],
+        outputs: ['Components updated in fixed order'],
+        clobbers: ['AF', 'BC', 'DE', 'HL'],
+        preserved: ['None (callers should save what they need)'],
+        usage: [
+            'Registers are scratch across component CALL chain',
+            'Contract intentionally conservative to prevent hidden coupling',
+        ],
+        notes: ['Do not assume any register survives this routine.'],
+    })}
 update_all_entities:
     ; Fast path: when all entities use default job cadence (period=1, entry=0),
     ; rebuild the compact list only when entity/screen membership changes.
@@ -58,10 +53,9 @@ update_all_entities:
     call rebuild_used_entity_list
 .update_all_entities_list_ready:
 `;
-
     // Define the component systems in execution order
     // Format: [componentName, functionCall, comment]
-    const componentSystems: [string, string, string][] = [
+    const componentSystems = [
         ['Input', 'update_input_component', '1. Input (player control)'],
         ['Shoot', 'update_shoot_component', '2. Shooting'],
         ['Behavior', 'update_behavior_component', '3. Behavior/AI'],
@@ -89,14 +83,11 @@ update_all_entities:
         ['AutoDestroy', 'update_auto_destroy_component', '12. Auto-destroy'],
         ['Sprite', 'update_sprite_component', '13. Sprite rendering'],
     ];
-
     let callCount = 0;
-    const processedFunctions = new Set<string>(); // Avoid duplicate calls
-
-      for (const [component, funcCall, comment] of componentSystems) {
+    const processedFunctions = new Set(); // Avoid duplicate calls
+    for (const [component, funcCall, comment] of componentSystems) {
         // Position is always needed (entities always have positions)
         const isRequired = component === 'Position' || component === 'Sprite';
-
         const isEnabled = isRequired || (component === 'SecretZones' ? hasSecretZones : usedComponents.has(component));
         if (isEnabled) {
             // GameFlow executes state machines explicitly in execute_all_state_machines.
@@ -105,18 +96,17 @@ update_all_entities:
                 continue;
             }
             // Avoid duplicate function calls (e.g., multiple Collision entries)
-              if (!processedFunctions.has(funcCall)) {
-                  processedFunctions.add(funcCall);
-                  code += `    call ${funcCall.padEnd(30)} ; ${comment}\n`;
-                  if (funcCall === 'update_shoot_component') {
-                      code += `    ; Shooting may spawn entities, rebuild only if marked dirty\n`;
+            if (!processedFunctions.has(funcCall)) {
+                processedFunctions.add(funcCall);
+                code += `    call ${funcCall.padEnd(30)} ; ${comment}\n`;
+                if (funcCall === 'update_shoot_component') {
+                    code += `    ; Shooting may spawn entities, rebuild only if marked dirty\n`;
                     code += `    call ensure_used_entity_list_current\n`;
                 }
                 callCount++;
             }
         }
     }
-
     code += `    call sync_player_runtime_from_entity\n`;
     code += `    ret\n`;
     code += `; Total systems called: ${callCount} (optimized from 16)\n\n`;
@@ -126,14 +116,14 @@ update_all_entities:
 ; Invalidate compact entity list cache.
 ; Call this after spawn/despawn or screen-id changes.
 ; ------------------------------------------------------------------
-${buildRegisterContractComment({
-  purpose: 'Mark compact active-entity cache as stale.',
-  inputs: ['None'],
-  outputs: ['active_entity_list_dirty = 1'],
-  clobbers: ['HL'],
-  preserved: ['AF', 'BC', 'DE'],
-  usage: ['HL = points to dirty flag byte'],
-})}
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Mark compact active-entity cache as stale.',
+        inputs: ['None'],
+        outputs: ['active_entity_list_dirty = 1'],
+        clobbers: ['HL'],
+        preserved: ['AF', 'BC', 'DE'],
+        usage: ['HL = points to dirty flag byte'],
+    })}
 mark_used_entity_list_dirty:
     ld hl, active_entity_list_dirty
     ld (hl), 1
@@ -143,15 +133,15 @@ mark_used_entity_list_dirty:
 ; ensure_used_entity_list_current
 ; Rebuild compact list only when marked dirty.
 ; ------------------------------------------------------------------
-${buildRegisterContractComment({
-  purpose: 'Conditionally rebuild compact active list only when dirty.',
-  inputs: ['active_entity_list_dirty flag'],
-  outputs: ['active_entity_list rebuilt if needed'],
-  clobbers: ['AF'],
-  preserved: ['BC', 'DE', 'HL (except nested call clobbers when rebuild happens)'],
-  usage: ['A = dirty flag test and branch'],
-  notes: ['If dirty, downstream rebuild_used_entity_list can clobber many registers.'],
-})}
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Conditionally rebuild compact active list only when dirty.',
+        inputs: ['active_entity_list_dirty flag'],
+        outputs: ['active_entity_list rebuilt if needed'],
+        clobbers: ['AF'],
+        preserved: ['BC', 'DE', 'HL (except nested call clobbers when rebuild happens)'],
+        usage: ['A = dirty flag test and branch'],
+        notes: ['If dirty, downstream rebuild_used_entity_list can clobber many registers.'],
+    })}
 ensure_used_entity_list_current:
     ld a, (active_entity_list_dirty)
     or a
@@ -168,26 +158,26 @@ ensure_used_entity_list_current:
 ;   active_entity_list[]   = entity indices with components
 ;   active_entity_count    = number of entries
 ; ------------------------------------------------------------------
-${buildRegisterContractComment({
-  purpose: 'Recompute compact list of entities active on current screen.',
-  inputs: ['entity_active, entity_comp_masks(_hi), entity_screen_id, current_screen_id'],
-  outputs: [
-    'active_entity_list[]',
-    'active_entity_count',
-    'hero_entity_id updated from first current-screen entity flagged as player',
-    'input/render/collision/ground/anim buckets refreshed',
-    'active_entity_list_dirty=0',
-  ],
-  clobbers: ['AF', 'BC', 'DE', 'HL'],
-  preserved: ['None'],
-  usage: [
-    'B = slots remaining (MAX_ENTITIES..1)',
-    'C = entity slot iterator (0..MAX_ENTITIES-1)',
-    'DE = index offset (entity id / active list position)',
-    'HL = pointer math over component and state arrays',
-    'A = predicate checks and counters',
-  ],
-})}
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Recompute compact list of entities active on current screen.',
+        inputs: ['entity_active, entity_comp_masks(_hi), entity_screen_id, current_screen_id'],
+        outputs: [
+            'active_entity_list[]',
+            'active_entity_count',
+            'hero_entity_id updated from first current-screen entity flagged as player',
+            'input/render/collision/ground/anim buckets refreshed',
+            'active_entity_list_dirty=0',
+        ],
+        clobbers: ['AF', 'BC', 'DE', 'HL'],
+        preserved: ['None'],
+        usage: [
+            'B = slots remaining (MAX_ENTITIES..1)',
+            'C = entity slot iterator (0..MAX_ENTITIES-1)',
+            'DE = index offset (entity id / active list position)',
+            'HL = pointer math over component and state arrays',
+            'A = predicate checks and counters',
+        ],
+    })}
 rebuild_used_entity_list:
     xor a
     ld (active_entity_count), a
@@ -379,14 +369,14 @@ rebuild_used_entity_list:
 ; ensure_player_fast_runtime_bound
 ; Keep the dedicated player runtime attached to the current hero entity.
 ; ------------------------------------------------------------------
-${buildRegisterContractComment({
-  purpose: 'Bind the player fast-path runtime to the current hero entity.',
-  inputs: ['active_entity_list_dirty, hero_entity_id, current-screen filtered entity lists'],
-  outputs: ['player_runtime_enabled, player_entity_index, player_x/player_y, player_vx_runtime/player_vy_runtime'],
-  clobbers: ['AF', 'BC', 'DE', 'HL'],
-  preserved: ['None'],
-  notes: ['Calls ensure_used_entity_list_current and resolve_runtime_hero_entity.'],
-})}
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Bind the player fast-path runtime to the current hero entity.',
+        inputs: ['active_entity_list_dirty, hero_entity_id, current-screen filtered entity lists'],
+        outputs: ['player_runtime_enabled, player_entity_index, player_x/player_y, player_vx_runtime/player_vy_runtime'],
+        clobbers: ['AF', 'BC', 'DE', 'HL'],
+        preserved: ['None'],
+        notes: ['Calls ensure_used_entity_list_current and resolve_runtime_hero_entity.'],
+    })}
 ensure_player_fast_runtime_bound:
     call ensure_used_entity_list_current
     call resolve_runtime_hero_entity
@@ -416,13 +406,13 @@ ensure_player_fast_runtime_bound:
 ; sync_player_runtime_from_entity
 ; Mirror hero ECS coordinates/velocity into player_* runtime vars.
 ; ------------------------------------------------------------------
-${buildRegisterContractComment({
-  purpose: 'Copy the current bound hero entity state into player_* runtime variables.',
-  inputs: ['player_runtime_enabled, player_entity_index, entity_x_pos/y_pos, entity_vel_x/y'],
-  outputs: ['player_x, player_y, player_vx_runtime, player_vy_runtime updated'],
-  clobbers: ['AF', 'BC', 'DE', 'HL'],
-  preserved: ['None'],
-})}
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Copy the current bound hero entity state into player_* runtime variables.',
+        inputs: ['player_runtime_enabled, player_entity_index, entity_x_pos/y_pos, entity_vel_x/y'],
+        outputs: ['player_x, player_y, player_vx_runtime, player_vy_runtime updated'],
+        clobbers: ['AF', 'BC', 'DE', 'HL'],
+        preserved: ['None'],
+    })}
 sync_player_runtime_from_entity:
     ld a, (player_runtime_enabled)
     or a
@@ -559,14 +549,14 @@ update_entity_ladder_state_c:
 ; Mirrors the critical input->jump->gravity->position chain for the
 ; current player entity without iterating over every active entity.
 ; ------------------------------------------------------------------
-${buildRegisterContractComment({
-  purpose: 'Run the critical per-frame player update without ECS list iteration.',
-  inputs: ['task_update_input already refreshed input_state/input_btn_*'],
-  outputs: ['Hero input/jump/gravity/position resolved into entity tables and player_* mirror'],
-  clobbers: ['AF', 'BC', 'DE', 'HL'],
-  preserved: ['None'],
-  notes: ['Global collision/wall/sprite systems still run later in the frame and may refine the final result.'],
-})}
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Run the critical per-frame player update without ECS list iteration.',
+        inputs: ['task_update_input already refreshed input_state/input_btn_*'],
+        outputs: ['Hero input/jump/gravity/position resolved into entity tables and player_* mirror'],
+        clobbers: ['AF', 'BC', 'DE', 'HL'],
+        preserved: ['None'],
+        notes: ['Global collision/wall/sprite systems still run later in the frame and may refine the final result.'],
+    })}
 update_player_fastpath:
     call ensure_player_fast_runtime_bound
     ld a, (player_runtime_enabled)
@@ -1139,18 +1129,15 @@ update_player_fastpath:
     call sync_player_runtime_from_entity
     ret
 `;
-
     return code;
 }
-
 // ============================================================================
 // HELPER FUNCTIONS - INDIVIDUAL COMPONENT SYSTEMS
 // ============================================================================
-
 /**
  * Generate Position Component System
  */
-function generatePositionSystem(): string {
+function generatePositionSystem() {
     return `
 ; ==================================================================
 ; POSITION COMPONENT SYSTEM (Based on SpriteEditor position handling)
@@ -1264,11 +1251,10 @@ position_next_entity:
     ret
 `;
 }
-
 /**
  * Generate Sprite Component System
  */
-function generateSpriteSystem(analysis: ProjectAnalysis): string {
+function generateSpriteSystem(analysis) {
     return `
 ; ==================================================================
 ; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
@@ -1632,7 +1618,7 @@ compute_entity_base_pattern:
     ret
 `;
 }
-function generateMovementSystem(): string {
+function generateMovementSystem() {
     return `
         ; ==================================================================
         ; MOVEMENT COMPONENT SYSTEM (Based on movement physics)
@@ -1684,29 +1670,22 @@ function generateMovementSystem(): string {
     ret
     `;
 }
-
 /**
  * Generate Collision Component System
  */
-function generateCollisionSystem(analysis: ProjectAnalysis): string {
+function generateCollisionSystem(analysis) {
     // MSX Screen 2 ALWAYS uses 8x8 character cells for the Name Table (32x24 grid)
     // The behavior map maps 1:1 to the Name Table, so pixel-to-tile conversion
     // must ALWAYS divide by 8, regardless of the project's visual tile dimensions.
-    const msxCharSize = 8;     // MSX character cell is always 8x8 pixels
-    const tilesPerRow = 32;    // 256 / 8 = 32 columns
+    const msxCharSize = 8; // MSX character cell is always 8x8 pixels
+    const tilesPerRow = 32; // 256 / 8 = 32 columns
     const tilesPerColumn = 24; // 192 / 8 = 24 rows
-    const shiftAmount = 3;     // 8 = 2^3, so 3 shifts to divide by 8
-
-    const xDivisionCode = Array.from({ length: shiftAmount },
-        (_, i) => `    srl a                      ; A = X / ${Math.pow(2, i + 1)}`).join('\n');
-
-    const yDivisionCode = Array.from({ length: shiftAmount },
-        (_, i) => `    srl a                      ; A = Y / ${Math.pow(2, i + 1)}`).join('\n');
-
+    const shiftAmount = 3; // 8 = 2^3, so 3 shifts to divide by 8
+    const xDivisionCode = Array.from({ length: shiftAmount }, (_, i) => `    srl a                      ; A = X / ${Math.pow(2, i + 1)}`).join('\n');
+    const yDivisionCode = Array.from({ length: shiftAmount }, (_, i) => `    srl a                      ; A = Y / ${Math.pow(2, i + 1)}`).join('\n');
     const tileInfo = `; MSX Screen 2: behavior map is 32x24 (one entry per 8x8 character cell)
     ; Always divide by 8 to convert pixels to character column/row
     ; Convert X to tile column (divide by 8)`;
-
     return `
         ; ==================================================================
 ; COLLISION COMPONENT SYSTEM(Based on ScreenEditor collision detection)
@@ -2452,39 +2431,38 @@ ${yDivisionCode}
 
         `;
 }
-
 /**
  * Generate get_behavior_tile function (shared by Collision and WallCollision systems)
  * Returns behavior value for a tile at (B=row, C=column) using current_behavior_map
  */
-function generateGetBehaviorTile(romMode: string = 'simple32k'): string {
-    const usesMapper = usesMapperBanking(romMode);
+function generateGetBehaviorTile(romMode = 'simple32k') {
+    const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
     return `
     ; ------------------------------------------------------------------
     ; get_behavior_tile
     ; ------------------------------------------------------------------
-${buildRegisterContractComment({
-  purpose: 'Read behavior byte for tile at (B=row, C=column) from the runtime behavior map.',
-  inputs: [
-    'B = tile row    (0..23, out-of-range → A=0, passable)',
-    'C = tile column (0..31, out-of-range → A=0, passable)',
-    'current_behavior_map = 16-bit pointer to active screen behavior map',
-    'current_behavior_map_bank = memory bank number (mapper context)',
-  ],
-  outputs: [
-    'A = behavior byte:',
-    '  bits 7-4 (A & #F0): family / solidity class (0x00 = NoSolid, 0x10+ = Solid)',
-    '  bits 3-0 (A & #0F): flag bits (e.g. 0x08 = Interactable)',
-  ],
-  clobbers: ['AF'],
-  preserved: ['BC', 'DE', 'HL'],
-  notes: [
-    'Maintains a single-row cache (behavior_cache_row / behavior_cache_row_base)',
-    'so consecutive calls for the same row skip the row*32 multiply.',
-    'Mapper push/pop protects P2 bank around the map read (no-op in simple32k mode).',
-    'MUST be called with DE = entity index already set (DE is preserved, not used).',
-  ],
-})}
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Read behavior byte for tile at (B=row, C=column) from the runtime behavior map.',
+        inputs: [
+            'B = tile row    (0..23, out-of-range → A=0, passable)',
+            'C = tile column (0..31, out-of-range → A=0, passable)',
+            'current_behavior_map = 16-bit pointer to active screen behavior map',
+            'current_behavior_map_bank = memory bank number (mapper context)',
+        ],
+        outputs: [
+            'A = behavior byte:',
+            '  bits 7-4 (A & #F0): family / solidity class (0x00 = NoSolid, 0x10+ = Solid)',
+            '  bits 3-0 (A & #0F): flag bits (e.g. 0x08 = Interactable)',
+        ],
+        clobbers: ['AF'],
+        preserved: ['BC', 'DE', 'HL'],
+        notes: [
+            'Maintains a single-row cache (behavior_cache_row / behavior_cache_row_base)',
+            'so consecutive calls for the same row skip the row*32 multiply.',
+            'Mapper push/pop protects P2 bank around the map read (no-op in simple32k mode).',
+            'MUST be called with DE = entity index already set (DE is preserved, not used).',
+        ],
+    })}
 get_behavior_tile:
     ; Bounds check: row must be 0-23, column must be 0-31
     ; NOTE: jp nc (not jr nc) to gbt_oob — gbt_oob is a global label defined after
@@ -2572,11 +2550,10 @@ gbt_oob:
     ret
     `;
 }
-
 /**
  * Generate Input Component System with direction restrictions (Cursors component)
  */
-function generateInputSystem(): string {
+function generateInputSystem() {
     return `
         ; ==================================================================
         ; INPUT COMPONENT SYSTEM (With direction restrictions - Cursors)
@@ -2958,11 +2935,10 @@ function generateInputSystem(): string {
             ret
     `;
 }
-
 /**
  * Generate Behavior Component System
  */
-function generateBehaviorSystem(): string {
+function generateBehaviorSystem() {
     return `
     ; ==================================================================
         ; BEHAVIOR COMPONENT SYSTEM(Based on BehaviorEditor logic)
@@ -3002,11 +2978,10 @@ behavior_next_entity:
             ret
     `;
 }
-
 /**
  * Generate Gravity Component System
  */
-function generateGravitySystem(): string {
+function generateGravitySystem() {
     return `
     ; ==================================================================
         ; GRAVITY COMPONENT SYSTEM(Constant downward acceleration)
@@ -3144,11 +3119,10 @@ gravity_next_entity:
     ret
     `;
 }
-
 /**
  * Generate Health Component System
  */
-function generateHealthSystem(): string {
+function generateHealthSystem() {
     return `
     ; ==================================================================
     ; HEALTH COMPONENT SYSTEM
@@ -3301,11 +3275,10 @@ increase_entity_lives:
     ret
     `;
 }
-
 /**
  * Generate Damage Component System with Invincibility Frames
  */
-function generateDamageSystem(): string {
+function generateDamageSystem() {
     return `
     ; ==================================================================
     ; DAMAGE COMPONENT SYSTEM
@@ -3432,11 +3405,10 @@ check_entity_invincible:
     ret
     `;
 }
-
 /**
  * Generate Shoot Component System
  */
-function generateShootSystem(): string {
+function generateShootSystem() {
     return `
     ; ==================================================================
     ; SHOOT COMPONENT SYSTEM
@@ -3736,11 +3708,10 @@ update_shoot_component:
     ret
     `;
 }
-
 /**
  * Generate Platform Riding System
  */
-function generatePlatformRidingSystem(): string {
+function generatePlatformRidingSystem() {
     return `
     ; ==================================================================
     ; PLATFORM RIDING SYSTEM
@@ -3856,11 +3827,10 @@ update_platform_riding:
     ret
     `;
 }
-
 /**
  * Generate Animation Component System
  */
-function generateAnimationSystem(): string {
+function generateAnimationSystem() {
     return `
     ; ==================================================================
         ; ANIMATION COMPONENT SYSTEM
@@ -4202,11 +4172,10 @@ refresh_player_animation_fastpath:
     ret
     `;
 }
-
 /**
  * Generate Jump Component System
  */
-function generateJumpSystem(): string {
+function generateJumpSystem() {
     return `
     ; ==================================================================
         ; JUMP COMPONENT SYSTEM
@@ -4432,8 +4401,7 @@ jump_done_entity:
     ret
     `;
 }
-
-function generateAirControlHelpers(): string {
+function generateAirControlHelpers() {
     return `
     ; ==================================================================
     ; AIR CONTROL HELPERS
@@ -4530,8 +4498,7 @@ aircontrol_should_lock_horizontal_c:
     ret
     `;
 }
-
-function generateWallGrabSystem(): string {
+function generateWallGrabSystem() {
     return `
     ; ==================================================================
     ; WALL GRAB COMPONENT SYSTEM
@@ -4627,8 +4594,7 @@ wallgrab_process_entity_c:
     ret
     `;
 }
-
-function generateWallJumpSystem(): string {
+function generateWallJumpSystem() {
     return `
     ; ==================================================================
     ; WALL JUMP COMPONENT SYSTEM
@@ -5151,11 +5117,10 @@ walljump_input_is_right:
     ret
     `;
 }
-
 /**
  * Generate Auto-Destroy Component System
  */
-function generateAutoDestroySystem(): string {
+function generateAutoDestroySystem() {
     return `
     ; ==================================================================
     ; AUTO-DESTROY COMPONENT SYSTEM
@@ -5250,12 +5215,11 @@ auto_destroy_next:
         ret
     `;
 }
-
 /**
  * Generate Cursors Component System
  * For menu navigation and cursor control
  */
-function generateCursorsSystem(): string {
+function generateCursorsSystem() {
     return `
     ; ==================================================================
     ; CURSORS COMPONENT SYSTEM
@@ -5277,12 +5241,11 @@ update_cursors_component:
     ret
     `;
 }
-
 /**
  * Generate Carry Component System
  * For entities that carry other entities (like picking up items)
  */
-function generateCarrySystem(): string {
+function generateCarrySystem() {
     return `
     ; ==================================================================
     ; CARRY COMPONENT SYSTEM
@@ -5364,14 +5327,13 @@ update_carry_component:
     jr .carry_loop
     `;
 }
-
 /**
  * Generate WallCollision Component System
  * For wall sliding and collision prevention
  * Uses 2-point checks per direction for robust collision
  * Snaps entity position to wall edge (not just zero velocity)
  */
-function generateWallCollisionSystem(romMode: string = 'simple32k'): string {
+function generateWallCollisionSystem(romMode = 'simple32k') {
     return `
     ; ==================================================================
     ; WALL COLLISION COMPONENT SYSTEM
@@ -6211,15 +6173,14 @@ wall_sub_signed_offset_clamped:
     ret
     `;
 }
-
 /**
  * Generate Tile Interaction System
  * Detects when an entity with COMP_INPUT overlaps an Interactable tile
  * (mapId & #08 != 0 = NoSolid+Interactable, e.g. gems/coins on the screen map).
  * On contact: clears tile from VRAM Name Table + runtime_behavior_map, increments gem_count.
  */
-function buildSoundAssetIndexMap(sounds?: any[]): Record<string, number> {
-    const soundMap: Record<string, number> = {};
+function buildSoundAssetIndexMap(sounds) {
+    const soundMap = {};
     (sounds || []).forEach((sound, index) => {
         const id = typeof sound?.id === 'string' ? sound.id : '';
         const name = typeof sound?.name === 'string' ? sound.name : '';
@@ -6234,52 +6195,54 @@ function buildSoundAssetIndexMap(sounds?: any[]): Record<string, number> {
     });
     return soundMap;
 }
-
-function resolveSoundAssetIndex(soundRef: any, soundMap: Record<string, number>): number | null {
+function resolveSoundAssetIndex(soundRef, soundMap) {
     if (typeof soundRef === 'number' && Number.isFinite(soundRef)) {
         return Math.max(0, Math.min(255, soundRef | 0));
     }
-
     if (typeof soundRef === 'string') {
         const trimmed = soundRef.trim();
-        if (!trimmed) return null;
+        if (!trimmed)
+            return null;
         const directIndex = soundMap[trimmed];
-        if (directIndex !== undefined) return directIndex;
+        if (directIndex !== undefined)
+            return directIndex;
         const lowerIndex = soundMap[trimmed.toLowerCase()];
-        if (lowerIndex !== undefined) return lowerIndex;
+        if (lowerIndex !== undefined)
+            return lowerIndex;
         const parsedIndex = parseInt(trimmed, 10);
-        if (!isNaN(parsedIndex)) return Math.max(0, Math.min(255, parsedIndex));
+        if (!isNaN(parsedIndex))
+            return Math.max(0, Math.min(255, parsedIndex));
     }
-
     return null;
 }
-
-function clampTileCollectorAmount(rawValue: any): number {
+function clampTileCollectorAmount(rawValue) {
     const parsed = Number(rawValue);
-    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+    if (!Number.isFinite(parsed) || parsed <= 0)
+        return 0;
     return Math.max(0, Math.min(65535, Math.round(parsed)));
 }
-
-function coerceTileCollectorAssignValue(rawValue: any): number {
-    if (typeof rawValue === 'boolean') return rawValue ? 1 : 0;
+function coerceTileCollectorAssignValue(rawValue) {
+    if (typeof rawValue === 'boolean')
+        return rawValue ? 1 : 0;
     const parsed = Number(rawValue);
-    if (!Number.isFinite(parsed)) return 1;
+    if (!Number.isFinite(parsed))
+        return 1;
     return Math.max(0, Math.min(65535, Math.round(parsed)));
 }
-
-function clampTileCollectorByte(rawValue: any): number {
+function clampTileCollectorByte(rawValue) {
     const parsed = Number(rawValue);
-    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+    if (!Number.isFinite(parsed) || parsed <= 0)
+        return 0;
     return Math.max(0, Math.min(255, Math.round(parsed)));
 }
-
-function buildTileIdToBaseCharMap(tiles?: any[]): Record<string, number> {
-    const map: Record<string, number> = {};
-    if (!tiles || tiles.length === 0) return map;
-
+function buildTileIdToBaseCharMap(tiles) {
+    const map = {};
+    if (!tiles || tiles.length === 0)
+        return map;
     let nextCharCode = 128;
     tiles.forEach((tile) => {
-        if (!tile || !tile.id) return;
+        if (!tile || !tile.id)
+            return;
         map[tile.id] = nextCharCode;
         if (tile.name) {
             map[String(tile.name)] = nextCharCode;
@@ -6289,30 +6252,27 @@ function buildTileIdToBaseCharMap(tiles?: any[]): Record<string, number> {
         const charsHigh = Math.max(1, Math.ceil((Number(tile.height) || 8) / 8));
         nextCharCode += charsWide * charsHigh;
     });
-
     return map;
 }
-
-function resolveTileCharCode(value: any, tileIdToCharCode?: Record<string, number>): number {
+function resolveTileCharCode(value, tileIdToCharCode) {
     if (typeof value === 'string' && tileIdToCharCode) {
-        if (tileIdToCharCode[value] !== undefined) return tileIdToCharCode[value];
+        if (tileIdToCharCode[value] !== undefined)
+            return tileIdToCharCode[value];
         const lower = value.toLowerCase();
-        if (tileIdToCharCode[lower] !== undefined) return tileIdToCharCode[lower];
+        if (tileIdToCharCode[lower] !== undefined)
+            return tileIdToCharCode[lower];
     }
-
     const parsed = parseInt(String(value ?? ''), 10);
     return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(255, parsed | 0));
 }
-
-function buildGlobalVariableInfoMap(analysis: ProjectAnalysis): Record<string, { asmName: string; isWord: boolean }> {
-    const variableMap: Record<string, { asmName: string; isWord: boolean }> = {};
+function buildGlobalVariableInfoMap(analysis) {
+    const variableMap = {};
     const globalVariables = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
-
-    for (const variable of globalVariables as any[]) {
+    for (const variable of globalVariables) {
         const name = typeof variable?.name === 'string' ? variable.name.trim() : '';
         const asmName = typeof variable?.asmName === 'string' ? variable.asmName.trim() : '';
-        if (!name || !asmName) continue;
-
+        if (!name || !asmName)
+            continue;
         const type = String(variable?.type || '').toLowerCase();
         const isWord = type === 'word' || type === '16bit';
         variableMap[name] = { asmName, isWord };
@@ -6320,49 +6280,40 @@ function buildGlobalVariableInfoMap(analysis: ProjectAnalysis): Record<string, {
         variableMap[asmName] = { asmName, isWord };
         variableMap[asmName.toLowerCase()] = { asmName, isWord };
     }
-
     return variableMap;
 }
-
-function buildOrderedGlobalVariableInfos(analysis: ProjectAnalysis): Array<{ asmName: string; isWord: boolean }> {
-    const orderedVariables: Array<{ asmName: string; isWord: boolean }> = [];
-    const seenAsmNames = new Set<string>();
+function buildOrderedGlobalVariableInfos(analysis) {
+    const orderedVariables = [];
+    const seenAsmNames = new Set();
     const globalVariables = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
-
-    for (const variable of globalVariables as any[]) {
+    for (const variable of globalVariables) {
         const asmName = typeof variable?.asmName === 'string' ? variable.asmName.trim() : '';
-        if (!asmName) continue;
-
+        if (!asmName)
+            continue;
         const key = asmName.toLowerCase();
-        if (seenAsmNames.has(key)) continue;
+        if (seenAsmNames.has(key))
+            continue;
         seenAsmNames.add(key);
-
         const type = String(variable?.type || '').toLowerCase();
         orderedVariables.push({
             asmName,
             isWord: type === 'word' || type === '16bit',
         });
     }
-
     return orderedVariables;
 }
-
-function resolveConfiguredVariableInfo(
-    variableRef: any,
-    variableMap: Record<string, { asmName: string; isWord: boolean }>
-): { asmName: string; isWord: boolean } | null {
-    if (typeof variableRef !== 'string') return null;
+function resolveConfiguredVariableInfo(variableRef, variableMap) {
+    if (typeof variableRef !== 'string')
+        return null;
     const trimmed = variableRef.trim();
-    if (!trimmed) return null;
-
+    if (!trimmed)
+        return null;
     return variableMap[trimmed] || variableMap[trimmed.toLowerCase()] || null;
 }
-
-function extractTileCollectorConfig(candidate: any) {
+function extractTileCollectorConfig(candidate) {
     if (!candidate || candidate.isEnabled === false || candidate.isEnabled === 'false') {
         return null;
     }
-
     return {
         collectionSoundId: candidate.collectionSoundId,
         replacementTileId: candidate.replacementTileId,
@@ -6380,32 +6331,15 @@ function extractTileCollectorConfig(candidate: any) {
         bonusRespawnSeconds: candidate.bonusRespawnSeconds,
     };
 }
-
-function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
-    soundAssetIndex: number | null;
-    replacementTileChar: number;
-    targetVariable: { asmName: string; isWord: boolean } | null;
-    incrementAmount: number;
-    flagVariable: { asmName: string; isWord: boolean } | null;
-    flagValue: number;
-    bonusTileChar: number | null;
-    bonusReplacementTileChar: number;
-    bonusSoundAssetIndex: number | null;
-    bonusIsPersistent: boolean;
-    bonusEntityEffect: string;
-    bonusEffectAmount: number;
-    bonusSlashStrength: number;
-    bonusRespawnSeconds: number;
-} {
-    const soundMap = buildSoundAssetIndexMap((analysis as any).sounds);
+function resolveTileCollectorRuntimeConfig(analysis) {
+    const soundMap = buildSoundAssetIndexMap(analysis.sounds);
     const variableMap = buildGlobalVariableInfoMap(analysis);
-    const tileIdToCharCode = buildTileIdToBaseCharMap((analysis as any).tiles);
-
+    const tileIdToCharCode = buildTileIdToBaseCharMap(analysis.tiles);
     const entities = Array.isArray(analysis.entities) ? analysis.entities : [];
-    for (const entity of entities as any[]) {
+    for (const entity of entities) {
         const config = extractTileCollectorConfig(entity?.componentOverrides?.['comp_tile_collector']);
-        if (!config) continue;
-
+        if (!config)
+            continue;
         const soundAssetIndex = resolveSoundAssetIndex(config.collectionSoundId, soundMap);
         const replacementTileChar = resolveTileCharCode(config.replacementTileId ?? 0, tileIdToCharCode);
         const targetVariable = resolveConfiguredVariableInfo(config.targetVariable, variableMap);
@@ -6422,17 +6356,14 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
         const bonusEffectAmount = clampTileCollectorAmount(config.bonusEffectAmount);
         const bonusSlashStrength = clampTileCollectorByte(config.bonusSlashStrength ?? 8);
         const bonusRespawnSeconds = clampTileCollectorByte(config.bonusRespawnSeconds);
-
-        if (
-            soundAssetIndex !== null ||
+        if (soundAssetIndex !== null ||
             replacementTileChar !== 0 ||
             (targetVariable && incrementAmount > 0) ||
             flagVariable !== null ||
             bonusTileChar !== null ||
             bonusSoundAssetIndex !== null ||
             (bonusEntityEffect !== 'none' && bonusEffectAmount > 0) ||
-            (bonusTileChar !== null && bonusRespawnSeconds > 0)
-        ) {
+            (bonusTileChar !== null && bonusRespawnSeconds > 0)) {
             return {
                 soundAssetIndex,
                 replacementTileChar,
@@ -6451,16 +6382,14 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
             };
         }
     }
-
     const templates = Array.isArray(analysis.templates) ? analysis.templates : [];
-
-    for (const template of templates as any[]) {
-        const collectorComp = template?.components?.find((c: any) => c.definitionId === 'comp_tile_collector');
-        if (!collectorComp) continue;
-
+    for (const template of templates) {
+        const collectorComp = template?.components?.find((c) => c.definitionId === 'comp_tile_collector');
+        if (!collectorComp)
+            continue;
         const config = extractTileCollectorConfig(collectorComp.defaultValues || {});
-        if (!config) continue;
-
+        if (!config)
+            continue;
         const soundAssetIndex = resolveSoundAssetIndex(config.collectionSoundId, soundMap);
         const replacementTileChar = resolveTileCharCode(config.replacementTileId ?? 0, tileIdToCharCode);
         const targetVariable = resolveConfiguredVariableInfo(config.targetVariable, variableMap);
@@ -6477,17 +6406,14 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
         const bonusEffectAmount = clampTileCollectorAmount(config.bonusEffectAmount);
         const bonusSlashStrength = clampTileCollectorByte(config.bonusSlashStrength ?? 8);
         const bonusRespawnSeconds = clampTileCollectorByte(config.bonusRespawnSeconds);
-
-        if (
-            soundAssetIndex !== null ||
+        if (soundAssetIndex !== null ||
             replacementTileChar !== 0 ||
             (targetVariable && incrementAmount > 0) ||
             flagVariable !== null ||
             bonusTileChar !== null ||
             bonusSoundAssetIndex !== null ||
             (bonusEntityEffect !== 'none' && bonusEffectAmount > 0) ||
-            (bonusTileChar !== null && bonusRespawnSeconds > 0)
-        ) {
+            (bonusTileChar !== null && bonusRespawnSeconds > 0)) {
             return {
                 soundAssetIndex,
                 replacementTileChar,
@@ -6506,7 +6432,6 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
             };
         }
     }
-
     return {
         soundAssetIndex: null,
         replacementTileChar: 0,
@@ -6524,8 +6449,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
         bonusRespawnSeconds: 0,
     };
 }
-
-function generateWallHitboxHelpers(): string {
+function generateWallHitboxHelpers() {
     return `
 ; ------------------------------------------------------------------
 ; wall_build_hitbox_cache
@@ -6739,8 +6663,7 @@ wall_sub_signed_offset_clamped:
     ret
 `;
 }
-
-function generateDeadlyTilesSystem(): string {
+function generateDeadlyTilesSystem() {
     return `
 ; ------------------------------------------------------------------
 ; DEADLY TILES COMPONENT SYSTEM
@@ -7003,28 +6926,7 @@ refresh_player_deadly_fastpath:
     ret
 `;
 }
-
-function generateTileInteractionSystem(
-    analysis: ProjectAnalysis,
-    tileCollectorConfig: {
-        soundAssetIndex: number | null;
-        replacementTileChar: number;
-        targetVariable: { asmName: string; isWord: boolean } | null;
-        incrementAmount: number;
-        flagVariable: { asmName: string; isWord: boolean } | null;
-        flagValue: number;
-        bonusTileChar: number | null;
-        bonusReplacementTileChar: number;
-        bonusSoundAssetIndex: number | null;
-        bonusIsPersistent: boolean;
-        bonusEntityEffect: string;
-        bonusEffectAmount: number;
-        bonusSlashStrength: number;
-        bonusRespawnSeconds: number;
-    },
-    canUseSoundAssetPlayback: boolean,
-    _hasWallCollision: boolean = false
-): string {
+function generateTileInteractionSystem(analysis, tileCollectorConfig, canUseSoundAssetPlayback, _hasWallCollision = false) {
     const collectionSoundAssetIndex = tileCollectorConfig.soundAssetIndex;
     const interactionTargetVariables = buildOrderedGlobalVariableInfos(analysis);
     const replacementTileChar = tileCollectorConfig.replacementTileChar;
@@ -7034,36 +6936,34 @@ function generateTileInteractionSystem(
     const bonusSlashLeftByte = `#${((256 - bonusSlashStrength) & 0xFF).toString(16).toUpperCase().padStart(2, '0')}`;
     const bonusSlashUpLeftByte = `#${((256 - bonusSlashUpStrength) & 0xFF).toString(16).toUpperCase().padStart(2, '0')}`;
     const bonusSlashDownLeftByte = `#${((256 - bonusSlashDownStrength) & 0xFF).toString(16).toUpperCase().padStart(2, '0')}`;
-    const collectionSoundCode =
-        collectionSoundAssetIndex !== null && canUseSoundAssetPlayback
-            ? `    ; Tile Collector UI-configured collection sound.
+    const collectionSoundCode = collectionSoundAssetIndex !== null && canUseSoundAssetPlayback
+        ? `    ; Tile Collector UI-configured collection sound.
     ; Preserve DE because it still carries the tile index for persistence.
     push de
     ld a, ${collectionSoundAssetIndex}
     call SM_PlaySoundAsset
     pop de
 `
-            : collectionSoundAssetIndex !== null
-                ? `    ; collectionSoundId is configured in the Tile Collector UI,
+        : collectionSoundAssetIndex !== null
+            ? `    ; collectionSoundId is configured in the Tile Collector UI,
     ; but this build has no state-machine sound asset runtime.
     ; Stay silent instead of forcing the wrong built-in beep.
 `
-                : `    ; No collectionSoundId configured in the Tile Collector UI.
+            : `    ; No collectionSoundId configured in the Tile Collector UI.
 `;
-    const bonusSoundCode =
-        tileCollectorConfig.bonusSoundAssetIndex !== null && canUseSoundAssetPlayback
-            ? `    ; Tile Collector bonus pickup sound.
+    const bonusSoundCode = tileCollectorConfig.bonusSoundAssetIndex !== null && canUseSoundAssetPlayback
+        ? `    ; Tile Collector bonus pickup sound.
     push de
     ld a, ${tileCollectorConfig.bonusSoundAssetIndex}
     call SM_PlaySoundAsset
     pop de
 `
-            : tileCollectorConfig.bonusSoundAssetIndex !== null
-                ? `    ; bonusSoundId is configured, but this build has no state-machine sound asset runtime.
+        : tileCollectorConfig.bonusSoundAssetIndex !== null
+            ? `    ; bonusSoundId is configured, but this build has no state-machine sound asset runtime.
 `
-                : `    ; No bonusSoundId configured.
+            : `    ; No bonusSoundId configured.
 `;
-    const buildHudSyncCode = (variableInfo: { asmName: string; isWord: boolean } | null) => variableInfo?.asmName === 'global_var_score'
+    const buildHudSyncCode = (variableInfo) => variableInfo?.asmName === 'global_var_score'
         ? `    ; Keep HUD Score text in sync with the updated global variable.
     push de
     call force_render_hud
@@ -7087,7 +6987,6 @@ ${interactionTargetVariables.map((variable) => `    dw ${variable.asmName}`).joi
 ${interactionTargetVariables.map((variable) => `    db ${variable.isWord ? 1 : 0}`).join('\n')}
 `;
     const hudSyncCode = buildHudSyncCode(tileCollectorConfig.targetVariable);
-
     const variableIncrementCode = tileCollectorConfig.targetVariable && tileCollectorConfig.incrementAmount > 0
         ? tileCollectorConfig.targetVariable.isWord
             ? `    ; Tile Collector configured variable increment (16-bit).
@@ -7129,11 +7028,10 @@ ${buildHudSyncCode(tileCollectorConfig.flagVariable)}
 `
         : `    ; No flagVariable configured in the Tile Collector UI.
 `;
-    const slashTotalPixels = bonusSlashStrength * 8;  // 10 * 8 = 80px = 10 tiles
+    const slashTotalPixels = bonusSlashStrength * 8; // 10 * 8 = 80px = 10 tiles
     const slashTotalPixelsNeg = ((256 - slashTotalPixels) & 0xFF);
-    const bonusEffectCode =
-        tileCollectorConfig.bonusEntityEffect === 'grant_extra_jump' && tileCollectorConfig.bonusEffectAmount > 0
-            ? `    ; Bonus tile effect: 8px-per-frame slash in current movement direction.
+    const bonusEffectCode = tileCollectorConfig.bonusEntityEffect === 'grant_extra_jump' && tileCollectorConfig.bonusEffectAmount > 0
+        ? `    ; Bonus tile effect: 8px-per-frame slash in current movement direction.
     ; Covers ${bonusSlashStrength} tiles (${slashTotalPixels}px). Checks solid tiles each step.
     push de
     ld e, c
@@ -7203,7 +7101,7 @@ ${buildHudSyncCode(tileCollectorConfig.flagVariable)}
 .ti_bonus_done:
     pop de
 `
-            : `    ; No supported bonus entity effect configured.
+        : `    ; No supported bonus entity effect configured.
 `;
     const bonusCollectBranchCode = tileCollectorConfig.bonusTileChar !== null
         ? `    ld a, b
@@ -7370,7 +7268,6 @@ record_bonus_respawn_slot:
 update_bonus_respawns:
     ret
 `;
-
     return `
 ; ==================================================================
 ; TILE INTERACTION SYSTEM
@@ -8266,13 +8163,12 @@ refresh_player_tile_interaction_fastpath:
     ret
 `;
 }
-
 /**
  * Generate apply_collected_tiles function.
  * Re-applies the persistent collection list for the current world/screen after any screen load,
  * so collected gems/tiles do not respawn when the player re-enters a screen.
  */
-function generateApplyCollectedTiles(): string {
+function generateApplyCollectedTiles() {
     return `
 ; ------------------------------------------------------------------
 ; apply_collected_tiles
@@ -8349,12 +8245,11 @@ apply_collected_tiles:
     ret
 `;
 }
-
 /**
  * Generate Collectible Component System
  * For items that can be collected (coins, power-ups, etc.)
  */
-function generateCollectibleSystem(): string {
+function generateCollectibleSystem() {
     return `
     ; ==================================================================
     ; COLLECTIBLE COMPONENT SYSTEM
@@ -8479,8 +8374,7 @@ update_collectible_component:
     jr .collect_loop
     `;
 }
-
-function generateRetractableGateSystem(): string {
+function generateRetractableGateSystem() {
     return `
 init_retractable_gate_system:
     ld hl, entity_gate_current_step
@@ -9165,8 +9059,7 @@ gate_write_tile_at_xy:
     ret
 `;
 }
-
-function generateResolveRuntimeHeroEntityHelper(): string {
+function generateResolveRuntimeHeroEntityHelper() {
     return `
 ; ------------------------------------------------------------------
 ; resolve_runtime_hero_entity
@@ -9203,11 +9096,10 @@ resolve_runtime_hero_entity:
 
 `;
 }
-
 /**
  * Generate entity management helper functions
  */
-function generateEntityManagement(): string {
+function generateEntityManagement() {
     return ` 
     ; ================================================================== 
         ; ENTITY MANAGEMENT FUNCTIONS(Based on EntityTemplate system) 
@@ -9429,13 +9321,11 @@ entity_job_run_done:
     ret
     `;
 }
-
 /**
  * Generate init_components function with conditional initialization
  */
-function generateInitComponents(usage: ComponentUsageAnalysis): string {
+function generateInitComponents(usage) {
     const usedComponents = usage.usedComponents;
-
     let code = `init_components: 
 ; Initialize component systems(OPTIMIZED - only used components) 
     ; Used: ${Array.from(usedComponents).join(', ')} 
@@ -9489,160 +9379,131 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
         ld (entity_job_scheduler_active), a
  
     `;
-
     code += `    ; Initialize position system (always)
     call init_position_system
     `;
-
-
     if (usedComponents.has('Sprite')) {
         code += `    ; Initialize sprite system
     call init_sprite_system
     `;
     }
-
     if (usedComponents.has('Movement')) {
         code += `    ; Initialize movement system
     call init_movement_system
     `;
     }
-
     if (usedComponents.has('Collision')) {
         code += `    ; Initialize collision system
     call init_collision_system
     `;
     }
-
     if (usedComponents.has('Input')) {
         code += `    ; Initialize input system
     call init_input_system
     `;
     }
-
     if (usedComponents.has('Behavior')) {
         code += `    ; Initialize behavior system
     call init_behavior_system
     `;
     }
-
     if (usedComponents.has('Health')) {
         code += `    ; Initialize health system
     call init_health_system
     `;
     }
-
     if (usedComponents.has('Animation') || usedComponents.has('Sprite')) {
         code += `    ; Initialize animation state defaults (also needed by sprite rendering frame selection)
     call init_animation_system
     `;
     }
-
     if (usedComponents.has('Jump')) {
         code += `    ; Initialize jump system
     call init_jump_system
     `;
     }
-
     if (usedComponents.has('Gravity')) {
         code += `    ; Initialize gravity system
     call init_gravity_system
     `;
     }
-
     if (usedComponents.has('WallGrab')) {
         code += `    ; Initialize wall grab system
     call init_wallgrab_system
     `;
     }
-
     if (usedComponents.has('WallJump')) {
         code += `    ; Initialize wall jump system
     call init_walljump_system
     `;
     }
-
     if (usedComponents.has('AutoDestroy')) {
         code += `    ; Initialize auto-destroy system
     call init_auto_destroy_system
     `;
     }
-
     if (usedComponents.has('Cursors')) {
         code += `    ; Initialize cursors system (stub)
     call init_cursors_system
     `;
     }
-
     if (usedComponents.has('StateMachine')) {
         code += `    ; Initialize state machine system (stub)
     call init_statemachine_system
     `;
     }
-
     if (usedComponents.has('RetractableGate')) {
         code += `    ; Initialize retractable gate system
     call init_retractable_gate_system
     `;
     }
-
     if (usedComponents.has('Carry')) {
         code += `    ; Initialize carry system (stub)
     call init_carry_system
     `;
     }
-
     if (usedComponents.has('Damage')) {
         code += `    ; Initialize damage system
     call init_damage_system
     `;
     }
-
     if (usedComponents.has('Shoot')) {
         code += `    ; Initialize shoot system
     call init_shoot_system
     `;
     }
-
     // Platform riding always initialized (physics feature)
     code += `    ; Initialize platform riding system
     call init_platform_riding_system
     `;
-
     if (usedComponents.has('WallCollision')) {
         code += `    ; Initialize wall collision system (stub)
     call init_wallcollision_system
     `;
     }
-
     if (usedComponents.has('DeadlyTiles')) {
         code += `    ; Initialize deadly tile detection system
     call init_deadly_tiles_system
     `;
     }
-
     if (usedComponents.has('Collectible')) {
         code += `    ; Initialize collectible system (stub)
     call init_collectible_system
     `;
     }
-
     if (usedComponents.has('TileInteraction')) {
         code += `    ; Initialize tile interaction system
     call init_tile_interaction_system
     `;
     }
-
     code += `
     ret
     `;
-
     return code;
 }
-
 // ============================================================================
 // MAIN GENERATOR FUNCTION
 // ============================================================================
-
 /**
  * Generate ECS component systems file (components.asm)
  *
@@ -9652,8 +9513,8 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
  * @param analysis - Project analysis with entities and tiles
  * @returns ASM code string with ECS component systems
  */
-export function generateComponentsFile(analysis: ProjectAnalysis, romMode: string = 'simple32k'): string {
-    const usesMapper = usesMapperBanking(romMode);
+function generateComponentsFile(analysis, romMode = 'simple32k') {
+    const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
     // Skip ECS system if no entities in project
     if (!analysis.entities || analysis.entities.length === 0) {
         return `; ==================================================================
@@ -9887,47 +9748,43 @@ entity_last_collision_entity EQU temp_byte_24
     ; ==================================================================
         `;
     }
-
     // INTELLIGENT FILTERING: Analyze which components are actually used
-    const componentUsage: ComponentUsageAnalysis = analyzeComponentUsage(analysis);
+    const componentUsage = (0, componentAnalyzer_1.analyzeComponentUsage)(analysis);
     const usedComponents = componentUsage.usedComponents;
     const hasInteractableTiles = Array.isArray(analysis.tiles) &&
-        analysis.tiles.some((t: any) => ((t.logicalProperties?.mapId ?? 0) & 0x08) !== 0);
+        analysis.tiles.some((t) => ((t.logicalProperties?.mapId ?? 0) & 0x08) !== 0);
     const tileCollectorRuntimeConfig = resolveTileCollectorRuntimeConfig(analysis);
     const hasStateMachineSoundPlayback = Array.isArray(analysis.stateMachines) && analysis.stateMachines.length > 0;
-
     if (hasInteractableTiles && usedComponents.has('Input')) {
         usedComponents.add('TileInteraction');
     }
-
-    const conditionTreeHas = (condition: any, types: Set<string>): boolean => {
-        if (!condition || typeof condition !== 'object') return false;
+    const conditionTreeHas = (condition, types) => {
+        if (!condition || typeof condition !== 'object')
+            return false;
         const conditionType = String(condition.type || '').toUpperCase();
-        if (types.has(conditionType)) return true;
+        if (types.has(conditionType))
+            return true;
         const nested = Array.isArray(condition.conditions) ? condition.conditions : [];
         for (const subCondition of nested) {
-            if (conditionTreeHas(subCondition, types)) return true;
+            if (conditionTreeHas(subCondition, types))
+                return true;
         }
         return false;
     };
-
-    const stateMachines = Array.isArray((analysis as any).stateMachines) ? (analysis as any).stateMachines : [];
-    const collisionConditionTypes = new Set<string>(['HAS_COLLISION', 'HAS_DEADLY_TILE_COLLISION']);
-    const needsCollisionFromStateMachine = stateMachines.some((stateMachine: any) => {
+    const stateMachines = Array.isArray(analysis.stateMachines) ? analysis.stateMachines : [];
+    const collisionConditionTypes = new Set(['HAS_COLLISION', 'HAS_DEADLY_TILE_COLLISION']);
+    const needsCollisionFromStateMachine = stateMachines.some((stateMachine) => {
         const transitions = Array.isArray(stateMachine?.transitions) ? stateMachine.transitions : [];
-        return transitions.some((transition: any) => conditionTreeHas(transition?.conditions, collisionConditionTypes));
+        return transitions.some((transition) => conditionTreeHas(transition?.conditions, collisionConditionTypes));
     });
-
     if (needsCollisionFromStateMachine && !usedComponents.has('Collision')) {
         console.log('  - Forcing Collision system: required by state machine conditions');
         usedComponents.add('Collision');
     }
-
     console.log('🎯 Generating optimized components.asm...');
     console.log(`  - Active entities: ${componentUsage.activeEntities.length} `);
     console.log(`  - Used components: ${Array.from(usedComponents).join(', ')} `);
     console.log(`  - Filtered out: ${8 - usedComponents.size} unused components`);
-
     // Build the complete ASM file
     let code = `; ==================================================================
 ; GAME COMPONENT SYSTEMS - MSX ECS ENGINE
@@ -10054,16 +9911,15 @@ entity_input_disabled EQU temp_byte_26 ; 0=enabled, 1=disabled (32 bytes)
 
         ${generateInitComponents(componentUsage)}
 `;
-
     // Generate Position System (always needed for entity coords)
     code += generatePositionSystem();
-
     // Generate Sprite System (if used OR if project has sprites)
     // CRITICAL FIX: Always generate when sprites exist, even if component analysis fails
     const hasSprites = analysis.sprites && analysis.sprites.length > 0;
     if (usedComponents.has('Sprite') || hasSprites) {
         code += generateSpriteSystem(analysis);
-    } else {
+    }
+    else {
         code += `
     ; Sprite system filtered out(not used)
 init_sprite_system:
@@ -10079,11 +9935,11 @@ force_update_entity_sprite:
     ret
     `;
     }
-
     // Generate Movement System (if used)
     if (usedComponents.has('Movement')) {
         code += generateMovementSystem();
-    } else {
+    }
+    else {
         code += `
     ; Movement system filtered out(not used)
 init_movement_system:
@@ -10093,11 +9949,11 @@ update_movement_component:
     ret
     `;
     }
-
     // Generate Collision System (if used)
     if (usedComponents.has('Collision')) {
         code += generateCollisionSystem(analysis);
-    } else {
+    }
+    else {
         code += `
     ; Collision system filtered out(not used)
 init_collision_system:
@@ -10107,25 +9963,22 @@ update_collision_component:
     ret
     `;
     }
-
     // Generate get_behavior_tile (shared utility for Collision and WallCollision)
     if (usedComponents.has('Collision') || usedComponents.has('WallCollision')) {
         code += generateGetBehaviorTile(romMode);
     }
-
     // Wall hitbox helpers are required by WallCollision itself and are also
     // reused by deadly-tile probes / late-frame tile interaction.
-    const needsWallHitboxHelpers =
-        usedComponents.has('DeadlyTiles') ||
+    const needsWallHitboxHelpers = usedComponents.has('DeadlyTiles') ||
         (hasInteractableTiles && usedComponents.has('Input'));
     if (!usedComponents.has('WallCollision') && (usedComponents.has('Collision') || needsWallHitboxHelpers)) {
         code += generateWallHitboxHelpers();
     }
-
     // Generate Input System (if used)
     if (usedComponents.has('Input')) {
         code += generateInputSystem();
-    } else {
+    }
+    else {
         code += `
     ; Input system filtered out(not used)
 init_input_system:
@@ -10135,11 +9988,11 @@ update_input_component:
     ret
     `;
     }
-
     // Generate Behavior System (if used)
     if (usedComponents.has('Behavior')) {
         code += generateBehaviorSystem();
-    } else {
+    }
+    else {
         code += `
     ; Behavior system filtered out(not used)
 init_behavior_system:
@@ -10149,11 +10002,11 @@ update_behavior_component:
     ret
     `;
     }
-
     // Damage reuses the Health helpers even in Damage-only projectile scenes.
     if (usedComponents.has('Health') || usedComponents.has('Damage')) {
         code += generateHealthSystem();
-    } else {
+    }
+    else {
         code += `
     ; Health system filtered out(not used)
 init_health_system:
@@ -10163,11 +10016,11 @@ update_health_component:
     ret
     `;
     }
-
     // Generate Animation System (if used)
     if (usedComponents.has('Animation')) {
         code += generateAnimationSystem();
-    } else {
+    }
+    else {
         code += `
     ; Animation system filtered out(not used)
 init_animation_system:
@@ -10180,11 +10033,11 @@ refresh_player_animation_fastpath:
     ret
     `;
     }
-
     // Generate Jump System (if used)
     if (usedComponents.has('Jump')) {
         code += generateJumpSystem();
-    } else {
+    }
+    else {
         code += `
     ; Jump system filtered out(not used)
 init_jump_system:
@@ -10194,11 +10047,11 @@ update_jump_component:
     ret
     `;
     }
-
     // Generate Gravity System (if used)
     if (usedComponents.has('Gravity')) {
         code += generateGravitySystem();
-    } else {
+    }
+    else {
         code += `
     ; Gravity system filtered out(not used)
 init_gravity_system:
@@ -10208,10 +10061,10 @@ update_gravity_component:
     ret
     `;
     }
-
     if (usedComponents.has('AirControl')) {
         code += generateAirControlHelpers();
-    } else {
+    }
+    else {
         code += `
     ; AirControl helpers filtered out (not used)
 aircontrol_should_lock_horizontal_c:
@@ -10219,10 +10072,10 @@ aircontrol_should_lock_horizontal_c:
     ret
     `;
     }
-
     if (usedComponents.has('WallGrab')) {
         code += generateWallGrabSystem();
-    } else {
+    }
+    else {
         code += `
     ; WallGrab system filtered out (not used)
 init_wallgrab_system:
@@ -10235,10 +10088,10 @@ wallgrab_process_entity_c:
     ret
     `;
     }
-
     if (usedComponents.has('WallJump')) {
         code += generateWallJumpSystem();
-    } else {
+    }
+    else {
         code += `
     ; WallJump system filtered out (not used)
 init_walljump_system:
@@ -10259,10 +10112,10 @@ walljump_input_is_right:
     ret
     `;
     }
-
     if (usedComponents.has('AutoDestroy')) {
         code += generateAutoDestroySystem();
-    } else {
+    }
+    else {
         code += `
     ; AutoDestroy system filtered out(not used)
 init_auto_destroy_system:
@@ -10272,7 +10125,6 @@ update_auto_destroy_component:
     ret
     `;
     }
-
     // Generate Cursors System stub (if used)
     if (!usedComponents.has('Cursors')) {
         code += `
@@ -10283,10 +10135,10 @@ init_cursors_system:
 update_cursors_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateCursorsSystem();
     }
-
     // Generate StateMachine System (if used)
     if (!usedComponents.has('StateMachine')) {
         code += `
@@ -10297,7 +10149,8 @@ init_statemachine_system:
 update_statemachine_component:
     ret
     `;
-    } else if (!Array.isArray(analysis.stateMachines) || analysis.stateMachines.length === 0) {
+    }
+    else if (!Array.isArray(analysis.stateMachines) || analysis.stateMachines.length === 0) {
         code += `
     ; StateMachine component present but no state machine assets are defined.
     ; Keep the component safe for reusable templates.
@@ -10307,7 +10160,8 @@ init_statemachine_system:
 update_statemachine_component:
     ret
     `;
-    } else if ((analysis as any).hasGameFlow) {
+    }
+    else if (analysis.hasGameFlow) {
         code += `
     ; StateMachine per-entity component tick filtered out.
     ; GameFlow calls execute_all_state_machines once per frame, so this
@@ -10318,7 +10172,8 @@ init_statemachine_system:
 update_statemachine_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += `
     ; StateMachine system (integrates with stateMachineGenerator.ts)
     ; Note: The actual SM_Update runtime is in statemachine.asm
@@ -10383,7 +10238,6 @@ update_statemachine_component:
     jr .sm_comp_loop
     `;
     }
-
     if (!usedComponents.has('RetractableGate')) {
         code += `
     ; RetractableGate system filtered out(not used)
@@ -10393,10 +10247,10 @@ init_retractable_gate_system:
 update_retractable_gate_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateRetractableGateSystem();
     }
-
     // Generate Carry System stub (if used)
     if (!usedComponents.has('Carry')) {
         code += `
@@ -10407,10 +10261,10 @@ init_carry_system:
 update_carry_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateCarrySystem();
     }
-
     // Generate Damage System (if used)
     if (!usedComponents.has('Damage')) {
         code += `
@@ -10421,10 +10275,10 @@ init_damage_system:
 update_damage_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateDamageSystem();
     }
-
     // Generate Shoot System (if used)
     if (!usedComponents.has('Shoot')) {
         code += `
@@ -10435,13 +10289,12 @@ init_shoot_system:
 update_shoot_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateShootSystem();
     }
-
     // Generate Platform Riding System (always enabled for physics)
     code += generatePlatformRidingSystem();
-
     // Generate WallCollision System stub (if used)
     if (!usedComponents.has('WallCollision')) {
         code += `
@@ -10452,10 +10305,10 @@ init_wallcollision_system:
 update_wallcollision_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateWallCollisionSystem(romMode);
     }
-
     if (!usedComponents.has('DeadlyTiles')) {
         code += `
     ; DeadlyTiles system filtered out(not used)
@@ -10468,10 +10321,10 @@ update_deadly_tiles_component:
 refresh_player_deadly_fastpath:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateDeadlyTilesSystem();
     }
-
     // Generate Collectible System stub (if used)
     if (!usedComponents.has('Collectible')) {
         code += `
@@ -10482,17 +10335,18 @@ init_collectible_system:
 update_collectible_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateCollectibleSystem();
     }
-
     // Generate Tile Interaction System (when project has Interactable tiles)
     // Detects tiles with mapId & #08 (INTERACTABLE flag) on the screen map.
     if (hasInteractableTiles && usedComponents.has('Input')) {
         code += generateTileInteractionSystem(analysis, tileCollectorRuntimeConfig, hasStateMachineSoundPlayback, usedComponents.has('WallCollision'));
         code += generateApplyCollectedTiles();
         console.log('  - Tile Interaction system: ENABLED (interactable tiles detected)');
-    } else {
+    }
+    else {
         code += `
     ; Tile interaction system filtered out(no interactable tiles or no input)
 init_tile_interaction_system:
@@ -10512,21 +10366,15 @@ apply_collected_tiles:
     ret
     `;
     }
-
     // Always include entity management helpers
     code += generateEntityManagement();
-
     // ==================================================================
     // GAMEFLOW INTEGRATION FUNCTIONS
     // ==================================================================
-
     // Generate update_all_entities function - OPTIMIZED based on used components
     // Only generates CALLs to systems that are actually used
-    const hasSecretZones = !!analysis.screenMaps?.some((screen: any) =>
-      Array.isArray(screen?.effectZones) && screen.effectZones.some((zone: any) => String(zone?.effectType || '').length === 0 || zone?.effectType === 'secretZone' || (zone?.mask ?? 0) === 0)
-    );
+    const hasSecretZones = !!analysis.screenMaps?.some((screen) => Array.isArray(screen?.effectZones) && screen.effectZones.some((zone) => String(zone?.effectType || '').length === 0 || zone?.effectType === 'secretZone' || (zone?.mask ?? 0) === 0));
     code += generateUpdateAllEntities(usedComponents, !!analysis.hasGameFlow, hasSecretZones);
-
     // Generate execute_all_state_machines function - called by GameFlow game loop
     if (usedComponents.has('StateMachine') && Array.isArray(analysis.stateMachines) && analysis.stateMachines.length > 0) {
         code += `
@@ -10608,7 +10456,8 @@ refresh_player_state_machine_fastpath:
     ret
 
 `;
-    } else {
+    }
+    else {
         code += `
 ; ==================================================================
 ; EXECUTE ALL STATE MACHINES - Called by GameFlow
@@ -10622,7 +10471,6 @@ refresh_player_state_machine_fastpath:
 
 `;
     }
-
     // Tile Collision System
     code += `
 ; ==================================================================
@@ -10693,9 +10541,7 @@ div_a_by_c:
     ret
 
 `;
-
     code += generateResolveRuntimeHeroEntityHelper();
-
     if (hasSecretZones) {
         code += `
 ; ------------------------------------------------------------------
@@ -10703,26 +10549,26 @@ div_a_by_c:
 ; Hero-only secret zone runtime.
 ; Uses hero_entity_id resolved from templates flagged with isPlayer.
 ; ------------------------------------------------------------------
-${buildRegisterContractComment({
-  purpose: 'Detect player entry/exit on secret zones and swap visible tiles.',
-  inputs: [
-    'hero_entity_id + entity_is_player/current-screen filtering',
-    'entity_x_pos[hero], entity_y_pos[hero] as hero top-left position',
-    'runtime_effect_zone_table/current_effect_zone_count',
-    'runtime_background_layout, runtime_effects_layout, runtime_screen_layout',
-  ],
-  outputs: [
-    'runtime_screen_layout updated when entering/leaving a secret zone',
-    'VRAM Name Table updated for affected rectangle',
-    'secret_zone_active + secret_zone_rect_* state refreshed',
-  ],
-  clobbers: ['AF', 'BC', 'DE', 'HL', 'IX'],
-  preserved: ['None'],
-  notes: [
-    'Only secret zones are handled in this v1 runtime.',
-    'First matching zone wins when zones overlap.',
-  ],
-})}
+${(0, registerContract_1.buildRegisterContractComment)({
+            purpose: 'Detect player entry/exit on secret zones and swap visible tiles.',
+            inputs: [
+                'hero_entity_id + entity_is_player/current-screen filtering',
+                'entity_x_pos[hero], entity_y_pos[hero] as hero top-left position',
+                'runtime_effect_zone_table/current_effect_zone_count',
+                'runtime_background_layout, runtime_effects_layout, runtime_screen_layout',
+            ],
+            outputs: [
+                'runtime_screen_layout updated when entering/leaving a secret zone',
+                'VRAM Name Table updated for affected rectangle',
+                'secret_zone_active + secret_zone_rect_* state refreshed',
+            ],
+            clobbers: ['AF', 'BC', 'DE', 'HL', 'IX'],
+            preserved: ['None'],
+            notes: [
+                'Only secret zones are handled in this v1 runtime.',
+                'First matching zone wins when zones overlap.',
+            ],
+        })}
 update_secret_zone_component:
     call resolve_runtime_hero_entity
     cp #FF
@@ -10953,40 +10799,35 @@ secret_zone_compute_offset:
     ret
 
 `;
-    } else {
+    }
+    else {
         code += `
 update_secret_zone_component:
     ret
 
 `;
     }
-
     if (usedComponents.has('WallCollision')) {
         const wallHitboxHelpersBlock = generateWallHitboxHelpers();
         const firstWallHitboxHelper = code.indexOf(wallHitboxHelpersBlock);
         const lastWallHitboxHelper = code.lastIndexOf(wallHitboxHelpersBlock);
-
         // Collision/deadly projects without WallCollision still need the shared helper block.
         // When WallCollision is present, that system already embeds the helpers inline.
         // If a shared copy slipped in earlier, remove only the first duplicate and keep the
         // WallCollision-local copy so all call sites still resolve to the same contract.
-        if (
-            firstWallHitboxHelper !== -1 &&
+        if (firstWallHitboxHelper !== -1 &&
             lastWallHitboxHelper !== -1 &&
-            firstWallHitboxHelper !== lastWallHitboxHelper
-        ) {
+            firstWallHitboxHelper !== lastWallHitboxHelper) {
             code =
                 code.slice(0, firstWallHitboxHelper) +
-                code.slice(firstWallHitboxHelper + wallHitboxHelpersBlock.length);
+                    code.slice(firstWallHitboxHelper + wallHitboxHelpersBlock.length);
         }
     }
-
     // End of file
     code += `
     ; ==================================================================
 ; END OF COMPONENT SYSTEMS
     ; ==================================================================
         `;
-
     return code;
 }
