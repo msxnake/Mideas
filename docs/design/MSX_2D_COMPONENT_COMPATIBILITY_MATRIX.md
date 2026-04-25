@@ -17,7 +17,7 @@ en el editor, sino que tenga contrato util en estas capas:
 ## Resumen
 
 - Componentes definidos: 36.
-- Plantillas definidas: 10.
+- Plantillas definidas: 15.
 - Componentes mapeados por ASM: 26.
 - Componentes con runtime ASM especifico detectado: nucleo principal, combate
   basico, movimiento de plataformas, cursores, tile interaction y collision.
@@ -40,9 +40,9 @@ en el editor, sino que tenga contrato util en estas capas:
 | `comp_lifetime` | Combate | Si | No directo | Si | Si | No | Parcial, falta plantilla/proyectil |
 | `comp_gravity` | Plataformas | Si | Parcial | Si | Si | Si | Usable, validar con WallCollision |
 | `comp_jump` | Plataformas | Si | Parcial | Si | Si | Si | Usable, faltan detalles avanzados |
-| `comp_wall_jump` | Plataformas | Si | No directo | Si | Si | No | Parcial, falta plantilla/test |
-| `comp_wall_grab` | Plataformas | Si | No directo | Si | Si | No | Parcial, falta plantilla/test |
-| `comp_air_control` | Plataformas | Si | No directo | Si | Si | No | Parcial, falta plantilla/test |
+| `comp_wall_jump` | Plataformas | Si | No directo | Si | Si | Si | Plantilla canonica creada, falta ROM visual |
+| `comp_wall_grab` | Plataformas | Si | No directo | Si | Si | Si | Plantilla canonica creada, falta ROM visual |
+| `comp_air_control` | Plataformas | Si | No directo | Si | Si | Si | Plantilla canonica creada, falta ROM visual |
 | `comp_deadly_tiles` | Tiles | Si | Parcial | Si | Si | Si | Usable, validar ROM |
 | `comp_tile_collector` | Tiles | Si | Parcial | Si | Si | Si | Prioridad alta para Pac-Man |
 | `comp_collectible` | Objetos | Si | Si | Si | Si | Si | Usable |
@@ -55,7 +55,7 @@ en el editor, sino que tenga contrato util en estas capas:
 | `comp_ai_behavior` | AI | Si | Parcial | Si | Si | Si | Basico |
 | `comp_patrol` | AI | Si | Parcial | Si | Si | No | Parcial, falta plantilla |
 | `comp_aiming` | Combate | Si | Parcial | No | No | Si | ASM pendiente |
-| `comp_shoot` | Combate | Si | Parcial | Si | Si | No | Prioridad alta, falta plantilla/test |
+| `comp_shoot` | Combate | Si | Parcial | Si | Si | Si | Plantilla y contrato ASM validados, falta ROM visual |
 | `comp_spawner` | AI | Si | Parcial | No | No | Si | ASM pendiente |
 | `comp_bounce` | Movimiento | Si | No directo | No | No | No | Diseno/editor |
 | `comp_statemachine` | Core | Si | Parcial | Si | Si | Si | Usable, revisar duplicidad con GameFlow |
@@ -75,6 +75,11 @@ en el editor, sino que tenga contrato util en estas capas:
 | `tpl_enemy_spawner` | Spawner | Editor/preview, ASM pendiente |
 | `tpl_player_ship` | Shooter | Base util, falta `comp_shoot` integrado |
 | `tpl_player_bullet` | Proyectil | Base util, falta `comp_lifetime` y pool validado |
+| `tpl_msx_platform_player` | Plataforma MSX canonica | Nueva base para Mario/Celeste/Metroid |
+| `tpl_msx_topdown_player` | Top-down/Pac-Man canonico | Nueva base sin duplicados Pac-Man legacy |
+| `tpl_msx_shooter_player` | Shooter MSX canonico | Nueva base con `comp_shoot` integrado |
+| `tpl_msx_projectile` | Proyectil canonico | Nueva base con `Damage`, `Collision` y `Lifetime` |
+| `tpl_msx_basic_patrol_enemy` | Enemigo patrulla canonico | Nueva base con `Patrol`, `Damage`, `Health` y `WallCollision` |
 | `tpl_collector_player` | Top-down/Pac-Man simple | Buena base |
 | `tpl_pacman_player` | Pac-Man legacy | Duplicado con V2 |
 | `tpl_PacmanPlayerV2` | Pac-Man V2 | Duplicado con legacy |
@@ -109,11 +114,19 @@ El siguiente paquete debe cerrar el nucleo jugable minimo para cuatro generos:
 
 Orden recomendado de trabajo:
 
-1. Crear plantillas canonicas minimas: `PlatformPlayer`, `TopDownPlayer`,
-   `ShooterPlayer`, `Projectile`, `BasicPatrolEnemy`.
-2. Integrar `comp_shoot` en `ShooterPlayer` y `comp_lifetime` en `Projectile`.
-3. Validar una ROM minima por genero con `glass.jar` y OpenMSX.
-4. Consolidar Pac-Man en un solo componente canonico.
+1. Generar proyectos minimos por genero usando las plantillas canonicas.
+2. Validar una ROM minima por genero con `glass.jar` y OpenMSX.
+3. Consolidar Pac-Man en un solo componente canonico.
+4. Completar runtime ASM de componentes que siguen como editor/preview:
+   `Inventory`, `Aiming`, `Spawner`, `Box` y `ChildLink`.
+
+## Tests de contrato anadidos
+
+- `test/test_msx_2d_templates.js`: valida que las plantillas canonicas existen y
+  que todos sus `definitionId` apuntan a componentes definidos.
+- `test/test_msx_2d_rom_contract.js`: valida que las plantillas canonicas usan
+  componentes conocidos por `componentAnalyzer` y con runtime/simbolo esperado
+  en el generador ASM.
 
 ## Criterio de terminado por componente
 

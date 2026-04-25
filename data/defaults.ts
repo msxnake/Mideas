@@ -512,6 +512,88 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
     description: "A fast-moving laser projectile fired by the player ship. Create your own bullet sprite and assign it to this entity."
   },
   {
+    id: "tpl_msx_platform_player", name: "MSX Platform Player", icon: "P", isPlayer: true,
+    components: [
+      { definitionId: "comp_pos", defaultValues: { x: 32, y: 120 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player", isVisible: true, layer: 1 } },
+      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: 0, friction: 32, mass: 1 } },
+      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 15, offsetX: 2, offsetY: 1, collisionLayer: 1, collidesWith: 14 } },
+      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 15, offsetX: 2, offsetY: 1, tileSize: 8, stopOnCollision: true } },
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
+      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2, allowUp: false, allowDown: false, allowLeft: true, allowRight: true } },
+      { definitionId: "comp_gravity", defaultValues: { strength: "80", terminalVelocity: "1024" } },
+      { definitionId: "comp_jump", defaultValues: { jumpPower: "384", maxJumps: "1", requireKeyRelease: true } },
+      { definitionId: "comp_air_control", defaultValues: { airControlMode: "full", isEnabled: true } },
+      { definitionId: "comp_wall_grab", defaultValues: { grabFallSpeed: "1", isEnabled: true } },
+      { definitionId: "comp_wall_jump", defaultValues: { horizontalPush: "7", verticalImpulse: "1280", animationSpriteAssetId: "", slideFallSpeed: "2", lockFrames: "16", requirePressAwayFromWall: false, isEnabled: true } },
+      { definitionId: "comp_deadly_tiles", defaultValues: {} },
+      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", animationSpeed: "8", animateOnlyWhenMoving: true } },
+      { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", currentStateId: "Idle", isEnabled: true } }
+    ],
+    description: "Minimal MSX Screen 2 platformer player for Mario, Celeste and Metroid-style tests. Uses core movement, tile collision, health and animation components."
+  },
+  {
+    id: "tpl_msx_topdown_player", name: "MSX Top-Down Player", icon: "T", isPlayer: true,
+    components: [
+      { definitionId: "comp_pos", defaultValues: { x: 32, y: 32 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_collector", isVisible: true, layer: 1 } },
+      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: 0, friction: 0, mass: 1 } },
+      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, collisionLayer: 1, collidesWith: 2 } },
+      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, tileSize: 8, stopOnCollision: true } },
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
+      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2, allowUp: true, allowDown: true, allowLeft: true, allowRight: true } },
+      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", targetVariable: "", incrementAmount: 0, flagVariable: "", flagValue: 1, bonusTileId: "", bonusReplacementTileId: "", bonusSoundId: "", bonusIsPersistent: false, bonusEntityEffect: "none", bonusEffectAmount: 1, bonusSlashStrength: 8, bonusRespawnSeconds: 0, isEnabled: true } },
+      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "topdown_idle", animationSpeed: "8", animateOnlyWhenMoving: true } },
+      { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", currentStateId: "Idle", isEnabled: true } }
+    ],
+    description: "Minimal top-down Screen 2 player for Pac-Man, maze and adventure tests. Avoids legacy Pac-Man movement duplicates and uses Cursors plus WallCollision."
+  },
+  {
+    id: "tpl_msx_shooter_player", name: "MSX Shooter Player", icon: "S", isPlayer: true,
+    components: [
+      { definitionId: "comp_pos", defaultValues: { x: 120, y: 150 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player_ship", isVisible: true, layer: 1 } },
+      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: 0, friction: 32, mass: 1 } },
+      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 14, offsetX: 2, offsetY: 1, collisionLayer: 1, collidesWith: 6 } },
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
+      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 3, allowUp: true, allowDown: true, allowLeft: true, allowRight: true } },
+      { definitionId: "comp_shoot", defaultValues: { hasAmmo: true, spriteAssetId: "placeholder_sprite_bullet", render2: "", offsetX: 0, offsetY: -8, speed: "4", aimMode: "4dir", allowDiagonals: false, velocityX: "0", velocityY: "-4", range: "128", damage: "1", cooldownMs: "250", fireKey: "Space", expireOnHit: true, anchor: "center" } },
+      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "ship_idle", animationSpeed: "8", animateOnlyWhenMoving: false } },
+      { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", currentStateId: "Idle", isEnabled: true } }
+    ],
+    description: "Minimal Galaga-style player with cursor movement and the ROM-facing Shoot component."
+  },
+  {
+    id: "tpl_msx_projectile", name: "MSX Projectile", icon: "*",
+    components: [
+      { definitionId: "comp_pos", defaultValues: { x: 0, y: 0 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_bullet", isVisible: true, layer: 1 } },
+      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: -4, friction: 0, mass: 0 } },
+      { definitionId: "comp_damage", defaultValues: { damageAmount: 1, damageType: "projectile", knockbackForce: 1 } },
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 4, hitboxHeight: 6, offsetX: 2, offsetY: 1, collisionLayer: 4, collidesWith: 2 } },
+      { definitionId: "comp_lifetime", defaultValues: { lifetimeMs: "1500" } }
+    ],
+    description: "Reusable projectile template for shooter and Metroid-style tests. Includes Damage, Collision and Lifetime for ROM validation."
+  },
+  {
+    id: "tpl_msx_basic_patrol_enemy", name: "MSX Basic Patrol Enemy", icon: "E",
+    components: [
+      { definitionId: "comp_pos", defaultValues: { x: 96, y: 120 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_enemy", isVisible: true, layer: 1 } },
+      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: 0, friction: 0, mass: 1 } },
+      { definitionId: "comp_health", defaultValues: { current: 1, max: 1 } },
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 14, offsetX: 2, offsetY: 1, collisionLayer: 2, collidesWith: 5 } },
+      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 14, offsetX: 2, offsetY: 1, tileSize: 8, stopOnCollision: true } },
+      { definitionId: "comp_patrol", defaultValues: { patrolType: "Horizontal", waypoint1_x: "64", waypoint1_y: "120", waypoint2_x: "160", waypoint2_y: "120", patrolSpeed: "50", waypointPause: "0", multiScreen: false, originScreenId: "" } },
+      { definitionId: "comp_damage", defaultValues: { damageAmount: 1, damageType: "contact", knockbackForce: 2 } },
+      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "enemy_walk", animationSpeed: "10", animateOnlyWhenMoving: true } }
+    ],
+    description: "Minimal enemy for platformer, Metroid and shooter collision tests. Uses Patrol, Damage, Health and WallCollision."
+  },
+  {
     id: "tpl_collector_player", name: "Collector Player", icon: "🔵", isPlayer: true,
     components: [
       { definitionId: "comp_pos", defaultValues: { x: 32, y: 32 } },
