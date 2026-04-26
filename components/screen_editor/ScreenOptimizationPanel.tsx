@@ -144,7 +144,7 @@ export const ScreenOptimizationPanel: React.FC<ScreenOptimizationPanelProps> = (
         : `${MODE_LABELS[overlayMode]} overlay is not available for this map shape.`;
 
   return (
-    <Panel title="Optimization Preview" className={`text-xs ${className}`} bodyClassName="p-2 space-y-2">
+    <Panel title="Optimization Preview" collapsible className={`text-xs ${className}`} bodyClassName="p-2 space-y-2">
       <div className="rounded border border-msx-border/60 bg-msx-bgcolor/40 p-2">
         <div className="text-msx-textprimary">Current mode: {MODE_LABELS[currentMode]}</div>
         <div className="mt-1 text-msx-textsecondary">{currentStatusText}</div>

@@ -424,6 +424,16 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
 
 export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
   {
+    id: "tpl_player_default", name: "Player Default", icon: "P", isPlayer: true,
+    components: [
+      { definitionId: "comp_pos", defaultValues: { x: 32, y: 100 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player", isVisible: true, layer: 1 } },
+      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
+      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2, allowUp: true, allowDown: true, allowLeft: true, allowRight: true } }
+    ],
+    description: "Minimal default player with position, render, health and cursor movement."
+  },
+  {
     id: "tpl_player", name: "Player", icon: "👤", isPlayer: true,
     components: [
       { definitionId: "comp_pos", defaultValues: { x: 32, y: 100 } },
