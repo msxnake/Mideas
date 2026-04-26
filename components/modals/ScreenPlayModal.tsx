@@ -1337,7 +1337,7 @@ interface AnimatedEntity {
     };
     isWallGrabbing?: boolean;
     wallGrabReleaseGraceFrames?: number;
-    wallGrabClimbStamina?: number;
+    wallGrabTimerRemaining?: number;
     wallGrabLockout?: boolean;
     wallGrabSpriteBackup?: CarrySpriteSnapshot;
     tileCollectorData?: {
@@ -2587,37 +2587,34 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                         const touchingWall = !!wallGrabFacing;
                         const grabFallSpeed = Math.max(0, Number(wallGrabProps.grabFallSpeed ?? 0) || 0);
                         const climbSpeed = Math.max(0, Number(wallGrabProps.climbSpeed ?? 1) || 0);
-                        const climbStaminaMax = Math.max(0, Number(wallGrabProps.climbStamina ?? 64) || 0);
+                        const grabDurationFrames = Math.max(0, Number(wallGrabProps.grabDurationFrames ?? 240) || 0);
                         if (onGroundNow) {
                             entity.wallGrabLockout = false;
-                            entity.wallGrabClimbStamina = undefined;
+                            entity.wallGrabTimerRemaining = undefined;
                         }
                         const canWallGrab = wallGrabEnabled && hasGravity && grabPressed && !onGroundNow && !entity.isOnLadder && !entity.wallGrabLockout;
                         const graceFrames = entity.wallGrabReleaseGraceFrames ?? 0;
                         const wallGrabActiveNow = canWallGrab && (touchingWall || (entity.isWallGrabbing && graceFrames > 0));
 
                         if (wallGrabActiveNow) {
-                            let releaseAfterStaminaSpent = false;
+                            let releaseAfterTimerExpired = false;
                             entity.wallGrabReleaseGraceFrames = touchingWall ? 2 : Math.max(0, graceFrames - 1);
                             entity.vx = 0;
 
-                            if (!entity.isWallGrabbing && entity.wallGrabClimbStamina === undefined) {
-                                entity.wallGrabClimbStamina = climbStaminaMax;
+                            if (!entity.isWallGrabbing && entity.wallGrabTimerRemaining === undefined) {
+                                entity.wallGrabTimerRemaining = grabDurationFrames;
                             }
 
                             const climbUpPressed = currentPressedKeys.has('ArrowUp');
                             const climbDownPressed = currentPressedKeys.has('ArrowDown');
-                            const remainingStamina = Math.max(0, entity.wallGrabClimbStamina ?? climbStaminaMax);
+                            const remainingFrames = Math.max(0, entity.wallGrabTimerRemaining ?? grabDurationFrames);
                             let wallGrabVy = grabFallSpeed;
-                            if (remainingStamina > 0 && climbSpeed > 0 && (climbUpPressed || climbDownPressed)) {
-                                const usedStamina = Math.min(climbSpeed, remainingStamina);
-                                wallGrabVy = climbUpPressed ? -usedStamina : usedStamina;
-                                const nextStamina = remainingStamina - usedStamina;
-                                entity.wallGrabClimbStamina = nextStamina;
-                                releaseAfterStaminaSpent = nextStamina <= 0;
-                            } else {
-                                entity.wallGrabClimbStamina = remainingStamina;
+                            if (climbSpeed > 0 && (climbUpPressed || climbDownPressed)) {
+                                wallGrabVy = climbUpPressed ? -climbSpeed : climbSpeed;
                             }
+                            const nextTimer = Math.max(0, remainingFrames - 1);
+                            entity.wallGrabTimerRemaining = nextTimer;
+                            releaseAfterTimerExpired = nextTimer <= 0;
 
                             entity.vy = wallGrabVy;
                             entity.gravityVel = ((wallGrabVy & 0xFF) << 8) & 0xFFFF;
@@ -2687,11 +2684,11 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                                 applyWallGrabFacing(entity.sprite);
                             }
 
-                            if (releaseAfterStaminaSpent) {
+                            if (releaseAfterTimerExpired) {
                                 entity.wallGrabLockout = true;
                                 entity.isWallGrabbing = false;
                                 entity.wallGrabReleaseGraceFrames = 0;
-                                entity.wallGrabClimbStamina = undefined;
+                                entity.wallGrabTimerRemaining = undefined;
                                 if (entity.wallGrabSpriteBackup) {
                                     const backup = entity.wallGrabSpriteBackup;
                                     entity.sprite = backup.sprite;
@@ -2709,7 +2706,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                             entity.isWallGrabbing = false;
                             entity.wallGrabReleaseGraceFrames = 0;
                             if (onGroundNow) {
-                                entity.wallGrabClimbStamina = undefined;
+                                entity.wallGrabTimerRemaining = undefined;
                             }
                             if (entity.wallGrabSpriteBackup) {
                                 const backup = entity.wallGrabSpriteBackup;
@@ -2726,7 +2723,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     } else {
                         entity.isWallGrabbing = false;
                         entity.wallGrabReleaseGraceFrames = 0;
-                        entity.wallGrabClimbStamina = undefined;
+                        entity.wallGrabTimerRemaining = undefined;
                         entity.wallGrabLockout = false;
                     }
 

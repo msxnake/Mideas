@@ -4587,8 +4587,8 @@ init_wallgrab_system:
     ld (hl), a
     ldir
 
-    ld hl, entity_wallgrab_stamina
-    ld de, entity_wallgrab_stamina+1
+    ld hl, entity_wallgrab_timer
+    ld de, entity_wallgrab_timer+1
     ld bc, 31
     xor a
     ld (hl), a
@@ -4692,7 +4692,7 @@ wallgrab_process_entity_c:
     ; Transition to grabbing
     ld (hl), 1
     call wallgrab_reset_grace_c
-    call wallgrab_ensure_stamina_c
+    call wallgrab_ensure_timer_c
     call wallgrab_commit_grab_sprite_if_needed_c
     jp .apply_physics
 
@@ -4721,7 +4721,7 @@ wallgrab_process_entity_c:
     ld hl, entity_wallgrab_lockout
     add hl, de
     ld (hl), 0
-    ld hl, entity_wallgrab_stamina
+    ld hl, entity_wallgrab_timer
     add hl, de
     ld (hl), 0
     jp .not_grabbing
@@ -4734,24 +4734,24 @@ wallgrab_reset_grace_c:
     ld (hl), 2
     ret
 
-wallgrab_ensure_stamina_c:
+wallgrab_ensure_timer_c:
     ; Input: DE = entity offset
     ; Clobbers: AF, HL. Preserves: BC, DE.
-    ld hl, entity_wallgrab_stamina
+    ld hl, entity_wallgrab_timer
     add hl, de
     ld a, (hl)
     or a
     ret nz
-    call wallgrab_reset_stamina_c
+    call wallgrab_reset_timer_c
     ret
 
-wallgrab_reset_stamina_c:
+wallgrab_reset_timer_c:
     ; Input: DE = entity offset
     ; Clobbers: AF, HL. Preserves: BC, DE.
-    ld hl, entity_wallgrab_cfg_climb_stamina
+    ld hl, entity_wallgrab_cfg_duration_frames
     add hl, de
     ld a, (hl)
-    ld hl, entity_wallgrab_stamina
+    ld hl, entity_wallgrab_timer
     add hl, de
     ld (hl), a
     ret
@@ -5186,18 +5186,38 @@ wallgrab_update_sprite_colors_c:
     ld (hl), 0
     inc hl
     ld (hl), b
+    call wallgrab_tick_timer_c
+    or a
+    ret nz
+    jp .not_grabbing
+
+wallgrab_tick_timer_c:
+    ; Input: DE = entity offset
+    ; Output: A = 1 if the grab can continue, 0 if the timer expired
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wallgrab_timer
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .wg_timer_expired
+    dec (hl)
+    ld a, (hl)
+    or a
+    jp z, .wg_timer_expired
+    ld a, 1
+    ret
+
+.wg_timer_expired:
+    ld hl, entity_wallgrab_lockout
+    add hl, de
+    ld (hl), 1
+    xor a
     ret
 
 wallgrab_choose_vertical_velocity_c:
     ; Input: DE = entity offset
     ; Output: B = signed vertical velocity for this grab frame
-    ; Clobbers: AF, C, HL. Preserves: DE.
-    ld hl, entity_wallgrab_stamina
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, .wg_use_fall_speed
-
+    ; Clobbers: AF, HL. Preserves: DE.
     ld a, (input_state)
     cp STICK_UP
     jp z, .wg_climb_up
@@ -5214,7 +5234,9 @@ wallgrab_choose_vertical_velocity_c:
     jp .wg_use_fall_speed
 
 .wg_climb_up:
-    call wallgrab_consume_stamina_for_speed_c
+    ld hl, entity_wallgrab_cfg_climb_speed
+    add hl, de
+    ld a, (hl)
     or a
     jp z, .wg_use_fall_speed
     neg
@@ -5222,7 +5244,9 @@ wallgrab_choose_vertical_velocity_c:
     ret
 
 .wg_climb_down:
-    call wallgrab_consume_stamina_for_speed_c
+    ld hl, entity_wallgrab_cfg_climb_speed
+    add hl, de
+    ld a, (hl)
     or a
     jp z, .wg_use_fall_speed
     ld b, a
@@ -5232,43 +5256,6 @@ wallgrab_choose_vertical_velocity_c:
     ld hl, entity_wallgrab_cfg_fall_speed
     add hl, de
     ld b, (hl)
-    ret
-
-wallgrab_consume_stamina_for_speed_c:
-    ; Input: DE = entity offset
-    ; Output: A = pixels consumed this frame, clamped to remaining stamina
-    ; Clobbers: AF, C, HL. Preserves: B, DE.
-    ld hl, entity_wallgrab_stamina
-    add hl, de
-    ld a, (hl)
-    or a
-    ret z
-    ld c, a
-
-    ld hl, entity_wallgrab_cfg_climb_speed
-    add hl, de
-    ld a, (hl)
-    or a
-    ret z
-    cp c
-    jp c, .wg_consume_amount_ready
-    jp z, .wg_consume_amount_ready
-    ld a, c
-
-.wg_consume_amount_ready:
-    ld c, a
-    ld hl, entity_wallgrab_stamina
-    add hl, de
-    ld a, (hl)
-    sub c
-    ld (hl), a
-    or a
-    jp nz, .wg_stamina_not_empty
-    ld hl, entity_wallgrab_lockout
-    add hl, de
-    ld (hl), 1
-.wg_stamina_not_empty:
-    ld a, c
     ret
 
 .not_grabbing:
