@@ -662,6 +662,12 @@ ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stag
     ; Execute all state machines
     call execute_all_state_machines
 
+    ; WallGrab owns the visible sprite while the grab button is held.
+    ; Re-apply it after StateMachine actions so idle/jump/walk sprites
+    ; cannot win the frame immediately before animation/sprite refresh.
+    call refresh_player_wallgrab_fastpath
+    call update_wallgrab_component
+
     ; Update timed PSG sound effects
     call sfx_update
 
@@ -3555,6 +3561,8 @@ ${frameAudioTickAsm}    ; Poll input immediately after V-Blank so hero movement 
     call refresh_player_tile_interaction_fastpath
     call refresh_player_state_machine_fastpath
     call execute_all_state_machines
+    call refresh_player_wallgrab_fastpath
+    call update_wallgrab_component
     call refresh_player_animation_fastpath
     call refresh_player_sprite_fastpath
     call update_sprites_to_vram     ; Upload current-frame sprite positions

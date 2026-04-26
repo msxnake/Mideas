@@ -6,7 +6,7 @@
 ;
 ; OPTIMIZED: Only includes necessary code for this project
 ; Tiles: 21
-; Sprites: 7
+; Sprites: 5
 ; Screens: 1
 ; Entities: 1
 ; Menus: No
@@ -30,7 +30,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 78936
+; Estimated payload bytes: 78581
 ; Estimated banks used: 10
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : page0.asm (96 bytes)
@@ -38,26 +38,26 @@
 ; BANK 00 @#08DB : colors.asm (1875 bytes)
 ; BANK 00 @#102E : components.asm (22 bytes)
 ; BANK 00 @#1044 : entities.asm (4028 bytes)
-; BANK 01 @#0000 : entities.asm (648 bytes)
-; BANK 01 @#0288 : worlds.asm (1802 bytes)
-; BANK 01 @#0992 : screens.asm part 1/2 (5742 bytes)
-; BANK 02 @#0000 : screens.asm part 2/2 (3592 bytes)
-; BANK 02 @#0E08 : sprites.asm (4600 bytes)
-; BANK 03 @#0000 : sprites.asm (3168 bytes)
-; BANK 03 @#0C60 : font.asm (3456 bytes)
-; BANK 03 @#19E0 : hud.asm (1568 bytes)
-; BANK 04 @#0000 : hud.asm (2379 bytes)
-; BANK 04 @#094B : menus.asm (168 bytes)
-; BANK 04 @#09F3 : sound.asm part 1/2 (5645 bytes)
-; BANK 05 @#0000 : sound.asm part 2/2 (3903 bytes)
-; BANK 05 @#0F3F : scroll.asm (2353 bytes)
-; BANK 05 @#1870 : animtiles.asm (1936 bytes)
-; BANK 06 @#0000 : animtiles.asm (3457 bytes)
-; BANK 06 @#0D81 : statemachine.asm part 1/3 (4735 bytes)
+; BANK 01 @#0000 : entities.asm (703 bytes)
+; BANK 01 @#02BF : worlds.asm (1802 bytes)
+; BANK 01 @#09C9 : screens.asm part 1/2 (5687 bytes)
+; BANK 02 @#0000 : screens.asm part 2/2 (3647 bytes)
+; BANK 02 @#0E3F : sprites.asm (4545 bytes)
+; BANK 03 @#0000 : sprites.asm (2722 bytes)
+; BANK 03 @#0AA2 : font.asm (3456 bytes)
+; BANK 03 @#1822 : hud.asm (2014 bytes)
+; BANK 04 @#0000 : hud.asm (1933 bytes)
+; BANK 04 @#078D : menus.asm (168 bytes)
+; BANK 04 @#0835 : sound.asm part 1/2 (6091 bytes)
+; BANK 05 @#0000 : sound.asm part 2/2 (3457 bytes)
+; BANK 05 @#0D81 : scroll.asm (2353 bytes)
+; BANK 05 @#16B2 : animtiles.asm (2382 bytes)
+; BANK 06 @#0000 : animtiles.asm (3011 bytes)
+; BANK 06 @#0BC3 : statemachine.asm part 1/3 (5181 bytes)
 ; BANK 07 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 08 @#0000 : statemachine.asm part 3/3 (6347 bytes)
-; BANK 08 @#18CB : gameflow.asm (1845 bytes)
-; BANK 09 @#0000 : gameflow.asm (5208 bytes)
+; BANK 08 @#0000 : statemachine.asm part 3/3 (5911 bytes)
+; BANK 08 @#1717 : gameflow.asm (2281 bytes)
+; BANK 09 @#0000 : gameflow.asm (4853 bytes)
 
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
@@ -1045,7 +1045,7 @@ NODE_TYPE_UNKNOWN       EQU 255  ; Unknown/unsupported node type
 ; ==================================================================
 
 ; Detected Assets
-TOTAL_SPRITES           EQU 11
+TOTAL_SPRITES           EQU 9
 TOTAL_TILES             EQU 21
 TOTAL_SCREENS           EQU 1
 
@@ -1204,278 +1204,280 @@ entity_gate_current_step EQU #DD3C   ; Current applied retract step (32 bytes)
 entity_gate_step_timer EQU #DD5C   ; Countdown until next retract step (32 bytes)
 entity_walljump_lock EQU #DD7C   ; Remaining horizontal lock frames after wall jump (32 bytes)
 entity_walljump_locked_vx EQU #DD9C   ; Horizontal velocity preserved while wall jump lock is active (32 bytes)
-entity_walljump_anim_active EQU #DDBC   ; Wall jump one-shot animation is waiting to restore base sprite (32 bytes)
-entity_x_pos        EQU #DDDC   ; Entity X positions (32 bytes)
-entity_y_pos        EQU #DDFC   ; Entity Y positions (32 bytes)
-entity_vel_x        EQU #DE1C   ; Entity X velocity (32 bytes)
-entity_vel_y        EQU #DE3C   ; Entity Y velocity (32 bytes)
-entity_comp_masks   EQU #DE5C   ; Entity component masks (32 bytes)
-entity_comp_masks_hi EQU #DE7C   ; Entity component masks high byte (32 bytes)
-entity_screen_id    EQU #DE9C   ; Entity screen ID (32 bytes)
-entity_job_period   EQU #DEBC   ; Entity job period in frames (32 bytes, 1=100%,2=50%,3=33%,4=25%)
-entity_job_entry    EQU #DEDC   ; Entity job entry slot within period window (32 bytes)
-entity_job_scheduler_active EQU #DEFC   ; 1 when any entity uses non-default job cadence
-entity_dir_mask     EQU #DEFD   ; Entity direction mask (32 bytes)
-entity_input_speed  EQU #DF1D   ; Entity input/cursor speed (32 bytes)
-entity_health       EQU #DF3D   ; Entity health (32 bytes)
-entity_anim_frame   EQU #DF5D   ; Entity animation frame (32 bytes)
-entity_anim_tick    EQU #DF7D   ; Entity animation tick counter (32 bytes)
-entity_anim_speed   EQU #DF9D   ; Entity animation speed (ticks per frame) (32 bytes)
-entity_anim_flags   EQU #DFBD   ; Entity animation flags (32 bytes)
-entity_sm_ptr_l     EQU #DFDD   ; Entity State Pointer Low (32 bytes)
-entity_sm_ptr_h     EQU #DFFD   ; Entity State Pointer High (32 bytes)
-entity_sm_timer_l   EQU #E01D   ; Entity State Timer Low (32 bytes)
-entity_sm_timer_h   EQU #E03D   ; Entity State Timer High (32 bytes)
-entity_sm_wait_timer EQU #E05D   ; Entity State Wait Timer (32 bytes)
-entity_sm_sprite_control EQU #E07D   ; 1 when the assigned state machine explicitly drives sprite changes (32 bytes)
-entity_lifetime     EQU #E09D   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
-entity_collectible_enabled EQU #E0BD   ; 1 when entity has Collectible component (32 bytes)
-entity_carried_by   EQU #E0DD   ; Entity carrier ID (32 bytes, 255=not carried)
-entity_template_token EQU #E0FD   ; Entity template token (32 bytes, 0=unknown)
-entity_facing_dir   EQU #E11D   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
-entity_sm_var_0     EQU #E13D   ; Entity Variable 0 (32 bytes)
-entity_sm_var_1     EQU #E15D   ; Entity Variable 1 (32 bytes)
-entity_sm_var_2     EQU #E17D   ; Entity Variable 2 (32 bytes)
-entity_sm_var_3     EQU #E19D   ; Entity Variable 3 (32 bytes)
-entity_sm_var_4     EQU #E1BD   ; Entity Variable 4 (32 bytes)
-entity_sm_var_5     EQU #E1DD   ; Entity Variable 5 (32 bytes)
-entity_sm_var_6     EQU #E1FD   ; Entity Variable 6 (32 bytes)
-entity_sm_var_7     EQU #E21D   ; Entity Variable 7 (32 bytes)
+entity_wallgrab_active EQU #DDBC   ; 1 if entity is currently grabbing a wall (32 bytes)
+entity_wallgrab_grace EQU #DDDC   ; Frames to keep wall grab during transient wall flag gaps (32 bytes)
+entity_walljump_anim_active EQU #DDFC   ; Wall jump one-shot animation is waiting to restore base sprite (32 bytes)
+entity_x_pos        EQU #DE1C   ; Entity X positions (32 bytes)
+entity_y_pos        EQU #DE3C   ; Entity Y positions (32 bytes)
+entity_vel_x        EQU #DE5C   ; Entity X velocity (32 bytes)
+entity_vel_y        EQU #DE7C   ; Entity Y velocity (32 bytes)
+entity_comp_masks   EQU #DE9C   ; Entity component masks (32 bytes)
+entity_comp_masks_hi EQU #DEBC   ; Entity component masks high byte (32 bytes)
+entity_screen_id    EQU #DEDC   ; Entity screen ID (32 bytes)
+entity_job_period   EQU #DEFC   ; Entity job period in frames (32 bytes, 1=100%,2=50%,3=33%,4=25%)
+entity_job_entry    EQU #DF1C   ; Entity job entry slot within period window (32 bytes)
+entity_job_scheduler_active EQU #DF3C   ; 1 when any entity uses non-default job cadence
+entity_dir_mask     EQU #DF3D   ; Entity direction mask (32 bytes)
+entity_input_speed  EQU #DF5D   ; Entity input/cursor speed (32 bytes)
+entity_health       EQU #DF7D   ; Entity health (32 bytes)
+entity_anim_frame   EQU #DF9D   ; Entity animation frame (32 bytes)
+entity_anim_tick    EQU #DFBD   ; Entity animation tick counter (32 bytes)
+entity_anim_speed   EQU #DFDD   ; Entity animation speed (ticks per frame) (32 bytes)
+entity_anim_flags   EQU #DFFD   ; Entity animation flags (32 bytes)
+entity_sm_ptr_l     EQU #E01D   ; Entity State Pointer Low (32 bytes)
+entity_sm_ptr_h     EQU #E03D   ; Entity State Pointer High (32 bytes)
+entity_sm_timer_l   EQU #E05D   ; Entity State Timer Low (32 bytes)
+entity_sm_timer_h   EQU #E07D   ; Entity State Timer High (32 bytes)
+entity_sm_wait_timer EQU #E09D   ; Entity State Wait Timer (32 bytes)
+entity_sm_sprite_control EQU #E0BD   ; 1 when the assigned state machine explicitly drives sprite changes (32 bytes)
+entity_lifetime     EQU #E0DD   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
+entity_collectible_enabled EQU #E0FD   ; 1 when entity has Collectible component (32 bytes)
+entity_carried_by   EQU #E11D   ; Entity carrier ID (32 bytes, 255=not carried)
+entity_template_token EQU #E13D   ; Entity template token (32 bytes, 0=unknown)
+entity_facing_dir   EQU #E15D   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
+entity_sm_var_0     EQU #E17D   ; Entity Variable 0 (32 bytes)
+entity_sm_var_1     EQU #E19D   ; Entity Variable 1 (32 bytes)
+entity_sm_var_2     EQU #E1BD   ; Entity Variable 2 (32 bytes)
+entity_sm_var_3     EQU #E1DD   ; Entity Variable 3 (32 bytes)
+entity_sm_var_4     EQU #E1FD   ; Entity Variable 4 (32 bytes)
+entity_sm_var_5     EQU #E21D   ; Entity Variable 5 (32 bytes)
+entity_sm_var_6     EQU #E23D   ; Entity Variable 6 (32 bytes)
+entity_sm_var_7     EQU #E25D   ; Entity Variable 7 (32 bytes)
 
 ; ==================================================================
 ; SPRITE SYSTEM VARIABLES
 ; ==================================================================
-entity_sprite_asset_index EQU #E23D   ; Entity sprite asset index - RAM copy (32 bytes)
-active_sprite_count EQU #E25D   ; Number of sprites currently active
-sprites_dirty      EQU #E25E   ; 1=sprite_attributes changed, needs VRAM sync
-sprite_pattern      EQU #E25F   ; Sprite pattern IDs (32 bytes)
-sprite_color        EQU #E27F   ; Sprite colors (32 bytes)
-sprite_layer_colors EQU #E29F   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
-sprite_asset_base_pattern_slot_runtime EQU #E2BF   ; Runtime base 16x16 slot per sprite asset (11 bytes)
-sprite_placeholder_base_pattern_num EQU #E2CA   ; Runtime placeholder pattern number (base slot * 4)
-current_sprite_pattern_pack_id EQU #E2CB   ; Active runtime sprite pattern pack id (#FF=none loaded)
-sprite_attributes   EQU #E2CC   ; Interleaved sprite attributes (32 * 4 bytes)
+entity_sprite_asset_index EQU #E27D   ; Entity sprite asset index - RAM copy (32 bytes)
+active_sprite_count EQU #E29D   ; Number of sprites currently active
+sprites_dirty      EQU #E29E   ; 1=sprite_attributes changed, needs VRAM sync
+sprite_pattern      EQU #E29F   ; Sprite pattern IDs (32 bytes)
+sprite_color        EQU #E2BF   ; Sprite colors (32 bytes)
+sprite_layer_colors EQU #E2DF   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
+sprite_asset_base_pattern_slot_runtime EQU #E2FF   ; Runtime base 16x16 slot per sprite asset (9 bytes)
+sprite_placeholder_base_pattern_num EQU #E308   ; Runtime placeholder pattern number (base slot * 4)
+current_sprite_pattern_pack_id EQU #E309   ; Active runtime sprite pattern pack id (#FF=none loaded)
+sprite_attributes   EQU #E30A   ; Interleaved sprite attributes (32 * 4 bytes)
 
 ; ==================================================================
 ; SCREEN SYSTEM VARIABLES (1 screens detected)
 ; ==================================================================
-current_screen_id   EQU #E34C   ; Currently displayed screen ID
-screen_dirty_flag   EQU #E34D   ; Screen needs redraw flag
-screen_transition_cooldown EQU #E34E   ; Cooldown frames after screen transition
-current_world_id    EQU #E34F   ; Current world ID (for multi-world support)
-current_screen_index EQU #E350   ; Current screen index within world
-current_screen_anim_group_count EQU #E351   ; Animated tile groups visible in current screen
-current_screen_entity_count EQU #E352   ; Entity instances assigned to current screen
-current_screen_sprite_pattern_slots EQU #E353   ; Sprite pattern slots needed by current screen
-current_screen_summary_flags EQU #E354   ; Runtime screen summary flags (music/hud/effects/anim)
+current_screen_id   EQU #E38A   ; Currently displayed screen ID
+screen_dirty_flag   EQU #E38B   ; Screen needs redraw flag
+screen_transition_cooldown EQU #E38C   ; Cooldown frames after screen transition
+current_world_id    EQU #E38D   ; Current world ID (for multi-world support)
+current_screen_index EQU #E38E   ; Current screen index within world
+current_screen_anim_group_count EQU #E38F   ; Animated tile groups visible in current screen
+current_screen_entity_count EQU #E390   ; Entity instances assigned to current screen
+current_screen_sprite_pattern_slots EQU #E391   ; Sprite pattern slots needed by current screen
+current_screen_summary_flags EQU #E392   ; Runtime screen summary flags (music/hud/effects/anim)
 
 ; ==================================================================
 ; PLAYER SYSTEM VARIABLES (player entity detected)
 ; ==================================================================
-player_x            EQU #E355   ; Player X position (16-bit)
-player_y            EQU #E357   ; Player Y position (16-bit)
-player_runtime_enabled EQU #E359   ; 1=player fast runtime bound to hero entity
-player_entity_index EQU #E35A   ; Entity index used by player fast runtime (#FF=none)
-player_vx_runtime   EQU #E35B   ; Cached player X velocity (signed 8-bit)
-player_vy_runtime   EQU #E35C   ; Cached player Y velocity (signed 8-bit)
-player_health       EQU #E35D   ; Player health points
-player_score        EQU #E35E   ; Player score (16-bit)
-gem_count           EQU #E360   ; Collectible tile counter (8-bit)
-last_interaction_char EQU #E361   ; Char code of last interacted tile (for SM VARIABLE_COMPARE)
+player_x            EQU #E393   ; Player X position (16-bit)
+player_y            EQU #E395   ; Player Y position (16-bit)
+player_runtime_enabled EQU #E397   ; 1=player fast runtime bound to hero entity
+player_entity_index EQU #E398   ; Entity index used by player fast runtime (#FF=none)
+player_vx_runtime   EQU #E399   ; Cached player X velocity (signed 8-bit)
+player_vy_runtime   EQU #E39A   ; Cached player Y velocity (signed 8-bit)
+player_health       EQU #E39B   ; Player health points
+player_score        EQU #E39C   ; Player score (16-bit)
+gem_count           EQU #E39E   ; Collectible tile counter (8-bit)
+last_interaction_char EQU #E39F   ; Char code of last interacted tile (for SM VARIABLE_COMPARE)
 last_gem_char       EQU last_interaction_char   ; Backwards-compatible alias for collectible SM checks
-last_interaction_pending EQU #E362   ; 1 when a new tile interaction is pending for State Machine logic
-last_interaction_type EQU #E363   ; Interaction type id of last interacted tile
-last_interaction_value EQU #E364   ; Interaction value byte of last interacted tile
-last_interaction_target EQU #E365   ; Interaction target id of last interacted tile
-last_interaction_x  EQU #E366   ; Tile X coordinate of last interaction
-last_interaction_y  EQU #E367   ; Tile Y coordinate of last interaction
-last_interaction_entity EQU #E368   ; Entity index that triggered the last interaction
+last_interaction_pending EQU #E3A0   ; 1 when a new tile interaction is pending for State Machine logic
+last_interaction_type EQU #E3A1   ; Interaction type id of last interacted tile
+last_interaction_value EQU #E3A2   ; Interaction value byte of last interacted tile
+last_interaction_target EQU #E3A3   ; Interaction target id of last interacted tile
+last_interaction_x  EQU #E3A4   ; Tile X coordinate of last interaction
+last_interaction_y  EQU #E3A5   ; Tile Y coordinate of last interaction
+last_interaction_entity EQU #E3A6   ; Entity index that triggered the last interaction
 
 ; Persistent collectibles list (survives screen re-entry)
 MAX_COLLECTIBLES     EQU 64              ; Max persistent collectible records
-collected_count      EQU #E369   ; Number of collected tiles recorded (8-bit)
-collected_world      EQU #E36A   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
-collected_screen     EQU #E3AA   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
-collected_idx_l      EQU #E3EA   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
-collected_idx_h      EQU #E42A   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
+collected_count      EQU #E3A7   ; Number of collected tiles recorded (8-bit)
+collected_world      EQU #E3A8   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_screen     EQU #E3E8   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_idx_l      EQU #E428   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
+collected_idx_h      EQU #E468   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
 
 ; Timed bonus tile respawn slots (bonus gem regeneration)
 MAX_BONUS_RESPAWNS   EQU 16              ; Max timed bonus tiles waiting to respawn
-bonus_respawn_world  EQU #E46A   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_screen EQU #E47A   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_idx_l  EQU #E48A   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_idx_h  EQU #E49A   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_secs   EQU #E4AA   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_frames EQU #E4BA   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_world  EQU #E4A8   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_screen EQU #E4B8   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_l  EQU #E4C8   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_h  EQU #E4D8   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_secs   EQU #E4E8   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_frames EQU #E4F8   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
 
 ; ==================================================================
 ; AUXILIARY VARIABLES 
 ; ==================================================================
-deterministic        EQU #E4CA   ; Deterministic mode flag
+deterministic        EQU #E508   ; Deterministic mode flag
 
 ; ==================================================================
 ; TEMPORARY VARIABLES (ALWAYS NEEDED)
 ; ==================================================================
-temp_word_1         EQU #E4CB   ; Temporary 16-bit storage
-temp_word_2         EQU #E4CD   ; Temporary 16-bit storage
-temp_byte_1         EQU #E4CF   ; Temporary 8-bit storage
-temp_byte_2         EQU #E4D0   ; Temporary 8-bit storage
-temp_byte_3         EQU #E4D1   ; Temporary 8-bit storage (32 bytes)
-temp_byte_4         EQU #E4F1   ; Temporary 8-bit storage (32 bytes)
-temp_byte_5         EQU #E511   ; Temporary 8-bit storage (32 bytes)
-temp_byte_6         EQU #E531   ; Temporary 8-bit storage (32 bytes)
+temp_word_1         EQU #E509   ; Temporary 16-bit storage
+temp_word_2         EQU #E50B   ; Temporary 16-bit storage
+temp_byte_1         EQU #E50D   ; Temporary 8-bit storage
+temp_byte_2         EQU #E50E   ; Temporary 8-bit storage
+temp_byte_3         EQU #E50F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_4         EQU #E52F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_5         EQU #E54F   ; Temporary 8-bit storage (32 bytes)
+temp_byte_6         EQU #E56F   ; Temporary 8-bit storage (32 bytes)
 
 ; ==================================================================
 ; SOUND SYSTEM VARIABLES
 ; ==================================================================
-sfx_active          EQU #E551   ; 0=no SFX active, 1=playing
-sfx_timer           EQU #E552   ; Frames remaining for current SFX
-sfx_fadeout         EQU #E553   ; Reserved fadeout flag/state
-temp_byte_7         EQU #E554   ; Temporary 8-bit storage (32 bytes)
-temp_byte_8         EQU #E574   ; Temporary 8-bit storage (32 bytes)
-temp_byte_9         EQU #E594   ; Temporary 8-bit storage (32 bytes)
-temp_byte_10        EQU #E5B4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_11        EQU #E5D4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_12        EQU #E5F4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_13        EQU #E614   ; Temporary 8-bit storage (32 bytes)
-temp_byte_14        EQU #E634   ; Temporary 8-bit storage (32 bytes)
-temp_byte_15        EQU #E654   ; Temporary 8-bit storage (32 bytes)
-temp_byte_16        EQU #E674   ; Temporary 8-bit storage (32 bytes)
-temp_byte_17        EQU #E694   ; Temporary 8-bit storage (32 bytes)
-temp_byte_18        EQU #E6B4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_19        EQU #E6D4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_20        EQU #E6F4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_21        EQU #E714   ; Temporary 8-bit storage (32 bytes)
-temp_byte_22        EQU #E734   ; Temporary 8-bit storage (32 bytes)
-temp_byte_23        EQU #E754   ; Temporary 8-bit storage (32 bytes)
-temp_byte_24        EQU #E774   ; Temporary 8-bit storage (32 bytes)
-temp_byte_25        EQU #E794   ; Temporary 8-bit storage (32 bytes)
-temp_word_3         EQU #E7B4   ; Temporary 16-bit storage (64 bytes)
-temp_word_4         EQU #E7F4   ; Temporary 16-bit storage (64 bytes)
-temp_byte_26        EQU #E834   ; Temporary 8-bit storage (32 bytes)
-temp_byte_27        EQU #E854   ; Temporary 8-bit storage (32 bytes)
-temp_byte_28        EQU #E874   ; Temporary 8-bit storage (32 bytes)
-tileDead_dbg        EQU #E894   ; Debug byte: current hero deadly contact
-tileDead_latched_dbg EQU #E895   ; Debug byte: latched hero deadly contact
-tileDead_x_dbg      EQU #E896   ; Debug byte: last sampled deadly tile X
-tileDead_y_dbg      EQU #E897   ; Debug byte: last sampled deadly tile Y
-tileDead_value_dbg  EQU #E898   ; Debug byte: last raw deadly behavior value
+sfx_active          EQU #E58F   ; 0=no SFX active, 1=playing
+sfx_timer           EQU #E590   ; Frames remaining for current SFX
+sfx_fadeout         EQU #E591   ; Reserved fadeout flag/state
+temp_byte_7         EQU #E592   ; Temporary 8-bit storage (32 bytes)
+temp_byte_8         EQU #E5B2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_9         EQU #E5D2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_10        EQU #E5F2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_11        EQU #E612   ; Temporary 8-bit storage (32 bytes)
+temp_byte_12        EQU #E632   ; Temporary 8-bit storage (32 bytes)
+temp_byte_13        EQU #E652   ; Temporary 8-bit storage (32 bytes)
+temp_byte_14        EQU #E672   ; Temporary 8-bit storage (32 bytes)
+temp_byte_15        EQU #E692   ; Temporary 8-bit storage (32 bytes)
+temp_byte_16        EQU #E6B2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_17        EQU #E6D2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_18        EQU #E6F2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_19        EQU #E712   ; Temporary 8-bit storage (32 bytes)
+temp_byte_20        EQU #E732   ; Temporary 8-bit storage (32 bytes)
+temp_byte_21        EQU #E752   ; Temporary 8-bit storage (32 bytes)
+temp_byte_22        EQU #E772   ; Temporary 8-bit storage (32 bytes)
+temp_byte_23        EQU #E792   ; Temporary 8-bit storage (32 bytes)
+temp_byte_24        EQU #E7B2   ; Temporary 8-bit storage (32 bytes)
+temp_byte_25        EQU #E7D2   ; Temporary 8-bit storage (32 bytes)
+temp_word_3         EQU #E7F2   ; Temporary 16-bit storage (64 bytes)
+temp_word_4         EQU #E832   ; Temporary 16-bit storage (64 bytes)
+temp_byte_26        EQU #E872   ; Temporary 8-bit storage (32 bytes)
+temp_byte_27        EQU #E892   ; Temporary 8-bit storage (32 bytes)
+temp_byte_28        EQU #E8B2   ; Temporary 8-bit storage (32 bytes)
+tileDead_dbg        EQU #E8D2   ; Debug byte: current hero deadly contact
+tileDead_latched_dbg EQU #E8D3   ; Debug byte: latched hero deadly contact
+tileDead_x_dbg      EQU #E8D4   ; Debug byte: last sampled deadly tile X
+tileDead_y_dbg      EQU #E8D5   ; Debug byte: last sampled deadly tile Y
+tileDead_value_dbg  EQU #E8D6   ; Debug byte: last raw deadly behavior value
 
 ; Wall collision temporary variables
-wall_temp_x         EQU #E899   ; Cached entity X for wall checks
-wall_temp_y         EQU #E89A   ; Cached entity Y for wall checks
-wall_hit_left       EQU #E89B   ; Hitbox left edge cache
-wall_hit_top        EQU #E89C   ; Hitbox top edge cache
-wall_hit_right      EQU #E89D   ; Hitbox right edge cache
-wall_hit_bottom     EQU #E89E   ; Hitbox bottom edge cache
-wall_hit_w          EQU #E89F   ; Hitbox width cache (min 1)
-wall_hit_h          EQU #E8A0   ; Hitbox height cache (min 1)
-wall_probe_left     EQU #E8A1   ; X probe near hitbox left (adaptive inset)
-wall_probe_right    EQU #E8A2   ; X probe near hitbox right (adaptive inset)
-wall_probe_top      EQU #E8A3   ; Y probe near hitbox top (adaptive inset)
-wall_probe_bottom   EQU #E8A4   ; Y probe near hitbox bottom (adaptive inset)
+wall_temp_x         EQU #E8D7   ; Cached entity X for wall checks
+wall_temp_y         EQU #E8D8   ; Cached entity Y for wall checks
+wall_hit_left       EQU #E8D9   ; Hitbox left edge cache
+wall_hit_top        EQU #E8DA   ; Hitbox top edge cache
+wall_hit_right      EQU #E8DB   ; Hitbox right edge cache
+wall_hit_bottom     EQU #E8DC   ; Hitbox bottom edge cache
+wall_hit_w          EQU #E8DD   ; Hitbox width cache (min 1)
+wall_hit_h          EQU #E8DE   ; Hitbox height cache (min 1)
+wall_probe_left     EQU #E8DF   ; X probe near hitbox left (adaptive inset)
+wall_probe_right    EQU #E8E0   ; X probe near hitbox right (adaptive inset)
+wall_probe_top      EQU #E8E1   ; Y probe near hitbox top (adaptive inset)
+wall_probe_bottom   EQU #E8E2   ; Y probe near hitbox bottom (adaptive inset)
 
 ; Unified update helpers
-active_entity_list  EQU #E8A5   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
-active_entity_count EQU #E8C5   ; Number of entries in active_entity_list
-hero_entity_id      EQU #E8C6   ; First current-screen entity flagged as player (#FF = none)
-active_entity_list_dirty EQU #E8C7   ; 1=rebuild active_entity_list required
-input_entity_list   EQU #E8C8   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)
-input_entity_count  EQU #E8E8   ; Number of entries in input_entity_list
-render_entity_list  EQU #E8E9   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)
-render_entity_count EQU #E909   ; Number of entries in render_entity_list
-collision_entity_list EQU #E90A   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)
-collision_entity_count EQU #E92A   ; Number of entries in collision_entity_list
-ground_entity_list  EQU #E92B   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)
-ground_entity_count EQU #E94B   ; Number of entries in ground_entity_list
-anim_entity_list    EQU #E94C   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)
-anim_entity_count   EQU #E96C   ; Number of entries in anim_entity_list
+active_entity_list  EQU #E8E3   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
+active_entity_count EQU #E903   ; Number of entries in active_entity_list
+hero_entity_id      EQU #E904   ; First current-screen entity flagged as player (#FF = none)
+active_entity_list_dirty EQU #E905   ; 1=rebuild active_entity_list required
+input_entity_list   EQU #E906   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)
+input_entity_count  EQU #E926   ; Number of entries in input_entity_list
+render_entity_list  EQU #E927   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)
+render_entity_count EQU #E947   ; Number of entries in render_entity_list
+collision_entity_list EQU #E948   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)
+collision_entity_count EQU #E968   ; Number of entries in collision_entity_list
+ground_entity_list  EQU #E969   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)
+ground_entity_count EQU #E989   ; Number of entries in ground_entity_list
+anim_entity_list    EQU #E98A   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)
+anim_entity_count   EQU #E9AA   ; Number of entries in anim_entity_list
 
 ; Entity-entity collision optimized variables
-coll_list           EQU #E96D   ; Active collidable entity indices (MAX_ENTITIES bytes)
-coll_list_count     EQU #E98D   ; Number of entities in coll_list
-coll_src_left       EQU #E98E   ; Source AABB left edge (scratch)
-coll_src_right      EQU #E98F   ; Source AABB right edge (scratch)
-coll_src_top        EQU #E990   ; Source AABB top edge (scratch)
-coll_src_bottom     EQU #E991   ; Source AABB bottom edge (scratch)
+coll_list           EQU #E9AB   ; Active collidable entity indices (MAX_ENTITIES bytes)
+coll_list_count     EQU #E9CB   ; Number of entities in coll_list
+coll_src_left       EQU #E9CC   ; Source AABB left edge (scratch)
+coll_src_right      EQU #E9CD   ; Source AABB right edge (scratch)
+coll_src_top        EQU #E9CE   ; Source AABB top edge (scratch)
+coll_src_bottom     EQU #E9CF   ; Source AABB bottom edge (scratch)
 
 ; ==================================================================
 ; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
 ; ==================================================================
-task_table              EQU #E992   ; Task table base (8 slots x 2 bytes = 16 bytes)
-task_0_ptr              EQU #E992   ; Slot 0 pointer (2 bytes)
-task_1_ptr              EQU #E994   ; Slot 1 pointer (2 bytes)
-task_2_ptr              EQU #E996   ; Slot 2 pointer (2 bytes)
-task_3_ptr              EQU #E998   ; Slot 3 pointer (2 bytes)
-task_4_ptr              EQU #E99A   ; Slot 4 pointer (2 bytes)
-task_5_ptr              EQU #E99C   ; Slot 5 pointer (2 bytes)
-task_6_ptr              EQU #E99E   ; Slot 6 pointer (2 bytes)
-task_7_ptr              EQU #E9A0   ; Slot 7 pointer (2 bytes)
-interrupt_system_enabled EQU #E9A2   ; 0=disabled, 1=enabled (1 byte)
-old_htimi_hook          EQU #E9A3   ; Original H.TIMI hook (5 bytes)
-interrupt_counter       EQU #E9A8   ; Frame counter (16-bit)
-task_exec_time          EQU #E9AA   ; Cycles used by tasks (16-bit, debug)
-vblank_flag             EQU #E9AC   ; Set to 1 on each VBlank (1 byte)
-RAM_INTERRUPT_END       EQU #E9AD   ; End of interrupt system
+task_table              EQU #E9D0   ; Task table base (8 slots x 2 bytes = 16 bytes)
+task_0_ptr              EQU #E9D0   ; Slot 0 pointer (2 bytes)
+task_1_ptr              EQU #E9D2   ; Slot 1 pointer (2 bytes)
+task_2_ptr              EQU #E9D4   ; Slot 2 pointer (2 bytes)
+task_3_ptr              EQU #E9D6   ; Slot 3 pointer (2 bytes)
+task_4_ptr              EQU #E9D8   ; Slot 4 pointer (2 bytes)
+task_5_ptr              EQU #E9DA   ; Slot 5 pointer (2 bytes)
+task_6_ptr              EQU #E9DC   ; Slot 6 pointer (2 bytes)
+task_7_ptr              EQU #E9DE   ; Slot 7 pointer (2 bytes)
+interrupt_system_enabled EQU #E9E0   ; 0=disabled, 1=enabled (1 byte)
+old_htimi_hook          EQU #E9E1   ; Original H.TIMI hook (5 bytes)
+interrupt_counter       EQU #E9E6   ; Frame counter (16-bit)
+task_exec_time          EQU #E9E8   ; Cycles used by tasks (16-bit, debug)
+vblank_flag             EQU #E9EA   ; Set to 1 on each VBlank (1 byte)
+RAM_INTERRUPT_END       EQU #E9EB   ; End of interrupt system
 
 ; ==================================================================
 ; STATE MACHINE SOUND RUNTIME (one active sound asset)
 ; ==================================================================
-sm_sound_active       EQU #E9AD   ; 0=idle, 1=playing state-machine sound asset
-sm_sound_frames_left  EQU #E9AE   ; Frames left for current state-machine sound asset
-sm_sound_ptr_l        EQU #E9AF   ; Next sound frame pointer low byte
-sm_sound_ptr_h        EQU #E9B0   ; Next sound frame pointer high byte
+sm_sound_active       EQU #E9EB   ; 0=idle, 1=playing state-machine sound asset
+sm_sound_frames_left  EQU #E9EC   ; Frames left for current state-machine sound asset
+sm_sound_ptr_l        EQU #E9ED   ; Next sound frame pointer low byte
+sm_sound_ptr_h        EQU #E9EE   ; Next sound frame pointer high byte
 
 ; ==================================================================
 ; TRACKER MUSIC RUNTIME
 ; ==================================================================
-music_active         EQU #E9B1   ; 0=stopped, 1=track active
-music_muted          EQU #E9B2   ; 0=audible, 1=muted/pause
-music_loop           EQU #E9B3   ; 0=no loop, 1=loop enabled
-music_track_index    EQU #E9B4   ; Current ROM track index
-music_row_frames     EQU #E9B5   ; Frames per tracker row
-music_row_countdown  EQU #E9B6   ; Countdown to next row
-music_order_pos      EQU #E9B7   ; Current order position
-music_pattern_index  EQU #E9B8   ; Current pattern index
-music_pattern_row    EQU #E9B9   ; Current row inside pattern
-music_pattern_rows   EQU #E9BA   ; Cached rows in current pattern
-music_track_ptr_l    EQU #E9BB   ; Current track pointer low byte
-music_track_ptr_h    EQU #E9BC   ; Current track pointer high byte
-music_pattern_ptr_l  EQU #E9BD   ; Current pattern rows pointer low byte
-music_pattern_ptr_h  EQU #E9BE   ; Current pattern rows pointer high byte
-music_mixer_shadow   EQU #E9BF   ; PSG mixer shadow for music runtime
-music_ch_note_base EQU #E9C0   ; Current note index (255=silent) (3 bytes)
-music_ch_a_note EQU #E9C0   ; Channel A
-music_ch_b_note EQU #E9C1   ; Channel B
-music_ch_c_note EQU #E9C2   ; Channel C
-music_ch_instrument_base EQU #E9C3   ; Current instrument id (0=none) (3 bytes)
-music_ch_a_instrument EQU #E9C3   ; Channel A
-music_ch_b_instrument EQU #E9C4   ; Channel B
-music_ch_c_instrument EQU #E9C5   ; Channel C
-music_ch_ornament_base EQU #E9C6   ; Current ornament id (0=none) (3 bytes)
-music_ch_a_ornament EQU #E9C6   ; Channel A
-music_ch_b_ornament EQU #E9C7   ; Channel B
-music_ch_c_ornament EQU #E9C8   ; Channel C
-music_ch_volume_base EQU #E9C9   ; Current base volume (0-15) (3 bytes)
-music_ch_a_volume EQU #E9C9   ; Channel A
-music_ch_b_volume EQU #E9CA   ; Channel B
-music_ch_c_volume EQU #E9CB   ; Channel C
-music_ch_vol_step_base EQU #E9CC   ; Reserved software volume envelope step (3 bytes)
-music_ch_a_vol_step EQU #E9CC   ; Channel A
-music_ch_b_vol_step EQU #E9CD   ; Channel B
-music_ch_c_vol_step EQU #E9CE   ; Channel C
-music_ch_tone_step_base EQU #E9CF   ; Reserved software tone envelope step (3 bytes)
-music_ch_a_tone_step EQU #E9CF   ; Channel A
-music_ch_b_tone_step EQU #E9D0   ; Channel B
-music_ch_c_tone_step EQU #E9D1   ; Channel C
-music_ch_noise_step_base EQU #E9D2   ; Reserved software noise envelope step (3 bytes)
-music_ch_a_noise_step EQU #E9D2   ; Channel A
-music_ch_b_noise_step EQU #E9D3   ; Channel B
-music_ch_c_noise_step EQU #E9D4   ; Channel C
-music_ch_orn_step_base EQU #E9D5   ; Reserved ornament step (3 bytes)
-music_ch_a_orn_step EQU #E9D5   ; Channel A
-music_ch_b_orn_step EQU #E9D6   ; Channel B
-music_ch_c_orn_step EQU #E9D7   ; Channel C
+music_active         EQU #E9EF   ; 0=stopped, 1=track active
+music_muted          EQU #E9F0   ; 0=audible, 1=muted/pause
+music_loop           EQU #E9F1   ; 0=no loop, 1=loop enabled
+music_track_index    EQU #E9F2   ; Current ROM track index
+music_row_frames     EQU #E9F3   ; Frames per tracker row
+music_row_countdown  EQU #E9F4   ; Countdown to next row
+music_order_pos      EQU #E9F5   ; Current order position
+music_pattern_index  EQU #E9F6   ; Current pattern index
+music_pattern_row    EQU #E9F7   ; Current row inside pattern
+music_pattern_rows   EQU #E9F8   ; Cached rows in current pattern
+music_track_ptr_l    EQU #E9F9   ; Current track pointer low byte
+music_track_ptr_h    EQU #E9FA   ; Current track pointer high byte
+music_pattern_ptr_l  EQU #E9FB   ; Current pattern rows pointer low byte
+music_pattern_ptr_h  EQU #E9FC   ; Current pattern rows pointer high byte
+music_mixer_shadow   EQU #E9FD   ; PSG mixer shadow for music runtime
+music_ch_note_base EQU #E9FE   ; Current note index (255=silent) (3 bytes)
+music_ch_a_note EQU #E9FE   ; Channel A
+music_ch_b_note EQU #E9FF   ; Channel B
+music_ch_c_note EQU #EA00   ; Channel C
+music_ch_instrument_base EQU #EA01   ; Current instrument id (0=none) (3 bytes)
+music_ch_a_instrument EQU #EA01   ; Channel A
+music_ch_b_instrument EQU #EA02   ; Channel B
+music_ch_c_instrument EQU #EA03   ; Channel C
+music_ch_ornament_base EQU #EA04   ; Current ornament id (0=none) (3 bytes)
+music_ch_a_ornament EQU #EA04   ; Channel A
+music_ch_b_ornament EQU #EA05   ; Channel B
+music_ch_c_ornament EQU #EA06   ; Channel C
+music_ch_volume_base EQU #EA07   ; Current base volume (0-15) (3 bytes)
+music_ch_a_volume EQU #EA07   ; Channel A
+music_ch_b_volume EQU #EA08   ; Channel B
+music_ch_c_volume EQU #EA09   ; Channel C
+music_ch_vol_step_base EQU #EA0A   ; Reserved software volume envelope step (3 bytes)
+music_ch_a_vol_step EQU #EA0A   ; Channel A
+music_ch_b_vol_step EQU #EA0B   ; Channel B
+music_ch_c_vol_step EQU #EA0C   ; Channel C
+music_ch_tone_step_base EQU #EA0D   ; Reserved software tone envelope step (3 bytes)
+music_ch_a_tone_step EQU #EA0D   ; Channel A
+music_ch_b_tone_step EQU #EA0E   ; Channel B
+music_ch_c_tone_step EQU #EA0F   ; Channel C
+music_ch_noise_step_base EQU #EA10   ; Reserved software noise envelope step (3 bytes)
+music_ch_a_noise_step EQU #EA10   ; Channel A
+music_ch_b_noise_step EQU #EA11   ; Channel B
+music_ch_c_noise_step EQU #EA12   ; Channel C
+music_ch_orn_step_base EQU #EA13   ; Reserved ornament step (3 bytes)
+music_ch_a_orn_step EQU #EA13   ; Channel A
+music_ch_b_orn_step EQU #EA14   ; Channel B
+music_ch_c_orn_step EQU #EA15   ; Channel C
 
 ; ==================================================================
 ; ZX0 TEMPORARY RAM BUFFERS
@@ -1485,22 +1487,22 @@ music_ch_c_orn_step EQU #E9D7   ; Channel C
 ; are decompressed and consumed sequentially, never concurrently.
 ; Font and sprite frame buffers are injected later by the ZX0 post-processor
 ; only when compression selects those blocks; they share scratch there too.
-ZX0_SCREEN_BUFFER       EQU #EA00   ; Screen/layout scratch (768 bytes, shared area)
-ZX0_BEHAVIOR_BUFFER     EQU #EA00   ; Behavior map scratch (768 bytes, shared area)
-ZX0_TILE_PATTERN_BUFFER EQU #EA00   ; Tile pattern scratch (1488 bytes, shared area)
-ZX0_TILE_COLOR_BUFFER   EQU #EA00   ; Tile color scratch (1488 bytes, shared area)
+ZX0_SCREEN_BUFFER       EQU #EB00   ; Screen/layout scratch (768 bytes, shared area)
+ZX0_BEHAVIOR_BUFFER     EQU #EB00   ; Behavior map scratch (768 bytes, shared area)
+ZX0_TILE_PATTERN_BUFFER EQU #EB00   ; Tile pattern scratch (1488 bytes, shared area)
+ZX0_TILE_COLOR_BUFFER   EQU #EB00   ; Tile color scratch (1488 bytes, shared area)
 
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #E9D8   ; End of project variables (10712 bytes used)
+RAM_USAGE_END       EQU #EA16   ; End of project variables (10774 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#E9D8: Project variables (10712 bytes)
-;   #E9D8-#F37F: Free RAM (~2472 bytes available)
+;   #C000-#EA16: Project variables (10774 bytes)
+;   #EA16-#F37F: Free RAM (~2410 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
@@ -2931,15 +2933,18 @@ compute_entity_base_pattern:
     ld a, (hl)                 ; A = base 16x16 pattern slot for this asset
     push af                    ; Save base slot before HL is reused
 
+    ld hl, sprite_asset_layer_count
+    add hl, bc
+    ld b, (hl)                 ; B = current sprite layer count (frame stride)
+    ld a, b
+    or a
+    jr nz, .sprite_stride_ready
+    ld b, 1
+.sprite_stride_ready:
+
     ld hl, entity_anim_frame
     add hl, de
     ld c, (hl)                 ; C = current animation frame
-
-    ld hl, entity_sprite_config
-    add hl, de
-    add hl, de
-    inc hl
-    ld b, (hl)                 ; B = entity layer count (frame stride)
 
     pop af                     ; A = base slot (restored)
     ld l, a                    ; L = base slot (ready for stride loop)
@@ -5166,6 +5171,19 @@ aircontrol_should_lock_horizontal_c:
     ; Runs after Gravity and before WallJump/Position.
 
 init_wallgrab_system:
+    ld hl, entity_wallgrab_active
+    ld de, entity_wallgrab_active+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
+
+    ld hl, entity_wallgrab_grace
+    ld de, entity_wallgrab_grace+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
     ret
 
 update_wallgrab_component:
@@ -5194,6 +5212,18 @@ update_wallgrab_component:
     djnz .wallgrab_loop
     ret
 
+refresh_player_wallgrab_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+
+    call wallgrab_process_entity_c
+    ret
+
 wallgrab_process_entity_c:
     ld e, c
     ld d, 0
@@ -5213,24 +5243,351 @@ wallgrab_process_entity_c:
     ld hl, entity_on_ground
     add hl, de
     bit 0, (hl)
-    ret nz
+    jp nz, .not_grabbing
 
     ld hl, entity_on_ladder
     add hl, de
     ld a, (hl)
     or a
-    ret nz
+    jp nz, .not_grabbing
 
     ld a, (input_btn_curr)
     and INPUT_BTN_GRAB
-    ret z
+    jp z, .not_grabbing
 
-    ld hl, entity_wall_collision_flags
+    call wallgrab_input_toward_wall_c
+    or a
+    jp z, .maybe_keep_grabbing
+    call wallgrab_set_facing_dir_a
+
+    ; --- Grabbing! ---
+    ld hl, entity_wallgrab_active
     add hl, de
     ld a, (hl)
-    and #0C                       ; LEFT/RIGHT wall flags
-    ret z
+    or a
+    jp nz, .ensure_grab_sprite
 
+    ; Transition to grabbing
+    ld (hl), 1
+    call wallgrab_reset_grace_c
+    call wallgrab_commit_grab_sprite_if_needed_c
+    jp .apply_physics
+
+.ensure_grab_sprite:
+    call wallgrab_reset_grace_c
+    call wallgrab_commit_grab_sprite_if_needed_c
+    jp .apply_physics
+
+.maybe_keep_grabbing:
+    ld hl, entity_wallgrab_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .not_grabbing
+
+    ld hl, entity_wallgrab_grace
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .not_grabbing
+    dec (hl)
+    call wallgrab_commit_grab_sprite_if_needed_c
+    jp .apply_physics
+
+wallgrab_reset_grace_c:
+    ; Input: DE = entity offset
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wallgrab_grace
+    add hl, de
+    ld (hl), 2
+    ret
+
+wallgrab_input_toward_wall_c:
+    ; Input: DE = entity offset
+    ; Output: A = 0 none, 1 left wall+left input, 2 right wall+right input
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    ld h, (hl)                     ; H = wall flags (bit2 LEFT, bit3 RIGHT)
+
+    ld a, (input_state)
+    cp STICK_DOWNLEFT
+    jp c, .wg_check_right_input
+    cp 9
+    jp nc, .wg_check_right_input
+    ld a, h
+    and #04
+    jp z, .wg_no_toward_wall
+    ld a, 1                        ; facing left
+    ret
+
+.wg_check_right_input:
+    ld a, (input_state)
+    cp STICK_UPRIGHT
+    jp c, .wg_no_toward_wall
+    cp STICK_DOWN
+    jp nc, .wg_no_toward_wall
+    ld a, h
+    and #08
+    jp z, .wg_no_toward_wall
+    ld a, 2                        ; facing right
+    ret
+
+.wg_no_toward_wall:
+    xor a
+    ret
+
+wallgrab_set_facing_dir_a:
+    ; Input: A = 1 left or 2 right, DE = entity offset
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    cp 1
+    jp z, .wg_write_facing
+    cp 2
+    ret nz
+.wg_write_facing:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    ret
+
+wallgrab_commit_grab_sprite_if_needed_c:
+    ; Input: C = entity index, DE = entity offset
+    ; Clobbers: AF, BC, HL. Preserves: DE.
+    ld hl, entity_wallgrab_cfg_grab_sprite
+    add hl, de
+    ld a, (hl)
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+
+    push de
+    call wallgrab_resolve_directional_sprite_c
+    pop de
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld b, a                       ; B = resolved grab sprite asset index
+
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    ld a, (hl)
+    cp b
+    jr z, .refresh_grab_sprite    ; Keep runtime colors/frame bounds coherent.
+
+    push de
+    ld a, b
+    push af
+    ld e, a
+    ld d, 0
+    ld hl, sprite_loop_flags
+    add hl, de
+    ld e, (hl)                    ; Use native loop flag for grab animation.
+    pop af
+    call wallgrab_commit_sprite_c
+    pop de
+    ret
+
+.refresh_grab_sprite:
+    push de
+    ld a, b
+    push af
+    ld e, a
+    ld d, 0
+    ld hl, sprite_loop_flags
+    add hl, de
+    ld e, (hl)                    ; Use native loop flag for grab animation.
+    pop af
+    call wallgrab_refresh_sprite_c
+    pop de
+    ret
+
+wallgrab_restore_base_sprite_c:
+    ; Input: C = entity index, DE = entity offset
+    ; Clobbers: AF, BC, HL. Preserves: DE.
+    ld b, 0
+    ld hl, entity_sprite_asset_index_init
+    add hl, bc
+    ld a, (hl)
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+
+    push de
+    call wallgrab_resolve_directional_sprite_c
+    pop de
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+
+    push de
+    push af
+    ld e, a
+    ld d, 0
+    ld hl, sprite_loop_flags
+    add hl, de
+    ld e, (hl)                    ; Native loop flag for restored sprite.
+    pop af
+    call wallgrab_commit_sprite_c
+    pop de
+    ret
+
+wallgrab_resolve_directional_sprite_c:
+    ; Input: C = entity index, A = base sprite asset
+    ; Output: A = direction-resolved sprite asset
+    ; Clobbers: AF, B, DE, HL. Preserves: C.
+    ld b, a
+    ld h, 0
+    ld l, c
+    ld de, entity_facing_dir
+    add hl, de
+    ld a, (hl)
+    cp 1
+    jp z, .wg_resolve_left
+    cp 2
+    jp z, .wg_resolve_right
+    ld a, b
+    ret
+
+.wg_resolve_left:
+    ld hl, sprite_dir_left_table
+    jp .wg_resolve_lookup
+
+.wg_resolve_right:
+    ld hl, sprite_dir_right_table
+
+.wg_resolve_lookup:
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    ret
+
+wallgrab_commit_sprite_c:
+    ; Input: C = entity index, A = sprite asset index, E = loop flag (#00/#02)
+    ; Clobbers: AF, BC, DE, HL
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld d, a                        ; D = sprite asset index
+    ld b, 0
+
+    ld hl, entity_sprite_asset_index
+    add hl, bc
+    ld (hl), d
+
+    ld hl, entity_anim_frame
+    add hl, bc
+    ld (hl), 0
+
+    ld hl, entity_anim_tick
+    add hl, bc
+    ld (hl), 0
+
+    ld hl, entity_anim_flags
+    add hl, bc
+    ld a, ANIM_FLAG_PLAYING | ANIM_FLAG_FORCE_UPLOAD
+    or e
+    ld (hl), a
+
+    ld a, d
+    jp wallgrab_update_sprite_colors_c
+
+wallgrab_refresh_sprite_c:
+    ; Input: C = entity index, A = sprite asset index, E = loop flag (#00/#02)
+    ; Preserves current frame/tick unless the frame is outside this sprite's range.
+    ; Clobbers: AF, BC, DE, HL
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld d, a                        ; D = sprite asset index
+    ld b, 0
+
+    ld hl, entity_sprite_asset_index
+    add hl, bc
+    ld (hl), d
+
+    push de                         ; Save sprite asset + loop flag.
+    ld e, d
+    ld d, 0
+    ld hl, sprite_asset_frame_count
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .wg_refresh_frame_count_ready
+    ld a, 1
+.wg_refresh_frame_count_ready:
+    ld b, a                         ; B = frame count
+    ld h, 0
+    ld l, c
+    ld de, entity_anim_frame
+    add hl, de
+    ld a, (hl)
+    cp b
+    jr c, .wg_refresh_frame_ok
+    ld (hl), 0
+.wg_refresh_frame_ok:
+    ld b, 0
+    pop de                          ; D = sprite asset index, E = loop flag
+
+    ld hl, entity_anim_flags
+    add hl, bc
+    ld a, ANIM_FLAG_PLAYING
+    or e
+    ld (hl), a
+
+    ld a, d
+    jp wallgrab_update_sprite_colors_c
+
+wallgrab_update_sprite_colors_c:
+    ; Input: C = entity index, A = sprite asset index
+    ; Clobbers: AF, BC, DE, HL
+    ld d, a
+    ; Keep per-layer runtime colors in sync with the temporary grab sprite.
+    push de
+    ld h, 0
+    ld l, c
+    add hl, hl
+    ld de, entity_sprite_config
+    add hl, de
+    ld c, (hl)                     ; C = base HW sprite slot
+    pop de                         ; D = sprite asset index
+
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.wg_commit_mul_layers:
+    add hl, de
+    djnz .wg_commit_mul_layers
+    ld de, SM_SpriteLayerColorTable
+    add hl, de
+
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.wg_commit_color_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_colors
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz .wg_commit_color_loop
+    ret
+
+.apply_physics:
     ld hl, entity_vel_x
     add hl, de
     ld (hl), 0
@@ -5250,6 +5607,32 @@ wallgrab_process_entity_c:
     ld (hl), 0
     inc hl
     ld (hl), b
+    ret
+
+.not_grabbing:
+    ld hl, entity_wallgrab_active
+    add hl, de
+    ld a, (hl)
+    or a
+    ret z                         ; was not grabbing
+
+    ; Transition to NOT grabbing
+    ld (hl), 0
+    ld hl, entity_wallgrab_grace
+    add hl, de
+    ld (hl), 0
+
+    ; If a wall-jump one-shot animation has taken ownership, do not restore
+    ; the base sprite here or it will immediately overwrite that animation.
+    ld hl, entity_walljump_anim_active
+    add hl, de
+    ld a, (hl)
+    or a
+    ret nz
+    
+    ; Restore original sprite without sharing WallJump animation helpers.
+    ld c, e
+    call wallgrab_restore_base_sprite_c
     ret
     
     ; ==================================================================
@@ -10545,125 +10928,94 @@ tilebank_color_data_0:
 ; SPRITE PATTERN DATA
 ; ==================================================================
 
-; Sprite Asset 0: hero_walk_left
-;; Sprite: hero_walk_left
+; Sprite Asset 0: nina_walk_right
+;; Sprite: nina_walk_right
 ;; Total Frames: 2
 ;; Size: 16x16
 ;; Background Color (not exported as a layer): rgba(0,0,0,0)
-;; Drawable Palette (Hex): C0=rgba(0,0,0,0), C1=#FFFFFF, C2=#FF0000, C3=#00FF00
+;; Drawable Palette (Hex): C0=#D4524D, C1=#FFFFFF, C2=#000000, C3=#3EB847
 
-SPRITE_HERO_WALK_LEFT_0_WIDTH     EQU 16
-SPRITE_HERO_WALK_LEFT_0_HEIGHT    EQU 16
-SPRITE_HERO_WALK_LEFT_0_FRAMES    EQU 2
+SPRITE_NINA_WALK_RIGHT_0_WIDTH     EQU 16
+SPRITE_NINA_WALK_RIGHT_0_HEIGHT    EQU 16
+SPRITE_NINA_WALK_RIGHT_0_FRAMES    EQU 2
 
-;; ---- Sprite Frame: hero_walk_left_0_F0 ----
+;; ---- Sprite Frame: nina_walk_right_0_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_WALK_LEFT_0_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_WALK_LEFT_0_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_WALK_LEFT_0_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_WALK_LEFT_0_F1_DATA (32 bytes)
-SPRITE_HERO_IDLE_1_WIDTH     EQU 16
-SPRITE_HERO_IDLE_1_HEIGHT    EQU 16
-SPRITE_HERO_IDLE_1_FRAMES    EQU 1
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F1_DATA (32 bytes)
+SPRITE_NINA_GRUB_RIGHT_1_WIDTH     EQU 16
+SPRITE_NINA_GRUB_RIGHT_1_HEIGHT    EQU 16
+SPRITE_NINA_GRUB_RIGHT_1_FRAMES    EQU 2
 
-;; ---- Sprite Frame: hero_idle_1_F0 ----
+;; ---- Sprite Frame: nina_grub_right_1_F0 ----
 ;; Size: 16x16
-HERO_IDLE_1_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#03,#04,#03,#05,#03,#01,#03,#0B,#33,#03,#03,#01,#01,#01,#03
-    DB #00,#80,#40,#A0,#D0,#90,#00,#80,#A0,#90,#88,#80,#00,#00,#00,#00
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F1_DATA (32 bytes)
+SPRITE_NEW_SPRITE_2_WIDTH     EQU 16
+SPRITE_NEW_SPRITE_2_HEIGHT    EQU 16
+SPRITE_NEW_SPRITE_2_FRAMES    EQU 1
 
-;; ---- End of Frame: hero_idle_1_F0 ----
-
-
-; Sprite Asset 2: cuadro
-;; Sprite: cuadro
-;; Total Frames: 1
+;; ---- Sprite Frame: New Sprite_2_F0 ----
 ;; Size: 16x16
-;; Background Color (not exported as a layer): rgba(0,0,0,0)
-;; Drawable Palette (Hex): C0=rgba(0,0,0,0), C1=#FFFFFF, C2=#FF0000, C3=#00FF00
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_2_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_2_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_2_F0_DATA (32 bytes)
+SPRITE_NINA_JUMP_RIGHT_3_WIDTH     EQU 16
+SPRITE_NINA_JUMP_RIGHT_3_HEIGHT    EQU 16
+SPRITE_NINA_JUMP_RIGHT_3_FRAMES    EQU 1
 
-SPRITE_CUADRO_2_WIDTH     EQU 16
-SPRITE_CUADRO_2_HEIGHT    EQU 16
-SPRITE_CUADRO_2_FRAMES    EQU 1
-
-;; ---- Sprite Frame: cuadro_2_F0 ----
+;; ---- Sprite Frame: nina_jump_right_3_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_CUADRO_2_F0_DATA (32 bytes)
-SPRITE_NINA_WALK_RIGHT_3_WIDTH     EQU 16
-SPRITE_NINA_WALK_RIGHT_3_HEIGHT    EQU 16
-SPRITE_NINA_WALK_RIGHT_3_FRAMES    EQU 2
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_RIGHT_3_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_RIGHT_3_F0_DATA (32 bytes)
+SPRITE_NINA_IDLE_RIGHT_4_WIDTH     EQU 16
+SPRITE_NINA_IDLE_RIGHT_4_HEIGHT    EQU 16
+SPRITE_NINA_IDLE_RIGHT_4_FRAMES    EQU 1
 
-;; ---- Sprite Frame: nina_walk_right_3_F0 ----
+;; ---- Sprite Frame: nina_idle_right_4_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_3_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_3_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_3_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_3_F1_DATA (32 bytes)
-SPRITE_NINA_GRUB_RIGHT_4_WIDTH     EQU 16
-SPRITE_NINA_GRUB_RIGHT_4_HEIGHT    EQU 16
-SPRITE_NINA_GRUB_RIGHT_4_FRAMES    EQU 2
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_RIGHT_4_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_RIGHT_4_F0_DATA (32 bytes)
+SPRITE_NINA_WALK_LEFT_5_WIDTH     EQU 16
+SPRITE_NINA_WALK_LEFT_5_HEIGHT    EQU 16
+SPRITE_NINA_WALK_LEFT_5_FRAMES    EQU 2
 
-;; ---- Sprite Frame: nina_grub_right_4_F0 ----
+;; ---- Sprite Frame: nina_walk_left_5_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_4_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_4_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_4_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_4_F1_DATA (32 bytes)
-SPRITE_NEW_SPRITE_5_WIDTH     EQU 16
-SPRITE_NEW_SPRITE_5_HEIGHT    EQU 16
-SPRITE_NEW_SPRITE_5_FRAMES    EQU 1
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_5_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_5_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_5_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_5_F1_DATA (32 bytes)
+SPRITE_NINA_GRUB_LEFT_6_WIDTH     EQU 16
+SPRITE_NINA_GRUB_LEFT_6_HEIGHT    EQU 16
+SPRITE_NINA_GRUB_LEFT_6_FRAMES    EQU 2
 
-;; ---- Sprite Frame: New Sprite_5_F0 ----
+;; ---- Sprite Frame: nina_grub_left_6_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_5_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_5_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_5_F0_DATA (32 bytes)
-SPRITE_NINA_JUMP_RIGHT_6_WIDTH     EQU 16
-SPRITE_NINA_JUMP_RIGHT_6_HEIGHT    EQU 16
-SPRITE_NINA_JUMP_RIGHT_6_FRAMES    EQU 1
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_6_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_6_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_6_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_6_F1_DATA (32 bytes)
+SPRITE_NINA_JUMP_LEFT_7_WIDTH     EQU 16
+SPRITE_NINA_JUMP_LEFT_7_HEIGHT    EQU 16
+SPRITE_NINA_JUMP_LEFT_7_FRAMES    EQU 1
 
-;; ---- Sprite Frame: nina_jump_right_6_F0 ----
+;; ---- Sprite Frame: nina_jump_left_7_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_RIGHT_6_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_RIGHT_6_F0_DATA (32 bytes)
-SPRITE_HERO_WALK_RIGHT_7_WIDTH     EQU 16
-SPRITE_HERO_WALK_RIGHT_7_HEIGHT    EQU 16
-SPRITE_HERO_WALK_RIGHT_7_FRAMES    EQU 2
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_7_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_7_F0_DATA (32 bytes)
+SPRITE_NINA_IDLE_LEFT_8_WIDTH     EQU 16
+SPRITE_NINA_IDLE_LEFT_8_HEIGHT    EQU 16
+SPRITE_NINA_IDLE_LEFT_8_FRAMES    EQU 1
 
-;; ---- Sprite Frame: hero_walk_right_7_F0 ----
+;; ---- Sprite Frame: nina_idle_left_8_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_WALK_RIGHT_7_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_WALK_RIGHT_7_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_WALK_RIGHT_7_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_WALK_RIGHT_7_F1_DATA (32 bytes)
-SPRITE_NINA_WALK_LEFT_8_WIDTH     EQU 16
-SPRITE_NINA_WALK_LEFT_8_HEIGHT    EQU 16
-SPRITE_NINA_WALK_LEFT_8_FRAMES    EQU 2
-
-;; ---- Sprite Frame: nina_walk_left_8_F0 ----
-;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_8_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_8_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_8_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_8_F1_DATA (32 bytes)
-SPRITE_NINA_GRUB_LEFT_9_WIDTH     EQU 16
-SPRITE_NINA_GRUB_LEFT_9_HEIGHT    EQU 16
-SPRITE_NINA_GRUB_LEFT_9_FRAMES    EQU 2
-
-;; ---- Sprite Frame: nina_grub_left_9_F0 ----
-;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_9_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_9_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_9_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_9_F1_DATA (32 bytes)
-SPRITE_NINA_JUMP_LEFT_10_WIDTH     EQU 16
-SPRITE_NINA_JUMP_LEFT_10_HEIGHT    EQU 16
-SPRITE_NINA_JUMP_LEFT_10_FRAMES    EQU 1
-
-;; ---- Sprite Frame: nina_jump_left_10_F0 ----
-;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_10_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_10_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_8_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_8_F0_DATA (32 bytes)
 SPRITE_PLACEHOLDER_PATTERN:
     ; Top half (8x8)
     db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
@@ -10675,49 +11027,41 @@ SPRITE_PLACEHOLDER_PATTERN:
     db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
 
 ; Unified pattern label for sprite 0
-SPRITE_0_PATTERN EQU HERO_WALK_LEFT_0_F0_LAYER1
+SPRITE_0_PATTERN EQU NINA_WALK_RIGHT_0_F0_LAYER0
 SPRITE_0_PATTERN_BANK EQU ((SPRITE_0_PATTERN - #4000) / #2000)
 
 ; Unified pattern label for sprite 1
-SPRITE_1_PATTERN EQU HERO_IDLE_1_F0_LAYER1
+SPRITE_1_PATTERN EQU NINA_GRUB_RIGHT_1_F0_LAYER1
 SPRITE_1_PATTERN_BANK EQU ((SPRITE_1_PATTERN - #4000) / #2000)
 
-; Unified pattern label for sprite 2
-SPRITE_2_PATTERN EQU CUADRO_2_F0_LAYER2
+; WARNING: No valid pattern layers found for sprite 2
+SPRITE_2_PATTERN:
+    db 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 SPRITE_2_PATTERN_BANK EQU ((SPRITE_2_PATTERN - #4000) / #2000)
 
 ; Unified pattern label for sprite 3
-SPRITE_3_PATTERN EQU NINA_WALK_RIGHT_3_F0_LAYER0
+SPRITE_3_PATTERN EQU NINA_JUMP_RIGHT_3_F0_LAYER0
 SPRITE_3_PATTERN_BANK EQU ((SPRITE_3_PATTERN - #4000) / #2000)
 
 ; Unified pattern label for sprite 4
-SPRITE_4_PATTERN EQU NINA_GRUB_RIGHT_4_F0_LAYER1
+SPRITE_4_PATTERN EQU NINA_IDLE_RIGHT_4_F0_LAYER1
 SPRITE_4_PATTERN_BANK EQU ((SPRITE_4_PATTERN - #4000) / #2000)
 
-; WARNING: No valid pattern layers found for sprite 5
-SPRITE_5_PATTERN:
-    db 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
+; Unified pattern label for sprite 5
+SPRITE_5_PATTERN EQU NINA_WALK_LEFT_5_F0_LAYER0
 SPRITE_5_PATTERN_BANK EQU ((SPRITE_5_PATTERN - #4000) / #2000)
 
 ; Unified pattern label for sprite 6
-SPRITE_6_PATTERN EQU NINA_JUMP_RIGHT_6_F0_LAYER0
+SPRITE_6_PATTERN EQU NINA_GRUB_LEFT_6_F0_LAYER1
 SPRITE_6_PATTERN_BANK EQU ((SPRITE_6_PATTERN - #4000) / #2000)
 
 ; Unified pattern label for sprite 7
-SPRITE_7_PATTERN EQU HERO_WALK_RIGHT_7_F0_LAYER1
+SPRITE_7_PATTERN EQU NINA_JUMP_LEFT_7_F0_LAYER0
 SPRITE_7_PATTERN_BANK EQU ((SPRITE_7_PATTERN - #4000) / #2000)
 
 ; Unified pattern label for sprite 8
-SPRITE_8_PATTERN EQU NINA_WALK_LEFT_8_F0_LAYER0
+SPRITE_8_PATTERN EQU NINA_IDLE_LEFT_8_F0_LAYER1
 SPRITE_8_PATTERN_BANK EQU ((SPRITE_8_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 9
-SPRITE_9_PATTERN EQU NINA_GRUB_LEFT_9_F0_LAYER1
-SPRITE_9_PATTERN_BANK EQU ((SPRITE_9_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 10
-SPRITE_10_PATTERN EQU NINA_JUMP_LEFT_10_F0_LAYER0
-SPRITE_10_PATTERN_BANK EQU ((SPRITE_10_PATTERN - #4000) / #2000)
 
 SPRITE_PLACEHOLDER_PATTERN_BANK EQU ((SPRITE_PLACEHOLDER_PATTERN - #4000) / #2000)
 
@@ -10729,34 +11073,43 @@ SPRITE_PLACEHOLDER_PATTERN_BANK EQU ((SPRITE_PLACEHOLDER_PATTERN - #4000) / #200
 ; Table: Sprite Asset Frame Counts
 ; Format: db frame_count
 sprite_asset_frame_count:
-    db 2 ; Sprite 0: hero_walk_left
-    db 1 ; Sprite 1: hero_idle
-    db 1 ; Sprite 2: cuadro
-    db 2 ; Sprite 3: nina_walk_right
-    db 2 ; Sprite 4: nina_grub_right
-    db 1 ; Sprite 5: New Sprite
-    db 1 ; Sprite 6: nina_jump_right
-    db 2 ; Sprite 7: hero_walk_right
-    db 2 ; Sprite 8: nina_walk_left
-    db 2 ; Sprite 9: nina_grub_left
-    db 1 ; Sprite 10: nina_jump_left
-SPRITE_ASSET_COUNT EQU 11
+    db 2 ; Sprite 0: nina_walk_right
+    db 2 ; Sprite 1: nina_grub_right
+    db 1 ; Sprite 2: New Sprite
+    db 1 ; Sprite 3: nina_jump_right
+    db 1 ; Sprite 4: nina_idle_right
+    db 2 ; Sprite 5: nina_walk_left
+    db 2 ; Sprite 6: nina_grub_left
+    db 1 ; Sprite 7: nina_jump_left
+    db 1 ; Sprite 8: nina_idle_left
+
+; Table: Sprite Asset Drawable Layer Counts
+; Format: db compact drawable layer count (minimum 1)
+sprite_asset_layer_count:
+    db 2 ; Sprite 0: nina_walk_right
+    db 2 ; Sprite 1: nina_grub_right
+    db 1 ; Sprite 2: New Sprite
+    db 2 ; Sprite 3: nina_jump_right
+    db 2 ; Sprite 4: nina_idle_right
+    db 2 ; Sprite 5: nina_walk_left
+    db 2 ; Sprite 6: nina_grub_left
+    db 2 ; Sprite 7: nina_jump_left
+    db 2 ; Sprite 8: nina_idle_left
+SPRITE_ASSET_COUNT EQU 9
 SPRITE_PATTERN_PRELOAD_MODE EQU 1
 
 ; Table: Sprite Asset Loop Flags
 ; Format: db flags (bit 1: 1=loop, 0=once)
 sprite_loop_flags:
-    db 2 ; Sprite 0: hero_walk_left
-    db 2 ; Sprite 1: hero_idle
-    db 2 ; Sprite 2: cuadro
-    db 2 ; Sprite 3: nina_walk_right
-    db 2 ; Sprite 4: nina_grub_right
-    db 2 ; Sprite 5: New Sprite
-    db 2 ; Sprite 6: nina_jump_right
-    db 2 ; Sprite 7: hero_walk_right
-    db 2 ; Sprite 8: nina_walk_left
-    db 2 ; Sprite 9: nina_grub_left
-    db 2 ; Sprite 10: nina_jump_left
+    db 2 ; Sprite 0: nina_walk_right
+    db 2 ; Sprite 1: nina_grub_right
+    db 2 ; Sprite 2: New Sprite
+    db 2 ; Sprite 3: nina_jump_right
+    db 2 ; Sprite 4: nina_idle_right
+    db 2 ; Sprite 5: nina_walk_left
+    db 2 ; Sprite 6: nina_grub_left
+    db 2 ; Sprite 7: nina_jump_left
+    db 2 ; Sprite 8: nina_idle_left
 
 ; Table: Sprite Asset Frame Pointer List Table
 ; Format: dw SPRITE_<id>_FRAME_PTRS
@@ -10770,58 +11123,46 @@ sprite_asset_frame_ptr_table:
     dw SPRITE_6_FRAME_PTRS
     dw SPRITE_7_FRAME_PTRS
     dw SPRITE_8_FRAME_PTRS
-    dw SPRITE_9_FRAME_PTRS
-    dw SPRITE_10_FRAME_PTRS
 
-; Sprite 0: hero_walk_left frame pointers
+; Sprite 0: nina_walk_right frame pointers
 SPRITE_0_FRAME_PTRS:
-    dw HERO_WALK_LEFT_0_F0_LAYER1
-    dw HERO_WALK_LEFT_0_F1_LAYER1
+    dw NINA_WALK_RIGHT_0_F0_LAYER0
+    dw NINA_WALK_RIGHT_0_F1_LAYER0
 
-; Sprite 1: hero_idle frame pointers
+; Sprite 1: nina_grub_right frame pointers
 SPRITE_1_FRAME_PTRS:
-    dw HERO_IDLE_1_F0_LAYER1
+    dw NINA_GRUB_RIGHT_1_F0_LAYER1
+    dw NINA_GRUB_RIGHT_1_F1_LAYER1
 
-; Sprite 2: cuadro frame pointers
+; Sprite 2: New Sprite frame pointers
 SPRITE_2_FRAME_PTRS:
-    dw CUADRO_2_F0_LAYER2
-
-; Sprite 3: nina_walk_right frame pointers
-SPRITE_3_FRAME_PTRS:
-    dw NINA_WALK_RIGHT_3_F0_LAYER0
-    dw NINA_WALK_RIGHT_3_F1_LAYER0
-
-; Sprite 4: nina_grub_right frame pointers
-SPRITE_4_FRAME_PTRS:
-    dw NINA_GRUB_RIGHT_4_F0_LAYER1
-    dw NINA_GRUB_RIGHT_4_F1_LAYER1
-
-; Sprite 5: New Sprite frame pointers
-SPRITE_5_FRAME_PTRS:
     dw SPRITE_PLACEHOLDER_PATTERN
 
-; Sprite 6: nina_jump_right frame pointers
+; Sprite 3: nina_jump_right frame pointers
+SPRITE_3_FRAME_PTRS:
+    dw NINA_JUMP_RIGHT_3_F0_LAYER0
+
+; Sprite 4: nina_idle_right frame pointers
+SPRITE_4_FRAME_PTRS:
+    dw NINA_IDLE_RIGHT_4_F0_LAYER1
+
+; Sprite 5: nina_walk_left frame pointers
+SPRITE_5_FRAME_PTRS:
+    dw NINA_WALK_LEFT_5_F0_LAYER0
+    dw NINA_WALK_LEFT_5_F1_LAYER0
+
+; Sprite 6: nina_grub_left frame pointers
 SPRITE_6_FRAME_PTRS:
-    dw NINA_JUMP_RIGHT_6_F0_LAYER0
+    dw NINA_GRUB_LEFT_6_F0_LAYER1
+    dw NINA_GRUB_LEFT_6_F1_LAYER1
 
-; Sprite 7: hero_walk_right frame pointers
+; Sprite 7: nina_jump_left frame pointers
 SPRITE_7_FRAME_PTRS:
-    dw HERO_WALK_RIGHT_7_F0_LAYER1
-    dw HERO_WALK_RIGHT_7_F1_LAYER1
+    dw NINA_JUMP_LEFT_7_F0_LAYER0
 
-; Sprite 8: nina_walk_left frame pointers
+; Sprite 8: nina_idle_left frame pointers
 SPRITE_8_FRAME_PTRS:
-    dw NINA_WALK_LEFT_8_F0_LAYER0
-    dw NINA_WALK_LEFT_8_F1_LAYER0
-
-; Sprite 9: nina_grub_left frame pointers
-SPRITE_9_FRAME_PTRS:
-    dw NINA_GRUB_LEFT_9_F0_LAYER1
-    dw NINA_GRUB_LEFT_9_F1_LAYER1
-
-; Sprite 10: nina_jump_left frame pointers
-SPRITE_10_FRAME_PTRS:
-    dw NINA_JUMP_LEFT_10_F0_LAYER0
+    dw NINA_IDLE_LEFT_8_F0_LAYER1
 
 ; ==================================================================
 ; DIRECTIONAL SPRITE LOOKUP TABLES
@@ -10829,16 +11170,16 @@ SPRITE_10_FRAME_PTRS:
 ; If no directional variant exists, table points back to same index.
 ; ==================================================================
 sprite_dir_left_table:
-    db 0, 1, 2, 8, 9, 5, 10, 0, 8, 9, 10
+    db 5, 6, 2, 7, 8, 5, 6, 7, 8
 
 sprite_dir_right_table:
-    db 7, 1, 2, 3, 4, 5, 6, 7, 3, 4, 6
+    db 0, 1, 2, 3, 4, 0, 1, 3, 4
 
 sprite_dir_up_table:
-    db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+    db 0, 1, 2, 3, 4, 5, 6, 7, 8
 
 sprite_dir_down_table:
-    db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+    db 0, 1, 2, 3, 4, 5, 6, 7, 8
 
  
 ; ================================================================== 
@@ -10855,7 +11196,7 @@ entity_sprite_config:
 ; Copied to RAM entity_sprite_asset_index at init
 ; Format: db sprite_asset_index (#FF = none)
 entity_sprite_asset_index_init:
-    db #03 ; Entity 0 (nina_walk_right)
+    db #00 ; Entity 0 (nina_walk_right)
     ds 31, #FF ; Padding
 SPRITE_MAX_ENTITY_LAYERS EQU 2  ; Max HW sprite layers per entity
 
@@ -10871,17 +11212,15 @@ sprite_layer_colors_init:
 ; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
 ; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = color for HW sprite slot j of sprite i
 SM_SpriteLayerColorTable:
-    db 15, 8 ; Sprite 0: hero_walk_left
-    db 15, 0 ; Sprite 1: hero_idle
-    db 8, 0 ; Sprite 2: cuadro
-    db 6, 15 ; Sprite 3: nina_walk_right
-    db 15, 6 ; Sprite 4: nina_grub_right
-    db 15, 0 ; Sprite 5: New Sprite
-    db 6, 15 ; Sprite 6: nina_jump_right
-    db 15, 8 ; Sprite 7: hero_walk_right
-    db 6, 15 ; Sprite 8: nina_walk_left
-    db 15, 6 ; Sprite 9: nina_grub_left
-    db 6, 15 ; Sprite 10: nina_jump_left
+    db 6, 15 ; Sprite 0: nina_walk_right
+    db 15, 6 ; Sprite 1: nina_grub_right
+    db 15, 0 ; Sprite 2: New Sprite
+    db 6, 15 ; Sprite 3: nina_jump_right
+    db 15, 6 ; Sprite 4: nina_idle_right
+    db 6, 15 ; Sprite 5: nina_walk_left
+    db 15, 6 ; Sprite 6: nina_grub_left
+    db 6, 15 ; Sprite 7: nina_jump_left
+    db 15, 6 ; Sprite 8: nina_idle_left
 
 ; ==================================================================
 ; SPRITE INITIALIZATION FUNCTIONS
@@ -10897,7 +11236,7 @@ init_sprites:
     ld hl, sprite_asset_base_pattern_slot_runtime
     ld (hl), 0
     ld de, sprite_asset_base_pattern_slot_runtime+1
-    ld bc, 10
+    ld bc, 8
     ldir
     xor a
     ld (sprite_placeholder_base_pattern_num), a
@@ -10921,63 +11260,91 @@ world_sprite_pattern_pack_table:
 
 ; ------------------------------------------------------------------
 ; Runtime Sprite Pattern Pack: World "New Worldmap"
-; Slots required: 11/64
+; Slots required: 25/64
 ; ------------------------------------------------------------------
 SPRITE_PATTERN_PACK_WORLDMAP_1776512078647_ID EQU 0
 
 sprite_asset_base_pattern_slot_worldmap_1776512078647:
-    db 0 ; Sprite 0: hero_walk_left
-    db 0 ; Sprite 1: hero_idle
-    db 1 ; Sprite 2: cuadro
-    db 2 ; Sprite 3: nina_walk_right
-    db 0 ; Sprite 4: nina_grub_right
-    db 0 ; Sprite 5: New Sprite
-    db 0 ; Sprite 6: nina_jump_right
-    db 0 ; Sprite 7: hero_walk_right
-    db 6 ; Sprite 8: nina_walk_left
-    db 0 ; Sprite 9: nina_grub_left
-    db 0 ; Sprite 10: nina_jump_left
+    db 0 ; Sprite 0: nina_walk_right
+    db 4 ; Sprite 1: nina_grub_right
+    db 0 ; Sprite 2: New Sprite
+    db 8 ; Sprite 3: nina_jump_right
+    db 10 ; Sprite 4: nina_idle_right
+    db 12 ; Sprite 5: nina_walk_left
+    db 16 ; Sprite 6: nina_grub_left
+    db 20 ; Sprite 7: nina_jump_left
+    db 22 ; Sprite 8: nina_idle_left
 
 load_sprite_patterns_worldmap_1776512078647:
     ld hl, sprite_asset_base_pattern_slot_worldmap_1776512078647
     ld de, sprite_asset_base_pattern_slot_runtime
     ld bc, SPRITE_ASSET_COUNT
     ldir
-    ld a, 40
+    ld a, 96
     ld (sprite_placeholder_base_pattern_num), a
-    ; Sprite Asset 1: hero_idle frame 0 (1 layers)
-    ld hl, HERO_IDLE_1_F0_LAYER1
+    ; Sprite Asset 0: nina_walk_right frame 0 (2 layers)
+    ld hl, NINA_WALK_RIGHT_0_F0_LAYER0
     ld de, SPRPAT + (0 * 32)
-    ld bc, 32
+    ld bc, 64
     call COPY_SPRITE_SRC_TO_VRAM
-    ; Sprite Asset 2: cuadro frame 0 (1 layers)
-    ld hl, CUADRO_2_F0_LAYER2
-    ld de, SPRPAT + (1 * 32)
-    ld bc, 32
-    call COPY_SPRITE_SRC_TO_VRAM
-    ; Sprite Asset 3: nina_walk_right frame 0 (2 layers)
-    ld hl, NINA_WALK_RIGHT_3_F0_LAYER0
+    ; Sprite Asset 0: nina_walk_right frame 1 (2 layers)
+    ld hl, NINA_WALK_RIGHT_0_F1_LAYER0
     ld de, SPRPAT + (2 * 32)
     ld bc, 64
     call COPY_SPRITE_SRC_TO_VRAM
-    ; Sprite Asset 3: nina_walk_right frame 1 (2 layers)
-    ld hl, NINA_WALK_RIGHT_3_F1_LAYER0
+    ; Sprite Asset 1: nina_grub_right frame 0 (2 layers)
+    ld hl, NINA_GRUB_RIGHT_1_F0_LAYER1
     ld de, SPRPAT + (4 * 32)
     ld bc, 64
     call COPY_SPRITE_SRC_TO_VRAM
-    ; Sprite Asset 8: nina_walk_left frame 0 (2 layers)
-    ld hl, NINA_WALK_LEFT_8_F0_LAYER0
+    ; Sprite Asset 1: nina_grub_right frame 1 (2 layers)
+    ld hl, NINA_GRUB_RIGHT_1_F1_LAYER1
     ld de, SPRPAT + (6 * 32)
     ld bc, 64
     call COPY_SPRITE_SRC_TO_VRAM
-    ; Sprite Asset 8: nina_walk_left frame 1 (2 layers)
-    ld hl, NINA_WALK_LEFT_8_F1_LAYER0
+    ; Sprite Asset 3: nina_jump_right frame 0 (2 layers)
+    ld hl, NINA_JUMP_RIGHT_3_F0_LAYER0
     ld de, SPRPAT + (8 * 32)
+    ld bc, 64
+    call COPY_SPRITE_SRC_TO_VRAM
+    ; Sprite Asset 4: nina_idle_right frame 0 (2 layers)
+    ld hl, NINA_IDLE_RIGHT_4_F0_LAYER1
+    ld de, SPRPAT + (10 * 32)
+    ld bc, 64
+    call COPY_SPRITE_SRC_TO_VRAM
+    ; Sprite Asset 5: nina_walk_left frame 0 (2 layers)
+    ld hl, NINA_WALK_LEFT_5_F0_LAYER0
+    ld de, SPRPAT + (12 * 32)
+    ld bc, 64
+    call COPY_SPRITE_SRC_TO_VRAM
+    ; Sprite Asset 5: nina_walk_left frame 1 (2 layers)
+    ld hl, NINA_WALK_LEFT_5_F1_LAYER0
+    ld de, SPRPAT + (14 * 32)
+    ld bc, 64
+    call COPY_SPRITE_SRC_TO_VRAM
+    ; Sprite Asset 6: nina_grub_left frame 0 (2 layers)
+    ld hl, NINA_GRUB_LEFT_6_F0_LAYER1
+    ld de, SPRPAT + (16 * 32)
+    ld bc, 64
+    call COPY_SPRITE_SRC_TO_VRAM
+    ; Sprite Asset 6: nina_grub_left frame 1 (2 layers)
+    ld hl, NINA_GRUB_LEFT_6_F1_LAYER1
+    ld de, SPRPAT + (18 * 32)
+    ld bc, 64
+    call COPY_SPRITE_SRC_TO_VRAM
+    ; Sprite Asset 7: nina_jump_left frame 0 (2 layers)
+    ld hl, NINA_JUMP_LEFT_7_F0_LAYER0
+    ld de, SPRPAT + (20 * 32)
+    ld bc, 64
+    call COPY_SPRITE_SRC_TO_VRAM
+    ; Sprite Asset 8: nina_idle_left frame 0 (2 layers)
+    ld hl, NINA_IDLE_LEFT_8_F0_LAYER1
+    ld de, SPRPAT + (22 * 32)
     ld bc, 64
     call COPY_SPRITE_SRC_TO_VRAM
     ; Placeholder sprite used by missing sprite refs
     ld hl, SPRITE_PLACEHOLDER_PATTERN
-    ld de, SPRPAT + (10 * 32)
+    ld de, SPRPAT + (24 * 32)
     ld bc, 32
     call COPY_SPRITE_SRC_TO_VRAM
     ld a, SPRITE_PATTERN_PACK_WORLDMAP_1776512078647_ID
@@ -11187,7 +11554,7 @@ SCREEN_PAN1_0_BLOCK_MAP_SIZE EQU 48
 SCREEN_PAN1_0_BLOCK_TOTAL_SIZE EQU 144
 SCREEN_PAN1_0_ANIM_GROUP_COUNT EQU 2
 SCREEN_PAN1_0_ENTITY_COUNT EQU 1
-SCREEN_PAN1_0_SPRITE_PATTERN_SLOTS EQU 11
+SCREEN_PAN1_0_SPRITE_PATTERN_SLOTS EQU 25
 SCREEN_PAN1_0_MUSIC_IN_GAME EQU 0
 SCREEN_PAN1_0_SUMMARY_FLAGS EQU #0E
 
@@ -11200,7 +11567,7 @@ SCREEN_PAN1_0_SUMMARY_FLAGS EQU #0E
 ; ==================================================================
 
 screen_runtime_summary_table:
-    db 2, 1, 11, #0E    ; Screen 0: pan1
+    db 2, 1, 25, #0E    ; Screen 0: pan1
 
 ; ==================================================================
 ; SCREEN MAP DATA
@@ -11953,7 +12320,7 @@ load_screen_pan1_776511902784:
     ld (current_screen_anim_group_count), a
     ld a, 1
     ld (current_screen_entity_count), a
-    ld a, 11
+    ld a, 25
     ld (current_screen_sprite_pattern_slots), a
     ld a, SCREEN_PAN1_0_SUMMARY_FLAGS
     ld (current_screen_summary_flags), a
@@ -12460,7 +12827,7 @@ entity_walljump_cfg_vertical_impulse:
     DW 0
     DW 0
 entity_walljump_cfg_animation_sprite:
-    DB 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255
+    DB 3, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255
 entity_walljump_cfg_slide_fall_speed:
     DB 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 entity_walljump_cfg_lock_frames:
@@ -12471,6 +12838,8 @@ entity_wallgrab_cfg_enabled:
     DB 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 entity_wallgrab_cfg_fall_speed:
     DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_wallgrab_cfg_grab_sprite:
+    DB 1, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255
 entity_aircontrol_cfg_mode:
     DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 
@@ -16578,6 +16947,19 @@ Action_ChangeSprite:
     ld c, b                 ; C = entity index
     ld b, 0                 ; B = 0  →  BC = (0, entity_index)
 
+    ; WallGrab owns the visible sprite while active. Consume the
+    ; CHANGE_SPRITE parameter but do not reset animation state or palette.
+    ld hl, entity_wallgrab_active
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr z, .acs_not_wall_grabbing
+    pop af                  ; discard requested sprite id
+    pop hl                  ; restore params pointer
+    ret
+
+.acs_not_wall_grabbing:
+
     ; Pre-calcular HL = &entity_sprite_asset_index[entity]
     ; Se usará tras el bloque de redirect para escribir el sprite final.
     ld hl, entity_sprite_asset_index
@@ -18223,7 +18605,7 @@ SM_TemplateHealthMaxTable:
 ; NOTE: frame bank is derived from the frame pointer at runtime.
 ; This keeps ChangeSprite compatible with post-export ZX0 label remaps.
 ; ==================================================================
-SM_SpriteAssetCount EQU 11
+SM_SpriteAssetCount EQU 9
 SM_SpritePatternPtrTable:
     DW SPRITE_0_PATTERN
     DW SPRITE_1_PATTERN
@@ -18234,8 +18616,6 @@ SM_SpritePatternPtrTable:
     DW SPRITE_6_PATTERN
     DW SPRITE_7_PATTERN
     DW SPRITE_8_PATTERN
-    DW SPRITE_9_PATTERN
-    DW SPRITE_10_PATTERN
 
 ; ==================================================================
 ; STATE MACHINE SOUND ASSET TABLES
@@ -18285,11 +18665,11 @@ SM_New_Statemachine_state_1776707744092_Transitions:
 
 SM_New_Statemachine_state_1776707744092_Transitions_Actions_0: 
     DB 5; CHANGE_SPRITE 
-    DB 3; sprite: nina_walk 
+    DB 0; sprite: nina_walk 
     DB 0xFF; END
 SM_New_Statemachine_state_1776707744092_Transitions_Actions_1: 
     DB 5; CHANGE_SPRITE 
-    DB 3; sprite: nina_walk 
+    DB 0; sprite: nina_walk 
     DB 0xFF; END
 SM_New_Statemachine_state_1776707744092_Transitions_Actions_2: 
     DB 28; REPLACE_TILE 
@@ -18303,8 +18683,6 @@ SM_New_Statemachine_state_1776707744092_Transitions_Actions_3:
     DB 13; SET_VARIABLE 
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: cuadro 
     DB 0xFF; END
 
 SM_New_Statemachine_state_1776707753316: 
@@ -18345,8 +18723,6 @@ SM_New_Statemachine_state_1776707753316_Transitions_Actions_1:
     DB 13; SET_VARIABLE 
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: cuadro 
     DB 0xFF; END
 
 SM_New_Statemachine_state_1776708050326: 
@@ -18381,7 +18757,7 @@ SM_New_Statemachine_state_1776708050326_Transitions:
 
 SM_New_Statemachine_state_1776708050326_Transitions_Actions_0: 
     DB 5; CHANGE_SPRITE 
-    DB 1; sprite: hero_idle 
+    DB 4; sprite: nina_idle 
     DB 0xFF; END
 SM_New_Statemachine_state_1776708050326_Transitions_Actions_1: 
     DB 28; REPLACE_TILE 
@@ -18395,8 +18771,6 @@ SM_New_Statemachine_state_1776708050326_Transitions_Actions_2:
     DB 13; SET_VARIABLE 
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: cuadro 
     DB 0xFF; END
 
 SM_New_Statemachine_state_1776708052277: 
@@ -18431,7 +18805,7 @@ SM_New_Statemachine_state_1776708052277_Transitions:
 
 SM_New_Statemachine_state_1776708052277_Transitions_Actions_0: 
     DB 5; CHANGE_SPRITE 
-    DB 1; sprite: hero_idle 
+    DB 4; sprite: nina_idle 
     DB 0xFF; END
 SM_New_Statemachine_state_1776708052277_Transitions_Actions_1: 
     DB 28; REPLACE_TILE 
@@ -18445,8 +18819,6 @@ SM_New_Statemachine_state_1776708052277_Transitions_Actions_2:
     DB 13; SET_VARIABLE 
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: cuadro 
     DB 0xFF; END
 
 SM_New_Statemachine_state_1776790058414: 
@@ -18487,8 +18859,6 @@ SM_New_Statemachine_state_1776790058414_Transitions_Actions_1:
     DB 13; SET_VARIABLE 
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: cuadro 
     DB 0xFF; END
 
 SM_New_Statemachine_state_1776790060726: 
@@ -18529,8 +18899,6 @@ SM_New_Statemachine_state_1776790060726_Transitions_Actions_1:
     DB 13; SET_VARIABLE 
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: cuadro 
     DB 0xFF; END
 
 
@@ -19001,6 +19369,12 @@ gameflow_world_game_loop:
 
     ; Execute all state machines
     call execute_all_state_machines
+
+    ; WallGrab owns the visible sprite while the grab button is held.
+    ; Re-apply it after StateMachine actions so idle/jump/walk sprites
+    ; cannot win the frame immediately before animation/sprite refresh.
+    call refresh_player_wallgrab_fastpath
+    call update_wallgrab_component
 
     ; Update timed PSG sound effects
     call sfx_update
@@ -19922,87 +20296,74 @@ load_game_screen:
 ; ZX0 SPRITE FRAME BLOBS (AUTO-INJECTED)
 ; ==================================================================
 ZX0_SPRITE_FRAME_DATA_START:
-ZX0_SPRITE_FRAME_HERO_WALK_LEFT_0_F0_DATA:
-    ; ZX0 compressed sprite frame HERO_WALK_LEFT_0_F0 (64 -> 47 bytes)
-    DB #16,#00,#03,#04,#03,#05,#03,#01,#03,#0B,#33,#03,#A2,#01,#52,#03
-    DB #00,#80,#40,#A0,#D0,#90,#00,#80,#A0,#90,#88,#80,#00,#61,#84,#03
-    DB #04,#0B,#04,#00,#F8,#C2,#38,#50,#28,#28,#38,#E0,#35,#55,#58
-ZX0_SPRITE_FRAME_HERO_WALK_LEFT_0_F1_DATA:
-    ; ZX0 compressed sprite frame HERO_WALK_LEFT_0_F1 (64 -> 46 bytes)
-    DB #A0,#00,#22,#03,#04,#03,#05,#03,#21,#1B,#03,#66,#43,#78,#00,#02
-    DB #80,#40,#A0,#D8,#80,#04,#B8,#80,#66,#7C,#04,#00,#86,#07,#0C,#0B
-    DB #04,#00,#16,#58,#C0,#60,#B0,#58,#24,#38,#00,#0D,#55,#56
-ZX0_SPRITE_FRAME_CUADRO_2_F0_DATA:
-    ; ZX0 compressed sprite frame CUADRO_2_F0 (32 -> 19 bytes)
-    DB #A6,#00,#0F,#0D,#0F,#89,#0E,#0F,#A4,#00,#A4,#F0,#98,#B0,#F0,#00
-    DB #35,#55,#58
-ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_3_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_WALK_RIGHT_3_F0 (64 -> 50 bytes)
+ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F0_DATA:
+    ; ZX0 compressed sprite frame NINA_WALK_RIGHT_0_F0 (64 -> 50 bytes)
     DB #A0,#07,#A1,#35,#5C,#80,#00,#61,#03,#02,#03,#07,#0F,#00,#01,#00
     DB #01,#F8,#00,#9A,#C0,#68,#C0,#EA,#E0,#EC,#40,#FB,#FF,#CB,#01,#EF
     DB #CF,#FE,#C2,#E4,#F3,#AE,#F0,#D0,#D8,#F8,#F0,#80,#94,#B0,#6D,#80
     DB #55,#56
-ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_3_F1_DATA:
-    ; ZX0 compressed sprite frame NINA_WALK_RIGHT_3_F1 (64 -> 55 bytes)
+ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F1_DATA:
+    ; ZX0 compressed sprite frame NINA_WALK_RIGHT_0_F1 (64 -> 55 bytes)
     DB #48,#03,#07,#87,#A9,#54,#00,#85,#86,#03,#02,#07,#0F,#2B,#00,#20
     DB #00,#C0,#F8,#00,#06,#C0,#68,#C0,#E0,#A0,#10,#00,#14,#00,#66,#02
     DB #03,#01,#F8,#F0,#F9,#14,#20,#CC,#2A,#F0,#D0,#D8,#F8,#F0,#80,#94
     DB #2A,#50,#35,#10,#08,#55,#58
-ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_4_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_GRUB_RIGHT_4_F0 (64 -> 44 bytes)
+ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F0_DATA:
+    ; ZX0 compressed sprite frame NINA_GRUB_RIGHT_1_F0 (64 -> 44 bytes)
     DB #95,#00,#E4,#E3,#A9,#3C,#34,#B6,#FE,#7C,#60,#25,#9A,#08,#04,#02
     DB #E6,#01,#FF,#07,#04,#08,#E9,#B8,#88,#01,#03,#03,#23,#F8,#FE,#C0
     DB #40,#8A,#FD,#F0,#DA,#2F,#F0,#F8,#D9,#55,#55,#80
-ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_4_F1_DATA:
-    ; ZX0 compressed sprite frame NINA_GRUB_RIGHT_4_F1 (64 -> 48 bytes)
+ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F1_DATA:
+    ; ZX0 compressed sprite frame NINA_GRUB_RIGHT_1_F1 (64 -> 48 bytes)
     DB #2B,#20,#00,#80,#F9,#FB,#F5,#FE,#25,#F8,#3C,#34,#B6,#FE,#7C,#61
     DB #04,#D8,#8B,#08,#05,#01,#9A,#FF,#07,#04,#08,#88,#00,#B8,#01,#03
     DB #B5,#20,#F8,#FE,#C0,#40,#9E,#F2,#D8,#F0,#FF,#35,#F1,#0A,#55,#58
-ZX0_SPRITE_FRAME_NEW_SPRITE_5_F0_DATA:
-    ; ZX0 compressed sprite frame NEW_SPRITE_5_F0 (96 -> 6 bytes)
+ZX0_SPRITE_FRAME_NEW_SPRITE_2_F0_DATA:
+    ; ZX0 compressed sprite frame NEW_SPRITE_2_F0 (96 -> 6 bytes)
     DB #85,#00,#57,#55,#55,#80
-ZX0_SPRITE_FRAME_NINA_JUMP_RIGHT_6_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_JUMP_RIGHT_6_F0 (64 -> 47 bytes)
+ZX0_SPRITE_FRAME_NINA_JUMP_RIGHT_3_F0_DATA:
+    ; ZX0 compressed sprite frame NINA_JUMP_RIGHT_3_F0 (64 -> 47 bytes)
     DB #A5,#07,#EE,#09,#14,#20,#10,#20,#03,#02,#EF,#06,#FC,#8B,#00,#F8
     DB #88,#FE,#20,#C0,#40,#C0,#E0,#A6,#00,#6F,#02,#03,#01,#F0,#FE,#F7
     DB #FC,#58,#F0,#D0,#D8,#F8,#F0,#80,#00,#FF,#FE,#F3,#55,#55,#80
-ZX0_SPRITE_FRAME_HERO_WALK_RIGHT_7_F0_DATA:
-    ; ZX0 compressed sprite frame HERO_WALK_RIGHT_7_F0 (64 -> 46 bytes)
-    DB #4E,#00,#01,#02,#05,#0B,#09,#F5,#0B,#05,#09,#11,#01,#E2,#FF,#FD
-    DB #C0,#20,#AA,#A0,#80,#9F,#D0,#CC,#C0,#F5,#BA,#FF,#C0,#C2,#0F,#0A
-    DB #14,#14,#1C,#CC,#F2,#C2,#79,#D0,#20,#00,#FE,#35,#55,#58
-ZX0_SPRITE_FRAME_HERO_WALK_RIGHT_7_F1_DATA:
-    ; ZX0 compressed sprite frame HERO_WALK_RIGHT_7_F1 (64 -> 47 bytes)
-    DB #A0,#00,#26,#01,#02,#05,#1B,#01,#20,#1D,#01,#62,#3E,#20,#00,#02
-    DB #C0,#20,#C0,#A0,#C0,#84,#D8,#C0,#26,#C2,#1E,#00,#25,#81,#03,#06
-    DB #0D,#1A,#24,#1C,#00,#86,#E0,#30,#D0,#20,#00,#13,#55,#55,#80
-ZX0_SPRITE_FRAME_NINA_WALK_LEFT_8_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_WALK_LEFT_8_F0 (64 -> 47 bytes)
+ZX0_SPRITE_FRAME_NINA_IDLE_RIGHT_4_F0_DATA:
+    ; ZX0 compressed sprite frame NINA_IDLE_RIGHT_4_F0 (64 -> 48 bytes)
+    DB #2B,#20,#00,#80,#F9,#FB,#F5,#FE,#25,#F8,#3C,#34,#B6,#FE,#7C,#61
+    DB #04,#D8,#8B,#08,#05,#01,#9A,#FF,#07,#04,#08,#88,#00,#B8,#01,#03
+    DB #B5,#20,#F8,#FE,#C0,#40,#9E,#F2,#D8,#F0,#FF,#35,#F1,#0A,#55,#58
+ZX0_SPRITE_FRAME_NINA_WALK_LEFT_5_F0_DATA:
+    ; ZX0 compressed sprite frame NINA_WALK_LEFT_5_F0 (64 -> 47 bytes)
     DB #21,#1F,#00,#9A,#03,#16,#03,#E9,#07,#EE,#22,#02,#E0,#E0,#AC,#3A
     DB #01,#69,#C0,#40,#C0,#E8,#F0,#00,#80,#FC,#7B,#0F,#0B,#1B,#1F,#0F
     DB #DD,#29,#9E,#B0,#CA,#A2,#00,#FF,#80,#D3,#FE,#F5,#C2,#55,#58
-ZX0_SPRITE_FRAME_NINA_WALK_LEFT_8_F1_DATA:
-    ; ZX0 compressed sprite frame NINA_WALK_LEFT_8_F1 (64 -> 56 bytes)
+ZX0_SPRITE_FRAME_NINA_WALK_LEFT_5_F1_DATA:
+    ; ZX0 compressed sprite frame NINA_WALK_LEFT_5_F1 (64 -> 56 bytes)
     DB #61,#03,#1F,#00,#91,#E9,#03,#16,#03,#07,#05,#08,#00,#28,#C0,#E0
     DB #E1,#95,#2A,#DE,#6E,#C0,#40,#E0,#F0,#D4,#00,#04,#EB,#4A,#0F,#0B
     DB #1B,#1F,#0F,#01,#88,#29,#7A,#0A,#00,#08,#10,#00,#FE,#6F,#40,#C0
     DB #80,#F0,#BB,#28,#C2,#55,#55,#80
-ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_9_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_GRUB_LEFT_9_F0 (64 -> 47 bytes)
+ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_6_F0_DATA:
+    ; ZX0 compressed sprite frame NINA_GRUB_LEFT_6_F0 (64 -> 47 bytes)
     DB #A0,#00,#62,#3C,#2C,#6D,#7F,#3E,#06,#00,#A4,#00,#09,#10,#20,#40
     DB #00,#58,#6E,#1F,#7F,#03,#02,#00,#FD,#28,#0F,#5B,#A2,#0F,#1F,#00
     DB #80,#39,#FF,#BA,#E0,#20,#10,#C0,#63,#80,#C0,#C0,#55,#55,#80
-ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_9_F1_DATA:
-    ; ZX0 compressed sprite frame NINA_GRUB_LEFT_9_F1 (64 -> 49 bytes)
+ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_6_F1_DATA:
+    ; ZX0 compressed sprite frame NINA_GRUB_LEFT_6_F1 (64 -> 49 bytes)
     DB #88,#00,#18,#3C,#2C,#6D,#7F,#3E,#86,#20,#04,#00,#8E,#10,#A0,#F4
     DB #BF,#01,#FB,#F5,#82,#FE,#19,#1F,#7F,#03,#02,#00,#98,#4F,#1B,#0F
     DB #9A,#8F,#50,#00,#89,#80,#BA,#E0,#20,#10,#C2,#6D,#80,#C0,#C0,#55
     DB #56
-ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_10_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_JUMP_LEFT_10_F0 (64 -> 48 bytes)
+ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_7_F0_DATA:
+    ; ZX0 compressed sprite frame NINA_JUMP_LEFT_7_F0 (64 -> 48 bytes)
     DB #21,#1F,#00,#82,#03,#02,#03,#07,#08,#A5,#00,#E0,#EE,#90,#28,#04
     DB #08,#04,#C0,#40,#EF,#60,#FC,#E5,#CD,#FF,#0F,#0B,#1B,#1F,#0F,#01
     DB #00,#FD,#FE,#88,#F2,#23,#40,#C0,#80,#80,#A0,#FD,#80,#D5,#55,#60
+ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_8_F0_DATA:
+    ; ZX0 compressed sprite frame NINA_IDLE_LEFT_8_F0 (64 -> 49 bytes)
+    DB #88,#00,#18,#3C,#2C,#6D,#7F,#3E,#86,#20,#04,#00,#8E,#10,#A0,#F4
+    DB #BF,#01,#FB,#F5,#82,#FE,#19,#1F,#7F,#03,#02,#00,#98,#4F,#1B,#0F
+    DB #9A,#8F,#50,#00,#89,#80,#BA,#E0,#20,#10,#C2,#6D,#80,#C0,#C0,#55
+    DB #56
 ZX0_SPRITE_FRAME_DATA_END_LABEL:
     DB #00
 
@@ -20010,56 +20371,50 @@ ZX0_SPRITE_FRAME_DATA_END_LABEL:
 ; ZX0 FONT PATTERN BUFFER (AUTO-INJECTED)
 ; Shared scratch buffer for font pattern data decompression (344 bytes, scratch slot 344 bytes)
 ; ==================================================================
-ZX0_FONT_PATTERN_BUFFER EQU #EA00
+ZX0_FONT_PATTERN_BUFFER EQU #EB00
 
 ; ==================================================================
 ; ZX0 SPRITE FRAME BUFFER (AUTO-INJECTED)
 ; Shared scratch buffer for per-frame sprite decompression before VRAM upload (96 bytes, scratch slot 344 bytes)
 ; ==================================================================
-ZX0_SPRITE_FRAME_BUFFER EQU #EA00
+ZX0_SPRITE_FRAME_BUFFER EQU #EB00
 
 ; ==================================================================
 ; ZX0 FONT COLOR BUFFER (AUTO-INJECTED)
 ; Second scratch buffer for font color data while font pattern data is still live (344 bytes, scratch slot 344 bytes)
 ; ==================================================================
-ZX0_FONT_COLOR_BUFFER EQU #EC00
+ZX0_FONT_COLOR_BUFFER EQU #ED00
 
 ; ==================================================================
 ; ZX0 SPRITE LABEL REMAP (AUTO-INJECTED)
 ; Frame entry labels now point to ZX0-compressed frame blobs
 ; ==================================================================
-; Frame group: HERO_WALK_LEFT_0_F0
-HERO_WALK_LEFT_0_F0_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_WALK_LEFT_0_F0_DATA
-; Frame group: HERO_WALK_LEFT_0_F1
-HERO_WALK_LEFT_0_F1_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_WALK_LEFT_0_F1_DATA
-; Frame group: CUADRO_2_F0
-CUADRO_2_F0_LAYER2 EQU ZX0_SPRITE_FRAME_CUADRO_2_F0_DATA
-; Frame group: NINA_WALK_RIGHT_3_F0
-NINA_WALK_RIGHT_3_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_3_F0_DATA
-; Frame group: NINA_WALK_RIGHT_3_F1
-NINA_WALK_RIGHT_3_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_3_F1_DATA
-; Frame group: NINA_GRUB_RIGHT_4_F0
-NINA_GRUB_RIGHT_4_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_4_F0_DATA
-; Frame group: NINA_GRUB_RIGHT_4_F1
-NINA_GRUB_RIGHT_4_F1_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_4_F1_DATA
-; Frame group: NEW_SPRITE_5_F0
-NEW_SPRITE_5_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NEW_SPRITE_5_F0_DATA
-; Frame group: NINA_JUMP_RIGHT_6_F0
-NINA_JUMP_RIGHT_6_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_JUMP_RIGHT_6_F0_DATA
-; Frame group: HERO_WALK_RIGHT_7_F0
-HERO_WALK_RIGHT_7_F0_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_WALK_RIGHT_7_F0_DATA
-; Frame group: HERO_WALK_RIGHT_7_F1
-HERO_WALK_RIGHT_7_F1_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_WALK_RIGHT_7_F1_DATA
-; Frame group: NINA_WALK_LEFT_8_F0
-NINA_WALK_LEFT_8_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_LEFT_8_F0_DATA
-; Frame group: NINA_WALK_LEFT_8_F1
-NINA_WALK_LEFT_8_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_LEFT_8_F1_DATA
-; Frame group: NINA_GRUB_LEFT_9_F0
-NINA_GRUB_LEFT_9_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_9_F0_DATA
-; Frame group: NINA_GRUB_LEFT_9_F1
-NINA_GRUB_LEFT_9_F1_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_9_F1_DATA
-; Frame group: NINA_JUMP_LEFT_10_F0
-NINA_JUMP_LEFT_10_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_10_F0_DATA
+; Frame group: NINA_WALK_RIGHT_0_F0
+NINA_WALK_RIGHT_0_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F0_DATA
+; Frame group: NINA_WALK_RIGHT_0_F1
+NINA_WALK_RIGHT_0_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F1_DATA
+; Frame group: NINA_GRUB_RIGHT_1_F0
+NINA_GRUB_RIGHT_1_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F0_DATA
+; Frame group: NINA_GRUB_RIGHT_1_F1
+NINA_GRUB_RIGHT_1_F1_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F1_DATA
+; Frame group: NEW_SPRITE_2_F0
+NEW_SPRITE_2_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NEW_SPRITE_2_F0_DATA
+; Frame group: NINA_JUMP_RIGHT_3_F0
+NINA_JUMP_RIGHT_3_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_JUMP_RIGHT_3_F0_DATA
+; Frame group: NINA_IDLE_RIGHT_4_F0
+NINA_IDLE_RIGHT_4_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_IDLE_RIGHT_4_F0_DATA
+; Frame group: NINA_WALK_LEFT_5_F0
+NINA_WALK_LEFT_5_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_LEFT_5_F0_DATA
+; Frame group: NINA_WALK_LEFT_5_F1
+NINA_WALK_LEFT_5_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_LEFT_5_F1_DATA
+; Frame group: NINA_GRUB_LEFT_6_F0
+NINA_GRUB_LEFT_6_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_6_F0_DATA
+; Frame group: NINA_GRUB_LEFT_6_F1
+NINA_GRUB_LEFT_6_F1_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_6_F1_DATA
+; Frame group: NINA_JUMP_LEFT_7_F0
+NINA_JUMP_LEFT_7_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_7_F0_DATA
+; Frame group: NINA_IDLE_LEFT_8_F0
+NINA_IDLE_LEFT_8_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_8_F0_DATA
 
 ; ==================================================================
 ; ZX0 SPRITE COPY HELPER (AUTO-INJECTED)

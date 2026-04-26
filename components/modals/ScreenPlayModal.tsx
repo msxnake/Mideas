@@ -174,9 +174,10 @@ const AVAILABLE_ENGINES: EngineRegistry = {
 
                     // Priority states that should always animate (death, hurt, attack, etc.)
                     const priorityStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Attack', 'Attacking', 'Stunned', 'GameOver', 'Invulnerable'];
-                    const isInPriorityState = entity.currentState && priorityStates.some(state =>
+                    const isWallGrabAnimation = entity.isWallGrabbing === true && !!entity.wallGrabSpriteBackup;
+                    const isInPriorityState = isWallGrabAnimation || (entity.currentState && priorityStates.some(state =>
                         entity.currentState?.toLowerCase().includes(state.toLowerCase())
-                    );
+                    ));
 
                     // Only animate if: not restricted to movement, OR is moving, OR in priority state
                     if (!animateOnlyWhenMoving || isMoving || isInPriorityState) {
@@ -1291,6 +1292,7 @@ interface AnimatedEntity {
     instance: EntityInstance;
     template: EntityTemplate;
     sprite: Sprite;
+    spriteAssetId?: string;
     x: number;
     y: number;
     vx: number;
@@ -1334,6 +1336,8 @@ interface AnimatedEntity {
         lockedVx: number;
     };
     isWallGrabbing?: boolean;
+    wallGrabReleaseGraceFrames?: number;
+    wallGrabSpriteBackup?: CarrySpriteSnapshot;
     tileCollectorData?: {
         bonusRespawns: Array<{
             position: { x: number; y: number };
@@ -1363,6 +1367,15 @@ interface AnimatedEntity {
     isTouchingWallRight?: boolean; // Set by wallCollisionEngine
     velocityX?: number; // Alternative velocity property used by some engines
     velocityY?: number; // Alternative velocity property used by some engines
+}
+
+interface CarrySpriteSnapshot {
+    sprite: Sprite;
+    spriteAssetId?: string;
+    frameImages: HTMLImageElement[];
+    mirroredFrameImages?: HTMLImageElement[];
+    currentFrame: number;
+    isFacingMirrored?: boolean;
 }
 
 interface ScreenPlayModalProps {
@@ -1855,6 +1868,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 instance,
                 template,
                 sprite,
+                spriteAssetId: spriteAsset?.id,
                 x: startX,
                 y: startY,
                 vx: 0,
@@ -2031,6 +2045,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 instance,
                 template,
                 sprite,
+                spriteAssetId: spriteAsset?.id,
                 x: startX,
                 y: startY,
                 vx: 0,
@@ -2561,20 +2576,107 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                         const wallGrabProps = { ...wallGrabComp.defaultValues, ...(entity.instance.componentOverrides?.['comp_wall_grab'] || {}) };
                         const wallGrabEnabled = wallGrabProps.isEnabled !== false && wallGrabProps.isEnabled !== 'false';
                         const hasGravity = entity.template.components.some(c => c.definitionId === 'comp_gravity');
-                        const grabPressed = currentPressedKeys.has('KeyN');
+                        const grabPressed = currentPressedKeys.has('KeyN') || currentPressedKeys.has('n') || currentPressedKeys.has('N');
                         const onGroundNow = !!entity.isOnGround || !!entity.isGrounded;
-                        const touchingWall = !!entity.isTouchingWallLeft || !!entity.isTouchingWallRight;
-                        entity.isWallGrabbing = false;
+                        const wallGrabFacing: 'left' | 'right' | undefined =
+                            entity.isTouchingWallLeft ? 'left' :
+                            entity.isTouchingWallRight ? 'right' :
+                            undefined;
+                        const touchingWall = !!wallGrabFacing;
+                        const grabFallSpeed = Math.max(0, Number(wallGrabProps.grabFallSpeed ?? 0) || 0);
+                        const canWallGrab = wallGrabEnabled && hasGravity && grabPressed && !onGroundNow && !entity.isOnLadder;
+                        const graceFrames = entity.wallGrabReleaseGraceFrames ?? 0;
+                        const wallGrabActiveNow = canWallGrab && (touchingWall || (entity.isWallGrabbing && graceFrames > 0));
 
-                        if (wallGrabEnabled && hasGravity && grabPressed && !onGroundNow && !entity.isOnLadder && touchingWall) {
-                            const grabFallSpeed = Math.max(0, Number(wallGrabProps.grabFallSpeed ?? 0) || 0);
+                        if (wallGrabActiveNow) {
+                            entity.wallGrabReleaseGraceFrames = touchingWall ? 2 : Math.max(0, graceFrames - 1);
                             entity.vx = 0;
                             entity.vy = grabFallSpeed;
                             entity.gravityVel = (grabFallSpeed << 8) & 0xFFFF;
-                            entity.isWallGrabbing = true;
+
+                            const applyWallGrabFacing = (spriteData: Sprite) => {
+                                if (!wallGrabFacing) return;
+                                if (spriteData.facingDirection === 'right') entity.isFacingMirrored = wallGrabFacing === 'left';
+                                else if (spriteData.facingDirection === 'left') entity.isFacingMirrored = wallGrabFacing === 'right';
+                            };
+
+                            if (!entity.isWallGrabbing) {
+                                entity.isWallGrabbing = true;
+                            }
+
+                            const grabSpriteId = wallGrabProps.grabSpriteAssetId;
+                            if (grabSpriteId) {
+                                if (!entity.wallGrabSpriteBackup) {
+                                    entity.wallGrabSpriteBackup = {
+                                        sprite: entity.sprite,
+                                        frameImages: entity.frameImages,
+                                        mirroredFrameImages: entity.mirroredFrameImages,
+                                        currentFrame: entity.currentFrame,
+                                        spriteAssetId: entity.spriteAssetId,
+                                        isFacingMirrored: entity.isFacingMirrored
+                                    };
+                                }
+                                const grabSpriteAsset = allAssets.find(a =>
+                                    a.type === 'sprite' && (
+                                        a.id === grabSpriteId ||
+                                        a.name === grabSpriteId ||
+                                        (a.data as any)?.id === grabSpriteId ||
+                                        (a.data as any)?.name === grabSpriteId
+                                    )
+                                );
+                                const grabSpriteData = grabSpriteAsset?.data as Sprite | undefined;
+                                const wasUsingGrabSprite = grabSpriteData && entity.spriteAssetId === grabSpriteAsset.id;
+                                const needsGrabSpriteRefresh = !!grabSpriteData && (
+                                    !wasUsingGrabSprite ||
+                                    entity.sprite !== grabSpriteData ||
+                                    entity.frameImages.length !== grabSpriteData.frames.length
+                                );
+                                if (grabSpriteData && needsGrabSpriteRefresh) {
+                                    const nextFrame = wasUsingGrabSprite
+                                        ? Math.min(entity.currentFrame, Math.max(0, grabSpriteData.frames.length - 1))
+                                        : 0;
+                                    const built = {
+                                        frames: grabSpriteData.frames.map(frame => {
+                                            const img = new Image();
+                                            img.src = createSpriteDataURL(frame.data, grabSpriteData.size.width, grabSpriteData.size.height);
+                                            return img;
+                                        }),
+                                        mirrored: ['right', 'left'].includes(grabSpriteData.facingDirection) ? grabSpriteData.frames.map(frame => {
+                                            const img = new Image();
+                                            img.src = createSpriteDataURL(mirrorPixelDataHorizontally(frame.data), grabSpriteData.size.width, grabSpriteData.size.height);
+                                            return img;
+                                        }) : undefined
+                                    };
+                                    entity.sprite = grabSpriteData;
+                                    entity.frameImages = built.frames;
+                                    entity.mirroredFrameImages = built.mirrored;
+                                    entity.currentFrame = nextFrame;
+                                    entity.lastFrameUpdateTime = performance.now();
+                                    entity.spriteAssetId = grabSpriteAsset.id;
+                                }
+                                if (grabSpriteData) applyWallGrabFacing(grabSpriteData);
+                            } else {
+                                applyWallGrabFacing(entity.sprite);
+                            }
+                        } else if (entity.isWallGrabbing) {
+                            // Transition from grabbing to not grabbing
+                            entity.isWallGrabbing = false;
+                            entity.wallGrabReleaseGraceFrames = 0;
+                            if (entity.wallGrabSpriteBackup) {
+                                const backup = entity.wallGrabSpriteBackup;
+                                entity.sprite = backup.sprite;
+                                entity.frameImages = backup.frameImages;
+                                entity.mirroredFrameImages = backup.mirroredFrameImages;
+                                entity.currentFrame = backup.currentFrame ?? 0;
+                                entity.spriteAssetId = backup.spriteAssetId;
+                                entity.isFacingMirrored = backup.isFacingMirrored;
+                                entity.lastFrameUpdateTime = performance.now();
+                                entity.wallGrabSpriteBackup = undefined;
+                            }
                         }
                     } else {
                         entity.isWallGrabbing = false;
+                        entity.wallGrabReleaseGraceFrames = 0;
                     }
 
                     const wallJumpComp = entity.template.components.find(c => c.definitionId === 'comp_wall_jump');

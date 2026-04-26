@@ -1,4 +1,4 @@
-﻿
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CRTShaderOverlay, CRTShaderConfig, defaultCRTConfig } from '../../src/components/CRTShaderOverlay';
@@ -80,6 +80,7 @@ interface CarrySpriteSnapshot {
     frameImages: HTMLImageElement[];
     mirroredFrameImages?: HTMLImageElement[];
     currentFrame: number;
+    isFacingMirrored?: boolean;
 }
 
 interface AnimatedEntity {
@@ -97,6 +98,7 @@ interface AnimatedEntity {
     currentFrame: number;
     lastFrameUpdateTime: number;
     carrySpriteBackup?: CarrySpriteSnapshot;
+    wallGrabSpriteBackup?: CarrySpriteSnapshot;
     stateMachine?: StateMachine;
     currentState?: string;
     isOnGround: boolean;
@@ -109,6 +111,7 @@ interface AnimatedEntity {
         lockedVx: number;
     };
     isWallGrabbing?: boolean;
+    wallGrabReleaseGraceFrames?: number;
     spawnTime: number; // Timestamp when entity was created
     animationHasCompleted?: boolean; // True when a non-looping animation reaches its last frame
     lastAnimationState?: string; // Track which state's animation was playing
@@ -1647,6 +1650,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             return;
         }
         for (const action of actions) {
+            const visualActionBlockedByWallGrab =
+                entity.isWallGrabbing === true && (
+                    action.type === 'CHANGE_SPRITE' ||
+                    action.type === 'PLAY_ANIMATION' ||
+                    action.type === 'SET_ANIMATION' ||
+                    action.type === 'SET_ANIMATION_SPEED' ||
+                    action.type === 'TOGGLE_ANIMATION'
+                );
+            if (visualActionBlockedByWallGrab) {
+                continue;
+            }
+
             switch (action.type) {
                 case 'SET_VELOCITY': {
                     entity.vx = action.params.x || 0;
@@ -1708,6 +1723,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                             // Load images asynchronously
                             Promise.all(imageLoadPromises).then((loadedImages) => {
+                                if (entity.isWallGrabbing) return;
                                 entity.frameImages = loadedImages;
                             }).catch(() => {
                                 // Silently fail
@@ -1733,6 +1749,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                 // Load mirrored images asynchronously
                                 Promise.all(mirroredImageLoadPromises).then((loadedMirroredImages) => {
+                                    if (entity.isWallGrabbing) return;
                                     entity.mirroredFrameImages = loadedMirroredImages;
                                 }).catch(() => {
                                     // Silently fail
@@ -1784,6 +1801,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             });
 
                             Promise.all(imageLoadPromises).then(loadedImages => {
+                                if (entity.isWallGrabbing) return;
                                 entity.frameImages = loadedImages;
                             }).catch(() => {
                                 // Silently fail
@@ -1806,6 +1824,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 });
 
                                 Promise.all(mirroredPromises).then(loadedMirroredImages => {
+                                    if (entity.isWallGrabbing) return;
                                     entity.mirroredFrameImages = loadedMirroredImages;
                                 }).catch(() => {
                                     // Silently fail
@@ -2004,6 +2023,17 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const compId = action.params.componentId || action.params.component || action.params.compId;
     const propName = action.params.propertyName || action.params.prop || action.params.name;
     const value = action.params.value;
+    if (entity.isWallGrabbing) {
+        const normalizedCompId = String(compId || '').toLowerCase();
+        const normalizedPropName = String(propName || '').toLowerCase();
+        const changesWallGrabVisuals =
+            normalizedCompId === 'comp_render' ||
+            normalizedCompId === 'comp_animation' ||
+            normalizedPropName.includes('sprite') ||
+            normalizedPropName.includes('frame') ||
+            normalizedPropName.includes('anim');
+        if (changesWallGrabVisuals) break;
+    }
     if (compId && propName !== undefined) {
         if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {} as any;
         if (!entity.instance.componentOverrides[compId]) entity.instance.componentOverrides[compId] = {} as any;
@@ -6495,18 +6525,89 @@ useEffect(() => {
                     const wallGrabEnabled = wallGrabProps.isEnabled !== false && wallGrabProps.isEnabled !== 'false';
                     const grabPressed = pressedKeys.current.has('KeyN') || pressedKeys.current.has('n') || pressedKeys.current.has('N');
                     const onGroundNow = !!entityA.isOnGround;
-                    const touchingWall = !!entityA.isTouchingWallLeft || !!entityA.isTouchingWallRight;
-                    entityA.isWallGrabbing = false;
+                    const wallGrabFacing: FacingDirection | undefined =
+                        entityA.isTouchingWallLeft ? 'left' :
+                        entityA.isTouchingWallRight ? 'right' :
+                        undefined;
+                    const touchingWall = !!wallGrabFacing;
+                    const grabFallSpeed = Math.max(0, Number(wallGrabProps.grabFallSpeed ?? 0) || 0);
+                    const canWallGrab = wallGrabEnabled && gravityEnabled && grabPressed && !onGroundNow && !entityA.isOnLadder;
+                    const graceFrames = entityA.wallGrabReleaseGraceFrames ?? 0;
+                    const wallGrabActiveNow = canWallGrab && (touchingWall || (entityA.isWallGrabbing && graceFrames > 0));
 
-                    if (wallGrabEnabled && gravityEnabled && grabPressed && !onGroundNow && !entityA.isOnLadder && touchingWall) {
-                        const grabFallSpeed = Math.max(0, Number(wallGrabProps.grabFallSpeed ?? 0) || 0);
+                    if (wallGrabActiveNow) {
+                        entityA.wallGrabReleaseGraceFrames = touchingWall ? 2 : Math.max(0, graceFrames - 1);
                         entityA.vx = 0;
                         entityA.vy = grabFallSpeed;
                         entityA.gravityVel = (grabFallSpeed << 8) & 0xFFFF;
-                        entityA.isWallGrabbing = true;
+
+                        const applyWallGrabFacing = (spriteData: Sprite) => {
+                            if (!wallGrabFacing) return;
+                            entityA.desiredFacingDirection = wallGrabFacing;
+                            entityA.isFacingMirrored = computeMirrorForSprite(spriteData, wallGrabFacing);
+                        };
+
+                        if (!entityA.isWallGrabbing) {
+                            entityA.isWallGrabbing = true;
+                        }
+
+                        const grabSpriteId = wallGrabProps.grabSpriteAssetId;
+                        if (grabSpriteId) {
+                            if (!entityA.wallGrabSpriteBackup) {
+                                entityA.wallGrabSpriteBackup = {
+                                    sprite: entityA.sprite,
+                                    frameImages: entityA.frameImages,
+                                    mirroredFrameImages: entityA.mirroredFrameImages,
+                                    currentFrame: entityA.currentFrame,
+                                    spriteAssetId: entityA.spriteAssetId,
+                                    isFacingMirrored: entityA.isFacingMirrored
+                                };
+                            }
+                            const grabSpriteAsset = allAssets.find(a =>
+                                a.type === 'sprite' && (
+                                    a.id === grabSpriteId ||
+                                    a.name === grabSpriteId ||
+                                    (a.data as any)?.id === grabSpriteId ||
+                                    (a.data as any)?.name === grabSpriteId
+                                )
+                            );
+                            const grabSpriteData = grabSpriteAsset?.data as Sprite | undefined;
+                            const wasUsingGrabSprite = grabSpriteData && entityA.spriteAssetId === grabSpriteAsset.id;
+                            const needsGrabSpriteRefresh = !!grabSpriteData && (
+                                !wasUsingGrabSprite ||
+                                entityA.sprite !== grabSpriteData ||
+                                entityA.frameImages.length !== grabSpriteData.frames.length
+                            );
+                            if (grabSpriteData && needsGrabSpriteRefresh) {
+                                const nextFrame = wasUsingGrabSprite
+                                    ? Math.min(entityA.currentFrame, Math.max(0, grabSpriteData.frames.length - 1))
+                                    : 0;
+                                applySpriteToEntity(entityA, grabSpriteData, grabSpriteAsset.id);
+                                entityA.currentFrame = nextFrame;
+                            }
+                            if (grabSpriteData) applyWallGrabFacing(grabSpriteData);
+                        } else {
+                            applyWallGrabFacing(entityA.sprite);
+                        }
+                    } else if (entityA.isWallGrabbing) {
+                        // Transition from grabbing to not grabbing
+                        entityA.isWallGrabbing = false;
+                        entityA.wallGrabReleaseGraceFrames = 0;
+                        if (entityA.wallGrabSpriteBackup) {
+                            const backup = entityA.wallGrabSpriteBackup;
+                            entityA.sprite = backup.sprite;
+                            entityA.frameImages = backup.frameImages;
+                            entityA.mirroredFrameImages = backup.mirroredFrameImages;
+                            entityA.currentFrame = backup.currentFrame ?? 0;
+                            entityA.spriteAssetId = backup.spriteAssetId;
+                            entityA.isFacingMirrored = backup.isFacingMirrored;
+                            entityA.lastFrameUpdateTime = performance.now();
+                            entityA.wallGrabSpriteBackup = undefined;
+                        }
                     }
                 } else {
                     entityA.isWallGrabbing = false;
+                    entityA.wallGrabReleaseGraceFrames = 0;
                 }
 
                 // --- Wall Jump / Wall Slide ---
@@ -7235,9 +7336,10 @@ useEffect(() => {
 
                     // Priority states that should always animate (death, hurt, attack, etc.)
                     const priorityStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Attack', 'Attacking', 'Stunned', 'GameOver', 'Invulnerable', 'Landing'];
-                    const isInPriorityState = entityA.currentState ? priorityStates.some(state =>
+                    const isWallGrabAnimation = entityA.isWallGrabbing === true && !!entityA.wallGrabSpriteBackup;
+                    const isInPriorityState = isWallGrabAnimation || (entityA.currentState ? priorityStates.some(state =>
                         entityA.currentState.toLowerCase().includes(state.toLowerCase())
-                    ) : false;
+                    ) : false);
 
                     // Check if animation loops (from sprite metadata, fallback to component)
                     const loops = entityA.sprite.loops !== undefined

@@ -983,6 +983,19 @@ Action_ChangeSprite:
     ld c, b                 ; C = entity index
     ld b, 0                 ; B = 0  →  BC = (0, entity_index)
 
+    ; WallGrab owns the visible sprite while active. Consume the
+    ; CHANGE_SPRITE parameter but do not reset animation state or palette.
+    ld hl, entity_wallgrab_active
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr z, .acs_not_wall_grabbing
+    pop af                  ; discard requested sprite id
+    pop hl                  ; restore params pointer
+    ret
+
+.acs_not_wall_grabbing:
+
     ; Pre-calcular HL = &entity_sprite_asset_index[entity]
     ; Se usará tras el bloque de redirect para escribir el sprite final.
     ld hl, entity_sprite_asset_index
@@ -1203,6 +1216,18 @@ Action_PlayAnimation:
     ld c, b
     ld b, 0
 
+    ; WallGrab owns animation playback while active. Consume the
+    ; PLAY_ANIMATION parameter but do not reset frame/tick/flags.
+    ld hl, entity_wallgrab_active
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp z, .apa_not_wall_grabbing
+    pop hl
+    ret
+
+.apa_not_wall_grabbing:
+
     ; Set PLAYING flag in entity_anim_flags
     ld hl, entity_anim_flags
     add hl, bc
@@ -1255,6 +1280,17 @@ Action_SetAnimSpeed:
     ld c, b
     ld b, 0
 
+    ; WallGrab should keep the configured grab animation cadence stable.
+    ld hl, entity_wallgrab_active
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp z, .asa_not_wall_grabbing
+    pop hl
+    ret
+
+.asa_not_wall_grabbing:
+
     ; Set entity_anim_speed
     ld hl, entity_anim_speed
     add hl, bc
@@ -1274,6 +1310,18 @@ Action_ToggleAnim:
     ; BC = Entity Index
     ld c, b
     ld b, 0
+
+    ; WallGrab should not be paused/restarted by StateMachine animation actions.
+    ld hl, entity_wallgrab_active
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp z, .ata_not_wall_grabbing
+    pop af                  ; discard Playing flag
+    pop hl                  ; restore Params Ptr
+    ret
+
+.ata_not_wall_grabbing:
 
     ; Get current flags
     ld hl, entity_anim_flags
@@ -1865,6 +1913,14 @@ Action_SetCompProp:
     jp .scp_done
 
 .scp_set_sprite:
+    ld l, b
+    ld h, 0
+    ld de, entity_wallgrab_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .scp_done
+
     ld a, c
     cp SM_SpriteAssetCount
     jr c, .scp_set_sprite_ok
@@ -1905,6 +1961,14 @@ Action_SetCompProp:
 .scp_set_frame:
     ld l, b
     ld h, 0
+    ld de, entity_wallgrab_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .scp_done
+
+    ld l, b
+    ld h, 0
     ld de, entity_anim_frame
     add hl, de
     ld (hl), c
@@ -1913,12 +1977,28 @@ Action_SetCompProp:
 .scp_set_anim_speed:
     ld l, b
     ld h, 0
+    ld de, entity_wallgrab_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .scp_done
+
+    ld l, b
+    ld h, 0
     ld de, entity_anim_speed
     add hl, de
     ld (hl), c
     jp .scp_done
 
 .scp_set_anim_playing:
+    ld l, b
+    ld h, 0
+    ld de, entity_wallgrab_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .scp_done
+
     ld l, b
     ld h, 0
     ld de, entity_anim_flags

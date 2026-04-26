@@ -394,7 +394,6 @@ ${emitPage0PresentationTransfer('PRESENTATION_SCREEN_COLORS_B0', 'ZX0_TILE_COLOR
 ${emitPage0PresentationTransfer('PRESENTATION_SCREEN_COLORS_B1', 'ZX0_TILE_COLOR_BUFFER', 'CLRTBL2 + #800', 'PRESENTATION_SCREEN_COLOR_B1_SIZE', config.compression.compressColors)}
 ${emitPage0PresentationTransfer('PRESENTATION_SCREEN_COLORS_B2', 'ZX0_TILE_COLOR_BUFFER', 'CLRTBL2 + #1000', 'PRESENTATION_SCREEN_COLOR_B2_SIZE', config.compression.compressColors)}
 ${emitPage0PresentationTransfer('PRESENTATION_SCREEN_NAMETBL', 'ZX0_SCREEN_BUFFER', 'NAMETBL', 'PRESENTATION_SCREEN_NAMETBL_SIZE', config.compression.compressNameTable)}
-    call ENASCR
 `
         : !usesMapper
             ? `    ld hl, PRESENTATION_SCREEN_PATTERNS_B0

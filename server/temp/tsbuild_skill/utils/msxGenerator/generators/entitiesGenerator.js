@@ -932,6 +932,7 @@ update_entities:
             let wallGrabConfig = {
                 enabled: 0,
                 fallSpeed: 0,
+                grabSprite: 0xFF,
             };
             const wallGrabTemplateComp = template?.components?.find((c) => c.definitionId === 'comp_wall_grab');
             if (wallGrabTemplateComp) {
@@ -947,6 +948,7 @@ update_entities:
                     wallGrabConfig = {
                         enabled: 1,
                         fallSpeed: parseByte(wallGrabValues.grabFallSpeed, 0),
+                        grabSprite: resolveSpriteAssetIndex(wallGrabValues.grabSpriteAssetId, spriteNameToIndex, spriteCount),
                     };
                 }
             }
@@ -1261,6 +1263,8 @@ entity_wallgrab_cfg_enabled:
     DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.enabled ?? 0).join(', ')}
 entity_wallgrab_cfg_fall_speed:
     DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.fallSpeed ?? 0).join(', ')}
+entity_wallgrab_cfg_grab_sprite:
+    DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.grabSprite ?? 0xFF).join(', ')}
 entity_aircontrol_cfg_mode:
     DB ${Array.from({ length: 32 }, (_, i) => airControlConfigs[i]?.mode ?? 0).join(', ')}
 

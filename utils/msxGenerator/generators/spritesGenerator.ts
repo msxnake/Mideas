@@ -207,7 +207,7 @@ const resolveEntitySpriteAssetId = (entity: any, analysis: ProjectAnalysis): str
 
   if (entity?.componentOverrides) {
     for (const compId of Object.keys(entity.componentOverrides)) {
-      if (compId === 'comp_wall_jump') continue;
+      if (compId === 'comp_wall_jump' || compId === 'comp_wall_grab') continue;
       const compDef = componentDefinitions.find((c: any) => c.id === compId);
       const propName = findComponentPropertyName(compDef, (prop: any) => prop.type === 'sprite_ref');
       if (propName && entity.componentOverrides[compId]?.[propName]) {
@@ -217,7 +217,7 @@ const resolveEntitySpriteAssetId = (entity: any, analysis: ProjectAnalysis): str
   }
 
   for (const comp of template?.components || []) {
-    if (comp.definitionId === 'comp_wall_jump') continue;
+    if (comp.definitionId === 'comp_wall_jump' || comp.definitionId === 'comp_wall_grab') continue;
     const compDef = componentDefinitions.find((c: any) => c.id === comp.definitionId);
     const propName = findComponentPropertyName(compDef, (prop: any) => prop.type === 'sprite_ref');
     if (propName && comp.defaultValues?.[propName]) {
@@ -231,7 +231,7 @@ const resolveEntitySpriteAssetId = (entity: any, analysis: ProjectAnalysis): str
 const resolveTemplateSpriteAssetId = (template: any, analysis: ProjectAnalysis): string | undefined => {
   const componentDefinitions = analysis.components || [];
   for (const comp of template?.components || []) {
-    if (comp.definitionId === 'comp_wall_jump') continue;
+    if (comp.definitionId === 'comp_wall_jump' || comp.definitionId === 'comp_wall_grab') continue;
     const compDef = componentDefinitions.find((c: any) => c.id === comp.definitionId);
     const propName = findComponentPropertyName(compDef, (prop: any) => prop.type === 'sprite_ref');
     if (propName && comp.defaultValues?.[propName]) {
@@ -246,6 +246,11 @@ const getWallJumpAnimationSpriteRef = (values: any): string | undefined => {
   return typeof ref === 'string' && ref.trim() ? ref : undefined;
 };
 
+const getWallGrabSpriteRef = (values: any): string | undefined => {
+  const ref = values?.grabSpriteAssetId ?? values?.wallGrabSprite ?? values?.grabSprite;
+  return typeof ref === 'string' && ref.trim() ? ref : undefined;
+};
+
 const resolveTemplateWallJumpAnimationSpriteAssetId = (template: any): string | undefined => {
   const comp = template?.components?.find((candidate: any) => candidate.definitionId === 'comp_wall_jump');
   return getWallJumpAnimationSpriteRef(comp?.defaultValues);
@@ -255,6 +260,18 @@ const resolveEntityWallJumpAnimationSpriteAssetId = (entity: any, analysis: Proj
   const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
   const templateRef = resolveTemplateWallJumpAnimationSpriteAssetId(template);
   const overrideRef = getWallJumpAnimationSpriteRef(entity?.componentOverrides?.['comp_wall_jump']);
+  return overrideRef ?? templateRef;
+};
+
+const resolveTemplateWallGrabSpriteAssetId = (template: any): string | undefined => {
+  const comp = template?.components?.find((candidate: any) => candidate.definitionId === 'comp_wall_grab');
+  return getWallGrabSpriteRef(comp?.defaultValues);
+};
+
+const resolveEntityWallGrabSpriteAssetId = (entity: any, analysis: ProjectAnalysis): string | undefined => {
+  const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
+  const templateRef = resolveTemplateWallGrabSpriteAssetId(template);
+  const overrideRef = getWallGrabSpriteRef(entity?.componentOverrides?.['comp_wall_grab']);
   return overrideRef ?? templateRef;
 };
 
@@ -377,12 +394,14 @@ const createRuntimeSpritePatternPackBuilder = (analysis: ProjectAnalysis) => {
 
       addSpriteReference(resolveTemplateSpriteAssetId(template, analysis));
       addSpriteReference(resolveTemplateWallJumpAnimationSpriteAssetId(template));
+      addSpriteReference(resolveTemplateWallGrabSpriteAssetId(template));
       processStateMachine(resolveTemplateStateMachineAssetId(template, analysis));
     };
 
     for (const entity of entities) {
       addSpriteReference(resolveEntitySpriteAssetId(entity, analysis));
       addSpriteReference(resolveEntityWallJumpAnimationSpriteAssetId(entity, analysis));
+      addSpriteReference(resolveEntityWallGrabSpriteAssetId(entity, analysis));
       processStateMachine(resolveEntityStateMachineAssetId(entity, analysis));
       queueTemplate(entity?.entityTemplateId);
     }
@@ -719,10 +738,59 @@ export function generateSpritesFile(
 
     if (foundIndex !== undefined && foundIndex >= 0) {
       console.log(`   ✅ Found sprite "${sprites[foundIndex].name}" at index ${foundIndex}`);
+      const runtimeSpriteIndexes = new Set<number>([foundIndex]);
+      const addRuntimeSpriteRef = (spriteRef: unknown) => {
+        const spriteIndex = resolveSpriteIndexByReference(spriteRef, spriteNameToIndex, sprites.length);
+        if (spriteIndex !== null) {
+          runtimeSpriteIndexes.add(spriteIndex);
+        }
+      };
+      const addStateMachineSprites = (stateMachineId: unknown) => {
+        if (typeof stateMachineId !== 'string' || !stateMachineId) return;
+        const stateMachine = (analysis.stateMachines || []).find((sm: any) => sm?.id === stateMachineId);
+        if (!stateMachine) return;
+        for (const action of collectStateMachineActions(stateMachine)) {
+          if (action?.type === 'CHANGE_SPRITE') {
+            addRuntimeSpriteRef(action.params?.sprite ?? action.params?.spriteId);
+          }
+        }
+      };
+
+      addRuntimeSpriteRef(resolveTemplateWallJumpAnimationSpriteAssetId(template));
+      addRuntimeSpriteRef(resolveTemplateWallGrabSpriteAssetId(template));
+      addRuntimeSpriteRef(resolveEntityWallJumpAnimationSpriteAssetId(entity, analysis));
+      addRuntimeSpriteRef(resolveEntityWallGrabSpriteAssetId(entity, analysis));
+      addStateMachineSprites(resolveTemplateStateMachineAssetId(template, analysis));
+      addStateMachineSprites(resolveEntityStateMachineAssetId(entity, analysis));
+
+      const pendingDirectional = Array.from(runtimeSpriteIndexes);
+      while (pendingDirectional.length > 0) {
+        const spriteIndex = pendingDirectional.pop()!;
+        const candidates = [
+          directionalLookupTables.left[spriteIndex],
+          directionalLookupTables.right[spriteIndex],
+          directionalLookupTables.up[spriteIndex],
+          directionalLookupTables.down[spriteIndex],
+        ];
+        for (const candidate of candidates) {
+          if (typeof candidate === 'number' && candidate >= 0 && candidate < sprites.length && !runtimeSpriteIndexes.has(candidate)) {
+            runtimeSpriteIndexes.add(candidate);
+            pendingDirectional.push(candidate);
+          }
+        }
+      }
+
+      const baseColors = getSpriteLayerColors(sprites[foundIndex]);
+      const maxRuntimeLayers = Math.max(
+        baseColors.length,
+        ...Array.from(runtimeSpriteIndexes).map((spriteIndex) => getSpriteLayerColors(sprites[spriteIndex]).length)
+      );
+      const paddedBaseColors = [...baseColors];
+      while (paddedBaseColors.length < maxRuntimeLayers) paddedBaseColors.push(0);
       return {
         spriteAssetIndex: foundIndex,
         spriteName: sprites[foundIndex].name,
-        colors: getSpriteLayerColors(sprites[foundIndex])
+        colors: paddedBaseColors
       };
     }
 
@@ -864,6 +932,19 @@ sprite_asset_frame_count:
   sprites.forEach((sprite, index) => {
     const frames = sprite.frames?.length || 1;
     code += `    db ${frames} ; Sprite ${index}: ${sprite.name}\n`;
+  });
+  if (sprites.length === 0) {
+    code += `    db 1 ; Placeholder\n`;
+  }
+
+  code += `
+; Table: Sprite Asset Drawable Layer Counts
+; Format: db compact drawable layer count (minimum 1)
+sprite_asset_layer_count:
+`;
+  sprites.forEach((sprite, index) => {
+    const layerCount = Math.max(1, analyzeDrawableLayerIndexes(sprite).length);
+    code += `    db ${layerCount} ; Sprite ${index}: ${sprite.name}\n`;
   });
   if (sprites.length === 0) {
     code += `    db 1 ; Placeholder\n`;

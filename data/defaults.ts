@@ -153,6 +153,7 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: "Permite agarrarse a una pared mientras se mantiene Boton 2/N. Ideal para un control tipo Celeste.",
     properties: [
       { name: "grabFallSpeed", type: "byte", defaultValue: "0", description: "Velocidad vertical mientras se agarra a la pared. 0 = quedarse quieto, 1+ = deslizarse lentamente." },
+      { name: "grabSpriteAssetId", type: "sprite_ref", defaultValue: "", description: "Sprite que se muestra mientras se esta agarrado a la pared. Si esta vacio, no cambia el sprite." },
       { name: "isEnabled", type: "boolean", defaultValue: "true", description: "Activa o desactiva el wall grab para esta entidad." }
     ],
   },

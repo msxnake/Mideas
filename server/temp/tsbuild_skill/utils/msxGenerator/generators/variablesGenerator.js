@@ -301,6 +301,10 @@ MAX_ENTITIES        EQU 32
     currentAddress += 32;
     code += `entity_walljump_locked_vx EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Horizontal velocity preserved while wall jump lock is active (32 bytes)\n`;
     currentAddress += 32;
+    code += `entity_wallgrab_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 if entity is currently grabbing a wall (32 bytes)\n`;
+    currentAddress += 32;
+    code += `entity_wallgrab_grace EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames to keep wall grab during transient wall flag gaps (32 bytes)\n`;
+    currentAddress += 32;
     code += `entity_walljump_anim_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Wall jump one-shot animation is waiting to restore base sprite (32 bytes)\n`;
     currentAddress += 32;
     code += `entity_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity X positions (32 bytes)\n`;

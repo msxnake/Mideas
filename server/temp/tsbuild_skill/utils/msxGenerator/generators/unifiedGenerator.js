@@ -372,7 +372,8 @@ ${needsFont ? `    ; Initialize font system
 `}${hasHud ? `    ; HUD dirty flag - will be rendered after screen loading (by GameFlow WorldLink)
     ld a, 1
     ld (hud_dirty_flag), a
-` : ``}    call ENASCR               ; Re-enable screen after VRAM updates
+` : ``}
+    call ENASCR               ; Re-enable screen after VRAM updates
     ret
 
 ; ==================================================================

@@ -1575,15 +1575,18 @@ compute_entity_base_pattern:
     ld a, (hl)                 ; A = base 16x16 pattern slot for this asset
     push af                    ; Save base slot before HL is reused
 
+    ld hl, sprite_asset_layer_count
+    add hl, bc
+    ld b, (hl)                 ; B = current sprite layer count (frame stride)
+    ld a, b
+    or a
+    jr nz, .sprite_stride_ready
+    ld b, 1
+.sprite_stride_ready:
+
     ld hl, entity_anim_frame
     add hl, de
     ld c, (hl)                 ; C = current animation frame
-
-    ld hl, entity_sprite_config
-    add hl, de
-    add hl, de
-    inc hl
-    ld b, (hl)                 ; B = entity layer count (frame stride)
 
     pop af                     ; A = base slot (restored)
     ld l, a                    ; L = base slot (ready for stride loop)
@@ -4507,6 +4510,19 @@ function generateWallGrabSystem() {
     ; Runs after Gravity and before WallJump/Position.
 
 init_wallgrab_system:
+    ld hl, entity_wallgrab_active
+    ld de, entity_wallgrab_active+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
+
+    ld hl, entity_wallgrab_grace
+    ld de, entity_wallgrab_grace+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
     ret
 
 update_wallgrab_component:
@@ -4535,6 +4551,18 @@ update_wallgrab_component:
     djnz .wallgrab_loop
     ret
 
+refresh_player_wallgrab_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+
+    call wallgrab_process_entity_c
+    ret
+
 wallgrab_process_entity_c:
     ld e, c
     ld d, 0
@@ -4554,24 +4582,341 @@ wallgrab_process_entity_c:
     ld hl, entity_on_ground
     add hl, de
     bit 0, (hl)
-    ret nz
+    jp nz, .not_grabbing
 
     ld hl, entity_on_ladder
     add hl, de
     ld a, (hl)
     or a
-    ret nz
+    jp nz, .not_grabbing
 
     ld a, (input_btn_curr)
     and INPUT_BTN_GRAB
-    ret z
+    jp z, .not_grabbing
 
-    ld hl, entity_wall_collision_flags
+    call wallgrab_input_toward_wall_c
+    or a
+    jp z, .maybe_keep_grabbing
+    call wallgrab_set_facing_dir_a
+
+    ; --- Grabbing! ---
+    ld hl, entity_wallgrab_active
     add hl, de
     ld a, (hl)
-    and #0C                       ; LEFT/RIGHT wall flags
-    ret z
+    or a
+    jp nz, .ensure_grab_sprite
 
+    ; Transition to grabbing
+    ld (hl), 1
+    call wallgrab_reset_grace_c
+    call wallgrab_commit_grab_sprite_if_needed_c
+    jp .apply_physics
+
+.ensure_grab_sprite:
+    call wallgrab_reset_grace_c
+    call wallgrab_commit_grab_sprite_if_needed_c
+    jp .apply_physics
+
+.maybe_keep_grabbing:
+    ld hl, entity_wallgrab_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .not_grabbing
+
+    ld hl, entity_wallgrab_grace
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .not_grabbing
+    dec (hl)
+    call wallgrab_commit_grab_sprite_if_needed_c
+    jp .apply_physics
+
+wallgrab_reset_grace_c:
+    ; Input: DE = entity offset
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wallgrab_grace
+    add hl, de
+    ld (hl), 2
+    ret
+
+wallgrab_input_toward_wall_c:
+    ; Input: DE = entity offset
+    ; Output: A = 0 none, 1 touching left wall, 2 touching right wall
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    ld h, (hl)                     ; H = wall flags (bit2 LEFT, bit3 RIGHT)
+
+    ld a, h
+    and #04
+    jp z, .wg_check_right_wall
+    ld a, 1                        ; facing left
+    ret
+
+.wg_check_right_wall:
+    ld a, h
+    and #08
+    jp z, .wg_no_toward_wall
+    ld a, 2                        ; facing right
+    ret
+
+.wg_no_toward_wall:
+    xor a
+    ret
+
+wallgrab_set_facing_dir_a:
+    ; Input: A = 1 left or 2 right, DE = entity offset
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    cp 1
+    jp z, .wg_write_facing
+    cp 2
+    ret nz
+.wg_write_facing:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    ret
+
+wallgrab_commit_grab_sprite_if_needed_c:
+    ; Input: C = entity index, DE = entity offset
+    ; Clobbers: AF, BC, HL. Preserves: DE.
+    ld hl, entity_wallgrab_cfg_grab_sprite
+    add hl, de
+    ld a, (hl)
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+
+    push de
+    call wallgrab_resolve_directional_sprite_c
+    pop de
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld b, a                       ; B = resolved grab sprite asset index
+
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    ld a, (hl)
+    cp b
+    jr z, .refresh_grab_sprite    ; Keep runtime colors/frame bounds coherent.
+
+    push de
+    ld a, b
+    push af
+    ld e, a
+    ld d, 0
+    ld hl, sprite_loop_flags
+    add hl, de
+    ld e, (hl)                    ; Use native loop flag for grab animation.
+    pop af
+    call wallgrab_commit_sprite_c
+    pop de
+    ret
+
+.refresh_grab_sprite:
+    push de
+    ld a, b
+    push af
+    ld e, a
+    ld d, 0
+    ld hl, sprite_loop_flags
+    add hl, de
+    ld e, (hl)                    ; Use native loop flag for grab animation.
+    pop af
+    call wallgrab_refresh_sprite_c
+    pop de
+    ret
+
+wallgrab_restore_base_sprite_c:
+    ; Input: C = entity index, DE = entity offset
+    ; Clobbers: AF, BC, HL. Preserves: DE.
+    ld b, 0
+    ld hl, entity_sprite_asset_index_init
+    add hl, bc
+    ld a, (hl)
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+
+    push de
+    call wallgrab_resolve_directional_sprite_c
+    pop de
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+
+    push de
+    push af
+    ld e, a
+    ld d, 0
+    ld hl, sprite_loop_flags
+    add hl, de
+    ld e, (hl)                    ; Native loop flag for restored sprite.
+    pop af
+    call wallgrab_commit_sprite_c
+    pop de
+    ret
+
+wallgrab_resolve_directional_sprite_c:
+    ; Input: C = entity index, A = base sprite asset
+    ; Output: A = direction-resolved sprite asset
+    ; Clobbers: AF, B, DE, HL. Preserves: C.
+    ld b, a
+    ld h, 0
+    ld l, c
+    ld de, entity_facing_dir
+    add hl, de
+    ld a, (hl)
+    cp 1
+    jp z, .wg_resolve_left
+    cp 2
+    jp z, .wg_resolve_right
+    ld a, b
+    ret
+
+.wg_resolve_left:
+    ld hl, sprite_dir_left_table
+    jp .wg_resolve_lookup
+
+.wg_resolve_right:
+    ld hl, sprite_dir_right_table
+
+.wg_resolve_lookup:
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    ret
+
+wallgrab_commit_sprite_c:
+    ; Input: C = entity index, A = sprite asset index, E = loop flag (#00/#02)
+    ; Clobbers: AF, BC, DE, HL
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld d, a                        ; D = sprite asset index
+    ld b, 0
+
+    ld hl, entity_sprite_asset_index
+    add hl, bc
+    ld (hl), d
+
+    ld hl, entity_anim_frame
+    add hl, bc
+    ld (hl), 0
+
+    ld hl, entity_anim_tick
+    add hl, bc
+    ld (hl), 0
+
+    ld hl, entity_anim_flags
+    add hl, bc
+    ld a, ANIM_FLAG_PLAYING | ANIM_FLAG_FORCE_UPLOAD
+    or e
+    ld (hl), a
+
+    ld a, d
+    jp wallgrab_update_sprite_colors_c
+
+wallgrab_refresh_sprite_c:
+    ; Input: C = entity index, A = sprite asset index, E = loop flag (#00/#02)
+    ; Preserves current frame/tick unless the frame is outside this sprite's range.
+    ; Clobbers: AF, BC, DE, HL
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld d, a                        ; D = sprite asset index
+    ld b, 0
+
+    ld hl, entity_sprite_asset_index
+    add hl, bc
+    ld (hl), d
+
+    push de                         ; Save sprite asset + loop flag.
+    ld e, d
+    ld d, 0
+    ld hl, sprite_asset_frame_count
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .wg_refresh_frame_count_ready
+    ld a, 1
+.wg_refresh_frame_count_ready:
+    ld b, a                         ; B = frame count
+    ld h, 0
+    ld l, c
+    ld de, entity_anim_frame
+    add hl, de
+    ld a, (hl)
+    cp b
+    jr c, .wg_refresh_frame_ok
+    ld (hl), 0
+.wg_refresh_frame_ok:
+    ld b, 0
+    pop de                          ; D = sprite asset index, E = loop flag
+
+    ld hl, entity_anim_flags
+    add hl, bc
+    ld a, ANIM_FLAG_PLAYING
+    or e
+    ld (hl), a
+
+    ld a, d
+    jp wallgrab_update_sprite_colors_c
+
+wallgrab_update_sprite_colors_c:
+    ; Input: C = entity index, A = sprite asset index
+    ; Clobbers: AF, BC, DE, HL
+    ld d, a
+    ; Keep per-layer runtime colors in sync with the temporary grab sprite.
+    push de
+    ld h, 0
+    ld l, c
+    add hl, hl
+    ld de, entity_sprite_config
+    add hl, de
+    ld c, (hl)                     ; C = base HW sprite slot
+    pop de                         ; D = sprite asset index
+
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.wg_commit_mul_layers:
+    add hl, de
+    djnz .wg_commit_mul_layers
+    ld de, SM_SpriteLayerColorTable
+    add hl, de
+
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.wg_commit_color_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_colors
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz .wg_commit_color_loop
+    ret
+
+.apply_physics:
     ld hl, entity_vel_x
     add hl, de
     ld (hl), 0
@@ -4591,6 +4936,32 @@ wallgrab_process_entity_c:
     ld (hl), 0
     inc hl
     ld (hl), b
+    ret
+
+.not_grabbing:
+    ld hl, entity_wallgrab_active
+    add hl, de
+    ld a, (hl)
+    or a
+    ret z                         ; was not grabbing
+
+    ; Transition to NOT grabbing
+    ld (hl), 0
+    ld hl, entity_wallgrab_grace
+    add hl, de
+    ld (hl), 0
+
+    ; If a wall-jump one-shot animation has taken ownership, do not restore
+    ; the base sprite here or it will immediately overwrite that animation.
+    ld hl, entity_walljump_anim_active
+    add hl, de
+    ld a, (hl)
+    or a
+    ret nz
+    
+    ; Restore original sprite without sharing WallJump animation helpers.
+    ld c, e
+    call wallgrab_restore_base_sprite_c
     ret
     `;
 }
@@ -9579,6 +9950,8 @@ refresh_player_tile_interaction_fastpath:
     ret
 refresh_player_state_machine_fastpath:
     ret
+refresh_player_wallgrab_fastpath:
+    ret
 refresh_player_animation_fastpath:
     ret
 refresh_player_sprite_fastpath:
@@ -10002,8 +10375,8 @@ update_behavior_component:
     ret
     `;
     }
-    // Generate Health System (if used)
-    if (usedComponents.has('Health')) {
+    // Damage reuses the Health helpers even in Damage-only projectile scenes.
+    if (usedComponents.has('Health') || usedComponents.has('Damage')) {
         code += generateHealthSystem();
     }
     else {
@@ -10084,6 +10457,9 @@ init_wallgrab_system:
 update_wallgrab_component:
     ret
 
+refresh_player_wallgrab_fastpath:
+    ret
+
 wallgrab_process_entity_c:
     ret
     `;
@@ -10143,6 +10519,17 @@ update_cursors_component:
     if (!usedComponents.has('StateMachine')) {
         code += `
     ; StateMachine system filtered out(not used)
+init_statemachine_system:
+    ret
+
+update_statemachine_component:
+    ret
+    `;
+    }
+    else if (!Array.isArray(analysis.stateMachines) || analysis.stateMachines.length === 0) {
+        code += `
+    ; StateMachine component present but no state machine assets are defined.
+    ; Keep the component safe for reusable templates.
 init_statemachine_system:
     ret
 
