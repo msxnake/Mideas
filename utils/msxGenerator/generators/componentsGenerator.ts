@@ -4593,6 +4593,13 @@ init_wallgrab_system:
     xor a
     ld (hl), a
     ldir
+
+    ld hl, entity_wallgrab_lockout
+    ld de, entity_wallgrab_lockout+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
     ret
 
 update_wallgrab_component:
@@ -4652,6 +4659,12 @@ wallgrab_process_entity_c:
     ld hl, entity_on_ground
     add hl, de
     bit 0, (hl)
+    jp nz, .grounded_clear_lockout
+
+    ld hl, entity_wallgrab_lockout
+    add hl, de
+    ld a, (hl)
+    or a
     jp nz, .not_grabbing
 
     ld hl, entity_on_ladder
@@ -4679,7 +4692,7 @@ wallgrab_process_entity_c:
     ; Transition to grabbing
     ld (hl), 1
     call wallgrab_reset_grace_c
-    call wallgrab_reset_stamina_c
+    call wallgrab_ensure_stamina_c
     call wallgrab_commit_grab_sprite_if_needed_c
     jp .apply_physics
 
@@ -4704,12 +4717,32 @@ wallgrab_process_entity_c:
     call wallgrab_commit_grab_sprite_if_needed_c
     jp .apply_physics
 
+.grounded_clear_lockout:
+    ld hl, entity_wallgrab_lockout
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_wallgrab_stamina
+    add hl, de
+    ld (hl), 0
+    jp .not_grabbing
+
 wallgrab_reset_grace_c:
     ; Input: DE = entity offset
     ; Clobbers: AF, HL. Preserves: BC, DE.
     ld hl, entity_wallgrab_grace
     add hl, de
     ld (hl), 2
+    ret
+
+wallgrab_ensure_stamina_c:
+    ; Input: DE = entity offset
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wallgrab_stamina
+    add hl, de
+    ld a, (hl)
+    or a
+    ret nz
+    call wallgrab_reset_stamina_c
     ret
 
 wallgrab_reset_stamina_c:
@@ -5229,6 +5262,12 @@ wallgrab_consume_stamina_for_speed_c:
     ld a, (hl)
     sub c
     ld (hl), a
+    or a
+    jp nz, .wg_stamina_not_empty
+    ld hl, entity_wallgrab_lockout
+    add hl, de
+    ld (hl), 1
+.wg_stamina_not_empty:
     ld a, c
     ret
 
@@ -5242,9 +5281,6 @@ wallgrab_consume_stamina_for_speed_c:
     ; Transition to NOT grabbing
     ld (hl), 0
     ld hl, entity_wallgrab_grace
-    add hl, de
-    ld (hl), 0
-    ld hl, entity_wallgrab_stamina
     add hl, de
     ld (hl), 0
 

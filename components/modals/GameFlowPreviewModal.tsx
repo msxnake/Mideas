@@ -113,6 +113,7 @@ interface AnimatedEntity {
     isWallGrabbing?: boolean;
     wallGrabReleaseGraceFrames?: number;
     wallGrabClimbStamina?: number;
+    wallGrabLockout?: boolean;
     spawnTime: number; // Timestamp when entity was created
     animationHasCompleted?: boolean; // True when a non-looping animation reaches its last frame
     lastAnimationState?: string; // Track which state's animation was playing
@@ -6534,15 +6535,20 @@ useEffect(() => {
                     const grabFallSpeed = Math.max(0, Number(wallGrabProps.grabFallSpeed ?? 0) || 0);
                     const climbSpeed = Math.max(0, Number(wallGrabProps.climbSpeed ?? 1) || 0);
                     const climbStaminaMax = Math.max(0, Number(wallGrabProps.climbStamina ?? 64) || 0);
-                    const canWallGrab = wallGrabEnabled && gravityEnabled && grabPressed && !onGroundNow && !entityA.isOnLadder;
+                    if (onGroundNow) {
+                        entityA.wallGrabLockout = false;
+                        entityA.wallGrabClimbStamina = undefined;
+                    }
+                    const canWallGrab = wallGrabEnabled && gravityEnabled && grabPressed && !onGroundNow && !entityA.isOnLadder && !entityA.wallGrabLockout;
                     const graceFrames = entityA.wallGrabReleaseGraceFrames ?? 0;
                     const wallGrabActiveNow = canWallGrab && (touchingWall || (entityA.isWallGrabbing && graceFrames > 0));
 
                     if (wallGrabActiveNow) {
+                        let releaseAfterStaminaSpent = false;
                         entityA.wallGrabReleaseGraceFrames = touchingWall ? 2 : Math.max(0, graceFrames - 1);
                         entityA.vx = 0;
 
-                        if (!entityA.isWallGrabbing) {
+                        if (!entityA.isWallGrabbing && entityA.wallGrabClimbStamina === undefined) {
                             entityA.wallGrabClimbStamina = climbStaminaMax;
                         }
 
@@ -6553,7 +6559,9 @@ useEffect(() => {
                         if (remainingStamina > 0 && climbSpeed > 0 && (climbUpPressed || climbDownPressed)) {
                             const usedStamina = Math.min(climbSpeed, remainingStamina);
                             wallGrabVy = climbUpPressed ? -usedStamina : usedStamina;
-                            entityA.wallGrabClimbStamina = remainingStamina - usedStamina;
+                            const nextStamina = remainingStamina - usedStamina;
+                            entityA.wallGrabClimbStamina = nextStamina;
+                            releaseAfterStaminaSpent = nextStamina <= 0;
                         } else {
                             entityA.wallGrabClimbStamina = remainingStamina;
                         }
@@ -6609,11 +6617,31 @@ useEffect(() => {
                         } else {
                             applyWallGrabFacing(entityA.sprite);
                         }
+
+                        if (releaseAfterStaminaSpent) {
+                            entityA.wallGrabLockout = true;
+                            entityA.isWallGrabbing = false;
+                            entityA.wallGrabReleaseGraceFrames = 0;
+                            entityA.wallGrabClimbStamina = undefined;
+                            if (entityA.wallGrabSpriteBackup) {
+                                const backup = entityA.wallGrabSpriteBackup;
+                                entityA.sprite = backup.sprite;
+                                entityA.frameImages = backup.frameImages;
+                                entityA.mirroredFrameImages = backup.mirroredFrameImages;
+                                entityA.currentFrame = backup.currentFrame ?? 0;
+                                entityA.spriteAssetId = backup.spriteAssetId;
+                                entityA.isFacingMirrored = backup.isFacingMirrored;
+                                entityA.lastFrameUpdateTime = performance.now();
+                                entityA.wallGrabSpriteBackup = undefined;
+                            }
+                        }
                     } else if (entityA.isWallGrabbing) {
                         // Transition from grabbing to not grabbing
                         entityA.isWallGrabbing = false;
                         entityA.wallGrabReleaseGraceFrames = 0;
-                        entityA.wallGrabClimbStamina = undefined;
+                        if (onGroundNow) {
+                            entityA.wallGrabClimbStamina = undefined;
+                        }
                         if (entityA.wallGrabSpriteBackup) {
                             const backup = entityA.wallGrabSpriteBackup;
                             entityA.sprite = backup.sprite;
@@ -6630,6 +6658,7 @@ useEffect(() => {
                     entityA.isWallGrabbing = false;
                     entityA.wallGrabReleaseGraceFrames = 0;
                     entityA.wallGrabClimbStamina = undefined;
+                    entityA.wallGrabLockout = false;
                 }
 
                 // --- Wall Jump / Wall Slide ---

@@ -334,6 +334,8 @@ MAX_ENTITIES        EQU 32
   currentAddress += 32;
   code += `entity_wallgrab_stamina EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Remaining wall-grab climb pixels for current grab (32 bytes)\n`;
   currentAddress += 32;
+  code += `entity_wallgrab_lockout EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Wall grab disabled until grounded after stamina is spent (32 bytes)\n`;
+  currentAddress += 32;
   code += `entity_walljump_anim_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Wall jump one-shot animation is waiting to restore base sprite (32 bytes)\n`;
   currentAddress += 32;
 
