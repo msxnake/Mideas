@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { ScreenMap, Tile, Point, MSX1ColorValue, HUDElement, HUDElementType, TileBank, MSXFont, MSXFontColorAttributes, Sprite, ProjectAsset, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, EffectZone, ComponentDefinition, TileStamp, EFFECT_ZONE_TYPE_CONFIG, MSXFontAsset, resolveEffectZoneType } from '../../types';
+import { ScreenMap, Tile, Point, MSX1ColorValue, HUDElement, HUDElementType, TileBank, MSXFont, MSXFontColorAttributes, Sprite, ProjectAsset, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, EffectZone, ComponentDefinition, TileStamp, EFFECT_ZONE_TYPE_CONFIG, MSXFontAsset, resolveEffectZoneType, SpriteFrame, MSXColorValue, PixelData } from '../../types';
 import { MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX_SCREEN5_PALETTE, MSX1_PALETTE } from '../../constants';
 import { getBackgroundColorHex } from '../../utils/screenModeConfig';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
@@ -11,6 +11,95 @@ import { createTileDataURL, createSpriteDataURL } from '../utils/screenUtils';
  * @category ScreenEditor
  */
 type LayerName = keyof ScreenMap['layers'] | 'entities' | 'effects';
+
+const TRANSPARENT_PIXEL = 'rgba(0,0,0,0)' as MSXColorValue;
+
+const clampSpriteLayerYOffset = (value: unknown): number => {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(-16, Math.min(16, Math.trunc(numeric)));
+};
+
+const frameUsesSpritePaletteLayer = (
+  frame: SpriteFrame,
+  paletteIndex: number,
+  layerColor: MSXColorValue
+): boolean =>
+  !!frame.msx1LayerData?.[paletteIndex]?.some(row => row.some(Boolean)) ||
+  frame.data?.some(row => row?.some(pixel => pixel === layerColor));
+
+const getSpriteFrameLayerPlane = (
+  frame: SpriteFrame | undefined,
+  paletteIndex: number,
+  layerColor: MSXColorValue,
+  width: number,
+  height: number
+): boolean[][] => {
+  const storedPlane = frame?.msx1LayerData?.[paletteIndex];
+  if (storedPlane) {
+    return Array(height).fill(null).map((_, y) =>
+      Array(width).fill(false).map((__, x) => !!storedPlane[y]?.[x])
+    );
+  }
+
+  return Array(height).fill(null).map((_, y) =>
+    Array(width).fill(false).map((__, x) => frame?.data?.[y]?.[x] === layerColor)
+  );
+};
+
+const getComposedSpriteFramePreview = (sprite: Sprite, frame: SpriteFrame): {
+  data: PixelData;
+  width: number;
+  height: number;
+  offsetY: number;
+} => {
+  const drawableLayerIndexes = sprite.spritePalette
+    .map((color, index) => ({ color, index }))
+    .filter(({ color }) => color && color !== sprite.backgroundColor)
+    .filter(({ color, index }) => frameUsesSpritePaletteLayer(frame, index, color))
+    .map(({ index }) => index);
+
+  if (drawableLayerIndexes.length === 0) {
+    return {
+      data: frame.data,
+      width: sprite.size.width,
+      height: sprite.size.height,
+      offsetY: 0,
+    };
+  }
+
+  const offsets = drawableLayerIndexes.map(index => clampSpriteLayerYOffset(sprite.msx1LayerOffsets?.[index]?.offsetY ?? 0));
+  const minOffsetY = Math.min(0, ...offsets);
+  const maxOffsetY = Math.max(0, ...offsets);
+  const composedHeight = sprite.size.height + maxOffsetY - minOffsetY;
+  const composedData: PixelData = Array(composedHeight)
+    .fill(null)
+    .map(() => Array(sprite.size.width).fill(TRANSPARENT_PIXEL));
+
+  for (const paletteIndex of drawableLayerIndexes) {
+    const color = sprite.spritePalette[paletteIndex];
+    if (!color || color === sprite.backgroundColor) continue;
+    const plane = getSpriteFrameLayerPlane(frame, paletteIndex, color, sprite.size.width, sprite.size.height);
+    const offsetY = clampSpriteLayerYOffset(sprite.msx1LayerOffsets?.[paletteIndex]?.offsetY ?? 0);
+
+    for (let y = 0; y < sprite.size.height; y++) {
+      for (let x = 0; x < sprite.size.width; x++) {
+        if (!plane[y]?.[x]) continue;
+        const targetY = y + offsetY - minOffsetY;
+        if (targetY >= 0 && targetY < composedHeight) {
+          composedData[targetY][x] = color;
+        }
+      }
+    }
+  }
+
+  return {
+    data: composedData,
+    width: sprite.size.width,
+    height: composedHeight,
+    offsetY: minOffsetY,
+  };
+};
 
 export interface ScreenGridOptimizationOverlayBlock {
   x: number;
@@ -179,8 +268,18 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
             const spriteAsset = sprites.find(s => s.id === spriteId && s.type === 'sprite');
             if (spriteAsset?.data) {
                 const spriteData = spriteAsset.data as Sprite;
-                entitySpanXCells = Math.max(1, Math.ceil(spriteData.size.width / editorBaseTileDim));
-                entitySpanYCells = Math.max(1, Math.ceil(spriteData.size.height / editorBaseTileDim));
+                const firstFrame = spriteData.frames[0];
+                const composedPreview = firstFrame
+                  ? getComposedSpriteFramePreview(spriteData, firstFrame)
+                  : { width: spriteData.size.width, height: spriteData.size.height, offsetY: 0 };
+                const minCellY = e.position.y + Math.floor(composedPreview.offsetY / editorBaseTileDim);
+                const maxCellY = e.position.y + Math.ceil((composedPreview.offsetY + composedPreview.height) / editorBaseTileDim);
+                entitySpanXCells = Math.max(1, Math.ceil(composedPreview.width / editorBaseTileDim));
+                entitySpanYCells = Math.max(1, maxCellY - minCellY);
+                return (
+                  point.x >= e.position.x && point.x < e.position.x + entitySpanXCells &&
+                  point.y >= minCellY && point.y < minCellY + entitySpanYCells
+                );
             }
         }
         
@@ -612,16 +711,20 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
         let displayContent: React.ReactNode = entityTemplate?.icon || 'E';
         let entityWidthPx = gridPixelSize;
         let entityHeightPx = gridPixelSize;
+        let entityOffsetYPx = 0;
 
         if (spriteAsset?.data) {
             const spriteData = spriteAsset.data as Sprite;
             if (spriteData.frames.length > 0) {
                 const firstFrame = spriteData.frames[0];
-                entityWidthPx = spriteData.size.width * (gridPixelSize / editorBaseTileDim);
-                entityHeightPx = spriteData.size.height * (gridPixelSize / editorBaseTileDim);
+                const composedPreview = getComposedSpriteFramePreview(spriteData, firstFrame);
+                const spriteScale = gridPixelSize / editorBaseTileDim;
+                entityWidthPx = composedPreview.width * spriteScale;
+                entityHeightPx = composedPreview.height * spriteScale;
+                entityOffsetYPx = composedPreview.offsetY * spriteScale;
                 displayContent = (
                     <img 
-                        src={createSpriteDataURL(firstFrame.data, spriteData.size.width, spriteData.size.height)} 
+                        src={createSpriteDataURL(composedPreview.data, composedPreview.width, composedPreview.height)}
                         alt={entity.name} 
                         className="w-full h-full object-contain pointer-events-none" 
                         style={{imageRendering: 'pixelated'}}
@@ -640,7 +743,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
                         `}
             style={{
               left: entity.position.x * gridPixelSize,
-              top: entity.position.y * gridPixelSize,
+              top: entity.position.y * gridPixelSize + entityOffsetYPx,
               width: entityWidthPx,
               height: entityHeightPx,
               zIndex: 20,

@@ -153,6 +153,8 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: "Permite agarrarse a una pared mientras se mantiene Boton 2/N. Ideal para un control tipo Celeste.",
     properties: [
       { name: "grabFallSpeed", type: "byte", defaultValue: "0", description: "Velocidad vertical mientras se agarra a la pared. 0 = quedarse quieto, 1+ = deslizarse lentamente." },
+      { name: "climbSpeed", type: "byte", defaultValue: "1", description: "Pixeles por frame al trepar o bajar mientras se mantiene Boton 2/N y se pulsa arriba o abajo." },
+      { name: "climbStamina", type: "byte", defaultValue: "64", description: "Pixeles verticales maximos que puede desplazarse durante un agarre antes de agotarse." },
       { name: "grabSpriteAssetId", type: "sprite_ref", defaultValue: "", description: "Sprite que se muestra mientras se esta agarrado a la pared. Si esta vacio, no cambia el sprite." },
       { name: "isEnabled", type: "boolean", defaultValue: "true", description: "Activa o desactiva el wall grab para esta entidad." }
     ],
@@ -526,7 +528,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_gravity", defaultValues: { strength: "80", terminalVelocity: "1024" } },
       { definitionId: "comp_jump", defaultValues: { jumpPower: "384", maxJumps: "1", requireKeyRelease: true } },
       { definitionId: "comp_air_control", defaultValues: { airControlMode: "full", isEnabled: true } },
-      { definitionId: "comp_wall_grab", defaultValues: { grabFallSpeed: "1", isEnabled: true } },
+      { definitionId: "comp_wall_grab", defaultValues: { grabFallSpeed: "1", climbSpeed: "1", climbStamina: "64", isEnabled: true } },
       { definitionId: "comp_wall_jump", defaultValues: { horizontalPush: "7", verticalImpulse: "1280", animationSpriteAssetId: "", slideFallSpeed: "2", lockFrames: "16", requirePressAwayFromWall: false, isEnabled: true } },
       { definitionId: "comp_deadly_tiles", defaultValues: {} },
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", animationSpeed: "8", animateOnlyWhenMoving: true } },

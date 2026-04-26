@@ -112,6 +112,7 @@ interface AnimatedEntity {
     };
     isWallGrabbing?: boolean;
     wallGrabReleaseGraceFrames?: number;
+    wallGrabClimbStamina?: number;
     spawnTime: number; // Timestamp when entity was created
     animationHasCompleted?: boolean; // True when a non-looping animation reaches its last frame
     lastAnimationState?: string; // Track which state's animation was playing
@@ -6531,6 +6532,8 @@ useEffect(() => {
                         undefined;
                     const touchingWall = !!wallGrabFacing;
                     const grabFallSpeed = Math.max(0, Number(wallGrabProps.grabFallSpeed ?? 0) || 0);
+                    const climbSpeed = Math.max(0, Number(wallGrabProps.climbSpeed ?? 1) || 0);
+                    const climbStaminaMax = Math.max(0, Number(wallGrabProps.climbStamina ?? 64) || 0);
                     const canWallGrab = wallGrabEnabled && gravityEnabled && grabPressed && !onGroundNow && !entityA.isOnLadder;
                     const graceFrames = entityA.wallGrabReleaseGraceFrames ?? 0;
                     const wallGrabActiveNow = canWallGrab && (touchingWall || (entityA.isWallGrabbing && graceFrames > 0));
@@ -6538,8 +6541,25 @@ useEffect(() => {
                     if (wallGrabActiveNow) {
                         entityA.wallGrabReleaseGraceFrames = touchingWall ? 2 : Math.max(0, graceFrames - 1);
                         entityA.vx = 0;
-                        entityA.vy = grabFallSpeed;
-                        entityA.gravityVel = (grabFallSpeed << 8) & 0xFFFF;
+
+                        if (!entityA.isWallGrabbing) {
+                            entityA.wallGrabClimbStamina = climbStaminaMax;
+                        }
+
+                        const climbUpPressed = pressedKeys.current.has('ArrowUp');
+                        const climbDownPressed = pressedKeys.current.has('ArrowDown');
+                        const remainingStamina = Math.max(0, entityA.wallGrabClimbStamina ?? climbStaminaMax);
+                        let wallGrabVy = grabFallSpeed;
+                        if (remainingStamina > 0 && climbSpeed > 0 && (climbUpPressed || climbDownPressed)) {
+                            const usedStamina = Math.min(climbSpeed, remainingStamina);
+                            wallGrabVy = climbUpPressed ? -usedStamina : usedStamina;
+                            entityA.wallGrabClimbStamina = remainingStamina - usedStamina;
+                        } else {
+                            entityA.wallGrabClimbStamina = remainingStamina;
+                        }
+
+                        entityA.vy = wallGrabVy;
+                        entityA.gravityVel = ((wallGrabVy & 0xFF) << 8) & 0xFFFF;
 
                         const applyWallGrabFacing = (spriteData: Sprite) => {
                             if (!wallGrabFacing) return;
@@ -6593,6 +6613,7 @@ useEffect(() => {
                         // Transition from grabbing to not grabbing
                         entityA.isWallGrabbing = false;
                         entityA.wallGrabReleaseGraceFrames = 0;
+                        entityA.wallGrabClimbStamina = undefined;
                         if (entityA.wallGrabSpriteBackup) {
                             const backup = entityA.wallGrabSpriteBackup;
                             entityA.sprite = backup.sprite;
@@ -6608,6 +6629,7 @@ useEffect(() => {
                 } else {
                     entityA.isWallGrabbing = false;
                     entityA.wallGrabReleaseGraceFrames = 0;
+                    entityA.wallGrabClimbStamina = undefined;
                 }
 
                 // --- Wall Jump / Wall Slide ---

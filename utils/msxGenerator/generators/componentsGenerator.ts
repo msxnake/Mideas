@@ -4564,7 +4564,7 @@ aircontrol_should_lock_horizontal_c:
     `;
 }
 
-function generateWallGrabSystem(): string {
+function generateWallGrabSystem(enableDirectWallProbe: boolean = false): string {
     return `
     ; ==================================================================
     ; WALL GRAB COMPONENT SYSTEM
@@ -4582,6 +4582,13 @@ init_wallgrab_system:
 
     ld hl, entity_wallgrab_grace
     ld de, entity_wallgrab_grace+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
+
+    ld hl, entity_wallgrab_stamina
+    ld de, entity_wallgrab_stamina+1
     ld bc, 31
     xor a
     ld (hl), a
@@ -4672,6 +4679,7 @@ wallgrab_process_entity_c:
     ; Transition to grabbing
     ld (hl), 1
     call wallgrab_reset_grace_c
+    call wallgrab_reset_stamina_c
     call wallgrab_commit_grab_sprite_if_needed_c
     jp .apply_physics
 
@@ -4704,6 +4712,17 @@ wallgrab_reset_grace_c:
     ld (hl), 2
     ret
 
+wallgrab_reset_stamina_c:
+    ; Input: DE = entity offset
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wallgrab_cfg_climb_stamina
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_wallgrab_stamina
+    add hl, de
+    ld (hl), a
+    ret
+
 wallgrab_input_toward_wall_c:
     ; Input: DE = entity offset
     ; Output: A = 0 none, 1 touching left wall, 2 touching right wall
@@ -4721,13 +4740,108 @@ wallgrab_input_toward_wall_c:
 .wg_check_right_wall:
     ld a, h
     and #08
-    jp z, .wg_no_toward_wall
+    jp z, .wg_probe_adjacent_wall
     ld a, 2                        ; facing right
     ret
 
-.wg_no_toward_wall:
+${enableDirectWallProbe ? `
+.wg_probe_adjacent_wall:
+    ; WallGrab runs before WallCollision, so the directional flags can be
+    ; empty when the player only holds GRAB with no horizontal movement.
+    ; Probe the current hitbox edges directly against the behavior map.
+    push bc
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (wall_temp_x), a
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (wall_temp_y), a
+    call wall_build_hitbox_cache
+
+    ; Left wall: sample one pixel before the hitbox left edge.
+    ld a, (wall_hit_left)
+    or a
+    jr z, .wg_probe_right_wall
+    sub 1
+    srl a
+    srl a
+    srl a
+    ld c, a
+
+    ld a, (wall_probe_top)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jr nz, .wg_touch_left_wall
+
+    ld a, (wall_probe_bottom)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jr nz, .wg_touch_left_wall
+
+.wg_probe_right_wall:
+    ; Right wall: sample one pixel after the hitbox right edge.
+    ld a, (wall_hit_right)
+    inc a
+    jr z, .wg_no_probe_wall
+    srl a
+    srl a
+    srl a
+    ld c, a
+
+    ld a, (wall_probe_top)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jr nz, .wg_touch_right_wall
+
+    ld a, (wall_probe_bottom)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jr nz, .wg_touch_right_wall
+
+.wg_no_probe_wall:
+    pop bc
     xor a
     ret
+
+.wg_touch_left_wall:
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 2, (hl)
+    pop bc
+    ld a, 1
+    ret
+
+.wg_touch_right_wall:
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 3, (hl)
+    pop bc
+    ld a, 2
+    ret
+` : `
+.wg_probe_adjacent_wall:
+    xor a
+    ret
+`}
 
 wallgrab_set_facing_dir_a:
     ; Input: A = 1 left or 2 right, DE = entity offset
@@ -5027,10 +5141,7 @@ wallgrab_update_sprite_colors_c:
     add hl, de
     ld (hl), 0
 
-    ld hl, entity_wallgrab_cfg_fall_speed
-    add hl, de
-    ld a, (hl)
-    ld b, a
+    call wallgrab_choose_vertical_velocity_c
 
     ld hl, entity_vel_y
     add hl, de
@@ -5044,6 +5155,83 @@ wallgrab_update_sprite_colors_c:
     ld (hl), b
     ret
 
+wallgrab_choose_vertical_velocity_c:
+    ; Input: DE = entity offset
+    ; Output: B = signed vertical velocity for this grab frame
+    ; Clobbers: AF, C, HL. Preserves: DE.
+    ld hl, entity_wallgrab_stamina
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .wg_use_fall_speed
+
+    ld a, (input_state)
+    cp STICK_UP
+    jp z, .wg_climb_up
+    cp STICK_UPRIGHT
+    jp z, .wg_climb_up
+    cp STICK_UPLEFT
+    jp z, .wg_climb_up
+    cp STICK_DOWN
+    jp z, .wg_climb_down
+    cp STICK_DOWNRIGHT
+    jp z, .wg_climb_down
+    cp STICK_DOWNLEFT
+    jp z, .wg_climb_down
+    jp .wg_use_fall_speed
+
+.wg_climb_up:
+    call wallgrab_consume_stamina_for_speed_c
+    or a
+    jp z, .wg_use_fall_speed
+    neg
+    ld b, a
+    ret
+
+.wg_climb_down:
+    call wallgrab_consume_stamina_for_speed_c
+    or a
+    jp z, .wg_use_fall_speed
+    ld b, a
+    ret
+
+.wg_use_fall_speed:
+    ld hl, entity_wallgrab_cfg_fall_speed
+    add hl, de
+    ld b, (hl)
+    ret
+
+wallgrab_consume_stamina_for_speed_c:
+    ; Input: DE = entity offset
+    ; Output: A = pixels consumed this frame, clamped to remaining stamina
+    ; Clobbers: AF, C, HL. Preserves: B, DE.
+    ld hl, entity_wallgrab_stamina
+    add hl, de
+    ld a, (hl)
+    or a
+    ret z
+    ld c, a
+
+    ld hl, entity_wallgrab_cfg_climb_speed
+    add hl, de
+    ld a, (hl)
+    or a
+    ret z
+    cp c
+    jp c, .wg_consume_amount_ready
+    jp z, .wg_consume_amount_ready
+    ld a, c
+
+.wg_consume_amount_ready:
+    ld c, a
+    ld hl, entity_wallgrab_stamina
+    add hl, de
+    ld a, (hl)
+    sub c
+    ld (hl), a
+    ld a, c
+    ret
+
 .not_grabbing:
     ld hl, entity_wallgrab_active
     add hl, de
@@ -5054,6 +5242,9 @@ wallgrab_update_sprite_colors_c:
     ; Transition to NOT grabbing
     ld (hl), 0
     ld hl, entity_wallgrab_grace
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_wallgrab_stamina
     add hl, de
     ld (hl), 0
 
@@ -10710,7 +10901,7 @@ aircontrol_should_lock_horizontal_c:
     }
 
     if (usedComponents.has('WallGrab')) {
-        code += generateWallGrabSystem();
+        code += generateWallGrabSystem(usedComponents.has('WallCollision'));
     } else {
         code += `
     ; WallGrab system filtered out (not used)
