@@ -177,6 +177,8 @@ export interface SpriteFrame {
   id: string;
   /** The pixel data for the frame. */
   data: PixelData;
+  /** Optional independent MSX1 hardware-sprite bitplanes keyed by spritePalette index. */
+  msx1LayerData?: Record<number, boolean[][]>;
 }
 
 /** The direction an entity is facing. */
@@ -219,6 +221,11 @@ export interface Sprite {
   mirroredVertically?: boolean;
   /** Whether the sprite animation loops (default: true). */
   loops?: boolean;
+  /** MSX1 hardware-sprite layer offsets keyed by spritePalette index. */
+  msx1LayerOffsets?: Record<number, {
+    /** Vertical offset applied to this color layer when rendered on MSX1. */
+    offsetY?: number;
+  }>;
 }
 
 /**

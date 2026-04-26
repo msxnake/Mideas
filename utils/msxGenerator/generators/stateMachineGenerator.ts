@@ -951,7 +951,7 @@ SM_FacingDirTablePtrs:
 ; ==================================================================
 ; Action_ChangeSprite
 ; ------------------------------------------------------------------
-; Cambia el sprite activo de una entidad. Realiza 5 operaciones:
+; Cambia el sprite activo de una entidad. Realiza 6 operaciones:
 ;   1. Redirect direccional: si entity_facing_dir != 0, sustituye el
 ;      sprite pedido por su variante direccional (left/right/up/down)
 ;      usando SM_FacingDirTablePtrs.
@@ -963,6 +963,8 @@ SM_FacingDirTablePtrs:
 ;      fuera del path de cambio de sprite.
 ;   5. Colores de capas: actualiza sprite_layer_colors (tabla RAM) con
 ;      los colores del nuevo sprite desde SM_SpriteLayerColorTable.
+;   6. Offsets Y de capas: actualiza sprite_layer_y_offsets con
+;      SM_SpriteLayerYOffsetTable.
 ;
 ; Input:
 ;   HL  = puntero al parámetro (sprite asset ID, 1 byte)
@@ -982,6 +984,7 @@ SM_FacingDirTablePtrs:
 ;   sprite_loop_flags          — 1 byte/sprite: 0x02=loop, 0x00=one-shot
 ;   SM_SpritePatternPtrTable   — puntero al frame 0 de cada sprite
 ;   SM_SpriteLayerColorTable   — colores por sprite (SPRITE_MAX_ENTITY_LAYERS bytes/sprite)
+;   SM_SpriteLayerYOffsetTable — offsets Y por sprite (SPRITE_MAX_ENTITY_LAYERS bytes/sprite)
 ;
 ; Variables RAM usadas:
 ;   entity_facing_dir          — dirección actual de la entidad (0-4)
@@ -991,6 +994,7 @@ SM_FacingDirTablePtrs:
 ;   entity_anim_flags          — flags de animación (ver bits más abajo)
 ;   entity_sprite_config       — base HW sprite + layer count (2 bytes/entidad)
 ;   sprite_layer_colors        — colores actuales por slot HW sprite (RAM)
+;   sprite_layer_y_offsets     — offsets Y actuales por slot HW sprite (RAM)
 ;
 ; Bits de entity_anim_flags:
 ;   bit 0 = ANIM_FLAG_PLAYING       (1 = animando)
@@ -1184,6 +1188,8 @@ Action_ChangeSprite:
     cp SM_SpriteAssetCount
     jp nc, .acs_skip_color_update  ; fuera de rango → saltar
 
+    push bc                 ; [stack] guarda BC = (0, entity index)
+    push de                 ; [stack] guarda D=spriteId, E=loopFlag
     push de                 ; [stack] guarda D=spriteId, E=loopFlag
 
     ; Obtener el base HW sprite de la entidad: entity_sprite_config[entity * 2]
@@ -1230,6 +1236,59 @@ Action_ChangeSprite:
     pop hl                  ; [stack] restaurar HL=fuente ROM
     inc c                   ; avanzar al siguiente slot HW
     djnz .acs_color_update_loop
+
+    pop de                  ; DE: D=spriteId, E=loopFlag
+    pop bc                  ; BC = (0, entity index)
+
+    ; ------------------------------------------------------------------
+    ; BLOQUE 6: Actualizar tabla de offsets Y de capas en RAM
+    ;
+    ; Misma alineación que los colores: se indexa por slot HW sprite.
+    ; ------------------------------------------------------------------
+
+    push de                 ; [stack] guarda D=spriteId, E=loopFlag
+
+    ; Obtener el base HW sprite de la entidad: entity_sprite_config[entity * 2]
+    ld h, 0
+    ld l, c                 ; HL = entity index
+    add hl, hl              ; HL = entity index * 2
+    ld de, entity_sprite_config
+    add hl, de              ; HL = &entity_sprite_config[entity * 2]
+    ld c, (hl)              ; C = base HW sprite index (slot de partida en la OAM)
+
+    pop de                  ; DE: D=spriteId, E=loopFlag
+
+    ; Calcular HL = SM_SpriteLayerYOffsetTable + spriteId * SPRITE_MAX_ENTITY_LAYERS
+    ld l, d                 ; L = sprite asset ID
+    ld h, 0                 ; HL = sprite asset ID
+    ld e, l
+    ld d, h                 ; DE = sprite asset ID (multiplicando)
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.acs_y_offset_mul_max_layers:
+    add hl, de
+    djnz .acs_y_offset_mul_max_layers
+    ld de, SM_SpriteLayerYOffsetTable
+    add hl, de              ; HL = &SM_SpriteLayerYOffsetTable[spriteId * maxLayers]
+
+    ; Copiar SPRITE_MAX_ENTITY_LAYERS offsets desde ROM a sprite_layer_y_offsets[hw..]
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.acs_y_offset_update_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_y_offsets
+    add hl, de
+    ld (hl), a
+
+    pop bc
+    pop hl
+    inc c
+    djnz .acs_y_offset_update_loop
 
 .acs_skip_color_update:
 

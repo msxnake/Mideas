@@ -41,6 +41,10 @@ const analyzeDrawableLayerIndexes = (sprite: any): number[] => {
     let hasPixels = false;
     for (const frame of frames) {
       if (!frame?.data) continue;
+      if (frame?.msx1LayerData?.[layerIdx]?.some((row: boolean[]) => row.some(Boolean))) {
+        hasPixels = true;
+        break;
+      }
       for (let y = 0; y < (frame.data.length || 0) && !hasPixels; y++) {
         for (let x = 0; x < (frame.data[y]?.length || 0) && !hasPixels; x++) {
           if (frame.data[y][x] === layerColor) {
@@ -62,6 +66,19 @@ const analyzeDrawableLayerIndexes = (sprite: any): number[] => {
 const findFirstDrawableLayerIndex = (sprite: any): number => {
   const usedLayers = analyzeDrawableLayerIndexes(sprite);
   return usedLayers.length > 0 ? usedLayers[0] : -1;
+};
+
+const clampLayerYOffset = (value: unknown): number => {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(-16, Math.min(16, Math.trunc(numeric)));
+};
+
+const getSpritePaletteLayerYOffset = (sprite: any, paletteLayerIndex: number): number => {
+  const typedOffsets = sprite?.msx1LayerOffsets;
+  const legacyOffsets = sprite?.attributes?.msx1LayerOffsets;
+  const layerConfig = typedOffsets?.[paletteLayerIndex] ?? legacyOffsets?.[paletteLayerIndex];
+  return clampLayerYOffset(layerConfig?.offsetY);
 };
 
 function buildSpritePatternDataSection(sprites: any[]): string {
@@ -644,6 +661,13 @@ export function generateSpritesFile(
     return colors.length > 0 ? colors : [15];
   };
 
+  const getSpriteLayerYOffsets = (sprite: any): number[] => {
+    if (!sprite) return [0];
+    const usedLayerIndexes = analyzeDrawableLayerIndexes(sprite);
+    if (usedLayerIndexes.length === 0) return [0];
+    return usedLayerIndexes.map((layerIdx) => getSpritePaletteLayerYOffset(sprite, layerIdx));
+  };
+
   const emitDirectionTable = (label: string, values: number[]): string => {
     let table = `${label}:\n`;
     if (values.length === 0) {
@@ -659,7 +683,7 @@ export function generateSpritesFile(
     return table;
   };
 
-  const getEntitySpriteInfo = (entity: any): { spriteAssetIndex: number; spriteName: string; colors: number[] } | null => {
+  const getEntitySpriteInfo = (entity: any): { spriteAssetIndex: number; spriteName: string; colors: number[]; yOffsets: number[] } | null => {
     console.log(`\n🔍 getEntitySpriteInfo for entity: "${entity.name}" (template: ${entity.entityTemplateId})`);
     console.log(`   Available sprites: ${sprites.map(s => `"${s.name}" (${s.id})`).join(', ') || 'NONE'}`);
 
@@ -715,7 +739,8 @@ export function generateSpritesFile(
         return {
           spriteAssetIndex: 0,
           spriteName: sprites[0].name,
-          colors: getSpriteLayerColors(sprites[0])
+          colors: getSpriteLayerColors(sprites[0]),
+          yOffsets: getSpriteLayerYOffsets(sprites[0])
         };
       }
       return null;
@@ -781,16 +806,20 @@ export function generateSpritesFile(
       }
 
       const baseColors = getSpriteLayerColors(sprites[foundIndex]);
+      const baseYOffsets = getSpriteLayerYOffsets(sprites[foundIndex]);
       const maxRuntimeLayers = Math.max(
         baseColors.length,
         ...Array.from(runtimeSpriteIndexes).map((spriteIndex) => getSpriteLayerColors(sprites[spriteIndex]).length)
       );
       const paddedBaseColors = [...baseColors];
       while (paddedBaseColors.length < maxRuntimeLayers) paddedBaseColors.push(0);
+      const paddedBaseYOffsets = [...baseYOffsets];
+      while (paddedBaseYOffsets.length < maxRuntimeLayers) paddedBaseYOffsets.push(0);
       return {
         spriteAssetIndex: foundIndex,
         spriteName: sprites[foundIndex].name,
-        colors: paddedBaseColors
+        colors: paddedBaseColors,
+        yOffsets: paddedBaseYOffsets
       };
     }
 
@@ -799,7 +828,8 @@ export function generateSpritesFile(
     return {
       spriteAssetIndex: -1,
       spriteName: `MISSING_${spriteAssetId}`,
-      colors: [15] // White placeholder
+      colors: [15], // White placeholder
+      yOffsets: [0]
     };
   };
 
@@ -812,6 +842,7 @@ export function generateSpritesFile(
     baseHwSpriteIndex: number;
     layerCount: number;
     colors: number[];
+    yOffsets: number[];
   }
 
   const entityAllocations: EntitySpriteAllocation[] = [];
@@ -828,7 +859,8 @@ export function generateSpritesFile(
         spriteAssetIndex: -1,
         baseHwSpriteIndex: currentHwSpriteIndex,
         layerCount: 1,
-        colors: [15] // White placeholder
+        colors: [15], // White placeholder
+        yOffsets: [0]
       });
       currentHwSpriteIndex += 1;
       return;
@@ -840,7 +872,8 @@ export function generateSpritesFile(
       spriteAssetIndex: spriteInfo.spriteAssetIndex,
       baseHwSpriteIndex: currentHwSpriteIndex,
       layerCount: spriteInfo.colors.length,
-      colors: spriteInfo.colors
+      colors: spriteInfo.colors,
+      yOffsets: spriteInfo.yOffsets
     });
 
     currentHwSpriteIndex += spriteInfo.colors.length;
@@ -1080,6 +1113,26 @@ sprite_layer_colors_init:
     code += `    ds ${remainingColors}, 0 ; Padding\n`;
   }
 
+  code += `
+; Table: Hardware Sprite Layer Y Offsets (ROM initial values - copied to RAM at init)
+; Format: db signed_offset_y
+sprite_layer_y_offsets_init:
+`;
+  let yOffsetsWritten = 0;
+  entityAllocations.forEach(alloc => {
+    if (alloc.layerCount > 0) {
+      code += `    ; Entity ${alloc.entityIndex} (${alloc.spriteName}) layers:\n`;
+      alloc.yOffsets.forEach((offsetY, i) => {
+        code += `    db ${clampLayerYOffset(offsetY)} ; Layer ${i}\n`;
+        yOffsetsWritten += 1;
+      });
+    }
+  });
+  const remainingYOffsets = totalHardwareSprites - yOffsetsWritten;
+  if (remainingYOffsets > 0) {
+    code += `    ds ${remainingYOffsets}, 0 ; Padding\n`;
+  }
+
   // SM_SpriteLayerColorTable: per-sprite color table for Action_ChangeSprite
   // Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite, in the same layer order
   // as the sprite pattern blob (usedLayerIndexes order, padded with 0 for empty slots)
@@ -1101,6 +1154,23 @@ SM_SpriteLayerColorTable:
   }
 
   code += `
+; Table: SM Sprite Layer Y Offsets (for Action_ChangeSprite runtime layer alignment)
+; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
+; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = signed Y offset for HW sprite slot j of sprite i
+SM_SpriteLayerYOffsetTable:
+`;
+  sprites.forEach((sprite, index) => {
+    const offsets = getSpriteLayerYOffsets(sprite);
+    const paddedOffsets: number[] = [...offsets];
+    while (paddedOffsets.length < maxEntityLayers) paddedOffsets.push(0);
+    code += `    db ${paddedOffsets.map(clampLayerYOffset).join(', ')} ; Sprite ${index}: ${sprite.name}\n`;
+  });
+  if (sprites.length === 0) {
+    const zeros = Array(maxEntityLayers).fill(0);
+    code += `    db ${zeros.join(', ')} ; Placeholder\n`;
+  }
+
+  code += `
 ; ==================================================================
 ; SPRITE INITIALIZATION FUNCTIONS
 ; ==================================================================
@@ -1109,6 +1179,11 @@ init_sprites:
     ; Copy sprite_layer_colors_init (ROM) -> sprite_layer_colors (RAM)
     ld hl, sprite_layer_colors_init
     ld de, sprite_layer_colors
+    ld bc, 32
+    ldir
+    ; Copy sprite_layer_y_offsets_init (ROM) -> sprite_layer_y_offsets (RAM)
+    ld hl, sprite_layer_y_offsets_init
+    ld de, sprite_layer_y_offsets
     ld bc, 32
     ldir
     call clear_all_sprites
@@ -1401,6 +1476,7 @@ SPRITE_INVISIBLE    EQU ${SPRITE_INVISIBLE_VALUE}
 ; sprite_attributes: ds ${totalHardwareSprites * 4}
 ; active_sprite_count: db 0
 ; sprites_dirty: db 0
+; sprite_layer_y_offsets: ds ${totalHardwareSprites}
 `;
 
   return code;

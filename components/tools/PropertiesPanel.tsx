@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, LineColorAttribute,
+    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute,
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
     ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType
 } from '../../types';
@@ -15,6 +15,77 @@ import { GameFlowGlobalInitializationEditor } from '../editors/GameFlowGlobalIni
 
 const CHILD_LINK_COMPONENT_ID = 'comp_child_link';
 const ENTITY_JOB_RATE_OPTIONS = [100, 50, 33, 25] as const;
+
+const clampSpriteLayerYOffset = (value: unknown): number => {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(-16, Math.min(16, Math.trunc(numeric)));
+};
+
+const getSpriteFrameLayerPlane = (
+  frame: SpriteFrame | undefined,
+  paletteIndex: number,
+  layerColor: MSXColorValue,
+  width: number,
+  height: number
+): boolean[][] => {
+  const storedPlane = frame?.msx1LayerData?.[paletteIndex];
+  if (storedPlane) {
+    return Array(height).fill(null).map((_, y) =>
+      Array(width).fill(false).map((__, x) => !!storedPlane[y]?.[x])
+    );
+  }
+
+  return Array(height).fill(null).map((_, y) =>
+    Array(width).fill(false).map((__, x) => frame?.data?.[y]?.[x] === layerColor)
+  );
+};
+
+const frameUsesSpritePaletteLayer = (
+  frame: SpriteFrame,
+  paletteIndex: number,
+  layerColor: MSXColorValue
+): boolean =>
+  !!frame.msx1LayerData?.[paletteIndex]?.some(row => row.some(Boolean)) ||
+  frame.data?.some(row => row?.some(pixel => pixel === layerColor));
+
+const composeSpriteFramePreview = (sprite: Sprite, frame: SpriteFrame): PixelData => {
+  const drawableLayerIndexes = sprite.spritePalette
+    .map((color, index) => ({ color, index }))
+    .filter(({ color }) => color && color !== sprite.backgroundColor)
+    .filter(({ color, index }) => frameUsesSpritePaletteLayer(frame, index, color))
+    .map(({ index }) => index);
+
+  if (drawableLayerIndexes.length === 0) {
+    return frame.data;
+  }
+
+  const offsets = drawableLayerIndexes.map(index => clampSpriteLayerYOffset(sprite.msx1LayerOffsets?.[index]?.offsetY ?? 0));
+  const minOffsetY = Math.min(0, ...offsets);
+  const maxOffsetY = Math.max(0, ...offsets);
+  const composedHeight = sprite.size.height + maxOffsetY - minOffsetY;
+  const composedData: PixelData = Array(composedHeight)
+    .fill(null)
+    .map(() => Array(sprite.size.width).fill(sprite.backgroundColor));
+
+  for (const paletteIndex of drawableLayerIndexes) {
+    const color = sprite.spritePalette[paletteIndex];
+    if (!color || color === sprite.backgroundColor) continue;
+    const plane = getSpriteFrameLayerPlane(frame, paletteIndex, color, sprite.size.width, sprite.size.height);
+    const offsetY = clampSpriteLayerYOffset(sprite.msx1LayerOffsets?.[paletteIndex]?.offsetY ?? 0);
+    for (let y = 0; y < sprite.size.height; y++) {
+      for (let x = 0; x < sprite.size.width; x++) {
+        if (!plane[y]?.[x]) continue;
+        const targetY = y + offsetY - minOffsetY;
+        if (targetY >= 0 && targetY < composedHeight) {
+          composedData[targetY][x] = color;
+        }
+      }
+    }
+  }
+
+  return composedData;
+};
 
 const getJobPeriodFromRate = (rate: number): number => {
   switch (rate) {
@@ -533,12 +604,18 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       case 'tile': const tile = asset.data as Tile; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {tile.name}</div> <div><strong className="text-msx-highlight">Size:</strong> {tile.width}x{tile.height} px</div> <div><strong className="text-msx-highlight">MapID:</strong> {tile.logicalProperties.mapId} (Family: {tile.logicalProperties.familyId}, Inst: {tile.logicalProperties.instanceId})</div> {tile.lineAttributes && currentScreenMode === "SCREEN 2 (Graphics I)" && <LineAttributesPreview lineAttributes={tile.lineAttributes} tileWidth={tile.width} tileHeight={tile.height} />} <PixelGridPreview data={tile.data} className="mt-1" /> </div> );
       case 'sprite': {
         const sprite = asset.data as Sprite;
+        const currentSpriteFrame = sprite.frames[currentFrame];
+        const composedPreviewData = currentSpriteFrame ? composeSpriteFramePreview(sprite, currentSpriteFrame) : null;
+        const visibleHeight = composedPreviewData?.length ?? sprite.size.height;
         return (
           <div className="space-y-1">
             <div><strong className="text-msx-highlight">Name:</strong> {sprite.name}</div>
             <div><strong className="text-msx-highlight">Size:</strong> {sprite.size.width}x{sprite.size.height} px</div>
+            {visibleHeight !== sprite.size.height && (
+              <div><strong className="text-msx-highlight">Visible:</strong> {sprite.size.width}x{visibleHeight} px</div>
+            )}
             <div><strong className="text-msx-highlight">Frames:</strong> {sprite.frames.length}</div>
-            {sprite.frames[currentFrame] && <PixelGridPreview data={sprite.frames[currentFrame].data} className="mt-1"/>}
+            {composedPreviewData && <PixelGridPreview data={composedPreviewData} className="mt-1"/>}
             <label className="text-xs">Anim Speed (ms):
               <input
                 type="number"

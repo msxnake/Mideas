@@ -452,6 +452,9 @@ MAX_ENTITIES        EQU 32
   code += `sprite_layer_colors EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)\n`;
   currentAddress += 32;
 
+  code += `sprite_layer_y_offsets EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; HW sprite layer signed Y offsets - RAM copy (32 bytes, indexed by HW sprite index)\n`;
+  currentAddress += 32;
+
   code += `sprite_asset_base_pattern_slot_runtime EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime base 16x16 slot per sprite asset (${expandedSpriteCount} bytes)\n`;
   currentAddress += expandedSpriteCount;
 

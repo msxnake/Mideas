@@ -18,6 +18,10 @@ interface PanelProps {
   headerButtons?: React.ReactNode;
   /** Optional classes for the panel body wrapper. */
   bodyClassName?: string;
+  /** Whether the panel body can be collapsed from the header. */
+  collapsible?: boolean;
+  /** Initial collapsed state when collapsible is enabled. */
+  defaultCollapsed?: boolean;
 }
 
 /**
@@ -30,8 +34,11 @@ export const Panel: React.FC<PanelProps> = ({
   titleClassName = '',
   icon,
   headerButtons,
-  bodyClassName
+  bodyClassName,
+  collapsible = false,
+  defaultCollapsed = false
 }) => {
+  const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
   const resolvedBodyClass = bodyClassName ?? 'p-2 flex-grow overflow-auto';
 
   return (
@@ -39,11 +46,25 @@ export const Panel: React.FC<PanelProps> = ({
       <h3 className={`font-sans text-sm text-msx-textprimary p-2 border-b border-msx-border flex items-center ${titleClassName}`}> {/* Changed font and text color */}
         {icon && <span className="mr-2">{icon}</span>}
         <span className="flex-grow">{title}</span>
+        {collapsible && (
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(value => !value)}
+            className="mr-1 w-6 h-6 flex items-center justify-center rounded border border-msx-border bg-msx-bgcolor text-msx-textsecondary hover:text-msx-highlight hover:border-msx-highlight"
+            title={isCollapsed ? 'Expand panel' : 'Collapse panel'}
+            aria-expanded={!isCollapsed}
+            aria-label={isCollapsed ? `Expand ${title}` : `Collapse ${title}`}
+          >
+            {isCollapsed ? '+' : '-'}
+          </button>
+        )}
         {headerButtons && <div className="flex items-center space-x-1">{headerButtons}</div>}
       </h3>
-      <div className={resolvedBodyClass}>
-        {children}
-      </div>
+      {!isCollapsed && (
+        <div className={resolvedBodyClass}>
+          {children}
+        </div>
+      )}
     </div>
   );
 };

@@ -49,6 +49,58 @@ const createEmptySpriteFrameData = (width: number, height: number, fillColor: MS
 };
 
 const SPRITE_SIZE_OPTIONS = [16, 24, 32, 48, 64] as const;
+const MSX1_LAYER_OFFSET_MIN = -16;
+const MSX1_LAYER_OFFSET_MAX = 16;
+
+const clampLayerYOffset = (value: number): number => {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(MSX1_LAYER_OFFSET_MIN, Math.min(MSX1_LAYER_OFFSET_MAX, Math.trunc(value)));
+};
+
+const createEmptyLayerPlane = (width: number, height: number): boolean[][] =>
+  Array(height).fill(null).map(() => Array(width).fill(false));
+
+const getFrameLayerPlane = (
+  frame: SpriteFrame | undefined,
+  paletteIndex: number,
+  layerColor: MSXColorValue,
+  width: number,
+  height: number
+): boolean[][] => {
+  const storedPlane = frame?.msx1LayerData?.[paletteIndex];
+  if (storedPlane) {
+    return Array(height).fill(null).map((_, y) =>
+      Array(width).fill(false).map((__, x) => !!storedPlane[y]?.[x])
+    );
+  }
+
+  return Array(height).fill(null).map((_, y) =>
+    Array(width).fill(false).map((__, x) => frame?.data?.[y]?.[x] === layerColor)
+  );
+};
+
+const frameUsesPaletteLayer = (
+  frame: SpriteFrame,
+  paletteIndex: number,
+  layerColor: MSXColorValue
+): boolean =>
+  !!frame.msx1LayerData?.[paletteIndex]?.some(row => row.some(Boolean)) ||
+  frame.data?.some(row => row?.some(pixel => pixel === layerColor));
+
+const ensureFrameLayerData = (
+  frame: SpriteFrame,
+  palette: [MSXColorValue, MSXColorValue, MSXColorValue, MSXColorValue],
+  backgroundColor: MSXColorValue,
+  width: number,
+  height: number
+): Record<number, boolean[][]> => {
+  const nextLayerData: Record<number, boolean[][]> = { ...(frame.msx1LayerData ?? {}) };
+  palette.forEach((color, index) => {
+    if (!color || color === backgroundColor) return;
+    nextLayerData[index] = getFrameLayerPlane(frame, index, color, width, height);
+  });
+  return nextLayerData;
+};
 
 /**
  * Props for the {@link SpritePixelGrid} component.
@@ -60,6 +112,10 @@ interface SpritePixelGridProps {
   pixelSize?: number;
   spriteWidth: number;
   spriteHeight: number;
+  sourceSpriteHeight?: number;
+  previewOriginOffsetY?: number;
+  interactionLayerOffsetY?: number;
+  activeLayerColor?: MSXColorValue;
   className?: string;
   onionSkinEnabled?: boolean;
   onionSkinOpacity?: number;
@@ -117,6 +173,10 @@ const OnionSkinLayer: React.FC<{ pixelData: PixelData; pixelSize: number; sprite
  */
 const SpritePixelGrid: React.FC<SpritePixelGridProps> = ({
     pixelData, onPixelClick, pixelSize = 10, spriteWidth, spriteHeight, className = "",
+    sourceSpriteHeight,
+    previewOriginOffsetY = 0,
+    interactionLayerOffsetY = 0,
+    activeLayerColor = '#FFFFFF',
     onionSkinEnabled, onionSkinOpacity = 0.3, prevFrameData, nextFrameData, backgroundColor,
     toolMode, showHitbox, hitboxWidth, hitboxHeight, hitboxOffsetX = 0, hitboxOffsetY = 0
 }) => {
@@ -126,16 +186,28 @@ const SpritePixelGrid: React.FC<SpritePixelGridProps> = ({
   const handleMouseDown = (e: React.MouseEvent, x: number, y: number) => {
     if (!onPixelClick) return;
     e.preventDefault();
+    const sourceY = y + previewOriginOffsetY - interactionLayerOffsetY;
+    if (sourceY < 0 || sourceY >= (sourceSpriteHeight ?? spriteHeight)) return;
     const isRight = e.button === 2;
     setIsMouseDown(true);
     setIsRightMBDown(isRight);
-    onPixelClick({ x, y }, isRight);
+    onPixelClick({ x, y: sourceY }, isRight);
+  };
+
+  const sourceHeight = sourceSpriteHeight ?? spriteHeight;
+  const activeLayerTop = (interactionLayerOffsetY - previewOriginOffsetY) * pixelSize;
+  const activeLayerHeight = sourceHeight * pixelSize;
+  const isInsideActiveLayer = (y: number) => {
+    const sourceY = y + previewOriginOffsetY - interactionLayerOffsetY;
+    return sourceY >= 0 && sourceY < sourceHeight;
   };
 
   const handleMouseEnter = (x: number, y: number) => {
     if (isMouseDown && onPixelClick) {
       if (toolMode === 'sphere') return; // Do not drag-draw spheres
-      onPixelClick({ x, y }, isRightMBDown);
+      const sourceY = y + previewOriginOffsetY - interactionLayerOffsetY;
+      if (sourceY < 0 || sourceY >= (sourceSpriteHeight ?? spriteHeight)) return;
+      onPixelClick({ x, y: sourceY }, isRightMBDown);
     }
   };
 
@@ -200,7 +272,7 @@ const SpritePixelGrid: React.FC<SpritePixelGridProps> = ({
         row.map((color, x) => (
           <div
             key={`${x}-${y}`}
-            className={onPixelClick ? "hover:outline hover:outline-1 hover:outline-msx-highlight z-10" : "z-10"}
+            className={onPixelClick && isInsideActiveLayer(y) ? "hover:outline hover:outline-1 hover:outline-msx-highlight z-10" : "z-10"}
             style={{
                 backgroundColor: color,
                 width: `${pixelSize}px`,
@@ -215,13 +287,34 @@ const SpritePixelGrid: React.FC<SpritePixelGridProps> = ({
         ))
       )}
 
+      {onPixelClick && (
+        <div
+          className="absolute pointer-events-none z-30"
+          style={{
+            left: 0,
+            top: `${activeLayerTop}px`,
+            width: `${spriteWidth * pixelSize}px`,
+            height: `${activeLayerHeight}px`,
+            border: `2px solid ${activeLayerColor}`,
+            boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.85)',
+            backgroundImage: `
+              linear-gradient(to right, rgba(255,255,255,0.26) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(255,255,255,0.26) 1px, transparent 1px)
+            `,
+            backgroundSize: `${pixelSize}px ${pixelSize}px`,
+            imageRendering: 'pixelated'
+          }}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Hitbox Overlay */}
       {showHitbox && hitboxWidth !== undefined && hitboxHeight !== undefined && (
         <div
           className="absolute pointer-events-none z-20"
           style={{
             left: `${hitboxOffsetX * pixelSize}px`,
-            top: `${hitboxOffsetY * pixelSize}px`,
+            top: `${(hitboxOffsetY - previewOriginOffsetY) * pixelSize}px`,
             width: `${hitboxWidth * pixelSize}px`,
             height: `${hitboxHeight * pixelSize}px`,
             border: '2px solid #00ff00',
@@ -310,11 +403,97 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
   const currentFrameData = sprite.frames[sprite.currentFrameIndex]?.data;
   const prevFrameData = sprite.frames[sprite.currentFrameIndex - 1]?.data;
   const nextFrameData = sprite.frames[sprite.currentFrameIndex + 1]?.data;
+  const drawablePaletteLayerIndexes = useMemo(() => {
+    return sprite.spritePalette
+      .map((color, index) => ({ color, index }))
+      .filter(({ color }) => color && color !== sprite.backgroundColor)
+      .filter(({ color, index }) => sprite.frames.some(frame =>
+        frameUsesPaletteLayer(frame, index, color)
+      ))
+      .map(({ index }) => index);
+  }, [sprite.spritePalette, sprite.backgroundColor, sprite.frames]);
+  const msx1LayerOffsets = sprite.msx1LayerOffsets ?? {};
+  const msx1LayerOffsetPreview = useMemo(() => {
+    const sourceData = currentFrameData;
+    if (!sourceData || sourceData.length === 0 || sourceData[0]?.length === 0) {
+      return {
+        data: sourceData,
+        height: sprite.size.height,
+        originOffsetY: 0
+      };
+    }
+
+    const offsets = drawablePaletteLayerIndexes.map(index => clampLayerYOffset(msx1LayerOffsets[index]?.offsetY ?? 0));
+    const minOffsetY = Math.min(0, ...offsets);
+    const maxOffsetY = Math.max(0, ...offsets);
+    const previewHeight = sprite.size.height + maxOffsetY - minOffsetY;
+    const previewData: PixelData = Array(previewHeight)
+      .fill(null)
+      .map(() => Array(sprite.size.width).fill(sprite.backgroundColor));
+
+    for (const paletteIndex of drawablePaletteLayerIndexes) {
+      const color = sprite.spritePalette[paletteIndex];
+      if (!color || color === sprite.backgroundColor) continue;
+      const plane = getFrameLayerPlane(
+        sprite.frames[sprite.currentFrameIndex],
+        paletteIndex,
+        color,
+        sprite.size.width,
+        sprite.size.height
+      );
+      const offsetY = clampLayerYOffset(msx1LayerOffsets[paletteIndex]?.offsetY ?? 0);
+      for (let y = 0; y < sprite.size.height; y++) {
+        for (let x = 0; x < sprite.size.width; x++) {
+          if (!plane[y]?.[x]) continue;
+          const targetY = y + offsetY - minOffsetY;
+          if (targetY >= 0 && targetY < previewHeight) {
+            previewData[targetY][x] = color;
+          }
+        }
+      }
+    }
+
+    return {
+      data: previewData,
+      height: previewHeight,
+      originOffsetY: minOffsetY
+    };
+  }, [
+    currentFrameData,
+    sprite.size.width,
+    sprite.size.height,
+    sprite.spritePalette,
+    sprite.backgroundColor,
+    msx1LayerOffsets,
+    drawablePaletteLayerIndexes,
+    sprite.currentFrameIndex,
+    sprite.frames
+  ]);
 
   const isFrameEmpty = useMemo(() => {
     if (!currentFrameData) return true;
     return currentFrameData.every(row => row.every(pixel => pixel === sprite.backgroundColor));
   }, [currentFrameData, sprite.backgroundColor]);
+
+  const handleLayerYOffsetChange = useCallback((paletteIndex: number, rawValue: number) => {
+    const offsetY = clampLayerYOffset(rawValue);
+    const nextOffsets = { ...(sprite.msx1LayerOffsets ?? {}) };
+    const currentLayer = { ...(nextOffsets[paletteIndex] ?? {}) };
+
+    if (offsetY === 0) {
+      delete currentLayer.offsetY;
+    } else {
+      currentLayer.offsetY = offsetY;
+    }
+
+    if (Object.keys(currentLayer).length === 0) {
+      delete nextOffsets[paletteIndex];
+    } else {
+      nextOffsets[paletteIndex] = currentLayer;
+    }
+
+    onUpdate({ msx1LayerOffsets: Object.keys(nextOffsets).length > 0 ? nextOffsets : undefined });
+  }, [sprite.msx1LayerOffsets, onUpdate]);
 
   const handlePaletteColorChange = useCallback((paletteIndex: number, newColor: MSXColorValue) => {
     const oldColor = sprite.spritePalette[paletteIndex];
@@ -398,6 +577,45 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
   const handlePixelClick = useCallback((point: Point, isRightClick: boolean) => {
     if (!currentFrameData) return;
 
+    const activeLayerColor = sprite.spritePalette[activeBrushColorIndex];
+    const useIndependentLayerPlanes =
+      !!sprite.frames[sprite.currentFrameIndex]?.msx1LayerData ||
+      Object.values(sprite.msx1LayerOffsets ?? {}).some(layer => clampLayerYOffset(layer?.offsetY ?? 0) !== 0);
+
+    if (toolMode === 'sphere' && !isRightClick) {
+      drawSphere(point);
+      return;
+    }
+
+    if (useIndependentLayerPlanes && activeLayerColor && activeLayerColor !== sprite.backgroundColor) {
+      const updatedFrames = sprite.frames.map((frame, index) => {
+        if (index !== sprite.currentFrameIndex) return frame;
+
+        const nextLayerData = ensureFrameLayerData(
+          frame,
+          sprite.spritePalette,
+          sprite.backgroundColor,
+          sprite.size.width,
+          sprite.size.height
+        );
+        const activePlane = nextLayerData[activeBrushColorIndex] ?? createEmptyLayerPlane(sprite.size.width, sprite.size.height);
+        const nextPlane = activePlane.map(row => [...row]);
+        const shouldPaint = toolMode === 'draw' && !isRightClick;
+        const shouldErase = toolMode === 'erase' || isRightClick;
+
+        if (nextPlane[point.y]?.[point.x] === undefined) return frame;
+        nextPlane[point.y][point.x] = shouldPaint ? true : shouldErase ? false : nextPlane[point.y][point.x];
+        nextLayerData[activeBrushColorIndex] = nextPlane;
+
+        const compositeData = frame.data.map(row => [...row]);
+        compositeData[point.y][point.x] = shouldPaint ? activeLayerColor : sprite.backgroundColor;
+
+        return { ...frame, data: compositeData, msx1LayerData: nextLayerData };
+      });
+      onUpdate({ frames: updatedFrames });
+      return;
+    }
+
     if (isRightClick) {
       const newPixelData = currentFrameData.map(row => [...row]);
       if (newPixelData[point.y]?.[point.x] !== sprite.backgroundColor) {
@@ -410,14 +628,9 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
       return;
     }
 
-    if (toolMode === 'sphere') {
-      drawSphere(point);
-      return;
-    }
-
     const newPixelData = currentFrameData.map(row => [...row]);
     const colorToApply = toolMode === 'draw'
-      ? sprite.spritePalette[activeBrushColorIndex]
+      ? activeLayerColor
       : sprite.backgroundColor;
 
     if (newPixelData[point.y]?.[point.x] !== colorToApply) {
@@ -427,7 +640,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
       );
       onUpdate({ frames: updatedFrames });
     }
-  }, [currentFrameData, sprite.spritePalette, sprite.backgroundColor, activeBrushColorIndex, toolMode, sprite.currentFrameIndex, onUpdate, sprite.frames, drawSphere]);
+  }, [currentFrameData, sprite.spritePalette, sprite.backgroundColor, sprite.msx1LayerOffsets, sprite.size, activeBrushColorIndex, toolMode, sprite.currentFrameIndex, onUpdate, sprite.frames, drawSphere]);
 
   const handleAddContour = () => {
     if (!currentFrameData) return;
@@ -1083,6 +1296,28 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
        return <Panel title="Sprite Editor"><p className="p-4 text-red-500">Sprite has no frames or current frame is invalid.</p></Panel>;
   }
 
+  const defaultMultiHitbox = {
+    width: sprite.size.width,
+    height: msx1LayerOffsetPreview.height,
+    offsetX: 0,
+    offsetY: msx1LayerOffsetPreview.originOffsetY
+  };
+  const storedHitboxIsBaseSpriteBounds =
+    sprite.hitbox?.width === sprite.size.width &&
+    sprite.hitbox?.height === sprite.size.height &&
+    (sprite.hitbox?.offsetX ?? 0) === 0 &&
+    (sprite.hitbox?.offsetY ?? 0) === 0 &&
+    (defaultMultiHitbox.height !== sprite.size.height || defaultMultiHitbox.offsetY !== 0);
+  const resolvedHitbox = !sprite.hitbox || storedHitboxIsBaseSpriteBounds
+    ? defaultMultiHitbox
+    : {
+        width: sprite.hitbox.width,
+        height: sprite.hitbox.height,
+        offsetX: sprite.hitbox.offsetX,
+        offsetY: sprite.hitbox.offsetY
+      };
+  const fitHitboxToMultiSprite = () => onUpdate({ hitbox: defaultMultiHitbox });
+
 
   return (
     <Panel title={`Sprite Editor: ${localSpriteName}`} className="flex-grow flex flex-col bg-msx-bgcolor">
@@ -1234,11 +1469,15 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
         <div className="flex-grow p-2 flex flex-col items-center justify-start overflow-hidden">
           {currentFrameData && sprite.size.width > 0 && sprite.size.height > 0 ? (
             <SpritePixelGrid
-              pixelData={currentFrameData}
+              pixelData={msx1LayerOffsetPreview.data ?? currentFrameData}
               onPixelClick={handlePixelClick}
               pixelSize={pixelSize}
               spriteWidth={sprite.size.width}
-              spriteHeight={sprite.size.height}
+              spriteHeight={msx1LayerOffsetPreview.height}
+              sourceSpriteHeight={sprite.size.height}
+              previewOriginOffsetY={msx1LayerOffsetPreview.originOffsetY}
+              interactionLayerOffsetY={clampLayerYOffset(msx1LayerOffsets[activeBrushColorIndex]?.offsetY ?? 0)}
+              activeLayerColor={sprite.spritePalette[activeBrushColorIndex]}
               onionSkinEnabled={onionSkinEnabled}
               onionSkinOpacity={onionSkinOpacity}
               prevFrameData={prevFrameData}
@@ -1246,10 +1485,10 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
               backgroundColor={sprite.backgroundColor}
               toolMode={toolMode}
               showHitbox={showHitbox}
-              hitboxWidth={sprite.hitbox?.width ?? sprite.size.width}
-              hitboxHeight={sprite.hitbox?.height ?? sprite.size.height}
-              hitboxOffsetX={sprite.hitbox?.offsetX ?? 0}
-              hitboxOffsetY={sprite.hitbox?.offsetY ?? 0}
+              hitboxWidth={resolvedHitbox.width}
+              hitboxHeight={resolvedHitbox.height}
+              hitboxOffsetX={resolvedHitbox.offsetX}
+              hitboxOffsetY={resolvedHitbox.offsetY}
             />
           ) : (
             <div className="text-msx-textsecondary pixel-font">
@@ -1273,7 +1512,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
 
         {/* Right Panel 1: Sprite Configuration */}
         <div className="w-48 p-2 border-l border-msx-border flex-shrink-0 flex flex-col space-y-3 overflow-y-auto">
-          <Panel title="Define Sprite Colors">
+          <Panel title="Define Sprite Colors" collapsible>
             <p className="text-[0.65rem] text-msx-textsecondary mb-2">Click a slot, then pick from main MSX Palette Panel.</p>
             <div className="space-y-2">
               {sprite.spritePalette.map((color, index) => (
@@ -1302,7 +1541,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
               </div>
             </div>
           </Panel>
-          <Panel title="Sprite Settings">
+          <Panel title="Sprite Settings" collapsible>
             <div className="space-y-2 text-xs">
               <label className="flex items-center justify-between">
                 <span>Facing</span>
@@ -1329,22 +1568,96 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
               </label>
             </div>
           </Panel>
-          <Panel title="Hitbox Settings">
+          <Panel title="MSX1 HW Sprite Layout" collapsible>
             <div className="space-y-2 text-xs">
+              {drawablePaletteLayerIndexes.length > 0 ? (
+                drawablePaletteLayerIndexes.map(paletteIndex => {
+                  const color = sprite.spritePalette[paletteIndex];
+                  const offsetY = clampLayerYOffset(msx1LayerOffsets[paletteIndex]?.offsetY ?? 0);
+                  return (
+                    <div key={`msx1-layer-offset-${paletteIndex}`} className="space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span
+                            className="inline-block w-4 h-4 border border-msx-border rounded-sm flex-shrink-0"
+                            style={{ backgroundColor: color }}
+                            title={`Palette slot ${paletteIndex + 1}: ${color}`}
+                          />
+                          <span className="text-msx-textsecondary truncate">Slot {paletteIndex + 1}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleLayerYOffsetChange(paletteIndex, offsetY - 1)}
+                            disabled={offsetY <= MSX1_LAYER_OFFSET_MIN}
+                            className="w-6 h-6 rounded border border-msx-border bg-msx-bgcolor text-msx-textprimary hover:border-msx-highlight disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="Move this hardware sprite layer up 1 pixel"
+                          >
+                            -1
+                          </button>
+                          <input
+                            type="number"
+                            min={MSX1_LAYER_OFFSET_MIN}
+                            max={MSX1_LAYER_OFFSET_MAX}
+                            value={offsetY}
+                            onChange={e => handleLayerYOffsetChange(paletteIndex, parseInt(e.target.value, 10))}
+                            className="w-12 p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary text-center"
+                            title="Vertical position of this 16x16 hardware sprite layer"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleLayerYOffsetChange(paletteIndex, offsetY + 1)}
+                            disabled={offsetY >= MSX1_LAYER_OFFSET_MAX}
+                            className="w-6 h-6 rounded border border-msx-border bg-msx-bgcolor text-msx-textprimary hover:border-msx-highlight disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="Move this hardware sprite layer down 1 pixel"
+                          >
+                            +1
+                          </button>
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min={MSX1_LAYER_OFFSET_MIN}
+                        max={MSX1_LAYER_OFFSET_MAX}
+                        value={offsetY}
+                        onChange={e => handleLayerYOffsetChange(paletteIndex, parseInt(e.target.value, 10))}
+                        className="w-full accent-msx-accent"
+                        title="Vertical position of this 16x16 hardware sprite layer"
+                      />
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-msx-textsecondary">No drawable color layers.</div>
+              )}
+            </div>
+          </Panel>
+          <Panel title="Hitbox Settings" collapsible>
+            <div className="space-y-2 text-xs">
+              <Button
+                onClick={fitHitboxToMultiSprite}
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                justify="start"
+                title="Fit hitbox to the full visible multi-sprite bounds"
+              >
+                Fit Multi Sprite
+              </Button>
               <label className="flex items-center justify-between">
                 <span>Width</span>
                 <input
                   type="number"
                   min="1"
                   max={sprite.size.width}
-                  value={sprite.hitbox?.width ?? sprite.size.width}
+                  value={resolvedHitbox.width}
                   onChange={e => onUpdate({ 
                     hitbox: { 
                       ...sprite.hitbox, 
                       width: parseInt(e.target.value) || sprite.size.width,
-                      height: sprite.hitbox?.height ?? sprite.size.height,
-                      offsetX: sprite.hitbox?.offsetX ?? 0,
-                      offsetY: sprite.hitbox?.offsetY ?? 0
+                      height: resolvedHitbox.height,
+                      offsetX: resolvedHitbox.offsetX,
+                      offsetY: resolvedHitbox.offsetY
                     } 
                   })}
                   className="w-16 p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
@@ -1355,15 +1668,15 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                 <input
                   type="number"
                   min="1"
-                  max={sprite.size.height}
-                  value={sprite.hitbox?.height ?? sprite.size.height}
+                  max={Math.max(sprite.size.height, msx1LayerOffsetPreview.height)}
+                  value={resolvedHitbox.height}
                   onChange={e => onUpdate({ 
                     hitbox: { 
                       ...sprite.hitbox, 
-                      width: sprite.hitbox?.width ?? sprite.size.width,
-                      height: parseInt(e.target.value) || sprite.size.height,
-                      offsetX: sprite.hitbox?.offsetX ?? 0,
-                      offsetY: sprite.hitbox?.offsetY ?? 0
+                      width: resolvedHitbox.width,
+                      height: parseInt(e.target.value) || defaultMultiHitbox.height,
+                      offsetX: resolvedHitbox.offsetX,
+                      offsetY: resolvedHitbox.offsetY
                     } 
                   })}
                   className="w-16 p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
@@ -1375,14 +1688,14 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                   type="number"
                   min={-(sprite.size?.width ?? 16)}
                   max={sprite.size?.width ?? 16}
-                  value={sprite.hitbox?.offsetX ?? 0}
+                  value={resolvedHitbox.offsetX}
                   onChange={e => onUpdate({ 
                     hitbox: { 
                       ...sprite.hitbox, 
-                      width: sprite.hitbox?.width ?? sprite.size.width,
-                      height: sprite.hitbox?.height ?? sprite.size.height,
+                      width: resolvedHitbox.width,
+                      height: resolvedHitbox.height,
                       offsetX: parseInt(e.target.value) || 0,
-                      offsetY: sprite.hitbox?.offsetY ?? 0
+                      offsetY: resolvedHitbox.offsetY
                     } 
                   })}
                   className="w-16 p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
@@ -1392,15 +1705,15 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                 <span>Offset Y</span>
                 <input
                   type="number"
-                  min={-(sprite.size?.height ?? 16)}
-                  max={sprite.size?.height ?? 16}
-                  value={sprite.hitbox?.offsetY ?? 0}
+                  min={MSX1_LAYER_OFFSET_MIN}
+                  max={MSX1_LAYER_OFFSET_MAX}
+                  value={resolvedHitbox.offsetY}
                   onChange={e => onUpdate({
                     hitbox: {
                       ...sprite.hitbox,
-                      width: sprite.hitbox?.width ?? sprite.size.width,
-                      height: sprite.hitbox?.height ?? sprite.size.height,
-                      offsetX: sprite.hitbox?.offsetX ?? 0,
+                      width: resolvedHitbox.width,
+                      height: resolvedHitbox.height,
+                      offsetX: resolvedHitbox.offsetX,
                       offsetY: parseInt(e.target.value) || 0
                     }
                   })}
@@ -1424,11 +1737,29 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
 
         {/* Right Panel 2: Animation Tools */}
         <div className="w-48 p-2 border-l border-msx-border flex-shrink-0 flex flex-col space-y-3 overflow-y-auto">
-          <Panel title="Animation Tools">
+          <Panel title="Animation Tools" collapsible>
             <div className="text-center">
               {currentFrameData && sprite.size.width > 0 && sprite.size.height > 0 ? (
-                  <div className="border border-msx-border mx-auto inline-block" style={{width: sprite.size.width * 2, height: sprite.size.height * 2, imageRendering: 'pixelated', backgroundColor: sprite.backgroundColor}}>
-                      <SpritePixelGrid pixelData={currentFrameData} pixelSize={2} spriteWidth={sprite.size.width} spriteHeight={sprite.size.height} backgroundColor={sprite.backgroundColor}/>
+                  <div
+                    className="border border-msx-border mx-auto inline-block"
+                    style={{
+                      width: sprite.size.width * 2,
+                      height: msx1LayerOffsetPreview.height * 2,
+                      imageRendering: 'pixelated',
+                      backgroundColor: sprite.backgroundColor
+                    }}
+                  >
+                      <SpritePixelGrid
+                        pixelData={msx1LayerOffsetPreview.data ?? currentFrameData}
+                        pixelSize={2}
+                        spriteWidth={sprite.size.width}
+                        spriteHeight={msx1LayerOffsetPreview.height}
+                        sourceSpriteHeight={sprite.size.height}
+                        previewOriginOffsetY={msx1LayerOffsetPreview.originOffsetY}
+                        interactionLayerOffsetY={clampLayerYOffset(msx1LayerOffsets[activeBrushColorIndex]?.offsetY ?? 0)}
+                        activeLayerColor={sprite.spritePalette[activeBrushColorIndex]}
+                        backgroundColor={sprite.backgroundColor}
+                      />
                   </div>
               ) : <div className="text-xs text-msx-textsecondary text-center h-16 flex items-center justify-center">No preview</div>}
             </div>
@@ -1463,7 +1794,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
               </label>
             </div>
           </Panel>
-          <Panel title="Frame Control">
+          <Panel title="Frame Control" collapsible>
             <div className="space-y-1">
               <div className="flex space-x-1">
                 <Button onClick={() => handleFrameManagement('prev')} variant="ghost" size="sm" className="flex-1" disabled={sprite.frames.length <= 1}>Prev</Button>

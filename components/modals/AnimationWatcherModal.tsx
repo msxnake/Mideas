@@ -1,10 +1,9 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Sprite, ScreenMap, Tile, ProjectAsset } from '../../types';
+import { Sprite, ScreenMap, Tile, ProjectAsset, PixelData, SpriteFrame, MSXColorValue } from '../../types';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
 import { createSpriteDataURL } from '../utils/screenUtils';
-import { mirrorPixelDataHorizontally } from '../utils/spriteUtils';
 import { MSX_SCREEN5_PALETTE, EDITOR_BASE_TILE_DIM_S2, MSX1_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
 
 /**
@@ -28,6 +27,81 @@ const PREVIEW_HEIGHT = 192;
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.25;
+
+const clampLayerYOffset = (value: unknown): number => {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(-16, Math.min(16, Math.trunc(numeric)));
+};
+
+const getFrameLayerPlane = (
+  frame: SpriteFrame | undefined,
+  paletteIndex: number,
+  layerColor: MSXColorValue,
+  width: number,
+  height: number
+): boolean[][] => {
+  const storedPlane = frame?.msx1LayerData?.[paletteIndex];
+  if (storedPlane) {
+    return Array(height).fill(null).map((_, y) =>
+      Array(width).fill(false).map((__, x) => !!storedPlane[y]?.[x])
+    );
+  }
+
+  return Array(height).fill(null).map((_, y) =>
+    Array(width).fill(false).map((__, x) => frame?.data?.[y]?.[x] === layerColor)
+  );
+};
+
+const frameUsesPaletteLayer = (frame: SpriteFrame, paletteIndex: number, layerColor: MSXColorValue): boolean =>
+  !!frame.msx1LayerData?.[paletteIndex]?.some(row => row.some(Boolean)) ||
+  frame.data?.some(row => row?.some(pixel => pixel === layerColor));
+
+const mirrorLayerPlaneHorizontally = (plane: boolean[][]): boolean[][] => plane.map(row => [...row].reverse());
+
+const composeSpriteFrame = (
+  sprite: Sprite,
+  frame: SpriteFrame,
+  mirrorHorizontally: boolean = false
+): { data: PixelData; width: number; height: number; originOffsetY: number } => {
+  const drawableLayerIndexes = sprite.spritePalette
+    .map((color, index) => ({ color, index }))
+    .filter(({ color }) => color && color !== sprite.backgroundColor)
+    .filter(({ color, index }) => frameUsesPaletteLayer(frame, index, color))
+    .map(({ index }) => index);
+
+  const offsets = drawableLayerIndexes.map(index => clampLayerYOffset(sprite.msx1LayerOffsets?.[index]?.offsetY ?? 0));
+  const minOffsetY = Math.min(0, ...offsets);
+  const maxOffsetY = Math.max(0, ...offsets);
+  const composedHeight = sprite.size.height + maxOffsetY - minOffsetY;
+  const composedData: PixelData = Array(composedHeight)
+    .fill(null)
+    .map(() => Array(sprite.size.width).fill(sprite.backgroundColor));
+
+  for (const paletteIndex of drawableLayerIndexes) {
+    const color = sprite.spritePalette[paletteIndex];
+    if (!color || color === sprite.backgroundColor) continue;
+    const rawPlane = getFrameLayerPlane(frame, paletteIndex, color, sprite.size.width, sprite.size.height);
+    const plane = mirrorHorizontally ? mirrorLayerPlaneHorizontally(rawPlane) : rawPlane;
+    const offsetY = clampLayerYOffset(sprite.msx1LayerOffsets?.[paletteIndex]?.offsetY ?? 0);
+    for (let y = 0; y < sprite.size.height; y++) {
+      for (let x = 0; x < sprite.size.width; x++) {
+        if (!plane[y]?.[x]) continue;
+        const targetY = y + offsetY - minOffsetY;
+        if (targetY >= 0 && targetY < composedHeight) {
+          composedData[targetY][x] = color;
+        }
+      }
+    }
+  }
+
+  return {
+    data: composedData,
+    width: sprite.size.width,
+    height: composedHeight,
+    originOffsetY: minOffsetY
+  };
+};
 
 /**
  * Renders a screen map to a data URL, suitable for use as a background image.
@@ -154,18 +228,24 @@ export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
 
   const screenMaps = useMemo(() => allAssets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap), [allAssets]);
   const tileset = useMemo(() => allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile), [allAssets]);
+  const baseComposedFrames = useMemo(() => sprite.frames.map(frame => composeSpriteFrame(sprite, frame)), [sprite]);
   const baseFrameDataUrls = useMemo(
-    () => sprite.frames.map(frame => createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height)),
-    [sprite.frames, sprite.size.height, sprite.size.width]
+    () => baseComposedFrames.map(frame => createSpriteDataURL(frame.data, frame.width, frame.height)),
+    [baseComposedFrames]
   );
   const mirroredFrameDataUrls = useMemo(() => {
     const facing = sprite.facingDirection ?? 'neutral';
     if (!['left', 'right', 'neutral'].includes(facing)) return null;
     return sprite.frames.map(frame => {
-        const mirrored = mirrorPixelDataHorizontally(frame.data);
-        return createSpriteDataURL(mirrored, sprite.size.width, sprite.size.height);
+        const composed = composeSpriteFrame(sprite, frame, true);
+        return createSpriteDataURL(composed.data, composed.width, composed.height);
     });
-  }, [sprite.facingDirection, sprite.frames, sprite.size.height, sprite.size.width]);
+  }, [sprite]);
+  const composedSpriteBounds = baseComposedFrames[0] ?? {
+    width: sprite.size.width,
+    height: sprite.size.height,
+    originOffsetY: 0
+  };
   const clampZoom = useCallback((value: number) => {
     const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
     return Math.round(clamped * 100) / 100;
@@ -263,14 +343,14 @@ export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
             for (let i = 0; i < moveSteps; i++) {
                 if (patrolH) {
                     newX += currentDir.dx;
-                    if (newX > PREVIEW_WIDTH - sprite.size.width || newX < 0) {
+                    if (newX > PREVIEW_WIDTH - composedSpriteBounds.width || newX < 0) {
                         currentDir.dx *= -1;
                         newX += currentDir.dx * 2; // correct overshoot
                     }
                 }
                 if (patrolV) {
                     newY += currentDir.dy;
-                    if (newY > PREVIEW_HEIGHT - sprite.size.height || newY < 0) {
+                    if (newY > PREVIEW_HEIGHT - composedSpriteBounds.height || newY < 0) {
                         currentDir.dy *= -1;
                         newY += currentDir.dy * 2; // correct overshoot
                     }
@@ -282,7 +362,7 @@ export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
     }
 
     animFrameRef.current = requestAnimationFrame(animate);
-  }, [animFrameDurationMs, moveSpeed, patrolH, patrolV, sprite.frames.length, sprite.size.width, sprite.size.height]);
+  }, [animFrameDurationMs, moveSpeed, patrolH, patrolV, sprite.frames.length, composedSpriteBounds.width, composedSpriteBounds.height]);
 
   useEffect(() => {
     if (isOpen) {
@@ -348,8 +428,10 @@ export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
                         {/* Sprite */}
                         {currentFrameDataUrl && (
                             <img src={currentFrameDataUrl} alt="sprite" className="absolute" style={{
-                                left: position.x, top: position.y,
-                                width: sprite.size.width, height: sprite.size.height,
+                                left: position.x,
+                                top: position.y + composedSpriteBounds.originOffsetY,
+                                width: composedSpriteBounds.width,
+                                height: composedSpriteBounds.height,
                                 imageRendering: 'pixelated'
                             }} />
                         )}
@@ -369,11 +451,11 @@ export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
                         <div className="grid grid-cols-2 gap-2">
                            <div>
                                <label>Initial X:</label>
-                               <input type="number" value={initialX} onChange={e => setInitialX(parseInt(e.target.value))} max={PREVIEW_WIDTH - (sprite.size?.width ?? 16)} min={0} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                               <input type="number" value={initialX} onChange={e => setInitialX(parseInt(e.target.value))} max={PREVIEW_WIDTH - composedSpriteBounds.width} min={0} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                            </div>
                            <div>
                                <label>Initial Y:</label>
-                               <input type="number" value={initialY} onChange={e => setInitialY(parseInt(e.target.value))} max={PREVIEW_HEIGHT - (sprite.size?.height ?? 16)} min={0} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                               <input type="number" value={initialY} onChange={e => setInitialY(parseInt(e.target.value))} max={PREVIEW_HEIGHT - composedSpriteBounds.height} min={0} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                            </div>
                         </div>
                     </Panel>

@@ -1390,6 +1390,21 @@ sprite_layer_loop:
     ld a, (de)                 ; A = Color
     pop de                     ; Restore D (Pattern)
     ld e, a                    ; E = Color
+
+    ; Apply signed per-layer Y offset. B/C is restored after the call
+    ; from the saved entity position pushed at the top of this layer pass.
+    push de                    ; Preserve D=Pattern, E=Color
+    ld de, sprite_layer_y_offsets
+    ld a, l
+    add a, e
+    ld e, a
+    ld a, 0
+    adc a, d
+    ld d, a                    ; DE = &sprite_layer_y_offsets[hwSprite]
+    ld a, (de)                 ; A = signed Y offset (two's complement)
+    pop de
+    add a, c
+    ld c, a                    ; C = Y + layer offset
     
     ; Call show_sprite (A=HW Sprite, B=X, C=Y, D=Pattern, E=Color)
     ld a, l                    ; A = HW Sprite
@@ -1534,6 +1549,21 @@ force_sprite_layer_loop:
     ld a, (de)
     pop de                     ; Restore D
     ld e, a                    ; E = Color
+
+    ; Apply signed per-layer Y offset. B/C is restored after the call
+    ; from the saved entity position pushed at the top of this layer pass.
+    push de
+    ld de, sprite_layer_y_offsets
+    ld a, l
+    add a, e
+    ld e, a
+    ld a, 0
+    adc a, d
+    ld d, a
+    ld a, (de)
+    pop de
+    add a, c
+    ld c, a
     
     ; Call show_sprite
     ld a, l                    ; A = HW Sprite
@@ -4911,6 +4941,8 @@ wallgrab_update_sprite_colors_c:
     ; Clobbers: AF, BC, DE, HL
     ld d, a
     ; Keep per-layer runtime colors in sync with the temporary grab sprite.
+    push bc
+    push de
     push de
     ld h, 0
     ld l, c
@@ -4947,6 +4979,47 @@ wallgrab_update_sprite_colors_c:
     pop hl
     inc c
     djnz .wg_commit_color_loop
+
+    pop de                          ; D = sprite asset index
+    pop bc                          ; C = entity index
+
+    ; Keep per-layer Y offsets in sync with the same temporary sprite.
+    push de
+    ld h, 0
+    ld l, c
+    add hl, hl
+    ld de, entity_sprite_config
+    add hl, de
+    ld c, (hl)                     ; C = base HW sprite slot
+    pop de                         ; D = sprite asset index
+
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.wg_commit_y_offset_mul_layers:
+    add hl, de
+    djnz .wg_commit_y_offset_mul_layers
+    ld de, SM_SpriteLayerYOffsetTable
+    add hl, de
+
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.wg_commit_y_offset_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_y_offsets
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz .wg_commit_y_offset_loop
     ret
 
 .apply_physics:
@@ -5443,6 +5516,8 @@ walljump_commit_sprite_c:
 
     ; Update runtime layer colors so the temporary animation and restored
     ; sprite render with their own palette immediately.
+    push bc
+    push de
     push de
     ld h, 0
     ld l, c
@@ -5479,6 +5554,47 @@ wj_commit_color_loop:
     pop hl
     inc c
     djnz wj_commit_color_loop
+
+    pop de                         ; D = sprite asset index
+    pop bc                         ; C = entity index
+
+    ; Update runtime layer Y offsets alongside colors.
+    push de
+    ld h, 0
+    ld l, c
+    add hl, hl
+    ld de, entity_sprite_config
+    add hl, de
+    ld c, (hl)                     ; C = base HW sprite slot
+    pop de                         ; D = sprite asset index
+
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+wj_commit_y_offset_mul_layers:
+    add hl, de
+    djnz wj_commit_y_offset_mul_layers
+    ld de, SM_SpriteLayerYOffsetTable
+    add hl, de
+
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+wj_commit_y_offset_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_y_offsets
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz wj_commit_y_offset_loop
     ret
 
 walljump_clear_active_state_c:
