@@ -482,6 +482,9 @@ MAX_ENTITIES        EQU 32
     code += `current_screen_id   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Currently displayed screen ID\n`;
     currentAddress++;
 
+    code += `current_screen_engine EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime engine: 0=Player, 1=FakePlayer\n`;
+    currentAddress++;
+
     code += `screen_dirty_flag   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen needs redraw flag\n`;
     currentAddress++;
 
