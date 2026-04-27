@@ -171,6 +171,20 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     ],
   },
   {
+    id: "comp_dash", name: "Dash",
+    description: "Define un dash corto y preciso para plataformas tipo Celeste. Es dato de diseño hasta que el runtime/generador lo consuma.",
+    properties: [
+      { name: "dashSpeed", type: "byte", defaultValue: "6", description: "Velocidad del dash en pixeles por frame o unidad equivalente del runtime." },
+      { name: "dashDurationFrames", type: "byte", defaultValue: "10", description: "Frames durante los que se mantiene el impulso de dash." },
+      { name: "dashCooldownFrames", type: "byte", defaultValue: "12", description: "Frames antes de permitir otro dash si el runtime lo permite." },
+      { name: "maxAirDashes", type: "byte", defaultValue: "1", description: "Dashes disponibles en el aire antes de tocar suelo o recargar." },
+      { name: "refillOnGround", type: "boolean", defaultValue: "true", description: "Recarga el dash al tocar suelo." },
+      { name: "refillOnWallGrab", type: "boolean", defaultValue: "true", description: "Recarga el dash al agarrarse a una pared." },
+      { name: "allowEightDirections", type: "boolean", defaultValue: "true", description: "Permite dash horizontal, vertical y diagonal." },
+      { name: "isEnabled", type: "boolean", defaultValue: "true", description: "Activa o desactiva el dash para esta entidad." }
+    ],
+  },
+  {
     id: "comp_air_control", name: "Air Control",
     description: "Controla si la entidad puede cambiar su movimiento horizontal mientras esta en el aire.",
     properties: [
@@ -561,6 +575,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_air_control", defaultValues: { airControlMode: "full", isEnabled: true } },
       { definitionId: "comp_wall_grab", defaultValues: { grabFallSpeed: "1", climbSpeed: "1", grabDurationFrames: "240", isEnabled: true } },
       { definitionId: "comp_wall_jump", defaultValues: { horizontalPush: "7", verticalImpulse: "1280", animationSpriteAssetId: "", slideFallSpeed: "2", lockFrames: "16", requirePressAwayFromWall: false, isEnabled: true } },
+      { definitionId: "comp_dash", defaultValues: { dashSpeed: "6", dashDurationFrames: "10", dashCooldownFrames: "12", maxAirDashes: "1", refillOnGround: true, refillOnWallGrab: true, allowEightDirections: true, isEnabled: true } },
       { definitionId: "comp_deadly_tiles", defaultValues: {} },
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", animationSpeed: "8", animateOnlyWhenMoving: true } },
       { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", currentStateId: "Idle", isEnabled: true } }
