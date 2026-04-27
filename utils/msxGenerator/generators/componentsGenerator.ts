@@ -107,6 +107,35 @@ function wrapDialogueText(text: string, maxCharsPerLine: number, maxLines: numbe
     return rows.length > 0 ? rows : [''];
 }
 
+function resolveDialogueBorderCharCode(
+    analysis: ProjectAnalysis,
+    tileBankAssetId: string | undefined,
+    tileId: string | undefined,
+    screenY: number,
+    fallback: number
+): number {
+    if (!tileBankAssetId || !tileId) return fallback;
+
+    const tileBank = (analysis.tileBanks || []).find((bank: any) => bank?.id === tileBankAssetId);
+    if (!tileBank || !Array.isArray((tileBank as any).banks)) return fallback;
+
+    const sector = Math.max(0, Math.min(2, Math.floor(screenY / 8)));
+    const banks = [
+        (tileBank as any).banks[sector],
+        ...(tileBank as any).banks,
+    ].filter(Boolean);
+
+    for (const bank of banks) {
+        const assignment = bank?.assignedTiles?.[tileId];
+        const charCode = Number(assignment?.charCode);
+        if (Number.isFinite(charCode)) {
+            return clampByteValue(charCode, fallback);
+        }
+    }
+
+    return fallback;
+}
+
 function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBuild {
     const dialogues = Array.isArray((analysis as any).dialogues) ? (analysis as any).dialogues : [];
     const dialogueIndexById = new Map<string, number>();
@@ -137,21 +166,31 @@ function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBui
         const width = Math.max(3, Math.min(32 - Math.min(x, 31), clampByteValue(box.width, 32)));
         const height = Math.max(3, Math.min(24 - Math.min(y, 23), clampByteValue(box.height, 4)));
         const border = box.borderCharCodes || {};
+        const borderTiles = box.borderTiles || {};
+        const useTileBorder = box.borderSource === 'tilebank';
         const charDelay = Math.max(0, Math.min(255, clampByteValue(dialogue?.exportOptions?.charDelayFrames, 2)));
         const baseVram = `NAMETBL + ${(y * 32) + x}`;
         const textVram = `NAMETBL + ${((y + 1) * 32) + x + 1}`;
+        const generatedTopLeft = clampByteValue(border.topLeft, 43);
+        const generatedTopRight = clampByteValue(border.topRight, 43);
+        const generatedBottomLeft = clampByteValue(border.bottomLeft, 43);
+        const generatedBottomRight = clampByteValue(border.bottomRight, 43);
+        const generatedHorizontal = clampByteValue(border.horizontal, 45);
+        const generatedVertical = clampByteValue(border.vertical, 124);
+        const topY = y;
+        const bottomY = y + height - 1;
 
         boxVramEntries.push(baseVram);
         textVramEntries.push(textVram);
         widthEntries.push(width);
         heightEntries.push(height);
         delayEntries.push(charDelay);
-        tlEntries.push(clampByteValue(border.topLeft, 43));
-        trEntries.push(clampByteValue(border.topRight, 43));
-        blEntries.push(clampByteValue(border.bottomLeft, 43));
-        brEntries.push(clampByteValue(border.bottomRight, 43));
-        hEntries.push(clampByteValue(border.horizontal, 45));
-        vEntries.push(clampByteValue(border.vertical, 124));
+        tlEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.topLeftTileId, topY, generatedTopLeft) : generatedTopLeft);
+        trEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.topRightTileId, topY, generatedTopRight) : generatedTopRight);
+        blEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.bottomLeftTileId, bottomY, generatedBottomLeft) : generatedBottomLeft);
+        brEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.bottomRightTileId, bottomY, generatedBottomRight) : generatedBottomRight);
+        hEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.horizontalTileId, topY, generatedHorizontal) : generatedHorizontal);
+        vEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.verticalTileId, topY, generatedVertical) : generatedVertical);
 
         const lineMap = new Map<number, number>();
         lineIndexByDialogueId.set(dialogueId, lineMap);
