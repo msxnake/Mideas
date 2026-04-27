@@ -554,6 +554,25 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     if (!currentEntityTypeToPlace) {
       return;
     }
+    const normalizeTemplateName = (value: string | undefined) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const templateName = normalizeTemplateName(currentEntityTypeToPlace.name);
+    const templateId = normalizeTemplateName(currentEntityTypeToPlace.id);
+    const hasAutoControlScript = currentEntityTypeToPlace.components.some(component => component.definitionId === 'comp_auto_control_script');
+    const isFakePlayerTemplate = templateName.includes('fakeplayer') || templateId.includes('fakeplayer') || hasAutoControlScript;
+    const isPlayerTemplate = !isFakePlayerTemplate && (
+      currentEntityTypeToPlace.isPlayer === true ||
+      templateName === 'player' ||
+      templateId === 'player' ||
+      templateId === 'tplplayer' ||
+      currentEntityTypeToPlace.components.some(component => component.definitionId === 'comp_player_input')
+    );
+
+    if (screenKind === 'playable' && isFakePlayerTemplate) {
+      setStatusBarMessage('Warning: FakePlayer is intended for tutorial/dialog/cutscene screens, not playable screens.');
+    } else if (screenKind !== 'playable' && isPlayerTemplate) {
+      setStatusBarMessage(`Warning: ${screenKind} screens should use FakePlayer/AutoControlScript, not the real Player.`);
+    }
+
     const newEntityInstance: EntityInstance = {
       id: `entity_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       entityTemplateId: currentEntityTypeToPlace.id,
@@ -565,7 +584,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     };
     const updatedEntities = [...screenMap.layers.entities, newEntityInstance];
     onUpdate({ layers: { ...screenMap.layers, entities: updatedEntities } });
-  }, [currentEntityTypeToPlace, getNextEntityInstanceName, screenMap.layers, onUpdate]);
+  }, [currentEntityTypeToPlace, getNextEntityInstanceName, onUpdate, screenKind, screenMap.layers, setStatusBarMessage]);
 
   const handleAddNewEffectZone = () => {
     if (activeLayer !== 'effects') {
