@@ -862,6 +862,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 'dash_down',
                 'grab_wall',
                 'release_wall',
+                'play_dialog',
+                'play_dialogue',
                 'open_dialog',
                 'wait_spc',
                 'clear_dialog',
@@ -891,7 +893,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   }
                   return [`Line ${item.lineNumber}: unknown command "${command}".`];
                 });
-              const dialogueCommandNeedsAsset = /\b(open_dialog|write_line)\b/.test(commands) && !dialogueAssetId;
+              const dialogueCommandNeedsAsset = /\b(play_dialog|play_dialogue|open_dialog|write_line)\b/.test(commands) && !dialogueAssetId;
               if (dialogueCommandNeedsAsset) {
                 commandValidationIssues.unshift('Script uses dialogue commands but no Default Dialogue is selected.');
               }
@@ -970,6 +972,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                           'grab_wall',
                           'release_wall',
                           'delay 1000',
+                          'play_dialog',
                           'open_dialog',
                           'write_line 0',
                           'wait_spc',
@@ -988,7 +991,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                         ))}
                       </div>
                       <p className="text-[0.65rem] text-msx-textsecondary mt-1">
-                        Commands: move_right 64, jump, dash_right, grab_wall, delay 1000, open_dialog, write_line 0, wait_spc, clear_dialog, close_dialog.
+                        Commands: move_right 64, jump, dash_right, grab_wall, delay 1000, play_dialog, open_dialog, write_line 0, wait_spc, clear_dialog, close_dialog.
                       </p>
                       {commandValidationIssues.length > 0 && (
                         <div className="mt-1 p-1.5 border border-yellow-500/50 bg-yellow-950/40 rounded text-[0.65rem] text-yellow-100">
