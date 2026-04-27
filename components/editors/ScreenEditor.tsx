@@ -7,6 +7,7 @@ import { ExportLayoutASMModal } from '../modals/ExportLayoutASMModal';
 import { ExportBehaviorMapASMModal } from '../modals/ExportBehaviorMapASMModal';
 import { HUDEditorModal } from './HUDEditorModal';
 import { generateSuperRLEData, deepCompareTiles, generateScreenMapLayoutBytes, generateOptimizedRLEData, generateBehaviorMapData, resolveScreenBehaviorSource } from '../utils/screenUtils'; // New Import
+import { Button } from '../common/Button';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { NewEffectZoneModal } from '../modals/NewEffectZoneModal';
 import { AddSecretTextModal } from '../modals/AddSecretTextModal';
@@ -589,6 +590,31 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     const updatedEntities = [...screenMap.layers.entities, newEntityInstance];
     onUpdate({ layers: { ...screenMap.layers, entities: updatedEntities } });
   }, [currentEntityTypeToPlace, getNextEntityInstanceName, onUpdate, screenKind, screenMap.layers, setStatusBarMessage]);
+
+  const handleAddFakePlayerEntity = useCallback(() => {
+    const fakePlayerTemplate = entityTemplates.find(template => template.id === 'tpl_fake_player' || template.name.toLowerCase().replace(/[^a-z0-9]/g, '') === 'fakeplayer');
+    if (!fakePlayerTemplate) {
+      setStatusBarMessage('FakePlayer template not found. Load default entity templates first.');
+      return;
+    }
+
+    const newEntityInstance: EntityInstance = {
+      id: `entity_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      entityTemplateId: fakePlayerTemplate.id,
+      name: getNextEntityInstanceName(fakePlayerTemplate),
+      jobRate: 100,
+      jobEntry: 0,
+      position: {
+        x: Math.max(0, Math.floor(screenMap.width / 2)),
+        y: Math.max(0, Math.floor(screenMap.height / 2)),
+      },
+      componentOverrides: {},
+    };
+
+    onUpdate({ layers: { ...screenMap.layers, entities: [...screenMap.layers.entities, newEntityInstance] } });
+    onSelectEntityInstance(newEntityInstance.id);
+    setStatusBarMessage('FakePlayer added to this non-playable screen.');
+  }, [entityTemplates, getNextEntityInstanceName, onSelectEntityInstance, onUpdate, screenMap.height, screenMap.layers, screenMap.width, setStatusBarMessage]);
 
   const handleAddNewEffectZone = () => {
     if (activeLayer !== 'effects') {
@@ -1441,6 +1467,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const layerNamesForToolbar: ScreenEditorLayerName[] = ['background', 'collision', 'effects', 'entities'];
   const baseCellPixelWidth = EDITOR_BASE_TILE_DIM;
   const baseCellPixelHeight = EDITOR_BASE_TILE_DIM;
+  const canOfferAddFakePlayer = screenKind !== 'playable' && screenKindValidationIssues.some(issue => issue.includes('no FakePlayer'));
 
   const handleCopyScreen = useCallback(() => {
     const { layers, effectZones, activeAreaX = 0, activeAreaY = 0, activeAreaWidth = screenMap.width, activeAreaHeight = screenMap.height, hudConfiguration } = screenMap;
@@ -1855,6 +1882,16 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
               <li key={issue}>{issue}</li>
             ))}
           </ul>
+          {canOfferAddFakePlayer && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="mt-2"
+              onClick={handleAddFakePlayerEntity}
+            >
+              Add FakePlayer
+            </Button>
+          )}
         </div>
       )}
 
