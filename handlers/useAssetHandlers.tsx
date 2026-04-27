@@ -169,6 +169,7 @@ export const useAssetHandlers = ({
           id, name: defaultName,
           width: mapW,
           height: mapH,
+          screenKind: 'playable',
           layers: {
             background: emptyLayer,
             collision: createEmptyLayer(),

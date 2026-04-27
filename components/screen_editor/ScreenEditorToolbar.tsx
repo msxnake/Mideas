@@ -7,7 +7,7 @@
 import React from 'react';
 import { Button } from '../common/Button';
 import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
-import { ScreenBlockExportMode, ScreenBehaviorSource, ScreenMap, ProjectAsset } from '../../types';
+import { ScreenBlockExportMode, ScreenBehaviorSource, ScreenMap, ProjectAsset, ScreenKind } from '../../types';
 import { MSX1_PALETTE } from '../../constants';
 import { getBackgroundColorHex, isScreen2Mode } from '../../utils/screenModeConfig';
 
@@ -28,6 +28,10 @@ interface ScreenEditorToolbarProps {
   onLayerChange: (layer: LayerName) => void;
   /** An array of available layer names. */
   layerNames: LayerName[];
+  /** High-level screen role. */
+  screenKind: ScreenKind;
+  /** Callback when high-level screen role changes. */
+  onScreenKindChange: (screenKind: ScreenKind) => void;
   /** The current zoom level. */
   zoom: number;
   /** Callback function when the zoom level changes. */
@@ -129,6 +133,7 @@ interface ScreenEditorToolbarProps {
  */
 export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   activeLayer, onLayerChange, layerNames, zoom, onZoomChange,
+  screenKind, onScreenKindChange,
   activeAreaX, activeAreaY, activeAreaWidth, activeAreaHeight, onActiveAreaChange,
   maxActiveAreaX, maxActiveAreaY, maxActiveAreaWidth, maxActiveAreaHeight,
   onOpenHudEditor, isHudAreaDefined,
@@ -166,6 +171,22 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
             {name.charAt(0).toUpperCase() + name.slice(1)}
           </button>
         ))}
+      </div>
+
+      <div className="flex items-center space-x-1 border-l border-msx-border/50 pl-2">
+        <label htmlFor="screenKindSelector" className="pixel-font text-msx-textsecondary text-xs">Screen:</label>
+        <select
+          id="screenKindSelector"
+          value={screenKind}
+          onChange={(e) => onScreenKindChange(e.target.value as ScreenKind)}
+          className="p-1 bg-msx-bgcolor border-msx-border rounded text-msx-textprimary text-xs focus:ring-msx-accent focus:border-msx-accent"
+          title="Distinguishes playable screens from tutorial, dialog, and cutscene screens"
+        >
+          <option value="playable">Playable</option>
+          <option value="tutorial">Tutorial</option>
+          <option value="dialog">Dialog</option>
+          <option value="cutscene">Cutscene</option>
+        </select>
       </div>
 
       {/* TileBank Selector (SCREEN 2 only) */}

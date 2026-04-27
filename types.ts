@@ -540,6 +540,9 @@ export type ScreenBlockExportMode = 'raw' | 'blocks2x2' | 'blocks4x4';
 /** Source used to build the runtime behavior/collision map for a screen. */
 export type ScreenBehaviorSource = 'collisionLayer' | 'backgroundChars';
 
+/** High-level role of a screen in the game flow. */
+export type ScreenKind = 'playable' | 'tutorial' | 'dialog' | 'cutscene';
+
 /** Optional build-time optimization settings for screen exports. */
 export interface ScreenBlockOptimization {
   /** Background export strategy. `raw` preserves the current 32x24 tile stream. */
@@ -564,6 +567,8 @@ export interface ScreenMap {
   width: number;
   /** The height of the map in tiles. */
   height: number;
+  /** High-level role of this screen: gameplay, tutorial/dialog, or cutscene. */
+  screenKind?: ScreenKind;
   /** The different layers of the screen map. */
   layers: {
     background: ScreenLayerData;
