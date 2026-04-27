@@ -829,6 +829,90 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               );
             }
 
+            if (componentDef.id === 'comp_auto_control_script') {
+              const getAutoControlValue = (propName: string) =>
+                localComponentOverrides[componentDef.id]?.[propName] ??
+                templateComponent.defaultValues[propName] ??
+                componentDef.properties.find(p => p.name === propName)?.defaultValue ??
+                '';
+              const enabled = getAutoControlValue('enabled');
+              const startsOnScreenLoad = getAutoControlValue('startsOnScreenLoad');
+              const loop = getAutoControlValue('loop');
+              const dialogueAssetId = String(getAutoControlValue('defaultDialogueAssetId') ?? '');
+              const commands = String(getAutoControlValue('commands') ?? '');
+              const selectedDialogueAsset = assetsWithEntityTemplates.find(asset => asset.id === dialogueAssetId && asset.type === 'dialogue');
+
+              return (
+                <div key={componentDef.id} className="p-1.5 border border-msx-border/50 rounded bg-msx-bgcolor/30">
+                  <h5 className="text-xs text-msx-highlight mb-1">{componentDef.name}</h5>
+                  <div className="grid grid-cols-1 gap-2">
+                    <div className="grid grid-cols-3 gap-2 text-[0.65rem] text-msx-textsecondary">
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={enabled === true || enabled === 'true'}
+                          onChange={e => handleComponentOverrideChange(componentDef.id, 'enabled', e.target.checked, 'boolean')}
+                          className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent"
+                        />
+                        Enabled
+                      </label>
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={startsOnScreenLoad === true || startsOnScreenLoad === 'true'}
+                          onChange={e => handleComponentOverrideChange(componentDef.id, 'startsOnScreenLoad', e.target.checked, 'boolean')}
+                          className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent"
+                        />
+                        On load
+                      </label>
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={loop === true || loop === 'true'}
+                          onChange={e => handleComponentOverrideChange(componentDef.id, 'loop', e.target.checked, 'boolean')}
+                          className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent"
+                        />
+                        Loop
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary mb-0.5">
+                        Default Dialogue:
+                      </label>
+                      <div className="flex items-center space-x-1">
+                        <span className="p-1 text-xs bg-msx-bgcolor border border-msx-border/30 rounded flex-grow truncate" title={dialogueAssetId || 'None'}>
+                          {selectedDialogueAsset?.name || 'None'}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => openAssetPicker('dialogue_ref', dialogueAssetId, (assetId) => handleComponentOverrideChange(componentDef.id, 'defaultDialogueAssetId', assetId, 'dialogue_ref'))}
+                        >
+                          ...
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary mb-0.5">
+                        Commands:
+                      </label>
+                      <textarea
+                        value={commands}
+                        onChange={e => handleComponentOverrideChange(componentDef.id, 'commands', e.target.value, 'string')}
+                        className="w-full min-h-[8rem] p-1 text-xs bg-msx-bgcolor border-msx-border rounded font-mono"
+                        spellCheck={false}
+                      />
+                      <p className="text-[0.65rem] text-msx-textsecondary mt-1">
+                        Commands: move_right 64, delay 1000, open_dialog, write_line 0, wait_spc, clear_dialog, close_dialog.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
 
             const isChildLinkComponent = componentDef.id === CHILD_LINK_COMPONENT_ID;
             const childLinkParentInstanceId = isChildLinkComponent
