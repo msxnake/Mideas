@@ -879,6 +879,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     return [];
                   }
                   if (noArgCommands.has(command)) {
+                    if (arg) {
+                      return [`Line ${item.lineNumber}: ${command} does not take an argument.`];
+                    }
                     return [];
                   }
                   return [`Line ${item.lineNumber}: unknown command "${command}".`];
