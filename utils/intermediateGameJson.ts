@@ -255,6 +255,11 @@ export interface IntermediateScreen {
   id: string;
   name: string;
   screenKind?: ScreenMap['screenKind'];
+  screenEngine: NonNullable<ScreenMap['screenEngine']>;
+  runtime: {
+    runsPlayerEngine: boolean;
+    runsFakePlayerEngine: boolean;
+  };
   width: number;
   height: number;
   layers: {
@@ -667,10 +672,17 @@ function buildIntermediateScreen({
     entityBytes[ei++] = (inst.position?.y ?? 0) & 0xff;
   }
 
+  const screenEngine = screen.screenEngine ?? ((screen.screenKind ?? 'playable') === 'playable' ? 'player' : 'fakePlayer');
+
   return {
     id: screen.id,
     name: screen.name,
     screenKind: screen.screenKind,
+    screenEngine,
+    runtime: {
+      runsPlayerEngine: screenEngine === 'player',
+      runsFakePlayerEngine: screenEngine === 'fakePlayer',
+    },
     width: screen.width,
     height: screen.height,
     layers: {
