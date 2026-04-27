@@ -858,13 +858,29 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   : commandLine;
                 handleComponentOverrideChange(componentDef.id, 'commands', nextCommands, 'string');
               };
-              const numericArgCommands = new Set(['move_left', 'move_right', 'move_up', 'move_down', 'delay', 'delay_ms', 'wait_ms', 'wait', 'wait_seconds', 'delay_seconds', 'write_line']);
-              const noArgCommands = new Set([
-                'jump',
+              const requiredNumericArgCommands = new Set(['write_line']);
+              const optionalNumericArgCommands = new Set([
+                'move_left',
+                'move_right',
+                'move_up',
+                'move_down',
+                'left',
+                'right',
+                'up',
+                'down',
                 'dash_left',
                 'dash_right',
                 'dash_up',
                 'dash_down',
+                'jump',
+                'delay',
+                'delay_ms',
+                'wait_ms',
+                'wait',
+                'wait_seconds',
+                'delay_seconds',
+              ]);
+              const noArgCommands = new Set([
                 'grab_wall',
                 'release_wall',
                 'play_dialog',
@@ -915,7 +931,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   if (command === 'open_frame_dialog' || command === 'open-frame-dialog') command = 'open_dialog';
                   if (command === 'close_frame_dialog' || command === 'close-frame-dialog') command = 'close_dialog';
 
-                  if (numericArgCommands.has(command)) {
+                  if (requiredNumericArgCommands.has(command)) {
                     const numericArg = Number(arg);
                     if (!arg || !Number.isFinite(numericArg)) {
                       return [`Line ${item.lineNumber}: ${command} needs a numeric argument.`];
@@ -929,6 +945,12 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                       if (!targetText) {
                         return [`Line ${item.lineNumber}: write_line ${numericArg} targets an empty Dialogue line.`];
                       }
+                    }
+                    return [];
+                  }
+                  if (optionalNumericArgCommands.has(command)) {
+                    if (arg && !Number.isFinite(Number(arg))) {
+                      return [`Line ${item.lineNumber}: ${command} argument must be numeric when provided.`];
                     }
                     return [];
                   }
