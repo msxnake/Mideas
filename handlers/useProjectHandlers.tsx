@@ -597,8 +597,21 @@ export const useProjectHandlers = ({
           });
 
         loadedAssets = projectData.assets.map((asset: ProjectAsset) => {
-          if (asset.type === 'screenmap' && asset.data && !(asset.data as ScreenMap).effectZones) {
-            return { ...asset, data: { ...(asset.data as ScreenMap), effectZones: [] } };
+          if (asset.type === 'screenmap' && asset.data) {
+            const screenMap = asset.data as ScreenMap;
+            const screenKind = screenMap.screenKind ?? 'playable';
+            const screenEngine = screenMap.screenEngine ?? (screenKind === 'playable' ? 'player' : 'fakePlayer');
+            if (!screenMap.effectZones || !screenMap.screenKind || !screenMap.screenEngine) {
+              return {
+                ...asset,
+                data: {
+                  ...screenMap,
+                  screenKind,
+                  screenEngine,
+                  effectZones: screenMap.effectZones || [],
+                },
+              };
+            }
           }
           if (asset.type === 'globalvariables' && asset.data) {
             const data = asset.data as any;
