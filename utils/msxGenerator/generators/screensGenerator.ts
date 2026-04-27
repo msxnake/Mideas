@@ -2418,6 +2418,8 @@ ${importedHudFrameLabelBase}_draw_loop:
     ; Preserve HUD/non-active area: only overwrite active game area
     ld a, ${screenEngineValue}
     ld (current_screen_engine), a
+    ld a, #FF
+    ld (autocontrol_screen_id), a
     ; Set VDP colors FIRST (before loading screen data)
     ld a, ${bgColor}           ; Background color
     ld b, ${borderColor}       ; Border color
@@ -2482,6 +2484,8 @@ ${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
     ; Load ${screen.name} screen (fast direct port access)
     ld a, ${screenEngineValue}
     ld (current_screen_engine), a
+    ld a, #FF
+    ld (autocontrol_screen_id), a
     ; Set VDP colors FIRST (before loading screen data)
     ld a, ${bgColor}           ; Background color
     ld b, ${borderColor}       ; Border color

@@ -46,6 +46,29 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   code += `input_fire          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Fire button state (0=released, 1=pressed)\n`;
   currentAddress++;
 
+  code += `autocontrol_screen_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen id bound to current FakePlayer script\n`;
+  currentAddress++;
+  code += `autocontrol_entity_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active FakePlayer entity index (#FF=none)\n`;
+  currentAddress++;
+  code += `autocontrol_script_ptr_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current FakePlayer script pointer low byte\n`;
+  currentAddress++;
+  code += `autocontrol_script_ptr_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current FakePlayer script pointer high byte\n`;
+  currentAddress++;
+  code += `autocontrol_script_start_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; FakePlayer script start pointer low byte\n`;
+  currentAddress++;
+  code += `autocontrol_script_start_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; FakePlayer script start pointer high byte\n`;
+  currentAddress++;
+  code += `autocontrol_wait_frames EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; FakePlayer wait countdown in frames\n`;
+  currentAddress++;
+  code += `autocontrol_move_opcode EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active FakePlayer movement opcode\n`;
+  currentAddress++;
+  code += `autocontrol_move_remaining EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Remaining FakePlayer movement pixels\n`;
+  currentAddress++;
+  code += `autocontrol_loop_flag EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=loop FakePlayer script on END\n`;
+  currentAddress++;
+  code += `autocontrol_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=FakePlayer script active\n`;
+  currentAddress++;
+
   code += `current_flow_state  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current game flow state\n`;
   currentAddress++;
 

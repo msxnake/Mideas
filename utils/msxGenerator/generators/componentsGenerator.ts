@@ -9,6 +9,449 @@ import { analyzeComponentUsage, ComponentUsageAnalysis } from '../utils/componen
 import { buildRegisterContractComment } from './registerContract';
 import { usesMapperBanking } from './romModeUtils';
 
+type AutoControlScriptBuild = {
+    dataAsm: string;
+    hasScripts: boolean;
+};
+
+const AUTO_CMD = {
+    END: 0,
+    MOVE_RIGHT: 1,
+    MOVE_LEFT: 2,
+    MOVE_UP: 3,
+    MOVE_DOWN: 4,
+    DELAY: 5,
+    WAIT_SPC: 6,
+    NOP: 7,
+} as const;
+
+function boolValue(value: any, fallback = false): boolean {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+        if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+    }
+    return fallback;
+}
+
+function getTemplateComponent(template: any, definitionId: string): any | undefined {
+    return Array.isArray(template?.components)
+        ? template.components.find((component: any) => component?.definitionId === definitionId)
+        : undefined;
+}
+
+function getEntityComponentValues(entity: any, template: any, definitionId: string): Record<string, any> {
+    const component = getTemplateComponent(template, definitionId);
+    const defaults = component?.defaultValues || {};
+    const overrides = entity?.componentOverrides?.[definitionId] || {};
+    return { ...defaults, ...overrides };
+}
+
+function parseAutoControlCommands(commands: string): number[] {
+    const bytes: number[] = [];
+    const append = (opcode: number, operand = 0) => {
+        bytes.push(opcode & 0xff, Math.max(0, Math.min(255, Math.round(operand))) & 0xff);
+    };
+
+    const lines = String(commands || '')
+        .split(/\r?\n/)
+        .map(line => line.replace(/;.*/, '').trim())
+        .filter(Boolean);
+
+    for (const line of lines) {
+        const parts = line.split(/[\s,]+/).filter(Boolean);
+        const command = String(parts[0] || '').trim().toLowerCase();
+        const operand = Number(parts[1]);
+        const amount = Number.isFinite(operand) ? operand : 0;
+
+        switch (command) {
+            case 'move_right':
+            case 'right':
+                append(AUTO_CMD.MOVE_RIGHT, amount || 16);
+                break;
+            case 'move_left':
+            case 'left':
+                append(AUTO_CMD.MOVE_LEFT, amount || 16);
+                break;
+            case 'move_up':
+            case 'up':
+                append(AUTO_CMD.MOVE_UP, amount || 16);
+                break;
+            case 'move_down':
+            case 'down':
+                append(AUTO_CMD.MOVE_DOWN, amount || 16);
+                break;
+            case 'dash_right':
+                append(AUTO_CMD.MOVE_RIGHT, amount || 48);
+                break;
+            case 'dash_left':
+                append(AUTO_CMD.MOVE_LEFT, amount || 48);
+                break;
+            case 'dash_up':
+                append(AUTO_CMD.MOVE_UP, amount || 32);
+                break;
+            case 'dash_down':
+                append(AUTO_CMD.MOVE_DOWN, amount || 32);
+                break;
+            case 'jump':
+                append(AUTO_CMD.MOVE_UP, amount || 24);
+                break;
+            case 'delay': {
+                const frames = Math.max(1, Math.round((amount || 1000) / 20));
+                append(AUTO_CMD.DELAY, Math.min(255, frames));
+                break;
+            }
+            case 'wait_spc':
+            case 'wait_space':
+                append(AUTO_CMD.WAIT_SPC, 0);
+                break;
+            case 'open_dialog':
+            case 'write_line':
+            case 'clear_dialog':
+            case 'close_dialog':
+            case 'grab_wall':
+            case 'release_wall':
+                append(AUTO_CMD.NOP, 0);
+                break;
+            default:
+                append(AUTO_CMD.NOP, 0);
+                break;
+        }
+    }
+
+    append(AUTO_CMD.END, 0);
+    return bytes;
+}
+
+function buildAutoControlScriptData(analysis: ProjectAnalysis): AutoControlScriptBuild {
+    const entities = Array.isArray(analysis.entities) ? analysis.entities : [];
+    const scriptPresent: boolean[] = new Array(32).fill(false);
+    const loopFlags: number[] = new Array(32).fill(0);
+    let dataAsm = '';
+    let hasScripts = false;
+
+    entities.slice(0, 32).forEach((entity: any, index: number) => {
+        const template = analysis.templates?.find((candidate: any) => candidate.id === entity.entityTemplateId);
+        const scriptComponent = getTemplateComponent(template, 'comp_auto_control_script');
+        if (!scriptComponent) return;
+
+        const values = getEntityComponentValues(entity, template, 'comp_auto_control_script');
+        if (!boolValue(values.enabled, true) || !boolValue(values.startsOnScreenLoad, true)) return;
+
+        const label = `autocontrol_script_${index}`;
+        scriptPresent[index] = true;
+        loopFlags[index] = boolValue(values.loop, false) ? 1 : 0;
+        hasScripts = true;
+
+        const bytes = parseAutoControlCommands(String(values.commands || ''));
+        const byteLines: string[] = [];
+        for (let offset = 0; offset < bytes.length; offset += 16) {
+            byteLines.push(`    DB ${bytes.slice(offset, offset + 16).map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}`);
+        }
+        dataAsm += `${label}:
+${byteLines.join('\n')}
+`;
+    });
+
+    const ptrEntries = entities.slice(0, 32).map((_: any, index: number) => scriptPresent[index] ? `autocontrol_script_${index}` : '0');
+    while (ptrEntries.length < 32) ptrEntries.push('0');
+
+    const loopEntries = loopFlags.map(value => String(value));
+    dataAsm += `autocontrol_script_ptr_table:
+${ptrEntries.map(entry => `    DW ${entry}`).join('\n')}
+autocontrol_loop_flag_table:
+    DB ${loopEntries.join(',')}
+`;
+
+    return { dataAsm, hasScripts };
+}
+
+function generateAutoControlScriptSystem(analysis: ProjectAnalysis): string {
+    const scriptData = buildAutoControlScriptData(analysis);
+    if (!scriptData.hasScripts) {
+        return `
+    ; AutoControlScript system filtered out(no active scripts)
+init_auto_control_script_system:
+    ret
+
+update_auto_control_script_component:
+    ret
+`;
+    }
+
+    return `
+; ==================================================================
+; AUTOCONTROL SCRIPT SYSTEM - FakePlayer engine
+; ==================================================================
+AUTO_CMD_END        EQU ${AUTO_CMD.END}
+AUTO_CMD_MOVE_RIGHT EQU ${AUTO_CMD.MOVE_RIGHT}
+AUTO_CMD_MOVE_LEFT  EQU ${AUTO_CMD.MOVE_LEFT}
+AUTO_CMD_MOVE_UP    EQU ${AUTO_CMD.MOVE_UP}
+AUTO_CMD_MOVE_DOWN  EQU ${AUTO_CMD.MOVE_DOWN}
+AUTO_CMD_DELAY      EQU ${AUTO_CMD.DELAY}
+AUTO_CMD_WAIT_SPC   EQU ${AUTO_CMD.WAIT_SPC}
+AUTO_CMD_NOP        EQU ${AUTO_CMD.NOP}
+
+${scriptData.dataAsm}
+${buildRegisterContractComment({
+  purpose: 'Reset FakePlayer script runtime state.',
+  inputs: ['None'],
+  outputs: ['autocontrol runtime variables reset'],
+  clobbers: ['AF'],
+  preserved: ['BC', 'DE', 'HL'],
+})}
+init_auto_control_script_system:
+    xor a
+    ld (autocontrol_script_ptr_l), a
+    ld (autocontrol_script_ptr_h), a
+    ld (autocontrol_script_start_l), a
+    ld (autocontrol_script_start_h), a
+    ld (autocontrol_wait_frames), a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ld (autocontrol_loop_flag), a
+    ld (autocontrol_active), a
+    ld a, #FF
+    ld (autocontrol_screen_id), a
+    ld (autocontrol_entity_index), a
+    ret
+
+${buildRegisterContractComment({
+  purpose: 'Execute one frame of the current screen FakePlayer script.',
+  inputs: ['current_screen_engine, current_screen_id, active_entity_list/current count, input_btn_curr'],
+  outputs: ['FakePlayer entity position/facing and autocontrol runtime state updated'],
+  clobbers: ['AF', 'BC', 'DE', 'HL'],
+  preserved: ['None'],
+})}
+update_auto_control_script_component:
+    ld a, (current_screen_engine)
+    cp 1
+    ret nz
+
+    ld a, (current_screen_id)
+    ld b, a
+    ld a, (autocontrol_screen_id)
+    cp b
+    call nz, autocontrol_bind_current_screen
+
+    ld a, (autocontrol_active)
+    or a
+    ret z
+
+    ld a, (autocontrol_move_opcode)
+    cp AUTO_CMD_WAIT_SPC
+    jp z, autocontrol_wait_spc
+
+    ld a, (autocontrol_wait_frames)
+    or a
+    jp z, autocontrol_check_move
+    dec a
+    ld (autocontrol_wait_frames), a
+    ret
+
+autocontrol_check_move:
+    ld a, (autocontrol_move_remaining)
+    or a
+    jp z, autocontrol_read_command
+    call autocontrol_apply_move
+    ret
+
+autocontrol_wait_spc:
+    ld a, (input_btn_curr)
+    and #01
+    ret z
+    xor a
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_read_command:
+    ld a, (autocontrol_script_ptr_l)
+    ld l, a
+    ld a, (autocontrol_script_ptr_h)
+    ld h, a
+    ld a, h
+    or l
+    ret z
+
+    ld a, (hl)
+    inc hl
+    ld b, (hl)
+    inc hl
+    push af
+    ld a, l
+    ld (autocontrol_script_ptr_l), a
+    ld a, h
+    ld (autocontrol_script_ptr_h), a
+    pop af
+
+    cp AUTO_CMD_END
+    jp z, autocontrol_command_end
+    cp AUTO_CMD_DELAY
+    jp z, autocontrol_command_delay
+    cp AUTO_CMD_WAIT_SPC
+    jp z, autocontrol_command_wait_spc
+    cp AUTO_CMD_NOP
+    ret z
+
+    ld (autocontrol_move_opcode), a
+    ld a, b
+    ld (autocontrol_move_remaining), a
+    call autocontrol_apply_move
+    ret
+
+autocontrol_command_delay:
+    ld a, b
+    ld (autocontrol_wait_frames), a
+    ret
+
+autocontrol_command_wait_spc:
+    ld a, AUTO_CMD_WAIT_SPC
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_command_end:
+    ld a, (autocontrol_loop_flag)
+    or a
+    jp nz, autocontrol_restart_script
+    xor a
+    ld (autocontrol_active), a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ret
+
+autocontrol_restart_script:
+    ld a, (autocontrol_script_start_l)
+    ld (autocontrol_script_ptr_l), a
+    ld a, (autocontrol_script_start_h)
+    ld (autocontrol_script_ptr_h), a
+    xor a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ret
+
+autocontrol_bind_current_screen:
+    ld a, (current_screen_id)
+    ld (autocontrol_screen_id), a
+    xor a
+    ld (autocontrol_active), a
+    ld (autocontrol_wait_frames), a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ld (autocontrol_loop_flag), a
+    ld (autocontrol_script_ptr_l), a
+    ld (autocontrol_script_ptr_h), a
+    ld (autocontrol_script_start_l), a
+    ld (autocontrol_script_start_h), a
+    ld a, #FF
+    ld (autocontrol_entity_index), a
+
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+autocontrol_find_loop:
+    ld c, (hl)
+    inc hl
+    push hl
+    push bc
+
+    ld e, c
+    ld d, 0
+    ld hl, autocontrol_script_ptr_table
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, d
+    or e
+    jp z, autocontrol_find_next
+
+    ld a, c
+    ld (autocontrol_entity_index), a
+    ld a, e
+    ld (autocontrol_script_ptr_l), a
+    ld (autocontrol_script_start_l), a
+    ld a, d
+    ld (autocontrol_script_ptr_h), a
+    ld (autocontrol_script_start_h), a
+
+    ld e, c
+    ld d, 0
+    ld hl, autocontrol_loop_flag_table
+    add hl, de
+    ld a, (hl)
+    ld (autocontrol_loop_flag), a
+    ld a, 1
+    ld (autocontrol_active), a
+    pop bc
+    pop hl
+    ret
+
+autocontrol_find_next:
+    pop bc
+    pop hl
+    djnz autocontrol_find_loop
+    ret
+
+autocontrol_apply_move:
+    ld a, (autocontrol_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld a, (autocontrol_move_opcode)
+    cp AUTO_CMD_MOVE_RIGHT
+    jp z, autocontrol_move_right
+    cp AUTO_CMD_MOVE_LEFT
+    jp z, autocontrol_move_left
+    cp AUTO_CMD_MOVE_UP
+    jp z, autocontrol_move_up
+    cp AUTO_CMD_MOVE_DOWN
+    jp z, autocontrol_move_down
+    ret
+
+autocontrol_move_right:
+    ld hl, entity_x_pos
+    add hl, de
+    inc (hl)
+    ld a, 2
+    jp autocontrol_store_facing_and_dec
+
+autocontrol_move_left:
+    ld hl, entity_x_pos
+    add hl, de
+    dec (hl)
+    ld a, 1
+    jp autocontrol_store_facing_and_dec
+
+autocontrol_move_up:
+    ld hl, entity_y_pos
+    add hl, de
+    dec (hl)
+    ld a, 3
+    jp autocontrol_store_facing_and_dec
+
+autocontrol_move_down:
+    ld hl, entity_y_pos
+    add hl, de
+    inc (hl)
+    ld a, 4
+
+autocontrol_store_facing_and_dec:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    ld hl, autocontrol_move_remaining
+    dec (hl)
+    ret
+`;
+}
+
 // ============================================================================
 // OPTIMIZED UPDATE_ALL_ENTITIES GENERATOR
 // ============================================================================
@@ -11157,14 +11600,7 @@ update_carry_component:
 
     // Generate AutoControlScript System entry points.
     // The FakePlayer engine calls this only on tutorial/dialog/cutscene screens.
-    code += `
-    ; AutoControlScript system placeholder (FakePlayer engine only)
-init_auto_control_script_system:
-    ret
-
-update_auto_control_script_component:
-    ret
-    `;
+    code += generateAutoControlScriptSystem(analysis);
 
     // Generate Damage System (if used)
     if (!usedComponents.has('Damage')) {
