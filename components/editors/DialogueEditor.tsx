@@ -139,6 +139,10 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
     ? Array.from(new Set(selectedBank.banks.flatMap(bank => Object.keys(bank.assignedTiles || {}))))
     : [];
   const selectableTiles = tileAssets.filter(asset => bankTileIds.length === 0 || bankTileIds.includes(asset.id));
+  const maxBoxX = 28;
+  const maxBoxY = 21;
+  const maxBoxWidth = Math.max(4, 32 - data.box.x);
+  const maxBoxHeight = Math.max(3, 24 - data.box.y);
 
   return (
     <Panel title={`Dialogue Editor: ${data.name || 'Dialogue'}`} className="flex-grow flex flex-col min-h-0">
@@ -203,19 +207,39 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className={labelClassName}>X</label>
-                  <input type="number" min={0} max={31} className={compactInputClassName} value={data.box.x} onChange={event => updateBox({ x: clampNumber(Number(event.target.value), 0, 31) })} />
+                  <input
+                    type="number"
+                    min={0}
+                    max={maxBoxX}
+                    className={compactInputClassName}
+                    value={data.box.x}
+                    onChange={event => {
+                      const nextX = clampNumber(Number(event.target.value), 0, maxBoxX);
+                      updateBox({ x: nextX, width: clampNumber(data.box.width, 4, 32 - nextX) });
+                    }}
+                  />
                 </div>
                 <div>
                   <label className={labelClassName}>Y</label>
-                  <input type="number" min={0} max={23} className={compactInputClassName} value={data.box.y} onChange={event => updateBox({ y: clampNumber(Number(event.target.value), 0, 23) })} />
+                  <input
+                    type="number"
+                    min={0}
+                    max={maxBoxY}
+                    className={compactInputClassName}
+                    value={data.box.y}
+                    onChange={event => {
+                      const nextY = clampNumber(Number(event.target.value), 0, maxBoxY);
+                      updateBox({ y: nextY, height: clampNumber(data.box.height, 3, 24 - nextY) });
+                    }}
+                  />
                 </div>
                 <div>
                   <label className={labelClassName}>Width</label>
-                  <input type="number" min={4} max={32} className={compactInputClassName} value={data.box.width} onChange={event => updateBox({ width: clampNumber(Number(event.target.value), 4, 32) })} />
+                  <input type="number" min={4} max={maxBoxWidth} className={compactInputClassName} value={data.box.width} onChange={event => updateBox({ width: clampNumber(Number(event.target.value), 4, maxBoxWidth) })} />
                 </div>
                 <div>
                   <label className={labelClassName}>Height</label>
-                  <input type="number" min={3} max={24} className={compactInputClassName} value={data.box.height} onChange={event => updateBox({ height: clampNumber(Number(event.target.value), 3, 24) })} />
+                  <input type="number" min={3} max={maxBoxHeight} className={compactInputClassName} value={data.box.height} onChange={event => updateBox({ height: clampNumber(Number(event.target.value), 3, maxBoxHeight) })} />
                 </div>
               </div>
               <div>
