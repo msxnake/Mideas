@@ -895,6 +895,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 <div key={componentDef.id} className="p-1.5 border border-msx-border/50 rounded bg-msx-bgcolor/30">
                   <h5 className="text-xs text-msx-highlight mb-1">{componentDef.name}</h5>
                   <div className="grid grid-cols-1 gap-2">
+                    <p className="text-[0.65rem] text-msx-textsecondary">
+                      Controls the scripted FakePlayer for tutorial/dialog/cutscene screens. Real Player input and movement are unchanged.
+                    </p>
                     <div className="grid grid-cols-3 gap-2 text-[0.65rem] text-msx-textsecondary">
                       <label className="flex items-center gap-1">
                         <input
