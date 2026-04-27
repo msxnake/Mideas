@@ -465,6 +465,16 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
     description: "The main player character."
   },
   {
+    id: "tpl_fake_player", name: "FakePlayer", icon: "F", isPlayer: false,
+    components: [
+      { definitionId: "comp_pos", defaultValues: { x: 32, y: 120 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player", isVisible: true, layer: 1 } },
+      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", animationSpeed: "8", animateOnlyWhenMoving: true } },
+      { definitionId: "comp_auto_control_script", defaultValues: { enabled: true, startsOnScreenLoad: true, loop: false, defaultDialogueAssetId: "", commands: "move_right 64\ndelay 1000\nopen_dialog\nwrite_line 0\nwait_spc\nclose_dialog" } }
+    ],
+    description: "Script-driven player lookalike for tutorial/dialog/cutscene screens. It intentionally has no PlayerInput component."
+  },
+  {
     id: "tpl_enemy_basic", name: "Basic Enemy", icon: "👻",
     components: [
       { definitionId: "comp_pos", defaultValues: { x: 100, y: 100 } },
