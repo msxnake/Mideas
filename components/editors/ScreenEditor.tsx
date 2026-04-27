@@ -613,8 +613,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
     onUpdate({ layers: { ...screenMap.layers, entities: [...screenMap.layers.entities, newEntityInstance] } });
     onSelectEntityInstance(newEntityInstance.id);
+    setActiveLayer('entities');
+    handleSetScreenTool('select');
     setStatusBarMessage('FakePlayer added to this non-playable screen.');
-  }, [entityTemplates, getNextEntityInstanceName, onSelectEntityInstance, onUpdate, screenMap.height, screenMap.layers, screenMap.width, setStatusBarMessage]);
+  }, [entityTemplates, getNextEntityInstanceName, handleSetScreenTool, onSelectEntityInstance, onUpdate, screenMap.height, screenMap.layers, screenMap.width, setActiveLayer, setStatusBarMessage]);
 
   const handleAddNewEffectZone = () => {
     if (activeLayer !== 'effects') {
