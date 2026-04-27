@@ -228,6 +228,82 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const [selectedStampId, setSelectedStampId] = useState<string | null>(null);
   const [optimizationOverlayMode, setOptimizationOverlayMode] = useState<'off' | 'blocks2x2' | 'blocks4x4'>(getInitialOptimizationOverlayMode);
 
+  const screenKind = screenMap.screenKind ?? 'playable';
+
+  const screenKindValidationIssues = useMemo(() => {
+    const normalize = (value: string | undefined) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const getTemplateForEntity = (entity: EntityInstance) => entityTemplates.find(template => template.id === entity.entityTemplateId);
+    const templateHasComponent = (template: EntityTemplate | undefined, fragment: string) => {
+      if (!template) return false;
+      const normalizedFragment = normalize(fragment);
+      return template.components.some(component => {
+        const componentDef = componentDefinitions.find(definition => definition.id === component.definitionId);
+        return normalize(component.definitionId).includes(normalizedFragment) || normalize(componentDef?.name).includes(normalizedFragment);
+      });
+    };
+    const isFakePlayerTemplate = (template: EntityTemplate | undefined) => {
+      if (!template) return false;
+      const name = normalize(template.name);
+      const id = normalize(template.id);
+      return name.includes('fakeplayer') ||
+        id.includes('fakeplayer') ||
+        templateHasComponent(template, 'autocontrol') ||
+        templateHasComponent(template, 'autocontrolscript');
+    };
+    const isPlayerTemplate = (template: EntityTemplate | undefined) => {
+      if (!template || isFakePlayerTemplate(template)) return false;
+      const name = normalize(template.name);
+      const id = normalize(template.id);
+      return template.isPlayer === true ||
+        name === 'player' ||
+        id === 'player' ||
+        id === 'tplplayer' ||
+        templateHasComponent(template, 'playerinput') ||
+        templateHasComponent(template, 'platformercontrol');
+    };
+
+    const playerEntities: string[] = [];
+    const fakePlayerEntities: string[] = [];
+
+    screenMap.layers.entities.forEach(entity => {
+      const template = getTemplateForEntity(entity);
+      if (isFakePlayerTemplate(template)) {
+        fakePlayerEntities.push(entity.name || template?.name || entity.id);
+      } else if (isPlayerTemplate(template)) {
+        playerEntities.push(entity.name || template?.name || entity.id);
+      }
+    });
+
+    const issues: string[] = [];
+    const isNonPlayable = screenKind !== 'playable';
+
+    if (playerEntities.length > 0 && fakePlayerEntities.length > 0) {
+      issues.push(`Player and FakePlayer are mixed in this screen: ${[...playerEntities, ...fakePlayerEntities].join(', ')}.`);
+    }
+
+    if (screenKind === 'playable' && fakePlayerEntities.length > 0) {
+      issues.push(`Playable screens should not contain FakePlayer entities: ${fakePlayerEntities.join(', ')}.`);
+    }
+
+    if (isNonPlayable && playerEntities.length > 0) {
+      issues.push(`${screenKind} screens should not contain the real Player entity: ${playerEntities.join(', ')}.`);
+    }
+
+    if (screenKind === 'playable' && playerEntities.length === 0) {
+      issues.push('Playable screen has no Player entity.');
+    }
+
+    if (playerEntities.length > 1) {
+      issues.push(`Multiple Player entities detected: ${playerEntities.join(', ')}.`);
+    }
+
+    if (fakePlayerEntities.length > 1) {
+      issues.push(`Multiple FakePlayer entities detected: ${fakePlayerEntities.join(', ')}.`);
+    }
+
+    return issues;
+  }, [componentDefinitions, entityTemplates, screenKind, screenMap.layers.entities]);
+
   const getNextEntityInstanceName = useCallback((template: EntityTemplate): string => {
     const baseName = (template.name || 'Entity').trim() || 'Entity';
     const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1704,7 +1780,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         activeLayer={activeLayer}
         onLayerChange={handleLayerChange}
         layerNames={layerNamesForToolbar}
-        screenKind={screenMap.screenKind ?? 'playable'}
+        screenKind={screenKind}
         onScreenKindChange={handleScreenKindChange}
         zoom={zoom}
         onZoomChange={setZoom}
@@ -1747,6 +1823,17 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         canSnapActiveAreaToBlockMode={activeAreaBlockAlignment.canSnap}
         backgroundBlockPreview={backgroundBlockPreview}
       />
+
+      {screenKindValidationIssues.length > 0 && (
+        <div className="px-3 py-2 border-b border-yellow-500/50 bg-yellow-950/40 text-yellow-100 text-xs">
+          <div className="font-semibold text-yellow-300 mb-1">Screen type validation</div>
+          <ul className="list-disc list-inside space-y-0.5">
+            {screenKindValidationIssues.map(issue => (
+              <li key={issue}>{issue}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="flex flex-grow overflow-hidden">
         <ScreenTilesetPanel
