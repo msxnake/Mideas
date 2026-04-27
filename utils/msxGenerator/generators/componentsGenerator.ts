@@ -109,6 +109,30 @@ function wrapDialogueText(text: string, maxCharsPerLine: number, maxLines: numbe
     return rows.length > 0 ? rows : [''];
 }
 
+function normalizeDialogueExportText(text: string, stripUnsupportedChars: boolean): string {
+    if (!stripUnsupportedChars) return String(text || '');
+
+    const replacements: Record<string, string> = {
+        '¿': '?',
+        '¡': '!',
+        '“': '"',
+        '”': '"',
+        '‘': "'",
+        '’': "'",
+        '…': '...',
+        '–': '-',
+        '—': '-',
+        '€': 'E',
+    };
+
+    return Array.from(String(text || ''))
+        .map(char => replacements[char] ?? char)
+        .join('')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\x20-\x7E]/g, ' ');
+}
+
 function resolveDialogueBorderCharCode(
     analysis: ProjectAnalysis,
     tileBankAssetId: string | undefined,
@@ -201,12 +225,13 @@ function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBui
         lineWaitForInputByDialogueId.set(dialogueId, lineWaitMap);
         const maxChars = Math.min(width - 2, Math.max(1, clampByteValue(dialogue?.exportOptions?.maxCharsPerLine, width - 2)));
         const maxLines = Math.min(height - 2, Math.max(1, clampByteValue(dialogue?.exportOptions?.maxLinesPerBox, height - 2)));
+        const stripUnsupportedChars = dialogue?.exportOptions?.stripUnsupportedChars !== false;
         const dialogueLabel = sanitizeAsmLabelPart(dialogue?.name || dialogueId, `dialogue_${dialogueIndex}`);
 
         (Array.isArray(dialogue?.lines) ? dialogue.lines : []).forEach((line: any, lineIndex: number) => {
             const label = `dialogue_line_${lineGlobalIndex}_${dialogueLabel}`;
             const speakerPrefix = String(line?.speaker || '').trim();
-            const lineText = `${speakerPrefix ? `${speakerPrefix}: ` : ''}${String(line?.text || '')}`;
+            const lineText = normalizeDialogueExportText(`${speakerPrefix ? `${speakerPrefix}: ` : ''}${String(line?.text || '')}`, stripUnsupportedChars);
             const rows = wrapDialogueText(lineText, maxChars, maxLines);
             const bytes: number[] = [];
             rows.forEach((row, rowIndex) => {

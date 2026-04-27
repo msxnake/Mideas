@@ -30,6 +30,13 @@ function clampNumber(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function getUnsupportedDialogueChars(text: string): string[] {
+  return Array.from(new Set(Array.from(text || '').filter(char => {
+    const code = char.charCodeAt(0);
+    return code < 32 || code > 126;
+  })));
+}
+
 function ensureDialogue(dialogue: DialogueAsset): DialogueAsset {
   return {
     ...dialogue,
@@ -171,11 +178,18 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
       : []),
     ...data.lines.flatMap((line, index) => {
       const speakerPrefix = line.speaker?.trim() ? `${line.speaker.trim()}: ` : '';
-      const totalChars = `${speakerPrefix}${line.text || ''}`.length;
+      const rawLineText = `${speakerPrefix}${line.text || ''}`;
+      const totalChars = rawLineText.length;
       const estimatedRows = Math.max(1, Math.ceil(totalChars / Math.max(1, data.exportOptions.maxCharsPerLine)));
-      return estimatedRows > data.exportOptions.maxLinesPerBox
+      const unsupportedChars = getUnsupportedDialogueChars(rawLineText);
+      return [
+        ...(estimatedRows > data.exportOptions.maxLinesPerBox
         ? [`Line ${index + 1} needs about ${estimatedRows} rows with the current export limits.`]
-        : [];
+        : []),
+        ...(unsupportedChars.length > 0
+          ? [`Line ${index + 1} contains non-ASCII chars (${unsupportedChars.join(' ')}). Export will ${data.exportOptions.stripUnsupportedChars ? 'normalize or replace them' : 'replace unsupported bytes with spaces'}.`]
+          : []),
+      ];
     }),
   ];
 
