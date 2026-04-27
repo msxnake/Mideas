@@ -2,7 +2,8 @@ import { useCallback } from 'react';
 import {
   ProjectAsset, EditorType, Tile, Sprite, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph,
-  PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset, PT3Instrument, TrackerSongData, TrackerPattern
+  PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset, PT3Instrument, TrackerSongData, TrackerPattern,
+  DialogueAsset
 } from '../types';
 import {
   DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -295,6 +296,42 @@ export const useAssetHandlers = ({
           zoomLevel: 1
         } as GameFlowGraph;
         newEditorType = EditorType.GameFlow;
+        break;
+      case 'dialogue':
+        newAssetData = {
+          id,
+          name: defaultName,
+          lines: [
+            {
+              id: `line_${Date.now()}`,
+              speaker: '',
+              text: '',
+              waitForInput: true,
+            },
+          ],
+          box: {
+            x: 0,
+            y: 20,
+            width: 32,
+            height: 4,
+            borderSource: 'generated',
+            borderCharCodes: {
+              topLeft: 43,
+              topRight: 43,
+              bottomLeft: 43,
+              bottomRight: 43,
+              horizontal: 45,
+              vertical: 124,
+            },
+          },
+          exportOptions: {
+            maxCharsPerLine: 28,
+            maxLinesPerBox: 3,
+            stripUnsupportedChars: true,
+            charDelayFrames: 2,
+          },
+        } as DialogueAsset;
+        newEditorType = EditorType.Dialogue;
         break;
       case 'statemachine':
         newAssetData = {

@@ -7,7 +7,7 @@ import {
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, ContextMenuItem,
-  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig
+  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, DialogueAsset
 } from '../types';
 import { 
   MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -39,6 +39,7 @@ import { GlobalVariablesEditor } from './editors/GlobalVariablesEditor';
 import { PaletteEditor } from './editors/PaletteEditor';
 import { MainMenuEditor } from './editors/MainMenuEditor';
 import { PresentationScreenEditor } from './editors/PresentationScreenEditor';
+import { DialogueEditor } from './editors/DialogueEditor';
 import { GameFlowEditor } from './editors/GameFlowEditor';
 import { StateMachineEditor } from './editors/StateMachineEditor';
 import { FileExplorerPanel, TILE_BANKS_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/FileExplorerPanel';
@@ -511,6 +512,14 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               currentScreenMode={currentScreenMode}
               componentDefinitions={componentDefinitions}
               gameFlowAssetName={activeAsset.name}
+            />
+          )}
+          {currentEditor === EditorType.Dialogue && activeAsset?.type === 'dialogue' && (
+            <DialogueEditor
+              dialogue={(activeAsset.data as DialogueAsset) || ({ id: activeAsset.id, name: activeAsset.name } as DialogueAsset)}
+              onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
+              allAssets={assets}
+              tileBanks={tileBanks}
             />
           )}
           

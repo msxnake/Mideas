@@ -1250,6 +1250,58 @@ export interface PresentationScreenConfig {
 }
 // --- End Presentation Screen Types ---
 
+// --- Dialogue Asset Types ---
+export interface DialogueLine {
+  id: string;
+  speaker?: string;
+  text: string;
+  waitForInput?: boolean;
+}
+
+export interface DialogueBoxTileRefs {
+  topLeftTileId?: string;
+  topRightTileId?: string;
+  bottomLeftTileId?: string;
+  bottomRightTileId?: string;
+  horizontalTileId?: string;
+  verticalTileId?: string;
+}
+
+export interface DialogueBoxCharCodes {
+  topLeft: number;
+  topRight: number;
+  bottomLeft: number;
+  bottomRight: number;
+  horizontal: number;
+  vertical: number;
+}
+
+export interface DialogueBoxConfig {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  borderSource: 'generated' | 'tilebank';
+  tileBankAssetId?: string;
+  borderTiles?: DialogueBoxTileRefs;
+  borderCharCodes?: Partial<DialogueBoxCharCodes>;
+  fontAssetId?: string;
+}
+
+export interface DialogueAsset {
+  id: string;
+  name: string;
+  lines: DialogueLine[];
+  box: DialogueBoxConfig;
+  exportOptions: {
+    maxCharsPerLine: number;
+    maxLinesPerBox: number;
+    stripUnsupportedChars: boolean;
+    charDelayFrames: number;
+  };
+}
+// --- End Dialogue Asset Types ---
+
 // --- Game Flow Types ---
 
 /** The type of a node in the game flow graph. */
@@ -1468,6 +1520,7 @@ export enum EditorType {
   Boss = "Boss",
   WorldView = "WorldView",
   GameFlow = "GameFlow",
+  Dialogue = "Dialogue",
   MainMenu = "MainMenu",
   PresentationScreen = "PresentationScreen",
   StateMachine = "StateMachine",
@@ -1484,9 +1537,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }

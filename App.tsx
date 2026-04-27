@@ -567,6 +567,9 @@ const App: React.FC = () => {
           case 'track':
             setCurrentEditor(EditorType.Track);
             break;
+          case 'dialogue':
+            setCurrentEditor(EditorType.Dialogue);
+            break;
           case 'boss':
             setCurrentEditor(EditorType.Boss);
             break;

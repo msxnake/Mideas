@@ -27,6 +27,7 @@ const AssetTypeIcon: React.FC<{ type: ProjectAsset['type'] }> = ({ type }) => {
         case 'sprite': return <EntityIcon className={iconClass} />;
         case 'sound': return <SoundIcon className={iconClass} />;
         case 'behavior': return <PuzzlePieceIcon className={iconClass} />;
+        case 'dialogue': return <PuzzlePieceIcon className={iconClass} />;
         case 'entitytemplate': return <EntityIcon className={iconClass} />;
         default: return <div className="w-4 h-4" />;
     }

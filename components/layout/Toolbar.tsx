@@ -383,6 +383,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={() => onNewAsset('screenmap')} icon={<MapIcon />} colorClass="text-blue-200 hover:bg-blue-500 hover:text-white">Screen Map</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('worldmap')} icon={<WorldMapIcon />} colorClass="text-indigo-200 hover:bg-indigo-500 hover:text-white">World Map</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('gameflow')} icon={<GameFlowIcon />} colorClass="text-violet-200 hover:bg-violet-500 hover:text-white">Game Flow</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('dialogue')} icon={<PencilIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white">Dialogue</DropdownItem>
         <DropdownSeparator />
         <DropdownItem onClick={() => onNewAsset('palette')} icon={<SparklesIcon />} colorClass="text-fuchsia-200 hover:bg-fuchsia-500 hover:text-white">Palette</DropdownItem>
         <DropdownSeparator />

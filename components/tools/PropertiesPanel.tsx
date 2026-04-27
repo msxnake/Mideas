@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute,
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
-    ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType
+    ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType, DialogueAsset
 } from '../../types';
 import { Panel } from '../common/Panel';
 import { SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MAP, EDITOR_BASE_TILE_DIM_S2 } from '../../constants';
@@ -634,6 +634,17 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       }
       case 'screenmap': const map = asset.data as ScreenMap; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {map.name}</div> <div><strong className="text-msx-highlight">Size:</strong> {map.width}x{map.height} cells</div> <div><strong className="text-msx-highlight">Entities:</strong> {map.layers.entities.length}</div> <div><strong className="text-msx-highlight">Effect Zones:</strong> {map.effectZones?.length || 0}</div> </div> );
       case 'code': case 'behavior': const codeData = typeof asset.data === 'string' ? asset.data : (asset.data as BehaviorScript)?.code; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {asset.name}</div> <div className="text-xs text-msx-textsecondary truncate" title={codeData}>Content: {codeData?.substring(0, 50)}...</div> </div> );
+      case 'dialogue': {
+        const dialogue = asset.data as DialogueAsset;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {asset.name}</div>
+            <div><strong className="text-msx-highlight">Lines:</strong> {dialogue?.lines?.length || 0}</div>
+            <div><strong className="text-msx-highlight">Box:</strong> {dialogue?.box?.x ?? 0},{dialogue?.box?.y ?? 0} {dialogue?.box?.width ?? 0}x{dialogue?.box?.height ?? 0}</div>
+            <div><strong className="text-msx-highlight">Delay:</strong> {dialogue?.exportOptions?.charDelayFrames ?? 0} frames/char</div>
+          </div>
+        );
+      }
       case 'globalvariables':
         const globalVarsData = asset.data as any;
         const customVars = globalVarsData?.customVariables || [];
@@ -1352,7 +1363,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               ? renderEntityInstanceProperties()
             : effectZone && activeEditorType === EditorType.Screen
               ? renderEffectZoneProperties()
-              : (asset && (activeEditorType === EditorType.Tile || activeEditorType === EditorType.Sprite || activeEditorType === EditorType.Screen || activeEditorType === EditorType.Code || activeEditorType === EditorType.BehaviorEditor || activeEditorType === EditorType.ComponentDefinitionEditor || activeEditorType === EditorType.EntityTemplateEditor || activeEditorType === EditorType.GlobalVariables ))
+              : (asset && (activeEditorType === EditorType.Tile || activeEditorType === EditorType.Sprite || activeEditorType === EditorType.Screen || activeEditorType === EditorType.Code || activeEditorType === EditorType.BehaviorEditor || activeEditorType === EditorType.ComponentDefinitionEditor || activeEditorType === EditorType.EntityTemplateEditor || activeEditorType === EditorType.GlobalVariables || activeEditorType === EditorType.Dialogue ))
                   ? renderAssetProperties()
                   : (activeEditorType === EditorType.Font
                       ? (
