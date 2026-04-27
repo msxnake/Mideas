@@ -599,6 +599,55 @@ function buildIntermediateScreen({
   const spriteIdsUsed = uniqueStrings([
     ...entities.flatMap(e => e.spriteIdsUsed),
   ]);
+  const screenEngine = screen.screenEngine ?? ((screen.screenKind ?? 'playable') === 'playable' ? 'player' : 'fakePlayer');
+  const normalizeIdentifier = (value: string | undefined | null) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const templateHasComponent = (template: EntityTemplate | undefined, fragment: string) => {
+    if (!template) return false;
+    const normalizedFragment = normalizeIdentifier(fragment);
+    return template.components.some(component => {
+      const definition = componentDefinitionsById[component.definitionId];
+      return normalizeIdentifier(component.definitionId).includes(normalizedFragment) ||
+        normalizeIdentifier(definition?.name).includes(normalizedFragment);
+    });
+  };
+  const isFakePlayerTemplate = (template: EntityTemplate | undefined) => {
+    if (!template) return false;
+    const name = normalizeIdentifier(template.name);
+    const id = normalizeIdentifier(template.id);
+    return name.includes('fakeplayer') ||
+      id.includes('fakeplayer') ||
+      templateHasComponent(template, 'autocontrol') ||
+      templateHasComponent(template, 'autocontrolscript');
+  };
+  const isPlayerTemplate = (template: EntityTemplate | undefined) => {
+    if (!template || isFakePlayerTemplate(template)) return false;
+    const name = normalizeIdentifier(template.name);
+    const id = normalizeIdentifier(template.id);
+    return template.isPlayer === true ||
+      name === 'player' ||
+      id === 'player' ||
+      id === 'tplplayer' ||
+      templateHasComponent(template, 'playerinput') ||
+      templateHasComponent(template, 'platformercontrol');
+  };
+  const playerEntityNames: string[] = [];
+  const fakePlayerEntityNames: string[] = [];
+  for (const instance of screen.layers.entities || []) {
+    const template = entityTemplatesById[instance.entityTemplateId];
+    if (isFakePlayerTemplate(template)) {
+      fakePlayerEntityNames.push(instance.name || template?.name || instance.id);
+    } else if (isPlayerTemplate(template)) {
+      playerEntityNames.push(instance.name || template?.name || instance.id);
+    }
+  }
+
+  if (screenEngine === 'player') {
+    if (fakePlayerEntityNames.length > 0) warnings.push(`Screen "${screen.name}" uses Player engine but contains FakePlayer entities: ${fakePlayerEntityNames.join(', ')}.`);
+    if (playerEntityNames.length === 0) warnings.push(`Screen "${screen.name}" uses Player engine but has no real Player entity.`);
+  } else {
+    if (playerEntityNames.length > 0) warnings.push(`Screen "${screen.name}" uses FakePlayer engine but contains real Player entities: ${playerEntityNames.join(', ')}.`);
+    if (fakePlayerEntityNames.length === 0) warnings.push(`Screen "${screen.name}" uses FakePlayer engine but has no FakePlayer entity.`);
+  }
 
   if (screen.width !== 32 || screen.height !== 24) {
     warnings.push(`Screen "${screen.name}" is ${screen.width}x${screen.height}; SCREEN 2 expected 32x24 for 768-byte layers.`);
@@ -671,8 +720,6 @@ function buildIntermediateScreen({
     entityBytes[ei++] = (inst.position?.x ?? 0) & 0xff;
     entityBytes[ei++] = (inst.position?.y ?? 0) & 0xff;
   }
-
-  const screenEngine = screen.screenEngine ?? ((screen.screenKind ?? 'playable') === 'playable' ? 'player' : 'fakePlayer');
 
   return {
     id: screen.id,
