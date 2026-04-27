@@ -543,6 +543,9 @@ export type ScreenBehaviorSource = 'collisionLayer' | 'backgroundChars';
 /** High-level role of a screen in the game flow. */
 export type ScreenKind = 'playable' | 'tutorial' | 'dialog' | 'cutscene';
 
+/** Runtime update engine selected for a screen. Only one should run per screen. */
+export type ScreenEngineKind = 'player' | 'fakePlayer';
+
 /** Optional build-time optimization settings for screen exports. */
 export interface ScreenBlockOptimization {
   /** Background export strategy. `raw` preserves the current 32x24 tile stream. */
@@ -569,6 +572,8 @@ export interface ScreenMap {
   height: number;
   /** High-level role of this screen: gameplay, tutorial/dialog, or cutscene. */
   screenKind?: ScreenKind;
+  /** Runtime engine for this screen. Playable screens use Player; tutorial/dialog/cutscene use FakePlayer. */
+  screenEngine?: ScreenEngineKind;
   /** The different layers of the screen map. */
   layers: {
     background: ScreenLayerData;
@@ -625,6 +630,8 @@ export interface CopiedScreenData {
   behaviorConfig?: ScreenBehaviorConfig;
   /** High-level role copied with the screen. */
   screenKind?: ScreenKind;
+  /** Runtime engine copied with the screen. */
+  screenEngine?: ScreenEngineKind;
   /** The effect zones within the copied area. */
   effectZones?: EffectZone[];
   /** The x-coordinate of the copied active area. */

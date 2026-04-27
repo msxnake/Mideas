@@ -7,7 +7,7 @@
 import React from 'react';
 import { Button } from '../common/Button';
 import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
-import { ScreenBlockExportMode, ScreenBehaviorSource, ScreenMap, ProjectAsset, ScreenKind } from '../../types';
+import { ScreenBlockExportMode, ScreenBehaviorSource, ScreenMap, ProjectAsset, ScreenKind, ScreenEngineKind } from '../../types';
 import { MSX1_PALETTE } from '../../constants';
 import { getBackgroundColorHex, isScreen2Mode } from '../../utils/screenModeConfig';
 
@@ -30,6 +30,8 @@ interface ScreenEditorToolbarProps {
   layerNames: LayerName[];
   /** High-level screen role. */
   screenKind: ScreenKind;
+  /** Runtime update engine selected by the screen role. */
+  screenEngine: ScreenEngineKind;
   /** Callback when high-level screen role changes. */
   onScreenKindChange: (screenKind: ScreenKind) => void;
   /** The current zoom level. */
@@ -133,7 +135,7 @@ interface ScreenEditorToolbarProps {
  */
 export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   activeLayer, onLayerChange, layerNames, zoom, onZoomChange,
-  screenKind, onScreenKindChange,
+  screenKind, screenEngine, onScreenKindChange,
   activeAreaX, activeAreaY, activeAreaWidth, activeAreaHeight, onActiveAreaChange,
   maxActiveAreaX, maxActiveAreaY, maxActiveAreaWidth, maxActiveAreaHeight,
   onOpenHudEditor, isHudAreaDefined,
@@ -187,6 +189,12 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
           <option value="dialog">Dialog</option>
           <option value="cutscene">Cutscene</option>
         </select>
+        <span
+          className="px-1.5 py-0.5 rounded bg-msx-bgcolor-dark border border-msx-border/60 text-msx-textsecondary"
+          title="Only this runtime engine should update on the current screen"
+        >
+          Engine: {screenEngine === 'player' ? 'Player' : 'FakePlayer'}
+        </span>
       </div>
 
       {/* TileBank Selector (SCREEN 2 only) */}

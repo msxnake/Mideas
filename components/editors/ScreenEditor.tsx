@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem, TileStamp, ScreenBlockExportMode, ScreenBehaviorSource, ScreenKind, resolveEffectZoneType } from '../../types';
+import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem, TileStamp, ScreenBlockExportMode, ScreenBehaviorSource, ScreenKind, ScreenEngineKind, resolveEffectZoneType } from '../../types';
 import { Panel } from '../common/Panel';
 import { DEFAULT_SCREEN_WIDTH_TILES, DEFAULT_SCREEN_HEIGHT_TILES, MSX_SCREEN5_PALETTE, MSX1_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, DEFAULT_TILE_BANK_DEFINITIONS, EDITOR_BASE_TILE_DIM_S2 as CONST_EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE_EDITOR } from '../../constants';
 import { ExportLayoutASMModal } from '../modals/ExportLayoutASMModal';
@@ -230,6 +230,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const [optimizationOverlayMode, setOptimizationOverlayMode] = useState<'off' | 'blocks2x2' | 'blocks4x4'>(getInitialOptimizationOverlayMode);
 
   const screenKind = screenMap.screenKind ?? 'playable';
+  const expectedScreenEngine: ScreenEngineKind = screenKind === 'playable' ? 'player' : 'fakePlayer';
+  const screenEngine = screenMap.screenEngine ?? expectedScreenEngine;
 
   const screenKindValidationIssues = useMemo(() => {
     const normalize = (value: string | undefined) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -278,6 +280,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     const issues: string[] = [];
     const isNonPlayable = screenKind !== 'playable';
 
+    if (screenEngine !== expectedScreenEngine) {
+      issues.push(`Screen engine "${screenEngine}" does not match ${screenKind} screen. Expected "${expectedScreenEngine}".`);
+    }
+
     if (playerEntities.length > 0 && fakePlayerEntities.length > 0) {
       issues.push(`Player and FakePlayer are mixed in this screen: ${[...playerEntities, ...fakePlayerEntities].join(', ')}.`);
     }
@@ -307,7 +313,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     }
 
     return issues;
-  }, [componentDefinitions, entityTemplates, screenKind, screenMap.layers.entities]);
+  }, [componentDefinitions, entityTemplates, expectedScreenEngine, screenEngine, screenKind, screenMap.layers.entities]);
 
   const getNextEntityInstanceName = useCallback((template: EntityTemplate): string => {
     const baseName = (template.name || 'Entity').trim() || 'Entity';
@@ -1517,6 +1523,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       blockOptimization: screenMap.blockOptimization ? JSON.parse(JSON.stringify(screenMap.blockOptimization)) : undefined,
       behaviorConfig: screenMap.behaviorConfig ? JSON.parse(JSON.stringify(screenMap.behaviorConfig)) : undefined,
       screenKind: screenMap.screenKind,
+      screenEngine: screenMap.screenEngine,
       effectZones: effectZones ? JSON.parse(JSON.stringify(effectZones)) : undefined,
       activeAreaX,
       activeAreaY,
@@ -1536,6 +1543,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       blockOptimization: copiedScreenBuffer.blockOptimization ? JSON.parse(JSON.stringify(copiedScreenBuffer.blockOptimization)) : undefined,
       behaviorConfig: copiedScreenBuffer.behaviorConfig ? JSON.parse(JSON.stringify(copiedScreenBuffer.behaviorConfig)) : undefined,
       screenKind: copiedScreenBuffer.screenKind ?? screenMap.screenKind,
+      screenEngine: copiedScreenBuffer.screenEngine ??
+        (copiedScreenBuffer.screenKind ? (copiedScreenBuffer.screenKind === 'playable' ? 'player' : 'fakePlayer') : screenMap.screenEngine),
       effectZones: copiedScreenBuffer.effectZones ? JSON.parse(JSON.stringify(copiedScreenBuffer.effectZones)) : [],
       hudConfiguration: copiedScreenBuffer.hudConfiguration ? JSON.parse(JSON.stringify(copiedScreenBuffer.hudConfiguration)) : undefined,
     };
@@ -1742,9 +1751,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
   const handleScreenKindChange = useCallback((screenKind: ScreenKind) => {
-    onUpdate({ screenKind });
+    const screenEngine: ScreenEngineKind = screenKind === 'playable' ? 'player' : 'fakePlayer';
+    onUpdate({ screenKind, screenEngine });
     const label = screenKind.charAt(0).toUpperCase() + screenKind.slice(1);
-    setStatusBarMessage(`Screen type set to: ${label}.`);
+    setStatusBarMessage(`Screen type set to: ${label}. Runtime engine: ${screenEngine}.`);
   }, [onUpdate, setStatusBarMessage]);
 
   const handleBehaviorSourceChange = useCallback((source: ScreenBehaviorSource) => {
@@ -1835,6 +1845,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         onLayerChange={handleLayerChange}
         layerNames={layerNamesForToolbar}
         screenKind={screenKind}
+        screenEngine={screenEngine}
         onScreenKindChange={handleScreenKindChange}
         zoom={zoom}
         onZoomChange={setZoom}
