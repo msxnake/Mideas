@@ -254,6 +254,7 @@ export interface IntermediateWorldMapScreen {
 export interface IntermediateScreen {
   id: string;
   name: string;
+  screenKind?: ScreenMap['screenKind'];
   width: number;
   height: number;
   layers: {
@@ -669,6 +670,7 @@ function buildIntermediateScreen({
   return {
     id: screen.id,
     name: screen.name,
+    screenKind: screen.screenKind,
     width: screen.width,
     height: screen.height,
     layers: {
