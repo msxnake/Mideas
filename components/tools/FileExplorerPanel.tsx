@@ -554,6 +554,11 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                         >
                           <AssetIcon type={asset.type} />
                           <span className="truncate text-xs">{asset.name}</span>
+                          {asset.type === 'screenmap' && (
+                            <span className="ml-1 px-1 py-0.5 rounded bg-msx-bgcolor-dark text-[0.6rem] uppercase text-msx-textsecondary border border-msx-border/50">
+                              {String((asset.data as any)?.screenKind || 'playable')}
+                            </span>
+                          )}
                         </button>
                         <div className={`flex-shrink-0 flex items-center ${isTileSelected ? (isSelected ? activeItemClass : selectedTileClass) : ''}`}>
                           <button
