@@ -534,6 +534,8 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
             name: screenName,
             width: 32, // DEFAULT_SCREEN_WIDTH_TILES
             height: 24, // DEFAULT_SCREEN_HEIGHT_TILES
+            screenKind: 'playable',
+            screenEngine: 'player',
             layers: {
               background: Array(24).fill(null).map(() => Array(32).fill({ tileId: null })),
               collision: Array(24).fill(null).map(() => Array(32).fill({ tileId: null })),
