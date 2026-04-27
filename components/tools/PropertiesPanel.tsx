@@ -874,7 +874,34 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 .map((line, index) => ({ line: line.replace(/[;#].*/, '').trim(), lineNumber: index + 1 }))
                 .filter(item => item.line)
                 .flatMap(item => {
-                  const [command, arg] = item.line.split(/\s+/, 2);
+                  const parts = item.line.split(/[\s,]+/).filter(Boolean);
+                  let command = String(parts[0] || '').toLowerCase();
+                  let arg = parts[1];
+                  const second = String(parts[1] || '').toLowerCase();
+
+                  if ((command === 'move' || command === 'dash') && ['left', 'right', 'up', 'down'].includes(second)) {
+                    command = `${command}_${second}`;
+                    arg = parts[2];
+                  } else if (command === 'wait' && ['spc', 'space'].includes(second)) {
+                    command = 'wait_spc';
+                    arg = parts[2];
+                  } else if ((command === 'write' || command === 'write_text') && ['text', 'line'].includes(second)) {
+                    command = 'write_line';
+                    arg = parts[2];
+                  } else if (command === 'open' && ['dialog', 'dialogue', 'frame_dialog', 'frame-dialog'].includes(second)) {
+                    command = 'open_dialog';
+                    arg = parts[2];
+                  } else if (command === 'close' && ['dialog', 'dialogue', 'frame_dialog', 'frame-dialog'].includes(second)) {
+                    command = 'close_dialog';
+                    arg = parts[2];
+                  }
+
+                  if (command === 'spc') command = 'wait_spc';
+                  if (command === 'clean') command = 'clear_dialog';
+                  if (command === 'write_text') command = 'write_line';
+                  if (command === 'open_frame_dialog' || command === 'open-frame-dialog') command = 'open_dialog';
+                  if (command === 'close_frame_dialog' || command === 'close-frame-dialog') command = 'close_dialog';
+
                   if (numericArgCommands.has(command)) {
                     const numericArg = Number(arg);
                     if (!arg || !Number.isFinite(numericArg)) {
@@ -966,18 +993,24 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                       <div className="flex flex-wrap gap-1 mt-1">
                         {[
                           'move_right 64',
+                          'move right 64',
                           'move_left 64',
                           'jump',
                           'dash_right',
+                          'dash right',
                           'grab_wall',
                           'release_wall',
                           'delay 1000',
                           'wait 2',
                           'play_dialog',
                           'open_dialog',
+                          'open frame_dialog',
                           'write_line 0',
+                          'write text 0',
                           'wait_spc',
+                          'wait SPC',
                           'clear_dialog',
+                          'clean',
                           'close_dialog',
                         ].map(commandLine => (
                           <Button
@@ -992,7 +1025,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                         ))}
                       </div>
                       <p className="text-[0.65rem] text-msx-textsecondary mt-1">
-                        Commands: move_right 64, jump, dash_right, grab_wall, delay 1000, wait 2, play_dialog, open_dialog, write_line 0, wait_spc, clear_dialog, close_dialog.
+                        Commands: move_right 64 or move right 64, jump, dash_right, grab_wall, delay 1000, wait 2, play_dialog, open frame_dialog, write text 0, wait SPC, clean, close_dialog.
                       </p>
                       {commandValidationIssues.length > 0 && (
                         <div className="mt-1 p-1.5 border border-yellow-500/50 bg-yellow-950/40 rounded text-[0.65rem] text-yellow-100">

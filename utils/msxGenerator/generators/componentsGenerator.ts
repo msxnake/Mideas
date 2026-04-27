@@ -273,8 +273,34 @@ function parseAutoControlCommands(
 
     for (const line of lines) {
         const parts = line.split(/[\s,]+/).filter(Boolean);
-        const command = String(parts[0] || '').trim().toLowerCase();
-        const operand = Number(parts[1]);
+        let command = String(parts[0] || '').trim().toLowerCase();
+        let operandToken = parts[1];
+        const second = String(parts[1] || '').trim().toLowerCase();
+
+        if ((command === 'move' || command === 'dash') && ['left', 'right', 'up', 'down'].includes(second)) {
+            command = `${command}_${second}`;
+            operandToken = parts[2];
+        } else if (command === 'wait' && ['spc', 'space'].includes(second)) {
+            command = 'wait_spc';
+            operandToken = parts[2];
+        } else if ((command === 'write' || command === 'write_text') && ['text', 'line'].includes(second)) {
+            command = 'write_line';
+            operandToken = parts[2];
+        } else if (command === 'open' && ['dialog', 'dialogue', 'frame_dialog', 'frame-dialog'].includes(second)) {
+            command = 'open_dialog';
+            operandToken = parts[2];
+        } else if (command === 'close' && ['dialog', 'dialogue', 'frame_dialog', 'frame-dialog'].includes(second)) {
+            command = 'close_dialog';
+            operandToken = parts[2];
+        }
+
+        if (command === 'spc') command = 'wait_spc';
+        if (command === 'clean') command = 'clear_dialog';
+        if (command === 'write_text') command = 'write_line';
+        if (command === 'open_frame_dialog' || command === 'open-frame-dialog') command = 'open_dialog';
+        if (command === 'close_frame_dialog' || command === 'close-frame-dialog') command = 'close_dialog';
+
+        const operand = Number(operandToken);
         const amount = Number.isFinite(operand) ? operand : 0;
 
         switch (command) {
