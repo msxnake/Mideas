@@ -849,7 +849,19 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 handleComponentOverrideChange(componentDef.id, 'commands', nextCommands, 'string');
               };
               const numericArgCommands = new Set(['move_left', 'move_right', 'move_up', 'move_down', 'delay', 'write_line']);
-              const noArgCommands = new Set(['open_dialog', 'wait_spc', 'clear_dialog', 'close_dialog']);
+              const noArgCommands = new Set([
+                'jump',
+                'dash_left',
+                'dash_right',
+                'dash_up',
+                'dash_down',
+                'grab_wall',
+                'release_wall',
+                'open_dialog',
+                'wait_spc',
+                'clear_dialog',
+                'close_dialog',
+              ]);
               const commandValidationIssues = commands
                 .split(/\r?\n/)
                 .map((line, index) => ({ line: line.trim(), lineNumber: index + 1 }))
@@ -942,6 +954,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                         {[
                           'move_right 64',
                           'move_left 64',
+                          'jump',
+                          'dash_right',
+                          'grab_wall',
+                          'release_wall',
                           'delay 1000',
                           'open_dialog',
                           'write_line 0',
@@ -961,7 +977,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                         ))}
                       </div>
                       <p className="text-[0.65rem] text-msx-textsecondary mt-1">
-                        Commands: move_right 64, delay 1000, open_dialog, write_line 0, wait_spc, clear_dialog, close_dialog.
+                        Commands: move_right 64, jump, dash_right, grab_wall, delay 1000, open_dialog, write_line 0, wait_spc, clear_dialog, close_dialog.
                       </p>
                       {commandValidationIssues.length > 0 && (
                         <div className="mt-1 p-1.5 border border-yellow-500/50 bg-yellow-950/40 rounded text-[0.65rem] text-yellow-100">
