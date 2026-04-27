@@ -847,6 +847,11 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               const commands = String(getAutoControlValue('commands') ?? '');
               const selectedDialogueAsset = assetsWithEntityTemplates.find(asset => asset.id === dialogueAssetId && asset.type === 'dialogue');
               const selectedDialogue = selectedDialogueAsset?.data as DialogueAsset | undefined;
+              const dialogueCommandsUsed = /\b(play_dialog|play_dialogue|open_dialog|open\s+(dialog|dialogue|frame_dialog|frame-dialog)|write_line|write\s+(text|line))\b/i.test(commands);
+              const hasDialogueText = selectedDialogue?.lines?.some(line => {
+                const text = `${line.speaker?.trim() ? `${line.speaker.trim()}: ` : ''}${line.text || ''}`.trim();
+                return text.length > 0;
+              }) ?? false;
               const appendAutoControlCommand = (commandLine: string) => {
                 const nextCommands = commands.trimEnd()
                   ? `${commands.trimEnd()}\n${commandLine}`
@@ -918,6 +923,13 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     if (command === 'write_line' && selectedDialogue?.lines && (numericArg < 0 || numericArg >= selectedDialogue.lines.length)) {
                       return [`Line ${item.lineNumber}: write_line ${numericArg} is outside the selected Dialogue line range.`];
                     }
+                    if (command === 'write_line' && selectedDialogue?.lines?.[numericArg]) {
+                      const targetLine = selectedDialogue.lines[numericArg];
+                      const targetText = `${targetLine.speaker?.trim() ? `${targetLine.speaker.trim()}: ` : ''}${targetLine.text || ''}`.trim();
+                      if (!targetText) {
+                        return [`Line ${item.lineNumber}: write_line ${numericArg} targets an empty Dialogue line.`];
+                      }
+                    }
                     return [];
                   }
                   if (noArgCommands.has(command)) {
@@ -928,11 +940,15 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   }
                   return [`Line ${item.lineNumber}: unknown command "${command}".`];
                 });
-              const dialogueCommandNeedsAsset =
-                /\b(play_dialog|play_dialogue|open_dialog|open\s+(dialog|dialogue|frame_dialog|frame-dialog)|write_line|write\s+(text|line))\b/i.test(commands) &&
-                !dialogueAssetId;
+              const dialogueCommandNeedsAsset = dialogueCommandsUsed && !dialogueAssetId;
               if (dialogueCommandNeedsAsset) {
                 commandValidationIssues.unshift('Script uses dialogue commands but no Default Dialogue is selected.');
+              }
+              if (dialogueCommandsUsed && dialogueAssetId && !selectedDialogueAsset) {
+                commandValidationIssues.unshift('Default Dialogue points to a missing Dialogue asset.');
+              }
+              if (/\b(play_dialog|play_dialogue)\b/i.test(commands) && selectedDialogueAsset && !hasDialogueText) {
+                commandValidationIssues.unshift('play_dialog uses a Dialogue asset with no text.');
               }
 
               return (
