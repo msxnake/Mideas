@@ -841,6 +841,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               const dialogueAssetId = String(getAutoControlValue('defaultDialogueAssetId') ?? '');
               const commands = String(getAutoControlValue('commands') ?? '');
               const selectedDialogueAsset = assetsWithEntityTemplates.find(asset => asset.id === dialogueAssetId && asset.type === 'dialogue');
+              const selectedDialogue = selectedDialogueAsset?.data as DialogueAsset | undefined;
               const appendAutoControlCommand = (commandLine: string) => {
                 const nextCommands = commands.trimEnd()
                   ? `${commands.trimEnd()}\n${commandLine}`
@@ -860,6 +861,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     if (!arg || !Number.isFinite(numericArg)) {
                       return [`Line ${item.lineNumber}: ${command} needs a numeric argument.`];
                     }
+                    if (command === 'write_line' && selectedDialogue?.lines && (numericArg < 0 || numericArg >= selectedDialogue.lines.length)) {
+                      return [`Line ${item.lineNumber}: write_line ${numericArg} is outside the selected Dialogue line range.`];
+                    }
                     return [];
                   }
                   if (noArgCommands.has(command)) {
@@ -867,6 +871,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   }
                   return [`Line ${item.lineNumber}: unknown command "${command}".`];
                 });
+              const dialogueCommandNeedsAsset = /\b(open_dialog|write_line)\b/.test(commands) && !dialogueAssetId;
+              if (dialogueCommandNeedsAsset) {
+                commandValidationIssues.unshift('Script uses dialogue commands but no Default Dialogue is selected.');
+              }
 
               return (
                 <div key={componentDef.id} className="p-1.5 border border-msx-border/50 rounded bg-msx-bgcolor/30">
