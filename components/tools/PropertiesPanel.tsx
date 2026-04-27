@@ -853,7 +853,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   : commandLine;
                 handleComponentOverrideChange(componentDef.id, 'commands', nextCommands, 'string');
               };
-              const numericArgCommands = new Set(['move_left', 'move_right', 'move_up', 'move_down', 'delay', 'write_line']);
+              const numericArgCommands = new Set(['move_left', 'move_right', 'move_up', 'move_down', 'delay', 'delay_ms', 'wait_ms', 'wait', 'wait_seconds', 'delay_seconds', 'write_line']);
               const noArgCommands = new Set([
                 'jump',
                 'dash_left',
@@ -871,8 +871,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               ]);
               const commandValidationIssues = commands
                 .split(/\r?\n/)
-                .map((line, index) => ({ line: line.trim(), lineNumber: index + 1 }))
-                .filter(item => item.line && !item.line.startsWith('#'))
+                .map((line, index) => ({ line: line.replace(/[;#].*/, '').trim(), lineNumber: index + 1 }))
+                .filter(item => item.line)
                 .flatMap(item => {
                   const [command, arg] = item.line.split(/\s+/, 2);
                   if (numericArgCommands.has(command)) {
@@ -972,6 +972,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                           'grab_wall',
                           'release_wall',
                           'delay 1000',
+                          'wait 2',
                           'play_dialog',
                           'open_dialog',
                           'write_line 0',
@@ -991,7 +992,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                         ))}
                       </div>
                       <p className="text-[0.65rem] text-msx-textsecondary mt-1">
-                        Commands: move_right 64, jump, dash_right, grab_wall, delay 1000, play_dialog, open_dialog, write_line 0, wait_spc, clear_dialog, close_dialog.
+                        Commands: move_right 64, jump, dash_right, grab_wall, delay 1000, wait 2, play_dialog, open_dialog, write_line 0, wait_spc, clear_dialog, close_dialog.
                       </p>
                       {commandValidationIssues.length > 0 && (
                         <div className="mt-1 p-1.5 border border-yellow-500/50 bg-yellow-950/40 rounded text-[0.65rem] text-yellow-100">

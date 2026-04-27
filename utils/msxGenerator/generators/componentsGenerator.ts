@@ -255,12 +255,20 @@ function parseAutoControlCommands(
     const append = (opcode: number, operand = 0) => {
         bytes.push(opcode & 0xff, Math.max(0, Math.min(255, Math.round(operand))) & 0xff);
     };
+    const appendDelayMs = (ms: number) => {
+        const frames = Math.max(1, Math.round((ms || 1000) / 20));
+        append(AUTO_CMD.DELAY, Math.min(255, frames));
+    };
+    const appendDelaySeconds = (seconds: number) => {
+        const frames = Math.max(1, Math.round((seconds || 1) * 50));
+        append(AUTO_CMD.DELAY, Math.min(255, frames));
+    };
     const dialogueIndex = dialogueRuntime.dialogueIndexById.get(defaultDialogueAssetId) ?? 0;
     const defaultLineMap = dialogueRuntime.lineIndexByDialogueId.get(defaultDialogueAssetId);
 
     const lines = String(commands || '')
         .split(/\r?\n/)
-        .map(line => line.replace(/;.*/, '').trim())
+        .map(line => line.replace(/[;#].*/, '').trim())
         .filter(Boolean);
 
     for (const line of lines) {
@@ -301,9 +309,16 @@ function parseAutoControlCommands(
             case 'jump':
                 append(AUTO_CMD.MOVE_UP, amount || 24);
                 break;
-            case 'delay': {
-                const frames = Math.max(1, Math.round((amount || 1000) / 20));
-                append(AUTO_CMD.DELAY, Math.min(255, frames));
+            case 'delay':
+            case 'delay_ms':
+            case 'wait_ms': {
+                appendDelayMs(amount);
+                break;
+            }
+            case 'wait':
+            case 'wait_seconds':
+            case 'delay_seconds': {
+                appendDelaySeconds(amount);
                 break;
             }
             case 'wait_spc':
