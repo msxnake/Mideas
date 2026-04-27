@@ -42,6 +42,24 @@ function getBuiltInMsxFontData(): { charset: Record<string, number[]>; colorAttr
     };
 }
 
+function selectProjectFontAsset(analysis: ProjectAnalysis): any | undefined {
+    if (!analysis.fonts || analysis.fonts.length === 0) return undefined;
+
+    const dialogueFontIds = (analysis.dialogues || [])
+        .map((dialogue: any) => String(dialogue?.box?.fontAssetId || ''))
+        .filter(Boolean);
+
+    for (const fontId of dialogueFontIds) {
+        const match = analysis.fonts.find((fontAsset: any) =>
+            String(fontAsset?.id || '') === fontId ||
+            String(fontAsset?.data?.id || '') === fontId
+        );
+        if (match) return match;
+    }
+
+    return analysis.fonts[0];
+}
+
 function formatAsmCharComment(code: number): string {
     if (code >= 32 && code <= 126) {
         const char = String.fromCharCode(code)
@@ -85,8 +103,8 @@ export function getFontRawData(analysis: ProjectAnalysis): FontRawData {
         return palette[normalized] ?? 15;
     };
 
-    if (analysis.fonts && analysis.fonts.length > 0) {
-        const fontAsset = analysis.fonts[0];
+    const fontAsset = selectProjectFontAsset(analysis);
+    if (fontAsset) {
         const fontData = (fontAsset.data as any).fontData || {};
         const colorData = (fontAsset.data as any).fontColorAttributes || {};
         Object.keys(fontData).forEach(key => {
