@@ -7,7 +7,7 @@ import {
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, ContextMenuItem,
-  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, DialogueAsset
+  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, DialogueAsset, ScreenKind
 } from '../types';
 import { 
   MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -208,7 +208,7 @@ interface AppUIProps {
   resetIdeConfig: () => void;
   handleOpenNewProjectModal: () => void;
   handleConfirmNewProject: (projectNameFromModal: string, screenMode: string) => void;
-  handleNewAsset: (type: ProjectAsset['type']) => void;
+  handleNewAsset: (type: ProjectAsset['type'], options?: { select?: boolean; screenKind?: ScreenKind }) => void;
   handleSpriteImported: (newSpriteData: Omit<Sprite, 'id' | 'name'>) => void;
   memoizedOnRequestRename: (assetId: string, currentName: string, assetType: ProjectAsset['type']) => void;
   handleConfirmRename: (newName: string) => void;

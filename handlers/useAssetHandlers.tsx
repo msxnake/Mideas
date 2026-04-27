@@ -3,7 +3,7 @@ import {
   ProjectAsset, EditorType, Tile, Sprite, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph,
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset, PT3Instrument, TrackerSongData, TrackerPattern,
-  DialogueAsset
+  DialogueAsset, ScreenKind
 } from '../types';
 import {
   DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -96,7 +96,7 @@ export const useAssetHandlers = ({
     });
   }, [setAssetsWithHistory, setStatusBarMessage]);
 
-  const handleNewAsset = (type: ProjectAsset['type'], options?: { select?: boolean }): ProjectAsset | undefined => {
+  const handleNewAsset = (type: ProjectAsset['type'], options?: { select?: boolean; screenKind?: ScreenKind }): ProjectAsset | undefined => {
     const id = `${type}_${Date.now()}`;
     let newAssetData: any;
     let defaultName = `New ${type.charAt(0).toUpperCase() + type.slice(1)}`;
@@ -165,12 +165,17 @@ export const useAssetHandlers = ({
             Array.from({ length: mapW }, (): ScreenTile => ({ tileId: null }))
           );
         const emptyLayer = createEmptyLayer();
+        const screenKind = options?.screenKind ?? 'playable';
+        const screenEngine = screenKind === 'playable' ? 'player' : 'fakePlayer';
+        defaultName = screenKind === 'playable'
+          ? 'New Playable Screen'
+          : `New ${screenKind.charAt(0).toUpperCase() + screenKind.slice(1)} Screen`;
         newAssetData = {
           id, name: defaultName,
           width: mapW,
           height: mapH,
-          screenKind: 'playable',
-          screenEngine: 'player',
+          screenKind,
+          screenEngine,
           layers: {
             background: emptyLayer,
             collision: createEmptyLayer(),

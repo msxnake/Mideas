@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../common/Button';
-import { ProjectAsset, DataFormat, EditorType } from '../../types';
+import { ProjectAsset, DataFormat, EditorType, ScreenKind } from '../../types';
 import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon, SparklesIcon, ClockIcon, TrashIcon } from '../icons/MsxIcons';
 import { APP_VERSION } from '../../constants';
 import { getRecentProjects, removeRecentProject, clearRecentProjects, formatRecentDate, RecentProject } from '../../utils/recentProjects';
@@ -16,7 +16,7 @@ interface ToolbarProps {
   /** Callback to create a new project. */
   onNewProject: () => void;
   /** Callback to create a new asset of a specific type. */
-  onNewAsset: (type: ProjectAsset['type']) => void;
+  onNewAsset: (type: ProjectAsset['type'], options?: { select?: boolean; screenKind?: ScreenKind }) => void;
   /** Callback to save the current project. */
   onSaveProject: () => void;
   /** Callback to open the "Save As" dialog for the project. */
@@ -380,7 +380,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={() => onNewAsset('sprite')} icon={<SpriteIcon />} colorClass="text-orange-200 hover:bg-orange-500 hover:text-white">Sprite</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('font')} icon={<PencilIcon />} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white">Font</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('boss')} icon={<BugIcon />} colorClass="text-green-200 hover:bg-green-500 hover:text-white">Boss</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('screenmap')} icon={<MapIcon />} colorClass="text-blue-200 hover:bg-blue-500 hover:text-white">Screen Map</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('screenmap', { screenKind: 'playable' })} icon={<MapIcon />} colorClass="text-blue-200 hover:bg-blue-500 hover:text-white">Playable Screen</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('screenmap', { screenKind: 'tutorial' })} icon={<MapIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white">Tutorial Screen</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('screenmap', { screenKind: 'dialog' })} icon={<MapIcon />} colorClass="text-sky-200 hover:bg-sky-500 hover:text-white">Dialog Screen</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('screenmap', { screenKind: 'cutscene' })} icon={<MapIcon />} colorClass="text-indigo-200 hover:bg-indigo-500 hover:text-white">Cutscene Screen</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('worldmap')} icon={<WorldMapIcon />} colorClass="text-indigo-200 hover:bg-indigo-500 hover:text-white">World Map</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('gameflow')} icon={<GameFlowIcon />} colorClass="text-violet-200 hover:bg-violet-500 hover:text-white">Game Flow</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('dialogue')} icon={<PencilIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white">Dialogue</DropdownItem>
