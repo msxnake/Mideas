@@ -96,7 +96,7 @@ export const useAssetHandlers = ({
     });
   }, [setAssetsWithHistory, setStatusBarMessage]);
 
-  const handleNewAsset = (type: ProjectAsset['type']) => {
+  const handleNewAsset = (type: ProjectAsset['type'], options?: { select?: boolean }): ProjectAsset | undefined => {
     const id = `${type}_${Date.now()}`;
     let newAssetData: any;
     let defaultName = `New ${type.charAt(0).toUpperCase() + type.slice(1)}`;
@@ -405,14 +405,17 @@ export const useAssetHandlers = ({
         };
         newEditorType = EditorType.EntityTemplateEditor;
         break;
-      default: return;
+      default: return undefined;
     }
 
     const newAsset: ProjectAsset = { id, name: defaultName, type, data: newAssetData };
     setAssetsWithHistory(prevAssets => [...prevAssets, newAsset]);
-    setSelectedAssetId(id);
-    setCurrentEditor(newEditorType);
+    if (options?.select !== false) {
+      setSelectedAssetId(id);
+      setCurrentEditor(newEditorType);
+    }
     setStatusBarMessage(`Created new ${type} asset: ${defaultName}.`);
+    return newAsset;
   };
 
   const handleDeleteAsset = (assetId: string) => {

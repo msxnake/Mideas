@@ -9,7 +9,7 @@ interface DialogueEditorProps {
   onUpdate: (data: DialogueAsset) => void;
   allAssets: ProjectAsset[];
   tileBanks: TileBank[];
-  onCreateAsset?: (type: ProjectAsset['type']) => void;
+  onCreateAsset?: (type: ProjectAsset['type'], options?: { select?: boolean }) => ProjectAsset | void;
 }
 
 const DEFAULT_BORDER_CHAR_CODES: DialogueBoxCharCodes = {
@@ -112,6 +112,20 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
   const removeLine = (lineId: string) => {
     if (data.lines.length <= 1) return;
     update({ lines: data.lines.filter(line => line.id !== lineId) });
+  };
+
+  const createAndAssignFont = () => {
+    const created = onCreateAsset?.('font', { select: false });
+    if (created?.id) {
+      updateBox({ fontAssetId: created.id });
+    }
+  };
+
+  const createAndAssignTileBank = () => {
+    const created = onCreateAsset?.('tilebank', { select: false });
+    if (created?.id) {
+      updateBox({ borderSource: 'tilebank', tileBankAssetId: created.id });
+    }
   };
 
   const updateBorderCharCode = (field: keyof DialogueBoxCharCodes, value: number) => {
@@ -293,9 +307,9 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                     size="sm"
                     variant="secondary"
                     className="mt-2"
-                    onClick={() => onCreateAsset('font')}
+                    onClick={createAndAssignFont}
                   >
-                    Create Font
+                    Create and Use Font
                   </Button>
                 )}
               </div>
@@ -357,9 +371,9 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                         size="sm"
                         variant="secondary"
                         className="mt-2"
-                        onClick={() => onCreateAsset('tilebank')}
+                        onClick={createAndAssignTileBank}
                       >
-                        Create TileBank
+                        Create and Use TileBank
                       </Button>
                     )}
                   </div>
