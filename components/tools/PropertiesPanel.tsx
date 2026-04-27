@@ -866,6 +866,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 'play_dialogue',
                 'open_dialog',
                 'wait_spc',
+                'wait_text',
+                'wait_typewriter',
                 'clear_dialog',
                 'close_dialog',
               ]);
@@ -1009,6 +1011,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                           'write text 0',
                           'wait_spc',
                           'wait SPC',
+                          'wait_text',
                           'clear_dialog',
                           'clean',
                           'close_dialog',
@@ -1025,7 +1028,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                         ))}
                       </div>
                       <p className="text-[0.65rem] text-msx-textsecondary mt-1">
-                        Commands: move_right 64 or move right 64, jump, dash_right, grab_wall, delay 1000, wait 2, play_dialog, open frame_dialog, write text 0, wait SPC, clean, close_dialog.
+                        Commands: move_right 64 or move right 64, jump, dash_right, grab_wall, delay 1000, wait 2, play_dialog, open frame_dialog, write text 0, wait SPC, wait_text, clean, close_dialog.
                       </p>
                       {commandValidationIssues.length > 0 && (
                         <div className="mt-1 p-1.5 border border-yellow-500/50 bg-yellow-950/40 rounded text-[0.65rem] text-yellow-100">

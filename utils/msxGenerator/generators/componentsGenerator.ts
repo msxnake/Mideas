@@ -28,12 +28,14 @@ const AUTO_CMD = {
     WRITE_LINE: 9,
     CLEAR_DIALOG: 10,
     CLOSE_DIALOG: 11,
+    WAIT_TEXT: 12,
 } as const;
 
 type DialogueRuntimeBuild = {
     dataAsm: string;
     dialogueIndexById: Map<string, number>;
     lineIndexByDialogueId: Map<string, Map<number, number>>;
+    lineWaitForInputByDialogueId: Map<string, Map<number, boolean>>;
     hasDialogue: boolean;
 };
 
@@ -140,6 +142,7 @@ function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBui
     const dialogues = Array.isArray((analysis as any).dialogues) ? (analysis as any).dialogues : [];
     const dialogueIndexById = new Map<string, number>();
     const lineIndexByDialogueId = new Map<string, Map<number, number>>();
+    const lineWaitForInputByDialogueId = new Map<string, Map<number, boolean>>();
     const boxVramEntries: string[] = [];
     const textVramEntries: string[] = [];
     const widthEntries: number[] = [];
@@ -193,7 +196,9 @@ function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBui
         vEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.verticalTileId, topY, generatedVertical) : generatedVertical);
 
         const lineMap = new Map<number, number>();
+        const lineWaitMap = new Map<number, boolean>();
         lineIndexByDialogueId.set(dialogueId, lineMap);
+        lineWaitForInputByDialogueId.set(dialogueId, lineWaitMap);
         const maxChars = Math.min(width - 2, Math.max(1, clampByteValue(dialogue?.exportOptions?.maxCharsPerLine, width - 2)));
         const maxLines = Math.min(height - 2, Math.max(1, clampByteValue(dialogue?.exportOptions?.maxLinesPerBox, height - 2)));
         const dialogueLabel = sanitizeAsmLabelPart(dialogue?.name || dialogueId, `dialogue_${dialogueIndex}`);
@@ -214,6 +219,7 @@ function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBui
             bytes.push(0);
             dataAsm += `${label}:\n    DB ${bytes.map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}\n`;
             lineMap.set(lineIndex, lineGlobalIndex);
+            lineWaitMap.set(lineIndex, line?.waitForInput !== false);
             linePtrEntries.push(label);
             lineDelayEntries.push(charDelay);
             lineGlobalIndex++;
@@ -242,6 +248,7 @@ function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBui
         dataAsm,
         dialogueIndexById,
         lineIndexByDialogueId,
+        lineWaitForInputByDialogueId,
         hasDialogue: dialogues.length > 0 && linePtrEntries.length > 0,
     };
 }
@@ -265,6 +272,7 @@ function parseAutoControlCommands(
     };
     const dialogueIndex = dialogueRuntime.dialogueIndexById.get(defaultDialogueAssetId) ?? 0;
     const defaultLineMap = dialogueRuntime.lineIndexByDialogueId.get(defaultDialogueAssetId);
+    const defaultLineWaitMap = dialogueRuntime.lineWaitForInputByDialogueId.get(defaultDialogueAssetId);
 
     const lines = String(commands || '')
         .split(/\r?\n/)
@@ -351,14 +359,18 @@ function parseAutoControlCommands(
             case 'wait_space':
                 append(AUTO_CMD.WAIT_SPC, 0);
                 break;
+            case 'wait_text':
+            case 'wait_typewriter':
+                append(AUTO_CMD.WAIT_TEXT, 0);
+                break;
             case 'play_dialog':
             case 'play_dialogue': {
                 append(AUTO_CMD.OPEN_DIALOG, dialogueIndex);
                 const lineEntries = Array.from(defaultLineMap?.entries() || [])
                     .sort(([left], [right]) => left - right);
-                for (const [, globalLineIndex] of lineEntries) {
+                for (const [localLineIndex, globalLineIndex] of lineEntries) {
                     append(AUTO_CMD.WRITE_LINE, globalLineIndex);
-                    append(AUTO_CMD.WAIT_SPC, 0);
+                    append(defaultLineWaitMap?.get(localLineIndex) === false ? AUTO_CMD.WAIT_TEXT : AUTO_CMD.WAIT_SPC, 0);
                 }
                 append(AUTO_CMD.CLOSE_DIALOG, 0);
                 break;
@@ -796,6 +808,7 @@ AUTO_CMD_OPEN_DIALOG EQU ${AUTO_CMD.OPEN_DIALOG}
 AUTO_CMD_WRITE_LINE  EQU ${AUTO_CMD.WRITE_LINE}
 AUTO_CMD_CLEAR_DIALOG EQU ${AUTO_CMD.CLEAR_DIALOG}
 AUTO_CMD_CLOSE_DIALOG EQU ${AUTO_CMD.CLOSE_DIALOG}
+AUTO_CMD_WAIT_TEXT EQU ${AUTO_CMD.WAIT_TEXT}
 
 ${scriptData.dataAsm}
 ${buildRegisterContractComment({
@@ -859,6 +872,8 @@ update_auto_control_script_component:
     ld a, (autocontrol_move_opcode)
     cp AUTO_CMD_WAIT_SPC
     jp z, autocontrol_wait_spc
+    cp AUTO_CMD_WAIT_TEXT
+    jp z, autocontrol_wait_text
 
     ld a, (autocontrol_wait_frames)
     or a
@@ -881,6 +896,14 @@ autocontrol_wait_spc:
     ld a, (input_btn_curr)
     and #01
     ret z
+    xor a
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_wait_text:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
     xor a
     ld (autocontrol_move_opcode), a
     ret
@@ -911,6 +934,8 @@ autocontrol_read_command:
     jp z, autocontrol_command_delay
     cp AUTO_CMD_WAIT_SPC
     jp z, autocontrol_command_wait_spc
+    cp AUTO_CMD_WAIT_TEXT
+    jp z, autocontrol_command_wait_text
     cp AUTO_CMD_OPEN_DIALOG
     jp z, autocontrol_command_open_dialog
     cp AUTO_CMD_WRITE_LINE
@@ -935,6 +960,11 @@ autocontrol_command_delay:
 
 autocontrol_command_wait_spc:
     ld a, AUTO_CMD_WAIT_SPC
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_command_wait_text:
+    ld a, AUTO_CMD_WAIT_TEXT
     ld (autocontrol_move_opcode), a
     ret
 
