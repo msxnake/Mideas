@@ -928,7 +928,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   }
                   return [`Line ${item.lineNumber}: unknown command "${command}".`];
                 });
-              const dialogueCommandNeedsAsset = /\b(play_dialog|play_dialogue|open_dialog|write_line)\b/.test(commands) && !dialogueAssetId;
+              const dialogueCommandNeedsAsset =
+                /\b(play_dialog|play_dialogue|open_dialog|open\s+(dialog|dialogue|frame_dialog|frame-dialog)|write_line|write\s+(text|line))\b/i.test(commands) &&
+                !dialogueAssetId;
               if (dialogueCommandNeedsAsset) {
                 commandValidationIssues.unshift('Script uses dialogue commands but no Default Dialogue is selected.');
               }
