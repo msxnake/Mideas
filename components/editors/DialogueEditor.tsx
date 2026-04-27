@@ -143,6 +143,9 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
   const maxBoxY = 21;
   const maxBoxWidth = Math.max(4, 32 - data.box.x);
   const maxBoxHeight = Math.max(3, 24 - data.box.y);
+  const previewLine = data.lines.find(line => line.text.trim()) || data.lines[0];
+  const previewSpeaker = previewLine?.speaker?.trim();
+  const previewText = `${previewSpeaker ? `${previewSpeaker}: ` : ''}${previewLine?.text || ''}`;
 
   return (
     <Panel title={`Dialogue Editor: ${data.name || 'Dialogue'}`} className="flex-grow flex flex-col min-h-0">
@@ -240,6 +243,19 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                 <div>
                   <label className={labelClassName}>Height</label>
                   <input type="number" min={3} max={maxBoxHeight} className={compactInputClassName} value={data.box.height} onChange={event => updateBox({ height: clampNumber(Number(event.target.value), 3, maxBoxHeight) })} />
+                </div>
+              </div>
+              <div className="relative aspect-[4/3] border border-msx-border bg-msx-bgcolor-dark overflow-hidden">
+                <div
+                  className="absolute border border-msx-accent bg-msx-bgcolor/95 p-1 text-[10px] leading-tight text-msx-textprimary font-mono overflow-hidden"
+                  style={{
+                    left: `${(data.box.x / 32) * 100}%`,
+                    top: `${(data.box.y / 24) * 100}%`,
+                    width: `${(data.box.width / 32) * 100}%`,
+                    height: `${(data.box.height / 24) * 100}%`,
+                  }}
+                >
+                  {previewText || '...'}
                 </div>
               </div>
               <div>
