@@ -200,7 +200,9 @@ function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBui
 
         (Array.isArray(dialogue?.lines) ? dialogue.lines : []).forEach((line: any, lineIndex: number) => {
             const label = `dialogue_line_${lineGlobalIndex}_${dialogueLabel}`;
-            const rows = wrapDialogueText(String(line?.text || ''), maxChars, maxLines);
+            const speakerPrefix = String(line?.speaker || '').trim();
+            const lineText = `${speakerPrefix ? `${speakerPrefix}: ` : ''}${String(line?.text || '')}`;
+            const rows = wrapDialogueText(lineText, maxChars, maxLines);
             const bytes: number[] = [];
             rows.forEach((row, rowIndex) => {
                 for (const char of row) {
