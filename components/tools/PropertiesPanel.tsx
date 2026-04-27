@@ -841,6 +841,26 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               const dialogueAssetId = String(getAutoControlValue('defaultDialogueAssetId') ?? '');
               const commands = String(getAutoControlValue('commands') ?? '');
               const selectedDialogueAsset = assetsWithEntityTemplates.find(asset => asset.id === dialogueAssetId && asset.type === 'dialogue');
+              const numericArgCommands = new Set(['move_left', 'move_right', 'move_up', 'move_down', 'delay', 'write_line']);
+              const noArgCommands = new Set(['open_dialog', 'wait_spc', 'clear_dialog', 'close_dialog']);
+              const commandValidationIssues = commands
+                .split(/\r?\n/)
+                .map((line, index) => ({ line: line.trim(), lineNumber: index + 1 }))
+                .filter(item => item.line && !item.line.startsWith('#'))
+                .flatMap(item => {
+                  const [command, arg] = item.line.split(/\s+/, 2);
+                  if (numericArgCommands.has(command)) {
+                    const numericArg = Number(arg);
+                    if (!arg || !Number.isFinite(numericArg)) {
+                      return [`Line ${item.lineNumber}: ${command} needs a numeric argument.`];
+                    }
+                    return [];
+                  }
+                  if (noArgCommands.has(command)) {
+                    return [];
+                  }
+                  return [`Line ${item.lineNumber}: unknown command "${command}".`];
+                });
 
               return (
                 <div key={componentDef.id} className="p-1.5 border border-msx-border/50 rounded bg-msx-bgcolor/30">
@@ -907,6 +927,16 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                       <p className="text-[0.65rem] text-msx-textsecondary mt-1">
                         Commands: move_right 64, delay 1000, open_dialog, write_line 0, wait_spc, clear_dialog, close_dialog.
                       </p>
+                      {commandValidationIssues.length > 0 && (
+                        <div className="mt-1 p-1.5 border border-yellow-500/50 bg-yellow-950/40 rounded text-[0.65rem] text-yellow-100">
+                          <div className="font-semibold text-yellow-300 mb-1">Script validation</div>
+                          <ul className="list-disc list-inside space-y-0.5">
+                            {commandValidationIssues.map(issue => (
+                              <li key={issue}>{issue}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
