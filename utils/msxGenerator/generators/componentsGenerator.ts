@@ -291,6 +291,12 @@ function parseAutoControlCommands(
         } else if (command === 'wait' && ['spc', 'space'].includes(second)) {
             command = 'wait_spc';
             operandToken = parts[2];
+        } else if (command === 'wait' && ['text', 'typewriter'].includes(second)) {
+            command = 'wait_text';
+            operandToken = parts[2];
+        } else if (command === 'wait' && ['second', 'seconds'].includes(second)) {
+            command = 'wait_seconds';
+            operandToken = parts[2];
         } else if ((command === 'write' || command === 'write_text') && ['text', 'line'].includes(second)) {
             command = 'write_line';
             operandToken = parts[2];

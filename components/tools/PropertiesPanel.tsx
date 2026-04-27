@@ -887,6 +887,12 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   } else if (command === 'wait' && ['spc', 'space'].includes(second)) {
                     command = 'wait_spc';
                     arg = parts[2];
+                  } else if (command === 'wait' && ['text', 'typewriter'].includes(second)) {
+                    command = 'wait_text';
+                    arg = parts[2];
+                  } else if (command === 'wait' && ['second', 'seconds'].includes(second)) {
+                    command = 'wait_seconds';
+                    arg = parts[2];
                   } else if ((command === 'write' || command === 'write_text') && ['text', 'line'].includes(second)) {
                     command = 'write_line';
                     arg = parts[2];
@@ -1012,6 +1018,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                           'wait_spc',
                           'wait SPC',
                           'wait_text',
+                          'wait text',
                           'clear_dialog',
                           'clean',
                           'close_dialog',
@@ -1028,7 +1035,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                         ))}
                       </div>
                       <p className="text-[0.65rem] text-msx-textsecondary mt-1">
-                        Commands: move_right 64 or move right 64, jump, dash_right, grab_wall, delay 1000, wait 2, play_dialog, open frame_dialog, write text 0, wait SPC, wait_text, clean, close_dialog.
+                        Commands: move_right 64 or move right 64, jump, dash_right, grab_wall, delay 1000, wait 2, play_dialog, open frame_dialog, write text 0, wait SPC, wait text, clean, close_dialog.
                       </p>
                       {commandValidationIssues.length > 0 && (
                         <div className="mt-1 p-1.5 border border-yellow-500/50 bg-yellow-950/40 rounded text-[0.65rem] text-yellow-100">
