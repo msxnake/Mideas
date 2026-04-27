@@ -68,7 +68,7 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "enabled", type: "boolean", defaultValue: "true", description: "Whether this scripted control component is active in tutorial/dialog/cutscene screens." },
       { name: "startsOnScreenLoad", type: "boolean", defaultValue: "true", description: "Run the command list when the screen starts." },
       { name: "loop", type: "boolean", defaultValue: "false", description: "Restart the command list after it finishes." },
-      { name: "defaultDialogueAssetId", type: "dialogue_ref", defaultValue: "", description: "Optional Dialogue asset used by open_dialog or write_line commands." },
+      { name: "defaultDialogueAssetId", type: "dialogue_ref", defaultValue: "", description: "Optional Dialogue asset used by play_dialog, open_dialog, or write_line commands." },
       { name: "commands", type: "string", defaultValue: "move_right 64\njump\ndash_right\ndelay 1000\nplay_dialog", description: "One command per line: move_right or move right pixels, jump, dash_right or dash right, grab_wall, release_wall, delay ms, wait seconds, play_dialog, open_dialog/open frame_dialog, write_line/write text index, wait_spc/wait SPC, wait_text/wait text, clear_dialog/clean, close_dialog." }
     ],
     description: "Editor-only script data for FakePlayer/tutorial actors. It does not change the real Player control path."
