@@ -112,10 +112,13 @@ export function generateUnifiedFile(
     const hasText = analysis.screenMaps?.some(screen =>
         (screen.layers as any)?.text || (screen as any).textElements?.length > 0
     );
+    const hasDialogue = analysis.dialogues?.some((dialogue: any) =>
+        Array.isArray(dialogue?.lines) && dialogue.lines.some((line: any) => String(line?.text || '').length > 0)
+    );
     const hasHud = analysis.screenMaps?.some(screen =>
         screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
     );
-    const needsFont = hasMenus || hasText || hasHud;
+    const needsFont = hasMenus || hasText || hasHud || hasDialogue;
     const fontInPage0 = config.romMode === 'plain48k' && !!needsFont;
     const fontRawData = fontInPage0 ? getFontRawData(analysis) : undefined;
     const page0Plan = buildPage0Plan(analysis, config.romMode, fontRawData);

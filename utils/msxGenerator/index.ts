@@ -246,10 +246,13 @@ export function generateModularASM(
   const hasText = analysis.screenMaps?.some((screen: any) =>
     (screen.layers as any)?.text || (screen as any).textElements?.length > 0
   );
+  const hasDialogue = analysis.dialogues?.some((dialogue: any) =>
+    Array.isArray(dialogue?.lines) && dialogue.lines.some((line: any) => String(line?.text || '').length > 0)
+  );
   const hasHudElements = analysis.screenMaps?.some((screen: any) =>
     screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
   );
-  const needsFont = !!(hasMenus || hasText || hasHudElements);
+  const needsFont = !!(hasMenus || hasText || hasHudElements || hasDialogue);
   const fontInPage0 = romMode === 'plain48k' && needsFont;
   const fontInBank4 = romMode === 'megarom' && needsFont;
   const fontRawData = fontInPage0 ? getFontRawData(analysis) : undefined;
@@ -353,10 +356,13 @@ export function generateModularASMFromSummary(
   const hasText2 = analysis.screenMaps?.some((screen: any) =>
     (screen.layers as any)?.text || (screen as any).textElements?.length > 0
   );
+  const hasDialogue2 = analysis.dialogues?.some((dialogue: any) =>
+    Array.isArray(dialogue?.lines) && dialogue.lines.some((line: any) => String(line?.text || '').length > 0)
+  );
   const hasHudElements2 = analysis.screenMaps?.some((screen: any) =>
     screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
   );
-  const needsFont2 = !!(hasMenus2 || hasText2 || hasHudElements2);
+  const needsFont2 = !!(hasMenus2 || hasText2 || hasHudElements2 || hasDialogue2);
   const fontInPage02 = romMode === 'plain48k' && needsFont2;
   const fontInBank42 = romMode === 'megarom' && needsFont2;
   const fontRawData2 = fontInPage02 ? getFontRawData(analysis) : undefined;

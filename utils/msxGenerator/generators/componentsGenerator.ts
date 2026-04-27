@@ -12,6 +12,7 @@ import { usesMapperBanking } from './romModeUtils';
 type AutoControlScriptBuild = {
     dataAsm: string;
     hasScripts: boolean;
+    hasDialogue: boolean;
 };
 
 const AUTO_CMD = {
@@ -23,7 +24,18 @@ const AUTO_CMD = {
     DELAY: 5,
     WAIT_SPC: 6,
     NOP: 7,
+    OPEN_DIALOG: 8,
+    WRITE_LINE: 9,
+    CLEAR_DIALOG: 10,
+    CLOSE_DIALOG: 11,
 } as const;
+
+type DialogueRuntimeBuild = {
+    dataAsm: string;
+    dialogueIndexById: Map<string, number>;
+    lineIndexByDialogueId: Map<string, Map<number, number>>;
+    hasDialogue: boolean;
+};
 
 function boolValue(value: any, fallback = false): boolean {
     if (typeof value === 'boolean') return value;
@@ -49,11 +61,161 @@ function getEntityComponentValues(entity: any, template: any, definitionId: stri
     return { ...defaults, ...overrides };
 }
 
-function parseAutoControlCommands(commands: string): number[] {
+function sanitizeAsmLabelPart(value: any, fallback: string): string {
+    const label = String(value || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    return label || fallback;
+}
+
+function clampByteValue(value: any, fallback = 0): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return fallback & 0xff;
+    return Math.max(0, Math.min(255, Math.round(numeric))) & 0xff;
+}
+
+function wrapDialogueText(text: string, maxCharsPerLine: number, maxLines: number): string[] {
+    const width = Math.max(1, maxCharsPerLine | 0);
+    const lineLimit = Math.max(1, maxLines | 0);
+    const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+    const rows: string[] = [];
+    let current = '';
+
+    const pushCurrent = () => {
+        if (rows.length >= lineLimit) return;
+        rows.push(current.trimEnd());
+        current = '';
+    };
+
+    for (const word of words) {
+        if (rows.length >= lineLimit) break;
+        if (!current) {
+            current = word.slice(0, width);
+            if (word.length > width) pushCurrent();
+            continue;
+        }
+        if (current.length + 1 + word.length <= width) {
+            current += ` ${word}`;
+        } else {
+            pushCurrent();
+            current = word.slice(0, width);
+            if (word.length > width) pushCurrent();
+        }
+    }
+    if (current && rows.length < lineLimit) rows.push(current.trimEnd());
+    return rows.length > 0 ? rows : [''];
+}
+
+function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBuild {
+    const dialogues = Array.isArray((analysis as any).dialogues) ? (analysis as any).dialogues : [];
+    const dialogueIndexById = new Map<string, number>();
+    const lineIndexByDialogueId = new Map<string, Map<number, number>>();
+    const boxVramEntries: string[] = [];
+    const textVramEntries: string[] = [];
+    const widthEntries: number[] = [];
+    const heightEntries: number[] = [];
+    const delayEntries: number[] = [];
+    const tlEntries: number[] = [];
+    const trEntries: number[] = [];
+    const blEntries: number[] = [];
+    const brEntries: number[] = [];
+    const hEntries: number[] = [];
+    const vEntries: number[] = [];
+    const linePtrEntries: string[] = [];
+    const lineDelayEntries: number[] = [];
+    let dataAsm = '';
+    let lineGlobalIndex = 0;
+
+    dialogues.forEach((dialogue: any, dialogueIndex: number) => {
+        const dialogueId = String(dialogue?.id || `dialogue_${dialogueIndex}`);
+        dialogueIndexById.set(dialogueId, dialogueIndex);
+
+        const box = dialogue?.box || {};
+        const x = clampByteValue(box.x, 0);
+        const y = clampByteValue(box.y, 20);
+        const width = Math.max(3, Math.min(32 - Math.min(x, 31), clampByteValue(box.width, 32)));
+        const height = Math.max(3, Math.min(24 - Math.min(y, 23), clampByteValue(box.height, 4)));
+        const border = box.borderCharCodes || {};
+        const charDelay = Math.max(0, Math.min(255, clampByteValue(dialogue?.exportOptions?.charDelayFrames, 2)));
+        const baseVram = `NAMETBL + ${(y * 32) + x}`;
+        const textVram = `NAMETBL + ${((y + 1) * 32) + x + 1}`;
+
+        boxVramEntries.push(baseVram);
+        textVramEntries.push(textVram);
+        widthEntries.push(width);
+        heightEntries.push(height);
+        delayEntries.push(charDelay);
+        tlEntries.push(clampByteValue(border.topLeft, 43));
+        trEntries.push(clampByteValue(border.topRight, 43));
+        blEntries.push(clampByteValue(border.bottomLeft, 43));
+        brEntries.push(clampByteValue(border.bottomRight, 43));
+        hEntries.push(clampByteValue(border.horizontal, 45));
+        vEntries.push(clampByteValue(border.vertical, 124));
+
+        const lineMap = new Map<number, number>();
+        lineIndexByDialogueId.set(dialogueId, lineMap);
+        const maxChars = Math.min(width - 2, Math.max(1, clampByteValue(dialogue?.exportOptions?.maxCharsPerLine, width - 2)));
+        const maxLines = Math.min(height - 2, Math.max(1, clampByteValue(dialogue?.exportOptions?.maxLinesPerBox, height - 2)));
+        const dialogueLabel = sanitizeAsmLabelPart(dialogue?.name || dialogueId, `dialogue_${dialogueIndex}`);
+
+        (Array.isArray(dialogue?.lines) ? dialogue.lines : []).forEach((line: any, lineIndex: number) => {
+            const label = `dialogue_line_${lineGlobalIndex}_${dialogueLabel}`;
+            const rows = wrapDialogueText(String(line?.text || ''), maxChars, maxLines);
+            const bytes: number[] = [];
+            rows.forEach((row, rowIndex) => {
+                for (const char of row) {
+                    const code = char.charCodeAt(0);
+                    bytes.push(code >= 32 && code <= 126 ? code : 32);
+                }
+                if (rowIndex < rows.length - 1) bytes.push(10);
+            });
+            bytes.push(0);
+            dataAsm += `${label}:\n    DB ${bytes.map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}\n`;
+            lineMap.set(lineIndex, lineGlobalIndex);
+            linePtrEntries.push(label);
+            lineDelayEntries.push(charDelay);
+            lineGlobalIndex++;
+        });
+    });
+
+    const ensureEntries = <T,>(entries: T[], fallback: T): T[] => entries.length > 0 ? entries : [fallback];
+    const ptrTable = (label: string, entries: string[]) => `${label}:\n${ensureEntries(entries, '0').map(entry => `    DW ${entry}`).join('\n')}\n`;
+    const byteTable = (label: string, entries: number[], fallback = 0) => `${label}:\n    DB ${ensureEntries(entries, fallback).map(value => String(value & 0xff)).join(',')}\n`;
+
+    dataAsm += ptrTable('dialogue_box_vram_table', boxVramEntries);
+    dataAsm += ptrTable('dialogue_text_vram_table', textVramEntries);
+    dataAsm += byteTable('dialogue_box_width_table', widthEntries, 32);
+    dataAsm += byteTable('dialogue_box_height_table', heightEntries, 4);
+    dataAsm += byteTable('dialogue_box_delay_table', delayEntries, 2);
+    dataAsm += byteTable('dialogue_box_tl_table', tlEntries, 43);
+    dataAsm += byteTable('dialogue_box_tr_table', trEntries, 43);
+    dataAsm += byteTable('dialogue_box_bl_table', blEntries, 43);
+    dataAsm += byteTable('dialogue_box_br_table', brEntries, 43);
+    dataAsm += byteTable('dialogue_box_h_table', hEntries, 45);
+    dataAsm += byteTable('dialogue_box_v_table', vEntries, 124);
+    dataAsm += ptrTable('dialogue_line_ptr_table', linePtrEntries);
+    dataAsm += byteTable('dialogue_line_delay_table', lineDelayEntries, 2);
+
+    return {
+        dataAsm,
+        dialogueIndexById,
+        lineIndexByDialogueId,
+        hasDialogue: dialogues.length > 0 && linePtrEntries.length > 0,
+    };
+}
+
+function parseAutoControlCommands(
+    commands: string,
+    defaultDialogueAssetId: string,
+    dialogueRuntime: DialogueRuntimeBuild
+): number[] {
     const bytes: number[] = [];
     const append = (opcode: number, operand = 0) => {
         bytes.push(opcode & 0xff, Math.max(0, Math.min(255, Math.round(operand))) & 0xff);
     };
+    const dialogueIndex = dialogueRuntime.dialogueIndexById.get(defaultDialogueAssetId) ?? 0;
+    const defaultLineMap = dialogueRuntime.lineIndexByDialogueId.get(defaultDialogueAssetId);
 
     const lines = String(commands || '')
         .split(/\r?\n/)
@@ -108,9 +270,19 @@ function parseAutoControlCommands(commands: string): number[] {
                 append(AUTO_CMD.WAIT_SPC, 0);
                 break;
             case 'open_dialog':
-            case 'write_line':
+                append(AUTO_CMD.OPEN_DIALOG, dialogueIndex);
+                break;
+            case 'write_line': {
+                const lineIndex = Number.isFinite(amount) ? amount : 0;
+                append(AUTO_CMD.WRITE_LINE, defaultLineMap?.get(lineIndex) ?? 0);
+                break;
+            }
             case 'clear_dialog':
+                append(AUTO_CMD.CLEAR_DIALOG, 0);
+                break;
             case 'close_dialog':
+                append(AUTO_CMD.CLOSE_DIALOG, 0);
+                break;
             case 'grab_wall':
             case 'release_wall':
                 append(AUTO_CMD.NOP, 0);
@@ -127,9 +299,10 @@ function parseAutoControlCommands(commands: string): number[] {
 
 function buildAutoControlScriptData(analysis: ProjectAnalysis): AutoControlScriptBuild {
     const entities = Array.isArray(analysis.entities) ? analysis.entities : [];
+    const dialogueRuntime = buildDialogueRuntimeData(analysis);
     const scriptPresent: boolean[] = new Array(32).fill(false);
     const loopFlags: number[] = new Array(32).fill(0);
-    let dataAsm = '';
+    let dataAsm = dialogueRuntime.dataAsm;
     let hasScripts = false;
 
     entities.slice(0, 32).forEach((entity: any, index: number) => {
@@ -145,7 +318,11 @@ function buildAutoControlScriptData(analysis: ProjectAnalysis): AutoControlScrip
         loopFlags[index] = boolValue(values.loop, false) ? 1 : 0;
         hasScripts = true;
 
-        const bytes = parseAutoControlCommands(String(values.commands || ''));
+        const bytes = parseAutoControlCommands(
+            String(values.commands || ''),
+            String(values.defaultDialogueAssetId || ''),
+            dialogueRuntime
+        );
         const byteLines: string[] = [];
         for (let offset = 0; offset < bytes.length; offset += 16) {
             byteLines.push(`    DB ${bytes.slice(offset, offset + 16).map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}`);
@@ -165,7 +342,335 @@ autocontrol_loop_flag_table:
     DB ${loopEntries.join(',')}
 `;
 
-    return { dataAsm, hasScripts };
+    return { dataAsm, hasScripts, hasDialogue: dialogueRuntime.hasDialogue };
+}
+
+function generateAutoControlDialogueSystem(hasDialogue: boolean): string {
+    if (!hasDialogue) {
+        return `
+dialogue_update_typewriter:
+    ret
+
+dialogue_open_box:
+    ret
+
+dialogue_start_line:
+    ret
+
+dialogue_clear_box:
+    ret
+
+dialogue_close_box:
+    ret
+`;
+    }
+
+    return `
+dialogue_update_typewriter:
+    ld a, (dialogue_text_active)
+    or a
+    ret z
+    ld a, (dialogue_char_delay)
+    or a
+    jp z, dialogue_typewriter_emit
+    dec a
+    ld (dialogue_char_delay), a
+    ret
+
+dialogue_typewriter_emit:
+    ld a, (dialogue_text_ptr_l)
+    ld l, a
+    ld a, (dialogue_text_ptr_h)
+    ld h, a
+    ld a, (hl)
+    ld c, a
+    inc hl
+    ld a, l
+    ld (dialogue_text_ptr_l), a
+    ld a, h
+    ld (dialogue_text_ptr_h), a
+    ld a, c
+    or a
+    jp z, dialogue_typewriter_done
+    cp 10
+    jp z, dialogue_typewriter_newline
+
+    ld c, a
+    ld a, (dialogue_vram_ptr_l)
+    ld l, a
+    ld a, (dialogue_vram_ptr_h)
+    ld h, a
+    ld a, c
+    call FAST_WRTVRM
+    inc hl
+    ld a, l
+    ld (dialogue_vram_ptr_l), a
+    ld a, h
+    ld (dialogue_vram_ptr_h), a
+    ld a, (dialogue_char_delay_reload)
+    ld (dialogue_char_delay), a
+    ret
+
+dialogue_typewriter_newline:
+    ld a, (dialogue_row_start_l)
+    ld l, a
+    ld a, (dialogue_row_start_h)
+    ld h, a
+    ld de, 32
+    add hl, de
+    ld a, l
+    ld (dialogue_row_start_l), a
+    ld (dialogue_vram_ptr_l), a
+    ld a, h
+    ld (dialogue_row_start_h), a
+    ld (dialogue_vram_ptr_h), a
+    ld a, (dialogue_char_delay_reload)
+    ld (dialogue_char_delay), a
+    ret
+
+dialogue_typewriter_done:
+    xor a
+    ld (dialogue_text_active), a
+    ret
+
+dialogue_open_box:
+    call init_font_system
+    call dialogue_load_box_config
+    call dialogue_draw_box
+    xor a
+    ld (dialogue_text_active), a
+    ld a, 1
+    ld (dialogue_active), a
+    ret
+
+dialogue_start_line:
+    ld c, a
+    ld b, 0
+    push bc
+    ld a, (dialogue_current_box)
+    call dialogue_load_box_config
+    call dialogue_clear_interior
+    pop bc
+
+    ld hl, dialogue_line_ptr_table
+    add hl, bc
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    ld (dialogue_text_ptr_l), a
+    ld a, d
+    ld (dialogue_text_ptr_h), a
+
+    ld hl, dialogue_line_delay_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_char_delay_reload), a
+    xor a
+    ld (dialogue_char_delay), a
+
+    ld a, (dialogue_current_box)
+    ld c, a
+    ld b, 0
+    ld hl, dialogue_text_vram_table
+    add hl, bc
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    ld (dialogue_vram_ptr_l), a
+    ld (dialogue_row_start_l), a
+    ld a, d
+    ld (dialogue_vram_ptr_h), a
+    ld (dialogue_row_start_h), a
+
+    ld a, 1
+    ld (dialogue_active), a
+    ld (dialogue_text_active), a
+    ret
+
+dialogue_clear_box:
+    ld a, (dialogue_current_box)
+    call dialogue_load_box_config
+    call dialogue_clear_rect
+    xor a
+    ld (dialogue_text_active), a
+    ret
+
+dialogue_close_box:
+    call dialogue_clear_box
+    xor a
+    ld (dialogue_active), a
+    ret
+
+dialogue_load_box_config:
+    ld (dialogue_current_box), a
+    ld c, a
+    ld b, 0
+
+    ld hl, dialogue_box_vram_table
+    add hl, bc
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    ld (dialogue_box_vram_l), a
+    ld a, d
+    ld (dialogue_box_vram_h), a
+
+    ld hl, dialogue_box_width_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_width), a
+    ld hl, dialogue_box_height_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_height), a
+    ld hl, dialogue_box_delay_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_char_delay_reload), a
+
+    ld hl, dialogue_box_tl_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_tl_char), a
+    ld hl, dialogue_box_tr_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_tr_char), a
+    ld hl, dialogue_box_bl_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_bl_char), a
+    ld hl, dialogue_box_br_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_br_char), a
+    ld hl, dialogue_box_h_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_h_char), a
+    ld hl, dialogue_box_v_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_v_char), a
+    ret
+
+dialogue_draw_box:
+    ld a, (dialogue_box_vram_l)
+    ld l, a
+    ld a, (dialogue_box_vram_h)
+    ld h, a
+    ld a, (dialogue_box_tl_char)
+    call FAST_WRTVRM
+    inc hl
+    ld a, (dialogue_box_width)
+    sub 2
+    ld b, a
+    ld a, (dialogue_box_h_char)
+dialogue_draw_top_loop:
+    call FAST_WRTVRM
+    inc hl
+    djnz dialogue_draw_top_loop
+    ld a, (dialogue_box_tr_char)
+    call FAST_WRTVRM
+
+    ld a, (dialogue_box_vram_l)
+    ld l, a
+    ld a, (dialogue_box_vram_h)
+    ld h, a
+    ld de, 32
+    ld a, (dialogue_box_height)
+    sub 2
+    ld c, a
+dialogue_draw_middle_row:
+    add hl, de
+    ld a, (dialogue_box_v_char)
+    call FAST_WRTVRM
+    inc hl
+    ld a, (dialogue_box_width)
+    sub 2
+    ld b, a
+    ld a, 32
+dialogue_draw_middle_spaces:
+    call FAST_WRTVRM
+    inc hl
+    djnz dialogue_draw_middle_spaces
+    ld a, (dialogue_box_v_char)
+    call FAST_WRTVRM
+    dec c
+    jp nz, dialogue_draw_middle_row
+
+    add hl, de
+    ld a, (dialogue_box_bl_char)
+    call FAST_WRTVRM
+    inc hl
+    ld a, (dialogue_box_width)
+    sub 2
+    ld b, a
+    ld a, (dialogue_box_h_char)
+dialogue_draw_bottom_loop:
+    call FAST_WRTVRM
+    inc hl
+    djnz dialogue_draw_bottom_loop
+    ld a, (dialogue_box_br_char)
+    call FAST_WRTVRM
+    ret
+
+dialogue_clear_rect:
+    ld a, (dialogue_box_vram_l)
+    ld l, a
+    ld a, (dialogue_box_vram_h)
+    ld h, a
+    ld a, (dialogue_box_height)
+    ld c, a
+dialogue_clear_rect_row:
+    push hl
+    ld a, (dialogue_box_width)
+    ld b, a
+    ld a, 32
+dialogue_clear_rect_col:
+    call FAST_WRTVRM
+    inc hl
+    djnz dialogue_clear_rect_col
+    pop hl
+    ld de, 32
+    add hl, de
+    dec c
+    jp nz, dialogue_clear_rect_row
+    ret
+
+dialogue_clear_interior:
+    ld a, (dialogue_box_vram_l)
+    ld l, a
+    ld a, (dialogue_box_vram_h)
+    ld h, a
+    ld de, 33
+    add hl, de
+    ld a, (dialogue_box_height)
+    sub 2
+    ld c, a
+dialogue_clear_interior_row:
+    push hl
+    ld a, (dialogue_box_width)
+    sub 2
+    ld b, a
+    ld a, 32
+dialogue_clear_interior_col:
+    call FAST_WRTVRM
+    inc hl
+    djnz dialogue_clear_interior_col
+    pop hl
+    ld de, 32
+    add hl, de
+    dec c
+    jp nz, dialogue_clear_interior_row
+    ret
+`;
 }
 
 function generateAutoControlScriptSystem(analysis: ProjectAnalysis): string {
@@ -193,6 +698,10 @@ AUTO_CMD_MOVE_DOWN  EQU ${AUTO_CMD.MOVE_DOWN}
 AUTO_CMD_DELAY      EQU ${AUTO_CMD.DELAY}
 AUTO_CMD_WAIT_SPC   EQU ${AUTO_CMD.WAIT_SPC}
 AUTO_CMD_NOP        EQU ${AUTO_CMD.NOP}
+AUTO_CMD_OPEN_DIALOG EQU ${AUTO_CMD.OPEN_DIALOG}
+AUTO_CMD_WRITE_LINE  EQU ${AUTO_CMD.WRITE_LINE}
+AUTO_CMD_CLEAR_DIALOG EQU ${AUTO_CMD.CLEAR_DIALOG}
+AUTO_CMD_CLOSE_DIALOG EQU ${AUTO_CMD.CLOSE_DIALOG}
 
 ${scriptData.dataAsm}
 ${buildRegisterContractComment({
@@ -213,6 +722,17 @@ init_auto_control_script_system:
     ld (autocontrol_move_remaining), a
     ld (autocontrol_loop_flag), a
     ld (autocontrol_active), a
+    ld (dialogue_active), a
+    ld (dialogue_current_box), a
+    ld (dialogue_text_active), a
+    ld (dialogue_text_ptr_l), a
+    ld (dialogue_text_ptr_h), a
+    ld (dialogue_vram_ptr_l), a
+    ld (dialogue_vram_ptr_h), a
+    ld (dialogue_row_start_l), a
+    ld (dialogue_row_start_h), a
+    ld (dialogue_char_delay), a
+    ld (dialogue_char_delay_reload), a
     ld a, #FF
     ld (autocontrol_screen_id), a
     ld (autocontrol_entity_index), a
@@ -240,6 +760,8 @@ update_auto_control_script_component:
     or a
     ret z
 
+    call dialogue_update_typewriter
+
     ld a, (autocontrol_move_opcode)
     cp AUTO_CMD_WAIT_SPC
     jp z, autocontrol_wait_spc
@@ -259,6 +781,9 @@ autocontrol_check_move:
     ret
 
 autocontrol_wait_spc:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
     ld a, (input_btn_curr)
     and #01
     ret z
@@ -292,6 +817,14 @@ autocontrol_read_command:
     jp z, autocontrol_command_delay
     cp AUTO_CMD_WAIT_SPC
     jp z, autocontrol_command_wait_spc
+    cp AUTO_CMD_OPEN_DIALOG
+    jp z, autocontrol_command_open_dialog
+    cp AUTO_CMD_WRITE_LINE
+    jp z, autocontrol_command_write_line
+    cp AUTO_CMD_CLEAR_DIALOG
+    jp z, autocontrol_command_clear_dialog
+    cp AUTO_CMD_CLOSE_DIALOG
+    jp z, autocontrol_command_close_dialog
     cp AUTO_CMD_NOP
     ret z
 
@@ -309,6 +842,24 @@ autocontrol_command_delay:
 autocontrol_command_wait_spc:
     ld a, AUTO_CMD_WAIT_SPC
     ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_command_open_dialog:
+    ld a, b
+    call dialogue_open_box
+    ret
+
+autocontrol_command_write_line:
+    ld a, b
+    call dialogue_start_line
+    ret
+
+autocontrol_command_clear_dialog:
+    call dialogue_clear_box
+    ret
+
+autocontrol_command_close_dialog:
+    call dialogue_close_box
     ret
 
 autocontrol_command_end:
@@ -449,6 +1000,8 @@ autocontrol_store_facing_and_dec:
     ld hl, autocontrol_move_remaining
     dec (hl)
     ret
+
+${generateAutoControlDialogueSystem(scriptData.hasDialogue)}
 `;
 }
 

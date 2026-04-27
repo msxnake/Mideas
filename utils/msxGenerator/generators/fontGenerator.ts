@@ -155,10 +155,13 @@ export function generateFontFile(
     fontInBank4: boolean = false,
     targetFormat: MapperTargetFormat = 'konami'
 ): string {
-    // Check if font is needed (menus, text, or HUD elements)
+    // Check if font is needed (menus, text, HUD elements, or dialogue)
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
     const hasText = analysis.screenMaps?.some(screen =>
         (screen.layers as any)?.text || (screen as any).textElements?.length > 0
+    );
+    const hasDialogue = !!analysis.dialogues?.some((dialogue: any) =>
+        Array.isArray(dialogue?.lines) && dialogue.lines.some((line: any) => String(line?.text || '').length > 0)
     );
 
     // CRITICAL: Check for HUD elements (they need font for text rendering)
@@ -166,14 +169,14 @@ export function generateFontFile(
         screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
     );
 
-    // Skip font system if no text/menus/HUD in project
-    if (!hasMenus && !hasText && !hasHUD) {
+    // Skip font system if no text/menus/HUD/dialogue in project
+    if (!hasMenus && !hasText && !hasHUD && !hasDialogue) {
         return `; ==================================================================
 ; MSX FONT DATA (SKIPPED - NO TEXT/MENUS/HUD DETECTED)
 ; File: font.asm
 ; ==================================================================
 
-; No text, menus, or HUD detected in project - font system not needed
+; No text, menus, HUD, or dialogue detected in project - font system not needed
 ; This saves ~250 lines of unused font data
 
 ; Minimal stub functions for compatibility
@@ -492,7 +495,10 @@ export function getFontBank4Data(analysis: ProjectAnalysis): string {
     const hasHUD = analysis.screenMaps?.some(screen =>
         screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
     );
-    if (!hasMenus && !hasText && !hasHUD) return '';
+    const hasDialogue = !!analysis.dialogues?.some((dialogue: any) =>
+        Array.isArray(dialogue?.lines) && dialogue.lines.some((line: any) => String(line?.text || '').length > 0)
+    );
+    if (!hasMenus && !hasText && !hasHUD && !hasDialogue) return '';
 
     const { patternBytes, colorBytes, sortedCodes } = getFontRawData(analysis);
     let patternAsmBlob = `FONT_PATTERN_DATA:\n`;

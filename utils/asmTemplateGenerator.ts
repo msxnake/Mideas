@@ -3,7 +3,7 @@
  * Generates dynamic ASM code from templates with replaceable sections
  */
 
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig } from '../types';
+import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig, DialogueAsset } from '../types';
 import { StateMachine } from '../statemachine.types';
 import { getUsedGlobalVariables } from './globalVariablesUtils';
 
@@ -34,6 +34,7 @@ export interface ProjectAnalysis {
   worldmaps?: any[];  // Worldmap data for GameFlow WorldLink nodes
   entities?: EntityInstance[];
   fonts?: any[];
+  dialogues?: DialogueAsset[];
   presentationScreen?: PresentationScreenConfig;
   gameFlow?: GameFlowGraph;
   stateMachines?: StateMachine[]; // Added State Machines
@@ -106,6 +107,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   const tiles = assets.filter(a => a.type === 'tile').map(a => a.data as Tile);
   const tileBanks = assets.filter(a => a.type === 'tilebank').map(a => a.data as TileBank);
   const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap);
+  const dialogues = assets.filter(a => a.type === 'dialogue').map(a => a.data as DialogueAsset);
   const worldmaps = assets.filter(a => a.type === 'worldmap').map(a => a.data);
   const stateMachines = assets.filter(a => a.type === 'statemachine').map(a => a.data as StateMachine);
   const presentationScreenAsset = assets.find(a => a.type === 'presentationscreen');
@@ -196,6 +198,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     worldmaps,  // CRITICAL: Include worldmaps for GameFlow WorldLink nodes
     entities,  // CRITICAL: Include entities extracted from screenmaps
     fonts: assets.filter(a => a.type === 'font'), // CRITICAL: Include fonts for fontGenerator
+    dialogues,
     presentationScreen,
     gameFlow,  // CRITICAL: Include GameFlow for MSX ASM generation
     stateMachines, // CRITICAL: Include State Machines
