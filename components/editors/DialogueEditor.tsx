@@ -146,6 +146,24 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
   const previewLine = data.lines.find(line => line.text.trim()) || data.lines[0];
   const previewSpeaker = previewLine?.speaker?.trim();
   const previewText = `${previewSpeaker ? `${previewSpeaker}: ` : ''}${previewLine?.text || ''}`;
+  const textColumnCapacity = Math.max(1, data.box.width - 2);
+  const textRowCapacity = Math.max(1, data.box.height - 2);
+  const dialogueValidationIssues = [
+    ...(data.exportOptions.maxCharsPerLine > textColumnCapacity
+      ? [`Max Chars / Line exceeds the box interior width (${textColumnCapacity}).`]
+      : []),
+    ...(data.exportOptions.maxLinesPerBox > textRowCapacity
+      ? [`Max Lines / Box exceeds the box interior height (${textRowCapacity}).`]
+      : []),
+    ...data.lines.flatMap((line, index) => {
+      const speakerPrefix = line.speaker?.trim() ? `${line.speaker.trim()}: ` : '';
+      const totalChars = `${speakerPrefix}${line.text || ''}`.length;
+      const estimatedRows = Math.max(1, Math.ceil(totalChars / Math.max(1, data.exportOptions.maxCharsPerLine)));
+      return estimatedRows > data.exportOptions.maxLinesPerBox
+        ? [`Line ${index + 1} needs about ${estimatedRows} rows with the current export limits.`]
+        : [];
+    }),
+  ];
 
   return (
     <Panel title={`Dialogue Editor: ${data.name || 'Dialogue'}`} className="flex-grow flex flex-col min-h-0">
@@ -397,6 +415,15 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                   Strip unsupported chars
                 </label>
               </div>
+              {dialogueValidationIssues.length > 0 && (
+                <div className="border border-yellow-500/50 bg-yellow-950/40 text-yellow-100 text-xs rounded p-2">
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {dialogueValidationIssues.map(issue => (
+                      <li key={issue}>{issue}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </section>
           </div>
         </section>
