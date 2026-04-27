@@ -145,6 +145,10 @@ update_all_entities:
       const fakePlayerSystems = componentSystems.filter(([, funcCall]) => fakePlayerSystemNames.has(funcCall));
       code += `.update_all_entities_fake_player:
 `;
+      if (usedComponents.has('AutoControlScript')) {
+        code += `    call update_auto_control_script_component ; FakePlayer script\n`;
+        fakeCallCount++;
+      }
       fakeCallCount = appendSystemCalls(fakePlayerSystems);
       code += `    ret\n`;
     }
@@ -11150,6 +11154,17 @@ update_carry_component:
     } else {
         code += generateCarrySystem();
     }
+
+    // Generate AutoControlScript System entry points.
+    // The FakePlayer engine calls this only on tutorial/dialog/cutscene screens.
+    code += `
+    ; AutoControlScript system placeholder (FakePlayer engine only)
+init_auto_control_script_system:
+    ret
+
+update_auto_control_script_component:
+    ret
+    `;
 
     // Generate Damage System (if used)
     if (!usedComponents.has('Damage')) {

@@ -49,7 +49,8 @@ const STANDARD_COMPONENT_IDS: Record<string, string> = {
   'comp_tile_collector': 'TileInteraction',
   'comp_patrol': 'Patrol',
   'comp_shoot': 'Shoot',
-  'comp_retractable_gate': 'RetractableGate'
+  'comp_retractable_gate': 'RetractableGate',
+  'comp_auto_control_script': 'AutoControlScript'
 };
 
 /**
