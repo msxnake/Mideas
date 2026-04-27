@@ -704,6 +704,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             waypointPickerState={waypointPickerState}
             onSetWaypointPickerState={setWaypointPickerState}
             onUpdateAsset={(assetId, data) => handleUpdateAsset(assetId, data)}
+            onCreateAsset={handleNewAsset}
           />
         </div>
       </div>

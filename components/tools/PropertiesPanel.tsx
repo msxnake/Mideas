@@ -247,6 +247,8 @@ interface PropertiesPanelProps {
   onSetWaypointPickerState: (state: { isPicking: boolean; entityInstanceId: string | null; componentDefId: string | null; waypointPrefix: 'waypoint1' | 'waypoint2'; }) => void;
   /** Callback to update the selected asset's data (used to persist Sprite animation speed, etc.). */
   onUpdateAsset?: (assetId: string, data: any) => void;
+  /** Callback to create a project asset without leaving the current editor. */
+  onCreateAsset?: (type: ProjectAsset['type'], options?: { select?: boolean }) => ProjectAsset | void;
 }
 
 /**
@@ -267,7 +269,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   msxFontName, msxFontStats,
   screenEditorSelectedTileId, tilesetForScreenEditor, tileBanksForScreenEditor,
   waypointPickerState, onSetWaypointPickerState,
-  onUpdateAsset
+  onUpdateAsset,
+  onCreateAsset
 }) => {
   const [currentFrame, setCurrentFrame] = useState(0); 
   const [animationSpeedMs, setAnimationSpeedMs] = useState<number>(asset?.type === 'sprite' ? ((asset.data as Sprite).animationSpeedMs ?? 200) : 200); 
@@ -858,6 +861,12 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   : commandLine;
                 handleComponentOverrideChange(componentDef.id, 'commands', nextCommands, 'string');
               };
+              const createAndAssignDialogue = () => {
+                const created = onCreateAsset?.('dialogue', { select: false });
+                if (created?.id) {
+                  handleComponentOverrideChange(componentDef.id, 'defaultDialogueAssetId', created.id, 'dialogue_ref');
+                }
+              };
               const requiredNumericArgCommands = new Set(['write_line']);
               const optionalNumericArgCommands = new Set([
                 'move_left',
@@ -1026,6 +1035,16 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                           ...
                         </Button>
                       </div>
+                      {!selectedDialogueAsset && onCreateAsset && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="mt-1"
+                          onClick={createAndAssignDialogue}
+                        >
+                          Create and Use Dialogue
+                        </Button>
+                      )}
                     </div>
 
                     <div>
