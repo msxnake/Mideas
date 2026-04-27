@@ -604,6 +604,11 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       return;
     }
 
+    const dialogueAssets = allProjectAssets.filter(asset => asset.type === 'dialogue');
+    const autoDialogueOverride = dialogueAssets.length === 1
+      ? { comp_auto_control_script: { defaultDialogueAssetId: dialogueAssets[0].id } }
+      : {};
+
     const newEntityInstance: EntityInstance = {
       id: `entity_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       entityTemplateId: fakePlayerTemplate.id,
@@ -614,15 +619,21 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         x: Math.max(0, Math.floor(screenMap.width / 2)),
         y: Math.max(0, Math.floor(screenMap.height / 2)),
       },
-      componentOverrides: {},
+      componentOverrides: autoDialogueOverride,
     };
 
     onUpdate({ layers: { ...screenMap.layers, entities: [...screenMap.layers.entities, newEntityInstance] } });
     onSelectEntityInstance(newEntityInstance.id);
     setActiveLayer('entities');
     setCurrentScreenTool('select');
-    setStatusBarMessage('FakePlayer added to this non-playable screen.');
-  }, [entityTemplates, getNextEntityInstanceName, onSelectEntityInstance, onUpdate, screenMap.height, screenMap.layers, screenMap.width, setActiveLayer, setStatusBarMessage]);
+    if (dialogueAssets.length === 1) {
+      setStatusBarMessage(`FakePlayer added and linked to Dialogue "${dialogueAssets[0].name}".`);
+    } else if (dialogueAssets.length > 1) {
+      setStatusBarMessage('FakePlayer added. Select its Default Dialogue in the properties panel.');
+    } else {
+      setStatusBarMessage('FakePlayer added. Create a Dialogue asset before using play_dialog.');
+    }
+  }, [allProjectAssets, entityTemplates, getNextEntityInstanceName, onSelectEntityInstance, onUpdate, screenMap.height, screenMap.layers, screenMap.width, setActiveLayer, setStatusBarMessage]);
 
   const handleAddNewEffectZone = () => {
     if (activeLayer !== 'effects') {
