@@ -355,6 +355,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
         'entity_template_ref': 'entitytemplate',
         'statemachine_ref': 'statemachine',
         'tile_ref': 'tile',
+        'dialogue_ref': 'dialogue',
     };
     const assetType = assetTypeMap[propertyType];
     if (!assetType) return;

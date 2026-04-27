@@ -20,7 +20,7 @@ interface ComponentDefinitionEditorProps {
 
 const PROPERTY_TYPES: ComponentPropertyDefinition['type'][] = [
   'byte', 'word', 'boolean', 'string', 'color', 
-  'sprite_ref', 'sound_ref', 'behavior_script_ref', 'entity_template_ref', 'statemachine_ref', 'tile_ref'
+  'sprite_ref', 'sound_ref', 'behavior_script_ref', 'entity_template_ref', 'statemachine_ref', 'tile_ref', 'dialogue_ref'
 ];
 
 /**

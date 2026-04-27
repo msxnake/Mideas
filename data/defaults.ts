@@ -63,6 +63,17 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: "Attaches a behavior script to an entity."
   },
   {
+    id: "comp_auto_control_script", name: "AutoControlScript",
+    properties: [
+      { name: "enabled", type: "boolean", defaultValue: "true", description: "Whether this scripted control component is active in tutorial/dialog/cutscene screens." },
+      { name: "startsOnScreenLoad", type: "boolean", defaultValue: "true", description: "Run the command list when the screen starts." },
+      { name: "loop", type: "boolean", defaultValue: "false", description: "Restart the command list after it finishes." },
+      { name: "defaultDialogueAssetId", type: "dialogue_ref", defaultValue: "", description: "Optional Dialogue asset used by open_dialog or write_line commands." },
+      { name: "commands", type: "string", defaultValue: "move_right 64\ndelay 1000\nopen_dialog\nwrite_line 0\nwait_spc\nclose_dialog", description: "One command per line: move_left/right/up/down pixels, delay ms, open_dialog, write_line index, wait_spc, clear_dialog, close_dialog." }
+    ],
+    description: "Editor-only script data for FakePlayer/tutorial actors. It does not change the real Player control path."
+  },
+  {
     id: "comp_health", name: "Health",
     properties: [
       { name: "current", type: "byte", defaultValue: "1" },

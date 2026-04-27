@@ -416,6 +416,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         'entity_template_ref': 'entitytemplate',
         'statemachine_ref': 'statemachine',
         'tile_ref': 'tile',
+        'dialogue_ref': 'dialogue',
     };
     const assetType = assetTypeMap[propertyType];
     if (!assetType) return;
