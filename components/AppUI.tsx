@@ -520,6 +520,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
               allAssets={assets}
               tileBanks={tileBanks}
+              onCreateAsset={handleNewAsset}
             />
           )}
           

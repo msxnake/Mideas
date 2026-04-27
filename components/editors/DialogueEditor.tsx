@@ -9,6 +9,7 @@ interface DialogueEditorProps {
   onUpdate: (data: DialogueAsset) => void;
   allAssets: ProjectAsset[];
   tileBanks: TileBank[];
+  onCreateAsset?: (type: ProjectAsset['type']) => void;
 }
 
 const DEFAULT_BORDER_CHAR_CODES: DialogueBoxCharCodes = {
@@ -65,6 +66,7 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
   onUpdate,
   allAssets,
   tileBanks,
+  onCreateAsset,
 }) => {
   const data = ensureDialogue(dialogue);
   const fontAssets = useMemo(() => allAssets.filter(asset => asset.type === 'font'), [allAssets]);
@@ -228,6 +230,16 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                     <option key={asset.id} value={asset.id}>{asset.name}</option>
                   ))}
                 </select>
+                {fontAssets.length === 0 && onCreateAsset && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="mt-2"
+                    onClick={() => onCreateAsset('font')}
+                  >
+                    Create Font
+                  </Button>
+                )}
               </div>
             </section>
 
@@ -282,6 +294,16 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                         <option key={bank.id} value={bank.id}>{bank.name}</option>
                       ))}
                     </select>
+                    {availableTileBanks.length === 0 && onCreateAsset && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="mt-2"
+                        onClick={() => onCreateAsset('tilebank')}
+                      >
+                        Create TileBank
+                      </Button>
+                    )}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {([
