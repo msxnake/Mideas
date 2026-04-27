@@ -623,6 +623,8 @@ export interface CopiedScreenData {
   blockOptimization?: ScreenBlockOptimization;
   /** Optional behavior generation settings copied with the screen. */
   behaviorConfig?: ScreenBehaviorConfig;
+  /** High-level role copied with the screen. */
+  screenKind?: ScreenKind;
   /** The effect zones within the copied area. */
   effectZones?: EffectZone[];
   /** The x-coordinate of the copied active area. */

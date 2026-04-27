@@ -1516,6 +1516,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       layers: copiedLayers,
       blockOptimization: screenMap.blockOptimization ? JSON.parse(JSON.stringify(screenMap.blockOptimization)) : undefined,
       behaviorConfig: screenMap.behaviorConfig ? JSON.parse(JSON.stringify(screenMap.behaviorConfig)) : undefined,
+      screenKind: screenMap.screenKind,
       effectZones: effectZones ? JSON.parse(JSON.stringify(effectZones)) : undefined,
       activeAreaX,
       activeAreaY,
@@ -1534,6 +1535,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       layers: { ...screenMap.layers },
       blockOptimization: copiedScreenBuffer.blockOptimization ? JSON.parse(JSON.stringify(copiedScreenBuffer.blockOptimization)) : undefined,
       behaviorConfig: copiedScreenBuffer.behaviorConfig ? JSON.parse(JSON.stringify(copiedScreenBuffer.behaviorConfig)) : undefined,
+      screenKind: copiedScreenBuffer.screenKind ?? screenMap.screenKind,
       effectZones: copiedScreenBuffer.effectZones ? JSON.parse(JSON.stringify(copiedScreenBuffer.effectZones)) : [],
       hudConfiguration: copiedScreenBuffer.hudConfiguration ? JSON.parse(JSON.stringify(copiedScreenBuffer.hudConfiguration)) : undefined,
     };
