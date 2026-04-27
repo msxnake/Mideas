@@ -310,6 +310,18 @@ function parseAutoControlCommands(
             case 'wait_space':
                 append(AUTO_CMD.WAIT_SPC, 0);
                 break;
+            case 'play_dialog':
+            case 'play_dialogue': {
+                append(AUTO_CMD.OPEN_DIALOG, dialogueIndex);
+                const lineEntries = Array.from(defaultLineMap?.entries() || [])
+                    .sort(([left], [right]) => left - right);
+                for (const [, globalLineIndex] of lineEntries) {
+                    append(AUTO_CMD.WRITE_LINE, globalLineIndex);
+                    append(AUTO_CMD.WAIT_SPC, 0);
+                }
+                append(AUTO_CMD.CLOSE_DIALOG, 0);
+                break;
+            }
             case 'open_dialog':
                 append(AUTO_CMD.OPEN_DIALOG, dialogueIndex);
                 break;
