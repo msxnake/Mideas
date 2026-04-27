@@ -841,6 +841,12 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               const dialogueAssetId = String(getAutoControlValue('defaultDialogueAssetId') ?? '');
               const commands = String(getAutoControlValue('commands') ?? '');
               const selectedDialogueAsset = assetsWithEntityTemplates.find(asset => asset.id === dialogueAssetId && asset.type === 'dialogue');
+              const appendAutoControlCommand = (commandLine: string) => {
+                const nextCommands = commands.trimEnd()
+                  ? `${commands.trimEnd()}\n${commandLine}`
+                  : commandLine;
+                handleComponentOverrideChange(componentDef.id, 'commands', nextCommands, 'string');
+              };
               const numericArgCommands = new Set(['move_left', 'move_right', 'move_up', 'move_down', 'delay', 'write_line']);
               const noArgCommands = new Set(['open_dialog', 'wait_spc', 'clear_dialog', 'close_dialog']);
               const commandValidationIssues = commands
@@ -924,6 +930,28 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                         className="w-full min-h-[8rem] p-1 text-xs bg-msx-bgcolor border-msx-border rounded font-mono"
                         spellCheck={false}
                       />
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {[
+                          'move_right 64',
+                          'move_left 64',
+                          'delay 1000',
+                          'open_dialog',
+                          'write_line 0',
+                          'wait_spc',
+                          'clear_dialog',
+                          'close_dialog',
+                        ].map(commandLine => (
+                          <Button
+                            key={commandLine}
+                            size="sm"
+                            variant="ghost"
+                            className="text-[0.65rem] px-1.5 py-0.5"
+                            onClick={() => appendAutoControlCommand(commandLine)}
+                          >
+                            {commandLine}
+                          </Button>
+                        ))}
+                      </div>
                       <p className="text-[0.65rem] text-msx-textsecondary mt-1">
                         Commands: move_right 64, delay 1000, open_dialog, write_line 0, wait_spc, clear_dialog, close_dialog.
                       </p>
