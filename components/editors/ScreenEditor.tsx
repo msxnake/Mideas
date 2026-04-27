@@ -289,6 +289,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       issues.push(`${screenKind} screens should not contain the real Player entity: ${playerEntities.join(', ')}.`);
     }
 
+    if (isNonPlayable && fakePlayerEntities.length === 0) {
+      issues.push(`${screenKind} screen has no FakePlayer entity with AutoControlScript.`);
+    }
+
     if (screenKind === 'playable' && playerEntities.length === 0) {
       issues.push('Playable screen has no Player entity.');
     }
