@@ -25,7 +25,8 @@ import { usesMapperBanking } from './romModeUtils';
 function generateUpdateAllEntities(
     usedComponents: Set<string>,
     avoidStateMachineDuplication: boolean,
-    hasSecretZones: boolean
+    hasSecretZones: boolean,
+    hasRuntimeScreenEngine: boolean
 ): string {
     let code = `
 ; ==================================================================
@@ -59,6 +60,14 @@ update_all_entities:
 .update_all_entities_list_ready:
 `;
 
+    if (hasRuntimeScreenEngine) {
+        code += `    ld a, (current_screen_engine)
+    or a
+    jp nz, .update_all_entities_fake_player
+.update_all_entities_player:
+`;
+    }
+
     // Define the component systems in execution order
     // Format: [componentName, functionCall, comment]
     const componentSystems: [string, string, string][] = [
@@ -90,10 +99,11 @@ update_all_entities:
         ['Sprite', 'update_sprite_component', '13. Sprite rendering'],
     ];
 
-    let callCount = 0;
-    const processedFunctions = new Set<string>(); // Avoid duplicate calls
+    const appendSystemCalls = (systems: [string, string, string][]): number => {
+      let callCount = 0;
+      const processedFunctions = new Set<string>(); // Avoid duplicate calls
 
-      for (const [component, funcCall, comment] of componentSystems) {
+      for (const [component, funcCall, comment] of systems) {
         // Position is always needed (entities always have positions)
         const isRequired = component === 'Position' || component === 'Sprite';
 
@@ -115,11 +125,35 @@ update_all_entities:
                 callCount++;
             }
         }
-    }
+      }
+      return callCount;
+    };
+
+    const playerCallCount = appendSystemCalls(componentSystems);
 
     code += `    call sync_player_runtime_from_entity\n`;
     code += `    ret\n`;
-    code += `; Total systems called: ${callCount} (optimized from 16)\n\n`;
+
+    let fakeCallCount = 0;
+    if (hasRuntimeScreenEngine) {
+      const fakePlayerSystemNames = new Set([
+        'update_position_component',
+        'update_animation_component',
+        'update_auto_destroy_component',
+        'update_sprite_component',
+      ]);
+      const fakePlayerSystems = componentSystems.filter(([, funcCall]) => fakePlayerSystemNames.has(funcCall));
+      code += `.update_all_entities_fake_player:
+`;
+      fakeCallCount = appendSystemCalls(fakePlayerSystems);
+      code += `    ret\n`;
+    }
+
+    code += `; Total player systems called: ${playerCallCount} (optimized from 16)\n`;
+    if (hasRuntimeScreenEngine) {
+      code += `; Total fake-player systems called: ${fakeCallCount} (screen engine optimized)\n`;
+    }
+    code += `\n`;
     code += `
 ; ------------------------------------------------------------------
 ; mark_used_entity_list_dirty
@@ -11231,7 +11265,7 @@ apply_collected_tiles:
     const hasSecretZones = !!analysis.screenMaps?.some((screen: any) =>
       Array.isArray(screen?.effectZones) && screen.effectZones.some((zone: any) => String(zone?.effectType || '').length === 0 || zone?.effectType === 'secretZone' || (zone?.mask ?? 0) === 0)
     );
-    code += generateUpdateAllEntities(usedComponents, !!analysis.hasGameFlow, hasSecretZones);
+    code += generateUpdateAllEntities(usedComponents, !!analysis.hasGameFlow, hasSecretZones, !!analysis.screenMaps?.length);
 
     // Generate execute_all_state_machines function - called by GameFlow game loop
     if (usedComponents.has('StateMachine') && Array.isArray(analysis.stateMachines) && analysis.stateMachines.length > 0) {
