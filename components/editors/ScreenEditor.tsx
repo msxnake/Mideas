@@ -584,6 +584,11 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       setStatusBarMessage(`Warning: ${screenKind} screens should use FakePlayer/AutoControlScript, not the real Player.`);
     }
 
+    const dialogueAssets = allProjectAssets.filter(asset => asset.type === 'dialogue');
+    const autoDialogueOverride = isFakePlayerTemplate && screenKind !== 'playable' && dialogueAssets.length === 1
+      ? { comp_auto_control_script: { defaultDialogueAssetId: dialogueAssets[0].id } }
+      : {};
+
     const newEntityInstance: EntityInstance = {
       id: `entity_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       entityTemplateId: currentEntityTypeToPlace.id,
@@ -591,11 +596,14 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       jobRate: 100,
       jobEntry: 0,
       position: { x: point.x, y: point.y },
-      componentOverrides: {},
+      componentOverrides: autoDialogueOverride,
     };
     const updatedEntities = [...screenMap.layers.entities, newEntityInstance];
     onUpdate({ layers: { ...screenMap.layers, entities: updatedEntities } });
-  }, [currentEntityTypeToPlace, getNextEntityInstanceName, onUpdate, screenKind, screenMap.layers, setStatusBarMessage]);
+    if (isFakePlayerTemplate && screenKind !== 'playable' && dialogueAssets.length === 1) {
+      setStatusBarMessage(`FakePlayer placed and linked to Dialogue "${dialogueAssets[0].name}".`);
+    }
+  }, [allProjectAssets, currentEntityTypeToPlace, getNextEntityInstanceName, onUpdate, screenKind, screenMap.layers, setStatusBarMessage]);
 
   const handleAddFakePlayerEntity = useCallback(() => {
     const fakePlayerTemplate = entityTemplates.find(template => template.id === 'tpl_fake_player' || template.name.toLowerCase().replace(/[^a-z0-9]/g, '') === 'fakeplayer');
