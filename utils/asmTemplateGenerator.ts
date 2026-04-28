@@ -3,7 +3,7 @@
  * Generates dynamic ASM code from templates with replaceable sections
  */
 
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig, DialogueAsset } from '../types';
+import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig, DialogueAsset, PortraitAsset } from '../types';
 import { StateMachine } from '../statemachine.types';
 import { getUsedGlobalVariables } from './globalVariablesUtils';
 
@@ -35,6 +35,7 @@ export interface ProjectAnalysis {
   entities?: EntityInstance[];
   fonts?: any[];
   dialogues?: DialogueAsset[];
+  portraits?: PortraitAsset[];
   presentationScreen?: PresentationScreenConfig;
   gameFlow?: GameFlowGraph;
   stateMachines?: StateMachine[]; // Added State Machines
@@ -108,6 +109,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   const tileBanks = assets.filter(a => a.type === 'tilebank').map(a => a.data as TileBank);
   const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap);
   const dialogues = assets.filter(a => a.type === 'dialogue').map(a => a.data as DialogueAsset);
+  const portraits = assets.filter(a => a.type === 'portrait').map(a => a.data as PortraitAsset);
   const worldmaps = assets.filter(a => a.type === 'worldmap').map(a => a.data);
   const stateMachines = assets.filter(a => a.type === 'statemachine').map(a => a.data as StateMachine);
   const presentationScreenAsset = assets.find(a => a.type === 'presentationscreen');
@@ -199,6 +201,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     entities,  // CRITICAL: Include entities extracted from screenmaps
     fonts: assets.filter(a => a.type === 'font'), // CRITICAL: Include fonts for fontGenerator
     dialogues,
+    portraits,
     presentationScreen,
     gameFlow,  // CRITICAL: Include GameFlow for MSX ASM generation
     stateMachines, // CRITICAL: Include State Machines

@@ -186,6 +186,22 @@ function resolveDialogueBorderCharCode(
     return fallback;
 }
 
+function resolveDialogueGraphicConfig(analysis: ProjectAnalysis, graphicConfig: any): any {
+    const portraitAssetId = String(graphicConfig?.portraitAssetId || '').trim();
+    if (!portraitAssetId) return graphicConfig || {};
+
+    const portrait = (analysis.portraits || []).find((candidate: any) => candidate?.id === portraitAssetId);
+    if (!portrait) return graphicConfig || {};
+
+    return {
+        ...(graphicConfig || {}),
+        tileBankAssetId: graphicConfig?.tileBankAssetId || (portrait as any).tileBankAssetId,
+        width: (portrait as any).widthChars,
+        height: (portrait as any).heightChars,
+        tileIds: Array.isArray((portrait as any).cells) ? (portrait as any).cells : [],
+    };
+}
+
 function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBuild {
     const dialogues = Array.isArray((analysis as any).dialogues) ? (analysis as any).dialogues : [];
     const dialogueIndexById = new Map<string, number>();
@@ -236,26 +252,27 @@ function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBui
         const interiorHeight = Math.max(1, height - 2);
         const graphicY = y + 1;
         const buildGraphicRuntime = (graphicConfig: any, label: string) => {
-            const requested = graphicConfig?.enabled === true && interiorWidth >= 2 && interiorHeight >= 1;
-            const side = graphicConfig?.side === 'right' ? 'right' : 'left';
+            const resolvedGraphicConfig = resolveDialogueGraphicConfig(analysis, graphicConfig);
+            const requested = resolvedGraphicConfig?.enabled === true && interiorWidth >= 2 && interiorHeight >= 1;
+            const side = resolvedGraphicConfig?.side === 'right' ? 'right' : 'left';
             const graphicWidth = requested
-                ? Math.max(1, Math.min(8, clampByteValue(graphicConfig?.width, 4), interiorWidth - 1))
+                ? Math.max(1, Math.min(8, clampByteValue(resolvedGraphicConfig?.width, 4), interiorWidth - 1))
                 : 0;
             const graphicHeight = requested
-                ? Math.max(1, Math.min(6, clampByteValue(graphicConfig?.height, 3), interiorHeight))
+                ? Math.max(1, Math.min(6, clampByteValue(resolvedGraphicConfig?.height, 3), interiorHeight))
                 : 0;
             const padding = requested
-                ? Math.max(0, Math.min(4, clampByteValue(graphicConfig?.padding, 1), interiorWidth - graphicWidth - 1))
+                ? Math.max(0, Math.min(4, clampByteValue(resolvedGraphicConfig?.padding, 1), interiorWidth - graphicWidth - 1))
                 : 0;
             const reservedWidth = requested ? graphicWidth + padding : 0;
             const textStartX = x + 1 + (requested && side === 'left' ? reservedWidth : 0);
             const textWidth = Math.max(1, interiorWidth - reservedWidth);
             const graphicX = side === 'right' ? x + width - 1 - graphicWidth : x + 1;
-            const tileIds = Array.isArray(graphicConfig?.tileIds) ? graphicConfig.tileIds : [];
+            const tileIds = Array.isArray(resolvedGraphicConfig?.tileIds) ? resolvedGraphicConfig.tileIds : [];
             const bytes = requested
                 ? Array.from({ length: graphicWidth * graphicHeight }, (_, index) => {
                     const rowY = graphicY + Math.floor(index / Math.max(1, graphicWidth));
-                    return resolveDialogueBorderCharCode(analysis, graphicConfig?.tileBankAssetId, tileIds[index], rowY, 32);
+                    return resolveDialogueBorderCharCode(analysis, resolvedGraphicConfig?.tileBankAssetId, tileIds[index], rowY, 32);
                 })
                 : [];
             return {
