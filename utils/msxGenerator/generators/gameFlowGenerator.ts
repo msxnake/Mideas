@@ -1982,7 +1982,7 @@ submenu_prepare_cursor_sprite:
     ld c, a
     ld b, 0                       ; BC = layer_count * 32
     ld de, SPRPAT + (SUBMENU_CURSOR_BASE_SPRITE * 32)
-    call COPY_SPRITE_SRC_TO_VRAM
+    call FAST_LDIRVM
 
 .sps_enable_cursor:
 
