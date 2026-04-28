@@ -3442,7 +3442,7 @@ function generateSpriteSystem(analysis: ProjectAnalysis): string {
 init_sprite_system:
     ; Initialize sprite rendering system
     ; Clear all sprite attributes
-    call clear_all_sprites
+    call call_clear_all_sprites_resident
     ; Copy entity_sprite_asset_index from ROM to RAM (so CHANGE_SPRITE can modify it)
     ld hl, entity_sprite_asset_index_init
     ld de, entity_sprite_asset_index
@@ -3573,7 +3573,7 @@ sprite_layer_loop:
     
     ; Call show_sprite (A=HW Sprite, B=X, C=Y, D=Pattern, E=Color)
     ld a, l                    ; A = HW Sprite
-    call show_sprite
+    call call_show_sprite_resident
 
     ld a, SPRITE_PATTERN_PRELOAD_MODE
     or a
@@ -3732,7 +3732,7 @@ force_sprite_layer_loop:
     
     ; Call show_sprite
     ld a, l                    ; A = HW Sprite
-    call show_sprite
+    call call_show_sprite_resident
 
     ld a, SPRITE_PATTERN_PRELOAD_MODE
     or a
