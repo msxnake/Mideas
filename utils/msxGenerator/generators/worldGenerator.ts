@@ -481,6 +481,13 @@ export function generateWorldsFile(analysis: ProjectAnalysis, romMode: string = 
     Array.isArray(screen?.hudConfiguration?.elements) && screen.hudConfiguration.elements.length > 0
   );
   const hasScreenTimer = hasGlobalVariableAsmName(analysis, 'global_var_time_remaining');
+  const resetScreenTimerCall = hasScreenTimer
+    ? (useFarCall ? 'world_reset_screen_timer' : 'reset_world_screen_timer')
+    : '';
+  const hudFrameCall = (routine: string) => useFarCall ? `${routine}_far` : routine;
+  const drawHudFrameCall = useFarCall ? 'imprimir_marco_far' : 'imprimir_marco';
+  const musicStopCall = useFarCall ? 'call_music_stop_resident' : 'music_stop';
+  const musicPlayTrackCall = useFarCall ? 'call_music_play_track_resident' : 'music_play_track';
 
   // Skip world system if no worlds in project
   if (worldMaps.length === 0) {
@@ -602,7 +609,7 @@ ensure_music_for_world_id:
     ld a, (music_active)
     or a
     ret z
-    jp music_stop
+    jp ${musicStopCall}
 ensure_music_for_world_id_play_or_keep:
     ld c, a
     ld hl, world_music_policy_loop_table
@@ -620,7 +627,7 @@ ensure_music_for_world_id_play_or_keep:
     ret z
 ensure_music_for_world_id_play_track:
     ld a, c
-    jp music_play_track
+    jp ${musicPlayTrackCall}
 
 `;
 
@@ -630,6 +637,42 @@ ensure_music_for_world_id_play_track:
 ; ==================================================================
 
 `;
+
+  if (hasScreenTimer && useFarCall) {
+    code += `; ------------------------------------------------------------------
+; world_reset_screen_timer
+; Local copy used while executing inside the worlds far bank. The
+; GameFlow timer routine lives in the primary P3 bank, which is hidden
+; while this bank is mapped.
+; ------------------------------------------------------------------
+world_reset_screen_timer:
+    push af
+    ld a, (current_screen_engine)
+    or a
+    jr nz, world_local_timer_reset_done
+    ld a, 60
+    ld (global_var_time_remaining), a
+    xor a
+    ld (global_var_time_remaining+1), a
+    ld a, (isComputer50HzOr60Hz)
+    or a
+    ld a, 50
+    jr z, world_local_timer_frames_ready
+    ld a, 60
+world_local_timer_frames_ready:
+    ld (time_second_frame_counter), a
+    ld a, (interrupt_counter)
+    ld (time_last_interrupt_counter), a
+    ld a, (interrupt_counter+1)
+    ld (time_last_interrupt_counter+1), a
+    ld a, 1
+    ld (hud_dirty_flag), a
+world_local_timer_reset_done:
+    pop af
+    ret
+
+`;
+  }
 
   let worldGlobalOffset = 0;
   worldMaps.forEach((world: any) => {
@@ -686,13 +729,13 @@ ${startScreenCallCode}
 `;
     if (worldImportedHudFrameDrawRoutine) {
       code += `    ; Draw imported HUD frame once at world start
-    call ${worldImportedHudFrameDrawRoutine}
+    call ${hudFrameCall(worldImportedHudFrameDrawRoutine)}
 
 `;
     }
     if (hasHudElements) {
       code += `    ; Draw HUD frame once at world start
-    call imprimir_marco
+    call ${drawHudFrameCall}
 
 `;
     }
@@ -711,7 +754,7 @@ ${startScreenCallCode}
     xor a
     ld (screen_transition_cooldown), a
 
-${hasScreenTimer ? `    call reset_world_screen_timer
+${hasScreenTimer ? `    call ${resetScreenTimerCall}
 ` : ``}    call rebuild_used_entity_list  ; Precompute room entity buckets before gameplay resumes
     call apply_collected_tiles     ; Re-apply persistent collection state for this screen
     ret
@@ -786,7 +829,7 @@ ${transitionScreenCallCode}
     ld (current_screen_id), a
     ld hl, active_entity_list_dirty
     ld (hl), 1
-${hasScreenTimer ? `    call reset_world_screen_timer
+${hasScreenTimer ? `    call ${resetScreenTimerCall}
 ` : ``}    call rebuild_used_entity_list  ; Precompute room entity buckets during transition
     call apply_collected_tiles     ; Re-apply persistent collection state
     ret

@@ -671,12 +671,19 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
         }
         case 'screens_code': {
             const screenMaps = analysis.screenMaps || [];
+            const importedHudFrameDrawLabels = screenMaps
+                .map((screen: any) => {
+                    const screenName = (screen.name || 'unknown').toUpperCase().replace(/[^A-Z0-9]/g, '_').toLowerCase();
+                    const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+                    return `hud_imported_frame_${screenName}${screenIdSuffix.toLowerCase()}_draw`;
+                });
             return [
                 ...screenMaps.map((screen: any) => {
                 const screenName = (screen.name || 'unknown').toUpperCase().replace(/[^A-Z0-9]/g, '_').toLowerCase();
                 const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
                 return `load_screen_${screenName}${screenIdSuffix.toLowerCase()}`;
                 }),
+                ...importedHudFrameDrawLabels,
                 'show_presentation_screen',
                 'set_screen_colors',
                 'init_char0_color',
@@ -689,7 +696,7 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
         case 'hud':
             return ['render_hud', 'force_render_hud', 'imprimir_marco', 'init_hud'];
         case 'sound':
-            return ['init_sound_system', 'task_audio_tick', 'sfx_update', 'music_update', 'music_play_track', 'music_execute_command'];
+            return ['init_sound_system', 'task_audio_tick', 'sfx_update', 'music_update', 'music_stop', 'music_play_track', 'music_execute_command'];
         case 'statemachine':
             return ['init_statemachine_system', 'update_statemachine_system', 'execute_all_state_machines'];
         case 'gameflow':
@@ -841,6 +848,7 @@ function rewriteResidentCallSites(files: GeneratedASMFiles): GeneratedASMFiles {
         ['task_audio_tick', 'call_task_audio_tick_resident'],
         ['music_update', 'call_music_update_resident'],
         ['sfx_update', 'call_sfx_update_resident'],
+        ['music_stop', 'call_music_stop_resident'],
         ['music_play_track', 'call_music_play_track_resident'],
         ['music_execute_command', 'call_music_execute_command_resident'],
         ['init_sprites', 'call_init_sprites_resident'],
@@ -887,6 +895,7 @@ function generateResidentCallWrappers(
     const initSoundCall = resolveResidentTarget('init_sound_system', 'sound');
     const musicUpdateCall = resolveResidentTarget('music_update', 'sound');
     const sfxUpdateCall = resolveResidentTarget('sfx_update', 'sound');
+    const musicStopCall = resolveResidentTarget('music_stop', 'sound');
     const musicPlayTrackCall = resolveResidentTarget('music_play_track', 'sound');
     const musicExecuteCommandCall = resolveResidentTarget('music_execute_command', 'sound');
     const initAnimatedTilesCall = resolveResidentTarget('init_animated_tiles', 'animtiles');
@@ -945,6 +954,9 @@ call_music_update_resident:
 
 call_sfx_update_resident:
     jp ${sfxUpdateCall}
+
+call_music_stop_resident:
+    jp ${musicStopCall}
 
 call_music_play_track_resident:
     jp ${musicPlayTrackCall}
