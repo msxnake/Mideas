@@ -7,7 +7,7 @@ import {
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, ContextMenuItem,
-  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, DialogueAsset, ScreenKind
+  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, DialogueAsset, PortraitAsset, ScreenKind
 } from '../types';
 import { 
   MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -40,6 +40,7 @@ import { PaletteEditor } from './editors/PaletteEditor';
 import { MainMenuEditor } from './editors/MainMenuEditor';
 import { PresentationScreenEditor } from './editors/PresentationScreenEditor';
 import { DialogueEditor } from './editors/DialogueEditor';
+import { PortraitEditor } from './editors/PortraitEditor';
 import { GameFlowEditor } from './editors/GameFlowEditor';
 import { StateMachineEditor } from './editors/StateMachineEditor';
 import { FileExplorerPanel, TILE_BANKS_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/FileExplorerPanel';
@@ -517,6 +518,15 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Dialogue && activeAsset?.type === 'dialogue' && (
             <DialogueEditor
               dialogue={(activeAsset.data as DialogueAsset) || ({ id: activeAsset.id, name: activeAsset.name } as DialogueAsset)}
+              onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
+              allAssets={assets}
+              tileBanks={tileBanks}
+              onCreateAsset={handleNewAsset}
+            />
+          )}
+          {currentEditor === EditorType.Portrait && activeAsset?.type === 'portrait' && (
+            <PortraitEditor
+              portrait={(activeAsset.data as PortraitAsset) || ({ id: activeAsset.id, name: activeAsset.name, widthChars: 4, heightChars: 4, cells: Array(16).fill(''), dedupeIdenticalTiles: true } as PortraitAsset)}
               onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
               allAssets={assets}
               tileBanks={tileBanks}

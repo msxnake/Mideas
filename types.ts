@@ -1328,6 +1328,18 @@ export interface DialogueAsset {
 }
 // --- End Dialogue Asset Types ---
 
+// --- Portrait Asset Types ---
+export interface PortraitAsset {
+  id: string;
+  name: string;
+  widthChars: number;
+  heightChars: number;
+  tileBankAssetId?: string;
+  cells: string[];
+  dedupeIdenticalTiles: boolean;
+}
+// --- End Portrait Asset Types ---
+
 // --- Game Flow Types ---
 
 /** The type of a node in the game flow graph. */
@@ -1547,6 +1559,7 @@ export enum EditorType {
   WorldView = "WorldView",
   GameFlow = "GameFlow",
   Dialogue = "Dialogue",
+  Portrait = "Portrait",
   MainMenu = "MainMenu",
   PresentationScreen = "PresentationScreen",
   StateMachine = "StateMachine",
@@ -1563,9 +1576,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }

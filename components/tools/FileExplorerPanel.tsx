@@ -51,6 +51,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'worldmap': return <WorldMapIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'gameflow': return <GameFlowIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'dialogue': return <ListBulletIcon className={`${iconClass} text-cyan-300 group-hover:text-msx-accent`} />;
+    case 'portrait': return <TilesetIcon className={`${iconClass} text-pink-300 group-hover:text-msx-accent`} />;
     case 'statemachine': return <PuzzlePieceIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'tilebank': return <ListBulletIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'code': return <CodeIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -74,7 +75,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
 };
 
 /** The order in which asset type folders should be displayed. @constant */
-const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'sprite', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
+const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
 /** A mapping from asset type keys to their display names. @constant */
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   statemachine: "State Machines",
@@ -86,6 +87,7 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   worldmap: "World Maps",
   gameflow: "Game Flows",
   dialogue: "Dialogues",
+  portrait: "Portraits",
   tilebank: "Banks",
   sound: "Sound FX",
   track: "Music Tracks",
@@ -109,6 +111,7 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   worldmap: EditorType.WorldMap,
   gameflow: EditorType.GameFlow,
   dialogue: EditorType.Dialogue,
+  portrait: EditorType.Portrait,
   tilebank: EditorType.TileBanks,
   sound: EditorType.Sound,
   track: EditorType.Track,

@@ -3,7 +3,7 @@ import {
   ProjectAsset, EditorType, Tile, Sprite, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph,
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset, PT3Instrument, TrackerSongData, TrackerPattern,
-  DialogueAsset, ScreenKind
+  DialogueAsset, PortraitAsset, ScreenKind
 } from '../types';
 import {
   DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -340,6 +340,18 @@ export const useAssetHandlers = ({
           },
         } as DialogueAsset;
         newEditorType = EditorType.Dialogue;
+        break;
+      case 'portrait':
+        newAssetData = {
+          id,
+          name: defaultName,
+          widthChars: 4,
+          heightChars: 4,
+          tileBankAssetId: undefined,
+          cells: Array(16).fill(''),
+          dedupeIdenticalTiles: true,
+        } as PortraitAsset;
+        newEditorType = EditorType.Portrait;
         break;
       case 'statemachine':
         newAssetData = {
