@@ -590,23 +590,37 @@ MAX_ENTITIES        EQU 32
   code += `entity_sprite_asset_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity sprite asset index - RAM copy (32 bytes)\n`;
   currentAddress += 32;
 
-  code += `entity_sprite_config EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity sprite config RAM copy (base HW sprite + layer count, 64 bytes)\n`;
-  currentAddress += 64;
+  if (usesMapper) {
+    code += `entity_sprite_config EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity sprite config RAM copy (base HW sprite + layer count, 64 bytes)\n`;
+    currentAddress += 64;
 
-  code += `sprite_asset_frame_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite asset frame counts RAM copy (${expandedSpriteCount} bytes)\n`;
-  currentAddress += expandedSpriteCount;
+    code += `sprite_asset_frame_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite asset frame counts RAM copy (${expandedSpriteCount} bytes)\n`;
+    currentAddress += expandedSpriteCount;
 
-  code += `sprite_asset_layer_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite asset layer counts RAM copy (${expandedSpriteCount} bytes)\n`;
-  currentAddress += expandedSpriteCount;
+    code += `sprite_asset_layer_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite asset layer counts RAM copy (${expandedSpriteCount} bytes)\n`;
+    currentAddress += expandedSpriteCount;
 
-  code += `sprite_loop_flags EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite loop flags RAM copy (${expandedSpriteCount} bytes)\n`;
-  currentAddress += expandedSpriteCount;
+    code += `sprite_loop_flags EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite loop flags RAM copy (${expandedSpriteCount} bytes)\n`;
+    currentAddress += expandedSpriteCount;
 
-  code += `SM_SpriteLayerColorTable EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime SM sprite layer colors (${expandedSpriteCount}*${maxSpriteLayerCount} bytes)\n`;
-  currentAddress += expandedSpriteCount * maxSpriteLayerCount;
+    code += `sprite_dir_left_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Directional sprite lookup RAM copy (${expandedSpriteCount} bytes)\n`;
+    currentAddress += expandedSpriteCount;
 
-  code += `SM_SpriteLayerYOffsetTable EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime SM sprite layer Y offsets (${expandedSpriteCount}*${maxSpriteLayerCount} bytes)\n`;
-  currentAddress += expandedSpriteCount * maxSpriteLayerCount;
+    code += `sprite_dir_right_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Directional sprite lookup RAM copy (${expandedSpriteCount} bytes)\n`;
+    currentAddress += expandedSpriteCount;
+
+    code += `sprite_dir_up_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Directional sprite lookup RAM copy (${expandedSpriteCount} bytes)\n`;
+    currentAddress += expandedSpriteCount;
+
+    code += `sprite_dir_down_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Directional sprite lookup RAM copy (${expandedSpriteCount} bytes)\n`;
+    currentAddress += expandedSpriteCount;
+
+    code += `SM_SpriteLayerColorTable EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime SM sprite layer colors (${expandedSpriteCount}*${maxSpriteLayerCount} bytes)\n`;
+    currentAddress += expandedSpriteCount * maxSpriteLayerCount;
+
+    code += `SM_SpriteLayerYOffsetTable EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime SM sprite layer Y offsets (${expandedSpriteCount}*${maxSpriteLayerCount} bytes)\n`;
+    currentAddress += expandedSpriteCount * maxSpriteLayerCount;
+  }
 
   code += `active_sprite_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of sprites currently active\n`;
   currentAddress++;
