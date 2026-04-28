@@ -79,6 +79,27 @@ function clampByteValue(value: any, fallback = 0): number {
     return Math.max(0, Math.min(255, Math.round(numeric))) & 0xff;
 }
 
+function buildSpriteIndexByReference(analysis: ProjectAnalysis): Map<string, number> {
+    const refs = new Map<string, number>();
+    (analysis.sprites || []).forEach((sprite: any, index: number) => {
+        [sprite?.id, sprite?.name].forEach((ref) => {
+            if (typeof ref !== 'string' || !ref.trim()) return;
+            refs.set(ref, index);
+            refs.set(ref.trim().toLowerCase(), index);
+        });
+    });
+    return refs;
+}
+
+function resolveSpriteAssetIndex(spriteRef: any, spriteIndexByReference: Map<string, number>): number {
+    const trimmed = String(spriteRef ?? '').trim();
+    if (!trimmed) return 0xFF;
+    const direct = spriteIndexByReference.get(trimmed);
+    if (direct !== undefined) return direct;
+    const lower = spriteIndexByReference.get(trimmed.toLowerCase());
+    return lower !== undefined ? lower : 0xFF;
+}
+
 function wrapDialogueText(text: string, maxCharsPerLine: number, maxLines: number): string[] {
     const width = Math.max(1, maxCharsPerLine | 0);
     const lineLimit = Math.max(1, maxLines | 0);
@@ -481,6 +502,9 @@ function buildAutoControlScriptData(analysis: ProjectAnalysis): AutoControlScrip
     const loopFlags: number[] = new Array(32).fill(0);
     const eventScriptPresent: boolean[] = new Array(32).fill(false);
     const eventLoopFlags: number[] = new Array(32).fill(0);
+    const eventIdleSpriteIndexes: number[] = new Array(32).fill(0xFF);
+    const eventWalkSpriteIndexes: number[] = new Array(32).fill(0xFF);
+    const spriteIndexByReference = buildSpriteIndexByReference(analysis);
     let dataAsm = dialogueRuntime.dataAsm;
     let hasCommandScripts = false;
     let hasEventScripts = false;
@@ -503,6 +527,12 @@ function buildAutoControlScriptData(analysis: ProjectAnalysis): AutoControlScrip
             const label = `autoev_script_${index}`;
             eventScriptPresent[index] = true;
             eventLoopFlags[index] = boolValue(values.loop, false) ? 1 : 0;
+            const renderValues = getEntityComponentValues(entity, template, 'comp_render');
+            const renderSpriteIndex = resolveSpriteAssetIndex(renderValues.spriteAssetId, spriteIndexByReference);
+            const idleSpriteIndex = resolveSpriteAssetIndex(values.idleSpriteAssetId, spriteIndexByReference);
+            const walkSpriteIndex = resolveSpriteAssetIndex(values.walkSpriteAssetId, spriteIndexByReference);
+            eventIdleSpriteIndexes[index] = idleSpriteIndex !== 0xFF ? idleSpriteIndex : (walkSpriteIndex !== 0xFF ? renderSpriteIndex : 0xFF);
+            eventWalkSpriteIndexes[index] = walkSpriteIndex !== 0xFF ? walkSpriteIndex : (idleSpriteIndex !== 0xFF ? renderSpriteIndex : 0xFF);
             hasEventScripts = true;
             dataAsm += `${label}:
     DB ${encodeAsmByteString(eventString)}
@@ -546,6 +576,10 @@ autocontrol_loop_flag_table:
 ${eventPtrEntries.map(entry => `    DW ${entry}`).join('\n')}
 autoev_loop_flag_table:
     DB ${eventLoopEntries.join(',')}
+autoev_idle_sprite_table:
+    DB ${eventIdleSpriteIndexes.map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}
+autoev_walk_sprite_table:
+    DB ${eventWalkSpriteIndexes.map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}
 `;
 
     return {
@@ -1017,6 +1051,7 @@ autoev_read_event:
 autoev_command_move_right:
     call autoev_parse_number
     call autoev_store_ptr
+    call autoev_set_walk_sprite
     ld a, 1
     ld (autoev_move_axis), a
     ld a, 1
@@ -1029,6 +1064,7 @@ autoev_command_move_right:
 autoev_command_move_left:
     call autoev_parse_number
     call autoev_store_ptr
+    call autoev_set_walk_sprite
     ld a, 1
     ld (autoev_move_axis), a
     ld a, #FF
@@ -1041,6 +1077,7 @@ autoev_command_move_left:
 autoev_command_move_down:
     call autoev_parse_number
     call autoev_store_ptr
+    call autoev_set_walk_sprite
     ld a, 2
     ld (autoev_move_axis), a
     ld a, 1
@@ -1053,6 +1090,7 @@ autoev_command_move_down:
 autoev_command_move_up:
     call autoev_parse_number
     call autoev_store_ptr
+    call autoev_set_walk_sprite
     ld a, 2
     ld (autoev_move_axis), a
     ld a, #FF
@@ -1065,12 +1103,16 @@ autoev_command_move_up:
 autoev_command_delay:
     call autoev_parse_number
     call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
     call autoev_number_to_frames
     ld (autoev_wait_frames), a
     ret
 
 autoev_command_open_dialog:
     call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
     xor a
     call dialogue_open_box
     ret
@@ -1078,6 +1120,8 @@ autoev_command_open_dialog:
 autoev_command_write_line:
     call autoev_parse_number
     call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
     ld a, (autoev_number_l)
     call dialogue_start_line
     ld a, 2
@@ -1086,23 +1130,31 @@ autoev_command_write_line:
 
 autoev_command_wait_spc:
     call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
     ld a, 1
     ld (autoev_wait_mode), a
     ret
 
 autoev_command_wait_text:
     call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
     ld a, 2
     ld (autoev_wait_mode), a
     ret
 
 autoev_command_clear_dialog:
     call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
     call dialogue_clear_box
     ret
 
 autoev_command_close_dialog:
     call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
     call dialogue_close_box
     ret
 
@@ -1111,6 +1163,8 @@ autoev_store_ptr_and_continue:
     jp autoev_read_event
 
 autoev_command_end:
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
     ld a, (autoev_loop_flag)
     or a
     jp nz, autoev_restart_script
@@ -1122,6 +1176,8 @@ autoev_command_end:
     ret
 
 autoev_restart_script:
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
     ld a, (autoev_script_start_l)
     ld (autoev_script_ptr_l), a
     ld a, (autoev_script_start_h)
@@ -1259,6 +1315,7 @@ autoev_find_loop:
     ld (autoev_loop_flag), a
     ld a, 1
     ld (autoev_active), a
+    call autoev_set_idle_sprite
     pop bc
     pop hl
     ret
@@ -1286,6 +1343,7 @@ autoev_apply_move_x:
     ld a, (autoev_move_step)
     cp #FF
     jp z, autoev_move_left_pixel
+    call autoev_set_velocity_right
     ld hl, entity_x_pos
     add hl, de
     inc (hl)
@@ -1293,6 +1351,7 @@ autoev_apply_move_x:
     jp autoev_store_facing_and_dec
 
 autoev_move_left_pixel:
+    call autoev_set_velocity_left
     ld hl, entity_x_pos
     add hl, de
     dec (hl)
@@ -1303,6 +1362,7 @@ autoev_apply_move_y:
     ld a, (autoev_move_step)
     cp #FF
     jp z, autoev_move_up_pixel
+    call autoev_set_velocity_down
     ld hl, entity_y_pos
     add hl, de
     inc (hl)
@@ -1310,6 +1370,7 @@ autoev_apply_move_y:
     jp autoev_store_facing_and_dec
 
 autoev_move_up_pixel:
+    call autoev_set_velocity_up
     ld hl, entity_y_pos
     add hl, de
     dec (hl)
@@ -1321,6 +1382,107 @@ autoev_store_facing_and_dec:
     ld (hl), a
     ld hl, autoev_move_remaining
     dec (hl)
+    ld a, (hl)
+    or a
+    ret nz
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ret
+
+autoev_clear_velocity:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+    ret
+
+autoev_set_velocity_right:
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 1
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_velocity_left:
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), #FF
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_velocity_down:
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 1
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_velocity_up:
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), #FF
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_idle_sprite:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, autoev_idle_sprite_table
+    add hl, de
+    ld a, (hl)
+    jp autoev_apply_sprite_index
+
+autoev_set_walk_sprite:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, autoev_walk_sprite_table
+    add hl, de
+    ld a, (hl)
+    jp autoev_apply_sprite_index
+
+autoev_apply_sprite_index:
+    cp #FF
+    ret z
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    cp (hl)
+    ret z
+    ld (hl), a
+    ld hl, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_anim_tick
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_anim_flags
+    add hl, de
+    ld a, (hl)
+    or ANIM_FLAG_PLAYING
+    or ANIM_FLAG_FORCE_UPLOAD
+    and #F7
+    ld (hl), a
     ret
 `;
 }

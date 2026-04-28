@@ -848,10 +848,14 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               const startsOnScreenLoad = getAutoControlValue('startsOnScreenLoad');
               const loop = getAutoControlValue('loop');
               const dialogueAssetId = String(getAutoControlValue('defaultDialogueAssetId') ?? '');
+              const idleSpriteAssetId = String(getAutoControlValue('idleSpriteAssetId') ?? '');
+              const walkSpriteAssetId = String(getAutoControlValue('walkSpriteAssetId') ?? '');
               const scriptFormat = String(getAutoControlValue('scriptFormat') || 'commands');
               const eventString = String(getAutoControlValue('eventString') ?? '');
               const commands = String(getAutoControlValue('commands') ?? '');
               const selectedDialogueAsset = assetsWithEntityTemplates.find(asset => asset.id === dialogueAssetId && asset.type === 'dialogue');
+              const selectedIdleSpriteAsset = assetsWithEntityTemplates.find(asset => asset.id === idleSpriteAssetId && asset.type === 'sprite');
+              const selectedWalkSpriteAsset = assetsWithEntityTemplates.find(asset => asset.id === walkSpriteAssetId && asset.type === 'sprite');
               const selectedDialogue = selectedDialogueAsset?.data as DialogueAsset | undefined;
               const compactParseResult = parseAutoEventString(eventString, selectedDialogue);
               const compactDialogueCommandsUsed = autoEventStringUsesDialogue(eventString);
@@ -1061,6 +1065,61 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                           Create and Use Dialogue
                         </Button>
                       )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[0.65rem] text-msx-textsecondary mb-0.5">
+                          Idle Sprite:
+                        </label>
+                        <div className="flex items-center space-x-1">
+                          <span className="p-1 text-xs bg-msx-bgcolor border border-msx-border/30 rounded flex-grow truncate" title={idleSpriteAssetId || 'Use current sprite'}>
+                            {selectedIdleSpriteAsset?.name || 'Current sprite'}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => openAssetPicker('sprite_ref', idleSpriteAssetId, (assetId) => handleComponentOverrideChange(componentDef.id, 'idleSpriteAssetId', assetId, 'sprite_ref'))}
+                          >
+                            ...
+                          </Button>
+                          {idleSpriteAssetId && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleComponentOverrideChange(componentDef.id, 'idleSpriteAssetId', '', 'sprite_ref')}
+                            >
+                              Clear
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[0.65rem] text-msx-textsecondary mb-0.5">
+                          Walk Sprite:
+                        </label>
+                        <div className="flex items-center space-x-1">
+                          <span className="p-1 text-xs bg-msx-bgcolor border border-msx-border/30 rounded flex-grow truncate" title={walkSpriteAssetId || 'Use current sprite'}>
+                            {selectedWalkSpriteAsset?.name || 'Current sprite'}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => openAssetPicker('sprite_ref', walkSpriteAssetId, (assetId) => handleComponentOverrideChange(componentDef.id, 'walkSpriteAssetId', assetId, 'sprite_ref'))}
+                          >
+                            ...
+                          </Button>
+                          {walkSpriteAssetId && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleComponentOverrideChange(componentDef.id, 'walkSpriteAssetId', '', 'sprite_ref')}
+                            >
+                              Clear
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div>

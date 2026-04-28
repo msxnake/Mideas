@@ -224,7 +224,7 @@ const resolveEntitySpriteAssetId = (entity: any, analysis: ProjectAnalysis): str
 
   if (entity?.componentOverrides) {
     for (const compId of Object.keys(entity.componentOverrides)) {
-      if (compId === 'comp_wall_jump' || compId === 'comp_wall_grab') continue;
+      if (compId === 'comp_wall_jump' || compId === 'comp_wall_grab' || compId === 'comp_auto_control_script') continue;
       const compDef = componentDefinitions.find((c: any) => c.id === compId);
       const propName = findComponentPropertyName(compDef, (prop: any) => prop.type === 'sprite_ref');
       if (propName && entity.componentOverrides[compId]?.[propName]) {
@@ -234,7 +234,7 @@ const resolveEntitySpriteAssetId = (entity: any, analysis: ProjectAnalysis): str
   }
 
   for (const comp of template?.components || []) {
-    if (comp.definitionId === 'comp_wall_jump' || comp.definitionId === 'comp_wall_grab') continue;
+    if (comp.definitionId === 'comp_wall_jump' || comp.definitionId === 'comp_wall_grab' || comp.definitionId === 'comp_auto_control_script') continue;
     const compDef = componentDefinitions.find((c: any) => c.id === comp.definitionId);
     const propName = findComponentPropertyName(compDef, (prop: any) => prop.type === 'sprite_ref');
     if (propName && comp.defaultValues?.[propName]) {
@@ -248,7 +248,7 @@ const resolveEntitySpriteAssetId = (entity: any, analysis: ProjectAnalysis): str
 const resolveTemplateSpriteAssetId = (template: any, analysis: ProjectAnalysis): string | undefined => {
   const componentDefinitions = analysis.components || [];
   for (const comp of template?.components || []) {
-    if (comp.definitionId === 'comp_wall_jump' || comp.definitionId === 'comp_wall_grab') continue;
+    if (comp.definitionId === 'comp_wall_jump' || comp.definitionId === 'comp_wall_grab' || comp.definitionId === 'comp_auto_control_script') continue;
     const compDef = componentDefinitions.find((c: any) => c.id === comp.definitionId);
     const propName = findComponentPropertyName(compDef, (prop: any) => prop.type === 'sprite_ref');
     if (propName && comp.defaultValues?.[propName]) {
@@ -266,6 +266,11 @@ const getWallJumpAnimationSpriteRef = (values: any): string | undefined => {
 const getWallGrabSpriteRef = (values: any): string | undefined => {
   const ref = values?.grabSpriteAssetId ?? values?.wallGrabSprite ?? values?.grabSprite;
   return typeof ref === 'string' && ref.trim() ? ref : undefined;
+};
+
+const getAutoControlSpriteRefs = (values: any): string[] => {
+  return [values?.idleSpriteAssetId, values?.walkSpriteAssetId]
+    .filter((ref): ref is string => typeof ref === 'string' && ref.trim().length > 0);
 };
 
 const resolveTemplateWallJumpAnimationSpriteAssetId = (template: any): string | undefined => {
@@ -290,6 +295,18 @@ const resolveEntityWallGrabSpriteAssetId = (entity: any, analysis: ProjectAnalys
   const templateRef = resolveTemplateWallGrabSpriteAssetId(template);
   const overrideRef = getWallGrabSpriteRef(entity?.componentOverrides?.['comp_wall_grab']);
   return overrideRef ?? templateRef;
+};
+
+const resolveTemplateAutoControlSpriteAssetIds = (template: any): string[] => {
+  const comp = template?.components?.find((candidate: any) => candidate.definitionId === 'comp_auto_control_script');
+  return getAutoControlSpriteRefs(comp?.defaultValues);
+};
+
+const resolveEntityAutoControlSpriteAssetIds = (entity: any, analysis: ProjectAnalysis): string[] => {
+  const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
+  const templateValues = template?.components?.find((candidate: any) => candidate.definitionId === 'comp_auto_control_script')?.defaultValues || {};
+  const overrideValues = entity?.componentOverrides?.['comp_auto_control_script'] || {};
+  return getAutoControlSpriteRefs({ ...templateValues, ...overrideValues });
 };
 
 const resolveEntityStateMachineAssetId = (entity: any, analysis: ProjectAnalysis): string | undefined => {
@@ -412,6 +429,7 @@ const createRuntimeSpritePatternPackBuilder = (analysis: ProjectAnalysis) => {
       addSpriteReference(resolveTemplateSpriteAssetId(template, analysis));
       addSpriteReference(resolveTemplateWallJumpAnimationSpriteAssetId(template));
       addSpriteReference(resolveTemplateWallGrabSpriteAssetId(template));
+      resolveTemplateAutoControlSpriteAssetIds(template).forEach(addSpriteReference);
       processStateMachine(resolveTemplateStateMachineAssetId(template, analysis));
     };
 
@@ -419,6 +437,7 @@ const createRuntimeSpritePatternPackBuilder = (analysis: ProjectAnalysis) => {
       addSpriteReference(resolveEntitySpriteAssetId(entity, analysis));
       addSpriteReference(resolveEntityWallJumpAnimationSpriteAssetId(entity, analysis));
       addSpriteReference(resolveEntityWallGrabSpriteAssetId(entity, analysis));
+      resolveEntityAutoControlSpriteAssetIds(entity, analysis).forEach(addSpriteReference);
       processStateMachine(resolveEntityStateMachineAssetId(entity, analysis));
       queueTemplate(entity?.entityTemplateId);
     }
@@ -785,6 +804,8 @@ export function generateSpritesFile(
       addRuntimeSpriteRef(resolveTemplateWallGrabSpriteAssetId(template));
       addRuntimeSpriteRef(resolveEntityWallJumpAnimationSpriteAssetId(entity, analysis));
       addRuntimeSpriteRef(resolveEntityWallGrabSpriteAssetId(entity, analysis));
+      resolveTemplateAutoControlSpriteAssetIds(template).forEach(addRuntimeSpriteRef);
+      resolveEntityAutoControlSpriteAssetIds(entity, analysis).forEach(addRuntimeSpriteRef);
       addStateMachineSprites(resolveTemplateStateMachineAssetId(template, analysis));
       addStateMachineSprites(resolveEntityStateMachineAssetId(entity, analysis));
 

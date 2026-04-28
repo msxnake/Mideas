@@ -69,6 +69,8 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "startsOnScreenLoad", type: "boolean", defaultValue: "true", description: "Run the command list when the screen starts." },
       { name: "loop", type: "boolean", defaultValue: "false", description: "Restart the command list after it finishes." },
       { name: "defaultDialogueAssetId", type: "dialogue_ref", defaultValue: "", description: "Optional Dialogue asset used by play_dialog, open_dialog, or write_line commands." },
+      { name: "idleSpriteAssetId", type: "sprite_ref", defaultValue: "", description: "Optional sprite to apply while the FakePlayer is waiting, talking, or finished." },
+      { name: "walkSpriteAssetId", type: "sprite_ref", defaultValue: "", description: "Optional sprite to apply while the FakePlayer is executing movement commands." },
       { name: "scriptFormat", type: "string", defaultValue: "commands", description: "Script runtime format: commands for readable editor commands, eventString for compact FakePlayer event chains." },
       { name: "eventString", type: "string", defaultValue: "x64d1000ow1sc", description: "Compact FakePlayer event chain: x64 right, X64 left, y16 down, Y16 up, d1000 delay ms, o open dialog, w1 write dialogue line 1, s wait SPC, t wait text, k clear, c close." },
       { name: "commands", type: "string", defaultValue: "move_right 64\njump\ndash_right\ndelay 1000\nplay_dialog", description: "One command per line: move_right or move right pixels, jump, dash_right or dash right, grab_wall, release_wall, delay ms, wait seconds, play_dialog, open_dialog/open frame_dialog, write_line/write text index, wait_spc/wait SPC, wait_text/wait text, clear_dialog/clean, close_dialog." }
@@ -486,7 +488,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_pos", defaultValues: { x: 32, y: 120 } },
       { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player", isVisible: true, layer: 1 } },
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", animationSpeed: "8", animateOnlyWhenMoving: true } },
-      { definitionId: "comp_auto_control_script", defaultValues: { enabled: true, startsOnScreenLoad: true, loop: false, defaultDialogueAssetId: "", scriptFormat: "eventString", eventString: "x64d1000ow1sc", commands: "move_right 64\njump\ndash_right\ndelay 1000\nplay_dialog" } }
+      { definitionId: "comp_auto_control_script", defaultValues: { enabled: true, startsOnScreenLoad: true, loop: false, defaultDialogueAssetId: "", idleSpriteAssetId: "", walkSpriteAssetId: "", scriptFormat: "eventString", eventString: "x64d1000ow1sc", commands: "move_right 64\njump\ndash_right\ndelay 1000\nplay_dialog" } }
     ],
     description: "Script-driven player lookalike for tutorial/dialog/cutscene screens. It intentionally has no PlayerInput component."
   },

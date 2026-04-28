@@ -175,6 +175,13 @@ interface AutoEventRuntimeState {
     waitingForSpc?: boolean;
     waitingForText?: boolean;
     dialogue?: DialogueAsset;
+    idleSprite?: Sprite;
+    idleSpriteAssetId?: string;
+    walkSprite?: Sprite;
+    walkSpriteAssetId?: string;
+    baseSprite?: Sprite;
+    baseSpriteAssetId?: string;
+    spriteMode?: 'idle' | 'walk';
 }
 
 interface AutoDialoguePreviewState {
@@ -645,6 +652,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const dialogueAssetId = String(values.defaultDialogueAssetId || '');
         const dialogueAsset = allAssets.find(asset => asset.id === dialogueAssetId && asset.type === 'dialogue');
         const dialogue = dialogueAsset?.data as DialogueAsset | undefined;
+        const idleSpriteAssetId = String(values.idleSpriteAssetId || '');
+        const idleSpriteAsset = allAssets.find(asset => asset.id === idleSpriteAssetId && asset.type === 'sprite');
+        const walkSpriteAssetId = String(values.walkSpriteAssetId || '');
+        const walkSpriteAsset = allAssets.find(asset => asset.id === walkSpriteAssetId && asset.type === 'sprite');
         const parsed = parseAutoEventString(String(values.eventString || ''), dialogue);
         if (parsed.tokens.length === 0) return undefined;
 
@@ -654,6 +665,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             loop: values.loop === true || values.loop === 'true',
             moveRemaining: 0,
             dialogue,
+            idleSprite: idleSpriteAsset?.data as Sprite | undefined,
+            idleSpriteAssetId: idleSpriteAsset?.id,
+            walkSprite: walkSpriteAsset?.data as Sprite | undefined,
+            walkSpriteAssetId: walkSpriteAsset?.id,
         };
     }, [allAssets, resolveTemplateComponentValues]);
     const drawAutoDialoguePreview = useCallback((ctx: CanvasRenderingContext2D) => {
@@ -696,6 +711,33 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         });
         ctx.restore();
     }, [PREVIEW_HEIGHT, PREVIEW_WIDTH]);
+    const buildFramesForSprite = (spriteData: Sprite) => {
+        const frames = spriteData.frames.map(frame => {
+            const img = new Image();
+            img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+            return img;
+        });
+        let mirroredFrames: HTMLImageElement[] | undefined;
+        if (['right', 'left'].includes(spriteData.facingDirection)) {
+            mirroredFrames = spriteData.frames.map(frame => {
+                const img = new Image();
+                img.src = createSpriteDataURL(mirrorPixelDataHorizontally(frame.data), spriteData.size.width, spriteData.size.height);
+                return img;
+            });
+        }
+        return { frames, mirroredFrames };
+    };
+    const applySpriteToEntity = (entity: AnimatedEntity, spriteData: Sprite, spriteAssetId?: string) => {
+        const built = buildFramesForSprite(spriteData);
+        entity.sprite = spriteData;
+        entity.frameImages = built.frames;
+        entity.mirroredFrameImages = built.mirroredFrames;
+        entity.currentFrame = 0;
+        entity.lastFrameUpdateTime = performance.now();
+        if (spriteAssetId) {
+            entity.spriteAssetId = spriteAssetId;
+        }
+    };
     const updateAutoEventRuntime = useCallback((entity: AnimatedEntity, nowMs: number) => {
         const runtime = entity.autoEventRuntime;
         if (!runtime || runtime.tokens.length === 0) return;
@@ -703,6 +745,22 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const dialogueState = autoDialoguePreviewRef.current;
         const spaceDown = pressedKeys.current.has(' ');
         const spacePressed = spaceDown && !autoEventSpaceWasDownRef.current;
+        const applyAutoEventSpriteMode = (mode: 'idle' | 'walk') => {
+            if (runtime.spriteMode === mode) return;
+            if (!runtime.baseSprite) {
+                runtime.baseSprite = entity.sprite;
+                runtime.baseSpriteAssetId = entity.spriteAssetId;
+            }
+            const configuredSprite = mode === 'walk' ? runtime.walkSprite : runtime.idleSprite;
+            const configuredSpriteAssetId = mode === 'walk' ? runtime.walkSpriteAssetId : runtime.idleSpriteAssetId;
+            const shouldUseBaseSprite = mode === 'walk' ? Boolean(runtime.idleSprite) : Boolean(runtime.walkSprite);
+            const sprite = configuredSprite ?? (shouldUseBaseSprite ? runtime.baseSprite : undefined);
+            const spriteAssetId = configuredSprite ? configuredSpriteAssetId : runtime.baseSpriteAssetId;
+            if (sprite) {
+                applySpriteToEntity(entity, sprite, spriteAssetId);
+            }
+            runtime.spriteMode = mode;
+        };
 
         if (dialogueState.active && dialogueState.visibleChars < dialogueState.text.length && nowMs - dialogueState.lastCharAt >= dialogueState.charDelayMs) {
             dialogueState.visibleChars += 1;
@@ -710,6 +768,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         }
 
         if (runtime.moveRemaining > 0 && runtime.moveAxis && runtime.moveStep) {
+            applyAutoEventSpriteMode('walk');
             const step = Math.min(runtime.moveRemaining, Math.abs(runtime.moveStep));
             if (runtime.moveAxis === 'x') {
                 entity.x += runtime.moveStep > 0 ? step : -step;
@@ -726,6 +785,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             entity.vy = 0;
             runtime.moveAxis = undefined;
             runtime.moveStep = undefined;
+            applyAutoEventSpriteMode('idle');
         }
 
         if (runtime.delayUntil !== undefined) {
@@ -755,21 +815,29 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 entity.autoEventRuntime = undefined;
                 entity.vx = 0;
                 entity.vy = 0;
+                applyAutoEventSpriteMode('idle');
                 return;
             }
             runtime.index += 1;
 
             if (token.type === 'move') {
+                applyAutoEventSpriteMode('walk');
                 runtime.moveRemaining = Math.abs(token.amount);
                 runtime.moveAxis = token.axis;
                 runtime.moveStep = token.amount >= 0 ? 1 : -1;
                 return;
             }
             if (token.type === 'delay') {
+                entity.vx = 0;
+                entity.vy = 0;
+                applyAutoEventSpriteMode('idle');
                 runtime.delayUntil = nowMs + token.ms;
                 return;
             }
             if (token.type === 'openDialog') {
+                entity.vx = 0;
+                entity.vy = 0;
+                applyAutoEventSpriteMode('idle');
                 dialogueState.active = true;
                 dialogueState.text = '';
                 dialogueState.visibleChars = 0;
@@ -777,6 +845,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 continue;
             }
             if (token.type === 'writeLine') {
+                entity.vx = 0;
+                entity.vy = 0;
+                applyAutoEventSpriteMode('idle');
                 const line = runtime.dialogue?.lines?.[token.lineNumber - 1];
                 const text = `${line?.speaker?.trim() ? `${line.speaker.trim()}: ` : ''}${line?.text || ''}`.trim();
                 dialogueState.active = true;
@@ -787,20 +858,32 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 return;
             }
             if (token.type === 'waitText') {
+                entity.vx = 0;
+                entity.vy = 0;
+                applyAutoEventSpriteMode('idle');
                 runtime.waitingForText = true;
                 return;
             }
             if (token.type === 'waitSpc') {
+                entity.vx = 0;
+                entity.vy = 0;
+                applyAutoEventSpriteMode('idle');
                 runtime.waitingForSpc = true;
                 return;
             }
             if (token.type === 'clearDialog') {
+                entity.vx = 0;
+                entity.vy = 0;
+                applyAutoEventSpriteMode('idle');
                 dialogueState.text = '';
                 dialogueState.visibleChars = 0;
                 dialogueState.lastCharAt = nowMs;
                 continue;
             }
             if (token.type === 'closeDialog') {
+                entity.vx = 0;
+                entity.vy = 0;
+                applyAutoEventSpriteMode('idle');
                 dialogueState.active = false;
                 dialogueState.text = '';
                 dialogueState.visibleChars = 0;
@@ -836,33 +919,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const id = window.setInterval(() => setCursorBlinkOn(prev => !prev), 450);
         return () => window.clearInterval(id);
     }, [hoverExitDirection]);
-    const buildFramesForSprite = (spriteData: Sprite) => {
-        const frames = spriteData.frames.map(frame => {
-            const img = new Image();
-            img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
-            return img;
-        });
-        let mirroredFrames: HTMLImageElement[] | undefined;
-        if (['right', 'left'].includes(spriteData.facingDirection)) {
-            mirroredFrames = spriteData.frames.map(frame => {
-                const img = new Image();
-                img.src = createSpriteDataURL(mirrorPixelDataHorizontally(frame.data), spriteData.size.width, spriteData.size.height);
-                return img;
-            });
-        }
-        return { frames, mirroredFrames };
-    };
-    const applySpriteToEntity = (entity: AnimatedEntity, spriteData: Sprite, spriteAssetId?: string) => {
-        const built = buildFramesForSprite(spriteData);
-        entity.sprite = spriteData;
-        entity.frameImages = built.frames;
-        entity.mirroredFrameImages = built.mirroredFrames;
-        entity.currentFrame = 0;
-        entity.lastFrameUpdateTime = performance.now();
-        if (spriteAssetId) {
-            entity.spriteAssetId = spriteAssetId;
-        }
-    };
     const restoreSpriteAfterCarry = (entity: AnimatedEntity) => {
         const backup = entity.carrySpriteBackup;
         if (!backup) return;
