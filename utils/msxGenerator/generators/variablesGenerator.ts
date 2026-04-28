@@ -69,6 +69,37 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   code += `autocontrol_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=FakePlayer script active\n`;
   currentAddress++;
 
+  code += `autoev_screen_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen id bound to compact FakePlayer event script\n`;
+  currentAddress++;
+  code += `autoev_entity_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active compact FakePlayer entity index (#FF=none)\n`;
+  currentAddress++;
+  code += `autoev_script_ptr_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact FakePlayer event pointer low byte\n`;
+  currentAddress++;
+  code += `autoev_script_ptr_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact FakePlayer event pointer high byte\n`;
+  currentAddress++;
+  code += `autoev_script_start_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact FakePlayer event start pointer low byte\n`;
+  currentAddress++;
+  code += `autoev_script_start_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact FakePlayer event start pointer high byte\n`;
+  currentAddress++;
+  code += `autoev_wait_frames EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact FakePlayer wait countdown in frames\n`;
+  currentAddress++;
+  code += `autoev_move_axis EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact move axis (1=x,2=y)\n`;
+  currentAddress++;
+  code += `autoev_move_step EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact move step (1 or #FF)\n`;
+  currentAddress++;
+  code += `autoev_move_remaining EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Remaining compact FakePlayer movement pixels\n`;
+  currentAddress++;
+  code += `autoev_loop_flag EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=loop compact FakePlayer event script\n`;
+  currentAddress++;
+  code += `autoev_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=compact FakePlayer event script active\n`;
+  currentAddress++;
+  code += `autoev_wait_mode EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=wait SPC, 2=wait typewriter\n`;
+  currentAddress++;
+  code += `autoev_number_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Parsed compact event number low byte\n`;
+  currentAddress++;
+  code += `autoev_number_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Parsed compact event number high byte\n`;
+  currentAddress++;
+
   code += `dialogue_active    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=dialogue box is open\n`;
   currentAddress++;
   code += `dialogue_current_box EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current dialogue box config index\n`;

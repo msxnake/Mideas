@@ -12,6 +12,8 @@ import { usesMapperBanking } from './romModeUtils';
 type AutoControlScriptBuild = {
     dataAsm: string;
     hasScripts: boolean;
+    hasCommandScripts: boolean;
+    hasEventScripts: boolean;
     hasDialogue: boolean;
 };
 
@@ -434,13 +436,52 @@ function parseAutoControlCommands(
     return bytes;
 }
 
+function encodeAsmByteString(value: string): string {
+    const bytes = Array.from(String(value || ''))
+        .map(char => char.charCodeAt(0))
+        .filter(code => code >= 0x20 && code <= 0x7e);
+    bytes.push(0);
+    return bytes.map(code => `#${code.toString(16).toUpperCase().padStart(2, '0')}`).join(',');
+}
+
+function normalizeAutoEventStringForAsm(
+    eventString: string,
+    defaultDialogueAssetId: string,
+    dialogueRuntime: DialogueRuntimeBuild
+): string {
+    const source = String(eventString || '').replace(/\s+/g, '');
+    const lineMap = dialogueRuntime.lineIndexByDialogueId.get(defaultDialogueAssetId);
+    let output = '';
+    let cursor = 0;
+    const tokenPattern = /([xXyYdw])(\d+)|[ostkc]/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = tokenPattern.exec(source)) !== null) {
+        if (match.index !== cursor) break;
+        cursor = match.index + match[0].length;
+        const command = match[0][0];
+        const rawValue = Number(match[2] || 0);
+        if (command === 'w') {
+            const localLineIndex = Math.max(0, rawValue - 1);
+            output += `w${lineMap?.get(localLineIndex) ?? 0}`;
+        } else {
+            output += match[0];
+        }
+    }
+
+    return cursor === source.length ? output : '';
+}
+
 function buildAutoControlScriptData(analysis: ProjectAnalysis): AutoControlScriptBuild {
     const entities = Array.isArray(analysis.entities) ? analysis.entities : [];
     const dialogueRuntime = buildDialogueRuntimeData(analysis);
     const scriptPresent: boolean[] = new Array(32).fill(false);
     const loopFlags: number[] = new Array(32).fill(0);
+    const eventScriptPresent: boolean[] = new Array(32).fill(false);
+    const eventLoopFlags: number[] = new Array(32).fill(0);
     let dataAsm = dialogueRuntime.dataAsm;
-    let hasScripts = false;
+    let hasCommandScripts = false;
+    let hasEventScripts = false;
 
     entities.slice(0, 32).forEach((entity: any, index: number) => {
         const template = analysis.templates?.find((candidate: any) => candidate.id === entity.entityTemplateId);
@@ -449,11 +490,28 @@ function buildAutoControlScriptData(analysis: ProjectAnalysis): AutoControlScrip
 
         const values = getEntityComponentValues(entity, template, 'comp_auto_control_script');
         if (!boolValue(values.enabled, true) || !boolValue(values.startsOnScreenLoad, true)) return;
+        const scriptFormat = String(values.scriptFormat || 'commands');
+        if (scriptFormat === 'eventString') {
+            const eventString = normalizeAutoEventStringForAsm(
+                String(values.eventString || ''),
+                String(values.defaultDialogueAssetId || ''),
+                dialogueRuntime
+            );
+            if (!eventString) return;
+            const label = `autoev_script_${index}`;
+            eventScriptPresent[index] = true;
+            eventLoopFlags[index] = boolValue(values.loop, false) ? 1 : 0;
+            hasEventScripts = true;
+            dataAsm += `${label}:
+    DB ${encodeAsmByteString(eventString)}
+`;
+            return;
+        }
 
         const label = `autocontrol_script_${index}`;
         scriptPresent[index] = true;
         loopFlags[index] = boolValue(values.loop, false) ? 1 : 0;
-        hasScripts = true;
+        hasCommandScripts = true;
 
         const bytes = parseAutoControlCommands(
             String(values.commands || ''),
@@ -479,7 +537,22 @@ autocontrol_loop_flag_table:
     DB ${loopEntries.join(',')}
 `;
 
-    return { dataAsm, hasScripts, hasDialogue: dialogueRuntime.hasDialogue };
+    const eventPtrEntries = entities.slice(0, 32).map((_: any, index: number) => eventScriptPresent[index] ? `autoev_script_${index}` : '0');
+    while (eventPtrEntries.length < 32) eventPtrEntries.push('0');
+    const eventLoopEntries = eventLoopFlags.map(value => String(value));
+    dataAsm += `autoev_script_ptr_table:
+${eventPtrEntries.map(entry => `    DW ${entry}`).join('\n')}
+autoev_loop_flag_table:
+    DB ${eventLoopEntries.join(',')}
+`;
+
+    return {
+        dataAsm,
+        hasScripts: hasCommandScripts || hasEventScripts,
+        hasCommandScripts,
+        hasEventScripts,
+        hasDialogue: dialogueRuntime.hasDialogue
+    };
 }
 
 function generateAutoControlDialogueSystem(hasDialogue: boolean): string {
@@ -810,6 +883,433 @@ dialogue_clear_interior_col:
 `;
 }
 
+function generateAutoEventStringSystem(hasEventScripts: boolean): string {
+    if (!hasEventScripts) {
+        return `
+update_auto_event_string_component:
+    ret
+`;
+    }
+
+    return `
+; ==================================================================
+; AUTO EVENT STRING SYSTEM - compact FakePlayer engine
+; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Execute one frame of the compact FakePlayer event-string script.',
+  inputs: ['current_screen_engine, current_screen_id, active_entity_list/current count, input_btn_curr'],
+  outputs: ['FakePlayer entity position/facing, dialogue, and autoev runtime state updated'],
+  clobbers: ['AF', 'BC', 'DE', 'HL'],
+  preserved: ['None'],
+  usage: ['Only runs while current_screen_engine = 1 (FakePlayer screen engine).'],
+})}
+update_auto_event_string_component:
+    ld a, (current_screen_engine)
+    cp 1
+    ret nz
+
+    ld a, (current_screen_id)
+    ld b, a
+    ld a, (autoev_screen_id)
+    cp b
+    call nz, autoev_bind_current_screen
+
+    ld a, (autoev_active)
+    or a
+    ret z
+
+    call dialogue_update_typewriter
+
+    ld a, (autoev_wait_mode)
+    cp 1
+    jp z, autoev_wait_spc
+    cp 2
+    jp z, autoev_wait_text
+
+    ld a, (autoev_wait_frames)
+    or a
+    jp z, autoev_check_move
+    dec a
+    ld (autoev_wait_frames), a
+    ret
+
+autoev_check_move:
+    ld a, (autoev_move_remaining)
+    or a
+    jp z, autoev_read_event
+    call autoev_apply_move
+    ret
+
+autoev_wait_spc:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    ld a, (input_btn_curr)
+    and #01
+    ret z
+    xor a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_wait_text:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    xor a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_read_event:
+    ld a, (autoev_script_ptr_l)
+    ld l, a
+    ld a, (autoev_script_ptr_h)
+    ld h, a
+    ld a, h
+    or l
+    ret z
+
+    ld a, (hl)
+    inc hl
+    or a
+    jp z, autoev_command_end
+    ld b, a
+
+    ld a, b
+    cp #78
+    jp z, autoev_command_move_right
+    cp #58
+    jp z, autoev_command_move_left
+    cp #79
+    jp z, autoev_command_move_down
+    cp #59
+    jp z, autoev_command_move_up
+    cp #64
+    jp z, autoev_command_delay
+    cp #6F
+    jp z, autoev_command_open_dialog
+    cp #77
+    jp z, autoev_command_write_line
+    cp #73
+    jp z, autoev_command_wait_spc
+    cp #74
+    jp z, autoev_command_wait_text
+    cp #6B
+    jp z, autoev_command_clear_dialog
+    cp #63
+    jp z, autoev_command_close_dialog
+    jp autoev_store_ptr_and_continue
+
+autoev_command_move_right:
+    call autoev_parse_number
+    call autoev_store_ptr
+    ld a, 1
+    ld (autoev_move_axis), a
+    ld a, 1
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_move_left:
+    call autoev_parse_number
+    call autoev_store_ptr
+    ld a, 1
+    ld (autoev_move_axis), a
+    ld a, #FF
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_move_down:
+    call autoev_parse_number
+    call autoev_store_ptr
+    ld a, 2
+    ld (autoev_move_axis), a
+    ld a, 1
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_move_up:
+    call autoev_parse_number
+    call autoev_store_ptr
+    ld a, 2
+    ld (autoev_move_axis), a
+    ld a, #FF
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_delay:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_number_to_frames
+    ld (autoev_wait_frames), a
+    ret
+
+autoev_command_open_dialog:
+    call autoev_store_ptr
+    xor a
+    call dialogue_open_box
+    ret
+
+autoev_command_write_line:
+    call autoev_parse_number
+    call autoev_store_ptr
+    ld a, (autoev_number_l)
+    call dialogue_start_line
+    ld a, 2
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_command_wait_spc:
+    call autoev_store_ptr
+    ld a, 1
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_command_wait_text:
+    call autoev_store_ptr
+    ld a, 2
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_command_clear_dialog:
+    call autoev_store_ptr
+    call dialogue_clear_box
+    ret
+
+autoev_command_close_dialog:
+    call autoev_store_ptr
+    call dialogue_close_box
+    ret
+
+autoev_store_ptr_and_continue:
+    call autoev_store_ptr
+    jp autoev_read_event
+
+autoev_command_end:
+    ld a, (autoev_loop_flag)
+    or a
+    jp nz, autoev_restart_script
+    xor a
+    ld (autoev_active), a
+    ld (autoev_move_axis), a
+    ld (autoev_move_remaining), a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_restart_script:
+    ld a, (autoev_script_start_l)
+    ld (autoev_script_ptr_l), a
+    ld a, (autoev_script_start_h)
+    ld (autoev_script_ptr_h), a
+    xor a
+    ld (autoev_move_axis), a
+    ld (autoev_move_remaining), a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_store_ptr:
+    ld a, l
+    ld (autoev_script_ptr_l), a
+    ld a, h
+    ld (autoev_script_ptr_h), a
+    ret
+
+autoev_parse_number:
+    ld de, 0
+autoev_parse_number_loop:
+    ld a, (hl)
+    cp #30
+    jp c, autoev_parse_number_done
+    cp #3A
+    jp nc, autoev_parse_number_done
+    sub #30
+    push hl
+    ld h, d
+    ld l, e
+    add hl, hl
+    ld b, h
+    ld c, l
+    add hl, hl
+    add hl, hl
+    add hl, bc
+    ld c, a
+    ld b, 0
+    add hl, bc
+    ld d, h
+    ld e, l
+    pop hl
+    inc hl
+    jp autoev_parse_number_loop
+autoev_parse_number_done:
+    ld a, e
+    ld (autoev_number_l), a
+    ld a, d
+    ld (autoev_number_h), a
+    ret
+
+autoev_number_to_frames:
+    ld a, (autoev_number_l)
+    ld e, a
+    ld a, (autoev_number_h)
+    ld d, a
+    ld b, 0
+autoev_number_to_frames_loop:
+    ld a, d
+    or e
+    jp z, autoev_number_to_frames_done
+    ld h, d
+    ld l, e
+    ld bc, 20
+    or a
+    sbc hl, bc
+    jp c, autoev_number_to_frames_done
+    ld d, h
+    ld e, l
+    inc b
+    jp nz, autoev_number_to_frames_loop
+    ld b, #FF
+autoev_number_to_frames_done:
+    ld a, b
+    or a
+    ret nz
+    ld a, 1
+    ret
+
+autoev_bind_current_screen:
+    ld a, (current_screen_id)
+    ld (autoev_screen_id), a
+    xor a
+    ld (autoev_active), a
+    ld (autoev_wait_frames), a
+    ld (autoev_move_axis), a
+    ld (autoev_move_step), a
+    ld (autoev_move_remaining), a
+    ld (autoev_loop_flag), a
+    ld (autoev_wait_mode), a
+    ld (autoev_script_ptr_l), a
+    ld (autoev_script_ptr_h), a
+    ld (autoev_script_start_l), a
+    ld (autoev_script_start_h), a
+    ld a, #FF
+    ld (autoev_entity_index), a
+
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+autoev_find_loop:
+    ld c, (hl)
+    inc hl
+    push hl
+    push bc
+
+    ld e, c
+    ld d, 0
+    ld hl, autoev_script_ptr_table
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, d
+    or e
+    jp z, autoev_find_next
+
+    ld a, c
+    ld (autoev_entity_index), a
+    ld a, e
+    ld (autoev_script_ptr_l), a
+    ld (autoev_script_start_l), a
+    ld a, d
+    ld (autoev_script_ptr_h), a
+    ld (autoev_script_start_h), a
+
+    ld e, c
+    ld d, 0
+    ld hl, autoev_loop_flag_table
+    add hl, de
+    ld a, (hl)
+    ld (autoev_loop_flag), a
+    ld a, 1
+    ld (autoev_active), a
+    pop bc
+    pop hl
+    ret
+
+autoev_find_next:
+    pop bc
+    pop hl
+    djnz autoev_find_loop
+    ret
+
+autoev_apply_move:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld a, (autoev_move_axis)
+    cp 1
+    jp z, autoev_apply_move_x
+    cp 2
+    jp z, autoev_apply_move_y
+    ret
+
+autoev_apply_move_x:
+    ld a, (autoev_move_step)
+    cp #FF
+    jp z, autoev_move_left_pixel
+    ld hl, entity_x_pos
+    add hl, de
+    inc (hl)
+    ld a, 2
+    jp autoev_store_facing_and_dec
+
+autoev_move_left_pixel:
+    ld hl, entity_x_pos
+    add hl, de
+    dec (hl)
+    ld a, 1
+    jp autoev_store_facing_and_dec
+
+autoev_apply_move_y:
+    ld a, (autoev_move_step)
+    cp #FF
+    jp z, autoev_move_up_pixel
+    ld hl, entity_y_pos
+    add hl, de
+    inc (hl)
+    ld a, 4
+    jp autoev_store_facing_and_dec
+
+autoev_move_up_pixel:
+    ld hl, entity_y_pos
+    add hl, de
+    dec (hl)
+    ld a, 3
+
+autoev_store_facing_and_dec:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    ld hl, autoev_move_remaining
+    dec (hl)
+    ret
+`;
+}
+
 function generateAutoControlScriptSystem(analysis: ProjectAnalysis): string {
     const scriptData = buildAutoControlScriptData(analysis);
     if (!scriptData.hasScripts) {
@@ -819,6 +1319,9 @@ init_auto_control_script_system:
     ret
 
 update_auto_control_script_component:
+    ret
+
+update_auto_event_string_component:
     ret
 `;
     }
@@ -860,6 +1363,19 @@ init_auto_control_script_system:
     ld (autocontrol_move_remaining), a
     ld (autocontrol_loop_flag), a
     ld (autocontrol_active), a
+    ld (autoev_script_ptr_l), a
+    ld (autoev_script_ptr_h), a
+    ld (autoev_script_start_l), a
+    ld (autoev_script_start_h), a
+    ld (autoev_wait_frames), a
+    ld (autoev_move_axis), a
+    ld (autoev_move_step), a
+    ld (autoev_move_remaining), a
+    ld (autoev_loop_flag), a
+    ld (autoev_active), a
+    ld (autoev_wait_mode), a
+    ld (autoev_number_l), a
+    ld (autoev_number_h), a
     ld (dialogue_active), a
     ld (dialogue_current_box), a
     ld (dialogue_text_active), a
@@ -874,6 +1390,8 @@ init_auto_control_script_system:
     ld a, #FF
     ld (autocontrol_screen_id), a
     ld (autocontrol_entity_index), a
+    ld (autoev_screen_id), a
+    ld (autoev_entity_index), a
     ret
 
 ${buildRegisterContractComment({
@@ -1157,6 +1675,7 @@ autocontrol_store_facing_and_dec:
     ret
 
 ${generateAutoControlDialogueSystem(scriptData.hasDialogue)}
+${generateAutoEventStringSystem(scriptData.hasEventScripts)}
 `;
 }
 
@@ -1298,6 +1817,7 @@ update_all_entities:
 `;
       if (usedComponents.has('AutoControlScript')) {
         code += `    call update_auto_control_script_component ; FakePlayer script\n`;
+        code += `    call update_auto_event_string_component ; compact FakePlayer event script\n`;
         fakeCallCount++;
       }
       fakeCallCount = appendSystemCalls(fakePlayerSystems);
