@@ -12520,10 +12520,10 @@ update_collision_component:
     `;
     }
 
-    // Generate get_behavior_tile (shared utility for Collision and WallCollision)
-    if (usedComponents.has('Collision') || usedComponents.has('WallCollision')) {
-        code += generateGetBehaviorTile(romMode);
-    }
+    // Generate get_behavior_tile for modern collision systems and legacy helpers.
+    // check_collision_at_point is emitted as a compatibility label even in FakePlayer-only
+    // builds, so this reader must exist without requiring a real Player collision component.
+    code += generateGetBehaviorTile(romMode);
 
     // Wall hitbox helpers are required by WallCollision itself and are also
     // reused by deadly-tile probes / late-frame tile interaction.

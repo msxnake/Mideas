@@ -22,7 +22,8 @@ export function validateExecutionPlan(
   );
   if (hasDeadlyTiles) {
     const componentUsage = analyzeComponentUsage(_analysis);
-    if (!componentUsage.usedComponents.has('Health')) {
+    const deadlyTilesAreActive = componentUsage.usedComponents.has('DeadlyTiles');
+    if (deadlyTilesAreActive && !componentUsage.usedComponents.has('Health')) {
       errors.push(
         'Tiles with "Deadly" (causesDamage) exist but no entity has the Health component. ' +
         'Add the Health component to the hero/player entity so deadly tiles can cause damage.'
