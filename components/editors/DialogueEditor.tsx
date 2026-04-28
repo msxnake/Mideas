@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { DialogueAsset, DialogueBoxCharCodes, DialogueLine, ProjectAsset, TileBank } from '../../types';
+import { DialogueAsset, DialogueBoxCharCodes, DialogueLine, PortraitAsset, ProjectAsset, TileBank } from '../../types';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
 import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
@@ -92,6 +92,10 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
   const data = ensureDialogue(dialogue);
   const fontAssets = useMemo(() => allAssets.filter(asset => asset.type === 'font'), [allAssets]);
   const tileAssets = useMemo(() => allAssets.filter(asset => asset.type === 'tile'), [allAssets]);
+  const portraitAssets = useMemo(
+    () => allAssets.filter(asset => asset.type === 'portrait' && asset.data) as Array<ProjectAsset & { data: PortraitAsset }>,
+    [allAssets]
+  );
   const availableTileBanks = useMemo(() => {
     const tileBankAssets = allAssets
       .filter(asset => asset.type === 'tilebank' && asset.data)
@@ -220,6 +224,39 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
     }
   };
 
+  const createAndAssignPortrait = () => {
+    const created = onCreateAsset?.('portrait', { select: false });
+    if (created?.id && created.data) {
+      const portrait = created.data as PortraitAsset;
+      updateGraphic({
+        enabled: true,
+        portraitAssetId: created.id,
+        tileBankAssetId: portrait.tileBankAssetId,
+        width: portrait.widthChars,
+        height: portrait.heightChars,
+        tileIds: portrait.cells || [],
+      });
+    }
+  };
+
+  const applyPortraitToGraphic = (
+    currentGraphic: NonNullable<DialogueAsset['box']['graphic']>,
+    portraitAssetId: string
+  ): Partial<NonNullable<DialogueAsset['box']['graphic']>> => {
+    const portrait = portraitAssets.find(asset => asset.id === portraitAssetId)?.data;
+    if (!portrait) {
+      return { portraitAssetId: undefined };
+    }
+    return {
+      enabled: true,
+      portraitAssetId,
+      tileBankAssetId: portrait.tileBankAssetId || currentGraphic.tileBankAssetId,
+      width: portrait.widthChars,
+      height: portrait.heightChars,
+      tileIds: Array.isArray(portrait.cells) ? portrait.cells : [],
+    };
+  };
+
   const updateBorderCharCode = (field: keyof DialogueBoxCharCodes, value: number) => {
     updateBox({
       borderCharCodes: {
@@ -260,6 +297,7 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
 
   const borderCodes = { ...DEFAULT_BORDER_CHAR_CODES, ...data.box.borderCharCodes };
   const graphic = { ...DEFAULT_TILE_GRAPHIC, ...(data.box.graphic || {}) };
+  const selectedGraphicPortrait = portraitAssets.find(asset => asset.id === graphic.portraitAssetId)?.data;
   const selectedBank = availableTileBanks.find(bank => bank.id === data.box.tileBankAssetId);
   const bankTileIds = selectedBank
     ? Array.from(new Set(selectedBank.banks.flatMap(bank => Object.keys(bank.assignedTiles || {}))))
@@ -373,9 +411,28 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                         ? Array.from(new Set(lineGraphicBank.banks.flatMap(bank => Object.keys(bank.assignedTiles || {}))))
                         : [];
                       const lineGraphicSelectableTiles = tileAssets.filter(asset => lineGraphicBankTileIds.length === 0 || lineGraphicBankTileIds.includes(asset.id));
+                      const selectedLineGraphicPortrait = portraitAssets.find(asset => asset.id === lineGraphic.portraitAssetId)?.data;
 
                       return (
                         <div className="space-y-2">
+                          <div>
+                            <label className={labelClassName}>Portrait Asset</label>
+                            <select
+                              className={compactInputClassName}
+                              value={lineGraphic.portraitAssetId || ''}
+                              onChange={event => {
+                                const portraitAssetId = event.target.value;
+                                updateLineGraphic(line.id, portraitAssetId
+                                  ? applyPortraitToGraphic(lineGraphic, portraitAssetId)
+                                  : { portraitAssetId: undefined });
+                              }}
+                            >
+                              <option value="">Manual tile grid</option>
+                              {portraitAssets.map(asset => (
+                                <option key={asset.id} value={asset.id}>{asset.name}</option>
+                              ))}
+                            </select>
+                          </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className={labelClassName}>Side</label>
@@ -407,6 +464,7 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                                 max={8}
                                 className={compactInputClassName}
                                 value={lineGraphic.width}
+                                disabled={Boolean(lineGraphic.portraitAssetId)}
                                 onChange={event => updateLineGraphicSize(line.id, Number(event.target.value), lineGraphic.height)}
                               />
                             </div>
@@ -418,6 +476,7 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                                 max={6}
                                 className={compactInputClassName}
                                 value={lineGraphic.height}
+                                disabled={Boolean(lineGraphic.portraitAssetId)}
                                 onChange={event => updateLineGraphicSize(line.id, lineGraphic.width, Number(event.target.value))}
                               />
                             </div>
@@ -435,25 +494,31 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                               ))}
                             </select>
                           </div>
-                          <div
-                            className="grid gap-1"
-                            style={{ gridTemplateColumns: `repeat(${Math.max(1, lineGraphic.width)}, minmax(0, 1fr))` }}
-                          >
-                            {Array.from({ length: Math.max(1, lineGraphic.width) * Math.max(1, lineGraphic.height) }).map((_, tileIndex) => (
-                              <select
-                                key={tileIndex}
-                                className={compactInputClassName}
-                                value={lineGraphic.tileIds?.[tileIndex] || ''}
-                                onChange={event => updateLineGraphicTile(line.id, tileIndex, event.target.value)}
-                                title={`Line ${index + 1} graphic tile ${tileIndex + 1}`}
-                              >
-                                <option value="">Empty</option>
-                                {lineGraphicSelectableTiles.map(asset => (
-                                  <option key={asset.id} value={asset.id}>{asset.name}</option>
-                                ))}
-                              </select>
-                            ))}
-                          </div>
+                          {lineGraphic.portraitAssetId ? (
+                            <p className="text-xs text-msx-textsecondary">
+                              Using portrait "{selectedLineGraphicPortrait?.name || 'missing'}" ({lineGraphic.width} x {lineGraphic.height} chars).
+                            </p>
+                          ) : (
+                            <div
+                              className="grid gap-1"
+                              style={{ gridTemplateColumns: `repeat(${Math.max(1, lineGraphic.width)}, minmax(0, 1fr))` }}
+                            >
+                              {Array.from({ length: Math.max(1, lineGraphic.width) * Math.max(1, lineGraphic.height) }).map((_, tileIndex) => (
+                                <select
+                                  key={tileIndex}
+                                  className={compactInputClassName}
+                                  value={lineGraphic.tileIds?.[tileIndex] || ''}
+                                  onChange={event => updateLineGraphicTile(line.id, tileIndex, event.target.value)}
+                                  title={`Line ${index + 1} graphic tile ${tileIndex + 1}`}
+                                >
+                                  <option value="">Empty</option>
+                                  {lineGraphicSelectableTiles.map(asset => (
+                                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                                  ))}
+                                </select>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
@@ -581,6 +646,34 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                   Enabled
                 </label>
               </div>
+              <div>
+                <label className={labelClassName}>Portrait Asset</label>
+                <select
+                  className={inputClassName}
+                  value={graphic.portraitAssetId || ''}
+                  onChange={event => {
+                    const portraitAssetId = event.target.value;
+                    updateGraphic(portraitAssetId
+                      ? applyPortraitToGraphic(graphic, portraitAssetId)
+                      : { portraitAssetId: undefined });
+                  }}
+                >
+                  <option value="">Manual tile grid</option>
+                  {portraitAssets.map(asset => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </select>
+                {portraitAssets.length === 0 && onCreateAsset && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="mt-2"
+                    onClick={createAndAssignPortrait}
+                  >
+                    Create and Use Portrait
+                  </Button>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className={labelClassName}>Side</label>
@@ -612,6 +705,7 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                     max={8}
                     className={compactInputClassName}
                     value={graphic.width}
+                    disabled={Boolean(graphic.portraitAssetId)}
                     onChange={event => updateGraphicSize(Number(event.target.value), graphic.height)}
                   />
                 </div>
@@ -623,6 +717,7 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                     max={6}
                     className={compactInputClassName}
                     value={graphic.height}
+                    disabled={Boolean(graphic.portraitAssetId)}
                     onChange={event => updateGraphicSize(graphic.width, Number(event.target.value))}
                   />
                 </div>
@@ -652,7 +747,11 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                 )}
               </div>
 
-              {graphic.enabled && (
+              {graphic.enabled && graphic.portraitAssetId ? (
+                <p className="text-xs text-msx-textsecondary">
+                  Using portrait "{selectedGraphicPortrait?.name || 'missing'}" ({graphic.width} x {graphic.height} chars).
+                </p>
+              ) : graphic.enabled && (
                 <div
                   className="grid gap-1"
                   style={{ gridTemplateColumns: `repeat(${Math.max(1, graphic.width)}, minmax(0, 1fr))` }}

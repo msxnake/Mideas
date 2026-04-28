@@ -1294,6 +1294,7 @@ export interface DialogueBoxCharCodes {
 export interface DialogueTileGraphicConfig {
   enabled: boolean;
   side: 'left' | 'right';
+  portraitAssetId?: string;
   tileBankAssetId?: string;
   tileIds: string[];
   width: number;
