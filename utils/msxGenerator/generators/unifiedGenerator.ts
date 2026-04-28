@@ -543,10 +543,17 @@ function estimateAsmBytesLocal(asm: string): number {
     return Math.max(dataBytes, Math.floor(textBytes * 0.28));
 }
 
-// Cyclic ORG/end addresses for code slots (P1, P2, P3 windows)
+// Cyclic ORG/end addresses for primary code slots (P1, P2, P3 windows)
 const CODE_SLOT_ORG  = [0x6000, 0x8000, 0xA000];
 const CODE_SLOT_END  = [0x8000, 0xA000, 0xC000];
 const CODE_SLOT_PAGE = [1, 2, 3]; // mapper window page index
+
+// Far code must not execute from P2 because runtime loaders use P2 as the
+// data window. If a far routine running at #8000 switches data banks, it hides
+// its own code and returns into garbage.
+const FAR_CODE_SLOT_ORG  = [0x6000, 0xA000];
+const FAR_CODE_SLOT_END  = [0x8000, 0xC000];
+const FAR_CODE_SLOT_PAGE = [1, 3];
 
 function packModulesFFD(modules: PackedBankModule[]): PackedBank[] {
     const banks: PackedBank[] = [];
@@ -573,15 +580,16 @@ function packModulesFFD(modules: PackedBankModule[]): PackedBank[] {
     for (const module of bankedModules) {
         const slotIndex = banks.length;
         const physicalBank = slotIndex + 1;
-        const cycleIdx = slotIndex % 3;
+        const farSlotIndex = slotIndex - RESIDENT_MODULE_WINDOW_ORDER.length;
+        const cycleIdx = farSlotIndex % FAR_CODE_SLOT_ORG.length;
         banks.push({
             physicalBank,
-            orgAddress: CODE_SLOT_ORG[cycleIdx],
-            endAddress: CODE_SLOT_END[cycleIdx],
+            orgAddress: FAR_CODE_SLOT_ORG[cycleIdx],
+            endAddress: FAR_CODE_SLOT_END[cycleIdx],
             modules: [module],
             usedBytes: module.estimatedBytes,
             isFar: true,
-            windowPage: CODE_SLOT_PAGE[cycleIdx],
+            windowPage: FAR_CODE_SLOT_PAGE[cycleIdx],
         });
     }
 
