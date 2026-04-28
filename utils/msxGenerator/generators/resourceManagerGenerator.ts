@@ -230,10 +230,17 @@ resource_copy_from_bank_to_ram:
     or a
     ret
 .resource_copy_ram_has_size:
-    di
     pop af
+    ex af, af'
+    ld a, i
+    push af
+    di
+    ex af, af'
 ${mapperPushSet}    ldir
-${mapperPop}    ei
+${mapperPop}    pop af
+    jp po, .resource_copy_ram_irq_done
+    ei
+.resource_copy_ram_irq_done:
     or a
     ret
 
@@ -258,10 +265,15 @@ resource_copy_from_bank_to_vram:
     or a
     ret
 .resource_copy_vram_has_size:
-    di
     pop af
+    ex af, af'
+    ld a, i
+    push af
+    di
+    ex af, af'
 ${mapperPushSet}    ; Banked VRAM copy keeps IRQs masked until P2 is restored.
     ; FAST_LDIRVM re-enables IRQs internally, so inline the same port loop here.
+    ; Restore IRQs only if they were enabled on entry.
     ld a, e
     out (#99), a
     nop
@@ -277,7 +289,10 @@ ${mapperPushSet}    ; Banked VRAM copy keeps IRQs masked until P2 is restored.
     ld a, b
     or c
     jr nz, .resource_copy_vram_loop
-${mapperPop}    ei
+${mapperPop}    pop af
+    jp po, .resource_copy_vram_irq_done
+    ei
+.resource_copy_vram_irq_done:
     or a
     ret
 

@@ -225,12 +225,16 @@ print_string_screen2:
     });
     indexAsm += `\nFONT_CHAR_COUNT EQU ${sortedCodes.length}\n`;
 
-    // Build FONT_PATTERN_DATA and FONT_COLOR_DATA blobs only when NOT in page0/bank4 mode
+    const inlineFontDataInCode = !fontInPage0 && (!fontInBank4 || romMode === 'megarom');
+
+    // Build FONT_PATTERN_DATA and FONT_COLOR_DATA blobs only when they are emitted in font.asm.
     // (in page0 mode these labels/bytes are emitted by page0Generator.ts)
-    // (in bank4 mode these labels/bytes are emitted in the org #C000 bank4 section)
+    // (in bank4 mode these labels/bytes are usually emitted in the org #C000 bank4 section;
+    //  MegaROM keeps a small duplicate in the font code bank so menu text can reload without
+    //  nested banked-resource VRAM copies while returning from presentation screens.)
     let patternAsm = '';
     let colorAsm = '';
-    if (!fontInPage0 && !fontInBank4) {
+    if (inlineFontDataInCode) {
         let patternAsmBlob = `FONT_PATTERN_DATA:\n`;
         let colorAsmBlob = `FONT_COLOR_DATA:\n`;
         sortedCodes.forEach((code, i) => {
@@ -246,11 +250,13 @@ print_string_screen2:
     }
 
     const usesMapper = usesMapperBanking(romMode);
-    const useResourceManager = romMode === 'megarom';
+    const useInlineFontCodeData = fontInBank4 && romMode === 'megarom';
+    const useResourceManager = romMode === 'megarom' && !useInlineFontCodeData;
     const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
-    const mapperPushPat = usesMapper ? buildMapperDataPushAsm('FONT_PATTERN_DATA_BANK', mapperWindow) : '';
-    const mapperPushCol = usesMapper ? buildMapperDataPushAsm('FONT_COLOR_DATA_BANK', mapperWindow) : '';
-    const mapperPop    = usesMapper ? buildMapperDataPopAsm(mapperWindow) : '';
+    const fontSourceIsBankedData = fontInBank4 && !useInlineFontCodeData;
+    const mapperPushPat = usesMapper && fontSourceIsBankedData ? buildMapperDataPushAsm('FONT_PATTERN_DATA_BANK', mapperWindow) : '';
+    const mapperPushCol = usesMapper && fontSourceIsBankedData ? buildMapperDataPushAsm('FONT_COLOR_DATA_BANK', mapperWindow) : '';
+    const mapperPop    = usesMapper && fontSourceIsBankedData ? buildMapperDataPopAsm(mapperWindow) : '';
     const bankedPatternAddress = buildMapperWindowedAddress('FONT_PATTERN_DATA', mapperWindow);
     const bankedColorAddress = buildMapperWindowedAddress('FONT_COLOR_DATA', mapperWindow);
     const fontPatternResourceId = buildResourceIdLabelFromAsmLabel('FONT_PATTERN_DATA');
@@ -267,6 +273,12 @@ FONT_COLOR_DATA_BANK   EQU ${buildMapperBankEqu('FONT_COLOR_DATA', mapperWindow)
 `;
 
     const patternSection = fontInPage0 ? '; [FONT_PATTERN_DATA blob emitted in page0.asm]\n'
+        : inlineFontDataInCode ? `; ==================================================================
+; FONT PATTERN DATA
+; ==================================================================
+
+${patternAsm}
+`
         : fontInBank4 ? '; [FONT_PATTERN_DATA blob emitted in bank4 section (org #C000)]\n'
         : `; ==================================================================
 ; FONT PATTERN DATA
@@ -276,6 +288,12 @@ ${patternAsm}
 `;
 
     const colorSection = fontInPage0 ? '; [FONT_COLOR_DATA blob emitted in page0.asm]\n'
+        : inlineFontDataInCode ? `; ==================================================================
+; FONT COLOR ATTRIBUTES
+; ==================================================================
+
+${colorAsm}
+`
         : fontInBank4 ? '; [FONT_COLOR_DATA blob emitted in bank4 section (org #C000)]\n'
         : `; ==================================================================
 ; FONT COLOR ATTRIBUTES
@@ -339,7 +357,7 @@ ${useResourceManager ? `    ld a, ${fontPatternResourceId}
     pop iy
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 ` : `${mapperPushPat}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
-    ld iy, ${fontInBank4 ? bankedPatternAddress : 'FONT_PATTERN_DATA'}      ; Pointer to pattern data (window addr for bank4)
+    ld iy, ${fontSourceIsBankedData ? bankedPatternAddress : 'FONT_PATTERN_DATA'}      ; Pointer to pattern data
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 `}
 
@@ -407,7 +425,7 @@ ${useResourceManager ? `    ld a, ${fontColorResourceId}
     pop iy
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 ` : `${mapperPushCol}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
-    ld iy, ${fontInBank4 ? bankedColorAddress : 'FONT_COLOR_DATA'}        ; Pointer to color data (window addr for bank4)
+    ld iy, ${fontSourceIsBankedData ? bankedColorAddress : 'FONT_COLOR_DATA'}        ; Pointer to color data
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 `}
 
@@ -494,6 +512,11 @@ init_font_system:
     ld a, 1
     ld (vram_cache_font_ready), a
     ret
+
+reload_font_system:
+    xor a
+    ld (vram_cache_font_ready), a
+    jp init_font_system
 
 ; ==================================================================
 ; END OF FONT DATA

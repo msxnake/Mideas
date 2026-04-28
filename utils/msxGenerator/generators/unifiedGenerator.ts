@@ -201,6 +201,9 @@ ${needsFont ? files['font.asm'] : `; [font.asm skipped - no text/menus]
 init_font_system:
     ret
 
+reload_font_system:
+    ret
+
 `}
 
 ${files['hud.asm']}
@@ -680,7 +683,7 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
             ];
         }
         case 'font':
-            return ['init_font_system'];
+            return ['init_font_system', 'reload_font_system'];
         case 'menus':
             return ['render_menu', 'init_menu_system'];
         case 'hud':
@@ -830,6 +833,7 @@ function rewriteResidentCallSites(files: GeneratedASMFiles): GeneratedASMFiles {
     const rewritten: GeneratedASMFiles = { ...files };
     const replacements: Array<[string, string]> = [
         ['check_world_screen_transition', 'call_check_world_screen_transition_resident'],
+        ['reload_font_system', 'call_reload_font_system_resident'],
         ['init_font_system', 'call_init_font_system_resident'],
         ['render_hud', 'call_render_hud_resident'],
         ['force_render_hud', 'call_force_render_hud_resident'],
@@ -877,6 +881,7 @@ function generateResidentCallWrappers(
 
     const checkWorldScreenTransitionCall = resolveResidentTarget('check_world_screen_transition', 'worlds');
     const initFontCall = resolveResidentTarget('init_font_system', 'font');
+    const reloadFontCall = resolveResidentTarget('reload_font_system', 'font');
     const renderHudCall = resolveResidentTarget('render_hud', 'hud');
     const forceRenderHudCall = resolveResidentTarget('force_render_hud', 'hud');
     const initSoundCall = resolveResidentTarget('init_sound_system', 'sound');
@@ -905,6 +910,9 @@ call_check_world_screen_transition_resident:
 
 call_init_font_system_resident:
     jp ${initFontCall}
+
+call_reload_font_system_resident:
+    jp ${reloadFontCall}
 
 call_render_hud_resident:
     jp ${renderHudCall}
@@ -1109,7 +1117,9 @@ function generateMegaromUnifiedFile(
     // Build bank4 section: sprite data + pattern data + color data + screen data + font data + presentation screen
     // assembled at org #C000. Labels accessed via P2 window using (label & #1FFF) | #8000.
     const presentationBank4Data = getPresentationScreenBank4Data(analysis);
-    const fontBank4Data = needsFont ? getFontBank4Data(analysis) : '';
+    // MegaROM font.asm keeps a small inline copy of font patterns/colors so
+    // menu/text reloads do not depend on a nested banked-resource copy.
+    const fontBank4Data = '';
     const spritesBank4Data = getSpritesBank4Data(analysis);
     const patternsBank4Data = analysis.tiles && analysis.tiles.length > 0 ? getPatternsBank4Data(analysis) : '';
     const colorsBank4Data = analysis.tiles && analysis.tiles.length > 0 ? getColorsBank4Data(analysis) : '';
@@ -1321,6 +1331,9 @@ load_game_screen:
     ret
 
 ${!needsFont ? `init_font_system:
+    ret
+
+reload_font_system:
     ret
 
 ` : ''}; --- End of Bank 0 — pad to 8KB boundary ---

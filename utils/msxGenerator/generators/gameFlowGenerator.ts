@@ -1749,7 +1749,7 @@ render_submenu_screen:
 .rss_read_count:
     ; Background loaders may overwrite character patterns/colors used for text.
     ; Restore font before printing title/options in submenu.
-    call init_font_system
+    call reload_font_system
 
     ld hl, (gameflow_submenu_data_ptr)
     ld bc, 14                     ; offset to option_count (+11-12 fn, +13 bank)
@@ -2330,7 +2330,7 @@ show_text_screen:
 .sts_render:
     ; Background loaders may overwrite character patterns/colors used for text.
     ; Restore font before rendering text lines.
-    call init_font_system
+    call reload_font_system
 
     ; Now render each text line
     pop hl                        ; (1) HL = pointer to numLines
