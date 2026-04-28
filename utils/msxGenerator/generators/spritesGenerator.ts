@@ -1286,7 +1286,17 @@ ${usesMapper && !useResourceManager ? `    call mapper_push_${mapperWindow.dataW
         const drawableLayerIndexes = analyzeDrawableLayerIndexes(sprite);
         for (let frameIndex = 0; frameIndex < usage.frameCount; frameIndex++) {
           const frameBaseSlot = basePatternSlot + (frameIndex * usage.layerCount);
-          if (useResourceManager && drawableLayerIndexes.length > 0) {
+          if (drawableLayerIndexes.length === 0 || firstDrawableLayerIndex < 0) {
+            code += `    ; Sprite Asset ${spriteIndex}: ${sprite.name} frame ${frameIndex} has no drawable layers - use placeholder
+${useResourceManager ? `    ld a, ${buildResourceIdLabelFromAsmLabel('SPRITE_PLACEHOLDER_PATTERN')}
+    ld de, SPRPAT + (${frameBaseSlot} * 32)
+    call resource_load_to_vram_by_id
+` : `${usesMapper ? `    ld a, SPRITE_PLACEHOLDER_PATTERN_BANK\n    call mapper_set_bank_${mapperWindow.dataWindowPage}\n` : ''}    ld hl, ${usesMapper ? buildMapperWindowedAddress('SPRITE_PLACEHOLDER_PATTERN', mapperWindow) : 'SPRITE_PLACEHOLDER_PATTERN'}
+    ld de, SPRPAT + (${frameBaseSlot} * 32)
+    ld bc, 32
+    call FAST_LDIRVM
+`}`;
+          } else if (useResourceManager) {
             code += `    ; Sprite Asset ${spriteIndex}: ${sprite.name} frame ${frameIndex} (${usage.layerCount} layers)\n`;
             drawableLayerIndexes.forEach((layerIndex, layerOffset) => {
               const frameLayerLabel = `${safeSpriteName}_F${frameIndex}_LAYER${layerIndex}`;
