@@ -92,8 +92,9 @@ ${romMode === 'megarom'
 `
     : '';
   const initialPageSetupAsm = romMode === 'megarom'
-    ? `    ; MegaROM cold boot: do not run the linear 32K SETPAGES32K slot remapper.
-    ; The mapper registers below define the visible 8KB banks explicitly.
+    ? `    ; MegaROM cold boot: page 2 (#8000-#BFFF) must be mapped to the
+    ; cartridge slot before writes to Konami registers at #8000/#A000 can work.
+    call SETPAGES32K
     jp restart_rom_continue`
     : `    ; Cold boot path: ensure cartridge page 2 (8000h-BFFFh) is mapped to the cartridge slot.
     ; Required for both simple32k and plain48k: the BIOS only maps page 1 when it finds "AB",
