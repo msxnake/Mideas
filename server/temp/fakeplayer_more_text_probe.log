@@ -1,0 +1,8 @@
+loading ROM
+probe fired
+RAM active=01 box=00 text_active=01 char_delay=00 reload=02 vram=188C row=1881 wait=02 ptr=4821
+NT02 2B 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2B
+NT03 7C 48 65 20 6C 6C 65 67 61 64 6F 20 61 6C 20 73 61 6E 74 75 61 72 69 6F 2E 20 20 20 20 20 20 7C
+NT04 7C 41 72 72 69 62 61 20 76 65 73 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 7C
+NT05 2B 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2D 2B
+screenshot ok C:/Users/salam/Documents/Programacion/Mideas/server/temp/fakeplayer_more_text_probe.png
