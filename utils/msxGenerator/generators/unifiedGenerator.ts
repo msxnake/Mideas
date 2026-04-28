@@ -655,7 +655,7 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
                 'load_colors_to_vram',
             ];
         case 'entities':
-            return ['init_entities'];
+            return ['init_entities', 'update_entities'];
         case 'worlds': {
             const worldMaps = (analysis as any).worldmaps || [];
             const pts: string[] = ['load_world_default', 'check_world_screen_transition'];
@@ -754,8 +754,11 @@ function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAna
         asm += `FAR_BANK_${bankNum} EQU ${bankNum}\n\n`;
 
         for (const mod of bank.modules) {
-            const eps = getKnownEntryPoints(mod.key, analysis);
             const content = mod.content || '';
+            const eps = [
+                ...getKnownEntryPoints(mod.key, analysis),
+                ...getDynamicFarEntryPoints(mod.key, content),
+            ];
             for (const ep of eps) {
                 // Only generate trampolines for labels actually defined in the module
                 const labelPattern = new RegExp(`^${ep}:`, 'm');
@@ -779,6 +782,9 @@ function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAna
                     asm += `    call mapper_set_bank_p${wp}\n`;
                     asm += `    pop af\n`;
                     asm += `    jp po, .${ep}_far_irq_done\n`;
+                    asm += `    ld a, (interrupt_in_progress)\n`;
+                    asm += `    or a\n`;
+                    asm += `    jr nz, .${ep}_far_irq_done\n`;
                     asm += `    ei\n`;
                     asm += `.${ep}_far_irq_done:\n`;
                     asm += `    ex af, af'\n`;
@@ -798,6 +804,9 @@ function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAna
                 asm += `    call mapper_set_bank_p${wp}\n`;
                 asm += `    pop af\n`;
                 asm += `    jp po, .${ep}_far_irq_done\n`;
+                asm += `    ld a, (interrupt_in_progress)\n`;
+                asm += `    or a\n`;
+                asm += `    jr nz, .${ep}_far_irq_done\n`;
                 asm += `    ei\n`;
                 asm += `.${ep}_far_irq_done:\n`;
                 asm += `    pop af\n`;
@@ -815,6 +824,25 @@ function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAna
  */
 function farCallLabel(ep: string, farModuleKeys: Set<string>, moduleKey: string): string {
     return farModuleKeys.has(moduleKey) ? `${ep}_far` : ep;
+}
+
+function getDynamicFarEntryPoints(moduleKey: string, content: string): string[] {
+    const labels = new Set<string>();
+    const patterns: RegExp[] = [];
+
+    if (moduleKey === 'patterns_code') {
+        patterns.push(/^((?:load_tilebank_[A-Za-z0-9_]+_patterns_to_vram)):/gm);
+    } else if (moduleKey === 'colors_code') {
+        patterns.push(/^((?:load_tilebank_[A-Za-z0-9_]+_colors_to_vram)):/gm);
+    }
+
+    for (const pattern of patterns) {
+        for (const match of content.matchAll(pattern)) {
+            labels.add(match[1]);
+        }
+    }
+
+    return [...labels];
 }
 
 function collectDefinedLabels(files: GeneratedASMFiles): Set<string> {
@@ -836,7 +864,33 @@ function replaceCallInstruction(asm: string, fromLabel: string, toLabel: string)
     return asm.replace(pattern, `call ${toLabel}`);
 }
 
-function rewriteResidentCallSites(files: GeneratedASMFiles): GeneratedASMFiles {
+function rewriteDynamicFarCallSites(files: GeneratedASMFiles, farModuleKeys: Set<string>): GeneratedASMFiles {
+    const rewritten: GeneratedASMFiles = { ...files };
+
+    if (farModuleKeys.has('patterns_code')) {
+        (Object.keys(rewritten) as Array<keyof GeneratedASMFiles>).forEach((fileKey) => {
+            if (fileKey === 'patterns.asm') return;
+            rewritten[fileKey] = rewritten[fileKey].replace(
+                /\bcall\s+(load_tilebank_[A-Za-z0-9_]+_patterns_to_vram)\b/g,
+                'call $1_far'
+            );
+        });
+    }
+
+    if (farModuleKeys.has('colors_code')) {
+        (Object.keys(rewritten) as Array<keyof GeneratedASMFiles>).forEach((fileKey) => {
+            if (fileKey === 'colors.asm') return;
+            rewritten[fileKey] = rewritten[fileKey].replace(
+                /\bcall\s+(load_tilebank_[A-Za-z0-9_]+_colors_to_vram)\b/g,
+                'call $1_far'
+            );
+        });
+    }
+
+    return rewritten;
+}
+
+function rewriteResidentCallSites(files: GeneratedASMFiles, farModuleKeys: Set<string>): GeneratedASMFiles {
     const rewritten: GeneratedASMFiles = { ...files };
     const replacements: Array<[string, string]> = [
         ['check_world_screen_transition', 'call_check_world_screen_transition_resident'],
@@ -865,6 +919,7 @@ function rewriteResidentCallSites(files: GeneratedASMFiles): GeneratedASMFiles {
         ['update_animated_tiles', 'call_update_animated_tiles_resident'],
         ['update_animated_tiles_vram', 'call_update_animated_tiles_vram_resident'],
         ['load_colors_to_vram', 'call_load_colors_to_vram_resident'],
+        ['update_entities', 'call_update_entities_resident'],
     ];
 
     (Object.keys(rewritten) as Array<keyof GeneratedASMFiles>).forEach((fileKey) => {
@@ -875,7 +930,7 @@ function rewriteResidentCallSites(files: GeneratedASMFiles): GeneratedASMFiles {
         rewritten[fileKey] = asm;
     });
 
-    return rewritten;
+    return rewriteDynamicFarCallSites(rewritten, farModuleKeys);
 }
 
 function generateResidentCallWrappers(
@@ -902,6 +957,7 @@ function generateResidentCallWrappers(
     const updateAnimatedTilesCall = resolveResidentTarget('update_animated_tiles', 'animtiles');
     const updateAnimatedTilesVramCall = resolveResidentTarget('update_animated_tiles_vram', 'animtiles');
     const loadColorsToVramCall = resolveResidentTarget('load_colors_to_vram', 'colors_code');
+    const updateEntitiesCall = resolveResidentTarget('update_entities', 'entities');
     const initSpritesCall = resolveResidentTarget('init_sprites', 'sprites');
     const loadSpritePatternsByPackCall = resolveResidentTarget('load_sprite_patterns_by_pack_id', 'sprites');
     const ensureSpritePatternsByPackCall = resolveResidentTarget('ensure_sprite_patterns_by_pack_id', 'sprites');
@@ -1064,6 +1120,9 @@ call_update_animated_tiles_vram_resident:
 call_load_colors_to_vram_resident:
     jp ${loadColorsToVramCall}
 
+call_update_entities_resident:
+    jp ${updateEntitiesCall}
+
 resident_noop:
     ret
 
@@ -1146,7 +1205,7 @@ function generateMegaromUnifiedFile(
     // Build set of module keys that ended up in far banks
     const farModuleKeySet = new Set<string>(farCodeBanks.flatMap(b => b.modules.map(m => m.key)));
 
-    const emittedFiles = rewriteResidentCallSites(files);
+    const emittedFiles = rewriteResidentCallSites(files, farModuleKeySet);
     const availableLabels = collectDefinedLabels(emittedFiles);
 
     // Generate far-call trampolines for bank 0

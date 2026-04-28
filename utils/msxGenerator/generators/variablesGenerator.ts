@@ -942,6 +942,9 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   code += `vblank_flag             EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Set to 1 on each VBlank (1 byte)\n`;
   currentAddress++;
 
+  code += `interrupt_in_progress   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 while the H.TIMI dispatcher is running\n`;
+  currentAddress++;
+
   code += `RAM_INTERRUPT_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; End of interrupt system\n`;
 
   code += `

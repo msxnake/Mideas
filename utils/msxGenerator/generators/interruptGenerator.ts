@@ -224,6 +224,9 @@ interrupt_dispatcher:
     push iy                     ; 15 cycles
     ; Total: 74 cycles fixed prologue overhead
 
+    ld a, 1
+    ld (interrupt_in_progress), a
+
     ; --- STEP 2: Check if system is enabled ---
     ld a, (interrupt_system_enabled)
     or a
@@ -280,6 +283,9 @@ interrupt_dispatcher:
     djnz .task_loop             ; Loop 8 times
 
 .exit:
+    xor a
+    ld (interrupt_in_progress), a
+
     ; --- STEP 5: Restore registers ---
     pop iy                      ; 14 cycles
     pop ix                      ; 14 cycles

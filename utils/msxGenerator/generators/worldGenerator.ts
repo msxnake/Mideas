@@ -726,6 +726,9 @@ load_world_${toRoutineLabel(worldId)}:
     call ensure_sprite_patterns_for_world_id
     ; Load start screen: ${startNode.name || 'unknown'} (${startScreenAssetId})
 ${startScreenCallCode}
+    ; Screen loaders mark the screen-engine path; WorldLink must run gameplay.
+    xor a
+    ld (current_screen_engine), a
 `;
     if (worldImportedHudFrameDrawRoutine) {
       code += `    ; Draw imported HUD frame once at world start
@@ -823,6 +826,9 @@ ${hasScreenTimer ? `    call ${resetScreenTimerCall}
       code += `; Transition: ${fromNode.name || 'screen'} -> ${toNode.name || 'screen'}
 transition_${toRoutineLabel(worldId)}_${connIndex}:
 ${transitionScreenCallCode}
+    ; Screen loaders mark the screen-engine path; WorldLink must run gameplay.
+    xor a
+    ld (current_screen_engine), a
     ld a, ${toScreenIndex}
     ld (current_screen_index), a
     ld a, ${toGlobalScreenId}
