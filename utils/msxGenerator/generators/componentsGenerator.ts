@@ -1465,10 +1465,13 @@ autoev_set_walk_sprite:
 autoev_apply_sprite_index:
     cp #FF
     ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld c, a
     ld hl, entity_sprite_asset_index
     add hl, de
     cp (hl)
-    ret z
+    jr z, autoev_refresh_sprite_layers
     ld (hl), a
     ld hl, entity_anim_frame
     add hl, de
@@ -1483,6 +1486,75 @@ autoev_apply_sprite_index:
     or ANIM_FLAG_FORCE_UPLOAD
     and #F7
     ld (hl), a
+autoev_refresh_sprite_layers:
+    push bc
+    ld h, 0
+    ld l, e
+    add hl, hl
+    ld de, entity_sprite_config
+    add hl, de
+    ld e, (hl)
+    pop bc
+    ld d, c
+    ld c, e
+    push bc
+    push de
+
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_color_mul_layers:
+    add hl, de
+    djnz autoev_color_mul_layers
+    ld de, SM_SpriteLayerColorTable
+    add hl, de
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_color_update_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_colors
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz autoev_color_update_loop
+
+    pop de
+    pop bc
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_y_offset_mul_layers:
+    add hl, de
+    djnz autoev_y_offset_mul_layers
+    ld de, SM_SpriteLayerYOffsetTable
+    add hl, de
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_y_offset_update_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_y_offsets
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz autoev_y_offset_update_loop
     ret
 `;
 }
