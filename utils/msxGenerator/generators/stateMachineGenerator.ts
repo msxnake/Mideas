@@ -3303,6 +3303,17 @@ SM_ApplySoundFrame:
 SM_PlaySoundAsset:
     ; Input: A = sound asset index (0..SM_SoundAssetCount-1)
     ; Destroys: AF, BC, DE, HL
+    ld b, a
+    ld a, (music_active)
+    or a
+    jr z, .play_music_inactive
+    xor a
+    ld (sm_sound_active), a
+    ld (sm_sound_frames_left), a
+    ret
+
+.play_music_inactive:
+    ld a, b
     cp SM_SoundAssetCount
     jr c, .play_valid_sound
     call SM_SilencePSG
@@ -3361,6 +3372,15 @@ SM_UpdateSound:
     ; Advances one frame of the active PLAY_SOUND asset.
     ; The current frame is emitted immediately on SM_PlaySoundAsset, so
     ; frames_left includes the frame already sounding.
+    ld a, (music_active)
+    or a
+    jr z, .update_music_inactive
+    xor a
+    ld (sm_sound_active), a
+    ld (sm_sound_frames_left), a
+    ret
+
+.update_music_inactive:
     ld a, (sm_sound_active)
     or a
     ret z
