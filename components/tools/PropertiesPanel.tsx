@@ -847,14 +847,22 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               const startsOnScreenLoad = getAutoControlValue('startsOnScreenLoad');
               const loop = getAutoControlValue('loop');
               const dialogueAssetId = String(getAutoControlValue('defaultDialogueAssetId') ?? '');
+              const scriptFormat = String(getAutoControlValue('scriptFormat') || 'commands');
+              const eventString = String(getAutoControlValue('eventString') ?? '');
               const commands = String(getAutoControlValue('commands') ?? '');
               const selectedDialogueAsset = assetsWithEntityTemplates.find(asset => asset.id === dialogueAssetId && asset.type === 'dialogue');
               const selectedDialogue = selectedDialogueAsset?.data as DialogueAsset | undefined;
-              const dialogueCommandsUsed = /\b(play_dialog|play_dialogue|open_dialog|open\s+(dialog|dialogue|frame_dialog|frame-dialog)|write_line|write\s+(text|line))\b/i.test(commands);
+              const compactDialogueCommandsUsed = /[ow]/.test(eventString);
+              const dialogueCommandsUsed = scriptFormat === 'eventString'
+                ? compactDialogueCommandsUsed
+                : /\b(play_dialog|play_dialogue|open_dialog|open\s+(dialog|dialogue|frame_dialog|frame-dialog)|write_line|write\s+(text|line))\b/i.test(commands);
               const hasDialogueText = selectedDialogue?.lines?.some(line => {
                 const text = `${line.speaker?.trim() ? `${line.speaker.trim()}: ` : ''}${line.text || ''}`.trim();
                 return text.length > 0;
               }) ?? false;
+              const appendCompactEvent = (eventToken: string) => {
+                handleComponentOverrideChange(componentDef.id, 'eventString', `${eventString}${eventToken}`, 'string');
+              };
               const appendAutoControlCommand = (commandLine: string) => {
                 const nextCommands = commands.trimEnd()
                   ? `${commands.trimEnd()}\n${commandLine}`
@@ -978,8 +986,40 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               if (dialogueCommandsUsed && dialogueAssetId && !selectedDialogueAsset) {
                 commandValidationIssues.unshift('Default Dialogue points to a missing Dialogue asset.');
               }
-              if (/\b(play_dialog|play_dialogue)\b/i.test(commands) && selectedDialogueAsset && !hasDialogueText) {
+              if (scriptFormat === 'eventString') {
+                const compactValidationIssues: string[] = [];
+                const compactPattern = /([xXyYdw])(\d+)|[ostkc]/g;
+                let cursor = 0;
+                let match: RegExpExecArray | null;
+                while ((match = compactPattern.exec(eventString)) !== null) {
+                  if (match.index !== cursor) {
+                    compactValidationIssues.push(`Unsupported token near "${eventString.slice(cursor, Math.min(eventString.length, cursor + 8))}".`);
+                    break;
+                  }
+                  cursor = match.index + match[0].length;
+                  if (match[1] === 'w') {
+                    const lineNumber = Number(match[2]);
+                    if (!Number.isFinite(lineNumber) || lineNumber < 1) {
+                      compactValidationIssues.push(`w${match[2] || ''} must reference a 1-based Dialogue line.`);
+                    } else if (selectedDialogue?.lines && lineNumber > selectedDialogue.lines.length) {
+                      compactValidationIssues.push(`w${lineNumber} is outside the selected Dialogue line range.`);
+                    } else if (selectedDialogue?.lines?.[lineNumber - 1]) {
+                      const targetLine = selectedDialogue.lines[lineNumber - 1];
+                      const targetText = `${targetLine.speaker?.trim() ? `${targetLine.speaker.trim()}: ` : ''}${targetLine.text || ''}`.trim();
+                      if (!targetText) compactValidationIssues.push(`w${lineNumber} targets an empty Dialogue line.`);
+                    }
+                  }
+                }
+                if (cursor < eventString.length) {
+                  compactValidationIssues.push(`Unsupported token near "${eventString.slice(cursor, Math.min(eventString.length, cursor + 8))}".`);
+                }
+                commandValidationIssues.unshift(...compactValidationIssues);
+              }
+              if (scriptFormat === 'commands' && /\b(play_dialog|play_dialogue)\b/i.test(commands) && selectedDialogueAsset && !hasDialogueText) {
                 commandValidationIssues.unshift('play_dialog uses a Dialogue asset with no text.');
+              }
+              if (scriptFormat === 'eventString' && compactDialogueCommandsUsed && selectedDialogueAsset && !hasDialogueText) {
+                commandValidationIssues.unshift('Compact script uses a Dialogue asset with no text.');
               }
 
               return (
@@ -1049,6 +1089,51 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
                     <div>
                       <label className="block text-[0.65rem] text-msx-textsecondary mb-0.5">
+                        Script format:
+                      </label>
+                      <select
+                        value={scriptFormat}
+                        onChange={e => handleComponentOverrideChange(componentDef.id, 'scriptFormat', e.target.value, 'string')}
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+                      >
+                        <option value="commands">Readable commands</option>
+                        <option value="eventString">Compact event string</option>
+                      </select>
+                    </div>
+
+                    {scriptFormat === 'eventString' && (
+                      <div>
+                        <label className="block text-[0.65rem] text-msx-textsecondary mb-0.5">
+                          Compact event string:
+                        </label>
+                        <input
+                          value={eventString}
+                          onChange={e => handleComponentOverrideChange(componentDef.id, 'eventString', e.target.value, 'string')}
+                          className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded font-mono"
+                          spellCheck={false}
+                        />
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {['x64', 'X64', 'd1000', 'o', 'w1', 's', 'w2', 't', 'k', 'c'].map(eventToken => (
+                            <Button
+                              key={eventToken}
+                              size="sm"
+                              variant="ghost"
+                              className="text-[0.65rem] px-1.5 py-0.5"
+                              onClick={() => appendCompactEvent(eventToken)}
+                            >
+                              {eventToken}
+                            </Button>
+                          ))}
+                        </div>
+                        <p className="text-[0.65rem] text-msx-textsecondary mt-1">
+                          Compact: x64 right, X64 left, y16 down, Y16 up, d1000 delay, o open, w1 write first line, s wait SPC, t wait text, k clean, c close.
+                        </p>
+                      </div>
+                    )}
+
+                    {scriptFormat === 'commands' && (
+                    <div>
+                      <label className="block text-[0.65rem] text-msx-textsecondary mb-0.5">
                         Commands:
                       </label>
                       <textarea
@@ -1107,6 +1192,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                         </div>
                       )}
                     </div>
+                    )}
                   </div>
                 </div>
               );
