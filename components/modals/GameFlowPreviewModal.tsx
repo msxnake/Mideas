@@ -190,6 +190,7 @@ interface AutoDialoguePreviewState {
     visibleChars: number;
     lastCharAt: number;
     charDelayMs: number;
+    dialogue?: DialogueAsset;
 }
 
 /** Animated tile group state for Z80-faithful tile animation in the simulator */
@@ -473,6 +474,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         visibleChars: 0,
         lastCharAt: 0,
         charDelayMs: 35,
+        dialogue: undefined,
     });
     const autoEventSpaceWasDownRef = useRef(false);
     // Secret passage tiles registry: tracks which background tiles have been revealed (made invisible)
@@ -675,11 +677,28 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const state = autoDialoguePreviewRef.current;
         if (!state.active) return;
 
-        const boxX = Math.max(8, Math.floor(PREVIEW_WIDTH * 0.08));
-        const boxW = Math.max(64, Math.floor(PREVIEW_WIDTH * 0.84));
-        const boxH = Math.max(32, Math.floor(PREVIEW_HEIGHT * 0.22));
-        const boxY = Math.max(8, PREVIEW_HEIGHT - boxH - 8);
+        const boxConfig = state.dialogue?.box;
+        const charW = PREVIEW_WIDTH / 32;
+        const charH = PREVIEW_HEIGHT / 24;
+        const boxX = boxConfig ? Math.floor(boxConfig.x * charW) : Math.max(8, Math.floor(PREVIEW_WIDTH * 0.08));
+        const boxY = boxConfig ? Math.floor(boxConfig.y * charH) : Math.max(8, PREVIEW_HEIGHT - Math.max(32, Math.floor(PREVIEW_HEIGHT * 0.22)) - 8);
+        const boxW = boxConfig ? Math.floor(boxConfig.width * charW) : Math.max(64, Math.floor(PREVIEW_WIDTH * 0.84));
+        const boxH = boxConfig ? Math.floor(boxConfig.height * charH) : Math.max(32, Math.floor(PREVIEW_HEIGHT * 0.22));
         const visibleText = state.text.slice(0, state.visibleChars);
+        const graphic = boxConfig?.graphic;
+        const graphicEnabled = Boolean(graphic?.enabled && graphic.width > 0 && graphic.height > 0);
+        const graphicWidth = graphicEnabled ? Math.max(1, Math.floor(graphic!.width)) : 0;
+        const graphicHeight = graphicEnabled ? Math.max(1, Math.floor(graphic!.height)) : 0;
+        const graphicPadding = graphicEnabled ? Math.max(0, Math.floor(graphic!.padding || 0)) : 0;
+        const graphicReservedW = graphicEnabled ? (graphicWidth + graphicPadding) * charW : 0;
+        const textX = boxX + charW + (graphicEnabled && graphic!.side !== 'right' ? graphicReservedW : 0);
+        const textY = boxY + charH;
+        const textW = Math.max(8, boxW - (2 * charW) - graphicReservedW);
+        const tileById = new Map<string, Tile>(
+            allAssets
+                .filter(asset => asset.type === 'tile' && asset.data)
+                .map(asset => [(asset.data as Tile).id, asset.data as Tile])
+        );
 
         ctx.save();
         ctx.fillStyle = '#000000';
@@ -691,7 +710,41 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         ctx.font = '8px monospace';
         ctx.textBaseline = 'top';
 
-        const maxChars = Math.max(8, Math.floor((boxW - 16) / 5));
+        if (graphicEnabled) {
+            const graphicX = graphic!.side === 'right'
+                ? boxX + boxW - charW - (graphicWidth * charW)
+                : boxX + charW;
+            const graphicY = boxY + charH;
+            const pixelW = Math.max(1, charW / 8);
+            const pixelH = Math.max(1, charH / 8);
+            for (let gy = 0; gy < graphicHeight; gy++) {
+                for (let gx = 0; gx < graphicWidth; gx++) {
+                    const tile = tileById.get(graphic!.tileIds?.[(gy * graphicWidth) + gx] || '');
+                    if (!tile?.data) {
+                        ctx.fillStyle = '#202020';
+                        ctx.fillRect(graphicX + gx * charW, graphicY + gy * charH, charW, charH);
+                        continue;
+                    }
+                    for (let py = 0; py < 8; py++) {
+                        for (let px = 0; px < 8; px++) {
+                            const color = tile.data[py]?.[px];
+                            if (!color) continue;
+                            ctx.fillStyle = color;
+                            ctx.fillRect(
+                                graphicX + gx * charW + px * pixelW,
+                                graphicY + gy * charH + py * pixelH,
+                                pixelW,
+                                pixelH
+                            );
+                        }
+                    }
+                }
+            }
+            ctx.fillStyle = '#FFFFFF';
+        }
+
+        const maxChars = Math.max(8, Math.floor(textW / 5));
+        const maxRows = Math.max(1, boxConfig ? boxConfig.height - 2 : 3);
         const words = visibleText.split(/\s+/).filter(Boolean);
         const lines: string[] = [];
         let line = '';
@@ -703,14 +756,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             } else {
                 line = next;
             }
-            if (lines.length >= 3) break;
+            if (lines.length >= maxRows) break;
         }
-        if (line && lines.length < 3) lines.push(line);
+        if (line && lines.length < maxRows) lines.push(line);
         lines.forEach((textLine, index) => {
-            ctx.fillText(textLine, boxX + 8, boxY + 8 + index * 10);
+            ctx.fillText(textLine, textX, textY + index * 10);
         });
         ctx.restore();
-    }, [PREVIEW_HEIGHT, PREVIEW_WIDTH]);
+    }, [PREVIEW_HEIGHT, PREVIEW_WIDTH, allAssets]);
     const buildFramesForSprite = (spriteData: Sprite) => {
         const frames = spriteData.frames.map(frame => {
             const img = new Image();
@@ -842,6 +895,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 dialogueState.text = '';
                 dialogueState.visibleChars = 0;
                 dialogueState.lastCharAt = nowMs;
+                dialogueState.dialogue = runtime.dialogue;
                 continue;
             }
             if (token.type === 'writeLine') {
@@ -854,6 +908,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 dialogueState.text = text;
                 dialogueState.visibleChars = 0;
                 dialogueState.lastCharAt = nowMs;
+                dialogueState.dialogue = runtime.dialogue;
                 runtime.waitingForText = true;
                 return;
             }
@@ -887,6 +942,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 dialogueState.active = false;
                 dialogueState.text = '';
                 dialogueState.visibleChars = 0;
+                dialogueState.dialogue = undefined;
                 continue;
             }
         }
@@ -3735,14 +3791,14 @@ useEffect(() => {
     if (!isOpen) {
         heroRef.current = null;
         nucleoPositionsRef.current = [];
-        autoDialoguePreviewRef.current = { active: false, text: '', visibleChars: 0, lastCharAt: 0, charDelayMs: 35 };
+        autoDialoguePreviewRef.current = { active: false, text: '', visibleChars: 0, lastCharAt: 0, charDelayMs: 35, dialogue: undefined };
         autoEventSpaceWasDownRef.current = false;
         return;
     }
     if (!currentScreenMap) {
         entitiesRef.current = [];
         nucleoPositionsRef.current = [];
-        autoDialoguePreviewRef.current = { active: false, text: '', visibleChars: 0, lastCharAt: 0, charDelayMs: 35 };
+        autoDialoguePreviewRef.current = { active: false, text: '', visibleChars: 0, lastCharAt: 0, charDelayMs: 35, dialogue: undefined };
         autoEventSpaceWasDownRef.current = false;
         return;
     };
