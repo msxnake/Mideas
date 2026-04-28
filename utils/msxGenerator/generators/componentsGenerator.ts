@@ -257,6 +257,7 @@ function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBui
     const ptrTable = (label: string, entries: string[]) => `${label}:\n${ensureEntries(entries, '0').map(entry => `    DW ${entry}`).join('\n')}\n`;
     const byteTable = (label: string, entries: number[], fallback = 0) => `${label}:\n    DB ${ensureEntries(entries, fallback).map(value => String(value & 0xff)).join(',')}\n`;
 
+    dataAsm += `dialogue_box_count:\n    DB ${Math.max(0, dialogues.length)}\n`;
     dataAsm += ptrTable('dialogue_box_vram_table', boxVramEntries);
     dataAsm += ptrTable('dialogue_text_vram_table', textVramEntries);
     dataAsm += byteTable('dialogue_box_width_table', widthEntries, 32);
@@ -716,6 +717,16 @@ dialogue_close_box:
     ret
 
 dialogue_load_box_config:
+    ld c, a
+    ld a, (dialogue_box_count)
+    or a
+    ret z
+    ld b, a
+    ld a, c
+    cp b
+    jp c, dialogue_load_box_config_index_ok
+    xor a
+dialogue_load_box_config_index_ok:
     ld (dialogue_current_box), a
     ld c, a
     ld b, 0
@@ -799,6 +810,8 @@ dialogue_draw_top_loop:
     ld c, a
 dialogue_draw_middle_row:
     add hl, de
+dialogue_draw_middle_row_at_hl:
+    push hl
     ld a, (dialogue_box_v_char)
     call FAST_WRTVRM
     inc hl
@@ -812,6 +825,7 @@ dialogue_draw_middle_spaces:
     djnz dialogue_draw_middle_spaces
     ld a, (dialogue_box_v_char)
     call FAST_WRTVRM
+    pop hl
     dec c
     jp nz, dialogue_draw_middle_row
 
