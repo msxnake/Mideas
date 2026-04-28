@@ -675,6 +675,8 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
                 return `load_screen_${screenName}${screenIdSuffix.toLowerCase()}`;
                 }),
                 'show_presentation_screen',
+                'set_screen_colors',
+                'init_char0_color',
             ];
         }
         case 'font':
@@ -690,7 +692,15 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
         case 'gameflow':
             return ['game_loop', 'gameflow_update'];
         case 'sprites':
-            return ['update_sprites_to_vram', 'clear_all_sprites'];
+            return [
+                'init_sprites',
+                'update_sprites_to_vram',
+                'clear_all_sprites',
+                'hide_sprite',
+                'load_sprite_patterns_by_pack_id',
+                'ensure_sprite_patterns_by_pack_id',
+                'ensure_sprite_patterns_for_world_id',
+            ];
         case 'animtiles':
             return ['init_animated_tiles', 'update_animated_tiles', 'update_animated_tiles_vram'];
         default:
@@ -708,6 +718,15 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
  */
 function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAnalysis): string {
     if (farBanks.length === 0) return '';
+
+    const preserveAEntryPoints = new Set([
+        'hide_sprite',
+        'load_sprite_patterns_by_pack_id',
+        'ensure_sprite_patterns_by_pack_id',
+        'ensure_sprite_patterns_for_world_id',
+        'set_screen_colors',
+        'init_char0_color',
+    ]);
 
     let asm = `; ==================================================================
 ; FAR-CALL TRAMPOLINES — bank 0 (always accessible at #4000-#5FFF)
@@ -734,7 +753,32 @@ function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAna
                     continue; // Skip — label not defined in this module
                 }
                 asm += `${ep}_far:\n`;
+                if (preserveAEntryPoints.has(ep)) {
+                    asm += `    ex af, af'\n`;
+                    asm += `    ld a, i\n`;
+                    asm += `    push af\n`;
+                    asm += `    di\n`;
+                    asm += `    ld a, (mapper_bank_p${wp}_current)\n`;
+                    asm += `    push af\n`;
+                    asm += `    ld a, FAR_BANK_${bankNum}\n`;
+                    asm += `    call mapper_set_bank_p${wp}\n`;
+                    asm += `    ex af, af'\n`;
+                    asm += `    call ${ep}\n`;
+                    asm += `    ex af, af'\n`;
+                    asm += `    pop af\n`;
+                    asm += `    call mapper_set_bank_p${wp}\n`;
+                    asm += `    pop af\n`;
+                    asm += `    jp po, .${ep}_far_irq_done\n`;
+                    asm += `    ei\n`;
+                    asm += `.${ep}_far_irq_done:\n`;
+                    asm += `    ex af, af'\n`;
+                    asm += `    ret\n\n`;
+                    continue;
+                }
                 asm += `    push af\n`;
+                asm += `    ld a, i\n`;
+                asm += `    push af\n`;
+                asm += `    di\n`;
                 asm += `    ld a, (mapper_bank_p${wp}_current)\n`;
                 asm += `    push af\n`;
                 asm += `    ld a, FAR_BANK_${bankNum}\n`;
@@ -742,6 +786,10 @@ function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAna
                 asm += `    call ${ep}\n`;
                 asm += `    pop af\n`;
                 asm += `    call mapper_set_bank_p${wp}\n`;
+                asm += `    pop af\n`;
+                asm += `    jp po, .${ep}_far_irq_done\n`;
+                asm += `    ei\n`;
+                asm += `.${ep}_far_irq_done:\n`;
                 asm += `    pop af\n`;
                 asm += `    ret\n\n`;
             }
@@ -791,8 +839,16 @@ function rewriteResidentCallSites(files: GeneratedASMFiles): GeneratedASMFiles {
         ['sfx_update', 'call_sfx_update_resident'],
         ['music_play_track', 'call_music_play_track_resident'],
         ['music_execute_command', 'call_music_execute_command_resident'],
+        ['init_sprites', 'call_init_sprites_resident'],
+        ['show_sprite', 'call_show_sprite_resident'],
+        ['load_sprite_patterns_by_pack_id', 'call_load_sprite_patterns_by_pack_id_resident'],
+        ['ensure_sprite_patterns_by_pack_id', 'call_ensure_sprite_patterns_by_pack_id_resident'],
+        ['ensure_sprite_patterns_for_world_id', 'call_ensure_sprite_patterns_for_world_id_resident'],
+        ['set_screen_colors', 'call_set_screen_colors_resident'],
+        ['init_char0_color', 'call_init_char0_color_resident'],
         ['update_sprites_to_vram', 'call_update_sprites_to_vram_resident'],
         ['clear_all_sprites', 'call_clear_all_sprites_resident'],
+        ['hide_sprite', 'call_hide_sprite_resident'],
         ['init_animated_tiles', 'call_init_animated_tiles_resident'],
         ['update_animated_tiles', 'call_update_animated_tiles_resident'],
         ['update_animated_tiles_vram', 'call_update_animated_tiles_vram_resident'],
@@ -828,12 +884,16 @@ function generateResidentCallWrappers(
     const sfxUpdateCall = resolveResidentTarget('sfx_update', 'sound');
     const musicPlayTrackCall = resolveResidentTarget('music_play_track', 'sound');
     const musicExecuteCommandCall = resolveResidentTarget('music_execute_command', 'sound');
-    const updateSpritesCall = resolveResidentTarget('update_sprites_to_vram', 'sprites');
-    const clearAllSpritesCall = resolveResidentTarget('clear_all_sprites', 'sprites');
     const initAnimatedTilesCall = resolveResidentTarget('init_animated_tiles', 'animtiles');
     const updateAnimatedTilesCall = resolveResidentTarget('update_animated_tiles', 'animtiles');
     const updateAnimatedTilesVramCall = resolveResidentTarget('update_animated_tiles_vram', 'animtiles');
     const loadColorsToVramCall = resolveResidentTarget('load_colors_to_vram', 'colors_code');
+    const initSpritesCall = resolveResidentTarget('init_sprites', 'sprites');
+    const loadSpritePatternsByPackCall = resolveResidentTarget('load_sprite_patterns_by_pack_id', 'sprites');
+    const ensureSpritePatternsByPackCall = resolveResidentTarget('ensure_sprite_patterns_by_pack_id', 'sprites');
+    const ensureSpritePatternsForWorldCall = resolveResidentTarget('ensure_sprite_patterns_for_world_id', 'sprites');
+    const setScreenColorsCall = resolveResidentTarget('set_screen_colors', 'screens_code');
+    const initChar0ColorCall = resolveResidentTarget('init_char0_color', 'screens_code');
 
     return `; ==================================================================
 ; RESIDENT CALL WRAPPERS — bank 0 stable entrypoints
@@ -884,11 +944,93 @@ call_music_play_track_resident:
 call_music_execute_command_resident:
     jp ${musicExecuteCommandCall}
 
+call_init_sprites_resident:
+    jp ${initSpritesCall}
+
+call_load_sprite_patterns_by_pack_id_resident:
+    jp ${loadSpritePatternsByPackCall}
+
+call_ensure_sprite_patterns_by_pack_id_resident:
+    jp ${ensureSpritePatternsByPackCall}
+
+call_ensure_sprite_patterns_for_world_id_resident:
+    jp ${ensureSpritePatternsForWorldCall}
+
+call_set_screen_colors_resident:
+    jp ${setScreenColorsCall}
+
+call_init_char0_color_resident:
+    jp ${initChar0ColorCall}
+
+call_show_sprite_resident:
+    cp 32
+    ret nc
+    push af
+    ld a, c
+    cp 208
+    jr c, .cssr_y_ok
+    ld c, SPRITE_INVISIBLE
+.cssr_y_ok:
+    pop af
+    push de
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    ld de, sprite_attributes
+    add hl, de
+    pop de
+    ld (hl), c
+    inc hl
+    ld (hl), b
+    inc hl
+    ld (hl), d
+    inc hl
+    ld (hl), e
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
+
 call_update_sprites_to_vram_resident:
-    jp ${updateSpritesCall}
+    ld a, (sprites_dirty)
+    or a
+    ret z
+    xor a
+    ld (sprites_dirty), a
+    ld hl, sprite_attributes
+    ld de, SPRATR
+    ld bc, 44
+    call FAST_LDIRVM
+    ret
 
 call_clear_all_sprites_resident:
-    jp ${clearAllSpritesCall}
+    ld hl, sprite_attributes
+    ld b, 32
+    ld a, 224
+.casr_loop:
+    ld (hl), a
+    inc hl
+    inc hl
+    inc hl
+    inc hl
+    djnz .casr_loop
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
+
+call_hide_sprite_resident:
+    cp 32
+    ret nc
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    ld de, sprite_attributes
+    add hl, de
+    ld (hl), 224
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
 
 call_init_animated_tiles_resident:
     jp ${initAnimatedTilesCall}
