@@ -30,8 +30,8 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 90325
-; Estimated banks used: 12
+; Estimated payload bytes: 89204
+; Estimated banks used: 11
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : page0.asm (96 bytes)
 ; BANK 00 @#0060 : patterns.asm (2214 bytes)
@@ -43,23 +43,22 @@
 ; BANK 01 @#0EEB : screens.asm part 1/3 (4373 bytes)
 ; BANK 02 @#0000 : screens.asm part 2/3 (8192 bytes)
 ; BANK 03 @#0000 : screens.asm part 3/3 (4471 bytes)
-; BANK 03 @#1177 : sprites.asm part 1/2 (3721 bytes)
-; BANK 04 @#0000 : sprites.asm part 2/2 (4599 bytes)
-; BANK 04 @#11F7 : font.asm (3456 bytes)
-; BANK 04 @#1F77 : hud.asm (137 bytes)
-; BANK 05 @#0000 : hud.asm (3810 bytes)
-; BANK 05 @#0EE2 : menus.asm (168 bytes)
-; BANK 05 @#0F8A : sound.asm part 1/2 (4214 bytes)
-; BANK 06 @#0000 : sound.asm part 2/2 (5334 bytes)
-; BANK 06 @#14D6 : scroll.asm (2353 bytes)
-; BANK 06 @#1E07 : animtiles.asm (505 bytes)
-; BANK 07 @#0000 : animtiles.asm (4888 bytes)
-; BANK 07 @#1318 : statemachine.asm part 1/3 (3304 bytes)
+; BANK 03 @#1177 : sprites.asm (3721 bytes)
+; BANK 04 @#0000 : sprites.asm (4456 bytes)
+; BANK 04 @#1168 : font.asm (3456 bytes)
+; BANK 04 @#1EE8 : hud.asm (280 bytes)
+; BANK 05 @#0000 : hud.asm (3667 bytes)
+; BANK 05 @#0E53 : menus.asm (168 bytes)
+; BANK 05 @#0EFB : sound.asm part 1/2 (4357 bytes)
+; BANK 06 @#0000 : sound.asm part 2/2 (5191 bytes)
+; BANK 06 @#1447 : scroll.asm (2353 bytes)
+; BANK 06 @#1D78 : animtiles.asm (648 bytes)
+; BANK 07 @#0000 : animtiles.asm (4745 bytes)
+; BANK 07 @#1289 : statemachine.asm part 1/3 (3447 bytes)
 ; BANK 08 @#0000 : statemachine.asm part 2/3 (8192 bytes)
 ; BANK 09 @#0000 : statemachine.asm part 3/3 (8192 bytes)
-; BANK 10 @#0000 : statemachine.asm part 4/3 (1221 bytes)
-; BANK 10 @#04C5 : gameflow.asm (6971 bytes)
-; BANK 11 @#0000 : gameflow.asm (213 bytes)
+; BANK 10 @#0000 : statemachine.asm part 4/3 (100 bytes)
+; BANK 10 @#0064 : gameflow.asm (7184 bytes)
 
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
@@ -5346,15 +5345,1133 @@ update_carry_component:
     inc c
     jr .carry_loop
     
-    ; AutoControlScript system filtered out(no active scripts)
+; ==================================================================
+; AUTOCONTROL SCRIPT SYSTEM - FakePlayer engine
+; ==================================================================
+AUTO_CMD_END        EQU 0
+AUTO_CMD_MOVE_RIGHT EQU 1
+AUTO_CMD_MOVE_LEFT  EQU 2
+AUTO_CMD_MOVE_UP    EQU 3
+AUTO_CMD_MOVE_DOWN  EQU 4
+AUTO_CMD_DELAY      EQU 5
+AUTO_CMD_WAIT_SPC   EQU 6
+AUTO_CMD_NOP        EQU 7
+AUTO_CMD_OPEN_DIALOG EQU 8
+AUTO_CMD_WRITE_LINE  EQU 9
+AUTO_CMD_CLEAR_DIALOG EQU 10
+AUTO_CMD_CLOSE_DIALOG EQU 11
+AUTO_CMD_WAIT_TEXT EQU 12
+
+dialogue_box_count:
+    DB 0
+dialogue_box_vram_table:
+    DW 0
+dialogue_text_vram_table:
+    DW 0
+dialogue_box_width_table:
+    DB 32
+dialogue_box_height_table:
+    DB 4
+dialogue_box_delay_table:
+    DB 2
+dialogue_box_tl_table:
+    DB 43
+dialogue_box_tr_table:
+    DB 43
+dialogue_box_bl_table:
+    DB 43
+dialogue_box_br_table:
+    DB 43
+dialogue_box_h_table:
+    DB 45
+dialogue_box_v_table:
+    DB 124
+dialogue_graphic_enabled_table:
+    DB 0
+dialogue_graphic_vram_table:
+    DW 0
+dialogue_graphic_width_table:
+    DB 0
+dialogue_graphic_height_table:
+    DB 0
+dialogue_graphic_tile_ptr_table:
+    DW 0
+dialogue_line_text_vram_table:
+    DW 0
+dialogue_line_graphic_enabled_table:
+    DB 0
+dialogue_line_graphic_vram_table:
+    DW 0
+dialogue_line_graphic_width_table:
+    DB 0
+dialogue_line_graphic_height_table:
+    DB 0
+dialogue_line_graphic_tile_ptr_table:
+    DW 0
+dialogue_line_ptr_table:
+    DW 0
+dialogue_line_delay_table:
+    DB 2
+autoev_script_1:
+    DB #78,#36,#34,#64,#31,#30,#30,#30,#6F,#77,#30,#73,#63,#00
+autocontrol_script_ptr_table:
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+autocontrol_loop_flag_table:
+    DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+autoev_script_ptr_table:
+    DW 0
+    DW autoev_script_1
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+autoev_loop_flag_table:
+    DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+autoev_idle_sprite_table:
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+autoev_walk_sprite_table:
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+
+; Register Contract:
+;   Purpose: Reset FakePlayer script runtime state.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - autocontrol runtime variables reset
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+
 init_auto_control_script_system:
+    xor a
+    ld (autocontrol_script_ptr_l), a
+    ld (autocontrol_script_ptr_h), a
+    ld (autocontrol_script_start_l), a
+    ld (autocontrol_script_start_h), a
+    ld (autocontrol_wait_frames), a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ld (autocontrol_loop_flag), a
+    ld (autocontrol_active), a
+    ld (autoev_script_ptr_l), a
+    ld (autoev_script_ptr_h), a
+    ld (autoev_script_start_l), a
+    ld (autoev_script_start_h), a
+    ld (autoev_wait_frames), a
+    ld (autoev_move_axis), a
+    ld (autoev_move_step), a
+    ld (autoev_move_remaining), a
+    ld (autoev_loop_flag), a
+    ld (autoev_active), a
+    ld (autoev_wait_mode), a
+    ld (autoev_number_l), a
+    ld (autoev_number_h), a
+    ld (dialogue_active), a
+    ld (dialogue_current_box), a
+    ld (dialogue_text_active), a
+    ld (dialogue_text_ptr_l), a
+    ld (dialogue_text_ptr_h), a
+    ld (dialogue_vram_ptr_l), a
+    ld (dialogue_vram_ptr_h), a
+    ld (dialogue_row_start_l), a
+    ld (dialogue_row_start_h), a
+    ld (dialogue_char_delay), a
+    ld (dialogue_char_delay_reload), a
+    ld a, #FF
+    ld (autocontrol_screen_id), a
+    ld (autocontrol_entity_index), a
+    ld (autoev_screen_id), a
+    ld (autoev_entity_index), a
     ret
+
+; Register Contract:
+;   Purpose: Execute one frame of the current screen FakePlayer script.
+;   Inputs:
+;     - current_screen_engine, current_screen_id, active_entity_list/current count, input_btn_curr
+;   Outputs:
+;     - FakePlayer entity position/facing and autocontrol runtime state updated
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
 
 update_auto_control_script_component:
+    ld a, (current_screen_engine)
+    cp 1
+    ret nz
+
+    ld a, (current_screen_id)
+    ld b, a
+    ld a, (autocontrol_screen_id)
+    cp b
+    call nz, autocontrol_bind_current_screen
+
+    ld a, (autocontrol_active)
+    or a
+    ret z
+
+    call dialogue_update_typewriter
+
+    ld a, (autocontrol_move_opcode)
+    cp AUTO_CMD_WAIT_SPC
+    jp z, autocontrol_wait_spc
+    cp AUTO_CMD_WAIT_TEXT
+    jp z, autocontrol_wait_text
+
+    ld a, (autocontrol_wait_frames)
+    or a
+    jp z, autocontrol_check_move
+    dec a
+    ld (autocontrol_wait_frames), a
     ret
 
-update_auto_event_string_component:
+autocontrol_check_move:
+    ld a, (autocontrol_move_remaining)
+    or a
+    jp z, autocontrol_read_command
+    call autocontrol_apply_move
     ret
+
+autocontrol_wait_spc:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    ld a, (input_btn_curr)
+    and #01
+    ret z
+    xor a
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_wait_text:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    xor a
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_read_command:
+    ld a, (autocontrol_script_ptr_l)
+    ld l, a
+    ld a, (autocontrol_script_ptr_h)
+    ld h, a
+    ld a, h
+    or l
+    ret z
+
+    ld a, (hl)
+    inc hl
+    ld b, (hl)
+    inc hl
+    push af
+    ld a, l
+    ld (autocontrol_script_ptr_l), a
+    ld a, h
+    ld (autocontrol_script_ptr_h), a
+    pop af
+
+    cp AUTO_CMD_END
+    jp z, autocontrol_command_end
+    cp AUTO_CMD_DELAY
+    jp z, autocontrol_command_delay
+    cp AUTO_CMD_WAIT_SPC
+    jp z, autocontrol_command_wait_spc
+    cp AUTO_CMD_WAIT_TEXT
+    jp z, autocontrol_command_wait_text
+    cp AUTO_CMD_OPEN_DIALOG
+    jp z, autocontrol_command_open_dialog
+    cp AUTO_CMD_WRITE_LINE
+    jp z, autocontrol_command_write_line
+    cp AUTO_CMD_CLEAR_DIALOG
+    jp z, autocontrol_command_clear_dialog
+    cp AUTO_CMD_CLOSE_DIALOG
+    jp z, autocontrol_command_close_dialog
+    cp AUTO_CMD_NOP
+    ret z
+
+    ld (autocontrol_move_opcode), a
+    ld a, b
+    ld (autocontrol_move_remaining), a
+    call autocontrol_apply_move
+    ret
+
+autocontrol_command_delay:
+    ld a, b
+    ld (autocontrol_wait_frames), a
+    ret
+
+autocontrol_command_wait_spc:
+    ld a, AUTO_CMD_WAIT_SPC
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_command_wait_text:
+    ld a, AUTO_CMD_WAIT_TEXT
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_command_open_dialog:
+    ld a, b
+    call dialogue_open_box
+    ret
+
+autocontrol_command_write_line:
+    ld a, b
+    call dialogue_start_line
+    ret
+
+autocontrol_command_clear_dialog:
+    call dialogue_clear_box
+    ret
+
+autocontrol_command_close_dialog:
+    call dialogue_close_box
+    ret
+
+autocontrol_command_end:
+    ld a, (autocontrol_loop_flag)
+    or a
+    jp nz, autocontrol_restart_script
+    xor a
+    ld (autocontrol_active), a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ret
+
+autocontrol_restart_script:
+    ld a, (autocontrol_script_start_l)
+    ld (autocontrol_script_ptr_l), a
+    ld a, (autocontrol_script_start_h)
+    ld (autocontrol_script_ptr_h), a
+    xor a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ret
+
+autocontrol_bind_current_screen:
+    ld a, (current_screen_id)
+    ld (autocontrol_screen_id), a
+    xor a
+    ld (autocontrol_active), a
+    ld (autocontrol_wait_frames), a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ld (autocontrol_loop_flag), a
+    ld (autocontrol_script_ptr_l), a
+    ld (autocontrol_script_ptr_h), a
+    ld (autocontrol_script_start_l), a
+    ld (autocontrol_script_start_h), a
+    ld a, #FF
+    ld (autocontrol_entity_index), a
+
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+autocontrol_find_loop:
+    ld c, (hl)
+    inc hl
+    push hl
+    push bc
+
+    ld e, c
+    ld d, 0
+    ld hl, autocontrol_script_ptr_table
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, d
+    or e
+    jp z, autocontrol_find_next
+
+    ld a, c
+    ld (autocontrol_entity_index), a
+    ld a, e
+    ld (autocontrol_script_ptr_l), a
+    ld (autocontrol_script_start_l), a
+    ld a, d
+    ld (autocontrol_script_ptr_h), a
+    ld (autocontrol_script_start_h), a
+
+    ld e, c
+    ld d, 0
+    ld hl, autocontrol_loop_flag_table
+    add hl, de
+    ld a, (hl)
+    ld (autocontrol_loop_flag), a
+    ld a, 1
+    ld (autocontrol_active), a
+    pop bc
+    pop hl
+    ret
+
+autocontrol_find_next:
+    pop bc
+    pop hl
+    djnz autocontrol_find_loop
+    ret
+
+autocontrol_apply_move:
+    ld a, (autocontrol_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld a, (autocontrol_move_opcode)
+    cp AUTO_CMD_MOVE_RIGHT
+    jp z, autocontrol_move_right
+    cp AUTO_CMD_MOVE_LEFT
+    jp z, autocontrol_move_left
+    cp AUTO_CMD_MOVE_UP
+    jp z, autocontrol_move_up
+    cp AUTO_CMD_MOVE_DOWN
+    jp z, autocontrol_move_down
+    ret
+
+autocontrol_move_right:
+    ld hl, entity_x_pos
+    add hl, de
+    inc (hl)
+    ld a, 2
+    jp autocontrol_store_facing_and_dec
+
+autocontrol_move_left:
+    ld hl, entity_x_pos
+    add hl, de
+    dec (hl)
+    ld a, 1
+    jp autocontrol_store_facing_and_dec
+
+autocontrol_move_up:
+    ld hl, entity_y_pos
+    add hl, de
+    dec (hl)
+    ld a, 3
+    jp autocontrol_store_facing_and_dec
+
+autocontrol_move_down:
+    ld hl, entity_y_pos
+    add hl, de
+    inc (hl)
+    ld a, 4
+
+autocontrol_store_facing_and_dec:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    ld hl, autocontrol_move_remaining
+    dec (hl)
+    ret
+
+
+dialogue_update_typewriter:
+    ret
+
+dialogue_open_box:
+    ret
+
+dialogue_start_line:
+    ret
+
+dialogue_clear_box:
+    ret
+
+dialogue_close_box:
+    ret
+
+
+; ==================================================================
+; AUTO EVENT STRING SYSTEM - compact FakePlayer engine
+; ==================================================================
+; Register Contract:
+;   Purpose: Execute one frame of the compact FakePlayer event-string script.
+;   Inputs:
+;     - current_screen_engine, current_screen_id, active_entity_list/current count, input_btn_curr
+;   Outputs:
+;     - FakePlayer entity position/facing, dialogue, and autoev runtime state updated
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Register roles:
+;     - Only runs while current_screen_engine = 1 (FakePlayer screen engine).
+
+update_auto_event_string_component:
+    ld a, (current_screen_engine)
+    cp 1
+    ret nz
+
+    ld a, (current_screen_id)
+    ld b, a
+    ld a, (autoev_screen_id)
+    cp b
+    call nz, autoev_bind_current_screen
+
+    ld a, (autoev_active)
+    or a
+    ret z
+
+    call dialogue_update_typewriter
+
+    ld a, (autoev_wait_mode)
+    cp 1
+    jp z, autoev_wait_spc
+    cp 2
+    jp z, autoev_wait_text
+
+    ld a, (autoev_wait_frames)
+    or a
+    jp z, autoev_check_move
+    dec a
+    ld (autoev_wait_frames), a
+    ret
+
+autoev_check_move:
+    ld a, (autoev_move_remaining)
+    or a
+    jp z, autoev_read_event
+    call autoev_apply_move
+    ret
+
+autoev_wait_spc:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    ld a, (input_btn_curr)
+    and #01
+    ret z
+    xor a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_wait_text:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    xor a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_read_event:
+    ld a, (autoev_script_ptr_l)
+    ld l, a
+    ld a, (autoev_script_ptr_h)
+    ld h, a
+    ld a, h
+    or l
+    ret z
+
+    ld a, (hl)
+    inc hl
+    or a
+    jp z, autoev_command_end
+    ld b, a
+
+    ld a, b
+    cp #78
+    jp z, autoev_command_move_right
+    cp #58
+    jp z, autoev_command_move_left
+    cp #79
+    jp z, autoev_command_move_down
+    cp #59
+    jp z, autoev_command_move_up
+    cp #64
+    jp z, autoev_command_delay
+    cp #6F
+    jp z, autoev_command_open_dialog
+    cp #77
+    jp z, autoev_command_write_line
+    cp #73
+    jp z, autoev_command_wait_spc
+    cp #74
+    jp z, autoev_command_wait_text
+    cp #6B
+    jp z, autoev_command_clear_dialog
+    cp #63
+    jp z, autoev_command_close_dialog
+    jp autoev_store_ptr_and_continue
+
+autoev_command_move_right:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_set_walk_sprite
+    ld a, 1
+    ld (autoev_move_axis), a
+    ld a, 1
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_move_left:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_set_walk_sprite
+    ld a, 1
+    ld (autoev_move_axis), a
+    ld a, #FF
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_move_down:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_set_walk_sprite
+    ld a, 2
+    ld (autoev_move_axis), a
+    ld a, 1
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_move_up:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_set_walk_sprite
+    ld a, 2
+    ld (autoev_move_axis), a
+    ld a, #FF
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_delay:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    call autoev_number_to_frames
+    ld (autoev_wait_frames), a
+    ret
+
+autoev_command_open_dialog:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    xor a
+    call dialogue_open_box
+    ret
+
+autoev_command_write_line:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, (autoev_number_l)
+    call dialogue_start_line
+    ld a, 2
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_command_wait_spc:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, 1
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_command_wait_text:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, 2
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_command_clear_dialog:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    call dialogue_clear_box
+    ret
+
+autoev_command_close_dialog:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    call dialogue_close_box
+    ret
+
+autoev_store_ptr_and_continue:
+    call autoev_store_ptr
+    jp autoev_read_event
+
+autoev_command_end:
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, (autoev_loop_flag)
+    or a
+    jp nz, autoev_restart_script
+    xor a
+    ld (autoev_active), a
+    ld (autoev_move_axis), a
+    ld (autoev_move_remaining), a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_restart_script:
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, (autoev_script_start_l)
+    ld (autoev_script_ptr_l), a
+    ld a, (autoev_script_start_h)
+    ld (autoev_script_ptr_h), a
+    xor a
+    ld (autoev_move_axis), a
+    ld (autoev_move_remaining), a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_store_ptr:
+    ld a, l
+    ld (autoev_script_ptr_l), a
+    ld a, h
+    ld (autoev_script_ptr_h), a
+    ret
+
+autoev_parse_number:
+    ld de, 0
+autoev_parse_number_loop:
+    ld a, (hl)
+    cp #30
+    jp c, autoev_parse_number_done
+    cp #3A
+    jp nc, autoev_parse_number_done
+    sub #30
+    push hl
+    ld h, d
+    ld l, e
+    add hl, hl
+    ld b, h
+    ld c, l
+    add hl, hl
+    add hl, hl
+    add hl, bc
+    ld c, a
+    ld b, 0
+    add hl, bc
+    ld d, h
+    ld e, l
+    pop hl
+    inc hl
+    jp autoev_parse_number_loop
+autoev_parse_number_done:
+    ld a, e
+    ld (autoev_number_l), a
+    ld a, d
+    ld (autoev_number_h), a
+    ret
+
+autoev_number_to_frames:
+    ld a, (autoev_number_l)
+    ld e, a
+    ld a, (autoev_number_h)
+    ld d, a
+    ld b, 0
+autoev_number_to_frames_loop:
+    ld a, d
+    or e
+    jp z, autoev_number_to_frames_done
+    ld h, d
+    ld l, e
+    ld bc, 20
+    or a
+    sbc hl, bc
+    jp c, autoev_number_to_frames_done
+    ld d, h
+    ld e, l
+    inc b
+    jp nz, autoev_number_to_frames_loop
+    ld b, #FF
+autoev_number_to_frames_done:
+    ld a, b
+    or a
+    ret nz
+    ld a, 1
+    ret
+
+autoev_bind_current_screen:
+    ld a, (current_screen_id)
+    ld (autoev_screen_id), a
+    xor a
+    ld (autoev_active), a
+    ld (autoev_wait_frames), a
+    ld (autoev_move_axis), a
+    ld (autoev_move_step), a
+    ld (autoev_move_remaining), a
+    ld (autoev_loop_flag), a
+    ld (autoev_wait_mode), a
+    ld (autoev_script_ptr_l), a
+    ld (autoev_script_ptr_h), a
+    ld (autoev_script_start_l), a
+    ld (autoev_script_start_h), a
+    ld a, #FF
+    ld (autoev_entity_index), a
+
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+autoev_find_loop:
+    ld c, (hl)
+    inc hl
+    push hl
+    push bc
+
+    ld e, c
+    ld d, 0
+    ld hl, autoev_script_ptr_table
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, d
+    or e
+    jp z, autoev_find_next
+
+    ld a, c
+    ld (autoev_entity_index), a
+    ld a, e
+    ld (autoev_script_ptr_l), a
+    ld (autoev_script_start_l), a
+    ld a, d
+    ld (autoev_script_ptr_h), a
+    ld (autoev_script_start_h), a
+
+    ld e, c
+    ld d, 0
+    ld hl, autoev_loop_flag_table
+    add hl, de
+    ld a, (hl)
+    ld (autoev_loop_flag), a
+    ld a, 1
+    ld (autoev_active), a
+    call autoev_set_idle_sprite
+    pop bc
+    pop hl
+    ret
+
+autoev_find_next:
+    pop bc
+    pop hl
+    djnz autoev_find_loop
+    ret
+
+autoev_apply_move:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld a, (autoev_move_axis)
+    cp 1
+    jp z, autoev_apply_move_x
+    cp 2
+    jp z, autoev_apply_move_y
+    ret
+
+autoev_apply_move_x:
+    ld a, (autoev_move_step)
+    cp #FF
+    jp z, autoev_move_left_pixel
+    call autoev_set_velocity_right
+    ld hl, entity_x_pos
+    add hl, de
+    inc (hl)
+    ld a, 2
+    jp autoev_store_facing_and_dec
+
+autoev_move_left_pixel:
+    call autoev_set_velocity_left
+    ld hl, entity_x_pos
+    add hl, de
+    dec (hl)
+    ld a, 1
+    jp autoev_store_facing_and_dec
+
+autoev_apply_move_y:
+    ld a, (autoev_move_step)
+    cp #FF
+    jp z, autoev_move_up_pixel
+    call autoev_set_velocity_down
+    ld hl, entity_y_pos
+    add hl, de
+    inc (hl)
+    ld a, 4
+    jp autoev_store_facing_and_dec
+
+autoev_move_up_pixel:
+    call autoev_set_velocity_up
+    ld hl, entity_y_pos
+    add hl, de
+    dec (hl)
+    ld a, 3
+
+autoev_store_facing_and_dec:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    ld hl, autoev_move_remaining
+    dec (hl)
+    ld a, (hl)
+    or a
+    ret nz
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ret
+
+autoev_clear_velocity:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+    ret
+
+autoev_set_velocity_right:
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 1
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_velocity_left:
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), #FF
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_velocity_down:
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 1
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_velocity_up:
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), #FF
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_idle_sprite:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, autoev_idle_sprite_table
+    add hl, de
+    ld a, (hl)
+    jp autoev_apply_sprite_index
+
+autoev_set_walk_sprite:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, autoev_walk_sprite_table
+    add hl, de
+    ld a, (hl)
+    jp autoev_apply_sprite_index
+
+autoev_apply_sprite_index:
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld c, a
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    cp (hl)
+    jr z, autoev_refresh_sprite_layers
+    ld (hl), a
+    ld hl, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_anim_tick
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_anim_flags
+    add hl, de
+    ld a, (hl)
+    or ANIM_FLAG_PLAYING
+    or ANIM_FLAG_FORCE_UPLOAD
+    and #F7
+    ld (hl), a
+autoev_refresh_sprite_layers:
+    push bc
+    ld h, 0
+    ld l, e
+    add hl, hl
+    ld de, entity_sprite_config
+    add hl, de
+    ld e, (hl)
+    pop bc
+    ld d, c
+    ld c, e
+    push bc
+    push de
+
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_color_mul_layers:
+    add hl, de
+    djnz autoev_color_mul_layers
+    ld de, SM_SpriteLayerColorTable
+    add hl, de
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_color_update_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_colors
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz autoev_color_update_loop
+
+    pop de
+    pop bc
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_y_offset_mul_layers:
+    add hl, de
+    djnz autoev_y_offset_mul_layers
+    ld de, SM_SpriteLayerYOffsetTable
+    add hl, de
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_y_offset_update_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_y_offsets
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz autoev_y_offset_update_loop
+    ret
+
 
     ; Damage system filtered out(not used)
 init_damage_system:
@@ -9830,29 +10947,29 @@ world_sprite_pattern_pack_table:
 
 ; ------------------------------------------------------------------
 ; Runtime Sprite Pattern Pack: World "New Worldmap"
-; Slots required: 18/64
+; Slots required: 13/64
 ; ------------------------------------------------------------------
 SPRITE_PATTERN_PACK_WORLDMAP_1776512078647_ID EQU 0
 
 sprite_asset_base_pattern_slot_worldmap_1776512078647:
     db 0 ; Sprite 0: nina_walk_right
     db 0 ; Sprite 1: nina_grub_right
-    db 4 ; Sprite 2: New Sprite
+    db 0 ; Sprite 2: New Sprite
     db 0 ; Sprite 3: nina_jump_right
-    db 5 ; Sprite 4: nina_idle_right
-    db 7 ; Sprite 5: New Sprite_right
-    db 9 ; Sprite 6: nina_walk_left
+    db 4 ; Sprite 4: nina_idle_right
+    db 0 ; Sprite 5: New Sprite_right
+    db 6 ; Sprite 6: nina_walk_left
     db 0 ; Sprite 7: nina_grub_left
     db 0 ; Sprite 8: nina_jump_left
-    db 13 ; Sprite 9: nina_idle_left
-    db 15 ; Sprite 10: New Sprite_left
+    db 10 ; Sprite 9: nina_idle_left
+    db 0 ; Sprite 10: New Sprite_left
 
 load_sprite_patterns_worldmap_1776512078647:
     ld hl, sprite_asset_base_pattern_slot_worldmap_1776512078647
     ld de, sprite_asset_base_pattern_slot_runtime
     ld bc, SPRITE_ASSET_COUNT
     ldir
-    ld a, 68
+    ld a, 48
     ld (sprite_placeholder_base_pattern_num), a
     ; Sprite Asset 0: nina_walk_right frame 0 (2 layers)
     ld hl, NINA_WALK_RIGHT_0_F0_LAYER0
@@ -9864,44 +10981,29 @@ load_sprite_patterns_worldmap_1776512078647:
     ld de, SPRPAT + (2 * 32)
     ld bc, 64
     call COPY_SPRITE_SRC_TO_VRAM
-    ; Sprite Asset 2: New Sprite frame 0 has no drawable layers - use placeholder
-    ld hl, SPRITE_PLACEHOLDER_PATTERN
-    ld de, SPRPAT + (4 * 32)
-    ld bc, 32
-    call COPY_SPRITE_SRC_TO_VRAM
     ; Sprite Asset 4: nina_idle_right frame 0 (2 layers)
     ld hl, NINA_IDLE_RIGHT_4_F0_LAYER1
-    ld de, SPRPAT + (5 * 32)
-    ld bc, 64
-    call COPY_SPRITE_SRC_TO_VRAM
-    ; Sprite Asset 5: New Sprite_right frame 0 (2 layers)
-    ld hl, NEW_SPRITE_RIGHT_5_F0_LAYER1
-    ld de, SPRPAT + (7 * 32)
+    ld de, SPRPAT + (4 * 32)
     ld bc, 64
     call COPY_SPRITE_SRC_TO_VRAM
     ; Sprite Asset 6: nina_walk_left frame 0 (2 layers)
     ld hl, NINA_WALK_LEFT_6_F0_LAYER0
-    ld de, SPRPAT + (9 * 32)
+    ld de, SPRPAT + (6 * 32)
     ld bc, 64
     call COPY_SPRITE_SRC_TO_VRAM
     ; Sprite Asset 6: nina_walk_left frame 1 (2 layers)
     ld hl, NINA_WALK_LEFT_6_F1_LAYER0
-    ld de, SPRPAT + (11 * 32)
+    ld de, SPRPAT + (8 * 32)
     ld bc, 64
     call COPY_SPRITE_SRC_TO_VRAM
     ; Sprite Asset 9: nina_idle_left frame 0 (2 layers)
     ld hl, NINA_IDLE_LEFT_9_F0_LAYER1
-    ld de, SPRPAT + (13 * 32)
-    ld bc, 64
-    call COPY_SPRITE_SRC_TO_VRAM
-    ; Sprite Asset 10: New Sprite_left frame 0 (2 layers)
-    ld hl, NEW_SPRITE_LEFT_10_F0_LAYER1
-    ld de, SPRPAT + (15 * 32)
+    ld de, SPRPAT + (10 * 32)
     ld bc, 64
     call COPY_SPRITE_SRC_TO_VRAM
     ; Placeholder sprite used by missing sprite refs
     ld hl, SPRITE_PLACEHOLDER_PATTERN
-    ld de, SPRPAT + (17 * 32)
+    ld de, SPRPAT + (12 * 32)
     ld bc, 32
     call COPY_SPRITE_SRC_TO_VRAM
     ld a, SPRITE_PATTERN_PACK_WORLDMAP_1776512078647_ID
@@ -10112,7 +11214,7 @@ SCREEN_PAN1_0_BLOCK_MAP_SIZE EQU 48
 SCREEN_PAN1_0_BLOCK_TOTAL_SIZE EQU 144
 SCREEN_PAN1_0_ANIM_GROUP_COUNT EQU 0
 SCREEN_PAN1_0_ENTITY_COUNT EQU 1
-SCREEN_PAN1_0_SPRITE_PATTERN_SLOTS EQU 18
+SCREEN_PAN1_0_SPRITE_PATTERN_SLOTS EQU 13
 SCREEN_PAN1_0_MUSIC_IN_GAME EQU 0
 SCREEN_PAN1_0_SUMMARY_FLAGS EQU #06
 SCREEN_NEW_DIALOG_SCREEN_1_ID EQU 1
@@ -10155,7 +11257,7 @@ SCREEN_NEW_DIALOG_SCREEN_1_SUMMARY_FLAGS EQU #04
 ; ==================================================================
 
 screen_runtime_summary_table:
-    db 0, 1, 18, #06    ; Screen 0: pan1
+    db 0, 1, 13, #06    ; Screen 0: pan1
     db 0, 1, 9, #04    ; Screen 1: New Dialog Screen
 
 ; ==================================================================
@@ -11098,7 +12200,7 @@ load_screen_pan1_776511902784:
     ld (current_screen_anim_group_count), a
     ld a, 1
     ld (current_screen_entity_count), a
-    ld a, 18
+    ld a, 13
     ld (current_screen_sprite_pattern_slots), a
     ld a, SCREEN_PAN1_0_SUMMARY_FLAGS
     ld (current_screen_summary_flags), a
@@ -17215,7 +18317,7 @@ SM_ConditionTable:
     DW Condition_Nop ; 8 [Condition_HasCollision stripped]
     DW Condition_Nop ; 9 [Condition_PathClear stripped]
     DW Condition_Nop ; 10 [Condition_OnWallCollision stripped]
-    DW Condition_DeadlyTile     ; 11
+    DW Condition_Nop ; 11 [Condition_DeadlyTile stripped]
     DW Condition_Nop ; 12 [Condition_AnimComplete stripped]
     DW Condition_Nop ; 13 [Condition_KeyAndMove stripped]
     DW Condition_VariableCompare; 14
@@ -17478,20 +18580,7 @@ Condition_KeyReleased:
 
 ; [Condition_OnWallCollision stripped - not used]
 
-Condition_DeadlyTile:
-    ; Check if entity is touching deadly tile
-    ; Input: B = Entity Index, HL = Params Ptr (no params)
-    ; Output: A = 1 (touching deadly tile) or 0 (safe)
-    ; Destroys: DE, HL
-    push hl
-    ld hl, entity_flag_deadly_tile
-    ld e, b
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    and #01                       ; Check bit 0
-    pop hl
-    ret                           ; A = 1 if deadly, 0 if safe
+; [Condition_DeadlyTile stripped - not used]
 
 ; [Condition_AnimComplete stripped - not used]
 
@@ -17769,7 +18858,7 @@ SM_New_Statemachine_state_1776707744092:
     DW 0 
     DW SM_New_Statemachine_state_1776707744092_Transitions 
 SM_New_Statemachine_state_1776707744092_Transitions: 
-    DB 5; Count
+    DB 4; Count
     DB 4; KEY_PRESSED 
     DB 3          ; Key: arrowright
     DW SM_New_Statemachine_state_1776708050326 
@@ -17796,9 +18885,6 @@ SM_New_Statemachine_state_1776707744092_Transitions:
     DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
     DW 0 
     DW SM_New_Statemachine_state_1776707744092_Transitions_Actions_3 
-    DB 11; HAS_DEADLY_TILE_COLLISION 
-    DW SM_New_Statemachine_state_1777378831352 
-    DW SM_New_Statemachine_state_1776707744092_Transitions_Actions_4 
 
 SM_New_Statemachine_state_1776707744092_Transitions_Actions_0: 
     DB 5; CHANGE_SPRITE 
@@ -17821,10 +18907,6 @@ SM_New_Statemachine_state_1776707744092_Transitions_Actions_3:
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
     DB 0xFF; END
-SM_New_Statemachine_state_1776707744092_Transitions_Actions_4: 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: New Sprite 
-    DB 0xFF; END
 
 SM_New_Statemachine_state_1776707753316: 
     DB 0; ID(unused) 
@@ -17832,7 +18914,7 @@ SM_New_Statemachine_state_1776707753316:
     DW 0 
     DW SM_New_Statemachine_state_1776707753316_Transitions 
 SM_New_Statemachine_state_1776707753316_Transitions: 
-    DB 3; Count
+    DB 2; Count
     DB 1; AND 
     DB 3 
     DB 14; VARIABLE_COMPARE 
@@ -17851,9 +18933,6 @@ SM_New_Statemachine_state_1776707753316_Transitions:
     DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
     DW 0 
     DW SM_New_Statemachine_state_1776707753316_Transitions_Actions_1 
-    DB 11; HAS_DEADLY_TILE_COLLISION 
-    DW SM_New_Statemachine_state_1777378831352 
-    DW SM_New_Statemachine_state_1776707753316_Transitions_Actions_2 
 
 SM_New_Statemachine_state_1776707753316_Transitions_Actions_0: 
     DB 28; REPLACE_TILE 
@@ -17868,10 +18947,6 @@ SM_New_Statemachine_state_1776707753316_Transitions_Actions_1:
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
     DB 0xFF; END
-SM_New_Statemachine_state_1776707753316_Transitions_Actions_2: 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: New Sprite 
-    DB 0xFF; END
 
 SM_New_Statemachine_state_1776708050326: 
     DB 0; ID(unused) 
@@ -17879,7 +18954,7 @@ SM_New_Statemachine_state_1776708050326:
     DW 0 
     DW SM_New_Statemachine_state_1776708050326_Transitions 
 SM_New_Statemachine_state_1776708050326_Transitions: 
-    DB 4; Count
+    DB 3; Count
     DB 5; KEY_RELEASED 
     DB 3          ; Key: right
     DW SM_New_Statemachine_state_1776707744092 
@@ -17902,9 +18977,6 @@ SM_New_Statemachine_state_1776708050326_Transitions:
     DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
     DW 0 
     DW SM_New_Statemachine_state_1776708050326_Transitions_Actions_2 
-    DB 11; HAS_DEADLY_TILE_COLLISION 
-    DW SM_New_Statemachine_state_1777378831352 
-    DW SM_New_Statemachine_state_1776708050326_Transitions_Actions_3 
 
 SM_New_Statemachine_state_1776708050326_Transitions_Actions_0: 
     DB 5; CHANGE_SPRITE 
@@ -17923,10 +18995,6 @@ SM_New_Statemachine_state_1776708050326_Transitions_Actions_2:
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
     DB 0xFF; END
-SM_New_Statemachine_state_1776708050326_Transitions_Actions_3: 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: New Sprite 
-    DB 0xFF; END
 
 SM_New_Statemachine_state_1776708052277: 
     DB 0; ID(unused) 
@@ -17934,7 +19002,7 @@ SM_New_Statemachine_state_1776708052277:
     DW 0 
     DW SM_New_Statemachine_state_1776708052277_Transitions 
 SM_New_Statemachine_state_1776708052277_Transitions: 
-    DB 4; Count
+    DB 3; Count
     DB 5; KEY_RELEASED 
     DB 7          ; Key: left
     DW SM_New_Statemachine_state_1776707744092 
@@ -17957,9 +19025,6 @@ SM_New_Statemachine_state_1776708052277_Transitions:
     DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
     DW 0 
     DW SM_New_Statemachine_state_1776708052277_Transitions_Actions_2 
-    DB 11; HAS_DEADLY_TILE_COLLISION 
-    DW SM_New_Statemachine_state_1777378831352 
-    DW SM_New_Statemachine_state_1776708052277_Transitions_Actions_3 
 
 SM_New_Statemachine_state_1776708052277_Transitions_Actions_0: 
     DB 5; CHANGE_SPRITE 
@@ -17978,10 +19043,6 @@ SM_New_Statemachine_state_1776708052277_Transitions_Actions_2:
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
     DB 0xFF; END
-SM_New_Statemachine_state_1776708052277_Transitions_Actions_3: 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: New Sprite 
-    DB 0xFF; END
 
 SM_New_Statemachine_state_1776790058414: 
     DB 0; ID(unused) 
@@ -17989,7 +19050,7 @@ SM_New_Statemachine_state_1776790058414:
     DW 0 
     DW SM_New_Statemachine_state_1776790058414_Transitions 
 SM_New_Statemachine_state_1776790058414_Transitions: 
-    DB 3; Count
+    DB 2; Count
     DB 1; AND 
     DB 3 
     DB 14; VARIABLE_COMPARE 
@@ -18008,9 +19069,6 @@ SM_New_Statemachine_state_1776790058414_Transitions:
     DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
     DW 0 
     DW SM_New_Statemachine_state_1776790058414_Transitions_Actions_1 
-    DB 11; HAS_DEADLY_TILE_COLLISION 
-    DW SM_New_Statemachine_state_1777378831352 
-    DW SM_New_Statemachine_state_1776790058414_Transitions_Actions_2 
 
 SM_New_Statemachine_state_1776790058414_Transitions_Actions_0: 
     DB 28; REPLACE_TILE 
@@ -18025,10 +19083,6 @@ SM_New_Statemachine_state_1776790058414_Transitions_Actions_1:
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
     DB 0xFF; END
-SM_New_Statemachine_state_1776790058414_Transitions_Actions_2: 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: New Sprite 
-    DB 0xFF; END
 
 SM_New_Statemachine_state_1776790060726: 
     DB 0; ID(unused) 
@@ -18036,7 +19090,7 @@ SM_New_Statemachine_state_1776790060726:
     DW 0 
     DW SM_New_Statemachine_state_1776790060726_Transitions 
 SM_New_Statemachine_state_1776790060726_Transitions: 
-    DB 3; Count
+    DB 2; Count
     DB 1; AND 
     DB 3 
     DB 14; VARIABLE_COMPARE 
@@ -18055,9 +19109,6 @@ SM_New_Statemachine_state_1776790060726_Transitions:
     DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
     DW 0 
     DW SM_New_Statemachine_state_1776790060726_Transitions_Actions_1 
-    DB 11; HAS_DEADLY_TILE_COLLISION 
-    DW SM_New_Statemachine_state_1777378831352 
-    DW SM_New_Statemachine_state_1776790060726_Transitions_Actions_2 
 
 SM_New_Statemachine_state_1776790060726_Transitions_Actions_0: 
     DB 28; REPLACE_TILE 
@@ -18066,50 +19117,6 @@ SM_New_Statemachine_state_1776790060726_Transitions_Actions_0:
     DB 17, 1, 0        ; buttons_activated (ID 17) = 1
     DB 0xFF; END
 SM_New_Statemachine_state_1776790060726_Transitions_Actions_1: 
-    DB 14; INCREMENT_VARIABLE 
-    DB 15, 244, 1        ; Score (ID 15) = 500
-    DB 13; SET_VARIABLE 
-    DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
-    DB 23; REGENERATE_HUD 
-    DB 0xFF; END
-SM_New_Statemachine_state_1776790060726_Transitions_Actions_2: 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: New Sprite 
-    DB 0xFF; END
-
-SM_New_Statemachine_state_1777378831352: 
-    DB 0; ID(unused) 
-    DW 0 
-    DW 0 
-    DW SM_New_Statemachine_state_1777378831352_Transitions 
-SM_New_Statemachine_state_1777378831352_Transitions: 
-    DB 2; Count
-    DB 1; AND 
-    DB 3 
-    DB 14; VARIABLE_COMPARE 
-    DB 8, 0, 0, 1; last_interaction_pending (ID 8) == true
-    DB 14; VARIABLE_COMPARE 
-    DB 9, 0, 0, 5; last_interaction_type (ID 9) == 5
-    DB 14; VARIABLE_COMPARE 
-    DB 10, 0, 0, 0; last_interaction_value (ID 10) == 0
-    DW 0 
-    DW SM_New_Statemachine_state_1777378831352_Transitions_Actions_0 
-    DB 1; AND 
-    DB 2 
-    DB 14; VARIABLE_COMPARE 
-    DB 17, 2, 0, 4; buttons_activated (ID 17) > 4
-    DB 14; VARIABLE_COMPARE 
-    DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
-    DW 0 
-    DW SM_New_Statemachine_state_1777378831352_Transitions_Actions_1 
-
-SM_New_Statemachine_state_1777378831352_Transitions_Actions_0: 
-    DB 28; REPLACE_TILE 
-    DB 0, 0        ; REPLACE_TILE tile=tile_1776787670830=>0, dir=here
-    DB 14; INCREMENT_VARIABLE 
-    DB 17, 1, 0        ; buttons_activated (ID 17) = 1
-    DB 0xFF; END
-SM_New_Statemachine_state_1777378831352_Transitions_Actions_1: 
     DB 14; INCREMENT_VARIABLE 
     DB 15, 244, 1        ; Score (ID 15) = 500
     DB 13; SET_VARIABLE 

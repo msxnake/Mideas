@@ -30,8 +30,8 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 90325
-; Estimated banks used: 12
+; Estimated payload bytes: 89204
+; Estimated banks used: 11
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : page0.asm (96 bytes)
 ; BANK 00 @#0060 : patterns.asm (2214 bytes)
@@ -43,23 +43,22 @@
 ; BANK 01 @#0EEB : screens.asm part 1/3 (4373 bytes)
 ; BANK 02 @#0000 : screens.asm part 2/3 (8192 bytes)
 ; BANK 03 @#0000 : screens.asm part 3/3 (4471 bytes)
-; BANK 03 @#1177 : sprites.asm part 1/2 (3721 bytes)
-; BANK 04 @#0000 : sprites.asm part 2/2 (4599 bytes)
-; BANK 04 @#11F7 : font.asm (3456 bytes)
-; BANK 04 @#1F77 : hud.asm (137 bytes)
-; BANK 05 @#0000 : hud.asm (3810 bytes)
-; BANK 05 @#0EE2 : menus.asm (168 bytes)
-; BANK 05 @#0F8A : sound.asm part 1/2 (4214 bytes)
-; BANK 06 @#0000 : sound.asm part 2/2 (5334 bytes)
-; BANK 06 @#14D6 : scroll.asm (2353 bytes)
-; BANK 06 @#1E07 : animtiles.asm (505 bytes)
-; BANK 07 @#0000 : animtiles.asm (4888 bytes)
-; BANK 07 @#1318 : statemachine.asm part 1/3 (3304 bytes)
+; BANK 03 @#1177 : sprites.asm (3721 bytes)
+; BANK 04 @#0000 : sprites.asm (4456 bytes)
+; BANK 04 @#1168 : font.asm (3456 bytes)
+; BANK 04 @#1EE8 : hud.asm (280 bytes)
+; BANK 05 @#0000 : hud.asm (3667 bytes)
+; BANK 05 @#0E53 : menus.asm (168 bytes)
+; BANK 05 @#0EFB : sound.asm part 1/2 (4357 bytes)
+; BANK 06 @#0000 : sound.asm part 2/2 (5191 bytes)
+; BANK 06 @#1447 : scroll.asm (2353 bytes)
+; BANK 06 @#1D78 : animtiles.asm (648 bytes)
+; BANK 07 @#0000 : animtiles.asm (4745 bytes)
+; BANK 07 @#1289 : statemachine.asm part 1/3 (3447 bytes)
 ; BANK 08 @#0000 : statemachine.asm part 2/3 (8192 bytes)
 ; BANK 09 @#0000 : statemachine.asm part 3/3 (8192 bytes)
-; BANK 10 @#0000 : statemachine.asm part 4/3 (1221 bytes)
-; BANK 10 @#04C5 : gameflow.asm (6971 bytes)
-; BANK 11 @#0000 : gameflow.asm (213 bytes)
+; BANK 10 @#0000 : statemachine.asm part 4/3 (100 bytes)
+; BANK 10 @#0064 : gameflow.asm (7184 bytes)
 
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
@@ -4780,7 +4779,7 @@ increase_entity_lives:
             ex de, hl                  ; DE = VRAM destination
             pop hl                     ; restore source
 
-    call COPY_SPRITE_SRC_TO_VRAM
+            call FAST_LDIRVM           ; copy pattern data to VRAM
 
 anim_done_entity:
             pop hl
@@ -5346,15 +5345,1133 @@ update_carry_component:
     inc c
     jr .carry_loop
     
-    ; AutoControlScript system filtered out(no active scripts)
+; ==================================================================
+; AUTOCONTROL SCRIPT SYSTEM - FakePlayer engine
+; ==================================================================
+AUTO_CMD_END        EQU 0
+AUTO_CMD_MOVE_RIGHT EQU 1
+AUTO_CMD_MOVE_LEFT  EQU 2
+AUTO_CMD_MOVE_UP    EQU 3
+AUTO_CMD_MOVE_DOWN  EQU 4
+AUTO_CMD_DELAY      EQU 5
+AUTO_CMD_WAIT_SPC   EQU 6
+AUTO_CMD_NOP        EQU 7
+AUTO_CMD_OPEN_DIALOG EQU 8
+AUTO_CMD_WRITE_LINE  EQU 9
+AUTO_CMD_CLEAR_DIALOG EQU 10
+AUTO_CMD_CLOSE_DIALOG EQU 11
+AUTO_CMD_WAIT_TEXT EQU 12
+
+dialogue_box_count:
+    DB 0
+dialogue_box_vram_table:
+    DW 0
+dialogue_text_vram_table:
+    DW 0
+dialogue_box_width_table:
+    DB 32
+dialogue_box_height_table:
+    DB 4
+dialogue_box_delay_table:
+    DB 2
+dialogue_box_tl_table:
+    DB 43
+dialogue_box_tr_table:
+    DB 43
+dialogue_box_bl_table:
+    DB 43
+dialogue_box_br_table:
+    DB 43
+dialogue_box_h_table:
+    DB 45
+dialogue_box_v_table:
+    DB 124
+dialogue_graphic_enabled_table:
+    DB 0
+dialogue_graphic_vram_table:
+    DW 0
+dialogue_graphic_width_table:
+    DB 0
+dialogue_graphic_height_table:
+    DB 0
+dialogue_graphic_tile_ptr_table:
+    DW 0
+dialogue_line_text_vram_table:
+    DW 0
+dialogue_line_graphic_enabled_table:
+    DB 0
+dialogue_line_graphic_vram_table:
+    DW 0
+dialogue_line_graphic_width_table:
+    DB 0
+dialogue_line_graphic_height_table:
+    DB 0
+dialogue_line_graphic_tile_ptr_table:
+    DW 0
+dialogue_line_ptr_table:
+    DW 0
+dialogue_line_delay_table:
+    DB 2
+autoev_script_1:
+    DB #78,#36,#34,#64,#31,#30,#30,#30,#6F,#77,#30,#73,#63,#00
+autocontrol_script_ptr_table:
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+autocontrol_loop_flag_table:
+    DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+autoev_script_ptr_table:
+    DW 0
+    DW autoev_script_1
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+autoev_loop_flag_table:
+    DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+autoev_idle_sprite_table:
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+autoev_walk_sprite_table:
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+
+; Register Contract:
+;   Purpose: Reset FakePlayer script runtime state.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - autocontrol runtime variables reset
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+
 init_auto_control_script_system:
+    xor a
+    ld (autocontrol_script_ptr_l), a
+    ld (autocontrol_script_ptr_h), a
+    ld (autocontrol_script_start_l), a
+    ld (autocontrol_script_start_h), a
+    ld (autocontrol_wait_frames), a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ld (autocontrol_loop_flag), a
+    ld (autocontrol_active), a
+    ld (autoev_script_ptr_l), a
+    ld (autoev_script_ptr_h), a
+    ld (autoev_script_start_l), a
+    ld (autoev_script_start_h), a
+    ld (autoev_wait_frames), a
+    ld (autoev_move_axis), a
+    ld (autoev_move_step), a
+    ld (autoev_move_remaining), a
+    ld (autoev_loop_flag), a
+    ld (autoev_active), a
+    ld (autoev_wait_mode), a
+    ld (autoev_number_l), a
+    ld (autoev_number_h), a
+    ld (dialogue_active), a
+    ld (dialogue_current_box), a
+    ld (dialogue_text_active), a
+    ld (dialogue_text_ptr_l), a
+    ld (dialogue_text_ptr_h), a
+    ld (dialogue_vram_ptr_l), a
+    ld (dialogue_vram_ptr_h), a
+    ld (dialogue_row_start_l), a
+    ld (dialogue_row_start_h), a
+    ld (dialogue_char_delay), a
+    ld (dialogue_char_delay_reload), a
+    ld a, #FF
+    ld (autocontrol_screen_id), a
+    ld (autocontrol_entity_index), a
+    ld (autoev_screen_id), a
+    ld (autoev_entity_index), a
     ret
+
+; Register Contract:
+;   Purpose: Execute one frame of the current screen FakePlayer script.
+;   Inputs:
+;     - current_screen_engine, current_screen_id, active_entity_list/current count, input_btn_curr
+;   Outputs:
+;     - FakePlayer entity position/facing and autocontrol runtime state updated
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
 
 update_auto_control_script_component:
+    ld a, (current_screen_engine)
+    cp 1
+    ret nz
+
+    ld a, (current_screen_id)
+    ld b, a
+    ld a, (autocontrol_screen_id)
+    cp b
+    call nz, autocontrol_bind_current_screen
+
+    ld a, (autocontrol_active)
+    or a
+    ret z
+
+    call dialogue_update_typewriter
+
+    ld a, (autocontrol_move_opcode)
+    cp AUTO_CMD_WAIT_SPC
+    jp z, autocontrol_wait_spc
+    cp AUTO_CMD_WAIT_TEXT
+    jp z, autocontrol_wait_text
+
+    ld a, (autocontrol_wait_frames)
+    or a
+    jp z, autocontrol_check_move
+    dec a
+    ld (autocontrol_wait_frames), a
     ret
 
-update_auto_event_string_component:
+autocontrol_check_move:
+    ld a, (autocontrol_move_remaining)
+    or a
+    jp z, autocontrol_read_command
+    call autocontrol_apply_move
     ret
+
+autocontrol_wait_spc:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    ld a, (input_btn_curr)
+    and #01
+    ret z
+    xor a
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_wait_text:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    xor a
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_read_command:
+    ld a, (autocontrol_script_ptr_l)
+    ld l, a
+    ld a, (autocontrol_script_ptr_h)
+    ld h, a
+    ld a, h
+    or l
+    ret z
+
+    ld a, (hl)
+    inc hl
+    ld b, (hl)
+    inc hl
+    push af
+    ld a, l
+    ld (autocontrol_script_ptr_l), a
+    ld a, h
+    ld (autocontrol_script_ptr_h), a
+    pop af
+
+    cp AUTO_CMD_END
+    jp z, autocontrol_command_end
+    cp AUTO_CMD_DELAY
+    jp z, autocontrol_command_delay
+    cp AUTO_CMD_WAIT_SPC
+    jp z, autocontrol_command_wait_spc
+    cp AUTO_CMD_WAIT_TEXT
+    jp z, autocontrol_command_wait_text
+    cp AUTO_CMD_OPEN_DIALOG
+    jp z, autocontrol_command_open_dialog
+    cp AUTO_CMD_WRITE_LINE
+    jp z, autocontrol_command_write_line
+    cp AUTO_CMD_CLEAR_DIALOG
+    jp z, autocontrol_command_clear_dialog
+    cp AUTO_CMD_CLOSE_DIALOG
+    jp z, autocontrol_command_close_dialog
+    cp AUTO_CMD_NOP
+    ret z
+
+    ld (autocontrol_move_opcode), a
+    ld a, b
+    ld (autocontrol_move_remaining), a
+    call autocontrol_apply_move
+    ret
+
+autocontrol_command_delay:
+    ld a, b
+    ld (autocontrol_wait_frames), a
+    ret
+
+autocontrol_command_wait_spc:
+    ld a, AUTO_CMD_WAIT_SPC
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_command_wait_text:
+    ld a, AUTO_CMD_WAIT_TEXT
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_command_open_dialog:
+    ld a, b
+    call dialogue_open_box
+    ret
+
+autocontrol_command_write_line:
+    ld a, b
+    call dialogue_start_line
+    ret
+
+autocontrol_command_clear_dialog:
+    call dialogue_clear_box
+    ret
+
+autocontrol_command_close_dialog:
+    call dialogue_close_box
+    ret
+
+autocontrol_command_end:
+    ld a, (autocontrol_loop_flag)
+    or a
+    jp nz, autocontrol_restart_script
+    xor a
+    ld (autocontrol_active), a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ret
+
+autocontrol_restart_script:
+    ld a, (autocontrol_script_start_l)
+    ld (autocontrol_script_ptr_l), a
+    ld a, (autocontrol_script_start_h)
+    ld (autocontrol_script_ptr_h), a
+    xor a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ret
+
+autocontrol_bind_current_screen:
+    ld a, (current_screen_id)
+    ld (autocontrol_screen_id), a
+    xor a
+    ld (autocontrol_active), a
+    ld (autocontrol_wait_frames), a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ld (autocontrol_loop_flag), a
+    ld (autocontrol_script_ptr_l), a
+    ld (autocontrol_script_ptr_h), a
+    ld (autocontrol_script_start_l), a
+    ld (autocontrol_script_start_h), a
+    ld a, #FF
+    ld (autocontrol_entity_index), a
+
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+autocontrol_find_loop:
+    ld c, (hl)
+    inc hl
+    push hl
+    push bc
+
+    ld e, c
+    ld d, 0
+    ld hl, autocontrol_script_ptr_table
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, d
+    or e
+    jp z, autocontrol_find_next
+
+    ld a, c
+    ld (autocontrol_entity_index), a
+    ld a, e
+    ld (autocontrol_script_ptr_l), a
+    ld (autocontrol_script_start_l), a
+    ld a, d
+    ld (autocontrol_script_ptr_h), a
+    ld (autocontrol_script_start_h), a
+
+    ld e, c
+    ld d, 0
+    ld hl, autocontrol_loop_flag_table
+    add hl, de
+    ld a, (hl)
+    ld (autocontrol_loop_flag), a
+    ld a, 1
+    ld (autocontrol_active), a
+    pop bc
+    pop hl
+    ret
+
+autocontrol_find_next:
+    pop bc
+    pop hl
+    djnz autocontrol_find_loop
+    ret
+
+autocontrol_apply_move:
+    ld a, (autocontrol_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld a, (autocontrol_move_opcode)
+    cp AUTO_CMD_MOVE_RIGHT
+    jp z, autocontrol_move_right
+    cp AUTO_CMD_MOVE_LEFT
+    jp z, autocontrol_move_left
+    cp AUTO_CMD_MOVE_UP
+    jp z, autocontrol_move_up
+    cp AUTO_CMD_MOVE_DOWN
+    jp z, autocontrol_move_down
+    ret
+
+autocontrol_move_right:
+    ld hl, entity_x_pos
+    add hl, de
+    inc (hl)
+    ld a, 2
+    jp autocontrol_store_facing_and_dec
+
+autocontrol_move_left:
+    ld hl, entity_x_pos
+    add hl, de
+    dec (hl)
+    ld a, 1
+    jp autocontrol_store_facing_and_dec
+
+autocontrol_move_up:
+    ld hl, entity_y_pos
+    add hl, de
+    dec (hl)
+    ld a, 3
+    jp autocontrol_store_facing_and_dec
+
+autocontrol_move_down:
+    ld hl, entity_y_pos
+    add hl, de
+    inc (hl)
+    ld a, 4
+
+autocontrol_store_facing_and_dec:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    ld hl, autocontrol_move_remaining
+    dec (hl)
+    ret
+
+
+dialogue_update_typewriter:
+    ret
+
+dialogue_open_box:
+    ret
+
+dialogue_start_line:
+    ret
+
+dialogue_clear_box:
+    ret
+
+dialogue_close_box:
+    ret
+
+
+; ==================================================================
+; AUTO EVENT STRING SYSTEM - compact FakePlayer engine
+; ==================================================================
+; Register Contract:
+;   Purpose: Execute one frame of the compact FakePlayer event-string script.
+;   Inputs:
+;     - current_screen_engine, current_screen_id, active_entity_list/current count, input_btn_curr
+;   Outputs:
+;     - FakePlayer entity position/facing, dialogue, and autoev runtime state updated
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Register roles:
+;     - Only runs while current_screen_engine = 1 (FakePlayer screen engine).
+
+update_auto_event_string_component:
+    ld a, (current_screen_engine)
+    cp 1
+    ret nz
+
+    ld a, (current_screen_id)
+    ld b, a
+    ld a, (autoev_screen_id)
+    cp b
+    call nz, autoev_bind_current_screen
+
+    ld a, (autoev_active)
+    or a
+    ret z
+
+    call dialogue_update_typewriter
+
+    ld a, (autoev_wait_mode)
+    cp 1
+    jp z, autoev_wait_spc
+    cp 2
+    jp z, autoev_wait_text
+
+    ld a, (autoev_wait_frames)
+    or a
+    jp z, autoev_check_move
+    dec a
+    ld (autoev_wait_frames), a
+    ret
+
+autoev_check_move:
+    ld a, (autoev_move_remaining)
+    or a
+    jp z, autoev_read_event
+    call autoev_apply_move
+    ret
+
+autoev_wait_spc:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    ld a, (input_btn_curr)
+    and #01
+    ret z
+    xor a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_wait_text:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    xor a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_read_event:
+    ld a, (autoev_script_ptr_l)
+    ld l, a
+    ld a, (autoev_script_ptr_h)
+    ld h, a
+    ld a, h
+    or l
+    ret z
+
+    ld a, (hl)
+    inc hl
+    or a
+    jp z, autoev_command_end
+    ld b, a
+
+    ld a, b
+    cp #78
+    jp z, autoev_command_move_right
+    cp #58
+    jp z, autoev_command_move_left
+    cp #79
+    jp z, autoev_command_move_down
+    cp #59
+    jp z, autoev_command_move_up
+    cp #64
+    jp z, autoev_command_delay
+    cp #6F
+    jp z, autoev_command_open_dialog
+    cp #77
+    jp z, autoev_command_write_line
+    cp #73
+    jp z, autoev_command_wait_spc
+    cp #74
+    jp z, autoev_command_wait_text
+    cp #6B
+    jp z, autoev_command_clear_dialog
+    cp #63
+    jp z, autoev_command_close_dialog
+    jp autoev_store_ptr_and_continue
+
+autoev_command_move_right:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_set_walk_sprite
+    ld a, 1
+    ld (autoev_move_axis), a
+    ld a, 1
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_move_left:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_set_walk_sprite
+    ld a, 1
+    ld (autoev_move_axis), a
+    ld a, #FF
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_move_down:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_set_walk_sprite
+    ld a, 2
+    ld (autoev_move_axis), a
+    ld a, 1
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_move_up:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_set_walk_sprite
+    ld a, 2
+    ld (autoev_move_axis), a
+    ld a, #FF
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_delay:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    call autoev_number_to_frames
+    ld (autoev_wait_frames), a
+    ret
+
+autoev_command_open_dialog:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    xor a
+    call dialogue_open_box
+    ret
+
+autoev_command_write_line:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, (autoev_number_l)
+    call dialogue_start_line
+    ld a, 2
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_command_wait_spc:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, 1
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_command_wait_text:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, 2
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_command_clear_dialog:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    call dialogue_clear_box
+    ret
+
+autoev_command_close_dialog:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    call dialogue_close_box
+    ret
+
+autoev_store_ptr_and_continue:
+    call autoev_store_ptr
+    jp autoev_read_event
+
+autoev_command_end:
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, (autoev_loop_flag)
+    or a
+    jp nz, autoev_restart_script
+    xor a
+    ld (autoev_active), a
+    ld (autoev_move_axis), a
+    ld (autoev_move_remaining), a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_restart_script:
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, (autoev_script_start_l)
+    ld (autoev_script_ptr_l), a
+    ld a, (autoev_script_start_h)
+    ld (autoev_script_ptr_h), a
+    xor a
+    ld (autoev_move_axis), a
+    ld (autoev_move_remaining), a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_store_ptr:
+    ld a, l
+    ld (autoev_script_ptr_l), a
+    ld a, h
+    ld (autoev_script_ptr_h), a
+    ret
+
+autoev_parse_number:
+    ld de, 0
+autoev_parse_number_loop:
+    ld a, (hl)
+    cp #30
+    jp c, autoev_parse_number_done
+    cp #3A
+    jp nc, autoev_parse_number_done
+    sub #30
+    push hl
+    ld h, d
+    ld l, e
+    add hl, hl
+    ld b, h
+    ld c, l
+    add hl, hl
+    add hl, hl
+    add hl, bc
+    ld c, a
+    ld b, 0
+    add hl, bc
+    ld d, h
+    ld e, l
+    pop hl
+    inc hl
+    jp autoev_parse_number_loop
+autoev_parse_number_done:
+    ld a, e
+    ld (autoev_number_l), a
+    ld a, d
+    ld (autoev_number_h), a
+    ret
+
+autoev_number_to_frames:
+    ld a, (autoev_number_l)
+    ld e, a
+    ld a, (autoev_number_h)
+    ld d, a
+    ld b, 0
+autoev_number_to_frames_loop:
+    ld a, d
+    or e
+    jp z, autoev_number_to_frames_done
+    ld h, d
+    ld l, e
+    ld bc, 20
+    or a
+    sbc hl, bc
+    jp c, autoev_number_to_frames_done
+    ld d, h
+    ld e, l
+    inc b
+    jp nz, autoev_number_to_frames_loop
+    ld b, #FF
+autoev_number_to_frames_done:
+    ld a, b
+    or a
+    ret nz
+    ld a, 1
+    ret
+
+autoev_bind_current_screen:
+    ld a, (current_screen_id)
+    ld (autoev_screen_id), a
+    xor a
+    ld (autoev_active), a
+    ld (autoev_wait_frames), a
+    ld (autoev_move_axis), a
+    ld (autoev_move_step), a
+    ld (autoev_move_remaining), a
+    ld (autoev_loop_flag), a
+    ld (autoev_wait_mode), a
+    ld (autoev_script_ptr_l), a
+    ld (autoev_script_ptr_h), a
+    ld (autoev_script_start_l), a
+    ld (autoev_script_start_h), a
+    ld a, #FF
+    ld (autoev_entity_index), a
+
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+autoev_find_loop:
+    ld c, (hl)
+    inc hl
+    push hl
+    push bc
+
+    ld e, c
+    ld d, 0
+    ld hl, autoev_script_ptr_table
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, d
+    or e
+    jp z, autoev_find_next
+
+    ld a, c
+    ld (autoev_entity_index), a
+    ld a, e
+    ld (autoev_script_ptr_l), a
+    ld (autoev_script_start_l), a
+    ld a, d
+    ld (autoev_script_ptr_h), a
+    ld (autoev_script_start_h), a
+
+    ld e, c
+    ld d, 0
+    ld hl, autoev_loop_flag_table
+    add hl, de
+    ld a, (hl)
+    ld (autoev_loop_flag), a
+    ld a, 1
+    ld (autoev_active), a
+    call autoev_set_idle_sprite
+    pop bc
+    pop hl
+    ret
+
+autoev_find_next:
+    pop bc
+    pop hl
+    djnz autoev_find_loop
+    ret
+
+autoev_apply_move:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld a, (autoev_move_axis)
+    cp 1
+    jp z, autoev_apply_move_x
+    cp 2
+    jp z, autoev_apply_move_y
+    ret
+
+autoev_apply_move_x:
+    ld a, (autoev_move_step)
+    cp #FF
+    jp z, autoev_move_left_pixel
+    call autoev_set_velocity_right
+    ld hl, entity_x_pos
+    add hl, de
+    inc (hl)
+    ld a, 2
+    jp autoev_store_facing_and_dec
+
+autoev_move_left_pixel:
+    call autoev_set_velocity_left
+    ld hl, entity_x_pos
+    add hl, de
+    dec (hl)
+    ld a, 1
+    jp autoev_store_facing_and_dec
+
+autoev_apply_move_y:
+    ld a, (autoev_move_step)
+    cp #FF
+    jp z, autoev_move_up_pixel
+    call autoev_set_velocity_down
+    ld hl, entity_y_pos
+    add hl, de
+    inc (hl)
+    ld a, 4
+    jp autoev_store_facing_and_dec
+
+autoev_move_up_pixel:
+    call autoev_set_velocity_up
+    ld hl, entity_y_pos
+    add hl, de
+    dec (hl)
+    ld a, 3
+
+autoev_store_facing_and_dec:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    ld hl, autoev_move_remaining
+    dec (hl)
+    ld a, (hl)
+    or a
+    ret nz
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ret
+
+autoev_clear_velocity:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+    ret
+
+autoev_set_velocity_right:
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 1
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_velocity_left:
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), #FF
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_velocity_down:
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 1
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_velocity_up:
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), #FF
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_idle_sprite:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, autoev_idle_sprite_table
+    add hl, de
+    ld a, (hl)
+    jp autoev_apply_sprite_index
+
+autoev_set_walk_sprite:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, autoev_walk_sprite_table
+    add hl, de
+    ld a, (hl)
+    jp autoev_apply_sprite_index
+
+autoev_apply_sprite_index:
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld c, a
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    cp (hl)
+    jr z, autoev_refresh_sprite_layers
+    ld (hl), a
+    ld hl, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_anim_tick
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_anim_flags
+    add hl, de
+    ld a, (hl)
+    or ANIM_FLAG_PLAYING
+    or ANIM_FLAG_FORCE_UPLOAD
+    and #F7
+    ld (hl), a
+autoev_refresh_sprite_layers:
+    push bc
+    ld h, 0
+    ld l, e
+    add hl, hl
+    ld de, entity_sprite_config
+    add hl, de
+    ld e, (hl)
+    pop bc
+    ld d, c
+    ld c, e
+    push bc
+    push de
+
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_color_mul_layers:
+    add hl, de
+    djnz autoev_color_mul_layers
+    ld de, SM_SpriteLayerColorTable
+    add hl, de
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_color_update_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_colors
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz autoev_color_update_loop
+
+    pop de
+    pop bc
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_y_offset_mul_layers:
+    add hl, de
+    djnz autoev_y_offset_mul_layers
+    ld de, SM_SpriteLayerYOffsetTable
+    add hl, de
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_y_offset_update_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_y_offsets
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz autoev_y_offset_update_loop
+    ret
+
 
     ; Damage system filtered out(not used)
 init_damage_system:
@@ -9152,34 +10269,75 @@ SCREEN2_TILEBANK_TILEBANK_1776511918552_ID EQU 0
 ; TILE PATTERN BANK 0 (Base patterns)
 ; ==================================================================
 tile_pattern_bank0:
-    ; ZX0 compressed tile_pattern (312 -> 266 bytes)
-    DB #29,#00,#7F,#68,#00,#E0,#EC,#00,#74,#00,#EF,#A0,#00,#11,#22,#00
-    DB #22,#71,#00,#F0,#F1,#00,#70,#06,#41,#00,#11,#02,#00,#05,#20,#C2
-    DB #00,#81,#29,#FF,#55,#FF,#AA,#FF,#00,#19,#30,#B0,#18,#0C,#06,#4C
-    DB #18,#80,#18,#3C,#7E,#B9,#34,#18,#01,#F0,#81,#F8,#80,#00,#FE,#EF
-    DB #D7,#AF,#D7,#FF,#7F,#70,#A8,#80,#20,#42,#22,#09,#80,#8A,#42,#08
-    DB #3E,#02,#10,#89,#F7,#88,#09,#2E,#40,#00,#04,#01,#FF,#8A,#38,#00
-    DB #64,#A4,#FF,#EF,#C7,#83,#01,#FF,#E5,#00,#10,#38,#7C,#38,#10,#E3
-    DB #8F,#7E,#FE,#AE,#DE,#BE,#DE,#FC,#FF,#B8,#DC,#FF,#66,#00,#1C,#3E
-    DB #7E,#7F,#06,#00,#38,#7C,#7E,#EE,#D6,#EE,#FE,#7F,#A8,#3F,#6A,#1F
-    DB #0F,#07,#01,#FE,#FC,#92,#F8,#F0,#E0,#80,#71,#C2,#96,#D2,#CA,#71
-    DB #00,#FF,#8C,#D6,#9F,#DE,#D6,#96,#F1,#E4,#E3,#FD,#93,#C0,#E2,#00
-    DB #FF,#5F,#BF,#FE,#3A,#34,#0A,#66,#FF,#BF,#DF,#43,#7E,#3C,#18,#3C
-    DB #42,#81,#B1,#89,#81,#42,#3C,#00,#67,#A0,#8A,#C7,#F7,#F7,#77,#88
-    DB #48,#01,#D9,#93,#5F,#00,#37,#37,#00,#2E,#82,#92,#E5,#00,#12,#A0
-    DB #04,#43,#8E,#83,#2F,#0F,#20,#0E,#DA,#FF,#98,#29,#10,#02,#B6,#08
-    DB #42,#01,#90,#DA,#6D,#42,#B6,#20,#67,#9D,#40,#DA,#47,#6C,#B9,#21
-    DB #FF,#2D,#40,#E0,#40,#44,#4E,#44,#55,#56
+    ; Tile 0: rajol1 (16x16px = 2x2 chars = 4 MSX characters)
+    ; Character layout: 2x2 grid
+    ; Row 0: Char0 Char1 
+    ; Row 1: Char2 Char3 
+    db #00, #7F, #7F, #00, #E0, #EC, #00, #74, #00, #EF, #EF, #00, #11, #11, #00, #22, #71, #00, #F0, #F1, #00, #70, #70, #70, #41, #00, #11, #02, #00, #05, #20, #C2
+    ; Tile 1: senefa1 (8x8px = 1x1 chars = 1 MSX characters)
+    db #00, #00, #FF, #55, #FF, #AA, #FF, #00
+    ; Tile 2: corda (8x8px = 1x1 chars = 1 MSX characters)
+    db #19, #30, #B0, #18, #0C, #06, #4C, #18
+    ; Tile 3: gema (8x8px = 1x1 chars = 1 MSX characters)
+    db #80, #18, #3C, #7E, #7E, #34, #18, #01
+    ; Tile 4: gema_f0 (8x8px = 1x1 chars = 1 MSX characters)
+    db #01, #18, #3C, #7E, #7E, #34, #18, #80
+    ; Tile 5: rajola (8x8px = 1x1 chars = 1 MSX characters)
+    db #00, #FE, #EF, #D7, #AF, #D7, #FF, #7F
+    ; Tile 6: rajol_terra5 (16x16px = 2x2 chars = 4 MSX characters)
+    ; Character layout: 2x2 grid
+    ; Row 0: Char0 Char1 
+    ; Row 1: Char2 Char3 
+    db #00, #7F, #7F, #00, #80, #20, #00, #42, #00, #EF, #EF, #00, #09, #80, #00, #42, #08, #00, #02, #10, #00, #00, #00, #02, #09, #00, #00, #40, #00, #04, #01, #00
+    ; Tile 7: gem_extra_jump (8x8px = 1x1 chars = 1 MSX characters)
+    db #00, #00, #38, #38, #38, #00, #00, #00
+    ; Tile 8: rajol_vermell (8x8px = 1x1 chars = 1 MSX characters)
+    db #00, #FF, #EF, #C7, #83, #01, #FF, #FF
+    ; Tile 9: gem_extra_jump_f0 (8x8px = 1x1 chars = 1 MSX characters)
+    db #00, #10, #38, #7C, #38, #10, #00, #00
+    ; Tile 10: rajola2 (8x8px = 1x1 chars = 1 MSX characters)
+    db #7E, #FE, #AE, #DE, #BE, #DE, #FC, #00
+    ; Tile 11: punxa1 (8x8px = 1x1 chars = 1 MSX characters)
+    db #10, #10, #10, #10, #38, #7C, #7C, #7C
+    ; Tile 12: cor (16x16px = 2x2 chars = 4 MSX characters)
+    ; Character layout: 2x2 grid
+    ; Row 0: Char0 Char1 
+    ; Row 1: Char2 Char3 
+    db #00, #1C, #3E, #7E, #7F, #7F, #7F, #7F, #00, #38, #7C, #7E, #EE, #D6, #EE, #FE, #7F, #7F, #3F, #3F, #1F, #0F, #07, #01, #FE, #FE, #FC, #FC, #F8, #F0, #E0, #80
+    ; Tile 13: Goal (24x8px = 3x1 chars = 3 MSX characters)
+    ; Character layout: 3x1 grid
+    ; Row 0: Char0 Char1 Char2 
+    db #71, #C2, #C2, #D2, #CA, #71, #00, #FF, #8C, #D6, #D6, #DE, #D6, #96, #00, #FF, #C2, #C2, #C2, #C2, #C0, #E2, #00, #FF
+    ; Tile 14: finish (8x8px = 1x1 chars = 1 MSX characters)
+    db #5F, #BF, #5F, #BF, #5F, #BF, #5F, #BF
+    ; Tile 15: line (8x8px = 1x1 chars = 1 MSX characters)
+    db #00, #00, #00, #00, #00, #00, #00, #FF
+    ; Tile 16: HEART1 (8x8px = 1x1 chars = 1 MSX characters)
+    db #66, #FF, #BF, #DF, #FF, #7E, #3C, #18
+    ; Tile 17: clock (8x8px = 1x1 chars = 1 MSX characters)
+    db #3C, #42, #81, #B1, #89, #81, #42, #3C
+    ; Tile 18: tile_hud (8x8px = 1x1 chars = 1 MSX characters)
+    db #00, #18, #3C, #7E, #7E, #34, #18, #00
+    ; Tile 19: rajol2 (16x16px = 2x2 chars = 4 MSX characters)
+    ; Character layout: 2x2 grid
+    ; Row 0: Char0 Char1 
+    ; Row 1: Char2 Char3 
+    db #00, #F7, #F7, #00, #88, #48, #01, #40, #00, #FE, #FE, #00, #37, #37, #00, #2E, #82, #00, #88, #00, #12, #A0, #04, #43, #8E, #00, #2F, #0F, #20, #0E, #0E, #0E
+    ; Tile 20: rajol3 (16x16px = 2x2 chars = 4 MSX characters)
+    ; Character layout: 2x2 grid
+    ; Row 0: Char0 Char1 
+    ; Row 1: Char2 Char3 
+    db #00, #00, #00, #10, #02, #00, #08, #42, #01, #04, #00, #40, #00, #00, #09, #42, #00, #20, #80, #00, #40, #08, #00, #02, #00, #80, #09, #00, #00, #21, #00, #00
+    ; Tile 21: punxes1 (8x8px = 1x1 chars = 1 MSX characters)
+    db #00, #40, #E0, #40, #44, #4E, #44, #44
+
+; ==================================================================
+; PATTERN LOADING FUNCTIONS
+; ==================================================================
 load_pattern_bank0:
     ; Load pattern bank 0 to VRAM (base patterns)
     ; Fast direct port access (no BIOS overhead)
-    ; Decompress ZX0 tile pattern data into RAM buffer
-    di
     ld hl, tile_pattern_bank0
-    ld de, ZX0_TILE_PATTERN_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_TILE_PATTERN_BUFFER
     ld de, CHRTBL2 + (128 * 8)    ; VRAM pattern table bank 0 (start at char 128)
     ld bc, 312    ; Total bytes for all tile characters (16x16 tiles = 4 chars each)
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
@@ -9188,13 +10346,7 @@ load_pattern_bank0:
 load_pattern_bank1:
     ; Load pattern bank 1: same patterns as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
-    ; Decompress ZX0 tile pattern data into RAM buffer
-    di
-    ld hl, tile_pattern_bank0
-    ld de, ZX0_TILE_PATTERN_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_TILE_PATTERN_BUFFER
+    ld hl, tile_pattern_bank0     ; Same source as Bank 0
     ld de, CHRTBL2 + #800 + (128 * 8) ; VRAM pattern table bank 1 (+#800 offset + char 128)
     ld bc, 312    ; Total bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
@@ -9203,13 +10355,7 @@ load_pattern_bank1:
 load_pattern_bank2:
     ; Load pattern bank 2: same patterns as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
-    ; Decompress ZX0 tile pattern data into RAM buffer
-    di
-    ld hl, tile_pattern_bank0
-    ld de, ZX0_TILE_PATTERN_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_TILE_PATTERN_BUFFER
+    ld hl, tile_pattern_bank0     ; Same source as Bank 0
     ld de, CHRTBL2 + #1000 + (128 * 8) ; VRAM pattern table bank 2 (+#1000 offset + char 128)
     ld bc, 312    ; Total bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
@@ -9290,24 +10436,58 @@ COLOR_DATA_BANK EQU ((tile_color_bank0 - #4000) / #2000)
 ; TILE COLOR BANK 0 (Base colors)
 ; ==================================================================
 tile_color_bank0:
-    ; ZX0 compressed tile_color (312 -> 102 bytes)
-    DB #8A,#41,#51,#FF,#FA,#F0,#F7,#FE,#E0,#E9,#F0,#B8,#C1,#FF,#AA,#31
-    DB #21,#C1,#8A,#81,#91,#A0,#A1,#4F,#AC,#7D,#70,#59,#3A,#F1,#F1,#71
-    DB #E1,#E1,#F1,#FF,#61,#3E,#71,#6A,#FF,#ED,#DF,#E0,#BC,#41,#BE,#FF
-    DB #40,#FF,#EF,#DD,#F0,#BD,#D7,#FE,#A4,#F5,#81,#FE,#FE,#16,#F8,#6D
-    DB #F0,#0F,#8D,#BA,#FC,#FF,#F1,#5E,#D0,#E7,#5C,#FE,#D7,#D0,#FF,#97
-    DB #A1,#77,#C0,#CF,#F0,#F7,#FF,#F8,#F4,#CD,#E2,#80,#70,#37,#F5,#8B
-    DB #3F,#B1,#B1,#55,#55,#80
+    ; Tile 0: rajol1 colors (fg/bg pairs)
+    db #41, #41, #41, #51, #51, #41, #51, #51, #41, #41, #41, #51, #51, #51, #51, #51, #51, #51, #51, #51, #51, #41, #41, #51, #51, #51, #51, #51, #51, #41, #41, #51
+    ; Tile 1: senefa1 colors (fg/bg pairs)
+    db #C1, #C1, #C1, #31, #21, #21, #C1, #C1
+    ; Tile 2: corda colors (fg/bg pairs)
+    db #81, #81, #81, #91, #91, #A1, #A1, #A1
+    ; Tile 3: gema colors (fg/bg pairs)
+    db #A1, #A1, #A1, #A1, #A1, #A1, #A1, #A1
+    ; Tile 4: gema_f0 colors (fg/bg pairs)
+    db #A1, #A1, #A1, #A1, #A1, #A1, #A1, #A1
+    ; Tile 5: rajola colors (fg/bg pairs)
+    db #41, #51, #51, #51, #51, #51, #51, #41
+    ; Tile 6: rajol_terra5 colors (fg/bg pairs)
+    db #41, #41, #41, #51, #51, #41, #51, #51, #41, #41, #41, #51, #51, #51, #51, #51, #51, #51, #51, #51, #51, #41, #41, #51, #51, #51, #51, #51, #51, #41, #41, #51
+    ; Tile 7: gem_extra_jump colors (fg/bg pairs)
+    db #F1, #F1, #71, #E1, #E1, #F1, #F1, #F1
+    ; Tile 8: rajol_vermell colors (fg/bg pairs)
+    db #61, #61, #61, #91, #91, #81, #91, #91
+    ; Tile 9: gem_extra_jump_f0 colors (fg/bg pairs)
+    db #F1, #F1, #F1, #71, #E1, #F1, #F1, #F1
+    ; Tile 10: rajola2 colors (fg/bg pairs)
+    db #41, #51, #51, #51, #51, #51, #41, #41
+    ; Tile 11: punxa1 colors (fg/bg pairs)
+    db #81, #81, #81, #91, #91, #91, #E1, #F1
+    ; Tile 12: cor colors (fg/bg pairs)
+    db #81, #81, #81, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #81, #61, #61, #61, #61, #61, #81, #81, #81
+    ; Tile 13: Goal colors (fg/bg pairs)
+    db #81, #81, #A1, #A1, #A1, #E1, #E1, #81, #81, #81, #A1, #A1, #A1, #E1, #E1, #81, #81, #81, #A1, #A1, #A1, #E1, #E1, #81
+    ; Tile 14: finish colors (fg/bg pairs)
+    db #E1, #F1, #E1, #F1, #E1, #E1, #E1, #F1
+    ; Tile 15: line colors (fg/bg pairs)
+    db #F1, #F1, #F1, #F1, #F1, #F1, #F1, #81
+    ; Tile 16: HEART1 colors (fg/bg pairs)
+    db #81, #81, #81, #81, #81, #91, #91, #91
+    ; Tile 17: clock colors (fg/bg pairs)
+    db #F1, #E1, #E1, #F1, #E1, #E1, #E1, #E1
+    ; Tile 18: tile_hud colors (fg/bg pairs)
+    db #A1, #A1, #A1, #A1, #A1, #A1, #A1, #A1
+    ; Tile 19: rajol2 colors (fg/bg pairs)
+    db #41, #41, #41, #51, #51, #51, #51, #51, #41, #41, #41, #51, #51, #51, #51, #41, #51, #51, #51, #41, #51, #41, #51, #51, #51, #41, #51, #51, #51, #51, #41, #51
+    ; Tile 20: rajol3 colors (fg/bg pairs)
+    db #41, #41, #41, #51, #51, #41, #51, #51, #41, #41, #41, #51, #51, #51, #51, #51, #51, #51, #51, #51, #51, #41, #41, #51, #51, #51, #51, #51, #51, #41, #41, #51
+    ; Tile 21: punxes1 colors (fg/bg pairs)
+    db #F1, #61, #61, #F1, #F1, #B1, #B1, #F1
+
+; ==================================================================
+; COLOR LOADING FUNCTIONS
+; ==================================================================
 load_color_bank0:
     ; Load color bank 0 to VRAM (base colors)
     ; Fast direct port access (no BIOS overhead)
-    ; Decompress ZX0 tile color data into RAM buffer
-    di
     ld hl, tile_color_bank0
-    ld de, ZX0_TILE_COLOR_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_TILE_COLOR_BUFFER
     ld de, CLRTBL2 + (128 * 8)    ; VRAM color table bank 0 (start at char 128)
     ld bc, 312     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
@@ -9316,13 +10496,7 @@ load_color_bank0:
 load_color_bank1:
     ; Load color bank 1: same colors as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
-    ; Decompress ZX0 tile color data into RAM buffer
-    di
-    ld hl, tile_color_bank0
-    ld de, ZX0_TILE_COLOR_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_TILE_COLOR_BUFFER
+    ld hl, tile_color_bank0       ; Same source as Bank 0
     ld de, CLRTBL2 + #800 + (128 * 8) ; VRAM color table bank 1 (+#800 offset + char 128)
     ld bc, 312     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
@@ -9331,13 +10505,7 @@ load_color_bank1:
 load_color_bank2:
     ; Load color bank 2: same colors as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
-    ; Decompress ZX0 tile color data into RAM buffer
-    di
-    ld hl, tile_color_bank0
-    ld de, ZX0_TILE_COLOR_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_TILE_COLOR_BUFFER
+    ld hl, tile_color_bank0       ; Same source as Bank 0
     ld de, CLRTBL2 + #1000 + (128 * 8) ; VRAM color table bank 2 (+#1000 offset + char 128)
     ld bc, 312     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
@@ -9432,97 +10600,313 @@ SPRITE_NINA_WALK_RIGHT_0_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: nina_walk_right_0_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F1_DATA (32 bytes)
+NINA_WALK_RIGHT_0_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #D4524D)
+    DB #07,#07,#35,#5C,#80,#00,#00,#03,#02,#03,#07,#0F,#00,#01,#00,#01
+    DB #F8,#00,#00,#00,#00,#00,#00,#C0,#68,#C0,#C0,#E0,#00,#00,#00,#40
+
+NINA_WALK_RIGHT_0_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#00,#02,#03,#01,#01,#00,#00,#00,#00,#00,#01,#00,#01,#00
+    DB #00,#F0,#D0,#D8,#F8,#F0,#80,#00,#94,#00,#00,#00,#00,#00,#00,#80
+
+;; ---- End of Frame: nina_walk_right_0_F0 ----
+
+;; ---- Sprite Frame: nina_walk_right_0_F1 ----
+;; Size: 16x16
+NINA_WALK_RIGHT_0_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #D4524D)
+    DB #03,#07,#87,#A9,#54,#00,#00,#00,#03,#02,#07,#0F,#2B,#00,#20,#00
+    DB #C0,#F8,#00,#00,#00,#00,#00,#00,#C0,#68,#C0,#E0,#A0,#10,#00,#14
+
+NINA_WALK_RIGHT_0_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#00,#00,#02,#03,#01,#01,#00,#00,#00,#00,#14,#20,#00,#00
+    DB #00,#00,#F0,#D0,#D8,#F8,#F0,#80,#00,#94,#00,#00,#50,#00,#10,#08
+
+;; ---- End of Frame: nina_walk_right_0_F1 ----
+
+
+; Sprite Asset 1: nina_grub_right
+;; Sprite: nina_grub_right
+;; Total Frames: 2
+;; Size: 16x16
+;; Background Color (not exported as a layer): rgba(0,0,0,0)
+;; Drawable Palette (Hex): C0=rgba(0,0,0,0), C1=#FFFFFF, C2=#D4524D, C3=#00FF00
+
 SPRITE_NINA_GRUB_RIGHT_1_WIDTH     EQU 16
 SPRITE_NINA_GRUB_RIGHT_1_HEIGHT    EQU 16
 SPRITE_NINA_GRUB_RIGHT_1_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: nina_grub_right_1_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F1_DATA (32 bytes)
+NINA_GRUB_RIGHT_1_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#3C,#34,#B6,#FE,#7C,#60,#00,#25,#00,#00,#00,#08,#04,#02
+
+NINA_GRUB_RIGHT_1_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
+    DB #00,#01,#01,#01,#07,#04,#08,#08,#00,#00,#00,#01,#03,#03,#00,#00
+    DB #F8,#FE,#C0,#40,#00,#00,#00,#00,#F0,#DA,#F0,#F0,#F8,#F0,#00,#01
+
+;; ---- End of Frame: nina_grub_right_1_F0 ----
+
+;; ---- Sprite Frame: nina_grub_right_1_F1 ----
+;; Size: 16x16
+NINA_GRUB_RIGHT_1_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #20,#00,#00,#80,#00,#00,#20,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#3C,#34,#B6,#FE,#7C,#61,#04,#20,#00,#00,#01,#0A,#00
+
+NINA_GRUB_RIGHT_1_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
+    DB #00,#00,#01,#01,#01,#07,#04,#08,#08,#00,#01,#01,#03,#07,#07,#00
+    DB #00,#F8,#FE,#C0,#40,#00,#00,#00,#00,#F2,#D8,#F0,#F0,#F0,#F5,#00
+
+;; ---- End of Frame: nina_grub_right_1_F1 ----
+
+
+; Sprite Asset 2: New Sprite
+;; Sprite: New Sprite
+;; Total Frames: 1
+;; Size: 16x16
+;; Background Color (not exported as a layer): rgba(0,0,0,0)
+;; Drawable Palette (Hex): C0=rgba(0,0,0,0), C1=#FFFFFF, C2=#FF0000, C3=#00FF00
+
 SPRITE_NEW_SPRITE_2_WIDTH     EQU 16
 SPRITE_NEW_SPRITE_2_HEIGHT    EQU 16
 SPRITE_NEW_SPRITE_2_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: New Sprite_2_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_2_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_2_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_2_F0_DATA (32 bytes)
+NEW_SPRITE_2_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+
+NEW_SPRITE_2_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+
+NEW_SPRITE_2_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+
+;; ---- End of Frame: New Sprite_2_F0 ----
+
+
+; Sprite Asset 3: nina_jump_right
+;; Sprite: nina_jump_right
+;; Total Frames: 1
+;; Size: 16x16
+;; Background Color (not exported as a layer): rgba(0,0,0,0)
+;; Drawable Palette (Hex): C0=#D4524D, C1=#FFFFFF, C2=#000000, C3=#3EB847
+
 SPRITE_NINA_JUMP_RIGHT_3_WIDTH     EQU 16
 SPRITE_NINA_JUMP_RIGHT_3_HEIGHT    EQU 16
 SPRITE_NINA_JUMP_RIGHT_3_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: nina_jump_right_3_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_RIGHT_3_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_RIGHT_3_F0_DATA (32 bytes)
+NINA_JUMP_RIGHT_3_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #D4524D)
+    DB #07,#07,#09,#14,#20,#10,#20,#03,#02,#07,#07,#06,#07,#06,#07,#00
+    DB #F8,#00,#00,#00,#00,#00,#00,#C0,#40,#C0,#E0,#E0,#E0,#E0,#E0,#00
+
+NINA_JUMP_RIGHT_3_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#00,#02,#03,#01,#01,#00,#00,#00,#00,#01,#00,#01,#00,#01
+    DB #00,#F0,#D0,#D8,#F8,#F0,#80,#00,#80,#00,#00,#00,#00,#00,#00,#80
+
+;; ---- End of Frame: nina_jump_right_3_F0 ----
+
+
+; Sprite Asset 4: nina_idle_right
+;; Sprite: nina_idle_right
+;; Total Frames: 1
+;; Size: 16x16
+;; Background Color (not exported as a layer): rgba(0,0,0,0)
+;; Drawable Palette (Hex): C0=rgba(0,0,0,0), C1=#FFFFFF, C2=#D4524D, C3=#00FF00
+
 SPRITE_NINA_IDLE_RIGHT_4_WIDTH     EQU 16
 SPRITE_NINA_IDLE_RIGHT_4_HEIGHT    EQU 16
 SPRITE_NINA_IDLE_RIGHT_4_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: nina_idle_right_4_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_RIGHT_4_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_RIGHT_4_F0_DATA (32 bytes)
+NINA_IDLE_RIGHT_4_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #20,#00,#00,#80,#00,#00,#20,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#3C,#34,#B6,#FE,#7C,#61,#04,#20,#00,#00,#00,#08,#05
+
+NINA_IDLE_RIGHT_4_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
+    DB #00,#00,#01,#01,#01,#07,#04,#08,#08,#00,#00,#00,#01,#03,#03,#00
+    DB #00,#F8,#FE,#C0,#40,#00,#00,#00,#00,#F2,#D8,#F0,#F0,#F0,#F1,#0A
+
+;; ---- End of Frame: nina_idle_right_4_F0 ----
+
+
+; Sprite Asset 5: New Sprite_right
+;; Sprite: New Sprite_right
+;; Total Frames: 1
+;; Size: 16x16
+;; Background Color (not exported as a layer): rgba(0,0,0,0)
+;; Drawable Palette (Hex): C0=rgba(0,0,0,0), C1=#FFFFFF, C2=#5455ED, C3=#00FF00
+
 SPRITE_NEW_SPRITE_RIGHT_5_WIDTH     EQU 16
 SPRITE_NEW_SPRITE_RIGHT_5_HEIGHT    EQU 16
 SPRITE_NEW_SPRITE_RIGHT_5_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: New Sprite_right_5_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_RIGHT_5_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_RIGHT_5_F0_DATA (32 bytes)
+NEW_SPRITE_RIGHT_5_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#07,#0F,#07,#07,#07,#00,#07,#07,#07,#04,#04,#04,#04,#07,#3B
+    DB #00,#F0,#F8,#90,#F0,#F0,#00,#80,#8E,#90,#FE,#FC,#80,#80,#80,#7E
+
+NEW_SPRITE_RIGHT_5_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #5455ED)
+    DB #00,#03,#03,#03,#03,#00,#00,#3F,#60,#5D,#55,#55,#5D,#60,#3F,#00
+    DB #0F,#00,#08,#00,#00,#00,#00,#FE,#03,#DD,#55,#55,#DD,#03,#FE,#00
+
+;; ---- End of Frame: New Sprite_right_5_F0 ----
+
+
+; Sprite Asset 6: nina_walk_left
+;; Sprite: nina_walk_left
+;; Total Frames: 2
+;; Size: 16x16
+;; Background Color (not exported as a layer): rgba(0,0,0,0)
+;; Drawable Palette (Hex): C0=#D4524D, C1=#FFFFFF, C2=#000000, C3=#3EB847
+
 SPRITE_NINA_WALK_LEFT_6_WIDTH     EQU 16
 SPRITE_NINA_WALK_LEFT_6_HEIGHT    EQU 16
 SPRITE_NINA_WALK_LEFT_6_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: nina_walk_left_6_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_6_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_6_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_6_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_6_F1_DATA (32 bytes)
+NINA_WALK_LEFT_6_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #D4524D)
+    DB #1F,#00,#00,#00,#00,#00,#00,#03,#16,#03,#03,#07,#00,#00,#00,#02
+    DB #E0,#E0,#AC,#3A,#01,#00,#00,#C0,#40,#C0,#E0,#F0,#00,#80,#00,#80
+
+NINA_WALK_LEFT_6_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#00,#00,#00,#00,#01
+    DB #00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#00,#80,#00,#80,#00
+
+;; ---- End of Frame: nina_walk_left_6_F0 ----
+
+;; ---- Sprite Frame: nina_walk_left_6_F1 ----
+;; Size: 16x16
+NINA_WALK_LEFT_6_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #D4524D)
+    DB #03,#1F,#00,#00,#00,#00,#00,#00,#03,#16,#03,#07,#05,#08,#00,#28
+    DB #C0,#E0,#E1,#95,#2A,#00,#00,#00,#C0,#40,#E0,#F0,#D4,#00,#04,#00
+
+NINA_WALK_LEFT_6_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#0A,#00,#08,#10
+    DB #00,#00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#28,#04,#00,#00
+
+;; ---- End of Frame: nina_walk_left_6_F1 ----
+
+
+; Sprite Asset 7: nina_grub_left
+;; Sprite: nina_grub_left
+;; Total Frames: 2
+;; Size: 16x16
+;; Background Color (not exported as a layer): rgba(0,0,0,0)
+;; Drawable Palette (Hex): C0=rgba(0,0,0,0), C1=#FFFFFF, C2=#D4524D, C3=#00FF00
+
 SPRITE_NINA_GRUB_LEFT_7_WIDTH     EQU 16
 SPRITE_NINA_GRUB_LEFT_7_HEIGHT    EQU 16
 SPRITE_NINA_GRUB_LEFT_7_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: nina_grub_left_7_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_7_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_7_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_7_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_7_F1_DATA (32 bytes)
+NINA_GRUB_LEFT_7_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#3C,#2C,#6D,#7F,#3E,#06,#00,#A4,#00,#00,#00,#10,#20,#40
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+
+NINA_GRUB_LEFT_7_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
+    DB #1F,#7F,#03,#02,#00,#00,#00,#00,#0F,#5B,#0F,#0F,#1F,#0F,#00,#80
+    DB #00,#80,#80,#80,#E0,#20,#10,#10,#00,#00,#00,#80,#C0,#C0,#00,#00
+
+;; ---- End of Frame: nina_grub_left_7_F0 ----
+
+;; ---- Sprite Frame: nina_grub_left_7_F1 ----
+;; Size: 16x16
+NINA_GRUB_LEFT_7_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#00,#3C,#2C,#6D,#7F,#3E,#86,#20,#04,#00,#00,#80,#50,#00
+    DB #04,#00,#00,#01,#00,#00,#04,#00,#00,#00,#00,#00,#00,#00,#00,#00
+
+NINA_GRUB_LEFT_7_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
+    DB #00,#1F,#7F,#03,#02,#00,#00,#00,#00,#4F,#1B,#0F,#0F,#0F,#AF,#00
+    DB #00,#00,#80,#80,#80,#E0,#20,#10,#10,#00,#80,#80,#C0,#E0,#E0,#00
+
+;; ---- End of Frame: nina_grub_left_7_F1 ----
+
+
+; Sprite Asset 8: nina_jump_left
+;; Sprite: nina_jump_left
+;; Total Frames: 1
+;; Size: 16x16
+;; Background Color (not exported as a layer): rgba(0,0,0,0)
+;; Drawable Palette (Hex): C0=#D4524D, C1=#FFFFFF, C2=#000000, C3=#3EB847
+
 SPRITE_NINA_JUMP_LEFT_8_WIDTH     EQU 16
 SPRITE_NINA_JUMP_LEFT_8_HEIGHT    EQU 16
 SPRITE_NINA_JUMP_LEFT_8_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: nina_jump_left_8_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_8_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_8_F0_DATA (32 bytes)
+NINA_JUMP_LEFT_8_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #D4524D)
+    DB #1F,#00,#00,#00,#00,#00,#00,#03,#02,#03,#07,#07,#07,#07,#07,#00
+    DB #E0,#E0,#90,#28,#04,#08,#04,#C0,#40,#E0,#E0,#60,#E0,#60,#E0,#00
+
+NINA_JUMP_LEFT_8_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#0F,#0B,#1B,#1F,#0F,#01,#00,#01,#00,#00,#00,#00,#00,#00,#01
+    DB #00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#80,#00,#80,#00,#80
+
+;; ---- End of Frame: nina_jump_left_8_F0 ----
+
+
+; Sprite Asset 9: nina_idle_left
+;; Sprite: nina_idle_left
+;; Total Frames: 1
+;; Size: 16x16
+;; Background Color (not exported as a layer): rgba(0,0,0,0)
+;; Drawable Palette (Hex): C0=rgba(0,0,0,0), C1=#FFFFFF, C2=#D4524D, C3=#00FF00
+
 SPRITE_NINA_IDLE_LEFT_9_WIDTH     EQU 16
 SPRITE_NINA_IDLE_LEFT_9_HEIGHT    EQU 16
 SPRITE_NINA_IDLE_LEFT_9_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: nina_idle_left_9_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_9_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_9_F0_DATA (32 bytes)
+NINA_IDLE_LEFT_9_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#00,#3C,#2C,#6D,#7F,#3E,#86,#20,#04,#00,#00,#00,#10,#A0
+    DB #04,#00,#00,#01,#00,#00,#04,#00,#00,#00,#00,#00,#00,#00,#00,#00
+
+NINA_IDLE_LEFT_9_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
+    DB #00,#1F,#7F,#03,#02,#00,#00,#00,#00,#4F,#1B,#0F,#0F,#0F,#8F,#50
+    DB #00,#00,#80,#80,#80,#E0,#20,#10,#10,#00,#00,#00,#80,#C0,#C0,#00
+
+;; ---- End of Frame: nina_idle_left_9_F0 ----
+
+
+; Sprite Asset 10: New Sprite_left
+;; Sprite: New Sprite_left
+;; Total Frames: 1
+;; Size: 16x16
+;; Background Color (not exported as a layer): rgba(0,0,0,0)
+;; Drawable Palette (Hex): C0=rgba(0,0,0,0), C1=#FFFFFF, C2=#5455ED, C3=#00FF00
+
 SPRITE_NEW_SPRITE_LEFT_10_WIDTH     EQU 16
 SPRITE_NEW_SPRITE_LEFT_10_HEIGHT    EQU 16
 SPRITE_NEW_SPRITE_LEFT_10_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: New Sprite_left_10_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_LEFT_10_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_LEFT_10_F0_DATA (32 bytes)
+NEW_SPRITE_LEFT_10_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#0F,#1F,#09,#0F,#0F,#00,#01,#71,#09,#7F,#3F,#01,#01,#01,#7E
+    DB #00,#E0,#F0,#E0,#E0,#E0,#00,#E0,#E0,#E0,#20,#20,#20,#20,#E0,#DC
+
+NEW_SPRITE_LEFT_10_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #5455ED)
+    DB #F0,#00,#10,#00,#00,#00,#00,#7F,#C0,#BB,#AA,#AA,#BB,#C0,#7F,#00
+    DB #00,#C0,#C0,#C0,#C0,#00,#00,#FC,#06,#BA,#AA,#AA,#BA,#06,#FC,#00
+
+;; ---- End of Frame: New Sprite_left_10_F0 ----
+
+
+; ==================================================================
+; PLACEHOLDER SPRITE PATTERN (for entities with missing sprite assets)
+; ==================================================================
+; 16x16 white square sprite (solid fill)
 SPRITE_PLACEHOLDER_PATTERN:
     ; Top half (8x8)
     db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
@@ -9830,80 +11214,65 @@ world_sprite_pattern_pack_table:
 
 ; ------------------------------------------------------------------
 ; Runtime Sprite Pattern Pack: World "New Worldmap"
-; Slots required: 18/64
+; Slots required: 13/64
 ; ------------------------------------------------------------------
 SPRITE_PATTERN_PACK_WORLDMAP_1776512078647_ID EQU 0
 
 sprite_asset_base_pattern_slot_worldmap_1776512078647:
     db 0 ; Sprite 0: nina_walk_right
     db 0 ; Sprite 1: nina_grub_right
-    db 4 ; Sprite 2: New Sprite
+    db 0 ; Sprite 2: New Sprite
     db 0 ; Sprite 3: nina_jump_right
-    db 5 ; Sprite 4: nina_idle_right
-    db 7 ; Sprite 5: New Sprite_right
-    db 9 ; Sprite 6: nina_walk_left
+    db 4 ; Sprite 4: nina_idle_right
+    db 0 ; Sprite 5: New Sprite_right
+    db 6 ; Sprite 6: nina_walk_left
     db 0 ; Sprite 7: nina_grub_left
     db 0 ; Sprite 8: nina_jump_left
-    db 13 ; Sprite 9: nina_idle_left
-    db 15 ; Sprite 10: New Sprite_left
+    db 10 ; Sprite 9: nina_idle_left
+    db 0 ; Sprite 10: New Sprite_left
 
 load_sprite_patterns_worldmap_1776512078647:
     ld hl, sprite_asset_base_pattern_slot_worldmap_1776512078647
     ld de, sprite_asset_base_pattern_slot_runtime
     ld bc, SPRITE_ASSET_COUNT
     ldir
-    ld a, 68
+    ld a, 48
     ld (sprite_placeholder_base_pattern_num), a
     ; Sprite Asset 0: nina_walk_right frame 0 (2 layers)
     ld hl, NINA_WALK_RIGHT_0_F0_LAYER0
     ld de, SPRPAT + (0 * 32)
     ld bc, 64
-    call COPY_SPRITE_SRC_TO_VRAM
+    call FAST_LDIRVM
     ; Sprite Asset 0: nina_walk_right frame 1 (2 layers)
     ld hl, NINA_WALK_RIGHT_0_F1_LAYER0
     ld de, SPRPAT + (2 * 32)
     ld bc, 64
-    call COPY_SPRITE_SRC_TO_VRAM
-    ; Sprite Asset 2: New Sprite frame 0 has no drawable layers - use placeholder
-    ld hl, SPRITE_PLACEHOLDER_PATTERN
-    ld de, SPRPAT + (4 * 32)
-    ld bc, 32
-    call COPY_SPRITE_SRC_TO_VRAM
+    call FAST_LDIRVM
     ; Sprite Asset 4: nina_idle_right frame 0 (2 layers)
     ld hl, NINA_IDLE_RIGHT_4_F0_LAYER1
-    ld de, SPRPAT + (5 * 32)
+    ld de, SPRPAT + (4 * 32)
     ld bc, 64
-    call COPY_SPRITE_SRC_TO_VRAM
-    ; Sprite Asset 5: New Sprite_right frame 0 (2 layers)
-    ld hl, NEW_SPRITE_RIGHT_5_F0_LAYER1
-    ld de, SPRPAT + (7 * 32)
-    ld bc, 64
-    call COPY_SPRITE_SRC_TO_VRAM
+    call FAST_LDIRVM
     ; Sprite Asset 6: nina_walk_left frame 0 (2 layers)
     ld hl, NINA_WALK_LEFT_6_F0_LAYER0
-    ld de, SPRPAT + (9 * 32)
+    ld de, SPRPAT + (6 * 32)
     ld bc, 64
-    call COPY_SPRITE_SRC_TO_VRAM
+    call FAST_LDIRVM
     ; Sprite Asset 6: nina_walk_left frame 1 (2 layers)
     ld hl, NINA_WALK_LEFT_6_F1_LAYER0
-    ld de, SPRPAT + (11 * 32)
+    ld de, SPRPAT + (8 * 32)
     ld bc, 64
-    call COPY_SPRITE_SRC_TO_VRAM
+    call FAST_LDIRVM
     ; Sprite Asset 9: nina_idle_left frame 0 (2 layers)
     ld hl, NINA_IDLE_LEFT_9_F0_LAYER1
-    ld de, SPRPAT + (13 * 32)
+    ld de, SPRPAT + (10 * 32)
     ld bc, 64
-    call COPY_SPRITE_SRC_TO_VRAM
-    ; Sprite Asset 10: New Sprite_left frame 0 (2 layers)
-    ld hl, NEW_SPRITE_LEFT_10_F0_LAYER1
-    ld de, SPRPAT + (15 * 32)
-    ld bc, 64
-    call COPY_SPRITE_SRC_TO_VRAM
+    call FAST_LDIRVM
     ; Placeholder sprite used by missing sprite refs
     ld hl, SPRITE_PLACEHOLDER_PATTERN
-    ld de, SPRPAT + (17 * 32)
+    ld de, SPRPAT + (12 * 32)
     ld bc, 32
-    call COPY_SPRITE_SRC_TO_VRAM
+    call FAST_LDIRVM
     ld a, SPRITE_PATTERN_PACK_WORLDMAP_1776512078647_ID
     ld (current_sprite_pattern_pack_id), a
     ret
@@ -10112,7 +11481,7 @@ SCREEN_PAN1_0_BLOCK_MAP_SIZE EQU 48
 SCREEN_PAN1_0_BLOCK_TOTAL_SIZE EQU 144
 SCREEN_PAN1_0_ANIM_GROUP_COUNT EQU 0
 SCREEN_PAN1_0_ENTITY_COUNT EQU 1
-SCREEN_PAN1_0_SPRITE_PATTERN_SLOTS EQU 18
+SCREEN_PAN1_0_SPRITE_PATTERN_SLOTS EQU 13
 SCREEN_PAN1_0_MUSIC_IN_GAME EQU 0
 SCREEN_PAN1_0_SUMMARY_FLAGS EQU #06
 SCREEN_NEW_DIALOG_SCREEN_1_ID EQU 1
@@ -10155,7 +11524,7 @@ SCREEN_NEW_DIALOG_SCREEN_1_SUMMARY_FLAGS EQU #04
 ; ==================================================================
 
 screen_runtime_summary_table:
-    db 0, 1, 18, #06    ; Screen 0: pan1
+    db 0, 1, 13, #06    ; Screen 0: pan1
     db 0, 1, 9, #04    ; Screen 1: New Dialog Screen
 
 ; ==================================================================
@@ -10163,15 +11532,74 @@ screen_runtime_summary_table:
 ; ==================================================================
 
 SCREEN_PAN1_0_BLOCK_CATALOG:
-    ; ZX0 compressed screen_block_catalog (96 -> 29 bytes)
-    DB #95,#FF,#BC,#8C,#F8,#A1,#91,#58,#E2,#80,#81,#FD,#82,#83,#3E,#F3
-    DB #EF,#9E,#83,#E1,#24,#92,#92,#3F,#E5,#C0,#1D,#55,#56
+    ; pan1 - background block catalog (4x4)
+    ; 6 unique blocks, 96 bytes total
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #8C,#FF,#FF,#FF,#8C,#FF,#FF,#FF,#91,#FF,#FF,#FF,#91,#FF,#FF,#FF
+    DB #91,#FF,#FF,#FF,#91,#FF,#FF,#FF,#91,#FF,#FF,#FF,#91,#FF,#FF,#FF
+    DB #80,#81,#80,#81,#82,#83,#82,#83,#81,#80,#81,#80,#83,#82,#83,#82
+    DB #80,#81,#92,#92,#82,#83,#82,#83,#81,#80,#81,#80,#83,#82,#83,#82
+    DB #92,#92,#80,#81,#82,#83,#82,#83,#81,#80,#81,#80,#83,#82,#83,#82
+
 SCREEN_PAN1_0_BLOCK_MAP:
-    ; ZX0 compressed screen_block_map (48 -> 16 bytes)
-    DB #96,#00,#F2,#01,#F0,#85,#02,#6F,#03,#FE,#9D,#04,#05,#03,#55,#56
+    ; pan1 - background block index map (8x6)
+    ; 144 bytes optimized vs 768 raw (624 byte delta)
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#00,#00,#00,#00,#00,#00
+    DB #02,#00,#00,#00,#00,#00,#00,#00,#02,#00,#00,#00,#00,#00,#00,#00
+    DB #02,#00,#00,#00,#00,#00,#00,#00,#03,#03,#03,#03,#03,#04,#05,#03
+
 SCREEN_PAN1_0_EFFECTS_LAYOUT:
-    ; ZX0 compressed effects (768 -> 6 bytes)
-    DB #85,#FF,#55,#5D,#55,#56
+    ; Alternate Effects layer for pan1
+    ; Same 32x24 char layout as background; used by secretZone runtime
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+
 SCREEN_PAN1_0_EFFECT_ZONE_TABLE:
     ; No effect zones exported for pan1
     DB #00
@@ -10361,12 +11789,107 @@ SCREEN_NEW_DIALOG_SCREEN_1_HEIGHT    EQU 24
 SCREEN_NEW_DIALOG_SCREEN_1_SIZE      EQU 768
 
 SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT:
-    ; ZX0 compressed layout (768 -> 21 bytes)
-    DB #81,#FF,#55,#58,#F4,#80,#81,#FC,#62,#82,#83,#54,#F5,#82,#29,#80
-    DB #53,#D5,#FD,#55,#60
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80
+    DB #81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80
+    DB #83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82
+    DB #83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82
+
 SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT:
-    ; ZX0 compressed effects (768 -> 6 bytes)
-    DB #85,#FF,#55,#5D,#55,#56
+    ; Alternate Effects layer for New Dialog Screen
+    ; Same 32x24 char layout as background; used by secretZone runtime
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+
 SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE:
     ; No effect zones exported for New Dialog Screen
     DB #00
@@ -10381,8 +11904,57 @@ BEHAVIOR_NEW_DIALOG_SCREEN_1_HEIGHT    EQU 24
 BEHAVIOR_NEW_DIALOG_SCREEN_1_SIZE      EQU 768
 
 BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA:
-    ; ZX0 compressed behavior (768 -> 6 bytes)
-    DB #85,#00,#55,#5D,#55,#56
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+
+;; End of Behavior Map Data for New Dialog Screen_1
+
 SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP:
     ; New Dialog Screen - per-cell interaction type map
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
@@ -11018,23 +12590,11 @@ load_screen_pan1_776511902784:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Load optimized background block data into RAM scratch buffers and expand it
-    ; Decompress ZX0 screen block catalog into runtime_effects_layout
-    di
     ld hl, SCREEN_PAN1_0_BLOCK_CATALOG
-    ld de, runtime_effects_layout
-    call dzx0_standard
-    ei
-    ld hl, runtime_effects_layout
     ld de, runtime_effects_layout
     ld bc, SCREEN_PAN1_0_BLOCK_CATALOG_SIZE
     ldir
-    ; Decompress ZX0 screen block map into runtime_screen_layout
-    di
     ld hl, SCREEN_PAN1_0_BLOCK_MAP
-    ld de, runtime_screen_layout
-    call dzx0_standard
-    ei
-    ld hl, runtime_screen_layout
     ld de, runtime_screen_layout
     ld bc, SCREEN_PAN1_0_BLOCK_MAP_SIZE
     ldir
@@ -11046,13 +12606,7 @@ load_screen_pan1_776511902784:
     ld de, runtime_screen_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    ; Decompress ZX0 effects layout directly into runtime_effects_layout
-    di
     ld hl, SCREEN_PAN1_0_EFFECTS_LAYOUT
-    ld de, runtime_effects_layout
-    call dzx0_standard
-    ei
-    ld hl, runtime_effects_layout
     ld de, runtime_effects_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
@@ -11098,7 +12652,7 @@ load_screen_pan1_776511902784:
     ld (current_screen_anim_group_count), a
     ld a, 1
     ld (current_screen_entity_count), a
-    ld a, 18
+    ld a, 13
     ld (current_screen_sprite_pattern_slots), a
     ld a, SCREEN_PAN1_0_SUMMARY_FLAGS
     ld (current_screen_summary_flags), a
@@ -11158,38 +12712,20 @@ load_screen_new_dialog_screen_777377884059:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Build mutable runtime screen background maps in RAM
-    ; Decompress ZX0 screen layout into RAM buffer
-    di
     ld hl, SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT
-    ld de, ZX0_SCREEN_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_SCREEN_BUFFER
     ld de, runtime_background_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    ld hl, ZX0_SCREEN_BUFFER
+    ld hl, SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT
     ld de, runtime_screen_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
-    ; Decompress ZX0 effects layout directly into runtime_effects_layout
-    di
     ld hl, SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT
-    ld de, runtime_effects_layout
-    call dzx0_standard
-    ei
-    ld hl, runtime_effects_layout
     ld de, runtime_effects_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
 
-    ; Decompress ZX0 behavior map into RAM buffer
-    di
     ld hl, BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA
-    ld de, ZX0_BEHAVIOR_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_BEHAVIOR_BUFFER
     ld de, runtime_behavior_map
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
@@ -12071,21 +13607,95 @@ FONT_COLOR_DATA_BANK   EQU ((FONT_COLOR_DATA - #4000) / #2000)
 ; ==================================================================
 
 FONT_PATTERN_DATA:
-    ; ZX0 compressed font_pattern (344 -> 209 bytes)
-    DB #80,#00,#AB,#10,#7C,#E2,#FB,#E8,#BA,#7E,#FE,#62,#3E,#7F,#73,#49
-    DB #7F,#3E,#00,#18,#38,#18,#F9,#DB,#E1,#9F,#03,#3E,#60,#F0,#BA,#03
-    DB #D0,#5A,#06,#0E,#1E,#36,#7F,#06,#06,#A6,#7F,#60,#7E,#03,#1E,#F1
-    DB #9E,#63,#E1,#7E,#03,#06,#0C,#9F,#A0,#AA,#63,#63,#18,#82,#63,#3F
-    DB #7F,#00,#36,#36,#FA,#8E,#FF,#30,#18,#C3,#BF,#30,#D0,#BF,#B4,#B0
-    DB #EF,#B5,#FB,#63,#17,#EE,#F7,#80,#31,#79,#3C,#7E,#60,#FF,#22,#7E
-    DB #3C,#00,#7C,#7E,#66,#3E,#7E,#7C,#40,#3E,#7C,#60,#F7,#F0,#7F,#FF
-    DB #60,#89,#60,#67,#FE,#9B,#A5,#F8,#E3,#E1,#3E,#1C,#A8,#FF,#3E,#AB
-    DB #00,#1F,#06,#B8,#A1,#3C,#D1,#62,#66,#6C,#78,#6C,#66,#FF,#60,#FE
-    DB #97,#99,#B1,#77,#7F,#6B,#E0,#A1,#83,#73,#7B,#6F,#67,#FE,#94,#81
-    DB #20,#3C,#60,#AF,#6B,#E0,#3B,#BD,#63,#78,#70,#86,#3E,#0F,#FF,#18
-    DB #FE,#30,#FE,#A0,#F0,#26,#36,#1C,#08,#09,#FE,#6B,#7F,#77,#B1,#E4
-    DB #39,#36,#63,#F0,#FF,#B0,#A1,#6E,#13,#30,#97,#BC,#00,#FE,#D5,#55
-    DB #60
+    ; Char 32 (' ')
+    DB #00, #00, #00, #00, #00, #00, #00, #00
+    ; Char 43 ('+')
+    DB #00, #10, #10, #7C, #10, #10, #00, #00
+    ; Char 45 ('-')
+    DB #00, #00, #00, #7E, #00, #00, #00, #00
+    ; Char 48 ('0')
+    DB #3E, #7F, #73, #73, #73, #7F, #3E, #00
+    ; Char 49 ('1')
+    DB #18, #38, #18, #18, #18, #18, #7E, #00
+    ; Char 50 ('2')
+    DB #3E, #7F, #03, #3E, #60, #7F, #3E, #00
+    ; Char 51 ('3')
+    DB #3E, #7F, #03, #3E, #03, #7F, #3E, #00
+    ; Char 52 ('4')
+    DB #06, #0E, #1E, #36, #7F, #06, #06, #00
+    ; Char 53 ('5')
+    DB #7F, #7F, #60, #7E, #03, #7F, #3E, #00
+    ; Char 54 ('6')
+    DB #3E, #7F, #60, #7E, #63, #7F, #3E, #00
+    ; Char 55 ('7')
+    DB #7F, #7F, #03, #06, #0C, #18, #18, #00
+    ; Char 56 ('8')
+    DB #3E, #7F, #63, #3E, #63, #7F, #3E, #00
+    ; Char 57 ('9')
+    DB #3E, #7F, #63, #3F, #03, #7F, #3E, #00
+    ; Char 58 (':')
+    DB #00, #36, #36, #00, #36, #36, #00, #00
+    ; Char 62 ('>')
+    DB #00, #30, #18, #0C, #18, #30, #00, #00
+    ; Char 63 ('?')
+    DB #3E, #7F, #63, #18, #18, #00, #18, #00
+    ; Char 65 ('A')
+    DB #3E, #7F, #63, #7F, #7F, #63, #63, #00
+    ; Char 66 ('B')
+    DB #7E, #7F, #63, #7E, #63, #7F, #7E, #00
+    ; Char 67 ('C')
+    DB #3C, #7E, #60, #60, #60, #7E, #3C, #00
+    ; Char 68 ('D')
+    DB #7C, #7E, #66, #66, #66, #7E, #7C, #00
+    ; Char 69 ('E')
+    DB #7F, #7F, #60, #7C, #60, #7F, #7F, #00
+    ; Char 70 ('F')
+    DB #7F, #7F, #60, #7C, #60, #60, #60, #00
+    ; Char 71 ('G')
+    DB #3E, #7F, #63, #60, #67, #7F, #3E, #00
+    ; Char 72 ('H')
+    DB #63, #63, #63, #7F, #63, #63, #63, #00
+    ; Char 73 ('I')
+    DB #3E, #3E, #1C, #1C, #1C, #3E, #3E, #00
+    ; Char 74 ('J')
+    DB #1F, #1F, #06, #06, #66, #7E, #3C, #00
+    ; Char 75 ('K')
+    DB #63, #66, #6C, #78, #6C, #66, #63, #00
+    ; Char 76 ('L')
+    DB #60, #60, #60, #60, #60, #7F, #7F, #00
+    ; Char 77 ('M')
+    DB #63, #77, #7F, #6B, #63, #63, #63, #00
+    ; Char 78 ('N')
+    DB #63, #73, #7B, #6F, #67, #63, #63, #00
+    ; Char 79 ('O')
+    DB #3E, #7F, #63, #63, #63, #7F, #3E, #00
+    ; Char 80 ('P')
+    DB #7E, #7F, #63, #7E, #60, #60, #60, #00
+    ; Char 81 ('Q')
+    DB #3E, #7F, #63, #6B, #67, #7F, #3E, #00
+    ; Char 82 ('R')
+    DB #7E, #7F, #63, #7E, #7B, #6F, #63, #00
+    ; Char 83 ('S')
+    DB #3E, #7F, #60, #3E, #0F, #7F, #3E, #00
+    ; Char 84 ('T')
+    DB #7F, #7F, #18, #18, #18, #18, #18, #00
+    ; Char 85 ('U')
+    DB #63, #63, #63, #63, #63, #7F, #3E, #00
+    ; Char 86 ('V')
+    DB #63, #63, #63, #63, #36, #1C, #08, #00
+    ; Char 87 ('W')
+    DB #63, #63, #63, #6B, #7F, #77, #63, #00
+    ; Char 88 ('X')
+    DB #63, #63, #36, #1C, #36, #63, #63, #00
+    ; Char 89 ('Y')
+    DB #63, #63, #36, #1C, #18, #18, #18, #00
+    ; Char 90 ('Z')
+    DB #7F, #7F, #06, #0C, #30, #7F, #7F, #00
+    ; Char 124 ('|')
+    DB #18, #18, #18, #18, #18, #18, #18, #18
+
+
+; Character index table (for quick lookup)
 FONT_CHAR_INDEX:
     DB 32, 43, 45, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 62, 63, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 124
 FONT_CHAR_COUNT EQU 43
@@ -12127,7 +13737,7 @@ load_all_font_banks:
 ; Input: DE = Bank Base Address
 load_font_patterns_to_bank:
     ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
-    ld iy, ZX0_FONT_PATTERN_BUFFER
+    ld iy, FONT_PATTERN_DATA      ; Pointer to pattern data (window addr for bank4)
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 
 
@@ -12170,9 +13780,94 @@ load_font_patterns_to_bank:
 ; ==================================================================
 
 FONT_COLOR_DATA:
-    ; ZX0 compressed font_color (344 -> 21 bytes)
-    DB #96,#F1,#96,#F0,#96,#F1,#83,#A1,#84,#F0,#4E,#30,#03,#C4,#FE,#52
-    DB #97,#F0,#55,#55,#80
+    ; Char 32
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 43
+    DB #F0, #F0, #F0, #F0, #F0, #F0, #F0, #F0
+    ; Char 45
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 48
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 49
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 50
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 51
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 52
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 53
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 54
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 55
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 56
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 57
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 58
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 62
+    DB #F0, #F0, #F0, #F0, #F0, #F0, #F0, #F0
+    ; Char 63
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 65
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 66
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 67
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 68
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 69
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 70
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 71
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 72
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 73
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 74
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 75
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 76
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 77
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 78
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 79
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 80
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 81
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 82
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 83
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 84
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 85
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 86
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 87
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 88
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 89
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 90
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 124
+    DB #F0, #F0, #F0, #F0, #F0, #F0, #F0, #F0
+
+
 load_font_colors:
     ld de, CLRTBL2                ; Bank 0 Base
     call load_font_colors_to_bank
@@ -12193,7 +13888,7 @@ load_font_colors_all_banks:
 ; Input: DE = Bank Base Address
 load_font_colors_to_bank:
     ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
-    ld iy, ZX0_FONT_COLOR_BUFFER
+    ld iy, FONT_COLOR_DATA        ; Pointer to color data (window addr for bank4)
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 
 
@@ -12270,18 +13965,6 @@ print_string_end:
 
 ; Initialize font system for Screen 2 text rendering
 init_font_system:
-    ; Decompress ZX0 font pattern data into RAM buffer
-    di
-    ld hl, FONT_PATTERN_DATA
-    ld de, ZX0_FONT_PATTERN_BUFFER
-    call dzx0_standard
-    ei
-    ; Decompress ZX0 font color data into RAM buffer
-    di
-    ld hl, FONT_COLOR_DATA
-    ld de, ZX0_FONT_COLOR_BUFFER
-    call dzx0_standard
-    ei
     ld a, (vram_cache_font_ready)
     or a
     ret nz
@@ -17215,7 +18898,7 @@ SM_ConditionTable:
     DW Condition_Nop ; 8 [Condition_HasCollision stripped]
     DW Condition_Nop ; 9 [Condition_PathClear stripped]
     DW Condition_Nop ; 10 [Condition_OnWallCollision stripped]
-    DW Condition_DeadlyTile     ; 11
+    DW Condition_Nop ; 11 [Condition_DeadlyTile stripped]
     DW Condition_Nop ; 12 [Condition_AnimComplete stripped]
     DW Condition_Nop ; 13 [Condition_KeyAndMove stripped]
     DW Condition_VariableCompare; 14
@@ -17478,20 +19161,7 @@ Condition_KeyReleased:
 
 ; [Condition_OnWallCollision stripped - not used]
 
-Condition_DeadlyTile:
-    ; Check if entity is touching deadly tile
-    ; Input: B = Entity Index, HL = Params Ptr (no params)
-    ; Output: A = 1 (touching deadly tile) or 0 (safe)
-    ; Destroys: DE, HL
-    push hl
-    ld hl, entity_flag_deadly_tile
-    ld e, b
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    and #01                       ; Check bit 0
-    pop hl
-    ret                           ; A = 1 if deadly, 0 if safe
+; [Condition_DeadlyTile stripped - not used]
 
 ; [Condition_AnimComplete stripped - not used]
 
@@ -17769,7 +19439,7 @@ SM_New_Statemachine_state_1776707744092:
     DW 0 
     DW SM_New_Statemachine_state_1776707744092_Transitions 
 SM_New_Statemachine_state_1776707744092_Transitions: 
-    DB 5; Count
+    DB 4; Count
     DB 4; KEY_PRESSED 
     DB 3          ; Key: arrowright
     DW SM_New_Statemachine_state_1776708050326 
@@ -17796,9 +19466,6 @@ SM_New_Statemachine_state_1776707744092_Transitions:
     DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
     DW 0 
     DW SM_New_Statemachine_state_1776707744092_Transitions_Actions_3 
-    DB 11; HAS_DEADLY_TILE_COLLISION 
-    DW SM_New_Statemachine_state_1777378831352 
-    DW SM_New_Statemachine_state_1776707744092_Transitions_Actions_4 
 
 SM_New_Statemachine_state_1776707744092_Transitions_Actions_0: 
     DB 5; CHANGE_SPRITE 
@@ -17821,10 +19488,6 @@ SM_New_Statemachine_state_1776707744092_Transitions_Actions_3:
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
     DB 0xFF; END
-SM_New_Statemachine_state_1776707744092_Transitions_Actions_4: 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: New Sprite 
-    DB 0xFF; END
 
 SM_New_Statemachine_state_1776707753316: 
     DB 0; ID(unused) 
@@ -17832,7 +19495,7 @@ SM_New_Statemachine_state_1776707753316:
     DW 0 
     DW SM_New_Statemachine_state_1776707753316_Transitions 
 SM_New_Statemachine_state_1776707753316_Transitions: 
-    DB 3; Count
+    DB 2; Count
     DB 1; AND 
     DB 3 
     DB 14; VARIABLE_COMPARE 
@@ -17851,9 +19514,6 @@ SM_New_Statemachine_state_1776707753316_Transitions:
     DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
     DW 0 
     DW SM_New_Statemachine_state_1776707753316_Transitions_Actions_1 
-    DB 11; HAS_DEADLY_TILE_COLLISION 
-    DW SM_New_Statemachine_state_1777378831352 
-    DW SM_New_Statemachine_state_1776707753316_Transitions_Actions_2 
 
 SM_New_Statemachine_state_1776707753316_Transitions_Actions_0: 
     DB 28; REPLACE_TILE 
@@ -17868,10 +19528,6 @@ SM_New_Statemachine_state_1776707753316_Transitions_Actions_1:
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
     DB 0xFF; END
-SM_New_Statemachine_state_1776707753316_Transitions_Actions_2: 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: New Sprite 
-    DB 0xFF; END
 
 SM_New_Statemachine_state_1776708050326: 
     DB 0; ID(unused) 
@@ -17879,7 +19535,7 @@ SM_New_Statemachine_state_1776708050326:
     DW 0 
     DW SM_New_Statemachine_state_1776708050326_Transitions 
 SM_New_Statemachine_state_1776708050326_Transitions: 
-    DB 4; Count
+    DB 3; Count
     DB 5; KEY_RELEASED 
     DB 3          ; Key: right
     DW SM_New_Statemachine_state_1776707744092 
@@ -17902,9 +19558,6 @@ SM_New_Statemachine_state_1776708050326_Transitions:
     DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
     DW 0 
     DW SM_New_Statemachine_state_1776708050326_Transitions_Actions_2 
-    DB 11; HAS_DEADLY_TILE_COLLISION 
-    DW SM_New_Statemachine_state_1777378831352 
-    DW SM_New_Statemachine_state_1776708050326_Transitions_Actions_3 
 
 SM_New_Statemachine_state_1776708050326_Transitions_Actions_0: 
     DB 5; CHANGE_SPRITE 
@@ -17923,10 +19576,6 @@ SM_New_Statemachine_state_1776708050326_Transitions_Actions_2:
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
     DB 0xFF; END
-SM_New_Statemachine_state_1776708050326_Transitions_Actions_3: 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: New Sprite 
-    DB 0xFF; END
 
 SM_New_Statemachine_state_1776708052277: 
     DB 0; ID(unused) 
@@ -17934,7 +19583,7 @@ SM_New_Statemachine_state_1776708052277:
     DW 0 
     DW SM_New_Statemachine_state_1776708052277_Transitions 
 SM_New_Statemachine_state_1776708052277_Transitions: 
-    DB 4; Count
+    DB 3; Count
     DB 5; KEY_RELEASED 
     DB 7          ; Key: left
     DW SM_New_Statemachine_state_1776707744092 
@@ -17957,9 +19606,6 @@ SM_New_Statemachine_state_1776708052277_Transitions:
     DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
     DW 0 
     DW SM_New_Statemachine_state_1776708052277_Transitions_Actions_2 
-    DB 11; HAS_DEADLY_TILE_COLLISION 
-    DW SM_New_Statemachine_state_1777378831352 
-    DW SM_New_Statemachine_state_1776708052277_Transitions_Actions_3 
 
 SM_New_Statemachine_state_1776708052277_Transitions_Actions_0: 
     DB 5; CHANGE_SPRITE 
@@ -17978,10 +19624,6 @@ SM_New_Statemachine_state_1776708052277_Transitions_Actions_2:
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
     DB 0xFF; END
-SM_New_Statemachine_state_1776708052277_Transitions_Actions_3: 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: New Sprite 
-    DB 0xFF; END
 
 SM_New_Statemachine_state_1776790058414: 
     DB 0; ID(unused) 
@@ -17989,7 +19631,7 @@ SM_New_Statemachine_state_1776790058414:
     DW 0 
     DW SM_New_Statemachine_state_1776790058414_Transitions 
 SM_New_Statemachine_state_1776790058414_Transitions: 
-    DB 3; Count
+    DB 2; Count
     DB 1; AND 
     DB 3 
     DB 14; VARIABLE_COMPARE 
@@ -18008,9 +19650,6 @@ SM_New_Statemachine_state_1776790058414_Transitions:
     DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
     DW 0 
     DW SM_New_Statemachine_state_1776790058414_Transitions_Actions_1 
-    DB 11; HAS_DEADLY_TILE_COLLISION 
-    DW SM_New_Statemachine_state_1777378831352 
-    DW SM_New_Statemachine_state_1776790058414_Transitions_Actions_2 
 
 SM_New_Statemachine_state_1776790058414_Transitions_Actions_0: 
     DB 28; REPLACE_TILE 
@@ -18025,10 +19664,6 @@ SM_New_Statemachine_state_1776790058414_Transitions_Actions_1:
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
     DB 0xFF; END
-SM_New_Statemachine_state_1776790058414_Transitions_Actions_2: 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: New Sprite 
-    DB 0xFF; END
 
 SM_New_Statemachine_state_1776790060726: 
     DB 0; ID(unused) 
@@ -18036,7 +19671,7 @@ SM_New_Statemachine_state_1776790060726:
     DW 0 
     DW SM_New_Statemachine_state_1776790060726_Transitions 
 SM_New_Statemachine_state_1776790060726_Transitions: 
-    DB 3; Count
+    DB 2; Count
     DB 1; AND 
     DB 3 
     DB 14; VARIABLE_COMPARE 
@@ -18055,9 +19690,6 @@ SM_New_Statemachine_state_1776790060726_Transitions:
     DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
     DW 0 
     DW SM_New_Statemachine_state_1776790060726_Transitions_Actions_1 
-    DB 11; HAS_DEADLY_TILE_COLLISION 
-    DW SM_New_Statemachine_state_1777378831352 
-    DW SM_New_Statemachine_state_1776790060726_Transitions_Actions_2 
 
 SM_New_Statemachine_state_1776790060726_Transitions_Actions_0: 
     DB 28; REPLACE_TILE 
@@ -18066,50 +19698,6 @@ SM_New_Statemachine_state_1776790060726_Transitions_Actions_0:
     DB 17, 1, 0        ; buttons_activated (ID 17) = 1
     DB 0xFF; END
 SM_New_Statemachine_state_1776790060726_Transitions_Actions_1: 
-    DB 14; INCREMENT_VARIABLE 
-    DB 15, 244, 1        ; Score (ID 15) = 500
-    DB 13; SET_VARIABLE 
-    DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
-    DB 23; REGENERATE_HUD 
-    DB 0xFF; END
-SM_New_Statemachine_state_1776790060726_Transitions_Actions_2: 
-    DB 5; CHANGE_SPRITE 
-    DB 2; sprite: New Sprite 
-    DB 0xFF; END
-
-SM_New_Statemachine_state_1777378831352: 
-    DB 0; ID(unused) 
-    DW 0 
-    DW 0 
-    DW SM_New_Statemachine_state_1777378831352_Transitions 
-SM_New_Statemachine_state_1777378831352_Transitions: 
-    DB 2; Count
-    DB 1; AND 
-    DB 3 
-    DB 14; VARIABLE_COMPARE 
-    DB 8, 0, 0, 1; last_interaction_pending (ID 8) == true
-    DB 14; VARIABLE_COMPARE 
-    DB 9, 0, 0, 5; last_interaction_type (ID 9) == 5
-    DB 14; VARIABLE_COMPARE 
-    DB 10, 0, 0, 0; last_interaction_value (ID 10) == 0
-    DW 0 
-    DW SM_New_Statemachine_state_1777378831352_Transitions_Actions_0 
-    DB 1; AND 
-    DB 2 
-    DB 14; VARIABLE_COMPARE 
-    DB 17, 2, 0, 4; buttons_activated (ID 17) > 4
-    DB 14; VARIABLE_COMPARE 
-    DB 18, 0, 0, 0; buttons_reward_granted (ID 18) == 0
-    DW 0 
-    DW SM_New_Statemachine_state_1777378831352_Transitions_Actions_1 
-
-SM_New_Statemachine_state_1777378831352_Transitions_Actions_0: 
-    DB 28; REPLACE_TILE 
-    DB 0, 0        ; REPLACE_TILE tile=tile_1776787670830=>0, dir=here
-    DB 14; INCREMENT_VARIABLE 
-    DB 17, 1, 0        ; buttons_activated (ID 17) = 1
-    DB 0xFF; END
-SM_New_Statemachine_state_1777378831352_Transitions_Actions_1: 
     DB 14; INCREMENT_VARIABLE 
     DB 15, 244, 1        ; Score (ID 15) = 500
     DB 13; SET_VARIABLE 
@@ -19515,257 +21103,5 @@ init_game_systems:
 ; compatibility with init_game_systems references.
 load_game_screen:
     ret
-
-; ==================================================================
-; ZX0 SPRITE FRAME BLOBS (AUTO-INJECTED)
-; ==================================================================
-ZX0_SPRITE_FRAME_DATA_START:
-ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_WALK_RIGHT_0_F0 (64 -> 50 bytes)
-    DB #A0,#07,#A1,#35,#5C,#80,#00,#61,#03,#02,#03,#07,#0F,#00,#01,#00
-    DB #01,#F8,#00,#9A,#C0,#68,#C0,#EA,#E0,#EC,#40,#FB,#FF,#CB,#01,#EF
-    DB #CF,#FE,#C2,#E4,#F3,#AE,#F0,#D0,#D8,#F8,#F0,#80,#94,#B0,#6D,#80
-    DB #55,#56
-ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F1_DATA:
-    ; ZX0 compressed sprite frame NINA_WALK_RIGHT_0_F1 (64 -> 55 bytes)
-    DB #48,#03,#07,#87,#A9,#54,#00,#85,#86,#03,#02,#07,#0F,#2B,#00,#20
-    DB #00,#C0,#F8,#00,#06,#C0,#68,#C0,#E0,#A0,#10,#00,#14,#00,#66,#02
-    DB #03,#01,#F8,#F0,#F9,#14,#20,#CC,#2A,#F0,#D0,#D8,#F8,#F0,#80,#94
-    DB #2A,#50,#35,#10,#08,#55,#58
-ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_GRUB_RIGHT_1_F0 (64 -> 44 bytes)
-    DB #95,#00,#E4,#E3,#A9,#3C,#34,#B6,#FE,#7C,#60,#25,#9A,#08,#04,#02
-    DB #E6,#01,#FF,#07,#04,#08,#E9,#B8,#88,#01,#03,#03,#23,#F8,#FE,#C0
-    DB #40,#8A,#FD,#F0,#DA,#2F,#F0,#F8,#D9,#55,#55,#80
-ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F1_DATA:
-    ; ZX0 compressed sprite frame NINA_GRUB_RIGHT_1_F1 (64 -> 48 bytes)
-    DB #2B,#20,#00,#80,#F9,#FB,#F5,#FE,#25,#E8,#3C,#34,#B6,#FE,#7C,#61
-    DB #04,#D8,#BB,#01,#0A,#F6,#9B,#FF,#07,#04,#08,#AA,#F0,#03,#E0,#07
-    DB #A5,#82,#F8,#FE,#C0,#40,#4B,#F2,#D8,#F0,#F0,#F0,#F5,#55,#55,#80
-ZX0_SPRITE_FRAME_NEW_SPRITE_2_F0_DATA:
-    ; ZX0 compressed sprite frame NEW_SPRITE_2_F0 (96 -> 6 bytes)
-    DB #85,#00,#57,#55,#55,#80
-ZX0_SPRITE_FRAME_NINA_JUMP_RIGHT_3_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_JUMP_RIGHT_3_F0 (64 -> 47 bytes)
-    DB #A5,#07,#EE,#09,#14,#20,#10,#20,#03,#02,#EF,#06,#FC,#8B,#00,#F8
-    DB #88,#FE,#20,#C0,#40,#C0,#E0,#A6,#00,#6F,#02,#03,#01,#F0,#FE,#F7
-    DB #FC,#58,#F0,#D0,#D8,#F8,#F0,#80,#00,#FF,#FE,#F3,#55,#55,#80
-ZX0_SPRITE_FRAME_NINA_IDLE_RIGHT_4_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_IDLE_RIGHT_4_F0 (64 -> 48 bytes)
-    DB #2B,#20,#00,#80,#F9,#FB,#F5,#FE,#25,#F8,#3C,#34,#B6,#FE,#7C,#61
-    DB #04,#D8,#8B,#08,#05,#01,#9A,#FF,#07,#04,#08,#88,#00,#B8,#01,#03
-    DB #B5,#20,#F8,#FE,#C0,#40,#9E,#F2,#D8,#F0,#FF,#35,#F1,#0A,#55,#58
-ZX0_SPRITE_FRAME_NEW_SPRITE_RIGHT_5_F0_DATA:
-    ; ZX0 compressed sprite frame NEW_SPRITE_RIGHT_5_F0 (64 -> 57 bytes)
-    DB #08,#00,#07,#0F,#07,#FA,#F5,#FF,#04,#65,#A5,#07,#3B,#00,#F0,#F8
-    DB #90,#F0,#89,#00,#80,#8E,#90,#FE,#FC,#80,#9A,#7E,#00,#03,#00,#82
-    DB #3F,#60,#5D,#55,#97,#5D,#60,#3F,#00,#0F,#00,#08,#E6,#E5,#E1,#FE
-    DB #03,#DD,#26,#DD,#03,#FE,#D5,#55,#60
-ZX0_SPRITE_FRAME_NINA_WALK_LEFT_6_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_WALK_LEFT_6_F0 (64 -> 47 bytes)
-    DB #21,#1F,#00,#9A,#03,#16,#03,#E9,#07,#EE,#22,#02,#E0,#E0,#AC,#3A
-    DB #01,#69,#C0,#40,#C0,#E8,#F0,#00,#80,#FC,#7B,#0F,#0B,#1B,#1F,#0F
-    DB #DD,#29,#9E,#B0,#CA,#A2,#00,#FF,#80,#D3,#FE,#F5,#C2,#55,#58
-ZX0_SPRITE_FRAME_NINA_WALK_LEFT_6_F1_DATA:
-    ; ZX0 compressed sprite frame NINA_WALK_LEFT_6_F1 (64 -> 56 bytes)
-    DB #61,#03,#1F,#00,#91,#E9,#03,#16,#03,#07,#05,#08,#00,#28,#C0,#E0
-    DB #E1,#95,#2A,#DE,#6E,#C0,#40,#E0,#F0,#D4,#00,#04,#EB,#4A,#0F,#0B
-    DB #1B,#1F,#0F,#01,#88,#29,#7A,#0A,#00,#08,#10,#00,#FE,#6F,#40,#C0
-    DB #80,#F0,#BB,#28,#C2,#55,#55,#80
-ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_7_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_GRUB_LEFT_7_F0 (64 -> 47 bytes)
-    DB #A0,#00,#62,#3C,#2C,#6D,#7F,#3E,#06,#00,#A4,#00,#09,#10,#20,#40
-    DB #00,#58,#6E,#1F,#7F,#03,#02,#00,#FD,#28,#0F,#5B,#A2,#0F,#1F,#00
-    DB #80,#39,#FF,#BA,#E0,#20,#10,#C0,#63,#80,#C0,#C0,#55,#55,#80
-ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_7_F1_DATA:
-    ; ZX0 compressed sprite frame NINA_GRUB_LEFT_7_F1 (64 -> 49 bytes)
-    DB #88,#00,#1A,#3C,#2C,#6D,#7F,#3E,#86,#20,#04,#00,#7A,#80,#50,#00
-    DB #F4,#27,#01,#00,#82,#FE,#19,#1F,#7F,#03,#02,#00,#98,#4F,#1B,#0F
-    DB #88,#AF,#00,#A2,#80,#6E,#E0,#20,#10,#F0,#A8,#C0,#D5,#E0,#00,#55
-    DB #60
-ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_8_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_JUMP_LEFT_8_F0 (64 -> 48 bytes)
-    DB #21,#1F,#00,#82,#03,#02,#03,#07,#08,#A5,#00,#E0,#EE,#90,#28,#04
-    DB #08,#04,#C0,#40,#EF,#60,#FC,#E5,#CD,#FF,#0F,#0B,#1B,#1F,#0F,#01
-    DB #00,#FD,#FE,#88,#F2,#23,#40,#C0,#80,#80,#A0,#FD,#80,#D5,#55,#60
-ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_9_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_IDLE_LEFT_9_F0 (64 -> 49 bytes)
-    DB #88,#00,#18,#3C,#2C,#6D,#7F,#3E,#86,#20,#04,#00,#8E,#10,#A0,#F4
-    DB #BF,#01,#FB,#F5,#82,#FE,#19,#1F,#7F,#03,#02,#00,#98,#4F,#1B,#0F
-    DB #9A,#8F,#50,#00,#89,#80,#BA,#E0,#20,#10,#C2,#6D,#80,#C0,#C0,#55
-    DB #56
-ZX0_SPRITE_FRAME_NEW_SPRITE_LEFT_10_F0_DATA:
-    ; ZX0 compressed sprite frame NEW_SPRITE_LEFT_10_F0 (64 -> 55 bytes)
-    DB #1A,#00,#0F,#1F,#09,#0F,#58,#00,#01,#71,#09,#7F,#3F,#01,#86,#7E
-    DB #00,#E0,#F0,#E0,#3E,#F5,#FF,#99,#20,#26,#E0,#DC,#F0,#00,#10,#00
-    DB #0A,#7F,#C0,#BB,#AA,#0A,#BB,#C0,#7F,#00,#9E,#C0,#E1,#62,#FC,#06
-    DB #BA,#6D,#BA,#06,#FC,#55,#56
-ZX0_SPRITE_FRAME_DATA_END_LABEL:
-    DB #00
-
-; ==================================================================
-; ZX0 FONT PATTERN BUFFER (AUTO-INJECTED)
-; Shared scratch buffer for font pattern data decompression (344 bytes, scratch slot 344 bytes)
-; ==================================================================
-ZX0_FONT_PATTERN_BUFFER EQU #EB00
-
-; ==================================================================
-; ZX0 SPRITE FRAME BUFFER (AUTO-INJECTED)
-; Shared scratch buffer for per-frame sprite decompression before VRAM upload (96 bytes, scratch slot 344 bytes)
-; ==================================================================
-ZX0_SPRITE_FRAME_BUFFER EQU #EB00
-
-; ==================================================================
-; ZX0 FONT COLOR BUFFER (AUTO-INJECTED)
-; Second scratch buffer for font color data while font pattern data is still live (344 bytes, scratch slot 344 bytes)
-; ==================================================================
-ZX0_FONT_COLOR_BUFFER EQU #ED00
-
-; ==================================================================
-; ZX0 SPRITE LABEL REMAP (AUTO-INJECTED)
-; Frame entry labels now point to ZX0-compressed frame blobs
-; ==================================================================
-; Frame group: NINA_WALK_RIGHT_0_F0
-NINA_WALK_RIGHT_0_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F0_DATA
-; Frame group: NINA_WALK_RIGHT_0_F1
-NINA_WALK_RIGHT_0_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F1_DATA
-; Frame group: NINA_GRUB_RIGHT_1_F0
-NINA_GRUB_RIGHT_1_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F0_DATA
-; Frame group: NINA_GRUB_RIGHT_1_F1
-NINA_GRUB_RIGHT_1_F1_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_GRUB_RIGHT_1_F1_DATA
-; Frame group: NEW_SPRITE_2_F0
-NEW_SPRITE_2_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NEW_SPRITE_2_F0_DATA
-; Frame group: NINA_JUMP_RIGHT_3_F0
-NINA_JUMP_RIGHT_3_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_JUMP_RIGHT_3_F0_DATA
-; Frame group: NINA_IDLE_RIGHT_4_F0
-NINA_IDLE_RIGHT_4_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_IDLE_RIGHT_4_F0_DATA
-; Frame group: NEW_SPRITE_RIGHT_5_F0
-NEW_SPRITE_RIGHT_5_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NEW_SPRITE_RIGHT_5_F0_DATA
-; Frame group: NINA_WALK_LEFT_6_F0
-NINA_WALK_LEFT_6_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_LEFT_6_F0_DATA
-; Frame group: NINA_WALK_LEFT_6_F1
-NINA_WALK_LEFT_6_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_LEFT_6_F1_DATA
-; Frame group: NINA_GRUB_LEFT_7_F0
-NINA_GRUB_LEFT_7_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_7_F0_DATA
-; Frame group: NINA_GRUB_LEFT_7_F1
-NINA_GRUB_LEFT_7_F1_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_7_F1_DATA
-; Frame group: NINA_JUMP_LEFT_8_F0
-NINA_JUMP_LEFT_8_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_8_F0_DATA
-; Frame group: NINA_IDLE_LEFT_9_F0
-NINA_IDLE_LEFT_9_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_9_F0_DATA
-; Frame group: NEW_SPRITE_LEFT_10_F0
-NEW_SPRITE_LEFT_10_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NEW_SPRITE_LEFT_10_F0_DATA
-
-; ==================================================================
-; ZX0 SPRITE COPY HELPER (AUTO-INJECTED)
-; - If HL points to a compressed sprite frame blob, decompress frame
-;   to ZX0_SPRITE_FRAME_BUFFER and then upload to VRAM.
-; - Otherwise copy raw frame data directly to VRAM.
-; Input: HL=source (ROM), DE=VRAM destination, BC=byte count
-; ==================================================================
-COPY_SPRITE_SRC_TO_VRAM:
-    push de
-    ; source < ZX0_SPRITE_FRAME_DATA_START => raw copy
-    push hl
-    ld de, ZX0_SPRITE_FRAME_DATA_START
-    or a
-    sbc hl, de
-    pop hl
-    jr c, COPY_SPRITE_SRC_TO_VRAM_RAW
-
-    ; source >= ZX0_SPRITE_FRAME_DATA_END_LABEL => raw copy
-    push hl
-    ld de, ZX0_SPRITE_FRAME_DATA_END_LABEL
-    or a
-    sbc hl, de
-    pop hl
-    jr nc, COPY_SPRITE_SRC_TO_VRAM_RAW
-
-    ; Compressed frame: decompress to shared RAM buffer, then upload
-    pop de
-    push bc
-    push de
-    push hl
-    ld de, ZX0_SPRITE_FRAME_BUFFER
-    call dzx0_standard
-    pop hl
-    pop de
-    pop bc
-    ld hl, ZX0_SPRITE_FRAME_BUFFER
-    jp FAST_LDIRVM
-
-COPY_SPRITE_SRC_TO_VRAM_RAW:
-    pop de
-    jp FAST_LDIRVM
-
-; ==================================================================
-; ZX0 DECOMPRESSOR (AUTO-INJECTED)
-; ==================================================================
-; -----------------------------------------------------------------------------
-; ZX0 decoder by Einar Saukas & Urusergi
-; "Standard" version (68 bytes only)
-; -----------------------------------------------------------------------------
-; Parameters:
-;   HL: source address (compressed data)
-;   DE: destination address (decompressing)
-; -----------------------------------------------------------------------------
-
-dzx0_standard:
-        ld      bc, $ffff               ; preserve default offset 1
-        push    bc
-        inc     bc
-        ld      a, $80
-dzx0s_literals:
-        call    dzx0s_elias             ; obtain length
-        ldir                            ; copy literals
-        add     a, a                    ; copy from last offset or new offset?
-        jr      c, dzx0s_new_offset
-        call    dzx0s_elias             ; obtain length
-dzx0s_copy:
-        ex      (sp), hl                ; preserve source, restore offset
-        push    hl                      ; preserve offset
-        add     hl, de                  ; calculate destination - offset
-        ldir                            ; copy from offset
-        pop     hl                      ; restore offset
-        ex      (sp), hl                ; preserve offset, restore source
-        add     a, a                    ; copy from literals or new offset?
-        jr      nc, dzx0s_literals
-dzx0s_new_offset:
-        pop     bc                      ; discard last offset
-        ld      c, $fe                  ; prepare negative offset
-        call    dzx0s_elias_loop        ; obtain offset MSB
-        inc     c
-        ret     z                       ; check end marker
-        ld      b, c
-        ld      c, (hl)                 ; obtain offset LSB
-        inc     hl
-        rr      b                       ; last offset bit becomes first length bit
-        rr      c
-        push    bc                      ; preserve new offset
-        ld      bc, 1                   ; obtain length
-        call    nc, dzx0s_elias_backtrack
-        inc     bc
-        jr      dzx0s_copy
-dzx0s_elias:
-        inc     c                       ; interlaced Elias gamma coding
-dzx0s_elias_loop:
-        add     a, a
-        jr      nz, dzx0s_elias_skip
-        ld      a, (hl)                 ; load another group of 8 bits
-        inc     hl
-        rla
-dzx0s_elias_skip:
-        ret     c
-dzx0s_elias_backtrack:
-        add     a, a
-        rl      c
-        rl      b
-        jr      dzx0s_elias_loop
-; -----------------------------------------------------------------------------
-
-
-
-
-
 
     end                 ; End of assembly
