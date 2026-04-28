@@ -734,6 +734,7 @@ function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAna
         'load_sprite_patterns_by_pack_id',
         'ensure_sprite_patterns_by_pack_id',
         'ensure_sprite_patterns_for_world_id',
+        'music_play_track',
         'set_screen_colors',
         'init_char0_color',
     ]);
