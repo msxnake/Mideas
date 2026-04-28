@@ -3433,7 +3433,10 @@ position_next_entity:
 /**
  * Generate Sprite Component System
  */
-function generateSpriteSystem(analysis: ProjectAnalysis): string {
+function generateSpriteSystem(analysis: ProjectAnalysis, romMode: string = 'simple32k'): string {
+    const usesMapper = usesMapperBanking(romMode);
+    const clearAllSpritesCall = usesMapper ? 'call_clear_all_sprites_resident' : 'clear_all_sprites';
+    const showSpriteCall = usesMapper ? 'call_show_sprite_resident' : 'show_sprite';
     return `
 ; ==================================================================
 ; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
@@ -3442,7 +3445,7 @@ function generateSpriteSystem(analysis: ProjectAnalysis): string {
 init_sprite_system:
     ; Initialize sprite rendering system
     ; Clear all sprite attributes
-    call call_clear_all_sprites_resident
+    call ${clearAllSpritesCall}
     ; Copy entity_sprite_asset_index from ROM to RAM (so CHANGE_SPRITE can modify it)
     ld hl, entity_sprite_asset_index_init
     ld de, entity_sprite_asset_index
@@ -3573,7 +3576,7 @@ sprite_layer_loop:
     
     ; Call show_sprite (A=HW Sprite, B=X, C=Y, D=Pattern, E=Color)
     ld a, l                    ; A = HW Sprite
-    call call_show_sprite_resident
+    call ${showSpriteCall}
 
     ld a, SPRITE_PATTERN_PRELOAD_MODE
     or a
@@ -3732,7 +3735,7 @@ force_sprite_layer_loop:
     
     ; Call show_sprite
     ld a, l                    ; A = HW Sprite
-    call call_show_sprite_resident
+    call ${showSpriteCall}
 
     ld a, SPRITE_PATTERN_PRELOAD_MODE
     or a
@@ -12932,7 +12935,7 @@ entity_input_disabled EQU temp_byte_26 ; 0=enabled, 1=disabled (32 bytes)
     // CRITICAL FIX: Always generate when sprites exist, even if component analysis fails
     const hasSprites = analysis.sprites && analysis.sprites.length > 0;
     if (usedComponents.has('Sprite') || hasSprites) {
-        code += generateSpriteSystem(analysis);
+        code += generateSpriteSystem(analysis, romMode);
     } else {
         code += `
     ; Sprite system filtered out(not used)
