@@ -786,6 +786,9 @@ snapshot_world_screen_timer_interrupt_counter:
 
 reset_world_screen_timer:
     push af
+    ld a, (current_screen_engine)
+    or a
+    jr nz, .world_timer_reset_done
     ld a, 60
     ld (${timeRemainingAsmName}), a
     xor a
@@ -794,7 +797,8 @@ reset_world_screen_timer:
     call snapshot_world_screen_timer_interrupt_counter
 ${hasHud ? `    ld a, 1
     ld (hud_dirty_flag), a
-` : ``}    pop af
+` : ``}.world_timer_reset_done:
+    pop af
     ret
 
 update_world_screen_timer:
@@ -802,6 +806,10 @@ update_world_screen_timer:
     push bc
     push de
     push hl
+
+    ld a, (current_screen_engine)
+    or a
+    jr nz, .world_timer_done
 
     ld a, (${timeRemainingAsmName})
     ld b, a

@@ -63,6 +63,15 @@ const resolveScreenModeForMap = (map: ScreenMap | null, fallback: string): strin
     if (map.tileBankAssetId) return SCREEN2_LABEL;
     return fallback;
 };
+
+const isPlayerRuntimeScreen = (map: ScreenMap | null | undefined): boolean => {
+    if (!map) return false;
+    const configuredEngine = String((map as any).screenEngine || '').trim();
+    if (configuredEngine === 'player') return true;
+    if (configuredEngine === 'fakePlayer') return false;
+    return (map as any).screenKind === 'playable';
+};
+
 const CHILD_LINK_COMPONENT_ID = 'comp_child_link';
 
 interface ChildLinkConfig {
@@ -3763,12 +3772,18 @@ useEffect(() => {
         return;
     }
 
+    if (!isPlayerRuntimeScreen(currentScreenMap)) {
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        screenTimerRuntimeRef.current = { screenId: currentScreenMap.id, lastTickTime: now, carryMs: 0 };
+        return;
+    }
+
     if (screenTimerRuntimeRef.current.screenId === currentScreenMap.id) {
         return;
     }
 
     resetScreenTimer(currentScreenMap.id);
-}, [isOpen, currentNode?.type, currentScreenMap?.id, resetScreenTimer]);
+}, [isOpen, currentNode?.type, currentScreenMap?.id, currentScreenMap?.screenEngine, currentScreenMap?.screenKind, resetScreenTimer]);
 
 // Build screen world map when WorldMapGraph changes
 useEffect(() => {
@@ -6076,9 +6091,14 @@ useEffect(() => {
 
         if (currentNode.type === 'WorldLink' && currentScreenMapRef.current?.id) {
             const timerState = screenTimerRuntimeRef.current;
-            const currentScreenId = currentScreenMapRef.current.id;
+            const currentScreen = currentScreenMapRef.current;
+            const currentScreenId = currentScreen.id;
 
-            if (timerState.screenId !== currentScreenId) {
+            if (!isPlayerRuntimeScreen(currentScreen)) {
+                timerState.screenId = currentScreenId;
+                timerState.lastTickTime = currentTime;
+                timerState.carryMs = 0;
+            } else if (timerState.screenId !== currentScreenId) {
                 timerState.screenId = currentScreenId;
                 timerState.lastTickTime = currentTime;
                 timerState.carryMs = 0;
