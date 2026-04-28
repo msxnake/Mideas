@@ -6,6 +6,41 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { buildMSXDirectionalSpriteCatalog } from '../../../components/utils/spriteUtils';
 import { getSerializedTrackerMusicBufferSize } from './soundGenerator';
+import { usesMapperBanking } from './romModeUtils';
+
+function countDrawableSpriteLayers(sprite: any): number {
+  const palette: string[] = sprite?.spritePalette || [];
+  const bg: string | undefined = sprite?.backgroundColor;
+  const frames = sprite?.frames || [];
+  if (!palette.length || !frames.length) return 1;
+
+  let count = 0;
+  for (let layerIdx = 0; layerIdx < palette.length; layerIdx++) {
+    const layerColor = palette[layerIdx];
+    if (!layerColor || layerColor === bg) continue;
+
+    let hasPixels = false;
+    for (const frame of frames) {
+      if (frame?.msx1LayerData?.[layerIdx]?.some((row: boolean[]) => row.some(Boolean))) {
+        hasPixels = true;
+        break;
+      }
+      if (!frame?.data) continue;
+      for (let y = 0; y < frame.data.length && !hasPixels; y++) {
+        for (let x = 0; x < (frame.data[y]?.length || 0); x++) {
+          if (frame.data[y][x] === layerColor) {
+            hasPixels = true;
+            break;
+          }
+        }
+      }
+      if (hasPixels) break;
+    }
+    if (hasPixels) count++;
+  }
+
+  return Math.max(1, count);
+}
 
 /**
  * Generate RAM variables with EQU addresses (variables.asm)
@@ -13,8 +48,11 @@ import { getSerializedTrackerMusicBufferSize } from './soundGenerator';
  * @param analysis - Project analysis with detected assets and entities
  * @returns ASM code string with variable definitions
  */
-export function generateVariablesFile(analysis: ProjectAnalysis): string {
-  const expandedSpriteCount = Math.max(1, buildMSXDirectionalSpriteCatalog(analysis.sprites || []).sprites.length);
+export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string = 'simple32k'): string {
+  const usesMapper = usesMapperBanking(romMode);
+  const expandedSprites = buildMSXDirectionalSpriteCatalog(analysis.sprites || []).sprites;
+  const expandedSpriteCount = Math.max(1, expandedSprites.length);
+  const maxSpriteLayerCount = Math.max(1, ...expandedSprites.map(countDrawableSpriteLayers));
   const serializedTrackerMusicBufferSize = getSerializedTrackerMusicBufferSize(analysis);
   let code = `; ==================================================================
 ; RAM VARIABLES DEFINITIONS
@@ -552,6 +590,24 @@ MAX_ENTITIES        EQU 32
   code += `entity_sprite_asset_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity sprite asset index - RAM copy (32 bytes)\n`;
   currentAddress += 32;
 
+  code += `entity_sprite_config EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity sprite config RAM copy (base HW sprite + layer count, 64 bytes)\n`;
+  currentAddress += 64;
+
+  code += `sprite_asset_frame_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite asset frame counts RAM copy (${expandedSpriteCount} bytes)\n`;
+  currentAddress += expandedSpriteCount;
+
+  code += `sprite_asset_layer_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite asset layer counts RAM copy (${expandedSpriteCount} bytes)\n`;
+  currentAddress += expandedSpriteCount;
+
+  code += `sprite_loop_flags EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite loop flags RAM copy (${expandedSpriteCount} bytes)\n`;
+  currentAddress += expandedSpriteCount;
+
+  code += `SM_SpriteLayerColorTable EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime SM sprite layer colors (${expandedSpriteCount}*${maxSpriteLayerCount} bytes)\n`;
+  currentAddress += expandedSpriteCount * maxSpriteLayerCount;
+
+  code += `SM_SpriteLayerYOffsetTable EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime SM sprite layer Y offsets (${expandedSpriteCount}*${maxSpriteLayerCount} bytes)\n`;
+  currentAddress += expandedSpriteCount * maxSpriteLayerCount;
+
   code += `active_sprite_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of sprites currently active\n`;
   currentAddress++;
 
@@ -1085,7 +1141,7 @@ T_NEW_2         EQU #${hex(0x19A)}  ; Tone table new 2 (last, ends at +0x1B2)
     currentAddress = pt3Base + 0x240; // Reserve 576 bytes for PT3 workspace (RAM LENGTH per replayer spec)
   }
 
-  const ZX0_LARGE_SCRATCH_SIZE = 1488;
+  const ZX0_LARGE_SCRATCH_SIZE = usesMapper ? 768 : 1488;
   const ZX0_RAM_LIMIT = 0xF380;
   const align256 = (value: number) => (value + 0xFF) & 0xFF00;
   const zx0LargeScratchBase = align256(currentAddress);

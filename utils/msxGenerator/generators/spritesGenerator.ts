@@ -981,7 +981,7 @@ SPRITE_0_PATTERN_BANK EQU ${buildMapperBankEqu('SPRITE_0_PATTERN', mapperWindow)
 
 ; Table: Sprite Asset Frame Counts
 ; Format: db frame_count
-sprite_asset_frame_count:
+sprite_asset_frame_count_init:
 `;
   sprites.forEach((sprite, index) => {
     const frames = sprite.frames?.length || 1;
@@ -994,7 +994,7 @@ sprite_asset_frame_count:
   code += `
 ; Table: Sprite Asset Drawable Layer Counts
 ; Format: db compact drawable layer count (minimum 1)
-sprite_asset_layer_count:
+sprite_asset_layer_count_init:
 `;
   sprites.forEach((sprite, index) => {
     const layerCount = Math.max(1, analyzeDrawableLayerIndexes(sprite).length);
@@ -1010,7 +1010,7 @@ sprite_asset_layer_count:
   code += `
 ; Table: Sprite Asset Loop Flags
 ; Format: db flags (bit 1: 1=loop, 0=once)
-sprite_loop_flags:
+sprite_loop_flags_init:
 `;
   sprites.forEach((sprite, index) => {
     // Default to looping if loops property is undefined, as per Mideas defaults
@@ -1083,7 +1083,7 @@ SPRITE_0_FRAME_PTRS:
 
 ; Table: Entity Sprite Configuration 
 ; Format: db base_hw_sprite_index, layer_count 
-entity_sprite_config: 
+entity_sprite_config_init:
 `;
   entityAllocations.forEach(alloc => {
     const baseIndex = alloc.baseHwSpriteIndex >= 0 ? alloc.baseHwSpriteIndex : 0;
@@ -1161,7 +1161,7 @@ sprite_layer_y_offsets_init:
 ; Table: SM Sprite Layer Colors (for Action_ChangeSprite runtime color update)
 ; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
 ; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = color for HW sprite slot j of sprite i
-SM_SpriteLayerColorTable:
+SM_SpriteLayerColorTable_init:
 `;
   sprites.forEach((sprite, index) => {
     const colors = getSpriteLayerColors(sprite);
@@ -1178,7 +1178,7 @@ SM_SpriteLayerColorTable:
 ; Table: SM Sprite Layer Y Offsets (for Action_ChangeSprite runtime layer alignment)
 ; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
 ; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = signed Y offset for HW sprite slot j of sprite i
-SM_SpriteLayerYOffsetTable:
+SM_SpriteLayerYOffsetTable_init:
 `;
   sprites.forEach((sprite, index) => {
     const offsets = getSpriteLayerYOffsets(sprite);
@@ -1197,6 +1197,36 @@ SM_SpriteLayerYOffsetTable:
 ; ==================================================================
 
 init_sprites:
+    ; Copy ROM sprite metadata tables into RAM so gameplay code can read them
+    ; without depending on which MegaROM bank is currently mapped.
+    ld hl, entity_sprite_config_init
+    ld de, entity_sprite_config
+    ld bc, 64
+    ldir
+    ld hl, entity_sprite_asset_index_init
+    ld de, entity_sprite_asset_index
+    ld bc, 32
+    ldir
+    ld hl, sprite_asset_frame_count_init
+    ld de, sprite_asset_frame_count
+    ld bc, ${Math.max(1, sprites.length)}
+    ldir
+    ld hl, sprite_asset_layer_count_init
+    ld de, sprite_asset_layer_count
+    ld bc, ${Math.max(1, sprites.length)}
+    ldir
+    ld hl, sprite_loop_flags_init
+    ld de, sprite_loop_flags
+    ld bc, ${Math.max(1, sprites.length)}
+    ldir
+    ld hl, SM_SpriteLayerColorTable_init
+    ld de, SM_SpriteLayerColorTable
+    ld bc, ${Math.max(1, sprites.length) * maxEntityLayers}
+    ldir
+    ld hl, SM_SpriteLayerYOffsetTable_init
+    ld de, SM_SpriteLayerYOffsetTable
+    ld bc, ${Math.max(1, sprites.length) * maxEntityLayers}
+    ldir
     ; Copy sprite_layer_colors_init (ROM) -> sprite_layer_colors (RAM)
     ld hl, sprite_layer_colors_init
     ld de, sprite_layer_colors
