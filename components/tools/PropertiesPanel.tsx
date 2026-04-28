@@ -12,6 +12,7 @@ import { TrashIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { StartNodeEditor } from '../editors/StartNodeEditor';
 import { GameFlowGlobalInitializationEditor } from '../editors/GameFlowGlobalInitializationEditor';
+import { autoEventStringUsesDialogue, parseAutoEventString } from '../../utils/autoEventString';
 
 const CHILD_LINK_COMPONENT_ID = 'comp_child_link';
 const ENTITY_JOB_RATE_OPTIONS = [100, 50, 33, 25] as const;
@@ -852,7 +853,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               const commands = String(getAutoControlValue('commands') ?? '');
               const selectedDialogueAsset = assetsWithEntityTemplates.find(asset => asset.id === dialogueAssetId && asset.type === 'dialogue');
               const selectedDialogue = selectedDialogueAsset?.data as DialogueAsset | undefined;
-              const compactDialogueCommandsUsed = /[ow]/.test(eventString);
+              const compactParseResult = parseAutoEventString(eventString, selectedDialogue);
+              const compactDialogueCommandsUsed = autoEventStringUsesDialogue(eventString);
               const dialogueCommandsUsed = scriptFormat === 'eventString'
                 ? compactDialogueCommandsUsed
                 : /\b(play_dialog|play_dialogue|open_dialog|open\s+(dialog|dialogue|frame_dialog|frame-dialog)|write_line|write\s+(text|line))\b/i.test(commands);
@@ -987,33 +989,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 commandValidationIssues.unshift('Default Dialogue points to a missing Dialogue asset.');
               }
               if (scriptFormat === 'eventString') {
-                const compactValidationIssues: string[] = [];
-                const compactPattern = /([xXyYdw])(\d+)|[ostkc]/g;
-                let cursor = 0;
-                let match: RegExpExecArray | null;
-                while ((match = compactPattern.exec(eventString)) !== null) {
-                  if (match.index !== cursor) {
-                    compactValidationIssues.push(`Unsupported token near "${eventString.slice(cursor, Math.min(eventString.length, cursor + 8))}".`);
-                    break;
-                  }
-                  cursor = match.index + match[0].length;
-                  if (match[1] === 'w') {
-                    const lineNumber = Number(match[2]);
-                    if (!Number.isFinite(lineNumber) || lineNumber < 1) {
-                      compactValidationIssues.push(`w${match[2] || ''} must reference a 1-based Dialogue line.`);
-                    } else if (selectedDialogue?.lines && lineNumber > selectedDialogue.lines.length) {
-                      compactValidationIssues.push(`w${lineNumber} is outside the selected Dialogue line range.`);
-                    } else if (selectedDialogue?.lines?.[lineNumber - 1]) {
-                      const targetLine = selectedDialogue.lines[lineNumber - 1];
-                      const targetText = `${targetLine.speaker?.trim() ? `${targetLine.speaker.trim()}: ` : ''}${targetLine.text || ''}`.trim();
-                      if (!targetText) compactValidationIssues.push(`w${lineNumber} targets an empty Dialogue line.`);
-                    }
-                  }
-                }
-                if (cursor < eventString.length) {
-                  compactValidationIssues.push(`Unsupported token near "${eventString.slice(cursor, Math.min(eventString.length, cursor + 8))}".`);
-                }
-                commandValidationIssues.unshift(...compactValidationIssues);
+                commandValidationIssues.unshift(...compactParseResult.issues.map(issue => issue.message));
               }
               if (scriptFormat === 'commands' && /\b(play_dialog|play_dialogue)\b/i.test(commands) && selectedDialogueAsset && !hasDialogueText) {
                 commandValidationIssues.unshift('play_dialog uses a Dialogue asset with no text.');
