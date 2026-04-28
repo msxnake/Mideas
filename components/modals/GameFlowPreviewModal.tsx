@@ -25,7 +25,8 @@ import {
     ComponentDefinition,
     PixelData,
     AssetType,
-    TileBank
+    TileBank,
+    DialogueAsset
 } from '../../types';
 import { Button } from '../common/Button';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
@@ -45,6 +46,7 @@ import {
 } from '../../utils/screenCoordinates';
 import { getScreenModeMetrics } from '../../utils/screenModeConfig';
 import { getAllGlobalVariables } from '../../utils/globalVariablesUtils';
+import { AutoEventToken, parseAutoEventString } from '../../utils/autoEventString';
 import { log } from 'console';
 
 
@@ -159,6 +161,28 @@ interface AnimatedEntity {
     activeButtonInteractionKey?: string | null;
     retractableGateCurrentStep?: number;
     retractableGateNextStepAt?: number;
+    autoEventRuntime?: AutoEventRuntimeState;
+}
+
+interface AutoEventRuntimeState {
+    tokens: AutoEventToken[];
+    index: number;
+    loop: boolean;
+    moveRemaining: number;
+    moveAxis?: 'x' | 'y';
+    moveStep?: number;
+    delayUntil?: number;
+    waitingForSpc?: boolean;
+    waitingForText?: boolean;
+    dialogue?: DialogueAsset;
+}
+
+interface AutoDialoguePreviewState {
+    active: boolean;
+    text: string;
+    visibleChars: number;
+    lastCharAt: number;
+    charDelayMs: number;
 }
 
 /** Animated tile group state for Z80-faithful tile animation in the simulator */
@@ -436,6 +460,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // Key: "${screenId}@${tileX},${tileY}", Value: true if collected (should not respawn)
     const collectedTilesRegistry = useRef<Set<string>>(new Set());
     const consumedInteractionRegistry = useRef<Set<string>>(new Set());
+    const autoDialoguePreviewRef = useRef<AutoDialoguePreviewState>({
+        active: false,
+        text: '',
+        visibleChars: 0,
+        lastCharAt: 0,
+        charDelayMs: 35,
+    });
+    const autoEventSpaceWasDownRef = useRef(false);
     // Secret passage tiles registry: tracks which background tiles have been revealed (made invisible)
     // Key: "${screenId}_${x}_${y}", Value: true if revealed (should stay hidden)
     const revealedSecretTiles = useRef<Set<string>>(new Set());
@@ -594,6 +626,188 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const gridHeightTiles = currentScreenMap?.height ?? screenModeMetrics.heightTiles;
     const PREVIEW_WIDTH = gridWidthTiles * TILE_SIZE;
     const PREVIEW_HEIGHT = gridHeightTiles * TILE_SIZE;
+    const resolveTemplateComponentValues = useCallback((template: EntityTemplate, instance: EntityInstance, compId: string): Record<string, any> | null => {
+        const templateComp = template.components.find(c => c.definitionId === compId);
+        const overrides = instance.componentOverrides?.[compId];
+        if (!templateComp && !overrides) return null;
+        return {
+            ...(templateComp?.defaultValues || {}),
+            ...(overrides || {})
+        };
+    }, []);
+    const createAutoEventRuntime = useCallback((template: EntityTemplate, instance: EntityInstance): AutoEventRuntimeState | undefined => {
+        const values = resolveTemplateComponentValues(template, instance, 'comp_auto_control_script');
+        if (!values) return undefined;
+        if (values.enabled === false || values.enabled === 'false') return undefined;
+        if (values.startsOnScreenLoad === false || values.startsOnScreenLoad === 'false') return undefined;
+        if (String(values.scriptFormat || 'commands') !== 'eventString') return undefined;
+
+        const dialogueAssetId = String(values.defaultDialogueAssetId || '');
+        const dialogueAsset = allAssets.find(asset => asset.id === dialogueAssetId && asset.type === 'dialogue');
+        const dialogue = dialogueAsset?.data as DialogueAsset | undefined;
+        const parsed = parseAutoEventString(String(values.eventString || ''), dialogue);
+        if (parsed.tokens.length === 0) return undefined;
+
+        return {
+            tokens: parsed.tokens,
+            index: 0,
+            loop: values.loop === true || values.loop === 'true',
+            moveRemaining: 0,
+            dialogue,
+        };
+    }, [allAssets, resolveTemplateComponentValues]);
+    const drawAutoDialoguePreview = useCallback((ctx: CanvasRenderingContext2D) => {
+        const state = autoDialoguePreviewRef.current;
+        if (!state.active) return;
+
+        const boxX = Math.max(8, Math.floor(PREVIEW_WIDTH * 0.08));
+        const boxW = Math.max(64, Math.floor(PREVIEW_WIDTH * 0.84));
+        const boxH = Math.max(32, Math.floor(PREVIEW_HEIGHT * 0.22));
+        const boxY = Math.max(8, PREVIEW_HEIGHT - boxH - 8);
+        const visibleText = state.text.slice(0, state.visibleChars);
+
+        ctx.save();
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(boxX, boxY, boxW, boxH);
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxW - 1, boxH - 1);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '8px monospace';
+        ctx.textBaseline = 'top';
+
+        const maxChars = Math.max(8, Math.floor((boxW - 16) / 5));
+        const words = visibleText.split(/\s+/).filter(Boolean);
+        const lines: string[] = [];
+        let line = '';
+        for (const word of words) {
+            const next = line ? `${line} ${word}` : word;
+            if (next.length > maxChars && line) {
+                lines.push(line);
+                line = word;
+            } else {
+                line = next;
+            }
+            if (lines.length >= 3) break;
+        }
+        if (line && lines.length < 3) lines.push(line);
+        lines.forEach((textLine, index) => {
+            ctx.fillText(textLine, boxX + 8, boxY + 8 + index * 10);
+        });
+        ctx.restore();
+    }, [PREVIEW_HEIGHT, PREVIEW_WIDTH]);
+    const updateAutoEventRuntime = useCallback((entity: AnimatedEntity, nowMs: number) => {
+        const runtime = entity.autoEventRuntime;
+        if (!runtime || runtime.tokens.length === 0) return;
+
+        const dialogueState = autoDialoguePreviewRef.current;
+        const spaceDown = pressedKeys.current.has(' ');
+        const spacePressed = spaceDown && !autoEventSpaceWasDownRef.current;
+
+        if (dialogueState.active && dialogueState.visibleChars < dialogueState.text.length && nowMs - dialogueState.lastCharAt >= dialogueState.charDelayMs) {
+            dialogueState.visibleChars += 1;
+            dialogueState.lastCharAt = nowMs;
+        }
+
+        if (runtime.moveRemaining > 0 && runtime.moveAxis && runtime.moveStep) {
+            const step = Math.min(runtime.moveRemaining, Math.abs(runtime.moveStep));
+            if (runtime.moveAxis === 'x') {
+                entity.x += runtime.moveStep > 0 ? step : -step;
+                entity.vx = runtime.moveStep > 0 ? 1 : -1;
+                entity.vy = 0;
+            } else {
+                entity.y += runtime.moveStep > 0 ? step : -step;
+                entity.vy = runtime.moveStep > 0 ? 1 : -1;
+                entity.vx = 0;
+            }
+            runtime.moveRemaining -= step;
+            if (runtime.moveRemaining > 0) return;
+            entity.vx = 0;
+            entity.vy = 0;
+            runtime.moveAxis = undefined;
+            runtime.moveStep = undefined;
+        }
+
+        if (runtime.delayUntil !== undefined) {
+            if (nowMs < runtime.delayUntil) return;
+            runtime.delayUntil = undefined;
+        }
+
+        if (runtime.waitingForText) {
+            if (dialogueState.visibleChars < dialogueState.text.length) return;
+            runtime.waitingForText = false;
+        }
+
+        if (runtime.waitingForSpc) {
+            if (!spacePressed) return;
+            runtime.waitingForSpc = false;
+        }
+
+        let guard = 0;
+        while (guard < 8) {
+            guard += 1;
+            const token = runtime.tokens[runtime.index];
+            if (!token) {
+                if (runtime.loop) {
+                    runtime.index = 0;
+                    continue;
+                }
+                entity.autoEventRuntime = undefined;
+                entity.vx = 0;
+                entity.vy = 0;
+                return;
+            }
+            runtime.index += 1;
+
+            if (token.type === 'move') {
+                runtime.moveRemaining = Math.abs(token.amount);
+                runtime.moveAxis = token.axis;
+                runtime.moveStep = token.amount >= 0 ? 1 : -1;
+                return;
+            }
+            if (token.type === 'delay') {
+                runtime.delayUntil = nowMs + token.ms;
+                return;
+            }
+            if (token.type === 'openDialog') {
+                dialogueState.active = true;
+                dialogueState.text = '';
+                dialogueState.visibleChars = 0;
+                dialogueState.lastCharAt = nowMs;
+                continue;
+            }
+            if (token.type === 'writeLine') {
+                const line = runtime.dialogue?.lines?.[token.lineNumber - 1];
+                const text = `${line?.speaker?.trim() ? `${line.speaker.trim()}: ` : ''}${line?.text || ''}`.trim();
+                dialogueState.active = true;
+                dialogueState.text = text;
+                dialogueState.visibleChars = 0;
+                dialogueState.lastCharAt = nowMs;
+                runtime.waitingForText = true;
+                return;
+            }
+            if (token.type === 'waitText') {
+                runtime.waitingForText = true;
+                return;
+            }
+            if (token.type === 'waitSpc') {
+                runtime.waitingForSpc = true;
+                return;
+            }
+            if (token.type === 'clearDialog') {
+                dialogueState.text = '';
+                dialogueState.visibleChars = 0;
+                dialogueState.lastCharAt = nowMs;
+                continue;
+            }
+            if (token.type === 'closeDialog') {
+                dialogueState.active = false;
+                dialogueState.text = '';
+                dialogueState.visibleChars = 0;
+                continue;
+            }
+        }
+    }, []);
     const getScreenActiveBoundsPx = useCallback((screen: ScreenMap | null | undefined) => {
         const screenWidthTiles = Math.max(1, screen?.width ?? screenModeMetrics.widthTiles);
         const screenHeightTiles = Math.max(1, screen?.height ?? screenModeMetrics.heightTiles);
@@ -3465,11 +3679,15 @@ useEffect(() => {
     if (!isOpen) {
         heroRef.current = null;
         nucleoPositionsRef.current = [];
+        autoDialoguePreviewRef.current = { active: false, text: '', visibleChars: 0, lastCharAt: 0, charDelayMs: 35 };
+        autoEventSpaceWasDownRef.current = false;
         return;
     }
     if (!currentScreenMap) {
         entitiesRef.current = [];
         nucleoPositionsRef.current = [];
+        autoDialoguePreviewRef.current = { active: false, text: '', visibleChars: 0, lastCharAt: 0, charDelayMs: 35 };
+        autoEventSpaceWasDownRef.current = false;
         return;
     };
     nucleoPositionsRef.current = [];
@@ -3649,6 +3867,7 @@ useEffect(() => {
         const childLink = parseChildLinkConfig(template, instance);
         const lifetimeMs = resolveLifetimeMs(template, instance);
         const expiresAt = lifetimeMs ? performance.now() + lifetimeMs : undefined;
+        const autoEventRuntime = createAutoEventRuntime(template, instance);
 
         const newEntity = {
             instance, template, sprite, spriteAssetId, x: startX, y: startY, vx, vy,
@@ -3660,7 +3879,8 @@ useEffect(() => {
             ownerScreenId,
             childLink,
             lifetimeMs,
-            expiresAt
+            expiresAt,
+            autoEventRuntime
         };
 
         if (stateMachine && initialStateDef) {
@@ -5897,6 +6117,10 @@ useEffect(() => {
                 }
             }
 
+            if (entityA.autoEventRuntime) {
+                updateAutoEventRuntime(entityA, now);
+            }
+
             // --- PROJECTILES: movement, range and collisions ---
             if (entityA.isProjectile) {
                 // Move projectile
@@ -7633,6 +7857,8 @@ useEffect(() => {
         if (hudBufferRef.current) {
             ctx.drawImage(hudBufferRef.current, 0, 0);
         }
+        drawAutoDialoguePreview(ctx);
+        autoEventSpaceWasDownRef.current = pressedKeys.current.has(' ');
 
         // --- Remove destroyed entities ---
         entitiesRef.current = entitiesRef.current.filter(e => !e.markedForDestruction);
@@ -7781,6 +8007,7 @@ useEffect(() => {
             if (hudBufferRef.current) {
                 ctx.drawImage(hudBufferRef.current, 0, 0);
             }
+            drawAutoDialoguePreview(ctx);
 
             refreshVisibleEntityCount(currentScreenMapRef.current?.id);
         }
@@ -7798,7 +8025,7 @@ useEffect(() => {
     msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, checkKeyTransitions,
     // Asegurarse de que dependencias de las funciones internas estAn aquA si cambian
     componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT, showHitboxDebug, showTileHitboxes, isFullscreen,
-    refreshVisibleEntityCount, showEntityCount
+    refreshVisibleEntityCount, showEntityCount, createAutoEventRuntime, drawAutoDialoguePreview, updateAutoEventRuntime
 ]);
 
 if (!isOpen) return null;
