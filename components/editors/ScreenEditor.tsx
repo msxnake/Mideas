@@ -99,6 +99,50 @@ interface ScreenEditorProps {
   onToggleSectorLines: () => void;
 }
 
+const normalizeTemplateIdentity = (value: string | undefined) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const templateHasComponentIdentity = (
+  template: EntityTemplate | undefined,
+  componentDefinitions: ComponentDefinition[],
+  fragment: string
+): boolean => {
+  if (!template) return false;
+  const normalizedFragment = normalizeTemplateIdentity(fragment);
+  return template.components.some(component => {
+    const componentDef = componentDefinitions.find(definition => definition.id === component.definitionId);
+    return normalizeTemplateIdentity(component.definitionId).includes(normalizedFragment) ||
+      normalizeTemplateIdentity(componentDef?.name).includes(normalizedFragment);
+  });
+};
+
+const isFakePlayerEntityTemplate = (
+  template: EntityTemplate | undefined,
+  componentDefinitions: ComponentDefinition[]
+): boolean => {
+  if (!template) return false;
+  const name = normalizeTemplateIdentity(template.name);
+  const id = normalizeTemplateIdentity(template.id);
+  return name.includes('fakeplayer') ||
+    id.includes('fakeplayer') ||
+    templateHasComponentIdentity(template, componentDefinitions, 'autocontrol') ||
+    templateHasComponentIdentity(template, componentDefinitions, 'autocontrolscript');
+};
+
+const isRealPlayerEntityTemplate = (
+  template: EntityTemplate | undefined,
+  componentDefinitions: ComponentDefinition[]
+): boolean => {
+  if (!template || isFakePlayerEntityTemplate(template, componentDefinitions)) return false;
+  const name = normalizeTemplateIdentity(template.name);
+  const id = normalizeTemplateIdentity(template.id);
+  return template.isPlayer === true ||
+    name === 'player' ||
+    id === 'player' ||
+    id === 'tplplayer' ||
+    templateHasComponentIdentity(template, componentDefinitions, 'playerinput') ||
+    templateHasComponentIdentity(template, componentDefinitions, 'platformercontrol');
+};
+
 
 /**
  * A comprehensive editor for creating and modifying screen maps.
@@ -234,45 +278,16 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const screenEngine = screenMap.screenEngine ?? expectedScreenEngine;
 
   const screenKindValidationIssues = useMemo(() => {
-    const normalize = (value: string | undefined) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const getTemplateForEntity = (entity: EntityInstance) => entityTemplates.find(template => template.id === entity.entityTemplateId);
-    const templateHasComponent = (template: EntityTemplate | undefined, fragment: string) => {
-      if (!template) return false;
-      const normalizedFragment = normalize(fragment);
-      return template.components.some(component => {
-        const componentDef = componentDefinitions.find(definition => definition.id === component.definitionId);
-        return normalize(component.definitionId).includes(normalizedFragment) || normalize(componentDef?.name).includes(normalizedFragment);
-      });
-    };
-    const isFakePlayerTemplate = (template: EntityTemplate | undefined) => {
-      if (!template) return false;
-      const name = normalize(template.name);
-      const id = normalize(template.id);
-      return name.includes('fakeplayer') ||
-        id.includes('fakeplayer') ||
-        templateHasComponent(template, 'autocontrol') ||
-        templateHasComponent(template, 'autocontrolscript');
-    };
-    const isPlayerTemplate = (template: EntityTemplate | undefined) => {
-      if (!template || isFakePlayerTemplate(template)) return false;
-      const name = normalize(template.name);
-      const id = normalize(template.id);
-      return template.isPlayer === true ||
-        name === 'player' ||
-        id === 'player' ||
-        id === 'tplplayer' ||
-        templateHasComponent(template, 'playerinput') ||
-        templateHasComponent(template, 'platformercontrol');
-    };
 
     const playerEntities: string[] = [];
     const fakePlayerEntities: string[] = [];
 
     screenMap.layers.entities.forEach(entity => {
       const template = getTemplateForEntity(entity);
-      if (isFakePlayerTemplate(template)) {
+      if (isFakePlayerEntityTemplate(template, componentDefinitions)) {
         fakePlayerEntities.push(entity.name || template?.name || entity.id);
-      } else if (isPlayerTemplate(template)) {
+      } else if (isRealPlayerEntityTemplate(template, componentDefinitions)) {
         playerEntities.push(entity.name || template?.name || entity.id);
       }
     });
@@ -565,23 +580,15 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     if (!currentEntityTypeToPlace) {
       return;
     }
-    const normalizeTemplateName = (value: string | undefined) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const templateName = normalizeTemplateName(currentEntityTypeToPlace.name);
-    const templateId = normalizeTemplateName(currentEntityTypeToPlace.id);
-    const hasAutoControlScript = currentEntityTypeToPlace.components.some(component => component.definitionId === 'comp_auto_control_script');
-    const isFakePlayerTemplate = templateName.includes('fakeplayer') || templateId.includes('fakeplayer') || hasAutoControlScript;
-    const isPlayerTemplate = !isFakePlayerTemplate && (
-      currentEntityTypeToPlace.isPlayer === true ||
-      templateName === 'player' ||
-      templateId === 'player' ||
-      templateId === 'tplplayer' ||
-      currentEntityTypeToPlace.components.some(component => component.definitionId === 'comp_player_input')
-    );
+    const isFakePlayerTemplate = isFakePlayerEntityTemplate(currentEntityTypeToPlace, componentDefinitions);
+    const isPlayerTemplate = isRealPlayerEntityTemplate(currentEntityTypeToPlace, componentDefinitions);
 
     if (screenKind === 'playable' && isFakePlayerTemplate) {
-      setStatusBarMessage('Warning: FakePlayer is intended for tutorial/dialog/cutscene screens, not playable screens.');
+      setStatusBarMessage('Blocked: playable screens use the real Player engine. Change the screen type before placing FakePlayer.');
+      return;
     } else if (screenKind !== 'playable' && isPlayerTemplate) {
-      setStatusBarMessage(`Warning: ${screenKind} screens should use FakePlayer/AutoControlScript, not the real Player.`);
+      setStatusBarMessage(`Blocked: ${screenKind} screens use FakePlayer/AutoControlScript, not the real Player.`);
+      return;
     }
 
     const dialogueAssets = allProjectAssets.filter(asset => asset.type === 'dialogue');
@@ -603,7 +610,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     if (isFakePlayerTemplate && screenKind !== 'playable' && dialogueAssets.length === 1) {
       setStatusBarMessage(`FakePlayer placed and linked to Dialogue "${dialogueAssets[0].name}".`);
     }
-  }, [allProjectAssets, currentEntityTypeToPlace, getNextEntityInstanceName, onUpdate, screenKind, screenMap.layers, setStatusBarMessage]);
+  }, [allProjectAssets, componentDefinitions, currentEntityTypeToPlace, getNextEntityInstanceName, onUpdate, screenKind, screenMap.layers, setStatusBarMessage]);
 
   const handleAddFakePlayerEntity = useCallback(() => {
     const fakePlayerTemplate = entityTemplates.find(template => template.id === 'tpl_fake_player' || template.name.toLowerCase().replace(/[^a-z0-9]/g, '') === 'fakeplayer');
@@ -1771,10 +1778,28 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
   const handleScreenKindChange = useCallback((screenKind: ScreenKind) => {
     const screenEngine: ScreenEngineKind = screenKind === 'playable' ? 'player' : 'fakePlayer';
-    onUpdate({ screenKind, screenEngine });
+    const removedEntities: string[] = [];
+    const nextEntities = screenMap.layers.entities.filter(entity => {
+      const template = entityTemplates.find(candidate => candidate.id === entity.entityTemplateId);
+      const isFakePlayerTemplate = isFakePlayerEntityTemplate(template, componentDefinitions);
+      const isPlayerTemplate = isRealPlayerEntityTemplate(template, componentDefinitions);
+      const shouldRemove = screenKind === 'playable' ? isFakePlayerTemplate : isPlayerTemplate;
+      if (shouldRemove) {
+        removedEntities.push(entity.name || template?.name || entity.id);
+      }
+      return !shouldRemove;
+    });
+    onUpdate({
+      screenKind,
+      screenEngine,
+      layers: removedEntities.length > 0 ? { ...screenMap.layers, entities: nextEntities } : screenMap.layers,
+    });
     const label = screenKind.charAt(0).toUpperCase() + screenKind.slice(1);
-    setStatusBarMessage(`Screen type set to: ${label}. Runtime engine: ${screenEngine}.`);
-  }, [onUpdate, setStatusBarMessage]);
+    const cleanupMessage = removedEntities.length > 0
+      ? ` Removed incompatible entities: ${removedEntities.join(', ')}.`
+      : '';
+    setStatusBarMessage(`Screen type set to: ${label}. Runtime engine: ${screenEngine}.${cleanupMessage}`);
+  }, [componentDefinitions, entityTemplates, onUpdate, screenMap.layers, setStatusBarMessage]);
 
   const handleBehaviorSourceChange = useCallback((source: ScreenBehaviorSource) => {
     onUpdate({
