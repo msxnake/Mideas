@@ -26,7 +26,8 @@ import {
     PixelData,
     AssetType,
     TileBank,
-    DialogueAsset
+    DialogueAsset,
+    DialogueLine
 } from '../../types';
 import { Button } from '../common/Button';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
@@ -191,6 +192,7 @@ interface AutoDialoguePreviewState {
     lastCharAt: number;
     charDelayMs: number;
     dialogue?: DialogueAsset;
+    lineGraphic?: DialogueLine['graphic'];
 }
 
 /** Animated tile group state for Z80-faithful tile animation in the simulator */
@@ -685,7 +687,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const boxW = boxConfig ? Math.floor(boxConfig.width * charW) : Math.max(64, Math.floor(PREVIEW_WIDTH * 0.84));
         const boxH = boxConfig ? Math.floor(boxConfig.height * charH) : Math.max(32, Math.floor(PREVIEW_HEIGHT * 0.22));
         const visibleText = state.text.slice(0, state.visibleChars);
-        const graphic = boxConfig?.graphic;
+        const graphic = state.lineGraphic ?? boxConfig?.graphic;
         const graphicEnabled = Boolean(graphic?.enabled && graphic.width > 0 && graphic.height > 0);
         const graphicWidth = graphicEnabled ? Math.max(1, Math.floor(graphic!.width)) : 0;
         const graphicHeight = graphicEnabled ? Math.max(1, Math.floor(graphic!.height)) : 0;
@@ -896,6 +898,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 dialogueState.visibleChars = 0;
                 dialogueState.lastCharAt = nowMs;
                 dialogueState.dialogue = runtime.dialogue;
+                dialogueState.lineGraphic = undefined;
                 continue;
             }
             if (token.type === 'writeLine') {
@@ -909,6 +912,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 dialogueState.visibleChars = 0;
                 dialogueState.lastCharAt = nowMs;
                 dialogueState.dialogue = runtime.dialogue;
+                dialogueState.lineGraphic = line?.graphic;
                 runtime.waitingForText = true;
                 return;
             }
@@ -943,6 +947,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 dialogueState.text = '';
                 dialogueState.visibleChars = 0;
                 dialogueState.dialogue = undefined;
+                dialogueState.lineGraphic = undefined;
                 continue;
             }
         }

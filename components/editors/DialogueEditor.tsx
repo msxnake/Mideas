@@ -132,6 +132,59 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
     });
   };
 
+  const getLineGraphic = (line: DialogueLine): NonNullable<DialogueLine['graphic']> | undefined => {
+    if (!line.graphic) return undefined;
+    return {
+      ...DEFAULT_TILE_GRAPHIC,
+      ...line.graphic,
+      tileIds: Array.isArray(line.graphic.tileIds) ? line.graphic.tileIds : [],
+    };
+  };
+
+  const updateLineGraphic = (lineId: string, patch: Partial<NonNullable<DialogueLine['graphic']>>) => {
+    const line = data.lines.find(candidate => candidate.id === lineId);
+    const currentGraphic = {
+      ...DEFAULT_TILE_GRAPHIC,
+      ...(line?.graphic || {}),
+      tileIds: Array.isArray(line?.graphic?.tileIds) ? line.graphic.tileIds : [],
+    };
+    updateLine(lineId, {
+      graphic: {
+        ...currentGraphic,
+        ...patch,
+        tileIds: patch.tileIds || currentGraphic.tileIds || [],
+      },
+    });
+  };
+
+  const updateLineGraphicSize = (lineId: string, width: number, height: number) => {
+    const line = data.lines.find(candidate => candidate.id === lineId);
+    const currentGraphic = {
+      ...DEFAULT_TILE_GRAPHIC,
+      ...(line?.graphic || {}),
+      tileIds: Array.isArray(line?.graphic?.tileIds) ? line.graphic.tileIds : [],
+    };
+    const nextWidth = clampNumber(width, 1, 8);
+    const nextHeight = clampNumber(height, 1, 6);
+    updateLineGraphic(lineId, {
+      width: nextWidth,
+      height: nextHeight,
+      tileIds: Array.from({ length: nextWidth * nextHeight }, (_, index) => currentGraphic.tileIds?.[index] || ''),
+    });
+  };
+
+  const updateLineGraphicTile = (lineId: string, tileIndex: number, value: string) => {
+    const line = data.lines.find(candidate => candidate.id === lineId);
+    const currentGraphic = {
+      ...DEFAULT_TILE_GRAPHIC,
+      ...(line?.graphic || {}),
+      tileIds: Array.isArray(line?.graphic?.tileIds) ? line.graphic.tileIds : [],
+    };
+    const nextTileIds = [...currentGraphic.tileIds];
+    nextTileIds[tileIndex] = value;
+    updateLineGraphic(lineId, { tileIds: nextTileIds });
+  };
+
   const addLine = () => {
     update({
       lines: [
@@ -303,6 +356,107 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                       onChange={event => updateLine(line.id, { text: event.target.value })}
                       placeholder="Write dialogue text..."
                     />
+                  </div>
+                  <div className="border border-msx-border/70 bg-msx-bgcolor-dark/70 rounded p-2 space-y-2">
+                    <label className="flex items-center gap-2 text-xs text-msx-textsecondary">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(line.graphic)}
+                        onChange={event => updateLine(line.id, { graphic: event.target.checked ? { ...DEFAULT_TILE_GRAPHIC, enabled: true } : undefined })}
+                      />
+                      Override tile graphic for this line
+                    </label>
+                    {getLineGraphic(line) && (() => {
+                      const lineGraphic = getLineGraphic(line)!;
+                      const lineGraphicBank = availableTileBanks.find(bank => bank.id === lineGraphic.tileBankAssetId);
+                      const lineGraphicBankTileIds = lineGraphicBank
+                        ? Array.from(new Set(lineGraphicBank.banks.flatMap(bank => Object.keys(bank.assignedTiles || {}))))
+                        : [];
+                      const lineGraphicSelectableTiles = tileAssets.filter(asset => lineGraphicBankTileIds.length === 0 || lineGraphicBankTileIds.includes(asset.id));
+
+                      return (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className={labelClassName}>Side</label>
+                              <select
+                                className={compactInputClassName}
+                                value={lineGraphic.side}
+                                onChange={event => updateLineGraphic(line.id, { side: event.target.value as NonNullable<DialogueLine['graphic']>['side'] })}
+                              >
+                                <option value="left">Left of text</option>
+                                <option value="right">Right of text</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className={labelClassName}>Padding</label>
+                              <input
+                                type="number"
+                                min={0}
+                                max={4}
+                                className={compactInputClassName}
+                                value={lineGraphic.padding}
+                                onChange={event => updateLineGraphic(line.id, { padding: clampNumber(Number(event.target.value), 0, 4) })}
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClassName}>Width</label>
+                              <input
+                                type="number"
+                                min={1}
+                                max={8}
+                                className={compactInputClassName}
+                                value={lineGraphic.width}
+                                onChange={event => updateLineGraphicSize(line.id, Number(event.target.value), lineGraphic.height)}
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClassName}>Height</label>
+                              <input
+                                type="number"
+                                min={1}
+                                max={6}
+                                className={compactInputClassName}
+                                value={lineGraphic.height}
+                                onChange={event => updateLineGraphicSize(line.id, lineGraphic.width, Number(event.target.value))}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className={labelClassName}>TileBank</label>
+                            <select
+                              className={compactInputClassName}
+                              value={lineGraphic.tileBankAssetId || ''}
+                              onChange={event => updateLineGraphic(line.id, { tileBankAssetId: event.target.value || undefined })}
+                            >
+                              <option value="">Use no TileBank</option>
+                              {availableTileBanks.map(bank => (
+                                <option key={bank.id} value={bank.id}>{bank.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div
+                            className="grid gap-1"
+                            style={{ gridTemplateColumns: `repeat(${Math.max(1, lineGraphic.width)}, minmax(0, 1fr))` }}
+                          >
+                            {Array.from({ length: Math.max(1, lineGraphic.width) * Math.max(1, lineGraphic.height) }).map((_, tileIndex) => (
+                              <select
+                                key={tileIndex}
+                                className={compactInputClassName}
+                                value={lineGraphic.tileIds?.[tileIndex] || ''}
+                                onChange={event => updateLineGraphicTile(line.id, tileIndex, event.target.value)}
+                                title={`Line ${index + 1} graphic tile ${tileIndex + 1}`}
+                              >
+                                <option value="">Empty</option>
+                                {lineGraphicSelectableTiles.map(asset => (
+                                  <option key={asset.id} value={asset.id}>{asset.name}</option>
+                                ))}
+                              </select>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}

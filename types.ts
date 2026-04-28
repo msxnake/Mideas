@@ -1270,6 +1270,7 @@ export interface DialogueLine {
   speaker?: string;
   text: string;
   waitForInput?: boolean;
+  graphic?: DialogueTileGraphicConfig;
 }
 
 export interface DialogueBoxTileRefs {
