@@ -670,6 +670,24 @@ CONNECTION_END          EQU 255
 gameflow_no_data:
     db #C9                        ; RET instruction - returns immediately
 
+; ------------------------------------------------------------------
+; gameflow_read_confirm_direct
+; Read submenu/text confirm input directly from keyboard matrix.
+; Output: A = 1 when SPACE is pressed, A = 0 otherwise
+; Clobbers: AF
+; Preserves: BC, DE, HL, IX, IY
+; ------------------------------------------------------------------
+gameflow_read_confirm_direct:
+    ld a, 8
+    call FAST_SNSMAT
+    bit 0, a
+    jr z, .grcd_pressed
+    xor a
+    ret
+.grcd_pressed:
+    ld a, 1
+    ret
+
 `;
 
   // ===================================================================
@@ -2403,24 +2421,6 @@ ${frameAudioTickAsm}    pop bc
     djnz .delay_loop
 
     pop bc
-    ret
-
-; ------------------------------------------------------------------
-; gameflow_read_confirm_direct
-; Read submenu/text confirm input directly from keyboard matrix.
-; Output: A = 1 when SPACE is pressed, A = 0 otherwise
-; Clobbers: AF
-; Preserves: BC, DE, HL, IX, IY
-; ------------------------------------------------------------------
-gameflow_read_confirm_direct:
-    ld a, 8
-    call FAST_SNSMAT
-    bit 0, a
-    jr z, .grcd_pressed
-    xor a
-    ret
-.grcd_pressed:
-    ld a, 1
     ret
 
 `;
