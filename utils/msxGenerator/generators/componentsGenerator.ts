@@ -9894,7 +9894,7 @@ function generateTileInteractionSystem(
         bonusRespawnSeconds: number;
     },
     canUseSoundAssetPlayback: boolean,
-    _hasWallCollision: boolean = false
+    hasWallCollision: boolean = false
 ): string {
     const collectionSoundAssetIndex = tileCollectorConfig.soundAssetIndex;
     const interactionTargetVariables = buildOrderedGlobalVariableInfos(analysis);
@@ -10241,6 +10241,26 @@ record_bonus_respawn_slot:
 update_bonus_respawns:
     ret
 `;
+    const wallBehaviorHelperCode = hasWallCollision
+        ? ``
+        : `
+; ------------------------------------------------------------------
+; wall_behavior_is_full_blocker
+; Input:  A = behavior byte or family bits
+; Output: Z = passable / top-solid platform, NZ = full blocker
+; Clobbers: AF
+; Notes:
+;   - TileInteraction slash movement can exist without WallCollision.
+;     Keep this helper local to that case so Glass always has a target.
+; ------------------------------------------------------------------
+wall_behavior_is_full_blocker:
+    and #F0
+    ret z
+    cp #20
+    ret z
+    or a
+    ret
+`;
 
     return `
 ; ==================================================================
@@ -10252,6 +10272,7 @@ update_bonus_respawns:
 ; ------------------------------------------------------------------
 ; Called once per frame from update_all_entities.
 ; ------------------------------------------------------------------
+${wallBehaviorHelperCode}
 
 ${interactionTargetPointerTableCode}
 ${interactionTargetWordFlagTableCode}
