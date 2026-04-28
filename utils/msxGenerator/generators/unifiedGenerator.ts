@@ -1244,12 +1244,14 @@ ${farCodeBanks.length > 0 ? `${farCodeBanks.map(bank => {
 ; NOTE: routines in this bank MUST only call code in bank 0 or
 ;       primary banks (1-3). No far-to-far calls allowed.
 ; ##################################################################
+FAR_BANK_${bank.physicalBank}_ROM_START:
     org #${orgHex}
 
 ${moduleContents || '; (empty far bank)'}
 
 ; --- End of Far Bank ${bank.physicalBank} — pad to 8KB boundary ---
-    ds #${endHex} - $, #FF`;
+    ds #${endHex} - $, #FF
+    org FAR_BANK_${bank.physicalBank}_ROM_START + #2000`;
 }).join('\n\n')}` : ''}
 
 ${overflowDataSection}
