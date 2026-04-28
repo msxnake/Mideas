@@ -142,6 +142,20 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   currentAddress++;
   code += `dialogue_box_v_char EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue vertical border char\n`;
   currentAddress++;
+  code += `dialogue_graphic_enabled EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=dialogue tile graphic is visible\n`;
+  currentAddress++;
+  code += `dialogue_graphic_vram_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue graphic VRAM start low byte\n`;
+  currentAddress++;
+  code += `dialogue_graphic_vram_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue graphic VRAM start high byte\n`;
+  currentAddress++;
+  code += `dialogue_graphic_ptr_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue graphic tile data pointer low byte\n`;
+  currentAddress++;
+  code += `dialogue_graphic_ptr_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue graphic tile data pointer high byte\n`;
+  currentAddress++;
+  code += `dialogue_graphic_width EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue graphic width in chars\n`;
+  currentAddress++;
+  code += `dialogue_graphic_height EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue graphic height in chars\n`;
+  currentAddress++;
 
   code += `current_flow_state  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current game flow state\n`;
   currentAddress++;

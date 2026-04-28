@@ -202,6 +202,11 @@ function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBui
     const brEntries: number[] = [];
     const hEntries: number[] = [];
     const vEntries: number[] = [];
+    const graphicEnabledEntries: number[] = [];
+    const graphicVramEntries: string[] = [];
+    const graphicWidthEntries: number[] = [];
+    const graphicHeightEntries: number[] = [];
+    const graphicTilePtrEntries: string[] = [];
     const linePtrEntries: string[] = [];
     const lineDelayEntries: number[] = [];
     let dataAsm = '';
@@ -221,7 +226,29 @@ function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBui
         const useTileBorder = box.borderSource === 'tilebank';
         const charDelay = Math.max(0, Math.min(255, clampByteValue(dialogue?.exportOptions?.charDelayFrames, 2)));
         const baseVram = `NAMETBL + ${(y * 32) + x}`;
-        const textVram = `NAMETBL + ${((y + 1) * 32) + x + 1}`;
+        const interiorWidth = Math.max(1, width - 2);
+        const interiorHeight = Math.max(1, height - 2);
+        const graphic = box.graphic || {};
+        const graphicRequested = graphic.enabled === true && interiorWidth >= 2 && interiorHeight >= 1;
+        const graphicSide = graphic.side === 'right' ? 'right' : 'left';
+        const graphicWidth = graphicRequested
+            ? Math.max(1, Math.min(8, clampByteValue(graphic.width, 4), interiorWidth - 1))
+            : 0;
+        const graphicHeight = graphicRequested
+            ? Math.max(1, Math.min(6, clampByteValue(graphic.height, 3), interiorHeight))
+            : 0;
+        const graphicPadding = graphicRequested
+            ? Math.max(0, Math.min(4, clampByteValue(graphic.padding, 1), interiorWidth - graphicWidth - 1))
+            : 0;
+        const graphicReservedWidth = graphicRequested ? graphicWidth + graphicPadding : 0;
+        const textStartX = x + 1 + (graphicRequested && graphicSide === 'left' ? graphicReservedWidth : 0);
+        const textWidth = Math.max(1, interiorWidth - graphicReservedWidth);
+        const textVram = `NAMETBL + ${((y + 1) * 32) + textStartX}`;
+        const graphicX = graphicSide === 'right'
+            ? x + width - 1 - graphicWidth
+            : x + 1;
+        const graphicY = y + 1;
+        const graphicVram = `NAMETBL + ${(graphicY * 32) + graphicX}`;
         const generatedTopLeft = clampByteValue(border.topLeft, 43);
         const generatedTopRight = clampByteValue(border.topRight, 43);
         const generatedBottomLeft = clampByteValue(border.bottomLeft, 43);
@@ -243,12 +270,33 @@ function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBui
         hEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.horizontalTileId, topY, generatedHorizontal) : generatedHorizontal);
         vEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.verticalTileId, topY, generatedVertical) : generatedVertical);
 
+        if (graphicRequested) {
+            const graphicLabel = `dialogue_graphic_${dialogueIndex}_${sanitizeAsmLabelPart(dialogue?.name || dialogueId, `dialogue_${dialogueIndex}`)}`;
+            const graphicTileIds = Array.isArray(graphic.tileIds) ? graphic.tileIds : [];
+            const graphicBytes = Array.from({ length: graphicWidth * graphicHeight }, (_, index) => {
+                const rowY = graphicY + Math.floor(index / Math.max(1, graphicWidth));
+                return resolveDialogueBorderCharCode(analysis, graphic.tileBankAssetId, graphicTileIds[index], rowY, 32);
+            });
+            dataAsm += `${graphicLabel}:\n    DB ${graphicBytes.map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}\n`;
+            graphicEnabledEntries.push(1);
+            graphicVramEntries.push(graphicVram);
+            graphicWidthEntries.push(graphicWidth);
+            graphicHeightEntries.push(graphicHeight);
+            graphicTilePtrEntries.push(graphicLabel);
+        } else {
+            graphicEnabledEntries.push(0);
+            graphicVramEntries.push('0');
+            graphicWidthEntries.push(0);
+            graphicHeightEntries.push(0);
+            graphicTilePtrEntries.push('0');
+        }
+
         const lineMap = new Map<number, number>();
         const lineWaitMap = new Map<number, boolean>();
         lineIndexByDialogueId.set(dialogueId, lineMap);
         lineWaitForInputByDialogueId.set(dialogueId, lineWaitMap);
-        const maxChars = Math.min(width - 2, Math.max(1, clampByteValue(dialogue?.exportOptions?.maxCharsPerLine, width - 2)));
-        const maxLines = Math.min(height - 2, Math.max(1, clampByteValue(dialogue?.exportOptions?.maxLinesPerBox, height - 2)));
+        const maxChars = Math.min(textWidth, Math.max(1, clampByteValue(dialogue?.exportOptions?.maxCharsPerLine, textWidth)));
+        const maxLines = Math.min(interiorHeight, Math.max(1, clampByteValue(dialogue?.exportOptions?.maxLinesPerBox, interiorHeight)));
         const stripUnsupportedChars = dialogue?.exportOptions?.stripUnsupportedChars !== false;
         const dialogueLabel = sanitizeAsmLabelPart(dialogue?.name || dialogueId, `dialogue_${dialogueIndex}`);
 
@@ -291,6 +339,11 @@ function buildDialogueRuntimeData(analysis: ProjectAnalysis): DialogueRuntimeBui
     dataAsm += byteTable('dialogue_box_br_table', brEntries, 43);
     dataAsm += byteTable('dialogue_box_h_table', hEntries, 45);
     dataAsm += byteTable('dialogue_box_v_table', vEntries, 124);
+    dataAsm += byteTable('dialogue_graphic_enabled_table', graphicEnabledEntries, 0);
+    dataAsm += ptrTable('dialogue_graphic_vram_table', graphicVramEntries);
+    dataAsm += byteTable('dialogue_graphic_width_table', graphicWidthEntries, 0);
+    dataAsm += byteTable('dialogue_graphic_height_table', graphicHeightEntries, 0);
+    dataAsm += ptrTable('dialogue_graphic_tile_ptr_table', graphicTilePtrEntries);
     dataAsm += ptrTable('dialogue_line_ptr_table', linePtrEntries);
     dataAsm += byteTable('dialogue_line_delay_table', lineDelayEntries, 2);
 
@@ -683,6 +736,7 @@ dialogue_open_box:
     call init_font_system
     call dialogue_load_box_config
     call dialogue_draw_box
+    call dialogue_draw_graphic
     xor a
     ld (dialogue_text_active), a
     ld a, 1
@@ -696,6 +750,7 @@ dialogue_start_line:
     ld a, (dialogue_current_box)
     call dialogue_load_box_config
     call dialogue_clear_interior
+    call dialogue_draw_graphic
     pop bc
 
     ld hl, dialogue_line_ptr_table
@@ -814,6 +869,39 @@ dialogue_load_box_config_index_ok:
     add hl, bc
     ld a, (hl)
     ld (dialogue_box_v_char), a
+
+    ld hl, dialogue_graphic_enabled_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_graphic_enabled), a
+    ld hl, dialogue_graphic_vram_table
+    add hl, bc
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    ld (dialogue_graphic_vram_l), a
+    ld a, d
+    ld (dialogue_graphic_vram_h), a
+    ld hl, dialogue_graphic_tile_ptr_table
+    add hl, bc
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    ld (dialogue_graphic_ptr_l), a
+    ld a, d
+    ld (dialogue_graphic_ptr_h), a
+    ld hl, dialogue_graphic_width_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_graphic_width), a
+    ld hl, dialogue_graphic_height_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_graphic_height), a
     ret
 
 dialogue_draw_box:
@@ -928,6 +1016,45 @@ dialogue_clear_interior_col:
     add hl, de
     dec c
     jp nz, dialogue_clear_interior_row
+    ret
+
+dialogue_draw_graphic:
+    ld a, (dialogue_graphic_enabled)
+    or a
+    ret z
+    ld a, (dialogue_graphic_width)
+    or a
+    ret z
+    ld a, (dialogue_graphic_height)
+    or a
+    ret z
+    ld a, (dialogue_graphic_vram_l)
+    ld l, a
+    ld a, (dialogue_graphic_vram_h)
+    ld h, a
+    ld a, (dialogue_graphic_ptr_l)
+    ld e, a
+    ld a, (dialogue_graphic_ptr_h)
+    ld d, a
+    ld a, (dialogue_graphic_height)
+    ld c, a
+dialogue_draw_graphic_row:
+    push hl
+    ld a, (dialogue_graphic_width)
+    ld b, a
+dialogue_draw_graphic_col:
+    ld a, (de)
+    inc de
+    call FAST_WRTVRM
+    inc hl
+    djnz dialogue_draw_graphic_col
+    pop hl
+    push de
+    ld de, 32
+    add hl, de
+    pop de
+    dec c
+    jp nz, dialogue_draw_graphic_row
     ret
 `;
 }

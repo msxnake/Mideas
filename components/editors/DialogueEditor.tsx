@@ -21,6 +21,15 @@ const DEFAULT_BORDER_CHAR_CODES: DialogueBoxCharCodes = {
   vertical: 124,
 };
 
+const DEFAULT_TILE_GRAPHIC: NonNullable<DialogueAsset['box']['graphic']> = {
+  enabled: false,
+  side: 'left',
+  width: 4,
+  height: 3,
+  padding: 1,
+  tileIds: [],
+};
+
 const inputClassName = 'w-full p-2 text-sm text-msx-textprimary bg-msx-bgcolor-dark border border-msx-border rounded focus:ring-msx-accent focus:border-msx-accent';
 const compactInputClassName = 'w-full p-1.5 text-xs text-msx-textprimary bg-msx-bgcolor-dark border border-msx-border rounded focus:ring-msx-accent focus:border-msx-accent';
 const labelClassName = 'block text-xs text-msx-textsecondary mb-1';
@@ -56,6 +65,11 @@ function ensureDialogue(dialogue: DialogueAsset): DialogueAsset {
       },
       borderTiles: {
         ...(dialogue.box?.borderTiles || {}),
+      },
+      graphic: {
+        ...DEFAULT_TILE_GRAPHIC,
+        ...(dialogue.box?.graphic || {}),
+        tileIds: Array.isArray(dialogue.box?.graphic?.tileIds) ? dialogue.box.graphic.tileIds : [],
       },
     },
     exportOptions: {
@@ -97,6 +111,17 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
     update({ box: { ...data.box, ...patch } });
   };
 
+  const updateGraphic = (patch: Partial<NonNullable<DialogueAsset['box']['graphic']>>) => {
+    const currentGraphic = { ...DEFAULT_TILE_GRAPHIC, ...(data.box.graphic || {}) };
+    updateBox({
+      graphic: {
+        ...currentGraphic,
+        ...patch,
+        tileIds: patch.tileIds || currentGraphic.tileIds || [],
+      },
+    });
+  };
+
   const updateExportOptions = (patch: Partial<DialogueAsset['exportOptions']>) => {
     update({ exportOptions: { ...data.exportOptions, ...patch } });
   };
@@ -135,6 +160,13 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
     }
   };
 
+  const createAndAssignGraphicTileBank = () => {
+    const created = onCreateAsset?.('tilebank', { select: false });
+    if (created?.id) {
+      updateGraphic({ enabled: true, tileBankAssetId: created.id });
+    }
+  };
+
   const updateBorderCharCode = (field: keyof DialogueBoxCharCodes, value: number) => {
     updateBox({
       borderCharCodes: {
@@ -154,12 +186,37 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
     });
   };
 
+  const updateGraphicTile = (tileIndex: number, value: string) => {
+    const graphic = { ...DEFAULT_TILE_GRAPHIC, ...(data.box.graphic || {}) };
+    const nextTileIds = [...(graphic.tileIds || [])];
+    nextTileIds[tileIndex] = value;
+    updateGraphic({ tileIds: nextTileIds });
+  };
+
+  const updateGraphicSize = (width: number, height: number) => {
+    const graphic = { ...DEFAULT_TILE_GRAPHIC, ...(data.box.graphic || {}) };
+    const nextWidth = clampNumber(width, 1, 8);
+    const nextHeight = clampNumber(height, 1, 6);
+    const nextCount = nextWidth * nextHeight;
+    updateGraphic({
+      width: nextWidth,
+      height: nextHeight,
+      tileIds: Array.from({ length: nextCount }, (_, index) => graphic.tileIds?.[index] || ''),
+    });
+  };
+
   const borderCodes = { ...DEFAULT_BORDER_CHAR_CODES, ...data.box.borderCharCodes };
+  const graphic = { ...DEFAULT_TILE_GRAPHIC, ...(data.box.graphic || {}) };
   const selectedBank = availableTileBanks.find(bank => bank.id === data.box.tileBankAssetId);
   const bankTileIds = selectedBank
     ? Array.from(new Set(selectedBank.banks.flatMap(bank => Object.keys(bank.assignedTiles || {}))))
     : [];
   const selectableTiles = tileAssets.filter(asset => bankTileIds.length === 0 || bankTileIds.includes(asset.id));
+  const selectedGraphicBank = availableTileBanks.find(bank => bank.id === graphic.tileBankAssetId);
+  const graphicBankTileIds = selectedGraphicBank
+    ? Array.from(new Set(selectedGraphicBank.banks.flatMap(bank => Object.keys(bank.assignedTiles || {}))))
+    : [];
+  const graphicSelectableTiles = tileAssets.filter(asset => graphicBankTileIds.length === 0 || graphicBankTileIds.includes(asset.id));
   const maxBoxX = 28;
   const maxBoxY = 21;
   const maxBoxWidth = Math.max(4, 32 - data.box.x);
@@ -168,10 +225,12 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
   const previewSpeaker = previewLine?.speaker?.trim();
   const previewText = `${previewSpeaker ? `${previewSpeaker}: ` : ''}${previewLine?.text || ''}`;
   const textColumnCapacity = Math.max(1, data.box.width - 2);
+  const graphicReservedColumns = graphic.enabled ? Math.min(textColumnCapacity - 1, Math.max(1, graphic.width) + Math.max(0, graphic.padding)) : 0;
+  const textColumnCapacityForExport = Math.max(1, textColumnCapacity - graphicReservedColumns);
   const textRowCapacity = Math.max(1, data.box.height - 2);
   const dialogueValidationIssues = [
-    ...(data.exportOptions.maxCharsPerLine > textColumnCapacity
-      ? [`Max Chars / Line exceeds the box interior width (${textColumnCapacity}).`]
+    ...(data.exportOptions.maxCharsPerLine > textColumnCapacityForExport
+      ? [`Max Chars / Line exceeds the available text width (${textColumnCapacityForExport}).`]
       : []),
     ...(data.exportOptions.maxLinesPerBox > textRowCapacity
       ? [`Max Lines / Box exceeds the box interior height (${textRowCapacity}).`]
@@ -301,7 +360,34 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                     height: `${(data.box.height / 24) * 100}%`,
                   }}
                 >
-                  {previewText || '...'}
+                  <div className={`flex h-full gap-1 ${graphic.side === 'right' ? 'flex-row-reverse' : ''}`}>
+                    {graphic.enabled && (
+                      <div
+                        className="grid shrink-0 gap-px"
+                        style={{
+                          width: `${Math.max(1, graphic.width) * 12}px`,
+                          gridTemplateColumns: `repeat(${Math.max(1, graphic.width)}, minmax(0, 1fr))`,
+                        }}
+                      >
+                        {Array.from({ length: Math.max(1, graphic.width) * Math.max(1, graphic.height) }).map((_, index) => {
+                          const tileId = graphic.tileIds?.[index];
+                          const tileName = tileAssets.find(asset => asset.id === tileId)?.name || '';
+                          return (
+                            <div
+                              key={index}
+                              className="aspect-square bg-msx-accent/30 border border-msx-accent/40 text-[7px] text-msx-textsecondary overflow-hidden"
+                              title={tileName || 'Empty graphic tile'}
+                            >
+                              {tileName.slice(0, 1)}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      {previewText || '...'}
+                    </div>
+                  </div>
                 </div>
               </div>
               <div>
@@ -327,6 +413,112 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                   </Button>
                 )}
               </div>
+            </section>
+
+            <section className="border border-msx-border bg-msx-bgcolor rounded p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-msx-highlight">Tile Graphic</h3>
+                <label className="flex items-center gap-2 text-xs text-msx-textsecondary">
+                  <input
+                    type="checkbox"
+                    checked={graphic.enabled}
+                    onChange={event => updateGraphic({ enabled: event.target.checked })}
+                  />
+                  Enabled
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={labelClassName}>Side</label>
+                  <select
+                    className={compactInputClassName}
+                    value={graphic.side}
+                    onChange={event => updateGraphic({ side: event.target.value as NonNullable<DialogueAsset['box']['graphic']>['side'] })}
+                  >
+                    <option value="left">Left of text</option>
+                    <option value="right">Right of text</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClassName}>Padding Columns</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={4}
+                    className={compactInputClassName}
+                    value={graphic.padding}
+                    onChange={event => updateGraphic({ padding: clampNumber(Number(event.target.value), 0, 4) })}
+                  />
+                </div>
+                <div>
+                  <label className={labelClassName}>Width Tiles</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={8}
+                    className={compactInputClassName}
+                    value={graphic.width}
+                    onChange={event => updateGraphicSize(Number(event.target.value), graphic.height)}
+                  />
+                </div>
+                <div>
+                  <label className={labelClassName}>Height Tiles</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={6}
+                    className={compactInputClassName}
+                    value={graphic.height}
+                    onChange={event => updateGraphicSize(graphic.width, Number(event.target.value))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelClassName}>TileBank</label>
+                <select
+                  className={inputClassName}
+                  value={graphic.tileBankAssetId || ''}
+                  onChange={event => updateGraphic({ tileBankAssetId: event.target.value || undefined })}
+                >
+                  <option value="">Select TileBank</option>
+                  {availableTileBanks.map(bank => (
+                    <option key={bank.id} value={bank.id}>{bank.name}</option>
+                  ))}
+                </select>
+                {availableTileBanks.length === 0 && onCreateAsset && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="mt-2"
+                    onClick={createAndAssignGraphicTileBank}
+                  >
+                    Create and Use TileBank
+                  </Button>
+                )}
+              </div>
+
+              {graphic.enabled && (
+                <div
+                  className="grid gap-1"
+                  style={{ gridTemplateColumns: `repeat(${Math.max(1, graphic.width)}, minmax(0, 1fr))` }}
+                >
+                  {Array.from({ length: Math.max(1, graphic.width) * Math.max(1, graphic.height) }).map((_, index) => (
+                    <select
+                      key={index}
+                      className={compactInputClassName}
+                      value={graphic.tileIds?.[index] || ''}
+                      onChange={event => updateGraphicTile(index, event.target.value)}
+                      title={`Graphic tile ${index + 1}`}
+                    >
+                      <option value="">Empty</option>
+                      {graphicSelectableTiles.map(asset => (
+                        <option key={asset.id} value={asset.id}>{asset.name}</option>
+                      ))}
+                    </select>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className="border border-msx-border bg-msx-bgcolor rounded p-3 space-y-3">

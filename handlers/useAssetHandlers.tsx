@@ -330,6 +330,7 @@ export const useAssetHandlers = ({
               horizontal: 45,
               vertical: 124,
             },
+            graphic: { enabled: false, side: 'left', width: 4, height: 3, padding: 1, tileIds: [] },
           },
           exportOptions: {
             maxCharsPerLine: 28,

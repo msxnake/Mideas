@@ -1290,6 +1290,16 @@ export interface DialogueBoxCharCodes {
   vertical: number;
 }
 
+export interface DialogueTileGraphicConfig {
+  enabled: boolean;
+  side: 'left' | 'right';
+  tileBankAssetId?: string;
+  tileIds: string[];
+  width: number;
+  height: number;
+  padding: number;
+}
+
 export interface DialogueBoxConfig {
   x: number;
   y: number;
@@ -1300,6 +1310,7 @@ export interface DialogueBoxConfig {
   borderTiles?: DialogueBoxTileRefs;
   borderCharCodes?: Partial<DialogueBoxCharCodes>;
   fontAssetId?: string;
+  graphic?: DialogueTileGraphicConfig;
 }
 
 export interface DialogueAsset {
