@@ -196,10 +196,22 @@ psg_write:
 ; psg_set_tone
 ; Set tone period for a channel
 ; Input:  A = Channel (0=A, 1=B, 2=C)
-;         HL = Tone period (12-bit value)
+;         HL = Tone period (clamped to PSG 12-bit range 1..#0FFF)
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
 psg_set_tone:
+    ld b, a                      ; Preserve channel while clamping period
+    ld a, h
+    and #F0
+    jr z, .tone_period_in_range
+    ld hl, #0FFF                 ; AY tone period is 12-bit; saturate overflow
+.tone_period_in_range:
+    ld a, h
+    or l
+    jr nz, .tone_period_nonzero
+    inc l                        ; Avoid period 0, which is unstable on PSG
+.tone_period_nonzero:
+    ld a, b
     ; Calculate register numbers (A*2 for low, A*2+1 for high)
     add a, a                     ; A = channel * 2
     ld c, a                      ; C = low register number
