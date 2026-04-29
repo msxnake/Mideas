@@ -271,6 +271,23 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const handleExportSelectedTemplate = () => {
+    if (!editingTemplate?.id) return;
+
+    const fileBaseName = (editingTemplate.name || 'entity_template')
+      .replace(/[^a-z0-9_-]+/gi, '_')
+      .replace(/^_+|_+$/g, '') || 'entity_template';
+    const blob = new Blob([JSON.stringify(editingTemplate, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${fileBaseName}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleImportEntityTemplates = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -502,6 +519,9 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
               <div className="flex justify-end space-x-2 mt-4">
                 <Button onClick={() => handleDeleteTemplate(editingTemplate as EntityTemplate)} variant="danger" disabled={!entityTemplates.find(t => t.id === editingTemplate?.id)}>
                   Delete Template
+                </Button>
+                <Button onClick={handleExportSelectedTemplate} variant="secondary" icon={<SaveIcon/>} disabled={!editingTemplate?.id}>
+                  Export JSON
                 </Button>
                 <Button onClick={handleSaveTemplate} variant="primary" icon={<SaveIcon/>}>
                   Save Template
