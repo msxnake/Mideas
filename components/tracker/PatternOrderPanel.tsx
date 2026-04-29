@@ -49,12 +49,12 @@ export const PatternOrderPanel: React.FC<PatternOrderPanelProps> = ({
   restartPosition, onRestartPositionChange
 }) => {
   return (
-    <Panel title="Pattern Order" icon={<CaretRightIcon/>}>
-        <div className="max-h-28 overflow-y-auto space-y-0.5 pr-1 text-xs">
+    <Panel title="Pattern Order" icon={<CaretRightIcon/>} bodyClassName="p-2">
+        <div className="max-h-32 overflow-y-auto space-y-1 pr-1 text-xs">
         {order.map((patternIndexInStorage, orderIdx) => (
-            <div key={`order-${orderIdx}`} className="flex items-center space-x-1">
+            <div key={`order-${orderIdx}`} className={`flex items-center gap-1 rounded border px-1 py-0.5 ${orderIdx === currentPatternIndexInOrder ? 'border-msx-highlight/70 bg-msx-highlight/15' : 'border-msx-border/70 bg-msx-bgcolor/70 hover:border-msx-highlight/50'}`}>
                 <span 
-                    className={`text-msx-textsecondary w-6 text-right cursor-pointer hover:text-msx-highlight ${orderIdx === currentPatternIndexInOrder ? 'text-msx-accent font-bold' : ''}`}
+                    className={`w-7 cursor-pointer text-right font-mono hover:text-msx-highlight ${orderIdx === currentPatternIndexInOrder ? 'text-msx-highlight font-bold' : 'text-msx-textsecondary'}`}
                     onClick={() => onCurrentPatternIndexInOrderChange(orderIdx)}
                     title={`Go to order step ${orderIdx}`}
                 >
@@ -63,7 +63,7 @@ export const PatternOrderPanel: React.FC<PatternOrderPanelProps> = ({
                 <select
                     value={patternIndexInStorage}
                     onChange={(e) => onOrderListChange(orderIdx, parseInt(e.target.value))}
-                    className={`p-0.5 flex-grow bg-msx-bgcolor border border-msx-border rounded ${orderIdx === currentPatternIndexInOrder ? 'ring-1 ring-msx-accent' : ''}`}
+                    className={`min-w-0 flex-grow rounded border border-msx-border bg-black/20 p-1 text-msx-textprimary outline-none focus:border-msx-highlight ${orderIdx === currentPatternIndexInOrder ? 'ring-1 ring-msx-highlight/80' : ''}`}
                     aria-label={`Pattern for order step ${orderIdx}`}
                 >
                    {patterns.map((p, pArrIdx) => <option key={p.id} value={pArrIdx}>{String(pArrIdx).padStart(2,'0')} - {p.name}</option>)}
@@ -72,10 +72,10 @@ export const PatternOrderPanel: React.FC<PatternOrderPanelProps> = ({
             </div>
         ))}
         </div>
-        <Button onClick={onAddPatternToOrder} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="mt-1.5 w-full text-[0.65rem]">Add to Order</Button>
-         <div className="grid grid-cols-2 gap-1 mt-1 text-xs">
+        <Button onClick={onAddPatternToOrder} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="mt-2 w-full text-[0.65rem]">Add to Order</Button>
+         <div className="mt-2 grid grid-cols-2 gap-2 border-t border-msx-border/70 pt-2 text-xs">
             <div>
-                <label htmlFor="songLengthPatterns" className="block text-msx-textsecondary text-[0.6rem]">Song Length:</label>
+                <label htmlFor="songLengthPatterns" className="block text-msx-textsecondary text-[0.6rem] uppercase tracking-wider">Length</label>
                 <input 
                     id="songLengthPatterns"
                     type="number" 
@@ -83,13 +83,13 @@ export const PatternOrderPanel: React.FC<PatternOrderPanelProps> = ({
                     min="1" 
                     max={order.length} 
                     onChange={e => onLengthInPatternsChange(e.target.value)} 
-                    className="p-0.5 bg-msx-bgcolor border border-msx-border rounded w-full"
+                    className="w-full rounded border border-msx-border bg-msx-bgcolor p-1 font-mono outline-none focus:border-msx-highlight"
                     title="Total number of patterns in the song's playback sequence."
                     aria-label="Song length in patterns"
                 />
             </div>
             <div>
-                <label htmlFor="loopStartPattern" className="block text-msx-textsecondary text-[0.6rem]">Loop Start:</label>
+                <label htmlFor="loopStartPattern" className="block text-msx-textsecondary text-[0.6rem] uppercase tracking-wider">Loop</label>
                 <input 
                     id="loopStartPattern"
                     type="number" 
@@ -97,7 +97,7 @@ export const PatternOrderPanel: React.FC<PatternOrderPanelProps> = ({
                     min="0" 
                     max={order.length -1} 
                     onChange={e => onRestartPositionChange(e.target.value)} 
-                    className="p-0.5 bg-msx-bgcolor border border-msx-border rounded w-full"
+                    className="w-full rounded border border-msx-border bg-msx-bgcolor p-1 font-mono outline-none focus:border-msx-highlight"
                     title="Order index (0-based) where the song will loop back to after reaching 'Song Length'."
                     aria-label="Loop start position in pattern order"
                 />

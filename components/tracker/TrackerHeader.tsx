@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
-import { PlayIcon, StopIcon, ListBulletIcon, CheckCircleIcon, MusicNoteIcon, SoundIcon } from '../icons/MsxIcons'; // Added MusicNoteIcon, SoundIcon
+import { PlayIcon, StopIcon, ListBulletIcon, CheckCircleIcon, MusicNoteIcon, SoundIcon } from '../icons/MsxIcons';
 import { DEFAULT_PT3_ROWS_PER_PATTERN } from '../../constants';
 
 /**
@@ -93,121 +92,146 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
     onPatternRowsChange(localPatternRows);
   };
 
+  const fieldClass = "h-8 rounded border border-msx-border bg-msx-bgcolor/80 px-2 text-msx-textprimary outline-none transition-colors focus:border-msx-highlight focus:ring-1 focus:ring-msx-highlight/50";
+  const labelClass = "mb-1 block text-[0.62rem] uppercase tracking-wider text-msx-textsecondary";
+  const clusterClass = "flex flex-wrap items-end gap-2 rounded border border-msx-border/70 bg-black/10 px-2 py-1.5";
 
   return (
-    <div className="p-2 border-b border-msx-border flex flex-wrap gap-x-3 gap-y-2 items-center text-xs">
-      <div>
-        <label className="text-msx-textsecondary mr-1">Name:</label>
-        <input type="text" value={songName} onChange={e => onSongNameChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-28"/>
-      </div>
-      <div>
-        <label className="text-msx-textsecondary mr-1">Title:</label>
-        <input type="text" value={songTitle} onChange={e => onSongTitleChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-28"/>
-      </div>
-      <div>
-        <label className="text-msx-textsecondary mr-1">Author:</label>
-        <input type="text" value={songAuthor} onChange={e => onSongAuthorChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-28"/>
-      </div>
-      <div className="flex items-center space-x-1">
-        <Button onClick={onLoadSampleSong} size="sm" variant="ghost" icon={<MusicNoteIcon />} title="Load 'Ode to Joy' Sample">Sample</Button>
-        {onImportPT3File && soundChip === 'PSG' && (
-          <Button
-            onClick={onImportPT3File}
-            size="sm"
-            variant={isExternalPT3 ? 'primary' : 'ghost'}
-            title="Import external PT3 file (.pt3 or .99) — replaces native tracker data"
-          >
-            {isExternalPT3 ? '✓ PT3' : 'Import PT3'}
+    <div className="border-b border-msx-border bg-msx-panelbg px-3 py-2 shadow-[0_8px_18px_rgba(0,0,0,0.25)]">
+      <div className="flex flex-wrap items-end gap-2 text-xs">
+        <div className="mr-1 flex min-w-[17rem] flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <MusicNoteIcon className="h-4 w-4 text-msx-highlight" />
+            <span className="text-[0.68rem] font-semibold uppercase tracking-wider text-msx-textsecondary">Tracker Composer</span>
+            {isExternalPT3 && (
+              <span className="rounded border border-msx-highlight/60 bg-msx-highlight/15 px-1.5 py-0.5 text-[0.6rem] font-bold uppercase text-msx-highlight">
+                PT3 active
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <div>
+              <label className={labelClass}>Name</label>
+              <input type="text" value={songName} onChange={e => onSongNameChange(e.target.value)} className={`${fieldClass} w-32`} />
+            </div>
+            <div>
+              <label className={labelClass}>Title</label>
+              <input type="text" value={songTitle} onChange={e => onSongTitleChange(e.target.value)} className={`${fieldClass} w-36`} />
+            </div>
+            <div>
+              <label className={labelClass}>Author</label>
+              <input type="text" value={songAuthor} onChange={e => onSongAuthorChange(e.target.value)} className={`${fieldClass} w-32`} />
+            </div>
+          </div>
+        </div>
+
+        <div className={clusterClass}>
+          <div>
+            <label className={labelClass}>Chip</label>
+            <select value={soundChip} onChange={e => onSoundChipChange(e.target.value as 'PSG' | 'SCC')} className={`${fieldClass} w-20`}>
+              <option value="PSG">PSG</option>
+              <option value="SCC">SCC</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>BPM</label>
+            <input type="number" value={isNaN(bpm) ? '' : bpm} min="30" max="300" onChange={e => onBpmChange(e.target.value)} className={`${fieldClass} w-16`} />
+          </div>
+          <div>
+            <label className={labelClass}>Speed</label>
+            <input type="number" value={isNaN(speed) ? '' : speed} min="1" max="31" onChange={e => onSpeedChange(e.target.value)} className={`${fieldClass} w-14`} />
+          </div>
+          <div>
+            <label className={labelClass}>Rows {patternRows}</label>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                value={localPatternRows}
+                onChange={e => setLocalPatternRows(e.target.value)}
+                onBlur={handleSetRows}
+                className={`${fieldClass} w-14`}
+              />
+              <Button onClick={handleSetRows} size="sm" variant="ghost" className="!h-8 !p-1" title="Set Pattern Rows">
+                <CheckCircleIcon className="h-3.5 w-3.5 text-msx-highlight" />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className={clusterClass}>
+          <div>
+            <label className={labelClass}>Step</label>
+            <input
+              type="number"
+              value={editStepJump}
+              min="1"
+              max="12"
+              onChange={e => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val) && val >= 1 && val <= 12) {
+                  onEditStepJumpChange(val);
+                } else if (e.target.value === "") {
+                  onEditStepJumpChange(1);
+                }
+              }}
+              className={`${fieldClass} w-14`}
+              title="Row jump step for editing (1-12)"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Vol</label>
+            <input type="number" value={isNaN(globalVolume) ? '' : globalVolume} min="0" max="15" onChange={e => onGlobalVolumeChange(e.target.value)} className={`${fieldClass} w-14`} />
+          </div>
+          {soundChip === 'PSG' && onAyHardwareEnvelopePeriodChange && (
+            <div>
+              <label className={labelClass} title="Hardware Envelope Period (1-65535)">HW Env</label>
+              <input
+                type="number"
+                value={ayHardwareEnvelopePeriod ?? 100}
+                min="1"
+                max="65535"
+                onChange={e => onAyHardwareEnvelopePeriodChange(e.target.value)}
+                className={`${fieldClass} w-20`}
+                title="AY Hardware Envelope Period (higher = slower envelope)"
+              />
+            </div>
+          )}
+          {soundChip === 'PSG' && onAyNoisePeriodChange && (
+            <div>
+              <label className={labelClass} title="Noise Generator Period (0-31)">Noise</label>
+              <input
+                type="number"
+                value={ayNoisePeriod ?? 16}
+                min="0"
+                max="31"
+                onChange={e => onAyNoisePeriodChange(e.target.value)}
+                className={`${fieldClass} w-14`}
+                title="AY Noise Period (lower = higher pitch noise)"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex min-w-[15rem] flex-grow flex-wrap items-end justify-end gap-1">
+          <Button onClick={onLoadSampleSong} size="sm" variant="ghost" icon={<ListBulletIcon />} title="Load 'Ode to Joy' Sample">Sample</Button>
+          {onImportPT3File && soundChip === 'PSG' && (
+            <Button
+              onClick={onImportPT3File}
+              size="sm"
+              variant={isExternalPT3 ? 'primary' : 'ghost'}
+              title="Import external PT3 file (.pt3 or .99) - replaces native tracker data"
+            >
+              {isExternalPT3 ? 'PT3 active' : 'Import PT3'}
+            </Button>
+          )}
+          <Button onClick={onPlayStop} size="sm" variant={isPlaying ? "danger" : "primary"} icon={isPlaying ? <StopIcon /> : <PlayIcon />}>
+            {isPlaying ? 'Stop' : 'Play Pattern'}
           </Button>
-        )}
-      </div>
-      <span className="border-l border-msx-border h-5 mx-1"></span>
-      <div>
-        <label className="text-msx-textsecondary mr-1">Chip:</label>
-        <select value={soundChip} onChange={e => onSoundChipChange(e.target.value as 'PSG' | 'SCC')} className="p-1 bg-msx-bgcolor border border-msx-border rounded">
-          <option value="PSG">PSG</option>
-          <option value="SCC">SCC</option>
-        </select>
-      </div>
-      <span className="border-l border-msx-border h-5 mx-1"></span>
-      <div>
-        <label className="text-msx-textsecondary mr-1">BPM:</label>
-        <input type="number" value={isNaN(bpm) ? '' : bpm} min="30" max="300" onChange={e => onBpmChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-14"/>
-      </div>
-      <div>
-        <label className="text-msx-textsecondary mr-1">Speed:</label>
-        <input type="number" value={isNaN(speed) ? '' : speed} min="1" max="31" onChange={e => onSpeedChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-12"/>
-      </div>
-       <div className="flex items-center">
-        <label className="text-msx-textsecondary mr-1">Rows ({patternRows}):</label>
-        <input 
-          type="number" 
-          value={localPatternRows} 
-          onChange={e => setLocalPatternRows(e.target.value)} 
-          onBlur={handleSetRows} // Keep onBlur as a fallback
-          className="p-1 bg-msx-bgcolor border border-msx-border rounded w-12"/>
-        <Button onClick={handleSetRows} size="sm" variant="ghost" className="ml-1 !p-0.5" title="Set Pattern Rows">
-          <CheckCircleIcon className="w-3.5 h-3.5 text-msx-highlight"/>
-        </Button>
-      </div>
-      <div>
-        <label className="text-msx-textsecondary mr-1">Step:</label>
-        <input
-          type="number"
-          value={editStepJump}
-          min="1"
-          max="12"
-          onChange={e => {
-            const val = parseInt(e.target.value, 10);
-            if (!isNaN(val) && val >= 1 && val <= 12) {
-                onEditStepJumpChange(val);
-            } else if (e.target.value === "") {
-                onEditStepJumpChange(1);
-            }
-          }}
-          className="p-1 bg-msx-bgcolor border border-msx-border rounded w-12"
-          title="Row jump step for editing (1-12)"
-        />
-      </div>
-      <div>
-        <label className="text-msx-textsecondary mr-1">Vol:</label>
-        <input type="number" value={isNaN(globalVolume) ? '' : globalVolume} min="0" max="15" onChange={e => onGlobalVolumeChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-12"/>
-      </div>
-      {soundChip === 'PSG' && onAyHardwareEnvelopePeriodChange && (
-        <div>
-          <label className="text-msx-textsecondary mr-1" title="Hardware Envelope Period (1-65535)">HW Env:</label>
-          <input
-            type="number"
-            value={ayHardwareEnvelopePeriod ?? 100}
-            min="1"
-            max="65535"
-            onChange={e => onAyHardwareEnvelopePeriodChange(e.target.value)}
-            className="p-1 bg-msx-bgcolor border border-msx-border rounded w-16"
-            title="AY Hardware Envelope Period (higher = slower envelope)"
-          />
+          <Button onClick={onSilenceAllChannels} size="sm" variant="danger" icon={<SoundIcon className="opacity-70" />} title="Silence All Channels">
+            Silence
+          </Button>
         </div>
-      )}
-      {soundChip === 'PSG' && onAyNoisePeriodChange && (
-        <div>
-          <label className="text-msx-textsecondary mr-1" title="Noise Generator Period (0-31)">Noise:</label>
-          <input
-            type="number"
-            value={ayNoisePeriod ?? 16}
-            min="0"
-            max="31"
-            onChange={e => onAyNoisePeriodChange(e.target.value)}
-            className="p-1 bg-msx-bgcolor border border-msx-border rounded w-12"
-            title="AY Noise Period (lower = higher pitch noise)"
-          />
-        </div>
-      )}
-      <div className="flex-grow"></div>
-      <Button onClick={onPlayStop} size="sm" variant={isPlaying ? "danger" : "primary"} icon={isPlaying ? <StopIcon /> : <PlayIcon />}>
-        {isPlaying ? 'Stop' : 'Play Pattern'}
-      </Button>
-       <Button onClick={onSilenceAllChannels} size="sm" variant="danger" icon={<SoundIcon className="opacity-70"/>} title="Silence All Channels">
-        Silence
-      </Button>
+      </div>
     </div>
   );
 };

@@ -1217,10 +1217,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }
   if (songData.playbackBackend === 'external-pt3') {
     return (
-      <Panel title="Tracker Composer" className="flex-grow flex flex-col items-center justify-center p-4">
+      <Panel title="Tracker Composer" className="flex-grow flex flex-col items-center justify-center p-4 bg-msx-bgcolor">
         <p className="text-msx-highlight font-bold mb-2">✓ PT3 External Backend</p>
-        <p className="text-msx-textsecondary mb-1">Track: <span className="text-msx-text">{songData.title || songData.name || 'Unnamed'}</span></p>
-        <p className="text-msx-textsecondary mb-4">Size: <span className="text-msx-text">{(songData.externalPt3Data?.length ?? 0)} bytes</span></p>
+        <p className="text-msx-textsecondary mb-1">Track: <span className="text-msx-textprimary">{songData.title || songData.name || 'Unnamed'}</span></p>
+        <p className="text-msx-textsecondary mb-4">Size: <span className="text-msx-textprimary">{(songData.externalPt3Data?.length ?? 0)} bytes</span></p>
         <Button onClick={handleImportPT3File} variant="primary" className="mt-2" title="Replace with another .pt3 or .99 file">Replace PT3 File</Button>
         <Button onClick={() => onUpdate({ playbackBackend: 'native', externalPt3Data: undefined, externalPt3HasHeader: undefined })} variant="secondary" className="mt-2">Switch to Native Tracker</Button>
       </Panel>
@@ -1238,7 +1238,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }
 
   return (
-    <div className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden h-full select-none">
+    <div className="flex h-full flex-grow select-none flex-col overflow-hidden bg-[#05080c]">
       <TrackerHeader
         songName={localSongName} onSongNameChange={(name) => { setLocalSongName(name); onUpdate({ name }); }}
         songTitle={localSongTitle} onSongTitleChange={(title) => { setLocalSongTitle(title); onUpdate({ title }); }}
@@ -1262,8 +1262,18 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         isExternalPT3={songData.playbackBackend === 'external-pt3'}
       />
 
-      <div className="flex flex-grow overflow-hidden"> {/* Main content area (scrollable) */}
-        <div className="w-60 p-2 border-r border-msx-border flex flex-col space-y-2 overflow-y-auto text-xs flex-shrink-0"> {/* Left panels column */}
+      <div className="min-h-0 flex flex-grow overflow-hidden"> {/* Main content area (scrollable) */}
+        <div className="w-64 flex-shrink-0 overflow-y-auto border-r border-msx-border bg-msx-panelbg/55 p-2 text-xs shadow-[6px_0_18px_rgba(0,0,0,0.22)]"> {/* Left panels column */}
+          <div className="mb-2 flex items-center justify-between border-b border-msx-border/70 pb-2">
+            <div>
+              <div className="text-[0.62rem] uppercase tracking-wider text-msx-textsecondary">Song Map</div>
+              <div className="font-mono text-[0.68rem] text-msx-highlight">{channels.length} channels / {currentPattern.numRows} rows</div>
+            </div>
+            <div className="rounded border border-msx-border bg-msx-bgcolor px-2 py-1 font-mono text-[0.65rem] text-msx-textprimary">
+              {songData.soundChip}
+            </div>
+          </div>
+          <div className="flex flex-col space-y-2">
           <PatternOrderPanel
             order={songData.order || []} patterns={songData.patterns}
             currentPatternIndexInOrder={songData.currentPatternIndexInOrder}
@@ -1289,19 +1299,33 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             onSetActiveOrnamentId={setActiveOrnamentId}
             onOpenOrnamentModal={handleOpenOrnamentModal}
           />
+          </div>
         </div>
 
-        <PatternEditorGrid
-          currentPattern={currentPattern} focusedCell={focusedCell}
-          isPlaying={isPlaying} playbackRow={playbackRow}
-          onCellChange={handleCellChange}
-          onCellFocus={(rIdx, chId, fld) => setFocusedCell({ rowIndex: rIdx, channelId: chId, field: fld })}
-          onGridKeyDown={handleGridKeyDown} patternEditorRef={patternEditorRef}
-          channels={channels}
-        />
+        <div className="min-w-0 flex flex-grow flex-col overflow-hidden">
+          <div className="flex h-9 flex-shrink-0 items-center justify-between border-b border-msx-border bg-msx-bgcolor/80 px-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-msx-highlight">{currentPattern.name}</span>
+              <span className="text-msx-textsecondary">Pattern {String(songData.patterns.findIndex(p => p.id === currentPattern.id)).padStart(2, '0')}</span>
+            </div>
+            <div className="flex items-center gap-3 font-mono text-[0.68rem] text-msx-textsecondary">
+              <span>Order {String(songData.currentPatternIndexInOrder).padStart(2, '0')}</span>
+              <span>BPM {songData.bpm}</span>
+              <span>SPD {songData.speed}</span>
+            </div>
+          </div>
+          <PatternEditorGrid
+            currentPattern={currentPattern} focusedCell={focusedCell}
+            isPlaying={isPlaying} playbackRow={playbackRow}
+            onCellChange={handleCellChange}
+            onCellFocus={(rIdx, chId, fld) => setFocusedCell({ rowIndex: rIdx, channelId: chId, field: fld })}
+            onGridKeyDown={handleGridKeyDown} patternEditorRef={patternEditorRef}
+            channels={channels}
+          />
+        </div>
       </div>
 
-      <div className="flex-shrink-0"> {/* Piano controls, fixed height */}
+      <div className="flex-shrink-0 border-t border-msx-border bg-msx-panelbg/80"> {/* Piano controls, fixed height */}
         <TrackerPianoControls
           pressedKeys={activePianoKeys} keyboardOctaveOffset={keyboardOctaveOffset}
           onPianoKeyPress={handleVirtualPianoKeyPress} onOctaveChange={setKeyboardOctaveOffset}

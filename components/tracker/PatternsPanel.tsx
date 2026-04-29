@@ -33,19 +33,21 @@ export const PatternsPanel: React.FC<PatternsPanelProps> = ({
   patterns, activePatternId, onSetActivePatternId, onAddPattern, onDeleteCurrentPattern
 }) => {
   return (
-    <Panel title="Patterns" icon={<CaretDownIcon/>}>
-        <div className="max-h-24 overflow-y-auto space-y-0.5 pr-1 text-xs">
+    <Panel title="Patterns" icon={<CaretDownIcon/>} bodyClassName="p-2">
+        <div className="max-h-28 overflow-y-auto space-y-1 pr-1 text-xs">
             {patterns.map((p, idx) => (
                 <button
                     key={p.id}
                     onClick={() => onSetActivePatternId(p.id)}
-                    className={`w-full text-left p-1 rounded text-xs truncate ${activePatternId === p.id ? 'bg-msx-accent text-white' : 'bg-msx-bgcolor hover:bg-msx-border'}`}
+                    className={`flex w-full items-center gap-2 rounded border px-2 py-1 text-left text-xs transition-colors ${activePatternId === p.id ? 'border-msx-highlight bg-msx-highlight/20 text-msx-highlight' : 'border-msx-border bg-msx-bgcolor hover:border-msx-highlight/60 hover:bg-msx-border/45'}`}
                 >
-                    {String(idx).padStart(2,'0')}: {p.name} ({p.numRows} rows)
+                    <span className="font-mono text-[0.68rem] text-msx-textsecondary">{String(idx).padStart(2,'0')}</span>
+                    <span className="min-w-0 flex-grow truncate">{p.name}</span>
+                    <span className="font-mono text-[0.62rem] text-msx-textsecondary">{p.numRows}</span>
                 </button>
             ))}
         </div>
-         <div className="flex space-x-1 mt-1.5">
+         <div className="mt-2 flex gap-1">
             <Button onClick={onAddPattern} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="flex-1 text-[0.65rem]">New</Button>
             <Button onClick={onDeleteCurrentPattern} size="sm" variant="danger" icon={<TrashIcon className="w-2.5 h-2.5"/>} className="flex-1 text-[0.65rem]" disabled={patterns.length <=1}>Del Current</Button>
          </div>

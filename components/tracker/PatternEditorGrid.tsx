@@ -23,6 +23,13 @@ const FIELD_TEXT_CLASSES: Record<keyof TrackerCell, string> = {
   volume: 'text-amber-200 placeholder:text-amber-900/70',
 };
 
+const HEADER_FIELD_CLASSES: Record<keyof TrackerCell, string> = {
+  note: 'text-msx-highlight',
+  instrument: 'text-emerald-300',
+  ornament: 'text-sky-300',
+  volume: 'text-amber-200',
+};
+
 /**
  * Props for the {@link PatternEditorGrid} component.
  * @category Tracker
@@ -76,23 +83,23 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
   return (
     <div 
         ref={patternEditorRef} 
-        className="flex-grow p-2 overflow-auto font-mono text-xs bg-msx-bgcolor" 
+        className="min-h-0 flex-grow overflow-auto bg-[#070b10] font-mono text-xs outline-none shadow-inner focus:ring-1 focus:ring-msx-highlight/40"
         onKeyDown={onGridKeyDown} 
         tabIndex={0} 
         role="grid"
         aria-label="Pattern Editor"
     >
-      <div className="flex sticky top-0 bg-msx-panelbg z-10 pb-1 border-b border-msx-border shadow-md" aria-hidden="true">
-        <div className="w-10 text-center text-msx-textsecondary tracking-wide">ROW</div>
+      <div className="sticky top-0 z-20 flex border-b border-msx-border bg-msx-panelbg shadow-[0_8px_18px_rgba(0,0,0,0.35)]" aria-hidden="true">
+        <div className="flex h-8 w-12 flex-shrink-0 items-center justify-center border-r border-msx-border/80 bg-black/20 text-[0.62rem] uppercase tracking-wider text-msx-textsecondary">Row</div>
         {channels.map((chId, chIndex) => (
           <div
             key={`header-${chId}`}
-            className={`flex border-l-4 ${CHANNEL_ACCENTS[chIndex % CHANNEL_ACCENTS.length]} pl-1 pr-1 bg-msx-bgcolor/40`}
+            className={`flex h-8 items-center border-l-4 ${CHANNEL_ACCENTS[chIndex % CHANNEL_ACCENTS.length]} bg-msx-bgcolor/50 px-1`}
           >
-            <div className={`${CELL_WIDTH_NOTE} ${CELL_TEXT_ALIGN} text-msx-highlight`}>CH {chId}</div>
-            <div className={`${CELL_WIDTH_INSTR} ${CELL_TEXT_ALIGN} text-emerald-300`}>IN</div>
-            <div className={`${CELL_WIDTH_ORN} ${CELL_TEXT_ALIGN} text-sky-300`}>OR</div>
-            <div className={`${CELL_WIDTH_VOL} ${CELL_TEXT_ALIGN} text-amber-200`}>V</div>
+            <div className={`${CELL_WIDTH_NOTE} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.note} text-[0.68rem] font-bold`}>CH {chId}</div>
+            <div className={`${CELL_WIDTH_INSTR} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.instrument} text-[0.62rem]`}>IN</div>
+            <div className={`${CELL_WIDTH_ORN} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.ornament} text-[0.62rem]`}>OR</div>
+            <div className={`${CELL_WIDTH_VOL} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.volume} text-[0.62rem]`}>V</div>
           </div>
         ))}
       </div>
@@ -102,16 +109,16 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
         const isPhraseStart = rIdx % 16 === 0;
         const isBeatStart = rIdx % 4 === 0;
         const rowBgClass = isCurrentPlaybackRow
-          ? 'bg-msx-highlight/90 text-msx-bgcolor shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]'
-          : (isPhraseStart ? 'bg-msx-border/35' : (isBeatStart ? 'bg-msx-panelbg/70' : 'hover:bg-msx-panelbg/35'));
+          ? 'bg-msx-highlight/95 text-msx-bgcolor shadow-[inset_0_0_0_1px_rgba(255,255,255,0.45)]'
+          : (isPhraseStart ? 'bg-slate-800/70' : (isBeatStart ? 'bg-slate-900/80' : 'bg-[#070b10] hover:bg-slate-800/45'));
         const rowNumColorClass = isCurrentPlaybackRow
           ? 'text-msx-bgcolor font-bold'
-          : (isPhraseStart ? 'text-msx-highlight font-bold' : (isBeatStart ? 'text-msx-textprimary' : 'text-msx-textsecondary'));
+          : (isPhraseStart ? 'text-msx-highlight font-bold' : (isBeatStart ? 'text-msx-textprimary' : 'text-msx-textsecondary/80'));
         const rowHex = rIdx.toString(16).toUpperCase().padStart(2, '0');
 
         return (
-          <div key={`row-${rIdx}`} className={`flex items-center min-h-6 ${rowBgClass}`} role="row">
-            <div className={`w-10 text-center ${rowNumColorClass} select-none`} role="rowheader" title={`Row ${rIdx}`}>
+          <div key={`row-${rIdx}`} className={`group flex min-h-[24px] items-center border-b border-black/25 ${rowBgClass}`} role="row">
+            <div className={`flex w-12 flex-shrink-0 items-center justify-center border-r border-msx-border/45 ${rowNumColorClass} select-none`} role="rowheader" title={`Row ${rIdx}`}>
                 {rowHex}
             </div>
             {channels.map((chId, chIndex) => {
@@ -120,7 +127,7 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
               return (
                 <div
                   key={`${chId}-${rIdx}`}
-                  className={`flex border-l-4 ${CHANNEL_ACCENTS[chIndex % CHANNEL_ACCENTS.length]} pl-1 pr-1 ${cellTextColor}`}
+                  className={`flex border-l-4 ${CHANNEL_ACCENTS[chIndex % CHANNEL_ACCENTS.length]} px-1 ${cellTextColor}`}
                   role="gridcell"
                 >
                   {fieldsOrder.map(field => {
@@ -144,7 +151,7 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
                             allowedCharsPattern={getCellAllowedCharsPattern(field)}
                             onChange={(val) => onCellChange(rIdx, chId, field, val)}
                             onFocus={() => onCellFocus(rIdx, chId, field)}
-                            className={`${CELL_TEXT_ALIGN} ${isCurrentPlaybackRow ? 'placeholder:text-msx-bgcolor/70' : FIELD_TEXT_CLASSES[field]} ${fieldWidthClass} ${isFocused ? 'ring-1 ring-msx-highlight/80 bg-msx-highlight/20' : ''}`}
+                            className={`${CELL_TEXT_ALIGN} ${isCurrentPlaybackRow ? 'placeholder:text-msx-bgcolor/70' : FIELD_TEXT_CLASSES[field]} ${fieldWidthClass} rounded-sm transition-colors ${isFocused ? 'ring-1 ring-msx-highlight/80 bg-msx-highlight/20' : 'group-hover:bg-white/5'}`}
                             ariaLabel={`${chId} ${field} at row ${rIdx}`}
                             isNoteField={field === 'note'}
                         />
