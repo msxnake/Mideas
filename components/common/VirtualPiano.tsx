@@ -137,6 +137,9 @@ export const VirtualPiano: React.FC<VirtualPianoProps> = ({
               key={keyInfo.noteName} 
               style={keyStyle} 
               title={keyInfo.noteName}
+              data-note={keyInfo.noteName}
+              data-pressed={isPressed ? 'true' : 'false'}
+              aria-pressed={isPressed}
               onMouseDown={() => handleKeyPress(keyInfo.noteName)} // Use onMouseDown for more immediate feel
               role="button"
               tabIndex={onPianoKeyPress ? 0 : -1}
