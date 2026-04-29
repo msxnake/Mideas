@@ -1270,6 +1270,7 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
     'MUSIC_TRACK_ORDER_TABLE     EQU 5',
     'MUSIC_TRACK_PATTERN_TABLE   EQU 7',
     'MUSIC_TRACK_INSTRUMENT_TABLE EQU 9',
+    'MUSIC_TRACK_ORNAMENT_TABLE  EQU 11',
     'MUSIC_TRACK_NOISE_DEFAULT   EQU 15',
     '',
     '; ------------------------------------------------------------------',
