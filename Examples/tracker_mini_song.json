@@ -1,0 +1,552 @@
+{
+  "name": "tracker_mini_song",
+  "assets": [
+    {
+      "id": "track_msx_mini_etude",
+      "name": "MSX Mini Etude",
+      "type": "track",
+      "data": {
+        "id": "track_msx_mini_etude",
+        "name": "MSX Mini Etude",
+        "playbackBackend": "native",
+        "soundChip": "PSG",
+        "title": "MSX Mini Etude",
+        "author": "Codex",
+        "bpm": 150,
+        "speed": 6,
+        "globalVolume": 15,
+        "order": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "lengthInPatterns": 4,
+        "restartPosition": 0,
+        "ayHardwareEnvelopePeriod": 1,
+        "ayNoisePeriod": 16,
+        "currentPatternIndexInOrder": 0,
+        "currentPatternId": "pattern_intro",
+        "currentSongLengthTicks": 384,
+        "instruments": [
+          {
+            "id": 1,
+            "name": "Lead Vibrato",
+            "volumeEnvelope": [
+              15,
+              14,
+              13,
+              12,
+              11,
+              10,
+              9,
+              8
+            ],
+            "toneEnvelope": [
+              0,
+              1,
+              2,
+              1,
+              0,
+              -1,
+              -2,
+              -1
+            ],
+            "noiseEnvelope": [],
+            "volumeLoop": 4,
+            "toneLoop": 0,
+            "noiseLoop": 255,
+            "ayToneEnabled": true,
+            "ayNoiseEnabled": false
+          },
+          {
+            "id": 2,
+            "name": "Round Bass",
+            "volumeEnvelope": [
+              15,
+              14,
+              13,
+              12,
+              11,
+              10
+            ],
+            "toneEnvelope": [
+              -12,
+              -7,
+              0,
+              0
+            ],
+            "noiseEnvelope": [],
+            "volumeLoop": 3,
+            "toneLoop": 255,
+            "noiseLoop": 255,
+            "ayToneEnabled": true,
+            "ayNoiseEnabled": false
+          },
+          {
+            "id": 3,
+            "name": "Kick",
+            "volumeEnvelope": [
+              15,
+              15,
+              12,
+              8,
+              4,
+              0
+            ],
+            "toneEnvelope": [
+              -30,
+              -24,
+              -17,
+              -10,
+              -5,
+              0
+            ],
+            "noiseEnvelope": [
+              1,
+              2,
+              4,
+              8,
+              16,
+              31
+            ],
+            "volumeLoop": 255,
+            "toneLoop": 255,
+            "noiseLoop": 255,
+            "ayToneEnabled": true,
+            "ayNoiseEnabled": true,
+            "noiseBaseFrequency": 2
+          },
+          {
+            "id": 4,
+            "name": "Snare",
+            "volumeEnvelope": [
+              15,
+              13,
+              10,
+              7,
+              3,
+              0
+            ],
+            "toneEnvelope": [
+              7,
+              4,
+              2,
+              0
+            ],
+            "noiseEnvelope": [
+              3,
+              5,
+              8,
+              12,
+              18,
+              24,
+              31
+            ],
+            "volumeLoop": 255,
+            "toneLoop": 255,
+            "noiseLoop": 255,
+            "ayToneEnabled": true,
+            "ayNoiseEnabled": true,
+            "noiseBaseFrequency": 3
+          },
+          {
+            "id": 5,
+            "name": "Closed Hat",
+            "volumeEnvelope": [
+              12,
+              8,
+              4,
+              0
+            ],
+            "toneEnvelope": [
+              0
+            ],
+            "noiseEnvelope": [
+              1,
+              1,
+              2,
+              4,
+              8,
+              16,
+              31
+            ],
+            "volumeLoop": 255,
+            "toneLoop": 255,
+            "noiseLoop": 255,
+            "ayToneEnabled": false,
+            "ayNoiseEnabled": true,
+            "noiseBaseFrequency": 1
+          }
+        ],
+        "ornaments": [
+          {
+            "id": 1,
+            "name": "Major Arp",
+            "data": [
+              0,
+              4,
+              7,
+              4
+            ],
+            "loopPosition": 0
+          },
+          {
+            "id": 2,
+            "name": "Minor Arp",
+            "data": [
+              0,
+              3,
+              7,
+              3
+            ],
+            "loopPosition": 0
+          },
+          {
+            "id": 3,
+            "name": "Fifth Pulse",
+            "data": [
+              0,
+              7,
+              0,
+              12
+            ],
+            "loopPosition": 0
+          }
+        ],
+        "patterns": [
+          {
+            "id": "pattern_intro",
+            "name": "Intro Hook",
+            "numRows": 16,
+            "rows": [
+              {
+                "A": {
+                  "note": "C-5",
+                  "instrument": 1,
+                  "ornament": 1,
+                  "volume": 14
+                },
+                "B": {
+                  "note": "C-3",
+                  "instrument": 2,
+                  "ornament": null,
+                  "volume": 13
+                },
+                "C": {
+                  "note": "C-2",
+                  "instrument": 3,
+                  "ornament": null,
+                  "volume": 15
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "E-5",
+                  "instrument": 1,
+                  "ornament": 1,
+                  "volume": 14
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "C-3",
+                  "instrument": 5,
+                  "ornament": null,
+                  "volume": 10
+                }
+              },
+              {
+                "A": {
+                  "note": "G-5",
+                  "instrument": 1,
+                  "ornament": 3,
+                  "volume": 13
+                },
+                "B": {
+                  "note": "G-2",
+                  "instrument": 2,
+                  "ornament": null,
+                  "volume": 13
+                },
+                "C": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "A-5",
+                  "instrument": 1,
+                  "ornament": 2,
+                  "volume": 14
+                },
+                "B": {
+                  "note": "A-2",
+                  "instrument": 2,
+                  "ornament": null,
+                  "volume": 13
+                },
+                "C": {
+                  "note": "C-3",
+                  "instrument": 4,
+                  "ornament": null,
+                  "volume": 14
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "G-5",
+                  "instrument": 1,
+                  "ornament": 1,
+                  "volume": 13
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "C-3",
+                  "instrument": 5,
+                  "ornament": null,
+                  "volume": 9
+                }
+              },
+              {
+                "A": {
+                  "note": "E-5",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 12
+                },
+                "B": {
+                  "note": "G-2",
+                  "instrument": 2,
+                  "ornament": null,
+                  "volume": 12
+                },
+                "C": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "D-5",
+                  "instrument": 1,
+                  "ornament": 2,
+                  "volume": 14
+                },
+                "B": {
+                  "note": "F-2",
+                  "instrument": 2,
+                  "ornament": null,
+                  "volume": 13
+                },
+                "C": {
+                  "note": "C-2",
+                  "instrument": 3,
+                  "ornament": null,
+                  "volume": 15
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "F-5",
+                  "instrument": 1,
+                  "ornament": 2,
+                  "volume": 13
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "C-3",
+                  "instrument": 5,
+                  "ornament": null,
+                  "volume": 10
+                }
+              },
+              {
+                "A": {
+                  "note": "A-5",
+                  "instrument": 1,
+                  "ornament": 3,
+                  "volume": 13
+                },
+                "B": {
+                  "note": "A-2",
+                  "instrument": 2,
+                  "ornament": null,
+                  "volume": 13
+                },
+                "C": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "G-5",
+                  "instrument": 1,
+                  "ornament": 1,
+                  "volume": 14
+                },
+                "B": {
+                  "note": "G-2",
+                  "instrument": 2,
+                  "ornament": null,
+                  "volume": 13
+                },
+                "C": {
+                  "note": "C-3",
+                  "instrument": 4,
+                  "ornament": null,
+                  "volume": 14
+                }
+              },
+              {
+                "A": {
+                  "note": "E-5",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 12
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "D-5",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 12
+                },
+                "B": {
+                  "note": "G-2",
+                  "instrument": 2,
+                  "ornament": null,
+                  "volume": 12
+                },
+                "C": {
+                  "note": "C-3",
+                  "instrument": 5,
+                  "ornament": null,
+                  "volume": 9
+                }
+              },
+              {
+                "A": {
+                  "note": "C-5",
+                  "instrument": 1,
+                  "ornament": 1,
+                  "volume": 14
+                },
+                "B": {
+                  "note": "C-3",
+                  "instrument": 2,
+                  "ornament": null,
+                  "volume": 13
+                },
+                "C": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "execution": {
+    "mainGameFlow": null
+  }
+}
