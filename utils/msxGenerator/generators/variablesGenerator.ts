@@ -1070,6 +1070,12 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   currentAddress++;
   code += `music_mixer_shadow   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; PSG mixer shadow for music runtime\n`;
   currentAddress++;
+  code += `music_pitch_note_work EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Scratch note index while resolving tone/ornament macros\n`;
+  currentAddress++;
+  code += `music_pitch_step_work EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Scratch macro step while resolving tone/ornament macros\n`;
+  currentAddress++;
+  code += `music_pitch_len_work  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Scratch macro length while resolving tone/ornament macros\n`;
+  currentAddress++;
 
   const musicArrayDefs = [
     { base: 'music_ch_note_base', prefix: 'music_ch', suffix: 'note', comment: 'Current note index (255=silent)' },
@@ -1080,6 +1086,7 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     { base: 'music_ch_tone_step_base', prefix: 'music_ch', suffix: 'tone_step', comment: 'Reserved software tone envelope step' },
     { base: 'music_ch_noise_step_base', prefix: 'music_ch', suffix: 'noise_step', comment: 'Reserved software noise envelope step' },
     { base: 'music_ch_orn_step_base', prefix: 'music_ch', suffix: 'orn_step', comment: 'Reserved ornament step' },
+    { base: 'music_ch_hw_env_step_base', prefix: 'music_ch', suffix: 'hw_env_step', comment: 'Software hardware-envelope divider step' },
   ];
   const musicChannelNames = ['a', 'b', 'c'];
   for (const def of musicArrayDefs) {
