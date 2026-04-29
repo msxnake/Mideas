@@ -289,6 +289,14 @@ const ARCHITECTURE_PRESETS: Array<{
     },
 ];
 
+const TAB_LABELS: Record<'architecture' | 'basic' | 'volume' | 'tone' | 'hardware', string> = {
+    architecture: 'Architecture',
+    basic: 'Basic',
+    volume: 'Volume',
+    tone: 'Tone',
+    hardware: 'Noise / AY',
+};
+
 const TONE_MACRO_PRESETS: Array<{ label: string; values: number[]; loop: number }> = [
     { label: 'Soft vib', values: [0, 0, 1, 0, 0, -1], loop: 0 },
     { label: 'Deep vib', values: [0, 1, 2, 1, 0, -1, -2, -1], loop: 0 },
@@ -340,6 +348,40 @@ const generateRandomInstrumentData = (): Partial<InstrumentModalBuffer> => {
 const parseEnvelope = (csv: string | undefined): number[] => {
     if (!csv || csv.trim() === '') return [];
     return csv.split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v));
+};
+
+const buildMiniEnvelopePoints = (values: number[], min: number, max: number, width: number, height: number): string => {
+    if (values.length === 0) return '';
+    const range = Math.max(1, max - min);
+    return values.map((value, index) => {
+        const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
+        const clamped = Math.max(min, Math.min(max, value));
+        const y = height - (((clamped - min) / range) * height);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+};
+
+const MiniEnvelope: React.FC<{
+    label: string;
+    values: number[];
+    min: number;
+    max: number;
+    stroke: string;
+}> = ({ label, values, min, max, stroke }) => {
+    const points = buildMiniEnvelopePoints(values, min, max, 86, 28);
+
+    return (
+        <div className="rounded border border-msx-border/70 bg-black/20 px-2 py-1">
+            <div className="mb-1 text-[0.55rem] uppercase tracking-wider text-msx-textsecondary">{label}</div>
+            {points ? (
+                <svg width="86" height="28" viewBox="0 0 86 28" className="block">
+                    <polyline points={points} fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            ) : (
+                <div className="flex h-7 items-center font-mono text-[0.6rem] text-msx-textsecondary">off</div>
+            )}
+        </div>
+    );
 };
 
 /**
@@ -531,11 +573,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                                 : 'text-msx-textsecondary border-msx-border bg-msx-panelbg hover:text-msx-textprimary hover:border-msx-highlight/70'
                                 }`}
                         >
-                            {tab === 'architecture' && 'Architecture'}
-                            {tab === 'basic' && '📋 Basic'}
-                            {tab === 'volume' && '📊 Volume'}
-                            {tab === 'tone' && '🎵 Tone'}
-                            {tab === 'hardware' && '⚙️ Hardware'}
+                            {TAB_LABELS[tab]}
                         </button>
                     ))}
                 </div>
@@ -545,7 +583,13 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                     {activeTab === 'architecture' && (
                         <div className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {ARCHITECTURE_PRESETS.map(preset => (
+                                {ARCHITECTURE_PRESETS.map(preset => {
+                                    const presetData = PREDEFINED_INSTRUMENTS[preset.type] || {};
+                                    const presetVolume = parseEnvelope(presetData.volumeEnvelope);
+                                    const presetTone = parseEnvelope(presetData.toneEnvelope);
+                                    const presetNoise = parseEnvelope(presetData.noiseEnvelope);
+
+                                    return (
                                     <button
                                         key={preset.type}
                                         type="button"
@@ -568,8 +612,14 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                                                 </span>
                                             ))}
                                         </div>
+                                        <div className="mt-3 grid grid-cols-3 gap-2">
+                                            <MiniEnvelope label="Vol" values={presetVolume} min={0} max={15} stroke="#10b981" />
+                                            <MiniEnvelope label="Tone" values={presetTone} min={-12} max={12} stroke="#38bdf8" />
+                                            <MiniEnvelope label="Noise" values={presetNoise} min={0} max={31} stroke="#f59e0b" />
+                                        </div>
                                     </button>
-                                ))}
+                                    );
+                                })}
                             </div>
 
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 rounded border border-msx-border bg-msx-bgcolor p-3 text-xs">
@@ -645,7 +695,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                             {/* Preview Section */}
                             <div className="bg-msx-bgcolor border border-msx-border rounded p-3">
                                 <label className="block text-xs text-msx-textsecondary mb-2 font-semibold">
-                                    🔊 Audio Preview
+                                    Audio Preview
                                 </label>
                                 <div className="flex gap-2 items-center">
                                     <select
@@ -663,7 +713,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                                         variant="primary"
                                         className="flex-1"
                                     >
-                                        {isPreviewing ? '🔊 Playing...' : '▶️ Play Preview'}
+                                        {isPreviewing ? 'Playing...' : 'Play Preview'}
                                     </Button>
                                 </div>
                             </div>
@@ -760,7 +810,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                                             onChange={e => handleFieldChange('ayToneEnabled', e.target.checked)}
                                             className="form-checkbox bg-msx-panelbg border-msx-border text-msx-accent focus:ring-msx-accent"
                                         />
-                                        <span className="text-sm">🎵 Tone</span>
+                                        <span className="text-sm">Tone</span>
                                     </label>
                                     <label className="flex items-center gap-2 cursor-pointer">
                                         <input
@@ -769,7 +819,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                                             onChange={e => handleFieldChange('ayNoiseEnabled', e.target.checked)}
                                             className="form-checkbox bg-msx-panelbg border-msx-border text-msx-accent focus:ring-msx-accent"
                                         />
-                                        <span className="text-sm">📻 Noise</span>
+                                        <span className="text-sm">Noise</span>
                                     </label>
                                 </div>
                             </div>
@@ -855,7 +905,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                 {/* Footer Buttons */}
                 <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-msx-border">
                     <Button onClick={onClose} variant="ghost">Cancel</Button>
-                    <Button onClick={onSubmit} variant="primary">💾 Save Instrument</Button>
+                    <Button onClick={onSubmit} variant="primary">Save Instrument</Button>
                 </div>
             </div>
         </div >
