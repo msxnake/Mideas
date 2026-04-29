@@ -81,7 +81,6 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     }));
   const tracks: TrackerSongData[] = [];
   const trackIndexByAssetId: Record<string, number> = {};
-  let pt3TrackIndex = 0;
   assets
     .filter(a => a.type === 'track')
     .forEach((asset) => {
@@ -92,19 +91,27 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
 
       const normalizedTrack: TrackerSongData = {
         ...rawTrack,
+        assetId: asset.id,
         soundChip,
         id: rawTrack.id || asset.id,
         name: rawTrack.name || asset.name,
-      };
+      } as TrackerSongData;
 
       tracks.push(normalizedTrack);
-      // Only external-pt3 tracks appear in music_pt3_track_table (matches collectPT3Tracks filter)
-      if (normalizedTrack.playbackBackend === 'external-pt3') {
-        trackIndexByAssetId[asset.id] = pt3TrackIndex;
-        trackIndexByAssetId[normalizedTrack.id] = pt3TrackIndex;
-        pt3TrackIndex++;
-      }
     });
+  const pt3Tracks = tracks.filter((track) => track.playbackBackend === 'external-pt3');
+  const runtimeTracks = pt3Tracks.length > 0
+    ? pt3Tracks
+    : tracks.filter((track) => track.playbackBackend !== 'external-pt3');
+  runtimeTracks.forEach((track, index) => {
+    const assetId = (track as any).assetId;
+    if (assetId) {
+      trackIndexByAssetId[assetId] = index;
+    }
+    if (track.id) {
+      trackIndexByAssetId[track.id] = index;
+    }
+  });
   const tiles = assets.filter(a => a.type === 'tile').map(a => a.data as Tile);
   const tileBanks = assets.filter(a => a.type === 'tilebank').map(a => a.data as TileBank);
   const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap);
