@@ -54,8 +54,9 @@ function generateUnifiedFile(files, projectName, analysis, executionPlan, config
     const hasPresentationScreenNode = analysis.gameFlow?.nodes?.some(node => node.type === 'PresentationScreen');
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
     const hasText = analysis.screenMaps?.some(screen => screen.layers?.text || screen.textElements?.length > 0);
+    const hasDialogue = analysis.dialogues?.some((dialogue) => Array.isArray(dialogue?.lines) && dialogue.lines.some((line) => String(line?.text || '').length > 0));
     const hasHud = analysis.screenMaps?.some(screen => screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
-    const needsFont = hasMenus || hasText || hasHud;
+    const needsFont = hasMenus || hasText || hasHud || hasDialogue;
     const fontInPage0 = config.romMode === 'plain48k' && !!needsFont;
     const fontRawData = fontInPage0 ? (0, fontGenerator_1.getFontRawData)(analysis) : undefined;
     const page0Plan = (0, page0Generator_1.buildPage0Plan)(analysis, config.romMode, fontRawData);
@@ -131,6 +132,9 @@ ${hasMenus ? files['menus.asm'] : '; [menus.asm skipped - no menus]\n'}
 
 ${needsFont ? files['font.asm'] : `; [font.asm skipped - no text/menus]
 init_font_system:
+    ret
+
+reload_font_system:
     ret
 
 `}
@@ -461,10 +465,16 @@ function estimateAsmBytesLocal(asm) {
     const textBytes = asm.length;
     return Math.max(dataBytes, Math.floor(textBytes * 0.28));
 }
-// Cyclic ORG/end addresses for code slots (P1, P2, P3 windows)
+// Cyclic ORG/end addresses for primary code slots (P1, P2, P3 windows)
 const CODE_SLOT_ORG = [0x6000, 0x8000, 0xA000];
 const CODE_SLOT_END = [0x8000, 0xA000, 0xC000];
 const CODE_SLOT_PAGE = [1, 2, 3]; // mapper window page index
+// Far code must not execute from P2 because runtime loaders use P2 as the
+// data window. If a far routine running at #8000 switches data banks, it hides
+// its own code and returns into garbage.
+const FAR_CODE_SLOT_ORG = [0x6000, 0xA000];
+const FAR_CODE_SLOT_END = [0x8000, 0xC000];
+const FAR_CODE_SLOT_PAGE = [1, 3];
 function packModulesFFD(modules) {
     const banks = [];
     // Keep the resident execution kernel in fixed windows 1-3.
@@ -487,15 +497,16 @@ function packModulesFFD(modules) {
     for (const module of bankedModules) {
         const slotIndex = banks.length;
         const physicalBank = slotIndex + 1;
-        const cycleIdx = slotIndex % 3;
+        const farSlotIndex = slotIndex - RESIDENT_MODULE_WINDOW_ORDER.length;
+        const cycleIdx = farSlotIndex % FAR_CODE_SLOT_ORG.length;
         banks.push({
             physicalBank,
-            orgAddress: CODE_SLOT_ORG[cycleIdx],
-            endAddress: CODE_SLOT_END[cycleIdx],
+            orgAddress: FAR_CODE_SLOT_ORG[cycleIdx],
+            endAddress: FAR_CODE_SLOT_END[cycleIdx],
             modules: [module],
             usedBytes: module.estimatedBytes,
             isFar: true,
-            windowPage: CODE_SLOT_PAGE[cycleIdx],
+            windowPage: FAR_CODE_SLOT_PAGE[cycleIdx],
         });
     }
     return banks;
@@ -554,7 +565,7 @@ function getKnownEntryPoints(moduleKey, analysis) {
                 'load_colors_to_vram',
             ];
         case 'entities':
-            return ['init_entities'];
+            return ['init_entities', 'update_entities'];
         case 'worlds': {
             const worldMaps = analysis.worldmaps || [];
             const pts = ['load_world_default', 'check_world_screen_transition'];
@@ -570,29 +581,46 @@ function getKnownEntryPoints(moduleKey, analysis) {
         }
         case 'screens_code': {
             const screenMaps = analysis.screenMaps || [];
+            const importedHudFrameDrawLabels = screenMaps
+                .map((screen) => {
+                const screenName = (screen.name || 'unknown').toUpperCase().replace(/[^A-Z0-9]/g, '_').toLowerCase();
+                const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+                return `hud_imported_frame_${screenName}${screenIdSuffix.toLowerCase()}_draw`;
+            });
             return [
                 ...screenMaps.map((screen) => {
                     const screenName = (screen.name || 'unknown').toUpperCase().replace(/[^A-Z0-9]/g, '_').toLowerCase();
                     const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
                     return `load_screen_${screenName}${screenIdSuffix.toLowerCase()}`;
                 }),
+                ...importedHudFrameDrawLabels,
                 'show_presentation_screen',
+                'set_screen_colors',
+                'init_char0_color',
             ];
         }
         case 'font':
-            return ['init_font_system'];
+            return ['init_font_system', 'reload_font_system'];
         case 'menus':
             return ['render_menu', 'init_menu_system'];
         case 'hud':
             return ['render_hud', 'force_render_hud', 'imprimir_marco', 'init_hud'];
         case 'sound':
-            return ['init_sound_system', 'task_audio_tick', 'sfx_update', 'music_update', 'music_play_track', 'music_execute_command'];
+            return ['init_sound_system', 'task_audio_tick', 'sfx_update', 'music_update', 'music_stop', 'music_play_track', 'music_execute_command'];
         case 'statemachine':
             return ['init_statemachine_system', 'update_statemachine_system', 'execute_all_state_machines'];
         case 'gameflow':
             return ['game_loop', 'gameflow_update'];
         case 'sprites':
-            return ['update_sprites_to_vram', 'clear_all_sprites'];
+            return [
+                'init_sprites',
+                'update_sprites_to_vram',
+                'clear_all_sprites',
+                'hide_sprite',
+                'load_sprite_patterns_by_pack_id',
+                'ensure_sprite_patterns_by_pack_id',
+                'ensure_sprite_patterns_for_world_id',
+            ];
         case 'animtiles':
             return ['init_animated_tiles', 'update_animated_tiles', 'update_animated_tiles_vram'];
         default:
@@ -610,6 +638,15 @@ function getKnownEntryPoints(moduleKey, analysis) {
 function generateFarCallTrampolines(farBanks, analysis) {
     if (farBanks.length === 0)
         return '';
+    const preserveAEntryPoints = new Set([
+        'hide_sprite',
+        'load_sprite_patterns_by_pack_id',
+        'ensure_sprite_patterns_by_pack_id',
+        'ensure_sprite_patterns_for_world_id',
+        'music_play_track',
+        'set_screen_colors',
+        'init_char0_color',
+    ]);
     let asm = `; ==================================================================
 ; FAR-CALL TRAMPOLINES — bank 0 (always accessible at #4000-#5FFF)
 ; Far banks are mapped to their window temporarily, routine is called,
@@ -624,8 +661,11 @@ function generateFarCallTrampolines(farBanks, analysis) {
         asm += `; --- Far bank ${bankNum} [#${orgHex}, window P${wp}] trampolines ---\n`;
         asm += `FAR_BANK_${bankNum} EQU ${bankNum}\n\n`;
         for (const mod of bank.modules) {
-            const eps = getKnownEntryPoints(mod.key, analysis);
             const content = mod.content || '';
+            const eps = [
+                ...getKnownEntryPoints(mod.key, analysis),
+                ...getDynamicFarEntryPoints(mod.key, content),
+            ];
             for (const ep of eps) {
                 // Only generate trampolines for labels actually defined in the module
                 const labelPattern = new RegExp(`^${ep}:`, 'm');
@@ -633,7 +673,35 @@ function generateFarCallTrampolines(farBanks, analysis) {
                     continue; // Skip — label not defined in this module
                 }
                 asm += `${ep}_far:\n`;
+                if (preserveAEntryPoints.has(ep)) {
+                    asm += `    ex af, af'\n`;
+                    asm += `    ld a, i\n`;
+                    asm += `    push af\n`;
+                    asm += `    di\n`;
+                    asm += `    ld a, (mapper_bank_p${wp}_current)\n`;
+                    asm += `    push af\n`;
+                    asm += `    ld a, FAR_BANK_${bankNum}\n`;
+                    asm += `    call mapper_set_bank_p${wp}\n`;
+                    asm += `    ex af, af'\n`;
+                    asm += `    call ${ep}\n`;
+                    asm += `    ex af, af'\n`;
+                    asm += `    pop af\n`;
+                    asm += `    call mapper_set_bank_p${wp}\n`;
+                    asm += `    pop af\n`;
+                    asm += `    jp po, .${ep}_far_irq_done\n`;
+                    asm += `    ld a, (interrupt_in_progress)\n`;
+                    asm += `    or a\n`;
+                    asm += `    jr nz, .${ep}_far_irq_done\n`;
+                    asm += `    ei\n`;
+                    asm += `.${ep}_far_irq_done:\n`;
+                    asm += `    ex af, af'\n`;
+                    asm += `    ret\n\n`;
+                    continue;
+                }
                 asm += `    push af\n`;
+                asm += `    ld a, i\n`;
+                asm += `    push af\n`;
+                asm += `    di\n`;
                 asm += `    ld a, (mapper_bank_p${wp}_current)\n`;
                 asm += `    push af\n`;
                 asm += `    ld a, FAR_BANK_${bankNum}\n`;
@@ -641,6 +709,13 @@ function generateFarCallTrampolines(farBanks, analysis) {
                 asm += `    call ${ep}\n`;
                 asm += `    pop af\n`;
                 asm += `    call mapper_set_bank_p${wp}\n`;
+                asm += `    pop af\n`;
+                asm += `    jp po, .${ep}_far_irq_done\n`;
+                asm += `    ld a, (interrupt_in_progress)\n`;
+                asm += `    or a\n`;
+                asm += `    jr nz, .${ep}_far_irq_done\n`;
+                asm += `    ei\n`;
+                asm += `.${ep}_far_irq_done:\n`;
                 asm += `    pop af\n`;
                 asm += `    ret\n\n`;
             }
@@ -654,6 +729,22 @@ function generateFarCallTrampolines(farBanks, analysis) {
  */
 function farCallLabel(ep, farModuleKeys, moduleKey) {
     return farModuleKeys.has(moduleKey) ? `${ep}_far` : ep;
+}
+function getDynamicFarEntryPoints(moduleKey, content) {
+    const labels = new Set();
+    const patterns = [];
+    if (moduleKey === 'patterns_code') {
+        patterns.push(/^((?:load_tilebank_[A-Za-z0-9_]+_patterns_to_vram)):/gm);
+    }
+    else if (moduleKey === 'colors_code') {
+        patterns.push(/^((?:load_tilebank_[A-Za-z0-9_]+_colors_to_vram)):/gm);
+    }
+    for (const pattern of patterns) {
+        for (const match of content.matchAll(pattern)) {
+            labels.add(match[1]);
+        }
+    }
+    return [...labels];
 }
 function collectDefinedLabels(files) {
     const labels = new Set();
@@ -670,10 +761,29 @@ function replaceCallInstruction(asm, fromLabel, toLabel) {
     const pattern = new RegExp(`\\bcall\\s+${fromLabel}\\b`, 'g');
     return asm.replace(pattern, `call ${toLabel}`);
 }
-function rewriteResidentCallSites(files) {
+function rewriteDynamicFarCallSites(files, farModuleKeys) {
+    const rewritten = { ...files };
+    if (farModuleKeys.has('patterns_code')) {
+        Object.keys(rewritten).forEach((fileKey) => {
+            if (fileKey === 'patterns.asm')
+                return;
+            rewritten[fileKey] = rewritten[fileKey].replace(/\bcall\s+(load_tilebank_[A-Za-z0-9_]+_patterns_to_vram)\b/g, 'call $1_far');
+        });
+    }
+    if (farModuleKeys.has('colors_code')) {
+        Object.keys(rewritten).forEach((fileKey) => {
+            if (fileKey === 'colors.asm')
+                return;
+            rewritten[fileKey] = rewritten[fileKey].replace(/\bcall\s+(load_tilebank_[A-Za-z0-9_]+_colors_to_vram)\b/g, 'call $1_far');
+        });
+    }
+    return rewritten;
+}
+function rewriteResidentCallSites(files, farModuleKeys) {
     const rewritten = { ...files };
     const replacements = [
         ['check_world_screen_transition', 'call_check_world_screen_transition_resident'],
+        ['reload_font_system', 'call_reload_font_system_resident'],
         ['init_font_system', 'call_init_font_system_resident'],
         ['render_hud', 'call_render_hud_resident'],
         ['force_render_hud', 'call_force_render_hud_resident'],
@@ -681,14 +791,24 @@ function rewriteResidentCallSites(files) {
         ['task_audio_tick', 'call_task_audio_tick_resident'],
         ['music_update', 'call_music_update_resident'],
         ['sfx_update', 'call_sfx_update_resident'],
+        ['music_stop', 'call_music_stop_resident'],
         ['music_play_track', 'call_music_play_track_resident'],
         ['music_execute_command', 'call_music_execute_command_resident'],
+        ['init_sprites', 'call_init_sprites_resident'],
+        ['show_sprite', 'call_show_sprite_resident'],
+        ['load_sprite_patterns_by_pack_id', 'call_load_sprite_patterns_by_pack_id_resident'],
+        ['ensure_sprite_patterns_by_pack_id', 'call_ensure_sprite_patterns_by_pack_id_resident'],
+        ['ensure_sprite_patterns_for_world_id', 'call_ensure_sprite_patterns_for_world_id_resident'],
+        ['set_screen_colors', 'call_set_screen_colors_resident'],
+        ['init_char0_color', 'call_init_char0_color_resident'],
         ['update_sprites_to_vram', 'call_update_sprites_to_vram_resident'],
         ['clear_all_sprites', 'call_clear_all_sprites_resident'],
+        ['hide_sprite', 'call_hide_sprite_resident'],
         ['init_animated_tiles', 'call_init_animated_tiles_resident'],
         ['update_animated_tiles', 'call_update_animated_tiles_resident'],
         ['update_animated_tiles_vram', 'call_update_animated_tiles_vram_resident'],
         ['load_colors_to_vram', 'call_load_colors_to_vram_resident'],
+        ['update_entities', 'call_update_entities_resident'],
     ];
     Object.keys(rewritten).forEach((fileKey) => {
         let asm = rewritten[fileKey];
@@ -697,7 +817,7 @@ function rewriteResidentCallSites(files) {
         }
         rewritten[fileKey] = asm;
     });
-    return rewritten;
+    return rewriteDynamicFarCallSites(rewritten, farModuleKeys);
 }
 function generateResidentCallWrappers(farModuleKeys, availableLabels) {
     const resolveResidentTarget = (label, moduleKey) => {
@@ -706,19 +826,26 @@ function generateResidentCallWrappers(farModuleKeys, availableLabels) {
     };
     const checkWorldScreenTransitionCall = resolveResidentTarget('check_world_screen_transition', 'worlds');
     const initFontCall = resolveResidentTarget('init_font_system', 'font');
+    const reloadFontCall = resolveResidentTarget('reload_font_system', 'font');
     const renderHudCall = resolveResidentTarget('render_hud', 'hud');
     const forceRenderHudCall = resolveResidentTarget('force_render_hud', 'hud');
     const initSoundCall = resolveResidentTarget('init_sound_system', 'sound');
     const musicUpdateCall = resolveResidentTarget('music_update', 'sound');
     const sfxUpdateCall = resolveResidentTarget('sfx_update', 'sound');
+    const musicStopCall = resolveResidentTarget('music_stop', 'sound');
     const musicPlayTrackCall = resolveResidentTarget('music_play_track', 'sound');
     const musicExecuteCommandCall = resolveResidentTarget('music_execute_command', 'sound');
-    const updateSpritesCall = resolveResidentTarget('update_sprites_to_vram', 'sprites');
-    const clearAllSpritesCall = resolveResidentTarget('clear_all_sprites', 'sprites');
     const initAnimatedTilesCall = resolveResidentTarget('init_animated_tiles', 'animtiles');
     const updateAnimatedTilesCall = resolveResidentTarget('update_animated_tiles', 'animtiles');
     const updateAnimatedTilesVramCall = resolveResidentTarget('update_animated_tiles_vram', 'animtiles');
     const loadColorsToVramCall = resolveResidentTarget('load_colors_to_vram', 'colors_code');
+    const updateEntitiesCall = resolveResidentTarget('update_entities', 'entities');
+    const initSpritesCall = resolveResidentTarget('init_sprites', 'sprites');
+    const loadSpritePatternsByPackCall = resolveResidentTarget('load_sprite_patterns_by_pack_id', 'sprites');
+    const ensureSpritePatternsByPackCall = resolveResidentTarget('ensure_sprite_patterns_by_pack_id', 'sprites');
+    const ensureSpritePatternsForWorldCall = resolveResidentTarget('ensure_sprite_patterns_for_world_id', 'sprites');
+    const setScreenColorsCall = resolveResidentTarget('set_screen_colors', 'screens_code');
+    const initChar0ColorCall = resolveResidentTarget('init_char0_color', 'screens_code');
     return `; ==================================================================
 ; RESIDENT CALL WRAPPERS — bank 0 stable entrypoints
 ; Mainline code calls these labels instead of calling banked modules directly.
@@ -729,6 +856,9 @@ call_check_world_screen_transition_resident:
 
 call_init_font_system_resident:
     jp ${initFontCall}
+
+call_reload_font_system_resident:
+    jp ${reloadFontCall}
 
 call_render_hud_resident:
     jp ${renderHudCall}
@@ -762,17 +892,102 @@ call_music_update_resident:
 call_sfx_update_resident:
     jp ${sfxUpdateCall}
 
+call_music_stop_resident:
+    jp ${musicStopCall}
+
 call_music_play_track_resident:
     jp ${musicPlayTrackCall}
 
 call_music_execute_command_resident:
     jp ${musicExecuteCommandCall}
 
+call_init_sprites_resident:
+    jp ${initSpritesCall}
+
+call_load_sprite_patterns_by_pack_id_resident:
+    jp ${loadSpritePatternsByPackCall}
+
+call_ensure_sprite_patterns_by_pack_id_resident:
+    jp ${ensureSpritePatternsByPackCall}
+
+call_ensure_sprite_patterns_for_world_id_resident:
+    jp ${ensureSpritePatternsForWorldCall}
+
+call_set_screen_colors_resident:
+    jp ${setScreenColorsCall}
+
+call_init_char0_color_resident:
+    jp ${initChar0ColorCall}
+
+call_show_sprite_resident:
+    cp 32
+    ret nc
+    push af
+    ld a, c
+    cp 208
+    jr c, .cssr_y_ok
+    ld c, SPRITE_INVISIBLE
+.cssr_y_ok:
+    pop af
+    push de
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    ld de, sprite_attributes
+    add hl, de
+    pop de
+    ld (hl), c
+    inc hl
+    ld (hl), b
+    inc hl
+    ld (hl), d
+    inc hl
+    ld (hl), e
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
+
 call_update_sprites_to_vram_resident:
-    jp ${updateSpritesCall}
+    ld a, (sprites_dirty)
+    or a
+    ret z
+    xor a
+    ld (sprites_dirty), a
+    ld hl, sprite_attributes
+    ld de, SPRATR
+    ld bc, 44
+    call FAST_LDIRVM
+    ret
 
 call_clear_all_sprites_resident:
-    jp ${clearAllSpritesCall}
+    ld hl, sprite_attributes
+    ld b, 32
+    ld a, 224
+.casr_loop:
+    ld (hl), a
+    inc hl
+    inc hl
+    inc hl
+    inc hl
+    djnz .casr_loop
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
+
+call_hide_sprite_resident:
+    cp 32
+    ret nc
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    ld de, sprite_attributes
+    add hl, de
+    ld (hl), 224
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
 
 call_init_animated_tiles_resident:
     jp ${initAnimatedTilesCall}
@@ -785,6 +1000,9 @@ call_update_animated_tiles_vram_resident:
 
 call_load_colors_to_vram_resident:
     jp ${loadColorsToVramCall}
+
+call_update_entities_resident:
+    jp ${updateEntitiesCall}
 
 resident_noop:
     ret
@@ -830,7 +1048,9 @@ function generateMegaromUnifiedFile(files, projectName, analysis, executionPlan,
     // Build bank4 section: sprite data + pattern data + color data + screen data + font data + presentation screen
     // assembled at org #C000. Labels accessed via P2 window using (label & #1FFF) | #8000.
     const presentationBank4Data = (0, screensGenerator_1.getPresentationScreenBank4Data)(analysis);
-    const fontBank4Data = needsFont ? (0, fontGenerator_1.getFontBank4Data)(analysis) : '';
+    // MegaROM font.asm keeps a small inline copy of font patterns/colors so
+    // menu/text reloads do not depend on a nested banked-resource copy.
+    const fontBank4Data = '';
     const spritesBank4Data = (0, spritesGenerator_1.getSpritesBank4Data)(analysis);
     const patternsBank4Data = analysis.tiles && analysis.tiles.length > 0 ? (0, patternsGenerator_1.getPatternsBank4Data)(analysis) : '';
     const colorsBank4Data = analysis.tiles && analysis.tiles.length > 0 ? (0, colorsGenerator_1.getColorsBank4Data)(analysis) : '';
@@ -842,7 +1062,7 @@ function generateMegaromUnifiedFile(files, projectName, analysis, executionPlan,
     const farCodeBanks = packedBanks.filter(b => b.isFar);
     // Build set of module keys that ended up in far banks
     const farModuleKeySet = new Set(farCodeBanks.flatMap(b => b.modules.map(m => m.key)));
-    const emittedFiles = rewriteResidentCallSites(files);
+    const emittedFiles = rewriteResidentCallSites(files, farModuleKeySet);
     const availableLabels = collectDefinedLabels(emittedFiles);
     // Generate far-call trampolines for bank 0
     const farTrampolines = generateFarCallTrampolines(farCodeBanks, analysis);
@@ -1029,6 +1249,9 @@ load_game_screen:
 ${!needsFont ? `init_font_system:
     ret
 
+reload_font_system:
+    ret
+
 ` : ''}; --- End of Bank 0 — pad to 8KB boundary ---
     ds #6000 - $, #FF
 
@@ -1100,12 +1323,14 @@ ${farCodeBanks.length > 0 ? `${farCodeBanks.map(bank => {
 ; NOTE: routines in this bank MUST only call code in bank 0 or
 ;       primary banks (1-3). No far-to-far calls allowed.
 ; ##################################################################
+FAR_BANK_${bank.physicalBank}_ROM_START:
     org #${orgHex}
 
 ${moduleContents || '; (empty far bank)'}
 
 ; --- End of Far Bank ${bank.physicalBank} — pad to 8KB boundary ---
-    ds #${endHex} - $, #FF`;
+    ds #${endHex} - $, #FF
+    org FAR_BANK_${bank.physicalBank}_ROM_START + #2000`;
     }).join('\n\n')}` : ''}
 
 ${overflowDataSection}

@@ -114,6 +114,8 @@ var EditorType;
     EditorType["Boss"] = "Boss";
     EditorType["WorldView"] = "WorldView";
     EditorType["GameFlow"] = "GameFlow";
+    EditorType["Dialogue"] = "Dialogue";
+    EditorType["Portrait"] = "Portrait";
     EditorType["MainMenu"] = "MainMenu";
     EditorType["PresentationScreen"] = "PresentationScreen";
     EditorType["StateMachine"] = "StateMachine";

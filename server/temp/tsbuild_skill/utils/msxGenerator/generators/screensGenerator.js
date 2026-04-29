@@ -24,6 +24,8 @@ const SCREEN_WIDTH = 32;
 const SCREEN_HEIGHT = 24;
 const ASM_BYTES_PER_LINE = 16;
 const MAX_RUNTIME_EFFECT_ZONES = 64;
+const SCREEN_ENGINE_PLAYER = 0;
+const SCREEN_ENGINE_FAKE_PLAYER = 1;
 const EFFECT_TYPE_IDS = {
     secretZone: 0,
     wind: 1,
@@ -42,6 +44,14 @@ function clampByte(value, fallback = 0) {
     if (!Number.isFinite(value))
         return fallback & 0xff;
     return Math.max(0, Math.min(255, value)) & 0xff;
+}
+function getScreenEngineValue(screen) {
+    const configuredEngine = String(screen.screenEngine || '').trim();
+    if (configuredEngine === 'fakePlayer')
+        return SCREEN_ENGINE_FAKE_PLAYER;
+    if (configuredEngine === 'player')
+        return SCREEN_ENGINE_PLAYER;
+    return screen.screenKind === 'playable' ? SCREEN_ENGINE_PLAYER : SCREEN_ENGINE_FAKE_PLAYER;
 }
 function resolveTileBankDefinitions(screen, analysis) {
     return (0, screen2TileBanks_1.resolveRuntimeScreen2TileBankDefinitions)(analysis, screen.tileBankAssetId);
@@ -1641,6 +1651,7 @@ load_screen:
             const animatedGroupCount = screenExport?.animatedGroupCount || 0;
             const entityCount = screenExport?.entityCount || 0;
             const spritePatternSlots = screenExport?.spritePatternSlots || 1;
+            const screenEngineValue = getScreenEngineValue(screen);
             const tileBankReadyLabel = `.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_tilebank_ready`;
             const tileBankLoadCode = screen.tileBankAssetId
                 ? `    ld a, (current_screen2_tilebank_id)
@@ -2106,6 +2117,10 @@ ${importedHudFrameLabelBase}_draw_loop:
     ; Load ${screen.name} screen (fast direct port access)
     ; Active Area: X=${activeAreaX}, Y=${activeAreaY}, W=${activeAreaWidth}, H=${activeAreaHeight}
     ; Preserve HUD/non-active area: only overwrite active game area
+    ld a, ${screenEngineValue}
+    ld (current_screen_engine), a
+    ld a, #FF
+    ld (autocontrol_screen_id), a
     ; Set VDP colors FIRST (before loading screen data)
     ld a, ${bgColor}           ; Background color
     ld b, ${borderColor}       ; Border color
@@ -2167,6 +2182,10 @@ ${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
             else {
                 code += `load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}:
     ; Load ${screen.name} screen (fast direct port access)
+    ld a, ${screenEngineValue}
+    ld (current_screen_engine), a
+    ld a, #FF
+    ld (autocontrol_screen_id), a
     ; Set VDP colors FIRST (before loading screen data)
     ld a, ${bgColor}           ; Background color
     ld b, ${borderColor}       ; Border color

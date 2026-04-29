@@ -1,6 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateSpriteASMCode = exports.generateSingleFrameASMCode = exports.buildMSXDirectionalSpriteCatalog = exports.mirrorPixelDataVertically = exports.mirrorPixelDataHorizontally = exports.generateSpriteBinaryData = void 0;
+const frameUsesLayer = (frame, layerIndex, layerColor) => !!frame?.msx1LayerData?.[layerIndex]?.some(row => row.some(Boolean)) ||
+    !!frame?.data?.some(row => row?.some(pixel => pixel === layerColor));
+const isLayerPixelSet = (frameData, layerData, layerIndex, layerColor, y, x) => {
+    const plane = layerData?.[layerIndex];
+    if (plane)
+        return !!plane[y]?.[x];
+    return frameData[y]?.[x] === layerColor;
+};
 /**
  * Generates a raw byte array for a sprite asset.
  * It processes each frame, creating a separate byte layer for each color in the sprite's palette
@@ -30,8 +38,7 @@ const generateSpriteBinaryData = (sprite) => {
                 for (let y = 0; y < 8; y++) {
                     let byteValue = 0;
                     for (let bit = 0; bit < 8; bit++) {
-                        const pixelColorValue = frame.data[y]?.[bit];
-                        if (pixelColorValue === layerColor) {
+                        if (isLayerPixelSet(frame.data, frame.msx1LayerData, layerIndex, layerColor, y, bit)) {
                             byteValue |= (1 << (7 - bit));
                             colorUsedInFrameLayer = true;
                         }
@@ -42,8 +49,7 @@ const generateSpriteBinaryData = (sprite) => {
                 for (let y = 8; y < 16; y++) {
                     let byteValue = 0;
                     for (let bit = 0; bit < 8; bit++) {
-                        const pixelColorValue = frame.data[y]?.[bit];
-                        if (pixelColorValue === layerColor) {
+                        if (isLayerPixelSet(frame.data, frame.msx1LayerData, layerIndex, layerColor, y, bit)) {
                             byteValue |= (1 << (7 - bit));
                             colorUsedInFrameLayer = true;
                         }
@@ -54,8 +60,7 @@ const generateSpriteBinaryData = (sprite) => {
                 for (let y = 0; y < 8; y++) {
                     let byteValue = 0;
                     for (let bit = 0; bit < 8; bit++) {
-                        const pixelColorValue = frame.data[y]?.[8 + bit];
-                        if (pixelColorValue === layerColor) {
+                        if (isLayerPixelSet(frame.data, frame.msx1LayerData, layerIndex, layerColor, y, 8 + bit)) {
                             byteValue |= (1 << (7 - bit));
                             colorUsedInFrameLayer = true;
                         }
@@ -66,8 +71,7 @@ const generateSpriteBinaryData = (sprite) => {
                 for (let y = 8; y < 16; y++) {
                     let byteValue = 0;
                     for (let bit = 0; bit < 8; bit++) {
-                        const pixelColorValue = frame.data[y]?.[8 + bit];
-                        if (pixelColorValue === layerColor) {
+                        if (isLayerPixelSet(frame.data, frame.msx1LayerData, layerIndex, layerColor, y, 8 + bit)) {
                             byteValue |= (1 << (7 - bit));
                             colorUsedInFrameLayer = true;
                         }
@@ -83,8 +87,7 @@ const generateSpriteBinaryData = (sprite) => {
                         for (let bit = 0; bit < 8; bit++) {
                             const px = xByte * 8 + bit;
                             if (px < width) {
-                                const pixelColorValue = frame.data[y]?.[px];
-                                if (pixelColorValue === layerColor) {
+                                if (isLayerPixelSet(frame.data, frame.msx1LayerData, layerIndex, layerColor, y, px)) {
                                     byteValue |= (1 << (7 - bit));
                                     colorUsedInFrameLayer = true;
                                 }
@@ -143,16 +146,34 @@ const parseDirectionalSuffix = (name) => {
         suffixDirection: normalizeDirection(match[1])
     };
 };
-const createAutoDirectionalSprite = (source, targetName, targetDirection, transform) => {
+const createAutoDirectionalSprite = (source, targetName, targetDirection, transform, invertLayerYOffset = false) => {
+    const msx1LayerOffsets = source.msx1LayerOffsets && invertLayerYOffset
+        ? Object.fromEntries(Object.entries(source.msx1LayerOffsets).map(([key, value]) => [
+            key,
+            {
+                ...value,
+                offsetY: typeof value?.offsetY === 'number' ? -value.offsetY : value?.offsetY
+            }
+        ]))
+        : source.msx1LayerOffsets;
     return {
         ...source,
         id: `${source.id}__auto_${targetDirection}`,
         name: targetName,
         facingDirection: targetDirection,
+        msx1LayerOffsets,
         frames: source.frames.map((frame, frameIndex) => ({
             ...frame,
             id: `${frame.id || `f${frameIndex}`}_${targetDirection}_auto`,
-            data: transform(frame.data)
+            data: transform(frame.data),
+            msx1LayerData: frame.msx1LayerData
+                ? Object.fromEntries(Object.entries(frame.msx1LayerData).map(([key, plane]) => [
+                    key,
+                    invertLayerYOffset
+                        ? [...plane].reverse().map(row => [...row])
+                        : plane.map(row => [...row].reverse())
+                ]))
+                : undefined
         }))
     };
 };
@@ -237,7 +258,7 @@ const buildMSXDirectionalSpriteCatalog = (sourceSprites) => {
         }
     });
     directionalFamilies.forEach((family, baseName) => {
-        const addGeneratedVariant = (targetDirection, sourceIndex, transform, transformName) => {
+        const addGeneratedVariant = (targetDirection, sourceIndex, transform, transformName, invertLayerYOffset = false) => {
             if (sourceIndex === undefined)
                 return;
             if (family[targetDirection] !== undefined)
@@ -248,7 +269,7 @@ const buildMSXDirectionalSpriteCatalog = (sourceSprites) => {
                 return;
             }
             const sourceEntry = entries[sourceIndex];
-            const generatedSprite = createAutoDirectionalSprite(sourceEntry.sprite, targetName, targetDirection, transform);
+            const generatedSprite = createAutoDirectionalSprite(sourceEntry.sprite, targetName, targetDirection, transform, invertLayerYOffset);
             const generatedEntry = {
                 sprite: generatedSprite,
                 baseName,
@@ -267,10 +288,10 @@ const buildMSXDirectionalSpriteCatalog = (sourceSprites) => {
             addGeneratedVariant('right', family.left, exports.mirrorPixelDataHorizontally, 'horizontal mirror');
         }
         if (family.up !== undefined && family.down === undefined) {
-            addGeneratedVariant('down', family.up, exports.mirrorPixelDataVertically, 'vertical mirror');
+            addGeneratedVariant('down', family.up, exports.mirrorPixelDataVertically, 'vertical mirror', true);
         }
         else if (family.down !== undefined && family.up === undefined) {
-            addGeneratedVariant('up', family.down, exports.mirrorPixelDataVertically, 'vertical mirror');
+            addGeneratedVariant('up', family.down, exports.mirrorPixelDataVertically, 'vertical mirror', true);
         }
     });
     const nameToIndex = {};
@@ -331,7 +352,7 @@ const toHexByte = (num) => {
  * @param dataFormat The data format for exporting to ASM.
  * @returns A string containing the generated assembly code for the frame.
  */
-const generateSingleFrameASMCode = (frameName, frameData, spritePalette, backgroundColor, spriteWidth, spriteHeight, dataFormat = 'hex', layerIndexesToExport) => {
+const generateSingleFrameASMCode = (frameName, frameData, spritePalette, backgroundColor, spriteWidth, spriteHeight, dataFormat = 'hex', layerIndexesToExport, frameLayerData) => {
     const ASM_BYTES_PER_LINE = 16;
     const safeFrameName = frameName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
     let asmString = `;; ---- Sprite Frame: ${frameName} ----\n`;
@@ -368,8 +389,7 @@ const generateSingleFrameASMCode = (frameName, frameData, spritePalette, backgro
                 let byteValue = 0;
                 for (let bit = 0; bit < 8; bit++) {
                     const px = bit; // Left column (pixels 0-7)
-                    const pixelColorValue = frameData[y]?.[px];
-                    if (pixelColorValue === layerColor) {
+                    if (isLayerPixelSet(frameData, frameLayerData, layerIndex, layerColor, y, px)) {
                         byteValue |= (1 << (7 - bit));
                     }
                 }
@@ -380,8 +400,7 @@ const generateSingleFrameASMCode = (frameName, frameData, spritePalette, backgro
                 let byteValue = 0;
                 for (let bit = 0; bit < 8; bit++) {
                     const px = bit; // Left column (pixels 0-7)
-                    const pixelColorValue = frameData[y]?.[px];
-                    if (pixelColorValue === layerColor) {
+                    if (isLayerPixelSet(frameData, frameLayerData, layerIndex, layerColor, y, px)) {
                         byteValue |= (1 << (7 - bit));
                     }
                 }
@@ -392,8 +411,7 @@ const generateSingleFrameASMCode = (frameName, frameData, spritePalette, backgro
                 let byteValue = 0;
                 for (let bit = 0; bit < 8; bit++) {
                     const px = 8 + bit; // Right column (pixels 8-15)
-                    const pixelColorValue = frameData[y]?.[px];
-                    if (pixelColorValue === layerColor) {
+                    if (isLayerPixelSet(frameData, frameLayerData, layerIndex, layerColor, y, px)) {
                         byteValue |= (1 << (7 - bit));
                     }
                 }
@@ -404,8 +422,7 @@ const generateSingleFrameASMCode = (frameName, frameData, spritePalette, backgro
                 let byteValue = 0;
                 for (let bit = 0; bit < 8; bit++) {
                     const px = 8 + bit; // Right column (pixels 8-15)
-                    const pixelColorValue = frameData[y]?.[px];
-                    if (pixelColorValue === layerColor) {
+                    if (isLayerPixelSet(frameData, frameLayerData, layerIndex, layerColor, y, px)) {
                         byteValue |= (1 << (7 - bit));
                     }
                 }
@@ -420,8 +437,7 @@ const generateSingleFrameASMCode = (frameName, frameData, spritePalette, backgro
                     for (let bit = 0; bit < 8; bit++) {
                         const px = xByte * 8 + bit;
                         if (px < spriteWidth) {
-                            const pixelColorValue = frameData[y]?.[px];
-                            if (pixelColorValue === layerColor) {
+                            if (isLayerPixelSet(frameData, frameLayerData, layerIndex, layerColor, y, px)) {
                                 byteValue |= (1 << (7 - bit));
                             }
                         }
@@ -482,10 +498,10 @@ const generateSpriteASMCode = (sprite, dataFormat = 'hex', uniqueIndex) => {
         const layerColor = sprite.spritePalette[layerIndex];
         if (!layerColor || layerColor === sprite.backgroundColor)
             return false;
-        return sprite.frames.some((frame) => frame?.data?.some((row) => row?.some((pixel) => pixel === layerColor)));
+        return sprite.frames.some((frame) => frameUsesLayer(frame, layerIndex, layerColor));
     });
     sprite.frames.forEach((frame, index) => {
-        fullAsmCode += (0, exports.generateSingleFrameASMCode)(`${uniqueName}_F${index}`, frame.data, sprite.spritePalette, sprite.backgroundColor, sprite.size.width, sprite.size.height, dataFormat, usedLayerIndexes);
+        fullAsmCode += (0, exports.generateSingleFrameASMCode)(`${uniqueName}_F${index}`, frame.data, sprite.spritePalette, sprite.backgroundColor, sprite.size.width, sprite.size.height, dataFormat, usedLayerIndexes, frame.msx1LayerData);
     });
     return fullAsmCode;
 };

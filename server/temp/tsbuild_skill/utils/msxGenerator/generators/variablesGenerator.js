@@ -7,15 +7,99 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateVariablesFile = generateVariablesFile;
 const spriteUtils_1 = require("../../../components/utils/spriteUtils");
 const soundGenerator_1 = require("./soundGenerator");
+const romModeUtils_1 = require("./romModeUtils");
+const RAM_BASE = 0xC000;
+const MSX_SYSTEM_RAM_START = 0xF380;
+const ZX0_SHARED_SCRATCH_SIZE = 1488;
+const EFFECT_ZONE_ENTRY_SIZE = 8;
+const MAX_EFFECT_ZONE_ENTRIES = 64;
+function formatHexWord(value) {
+    return `#${value.toString(16).toUpperCase().padStart(4, '0')}`;
+}
+function formatZx0ScratchOverflowMessage(args) {
+    const overBy = Math.max(0, args.scratchEnd - MSX_SYSTEM_RAM_START);
+    const freeBeforeAlignedScratch = Math.max(0, MSX_SYSTEM_RAM_START - args.scratchBase);
+    const projectRamBytes = Math.max(0, args.currentAddress - RAM_BASE);
+    const screenMapBytes = (args.romMode === 'megarom' ? 8 : 7) * 768;
+    const entityBytesApprox = 32 * 40;
+    const assetCounts = [
+        `sprites=${args.analysis.sprites?.length || 0}`,
+        `expandedSprites=${args.expandedSpriteCount}`,
+        `maxSpriteLayers=${args.maxSpriteLayerCount}`,
+        `tiles=${args.analysis.tiles?.length || 0}`,
+        `screens=${(args.analysis.screens || args.analysis.screenMaps || []).length || 0}`,
+        `entities=${args.analysis.entities?.length || 0}`,
+        `tracks=${args.analysis.tracks?.length || 0}`,
+        `stateMachines=${args.analysis.stateMachines?.length || 0}`,
+    ].join(', ');
+    return [
+        `ZX0 scratch RAM overflow: need up to ${formatHexWord(args.scratchEnd)}, limit is ${formatHexWord(MSX_SYSTEM_RAM_START)} (over by ${overBy} bytes).`,
+        `RAM variables end at ${formatHexWord(args.currentAddress)} (${projectRamBytes} bytes from ${formatHexWord(RAM_BASE)}); scratch base aligns to ${formatHexWord(args.scratchBase)}.`,
+        `Required shared ZX0 scratch is ${args.scratchSize} bytes; free before MSX system variables after alignment is ${freeBeforeAlignedScratch} bytes.`,
+        `ROM mode "${args.romMode}" does not change MSX1 RAM. Mapper/MegaROM builds must fit the same ${formatHexWord(MSX_SYSTEM_RAM_START)} ceiling.`,
+        `Project asset counts: ${assetCounts}.`,
+        `Large fixed RAM consumers include runtime screen/effects maps (~${screenMapBytes} bytes), entity arrays (~${entityBytesApprox}+ bytes), and tracker buffer (${args.serializedTrackerMusicBufferSize} bytes when banked tracker data is cached).`,
+    ].join(' ');
+}
+function countDrawableSpriteLayers(sprite) {
+    const palette = sprite?.spritePalette || [];
+    const bg = sprite?.backgroundColor;
+    const frames = sprite?.frames || [];
+    if (!palette.length || !frames.length)
+        return 1;
+    let count = 0;
+    for (let layerIdx = 0; layerIdx < palette.length; layerIdx++) {
+        const layerColor = palette[layerIdx];
+        if (!layerColor || layerColor === bg)
+            continue;
+        let hasPixels = false;
+        for (const frame of frames) {
+            if (frame?.msx1LayerData?.[layerIdx]?.some((row) => row.some(Boolean))) {
+                hasPixels = true;
+                break;
+            }
+            if (!frame?.data)
+                continue;
+            for (let y = 0; y < frame.data.length && !hasPixels; y++) {
+                for (let x = 0; x < (frame.data[y]?.length || 0); x++) {
+                    if (frame.data[y][x] === layerColor) {
+                        hasPixels = true;
+                        break;
+                    }
+                }
+            }
+            if (hasPixels)
+                break;
+        }
+        if (hasPixels)
+            count++;
+    }
+    return Math.max(1, count);
+}
+function getScreenList(analysis) {
+    return analysis.screens || analysis.screenMaps || [];
+}
+function getMaxRuntimeEffectZones(analysis) {
+    const screens = getScreenList(analysis);
+    return Math.min(MAX_EFFECT_ZONE_ENTRIES, Math.max(0, ...screens.map((screen) => (screen?.effectZones || []).length)));
+}
 /**
  * Generate RAM variables with EQU addresses (variables.asm)
  *
  * @param analysis - Project analysis with detected assets and entities
  * @returns ASM code string with variable definitions
  */
-function generateVariablesFile(analysis) {
-    const expandedSpriteCount = Math.max(1, (0, spriteUtils_1.buildMSXDirectionalSpriteCatalog)(analysis.sprites || []).sprites.length);
-    const serializedTrackerMusicBufferSize = (0, soundGenerator_1.getSerializedTrackerMusicBufferSize)(analysis);
+function generateVariablesFile(analysis, romMode = 'simple32k') {
+    const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
+    const useResourceManager = romMode === 'megarom';
+    const expandedSprites = (0, spriteUtils_1.buildMSXDirectionalSpriteCatalog)(analysis.sprites || []).sprites;
+    const expandedSpriteCount = Math.max(1, expandedSprites.length);
+    const maxSpriteLayerCount = Math.max(1, ...expandedSprites.map(countDrawableSpriteLayers));
+    const maxRuntimeEffectZones = getMaxRuntimeEffectZones(analysis);
+    const runtimeEffectZoneTableBytes = maxRuntimeEffectZones * EFFECT_ZONE_ENTRY_SIZE;
+    const serializedTrackerMusicBufferSize = useResourceManager
+        ? (0, soundGenerator_1.getSerializedTrackerMusicBufferSize)(analysis)
+        : 0;
     let code = `; ==================================================================
 ; RAM VARIABLES DEFINITIONS
 ; File: variables.asm
@@ -27,7 +111,7 @@ function generateVariablesFile(analysis) {
 ; CORE SYSTEM VARIABLES (ALWAYS PRESENT)
 ; ==================================================================
 `;
-    let currentAddress = 0xC000;
+    let currentAddress = RAM_BASE;
     // Core variables (always needed)
     code += `input_state         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current direction state (0-8)\n`;
     currentAddress++;
@@ -38,6 +122,114 @@ function generateVariablesFile(analysis) {
     code += `input_btn_prev      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous input buttons bitmask (bit0=fire, bit1=grab)\n`;
     currentAddress++;
     code += `input_fire          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Fire button state (0=released, 1=pressed)\n`;
+    currentAddress++;
+    code += `autocontrol_screen_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen id bound to current FakePlayer script\n`;
+    currentAddress++;
+    code += `autocontrol_entity_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active FakePlayer entity index (#FF=none)\n`;
+    currentAddress++;
+    code += `autocontrol_script_ptr_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current FakePlayer script pointer low byte\n`;
+    currentAddress++;
+    code += `autocontrol_script_ptr_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current FakePlayer script pointer high byte\n`;
+    currentAddress++;
+    code += `autocontrol_script_start_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; FakePlayer script start pointer low byte\n`;
+    currentAddress++;
+    code += `autocontrol_script_start_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; FakePlayer script start pointer high byte\n`;
+    currentAddress++;
+    code += `autocontrol_wait_frames EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; FakePlayer wait countdown in frames\n`;
+    currentAddress++;
+    code += `autocontrol_move_opcode EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active FakePlayer movement opcode\n`;
+    currentAddress++;
+    code += `autocontrol_move_remaining EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Remaining FakePlayer movement pixels\n`;
+    currentAddress++;
+    code += `autocontrol_loop_flag EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=loop FakePlayer script on END\n`;
+    currentAddress++;
+    code += `autocontrol_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=FakePlayer script active\n`;
+    currentAddress++;
+    code += `autoev_screen_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen id bound to compact FakePlayer event script\n`;
+    currentAddress++;
+    code += `autoev_entity_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active compact FakePlayer entity index (#FF=none)\n`;
+    currentAddress++;
+    code += `autoev_script_ptr_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact FakePlayer event pointer low byte\n`;
+    currentAddress++;
+    code += `autoev_script_ptr_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact FakePlayer event pointer high byte\n`;
+    currentAddress++;
+    code += `autoev_script_start_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact FakePlayer event start pointer low byte\n`;
+    currentAddress++;
+    code += `autoev_script_start_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact FakePlayer event start pointer high byte\n`;
+    currentAddress++;
+    code += `autoev_wait_frames EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact FakePlayer wait countdown in frames\n`;
+    currentAddress++;
+    code += `autoev_move_axis EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact move axis (1=x,2=y)\n`;
+    currentAddress++;
+    code += `autoev_move_step EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact move step (1 or #FF)\n`;
+    currentAddress++;
+    code += `autoev_move_remaining EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Remaining compact FakePlayer movement pixels\n`;
+    currentAddress++;
+    code += `autoev_loop_flag EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=loop compact FakePlayer event script\n`;
+    currentAddress++;
+    code += `autoev_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=compact FakePlayer event script active\n`;
+    currentAddress++;
+    code += `autoev_wait_mode EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=wait SPC, 2=wait typewriter\n`;
+    currentAddress++;
+    code += `autoev_number_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Parsed compact event number low byte\n`;
+    currentAddress++;
+    code += `autoev_number_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Parsed compact event number high byte\n`;
+    currentAddress++;
+    code += `dialogue_active    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=dialogue box is open\n`;
+    currentAddress++;
+    code += `dialogue_current_box EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current dialogue box config index\n`;
+    currentAddress++;
+    code += `dialogue_text_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=typewriter is writing text\n`;
+    currentAddress++;
+    code += `dialogue_text_ptr_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue typewriter text pointer low byte\n`;
+    currentAddress++;
+    code += `dialogue_text_ptr_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue typewriter text pointer high byte\n`;
+    currentAddress++;
+    code += `dialogue_vram_ptr_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue typewriter VRAM pointer low byte\n`;
+    currentAddress++;
+    code += `dialogue_vram_ptr_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue typewriter VRAM pointer high byte\n`;
+    currentAddress++;
+    code += `dialogue_row_start_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current dialogue row start VRAM low byte\n`;
+    currentAddress++;
+    code += `dialogue_row_start_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current dialogue row start VRAM high byte\n`;
+    currentAddress++;
+    code += `dialogue_char_delay EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue character delay countdown\n`;
+    currentAddress++;
+    code += `dialogue_char_delay_reload EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue character delay reload value\n`;
+    currentAddress++;
+    code += `dialogue_box_vram_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue box VRAM start low byte\n`;
+    currentAddress++;
+    code += `dialogue_box_vram_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue box VRAM start high byte\n`;
+    currentAddress++;
+    code += `dialogue_box_width EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue box width in chars\n`;
+    currentAddress++;
+    code += `dialogue_box_height EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue box height in chars\n`;
+    currentAddress++;
+    code += `dialogue_box_tl_char EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue top-left border char\n`;
+    currentAddress++;
+    code += `dialogue_box_tr_char EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue top-right border char\n`;
+    currentAddress++;
+    code += `dialogue_box_bl_char EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue bottom-left border char\n`;
+    currentAddress++;
+    code += `dialogue_box_br_char EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue bottom-right border char\n`;
+    currentAddress++;
+    code += `dialogue_box_h_char EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue horizontal border char\n`;
+    currentAddress++;
+    code += `dialogue_box_v_char EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue vertical border char\n`;
+    currentAddress++;
+    code += `dialogue_graphic_enabled EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=dialogue tile graphic is visible\n`;
+    currentAddress++;
+    code += `dialogue_graphic_vram_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue graphic VRAM start low byte\n`;
+    currentAddress++;
+    code += `dialogue_graphic_vram_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue graphic VRAM start high byte\n`;
+    currentAddress++;
+    code += `dialogue_graphic_ptr_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue graphic tile data pointer low byte\n`;
+    currentAddress++;
+    code += `dialogue_graphic_ptr_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue graphic tile data pointer high byte\n`;
+    currentAddress++;
+    code += `dialogue_graphic_width EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue graphic width in chars\n`;
+    currentAddress++;
+    code += `dialogue_graphic_height EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue graphic height in chars\n`;
     currentAddress++;
     code += `current_flow_state  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current game flow state\n`;
     currentAddress++;
@@ -135,14 +327,14 @@ function generateVariablesFile(analysis) {
     currentAddress++;
     code += `vram_cache_font_ready EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when shared font patterns/colors are already resident in VRAM\n`;
     currentAddress++;
-    code += `resource_ram_cache_screen_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_background_layout source\n`;
-    currentAddress++;
-    code += `resource_ram_cache_effects_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effects_layout source\n`;
-    currentAddress++;
-    code += `resource_ram_cache_behavior_map_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for pristine behavior-map RAM copy\n`;
-    currentAddress++;
-    code += `resource_ram_cache_effect_zone_table_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effect_zone_table source\n`;
-    currentAddress++;
+    if (useResourceManager) {
+        code += `resource_ram_cache_screen_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_background_layout source\n`;
+        currentAddress++;
+        code += `resource_ram_cache_effects_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effects_layout source\n`;
+        currentAddress++;
+        code += `resource_ram_cache_effect_zone_table_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effect_zone_table source\n`;
+        currentAddress++;
+    }
     code += `current_screen2_tilebank_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current SCREEN 2 shared tilebank loaded in VRAM (#FF=none/unknown)\n`;
     currentAddress++;
     code += `frame_counter       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame counter (16-bit)\n`;
@@ -170,8 +362,7 @@ function generateVariablesFile(analysis) {
     currentAddress += 2;
     code += `prof_deadly_behavior_reads EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Deadly helper behavior-map reads\n`;
     currentAddress += 2;
-    code += `page0_transfer_buffer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary RAM buffer for page0 -> VRAM copies\n`;
-    currentAddress += 256;
+    code += `; page0_transfer_buffer shares the ZX0 scratch area declared near RAM_USAGE_END.\n`;
     // Screen map pointers
     code += `
 ; ==================================================================
@@ -195,12 +386,10 @@ function generateVariablesFile(analysis) {
     code += `behavior_cache_row_base EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached row base address in behavior map (16-bit)\n`;
     currentAddress += 2;
     code += `RUNTIME_SCREEN_MAP_SIZE EQU 768\n`;
-    code += `MAX_RUNTIME_EFFECT_ZONES EQU 64\n`;
+    code += `MAX_RUNTIME_EFFECT_ZONES EQU ${maxRuntimeEffectZones}\n`;
     code += `runtime_background_layout EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Immutable copy of current background layout (32x24)\n`;
     currentAddress += 768;
     code += `runtime_screen_layout  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current screen layout (32x24)\n`;
-    currentAddress += 768;
-    code += `resource_ram_cache_behavior_map EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Pristine behavior map cache for current banked resource (32x24)\n`;
     currentAddress += 768;
     code += `runtime_behavior_map   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current behavior map (32x24)\n`;
     currentAddress += 768;
@@ -218,8 +407,8 @@ function generateVariablesFile(analysis) {
     currentAddress += 2;
     code += `screen_block_map_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Scratch pointer to current screen block index map during layout expansion\n`;
     currentAddress += 2;
-    code += `runtime_effect_zone_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current screen effect zone table (MAX_RUNTIME_EFFECT_ZONES * 8 bytes)\n`;
-    currentAddress += 64 * 8;
+    code += `runtime_effect_zone_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current screen effect zone table (${runtimeEffectZoneTableBytes} bytes)\n`;
+    currentAddress += runtimeEffectZoneTableBytes;
     code += `current_effect_zone_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of effect zones copied into runtime_effect_zone_table\n`;
     currentAddress++;
     code += `secret_zone_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 if hero is currently inside an active secret zone\n`;
@@ -305,6 +494,10 @@ MAX_ENTITIES        EQU 32
     currentAddress += 32;
     code += `entity_wallgrab_grace EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames to keep wall grab during transient wall flag gaps (32 bytes)\n`;
     currentAddress += 32;
+    code += `entity_wallgrab_timer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Remaining wall-grab frames until grounded reset (32 bytes)\n`;
+    currentAddress += 32;
+    code += `entity_wallgrab_lockout EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Wall grab disabled until grounded after timer is spent (32 bytes)\n`;
+    currentAddress += 32;
     code += `entity_walljump_anim_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Wall jump one-shot animation is waiting to restore base sprite (32 bytes)\n`;
     currentAddress += 32;
     code += `entity_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity X positions (32 bytes)\n`;
@@ -379,6 +572,28 @@ MAX_ENTITIES        EQU 32
     // entity_sprite_asset_index must be in RAM (writable) for CHANGE_SPRITE action
     code += `entity_sprite_asset_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity sprite asset index - RAM copy (32 bytes)\n`;
     currentAddress += 32;
+    if (usesMapper) {
+        code += `entity_sprite_config EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity sprite config RAM copy (base HW sprite + layer count, 64 bytes)\n`;
+        currentAddress += 64;
+        code += `sprite_asset_frame_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite asset frame counts RAM copy (${expandedSpriteCount} bytes)\n`;
+        currentAddress += expandedSpriteCount;
+        code += `sprite_asset_layer_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite asset layer counts RAM copy (${expandedSpriteCount} bytes)\n`;
+        currentAddress += expandedSpriteCount;
+        code += `sprite_loop_flags EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite loop flags RAM copy (${expandedSpriteCount} bytes)\n`;
+        currentAddress += expandedSpriteCount;
+        code += `sprite_dir_left_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Directional sprite lookup RAM copy (${expandedSpriteCount} bytes)\n`;
+        currentAddress += expandedSpriteCount;
+        code += `sprite_dir_right_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Directional sprite lookup RAM copy (${expandedSpriteCount} bytes)\n`;
+        currentAddress += expandedSpriteCount;
+        code += `sprite_dir_up_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Directional sprite lookup RAM copy (${expandedSpriteCount} bytes)\n`;
+        currentAddress += expandedSpriteCount;
+        code += `sprite_dir_down_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Directional sprite lookup RAM copy (${expandedSpriteCount} bytes)\n`;
+        currentAddress += expandedSpriteCount;
+        code += `SM_SpriteLayerColorTable EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime SM sprite layer colors (${expandedSpriteCount}*${maxSpriteLayerCount} bytes)\n`;
+        currentAddress += expandedSpriteCount * maxSpriteLayerCount;
+        code += `SM_SpriteLayerYOffsetTable EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime SM sprite layer Y offsets (${expandedSpriteCount}*${maxSpriteLayerCount} bytes)\n`;
+        currentAddress += expandedSpriteCount * maxSpriteLayerCount;
+    }
     code += `active_sprite_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of sprites currently active\n`;
     currentAddress++;
     code += `sprites_dirty      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=sprite_attributes changed, needs VRAM sync\n`;
@@ -388,6 +603,8 @@ MAX_ENTITIES        EQU 32
     code += `sprite_color        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite colors (32 bytes)\n`;
     currentAddress += 32;
     code += `sprite_layer_colors EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)\n`;
+    currentAddress += 32;
+    code += `sprite_layer_y_offsets EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; HW sprite layer signed Y offsets - RAM copy (32 bytes, indexed by HW sprite index)\n`;
     currentAddress += 32;
     code += `sprite_asset_base_pattern_slot_runtime EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime base 16x16 slot per sprite asset (${expandedSpriteCount} bytes)\n`;
     currentAddress += expandedSpriteCount;
@@ -406,6 +623,8 @@ MAX_ENTITIES        EQU 32
 ; ==================================================================
 `;
         code += `current_screen_id   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Currently displayed screen ID\n`;
+        currentAddress++;
+        code += `current_screen_engine EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime engine: 0=Player, 1=FakePlayer\n`;
         currentAddress++;
         code += `screen_dirty_flag   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen needs redraw flag\n`;
         currentAddress++;
@@ -686,6 +905,8 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     currentAddress += 2;
     code += `vblank_flag             EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Set to 1 on each VBlank (1 byte)\n`;
     currentAddress++;
+    code += `interrupt_in_progress   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 while the H.TIMI dispatcher is running\n`;
+    currentAddress++;
     code += `RAM_INTERRUPT_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; End of interrupt system\n`;
     code += `
 ; ==================================================================
@@ -739,6 +960,12 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     currentAddress++;
     code += `music_mixer_shadow   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; PSG mixer shadow for music runtime\n`;
     currentAddress++;
+    code += `music_pitch_note_work EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Scratch note index while resolving tone/ornament macros\n`;
+    currentAddress++;
+    code += `music_pitch_step_work EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Scratch macro step while resolving tone/ornament macros\n`;
+    currentAddress++;
+    code += `music_pitch_len_work  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Scratch macro length while resolving tone/ornament macros\n`;
+    currentAddress++;
     const musicArrayDefs = [
         { base: 'music_ch_note_base', prefix: 'music_ch', suffix: 'note', comment: 'Current note index (255=silent)' },
         { base: 'music_ch_instrument_base', prefix: 'music_ch', suffix: 'instrument', comment: 'Current instrument id (0=none)' },
@@ -748,6 +975,7 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
         { base: 'music_ch_tone_step_base', prefix: 'music_ch', suffix: 'tone_step', comment: 'Reserved software tone envelope step' },
         { base: 'music_ch_noise_step_base', prefix: 'music_ch', suffix: 'noise_step', comment: 'Reserved software noise envelope step' },
         { base: 'music_ch_orn_step_base', prefix: 'music_ch', suffix: 'orn_step', comment: 'Reserved ornament step' },
+        { base: 'music_ch_hw_env_step_base', prefix: 'music_ch', suffix: 'hw_env_step', comment: 'Software hardware-envelope divider step' },
     ];
     const musicChannelNames = ['a', 'b', 'c'];
     for (const def of musicArrayDefs) {
@@ -820,13 +1048,21 @@ T_NEW_2         EQU #${hex(0x19A)}  ; Tone table new 2 (last, ends at +0x1B2)
     `;
         currentAddress = pt3Base + 0x240; // Reserve 576 bytes for PT3 workspace (RAM LENGTH per replayer spec)
     }
-    const ZX0_LARGE_SCRATCH_SIZE = 1488;
-    const ZX0_RAM_LIMIT = 0xF380;
     const align256 = (value) => (value + 0xFF) & 0xFF00;
     const zx0LargeScratchBase = align256(currentAddress);
-    const zx0ScratchEnd = zx0LargeScratchBase + ZX0_LARGE_SCRATCH_SIZE;
-    if (zx0ScratchEnd > ZX0_RAM_LIMIT) {
-        throw new Error(`ZX0 scratch RAM overflow: need up to #${zx0ScratchEnd.toString(16).toUpperCase()}, limit is #${ZX0_RAM_LIMIT.toString(16).toUpperCase()}`);
+    const zx0ScratchEnd = zx0LargeScratchBase + ZX0_SHARED_SCRATCH_SIZE;
+    if (zx0ScratchEnd > MSX_SYSTEM_RAM_START) {
+        throw new Error(formatZx0ScratchOverflowMessage({
+            currentAddress,
+            scratchBase: zx0LargeScratchBase,
+            scratchEnd: zx0ScratchEnd,
+            scratchSize: ZX0_SHARED_SCRATCH_SIZE,
+            romMode,
+            expandedSpriteCount,
+            maxSpriteLayerCount,
+            serializedTrackerMusicBufferSize,
+            analysis,
+        }));
     }
     code += `
 ; ==================================================================
@@ -837,10 +1073,11 @@ T_NEW_2         EQU #${hex(0x19A)}  ; Tone table new 2 (last, ends at +0x1B2)
 ; are decompressed and consumed sequentially, never concurrently.
 ; Font and sprite frame buffers are injected later by the ZX0 post-processor
 ; only when compression selects those blocks; they share scratch there too.
-ZX0_SCREEN_BUFFER       EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Screen/layout scratch (768 bytes, shared area)
-ZX0_BEHAVIOR_BUFFER     EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Behavior map scratch (768 bytes, shared area)
-ZX0_TILE_PATTERN_BUFFER EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile pattern scratch (1488 bytes, shared area)
-ZX0_TILE_COLOR_BUFFER   EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile color scratch (1488 bytes, shared area)
+ZX0_SCREEN_BUFFER       EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Screen/layout scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
+ZX0_BEHAVIOR_BUFFER     EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Behavior map scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
+ZX0_TILE_PATTERN_BUFFER EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile pattern scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
+ZX0_TILE_COLOR_BUFFER   EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile color scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
+page0_transfer_buffer   EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Page-0 copy staging buffer (shares scratch area)
 `;
     // End marker
     code += `
@@ -854,7 +1091,7 @@ RAM_USAGE_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4,
 ; ==================================================================
 ; RAM Layout:
 ;   #C000-#${currentAddress.toString(16).toUpperCase().padStart(4, '0')}: Project variables (${currentAddress - 0xC000} bytes)
-;   #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}-#F37F: Free RAM (~${0xF380 - currentAddress} bytes available)
+;   #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}-#F37F: Free RAM (~${MSX_SYSTEM_RAM_START - currentAddress} bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).

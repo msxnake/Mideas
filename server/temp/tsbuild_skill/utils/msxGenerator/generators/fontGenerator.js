@@ -27,6 +27,20 @@ function getBuiltInMsxFontData() {
         colorAttributes: parsed.colorAttributes || {},
     };
 }
+function selectProjectFontAsset(analysis) {
+    if (!analysis.fonts || analysis.fonts.length === 0)
+        return undefined;
+    const dialogueFontIds = (analysis.dialogues || [])
+        .map((dialogue) => String(dialogue?.box?.fontAssetId || ''))
+        .filter(Boolean);
+    for (const fontId of dialogueFontIds) {
+        const match = analysis.fonts.find((fontAsset) => String(fontAsset?.id || '') === fontId ||
+            String(fontAsset?.data?.id || '') === fontId);
+        if (match)
+            return match;
+    }
+    return analysis.fonts[0];
+}
 function formatAsmCharComment(code) {
     if (code >= 32 && code <= 126) {
         const char = String.fromCharCode(code)
@@ -67,8 +81,8 @@ function getFontRawData(analysis) {
         };
         return palette[normalized] ?? 15;
     };
-    if (analysis.fonts && analysis.fonts.length > 0) {
-        const fontAsset = analysis.fonts[0];
+    const fontAsset = selectProjectFontAsset(analysis);
+    if (fontAsset) {
         const fontData = fontAsset.data.fontData || {};
         const colorData = fontAsset.data.fontColorAttributes || {};
         Object.keys(fontData).forEach(key => {
@@ -132,19 +146,20 @@ function getFontRawData(analysis) {
  * @returns ASM code string with font patterns and loading functions
  */
 function generateFontFile(analysis, romMode = 'simple32k', fontInPage0 = false, fontInBank4 = false, targetFormat = 'konami') {
-    // Check if font is needed (menus, text, or HUD elements)
+    // Check if font is needed (menus, text, HUD elements, or dialogue)
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
     const hasText = analysis.screenMaps?.some(screen => screen.layers?.text || screen.textElements?.length > 0);
+    const hasDialogue = !!analysis.dialogues?.some((dialogue) => Array.isArray(dialogue?.lines) && dialogue.lines.some((line) => String(line?.text || '').length > 0));
     // CRITICAL: Check for HUD elements (they need font for text rendering)
     const hasHUD = analysis.screenMaps?.some(screen => screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
-    // Skip font system if no text/menus/HUD in project
-    if (!hasMenus && !hasText && !hasHUD) {
+    // Skip font system if no text/menus/HUD/dialogue in project
+    if (!hasMenus && !hasText && !hasHUD && !hasDialogue) {
         return `; ==================================================================
 ; MSX FONT DATA (SKIPPED - NO TEXT/MENUS/HUD DETECTED)
 ; File: font.asm
 ; ==================================================================
 
-; No text, menus, or HUD detected in project - font system not needed
+; No text, menus, HUD, or dialogue detected in project - font system not needed
 ; This saves ~250 lines of unused font data
 
 ; Minimal stub functions for compatibility
@@ -172,12 +187,15 @@ print_string_screen2:
         indexAsm += `${code}${i < sortedCodes.length - 1 ? ', ' : ''}`;
     });
     indexAsm += `\nFONT_CHAR_COUNT EQU ${sortedCodes.length}\n`;
-    // Build FONT_PATTERN_DATA and FONT_COLOR_DATA blobs only when NOT in page0/bank4 mode
+    const inlineFontDataInCode = !fontInPage0 && (!fontInBank4 || romMode === 'megarom');
+    // Build FONT_PATTERN_DATA and FONT_COLOR_DATA blobs only when they are emitted in font.asm.
     // (in page0 mode these labels/bytes are emitted by page0Generator.ts)
-    // (in bank4 mode these labels/bytes are emitted in the org #C000 bank4 section)
+    // (in bank4 mode these labels/bytes are usually emitted in the org #C000 bank4 section;
+    //  MegaROM keeps a small duplicate in the font code bank so menu text can reload without
+    //  nested banked-resource VRAM copies while returning from presentation screens.)
     let patternAsm = '';
     let colorAsm = '';
-    if (!fontInPage0 && !fontInBank4) {
+    if (inlineFontDataInCode) {
         let patternAsmBlob = `FONT_PATTERN_DATA:\n`;
         let colorAsmBlob = `FONT_COLOR_DATA:\n`;
         sortedCodes.forEach((code, i) => {
@@ -192,11 +210,13 @@ print_string_screen2:
         colorAsm = colorAsmBlob;
     }
     const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
-    const useResourceManager = romMode === 'megarom';
+    const useInlineFontCodeData = fontInBank4 && romMode === 'megarom';
+    const useResourceManager = romMode === 'megarom' && !useInlineFontCodeData;
     const mapperWindow = (0, mapperWindowUtils_1.getMapperWindowConfig)(romMode, targetFormat);
-    const mapperPushPat = usesMapper ? (0, mapperWindowUtils_1.buildMapperDataPushAsm)('FONT_PATTERN_DATA_BANK', mapperWindow) : '';
-    const mapperPushCol = usesMapper ? (0, mapperWindowUtils_1.buildMapperDataPushAsm)('FONT_COLOR_DATA_BANK', mapperWindow) : '';
-    const mapperPop = usesMapper ? (0, mapperWindowUtils_1.buildMapperDataPopAsm)(mapperWindow) : '';
+    const fontSourceIsBankedData = fontInBank4 && !useInlineFontCodeData;
+    const mapperPushPat = usesMapper && fontSourceIsBankedData ? (0, mapperWindowUtils_1.buildMapperDataPushAsm)('FONT_PATTERN_DATA_BANK', mapperWindow) : '';
+    const mapperPushCol = usesMapper && fontSourceIsBankedData ? (0, mapperWindowUtils_1.buildMapperDataPushAsm)('FONT_COLOR_DATA_BANK', mapperWindow) : '';
+    const mapperPop = usesMapper && fontSourceIsBankedData ? (0, mapperWindowUtils_1.buildMapperDataPopAsm)(mapperWindow) : '';
     const bankedPatternAddress = (0, mapperWindowUtils_1.buildMapperWindowedAddress)('FONT_PATTERN_DATA', mapperWindow);
     const bankedColorAddress = (0, mapperWindowUtils_1.buildMapperWindowedAddress)('FONT_COLOR_DATA', mapperWindow);
     const fontPatternResourceId = (0, megaromResourceArtifacts_1.buildResourceIdLabelFromAsmLabel)('FONT_PATTERN_DATA');
@@ -211,16 +231,28 @@ FONT_COLOR_DATA_BANK   EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)('FONT_C
 FONT_COLOR_DATA_BANK   EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)('FONT_COLOR_DATA', mapperWindow)}
 `;
     const patternSection = fontInPage0 ? '; [FONT_PATTERN_DATA blob emitted in page0.asm]\n'
-        : fontInBank4 ? '; [FONT_PATTERN_DATA blob emitted in bank4 section (org #C000)]\n'
-            : `; ==================================================================
+        : inlineFontDataInCode ? `; ==================================================================
+; FONT PATTERN DATA
+; ==================================================================
+
+${patternAsm}
+`
+            : fontInBank4 ? '; [FONT_PATTERN_DATA blob emitted in bank4 section (org #C000)]\n'
+                : `; ==================================================================
 ; FONT PATTERN DATA
 ; ==================================================================
 
 ${patternAsm}
 `;
     const colorSection = fontInPage0 ? '; [FONT_COLOR_DATA blob emitted in page0.asm]\n'
-        : fontInBank4 ? '; [FONT_COLOR_DATA blob emitted in bank4 section (org #C000)]\n'
-            : `; ==================================================================
+        : inlineFontDataInCode ? `; ==================================================================
+; FONT COLOR ATTRIBUTES
+; ==================================================================
+
+${colorAsm}
+`
+            : fontInBank4 ? '; [FONT_COLOR_DATA blob emitted in bank4 section (org #C000)]\n'
+                : `; ==================================================================
 ; FONT COLOR ATTRIBUTES
 ; ==================================================================
 
@@ -281,7 +313,7 @@ ${useResourceManager ? `    ld a, ${fontPatternResourceId}
     pop iy
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 ` : `${mapperPushPat}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
-    ld iy, ${fontInBank4 ? bankedPatternAddress : 'FONT_PATTERN_DATA'}      ; Pointer to pattern data (window addr for bank4)
+    ld iy, ${fontSourceIsBankedData ? bankedPatternAddress : 'FONT_PATTERN_DATA'}      ; Pointer to pattern data
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 `}
 
@@ -349,7 +381,7 @@ ${useResourceManager ? `    ld a, ${fontColorResourceId}
     pop iy
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 ` : `${mapperPushCol}    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
-    ld iy, ${fontInBank4 ? bankedColorAddress : 'FONT_COLOR_DATA'}        ; Pointer to color data (window addr for bank4)
+    ld iy, ${fontSourceIsBankedData ? bankedColorAddress : 'FONT_COLOR_DATA'}        ; Pointer to color data
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 `}
 
@@ -437,6 +469,11 @@ init_font_system:
     ld (vram_cache_font_ready), a
     ret
 
+reload_font_system:
+    xor a
+    ld (vram_cache_font_ready), a
+    jp init_font_system
+
 ; ==================================================================
 ; END OF FONT DATA
 ; ==================================================================
@@ -450,7 +487,8 @@ function getFontBank4Data(analysis) {
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
     const hasText = analysis.screenMaps?.some(screen => screen.layers?.text || screen.textElements?.length > 0);
     const hasHUD = analysis.screenMaps?.some(screen => screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
-    if (!hasMenus && !hasText && !hasHUD)
+    const hasDialogue = !!analysis.dialogues?.some((dialogue) => Array.isArray(dialogue?.lines) && dialogue.lines.some((line) => String(line?.text || '').length > 0));
+    if (!hasMenus && !hasText && !hasHUD && !hasDialogue)
         return '';
     const { patternBytes, colorBytes, sortedCodes } = getFontRawData(analysis);
     let patternAsmBlob = `FONT_PATTERN_DATA:\n`;

@@ -309,10 +309,12 @@ mapper_set_bank_p3:
 ${mapperWritesEnabled ? `    ld (MAPPER_REG_P3), a` : `    ; write disabled in current ROM mode`}
     ret
 
-mapper_set_bank_p4:
+${targetFormat === 'konami' ? `mapper_set_bank_p4:
+    jp mapper_set_bank_p3
+` : `mapper_set_bank_p4:
     ld (mapper_bank_p4_current), a
 ${mapperWritesEnabled ? `    ld (MAPPER_REG_P4), a` : `    ; write disabled in current ROM mode`}
-    ret
+    ret`}
 
 ; ------------------------------------------------------------------
 ; Helpers for deterministic save/restore around far calls.
@@ -344,14 +346,19 @@ mapper_pop_p3:
     ld a, (mapper_saved_bank_p3)
     jp mapper_set_bank_p3
 
-mapper_push_p4:
+${targetFormat === 'konami' ? `mapper_push_p4:
+    jp mapper_push_p3
+
+mapper_pop_p4:
+    jp mapper_pop_p3
+` : `mapper_push_p4:
     ld a, (mapper_bank_p4_current)
     ld (mapper_saved_bank_p4), a
     ret
 
 mapper_pop_p4:
     ld a, (mapper_saved_bank_p4)
-    jp mapper_set_bank_p4
+    jp mapper_set_bank_p4`}
 
 ; ------------------------------------------------------------------
 ; Far call helpers (dynamic target address in HL)
@@ -403,7 +410,9 @@ mapper_call_hl_p3:
     call mapper_pop_p3
     ret
 
-mapper_call_hl_p4:
+${targetFormat === 'konami' ? `mapper_call_hl_p4:
+    jp mapper_call_hl_p3
+` : `mapper_call_hl_p4:
     push hl
     push af
     call mapper_push_p4
@@ -415,7 +424,7 @@ mapper_call_hl_p4:
     jp (hl)
 .return_p4:
     call mapper_pop_p4
-    ret
+    ret`}
 
 ; ------------------------------------------------------------------
 ${mapperAutoCallSection}

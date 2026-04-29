@@ -26,7 +26,6 @@ function analyzeProject(projectName, assets) {
     }));
     const tracks = [];
     const trackIndexByAssetId = {};
-    let pt3TrackIndex = 0;
     assets
         .filter(a => a.type === 'track')
         .forEach((asset) => {
@@ -38,21 +37,31 @@ function analyzeProject(projectName, assets) {
             return;
         const normalizedTrack = {
             ...rawTrack,
+            assetId: asset.id,
             soundChip,
             id: rawTrack.id || asset.id,
             name: rawTrack.name || asset.name,
         };
         tracks.push(normalizedTrack);
-        // Only external-pt3 tracks appear in music_pt3_track_table (matches collectPT3Tracks filter)
-        if (normalizedTrack.playbackBackend === 'external-pt3') {
-            trackIndexByAssetId[asset.id] = pt3TrackIndex;
-            trackIndexByAssetId[normalizedTrack.id] = pt3TrackIndex;
-            pt3TrackIndex++;
+    });
+    const pt3Tracks = tracks.filter((track) => track.playbackBackend === 'external-pt3');
+    const runtimeTracks = pt3Tracks.length > 0
+        ? pt3Tracks
+        : tracks.filter((track) => track.playbackBackend !== 'external-pt3');
+    runtimeTracks.forEach((track, index) => {
+        const assetId = track.assetId;
+        if (assetId) {
+            trackIndexByAssetId[assetId] = index;
+        }
+        if (track.id) {
+            trackIndexByAssetId[track.id] = index;
         }
     });
     const tiles = assets.filter(a => a.type === 'tile').map(a => a.data);
     const tileBanks = assets.filter(a => a.type === 'tilebank').map(a => a.data);
     const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data);
+    const dialogues = assets.filter(a => a.type === 'dialogue').map(a => a.data);
+    const portraits = assets.filter(a => a.type === 'portrait').map(a => a.data);
     const worldmaps = assets.filter(a => a.type === 'worldmap').map(a => a.data);
     const stateMachines = assets.filter(a => a.type === 'statemachine').map(a => a.data);
     const presentationScreenAsset = assets.find(a => a.type === 'presentationscreen');
@@ -136,6 +145,8 @@ function analyzeProject(projectName, assets) {
         worldmaps, // CRITICAL: Include worldmaps for GameFlow WorldLink nodes
         entities, // CRITICAL: Include entities extracted from screenmaps
         fonts: assets.filter(a => a.type === 'font'), // CRITICAL: Include fonts for fontGenerator
+        dialogues,
+        portraits,
         presentationScreen,
         gameFlow, // CRITICAL: Include GameFlow for MSX ASM generation
         stateMachines, // CRITICAL: Include State Machines

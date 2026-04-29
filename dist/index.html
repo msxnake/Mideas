@@ -33,9 +33,13 @@
 
               // UI specific colors - Now using CSS Variables for dynamic theming
               bgcolor: 'var(--msx-bgcolor)',
+              'bgcolor-dark': 'color-mix(in srgb, var(--msx-bgcolor) 82%, #000000)',
+              'bgcolor-darker': 'color-mix(in srgb, var(--msx-bgcolor) 70%, #000000)',
               panelbg: 'var(--msx-panelbg)',
+              'panelbg-dark': 'color-mix(in srgb, var(--msx-panelbg) 82%, #000000)',
               accent: 'var(--msx-accent)',
               highlight: 'var(--msx-highlight)',
+              primary: 'var(--msx-textprimary)',
               textprimary: 'var(--msx-textprimary)',
               textsecondary: 'var(--msx-textsecondary)',
               border: 'var(--msx-border)',
@@ -91,6 +95,38 @@
       background: var(--msx-highlight); /* Use CSS var */
     }
     .pixel-font { font-family: '"Press Start 2P"', monospace; }
+
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+    select,
+    textarea {
+      background-color: color-mix(in srgb, var(--msx-bgcolor) 82%, #000000);
+      color: var(--msx-textprimary);
+      border-color: var(--msx-border);
+      color-scheme: dark;
+    }
+
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):disabled,
+    select:disabled,
+    textarea:disabled {
+      background-color: color-mix(in srgb, var(--msx-panelbg) 85%, #000000);
+      color: var(--msx-textsecondary);
+      opacity: 1;
+    }
+
+    body.light input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+    body.light select,
+    body.light textarea {
+      background-color: var(--msx-panelbg);
+      color: var(--msx-textprimary);
+      color-scheme: light;
+    }
+
+    body.light input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):disabled,
+    body.light select:disabled,
+    body.light textarea:disabled {
+      background-color: color-mix(in srgb, var(--msx-panelbg) 90%, #000000);
+      color: var(--msx-textsecondary);
+    }
     
     .bg-stripes {
       background-image: linear-gradient(45deg, var(--msx-border) 25%, transparent 25%, transparent 75%, var(--msx-border) 75%, var(--msx-border)), linear-gradient(45deg, var(--msx-border) 25%, transparent 25%, transparent 75%, var(--msx-border) 75%, var(--msx-border));
@@ -108,12 +144,12 @@
     }
   </style>
 
-  <script type="module" crossorigin src="/assets/index-2SA4y57N.js"></script>
+  <script type="module" crossorigin src="/assets/index-BwbG7zS8.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/vendor-react-c5ypKtDW.js">
   <link rel="modulepreload" crossorigin href="/assets/vendor-ui-eCPPcye4.js">
-  <link rel="modulepreload" crossorigin href="/assets/msx-utils-DdyL1fLE.js">
-  <link rel="modulepreload" crossorigin href="/assets/editors-Ctwq-e_C.js">
-  <link rel="modulepreload" crossorigin href="/assets/tools-BnzH1Ei8.js">
+  <link rel="modulepreload" crossorigin href="/assets/msx-utils-BHnROVFD.js">
+  <link rel="modulepreload" crossorigin href="/assets/editors-C-as7R2p.js">
+  <link rel="modulepreload" crossorigin href="/assets/tools-DUJRdzhx.js">
   <link rel="stylesheet" crossorigin href="/assets/index-BZV40eAE.css">
 </head>
 <body class="dark">

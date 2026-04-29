@@ -610,6 +610,24 @@ CONNECTION_END          EQU 255
 gameflow_no_data:
     db #C9                        ; RET instruction - returns immediately
 
+; ------------------------------------------------------------------
+; gameflow_read_confirm_direct
+; Read submenu/text confirm input directly from keyboard matrix.
+; Output: A = 1 when SPACE is pressed, A = 0 otherwise
+; Clobbers: AF
+; Preserves: BC, DE, HL, IX, IY
+; ------------------------------------------------------------------
+gameflow_read_confirm_direct:
+    ld a, 8
+    call FAST_SNSMAT
+    bit 0, a
+    jr z, .grcd_pressed
+    xor a
+    ret
+.grcd_pressed:
+    ld a, 1
+    ret
+
 `;
     // ===================================================================
     // SECTION 5: GAME LOOP (for WorldLink nodes)
@@ -722,6 +740,9 @@ snapshot_world_screen_timer_interrupt_counter:
 
 reset_world_screen_timer:
     push af
+    ld a, (current_screen_engine)
+    or a
+    jr nz, .world_timer_reset_done
     ld a, 60
     ld (${timeRemainingAsmName}), a
     xor a
@@ -730,7 +751,8 @@ reset_world_screen_timer:
     call snapshot_world_screen_timer_interrupt_counter
 ${hasHud ? `    ld a, 1
     ld (hud_dirty_flag), a
-` : ``}    pop af
+` : ``}.world_timer_reset_done:
+    pop af
     ret
 
 update_world_screen_timer:
@@ -738,6 +760,10 @@ update_world_screen_timer:
     push bc
     push de
     push hl
+
+    ld a, (current_screen_engine)
+    or a
+    jr nz, .world_timer_done
 
     ld a, (${timeRemainingAsmName})
     ld b, a
@@ -1632,7 +1658,7 @@ render_submenu_screen:
 .rss_read_count:
     ; Background loaders may overwrite character patterns/colors used for text.
     ; Restore font before printing title/options in submenu.
-    call init_font_system
+    call reload_font_system
 
     ld hl, (gameflow_submenu_data_ptr)
     ld bc, 14                     ; offset to option_count (+11-12 fn, +13 bank)
@@ -1865,7 +1891,7 @@ submenu_prepare_cursor_sprite:
     ld c, a
     ld b, 0                       ; BC = layer_count * 32
     ld de, SPRPAT + (SUBMENU_CURSOR_BASE_SPRITE * 32)
-    call COPY_SPRITE_SRC_TO_VRAM
+    call FAST_LDIRVM
 
 .sps_enable_cursor:
 
@@ -2212,7 +2238,7 @@ show_text_screen:
 .sts_render:
     ; Background loaders may overwrite character patterns/colors used for text.
     ; Restore font before rendering text lines.
-    call init_font_system
+    call reload_font_system
 
     ; Now render each text line
     pop hl                        ; (1) HL = pointer to numLines
@@ -2303,24 +2329,6 @@ ${frameAudioTickAsm}    pop bc
     djnz .delay_loop
 
     pop bc
-    ret
-
-; ------------------------------------------------------------------
-; gameflow_read_confirm_direct
-; Read submenu/text confirm input directly from keyboard matrix.
-; Output: A = 1 when SPACE is pressed, A = 0 otherwise
-; Clobbers: AF
-; Preserves: BC, DE, HL, IX, IY
-; ------------------------------------------------------------------
-gameflow_read_confirm_direct:
-    ld a, 8
-    call FAST_SNSMAT
-    bit 0, a
-    jr z, .grcd_pressed
-    xor a
-    ret
-.grcd_pressed:
-    ld a, 1
     ret
 
 `;

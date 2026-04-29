@@ -205,6 +205,9 @@ interrupt_dispatcher:
     push iy                     ; 15 cycles
     ; Total: 74 cycles fixed prologue overhead
 
+    ld a, 1
+    ld (interrupt_in_progress), a
+
     ; --- STEP 2: Check if system is enabled ---
     ld a, (interrupt_system_enabled)
     or a
@@ -261,6 +264,9 @@ interrupt_dispatcher:
     djnz .task_loop             ; Loop 8 times
 
 .exit:
+    xor a
+    ld (interrupt_in_progress), a
+
     ; --- STEP 5: Restore registers ---
     pop iy                      ; 14 cycles
     pop ix                      ; 14 cycles
@@ -559,6 +565,21 @@ function generateSharedMainlineTaskWrappers() {
     code += `    jr nz, .kbd_no_right\n`;
     code += `    set 3, d\n`;
     code += `.kbd_no_right:\n`;
+    code += `    ; Cancel impossible opposite cursor pairs before mapping to STICK_*\n`;
+    code += `    bit 0, d                    ; Up pressed?\n`;
+    code += `    jr z, .kbd_vertical_ok\n`;
+    code += `    bit 1, d                    ; Down also pressed?\n`;
+    code += `    jr z, .kbd_vertical_ok\n`;
+    code += `    res 0, d\n`;
+    code += `    res 1, d\n`;
+    code += `.kbd_vertical_ok:\n`;
+    code += `    bit 2, d                    ; Left pressed?\n`;
+    code += `    jr z, .kbd_opposites_done\n`;
+    code += `    bit 3, d                    ; Right also pressed?\n`;
+    code += `    jr z, .kbd_opposites_done\n`;
+    code += `    res 2, d\n`;
+    code += `    res 3, d\n`;
+    code += `.kbd_opposites_done:\n`;
     code += `    xor a\n`;
     code += `    bit 0, d\n`;
     code += `    jr z, .kbd_check_down\n`;
@@ -761,6 +782,21 @@ function generateDefaultTasks(analysis) {
     code += `    jr nz, .kbd_no_right\n`;
     code += `    set 3, d\n`;
     code += `.kbd_no_right:\n`;
+    code += `    ; Cancel impossible opposite cursor pairs before mapping to STICK_*\n`;
+    code += `    bit 0, d                    ; Up pressed?\n`;
+    code += `    jr z, .kbd_vertical_ok\n`;
+    code += `    bit 1, d                    ; Down also pressed?\n`;
+    code += `    jr z, .kbd_vertical_ok\n`;
+    code += `    res 0, d\n`;
+    code += `    res 1, d\n`;
+    code += `.kbd_vertical_ok:\n`;
+    code += `    bit 2, d                    ; Left pressed?\n`;
+    code += `    jr z, .kbd_opposites_done\n`;
+    code += `    bit 3, d                    ; Right also pressed?\n`;
+    code += `    jr z, .kbd_opposites_done\n`;
+    code += `    res 2, d\n`;
+    code += `    res 3, d\n`;
+    code += `.kbd_opposites_done:\n`;
     code += `    xor a\n`;
     code += `    bit 0, d\n`;
     code += `    jr z, .kbd_check_down\n`;

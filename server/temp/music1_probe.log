@@ -1,0 +1,15 @@
+boot pc=0000 irq=FFFF active=FF muted=FF loop=FF rowFrames=FF cd=FF order=FF pat=FF row=FF mix=FF notes=FF/FF/FF inst=FF/FF/FF vol=FF/FF/FF vstep=FF/FF/FF
+t01 pc=811D irq=0020 active=00 muted=00 loop=00 rowFrames=00 cd=00 order=00 pat=00 row=00 mix=00 notes=00/00/00 inst=00/00/00 vol=00/04/33 vstep=33/33/38
+t02 pc=1130 irq=0020 active=00 muted=00 loop=00 rowFrames=00 cd=00 order=00 pat=00 row=00 mix=00 notes=00/00/00 inst=00/00/00 vol=00/04/33 vstep=33/33/38
+t03 pc=1130 irq=0020 active=00 muted=00 loop=00 rowFrames=00 cd=00 order=00 pat=00 row=00 mix=00 notes=00/00/00 inst=00/00/00 vol=00/04/33 vstep=33/33/38
+t04 pc=6153 irq=0006 active=01 muted=00 loop=01 rowFrames=07 cd=01 order=00 pat=00 row=01 mix=36 notes=34/FF/FF inst=01/00/00 vol=0F/0F/0F vstep=03/00/00
+t05 pc=6153 irq=0042 active=01 muted=00 loop=01 rowFrames=07 cd=04 order=00 pat=00 row=0A mix=24 notes=33/24/FF inst=01/01/00 vol=0F/0F/0F vstep=02/0F/00
+t06 pc=6153 irq=007E active=01 muted=00 loop=01 rowFrames=07 cd=07 order=00 pat=00 row=13 mix=24 notes=37/24/FF inst=01/01/00 vol=0F/0F/0F vstep=0F/0F/00
+t07 pc=6153 irq=00BA active=01 muted=00 loop=01 rowFrames=07 cd=03 order=00 pat=00 row=1B mix=24 notes=37/24/FF inst=01/01/00 vol=0F/0F/0F vstep=0F/0F/00
+t08 pc=6153 irq=00F6 active=01 muted=00 loop=01 rowFrames=07 cd=06 order=00 pat=00 row=04 mix=24 notes=32/24/FF inst=01/01/00 vol=0F/0F/0F vstep=05/05/00
+t09 pc=6153 irq=0132 active=01 muted=00 loop=01 rowFrames=07 cd=02 order=00 pat=00 row=0C mix=24 notes=35/24/FF inst=01/01/00 vol=0F/0F/0F vstep=03/0F/00
+t10 pc=6153 irq=016E active=01 muted=00 loop=01 rowFrames=07 cd=05 order=00 pat=00 row=15 mix=24 notes=37/24/FF inst=01/01/00 vol=0F/0F/0F vstep=0F/0F/00
+t12 pc=544A irq=01E6 active=01 muted=00 loop=01 rowFrames=07 cd=05 order=00 pat=00 row=06 mix=36 notes=32/24/FF inst=01/01/00 vol=0F/0F/0F vstep=0E/0E/00
+t15 pc=6153 irq=0299 active=01 muted=00 loop=01 rowFrames=07 cd=07 order=00 pat=00 row=00 mix=24 notes=37/24/FF inst=01/01/00 vol=0F/0F/0F vstep=0F/0F/00
+t18 pc=6153 irq=034D active=01 muted=00 loop=01 rowFrames=07 cd=02 order=00 pat=00 row=19 mix=24 notes=37/24/FF inst=01/01/00 vol=0F/0F/0F vstep=0F/0F/00
+final pc=6153 irq=03C5 active=01 muted=00 loop=01 rowFrames=07 cd=01 order=00 pat=00 row=0A mix=24 notes=33/24/FF inst=01/01/00 vol=0F/0F/0F vstep=03/0F/00

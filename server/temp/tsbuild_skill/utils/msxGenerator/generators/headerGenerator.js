@@ -40,6 +40,12 @@ function generateTaskRegistration(analysis, executionPlan) {
  * @returns ASM code string with ROM header and initialization
  */
 function generateHeaderFile(projectName, analysis, executionPlan, romMode = 'simple32k') {
+    const hasAudioTick = !!((analysis?.tracks && analysis.tracks.length > 0) ||
+        (analysis?.stateMachines && analysis.stateMachines.length > 0));
+    const hasInterruptAudioTask = !!executionPlan?.tasks.some((task) => task.responsibility === 'audio');
+    const mainLoopAudioTickAsm = hasAudioTick && !hasInterruptAudioTask
+        ? `    call task_audio_tick\n`
+        : '';
     // Generate GameFlow comment for documentation
     let gameFlowComment = '';
     if (analysis?.gameFlow) {
@@ -73,8 +79,9 @@ ${romMode === 'megarom'
 `
         : '';
     const initialPageSetupAsm = romMode === 'megarom'
-        ? `    ; MegaROM cold boot: do not run the linear 32K SETPAGES32K slot remapper.
-    ; The mapper registers below define the visible 8KB banks explicitly.
+        ? `    ; MegaROM cold boot: page 2 (#8000-#BFFF) must be mapped to the
+    ; cartridge slot before writes to Konami registers at #8000/#A000 can work.
+    call SETPAGES32K
     jp restart_rom_continue`
         : `    ; Cold boot path: ensure cartridge page 2 (8000h-BFFFh) is mapped to the cartridge slot.
     ; Required for both simple32k and plain48k: the BIOS only maps page 1 when it finds "AB",
@@ -211,6 +218,7 @@ ${presentationBootAsm}    call init_entities
 
 main_loop:
     halt
+${mainLoopAudioTickAsm}    ; Update gameplay state
     call update_all_entities
     jp main_loop
 

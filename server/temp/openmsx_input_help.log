@@ -1,0 +1,14 @@
+keymatrixdown OK keymatrixdown <row> <bitmask>  press a key in the keyboard matrix
+
+keymatrixup OK keymatrixup <row> <bitmask>  release a key in the keyboard matrix
+
+press ERR Unknown command: press
+type OK The type command is currently implemented by type_via_keyboard. (This can
+be changed with the default_type_proc setting.) Here is the help of that
+command:
+Type a string in the emulated MSX.
+Use -release to make sure the keys are always released before typing new ones (necessary for some game input routines, but in general, this means typing is twice as slow).
+Use -freq to tweak how fast typing goes and how long the keys will be pressed (and released in case -release was used). Keys will be typed at the given frequency and will remain pressed/released for 1/freq seconds
+Use -cancel to cancel a (long) in-progress type command.
+keydown ERR Unknown command: keydown
+keyup ERR Unknown command: keyup

@@ -932,6 +932,8 @@ update_entities:
             let wallGrabConfig = {
                 enabled: 0,
                 fallSpeed: 0,
+                climbSpeed: 1,
+                durationFrames: 240,
                 grabSprite: 0xFF,
             };
             const wallGrabTemplateComp = template?.components?.find((c) => c.definitionId === 'comp_wall_grab');
@@ -948,6 +950,8 @@ update_entities:
                     wallGrabConfig = {
                         enabled: 1,
                         fallSpeed: parseByte(wallGrabValues.grabFallSpeed, 0),
+                        climbSpeed: parseByte(wallGrabValues.climbSpeed, 1),
+                        durationFrames: parseByte(wallGrabValues.grabDurationFrames, 240),
                         grabSprite: resolveSpriteAssetIndex(wallGrabValues.grabSpriteAssetId, spriteNameToIndex, spriteCount),
                     };
                 }
@@ -1263,6 +1267,10 @@ entity_wallgrab_cfg_enabled:
     DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.enabled ?? 0).join(', ')}
 entity_wallgrab_cfg_fall_speed:
     DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.fallSpeed ?? 0).join(', ')}
+entity_wallgrab_cfg_climb_speed:
+    DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.climbSpeed ?? 1).join(', ')}
+entity_wallgrab_cfg_duration_frames:
+    DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.durationFrames ?? 240).join(', ')}
 entity_wallgrab_cfg_grab_sprite:
     DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.grabSprite ?? 0xFF).join(', ')}
 entity_aircontrol_cfg_mode:

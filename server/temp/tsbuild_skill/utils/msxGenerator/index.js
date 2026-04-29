@@ -195,8 +195,9 @@ function generateModularASM(projectName, assets, config = {}) {
     // For plain48k ROMs, move font data to page 0 to free space in the main ROM window
     const hasMenus = analysis.gameFlow?.nodes?.some((node) => node.type === 'SubMenu');
     const hasText = analysis.screenMaps?.some((screen) => screen.layers?.text || screen.textElements?.length > 0);
+    const hasDialogue = analysis.dialogues?.some((dialogue) => Array.isArray(dialogue?.lines) && dialogue.lines.some((line) => String(line?.text || '').length > 0));
     const hasHudElements = analysis.screenMaps?.some((screen) => screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
-    const needsFont = !!(hasMenus || hasText || hasHudElements);
+    const needsFont = !!(hasMenus || hasText || hasHudElements || hasDialogue);
     const fontInPage0 = romMode === 'plain48k' && needsFont;
     const fontInBank4 = romMode === 'megarom' && needsFont;
     const fontRawData = fontInPage0 ? (0, fontGenerator_1.getFontRawData)(analysis) : undefined;
@@ -204,7 +205,7 @@ function generateModularASM(projectName, assets, config = {}) {
         'page0.asm': (0, page0Generator_1.generatePage0File)(analysis, romMode, fontRawData),
         'bios.asm': (0, biosGenerator_1.generateBIOSFile)({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
         'constants.asm': (0, constantsGenerator_1.generateConstantsFile)(analysis),
-        'variables.asm': (0, variablesGenerator_1.generateVariablesFile)(analysis),
+        'variables.asm': (0, variablesGenerator_1.generateVariablesFile)(analysis, romMode),
         'mapper.asm': (0, mapperGenerator_1.generateMapperFile)({ targetFormat, romMode, autoMegaROM }),
         'resource_ids.asm': '; Resource ids are emitted by the unified MegaROM backend when available.\nRESOURCE_ID_INVALID EQU #FF\n',
         'resource_table.asm': '; Resource table is emitted by the unified MegaROM backend when available.\nRESOURCE_TABLE_ENTRY_SIZE EQU 8\nRESOURCE_TABLE_COUNT EQU 0\nresource_table:\n',
@@ -283,8 +284,9 @@ function generateModularASMFromSummary(summary, config = {}) {
     // For plain48k ROMs, move font data to page 0 to free space in the main ROM window
     const hasMenus2 = analysis.gameFlow?.nodes?.some((node) => node.type === 'SubMenu');
     const hasText2 = analysis.screenMaps?.some((screen) => screen.layers?.text || screen.textElements?.length > 0);
+    const hasDialogue2 = analysis.dialogues?.some((dialogue) => Array.isArray(dialogue?.lines) && dialogue.lines.some((line) => String(line?.text || '').length > 0));
     const hasHudElements2 = analysis.screenMaps?.some((screen) => screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
-    const needsFont2 = !!(hasMenus2 || hasText2 || hasHudElements2);
+    const needsFont2 = !!(hasMenus2 || hasText2 || hasHudElements2 || hasDialogue2);
     const fontInPage02 = romMode === 'plain48k' && needsFont2;
     const fontInBank42 = romMode === 'megarom' && needsFont2;
     const fontRawData2 = fontInPage02 ? (0, fontGenerator_1.getFontRawData)(analysis) : undefined;
@@ -293,7 +295,7 @@ function generateModularASMFromSummary(summary, config = {}) {
         'page0.asm': (0, page0Generator_1.generatePage0File)(analysis, romMode, fontRawData2),
         'bios.asm': (0, biosGenerator_1.generateBIOSFile)({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
         'constants.asm': (0, constantsGenerator_1.generateConstantsFile)(analysis),
-        'variables.asm': (0, variablesGenerator_1.generateVariablesFile)(analysis),
+        'variables.asm': (0, variablesGenerator_1.generateVariablesFile)(analysis, romMode),
         'mapper.asm': (0, mapperGenerator_1.generateMapperFile)({ targetFormat, romMode, autoMegaROM }),
         'resource_ids.asm': '; Resource ids are emitted by the unified MegaROM backend when available.\nRESOURCE_ID_INVALID EQU #FF\n',
         'resource_table.asm': '; Resource table is emitted by the unified MegaROM backend when available.\nRESOURCE_TABLE_ENTRY_SIZE EQU 8\nRESOURCE_TABLE_COUNT EQU 0\nresource_table:\n',

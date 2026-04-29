@@ -42,7 +42,8 @@ const STANDARD_COMPONENT_IDS = {
     'comp_tile_collector': 'TileInteraction',
     'comp_patrol': 'Patrol',
     'comp_shoot': 'Shoot',
-    'comp_retractable_gate': 'RetractableGate'
+    'comp_retractable_gate': 'RetractableGate',
+    'comp_auto_control_script': 'AutoControlScript'
 };
 /**
  * Resolve final spriteId for an entity (defaults + overrides)

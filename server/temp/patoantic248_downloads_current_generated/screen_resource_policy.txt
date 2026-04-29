@@ -1,0 +1,117 @@
+SCREEN RESOURCE POLICY
+Logical view of resources consumed by screen/world loading paths.
+
+COMMON RESOURCES
+- patterns: RESOURCE_ID_TILE_PATTERN_BANK0 -> load_pattern_bank0/load_pattern_bank1/load_pattern_bank2
+- colors: RESOURCE_ID_TILE_COLOR_BANK0 -> load_color_bank0/load_color_bank1/load_color_bank2
+- font patterns: RESOURCE_ID_FONT_PATTERN_DATA
+- font colors: RESOURCE_ID_FONT_COLOR_DATA
+- presentation nametable: RESOURCE_ID_PRESENTATION_SCREEN_NAMETBL
+- presentation patterns: RESOURCE_ID_PRESENTATION_SCREEN_PATTERNS_B0, RESOURCE_ID_PRESENTATION_SCREEN_PATTERNS_B1, RESOURCE_ID_PRESENTATION_SCREEN_PATTERNS_B2
+- presentation colors: RESOURCE_ID_PRESENTATION_SCREEN_COLORS_B0, RESOURCE_ID_PRESENTATION_SCREEN_COLORS_B1, RESOURCE_ID_PRESENTATION_SCREEN_COLORS_B2
+- tilebank loaders:
+  tilebank_1770753778086: load_tilebank_tilebank_1770753778086_patterns_to_vram / load_tilebank_tilebank_1770753778086_colors_to_vram
+
+SCREEN 00 pan1 (screenmap_1770754008863)
+- worlds: worldmap_1770754170935
+- tile_bank: tilebank_1770753778086
+- sprite_pattern_slots: 49
+- music_in_game: 1
+- layout: RESOURCE_ID_SCREEN_PAN1_0_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN1_0_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN1_0_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN1_0_DATA
+
+SCREEN 01 pan2 (screenmap_1771184738851)
+- worlds: worldmap_1770754170935
+- tile_bank: tilebank_1770753778086
+- sprite_pattern_slots: 1
+- music_in_game: 1
+- layout: RESOURCE_ID_SCREEN_PAN2_1_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN2_1_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN2_1_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN2_1_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN2_1_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN2_1_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN2_1_DATA
+
+SCREEN 02 background1 (screenmap_1771482721894)
+- worlds: none
+- tile_bank: tilebank_1770753778086
+- sprite_pattern_slots: 1
+- music_in_game: 1
+- layout: RESOURCE_ID_SCREEN_BACKGROUND1_2_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_BACKGROUND1_2_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_BACKGROUND1_2_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_BACKGROUND1_2_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_BACKGROUND1_2_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_BACKGROUND1_2_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_BACKGROUND1_2_DATA
+
+SCREEN 03 pan3 (screenmap_1771880109228)
+- worlds: worldmap_1770754170935
+- tile_bank: tilebank_1770753778086
+- sprite_pattern_slots: 11
+- music_in_game: 1
+- layout: RESOURCE_ID_SCREEN_PAN3_3_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN3_3_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN3_3_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN3_3_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN3_3_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN3_3_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN3_3_DATA
+
+SCREEN 04 pan4 (screenmap_1772291683578)
+- worlds: worldmap_1770754170935
+- tile_bank: tilebank_1770753778086
+- sprite_pattern_slots: 1
+- music_in_game: 1
+- layout: RESOURCE_ID_SCREEN_PAN4_4_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN4_4_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN4_4_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN4_4_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN4_4_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN4_4_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN4_4_DATA
+
+SCREEN 05 pan5 (screenmap_1773321312901)
+- worlds: worldmap_1770754170935
+- tile_bank: tilebank_1770753778086
+- sprite_pattern_slots: 1
+- music_in_game: 1
+- layout: RESOURCE_ID_SCREEN_PAN5_5_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN5_5_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN5_5_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN5_5_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN5_5_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN5_5_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN5_5_DATA
+
+SCREEN 06 pan6 (screenmap_1773382451315)
+- worlds: worldmap_1770754170935
+- tile_bank: tilebank_1770753778086
+- sprite_pattern_slots: 1
+- music_in_game: 1
+- layout: RESOURCE_ID_SCREEN_PAN6_6_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN6_6_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN6_6_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN6_6_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN6_6_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN6_6_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN6_6_DATA
+
+SCREEN 07 pan1_2 (screenmap_1774194791624)
+- worlds: worldmap_1774194757416
+- tile_bank: tilebank_1770753778086
+- sprite_pattern_slots: 45
+- music_in_game: 1
+- layout: RESOURCE_ID_SCREEN_PAN1_2_7_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN1_2_7_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN1_2_7_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN1_2_7_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN1_2_7_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN1_2_7_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN1_2_7_DATA

@@ -37,6 +37,10 @@ const analyzeDrawableLayerIndexes = (sprite) => {
         for (const frame of frames) {
             if (!frame?.data)
                 continue;
+            if (frame?.msx1LayerData?.[layerIdx]?.some((row) => row.some(Boolean))) {
+                hasPixels = true;
+                break;
+            }
             for (let y = 0; y < (frame.data.length || 0) && !hasPixels; y++) {
                 for (let x = 0; x < (frame.data[y]?.length || 0) && !hasPixels; x++) {
                     if (frame.data[y][x] === layerColor) {
@@ -56,6 +60,18 @@ const analyzeDrawableLayerIndexes = (sprite) => {
 const findFirstDrawableLayerIndex = (sprite) => {
     const usedLayers = analyzeDrawableLayerIndexes(sprite);
     return usedLayers.length > 0 ? usedLayers[0] : -1;
+};
+const clampLayerYOffset = (value) => {
+    const numeric = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(numeric))
+        return 0;
+    return Math.max(-16, Math.min(16, Math.trunc(numeric)));
+};
+const getSpritePaletteLayerYOffset = (sprite, paletteLayerIndex) => {
+    const typedOffsets = sprite?.msx1LayerOffsets;
+    const legacyOffsets = sprite?.attributes?.msx1LayerOffsets;
+    const layerConfig = typedOffsets?.[paletteLayerIndex] ?? legacyOffsets?.[paletteLayerIndex];
+    return clampLayerYOffset(layerConfig?.offsetY);
 };
 function buildSpritePatternDataSection(sprites) {
     let code = `; ==================================================================
@@ -143,7 +159,7 @@ const resolveEntitySpriteAssetId = (entity, analysis) => {
     const componentDefinitions = analysis.components || [];
     if (entity?.componentOverrides) {
         for (const compId of Object.keys(entity.componentOverrides)) {
-            if (compId === 'comp_wall_jump' || compId === 'comp_wall_grab')
+            if (compId === 'comp_wall_jump' || compId === 'comp_wall_grab' || compId === 'comp_auto_control_script')
                 continue;
             const compDef = componentDefinitions.find((c) => c.id === compId);
             const propName = findComponentPropertyName(compDef, (prop) => prop.type === 'sprite_ref');
@@ -153,7 +169,7 @@ const resolveEntitySpriteAssetId = (entity, analysis) => {
         }
     }
     for (const comp of template?.components || []) {
-        if (comp.definitionId === 'comp_wall_jump' || comp.definitionId === 'comp_wall_grab')
+        if (comp.definitionId === 'comp_wall_jump' || comp.definitionId === 'comp_wall_grab' || comp.definitionId === 'comp_auto_control_script')
             continue;
         const compDef = componentDefinitions.find((c) => c.id === comp.definitionId);
         const propName = findComponentPropertyName(compDef, (prop) => prop.type === 'sprite_ref');
@@ -166,7 +182,7 @@ const resolveEntitySpriteAssetId = (entity, analysis) => {
 const resolveTemplateSpriteAssetId = (template, analysis) => {
     const componentDefinitions = analysis.components || [];
     for (const comp of template?.components || []) {
-        if (comp.definitionId === 'comp_wall_jump' || comp.definitionId === 'comp_wall_grab')
+        if (comp.definitionId === 'comp_wall_jump' || comp.definitionId === 'comp_wall_grab' || comp.definitionId === 'comp_auto_control_script')
             continue;
         const compDef = componentDefinitions.find((c) => c.id === comp.definitionId);
         const propName = findComponentPropertyName(compDef, (prop) => prop.type === 'sprite_ref');
@@ -183,6 +199,10 @@ const getWallJumpAnimationSpriteRef = (values) => {
 const getWallGrabSpriteRef = (values) => {
     const ref = values?.grabSpriteAssetId ?? values?.wallGrabSprite ?? values?.grabSprite;
     return typeof ref === 'string' && ref.trim() ? ref : undefined;
+};
+const getAutoControlSpriteRefs = (values) => {
+    return [values?.idleSpriteAssetId, values?.walkSpriteAssetId]
+        .filter((ref) => typeof ref === 'string' && ref.trim().length > 0);
 };
 const resolveTemplateWallJumpAnimationSpriteAssetId = (template) => {
     const comp = template?.components?.find((candidate) => candidate.definitionId === 'comp_wall_jump');
@@ -203,6 +223,16 @@ const resolveEntityWallGrabSpriteAssetId = (entity, analysis) => {
     const templateRef = resolveTemplateWallGrabSpriteAssetId(template);
     const overrideRef = getWallGrabSpriteRef(entity?.componentOverrides?.['comp_wall_grab']);
     return overrideRef ?? templateRef;
+};
+const resolveTemplateAutoControlSpriteAssetIds = (template) => {
+    const comp = template?.components?.find((candidate) => candidate.definitionId === 'comp_auto_control_script');
+    return getAutoControlSpriteRefs(comp?.defaultValues);
+};
+const resolveEntityAutoControlSpriteAssetIds = (entity, analysis) => {
+    const template = analysis.templates?.find((t) => t.id === entity.entityTemplateId);
+    const templateValues = template?.components?.find((candidate) => candidate.definitionId === 'comp_auto_control_script')?.defaultValues || {};
+    const overrideValues = entity?.componentOverrides?.['comp_auto_control_script'] || {};
+    return getAutoControlSpriteRefs({ ...templateValues, ...overrideValues });
 };
 const resolveEntityStateMachineAssetId = (entity, analysis) => {
     const template = analysis.templates?.find((t) => t.id === entity.entityTemplateId);
@@ -304,12 +334,14 @@ const createRuntimeSpritePatternPackBuilder = (analysis) => {
             addSpriteReference(resolveTemplateSpriteAssetId(template, analysis));
             addSpriteReference(resolveTemplateWallJumpAnimationSpriteAssetId(template));
             addSpriteReference(resolveTemplateWallGrabSpriteAssetId(template));
+            resolveTemplateAutoControlSpriteAssetIds(template).forEach(addSpriteReference);
             processStateMachine(resolveTemplateStateMachineAssetId(template, analysis));
         };
         for (const entity of entities) {
             addSpriteReference(resolveEntitySpriteAssetId(entity, analysis));
             addSpriteReference(resolveEntityWallJumpAnimationSpriteAssetId(entity, analysis));
             addSpriteReference(resolveEntityWallGrabSpriteAssetId(entity, analysis));
+            resolveEntityAutoControlSpriteAssetIds(entity, analysis).forEach(addSpriteReference);
             processStateMachine(resolveEntityStateMachineAssetId(entity, analysis));
             queueTemplate(entity?.entityTemplateId);
         }
@@ -532,6 +564,14 @@ function generateSpritesFile(analysis, romMode = 'simple32k', dataInBank4 = fals
         });
         return colors.length > 0 ? colors : [15];
     };
+    const getSpriteLayerYOffsets = (sprite) => {
+        if (!sprite)
+            return [0];
+        const usedLayerIndexes = analyzeDrawableLayerIndexes(sprite);
+        if (usedLayerIndexes.length === 0)
+            return [0];
+        return usedLayerIndexes.map((layerIdx) => getSpritePaletteLayerYOffset(sprite, layerIdx));
+    };
     const emitDirectionTable = (label, values) => {
         let table = `${label}:\n`;
         if (values.length === 0) {
@@ -594,7 +634,8 @@ function generateSpritesFile(analysis, romMode = 'simple32k', dataInBank4 = fals
                 return {
                     spriteAssetIndex: 0,
                     spriteName: sprites[0].name,
-                    colors: getSpriteLayerColors(sprites[0])
+                    colors: getSpriteLayerColors(sprites[0]),
+                    yOffsets: getSpriteLayerYOffsets(sprites[0])
                 };
             }
             return null;
@@ -635,6 +676,8 @@ function generateSpritesFile(analysis, romMode = 'simple32k', dataInBank4 = fals
             addRuntimeSpriteRef(resolveTemplateWallGrabSpriteAssetId(template));
             addRuntimeSpriteRef(resolveEntityWallJumpAnimationSpriteAssetId(entity, analysis));
             addRuntimeSpriteRef(resolveEntityWallGrabSpriteAssetId(entity, analysis));
+            resolveTemplateAutoControlSpriteAssetIds(template).forEach(addRuntimeSpriteRef);
+            resolveEntityAutoControlSpriteAssetIds(entity, analysis).forEach(addRuntimeSpriteRef);
             addStateMachineSprites(resolveTemplateStateMachineAssetId(template, analysis));
             addStateMachineSprites(resolveEntityStateMachineAssetId(entity, analysis));
             const pendingDirectional = Array.from(runtimeSpriteIndexes);
@@ -654,14 +697,19 @@ function generateSpritesFile(analysis, romMode = 'simple32k', dataInBank4 = fals
                 }
             }
             const baseColors = getSpriteLayerColors(sprites[foundIndex]);
+            const baseYOffsets = getSpriteLayerYOffsets(sprites[foundIndex]);
             const maxRuntimeLayers = Math.max(baseColors.length, ...Array.from(runtimeSpriteIndexes).map((spriteIndex) => getSpriteLayerColors(sprites[spriteIndex]).length));
             const paddedBaseColors = [...baseColors];
             while (paddedBaseColors.length < maxRuntimeLayers)
                 paddedBaseColors.push(0);
+            const paddedBaseYOffsets = [...baseYOffsets];
+            while (paddedBaseYOffsets.length < maxRuntimeLayers)
+                paddedBaseYOffsets.push(0);
             return {
                 spriteAssetIndex: foundIndex,
                 spriteName: sprites[foundIndex].name,
-                colors: paddedBaseColors
+                colors: paddedBaseColors,
+                yOffsets: paddedBaseYOffsets
             };
         }
         // Sprite ID specified but not found in assets
@@ -669,7 +717,8 @@ function generateSpritesFile(analysis, romMode = 'simple32k', dataInBank4 = fals
         return {
             spriteAssetIndex: -1,
             spriteName: `MISSING_${spriteAssetId}`,
-            colors: [15] // White placeholder
+            colors: [15], // White placeholder
+            yOffsets: [0]
         };
     };
     const entityAllocations = [];
@@ -684,7 +733,8 @@ function generateSpritesFile(analysis, romMode = 'simple32k', dataInBank4 = fals
                 spriteAssetIndex: -1,
                 baseHwSpriteIndex: currentHwSpriteIndex,
                 layerCount: 1,
-                colors: [15] // White placeholder
+                colors: [15], // White placeholder
+                yOffsets: [0]
             });
             currentHwSpriteIndex += 1;
             return;
@@ -695,7 +745,8 @@ function generateSpritesFile(analysis, romMode = 'simple32k', dataInBank4 = fals
             spriteAssetIndex: spriteInfo.spriteAssetIndex,
             baseHwSpriteIndex: currentHwSpriteIndex,
             layerCount: spriteInfo.colors.length,
-            colors: spriteInfo.colors
+            colors: spriteInfo.colors,
+            yOffsets: spriteInfo.yOffsets
         });
         currentHwSpriteIndex += spriteInfo.colors.length;
     });
@@ -760,6 +811,7 @@ SPRITE_0_PATTERN EQU SPRITE_PLACEHOLDER_PATTERN
 SPRITE_0_PATTERN_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)('SPRITE_0_PATTERN', mapperWindow)}\n`;
     }
     // Sprite animation metadata tables
+    const mapperRamTableSuffix = usesMapper ? '_init' : '';
     code += `
 ; ==================================================================
 ; SPRITE ANIMATION METADATA TABLES
@@ -767,7 +819,7 @@ SPRITE_0_PATTERN_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)('SPRITE_
 
 ; Table: Sprite Asset Frame Counts
 ; Format: db frame_count
-sprite_asset_frame_count:
+sprite_asset_frame_count${mapperRamTableSuffix}:
 `;
     sprites.forEach((sprite, index) => {
         const frames = sprite.frames?.length || 1;
@@ -779,7 +831,7 @@ sprite_asset_frame_count:
     code += `
 ; Table: Sprite Asset Drawable Layer Counts
 ; Format: db compact drawable layer count (minimum 1)
-sprite_asset_layer_count:
+sprite_asset_layer_count${mapperRamTableSuffix}:
 `;
     sprites.forEach((sprite, index) => {
         const layerCount = Math.max(1, analyzeDrawableLayerIndexes(sprite).length);
@@ -793,7 +845,7 @@ sprite_asset_layer_count:
     code += `
 ; Table: Sprite Asset Loop Flags
 ; Format: db flags (bit 1: 1=loop, 0=once)
-sprite_loop_flags:
+sprite_loop_flags${mapperRamTableSuffix}:
 `;
     sprites.forEach((sprite, index) => {
         // Default to looping if loops property is undefined, as per Mideas defaults
@@ -847,13 +899,14 @@ SPRITE_0_FRAME_PTRS:
 ; If no directional variant exists, table points back to same index.
 ; ==================================================================
 `;
-    code += emitDirectionTable('sprite_dir_left_table', directionalLookupTables.left);
+    const directionTableSuffix = usesMapper ? '_init' : '';
+    code += emitDirectionTable(`sprite_dir_left_table${directionTableSuffix}`, directionalLookupTables.left);
     code += '\n';
-    code += emitDirectionTable('sprite_dir_right_table', directionalLookupTables.right);
+    code += emitDirectionTable(`sprite_dir_right_table${directionTableSuffix}`, directionalLookupTables.right);
     code += '\n';
-    code += emitDirectionTable('sprite_dir_up_table', directionalLookupTables.up);
+    code += emitDirectionTable(`sprite_dir_up_table${directionTableSuffix}`, directionalLookupTables.up);
     code += '\n';
-    code += emitDirectionTable('sprite_dir_down_table', directionalLookupTables.down);
+    code += emitDirectionTable(`sprite_dir_down_table${directionTableSuffix}`, directionalLookupTables.down);
     code += '\n';
     code += ` 
 ; ================================================================== 
@@ -862,7 +915,7 @@ SPRITE_0_FRAME_PTRS:
 
 ; Table: Entity Sprite Configuration 
 ; Format: db base_hw_sprite_index, layer_count 
-entity_sprite_config: 
+entity_sprite_config${mapperRamTableSuffix}:
 `;
     entityAllocations.forEach(alloc => {
         const baseIndex = alloc.baseHwSpriteIndex >= 0 ? alloc.baseHwSpriteIndex : 0;
@@ -908,6 +961,25 @@ sprite_layer_colors_init:
     if (remainingColors > 0) {
         code += `    ds ${remainingColors}, 0 ; Padding\n`;
     }
+    code += `
+; Table: Hardware Sprite Layer Y Offsets (ROM initial values - copied to RAM at init)
+; Format: db signed_offset_y
+sprite_layer_y_offsets_init:
+`;
+    let yOffsetsWritten = 0;
+    entityAllocations.forEach(alloc => {
+        if (alloc.layerCount > 0) {
+            code += `    ; Entity ${alloc.entityIndex} (${alloc.spriteName}) layers:\n`;
+            alloc.yOffsets.forEach((offsetY, i) => {
+                code += `    db ${clampLayerYOffset(offsetY)} ; Layer ${i}\n`;
+                yOffsetsWritten += 1;
+            });
+        }
+    });
+    const remainingYOffsets = totalHardwareSprites - yOffsetsWritten;
+    if (remainingYOffsets > 0) {
+        code += `    ds ${remainingYOffsets}, 0 ; Padding\n`;
+    }
     // SM_SpriteLayerColorTable: per-sprite color table for Action_ChangeSprite
     // Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite, in the same layer order
     // as the sprite pattern blob (usedLayerIndexes order, padded with 0 for empty slots)
@@ -915,7 +987,7 @@ sprite_layer_colors_init:
 ; Table: SM Sprite Layer Colors (for Action_ChangeSprite runtime color update)
 ; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
 ; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = color for HW sprite slot j of sprite i
-SM_SpriteLayerColorTable:
+SM_SpriteLayerColorTable${mapperRamTableSuffix}:
 `;
     sprites.forEach((sprite, index) => {
         const colors = getSpriteLayerColors(sprite);
@@ -929,14 +1001,82 @@ SM_SpriteLayerColorTable:
         code += `    db ${zeros.join(', ')} ; Placeholder\n`;
     }
     code += `
+; Table: SM Sprite Layer Y Offsets (for Action_ChangeSprite runtime layer alignment)
+; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
+; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = signed Y offset for HW sprite slot j of sprite i
+SM_SpriteLayerYOffsetTable${mapperRamTableSuffix}:
+`;
+    sprites.forEach((sprite, index) => {
+        const offsets = getSpriteLayerYOffsets(sprite);
+        const paddedOffsets = [...offsets];
+        while (paddedOffsets.length < maxEntityLayers)
+            paddedOffsets.push(0);
+        code += `    db ${paddedOffsets.map(clampLayerYOffset).join(', ')} ; Sprite ${index}: ${sprite.name}\n`;
+    });
+    if (sprites.length === 0) {
+        const zeros = Array(maxEntityLayers).fill(0);
+        code += `    db ${zeros.join(', ')} ; Placeholder\n`;
+    }
+    code += `
 ; ==================================================================
 ; SPRITE INITIALIZATION FUNCTIONS
 ; ==================================================================
 
 init_sprites:
+${usesMapper ? `    ; Copy ROM sprite metadata tables into RAM so gameplay code can read them
+    ; without depending on which MegaROM bank is currently mapped.
+    ld hl, entity_sprite_config_init
+    ld de, entity_sprite_config
+    ld bc, 64
+    ldir
+    ld hl, sprite_asset_frame_count_init
+    ld de, sprite_asset_frame_count
+    ld bc, ${Math.max(1, sprites.length)}
+    ldir
+    ld hl, sprite_asset_layer_count_init
+    ld de, sprite_asset_layer_count
+    ld bc, ${Math.max(1, sprites.length)}
+    ldir
+    ld hl, sprite_loop_flags_init
+    ld de, sprite_loop_flags
+    ld bc, ${Math.max(1, sprites.length)}
+    ldir
+    ld hl, sprite_dir_left_table_init
+    ld de, sprite_dir_left_table
+    ld bc, ${Math.max(1, sprites.length)}
+    ldir
+    ld hl, sprite_dir_right_table_init
+    ld de, sprite_dir_right_table
+    ld bc, ${Math.max(1, sprites.length)}
+    ldir
+    ld hl, sprite_dir_up_table_init
+    ld de, sprite_dir_up_table
+    ld bc, ${Math.max(1, sprites.length)}
+    ldir
+    ld hl, sprite_dir_down_table_init
+    ld de, sprite_dir_down_table
+    ld bc, ${Math.max(1, sprites.length)}
+    ldir
+    ld hl, SM_SpriteLayerColorTable_init
+    ld de, SM_SpriteLayerColorTable
+    ld bc, ${Math.max(1, sprites.length) * maxEntityLayers}
+    ldir
+    ld hl, SM_SpriteLayerYOffsetTable_init
+    ld de, SM_SpriteLayerYOffsetTable
+    ld bc, ${Math.max(1, sprites.length) * maxEntityLayers}
+    ldir
+` : ``}    ld hl, entity_sprite_asset_index_init
+    ld de, entity_sprite_asset_index
+    ld bc, 32
+    ldir
     ; Copy sprite_layer_colors_init (ROM) -> sprite_layer_colors (RAM)
     ld hl, sprite_layer_colors_init
     ld de, sprite_layer_colors
+    ld bc, 32
+    ldir
+    ; Copy sprite_layer_y_offsets_init (ROM) -> sprite_layer_y_offsets (RAM)
+    ld hl, sprite_layer_y_offsets_init
+    ld de, sprite_layer_y_offsets
     ld bc, 32
     ldir
     call clear_all_sprites
@@ -1014,7 +1154,18 @@ ${usesMapper && !useResourceManager ? `    call mapper_push_${mapperWindow.dataW
                 const drawableLayerIndexes = analyzeDrawableLayerIndexes(sprite);
                 for (let frameIndex = 0; frameIndex < usage.frameCount; frameIndex++) {
                     const frameBaseSlot = basePatternSlot + (frameIndex * usage.layerCount);
-                    if (useResourceManager && drawableLayerIndexes.length > 0) {
+                    if (drawableLayerIndexes.length === 0 || firstDrawableLayerIndex < 0) {
+                        code += `    ; Sprite Asset ${spriteIndex}: ${sprite.name} frame ${frameIndex} has no drawable layers - use placeholder
+${useResourceManager ? `    ld a, ${(0, megaromResourceArtifacts_1.buildResourceIdLabelFromAsmLabel)('SPRITE_PLACEHOLDER_PATTERN')}
+    ld de, SPRPAT + (${frameBaseSlot} * 32)
+    call resource_load_to_vram_by_id
+` : `${usesMapper ? `    ld a, SPRITE_PLACEHOLDER_PATTERN_BANK\n    call mapper_set_bank_${mapperWindow.dataWindowPage}\n` : ''}    ld hl, ${usesMapper ? (0, mapperWindowUtils_1.buildMapperWindowedAddress)('SPRITE_PLACEHOLDER_PATTERN', mapperWindow) : 'SPRITE_PLACEHOLDER_PATTERN'}
+    ld de, SPRPAT + (${frameBaseSlot} * 32)
+    ld bc, 32
+    call FAST_LDIRVM
+`}`;
+                    }
+                    else if (useResourceManager) {
                         code += `    ; Sprite Asset ${spriteIndex}: ${sprite.name} frame ${frameIndex} (${usage.layerCount} layers)\n`;
                         drawableLayerIndexes.forEach((layerIndex, layerOffset) => {
                             const frameLayerLabel = `${safeSpriteName}_F${frameIndex}_LAYER${layerIndex}`;
@@ -1223,6 +1374,7 @@ SPRITE_INVISIBLE    EQU ${SPRITE_INVISIBLE_VALUE}
 ; sprite_attributes: ds ${totalHardwareSprites * 4}
 ; active_sprite_count: db 0
 ; sprites_dirty: db 0
+; sprite_layer_y_offsets: ds ${totalHardwareSprites}
 `;
     return code;
 }

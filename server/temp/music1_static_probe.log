@@ -1,0 +1,4 @@
+t04 instptr=5C38 flags=01 defvol=0F len=0B loop=FF volptr=5C4A env=0F,0E,0D,0B,09,07,05,03,02,01,00,
+t04_2 instptr=5C38 flags=01 defvol=0F len=0B loop=FF volptr=5C4A env=0F,0E,0D,0B,09,07,05,03,02,01,00,
+t05 instptr=5C38 flags=01 defvol=0F len=0B loop=FF volptr=5C4A env=0F,0E,0D,0B,09,07,05,03,02,01,00,
+final instptr=5C38 flags=01 defvol=0F len=0B loop=FF volptr=5C4A env=0F,0E,0D,0B,09,07,05,03,02,01,00,

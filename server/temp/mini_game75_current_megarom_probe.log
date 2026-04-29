@@ -1,0 +1,35 @@
+boot_2s pc=1130 sp=F2FE banks=00/00/00/00 flow=00 exit=00 screen=00 in=00 btn=27 player=00 pxy=1024,13107 music=22 muted=22 loop=22 ord=22 pat=22 row=22 frames=22 cd=22
+intro_space_before pc=19A3 sp=F35A banks=04/02/03/03 flow=00 exit=00 screen=00 in=00 btn=00 player=FF pxy=48584,6216 music=00 muted=00 loop=00 ord=00 pat=00 row=00 frames=00 cd=00
+intro_space_after pc=1A0D sp=F362 banks=04/02/03/03 flow=00 exit=00 screen=00 in=00 btn=00 player=FF pxy=48584,6216 music=00 muted=00 loop=00 ord=00 pat=00 row=00 frames=00 cd=00
+after_intro pc=19A8 sp=F354 banks=04/02/03/03 flow=00 exit=00 screen=00 in=00 btn=00 player=FF pxy=48584,6216 music=00 muted=00 loop=00 ord=00 pat=00 row=00 frames=00 cd=00
+menu_13s pc=199B sp=F366 banks=04/02/03/03 flow=00 exit=00 screen=00 in=00 btn=00 player=FF pxy=48584,6216 music=00 muted=00 loop=00 ord=00 pat=00 row=00 frames=00 cd=00
+confirm_probe hit=1 A_after_FAST_SNSMAT=FF pc=A527
+confirm_probe hit=2 A_after_FAST_SNSMAT=FF pc=A527
+confirm_probe hit=3 A_after_FAST_SNSMAT=FF pc=A527
+confirm_probe hit=4 A_after_FAST_SNSMAT=FF pc=A527
+confirm_probe hit=5 A_after_FAST_SNSMAT=FF pc=A527
+confirm_probe hit=6 A_after_FAST_SNSMAT=FF pc=A527
+start_space_before pc=A193 sp=F376 banks=01/02/03/03 flow=00 exit=00 screen=00 in=00 btn=00 player=00 pxy=48584,6216 music=00 muted=00 loop=00 ord=00 pat=00 row=00 frames=00 cd=00
+confirm_probe hit=7 A_after_FAST_SNSMAT=FE pc=A527
+confirm_probe hit=8 A_after_FAST_SNSMAT=FE pc=A527
+confirm_probe hit=9 A_after_FAST_SNSMAT=FE pc=A527
+confirm_probe hit=10 A_after_FAST_SNSMAT=FE pc=A527
+confirm_probe hit=11 A_after_FAST_SNSMAT=FE pc=A527
+confirm_probe hit=12 A_after_FAST_SNSMAT=FE pc=A527
+confirm_probe hit=13 A_after_FAST_SNSMAT=FE pc=A527
+confirm_probe hit=14 A_after_FAST_SNSMAT=FE pc=A527
+confirm_probe hit=15 A_after_FAST_SNSMAT=FE pc=A527
+confirm_probe hit=16 A_after_FAST_SNSMAT=FE pc=A527
+confirm_probe hit=17 A_after_FAST_SNSMAT=FE pc=A527
+confirm_probe hit=18 A_after_FAST_SNSMAT=FE pc=A527
+confirm_probe hit=19 A_after_FAST_SNSMAT=FE pc=A527
+confirm_probe hit=20 A_after_FAST_SNSMAT=FE pc=A527
+start_space_after pc=A1D0 sp=F376 banks=01/02/03/03 flow=00 exit=00 screen=00 in=00 btn=00 player=00 pxy=48584,6216 music=00 muted=00 loop=00 ord=00 pat=00 row=00 frames=00 cd=00
+history_text pc=A117 sp=F37A banks=01/02/03/03 flow=00 exit=00 screen=00 in=00 btn=00 player=00 pxy=48584,6216 music=00 muted=00 loop=00 ord=00 pat=00 row=00 frames=00 cd=00
+continue_space_before pc=A117 sp=F37A banks=01/02/03/03 flow=00 exit=00 screen=00 in=00 btn=00 player=00 pxy=48584,6216 music=00 muted=00 loop=00 ord=00 pat=00 row=00 frames=00 cd=00
+continue_space_after pc=A121 sp=F37A banks=01/02/03/03 flow=00 exit=00 screen=00 in=00 btn=00 player=00 pxy=48584,6216 music=00 muted=00 loop=00 ord=00 pat=00 row=00 frames=00 cd=00
+game_20s pc=A536 sp=F37C banks=01/02/03/03 flow=01 exit=00 screen=00 in=00 btn=00 player=00 pxy=48584,6216 music=01 muted=00 loop=01 ord=00 pat=00 row=1B frames=03 cd=02
+idle_21s pc=A536 sp=F37C banks=01/02/03/03 flow=01 exit=00 screen=00 in=00 btn=00 player=00 pxy=48584,6216 music=01 muted=00 loop=01 ord=00 pat=00 row=2F frames=03 cd=02
+idle_22s pc=A536 sp=F37C banks=01/02/03/03 flow=01 exit=00 screen=00 in=00 btn=00 player=00 pxy=48584,6216 music=01 muted=00 loop=01 ord=00 pat=00 row=03 frames=03 cd=02
+game_23s pc=8062 sp=F36E banks=01/02/03/03 flow=01 exit=00 screen=00 in=00 btn=00 player=00 pxy=48584,6216 music=01 muted=00 loop=01 ord=00 pat=00 row=17 frames=03 cd=02
+final pc=7545 sp=F378 banks=01/02/03/03 flow=01 exit=00 screen=00 in=00 btn=00 player=00 pxy=48584,6216 music=01 muted=00 loop=01 ord=00 pat=00 row=2B frames=03 cd=02
