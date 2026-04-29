@@ -8,6 +8,51 @@ import { buildMSXDirectionalSpriteCatalog } from '../../../components/utils/spri
 import { getSerializedTrackerMusicBufferSize } from './soundGenerator';
 import { usesMapperBanking } from './romModeUtils';
 
+const RAM_BASE = 0xC000;
+const MSX_SYSTEM_RAM_START = 0xF380;
+const ZX0_SHARED_SCRATCH_SIZE = 1488;
+
+function formatHexWord(value: number): string {
+  return `#${value.toString(16).toUpperCase().padStart(4, '0')}`;
+}
+
+function formatZx0ScratchOverflowMessage(args: {
+  currentAddress: number;
+  scratchBase: number;
+  scratchEnd: number;
+  scratchSize: number;
+  romMode: string;
+  expandedSpriteCount: number;
+  maxSpriteLayerCount: number;
+  serializedTrackerMusicBufferSize: number;
+  analysis: ProjectAnalysis;
+}): string {
+  const overBy = Math.max(0, args.scratchEnd - MSX_SYSTEM_RAM_START);
+  const freeBeforeAlignedScratch = Math.max(0, MSX_SYSTEM_RAM_START - args.scratchBase);
+  const projectRamBytes = Math.max(0, args.currentAddress - RAM_BASE);
+  const screenMapBytes = (args.romMode === 'megarom' ? 8 : 7) * 768;
+  const entityBytesApprox = 32 * 40;
+  const assetCounts = [
+    `sprites=${args.analysis.sprites?.length || 0}`,
+    `expandedSprites=${args.expandedSpriteCount}`,
+    `maxSpriteLayers=${args.maxSpriteLayerCount}`,
+    `tiles=${args.analysis.tiles?.length || 0}`,
+    `screens=${(args.analysis.screens || args.analysis.screenMaps || []).length || 0}`,
+    `entities=${args.analysis.entities?.length || 0}`,
+    `tracks=${args.analysis.tracks?.length || 0}`,
+    `stateMachines=${args.analysis.stateMachines?.length || 0}`,
+  ].join(', ');
+
+  return [
+    `ZX0 scratch RAM overflow: need up to ${formatHexWord(args.scratchEnd)}, limit is ${formatHexWord(MSX_SYSTEM_RAM_START)} (over by ${overBy} bytes).`,
+    `RAM variables end at ${formatHexWord(args.currentAddress)} (${projectRamBytes} bytes from ${formatHexWord(RAM_BASE)}); scratch base aligns to ${formatHexWord(args.scratchBase)}.`,
+    `Required shared ZX0 scratch is ${args.scratchSize} bytes; free before MSX system variables after alignment is ${freeBeforeAlignedScratch} bytes.`,
+    `ROM mode "${args.romMode}" does not change MSX1 RAM. Mapper/MegaROM builds must fit the same ${formatHexWord(MSX_SYSTEM_RAM_START)} ceiling.`,
+    `Project asset counts: ${assetCounts}.`,
+    `Large fixed RAM consumers include runtime screen/effects maps (~${screenMapBytes} bytes), entity arrays (~${entityBytesApprox}+ bytes), and tracker buffer (${args.serializedTrackerMusicBufferSize} bytes when banked tracker data is cached).`,
+  ].join(' ');
+}
+
 function countDrawableSpriteLayers(sprite: any): number {
   const palette: string[] = sprite?.spritePalette || [];
   const bg: string | undefined = sprite?.backgroundColor;
@@ -50,10 +95,13 @@ function countDrawableSpriteLayers(sprite: any): number {
  */
 export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string = 'simple32k'): string {
   const usesMapper = usesMapperBanking(romMode);
+  const useResourceManager = romMode === 'megarom';
   const expandedSprites = buildMSXDirectionalSpriteCatalog(analysis.sprites || []).sprites;
   const expandedSpriteCount = Math.max(1, expandedSprites.length);
   const maxSpriteLayerCount = Math.max(1, ...expandedSprites.map(countDrawableSpriteLayers));
-  const serializedTrackerMusicBufferSize = getSerializedTrackerMusicBufferSize(analysis);
+  const serializedTrackerMusicBufferSize = useResourceManager
+    ? getSerializedTrackerMusicBufferSize(analysis)
+    : 0;
   let code = `; ==================================================================
 ; RAM VARIABLES DEFINITIONS
 ; File: variables.asm
@@ -66,7 +114,7 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
 ; ==================================================================
 `;
 
-  let currentAddress = 0xC000;
+  let currentAddress = RAM_BASE;
 
   // Core variables (always needed)
   code += `input_state         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current direction state (0-8)\n`;
@@ -297,14 +345,16 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress++;
   code += `vram_cache_font_ready EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when shared font patterns/colors are already resident in VRAM\n`;
   currentAddress++;
-  code += `resource_ram_cache_screen_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_background_layout source\n`;
-  currentAddress++;
-  code += `resource_ram_cache_effects_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effects_layout source\n`;
-  currentAddress++;
-  code += `resource_ram_cache_behavior_map_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for pristine behavior-map RAM copy\n`;
-  currentAddress++;
-  code += `resource_ram_cache_effect_zone_table_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effect_zone_table source\n`;
-  currentAddress++;
+  if (useResourceManager) {
+    code += `resource_ram_cache_screen_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_background_layout source\n`;
+    currentAddress++;
+    code += `resource_ram_cache_effects_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effects_layout source\n`;
+    currentAddress++;
+    code += `resource_ram_cache_behavior_map_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for pristine behavior-map RAM copy\n`;
+    currentAddress++;
+    code += `resource_ram_cache_effect_zone_table_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effect_zone_table source\n`;
+    currentAddress++;
+  }
   code += `current_screen2_tilebank_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current SCREEN 2 shared tilebank loaded in VRAM (#FF=none/unknown)\n`;
   currentAddress++;
 
@@ -365,8 +415,10 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress += 768;
   code += `runtime_screen_layout  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current screen layout (32x24)\n`;
   currentAddress += 768;
-  code += `resource_ram_cache_behavior_map EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Pristine behavior map cache for current banked resource (32x24)\n`;
-  currentAddress += 768;
+  if (useResourceManager) {
+    code += `resource_ram_cache_behavior_map EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Pristine behavior map cache for current banked resource (32x24)\n`;
+    currentAddress += 768;
+  }
   code += `runtime_behavior_map   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current behavior map (32x24)\n`;
   currentAddress += 768;
   code += `runtime_interaction_type_map EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current interaction type map (32x24)\n`;
@@ -1162,15 +1214,23 @@ T_NEW_2         EQU #${hex(0x19A)}  ; Tone table new 2 (last, ends at +0x1B2)
     currentAddress = pt3Base + 0x240; // Reserve 576 bytes for PT3 workspace (RAM LENGTH per replayer spec)
   }
 
-  const ZX0_LARGE_SCRATCH_SIZE = usesMapper ? 768 : 1488;
-  const ZX0_RAM_LIMIT = 0xF380;
   const align256 = (value: number) => (value + 0xFF) & 0xFF00;
   const zx0LargeScratchBase = align256(currentAddress);
-  const zx0ScratchEnd = zx0LargeScratchBase + ZX0_LARGE_SCRATCH_SIZE;
+  const zx0ScratchEnd = zx0LargeScratchBase + ZX0_SHARED_SCRATCH_SIZE;
 
-  if (zx0ScratchEnd > ZX0_RAM_LIMIT) {
+  if (zx0ScratchEnd > MSX_SYSTEM_RAM_START) {
     throw new Error(
-      `ZX0 scratch RAM overflow: need up to #${zx0ScratchEnd.toString(16).toUpperCase()}, limit is #${ZX0_RAM_LIMIT.toString(16).toUpperCase()}`
+      formatZx0ScratchOverflowMessage({
+        currentAddress,
+        scratchBase: zx0LargeScratchBase,
+        scratchEnd: zx0ScratchEnd,
+        scratchSize: ZX0_SHARED_SCRATCH_SIZE,
+        romMode,
+        expandedSpriteCount,
+        maxSpriteLayerCount,
+        serializedTrackerMusicBufferSize,
+        analysis,
+      })
     );
   }
 
@@ -1183,10 +1243,10 @@ T_NEW_2         EQU #${hex(0x19A)}  ; Tone table new 2 (last, ends at +0x1B2)
 ; are decompressed and consumed sequentially, never concurrently.
 ; Font and sprite frame buffers are injected later by the ZX0 post-processor
 ; only when compression selects those blocks; they share scratch there too.
-ZX0_SCREEN_BUFFER       EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Screen/layout scratch (768 bytes, shared area)
-ZX0_BEHAVIOR_BUFFER     EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Behavior map scratch (768 bytes, shared area)
-ZX0_TILE_PATTERN_BUFFER EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile pattern scratch (1488 bytes, shared area)
-ZX0_TILE_COLOR_BUFFER   EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile color scratch (1488 bytes, shared area)
+ZX0_SCREEN_BUFFER       EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Screen/layout scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
+ZX0_BEHAVIOR_BUFFER     EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Behavior map scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
+ZX0_TILE_PATTERN_BUFFER EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile pattern scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
+ZX0_TILE_COLOR_BUFFER   EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile color scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
 `;
 
   // End marker
@@ -1201,7 +1261,7 @@ RAM_USAGE_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4,
 ; ==================================================================
 ; RAM Layout:
 ;   #C000-#${currentAddress.toString(16).toUpperCase().padStart(4, '0')}: Project variables (${currentAddress - 0xC000} bytes)
-;   #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}-#F37F: Free RAM (~${0xF380 - currentAddress} bytes available)
+;   #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}-#F37F: Free RAM (~${MSX_SYSTEM_RAM_START - currentAddress} bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
