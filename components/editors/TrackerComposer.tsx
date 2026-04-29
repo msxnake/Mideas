@@ -310,9 +310,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const [keyboardOctaveOffset, setKeyboardOctaveOffset] = useState(0);
   const [activePianoKeys, setActivePianoKeys] = useState<Set<string>>(new Set());
   const activePianoKeysTimeoutRef = useRef<number | null>(null);
+  const playbackPianoNotesRef = useRef<(string | null)[]>(Array(PT3_CHANNELS.length).fill(null));
 
   const channelPendingNoteCutRef = useRef<boolean[]>(Array(SCC_CHANNELS.length).fill(false));
   const previewNoteTimeoutsRef = useRef<(number | null)[]>([]);
+  const channels = useMemo(() => songData.soundChip === 'SCC' ? SCC_CHANNELS : PT3_CHANNELS, [songData.soundChip]);
 
   const clearPreviewNoteTimeout = useCallback((channelIndex?: number) => {
     if (channelIndex === undefined) {
@@ -326,6 +328,19 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       clearTimeout(previewNoteTimeoutsRef.current[channelIndex]!);
       previewNoteTimeoutsRef.current[channelIndex] = null;
     }
+  }, []);
+
+  const clearPianoHighlights = useCallback(() => {
+    if (activePianoKeysTimeoutRef.current) {
+      clearTimeout(activePianoKeysTimeoutRef.current);
+      activePianoKeysTimeoutRef.current = null;
+    }
+    playbackPianoNotesRef.current = Array(channels.length).fill(null);
+    setActivePianoKeys(new Set());
+  }, [channels.length]);
+
+  const isPlayableNote = useCallback((note: string | null | undefined): note is string => {
+    return !!note && note !== '---' && note !== '===';
   }, []);
 
   const schedulePreviewNoteCut = useCallback((channelIndex: number, delayMs: number = 400) => {
@@ -351,7 +366,6 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const [logMessages, setLogMessages] = useState<string[]>([]);
 
   const fieldsOrder: (keyof TrackerCell)[] = ['note', 'instrument', 'ornament', 'volume'];
-  const channels = useMemo(() => songData.soundChip === 'SCC' ? SCC_CHANNELS : PT3_CHANNELS, [songData.soundChip]);
 
   const addLog = useCallback((message: string) => {
     setLogMessages(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
@@ -612,11 +626,13 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         setPlaybackRow(0);
         channelPendingNoteCutRef.current = Array(channels.length).fill(false);
         clearPreviewNoteTimeout();
+        clearPianoHighlights();
       } else {
         synthesizer.stopAllNotes();
         await synthesizer.ensureAudioContext();
         if (synthesizer['audioContext']?.state === 'running') {
           clearPreviewNoteTimeout();
+          clearPianoHighlights();
           setIsPlaying(true);
           setPlaybackRow(0);
           channelPendingNoteCutRef.current = Array(channels.length).fill(false);
@@ -641,7 +657,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     setPlaybackRow(0);
     channelPendingNoteCutRef.current = Array(channels.length).fill(false);
     clearPreviewNoteTimeout();
-  }, [synthesizer, isPlaying, channels, clearPreviewNoteTimeout]);
+    clearPianoHighlights();
+  }, [synthesizer, isPlaying, channels, clearPreviewNoteTimeout, clearPianoHighlights]);
 
 
   useEffect(() => {
@@ -659,6 +676,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       for (let chIdx = 0; chIdx < channels.length; chIdx++) {
         if (channelPendingNoteCutRef.current[chIdx]) {
           synthesizer.playNote(chIdx as any, "===", null, null, null);
+          playbackPianoNotesRef.current[chIdx] = null;
           channelPendingNoteCutRef.current[chIdx] = false;
         }
       }
@@ -667,11 +685,15 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         const cell = rowData[chId] || { note: "---", instrument: null, ornament: null, volume: null };
         if (cell.note === "===") {
           channelPendingNoteCutRef.current[chIndex] = true;
+          playbackPianoNotesRef.current[chIndex] = null;
+        } else if (isPlayableNote(cell.note)) {
+          playbackPianoNotesRef.current[chIndex] = cell.note;
         }
         synthesizer.playNote(
           chIndex as any, cell.note, cell.instrument, cell.ornament, cell.volume
         );
       });
+      setActivePianoKeys(new Set(playbackPianoNotesRef.current.filter((note): note is string => !!note)));
 
       let rowDurationMs = (2500 * songData.speed) / songData.bpm;
       if (songData.bpm === 0 || songData.speed === 0) rowDurationMs = 200;
@@ -726,10 +748,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         synthesizer.stopAllNotes();
         channelPendingNoteCutRef.current = Array(channels.length).fill(false);
         clearPreviewNoteTimeout();
+        clearPianoHighlights();
       }
     }
     return () => { if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current); };
-  }, [isPlaying, playbackRow, songData, synthesizer, onUpdate, currentPattern, channels]);
+  }, [isPlaying, playbackRow, songData, synthesizer, onUpdate, currentPattern, channels, clearPreviewNoteTimeout, clearPianoHighlights, isPlayableNote]);
 
   const focusCellAndSelectText = useCallback((rIdx: number, chId: TrackerChannelId, fld: keyof TrackerCell) => {
     if (!currentPattern || rIdx < 0 || rIdx >= currentPattern.numRows) return;
@@ -1140,9 +1163,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     }
     setPlaybackRow(0);
     setFocusedCell(null);
+    clearPianoHighlights();
     addLog("Sample song loading process finished in TrackerComposer.");
 
-  }, [onUpdate, isPlaying, addLog]);
+  }, [onUpdate, isPlaying, addLog, clearPianoHighlights]);
 
   const handleImportPT3File = useCallback(() => {
     const input = document.createElement('input');

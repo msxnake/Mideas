@@ -120,10 +120,16 @@ export const VirtualPiano: React.FC<VirtualPianoProps> = ({
             keyStyle.color = isPressed ? 'var(--msx-black)' : 'var(--msx-white)';
             keyStyle.zIndex = 10;
             keyStyle.borderColor = 'var(--msx-black)';
+            if (isPressed) {
+              keyStyle.boxShadow = '0 0 0 2px var(--msx-bgcolor), 0 0 14px var(--msx-highlight)';
+            }
           } else {
             keyStyle.backgroundColor = isPressed ? 'var(--msx-accent)' : 'var(--msx-white)';
             keyStyle.color = isPressed ? 'var(--msx-white)' : 'var(--msx-black)';
             keyStyle.borderColor = 'var(--msx-border)';
+            if (isPressed) {
+              keyStyle.boxShadow = 'inset 0 0 0 2px var(--msx-highlight), 0 0 14px var(--msx-accent)';
+            }
           }
 
           return (

@@ -37,7 +37,7 @@ export const TrackerPianoControls: React.FC<TrackerPianoControlsProps> = ({
       <VirtualPiano
           pressedKeys={pressedKeys}
           baseDisplayOctave={3 + keyboardOctaveOffset}
-          numOctavesToDisplay={2}
+          numOctavesToDisplay={3}
           onPianoKeyPress={onPianoKeyPress}
       />
       <div className="flex items-center space-x-1 text-xs mr-2">
