@@ -96,10 +96,10 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
             key={`header-${chId}`}
             className={`flex h-8 items-center border-l-4 ${CHANNEL_ACCENTS[chIndex % CHANNEL_ACCENTS.length]} bg-msx-bgcolor/50 px-1`}
           >
-            <div className={`${CELL_WIDTH_NOTE} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.note} text-[0.68rem] font-bold`}>CH {chId}</div>
-            <div className={`${CELL_WIDTH_INSTR} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.instrument} text-[0.62rem]`}>IN</div>
-            <div className={`${CELL_WIDTH_ORN} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.ornament} text-[0.62rem]`}>OR</div>
-            <div className={`${CELL_WIDTH_VOL} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.volume} text-[0.62rem]`}>V</div>
+            <div className={`${CELL_WIDTH_NOTE} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.note} text-[0.68rem] font-bold`} title={`Channel ${chId} note`}>CH {chId}</div>
+            <div className={`${CELL_WIDTH_INSTR} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.instrument} text-[0.58rem]`} title="Instrument">INS</div>
+            <div className={`${CELL_WIDTH_ORN} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.ornament} text-[0.58rem]`} title="Ornament">ORN</div>
+            <div className={`${CELL_WIDTH_VOL} ${CELL_TEXT_ALIGN} ${HEADER_FIELD_CLASSES.volume} text-[0.58rem]`} title="Volume">VOL</div>
           </div>
         ))}
       </div>

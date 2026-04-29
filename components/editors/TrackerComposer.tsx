@@ -1303,15 +1303,16 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         </div>
 
         <div className="min-w-0 flex flex-grow flex-col overflow-hidden">
-          <div className="flex h-9 flex-shrink-0 items-center justify-between border-b border-msx-border bg-msx-bgcolor/80 px-3 text-xs">
-            <div className="flex items-center gap-2">
+          <div className="flex h-10 flex-shrink-0 items-center justify-between border-b border-msx-border bg-msx-bgcolor/80 px-3 text-xs">
+            <div className="flex items-center gap-3">
+              <span className="text-[0.62rem] uppercase tracking-wider text-msx-textsecondary">Pattern Editor</span>
               <span className="font-mono text-msx-highlight">{currentPattern.name}</span>
-              <span className="text-msx-textsecondary">Pattern {String(songData.patterns.findIndex(p => p.id === currentPattern.id)).padStart(2, '0')}</span>
+              <span className="rounded border border-msx-border bg-black/20 px-2 py-0.5 font-mono text-[0.62rem] text-msx-textsecondary">#{String(songData.patterns.findIndex(p => p.id === currentPattern.id)).padStart(2, '0')}</span>
             </div>
-            <div className="flex items-center gap-3 font-mono text-[0.68rem] text-msx-textsecondary">
-              <span>Order {String(songData.currentPatternIndexInOrder).padStart(2, '0')}</span>
-              <span>BPM {songData.bpm}</span>
-              <span>SPD {songData.speed}</span>
+            <div className="flex items-center gap-2 font-mono text-[0.68rem] text-msx-textsecondary">
+              <span className="rounded border border-msx-border/70 bg-black/20 px-2 py-0.5">Order {String(songData.currentPatternIndexInOrder).padStart(2, '0')}</span>
+              <span className="rounded border border-msx-border/70 bg-black/20 px-2 py-0.5">BPM {songData.bpm}</span>
+              <span className="rounded border border-msx-border/70 bg-black/20 px-2 py-0.5">Speed {songData.speed}</span>
             </div>
           </div>
           <PatternEditorGrid

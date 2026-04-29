@@ -54,12 +54,12 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
     }
     if (!isPT3Instrument(instr)) return '';
     const parts = [
-      `V${instr.volumeEnvelope?.length ?? 0}`,
-      `T${instr.toneEnvelope?.length ?? 0}`,
+      `Vol ${instr.volumeEnvelope?.length ?? 0}`,
+      `Tone ${instr.toneEnvelope?.length ?? 0}`,
     ];
-    if (instr.noiseEnvelope?.length || instr.ayNoiseEnabled) parts.push(`N${instr.noiseEnvelope?.length ?? 0}`);
-    if (typeof instr.ayEnvelopeShape === 'number') parts.push(`E${instr.ayEnvelopeShape.toString(16).toUpperCase()}`);
-    return parts.join(' ');
+    if (instr.noiseEnvelope?.length || instr.ayNoiseEnabled) parts.push(`Noise ${instr.noiseEnvelope?.length ?? 0}`);
+    if (typeof instr.ayEnvelopeShape === 'number') parts.push(`Env #${instr.ayEnvelopeShape.toString(16).toUpperCase()}`);
+    return parts.join(' / ');
   };
 
   const getInstrumentFlags = (instr: PT3Instrument | SCCInstrument) => {
@@ -109,6 +109,9 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
                         <div className="flex items-center gap-1 min-w-0">
                           <span className="font-mono text-msx-highlight bg-black/25 px-1 rounded">{String(instr.id).padStart(2, '0')}</span>
                           <span className="truncate">{instr.name}</span>
+                          {instr.id === activeInstrumentId && (
+                            <span className="rounded border border-white/40 px-1 text-[0.55rem] uppercase tracking-wider text-white/85">Active</span>
+                          )}
                         </div>
                         <div className={`mt-0.5 font-mono ${instr.id === activeInstrumentId ? 'text-white/80' : 'text-msx-textsecondary'}`}>
                           {formatSubtitle(instr)}
