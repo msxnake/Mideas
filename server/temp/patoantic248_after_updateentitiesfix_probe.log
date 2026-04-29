@@ -1,0 +1,10 @@
+BP_init_rom pc=4010 sp=F2EC p=00/00/00 flow=00 exit=00 screen=00 lives=0 time=0000
+first_SPC_DOWN
+second_SPC_DOWN
+shot_09_6s pc=51D8 sp=F36E p=01/02/03 flow=01 exit=00 screen=00 lives=3 time=003C
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_fix_09_6s.png
+shot_10_6s pc=6152 sp=F372 p=01/02/03 flow=01 exit=00 screen=00 lives=3 time=003C
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_fix_10_6s.png
+shot_12_0s pc=1A4B sp=F356 p=01/02/03 flow=01 exit=00 screen=00 lives=3 time=003C
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_fix_12_0s.png
+final pc=A0DA sp=F37A p=01/02/03 flow=01 exit=00 screen=00 lives=3 time=003C

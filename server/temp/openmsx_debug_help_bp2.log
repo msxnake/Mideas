@@ -1,0 +1,33 @@
+set_bp => debug set_bp [-once] <addr> [<cond>] [<cmd>]
+  Insert a new breakpoint at given address. When the CPU is about to execute the instruction at this address, execution will be breaked. At least this is the default behaviour, see next paragraphs.
+  When the -once flag is given, the breakpoint is automatically removed after it triggered. In other words: it only triggers once.
+  Optionally you can specify a condition. When the CPU reaches the breakpoint this condition is evaluated, only when the condition evaluated to true execution will be breaked.
+  A condition must be specified as a Tcl expression. For example
+     debug set_bp 0xf37d {[reg C] == 0x2F}
+  This breaks on address 0xf37d but only when Z80 register C has the value 0x2F.
+  Also optionally you can specify a command that should be executed when the breakpoint is reached (and condition is true). By default this command is 'debug break'.
+  The result of this command is a breakpoint ID. This ID can later be used to remove this breakpoint again.
+
+ERR=
+set_watchpoint => debug set_watchpoint [-once] <type> <region> [<cond>] [<cmd>]
+  Insert a new watchpoint of given type on the given region, there can be an optional -once flag, a condition and alternative command. See the 'set_bp' subcommand for details about these.
+  Type must be one of the following:
+    read_io    break when CPU reads from given IO port(s)
+    write_io   break when CPU writes to given IO port(s)
+    read_mem   break when CPU reads from given memory location(s)
+    write_mem  break when CPU writes to given memory location(s)
+  Region is either a single value, this corresponds to a single memory location or IO port. Otherwise region must be a list of two values (enclosed in braces) that specify a begin and end point of a whole memory region or a range of IO ports.
+During the execution of <cmd>, the following global Tcl variables are set:
+  ::wp_last_address   this is the actual address of the mem/io read/write that triggered the watchpoint
+  ::wp_last_value     this is the actual value that was written by the mem/io write that triggered the watchpoint
+Examples:
+  debug set_watchpoint write_io 0x99 {[reg A] == 0x81}
+  debug set_watchpoint read_mem {0xfbe5 0xfbef}
+
+ERR=
+set_condition => debug set_condition [-once] <cond> [<cmd>]
+  Insert a new condition. These are much like breakpoints, except that they are checked before every instruction (breakpoints are tied to a specific address).
+  Conditions will slow down simulation MUCH more than breakpoints. So only use them when you don't care about simulation speed (when you're debugging this is usually not a problem).
+  See 'help debug set_bp' for more details.
+
+ERR=

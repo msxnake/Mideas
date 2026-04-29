@@ -1,0 +1,14 @@
+WP_flow_write_00 pc=832A sp=F2F2 ret=835F p1=FF p2=FF p3=FF exit=FF flow=00 lives=255 time=FFFF irq=FFFF
+WP_exit_write_00 pc=832A sp=F2F2 ret=835F p1=FF p2=FF p3=FF exit=00 flow=00 lives=255 time=FFFF irq=FFFF
+BP_init_rom_1 pc=4010 sp=F2EC ret=F392 p1=00 p2=00 p3=00 exit=00 flow=00 lives=0 time=0000 irq=FFFF
+WP_exit_write_00 pc=A001 sp=F37E ret=4076 p1=01 p2=02 p3=03 exit=00 flow=00 lives=0 time=0000 irq=0000
+WP_flow_write_00 pc=A004 sp=F37E ret=4076 p1=01 p2=02 p3=03 exit=00 flow=00 lives=0 time=0000 irq=0000
+first_SPC_DOWN
+second_SPC_DOWN
+WP_exit_write_00 pc=A4FC sp=F37E ret=A896 p1=01 p2=02 p3=03 exit=00 flow=00 lives=3 time=003C irq=0146
+WP_flow_write_01 pc=A501 sp=F37E ret=A896 p1=01 p2=02 p3=03 exit=00 flow=01 lives=3 time=003C irq=0146
+after_second_500ms pc=A5E8 sp=F372 ret=94CD p1=01 p2=02 p3=03 exit=00 flow=01 lives=3 time=003C irq=0152
+BP_init_rom_2 pc=4010 sp=F2EC ret=F392 p1=01 p2=02 p3=03 exit=00 flow=01 lives=3 time=003C irq=027D
+WP_exit_write_00 pc=A001 sp=F37E ret=4076 p1=01 p2=02 p3=03 exit=00 flow=01 lives=3 time=003C irq=0000
+WP_flow_write_00 pc=A004 sp=F37E ret=4076 p1=01 p2=02 p3=03 exit=00 flow=00 lives=3 time=003C irq=0000
+final pc=602B sp=F372 ret=6096 p1=04 p2=02 p3=03 exit=00 flow=00 lives=3 time=003C irq=0068

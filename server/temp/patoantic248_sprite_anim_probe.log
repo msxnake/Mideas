@@ -1,0 +1,78 @@
+first_before pc=602B p=04/02/03 flow=00 screen=00 animGroups=22 anim=00/00/08 hero=00 player=FF run=00 pxy=0,0
+  music active=00 muted=00 loop=00 track=00 pt3setup=00 mod=FFFF delay=FF ay=FF F0 FF FF FF FF FF FF FF FF FF FF FF FF
+  entityX=08 60 A0 40 78 08 00 00
+  entityY=50 A0 90 20 98 90 00 00
+  screenId=00 00 00 02 02 06 00 00
+  comp=DB 8F 09 8F 8F DB 00 00
+  spriteIdx=07 09 00 00 01 07 FF FF
+  baseSlot=00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  sat=E0 08 00 06 E0 08 04 0F E0 60 00 0E E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33
+start_before pc=1A4B p=01/02/03 flow=00 screen=00 animGroups=22 anim=00/00/08 hero=00 player=00 run=01 pxy=8,80
+  music active=01 muted=00 loop=01 track=00 pt3setup=00 mod=684A delay=06 ay=C5 00 00 00 4F 02 00 A8 0B 00 1E 25 00 FF
+  entityX=08 60 A0 40 78 08 00 00
+  entityY=50 A0 90 20 98 90 00 00
+  screenId=00 00 00 02 02 06 00 00
+  comp=DB 8F 09 8F 8F DB 00 00
+  spriteIdx=07 09 00 00 01 07 FF FF
+  baseSlot=00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  sat=E0 08 00 06 E0 08 04 0F E0 60 00 0E E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33
+game_13_1 pc=6812 p=08/02/03 flow=01 screen=00 animGroups=03 anim=04/02/08 hero=00 player=00 run=01 pxy=8,80
+  music active=01 muted=00 loop=01 track=00 pt3setup=00 mod=684A delay=06 ay=28 01 93 00 9E 04 00 B8 06 0E 0B 4A 00 FF
+  entityX=08 60 A0 40 78 08 00 00
+  entityY=50 A0 90 20 98 90 00 00
+  screenId=00 00 00 02 02 06 00 00
+  comp=DB 8F 09 8F 8F DB 00 00
+  spriteIdx=07 09 00 00 01 07 FF FF
+  baseSlot=00 04 00 06 0A 0C 12 16 1A 1C 1E 22 26 28 2E 32
+  sat=50 08 60 06 50 08 64 0F E0 60 00 0E E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_probe_game_13_1.png
+game_13_6 pc=662A p=08/02/03 flow=01 screen=00 animGroups=03 anim=06/04/08 hero=00 player=00 run=01 pxy=8,80
+  music active=01 muted=00 loop=01 track=00 pt3setup=00 mod=684A delay=06 ay=8B 01 94 00 9E 04 00 20 06 0B 00 4A 00 FF
+  entityX=08 60 A0 40 78 08 00 00
+  entityY=50 A0 90 20 98 90 00 00
+  screenId=00 00 00 02 02 06 00 00
+  comp=DB 8F 09 8F 8F DB 00 00
+  spriteIdx=07 09 00 00 01 07 FF FF
+  baseSlot=00 04 00 06 0A 0C 12 16 1A 1C 1E 22 26 28 2E 32
+  sat=50 08 60 06 50 08 64 0F E0 60 00 0E E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_probe_game_13_6.png
+game_14_1 pc=626D p=08/02/03 flow=01 screen=00 animGroups=03 anim=08/06/08 hero=00 player=00 run=01 pxy=8,80
+  music active=01 muted=00 loop=01 track=00 pt3setup=00 mod=684A delay=06 ay=60 01 94 00 4F 02 00 B8 0A 08 0C 25 00 FF
+  entityX=08 60 A0 40 78 08 00 00
+  entityY=50 A0 90 20 98 90 00 00
+  screenId=00 00 00 02 02 06 00 00
+  comp=DB 8F 09 8F 8F DB 00 00
+  spriteIdx=07 09 00 00 01 07 FF FF
+  baseSlot=00 04 00 06 0A 0C 12 16 1A 1C 1E 22 26 28 2E 32
+  sat=50 08 60 06 50 08 64 0F E0 60 00 0E E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_probe_game_14_1.png
+game_14_6 pc=A631 p=01/02/03 flow=01 screen=00 animGroups=03 anim=01/09/08 hero=00 player=00 run=01 pxy=8,80
+  music active=01 muted=00 loop=01 track=00 pt3setup=00 mod=684A delay=06 ay=60 01 94 00 4F 02 00 B8 00 06 06 25 00 FF
+  entityX=08 60 A0 40 78 08 00 00
+  entityY=50 A0 90 20 98 90 00 00
+  screenId=00 00 00 02 02 06 00 00
+  comp=DB 8F 09 8F 8F DB 00 00
+  spriteIdx=07 09 00 00 01 07 FF FF
+  baseSlot=00 04 00 06 0A 0C 12 16 1A 1C 1E 22 26 28 2E 32
+  sat=50 08 60 06 50 08 64 0F E0 60 00 0E E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_probe_game_14_6.png
+game_15_1 pc=A631 p=01/02/03 flow=01 screen=00 animGroups=03 anim=03/0B/08 hero=00 player=00 run=01 pxy=8,80
+  music active=01 muted=00 loop=01 track=00 pt3setup=00 mod=684A delay=06 ay=C5 00 93 00 9E 04 00 B8 0A 0E 0C 4A 00 FF
+  entityX=08 60 A0 40 78 08 00 00
+  entityY=50 A0 90 20 98 90 00 00
+  screenId=00 00 00 02 02 06 00 00
+  comp=DB 8F 09 8F 8F DB 00 00
+  spriteIdx=07 09 00 00 01 07 FF FF
+  baseSlot=00 04 00 06 0A 0C 12 16 1A 1C 1E 22 26 28 2E 32
+  sat=50 08 60 06 50 08 64 0F E0 60 00 0E E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_probe_game_15_1.png
+game_15_6 pc=A631 p=01/02/03 flow=01 screen=00 animGroups=03 anim=05/0D/08 hero=00 player=00 run=01 pxy=8,80
+  music active=01 muted=00 loop=01 track=00 pt3setup=00 mod=684A delay=06 ay=EB 00 94 00 9E 04 00 B8 0A 0B 06 4A 00 FF
+  entityX=08 60 A0 40 78 08 00 00
+  entityY=50 A0 90 20 98 90 00 00
+  screenId=00 00 00 02 02 06 00 00
+  comp=DB 8F 09 8F 8F DB 00 00
+  spriteIdx=07 09 00 00 01 07 FF FF
+  baseSlot=00 04 00 06 0A 0C 12 16 1A 1C 1E 22 26 28 2E 32
+  sat=50 08 60 06 50 08 64 0F E0 60 00 0E E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33 E0 33 33 33
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_probe_game_15_6.png

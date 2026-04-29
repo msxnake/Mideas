@@ -1,0 +1,8 @@
+first_before pc=19A4 music active=FF muted=FF loop=FF track=FF pt3setup=FF mod=FFFF delay=FF ay=FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+start_before pc=199A music active=FF muted=FF loop=FF track=FF pt3setup=FF mod=FFFF delay=FF ay=FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+game_13_1 pc=199D music active=FF muted=FF loop=FF track=FF pt3setup=FF mod=FFFF delay=FF ay=FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+game_13_6 pc=19A1 music active=FF muted=FF loop=FF track=FF pt3setup=FF mod=FFFF delay=FF ay=FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+game_14_1 pc=19A6 music active=FF muted=FF loop=FF track=FF pt3setup=FF mod=FFFF delay=FF ay=FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+game_14_6 pc=0038 music active=FF muted=FF loop=FF track=FF pt3setup=FF mod=FFFF delay=FF ay=FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+game_15_1 pc=199C music active=FF muted=FF loop=FF track=FF pt3setup=FF mod=FFFF delay=FF ay=FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+game_15_6 pc=19A1 music active=FF muted=FF loop=FF track=FF pt3setup=FF mod=FFFF delay=FF ay=FF FF FF FF FF FF FF FF FF FF FF FF FF FF

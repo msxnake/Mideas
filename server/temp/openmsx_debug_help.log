@@ -1,0 +1,33 @@
+debug <subcommand> [<arguments>]
+  Possible subcommands are:
+    list              returns a list of all debuggables
+    desc              returns a description of this debuggable
+    size              returns the size of this debuggable
+    read              read a byte from a debuggable
+    write             write a byte to a debuggable
+    read_block        read a whole block at once
+    write_block       write a whole block at once
+    set_bp            insert a new breakpoint
+    remove_bp         remove a certain breakpoint
+    list_bp           list the active breakpoints
+    set_watchpoint    insert a new watchpoint
+    remove_watchpoint remove a certain watchpoint
+    list_watchpoints  list the active watchpoints
+    set_condition     insert a new condition
+    remove_condition  remove a certain condition
+    list_conditions   list the active conditions
+    probe             probe related subcommands
+    cont              continue execution after break
+    step              execute one instruction
+    break             break CPU at current position
+    breaked           query CPU breaked status
+    disasm            disassemble instructions
+    disasm_blob       disassemble a instruction in Tcl binary string
+    symbols           manage debug symbols
+  The arguments are specific for each subcommand.
+  Type 'help debug <subcommand>' for help about a specific subcommand.
+
+ERR=
+Unknown subcommand, use 'help debug' to see a list of valid subcommands.
+
+ERR2=

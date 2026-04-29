@@ -1,0 +1,17 @@
+BP_init_rom pc=4010 sp=F2EC p=00/00/00 flow=00 exit=00 screen=00 lives=0 time=0000
+first_before pc=602B sp=F372 p=04/02/03 flow=00 exit=00 screen=00 lives=3 time=003C
+first_SPC_DOWN
+shot_menu_before_start pc=A13F sp=F376 p=01/02/03 flow=00 exit=00 screen=00 lives=3 time=003C
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_normal_menu_before_start.png
+second_before pc=A13F sp=F376 p=01/02/03 flow=00 exit=00 screen=00 lives=3 time=003C
+second_SPC_DOWN
+shot_game_13s pc=6814 sp=F326 p=08/02/03 flow=01 exit=00 screen=00 lives=3 time=003C
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_normal_game_13s.png
+move_right_before pc=889A sp=F364 p=01/02/03 flow=01 exit=00 screen=00 lives=3 time=003A
+move_right_RIGHT_DOWN
+shot_game_17s pc=616F sp=F36E p=01/02/03 flow=01 exit=00 screen=00 lives=3 time=0038
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_normal_game_17s.png
+shot_game_23s pc=6142 sp=F370 p=01/02/03 flow=01 exit=00 screen=00 lives=3 time=0032
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_normal_game_23s.png
+shot_game_31s pc=6181 sp=F374 p=01/02/03 flow=01 exit=00 screen=00 lives=3 time=002A
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_normal_game_31s.png

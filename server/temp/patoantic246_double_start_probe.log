@@ -1,0 +1,9 @@
+before_first_spc pc=602B sp=F372 af=0044 bc=0008 de=1800 hl=8900 p1=02 p2=03 p3=03 exit=00 sel=00 screen=00
+first_SPC_DOWN
+first_100ms pc=6032 sp=F372 af=0100 bc=0008 de=1800 hl=8900 p1=02 p2=03 p3=03 exit=00 sel=00 screen=00
+first_1s pc=A13A sp=F376 af=0044 bc=0208 de=0000 hl=A730 p1=02 p2=03 p3=03 exit=00 sel=00 screen=00
+before_second_spc pc=A13A sp=F376 af=0044 bc=0208 de=0000 hl=A730 p1=02 p2=03 p3=03 exit=00 sel=00 screen=00
+second_SPC_DOWN
+second_100ms pc=A174 sp=F376 af=0100 bc=0208 de=0000 hl=A730 p1=02 p2=03 p3=03 exit=00 sel=00 screen=00
+second_1s pc=78ED sp=F378 af=4404 bc=0818 de=0018 hl=DCCB p1=02 p2=03 p3=03 exit=00 sel=00 screen=00
+second_3s pc=A0D5 sp=F37A af=0044 bc=A708 de=A6E1 hl=A6E0 p1=02 p2=03 p3=03 exit=01 sel=00 screen=00

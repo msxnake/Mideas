@@ -1,0 +1,29 @@
+BP_4010_RESET_OR_INIT pc=4010 sp=F2EC p=00/00/00 flow=00 screen=22 in=00 prev=00 btn=27 player=22 pxy=8738,8738 v=22/22
+intro_before pc=602B sp=F372 p=04/02/03 flow=00 screen=00 in=00 prev=00 btn=00 player=FF pxy=0,0 v=00/00
+start_before pc=A13F sp=F376 p=01/02/03 flow=00 screen=00 in=00 prev=00 btn=00 player=00 pxy=8,80 v=33/00
+game_start pc=65F1 sp=6E32 p=08/02/03 flow=01 screen=00 in=00 prev=00 btn=00 player=00 pxy=8,80 v=00/00
+SHOTOK patoantic248_real_cursors_start.png
+RIGHT_before pc=40DD sp=F378 p=01/02/03 flow=01 screen=00 in=00 prev=00 btn=00 player=00 pxy=8,80 v=00/00
+RIGHT_afterup pc=624E sp=F36A p=01/02/03 flow=01 screen=00 in=03 prev=03 btn=00 player=00 pxy=58,80 v=02/00
+after_right pc=4EE5 sp=F378 p=01/02/03 flow=01 screen=00 in=00 prev=00 btn=00 player=00 pxy=58,80 v=00/00
+SHOTOK patoantic248_real_cursors_after_right.png
+UP_RIGHT_before pc=7DE4 sp=F378 p=01/02/03 flow=01 screen=00 in=00 prev=00 btn=00 player=00 pxy=58,80 v=00/00
+UP_RIGHT_afterup pc=8816 sp=F360 p=01/02/03 flow=01 screen=00 in=03 prev=03 btn=00 player=00 pxy=130,80 v=02/00
+after_upright pc=40F4 sp=F354 p=01/02/09 flow=01 screen=00 in=00 prev=00 btn=00 player=00 pxy=130,80 v=00/00
+SHOTOK patoantic248_real_cursors_after_upright.png
+DOWN_LEFT_before pc=80F0 sp=F368 p=01/02/03 flow=01 screen=00 in=00 prev=00 btn=00 player=00 pxy=130,80 v=00/00
+DOWN_LEFT_afterup pc=67F8 sp=F378 p=01/02/03 flow=01 screen=00 in=07 prev=07 btn=00 player=00 pxy=58,80 v=FE/00
+after_downleft pc=7387 sp=F376 p=01/02/03 flow=01 screen=00 in=00 prev=00 btn=00 player=00 pxy=58,80 v=00/00
+SHOTOK patoantic248_real_cursors_after_downleft.png
+UP_DOWN_before pc=70A1 sp=F376 p=01/02/03 flow=01 screen=00 in=00 prev=00 btn=00 player=00 pxy=58,80 v=00/00
+UP_DOWN_afterup pc=6468 sp=F372 p=01/02/03 flow=01 screen=00 in=01 prev=01 btn=00 player=00 pxy=58,78 v=00/FE
+after_updown pc=6300 sp=F374 p=01/02/03 flow=01 screen=00 in=00 prev=00 btn=00 player=00 pxy=58,80 v=00/00
+SHOTOK patoantic248_real_cursors_after_updown.png
+LEFT_RIGHT_before pc=7161 sp=F378 p=01/02/03 flow=01 screen=00 in=00 prev=00 btn=00 player=00 pxy=58,80 v=00/00
+LEFT_RIGHT_afterup pc=78EB sp=F378 p=01/02/03 flow=01 screen=00 in=07 prev=07 btn=00 player=00 pxy=6,80 v=FE/00
+after_leftright pc=78F5 sp=F378 p=01/02/03 flow=01 screen=00 in=00 prev=00 btn=00 player=00 pxy=8,80 v=00/00
+SHOTOK patoantic248_real_cursors_after_leftright.png
+ALL_DIRS_before pc=79BE sp=F378 p=01/02/03 flow=01 screen=00 in=00 prev=00 btn=00 player=00 pxy=8,80 v=00/00
+ALL_DIRS_afterup pc=77F1 sp=F372 p=01/02/03 flow=01 screen=00 in=03 prev=03 btn=00 player=00 pxy=66,80 v=02/00
+final pc=7A48 sp=F378 p=01/02/03 flow=01 screen=00 in=00 prev=00 btn=00 player=00 pxy=66,80 v=00/00
+SHOTOK patoantic248_real_cursors_final.png

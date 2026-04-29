@@ -1,0 +1,10 @@
+BP_init_rom_1 pc=4010 sp=F2EC p=00/00/00 flow=00 exit=00 lives=0 time=0000 enabled=FF task0=0000 irq=FFFF
+first_SPC_DOWN
+dispatcher_disabled pc=A13F sp=F376 p=01/02/03 flow=00 exit=00 lives=3 time=003C enabled=00 task0=5182 irq=012C
+second_SPC_DOWN
+after_second_500ms pc=40EA sp=F368 p=01/02/03 flow=01 exit=00 lives=3 time=003C enabled=00 task0=5182 irq=012C
+after_second_3s pc=A5E6 sp=F36E p=01/02/03 flow=01 exit=00 lives=3 time=003C enabled=00 task0=5182 irq=012C
+BP_0000 pc=0000 sp=F409 p=01/02/03 flow=01 exit=00 lives=3 time=003C enabled=00 task0=5182 irq=012C
+after_second_7s pc=1130 sp=F2FE p=01/02/03 flow=01 exit=00 lives=3 time=003C enabled=00 task0=5182 irq=012C
+BP_init_rom_2 pc=4010 sp=F2EC p=01/02/03 flow=01 exit=00 lives=3 time=003C enabled=00 task0=5182 irq=012C
+final pc=602B sp=F372 p=04/02/03 flow=00 exit=00 lives=3 time=003C enabled=01 task0=5182 irq=008D

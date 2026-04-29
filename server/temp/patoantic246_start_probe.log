@@ -1,0 +1,8 @@
+before_start_spc pc=602B sp=F372 af=0044 bc=0008 de=1800 hl=8900 p1=02 p2=03 p3=03 menuSel=00 node=00
+SPC_DOWN
+after_spc_down_80ms pc=6032 sp=F372 af=0100 bc=0008 de=1800 hl=8900 p1=02 p2=03 p3=03 menuSel=00 node=00
+SPC_UP
+after_spc_up_100ms pc=40D1 sp=F366 af=F84C bc=0008 de=09F8 hl=A088 p1=02 p2=0B p3=03 menuSel=00 node=00
+after_start_1s pc=A13A sp=F376 af=0044 bc=0208 de=0000 hl=A730 p1=02 p2=03 p3=03 menuSel=00 node=00
+after_start_2s pc=A13A sp=F376 af=0044 bc=0208 de=0000 hl=A730 p1=02 p2=03 p3=03 menuSel=00 node=00
+after_start_3s pc=A13A sp=F376 af=0044 bc=0208 de=0000 hl=A730 p1=02 p2=03 p3=03 menuSel=00 node=00

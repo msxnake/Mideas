@@ -1,0 +1,21 @@
+BP_4010_RESET_OR_INIT pc=4010 sp=F2EC p=00/00/00 flow=00 screen=22 input=33 player=22 pxy=8738,8738 v=22/22
+intro_before pc=602B sp=F372 p=04/02/03 flow=00 screen=00 input=33 player=FF pxy=0,0 v=00/00
+start_before pc=A13F sp=F376 p=01/02/03 flow=00 screen=00 input=33 player=00 pxy=8,80 v=33/00
+game_start pc=65F1 sp=6E32 p=08/02/03 flow=01 screen=00 input=33 player=00 pxy=8,80 v=00/00
+SHOTERR C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_multicursor_start.png
+UP_RIGHT_before pc=40DD sp=F378 p=01/02/03 flow=01 screen=00 input=33 player=00 pxy=8,80 v=00/00
+UP_RIGHT_afterup pc=8786 sp=F36A p=01/02/03 flow=01 screen=00 input=33 player=00 pxy=8,80 v=00/00
+after_upright pc=A631 sp=F37C p=01/02/03 flow=01 screen=00 input=33 player=00 pxy=8,80 v=00/00
+SHOTERR C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_multicursor_after_upright.png
+DOWN_LEFT_before pc=8809 sp=F35E p=01/02/03 flow=01 screen=00 input=33 player=00 pxy=8,80 v=00/00
+DOWN_LEFT_afterup pc=76FA sp=F372 p=01/02/03 flow=01 screen=00 input=33 player=00 pxy=8,79 v=00/01
+after_downleft pc=7080 sp=F378 p=01/02/03 flow=01 screen=00 input=33 player=00 pxy=8,80 v=00/00
+SHOTERR C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_multicursor_after_downleft.png
+ALL_DIRS_before pc=6875 sp=F378 p=01/02/03 flow=01 screen=00 input=33 player=00 pxy=8,80 v=00/00
+ALL_DIRS_afterup pc=6C2F sp=F374 p=01/02/03 flow=01 screen=00 input=33 player=00 pxy=94,80 v=02/00
+after_alldirs pc=6318 sp=F372 p=01/02/03 flow=01 screen=00 input=33 player=00 pxy=94,80 v=00/00
+SHOTERR C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_multicursor_after_alldirs.png
+FAST_RIGHT_LEFT_before pc=7161 sp=F378 p=01/02/03 flow=01 screen=00 input=33 player=00 pxy=94,80 v=00/00
+FAST_RIGHT_LEFT_afterup pc=78F9 sp=F378 p=01/02/03 flow=01 screen=00 input=33 player=00 pxy=36,80 v=02/00
+final pc=79BE sp=F378 p=01/02/03 flow=01 screen=00 input=33 player=00 pxy=36,80 v=00/00
+SHOTERR C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_multicursor_final.png

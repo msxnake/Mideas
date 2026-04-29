@@ -1,0 +1,14 @@
+before_first_spc pc=602B sp=F372 af=0044 bc=0008 de=1800 hl=8900 p1=04 p2=02 p3=03 exit=00 sel=00 screen=00 world=00 idx=00 cd=00 player=00 lives=3 time=60 hud=01 frame=85 last=85 engine=FF irq=00AB x0=8 y0=80 vx0=51 vy0=0 ground0=00
+first_SPC_DOWN
+first_100ms pc=6032 sp=F372 af=0100 bc=0008 de=1800 hl=8900 p1=04 p2=02 p3=03 exit=00 sel=00 screen=00 world=00 idx=00 cd=00 player=00 lives=3 time=60 hud=01 frame=85 last=85 engine=FF irq=00BD x0=8 y0=80 vx0=51 vy0=0 ground0=00
+first_1s pc=A13F sp=F376 af=0044 bc=0208 de=0000 hl=A7D0 p1=01 p2=02 p3=03 exit=00 sel=00 screen=00 world=00 idx=00 cd=00 player=00 lives=3 time=60 hud=01 frame=85 last=85 engine=FF irq=00F8 x0=8 y0=80 vx0=51 vy0=0 ground0=00
+before_second_spc pc=A13F sp=F376 af=0044 bc=0208 de=0000 hl=A7D0 p1=01 p2=02 p3=03 exit=00 sel=00 screen=00 world=00 idx=00 cd=00 player=00 lives=3 time=60 hud=01 frame=85 last=85 engine=FF irq=012E x0=8 y0=80 vx0=51 vy0=0 ground0=00
+second_SPC_DOWN
+second_100ms pc=A179 sp=F376 af=0100 bc=0208 de=0000 hl=A7D0 p1=01 p2=02 p3=03 exit=00 sel=00 screen=00 world=00 idx=00 cd=00 player=00 lives=3 time=60 hud=01 frame=85 last=85 engine=FF irq=0140 x0=8 y0=80 vx0=51 vy0=0 ground0=00
+second_1s pc=40F5 sp=F36C af=FFAC bc=7F4C de=BB4C hl=2A18 p1=01 p2=02 p3=03 exit=00 sel=00 screen=00 world=00 idx=00 cd=00 player=00 lives=3 time=60 hud=00 frame=58 last=75 engine=00 irq=0172 x0=8 y0=80 vx0=0 vy0=0 ground0=00
+second_3s pc=A5E8 sp=F372 af=FFAC bc=5E50 de=301D hl=F01A p1=01 p2=02 p3=03 exit=00 sel=00 screen=00 world=00 idx=00 cd=00 player=00 lives=3 time=60 hud=00 frame=58 last=75 engine=00 irq=01DE x0=8 y0=80 vx0=0 vy0=0 ground0=00
+second_6s pc=A5E8 sp=F372 af=FFAC bc=04D4 de=20EF hl=5C23 p1=01 p2=02 p3=03 exit=00 sel=00 screen=00 world=00 idx=00 cd=00 player=00 lives=3 time=60 hud=00 frame=58 last=75 engine=00 irq=0291 x0=8 y0=80 vx0=0 vy0=0 ground0=00
+second_9s pc=4737 sp=F370 af=D0AC bc=00ED de=1000 hl=9E9C p1=04 p2=10 p3=03 exit=00 sel=00 screen=00 world=00 idx=00 cd=00 player=00 lives=3 time=60 hud=01 frame=58 last=75 engine=00 irq=000E x0=8 y0=80 vx0=0 vy0=0 ground0=00
+second_12s pc=602B sp=F372 af=0044 bc=0008 de=1800 hl=8900 p1=04 p2=02 p3=03 exit=00 sel=00 screen=00 world=00 idx=00 cd=00 player=00 lives=3 time=60 hud=01 frame=58 last=75 engine=00 irq=00C2 x0=8 y0=80 vx0=0 vy0=0 ground0=00
+second_15s pc=602B sp=F372 af=0044 bc=0008 de=1800 hl=8900 p1=04 p2=02 p3=03 exit=00 sel=00 screen=00 world=00 idx=00 cd=00 player=00 lives=3 time=60 hud=01 frame=58 last=75 engine=00 irq=0176 x0=8 y0=80 vx0=0 vy0=0 ground0=00
+second_18s pc=4853 sp=F34E af=5D08 bc=071D de=01D3 hl=EA74 p1=04 p2=02 p3=03 exit=00 sel=00 screen=00 world=00 idx=00 cd=00 player=00 lives=3 time=60 hud=01 frame=58 last=75 engine=00 irq=022A x0=8 y0=80 vx0=0 vy0=0 ground0=00

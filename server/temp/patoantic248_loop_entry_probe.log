@@ -1,0 +1,5 @@
+first_SPC_DOWN
+second_SPC_DOWN
+BP_loop_01 pc=A62B sp=F37C p=01/02/03 flow=01 exit=00 screen=00 x0=8 y0=80 lives=3 time=003C
+BP_0000 pc=0000 sp=F409 p=01/02/03 flow=01 exit=00 screen=00 x0=8 y0=80 lives=3 time=003C
+at_15s pc=1130 sp=F2FE p=01/02/03 flow=01 exit=00 screen=00 x0=8 y0=80 lives=3 time=003C

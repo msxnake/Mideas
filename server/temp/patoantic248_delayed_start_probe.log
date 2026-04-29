@@ -1,0 +1,12 @@
+first_before pc=602B sp=F372 p=04/02/03 flow=00 exit=00 screen=00 lives=3 time=003C
+first_SPC_DOWN
+shot_menu_11_5s pc=A13F sp=F376 p=01/02/03 flow=00 exit=00 screen=00 lives=3 time=003C
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_delayed_menu_11_5s.png
+second_before pc=A13F sp=F376 p=01/02/03 flow=00 exit=00 screen=00 lives=3 time=003C
+second_SPC_DOWN
+shot_after_12_8s pc=4858 sp=F344 p=01/02/03 flow=01 exit=00 screen=00 lives=3 time=003C
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_delayed_after_12_8s.png
+shot_after_14_0s pc=65C5 sp=15EA p=08/02/03 flow=01 exit=00 screen=00 lives=3 time=003B
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_delayed_after_14_0s.png
+shot_after_17_0s pc=616D sp=F36E p=01/02/03 flow=01 exit=00 screen=00 lives=3 time=0038
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_delayed_after_17_0s.png

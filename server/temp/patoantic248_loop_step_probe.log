@@ -1,0 +1,21 @@
+BP_init_rom_1 pc=4010 op=F3,ED,56 sp=F2EC af=1F08 bc=0101 de=4010 hl=4004 ix=4010 iy=0104 p=00/00/00 flow=00 exit=00 screen=00 engine=FF lives=0 time=0000 irq=FFFF inirq=FF
+STEP_001_refresh_sprite pc=618F op=32,92,EA sp=F374 af=0044 bc=0000 de=EAB8 hl=EA81 ix=4010 iy=0104 p=08/02/03 flow=00 exit=00 screen=00 engine=FF lives=0 time=0000 irq=0000 inirq=FF
+STEP_002_call_update_sprites_resident pc=51D6 op=3A,16,E3 sp=F372 af=0144 bc=0001 de=88D1 hl=E42B ix=A195 iy=A34F p=04/02/03 flow=00 exit=00 screen=00 engine=FF lives=3 time=003C irq=000B inirq=00
+first_SPC_DOWN
+STEP_003_call_update_sprites_resident pc=51D6 op=3A,16,E3 sp=F35E af=E6A0 bc=000E de=E7AB hl=E41B ix=A195 iy=A34F p=01/02/03 flow=00 exit=00 screen=00 engine=FF lives=3 time=003C irq=00C9 inirq=00
+STEP_004_call_update_sprites_resident pc=51D6 op=3A,16,E3 sp=F35E af=E6A0 bc=0002 de=E7AB hl=E41B ix=A195 iy=A34F p=01/02/03 flow=00 exit=00 screen=00 engine=FF lives=3 time=003C irq=00CF inirq=00
+second_SPC_DOWN
+STEP_005_call_update_sprites_resident pc=51D6 op=3A,16,E3 sp=F36E af=E6A0 bc=0008 de=E7AB hl=E41B ix=A195 iy=A34F p=01/02/03 flow=00 exit=00 screen=00 engine=FF lives=3 time=003C irq=0143 inirq=00
+STEP_006_call_update_sprites_resident pc=51D6 op=3A,16,E3 sp=F374 af=0144 bc=0008 de=0000 hl=E42B ix=A195 iy=A34F p=01/02/03 flow=00 exit=00 screen=00 engine=FF lives=3 time=003C irq=0143 inirq=00
+STEP_007_call_update_sprites_resident pc=51D6 op=3A,16,E3 sp=F37C af=0042 bc=0000 de=0000 hl=E9CA ix=A195 iy=A34F p=01/02/03 flow=01 exit=00 screen=00 engine=00 lives=3 time=003C irq=0146 inirq=00
+STEP_008_call_render_hud_resident pc=5179 op=C3,B6,4F sp=F37C af=0142 bc=0000 de=0000 hl=E9CA ix=A195 iy=A34F p=01/02/03 flow=01 exit=00 screen=00 engine=00 lives=3 time=003C irq=0146 inirq=00
+STEP_009_render_hud_far pc=4FB6 op=F5,ED,57 sp=F37C af=0142 bc=0000 de=0000 hl=E9CA ix=A195 iy=A34F p=01/02/03 flow=01 exit=00 screen=00 engine=00 lives=3 time=003C irq=0146 inirq=00
+STEP_010_world_loop_top pc=A62B op=3A,3D,C0 sp=F37C af=0142 bc=0000 de=0000 hl=E9CA ix=A195 iy=A34F p=01/02/03 flow=01 exit=00 screen=00 engine=00 lives=3 time=003C irq=0147 inirq=00
+STEP_011_task_update_input pc=48CF op=F5,C5,D5 sp=F37A af=0044 bc=0000 de=0000 hl=E9CA ix=A195 iy=A34F p=01/02/03 flow=01 exit=00 screen=00 engine=00 lives=3 time=003C irq=0148 inirq=00
+STEP_012_update_player_fastpath pc=7AC2 op=CD,EE,79 sp=F37A af=0044 bc=0000 de=0000 hl=4125 ix=A195 iy=A34F p=01/02/03 flow=01 exit=00 screen=00 engine=00 lives=3 time=003C irq=0148 inirq=00
+STEP_013_update_world_screen_timer pc=A6C6 op=F5,C5,D5 sp=F37A af=004C bc=0000 de=0000 hl=DEF4 ix=A195 iy=A34F p=01/02/03 flow=01 exit=00 screen=00 engine=00 lives=3 time=003C irq=0148 inirq=00
+STEP_014_call_check_transition_resident pc=5170 op=C3,0E,4D sp=F37A af=004C bc=0000 de=0000 hl=DEF4 ix=A195 iy=A34F p=01/02/03 flow=01 exit=00 screen=00 engine=00 lives=3 time=003C irq=0148 inirq=00
+STEP_015_check_transition_far pc=4D0E op=F5,ED,57 sp=F37A af=004C bc=0000 de=0000 hl=DEF4 ix=A195 iy=A34F p=01/02/03 flow=01 exit=00 screen=00 engine=00 lives=3 time=003C irq=0148 inirq=00
+STEP_016_update_all_entities pc=7861 op=3A,B4,DF sp=F37A af=004C bc=0200 de=0000 hl=DEB4 ix=A195 iy=A34F p=01/02/03 flow=01 exit=00 screen=00 engine=00 lives=3 time=003C irq=0148 inirq=00
+BP_0000 pc=0000 op=F3,C3,12 sp=F409 af=E4BA bc=32E4 de=32D3 hl=3296 ix=A195 iy=A34F p=01/02/03 flow=01 exit=00 screen=00 engine=00 lives=3 time=003C irq=027D inirq=00
+final pc=23C9 op=AF,D3,98 sp=F2FE af=0D08 bc=010D de=0E5E hl=FAFC ix=8010 iy=0000 p=01/02/03 flow=01 exit=00 screen=00 engine=00 lives=3 time=003C irq=027D inirq=00

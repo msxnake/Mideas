@@ -1,0 +1,25 @@
+BP_init_rom pc=4010 sp=F2EC p=00/00/00 flow=00 exit=00 screen=22 lives=34 time=5555 player=22 pxy=8738,8738 e0=238,51 sprite0=00 pat0=33
+first_before pc=602B sp=F372 p=04/02/03 flow=00 exit=00 screen=00 lives=34 time=5555 player=FF pxy=0,0 e0=8,80 sprite0=07 pat0=00
+first_DOWN bit=1
+start_before pc=1A53 sp=F35E p=01/02/03 flow=00 exit=00 screen=00 lives=34 time=5555 player=00 pxy=8,80 e0=8,80 sprite0=07 pat0=00
+start_DOWN bit=1
+shot_start pc=67D4 sp=F33A p=08/02/03 flow=01 exit=00 screen=00 lives=34 time=2417 player=00 pxy=8,80 e0=8,80 sprite0=07 pat0=60
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_cursor_start.png
+RIGHT_before pc=65C5 sp=15EA p=08/02/03 flow=01 exit=00 screen=00 lives=34 time=5423 player=00 pxy=8,80 e0=8,80 sprite0=07 pat0=60
+RIGHT_DOWN bit=128
+shot_after_right pc=A631 sp=F37C p=01/02/03 flow=01 exit=00 screen=00 lives=34 time=CC23 player=00 pxy=118,80 e0=118,80 sprite0=07 pat0=60
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_cursor_after_right.png
+LEFT_before pc=A631 sp=F37C p=01/02/03 flow=01 exit=00 screen=00 lives=34 time=0823 player=00 pxy=118,80 e0=118,80 sprite0=07 pat0=60
+LEFT_DOWN bit=8
+shot_after_left pc=A631 sp=F37C p=01/02/03 flow=01 exit=00 screen=00 lives=34 time=8023 player=00 pxy=118,80 e0=118,80 sprite0=07 pat0=60
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_cursor_after_left.png
+UP_before pc=A631 sp=F37C p=01/02/03 flow=01 exit=00 screen=00 lives=34 time=BC23 player=00 pxy=118,80 e0=118,80 sprite0=07 pat0=60
+UP_DOWN bit=16
+shot_after_up pc=A631 sp=F37C p=01/02/03 flow=01 exit=00 screen=00 lives=34 time=3423 player=00 pxy=40,80 e0=40,80 sprite0=0F pat0=D0
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_cursor_after_up.png
+DOWN_before pc=A631 sp=F37C p=01/02/03 flow=01 exit=00 screen=00 lives=34 time=7023 player=00 pxy=40,80 e0=40,80 sprite0=0F pat0=D0
+DOWN_DOWN bit=32
+shot_after_down pc=A688 sp=F37C p=01/02/03 flow=01 exit=00 screen=00 lives=34 time=E823 player=00 pxy=40,80 e0=40,80 sprite0=07 pat0=60
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_cursor_after_down.png
+final pc=4ED9 sp=F374 p=08/02/03 flow=01 exit=00 screen=00 lives=34 time=9C23 player=00 pxy=40,80 e0=40,80 sprite0=07 pat0=60
+SCREENSHOT_OK C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_cursor_final.png
