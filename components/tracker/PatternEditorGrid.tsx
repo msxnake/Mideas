@@ -8,6 +8,21 @@ import {
     createEmptyCell
 } from '../utils/trackerUtils'; 
 
+const CHANNEL_ACCENTS = [
+  'border-l-emerald-400/80',
+  'border-l-sky-400/80',
+  'border-l-amber-300/80',
+  'border-l-fuchsia-400/80',
+  'border-l-rose-400/80',
+] as const;
+
+const FIELD_TEXT_CLASSES: Record<keyof TrackerCell, string> = {
+  note: 'text-msx-highlight placeholder:text-msx-textsecondary/60 font-semibold',
+  instrument: 'text-emerald-300 placeholder:text-emerald-900/70',
+  ornament: 'text-sky-300 placeholder:text-sky-900/70',
+  volume: 'text-amber-200 placeholder:text-amber-900/70',
+};
+
 /**
  * Props for the {@link PatternEditorGrid} component.
  * @category Tracker
@@ -61,39 +76,53 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
   return (
     <div 
         ref={patternEditorRef} 
-        className="flex-grow p-1 overflow-auto font-mono text-xs" 
+        className="flex-grow p-2 overflow-auto font-mono text-xs bg-msx-bgcolor" 
         onKeyDown={onGridKeyDown} 
         tabIndex={0} 
         role="grid"
         aria-label="Pattern Editor"
     >
-      <div className="flex sticky top-0 bg-msx-panelbg z-10 pb-1 border-b border-msx-border" aria-hidden="true">
-        <div className="w-8 text-center text-msx-textsecondary">Row</div>
-        {channels.map(chId => (
-          <div key={`header-${chId}`} className="flex border-l border-msx-border pl-1">
-            <div className={`${CELL_WIDTH_NOTE} ${CELL_TEXT_ALIGN} text-msx-highlight`}>Ch {chId} Note</div>
-            <div className={`${CELL_WIDTH_INSTR} ${CELL_TEXT_ALIGN} text-msx-highlight`}>Ins</div>
-            <div className={`${CELL_WIDTH_ORN} ${CELL_TEXT_ALIGN} text-msx-highlight`}>Orn</div>
-            <div className={`${CELL_WIDTH_VOL} ${CELL_TEXT_ALIGN} text-msx-highlight`}>Vol</div>
+      <div className="flex sticky top-0 bg-msx-panelbg z-10 pb-1 border-b border-msx-border shadow-md" aria-hidden="true">
+        <div className="w-10 text-center text-msx-textsecondary tracking-wide">ROW</div>
+        {channels.map((chId, chIndex) => (
+          <div
+            key={`header-${chId}`}
+            className={`flex border-l-4 ${CHANNEL_ACCENTS[chIndex % CHANNEL_ACCENTS.length]} pl-1 pr-1 bg-msx-bgcolor/40`}
+          >
+            <div className={`${CELL_WIDTH_NOTE} ${CELL_TEXT_ALIGN} text-msx-highlight`}>CH {chId}</div>
+            <div className={`${CELL_WIDTH_INSTR} ${CELL_TEXT_ALIGN} text-emerald-300`}>IN</div>
+            <div className={`${CELL_WIDTH_ORN} ${CELL_TEXT_ALIGN} text-sky-300`}>OR</div>
+            <div className={`${CELL_WIDTH_VOL} ${CELL_TEXT_ALIGN} text-amber-200`}>V</div>
           </div>
         ))}
       </div>
       {rowNumbers.map(rIdx => {
         const rowData = currentPattern.rows[rIdx];
         const isCurrentPlaybackRow = isPlaying && rIdx === playbackRow;
-        const rowBgClass = isCurrentPlaybackRow ? 'bg-msx-textprimary text-msx-bgcolor' : (rIdx % 16 === 0 ? 'bg-msx-border/30' : (rIdx % 4 === 0 ? 'bg-msx-panelbg/60' : ''));
-        const rowNumColorClass = isCurrentPlaybackRow ? 'text-msx-bgcolor' : (rIdx % 16 === 0 ? 'text-msx-highlight' : 'text-msx-textsecondary');
+        const isPhraseStart = rIdx % 16 === 0;
+        const isBeatStart = rIdx % 4 === 0;
+        const rowBgClass = isCurrentPlaybackRow
+          ? 'bg-msx-highlight/90 text-msx-bgcolor shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]'
+          : (isPhraseStart ? 'bg-msx-border/35' : (isBeatStart ? 'bg-msx-panelbg/70' : 'hover:bg-msx-panelbg/35'));
+        const rowNumColorClass = isCurrentPlaybackRow
+          ? 'text-msx-bgcolor font-bold'
+          : (isPhraseStart ? 'text-msx-highlight font-bold' : (isBeatStart ? 'text-msx-textprimary' : 'text-msx-textsecondary'));
+        const rowHex = rIdx.toString(16).toUpperCase().padStart(2, '0');
 
         return (
-          <div key={`row-${rIdx}`} className={`flex items-center ${rowBgClass}`} role="row">
-            <div className={`w-8 text-center ${rowNumColorClass} select-none`} role="rowheader">
-                {String(rIdx).padStart(2, '0')}
+          <div key={`row-${rIdx}`} className={`flex items-center min-h-6 ${rowBgClass}`} role="row">
+            <div className={`w-10 text-center ${rowNumColorClass} select-none`} role="rowheader" title={`Row ${rIdx}`}>
+                {rowHex}
             </div>
-            {channels.map(chId => {
+            {channels.map((chId, chIndex) => {
               const cellData = rowData ? rowData[chId] : createEmptyCell();
               const cellTextColor = isCurrentPlaybackRow ? 'text-msx-bgcolor' : 'text-msx-textprimary';
               return (
-                <div key={`${chId}-${rIdx}`} className={`flex border-l border-msx-border pl-1 ${cellTextColor}`} role="gridcell">
+                <div
+                  key={`${chId}-${rIdx}`}
+                  className={`flex border-l-4 ${CHANNEL_ACCENTS[chIndex % CHANNEL_ACCENTS.length]} pl-1 pr-1 ${cellTextColor}`}
+                  role="gridcell"
+                >
                   {fieldsOrder.map(field => {
                     let fieldWidthClass = '';
                     switch(field) {
@@ -103,6 +132,7 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
                         case 'volume': fieldWidthClass = CELL_WIDTH_VOL; break;
                         default: const _exhaustiveCheck: never = field; fieldWidthClass = CELL_WIDTH_NOTE; // Should not happen
                     }
+                    const isFocused = focusedCell?.rowIndex === rIdx && focusedCell.channelId === chId && focusedCell.field === field;
                     return (
                         <CellInput
                             key={`${chId}-${rIdx}-${field}`}
@@ -114,7 +144,7 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
                             allowedCharsPattern={getCellAllowedCharsPattern(field)}
                             onChange={(val) => onCellChange(rIdx, chId, field, val)}
                             onFocus={() => onCellFocus(rIdx, chId, field)}
-                            className={`${CELL_TEXT_ALIGN} ${isCurrentPlaybackRow ? 'placeholder:text-msx-bgcolor/70' : 'placeholder:text-msx-textsecondary/70'} ${fieldWidthClass}`}
+                            className={`${CELL_TEXT_ALIGN} ${isCurrentPlaybackRow ? 'placeholder:text-msx-bgcolor/70' : FIELD_TEXT_CLASSES[field]} ${fieldWidthClass} ${isFocused ? 'ring-1 ring-msx-highlight/80 bg-msx-highlight/20' : ''}`}
                             ariaLabel={`${chId} ${field} at row ${rIdx}`}
                             isNoteField={field === 'note'}
                         />

@@ -41,6 +41,10 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
   onOpenWaveformModal
 }) => {
 
+  const isPT3Instrument = (instr: PT3Instrument | SCCInstrument): instr is PT3Instrument => {
+    return !Array.isArray((instr as SCCInstrument).waveform);
+  };
+
   const formatSubtitle = (instr: PT3Instrument | SCCInstrument) => {
     if (soundChip === 'SCC') {
       const vol = (instr as SCCInstrument).volume ?? 15;
@@ -48,7 +52,24 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
       const dc = wave.length ? (wave.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0) / Math.max(1, wave.length)) : 0;
       return `vol ${vol} | dc ${dc >= 0 ? '+' : ''}${dc.toFixed(1)}`;
     }
-    return '';
+    if (!isPT3Instrument(instr)) return '';
+    const parts = [
+      `V${instr.volumeEnvelope?.length ?? 0}`,
+      `T${instr.toneEnvelope?.length ?? 0}`,
+    ];
+    if (instr.noiseEnvelope?.length || instr.ayNoiseEnabled) parts.push(`N${instr.noiseEnvelope?.length ?? 0}`);
+    if (typeof instr.ayEnvelopeShape === 'number') parts.push(`E${instr.ayEnvelopeShape.toString(16).toUpperCase()}`);
+    return parts.join(' ');
+  };
+
+  const getInstrumentFlags = (instr: PT3Instrument | SCCInstrument) => {
+    if (soundChip === 'SCC' || !isPT3Instrument(instr)) return [];
+    return [
+      instr.ayToneEnabled === false ? null : 'Tone',
+      instr.ayNoiseEnabled ? 'Noise' : null,
+      instr.toneEnvelope?.some(value => value !== 0) ? 'Vib' : null,
+      typeof instr.ayEnvelopeShape === 'number' ? 'Env' : null,
+    ].filter(Boolean) as string[];
   };
 
   const handleAddNew = () => {
@@ -71,23 +92,39 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
   const panelIcon = soundChip === 'SCC' ? <WaveformIcon /> : <PencilIcon />;
 
   return (
-    <Panel title={panelTitle} icon={panelIcon}>
-         <div className="max-h-20 overflow-y-auto space-y-0.5 pr-1 text-xs">
+    <Panel title={panelTitle} icon={panelIcon} bodyClassName="p-2">
+         <div className="max-h-32 overflow-y-auto space-y-1 pr-1 text-xs">
              {instruments.map(instr => (
                 <div key={instr.id}
-                     className={`p-0.5 rounded border text-[0.65rem] flex justify-between items-center cursor-pointer
+                     className={`p-1 rounded border text-[0.65rem] cursor-pointer
                                  ${instr.id === activeInstrumentId
-                                    ? 'bg-msx-accent text-white border-msx-accent'
-                                    : 'bg-msx-bgcolor border-msx-border hover:bg-msx-border/70'}`}
+                                    ? 'bg-msx-accent/90 text-white border-msx-accent shadow-[inset_3px_0_0_rgba(255,255,255,0.45)]'
+                                    : 'bg-msx-bgcolor border-msx-border hover:border-msx-highlight/70 hover:bg-msx-border/50'}`}
                      onClick={() => onSetActiveInstrumentId(instr.id)}
                      onDoubleClick={() => handleEdit(instr)}
                      title={`Select: ${instr.name}. Double-click to edit.`}
                 >
-                    <span>
-                      {String(instr.id).padStart(2, '0')}: {instr.name}
-                      {soundChip === 'SCC' && <span className="text-msx-textsecondary ml-1">({formatSubtitle(instr)})</span>}
-                    </span>
-                    <Button onClick={(e) => { e.stopPropagation(); handleEdit(instr);}} size="sm" variant="ghost" className="!p-0">Edit</Button>
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="font-mono text-msx-highlight bg-black/25 px-1 rounded">{String(instr.id).padStart(2, '0')}</span>
+                          <span className="truncate">{instr.name}</span>
+                        </div>
+                        <div className={`mt-0.5 font-mono ${instr.id === activeInstrumentId ? 'text-white/80' : 'text-msx-textsecondary'}`}>
+                          {formatSubtitle(instr)}
+                        </div>
+                        {getInstrumentFlags(instr).length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {getInstrumentFlags(instr).map(flag => (
+                              <span key={flag} className="px-1 border border-msx-border/70 rounded bg-black/20 text-[0.58rem] leading-3">
+                                {flag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <Button onClick={(e) => { e.stopPropagation(); handleEdit(instr);}} size="sm" variant="ghost" className="!px-1 !py-0">Edit</Button>
+                    </div>
                 </div>
              ))}
              {instruments.length === 0 && <p className="text-msx-textsecondary italic text-center">No instruments.</p>}

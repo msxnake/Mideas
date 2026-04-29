@@ -431,22 +431,33 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
             aria-labelledby="instrumentModalTitle"
         >
             <div
-                className="bg-msx-panelbg p-5 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden animate-slideIn pixel-font flex flex-col"
+                className="bg-msx-panelbg border border-msx-border p-5 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden animate-slideIn pixel-font flex flex-col"
                 onClick={e => e.stopPropagation()}
             >
-                <h3 id="instrumentModalTitle" className="text-xl text-msx-highlight mb-4 font-bold">
-                    {editingInstrument ? `Edit Instrument #${editingInstrument.id}` : `New Instrument #${instrumentModalBuffer.id || '?'}`}
-                </h3>
+                <div className="mb-4 flex items-start justify-between gap-3">
+                    <div>
+                        <h3 id="instrumentModalTitle" className="text-xl text-msx-highlight font-bold">
+                            {editingInstrument ? `Edit Instrument #${editingInstrument.id}` : `New Instrument #${instrumentModalBuffer.id || '?'}`}
+                        </h3>
+                        <div className="mt-1 text-xs text-msx-textsecondary font-mono">
+                            Vol {volumeEnvelopeArray.length} | Tone {toneEnvelopeArray.length} | Noise {noiseEnvelopeArray.length}
+                            {typeof instrumentModalBuffer.ayEnvelopeShape === 'number' ? ` | HW env ${instrumentModalBuffer.ayEnvelopeShape.toString(16).toUpperCase()}` : ''}
+                        </div>
+                    </div>
+                    <Button onClick={handlePreview} disabled={isPreviewing || !synthesizer} variant="secondary" className="min-w-28">
+                        {isPreviewing ? 'Playing' : 'Preview'}
+                    </Button>
+                </div>
 
                 {/* Tabs */}
-                <div className="flex gap-2 mb-4 border-b border-msx-border">
+                <div className="flex gap-1 mb-4 border-b border-msx-border">
                     {(['basic', 'volume', 'tone', 'hardware'] as const).map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`px-4 py-2 text-sm font-semibold transition-colors ${activeTab === tab
-                                ? 'text-msx-accent border-b-2 border-msx-accent'
-                                : 'text-msx-textsecondary hover:text-msx-textprimary'
+                            className={`px-4 py-2 text-sm font-semibold transition-colors border border-b-0 rounded-t ${activeTab === tab
+                                ? 'text-msx-accent border-msx-accent bg-msx-bgcolor'
+                                : 'text-msx-textsecondary border-msx-border bg-msx-panelbg hover:text-msx-textprimary hover:border-msx-highlight/70'
                                 }`}
                         >
                             {tab === 'basic' && '📋 Basic'}
