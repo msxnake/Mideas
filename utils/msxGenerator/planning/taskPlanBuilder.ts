@@ -8,7 +8,9 @@ export function buildInterruptTasks(
 ): TaskDefinition[] {
   const tasks: TaskDefinition[] = [];
   const interruptConfig = config.interruptConfig ?? {};
-  const enableAudioTask = interruptConfig.enableAudioTask ?? false;
+  const hasExternalPt3Audio = (analysis.tracks || [])
+    .some((track: any) => track?.playbackBackend === 'external-pt3');
+  const enableAudioTask = interruptConfig.enableAudioTask ?? hasExternalPt3Audio;
   const enableFrameCounterTask = interruptConfig.enableFrameCounterTask ?? true;
   const hasFrameAudio =
     ((analysis.tracks?.length || 0) > 0) ||
@@ -16,15 +18,17 @@ export function buildInterruptTasks(
 
   if (enableAudioTask && hasFrameAudio) {
     tasks.push({
-      id: 'audio_tick',
+      id: hasExternalPt3Audio ? 'pt3_music_update' : 'audio_tick',
       responsibility: 'audio',
-      routineLabel: 'task_audio_tick',
+      routineLabel: hasExternalPt3Audio ? 'music_update' : 'task_audio_tick',
       slot: 0,
       period: 1,
       enabledAtBoot: true,
       irqSafe: true,
       estimatedCycles: 0,
-      notes: ['Tracker/PT3 music and state-machine sound tick.'],
+      notes: [hasExternalPt3Audio
+        ? 'External PT3 music tick only; keep state-machine/SFX work out of H.TIMI.'
+        : 'Tracker music and state-machine sound tick.'],
     });
   }
 

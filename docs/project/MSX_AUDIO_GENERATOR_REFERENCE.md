@@ -116,14 +116,15 @@ Estas son las rutinas que otros generadores pueden llamar sin conocer el layout 
 
 Tras las pruebas reales de marzo de 2026, el tick musical ya no debe depender solo de `task_update_music` en `H.TIMI`.
 
-- `header.asm` sigue haciendo `music_init_system` al arrancar, pero ya no auto-registra el task de audio por defecto.
-- `gameflow.asm` llama `music_update` desde los bucles sincronizados con `HALT`.
+- `header.asm` sigue haciendo `music_init_system` al arrancar.
+- Los tracks internos del tracker de Mideas no auto-registran el task de audio por defecto: `gameflow.asm` llama `music_update` desde los bucles sincronizados con `HALT`.
+- Los tracks `external-pt3` si auto-registran `music_update` en `H.TIMI` por defecto, salvo que `interruptConfig.enableAudioTask` se fuerce explicitamente a `false`.
 - Si el proyecto usa state machines con sonido, esos mismos bucles llaman tambien `SM_UpdateSound`.
 
 Motivo:
 
-- En proyectos GameFlow minimos con PT3 externo se observo reproduccion muda cuando todo el avance musical dependia del hook IRQ.
-- Mover el tick al mismo borde de frame que usa el loop principal mantiene la cadencia de 50/60 Hz y evita depender del scheduler de interrupcion para que la musica arranque.
+- En proyectos GameFlow minimos con PT3 externo se observo reproduccion muda cuando todo el avance musical dependia del hook IRQ; por eso el wrapper comun `task_audio_tick` se mantiene disponible tanto para IRQ como para bucles HALT.
+- En juegos pesados con PT3 externo, dejar `PT3_PLAY/PT3_ROUT` en el loop de gameplay hace que la musica herede cualquier frame lento. Por defecto los PT3 externos vuelven a tick fijo por `H.TIMI`, pero el task de IRQ llama solo a `music_update`; `SM_UpdateSound` y SFX quedan fuera del hook para no ampliar el coste ni la superficie de corrupcion.
 
 ### Regla PT3 externa
 
