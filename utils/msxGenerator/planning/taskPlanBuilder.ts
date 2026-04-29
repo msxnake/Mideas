@@ -8,7 +8,7 @@ export function buildInterruptTasks(
 ): TaskDefinition[] {
   const tasks: TaskDefinition[] = [];
   const interruptConfig = config.interruptConfig ?? {};
-  const enableAudioTask = interruptConfig.enableAudioTask ?? true;
+  const enableAudioTask = interruptConfig.enableAudioTask ?? false;
   const enableFrameCounterTask = interruptConfig.enableFrameCounterTask ?? true;
   const hasFrameAudio =
     ((analysis.tracks?.length || 0) > 0) ||

@@ -49,6 +49,15 @@ export function generateHeaderFile(
   executionPlan?: ExecutionPlan,
   romMode: string = 'simple32k'
 ): string {
+  const hasAudioTick = !!(
+    (analysis?.tracks && analysis.tracks.length > 0) ||
+    (analysis?.stateMachines && analysis.stateMachines.length > 0)
+  );
+  const hasInterruptAudioTask = !!executionPlan?.tasks.some((task) => task.responsibility === 'audio');
+  const mainLoopAudioTickAsm = hasAudioTick && !hasInterruptAudioTask
+    ? `    call task_audio_tick\n`
+    : '';
+
   // Generate GameFlow comment for documentation
   let gameFlowComment = '';
 
@@ -232,6 +241,7 @@ ${presentationBootAsm}    call init_entities
 
 main_loop:
     halt
+${mainLoopAudioTickAsm}    ; Update gameplay state
     call update_all_entities
     jp main_loop
 
