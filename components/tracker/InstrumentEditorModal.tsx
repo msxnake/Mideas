@@ -49,6 +49,7 @@ type PredefinedInstrumentType =
     | "Custom"
     | "Piano"
     | "Soft Piano"
+    | "Flute"
     | "Banjo"
     | "Violin"
     | "Strings"
@@ -75,14 +76,24 @@ type PredefinedInstrumentType =
 const PREDEFINED_INSTRUMENTS: Record<PredefinedInstrumentType, Partial<InstrumentModalBuffer>> = {
     "Custom": {},
     "Piano": {
-        volumeEnvelope: "127,100,70,45,25,10,0",
+        volumeEnvelope: "15,15,14,13,12,10,8,7,5,4,3,2,1,0",
         toneEnvelope: "0,0,0,0",
+        volumeLoop: 255,
+        toneLoop: 255,
         ayEnvelopeShape: undefined,
         ayToneEnabled: true, ayNoiseEnabled: false,
     },
     "Soft Piano": {
         volumeEnvelope: "0,30,60,100,127,110,90,65,40,15,0",
         toneEnvelope: "0,0,0",
+        ayEnvelopeShape: undefined,
+        ayToneEnabled: true, ayNoiseEnabled: false,
+    },
+    "Flute": {
+        volumeEnvelope: "0,2,5,8,11,13,14,13,12,13,14,13",
+        toneEnvelope: "0,0,1,0,0,-1",
+        volumeLoop: 6,
+        toneLoop: 0,
         ayEnvelopeShape: undefined,
         ayToneEnabled: true, ayNoiseEnabled: false,
     },
@@ -106,13 +117,12 @@ const PREDEFINED_INSTRUMENTS: Record<PredefinedInstrumentType, Partial<Instrumen
         ayToneEnabled: true, ayNoiseEnabled: false,
     },
     "Strings": {
-        // Smoother string variant: shape 10 = continuous triangle
-        // Ratio 2.0 = higher harmonics, brighter timbre
-        volumeEnvelope: "",
-        toneEnvelope: "0,0,1,0,-1,0",
+        volumeEnvelope: "0,1,2,4,6,8,10,12,13,14,15,14,13,14",
+        toneEnvelope: "0,0,1,1,0,0,-1,-1",
+        volumeLoop: 9,
         toneLoop: 0,
-        ayEnvelopeShape: 10,
-        hardwareEnvelopeRatio: 2.0,
+        ayEnvelopeShape: undefined,
+        hardwareEnvelopeRatio: undefined,
         ayToneEnabled: true, ayNoiseEnabled: false,
     },
     "Synth Lead": {
@@ -141,13 +151,13 @@ const PREDEFINED_INSTRUMENTS: Record<PredefinedInstrumentType, Partial<Instrumen
         noiseLoop: 255,
     },
     "Snare": {
-        volumeEnvelope: "127,116,96,72,50,30,14,0",
+        volumeEnvelope: "15,13,10,8,6,4,2,0",
         volumeLoop: 255,
         toneEnvelope: "7,4,2,0",
         toneLoop: 255,
-        ayEnvelopeShape: 0,
+        ayEnvelopeShape: undefined,
         ayToneEnabled: true, ayNoiseEnabled: true,
-        noiseBaseFrequency: 3,
+        noiseBaseFrequency: 8,
         noiseEnvelope: "3,5,8,12,18,24,31",
         noiseLoop: 255,
     },
@@ -242,6 +252,43 @@ const PREDEFINED_INSTRUMENTS: Record<PredefinedInstrumentType, Partial<Instrumen
     "Random": {}
 };
 
+const ARCHITECTURE_PRESETS: Array<{
+    type: PredefinedInstrumentType;
+    title: string;
+    subtitle: string;
+    tags: string[];
+    previewNote: string;
+}> = [
+    {
+        type: "Piano",
+        title: "Piano",
+        subtitle: "Percussive tone, software decay",
+        tags: ["Tone", "Decay", "No loop"],
+        previewNote: "C-4",
+    },
+    {
+        type: "Strings",
+        title: "Strings",
+        subtitle: "Slow attack, looped pad, soft vibrato",
+        tags: ["Tone", "Sustain", "Vibrato"],
+        previewNote: "C-4",
+    },
+    {
+        type: "Flute",
+        title: "Flute",
+        subtitle: "Breathy attack and light pitch movement",
+        tags: ["Tone", "Sustain", "Vibrato"],
+        previewNote: "A-4",
+    },
+    {
+        type: "Snare",
+        title: "Snare",
+        subtitle: "Short tone body plus noise macro",
+        tags: ["Tone", "Noise", "One-shot"],
+        previewNote: "C-3",
+    },
+];
+
 const TONE_MACRO_PRESETS: Array<{ label: string; values: number[]; loop: number }> = [
     { label: 'Soft vib', values: [0, 0, 1, 0, 0, -1], loop: 0 },
     { label: 'Deep vib', values: [0, 1, 2, 1, 0, -1, -2, -1], loop: 0 },
@@ -312,7 +359,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
     synthesizer
 }) => {
     // All hooks must be called before any conditional returns
-    const [activeTab, setActiveTab] = useState<'basic' | 'volume' | 'tone' | 'hardware'>('basic');
+    const [activeTab, setActiveTab] = useState<'architecture' | 'basic' | 'volume' | 'tone' | 'hardware'>('architecture');
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [previewNote, setPreviewNote] = useState('C-4');
 
@@ -331,6 +378,13 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
         onInstrumentModalBufferChange(field, isNaN(num) ? undefined : num);
     }, [onInstrumentModalBufferChange]);
 
+    const applyPresetData = useCallback((presetData: Partial<InstrumentModalBuffer>) => {
+        Object.keys(presetData).forEach(key => {
+            const fieldKey = key as keyof InstrumentModalBuffer;
+            onInstrumentModalBufferChange(fieldKey, presetData[fieldKey]);
+        });
+    }, [onInstrumentModalBufferChange]);
+
     const handlePresetChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
         const selectedType = e.target.value as PredefinedInstrumentType;
         let presetData: Partial<InstrumentModalBuffer>;
@@ -341,11 +395,14 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
             presetData = PREDEFINED_INSTRUMENTS[selectedType] || {};
         }
 
-        Object.keys(presetData).forEach(key => {
-            const fieldKey = key as keyof InstrumentModalBuffer;
-            onInstrumentModalBufferChange(fieldKey, presetData[fieldKey]);
-        });
-    }, [onInstrumentModalBufferChange]);
+        applyPresetData(presetData);
+    }, [applyPresetData]);
+
+    const handleArchitecturePreset = useCallback((preset: typeof ARCHITECTURE_PRESETS[number]) => {
+        applyPresetData(PREDEFINED_INSTRUMENTS[preset.type] || {});
+        onInstrumentModalBufferChange('name', preset.title);
+        setPreviewNote(preset.previewNote);
+    }, [applyPresetData, onInstrumentModalBufferChange]);
 
     // Handle envelope changes from visual editor
     const handleVolumeEnvelopeChange = useCallback((values: number[]) => {
@@ -465,7 +522,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
 
                 {/* Tabs */}
                 <div className="flex gap-1 mb-4 border-b border-msx-border">
-                    {(['basic', 'volume', 'tone', 'hardware'] as const).map(tab => (
+                    {(['architecture', 'basic', 'volume', 'tone', 'hardware'] as const).map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -474,6 +531,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                                 : 'text-msx-textsecondary border-msx-border bg-msx-panelbg hover:text-msx-textprimary hover:border-msx-highlight/70'
                                 }`}
                         >
+                            {tab === 'architecture' && 'Architecture'}
                             {tab === 'basic' && '📋 Basic'}
                             {tab === 'volume' && '📊 Volume'}
                             {tab === 'tone' && '🎵 Tone'}
@@ -484,6 +542,57 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
 
                 {/* Tab Content */}
                 <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                    {activeTab === 'architecture' && (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {ARCHITECTURE_PRESETS.map(preset => (
+                                    <button
+                                        key={preset.type}
+                                        type="button"
+                                        onClick={() => handleArchitecturePreset(preset)}
+                                        className="rounded border border-msx-border bg-msx-bgcolor p-3 text-left transition-colors hover:border-msx-highlight hover:bg-msx-border/30 focus:border-msx-highlight focus:outline-none focus:ring-1 focus:ring-msx-highlight/60"
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                <div className="text-base font-bold text-msx-highlight">{preset.title}</div>
+                                                <div className="mt-1 text-xs text-msx-textsecondary">{preset.subtitle}</div>
+                                            </div>
+                                            <span className="rounded border border-msx-border bg-black/20 px-2 py-1 font-mono text-[0.62rem] text-msx-textprimary">
+                                                {preset.previewNote}
+                                            </span>
+                                        </div>
+                                        <div className="mt-3 flex flex-wrap gap-1">
+                                            {preset.tags.map(tag => (
+                                                <span key={tag} className="rounded border border-msx-border/80 bg-black/20 px-1.5 py-0.5 text-[0.62rem] uppercase tracking-wider text-msx-textsecondary">
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 rounded border border-msx-border bg-msx-bgcolor p-3 text-xs">
+                                <div>
+                                    <div className="text-msx-textsecondary uppercase tracking-wider text-[0.62rem]">Volume</div>
+                                    <div className="mt-1 font-mono text-msx-highlight">{volumeEnvelopeArray.length} steps</div>
+                                </div>
+                                <div>
+                                    <div className="text-msx-textsecondary uppercase tracking-wider text-[0.62rem]">Tone</div>
+                                    <div className="mt-1 font-mono text-sky-300">{toneEnvelopeArray.length} steps</div>
+                                </div>
+                                <div>
+                                    <div className="text-msx-textsecondary uppercase tracking-wider text-[0.62rem]">Noise</div>
+                                    <div className="mt-1 font-mono text-amber-300">{instrumentModalBuffer.ayNoiseEnabled ? `${noiseEnvelopeArray.length} steps` : 'off'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-msx-textsecondary uppercase tracking-wider text-[0.62rem]">AY Env</div>
+                                    <div className="mt-1 font-mono text-msx-textprimary">{typeof instrumentModalBuffer.ayEnvelopeShape === 'number' ? `#${instrumentModalBuffer.ayEnvelopeShape}` : 'off'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {activeTab === 'basic' && (
                         <div className="space-y-3">
                             {!editingInstrument && (
