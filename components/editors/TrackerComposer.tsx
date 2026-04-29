@@ -309,8 +309,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   const [keyboardOctaveOffset, setKeyboardOctaveOffset] = useState(0);
   const [activePianoKeys, setActivePianoKeys] = useState<Set<string>>(new Set());
+  const [activePianoKeyLevels, setActivePianoKeyLevels] = useState<Map<string, number>>(new Map());
   const activePianoKeysTimeoutRef = useRef<number | null>(null);
   const playbackPianoNotesRef = useRef<(string | null)[]>(Array(PT3_CHANNELS.length).fill(null));
+  const playbackPianoLevelsRef = useRef<number[]>(Array(PT3_CHANNELS.length).fill(0));
   const playbackPianoTimeoutsRef = useRef<(number | null)[]>(Array(PT3_CHANNELS.length).fill(null));
   const playbackInstrumentIdsRef = useRef<(number | null)[]>(Array(PT3_CHANNELS.length).fill(null));
 
@@ -332,6 +334,18 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     }
   }, []);
 
+  const publishPianoVisualState = useCallback(() => {
+    const levels = new Map<string, number>();
+    playbackPianoNotesRef.current.forEach((note, channelIndex) => {
+      if (!note) return;
+      const level = Math.max(0, Math.min(1, playbackPianoLevelsRef.current[channelIndex] ?? 0));
+      if (level <= 0.02) return;
+      levels.set(note, Math.max(levels.get(note) ?? 0, level));
+    });
+    setActivePianoKeys(new Set(levels.keys()));
+    setActivePianoKeyLevels(levels);
+  }, []);
+
   const clearPianoHighlights = useCallback(() => {
     if (activePianoKeysTimeoutRef.current) {
       clearTimeout(activePianoKeysTimeoutRef.current);
@@ -342,49 +356,78 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     });
     playbackPianoTimeoutsRef.current = Array(channels.length).fill(null);
     playbackPianoNotesRef.current = Array(channels.length).fill(null);
+    playbackPianoLevelsRef.current = Array(channels.length).fill(0);
     playbackInstrumentIdsRef.current = Array(channels.length).fill(null);
     setActivePianoKeys(new Set());
+    setActivePianoKeyLevels(new Map());
   }, [channels.length]);
 
   const isPlayableNote = useCallback((note: string | null | undefined): note is string => {
     return !!note && note !== '---' && note !== '===';
   }, []);
 
-  const getPianoVisualDecayMs = useCallback((instrumentId: number | null, rowDurationMs: number, nextKeeps: boolean): number | null => {
-    const instrument = typeof instrumentId === 'number'
-      ? songData.instruments.find(instr => instr.id === instrumentId) as PT3Instrument | undefined
-      : undefined;
-    const volumeEnvelope = instrument?.volumeEnvelope || [];
-    const hasVolumeLoop = typeof instrument?.volumeLoop === 'number'
-      && instrument.volumeLoop >= 0
-      && instrument.volumeLoop < volumeEnvelope.length;
-    const endsSilent = volumeEnvelope.length > 0 && (volumeEnvelope[volumeEnvelope.length - 1] ?? 0) <= 0;
-    const oneShotDecayMs = (!hasVolumeLoop && endsSilent)
-      ? Math.max(80, volumeEnvelope.length * 30)
-      : null;
+  const normalizePianoEnvelopeValue = useCallback((value: number, maxValue: number): number => {
+    const denominator = maxValue > 15 ? 127 : 15;
+    return Math.max(0, Math.min(1, value / denominator));
+  }, []);
 
-    if (!nextKeeps) {
-      return Math.max(60, Math.min(rowDurationMs * 0.85, oneShotDecayMs ?? rowDurationMs * 0.85));
-    }
-
-    return oneShotDecayMs;
-  }, [songData.instruments]);
-
-  const schedulePianoVisualRelease = useCallback((channelIndex: number, note: string, delayMs: number | null) => {
+  const schedulePianoVisualEnvelope = useCallback((channelIndex: number, note: string, instrumentId: number | null, rowDurationMs: number, nextKeeps: boolean) => {
     if (playbackPianoTimeoutsRef.current[channelIndex]) {
       clearTimeout(playbackPianoTimeoutsRef.current[channelIndex]!);
       playbackPianoTimeoutsRef.current[channelIndex] = null;
     }
-    if (delayMs === null) return;
 
-    playbackPianoTimeoutsRef.current[channelIndex] = window.setTimeout(() => {
+    const instrument = typeof instrumentId === 'number'
+      ? songData.instruments.find(instr => instr.id === instrumentId) as PT3Instrument | undefined
+      : undefined;
+    const volumeEnvelope = instrument?.volumeEnvelope?.length ? instrument.volumeEnvelope : [15];
+    const envelopeMaxValue = Math.max(...volumeEnvelope, 15);
+    const hasVolumeLoop = typeof instrument?.volumeLoop === 'number'
+      && instrument.volumeLoop >= 0
+      && instrument.volumeLoop < volumeEnvelope.length;
+    const endsSilent = volumeEnvelope.length > 0 && (volumeEnvelope[volumeEnvelope.length - 1] ?? 0) <= 0;
+    const shouldFollowEnvelope = !hasVolumeLoop && endsSilent && volumeEnvelope.length > 1;
+    const firstLevel = normalizePianoEnvelopeValue(volumeEnvelope[0] ?? 15, envelopeMaxValue);
+
+    playbackPianoLevelsRef.current[channelIndex] = firstLevel;
+    publishPianoVisualState();
+
+    if (!shouldFollowEnvelope) {
+      if (nextKeeps) return;
+
+      playbackPianoTimeoutsRef.current[channelIndex] = window.setTimeout(() => {
+        if (playbackPianoNotesRef.current[channelIndex] === note) {
+          playbackPianoNotesRef.current[channelIndex] = null;
+          playbackPianoLevelsRef.current[channelIndex] = 0;
+          publishPianoVisualState();
+        }
+        playbackPianoTimeoutsRef.current[channelIndex] = null;
+      }, Math.max(60, rowDurationMs * 0.85));
+      return;
+    }
+
+    const stepMs = 35;
+    let envelopeIndex = 1;
+    const tickEnvelope = () => {
       if (playbackPianoNotesRef.current[channelIndex] === note) {
-        playbackPianoNotesRef.current[channelIndex] = null;
-        setActivePianoKeys(new Set(playbackPianoNotesRef.current.filter((activeNote): activeNote is string => !!activeNote)));
+        const level = normalizePianoEnvelopeValue(volumeEnvelope[envelopeIndex] ?? 0, envelopeMaxValue);
+        playbackPianoLevelsRef.current[channelIndex] = level;
+        if (level <= 0.02 && envelopeIndex >= volumeEnvelope.length - 1) {
+          playbackPianoNotesRef.current[channelIndex] = null;
+        }
+        publishPianoVisualState();
+
+        if (playbackPianoNotesRef.current[channelIndex] === note && envelopeIndex < volumeEnvelope.length - 1) {
+          envelopeIndex++;
+          playbackPianoTimeoutsRef.current[channelIndex] = window.setTimeout(tickEnvelope, stepMs);
+          return;
+        }
       }
       playbackPianoTimeoutsRef.current[channelIndex] = null;
-    }, delayMs);
-  }, []);
+    };
+
+    playbackPianoTimeoutsRef.current[channelIndex] = window.setTimeout(tickEnvelope, stepMs);
+  }, [normalizePianoEnvelopeValue, publishPianoVisualState, songData.instruments]);
 
   const schedulePreviewNoteCut = useCallback((channelIndex: number, delayMs: number = 400) => {
     if (!synthesizer || channelIndex < 0) return;
@@ -735,6 +778,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             playbackPianoTimeoutsRef.current[chIdx] = null;
           }
           playbackPianoNotesRef.current[chIdx] = null;
+          playbackPianoLevelsRef.current[chIdx] = 0;
           playbackInstrumentIdsRef.current[chIdx] = null;
           channelPendingNoteCutRef.current[chIdx] = false;
         }
@@ -754,15 +798,18 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             playbackPianoTimeoutsRef.current[chIndex] = null;
           }
           playbackPianoNotesRef.current[chIndex] = null;
+          playbackPianoLevelsRef.current[chIndex] = 0;
         } else if (isPlayableNote(cell.note)) {
           const instrumentIdForVisual = (typeof cell.instrument === 'number' && cell.instrument > 0)
             ? cell.instrument
             : playbackInstrumentIdsRef.current[chIndex];
           playbackPianoNotesRef.current[chIndex] = cell.note;
-          schedulePianoVisualRelease(
+          schedulePianoVisualEnvelope(
             chIndex,
             cell.note,
-            getPianoVisualDecayMs(instrumentIdForVisual, rowDurationMs, nextKeeps)
+            instrumentIdForVisual,
+            rowDurationMs,
+            nextKeeps
           );
           if (!nextKeeps) {
             channelPendingNoteCutRef.current[chIndex] = true;
@@ -772,7 +819,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
           chIndex as any, cell.note, cell.instrument, cell.ornament, cell.volume
         );
       });
-      setActivePianoKeys(new Set(playbackPianoNotesRef.current.filter((note): note is string => !!note)));
+      publishPianoVisualState();
 
       if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current);
       playbackIntervalRef.current = window.setTimeout(() => {
@@ -808,7 +855,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       }
     }
     return () => { if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current); };
-  }, [isPlaying, playbackRow, songData, synthesizer, onUpdate, currentPattern, channels, clearPreviewNoteTimeout, clearPianoHighlights, isPlayableNote, schedulePianoVisualRelease, getPianoVisualDecayMs]);
+  }, [isPlaying, playbackRow, songData, synthesizer, onUpdate, currentPattern, channels, clearPreviewNoteTimeout, clearPianoHighlights, isPlayableNote, schedulePianoVisualEnvelope, publishPianoVisualState]);
 
   const focusCellAndSelectText = useCallback((rIdx: number, chId: TrackerChannelId, fld: keyof TrackerCell) => {
     if (!currentPattern || rIdx < 0 || rIdx >= currentPattern.numRows) return;
@@ -849,9 +896,15 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       schedulePreviewNoteCut(channelIndex);
 
       setActivePianoKeys(prev => new Set(prev).add(noteString));
+      setActivePianoKeyLevels(prev => {
+        const next = new Map(prev);
+        next.set(noteString, 1);
+        return next;
+      });
       if (activePianoKeysTimeoutRef.current) clearTimeout(activePianoKeysTimeoutRef.current);
       activePianoKeysTimeoutRef.current = window.setTimeout(() => {
         setActivePianoKeys(prev => { const newSet = new Set(prev); newSet.delete(noteString); return newSet; });
+        setActivePianoKeyLevels(prev => { const next = new Map(prev); next.delete(noteString); return next; });
       }, 150);
 
       focusCellAndSelectText(Math.min(numRows - 1, rowIndex + editStepJump), channelId, 'note');
@@ -1084,6 +1137,17 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         currentPattern.rows[focusedCell.rowIndex][focusedCell.channelId].volume ?? 15
       );
       schedulePreviewNoteCut(channelIndex);
+      setActivePianoKeys(prev => new Set(prev).add(noteName));
+      setActivePianoKeyLevels(prev => {
+        const next = new Map(prev);
+        next.set(noteName, 1);
+        return next;
+      });
+      if (activePianoKeysTimeoutRef.current) clearTimeout(activePianoKeysTimeoutRef.current);
+      activePianoKeysTimeoutRef.current = window.setTimeout(() => {
+        setActivePianoKeys(prev => { const next = new Set(prev); next.delete(noteName); return next; });
+        setActivePianoKeyLevels(prev => { const next = new Map(prev); next.delete(noteName); return next; });
+      }, 150);
       handleCellChange(focusedCell.rowIndex, focusedCell.channelId, 'note', noteName);
       focusCellAndSelectText(
         Math.min(currentPattern.numRows - 1, focusedCell.rowIndex + editStepJump),
@@ -1408,7 +1472,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
       <div className="flex-shrink-0 border-t border-msx-border bg-msx-panelbg/80"> {/* Piano controls, fixed height */}
         <TrackerPianoControls
-          pressedKeys={activePianoKeys} keyboardOctaveOffset={keyboardOctaveOffset}
+          pressedKeys={activePianoKeys}
+          pressedKeyLevels={activePianoKeyLevels}
+          keyboardOctaveOffset={keyboardOctaveOffset}
           onPianoKeyPress={handleVirtualPianoKeyPress} onOctaveChange={setKeyboardOctaveOffset}
           minOctave={PT3_KEYBOARD_OCTAVE_MIN_MAX.min} maxOctave={PT3_KEYBOARD_OCTAVE_MIN_MAX.max}
         />

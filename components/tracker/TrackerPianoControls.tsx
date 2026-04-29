@@ -10,6 +10,8 @@ import { Button } from '../common/Button';
 interface TrackerPianoControlsProps {
   /** A set of currently pressed keys to be highlighted on the virtual piano. */
   pressedKeys: Set<string>;
+  /** Optional 0..1 visual intensity for currently pressed keys. */
+  pressedKeyLevels?: Map<string, number>;
   /** The current octave offset for keyboard input. */
   keyboardOctaveOffset: number;
   /** Callback function when a key on the virtual piano is pressed. */
@@ -30,12 +32,13 @@ interface TrackerPianoControlsProps {
  * @category Tracker
  */
 export const TrackerPianoControls: React.FC<TrackerPianoControlsProps> = ({
-  pressedKeys, keyboardOctaveOffset, onPianoKeyPress, onOctaveChange, minOctave, maxOctave
+  pressedKeys, pressedKeyLevels, keyboardOctaveOffset, onPianoKeyPress, onOctaveChange, minOctave, maxOctave
 }) => {
   return (
     <div className="p-1 border-t border-msx-border flex items-center justify-between">
       <VirtualPiano
           pressedKeys={pressedKeys}
+          pressedKeyLevels={pressedKeyLevels}
           baseDisplayOctave={3 + keyboardOctaveOffset}
           numOctavesToDisplay={3}
           onPianoKeyPress={onPianoKeyPress}

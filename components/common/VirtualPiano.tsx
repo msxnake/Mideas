@@ -8,6 +8,8 @@ import { PT3_NOTE_NAMES } from '../../constants'; // Assuming PT3_NOTE_NAMES: ["
 interface VirtualPianoProps {
   /** A set of note strings (e.g., "C-4") that are currently pressed. */
   pressedKeys: Set<string>;
+  /** Optional 0..1 visual intensity for pressed keys. */
+  pressedKeyLevels?: Map<string, number>;
   /** The starting octave to display on the piano. */
   baseDisplayOctave?: number;
   /** The number of octaves to display. */
@@ -38,6 +40,7 @@ interface PianoKeyInfo {
  */
 export const VirtualPiano: React.FC<VirtualPianoProps> = ({
   pressedKeys,
+  pressedKeyLevels,
   baseDisplayOctave = 3,
   numOctavesToDisplay = 3,
   onPianoKeyPress,
@@ -97,7 +100,11 @@ export const VirtualPiano: React.FC<VirtualPianoProps> = ({
     <div className="bg-msx-panelbg p-2 rounded border border-msx-border shadow-md relative select-none overflow-x-auto" style={{ width: '100%', height: WHITE_KEY_HEIGHT + 20 }}>
       <div style={{ width: totalWidth, height: WHITE_KEY_HEIGHT, position: 'relative' }}>
         {pianoKeys.map((keyInfo) => {
-          const isPressed = pressedKeys.has(keyInfo.noteName);
+          const rawLevel = pressedKeyLevels?.get(keyInfo.noteName);
+          const keyLevel = Math.max(0, Math.min(1, rawLevel ?? (pressedKeys.has(keyInfo.noteName) ? 1 : 0)));
+          const isPressed = keyLevel > 0.02;
+          const glowStrength = 0.35 + keyLevel * 0.65;
+          const glowRadius = 6 + keyLevel * 14;
           const keyStyle: React.CSSProperties = {
             position: 'absolute',
             left: keyInfo.x,
@@ -113,22 +120,23 @@ export const VirtualPiano: React.FC<VirtualPianoProps> = ({
             fontSize: '0.6rem',
             userSelect: 'none',
             cursor: onPianoKeyPress ? 'pointer' : 'default',
+            transition: 'background-color 45ms linear, box-shadow 45ms linear, color 45ms linear',
           };
 
           if (keyInfo.isBlack) {
-            keyStyle.backgroundColor = isPressed ? 'var(--msx-highlight)' : 'var(--msx-black)';
+            keyStyle.backgroundColor = isPressed ? `rgba(31, 219, 154, ${0.25 + keyLevel * 0.75})` : 'var(--msx-black)';
             keyStyle.color = isPressed ? 'var(--msx-black)' : 'var(--msx-white)';
             keyStyle.zIndex = 10;
             keyStyle.borderColor = 'var(--msx-black)';
             if (isPressed) {
-              keyStyle.boxShadow = '0 0 0 2px var(--msx-bgcolor), 0 0 14px var(--msx-highlight)';
+              keyStyle.boxShadow = `0 0 0 2px var(--msx-bgcolor), 0 0 ${glowRadius}px rgba(31, 219, 154, ${glowStrength})`;
             }
           } else {
-            keyStyle.backgroundColor = isPressed ? 'var(--msx-accent)' : 'var(--msx-white)';
+            keyStyle.backgroundColor = isPressed ? `rgba(31, 219, 154, ${0.2 + keyLevel * 0.8})` : 'var(--msx-white)';
             keyStyle.color = isPressed ? 'var(--msx-white)' : 'var(--msx-black)';
             keyStyle.borderColor = 'var(--msx-border)';
             if (isPressed) {
-              keyStyle.boxShadow = 'inset 0 0 0 2px var(--msx-highlight), 0 0 14px var(--msx-accent)';
+              keyStyle.boxShadow = `inset 0 0 0 2px rgba(31, 219, 154, ${glowStrength}), 0 0 ${glowRadius}px rgba(31, 219, 154, ${0.25 + keyLevel * 0.55})`;
             }
           }
 
@@ -139,6 +147,7 @@ export const VirtualPiano: React.FC<VirtualPianoProps> = ({
               title={keyInfo.noteName}
               data-note={keyInfo.noteName}
               data-pressed={isPressed ? 'true' : 'false'}
+              data-level={keyLevel.toFixed(2)}
               aria-pressed={isPressed}
               onMouseDown={() => handleKeyPress(keyInfo.noteName)} // Use onMouseDown for more immediate feel
               role="button"
