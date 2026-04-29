@@ -41,7 +41,6 @@ resource_manager_init:
     ld (resource_descriptor_id), a
     ld (resource_ram_cache_screen_layout_id), a
     ld (resource_ram_cache_effects_layout_id), a
-    ld (resource_ram_cache_behavior_map_id), a
     ld (resource_ram_cache_effect_zone_table_id), a
     ld (current_screen2_tilebank_id), a
     ret
@@ -114,7 +113,6 @@ resource_invalidate_screen_ram_cache:
     ld a, #FF
     ld (resource_ram_cache_screen_layout_id), a
     ld (resource_ram_cache_effects_layout_id), a
-    ld (resource_ram_cache_behavior_map_id), a
     ld (resource_ram_cache_effect_zone_table_id), a
     ret
 
@@ -415,30 +413,14 @@ resource_load_effects_layout_cached:
 ;   carry clear on success
 ;   carry set if resource id is missing
 ; Notes:
-;   Keeps a pristine behavior map copy in RAM and rebuilds the mutable
-;   runtime_behavior_map from it on every screen load.
+;   Reloads the mutable runtime_behavior_map directly from the banked
+;   resource. This avoids a second resident 32x24 behavior-map copy in RAM.
 ; Clobbers:
 ;   AF, BC, DE, HL
 ; ------------------------------------------------------------------
 resource_load_behavior_map_cached:
-    ld c, a
-    ld a, (resource_ram_cache_behavior_map_id)
-    cp c
-    jr z, .resource_behavior_cache_hit
-    push bc
-    ld a, c
-    ld de, resource_ram_cache_behavior_map
-    call resource_load_to_ram_by_id
-    pop bc
-    ret c
-    ld a, c
-    ld (resource_ram_cache_behavior_map_id), a
-.resource_behavior_cache_hit:
-    ld hl, resource_ram_cache_behavior_map
     ld de, runtime_behavior_map
-    ld bc, RUNTIME_SCREEN_MAP_SIZE
-    ldir
-    xor a
+    call resource_load_to_ram_by_id
     ret
 
 ; ------------------------------------------------------------------

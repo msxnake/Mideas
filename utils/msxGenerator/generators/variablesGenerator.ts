@@ -11,6 +11,8 @@ import { usesMapperBanking } from './romModeUtils';
 const RAM_BASE = 0xC000;
 const MSX_SYSTEM_RAM_START = 0xF380;
 const ZX0_SHARED_SCRATCH_SIZE = 1488;
+const EFFECT_ZONE_ENTRY_SIZE = 8;
+const MAX_EFFECT_ZONE_ENTRIES = 64;
 
 function formatHexWord(value: number): string {
   return `#${value.toString(16).toUpperCase().padStart(4, '0')}`;
@@ -87,6 +89,18 @@ function countDrawableSpriteLayers(sprite: any): number {
   return Math.max(1, count);
 }
 
+function getScreenList(analysis: ProjectAnalysis): any[] {
+  return (analysis as any).screens || (analysis as any).screenMaps || [];
+}
+
+function getMaxRuntimeEffectZones(analysis: ProjectAnalysis): number {
+  const screens = getScreenList(analysis);
+  return Math.min(
+    MAX_EFFECT_ZONE_ENTRIES,
+    Math.max(0, ...screens.map((screen: any) => (screen?.effectZones || []).length))
+  );
+}
+
 /**
  * Generate RAM variables with EQU addresses (variables.asm)
  *
@@ -99,6 +113,8 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   const expandedSprites = buildMSXDirectionalSpriteCatalog(analysis.sprites || []).sprites;
   const expandedSpriteCount = Math.max(1, expandedSprites.length);
   const maxSpriteLayerCount = Math.max(1, ...expandedSprites.map(countDrawableSpriteLayers));
+  const maxRuntimeEffectZones = getMaxRuntimeEffectZones(analysis);
+  const runtimeEffectZoneTableBytes = maxRuntimeEffectZones * EFFECT_ZONE_ENTRY_SIZE;
   const serializedTrackerMusicBufferSize = useResourceManager
     ? getSerializedTrackerMusicBufferSize(analysis)
     : 0;
@@ -350,8 +366,6 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
     currentAddress++;
     code += `resource_ram_cache_effects_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effects_layout source\n`;
     currentAddress++;
-    code += `resource_ram_cache_behavior_map_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for pristine behavior-map RAM copy\n`;
-    currentAddress++;
     code += `resource_ram_cache_effect_zone_table_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effect_zone_table source\n`;
     currentAddress++;
   }
@@ -384,8 +398,7 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress += 2;
   code += `prof_deadly_behavior_reads EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Deadly helper behavior-map reads\n`;
   currentAddress += 2;
-  code += `page0_transfer_buffer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary RAM buffer for page0 -> VRAM copies\n`;
-  currentAddress += 256;
+  code += `; page0_transfer_buffer shares the ZX0 scratch area declared near RAM_USAGE_END.\n`;
 
   // Screen map pointers
   code += `
@@ -410,15 +423,11 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   code += `behavior_cache_row_base EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached row base address in behavior map (16-bit)\n`;
   currentAddress += 2;
   code += `RUNTIME_SCREEN_MAP_SIZE EQU 768\n`;
-  code += `MAX_RUNTIME_EFFECT_ZONES EQU 64\n`;
+  code += `MAX_RUNTIME_EFFECT_ZONES EQU ${maxRuntimeEffectZones}\n`;
   code += `runtime_background_layout EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Immutable copy of current background layout (32x24)\n`;
   currentAddress += 768;
   code += `runtime_screen_layout  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current screen layout (32x24)\n`;
   currentAddress += 768;
-  if (useResourceManager) {
-    code += `resource_ram_cache_behavior_map EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Pristine behavior map cache for current banked resource (32x24)\n`;
-    currentAddress += 768;
-  }
   code += `runtime_behavior_map   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current behavior map (32x24)\n`;
   currentAddress += 768;
   code += `runtime_interaction_type_map EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current interaction type map (32x24)\n`;
@@ -435,8 +444,8 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress += 2;
   code += `screen_block_map_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Scratch pointer to current screen block index map during layout expansion\n`;
   currentAddress += 2;
-  code += `runtime_effect_zone_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current screen effect zone table (MAX_RUNTIME_EFFECT_ZONES * 8 bytes)\n`;
-  currentAddress += 64 * 8;
+  code += `runtime_effect_zone_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current screen effect zone table (${runtimeEffectZoneTableBytes} bytes)\n`;
+  currentAddress += runtimeEffectZoneTableBytes;
   code += `current_effect_zone_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of effect zones copied into runtime_effect_zone_table\n`;
   currentAddress++;
   code += `secret_zone_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 if hero is currently inside an active secret zone\n`;
@@ -1247,6 +1256,7 @@ ZX0_SCREEN_BUFFER       EQU #${zx0LargeScratchBase.toString(16).toUpperCase().pa
 ZX0_BEHAVIOR_BUFFER     EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Behavior map scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
 ZX0_TILE_PATTERN_BUFFER EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile pattern scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
 ZX0_TILE_COLOR_BUFFER   EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile color scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
+page0_transfer_buffer   EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Page-0 copy staging buffer (shares scratch area)
 `;
 
   // End marker
