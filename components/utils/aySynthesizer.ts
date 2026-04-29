@@ -71,8 +71,6 @@ interface OrnamentState {
     ornament: PT3Ornament;
     /** The current step in the ornament. */
     currentStep: number;
-    /** The tick counter for ornament speed. */
-    tickCounter: number;
 }
 
 /**
@@ -125,6 +123,8 @@ export class AYSynthesizer {
     // Persistent state per channel
     private channelBasePeriod: (number | null)[] = [null, null, null];
     private channelCurrentPeriod: (number | null)[] = [null, null, null];
+    private channelToneSemitoneOffset: number[] = [0, 0, 0];
+    private channelOrnamentSemitoneOffset: number[] = [0, 0, 0];
 
     private channelHardwareEnvelopeState: (HardwareEnvelopeState | null)[] = [null, null, null];
     private channelSoftwareVolumeEnvelopeState: (SoftwareVolumeEnvelopeState | null)[] = [null, null, null];
@@ -173,6 +173,13 @@ export class AYSynthesizer {
     private getFrequencyFromPeriod(period: number | null): number | null {
         if (period === null || period <= 0) return 0;
         return AY_CLOCK_FREQUENCY / (16 * period);
+    }
+
+    private getPeriodWithSemitoneOffset(basePeriod: number, semitoneOffset: number): number {
+        const baseFreq = this.getFrequencyFromPeriod(basePeriod);
+        if (!baseFreq || baseFreq <= 0) return Math.max(1, Math.min(4095, basePeriod));
+        const modulatedFreq = baseFreq * Math.pow(2, semitoneOffset / 12.0);
+        return Math.max(1, Math.min(4095, Math.round(AY_CLOCK_FREQUENCY / (16 * modulatedFreq))));
     }
 
     private getFrequencyFromNoisePeriod(noisePeriod: number): number {
@@ -462,6 +469,8 @@ export class AYSynthesizer {
             this.stopChannelSound(channel, true);
             this.channelBasePeriod[channel] = null;
             this.channelCurrentPeriod[channel] = null;
+            this.channelToneSemitoneOffset[channel] = 0;
+            this.channelOrnamentSemitoneOffset[channel] = 0;
             this.channelHardwareEnvelopeState[channel] = null;
             this.channelSoftwareVolumeEnvelopeState[channel] = null;
             this.channelSoftwareToneEnvelopeState[channel] = null;
@@ -500,6 +509,8 @@ export class AYSynthesizer {
             this.stopChannelSound(channel, false); // Graceful stop for new note
             this.channelBasePeriod[channel] = this.getNotePeriod(noteStringFromCell);
             this.channelCurrentPeriod[channel] = this.channelBasePeriod[channel];
+            this.channelToneSemitoneOffset[channel] = 0;
+            this.channelOrnamentSemitoneOffset[channel] = 0;
             // Envelopes and ornament state reset for new note, will be re-initialized if applicable
             this.channelHardwareEnvelopeState[channel] = null;
             this.channelSoftwareVolumeEnvelopeState[channel] = null;
@@ -524,7 +535,7 @@ export class AYSynthesizer {
             if (ornamentIdFromCell > 0 && this.songDataRef) {
                 const ornamentAsset = this.songDataRef.ornaments.find(o => o.id === ornamentIdFromCell);
                 if (ornamentAsset && ornamentAsset.data.length > 0) {
-                    this.channelOrnamentState[channel] = { ornament: ornamentAsset, currentStep: 0, tickCounter: 0 };
+                    this.channelOrnamentState[channel] = { ornament: ornamentAsset, currentStep: 0 };
                 } else {
                     this.channelOrnamentState[channel] = null; // Invalid ornament ID
                 }
@@ -576,7 +587,7 @@ export class AYSynthesizer {
         // If "keep note" and no instrument change, audio nodes continue as is.
 
         // 8. Initial update of effects for volume/pitch based on current states
-        this.updateChannelEffects(channel);
+        this.updateChannelEffects(channel, isNewActualNote || activeInstrumentChanged || ornamentIdFromCell !== null);
     }
 
     private updateAllChannelEffects() {
@@ -586,14 +597,13 @@ export class AYSynthesizer {
         }
     }
 
-    private updateChannelEffects(channel: 0 | 1 | 2) {
+    private updateChannelEffects(channel: 0 | 1 | 2, forceAdvance: boolean = false) {
         if (!this.audioContext || !this.channelMainGains[channel]) return;
 
         const currentInstrument = this.channelActiveInstrument[channel];
         const useTone = currentInstrument ? (currentInstrument.ayToneEnabled === undefined ? true : currentInstrument.ayToneEnabled) : false;
         const useNoise = currentInstrument ? !!currentInstrument.ayNoiseEnabled : false;
 
-        let periodForFrequencyUpdate = this.channelCurrentPeriod[channel];
         const baseFundamentalPeriod = this.channelBasePeriod[channel];
 
         // Calculate tick-based envelope advancement rate
@@ -603,8 +613,8 @@ export class AYSynthesizer {
         const msPerTick = (60000 / bpm) / songSpeed;
         const ticksPerUpdate = this.effectsUpdateIntervalMs / msPerTick;
         this.envelopeTickCounters[channel] += ticksPerUpdate;
-        const shouldAdvanceEnvelope = this.envelopeTickCounters[channel] >= 1.0;
-        if (shouldAdvanceEnvelope) {
+        const shouldAdvanceEnvelope = forceAdvance || this.envelopeTickCounters[channel] >= 1.0;
+        if (this.envelopeTickCounters[channel] >= 1.0) {
             this.envelopeTickCounters[channel] -= 1.0;
         }
 
@@ -612,63 +622,47 @@ export class AYSynthesizer {
         if (this.channelSoftwareToneEnvelopeState[channel] && baseFundamentalPeriod !== null && shouldAdvanceEnvelope) {
             const toneEnvState = this.channelSoftwareToneEnvelopeState[channel]!;
             if (toneEnvState.currentStep < toneEnvState.envelope.length) {
-                const pitchOffset = toneEnvState.envelope[toneEnvState.currentStep];
-                if (pitchOffset !== 0) {
-                    const baseFreq = this.getFrequencyFromPeriod(baseFundamentalPeriod);
-                    if (baseFreq && baseFreq > 0) {
-                        const modulatedFreq = baseFreq * Math.pow(2, pitchOffset / 12.0);
-                        periodForFrequencyUpdate = Math.max(1, Math.min(4095,
-                            Math.round(AY_CLOCK_FREQUENCY / (16 * modulatedFreq))));
-                    }
-                } else {
-                    periodForFrequencyUpdate = baseFundamentalPeriod;
-                }
-                toneEnvState.currentStep++;
-                if (toneEnvState.currentStep >= toneEnvState.envelope.length) {
+                this.channelToneSemitoneOffset[channel] = toneEnvState.envelope[toneEnvState.currentStep] || 0;
+                let nextStep = toneEnvState.currentStep + 1;
+                if (nextStep >= toneEnvState.envelope.length) {
                     if (toneEnvState.loopPosition !== undefined && toneEnvState.loopPosition >= 0 && toneEnvState.loopPosition < toneEnvState.envelope.length) {
-                        toneEnvState.currentStep = toneEnvState.loopPosition;
+                        nextStep = toneEnvState.loopPosition;
+                    } else {
+                        nextStep = toneEnvState.envelope.length - 1;
                     }
-                    // else: stays finished, no more pitch modulation
                 }
+                toneEnvState.currentStep = Math.max(0, nextStep);
             }
+        } else if (!this.channelSoftwareToneEnvelopeState[channel]) {
+            this.channelToneSemitoneOffset[channel] = 0;
         }
 
         // Process ornament (pitch offset table)
-        if (this.channelOrnamentState[channel] && baseFundamentalPeriod !== null) {
+        if (this.channelOrnamentState[channel] && baseFundamentalPeriod !== null && shouldAdvanceEnvelope) {
             const ornState = this.channelOrnamentState[channel]!;
-            ornState.tickCounter++;
-            const ornamentSpeedFactor = Math.max(1, Math.floor((this.songDataRef?.speed || 6) / 2));
-            if (ornState.tickCounter >= ornamentSpeedFactor) {
-                ornState.tickCounter = 0;
-
-                const ornamentData = ornState.ornament.data;
-                const pitchOffsetHalfSteps = ornamentData[ornState.currentStep];
-
-                // Use periodForFrequencyUpdate as base (may already have tone envelope applied)
-                const effectiveBasePeriod = periodForFrequencyUpdate ?? baseFundamentalPeriod;
-                const baseFreq = this.getFrequencyFromPeriod(effectiveBasePeriod);
-                if (baseFreq && baseFreq > 0) {
-                    const ornamentedFreq = baseFreq * Math.pow(2, pitchOffsetHalfSteps / 12.0);
-                    periodForFrequencyUpdate = Math.max(1, Math.min(4095, Math.round(AY_CLOCK_FREQUENCY / (16 * ornamentedFreq))));
-                } else {
-                    periodForFrequencyUpdate = effectiveBasePeriod;
-                }
-
-                ornState.currentStep++;
-                if (ornState.currentStep >= ornamentData.length) {
-                    if (ornState.ornament.loopPosition !== undefined && ornState.ornament.loopPosition < ornamentData.length) {
-                        ornState.currentStep = ornState.ornament.loopPosition;
+            const ornamentData = ornState.ornament.data;
+            if (ornamentData.length > 0 && ornState.currentStep < ornamentData.length) {
+                this.channelOrnamentSemitoneOffset[channel] = ornamentData[ornState.currentStep] || 0;
+                let nextStep = ornState.currentStep + 1;
+                if (nextStep >= ornamentData.length) {
+                    if (ornState.ornament.loopPosition !== undefined && ornState.ornament.loopPosition >= 0 && ornState.ornament.loopPosition < ornamentData.length) {
+                        nextStep = ornState.ornament.loopPosition;
                     } else {
-                        this.channelOrnamentState[channel] = null;
-                        periodForFrequencyUpdate = baseFundamentalPeriod;
+                        nextStep = ornamentData.length - 1;
                     }
                 }
-            } else {
-                periodForFrequencyUpdate = this.channelCurrentPeriod[channel]; // Use last calculated period if ornament not ticking
+                ornState.currentStep = Math.max(0, nextStep);
             }
-        } else if (baseFundamentalPeriod !== null && !this.channelSoftwareToneEnvelopeState[channel]) {
-            periodForFrequencyUpdate = baseFundamentalPeriod;
+        } else if (!this.channelOrnamentState[channel]) {
+            this.channelOrnamentSemitoneOffset[channel] = 0;
         }
+
+        const periodForFrequencyUpdate = baseFundamentalPeriod !== null
+            ? this.getPeriodWithSemitoneOffset(
+                baseFundamentalPeriod,
+                this.channelToneSemitoneOffset[channel] + this.channelOrnamentSemitoneOffset[channel]
+            )
+            : this.channelCurrentPeriod[channel];
 
         if (periodForFrequencyUpdate !== this.channelCurrentPeriod[channel]) {
             this.channelCurrentPeriod[channel] = periodForFrequencyUpdate;
@@ -791,6 +785,8 @@ export class AYSynthesizer {
             this.stopChannelSound(ch, true);
             this.channelBasePeriod[ch] = null;
             this.channelCurrentPeriod[ch] = null;
+            this.channelToneSemitoneOffset[ch] = 0;
+            this.channelOrnamentSemitoneOffset[ch] = 0;
             this.channelActiveInstrument[ch] = null;
             this.channelHardwareEnvelopeState[ch] = null;
             this.channelSoftwareVolumeEnvelopeState[ch] = null;

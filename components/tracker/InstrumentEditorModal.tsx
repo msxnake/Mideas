@@ -242,6 +242,15 @@ const PREDEFINED_INSTRUMENTS: Record<PredefinedInstrumentType, Partial<Instrumen
     "Random": {}
 };
 
+const TONE_MACRO_PRESETS: Array<{ label: string; values: number[]; loop: number }> = [
+    { label: 'Soft vib', values: [0, 0, 1, 0, 0, -1], loop: 0 },
+    { label: 'Deep vib', values: [0, 1, 2, 1, 0, -1, -2, -1], loop: 0 },
+    { label: 'PT3 vib', values: PT3_DEFAULT_VIBRATO_TABLE.map(value => value - 3), loop: 0 },
+    { label: 'Minor arp', values: [0, 3, 7, 3], loop: 0 },
+    { label: 'Major arp', values: [0, 4, 7, 4], loop: 0 },
+    { label: 'Octave hit', values: [12, 7, 3, 0], loop: 255 },
+];
+
 
 /**
  * Generates a set of random properties for a PT3 instrument.
@@ -347,6 +356,11 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
         onInstrumentModalBufferChange('toneEnvelope', values.join(','));
     }, [onInstrumentModalBufferChange]);
 
+    const handleToneMacroPreset = useCallback((values: number[], loop: number) => {
+        onInstrumentModalBufferChange('toneEnvelope', values.join(','));
+        onInstrumentModalBufferChange('toneLoop', loop);
+    }, [onInstrumentModalBufferChange]);
+
     const handleNoiseEnvelopeChange = useCallback((values: number[]) => {
         onInstrumentModalBufferChange('noiseEnvelope', values.join(','));
     }, [onInstrumentModalBufferChange]);
@@ -416,7 +430,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
             console.error('Preview error:', error);
             setIsPreviewing(false);
         }
-    }, [synthesizer, isPreviewing, instrumentModalBuffer, volumeEnvelopeArray, toneEnvelopeArray, previewNote]);
+    }, [synthesizer, isPreviewing, instrumentModalBuffer, volumeEnvelopeArray, toneEnvelopeArray, noiseEnvelopeArray, previewNote]);
 
     // Conditional return AFTER all hooks
     if (!isOpen) return null;
@@ -575,6 +589,25 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
 
                     {activeTab === 'tone' && (
                         <div className="space-y-3">
+                            <div className="bg-msx-bgcolor border border-msx-border rounded p-3">
+                                <label className="block text-xs text-msx-textsecondary mb-2 font-semibold">
+                                    Tone Macro Presets
+                                </label>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                    {TONE_MACRO_PRESETS.map(preset => (
+                                        <Button
+                                            key={preset.label}
+                                            onClick={() => handleToneMacroPreset(preset.values, preset.loop)}
+                                            size="sm"
+                                            variant="ghost"
+                                            className="justify-center border border-msx-border"
+                                        >
+                                            {preset.label}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+
                             <EnvelopeEditor
                                 type="tone"
                                 values={toneEnvelopeArray}
