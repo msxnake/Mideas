@@ -12648,6 +12648,8 @@ update_jump_component:
     ret
 update_gravity_component:
     ret
+update_wallgrab_component:
+    ret
 update_slash_component:
     ret
 update_auto_destroy_component:
@@ -12693,6 +12695,8 @@ init_jump_system:
     ret
 init_gravity_system:
     ret
+init_wallgrab_system:
+    ret
 init_auto_destroy_system:
     ret
 init_cursors_system:
@@ -12718,6 +12722,8 @@ init_tile_interaction_system:
 init_entity_position:
     ret
 init_entity_sprite:
+    ret
+wallgrab_process_entity_c:
     ret
 
     ; Component Data Structure EQUs (referenced by state machine actions)
