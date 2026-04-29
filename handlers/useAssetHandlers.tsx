@@ -35,6 +35,13 @@ interface AssetHandlersProps {
   setWaypointPickerState: (state: any) => void;
 }
 
+const cloneDefaultPsgInstrument = (instrument: PT3Instrument): PT3Instrument => ({
+  ...instrument,
+  volumeEnvelope: instrument.volumeEnvelope ? [...instrument.volumeEnvelope] : undefined,
+  toneEnvelope: instrument.toneEnvelope ? [...instrument.toneEnvelope] : undefined,
+  noiseEnvelope: instrument.noiseEnvelope ? [...instrument.noiseEnvelope] : undefined,
+});
+
 export const useAssetHandlers = ({
   assets,
   setAssetsWithHistory,
@@ -268,7 +275,7 @@ export const useAssetHandlers = ({
           order: [0],
           lengthInPatterns: 1,
           restartPosition: 0,
-          instruments: DEFAULT_PSG_INSTRUMENTS.map(inst => ({ ...inst })), // Clone default instruments
+          instruments: DEFAULT_PSG_INSTRUMENTS.map(cloneDefaultPsgInstrument),
           ornaments: [],
           currentPatternIndexInOrder: 0,
           currentPatternId: initialPattern.id,
