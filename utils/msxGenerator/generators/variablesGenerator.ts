@@ -184,6 +184,8 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress++;
   code += `boss_behavior_table_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active boss behavior table pointer (16-bit)\n`;
   currentAddress += 2;
+  code += `boss_form_table_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active boss visual form table pointer (16-bit)\n`;
+  currentAddress += 2;
   code += `boss_behavior_action_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current boss behavior action pointer (16-bit)\n`;
   currentAddress += 2;
   code += `boss_behavior_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active boss behavior action count\n`;
@@ -211,6 +213,8 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   code += `boss_behavior_aux1 EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current boss behavior auxiliary byte 1\n`;
   currentAddress++;
   code += `boss_behavior_aux2 EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current boss behavior auxiliary byte 2\n`;
+  currentAddress++;
+  code += `boss_visual_dirty   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Non-zero when boss tile matrix/form changed and needs redraw\n`;
   currentAddress++;
   code += `boss_draw_row       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Boss tile draw row scratch\n`;
   currentAddress++;

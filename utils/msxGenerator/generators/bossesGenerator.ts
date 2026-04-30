@@ -169,20 +169,79 @@ function getBehaviorTarget(action: BossBehaviorAction): BossBehaviorTarget | und
   return 'target' in action ? action.target : undefined;
 }
 
-function renderBehaviorLoop(label: string, phase: BossPhase, attackIndexById: Map<string, number>): string {
+const CURRENT_FORM_ID = '__phase_current_form';
+
+function buildFormIndexById(phase: BossPhase): Map<string, number> {
+  const formIndexById = new Map<string, number>();
+  formIndexById.set(CURRENT_FORM_ID, 0);
+  (phase.forms || []).forEach((form, index) => {
+    formIndexById.set(form.id, index + 1);
+  });
+  return formIndexById;
+}
+
+function getFormIndex(formId: string | undefined, formIndexById: Map<string, number>): number {
+  if (!formId) return 0;
+  return formIndexById.get(formId) ?? 0;
+}
+
+function renderBehaviorLoop(
+  label: string,
+  phase: BossPhase,
+  attackIndexById: Map<string, number>,
+  formIndexById: Map<string, number>
+): string {
   const loop = phase.behaviorLoop || [];
-  const totalFrames = loop.reduce((sum, action) => sum + behaviorActionDuration(action), 0);
+  const expandedActions: Array<{
+    sourceIndex: number;
+    action: BossBehaviorAction;
+    typeId?: number;
+    duration?: number;
+    aux0?: number;
+  }> = [];
+  const sourceIndexToExpandedIndex = new Map<number, number>();
+
+  loop.forEach((action, sourceIndex) => {
+    sourceIndexToExpandedIndex.set(sourceIndex, expandedActions.length);
+    if (action.type === 'animateForm') {
+      const formIds = action.formIds.length > 0 ? action.formIds : [CURRENT_FORM_ID];
+      const repeats = Math.max(1, action.loops);
+      for (let loopIndex = 0; loopIndex < repeats; loopIndex++) {
+        formIds.forEach(formId => {
+          expandedActions.push({
+            sourceIndex,
+            action,
+            typeId: getBehaviorActionTypeId('setForm'),
+            duration: Math.max(1, action.frameDurationFrames),
+            aux0: getFormIndex(formId, formIndexById),
+          });
+        });
+      }
+      return;
+    }
+    expandedActions.push({ sourceIndex, action });
+  });
+
+  const totalFrames = expandedActions.reduce((sum, item) => sum + (item.duration ?? behaviorActionDuration(item.action)), 0);
   const actionBytes: number[] = [];
 
-  loop.forEach(action => {
+  expandedActions.forEach(item => {
+    const action = item.action;
     const target = getBehaviorTarget(action);
     const attackIndex = action.type === 'attack' && action.attackId ? attackIndexById.get(action.attackId) : undefined;
-    const aux0 = action.type === 'loop'
-      ? clampByte(action.targetIndex)
-      : attackIndex === undefined ? 255 : clampByte(attackIndex);
+    let aux0 = item.aux0;
+    if (aux0 === undefined) {
+      if (action.type === 'loop') {
+        aux0 = sourceIndexToExpandedIndex.get(action.targetIndex) ?? 0;
+      } else if (action.type === 'setForm') {
+        aux0 = getFormIndex(action.formId, formIndexById);
+      } else {
+        aux0 = attackIndex === undefined ? 255 : clampByte(attackIndex);
+      }
+    }
     actionBytes.push(
-      getBehaviorActionTypeId(action.type),
-      clampByte(behaviorActionDuration(action), 1),
+      item.typeId ?? getBehaviorActionTypeId(action.type),
+      clampByte(item.duration ?? behaviorActionDuration(action), 1),
       getBehaviorTargetTypeId(target?.type),
       target?.type === 'bossRelative' ? signedByte(target.dxChar || 0) : clampByte(target?.xChar || 0),
       target?.type === 'bossRelative' ? signedByte(target.dyChar || 0) : clampByte(target?.yChar || 0),
@@ -192,7 +251,7 @@ function renderBehaviorLoop(label: string, phase: BossPhase, attackIndexById: Ma
     );
   });
 
-  return `${label}:\n${db([clampByte(loop.length), clampByte(totalFrames & 0xff), clampByte((totalFrames >> 8) & 0xff)], 'count,totalLo,totalHi')}\n${chunkedDb(actionBytes, 8)}`;
+  return `${label}:\n${db([clampByte(expandedActions.length), clampByte(totalFrames & 0xff), clampByte((totalFrames >> 8) & 0xff)], 'count,totalLo,totalHi')}\n${chunkedDb(actionBytes, 8)}`;
 }
 
 function renderTileMatrix(label: string, phase: BossPhase, tileIndexById: Map<string, number>, analysis: ProjectAnalysis): string {
@@ -219,6 +278,37 @@ function renderTileMatrix(label: string, phase: BossPhase, tileIndexById: Map<st
     }
   }
   return `${label}:\n${chunkedDb(bytes)}`;
+}
+
+function renderFormTable(
+  label: string,
+  phase: BossPhase,
+  tileIndexById: Map<string, number>,
+  analysis: ProjectAnalysis
+): string[] {
+  const forms = phase.forms || [];
+  const formLabels = [
+    `${label}_current`,
+    ...forms.map((_form, index) => `${label}_${index + 1}`)
+  ];
+
+  const blocks: string[] = [];
+  blocks.push(`${label}:\n${db([clampByte(formLabels.length)], 'count')}\n${formLabels.map(formLabel => dw([formLabel])).join('\n')}`);
+  blocks.push(renderTileMatrix(formLabels[0], phase, tileIndexById, analysis));
+
+  forms.forEach((form, index) => {
+    const formPhase: BossPhase = {
+      ...phase,
+      buildType: 'tile',
+      dimensions: form.dimensions,
+      tileMatrix: form.tileMatrix,
+      collisionMatrix: form.collisionMatrix,
+      weakPoints: form.weakPoints,
+    };
+    blocks.push(renderTileMatrix(formLabels[index + 1], formPhase, tileIndexById, analysis));
+  });
+
+  return blocks;
 }
 
 function renderCollisionMatrix(label: string, phase: BossPhase): string {
@@ -378,6 +468,7 @@ BOSS_PHASE_WIDTH_OFF EQU 2
 BOSS_PHASE_HEIGHT_OFF EQU 3
 BOSS_PHASE_TILE_MATRIX_PTR_OFF EQU 4
 BOSS_PHASE_BEHAVIOR_PTR_OFF EQU 14
+BOSS_PHASE_FORM_TABLE_PTR_OFF EQU 16
 BOSS_BUILD_TYPE_TILE EQU 0
 BOSS_RUNTIME_PLACEMENT_PHASE_TABLE_OFF EQU 0
 BOSS_RUNTIME_PLACEMENT_ATTACK_TABLE_OFF EQU 2
@@ -478,6 +569,9 @@ boss_resolve_initial_phase:
     ld e, (ix+14)
     ld d, (ix+15)
     ld (boss_behavior_table_ptr), de
+    ld e, (ix+16)
+    ld d, (ix+17)
+    ld (boss_form_table_ptr), de
     ret
 
 ; Register Contract:
@@ -542,8 +636,6 @@ draw_active_boss_tiles:
 
     call boss_get_active_tile_char
     cp #FF
-    jp z, .dabt_skip_cell
-    or a
     jp z, .dabt_skip_cell
     ld (boss_draw_char), a
 
@@ -773,8 +865,7 @@ boss_current_shape_covers_draw_cell:
     call boss_get_active_tile_char
     cp #FF
     jp z, .bcscdc_not_covered
-    or a
-    ret nz
+    ret
 .bcscdc_not_covered:
     xor a
     ret
@@ -873,6 +964,8 @@ update_boss_behavior:
     jp z, .ubb_move
     cp BOSS_BEHAVIOR_ATTACK
     jp z, .ubb_attack
+    cp BOSS_BEHAVIOR_SET_FORM
+    jp z, .ubb_tick
     cp BOSS_BEHAVIOR_LOOP
     jp z, .ubb_loop
     jp .ubb_tick
@@ -985,7 +1078,44 @@ boss_load_current_behavior_action:
     jp z, boss_prepare_behavior_move_timing
     cp BOSS_BEHAVIOR_SLAM
     jp z, boss_prepare_behavior_move_timing
+    cp BOSS_BEHAVIOR_SET_FORM
+    jp z, boss_apply_behavior_form
     ld a, 1
+    ld (boss_behavior_step_interval), a
+    ld (boss_behavior_step_timer), a
+    ret
+
+; Register Contract:
+; input: boss_behavior_aux0 = visual form index, boss_form_table_ptr points to db count + dw form matrices
+; output: boss_tile_matrix_ptr switched and boss_visual_dirty set when form index is valid
+; clobbers: AF, BC, DE, HL
+boss_apply_behavior_form:
+    ld hl, (boss_form_table_ptr)
+    ld a, h
+    cp #FF
+    ret z
+    ld a, (hl)
+    ld b, a
+    ld a, (boss_behavior_aux0)
+    cp b
+    ret nc
+    inc hl
+    ld b, a
+.babf_offset_loop:
+    ld a, b
+    or a
+    jp z, .babf_offset_done
+    inc hl
+    inc hl
+    dec b
+    jp .babf_offset_loop
+.babf_offset_done:
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld (boss_tile_matrix_ptr), de
+    ld a, 1
+    ld (boss_visual_dirty), a
     ld (boss_behavior_step_interval), a
     ld (boss_behavior_step_timer), a
     ret
@@ -2756,6 +2886,7 @@ function renderPhaseRecord(
     crushMovement: string;
     attackSequence: string;
     behaviorLoop: string;
+    formTable: string;
   }
 ): string {
   return [
@@ -2771,8 +2902,9 @@ function renderPhaseRecord(
       labels.neckChain,
       labels.crushMovement,
       labels.attackSequence,
-      labels.behaviorLoop
-    ], 'tileMatrix,collision,neck,crush,attacks,behavior')
+      labels.behaviorLoop,
+      labels.formTable
+    ], 'tileMatrix,collision,neck,crush,attacks,behavior,forms')
   ].join('\n');
 }
 
@@ -2867,6 +2999,7 @@ ${renderBossRuntimeAsm()}
   lines.push(`    xor a`);
   lines.push(`    ld (boss_runtime_tick), a`);
   lines.push(`    ld (boss_active), a`);
+  lines.push(`    ld (boss_visual_dirty), a`);
   lines.push(`    ret`);
   lines.push(``);
   lines.push(`; Register Contract:`);
@@ -2892,10 +3025,15 @@ ${renderBossRuntimeAsm()}
   lines.push(`    ld b, a`);
   lines.push(`    ld a, (boss_prev_y_char)`);
   lines.push(`    cp b`);
+  lines.push(`    jp nz, .ubs_redraw`);
+  lines.push(`    ld a, (boss_visual_dirty)`);
+  lines.push(`    or a`);
   lines.push(`    jp z, .ubs_done`);
   lines.push(`.ubs_redraw:`);
   lines.push(`    call draw_active_boss_tiles`);
   lines.push(`    call restore_active_boss_tiles_exposed`);
+  lines.push(`    xor a`);
+  lines.push(`    ld (boss_visual_dirty), a`);
   lines.push(`    ld a, (boss_x_char)`);
   lines.push(`    ld (boss_prev_x_char), a`);
   lines.push(`    ld a, (boss_y_char)`);
@@ -2936,8 +3074,10 @@ ${renderBossRuntimeAsm()}
         neckChain: `${phaseLabel}_neck`,
         crushMovement: `${phaseLabel}_crush`,
         attackSequence: `${phaseLabel}_attacks`,
-        behaviorLoop: `${phaseLabel}_behavior`
+        behaviorLoop: `${phaseLabel}_behavior`,
+        formTable: `${phaseLabel}_forms`
       };
+      const formIndexById = buildFormIndexById(phase);
       phaseRecordLabels.push(phaseLabel);
       phaseDataBlocks.push(`${phaseLabel}:\n${renderPhaseRecord(phase, labels)}`);
       phaseDataBlocks.push(renderTileMatrix(labels.tileMatrix, phase, tileIndexById, analysis));
@@ -2945,7 +3085,8 @@ ${renderBossRuntimeAsm()}
       phaseDataBlocks.push(renderNeckChain(labels.neckChain, phase.neckChain));
       phaseDataBlocks.push(renderCrushMovement(labels.crushMovement, phase.crushMovement));
       phaseDataBlocks.push(renderAttackSequence(labels.attackSequence, phase, attackIndexById));
-      phaseDataBlocks.push(renderBehaviorLoop(labels.behaviorLoop, phase, attackIndexById));
+      phaseDataBlocks.push(renderBehaviorLoop(labels.behaviorLoop, phase, attackIndexById, formIndexById));
+      phaseDataBlocks.push(...renderFormTable(labels.formTable, phase, tileIndexById, analysis));
     });
 
     const attackRecordLabels: string[] = [];
