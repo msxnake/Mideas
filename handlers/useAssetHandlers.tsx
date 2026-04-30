@@ -294,6 +294,8 @@ export const useAssetHandlers = ({
           id, name: defaultName,
           totalHealth: 100,
           phases: [],
+          phasesEnabled: [],
+          attacks: [],
           currentPhaseId: null
         };
         newEditorType = EditorType.Boss;

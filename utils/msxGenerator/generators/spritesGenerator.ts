@@ -4,7 +4,7 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
-import { buildMSXDirectionalSpriteCatalog, generateSpriteASMCode } from '../../../components/utils/spriteUtils';
+import { buildMSXDirectionalSpriteCatalog, generateSpriteASMCode, getSpriteDrawableLayerIndexes } from '../../../components/utils/spriteUtils';
 import { analyzeComponentUsage } from '../utils/componentAnalyzer';
 import { MSX1_PALETTE } from '../../../constants';
 import { usesMapperBanking } from './romModeUtils';
@@ -24,44 +24,10 @@ const SPRITE_PATTERN_SLOT_CAPACITY = 64; // MSX1 SPRPAT = 2048 bytes = 64 patter
 
 /**
  * Analyze drawable palette layers for a sprite across ALL frames.
- * Returns palette layer indexes that are really used at least once.
+ * Returns the compact layer order emitted in sprite ASM data. Palette order is
+ * preserved because MSX1 lower hardware sprite indexes have visual priority.
  */
-const analyzeDrawableLayerIndexes = (sprite: any): number[] => {
-  const palette: string[] = sprite?.spritePalette || [];
-  const bg: string | undefined = sprite?.backgroundColor;
-  const frames = sprite?.frames || [];
-
-  if (!palette.length || !frames.length) return [];
-  const used: number[] = [];
-
-  for (let layerIdx = 0; layerIdx < palette.length; layerIdx++) {
-    const layerColor = palette[layerIdx];
-    if (!layerColor || layerColor === bg) continue;
-
-    let hasPixels = false;
-    for (const frame of frames) {
-      if (!frame?.data) continue;
-      if (frame?.msx1LayerData?.[layerIdx]?.some((row: boolean[]) => row.some(Boolean))) {
-        hasPixels = true;
-        break;
-      }
-      for (let y = 0; y < (frame.data.length || 0) && !hasPixels; y++) {
-        for (let x = 0; x < (frame.data[y]?.length || 0) && !hasPixels; x++) {
-          if (frame.data[y][x] === layerColor) {
-            hasPixels = true;
-          }
-        }
-      }
-      if (hasPixels) break;
-    }
-
-    if (hasPixels) {
-      used.push(layerIdx);
-    }
-  }
-
-  return used;
-};
+const analyzeDrawableLayerIndexes = (sprite: any): number[] => getSpriteDrawableLayerIndexes(sprite);
 
 const findFirstDrawableLayerIndex = (sprite: any): number => {
   const usedLayers = analyzeDrawableLayerIndexes(sprite);

@@ -3,13 +3,13 @@
 
 
 import React from 'react';
-import { Point, ScreenMap, Tile, MockEntityType, ScreenBlockExportMode } from '../../types';
+import { Point, ScreenMap, Tile, MockEntityType, ScreenBlockExportMode, ScreenEditorLayerName } from '../../types';
 
 /**
  * Represents the name of a layer in the screen editor.
  * @category ScreenEditor
  */
-type LayerName = keyof ScreenMap['layers'] | 'entities' | 'effects';
+type LayerName = ScreenEditorLayerName;
 
 /**
  * Props for the {@link ScreenEditorStatusBar} component.
@@ -56,6 +56,8 @@ export const ScreenEditorStatusBar: React.FC<ScreenEditorStatusBarProps> = ({
     toolMessage = currentEntityTypeToPlace ? `Place ${currentEntityTypeToPlace.name}` : 'Select Entity';
   } else if (activeLayer === 'effects') {
     toolMessage = selectedEffectZoneName ? `Zone: ${selectedEffectZoneName}` : 'Select/Add Effect Zone';
+  } else if (activeLayer === 'bosses') {
+    toolMessage = 'Place/Select Boss';
   } else if (selectedTileId) {
     toolMessage = tileset.find(t => t.id === selectedTileId)?.name || 'Unknown Tile';
   }

@@ -32,6 +32,7 @@ import { generateInterruptFile } from './generators/interruptGenerator';
 import { generateSoundFile } from './generators/soundGenerator';
 import { generateScrollFile } from './generators/scrollGenerator';
 import { generateAnimatedTilesFile } from './generators/animatedTilesGenerator';
+import { generateBossesFile } from './generators/bossesGenerator';
 import { generatePage0File } from './generators/page0Generator';
 import { getMapperWindowConfig } from './generators/mapperWindowUtils';
 import { buildExecutionPlan } from './planning/executionPlan';
@@ -148,6 +149,7 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
     tileBanks: [],
     screens: summary.assets.screens as any[], // Added alias
     screenMaps: summary.assets.screens as any[], // Added missing property
+    bosses: (summary.assets as any).bosses || [],
     gameFlow: summary.execution.mainGameFlow as any,
     projectName: summary.projectInfo.name,
     customStates: [], // Added missing property
@@ -219,6 +221,7 @@ export function generateModularASM(
       tileBanks: [],
       screens: [],
       screenMaps: [],
+      bosses: [],
       projectName: projectName,
       customStates: [],
       stateMachines: [],
@@ -283,6 +286,7 @@ export function generateModularASM(
     'sound.asm': generateSoundFile(analysis, executionPlan, romMode),
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis, romMode, targetFormat),
+    'bosses.asm': generateBossesFile(analysis),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
       ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId, romMode)
       : '; No State Machines\n',
@@ -394,6 +398,7 @@ export function generateModularASMFromSummary(
     'sound.asm': generateSoundFile(analysis, executionPlan, romMode),
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis, romMode, targetFormat),
+    'bosses.asm': generateBossesFile(analysis),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
       ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId, romMode)
       : '; No State Machines\n',

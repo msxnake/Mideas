@@ -6,7 +6,7 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { buildScreenCharBehaviorTable, buildScreenInteractionMaps, encodeBehaviorByteFromLogicalProperties, generateScreenLayoutASMCode, generateBehaviorMapASMCode, generateScreenMapLayoutBytes, resolveScreenBehaviorSource } from '../../../components/utils/screenUtils';
 import { DEFAULT_TILE_BANK_DEFINITIONS, EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE } from '../../../constants';
-import { ScreenMap, TileBank, normalizeEffectZoneParams, resolveEffectZoneType } from '../../../types';
+import { Boss, BossInstance, ScreenMap, TileBank, normalizeEffectZoneParams, resolveEffectZoneType } from '../../../types';
 import { buildRegisterContractComment } from './registerContract';
 import { collectAnimatedTileGroupSummaries } from './animatedTilesGenerator';
 import { buildScreenSpritePatternUsageSummaries } from './spritesGenerator';
@@ -35,6 +35,17 @@ const ASM_BYTES_PER_LINE = 16;
 const MAX_RUNTIME_EFFECT_ZONES = 64;
 const SCREEN_ENGINE_PLAYER = 0;
 const SCREEN_ENGINE_FAKE_PLAYER = 1;
+
+function sanitizeLabel(value: string, fallback: string): string {
+  const cleaned = String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_]/g, '_')
+    .replace(/^([0-9])/, '_$1')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+  return cleaned || fallback;
+}
 
 const EFFECT_TYPE_IDS = {
   secretZone: 0,
@@ -273,6 +284,51 @@ function hasUsableImportedHudFrameSnapshot(screen: any): boolean {
 
 function buildResourceId(label: string): string {
   return buildResourceIdLabelFromAsmLabel(label);
+}
+
+function buildBossLabelMap(analysis: ProjectAnalysis): Map<string, string> {
+  const labels = new Map<string, string>();
+  ((analysis.bosses || []) as Boss[]).forEach((boss, index) => {
+    const label = `boss_${index}_${sanitizeLabel(boss.name, 'boss')}`;
+    if (boss.id) {
+      labels.set(boss.id, label);
+    }
+  });
+  return labels;
+}
+
+function buildBossPlacementRows(screen: ScreenMap, bossLabelById: Map<string, string>): string[] {
+  const rows: string[] = [];
+  const instances = (screen.bossInstances || []) as BossInstance[];
+
+  instances.forEach((instance) => {
+    const bossLabel = bossLabelById.get(instance.bossAssetId);
+    if (!bossLabel) {
+      return;
+    }
+    const flags = instance.enabled === false ? 0 : 1;
+    rows.push(`    dw ${bossLabel}_phase_table, ${bossLabel}_attack_table`);
+    rows.push(`    db ${clampByte(instance.xChar)}, ${clampByte(instance.yChar)}, ${clampByte(instance.initialPhaseIndex)}, ${flags}    ; xChar,yChar,initialPhase,flags`);
+  });
+
+  return rows;
+}
+
+function generateBossPlacementTable(
+  screenName: string,
+  index: number,
+  screen: ScreenMap,
+  bossLabelById: Map<string, string>
+): string {
+  const rows = buildBossPlacementRows(screen, bossLabelById);
+  let asm = `SCREEN_${screenName}_${index}_BOSS_TABLE:\n`;
+  if (rows.length === 0) {
+    asm += `    db 0    ; No boss placements\n`;
+  } else {
+    asm += `    ; Entry format: dw phaseTable, dw attackTable, db xChar, yChar, initialPhase, flags(bit0=enabled)\n`;
+    asm += `${rows.join('\n')}\n`;
+  }
+  return asm;
 }
 
 function generatePresentationScreenSection(
@@ -1004,6 +1060,7 @@ export function generateScreensFile(
   const interactionTargetIdMap = buildInteractionTargetIdMap(analysis);
   const worldMusicFlags = buildWorldMusicFlagMap(analysis);
   const fallbackGameplayMusic = hasAnyGameplayMusicConfigured(analysis) ? 1 : 0;
+  const bossLabelById = buildBossLabelMap(analysis);
   // Skip screen system if no screens in project
   if (!analysis.screenMaps || analysis.screenMaps.length === 0) {
     return `; ==================================================================
@@ -1044,6 +1101,8 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, targetFo
     const hasEffectsLayoutData = effectsLayoutBytes.some(value => value !== 0);
     const effectZoneBytes = buildEffectZoneBytes(screen);
     const effectZoneCount = (screen.effectZones || []).length;
+    const bossPlacementRows = buildBossPlacementRows(screen, bossLabelById);
+    const bossPlacementCount = bossPlacementRows.length / 2;
     const screenId = String(screen.id || `screen_${index}`);
     const animatedGroupCount = countAnimatedGroupsInScreen(
       backgroundLayoutBytes,
@@ -1084,6 +1143,7 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, targetFo
       hasEffectsLayoutData,
       effectZoneBytes,
       effectZoneCount,
+      bossPlacementCount,
       animatedGroupCount,
       entityCount,
       spritePatternSlots,
@@ -1128,6 +1188,8 @@ SCREEN_RUNTIME_SUMMARY_FLAG_MUSIC_IN_GAME EQU #01
 SCREEN_RUNTIME_SUMMARY_FLAG_HAS_HUD EQU #02
 SCREEN_RUNTIME_SUMMARY_FLAG_HAS_EFFECTS EQU #04
 SCREEN_RUNTIME_SUMMARY_FLAG_HAS_ANIM_TILES EQU #08
+BOSS_PLACEMENT_ENTRY_SIZE EQU 8
+BOSS_PLACEMENT_FLAG_ENABLED EQU #01
 
 `;
 
@@ -1137,6 +1199,7 @@ SCREEN_RUNTIME_SUMMARY_FLAG_HAS_ANIM_TILES EQU #08
         index,
         hasEffectsLayoutData,
         effectZoneCount,
+        bossPlacementCount,
         animatedGroupCount,
         entityCount,
         spritePatternSlots,
@@ -1158,6 +1221,9 @@ SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_SIZE EQU ${SCREEN_WIDTH * SCREEN_HE
 SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK EQU ${buildMapperBankEqu(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`, mapperWindow)}
 SCREEN_${screenName}_${index}_EFFECT_ZONE_COUNT EQU ${effectZoneCount}
 SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_SIZE EQU ${effectZoneCount * 8}
+SCREEN_${screenName}_${index}_BOSS_TABLE_BANK EQU ${buildMapperBankEqu(`SCREEN_${screenName}_${index}_BOSS_TABLE`, mapperWindow)}
+SCREEN_${screenName}_${index}_BOSS_COUNT EQU ${bossPlacementCount}
+SCREEN_${screenName}_${index}_BOSS_TABLE_SIZE EQU ${bossPlacementCount * 8}
 SCREEN_${screenName}_${index}_BLOCK_LAYOUT_PRESENT EQU ${screenExport.backgroundBlockMap ? 1 : 0}
 SCREEN_${screenName}_${index}_BLOCK_LAYOUT_MODE EQU ${screenExport.backgroundBlockMap?.blockWidth ?? 0}
 SCREEN_${screenName}_${index}_BLOCK_CATALOG_BANK EQU ${screenExport.backgroundBlockMap ? buildMapperBankEqu(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`, mapperWindow) : 0}
@@ -1224,6 +1290,7 @@ screen_runtime_summary_table:
           }
           code += `; [SCREEN_${screenName}_${index}_EFFECTS_LAYOUT emitted in bank4 section]\n`;
           code += `; [SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE emitted in bank4 section]\n`;
+          code += `; [SCREEN_${screenName}_${index}_BOSS_TABLE emitted in bank4 section]\n`;
           code += `; [SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP emitted in bank4 section]\n`;
           code += `; [SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP emitted in bank4 section]\n`;
           code += `; [SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP emitted in bank4 section]\n`;
@@ -1276,6 +1343,8 @@ screen_runtime_summary_table:
                 `No effect zones exported for ${screen.name}`,
               ]
         );
+        code += `\n`;
+        code += generateBossPlacementTable(screenName, index, screen, bossLabelById);
         code += `\n`;
 
         if (false) {
@@ -1481,6 +1550,8 @@ screen_runtime_summary_table:
         code += generateRawByteBlock(`SCREEN_${screenName}_${screenIndex}_INTERACTION_VALUE_MAP`, Array.from({ length: SCREEN_WIDTH * SCREEN_HEIGHT }, () => 0));
         code += `\n`;
         code += generateRawByteBlock(`SCREEN_${screenName}_${screenIndex}_INTERACTION_TARGET_MAP`, Array.from({ length: SCREEN_WIDTH * SCREEN_HEIGHT }, () => 0));
+        code += `\n`;
+        code += generateBossPlacementTable(screenName, screenIndex, screen, bossLabelById);
         code += `\n`;
       }
 
@@ -2009,6 +2080,39 @@ ${tileBankReadyLabel}:
       const interactionValueMapResourceId = buildResourceId(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`);
       const interactionTargetMapResourceId = buildResourceId(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`);
       const effectZoneTableResourceId = buildResourceId(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`);
+      const bossTablePointer = mapperAddr(`SCREEN_${screenName}_${index}_BOSS_TABLE`);
+      const bossDoneLabel = `load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_boss_done`;
+      const bossRuntimeLoadCode = usesMapper ? `    ld a, SCREEN_${screenName}_${index}_BOSS_COUNT
+    ld (current_screen_boss_count), a
+    or a
+    jp z, ${bossDoneLabel}
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_BOSS_TABLE_BANK
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${bossTablePointer}
+    ld de, current_screen_boss_entry
+    ld bc, BOSS_PLACEMENT_ENTRY_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+    ld hl, current_screen_boss_entry
+    ld (current_screen_boss_table), hl
+    ld a, #FF
+    ld (current_screen_boss_table_bank), a
+${bossDoneLabel}:
+` : `    ld a, SCREEN_${screenName}_${index}_BOSS_COUNT
+    ld (current_screen_boss_count), a
+    or a
+    jp z, ${bossDoneLabel}
+    ld hl, ${bossTablePointer}
+    ld de, current_screen_boss_entry
+    ld bc, BOSS_PLACEMENT_ENTRY_SIZE
+    ldir
+    ld hl, current_screen_boss_entry
+    ld (current_screen_boss_table), hl
+    ld a, #FF
+    ld (current_screen_boss_table_bank), a
+${bossDoneLabel}:
+`;
 
       const hasImportedHudFrame = importedHudFrameCells.length > 0;
       const importedHudFrameLabelBase = `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
@@ -2442,8 +2546,10 @@ ${tileBankLoadCode}`;
     ld (current_screen_sprite_pattern_slots), a
     ld a, SCREEN_${screenName}_${index}_SUMMARY_FLAGS
     ld (current_screen_summary_flags), a
+${bossRuntimeLoadCode}
 ${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
-` : ``}`;
+` : ``}    call init_screen_boss_from_current_screen
+`;
 
         if (hasImportedHudFrame) {
           code += `    ; Imported HUD frame is drawn on world/game start only
@@ -2508,8 +2614,10 @@ ${tileBankLoadCode}`;
     ld (current_screen_sprite_pattern_slots), a
     ld a, SCREEN_${screenName}_${index}_SUMMARY_FLAGS
     ld (current_screen_summary_flags), a
+${bossRuntimeLoadCode}
 ${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
-` : ``}`;
+` : ``}    call init_screen_boss_from_current_screen
+`;
         if (hasImportedHudFrame) {
           code += `    ; Imported HUD frame is drawn on world/game start only
 `;
@@ -2608,6 +2716,7 @@ export function getScreensBank4Data(analysis: ProjectAnalysis, romMode: string =
   const interactionTargetIdMap = buildInteractionTargetIdMap(analysis);
   const worldMusicFlags = buildWorldMusicFlagMap(analysis);
   const fallbackGameplayMusic = hasAnyGameplayMusicConfigured(analysis) ? 1 : 0;
+  const bossLabelById = buildBossLabelMap(analysis);
 
   const screenExports = analysis.screenMaps.map((screen, index) => {
     const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
@@ -2714,6 +2823,8 @@ export function getScreensBank4Data(analysis: ProjectAnalysis, romMode: string =
           : [`No effect zones for ${screen.name}`]
       );
       asm += `\n`;
+      asm += generateBossPlacementTable(screenName, index, screen, bossLabelById);
+      asm += `\n`;
 
       if (screenExport.behaviorSource === 'backgroundChars' && screenExport.charBehaviorTable) {
         asm += generateRawByteBlock(
@@ -2751,6 +2862,8 @@ export function getScreensBank4Data(analysis: ProjectAnalysis, romMode: string =
       asm += `SCREEN_${screenName}_${index}_LAYOUT:\n    db 0, 0, 0, 0, 0, 0, 0, 0\n\n`;
       asm += `SCREEN_${screenName}_${index}_EFFECTS_LAYOUT:\n    db 0\n\n`;
       asm += `SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE:\n    db 0\n\n`;
+      asm += generateBossPlacementTable(screenName, index, screen, bossLabelById);
+      asm += `\n`;
       if (resolveScreenBehaviorSource(screen) === 'backgroundChars') {
         asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`, Array.from({ length: 256 }, () => 0));
         asm += `\n`;

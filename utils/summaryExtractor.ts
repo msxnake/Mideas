@@ -3,7 +3,7 @@
  * Genera archivos summary.json optimizados para msxModularGenerator
  */
 
-import { ProjectAsset, GameFlowGraph, WorldMap, ScreenMap, Sprite, Tile, EntityTemplate, ComponentDefinition } from '../types';
+import { ProjectAsset, GameFlowGraph, WorldMap, ScreenMap, Sprite, Tile, EntityTemplate, ComponentDefinition, Boss } from '../types';
 import { generateTilePatternBytes, generateTileColorBytes } from '../components/utils/tileUtils';
 import { generateSpriteASMCode } from '../components/utils/spriteUtils';
 import fs from 'fs';
@@ -51,6 +51,7 @@ export interface ProjectSummary {
     components: any[];
     fonts: any[];
     stateMachines: any[];
+    bosses: any[];
   };
   metadata: {
     extraction: {
@@ -381,6 +382,95 @@ function extractSpritesFromEntities(entities: any[], assets: ProjectAsset[], use
   });
 }
 
+function addTileAsset(tileId: string | null | undefined, assets: ProjectAsset[], usedAssets: any, warnings: string[], context: string): void {
+  if (!tileId || usedAssets.tiles.some((t: any) => t.id === tileId)) return;
+
+  const tileAsset = getAsset(assets, 'tile', tileId);
+  if (!tileAsset) {
+    const warning = `Tile "${tileId}" referenced in ${context} but not found`;
+    warnings.push(warning);
+    console.warn(warning);
+    return;
+  }
+
+  const tileData = {
+    id: tileAsset.id,
+    name: tileAsset.name,
+    width: tileAsset.data.width,
+    height: tileAsset.data.height,
+    data: tileAsset.data.data,
+    msxCharCount: Math.ceil(tileAsset.data.width / 8) * Math.ceil(tileAsset.data.height / 8),
+    patterns: generateTilePatternBytes(tileAsset.data, 'SCREEN 2 (Graphics I)'),
+    colors: generateTileColorBytes(tileAsset.data, 'SCREEN 2 (Graphics I)')
+  };
+
+  usedAssets.tiles.push(tileData);
+  console.log(`Tile added from ${context}: "${tileAsset.name}" (${tileData.msxCharCount} MSX chars)`);
+}
+
+function addSpriteAsset(spriteId: string | null | undefined, assets: ProjectAsset[], usedAssets: any, warnings: string[], context: string): void {
+  if (!spriteId || usedAssets.sprites.some((s: any) => s.id === spriteId)) return;
+
+  const spriteAsset = getAsset(assets, 'sprite', spriteId);
+  if (!spriteAsset) {
+    const warning = `Sprite "${spriteId}" referenced in ${context} but not found`;
+    warnings.push(warning);
+    console.warn(warning);
+    return;
+  }
+
+  const spriteASM = generateSpriteASMCode(spriteAsset.data, 'hex');
+  const spriteData = {
+    id: spriteAsset.id,
+    name: spriteAsset.name,
+    width: spriteAsset.data.width,
+    height: spriteAsset.data.height,
+    frames: spriteAsset.data.frames?.length || 1,
+    msxSize: spriteAsset.data.width <= 8 && spriteAsset.data.height <= 8 ? '8x8' : '16x16',
+    asmCode: spriteASM,
+    totalPatternBytes: spriteASM.length
+  };
+
+  usedAssets.sprites.push(spriteData);
+  console.log(`Sprite added from ${context}: "${spriteAsset.name}" (${spriteData.frames} frames, ${spriteData.msxSize})`);
+}
+
+function extractBosses(assets: ProjectAsset[], usedAssets: any, warnings: string[]): void {
+  assets
+    .filter(asset => asset.type === 'boss')
+    .forEach((bossAsset) => {
+      const boss = {
+        ...(bossAsset.data as Boss),
+        id: (bossAsset.data as Boss).id || bossAsset.id,
+        name: (bossAsset.data as Boss).name || bossAsset.name
+      };
+
+      if (!usedAssets.bosses.some((existing: Boss) => existing.id === boss.id)) {
+        usedAssets.bosses.push(boss);
+        console.log(`Boss added: "${boss.name}"`);
+      }
+
+      boss.phases?.forEach((phase, phaseIndex) => {
+        const context = `Boss "${boss.name}" phase ${phaseIndex + 1}`;
+        addSpriteAsset(phase.spriteAssetId, assets, usedAssets, warnings, context);
+        phase.tileMatrix?.forEach(row => {
+          row.forEach(tileId => addTileAsset(tileId, assets, usedAssets, warnings, context));
+        });
+        phase.weakPoints?.forEach((weakPoint) => {
+          addSpriteAsset(weakPoint.hitSpriteId, assets, usedAssets, warnings, context);
+          addTileAsset(weakPoint.destroyedTileId, assets, usedAssets, warnings, context);
+        });
+      });
+
+      boss.attacks?.forEach((attack) => {
+        addSpriteAsset(attack.spriteAssetId, assets, usedAssets, warnings, `Boss "${boss.name}" attack "${attack.name}"`);
+        addSpriteAsset(attack.explosionSpriteAssetId, assets, usedAssets, warnings, `Boss "${boss.name}" attack "${attack.name}" explosion`);
+        addTileAsset(attack.laserTileAssetId, assets, usedAssets, warnings, `Boss "${boss.name}" attack "${attack.name}" laser char`);
+      });
+      addSpriteAsset(boss.deathExplosionSpriteId, assets, usedAssets, warnings, `Boss "${boss.name}" death explosion`);
+    });
+}
+
 /**
  * Calcula estadísticas y metadata del summary
  */
@@ -452,12 +542,14 @@ export function extractProjectSummary(projectPath: string, outputDir: string = '
     entities: [],
     components: [],
     fonts: [],
-    stateMachines: []
+    stateMachines: [],
+    bosses: []
   };
 
   // 4. Extraer assets siguiendo cadena de dependencias
   console.log('🔗 Following dependency chain...');
   extractUsedWorldMaps(mainGameFlow.data, assets, usedAssets, warnings);
+  extractBosses(assets, usedAssets, warnings);
 
   // 5. Crear summary final
   const projectName = path.basename(projectPath, '.json');

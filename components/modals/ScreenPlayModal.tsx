@@ -11,6 +11,7 @@ import {
 } from '../../types';
 import { Button } from '../common/Button';
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
+import { renderBossInstancesToCanvas } from '../utils/bossRenderUtils';
 import { mirrorPixelDataHorizontally } from '../utils/spriteUtils';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, createTileBasedFont } from '../utils/msxFontRenderer';
 import { wallCollisionEngine, entityCollisionEngine, pacMovementEngine, pacmanMovementV2Engine } from '../../src/engines';
@@ -2452,6 +2453,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             if (tileBuffer) {
                 ctx.drawImage(tileBuffer, 0, 0);
             }
+            renderBossInstancesToCanvas(ctx, screenMap, allAssets, tileset, currentScreenMode, TILE_SIZE);
 
             // 3. Render HUD elements (only if hudEnabled is true)
             if (hudEnabled) {

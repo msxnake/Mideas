@@ -587,6 +587,8 @@ export interface ScreenMap {
   behaviorConfig?: ScreenBehaviorConfig;
   /** An array of rectangular effect zones on the map. */
   effectZones?: EffectZone[];
+  /** Boss placements assigned to this screen, using 8x8 char coordinates. */
+  bossInstances?: BossInstance[];
   /** The x-coordinate of the active (playable) area of the map. */
   activeAreaX?: number;
   /** The y-coordinate of the active (playable) area of the map. */
@@ -612,7 +614,7 @@ export interface ScreenMap {
 }
 
 /** A type representing the possible layer names in the screen editor. */
-export type ScreenEditorLayerName = keyof ScreenMap['layers'] | 'entities' | 'effects';
+export type ScreenEditorLayerName = keyof ScreenMap['layers'] | 'entities' | 'effects' | 'bosses';
 
 /**
  * Represents the data copied to the buffer when cloning a screen grid.
@@ -634,6 +636,8 @@ export interface CopiedScreenData {
   screenEngine?: ScreenEngineKind;
   /** The effect zones within the copied area. */
   effectZones?: EffectZone[];
+  /** Boss placements copied with the screen. */
+  bossInstances?: BossInstance[];
   /** The x-coordinate of the copied active area. */
   activeAreaX: number;
   /** The y-coordinate of the copied active area. */
@@ -1032,7 +1036,7 @@ export interface BossAttack {
   /** The name of the attack. */
   name: string;
   /** The type of the attack. */
-  type: 'Projectile' | 'Melee' | 'Special' | 'Pattern';
+  type: 'Projectile' | 'Boomerang' | 'Rock' | 'Laser' | 'Meteor' | 'Bomb' | 'SineWave' | 'HomingMissile' | 'Melee' | 'Special' | 'Pattern';
   /** The ID of the sprite asset used for the attack's projectile. */
   spriteAssetId?: string;
   /** The ID of the sound effect asset for the attack. */
@@ -1041,10 +1045,50 @@ export interface BossAttack {
   damage: number;
   /** The speed of the attack's projectile. */
   speed?: number;
+  /** The projectile travel direction for boss preview/runtime exports. */
+  projectileDirection?: 'left' | 'right' | 'up' | 'down';
+  /** Horizontal projectile spawn offset from the boss center, in pixels. */
+  spawnOffsetX?: number;
+  /** Vertical projectile spawn offset from the boss center, in pixels. */
+  spawnOffsetY?: number;
+  /** Maximum projectile travel distance, in pixels. */
+  range?: number;
+  /** Arc height in pixels for parabolic attacks such as rocks. */
+  arcHeight?: number;
+  /** Perpendicular wave amplitude in pixels for sine-wave projectile attacks. */
+  waveAmplitude?: number;
+  /** Frames per wave phase step for sine-wave projectile attacks. */
+  waveFrequencyFrames?: number;
+  /** Per-frame steering strength for homing missile attacks. */
+  homingTurnStep?: number;
+  /** Tile/char asset used to draw a boss laser beam. */
+  laserTileAssetId?: string;
+  /** Beam length in 8x8 chars for char-based laser attacks. */
+  laserLengthChars?: number;
+  /** Frames that a laser beam stays active within its cooldown cycle. */
+  laserDurationFrames?: number;
   /** The duration of the attack. */
   duration?: number;
   /** The cooldown period after the attack. */
   cooldown?: number;
+  /** Number of meteors spawned by a meteor attack. */
+  meteorCount?: number;
+  /** Horizontal spacing between meteor lanes, in pixels. */
+  meteorSpreadX?: number;
+  /** Warning frames shown before meteors start falling. */
+  meteorWarningFrames?: number;
+  /** Number of bombs spawned by a bomb attack. */
+  bombCount?: number;
+  /** Horizontal spacing between bomb spawn points, in pixels. */
+  bombSpreadX?: number;
+  /** Frames before a spawned bomb explodes. */
+  bombFuseFrames?: number;
+  /** Explosion radius in pixels for preview/runtime collision helpers. */
+  explosionRadius?: number;
+  /** Frames that the explosion stays active. */
+  explosionDurationFrames?: number;
+  /** Optional sprite asset shown while the bomb is exploding. */
+  explosionSpriteAssetId?: string;
 }
 
 /**
@@ -1062,6 +1106,147 @@ export interface BossPhaseWeakPoint {
   /** The ID of the tile to replace the weak point with when destroyed. */
   destroyedTileId?: string;
 }
+
+/**
+ * A tile coordinate that belongs to an ordered boss neck chain.
+ * Segment 0 is the leading tile; each following segment is driven by the
+ * previous segment's movement with a configurable delay.
+ */
+export interface BossNeckSegment {
+  /** The x-coordinate of the neck tile, in boss phase tiles. */
+  x: number;
+  /** The y-coordinate of the neck tile, in boss phase tiles. */
+  y: number;
+}
+
+/**
+ * Defines tile-chain movement for bosses made from background tiles.
+ */
+export interface BossNeckChain {
+  /** Enables or disables the neck-chain movement in this phase. */
+  enabled: boolean;
+  /** Ordered vector of neck tiles. First tile leads, later tiles follow. */
+  segments: BossNeckSegment[];
+  /** Maximum horizontal displacement applied to the leading tile, in pixels. */
+  amplitudeX: number;
+  /** Maximum vertical displacement applied to the leading tile, in pixels. */
+  amplitudeY: number;
+  /** Animation speed multiplier for the leading tile. */
+  speed: number;
+  /** Delay in frames between one segment and the next. */
+  segmentDelayFrames: number;
+  /** How much movement is preserved by each follower segment, 0-1. */
+  followStrength: number;
+}
+
+/**
+ * Defines a boss slam/crush movement for one phase.
+ */
+export interface BossCrushMovement {
+  /** Enables or disables the crush movement in this phase. */
+  enabled: boolean;
+  /** Direction where the boss moves during the crush. */
+  direction: 'down' | 'up' | 'left' | 'right';
+  /** Maximum displacement in pixels. */
+  distance: number;
+  /** Frames spent telegraphing before the fast crush movement starts. */
+  windupFrames: number;
+  /** Frames spent moving toward the crush target. */
+  slamFrames: number;
+  /** Frames held at maximum displacement. */
+  holdFrames: number;
+  /** Frames spent returning to the origin. */
+  returnFrames: number;
+  /** Extra frames before the cycle repeats. */
+  cooldownFrames: number;
+}
+
+export type BossBehaviorTargetType = 'fixed' | 'playerCurrent' | 'playerPredicted' | 'playerLastKnown' | 'bossRelative';
+
+export interface BossBehaviorTarget {
+  /** How the behavior action resolves its target position. */
+  type: BossBehaviorTargetType;
+  /** Fixed target X coordinate in 8x8 chars. */
+  xChar?: number;
+  /** Fixed target Y coordinate in 8x8 chars. */
+  yChar?: number;
+  /** Player prediction distance in frames. */
+  framesAhead?: number;
+  /** Relative X offset from the boss, in chars. */
+  dxChar?: number;
+  /** Relative Y offset from the boss, in chars. */
+  dyChar?: number;
+}
+
+export type BossBehaviorActionType = 'wait' | 'moveTo' | 'attack' | 'slam' | 'protect' | 'shield' | 'loop';
+
+interface BossBehaviorActionBase {
+  /** Unique action ID for editor selection and reordering. */
+  id: string;
+  /** Visual/runtime action type. */
+  type: BossBehaviorActionType;
+  /** Optional editor label override. */
+  label?: string;
+}
+
+export interface BossWaitBehaviorAction extends BossBehaviorActionBase {
+  type: 'wait';
+  frames: number;
+}
+
+export interface BossMoveToBehaviorAction extends BossBehaviorActionBase {
+  type: 'moveTo';
+  target: BossBehaviorTarget;
+  durationFrames: number;
+  easing?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut';
+}
+
+export interface BossAttackBehaviorAction extends BossBehaviorActionBase {
+  type: 'attack';
+  attackId?: string;
+  target?: BossBehaviorTarget;
+  delayAfterFrames?: number;
+}
+
+export interface BossSlamBehaviorAction extends BossBehaviorActionBase {
+  type: 'slam';
+  target: BossBehaviorTarget;
+  direction?: 'left' | 'right' | 'up' | 'down' | 'target';
+  distanceChars: number;
+  windupFrames: number;
+  slamFrames: number;
+  holdFrames?: number;
+  returnFrames: number;
+}
+
+export interface BossProtectBehaviorAction extends BossBehaviorActionBase {
+  type: 'protect';
+  enabled: boolean;
+  durationFrames: number;
+  damageReductionPercent?: number;
+}
+
+export interface BossShieldBehaviorAction extends BossBehaviorActionBase {
+  type: 'shield';
+  enabled: boolean;
+  durationFrames: number;
+  hp?: number;
+  shieldAssetId?: string;
+}
+
+export interface BossLoopBehaviorAction extends BossBehaviorActionBase {
+  type: 'loop';
+  targetIndex: number;
+}
+
+export type BossBehaviorAction =
+  | BossWaitBehaviorAction
+  | BossMoveToBehaviorAction
+  | BossAttackBehaviorAction
+  | BossSlamBehaviorAction
+  | BossProtectBehaviorAction
+  | BossShieldBehaviorAction
+  | BossLoopBehaviorAction;
 
 /**
  * Represents a single phase of a boss fight.
@@ -1087,6 +1272,12 @@ export interface BossPhase {
   collisionMatrix?: (boolean)[][];
   /** An array of weak points for this phase. */
   weakPoints?: BossPhaseWeakPoint[];
+  /** Optional ordered neck tile chain for segmented boss movement. */
+  neckChain?: BossNeckChain;
+  /** Optional slam/crush movement for this boss phase. */
+  crushMovement?: BossCrushMovement;
+  /** Visual behavior loop executed by this phase. */
+  behaviorLoop?: BossBehaviorAction[];
   /** An array of attack IDs that the boss will use in this phase. */
   attackSequence: BossAttack['id'][];
   /** A multiplier for the boss's speed in this phase. */
@@ -1117,6 +1308,33 @@ export interface Boss {
   deathSoundId?: string;
   /** The ID of the screen map where this boss appears. */
   linkedScreenId?: string | null;
+  /** Editor-only boss start X coordinate for behavior/stage preview. */
+  behaviorPreviewStartXChar?: number;
+  /** Editor-only boss start Y coordinate for behavior/stage preview. */
+  behaviorPreviewStartYChar?: number;
+  /** Editor-only player X coordinate for behavior/stage preview target resolution. */
+  behaviorPreviewPlayerXChar?: number;
+  /** Editor-only player Y coordinate for behavior/stage preview target resolution. */
+  behaviorPreviewPlayerYChar?: number;
+}
+
+/**
+ * Represents a boss placement inside a screen map.
+ * Coordinates are in 8x8 screen chars/tiles, matching SCREEN 2 name-table cells.
+ */
+export interface BossInstance {
+  /** A unique identifier for this placed boss instance. */
+  id: string;
+  /** The boss asset ID to spawn. */
+  bossAssetId: string;
+  /** Boss anchor X coordinate in screen chars. */
+  xChar: number;
+  /** Boss anchor Y coordinate in screen chars. */
+  yChar: number;
+  /** Whether this placement is active in runtime exports. */
+  enabled: boolean;
+  /** Initial phase index to start from. */
+  initialPhaseIndex?: number;
 }
 
 // --- Main Menu Types ---
@@ -1815,6 +2033,9 @@ export interface CopiedBossPhaseData {
   tileMatrix: (string | null)[][];
   collisionMatrix: (boolean)[][];
   dimensions: { width: number; height: number };
+  neckChain?: BossNeckChain;
+  crushMovement?: BossCrushMovement;
+  behaviorLoop?: BossBehaviorAction[];
 }
 
 

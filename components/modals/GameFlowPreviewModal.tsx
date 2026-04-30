@@ -33,6 +33,7 @@ import {
 import { Button } from '../common/Button';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
 import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, normalizeTileInteractionType } from '../utils/screenUtils';
+import { renderBossInstancesToCanvas } from '../utils/bossRenderUtils';
 import { drawPresentationScreenPreview } from '../utils/presentationScreenUtils';
 import type { PresentationScreenConfig } from '../../types';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
@@ -5387,6 +5388,7 @@ useEffect(() => {
                         }
                     });
                 }
+                renderBossInstancesToCanvas(ctx, currentScreenMapRef.current, allAssets, tileset, previewScreenMode, TILE_SIZE);
             }
         }
         switch (currentNode.type) {
@@ -6174,6 +6176,8 @@ useEffect(() => {
                     }
                 });
             }
+
+            renderBossInstancesToCanvas(ctx, currentScreenMapRef.current, allAssets, tileset, previewScreenMode, TILE_SIZE);
 
             // Debug overlay: outlines for solid tiles in Collision layer
             drawCollisionTileOutlines(ctx);
@@ -8075,6 +8079,7 @@ useEffect(() => {
                         }
                     });
                 }
+                renderBossInstancesToCanvas(ctx, currentScreenMapRef.current, allAssets, tileset, previewScreenMode, TILE_SIZE);
             } else {
                 // Si no hay buffer, dibujar fondo por defecto
                 ctx.fillStyle = '#000000';

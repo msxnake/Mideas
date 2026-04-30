@@ -8,6 +8,7 @@ import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
 import { PlusCircleIcon, SaveIcon, DocumentDuplicateIcon, TrashIcon, CodeIcon, RotateCcwIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, PencilIcon, EraserIcon, CogIcon, CompressVerticalIcon, CompressHorizontalIcon, FireIcon, PlayIcon, StopIcon, FolderOpenIcon, SphereIcon, ViewfinderCircleIcon, TilesetIcon, SpriteIcon, ContourIcon, EraserIcon as DisintegrationIcon, CopyIcon, PasteIcon } from '../icons/MsxIcons';
 import { ExportSpriteASMModal } from '../modals/ExportSpriteASMModal';
+import { ExportSpriteZX0ASMModal } from '../modals/ExportSpriteZX0ASMModal';
 import { DisintegrationGeneratorModal, DisintegrationParams } from '../modals/DisintegrationGeneratorModal';
 import { FragmentGeneratorModal, FragmentParams } from '../modals/FragmentGeneratorModal';
 import { WarpGeneratorModal, WarpParams } from '../modals/WarpGeneratorModal';
@@ -363,6 +364,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
   const [showHitbox, setShowHitbox] = useState(false);
 
   const [isExportAsmModalOpen, setIsExportAsmModalOpen] = useState<boolean>(false);
+  const [isExportZx0AsmModalOpen, setIsExportZx0AsmModalOpen] = useState<boolean>(false);
   const [asmExportConfig, setAsmExportConfig] = useState<{ spriteToExport: Sprite; dataOutputFormat: DataFormat; } | null>(null);
 
   const [toolMode, setToolMode] = useState<SpriteToolMode>('draw');
@@ -1183,6 +1185,11 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
     setIsExportAsmModalOpen(true);
   };
 
+  const handleExportZx0Asm = () => {
+    setAsmExportConfig({ spriteToExport: sprite, dataOutputFormat: dataOutputFormat });
+    setIsExportZx0AsmModalOpen(true);
+  };
+
   const handleExportToPng = () => {
     if (!sprite || sprite.frames.length === 0) {
         alert("No sprite data to export.");
@@ -1341,6 +1348,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
 
         <Button onClick={() => setShowAttributesEditor(s => !s)} size="sm" variant="ghost" className="ml-auto" icon={<CogIcon />}>Attribs</Button>
         <Button onClick={handleExportAsm} size="sm" variant="secondary" icon={<CodeIcon />}>Export ASM</Button>
+        <Button onClick={handleExportZx0Asm} size="sm" variant="primary" icon={<CodeIcon />}>ZX0 Export ASM</Button>
       </div>
 
       <div className="flex-grow flex overflow-hidden" style={{ userSelect: 'none' }}>
@@ -1830,6 +1838,14 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
           onClose={() => setIsExportAsmModalOpen(false)}
           spriteToExport={asmExportConfig.spriteToExport}
           dataOutputFormat={asmExportConfig.dataOutputFormat} 
+        />
+      )}
+      {isExportZx0AsmModalOpen && asmExportConfig && (
+        <ExportSpriteZX0ASMModal
+          isOpen={isExportZx0AsmModalOpen}
+          onClose={() => setIsExportZx0AsmModalOpen(false)}
+          spriteToExport={asmExportConfig.spriteToExport}
+          dataOutputFormat={asmExportConfig.dataOutputFormat}
         />
       )}
       {isDisintegrationModalOpen && (

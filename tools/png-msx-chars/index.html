@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PNG a MSX Screen 2 Chars</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">MSX1 Screen 2</p>
+          <h1>Conversor PNG a chars redefinidos</h1>
+        </div>
+        <div class="status-pill" id="statusText">Esperando PNG</div>
+      </header>
+
+      <section class="workspace">
+        <aside class="panel controls">
+          <label class="file-picker">
+            <span>Archivo PNG</span>
+            <input id="fileInput" type="file" accept="image/png,image/*">
+          </label>
+
+          <div class="form-grid">
+            <label>
+              Ancho final
+              <input id="targetWidth" type="number" min="8" max="256" step="8" value="256">
+            </label>
+            <label>
+              Alto final
+              <input id="targetHeight" type="number" min="8" max="192" step="8" value="192">
+            </label>
+          </div>
+
+          <label>
+            Preset de resolucion
+            <select id="resolutionPreset">
+              <option value="custom">Personalizado</option>
+              <option value="256x192" selected>Pantalla completa 256x192</option>
+              <option value="128x96">Media pantalla 128x96</option>
+              <option value="64x48">Mapa mini 64x48</option>
+              <option value="32x24">Icono 32x24</option>
+            </select>
+          </label>
+
+          <label class="checkbox-row">
+            <input id="keepAspect" type="checkbox" checked>
+            Mantener proporcion al cargar
+          </label>
+
+          <label class="checkbox-row">
+            <input id="nearestScale" type="checkbox" checked>
+            Escalado pixel art
+          </label>
+
+          <label class="checkbox-row">
+            <input id="includeCompactAsm" type="checkbox" checked>
+            Incluir ASM compacto por banco
+          </label>
+
+          <label>
+            Estrategia de conversion
+            <select id="conversionMode">
+              <option value="auto">Auto-corregir a 2 colores</option>
+              <option value="strict">Validar estricto sin corregir</option>
+              <option value="dither">Dithering ordenado + auto-corregir</option>
+            </select>
+          </label>
+
+          <label>
+            Par de colores por linea
+            <select id="pairStrategy">
+              <option value="bestPalette" selected>Mejor par de toda la paleta</option>
+              <option value="bestPresent">Mejor par entre colores presentes</option>
+              <option value="mostUsed">Dos colores mas usados</option>
+            </select>
+          </label>
+
+          <label>
+            Color para transparencia PNG
+            <select id="transparentColor"></select>
+          </label>
+
+          <section class="subpanel color-remap-panel" aria-labelledby="colorRemapTitle">
+            <div class="subpanel-title">
+              <h2 id="colorRemapTitle">Sustitucion de colores</h2>
+              <button id="addColorRemapButton" type="button">Añadir</button>
+            </div>
+            <div id="colorRemapRows" class="color-remap-rows">
+              <p class="empty-note" id="emptyRemapNote">Sin sustituciones activas.</p>
+            </div>
+            <button id="clearColorRemapsButton" class="secondary-button" type="button">Limpiar sustituciones</button>
+          </section>
+
+          <label>
+            Nombre de etiqueta ASM
+            <input id="asmLabel" type="text" value="PngMsxImage" spellcheck="false">
+          </label>
+
+          <button id="convertButton" class="primary-button" type="button" disabled>Convertir</button>
+
+          <div class="stats" id="statsBox">
+            <span>Tiles: -</span>
+            <span>Bytes patrones: -</span>
+            <span>Bytes colores: -</span>
+            <span>Colores corregidos: -</span>
+            <span>Tiles unicos: -</span>
+          </div>
+        </aside>
+
+        <section class="preview-column">
+          <div class="panel preview-panel">
+            <div class="panel-title">
+              <h2>Previsualizacion</h2>
+              <label class="checkbox-row compact">
+                <input id="showGrid" type="checkbox" checked>
+                Cuadricula 8x8
+              </label>
+            </div>
+            <div class="canvas-stage">
+              <div>
+                <p>PNG escalado</p>
+                <canvas id="sourceCanvas" width="256" height="192"></canvas>
+              </div>
+              <div>
+                <p>MSX convertido</p>
+                <canvas id="resultCanvas" width="256" height="192"></canvas>
+              </div>
+              <div>
+                <p>Tabla de color por linea</p>
+                <canvas id="colorCanvas" width="256" height="192"></canvas>
+              </div>
+              <div>
+                <p>Conflictos de color</p>
+                <canvas id="conflictCanvas" width="256" height="192"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel output-panel">
+            <div class="panel-title">
+              <h2>Salida</h2>
+              <div class="button-row">
+                <button id="copyAsmButton" type="button" disabled>Copiar ASM</button>
+                <button id="downloadAsmButton" type="button" disabled>Descargar ASM</button>
+                <button id="downloadJsonButton" type="button" disabled>Descargar JSON</button>
+                <button id="downloadScrButton" type="button" disabled>Descargar SCR</button>
+                <button id="downloadTablesButton" type="button" disabled>Descargar BIN tablas</button>
+                <button id="downloadSplitTablesButton" type="button" disabled>Descargar NT/PT/CT</button>
+                <button id="downloadPngButton" type="button" disabled>Descargar PNG</button>
+              </div>
+            </div>
+            <textarea id="asmOutput" readonly spellcheck="false" placeholder="Aqui aparecera la tabla ASM generada."></textarea>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

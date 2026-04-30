@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { ScreenMap, Tile, Point, MSX1ColorValue, HUDElement, HUDElementType, TileBank, MSXFont, MSXFontColorAttributes, Sprite, ProjectAsset, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, EffectZone, ComponentDefinition, TileStamp, EFFECT_ZONE_TYPE_CONFIG, MSXFontAsset, resolveEffectZoneType, SpriteFrame, MSXColorValue, PixelData } from '../../types';
+import { Boss, BossInstance, ScreenMap, Tile, Point, MSX1ColorValue, HUDElement, HUDElementType, TileBank, MSXFont, MSXFontColorAttributes, Sprite, ProjectAsset, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, EffectZone, ComponentDefinition, TileStamp, EFFECT_ZONE_TYPE_CONFIG, MSXFontAsset, resolveEffectZoneType, SpriteFrame, MSXColorValue, PixelData, ScreenEditorLayerName } from '../../types';
 import { MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX_SCREEN5_PALETTE, MSX1_PALETTE } from '../../constants';
 import { getBackgroundColorHex } from '../../utils/screenModeConfig';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
@@ -10,7 +10,7 @@ import { createTileDataURL, createSpriteDataURL } from '../utils/screenUtils';
  * Represents the name of a layer in the screen editor.
  * @category ScreenEditor
  */
-type LayerName = keyof ScreenMap['layers'] | 'entities' | 'effects';
+type LayerName = ScreenEditorLayerName;
 
 const TRANSPARENT_PIXEL = 'rgba(0,0,0,0)' as MSXColorValue;
 
@@ -137,6 +137,14 @@ export interface ScreenGridProps {
   onEntityPlace: (point: Point) => void;
   /** Callback function when an entity is selected. */
   onEntitySelect: (entityId: string) => void;
+  /** Callback function when a boss is placed. */
+  onBossPlace?: (point: Point) => void;
+  /** Callback function when a boss is selected. */
+  onBossSelect?: (bossInstanceId: string | null) => void;
+  /** Callback function when a boss is removed. */
+  onBossRemove?: (bossInstanceId: string) => void;
+  /** Callback function for context menu events on placed bosses. */
+  onBossContextMenu?: (event: React.MouseEvent, bossInstance: BossInstance) => void;
   /** Callback function when an effect zone is selected. */
   onEffectZoneSelect: (zoneId: string | null) => void; 
   /** Callback function for context menu events on tiles. */
@@ -185,6 +193,8 @@ export interface ScreenGridProps {
   selectedStamp?: TileStamp | null;
   /** Optional preview overlay showing repeated vs unique optimized blocks. */
   optimizationOverlay?: ScreenGridOptimizationOverlay | null;
+  /** The ID of the selected boss instance. */
+  selectedBossInstanceId?: string | null;
 }
 
 /**
@@ -197,12 +207,13 @@ export interface ScreenGridProps {
  */
 export const ScreenGrid: React.FC<ScreenGridProps> = ({
   mapData, activeLayer, tileset, sprites, allAssets, onTilePlace, onEntityPlace, onEntitySelect, onEffectZoneSelect, onTileContextMenu,
+  onBossPlace, onBossSelect, onBossRemove, onBossContextMenu,
   gridPixelSize, baseCellPixelWidth, baseCellPixelHeight, currentScreenMode,
   hudElements, editorBaseTileDim, tileBanks, msxFont, msxFontColorAttributes,
   selectedEntityInstanceId, effectZones, selectedEffectZoneId,
   currentScreenTool, selectionRect, onSelectionChange,
   componentDefinitions, entityTemplates, waypointPickerState, onWaypointPicked, showSectorLines, selectedStamp,
-  optimizationOverlay
+  optimizationOverlay, selectedBossInstanceId
 }) => {
   const [isMouseDown, setIsMouseDown] = useState(false);
   const [startSelectionPoint, setStartSelectionPoint] = useState<Point | null>(null);
@@ -211,6 +222,14 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
 
   const { layers, width: screenWidth, height: screenHeight, activeAreaX = 0, activeAreaY = 0, activeAreaWidth = screenWidth, activeAreaHeight = screenHeight } = mapData;
   const mapEntityTemplates = entityTemplates; 
+  const bossAssets = useMemo(
+    () => allAssets.filter(asset => asset.type === 'boss' && asset.data) as Array<ProjectAsset & { data: Boss }>,
+    [allAssets]
+  );
+  const tileAssetsById = useMemo(
+    () => new Map(allAssets.filter(asset => asset.type === 'tile' && asset.data).map(asset => [asset.id, asset.data as Tile])),
+    [allAssets]
+  );
 
   const tileBankDefinitions = useMemo(() => {
     if (currentScreenMode !== "SCREEN 2 (Graphics I)" || !tileBanks) {
@@ -251,6 +270,26 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     
 
     setIsMouseDown(true);
+
+    if (activeLayer === 'bosses') {
+      const clickedBoss = findBossAtPoint(point);
+      if (currentScreenTool === 'erase') {
+        if (clickedBoss) {
+          onBossRemove?.(clickedBoss.id);
+        }
+        return;
+      }
+      if (clickedBoss) {
+        onBossSelect?.(clickedBoss.id);
+        return;
+      }
+      if (currentScreenTool !== 'select') {
+        onBossPlace?.(point);
+      } else {
+        onBossSelect?.(null);
+      }
+      return;
+    }
 
     // Prioritize entity selection if an entity is clicked, regardless of current tool/layer mode
     const clickedEntity = layers.entities.find(e => {
@@ -295,7 +334,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     }
 
     // If no entity was clicked, proceed with other tool/layer logic
-    if (currentScreenTool === 'select' && activeLayer !== 'entities') {
+    if (currentScreenTool === 'select' && activeLayer !== 'entities' && activeLayer !== 'bosses') {
         if (activeLayer === 'effects') {
             const clickedEffectZone = effectZones.find(zone =>
                 point.x >= zone.rect.x && point.x < zone.rect.x + zone.rect.width &&
@@ -335,7 +374,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     // Update hover point for stamp preview
     setHoverPoint(currentPoint);
 
-    if (!isMouseDown || !startSelectionPoint || currentScreenTool !== 'select' || activeLayer === 'entities') return;
+    if (!isMouseDown || !startSelectionPoint || currentScreenTool !== 'select' || activeLayer === 'entities' || activeLayer === 'bosses') return;
     if (!currentPoint) return;
 
     const newRectX = Math.min(startSelectionPoint.x, currentPoint.x);
@@ -351,7 +390,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
    */
   const handleMouseUp = () => {
     setIsMouseDown(false);
-    if (currentScreenTool === 'select' && activeLayer !== 'entities') {
+    if (currentScreenTool === 'select' && activeLayer !== 'entities' && activeLayer !== 'bosses') {
       setStartSelectionPoint(null); 
     }
   };
@@ -478,6 +517,8 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     cursorStyle = 'crosshair';
   } else if (activeLayer === 'entities' || currentScreenTool === 'placeEntity') {
     cursorStyle = 'copy';
+  } else if (activeLayer === 'bosses') {
+    cursorStyle = currentScreenTool === 'erase' ? 'not-allowed' : 'copy';
   } else if (currentScreenTool === 'select') {
     cursorStyle = 'cell';
   }
@@ -516,6 +557,41 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     return null;
   };
 
+  const getBossPreviewInfo = (bossInstance: BossInstance) => {
+    const bossAsset = bossAssets.find(asset => asset.id === bossInstance.bossAssetId || asset.data.id === bossInstance.bossAssetId);
+    const boss = bossAsset?.data;
+    if (!boss) return null;
+    const initialPhaseIndex = Math.max(0, Math.min(boss.phases.length - 1, bossInstance.initialPhaseIndex ?? 0));
+    const phase = boss.phases[initialPhaseIndex]
+      || boss.phases.find((_candidate, index) => boss.phasesEnabled?.[index] !== false)
+      || boss.phases[0];
+    const dimensions = phase?.dimensions || {
+      width: Math.max(1, phase?.tileMatrix?.[0]?.length || 1),
+      height: Math.max(1, phase?.tileMatrix?.length || 1),
+    };
+
+    return { boss, phase, dimensions };
+  };
+
+  const findBossAtPoint = (point: Point): BossInstance | null => {
+    const bossInstances = mapData.bossInstances || [];
+    for (let index = bossInstances.length - 1; index >= 0; index--) {
+      const bossInstance = bossInstances[index];
+      const previewInfo = getBossPreviewInfo(bossInstance);
+      const width = previewInfo?.dimensions.width || 1;
+      const height = previewInfo?.dimensions.height || 1;
+      if (
+        point.x >= bossInstance.xChar &&
+        point.x < bossInstance.xChar + width &&
+        point.y >= bossInstance.yChar &&
+        point.y < bossInstance.yChar + height
+      ) {
+        return bossInstance;
+      }
+    }
+    return null;
+  };
+
   return (
     <div
       ref={gridRef}
@@ -536,6 +612,15 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
       onContextMenu={(e) => {
         const point = getGridCoordinatesFromMouseEvent(e);
         if (point) {
+          if (activeLayer === 'bosses') {
+            const bossInstance = findBossAtPoint(point);
+            if (bossInstance) {
+              onBossContextMenu?.(e, bossInstance);
+              return;
+            }
+            e.preventDefault();
+            return;
+          }
           const tileId = layerDataToRender[point.y]?.[point.x]?.tileId;
           if (tileId) {
             onTileContextMenu(e, tileId);
@@ -545,6 +630,77 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
         }
       }}
     >
+      {/* Render Bosses only if 'bosses' layer is active */}
+      {activeLayer === 'bosses' && (mapData.bossInstances || []).map(bossInstance => {
+        const previewInfo = getBossPreviewInfo(bossInstance);
+        if (!previewInfo) return null;
+        const { boss, phase, dimensions } = previewInfo;
+        const isSelected = bossInstance.id === selectedBossInstanceId;
+        const matrix = phase?.tileMatrix || [];
+
+        return (
+          <div
+            key={bossInstance.id}
+            className={`absolute ${isSelected ? 'ring-2 ring-msx-highlight border border-msx-highlight' : 'border border-msx-accent/60 hover:ring-1 hover:ring-msx-highlight'}`}
+            style={{
+              left: bossInstance.xChar * gridPixelSize,
+              top: bossInstance.yChar * gridPixelSize,
+              width: dimensions.width * gridPixelSize,
+              height: dimensions.height * gridPixelSize,
+              zIndex: 18,
+              boxSizing: 'border-box',
+              backgroundColor: bossInstance.enabled ? 'rgba(0, 220, 180, 0.08)' : 'rgba(128, 128, 128, 0.18)',
+              cursor: currentScreenTool === 'erase' ? 'not-allowed' : 'pointer',
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (currentScreenTool === 'erase') {
+                onBossRemove?.(bossInstance.id);
+              } else {
+                onBossSelect?.(bossInstance.id);
+              }
+            }}
+            onContextMenu={(event) => onBossContextMenu?.(event, bossInstance)}
+            title={`Boss: ${boss.name} @ (${bossInstance.xChar},${bossInstance.yChar})`}
+          >
+            {Array.from({ length: dimensions.height }).map((_, y) =>
+              Array.from({ length: dimensions.width }).map((__, x) => {
+                const tileId = matrix[y]?.[x];
+                if (!tileId) return null;
+                const tile = tileAssetsById.get(tileId) || tileset.find(candidate => candidate.id === tileId);
+                if (!tile) return null;
+                return (
+                  <img
+                    key={`${bossInstance.id}-${x}-${y}-${tileId}`}
+                    src={createTileDataURL(
+                      tile,
+                      0,
+                      0,
+                      gridPixelSize,
+                      gridPixelSize,
+                      baseCellPixelWidth,
+                      currentScreenMode
+                    )}
+                    alt={tile.name}
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: x * gridPixelSize,
+                      top: y * gridPixelSize,
+                      width: gridPixelSize,
+                      height: gridPixelSize,
+                      imageRendering: 'pixelated',
+                    }}
+                    draggable="false"
+                  />
+                );
+              })
+            )}
+            <span className="absolute left-0 top-0 max-w-full truncate bg-black/70 px-1 text-[0.55rem] leading-4 text-white pointer-events-none">
+              {boss.name}
+            </span>
+          </div>
+        );
+      })}
       {/* Render base tile layer */}
       {baseLayerDataToRender.map((row, y) =>
         row.map((screenTile, x) => {

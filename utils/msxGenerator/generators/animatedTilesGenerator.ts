@@ -582,7 +582,7 @@ ${frames}
 .anim_vram_loop:
     ld a, (hl)                      ; A = target char code
     cp 255
-    jr z, .anim_vram_done
+    jp z, .anim_vram_done
 
     push af                         ; Save target char code
     inc hl
@@ -667,7 +667,7 @@ ${frames}
 .anim_char_done:
     pop de
     ex de, hl                       ; HL = next table entry
-    jr .anim_vram_loop
+    jp .anim_vram_loop
 
 .anim_vram_done:
 `
@@ -1051,7 +1051,7 @@ anim_transform_vram_block:
     ; three SCREEN 2 banks. This prevents per-bank phase drift.
     ld a, d
     cp 5
-    jr nc, .anim_transform_vertical
+    jp nc, .anim_transform_vertical
 
     ; Step 1: Read bank 0 into the RAM buffer.
     push hl

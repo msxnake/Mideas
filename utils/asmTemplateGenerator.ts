@@ -3,7 +3,7 @@
  * Generates dynamic ASM code from templates with replaceable sections
  */
 
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig, DialogueAsset, PortraitAsset } from '../types';
+import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig, DialogueAsset, PortraitAsset, Boss } from '../types';
 import { StateMachine } from '../statemachine.types';
 import { getUsedGlobalVariables } from './globalVariablesUtils';
 
@@ -37,6 +37,7 @@ export interface ProjectAnalysis {
   dialogues?: DialogueAsset[];
   portraits?: PortraitAsset[];
   presentationScreen?: PresentationScreenConfig;
+  bosses?: Boss[];
   gameFlow?: GameFlowGraph;
   stateMachines?: StateMachine[]; // Added State Machines
   hasECS: boolean;
@@ -121,6 +122,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   const stateMachines = assets.filter(a => a.type === 'statemachine').map(a => a.data as StateMachine);
   const presentationScreenAsset = assets.find(a => a.type === 'presentationscreen');
   const presentationScreen = presentationScreenAsset?.data as PresentationScreenConfig | undefined;
+  const bosses = assets.filter(a => a.type === 'boss').map(a => a.data as Boss);
 
   // CRITICAL: Extract entities from screenmaps
   // Deduplicate entities across possible storage formats
@@ -210,6 +212,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     dialogues,
     portraits,
     presentationScreen,
+    bosses,
     gameFlow,  // CRITICAL: Include GameFlow for MSX ASM generation
     stateMachines, // CRITICAL: Include State Machines
     hasECS,

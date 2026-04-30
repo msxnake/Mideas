@@ -3,7 +3,7 @@
 
 
 import React, { useMemo } from 'react';
-import { Tile, ScreenEditorTool, EffectZone, TileBank, ProjectAsset, TileStamp } from '../../types';
+import { Boss, Tile, ScreenEditorTool, EffectZone, TileBank, ProjectAsset, TileStamp, ScreenEditorLayerName } from '../../types';
 import { createTileDataURL } from '../utils/screenUtils';
 import { Button } from '../common/Button';
 import { EraserIcon, DocumentPlusIcon, TrashIcon } from '../icons/MsxIcons';
@@ -14,7 +14,7 @@ import { EraserIcon, DocumentPlusIcon, TrashIcon } from '../icons/MsxIcons';
  */
 interface ScreenTilesetPanelProps {
   /** The currently active layer in the editor. */
-  activeLayer: 'background' | 'collision' | 'effects' | 'entities';
+  activeLayer: ScreenEditorLayerName;
   /** The tileset available for the screen. */
   tileset: Tile[];
   /** The ID of the currently selected tile. */
@@ -61,6 +61,10 @@ interface ScreenTilesetPanelProps {
   onDeleteStamp?: (stampId: string) => void;
   /** Callback for tile context menu. */
   onTileContextMenu?: (event: React.MouseEvent, tileId: string) => void;
+  /** The boss asset selected for placement. */
+  selectedBossAssetId?: string | null;
+  /** Callback to select a boss asset for placement. */
+  onSelectBossAsset?: (bossAssetId: string | null) => void;
 }
 
 /**
@@ -96,6 +100,8 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
   onSelectStamp,
   onDeleteStamp,
   onTileContextMenu,
+  selectedBossAssetId,
+  onSelectBossAsset,
 }) => {
 
   const eraserButtonClass = `w-full mt-1 p-1 text-xs rounded ${currentScreenTool === 'erase' ? 'bg-msx-highlight text-msx-bgcolor' : 'bg-msx-border text-msx-textsecondary hover:bg-msx-highlight/70'}`;
@@ -301,11 +307,68 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
     );
   };
 
+  const renderBossTools = () => {
+    const bossAssets = (allProjectAssets || []).filter(asset => asset.type === 'boss');
+
+    if (bossAssets.length === 0) {
+      return (
+        <div className="rounded border border-msx-border/60 bg-msx-bgcolor/40 p-2 text-xs text-msx-textsecondary">
+          No boss assets. Create a boss in the Boss Editor first.
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2">
+        <div className="space-y-1">
+          {bossAssets.map(asset => {
+            const boss = asset.data as Boss | undefined;
+            const firstPhase = boss?.phases?.find((phase, index) => boss.phasesEnabled?.[index] !== false) || boss?.phases?.[0];
+            const dimensions = firstPhase?.dimensions;
+            const sizeText = dimensions ? `${dimensions.width}x${dimensions.height} chars` : 'sprite boss';
+            const isSelected = selectedBossAssetId === asset.id;
+
+            return (
+              <button
+                key={asset.id}
+                type="button"
+                onClick={() => {
+                  onSelectBossAsset?.(asset.id);
+                  onSetScreenTool('draw');
+                }}
+                className={`w-full rounded border p-2 text-left text-xs transition-colors ${
+                  isSelected
+                    ? 'border-msx-accent bg-msx-accent/30 text-msx-textprimary'
+                    : 'border-msx-border bg-msx-bgcolor/40 text-msx-textsecondary hover:border-msx-highlight hover:text-msx-textprimary'
+                }`}
+                title={`Place ${asset.name || boss?.name || 'Boss'} on the screen`}
+              >
+                <div className="truncate font-semibold">{asset.name || boss?.name || 'Unnamed Boss'}</div>
+                <div className="text-[0.65rem] text-msx-textsecondary">{sizeText}</div>
+              </button>
+            );
+          })}
+        </div>
+        <Button
+          onClick={() => {
+            onSelectBossAsset?.(null);
+            onSetScreenTool('erase');
+          }}
+          className={eraserButtonClass}
+          icon={<EraserIcon className="w-3.5 h-3.5 mr-1" />}
+        >
+          Eraser / Remove Boss
+        </Button>
+      </div>
+    );
+  };
+
 
   return (
     <div className="w-48 p-2 border-r border-msx-border overflow-y-auto flex-shrink-0">
       <h4 className="text-sm pixel-font text-msx-highlight mb-2">
         {activeLayer === 'entities' ? 'Entities' :
+          activeLayer === 'bosses' ? 'Bosses' :
           activeLayer === 'effects' ? 'Effect Zones' : 'Tileset & Tools'}
       </h4>
 
@@ -332,6 +395,8 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
       {activeLayer === 'entities' && (
         <p className="text-xs text-msx-textsecondary">Select an Entity Template from the right panel to place instances.</p>
       )}
+
+      {activeLayer === 'bosses' && renderBossTools()}
 
       {(activeLayer === 'background' || activeLayer === 'collision') && (
         <>

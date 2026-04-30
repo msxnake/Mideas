@@ -413,15 +413,16 @@ exports.PT3_KEYBOARD_OCTAVE_MIN_MAX = { min: -2, max: 2 };
 /**
  * Default PSG instruments for new tracker songs.
  * Based on MSX1 Yamaha AY-3-8910 chip capabilities.
- * Each instrument includes volume/tone envelopes, loop positions, and AY envelope shapes.
+ * Melodic presets use software envelopes so attack, sustain and vibrato stay
+ * deterministic in preview and in the generated ROM player.
  */
 exports.DEFAULT_PSG_INSTRUMENTS = [
     {
         id: 1,
         name: "Piano",
-        volumeEnvelope: [15, 14, 13, 11, 9, 7, 5, 3, 2, 1, 0],
-        toneEnvelope: [0],
-        volumeLoop: 255, // No loop (one-shot)
+        volumeEnvelope: [15, 15, 14, 13, 12, 10, 8, 7, 5, 4, 3, 2, 1, 0],
+        toneEnvelope: [0, 0, 0, 0],
+        volumeLoop: 255,
         toneLoop: 255,
         ayToneEnabled: true,
         ayNoiseEnabled: false,
@@ -441,9 +442,9 @@ exports.DEFAULT_PSG_INSTRUMENTS = [
         id: 3,
         name: "Lead Vibrato",
         volumeEnvelope: [0, 5, 10, 15, 15, 15, 14, 13, 12],
-        toneEnvelope: [0, 1, 2, 1, 0, -1, -2, -1], // Vibrato effect
-        volumeLoop: 4, // Sustain at max volume
-        toneLoop: 0, // Loop vibrato
+        toneEnvelope: [0, 1, 2, 1, 0, -1, -2, -1],
+        volumeLoop: 4,
+        toneLoop: 0,
         ayToneEnabled: true,
         ayNoiseEnabled: false,
         ayEnvelopeShape: 13, // Attack-hold
@@ -451,46 +452,48 @@ exports.DEFAULT_PSG_INSTRUMENTS = [
     {
         id: 4,
         name: "Strings Pad",
-        volumeEnvelope: [0, 2, 4, 6, 8, 10, 12, 14, 15, 15, 15],
+        volumeEnvelope: [0, 1, 2, 4, 6, 8, 10, 12, 13, 14, 15, 14, 13, 14],
         toneEnvelope: [0, 0, 1, 1, 0, 0, -1, -1],
-        volumeLoop: 8, // Sustain
-        toneLoop: 0, // Soft modulation
+        volumeLoop: 9,
+        toneLoop: 0,
         ayToneEnabled: true,
         ayNoiseEnabled: false,
-        ayEnvelopeShape: 13, // Attack-hold
     },
     {
         id: 5,
         name: "Kick Drum",
         volumeEnvelope: [15, 13, 10, 7, 4, 2, 0],
-        toneEnvelope: [12, 10, 8, 6, 4, 2, 0], // Pitch sweep down
-        volumeLoop: 255, // One-shot
+        toneEnvelope: [12, 7, 3, 0, -3, -6],
+        volumeLoop: 255,
         toneLoop: 255,
         ayToneEnabled: true,
         ayNoiseEnabled: false,
-        ayEnvelopeShape: 0, // Decay
     },
     {
         id: 6,
         name: "Snare Drum",
-        volumeEnvelope: [15, 12, 9, 6, 3, 1, 0],
-        toneEnvelope: [0],
-        volumeLoop: 255, // One-shot
+        volumeEnvelope: [15, 13, 10, 8, 6, 4, 2, 0],
+        toneEnvelope: [7, 4, 2, 0],
+        noiseEnvelope: [3, 5, 8, 12, 18, 24, 31],
+        volumeLoop: 255,
         toneLoop: 255,
-        ayToneEnabled: false,
+        noiseLoop: 255,
+        ayToneEnabled: true,
         ayNoiseEnabled: true,
-        ayEnvelopeShape: 0, // Decay
+        noiseBaseFrequency: 8,
     },
     {
         id: 7,
         name: "Hi-Hat",
         volumeEnvelope: [12, 10, 8, 6, 4, 2, 0],
+        noiseEnvelope: [1, 1, 2, 4, 8, 16, 31],
         toneEnvelope: [0],
-        volumeLoop: 255, // One-shot
+        volumeLoop: 255,
         toneLoop: 255,
+        noiseLoop: 255,
         ayToneEnabled: false,
         ayNoiseEnabled: true,
-        ayEnvelopeShape: 0, // Decay
+        noiseBaseFrequency: 2,
     },
     {
         id: 8,
@@ -524,6 +527,16 @@ exports.DEFAULT_PSG_INSTRUMENTS = [
         ayToneEnabled: true,
         ayNoiseEnabled: false,
         ayEnvelopeShape: 0, // Decay
+    },
+    {
+        id: 11,
+        name: "Flute",
+        volumeEnvelope: [0, 2, 5, 8, 11, 13, 14, 13, 12, 13, 14, 13],
+        toneEnvelope: [0, 0, 1, 0, 0, -1],
+        volumeLoop: 6,
+        toneLoop: 0,
+        ayToneEnabled: true,
+        ayNoiseEnabled: false,
     },
 ];
 // --- End PT3 Tracker Constants ---

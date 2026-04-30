@@ -758,6 +758,8 @@ ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stag
     ; Refresh player sprite once with the final state of this frame.
     call refresh_player_sprite_fastpath
 
+    call update_boss_system
+
     ; Upload sprites after gameplay so the hero position computed this frame
     ; is what gets shown on screen, instead of the previous frame's SAT.
     call update_sprites_to_vram
@@ -827,19 +829,19 @@ update_world_screen_timer:
 
     ld a, (current_screen_engine)
     or a
-    jr nz, .world_timer_done
+    jp nz, .world_timer_done
 
     ld a, (${timeRemainingAsmName})
     ld b, a
     ld a, (${timeRemainingAsmName}+1)
     or b
-    jr z, .world_timer_done
+    jp z, .world_timer_done
 
     ld hl, (interrupt_counter)
     ld de, (time_last_interrupt_counter)
     or a
     sbc hl, de
-    jr z, .world_timer_done
+    jp z, .world_timer_done
 
     call snapshot_world_screen_timer_interrupt_counter
 
@@ -1607,7 +1609,7 @@ show_menu_placeholder:
     ld (gameflow_menu_selection), a
     call submenu_prepare_cursor_sprite
     call render_submenu_screen
-    jr .smp_exit
+    jp .smp_exit
 
 .smp_has_options:
     ld b, a
@@ -1669,7 +1671,7 @@ ${frameAudioTickAsm}
     call gameflow_read_confirm_direct
     or a
     jr nz, .smp_wait_fire_release
-    jr .smp_exit
+    jp .smp_exit
 
 .smp_wait_neutral:
 .smp_wait_neutral_loop:
@@ -1761,7 +1763,7 @@ render_submenu_screen:
 .rss_count_ok:
     ld b, a
     or a
-    jr z, .rss_done
+    jp z, .rss_done
 
     inc hl                        ; skip option_count
     inc hl                        ; skip initial_selection
@@ -1785,7 +1787,7 @@ render_submenu_screen:
 .rss_option_loop:
     ld a, c
     cp b
-    jr nc, .rss_done
+    jp nc, .rss_done
 
     ; Read option string pointer
     ld e, (hl)
@@ -2011,7 +2013,7 @@ submenu_update_cursor_sprite:
 
     ld a, (gameflow_submenu_cursor_enabled)
     or a
-    jr z, .sus_hide
+    jp z, .sus_hide
 
     ; Compute cursor Y from selected option row (row = 10 + selection*2)
     ; Y = (10 + selection*2) * 8 - 4 to match PC preview placement.
@@ -2061,7 +2063,7 @@ submenu_update_cursor_sprite:
 
     ld a, (gameflow_submenu_cursor_layer_count)
     or a
-    jr z, .sus_hide
+    jp z, .sus_hide
 
     ld d, SUBMENU_CURSOR_BASE_SPRITE
 .sus_draw_loop:
@@ -3742,6 +3744,7 @@ ${frameAudioTickAsm}    ; Poll input immediately after V-Blank so hero movement 
     call update_wallgrab_component
     call refresh_player_animation_fastpath
     call refresh_player_sprite_fastpath
+    call update_boss_system
     call update_sprites_to_vram     ; Upload current-frame sprite positions
     call update_animated_tiles      ; Defer tile VRAM work behind hero updates
 ${defaultHasHud ? `    ; Render HUD only on screens that define HUD elements

@@ -2640,6 +2640,49 @@ app.post('/run-compressor', async (req, res) => {
   }
 });
 
+app.post('/compress-binary-zx0', async (req, res) => {
+  const { bytes } = req.body;
+
+  if (!Array.isArray(bytes)) {
+    return res.status(400).json({ success: false, message: 'Missing byte array.' });
+  }
+
+  const normalizedBytes = bytes.map((value) => Number(value));
+  const invalidByte = normalizedBytes.find((value) => !Number.isInteger(value) || value < 0 || value > 255);
+  if (invalidByte !== undefined) {
+    return res.status(400).json({ success: false, message: `Invalid byte value: ${invalidByte}` });
+  }
+
+  const tempDir = path.join(__dirname, 'temp');
+
+  try {
+    await fs.promises.mkdir(tempDir, { recursive: true });
+    const compressed = await runZx0CompressionAsync(Buffer.from(normalizedBytes), tempDir);
+    const originalSize = normalizedBytes.length;
+    const compressedBytes = Array.from(compressed.values());
+    const compressedSize = compressedBytes.length;
+    const savedBytes = originalSize - compressedSize;
+    const ratio = originalSize > 0 ? (1 - (compressedSize / originalSize)) * 100 : 0;
+
+    res.json({
+      success: true,
+      method: 'ZX0',
+      originalSize,
+      compressedSize,
+      savedBytes,
+      ratio,
+      compressedBytes,
+    });
+  } catch (error) {
+    console.error('ZX0 binary compression error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred during ZX0 compression.',
+      details: error.message,
+    });
+  }
+});
+
 /**
  * Endpoint to download compiled ROM files
  * @name GET /download/:filename

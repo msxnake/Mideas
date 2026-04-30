@@ -2,7 +2,7 @@
  * @fileoverview Shared types for MSX ASM Generator
  */
 
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig } from '../../../types';
+import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig, Boss } from '../../../types';
 import { MideasGlobalVariable } from '../../../constants';
 
 /**
@@ -85,6 +85,7 @@ export interface ProjectSummary {
       characters: any[];
     }>;
     tracks?: TrackerSongData[];
+    bosses?: Boss[];
   };
 }
 
@@ -112,6 +113,7 @@ export interface GeneratedASMFiles {
   'sound.asm': string;
   'scroll.asm': string;
   'animtiles.asm': string;
+  'bosses.asm': string;
   'gameflow.asm': string;
   'menus.asm': string;
   'statemachine.asm': string;
@@ -146,4 +148,5 @@ export interface ProjectAnalysis {
   tracks?: TrackerSongData[];
   trackIndexByAssetId?: Record<string, number>;
   presentationScreen?: PresentationScreenConfig;
+  bosses?: Boss[];
 }

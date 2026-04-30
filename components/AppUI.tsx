@@ -480,7 +480,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       />
       <input id="project-loader-input" type="file" accept=".json" ref={fileLoadInputRef} onChange={handleLoadProject} style={{ display: 'none' }} />
 
-      <div className="flex-grow flex overflow-hidden">
+      <div className="min-h-0 flex-grow flex overflow-hidden">
         <FileExplorerPanel 
             className="w-60 flex-shrink-0"
             assets={assets} 
@@ -497,7 +497,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             onRequestSaveSelectedTiles={onRequestSaveSelectedTiles}
         />
         
-        <div className="flex-grow flex flex-col" role="main">
+        <div className="min-h-0 min-w-0 flex-grow flex flex-col" role="main">
           {currentEditor === EditorType.None && <Panel title="Welcome to MSX Retro IDE"><p className="p-4 text-center text-msx-textsecondary">Select an asset or create a new one to start editing.</p></Panel>}
           {currentEditor === EditorType.GameFlow && activeAsset?.type === 'gameflow' && (
             <GameFlowEditor

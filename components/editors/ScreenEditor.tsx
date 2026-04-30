@@ -1,9 +1,10 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem, TileStamp, ScreenBlockExportMode, ScreenBehaviorSource, ScreenKind, ScreenEngineKind, resolveEffectZoneType } from '../../types';
+import { Boss, BossInstance, ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem, TileStamp, ScreenBlockExportMode, ScreenBehaviorSource, ScreenKind, ScreenEngineKind, resolveEffectZoneType } from '../../types';
 import { Panel } from '../common/Panel';
 import { DEFAULT_SCREEN_WIDTH_TILES, DEFAULT_SCREEN_HEIGHT_TILES, MSX_SCREEN5_PALETTE, MSX1_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, DEFAULT_TILE_BANK_DEFINITIONS, EDITOR_BASE_TILE_DIM_S2 as CONST_EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE_EDITOR } from '../../constants';
 import { ExportLayoutASMModal } from '../modals/ExportLayoutASMModal';
+import { ExportLayoutZX0Modal } from '../modals/ExportLayoutZX0Modal';
 import { ExportBehaviorMapASMModal } from '../modals/ExportBehaviorMapASMModal';
 import { HUDEditorModal } from './HUDEditorModal';
 import { generateSuperRLEData, deepCompareTiles, generateScreenMapLayoutBytes, generateOptimizedRLEData, generateBehaviorMapData, resolveScreenBehaviorSource } from '../utils/screenUtils'; // New Import
@@ -223,7 +224,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const getInitialActiveLayer = (): ScreenEditorLayerName => {
     try {
       const savedLayer = localStorage.getItem('screenEditorLastActiveLayer');
-      if (savedLayer && ['background', 'collision', 'effects', 'entities'].includes(savedLayer)) {
+      if (savedLayer && ['background', 'collision', 'effects', 'entities', 'bosses'].includes(savedLayer)) {
         return savedLayer as ScreenEditorLayerName;
       }
     } catch (error) {
@@ -248,6 +249,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const [lastClickedCell, setLastClickedCell] = useState<Point | null>(null);
 
   const [isExportLayoutModalOpen, setIsExportLayoutModalOpen] = useState(false);
+  const [isExportLayoutZx0ModalOpen, setIsExportLayoutZx0ModalOpen] = useState(false);
   const [layoutASMExportData, setLayoutASMExportData] = useState<LayoutASMExportData | null>(null);
 
   const [isExportBehaviorMapModalOpen, setIsExportBehaviorMapModalOpen] = useState(false);
@@ -268,6 +270,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const [currentScreenTool, setCurrentScreenTool] = useState<ScreenEditorTool>('draw');
   const [selectionRect, setSelectionRect] = useState<ScreenSelectionRect | null>(null);
   const [currentSector, setCurrentSector] = useState<0 | 1 | 2>(0); // Track current MSX Screen 2 sector
+  const [selectedBossAssetId, setSelectedBossAssetId] = useState<string | null>(null);
+  const [selectedBossInstanceId, setSelectedBossInstanceId] = useState<string | null>(null);
   // Stamp tool state
   const [stamps, setStamps] = useState<TileStamp[]>([]);
   const [selectedStampId, setSelectedStampId] = useState<string | null>(null);
@@ -611,6 +615,70 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       setStatusBarMessage(`FakePlayer placed and linked to Dialogue "${dialogueAssets[0].name}".`);
     }
   }, [allProjectAssets, componentDefinitions, currentEntityTypeToPlace, getNextEntityInstanceName, onUpdate, screenKind, screenMap.layers, setStatusBarMessage]);
+
+  const bossAssets = useMemo(
+    () => allProjectAssets.filter(asset => asset.type === 'boss' && asset.data) as Array<ProjectAsset & { data: Boss }>,
+    [allProjectAssets]
+  );
+
+  const handleBossPlace = useCallback((point: Point) => {
+    if (!selectedBossAssetId) {
+      setStatusBarMessage('Select a boss asset from the Bosses panel first.');
+      return;
+    }
+
+    const bossAsset = bossAssets.find(asset => asset.id === selectedBossAssetId || asset.data.id === selectedBossAssetId);
+    if (!bossAsset) {
+      setStatusBarMessage('Selected boss asset was not found.');
+      return;
+    }
+
+    const newBossInstance: BossInstance = {
+      id: `bossinst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      bossAssetId: bossAsset.data.id || bossAsset.id,
+      xChar: Math.max(0, Math.min(screenMap.width - 1, point.x)),
+      yChar: Math.max(0, Math.min(screenMap.height - 1, point.y)),
+      enabled: true,
+      initialPhaseIndex: 0,
+    };
+
+    onUpdate({ bossInstances: [...(screenMap.bossInstances || []), newBossInstance] });
+    setSelectedBossInstanceId(newBossInstance.id);
+    setStatusBarMessage(`Placed boss "${bossAsset.name || bossAsset.data.name}" at (${newBossInstance.xChar}, ${newBossInstance.yChar}).`);
+  }, [bossAssets, onUpdate, screenMap.bossInstances, screenMap.height, screenMap.width, selectedBossAssetId, setStatusBarMessage]);
+
+  const handleBossRemove = useCallback((bossInstanceId: string) => {
+    const nextBossInstances = (screenMap.bossInstances || []).filter(instance => instance.id !== bossInstanceId);
+    onUpdate({ bossInstances: nextBossInstances });
+    if (selectedBossInstanceId === bossInstanceId) {
+      setSelectedBossInstanceId(null);
+    }
+    setStatusBarMessage('Boss placement removed.');
+  }, [onUpdate, screenMap.bossInstances, selectedBossInstanceId, setStatusBarMessage]);
+
+  const handleBossContextMenu = useCallback((event: React.MouseEvent, bossInstance: BossInstance) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedBossInstanceId(bossInstance.id);
+
+    const menuItems: ContextMenuItem[] = [
+      {
+        label: bossInstance.enabled ? 'Disable boss spawn' : 'Enable boss spawn',
+        onClick: () => {
+          const nextBossInstances = (screenMap.bossInstances || []).map(instance =>
+            instance.id === bossInstance.id ? { ...instance, enabled: !instance.enabled } : instance
+          );
+          onUpdate({ bossInstances: nextBossInstances });
+        },
+      },
+      {
+        label: 'Remove boss',
+        onClick: () => handleBossRemove(bossInstance.id),
+      },
+    ];
+
+    onShowContextMenu({ x: event.clientX, y: event.clientY }, menuItems);
+  }, [handleBossRemove, onShowContextMenu, onUpdate, screenMap.bossInstances]);
 
   const handleAddFakePlayerEntity = useCallback(() => {
     const fakePlayerTemplate = entityTemplates.find(template => template.id === 'tpl_fake_player' || template.name.toLowerCase().replace(/[^a-z0-9]/g, '') === 'fakeplayer');
@@ -964,7 +1032,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       }
     }
 
-    if (activeLayer === 'entities' || currentScreenTool === 'select') return;
+    if (activeLayer === 'entities' || activeLayer === 'bosses' || currentScreenTool === 'select') return;
 
     const newLayers = { ...screenMap.layers };
     const layerToUpdateKey = activeLayer as 'background' | 'collision' | 'effects';
@@ -1104,7 +1172,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   }, [screenMap.layers, screenMap.tileBankAssetId, activeLayer, onUpdate, selectedTileId, tileset, EDITOR_BASE_TILE_DIM, setLastClickedCell, currentScreenTool, currentScreenMode, allProjectAssets, setSelectedTileId, setStatusBarMessage, getSectorFromY, setCurrentSector, stamps, selectedStampId, isSecretZoneEditingSelectionValid, isPointInsideSelectedSecretZone]);
 
   const handleClearSelection = () => {
-    if (!selectionRect || activeLayer === 'entities') return;
+    if (!selectionRect || activeLayer === 'entities' || activeLayer === 'bosses') return;
     if (activeLayer === 'effects') {
       if (!isSecretZoneEditingSelectionValid()) return;
       for (let y = selectionRect.y; y < selectionRect.y + selectionRect.height; y++) {
@@ -1144,8 +1212,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
   const handleCreateStamp = useCallback(() => {
-    if (!selectionRect || activeLayer === 'entities') {
-      setStatusBarMessage("Cannot create stamp from the entities layer.");
+    if (!selectionRect || activeLayer === 'entities' || activeLayer === 'bosses') {
+      setStatusBarMessage(`Cannot create stamp from the ${activeLayer} layer.`);
       return;
     }
 
@@ -1197,7 +1265,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   }, [stamps, selectedStampId, setStatusBarMessage]);
 
   const handleFillSelection = () => {
-    if (!selectionRect || activeLayer === 'entities' || !selectedTileId) return;
+    if (!selectionRect || activeLayer === 'entities' || activeLayer === 'bosses' || !selectedTileId) return;
     if (activeLayer === 'effects') {
       if (!isSecretZoneEditingSelectionValid()) return;
       for (let y = selectionRect.y; y < selectionRect.y + selectionRect.height; y++) {
@@ -1248,7 +1316,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
   const handleZigZagFillSelection = () => {
-    if (!selectionRect || activeLayer === 'entities' || !selectedTileId) return;
+    if (!selectionRect || activeLayer === 'entities' || activeLayer === 'bosses' || !selectedTileId) return;
     if (activeLayer === 'effects') {
       if (!isSecretZoneEditingSelectionValid()) return;
       for (let y = selectionRect.y; y < selectionRect.y + selectionRect.height; y++) {
@@ -1316,7 +1384,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     }
   };
 
-  const prepareAndOpenLayoutExportModal = () => {
+  const prepareAndOpenLayoutExportModal = (target: 'asm' | 'zx0' = 'asm') => {
     if (isScreen2) {
       // DEBUG: Log TileBank info
       console.log('?? Layout Export Debug:');
@@ -1399,7 +1467,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         mapHeight: backgroundBlockMap.mapHeight,
       } : null,
     });
-    setIsExportLayoutModalOpen(true);
+    setIsExportLayoutModalOpen(target === 'asm');
+    setIsExportLayoutZx0ModalOpen(target === 'zx0');
   };
 
 
@@ -1498,13 +1567,13 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const handleUpdateHudConfiguration = (newHudConfig: HUDConfiguration) => { onUpdate({ hudConfiguration: newHudConfig }); };
   const openHudEditor = () => { if (!screenMap.hudConfiguration) { onUpdate({ hudConfiguration: { elements: [] } }); } setIsHudEditorModalOpen(true); };
   const isHudAreaDefined = (screenMap.activeAreaX ?? 0) > 0 || (screenMap.activeAreaY ?? 0) > 0 || (screenMap.activeAreaWidth ?? screenMap.width) < screenMap.width || (screenMap.activeAreaHeight ?? screenMap.height) < screenMap.height;
-  const layerNamesForToolbar: ScreenEditorLayerName[] = ['background', 'collision', 'effects', 'entities'];
+  const layerNamesForToolbar: ScreenEditorLayerName[] = ['background', 'collision', 'effects', 'entities', 'bosses'];
   const baseCellPixelWidth = EDITOR_BASE_TILE_DIM;
   const baseCellPixelHeight = EDITOR_BASE_TILE_DIM;
   const canOfferAddFakePlayer = screenKind !== 'playable' && screenKindValidationIssues.some(issue => issue.includes('no FakePlayer'));
 
   const handleCopyScreen = useCallback(() => {
-    const { layers, effectZones, activeAreaX = 0, activeAreaY = 0, activeAreaWidth = screenMap.width, activeAreaHeight = screenMap.height, hudConfiguration } = screenMap;
+    const { layers, effectZones, bossInstances, activeAreaX = 0, activeAreaY = 0, activeAreaWidth = screenMap.width, activeAreaHeight = screenMap.height, hudConfiguration } = screenMap;
 
     const copiedLayers: CopiedScreenData['layers'] = {
       background: [],
@@ -1551,6 +1620,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       screenKind: screenMap.screenKind,
       screenEngine: screenMap.screenEngine,
       effectZones: effectZones ? JSON.parse(JSON.stringify(effectZones)) : undefined,
+      bossInstances: bossInstances ? JSON.parse(JSON.stringify(bossInstances)) : undefined,
       activeAreaX,
       activeAreaY,
       activeAreaWidth,
@@ -1572,6 +1642,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       screenEngine: copiedScreenBuffer.screenEngine ??
         (copiedScreenBuffer.screenKind ? (copiedScreenBuffer.screenKind === 'playable' ? 'player' : 'fakePlayer') : screenMap.screenEngine),
       effectZones: copiedScreenBuffer.effectZones ? JSON.parse(JSON.stringify(copiedScreenBuffer.effectZones)) : [],
+      bossInstances: copiedScreenBuffer.bossInstances ? JSON.parse(JSON.stringify(copiedScreenBuffer.bossInstances)) : [],
       hudConfiguration: copiedScreenBuffer.hudConfiguration ? JSON.parse(JSON.stringify(copiedScreenBuffer.hudConfiguration)) : undefined,
     };
 
@@ -1650,9 +1721,12 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     setActiveLayer(layer);
     onSelectEntityInstance(null); // Deselect entity when layer changes
     onSelectEffectZone(null);   // Deselect effect zone when layer changes
+    setSelectedBossInstanceId(null);
 
     if (layer === 'entities') {
       handleSetScreenTool('placeEntity');
+    } else if (layer === 'bosses') {
+      handleSetScreenTool('draw');
     } else if (layer === 'effects') {
       handleSetScreenTool('select');
     } else { // background, collision
@@ -1663,8 +1737,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
   const handleCopyActiveLayer = useCallback(() => {
-    if (activeLayer === 'entities') {
-      setStatusBarMessage("Cannot copy the 'entities' layer this way.");
+    if (activeLayer === 'entities' || activeLayer === 'bosses') {
+      setStatusBarMessage(`Cannot copy the '${activeLayer}' layer this way.`);
       return;
     }
     const sourceLayerName = activeLayer as 'background' | 'collision' | 'effects';
@@ -1697,8 +1771,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       setStatusBarMessage("Layer buffer is empty. Copy a layer first.");
       return;
     }
-    if (activeLayer === 'entities') {
-      setStatusBarMessage("Cannot paste into the 'entities' layer this way.");
+    if (activeLayer === 'entities' || activeLayer === 'bosses') {
+      setStatusBarMessage(`Cannot paste into the '${activeLayer}' layer this way.`);
       return;
     }
 
@@ -1904,14 +1978,15 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         maxActiveAreaHeight={Math.max(1, (screenMap.height || 0) - (parseInt(localActiveY, 10) || 0))}
         onOpenHudEditor={openHudEditor}
         isHudAreaDefined={isHudAreaDefined}
-        onExportLayout={prepareAndOpenLayoutExportModal}
+        onExportLayout={() => prepareAndOpenLayoutExportModal('asm')}
+        onExportLayoutZx0={() => prepareAndOpenLayoutExportModal('zx0')}
         onExportBehavior={handleExportBehaviorMapASM}
         onExportScreenMapJSON={handleExportScreenMapJSON}
         onImportScreenMapJSON={handleImportScreenMapJSON}
         onCopyLayer={handleCopyActiveLayer}
         onPasteLayer={handlePasteLayer}
-        isCopyLayerDisabled={activeLayer === 'entities'}
-        isPasteLayerDisabled={!copiedLayerBuffer || activeLayer === 'entities'}
+        isCopyLayerDisabled={activeLayer === 'entities' || activeLayer === 'bosses'}
+        isPasteLayerDisabled={!copiedLayerBuffer || activeLayer === 'entities' || activeLayer === 'bosses'}
         onAddNewEffectZone={handleAddNewEffectZone}
         canAddNewEffectZone={activeLayer === 'effects' && !!selectionRect}
         currentScreenMode={currentScreenMode}
@@ -1980,9 +2055,11 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           onSelectStamp={handleSelectStamp}
           onDeleteStamp={handleDeleteStamp}
           onTileContextMenu={handleTileContextMenu}
+          selectedBossAssetId={selectedBossAssetId}
+          onSelectBossAsset={setSelectedBossAssetId}
         />
 
-        <div className="flex-grow p-2 overflow-auto flex items-start justify-start relative">
+        <div className="flex-grow p-3 overflow-auto flex items-start justify-start relative bg-msx-bgcolor-darker/40">
           {waypointPickerState.isPicking && (
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50 pointer-events-none">
               <p className="text-white pixel-font text-lg p-3 bg-msx-accent rounded shadow-lg">
@@ -1999,6 +2076,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             onTilePlace={handleTilePlace}
             onEntityPlace={handleEntityPlace}
             onEntitySelect={onSelectEntityInstance}
+            onBossPlace={handleBossPlace}
+            onBossSelect={setSelectedBossInstanceId}
+            onBossRemove={handleBossRemove}
+            onBossContextMenu={handleBossContextMenu}
             onEffectZoneSelect={onSelectEffectZone}
             gridPixelSize={zoom}
             baseCellPixelWidth={baseCellPixelWidth}
@@ -2012,6 +2093,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             msxFont={msx1FontData}
             msxFontColorAttributes={msxFontColorAttributes}
             selectedEntityInstanceId={selectedEntityInstanceId}
+            selectedBossInstanceId={selectedBossInstanceId}
             effectZones={screenMap.effectZones || []}
             selectedEffectZoneId={selectedEffectZoneId}
             currentScreenTool={currentScreenTool}
@@ -2035,7 +2117,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             currentScreenMode={currentScreenMode}
           />
         </div >
-        <div className="w-56 p-2 border-l border-msx-border flex-shrink-0 flex flex-col gap-2 overflow-y-auto">
+        <aside className="w-64 p-2 border-l border-msx-border flex-shrink-0 flex flex-col gap-2 overflow-y-auto bg-msx-panelbg/60">
           <ScreenSelectionToolsPanel
             currentScreenTool={currentScreenTool}
             onSetScreenTool={handleSetScreenTool}
@@ -2045,7 +2127,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             selectedTileId={selectedTileId}
             editorBaseTileDim={EDITOR_BASE_TILE_DIM}
             tileset={tileset}
-            activeLayerIsEditable={activeLayer !== 'entities'}
+            activeLayerIsEditable={activeLayer !== 'entities' && activeLayer !== 'bosses'}
             onFillSelection={handleFillSelection}
             onZigZagFillSelection={handleZigZagFillSelection}
             onCopyScreen={handleCopyScreen}
@@ -2064,7 +2146,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             onOverlayModeChange={setOptimizationOverlayMode}
             className="w-full"
           />
-        </div>
+        </aside>
       </div >
       <ScreenEditorStatusBar
         activeLayer={activeLayer}
@@ -2077,6 +2159,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         backgroundBlockMode={backgroundBlockMode}
       />
       {isExportLayoutModalOpen && layoutASMExportData && (<ExportLayoutASMModal isOpen={isExportLayoutModalOpen} onClose={() => setIsExportLayoutModalOpen(false)} {...layoutASMExportData} />)}
+      {isExportLayoutZx0ModalOpen && layoutASMExportData && (<ExportLayoutZX0Modal isOpen={isExportLayoutZx0ModalOpen} onClose={() => setIsExportLayoutZx0ModalOpen(false)} {...layoutASMExportData} />)}
       {isExportBehaviorMapModalOpen && behaviorMapASMExportData && (<ExportBehaviorMapASMModal isOpen={isExportBehaviorMapModalOpen} onClose={() => setIsExportBehaviorMapModalOpen(false)} {...behaviorMapASMExportData} />)}
       {
         isHudEditorModalOpen && screenMap && (

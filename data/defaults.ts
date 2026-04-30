@@ -226,6 +226,33 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: "Manages autonomous behavior for non-player entities."
   },
   {
+    id: "comp_boss_neck_chain", name: "BossNeckChain",
+    description: "Configures an ordered vector of boss tiles where each segment follows the movement of the previous segment.",
+    properties: [
+      { name: "enabled", type: "boolean", defaultValue: "true", description: "Whether the boss neck chain movement is active." },
+      { name: "segments", type: "string", defaultValue: "0,0;0,1;0,2", description: "Ordered tile coordinates as x,y pairs separated by semicolons. First pair is the leading tile." },
+      { name: "amplitudeX", type: "byte", defaultValue: "0", description: "Maximum horizontal displacement of the leading tile in pixels." },
+      { name: "amplitudeY", type: "byte", defaultValue: "8", description: "Maximum vertical displacement of the leading tile in pixels." },
+      { name: "speed", type: "byte", defaultValue: "1", description: "Animation speed multiplier for the leading tile." },
+      { name: "segmentDelayFrames", type: "byte", defaultValue: "4", description: "Frame delay between one segment and the next." },
+      { name: "followStrength", type: "byte", defaultValue: "85", description: "Follower strength from 0 to 100. Lower values make later tiles move less." }
+    ],
+  },
+  {
+    id: "comp_boss_crush_movement", name: "BossCrushMovement",
+    description: "Configures a boss slam movement used for stomp/crush attacks.",
+    properties: [
+      { name: "enabled", type: "boolean", defaultValue: "true", description: "Whether the boss crush movement is active." },
+      { name: "direction", type: "string", defaultValue: "down", description: "Crush direction: down, up, left, or right." },
+      { name: "distance", type: "byte", defaultValue: "48", description: "Maximum displacement in pixels." },
+      { name: "windupFrames", type: "byte", defaultValue: "18", description: "Telegraph frames before the fast slam." },
+      { name: "slamFrames", type: "byte", defaultValue: "8", description: "Frames spent moving toward the crush target." },
+      { name: "holdFrames", type: "byte", defaultValue: "14", description: "Frames held at maximum displacement." },
+      { name: "returnFrames", type: "byte", defaultValue: "24", description: "Frames spent returning to origin." },
+      { name: "cooldownFrames", type: "byte", defaultValue: "40", description: "Idle frames before repeating the crush cycle." }
+    ],
+  },
+  {
     id: "comp_damage", name: "Damage",
     properties: [
       { name: "damageAmount", type: "byte", defaultValue: "1", description: "Amount of damage dealt." },
