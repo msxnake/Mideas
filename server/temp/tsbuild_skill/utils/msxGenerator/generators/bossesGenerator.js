@@ -1,343 +1,303 @@
+"use strict";
 /**
  * @fileoverview Boss ASM data generator.
  *
  * Exports boss editor data as compact ASM tables. Runtime systems can read
  * these tables to apply phase layouts, neck chains, crush movement and shots.
  */
-
-import { Boss, BossAttack, BossBehaviorAction, BossBehaviorTarget, BossCrushMovement, BossNeckChain, BossPhase, Tile, Sprite } from '../../../types';
-import { ProjectAnalysis } from '../../asmTemplateGenerator';
-import { resolveRuntimeScreen2TileBankCharCode } from '../utils/screen2TileBanks';
-
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateBossesFile = generateBossesFile;
+const screen2TileBanks_1 = require("../utils/screen2TileBanks");
 const EMPTY_REF = '#FFFF';
-
-function sanitizeLabel(value: string, fallback: string): string {
-  const cleaned = String(value || '')
-    .trim()
-    .replace(/[^a-zA-Z0-9_]/g, '_')
-    .replace(/^([0-9])/, '_$1')
-    .toLowerCase();
-  return cleaned || fallback;
+function sanitizeLabel(value, fallback) {
+    const cleaned = String(value || '')
+        .trim()
+        .replace(/[^a-zA-Z0-9_]/g, '_')
+        .replace(/^([0-9])/, '_$1')
+        .toLowerCase();
+    return cleaned || fallback;
 }
-
-function clampByte(value: unknown, fallback = 0): number {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback & 0xff;
-  return Math.max(0, Math.min(255, Math.round(numeric))) & 0xff;
+function clampByte(value, fallback = 0) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return fallback & 0xff;
+    return Math.max(0, Math.min(255, Math.round(numeric))) & 0xff;
 }
-
-function signedByte(value: unknown, fallback = 0): number {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback & 0xff;
-  const clamped = Math.max(-128, Math.min(127, Math.round(numeric)));
-  return clamped < 0 ? 256 + clamped : clamped;
+function signedByte(value, fallback = 0) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return fallback & 0xff;
+    const clamped = Math.max(-128, Math.min(127, Math.round(numeric)));
+    return clamped < 0 ? 256 + clamped : clamped;
 }
-
-function word(value: unknown, fallback = 0): number {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback & 0xffff;
-  return Math.max(0, Math.min(65535, Math.round(numeric))) & 0xffff;
+function word(value, fallback = 0) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return fallback & 0xffff;
+    return Math.max(0, Math.min(65535, Math.round(numeric))) & 0xffff;
 }
-
-function hexByte(value: number): string {
-  return `#${(value & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
+function hexByte(value) {
+    return `#${(value & 0xff).toString(16).toUpperCase().padStart(2, '0')}`;
 }
-
-function hexWord(value: number): string {
-  return `#${(value & 0xffff).toString(16).toUpperCase().padStart(4, '0')}`;
+function hexWord(value) {
+    return `#${(value & 0xffff).toString(16).toUpperCase().padStart(4, '0')}`;
 }
-
-function db(values: Array<number | string>, comment?: string): string {
-  const rendered = values.map(value => typeof value === 'number' ? hexByte(value) : value).join(', ');
-  return `    db ${rendered}${comment ? `    ; ${comment}` : ''}`;
+function db(values, comment) {
+    const rendered = values.map(value => typeof value === 'number' ? hexByte(value) : value).join(', ');
+    return `    db ${rendered}${comment ? `    ; ${comment}` : ''}`;
 }
-
-function dw(values: Array<number | string>, comment?: string): string {
-  const rendered = values.map(value => typeof value === 'number' ? hexWord(value) : value).join(', ');
-  return `    dw ${rendered}${comment ? `    ; ${comment}` : ''}`;
+function dw(values, comment) {
+    const rendered = values.map(value => typeof value === 'number' ? hexWord(value) : value).join(', ');
+    return `    dw ${rendered}${comment ? `    ; ${comment}` : ''}`;
 }
-
-function chunkedDb(bytes: number[], perLine = 16): string {
-  if (bytes.length === 0) return '    db #FF';
-  const lines: string[] = [];
-  for (let offset = 0; offset < bytes.length; offset += perLine) {
-    lines.push(db(bytes.slice(offset, offset + perLine)));
-  }
-  return lines.join('\n');
-}
-
-function directionId(direction: BossAttack['projectileDirection'] | BossCrushMovement['direction'] | undefined): number {
-  switch (direction) {
-    case 'right': return 1;
-    case 'up': return 2;
-    case 'down': return 3;
-    case 'left':
-    default:
-      return 0;
-  }
-}
-
-function buildIndexById<T extends { id: string }>(items: T[] | undefined): Map<string, number> {
-  return new Map((items || []).map((item, index) => [item.id, index]));
-}
-
-function getTileIndex(tileId: string | null | undefined, tileIndexById: Map<string, number>): number {
-  if (!tileId) return 255;
-  const index = tileIndexById.get(tileId);
-  return index === undefined ? 255 : clampByte(index, 255);
-}
-
-function getSpriteIndex(spriteId: string | undefined, spriteIndexById: Map<string, number>): number {
-  if (!spriteId) return 255;
-  const index = spriteIndexById.get(spriteId);
-  return index === undefined ? 255 : clampByte(index, 255);
-}
-
-function getAttackTypeId(type: BossAttack['type']): number {
-  switch (type) {
-    case 'Melee': return 1;
-    case 'Special': return 2;
-    case 'Pattern': return 3;
-    case 'Meteor': return 4;
-    case 'Bomb': return 5;
-    case 'Boomerang': return 6;
-    case 'Rock': return 7;
-    case 'Laser': return 8;
-    case 'SineWave': return 9;
-    case 'HomingMissile': return 10;
-    case 'Projectile':
-    default:
-      return 0;
-  }
-}
-
-function getBuildTypeId(type: BossPhase['buildType']): number {
-  return type === 'sprite' ? 1 : 0;
-}
-
-function getBehaviorActionTypeId(type: BossBehaviorAction['type'] | undefined): number {
-  switch (type) {
-    case 'moveTo': return 1;
-    case 'attack': return 2;
-    case 'slam': return 3;
-    case 'protect': return 4;
-    case 'shield': return 5;
-    case 'setForm': return 6;
-    case 'animateForm': return 7;
-    case 'loop': return 8;
-    case 'wait':
-    default:
-      return 0;
-  }
-}
-
-function getBehaviorTargetTypeId(type: BossBehaviorTarget['type'] | undefined): number {
-  switch (type) {
-    case 'playerCurrent': return 1;
-    case 'playerPredicted': return 2;
-    case 'playerLastKnown': return 3;
-    case 'bossRelative': return 4;
-    case 'fixed':
-    default:
-      return 0;
-  }
-}
-
-function behaviorActionDuration(action: BossBehaviorAction): number {
-  switch (action.type) {
-    case 'wait':
-      return action.frames;
-    case 'moveTo':
-      return action.durationFrames;
-    case 'attack':
-      return Math.max(1, action.delayAfterFrames ?? 1);
-    case 'slam':
-      return action.windupFrames + action.slamFrames + (action.holdFrames ?? 0) + action.returnFrames;
-    case 'protect':
-    case 'shield':
-      return action.durationFrames;
-    case 'animateForm':
-      return Math.max(1, action.frameDurationFrames) * Math.max(1, action.formIds.length) * Math.max(1, action.loops);
-    case 'setForm':
-    case 'loop':
-    default:
-      return 1;
-  }
-}
-
-function getBehaviorTarget(action: BossBehaviorAction): BossBehaviorTarget | undefined {
-  return 'target' in action ? action.target : undefined;
-}
-
-function renderBehaviorLoop(label: string, phase: BossPhase, attackIndexById: Map<string, number>): string {
-  const loop = phase.behaviorLoop || [];
-  const totalFrames = loop.reduce((sum, action) => sum + behaviorActionDuration(action), 0);
-  const actionBytes: number[] = [];
-
-  loop.forEach(action => {
-    const target = getBehaviorTarget(action);
-    const attackIndex = action.type === 'attack' && action.attackId ? attackIndexById.get(action.attackId) : undefined;
-    const aux0 = action.type === 'loop'
-      ? clampByte(action.targetIndex)
-      : attackIndex === undefined ? 255 : clampByte(attackIndex);
-    actionBytes.push(
-      getBehaviorActionTypeId(action.type),
-      clampByte(behaviorActionDuration(action), 1),
-      getBehaviorTargetTypeId(target?.type),
-      target?.type === 'bossRelative' ? signedByte(target.dxChar || 0) : clampByte(target?.xChar || 0),
-      target?.type === 'bossRelative' ? signedByte(target.dyChar || 0) : clampByte(target?.yChar || 0),
-      aux0,
-      clampByte(target?.framesAhead || 0),
-      0
-    );
-  });
-
-  return `${label}:\n${db([clampByte(loop.length), clampByte(totalFrames & 0xff), clampByte((totalFrames >> 8) & 0xff)], 'count,totalLo,totalHi')}\n${chunkedDb(actionBytes, 8)}`;
-}
-
-function renderTileMatrix(label: string, phase: BossPhase, tileIndexById: Map<string, number>, analysis: ProjectAnalysis): string {
-  const width = phase.dimensions?.width || 0;
-  const height = phase.dimensions?.height || 0;
-  const bytes: number[] = [];
-  for (let y = 0; y < height; y++) {
-    const row = phase.tileMatrix?.[y] || [];
-    for (let x = 0; x < width; x++) {
-      const tileId = row[x];
-      if (!tileId) {
-        bytes.push(255);
-        continue;
-      }
-      const runtimeCharCode = resolveRuntimeScreen2TileBankCharCode(
-        analysis,
-        phase.tileBankId,
-        tileId,
-        y,
-        0,
-        0
-      );
-      bytes.push(runtimeCharCode > 0 ? clampByte(runtimeCharCode) : getTileIndex(tileId, tileIndexById));
+function chunkedDb(bytes, perLine = 16) {
+    if (bytes.length === 0)
+        return '    db #FF';
+    const lines = [];
+    for (let offset = 0; offset < bytes.length; offset += perLine) {
+        lines.push(db(bytes.slice(offset, offset + perLine)));
     }
-  }
-  return `${label}:\n${chunkedDb(bytes)}`;
+    return lines.join('\n');
 }
-
-function renderCollisionMatrix(label: string, phase: BossPhase): string {
-  const width = phase.dimensions?.width || 0;
-  const height = phase.dimensions?.height || 0;
-  const bytes: number[] = [];
-  for (let y = 0; y < height; y++) {
-    const row = phase.collisionMatrix?.[y] || [];
-    for (let x = 0; x < width; x++) {
-      bytes.push(row[x] ? 1 : 0);
+function directionId(direction) {
+    switch (direction) {
+        case 'right': return 1;
+        case 'up': return 2;
+        case 'down': return 3;
+        case 'left':
+        default:
+            return 0;
     }
-  }
-  return `${label}:\n${chunkedDb(bytes)}`;
 }
-
-function renderNeckChain(label: string, neckChain: BossNeckChain | undefined): string {
-  const chain = neckChain || {
-    enabled: false,
-    segments: [],
-    amplitudeX: 0,
-    amplitudeY: 0,
-    speed: 0,
-    segmentDelayFrames: 0,
-    followStrength: 0
-  };
-  const header = db([
-    chain.enabled ? 1 : 0,
-    clampByte(chain.segments.length),
-    signedByte(chain.amplitudeX),
-    signedByte(chain.amplitudeY),
-    clampByte(Math.round((chain.speed || 0) * 16)),
-    clampByte(chain.segmentDelayFrames),
-    clampByte(Math.round((chain.followStrength || 0) * 100))
-  ], 'enabled,count,ampX,ampY,speed16,delay,followPct');
-  const segmentBytes = chain.segments.flatMap(segment => [clampByte(segment.x), clampByte(segment.y)]);
-  return `${label}:\n${header}\n${chunkedDb(segmentBytes, 12)}`;
+function buildIndexById(items) {
+    return new Map((items || []).map((item, index) => [item.id, index]));
 }
-
-function renderCrushMovement(label: string, movement: BossCrushMovement | undefined): string {
-  const crush = movement || {
-    enabled: false,
-    direction: 'down',
-    distance: 0,
-    windupFrames: 0,
-    slamFrames: 1,
-    holdFrames: 0,
-    returnFrames: 1,
-    cooldownFrames: 0
-  };
-  return `${label}:\n${db([
-    crush.enabled ? 1 : 0,
-    directionId(crush.direction),
-    clampByte(crush.distance),
-    clampByte(crush.windupFrames),
-    clampByte(Math.max(1, crush.slamFrames)),
-    clampByte(crush.holdFrames),
-    clampByte(Math.max(1, crush.returnFrames)),
-    clampByte(crush.cooldownFrames)
-  ], 'enabled,dir,distance,windup,slam,hold,return,cooldown')}`;
+function getTileIndex(tileId, tileIndexById) {
+    if (!tileId)
+        return 255;
+    const index = tileIndexById.get(tileId);
+    return index === undefined ? 255 : clampByte(index, 255);
 }
-
-function renderAttackSequence(label: string, phase: BossPhase, attackIndexById: Map<string, number>): string {
-  const sequence = (phase.attackSequence || [])
-    .map(id => attackIndexById.get(id))
-    .filter((index): index is number => index !== undefined)
-    .map(index => clampByte(index));
-  return `${label}:\n${db([sequence.length], 'count')}\n${chunkedDb(sequence, 16)}`;
+function getSpriteIndex(spriteId, spriteIndexById) {
+    if (!spriteId)
+        return 255;
+    const index = spriteIndexById.get(spriteId);
+    return index === undefined ? 255 : clampByte(index, 255);
 }
-
-function renderAttackRecord(attack: BossAttack, spriteIndexById: Map<string, number>, tileIndexById: Map<string, number>): string {
-  return [
-    db([
-      getAttackTypeId(attack.type),
-      getSpriteIndex(attack.spriteAssetId, spriteIndexById),
-      clampByte(attack.damage),
-      clampByte(attack.speed || 0),
-      directionId(attack.projectileDirection),
-      signedByte(attack.spawnOffsetX || 0),
-      signedByte(attack.spawnOffsetY || 0)
-    ], 'type,sprite,damage,speed,dir,offX,offY'),
-    dw([
-      word(attack.range || 0),
-      word(attack.cooldown || 0),
-      word(attack.duration || 0)
-    ], 'range,cooldown,duration'),
-    db([
-      clampByte(attack.meteorCount || 0),
-      clampByte(attack.meteorSpreadX || 0),
-      clampByte(attack.meteorWarningFrames || 0),
-      clampByte(Math.round((attack.cooldown || 1000) / 50), 1)
-    ], 'meteorCount,meteorSpread,meteorWarn,cooldownFrames'),
-    db([
-      clampByte(attack.bombCount || 0),
-      clampByte(attack.bombSpreadX || 0),
-      clampByte(attack.bombFuseFrames || 0),
-      clampByte(attack.explosionRadius || 0),
-      clampByte(attack.explosionDurationFrames || 0),
-      getSpriteIndex(attack.explosionSpriteAssetId, spriteIndexById)
-    ], 'bombCount,bombSpread,bombFuse,explRadius,explDuration,explSprite'),
-    db([
-      clampByte(attack.arcHeight || 0)
-    ], 'arcHeight'),
-    db([
-      getTileIndex(attack.laserTileAssetId, tileIndexById),
-      clampByte(attack.laserLengthChars || 0),
-      clampByte(attack.laserDurationFrames || 0)
-    ], 'laserTile,laserLength,laserDuration'),
-    db([
-      clampByte(attack.waveAmplitude || 0),
-      clampByte(attack.waveFrequencyFrames || 0)
-    ], 'waveAmplitude,waveFrequencyFrames'),
-    db([
-      clampByte(attack.homingTurnStep || 0)
-    ], 'homingTurnStep')
-  ].join('\n');
+function getAttackTypeId(type) {
+    switch (type) {
+        case 'Melee': return 1;
+        case 'Special': return 2;
+        case 'Pattern': return 3;
+        case 'Meteor': return 4;
+        case 'Bomb': return 5;
+        case 'Boomerang': return 6;
+        case 'Rock': return 7;
+        case 'Laser': return 8;
+        case 'SineWave': return 9;
+        case 'HomingMissile': return 10;
+        case 'Projectile':
+        default:
+            return 0;
+    }
 }
-
-function renderBossRuntimeAsm(): string {
-  return `; ------------------------------------------------------------------
+function getBuildTypeId(type) {
+    return type === 'sprite' ? 1 : 0;
+}
+function getBehaviorActionTypeId(type) {
+    switch (type) {
+        case 'moveTo': return 1;
+        case 'attack': return 2;
+        case 'slam': return 3;
+        case 'protect': return 4;
+        case 'shield': return 5;
+        case 'setForm': return 6;
+        case 'animateForm': return 7;
+        case 'loop': return 8;
+        case 'wait':
+        default:
+            return 0;
+    }
+}
+function getBehaviorTargetTypeId(type) {
+    switch (type) {
+        case 'playerCurrent': return 1;
+        case 'playerPredicted': return 2;
+        case 'playerLastKnown': return 3;
+        case 'bossRelative': return 4;
+        case 'fixed':
+        default:
+            return 0;
+    }
+}
+function behaviorActionDuration(action) {
+    switch (action.type) {
+        case 'wait':
+            return action.frames;
+        case 'moveTo':
+            return action.durationFrames;
+        case 'attack':
+            return Math.max(1, action.delayAfterFrames ?? 1);
+        case 'slam':
+            return action.windupFrames + action.slamFrames + (action.holdFrames ?? 0) + action.returnFrames;
+        case 'protect':
+        case 'shield':
+            return action.durationFrames;
+        case 'animateForm':
+            return Math.max(1, action.frameDurationFrames) * Math.max(1, action.formIds.length) * Math.max(1, action.loops);
+        case 'setForm':
+        case 'loop':
+        default:
+            return 1;
+    }
+}
+function getBehaviorTarget(action) {
+    return 'target' in action ? action.target : undefined;
+}
+function renderBehaviorLoop(label, phase, attackIndexById) {
+    const loop = phase.behaviorLoop || [];
+    const totalFrames = loop.reduce((sum, action) => sum + behaviorActionDuration(action), 0);
+    const actionBytes = [];
+    loop.forEach(action => {
+        const target = getBehaviorTarget(action);
+        const attackIndex = action.type === 'attack' && action.attackId ? attackIndexById.get(action.attackId) : undefined;
+        const aux0 = action.type === 'loop'
+            ? clampByte(action.targetIndex)
+            : attackIndex === undefined ? 255 : clampByte(attackIndex);
+        actionBytes.push(getBehaviorActionTypeId(action.type), clampByte(behaviorActionDuration(action), 1), getBehaviorTargetTypeId(target?.type), target?.type === 'bossRelative' ? signedByte(target.dxChar || 0) : clampByte(target?.xChar || 0), target?.type === 'bossRelative' ? signedByte(target.dyChar || 0) : clampByte(target?.yChar || 0), aux0, clampByte(target?.framesAhead || 0), 0);
+    });
+    return `${label}:\n${db([clampByte(loop.length), clampByte(totalFrames & 0xff), clampByte((totalFrames >> 8) & 0xff)], 'count,totalLo,totalHi')}\n${chunkedDb(actionBytes, 8)}`;
+}
+function renderTileMatrix(label, phase, tileIndexById, analysis) {
+    const width = phase.dimensions?.width || 0;
+    const height = phase.dimensions?.height || 0;
+    const bytes = [];
+    for (let y = 0; y < height; y++) {
+        const row = phase.tileMatrix?.[y] || [];
+        for (let x = 0; x < width; x++) {
+            const tileId = row[x];
+            if (!tileId) {
+                bytes.push(255);
+                continue;
+            }
+            const runtimeCharCode = (0, screen2TileBanks_1.resolveRuntimeScreen2TileBankCharCode)(analysis, phase.tileBankId, tileId, y, 0, 0);
+            bytes.push(runtimeCharCode > 0 ? clampByte(runtimeCharCode) : getTileIndex(tileId, tileIndexById));
+        }
+    }
+    return `${label}:\n${chunkedDb(bytes)}`;
+}
+function renderCollisionMatrix(label, phase) {
+    const width = phase.dimensions?.width || 0;
+    const height = phase.dimensions?.height || 0;
+    const bytes = [];
+    for (let y = 0; y < height; y++) {
+        const row = phase.collisionMatrix?.[y] || [];
+        for (let x = 0; x < width; x++) {
+            bytes.push(row[x] ? 1 : 0);
+        }
+    }
+    return `${label}:\n${chunkedDb(bytes)}`;
+}
+function renderNeckChain(label, neckChain) {
+    const chain = neckChain || {
+        enabled: false,
+        segments: [],
+        amplitudeX: 0,
+        amplitudeY: 0,
+        speed: 0,
+        segmentDelayFrames: 0,
+        followStrength: 0
+    };
+    const header = db([
+        chain.enabled ? 1 : 0,
+        clampByte(chain.segments.length),
+        signedByte(chain.amplitudeX),
+        signedByte(chain.amplitudeY),
+        clampByte(Math.round((chain.speed || 0) * 16)),
+        clampByte(chain.segmentDelayFrames),
+        clampByte(Math.round((chain.followStrength || 0) * 100))
+    ], 'enabled,count,ampX,ampY,speed16,delay,followPct');
+    const segmentBytes = chain.segments.flatMap(segment => [clampByte(segment.x), clampByte(segment.y)]);
+    return `${label}:\n${header}\n${chunkedDb(segmentBytes, 12)}`;
+}
+function renderCrushMovement(label, movement) {
+    const crush = movement || {
+        enabled: false,
+        direction: 'down',
+        distance: 0,
+        windupFrames: 0,
+        slamFrames: 1,
+        holdFrames: 0,
+        returnFrames: 1,
+        cooldownFrames: 0
+    };
+    return `${label}:\n${db([
+        crush.enabled ? 1 : 0,
+        directionId(crush.direction),
+        clampByte(crush.distance),
+        clampByte(crush.windupFrames),
+        clampByte(Math.max(1, crush.slamFrames)),
+        clampByte(crush.holdFrames),
+        clampByte(Math.max(1, crush.returnFrames)),
+        clampByte(crush.cooldownFrames)
+    ], 'enabled,dir,distance,windup,slam,hold,return,cooldown')}`;
+}
+function renderAttackSequence(label, phase, attackIndexById) {
+    const sequence = (phase.attackSequence || [])
+        .map(id => attackIndexById.get(id))
+        .filter((index) => index !== undefined)
+        .map(index => clampByte(index));
+    return `${label}:\n${db([sequence.length], 'count')}\n${chunkedDb(sequence, 16)}`;
+}
+function renderAttackRecord(attack, spriteIndexById, tileIndexById) {
+    return [
+        db([
+            getAttackTypeId(attack.type),
+            getSpriteIndex(attack.spriteAssetId, spriteIndexById),
+            clampByte(attack.damage),
+            clampByte(attack.speed || 0),
+            directionId(attack.projectileDirection),
+            signedByte(attack.spawnOffsetX || 0),
+            signedByte(attack.spawnOffsetY || 0)
+        ], 'type,sprite,damage,speed,dir,offX,offY'),
+        dw([
+            word(attack.range || 0),
+            word(attack.cooldown || 0),
+            word(attack.duration || 0)
+        ], 'range,cooldown,duration'),
+        db([
+            clampByte(attack.meteorCount || 0),
+            clampByte(attack.meteorSpreadX || 0),
+            clampByte(attack.meteorWarningFrames || 0),
+            clampByte(Math.round((attack.cooldown || 1000) / 50), 1)
+        ], 'meteorCount,meteorSpread,meteorWarn,cooldownFrames'),
+        db([
+            clampByte(attack.bombCount || 0),
+            clampByte(attack.bombSpreadX || 0),
+            clampByte(attack.bombFuseFrames || 0),
+            clampByte(attack.explosionRadius || 0),
+            clampByte(attack.explosionDurationFrames || 0),
+            getSpriteIndex(attack.explosionSpriteAssetId, spriteIndexById)
+        ], 'bombCount,bombSpread,bombFuse,explRadius,explDuration,explSprite'),
+        db([
+            clampByte(attack.arcHeight || 0)
+        ], 'arcHeight'),
+        db([
+            getTileIndex(attack.laserTileAssetId, tileIndexById),
+            clampByte(attack.laserLengthChars || 0),
+            clampByte(attack.laserDurationFrames || 0)
+        ], 'laserTile,laserLength,laserDuration'),
+        db([
+            clampByte(attack.waveAmplitude || 0),
+            clampByte(attack.waveFrequencyFrames || 0)
+        ], 'waveAmplitude,waveFrequencyFrames'),
+        db([
+            clampByte(attack.homingTurnStep || 0)
+        ], 'homingTurnStep')
+    ].join('\n');
+}
+function renderBossRuntimeAsm() {
+    return `; ------------------------------------------------------------------
 ; Boss attack record layout
 ; ------------------------------------------------------------------
 BOSS_ATTACK_TYPE_OFF EQU 0
@@ -2746,36 +2706,24 @@ boss_laser_write_current_tile:
 
 `;
 }
-
-function renderPhaseRecord(
-  phase: BossPhase,
-  labels: {
-    tileMatrix: string;
-    collisionMatrix: string;
-    neckChain: string;
-    crushMovement: string;
-    attackSequence: string;
-    behaviorLoop: string;
-  }
-): string {
-  return [
-    db([
-      clampByte(phase.healthThreshold),
-      getBuildTypeId(phase.buildType),
-      clampByte(phase.dimensions?.width || 0),
-      clampByte(phase.dimensions?.height || 0)
-    ], 'healthThreshold,buildType,width,height'),
-    dw([
-      labels.tileMatrix,
-      labels.collisionMatrix,
-      labels.neckChain,
-      labels.crushMovement,
-      labels.attackSequence,
-      labels.behaviorLoop
-    ], 'tileMatrix,collision,neck,crush,attacks,behavior')
-  ].join('\n');
+function renderPhaseRecord(phase, labels) {
+    return [
+        db([
+            clampByte(phase.healthThreshold),
+            getBuildTypeId(phase.buildType),
+            clampByte(phase.dimensions?.width || 0),
+            clampByte(phase.dimensions?.height || 0)
+        ], 'healthThreshold,buildType,width,height'),
+        dw([
+            labels.tileMatrix,
+            labels.collisionMatrix,
+            labels.neckChain,
+            labels.crushMovement,
+            labels.attackSequence,
+            labels.behaviorLoop
+        ], 'tileMatrix,collision,neck,crush,attacks,behavior')
+    ].join('\n');
 }
-
 /**
  * Generate bosses.asm.
  *
@@ -2795,10 +2743,10 @@ function renderPhaseRecord(
  *   clobbers: AF, BC, DE, HL
  *   preserves: IX
  */
-export function generateBossesFile(analysis: ProjectAnalysis): string {
-  const bosses = (analysis.bosses || []) as Boss[];
-  if (bosses.length === 0) {
-    return `; ==================================================================
+function generateBossesFile(analysis) {
+    const bosses = (analysis.bosses || []);
+    if (bosses.length === 0) {
+        return `; ==================================================================
 ; BOSSES
 ; No boss assets in this project.
 ; ==================================================================
@@ -2831,145 +2779,135 @@ update_boss_system:
 
 ${renderBossRuntimeAsm()}
 `;
-  }
-
-  const tileIndexById = buildIndexById<Tile>(analysis.tiles || []);
-  const spriteIndexById = buildIndexById<Sprite>(analysis.sprites || []);
-  const lines: string[] = [];
-
-  lines.push(`; ==================================================================`);
-  lines.push(`; BOSSES`);
-  lines.push(`; Generated boss data for tile bosses, neck chains, crush movement, projectiles, sine waves, boomerangs, rocks, char lasers, meteors and bombs.`);
-  lines.push(`; ==================================================================`);
-  lines.push(``);
-  lines.push(`BOSS_COUNT EQU ${bosses.length}`);
-  lines.push(`BOSS_DIR_LEFT EQU 0`);
-  lines.push(`BOSS_DIR_RIGHT EQU 1`);
-  lines.push(`BOSS_DIR_UP EQU 2`);
-  lines.push(`BOSS_DIR_DOWN EQU 3`);
-  lines.push(`BOSS_ATTACK_PROJECTILE EQU 0`);
-  lines.push(`BOSS_ATTACK_MELEE EQU 1`);
-  lines.push(`BOSS_ATTACK_SPECIAL EQU 2`);
-  lines.push(`BOSS_ATTACK_PATTERN EQU 3`);
-  lines.push(`BOSS_ATTACK_METEOR EQU 4`);
-  lines.push(`BOSS_ATTACK_BOMB EQU 5`);
-  lines.push(`BOSS_ATTACK_BOOMERANG EQU 6`);
-  lines.push(`BOSS_ATTACK_ROCK EQU 7`);
-  lines.push(`BOSS_ATTACK_LASER EQU 8`);
-  lines.push(`BOSS_ATTACK_SINE_WAVE EQU 9`);
-  lines.push(`BOSS_ATTACK_HOMING_MISSILE EQU 10`);
-  lines.push(``);
-  lines.push(`; Register Contract:`);
-  lines.push(`; input: none`);
-  lines.push(`; output: boss_runtime_tick and boss_active reset to 0`);
-  lines.push(`; clobbers: A`);
-  lines.push(`init_boss_system:`);
-  lines.push(`    xor a`);
-  lines.push(`    ld (boss_runtime_tick), a`);
-  lines.push(`    ld (boss_active), a`);
-  lines.push(`    ret`);
-  lines.push(``);
-  lines.push(`; Register Contract:`);
-  lines.push(`; input: none`);
-  lines.push(`; output: boss_runtime_tick increments; active boss behavior is stepped and exposed old cells are restored only when moved`);
-  lines.push(`; clobbers: AF, BC, DE, HL`);
-  lines.push(`; preserves: IX`);
-  lines.push(`update_boss_system:`);
-  lines.push(`    push ix`);
-  lines.push(`    ld a, (boss_runtime_tick)`);
-  lines.push(`    inc a`);
-  lines.push(`    ld (boss_runtime_tick), a`);
-  lines.push(`    ld a, (boss_active)`);
-  lines.push(`    or a`);
-  lines.push(`    jp z, .ubs_done`);
-  lines.push(`    call update_boss_behavior`);
-  lines.push(`    ld a, (boss_x_char)`);
-  lines.push(`    ld b, a`);
-  lines.push(`    ld a, (boss_prev_x_char)`);
-  lines.push(`    cp b`);
-  lines.push(`    jp nz, .ubs_redraw`);
-  lines.push(`    ld a, (boss_y_char)`);
-  lines.push(`    ld b, a`);
-  lines.push(`    ld a, (boss_prev_y_char)`);
-  lines.push(`    cp b`);
-  lines.push(`    jp z, .ubs_done`);
-  lines.push(`.ubs_redraw:`);
-  lines.push(`    call draw_active_boss_tiles`);
-  lines.push(`    call restore_active_boss_tiles_exposed`);
-  lines.push(`    ld a, (boss_x_char)`);
-  lines.push(`    ld (boss_prev_x_char), a`);
-  lines.push(`    ld a, (boss_y_char)`);
-  lines.push(`    ld (boss_prev_y_char), a`);
-  lines.push(`.ubs_done:`);
-  lines.push(`    pop ix`);
-  lines.push(`    ret`);
-  lines.push(``);
-  lines.push(renderBossRuntimeAsm());
-  lines.push(`boss_table:`);
-
-  const bossTableRows: string[] = [];
-  const detailBlocks: string[] = [];
-
-  bosses.forEach((boss, bossIndex) => {
-    const bossLabel = `boss_${bossIndex}_${sanitizeLabel(boss.name, 'boss')}`;
-    const phases = boss.phases || [];
-    const attacks = boss.attacks || [];
-    const attackIndexById = new Map(attacks.map((attack, index) => [attack.id, index]));
-    const phaseTableLabel = `${bossLabel}_phase_table`;
-    const attackTableLabel = `${bossLabel}_attack_table`;
-
-    bossTableRows.push(dw([phaseTableLabel, attackTableLabel], `${boss.name}`));
-    bossTableRows.push(db([
-      clampByte(word(boss.totalHealth) & 0xff),
-      clampByte((word(boss.totalHealth) >> 8) & 0xff),
-      clampByte(phases.length),
-      clampByte(attacks.length)
-    ], 'healthLo,healthHi,phaseCount,attackCount'));
-
-    const phaseRecordLabels: string[] = [];
-    const phaseDataBlocks: string[] = [];
-    phases.forEach((phase, phaseIndex) => {
-      const phaseLabel = `${bossLabel}_phase_${phaseIndex}`;
-      const labels = {
-        tileMatrix: `${phaseLabel}_tiles`,
-        collisionMatrix: `${phaseLabel}_collision`,
-        neckChain: `${phaseLabel}_neck`,
-        crushMovement: `${phaseLabel}_crush`,
-        attackSequence: `${phaseLabel}_attacks`,
-        behaviorLoop: `${phaseLabel}_behavior`
-      };
-      phaseRecordLabels.push(phaseLabel);
-      phaseDataBlocks.push(`${phaseLabel}:\n${renderPhaseRecord(phase, labels)}`);
-      phaseDataBlocks.push(renderTileMatrix(labels.tileMatrix, phase, tileIndexById, analysis));
-      phaseDataBlocks.push(renderCollisionMatrix(labels.collisionMatrix, phase));
-      phaseDataBlocks.push(renderNeckChain(labels.neckChain, phase.neckChain));
-      phaseDataBlocks.push(renderCrushMovement(labels.crushMovement, phase.crushMovement));
-      phaseDataBlocks.push(renderAttackSequence(labels.attackSequence, phase, attackIndexById));
-      phaseDataBlocks.push(renderBehaviorLoop(labels.behaviorLoop, phase, attackIndexById));
+    }
+    const tileIndexById = buildIndexById(analysis.tiles || []);
+    const spriteIndexById = buildIndexById(analysis.sprites || []);
+    const lines = [];
+    lines.push(`; ==================================================================`);
+    lines.push(`; BOSSES`);
+    lines.push(`; Generated boss data for tile bosses, neck chains, crush movement, projectiles, sine waves, boomerangs, rocks, char lasers, meteors and bombs.`);
+    lines.push(`; ==================================================================`);
+    lines.push(``);
+    lines.push(`BOSS_COUNT EQU ${bosses.length}`);
+    lines.push(`BOSS_DIR_LEFT EQU 0`);
+    lines.push(`BOSS_DIR_RIGHT EQU 1`);
+    lines.push(`BOSS_DIR_UP EQU 2`);
+    lines.push(`BOSS_DIR_DOWN EQU 3`);
+    lines.push(`BOSS_ATTACK_PROJECTILE EQU 0`);
+    lines.push(`BOSS_ATTACK_MELEE EQU 1`);
+    lines.push(`BOSS_ATTACK_SPECIAL EQU 2`);
+    lines.push(`BOSS_ATTACK_PATTERN EQU 3`);
+    lines.push(`BOSS_ATTACK_METEOR EQU 4`);
+    lines.push(`BOSS_ATTACK_BOMB EQU 5`);
+    lines.push(`BOSS_ATTACK_BOOMERANG EQU 6`);
+    lines.push(`BOSS_ATTACK_ROCK EQU 7`);
+    lines.push(`BOSS_ATTACK_LASER EQU 8`);
+    lines.push(`BOSS_ATTACK_SINE_WAVE EQU 9`);
+    lines.push(`BOSS_ATTACK_HOMING_MISSILE EQU 10`);
+    lines.push(``);
+    lines.push(`; Register Contract:`);
+    lines.push(`; input: none`);
+    lines.push(`; output: boss_runtime_tick and boss_active reset to 0`);
+    lines.push(`; clobbers: A`);
+    lines.push(`init_boss_system:`);
+    lines.push(`    xor a`);
+    lines.push(`    ld (boss_runtime_tick), a`);
+    lines.push(`    ld (boss_active), a`);
+    lines.push(`    ret`);
+    lines.push(``);
+    lines.push(`; Register Contract:`);
+    lines.push(`; input: none`);
+    lines.push(`; output: boss_runtime_tick increments; active boss behavior is stepped and exposed old cells are restored only when moved`);
+    lines.push(`; clobbers: AF, BC, DE, HL`);
+    lines.push(`; preserves: IX`);
+    lines.push(`update_boss_system:`);
+    lines.push(`    push ix`);
+    lines.push(`    ld a, (boss_runtime_tick)`);
+    lines.push(`    inc a`);
+    lines.push(`    ld (boss_runtime_tick), a`);
+    lines.push(`    ld a, (boss_active)`);
+    lines.push(`    or a`);
+    lines.push(`    jp z, .ubs_done`);
+    lines.push(`    call update_boss_behavior`);
+    lines.push(`    ld a, (boss_x_char)`);
+    lines.push(`    ld b, a`);
+    lines.push(`    ld a, (boss_prev_x_char)`);
+    lines.push(`    cp b`);
+    lines.push(`    jp nz, .ubs_redraw`);
+    lines.push(`    ld a, (boss_y_char)`);
+    lines.push(`    ld b, a`);
+    lines.push(`    ld a, (boss_prev_y_char)`);
+    lines.push(`    cp b`);
+    lines.push(`    jp z, .ubs_done`);
+    lines.push(`.ubs_redraw:`);
+    lines.push(`    call draw_active_boss_tiles`);
+    lines.push(`    call restore_active_boss_tiles_exposed`);
+    lines.push(`    ld a, (boss_x_char)`);
+    lines.push(`    ld (boss_prev_x_char), a`);
+    lines.push(`    ld a, (boss_y_char)`);
+    lines.push(`    ld (boss_prev_y_char), a`);
+    lines.push(`.ubs_done:`);
+    lines.push(`    pop ix`);
+    lines.push(`    ret`);
+    lines.push(``);
+    lines.push(renderBossRuntimeAsm());
+    lines.push(`boss_table:`);
+    const bossTableRows = [];
+    const detailBlocks = [];
+    bosses.forEach((boss, bossIndex) => {
+        const bossLabel = `boss_${bossIndex}_${sanitizeLabel(boss.name, 'boss')}`;
+        const phases = boss.phases || [];
+        const attacks = boss.attacks || [];
+        const attackIndexById = new Map(attacks.map((attack, index) => [attack.id, index]));
+        const phaseTableLabel = `${bossLabel}_phase_table`;
+        const attackTableLabel = `${bossLabel}_attack_table`;
+        bossTableRows.push(dw([phaseTableLabel, attackTableLabel], `${boss.name}`));
+        bossTableRows.push(db([
+            clampByte(word(boss.totalHealth) & 0xff),
+            clampByte((word(boss.totalHealth) >> 8) & 0xff),
+            clampByte(phases.length),
+            clampByte(attacks.length)
+        ], 'healthLo,healthHi,phaseCount,attackCount'));
+        const phaseRecordLabels = [];
+        const phaseDataBlocks = [];
+        phases.forEach((phase, phaseIndex) => {
+            const phaseLabel = `${bossLabel}_phase_${phaseIndex}`;
+            const labels = {
+                tileMatrix: `${phaseLabel}_tiles`,
+                collisionMatrix: `${phaseLabel}_collision`,
+                neckChain: `${phaseLabel}_neck`,
+                crushMovement: `${phaseLabel}_crush`,
+                attackSequence: `${phaseLabel}_attacks`,
+                behaviorLoop: `${phaseLabel}_behavior`
+            };
+            phaseRecordLabels.push(phaseLabel);
+            phaseDataBlocks.push(`${phaseLabel}:\n${renderPhaseRecord(phase, labels)}`);
+            phaseDataBlocks.push(renderTileMatrix(labels.tileMatrix, phase, tileIndexById, analysis));
+            phaseDataBlocks.push(renderCollisionMatrix(labels.collisionMatrix, phase));
+            phaseDataBlocks.push(renderNeckChain(labels.neckChain, phase.neckChain));
+            phaseDataBlocks.push(renderCrushMovement(labels.crushMovement, phase.crushMovement));
+            phaseDataBlocks.push(renderAttackSequence(labels.attackSequence, phase, attackIndexById));
+            phaseDataBlocks.push(renderBehaviorLoop(labels.behaviorLoop, phase, attackIndexById));
+        });
+        const attackRecordLabels = [];
+        const attackDataBlocks = [];
+        attacks.forEach((attack, attackIndex) => {
+            const attackLabel = `${bossLabel}_attack_${attackIndex}`;
+            attackRecordLabels.push(attackLabel);
+            attackDataBlocks.push(`${attackLabel}:\n${renderAttackRecord(attack, spriteIndexById, tileIndexById)}`);
+        });
+        detailBlocks.push(`; ------------------------------------------------------------------`);
+        detailBlocks.push(`; Boss ${bossIndex}: ${boss.name}`);
+        detailBlocks.push(`${phaseTableLabel}:`);
+        detailBlocks.push(phaseRecordLabels.length > 0 ? phaseRecordLabels.map(label => dw([label])).join('\n') : dw([EMPTY_REF]));
+        detailBlocks.push(`${attackTableLabel}:`);
+        detailBlocks.push(attackRecordLabels.length > 0 ? attackRecordLabels.map(label => dw([label])).join('\n') : dw([EMPTY_REF]));
+        detailBlocks.push(...phaseDataBlocks);
+        detailBlocks.push(...attackDataBlocks);
+        detailBlocks.push(``);
     });
-
-    const attackRecordLabels: string[] = [];
-    const attackDataBlocks: string[] = [];
-    attacks.forEach((attack, attackIndex) => {
-      const attackLabel = `${bossLabel}_attack_${attackIndex}`;
-      attackRecordLabels.push(attackLabel);
-      attackDataBlocks.push(`${attackLabel}:\n${renderAttackRecord(attack, spriteIndexById, tileIndexById)}`);
-    });
-
-    detailBlocks.push(`; ------------------------------------------------------------------`);
-    detailBlocks.push(`; Boss ${bossIndex}: ${boss.name}`);
-    detailBlocks.push(`${phaseTableLabel}:`);
-    detailBlocks.push(phaseRecordLabels.length > 0 ? phaseRecordLabels.map(label => dw([label])).join('\n') : dw([EMPTY_REF]));
-    detailBlocks.push(`${attackTableLabel}:`);
-    detailBlocks.push(attackRecordLabels.length > 0 ? attackRecordLabels.map(label => dw([label])).join('\n') : dw([EMPTY_REF]));
-    detailBlocks.push(...phaseDataBlocks);
-    detailBlocks.push(...attackDataBlocks);
-    detailBlocks.push(``);
-  });
-
-  lines.push(...bossTableRows);
-  lines.push(``);
-  lines.push(...detailBlocks);
-
-  return `${lines.join('\n')}\n`;
+    lines.push(...bossTableRows);
+    lines.push(``);
+    lines.push(...detailBlocks);
+    return `${lines.join('\n')}\n`;
 }

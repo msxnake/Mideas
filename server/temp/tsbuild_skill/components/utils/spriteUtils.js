@@ -1,14 +1,104 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateSpriteASMCode = exports.generateSingleFrameASMCode = exports.buildMSXDirectionalSpriteCatalog = exports.mirrorPixelDataVertically = exports.mirrorPixelDataHorizontally = exports.generateSpriteBinaryData = void 0;
+exports.generateSpriteASMCode = exports.generateSingleFrameASMCode = exports.buildMSXDirectionalSpriteCatalog = exports.mirrorPixelDataVertically = exports.mirrorPixelDataHorizontally = exports.generateSpriteBinaryData = exports.getSpriteLayerByteBlocks = exports.generateSpriteLayerBytes = exports.getSpriteDrawableLayerIndexes = void 0;
 const frameUsesLayer = (frame, layerIndex, layerColor) => !!frame?.msx1LayerData?.[layerIndex]?.some(row => row.some(Boolean)) ||
     !!frame?.data?.some(row => row?.some(pixel => pixel === layerColor));
+const getSpriteDrawableLayerIndexes = (sprite) => {
+    if (!sprite?.spritePalette?.length || !sprite?.frames?.length)
+        return [];
+    return sprite.spritePalette
+        .map((_color, index) => index)
+        .filter((layerIndex) => {
+        const layerColor = sprite.spritePalette[layerIndex];
+        if (!layerColor || layerColor === sprite.backgroundColor)
+            return false;
+        return sprite.frames.some((frame) => frameUsesLayer(frame, layerIndex, layerColor));
+    });
+    // Preserve palette order. In MSX1, lower hardware sprite indexes have
+    // priority, so Slot 2/3/4 map naturally to front-to-back layers.
+};
+exports.getSpriteDrawableLayerIndexes = getSpriteDrawableLayerIndexes;
 const isLayerPixelSet = (frameData, layerData, layerIndex, layerColor, y, x) => {
     const plane = layerData?.[layerIndex];
     if (plane)
         return !!plane[y]?.[x];
     return frameData[y]?.[x] === layerColor;
 };
+const generateSpriteLayerBytes = (frameData, frameLayerData, layerIndex, layerColor, spriteWidth, spriteHeight) => {
+    const layerBytes = [];
+    if (spriteWidth === 16 && spriteHeight === 16) {
+        for (let y = 0; y < 8; y++) {
+            let byteValue = 0;
+            for (let bit = 0; bit < 8; bit++) {
+                if (isLayerPixelSet(frameData, frameLayerData, layerIndex, layerColor, y, bit)) {
+                    byteValue |= (1 << (7 - bit));
+                }
+            }
+            layerBytes.push(byteValue);
+        }
+        for (let y = 8; y < 16; y++) {
+            let byteValue = 0;
+            for (let bit = 0; bit < 8; bit++) {
+                if (isLayerPixelSet(frameData, frameLayerData, layerIndex, layerColor, y, bit)) {
+                    byteValue |= (1 << (7 - bit));
+                }
+            }
+            layerBytes.push(byteValue);
+        }
+        for (let y = 0; y < 8; y++) {
+            let byteValue = 0;
+            for (let bit = 0; bit < 8; bit++) {
+                if (isLayerPixelSet(frameData, frameLayerData, layerIndex, layerColor, y, 8 + bit)) {
+                    byteValue |= (1 << (7 - bit));
+                }
+            }
+            layerBytes.push(byteValue);
+        }
+        for (let y = 8; y < 16; y++) {
+            let byteValue = 0;
+            for (let bit = 0; bit < 8; bit++) {
+                if (isLayerPixelSet(frameData, frameLayerData, layerIndex, layerColor, y, 8 + bit)) {
+                    byteValue |= (1 << (7 - bit));
+                }
+            }
+            layerBytes.push(byteValue);
+        }
+        return layerBytes;
+    }
+    for (let y = 0; y < spriteHeight; y++) {
+        for (let xByte = 0; xByte < Math.ceil(spriteWidth / 8); xByte++) {
+            let byteValue = 0;
+            for (let bit = 0; bit < 8; bit++) {
+                const px = xByte * 8 + bit;
+                if (px < spriteWidth && isLayerPixelSet(frameData, frameLayerData, layerIndex, layerColor, y, px)) {
+                    byteValue |= (1 << (7 - bit));
+                }
+            }
+            layerBytes.push(byteValue);
+        }
+    }
+    return layerBytes;
+};
+exports.generateSpriteLayerBytes = generateSpriteLayerBytes;
+const getSpriteLayerByteBlocks = (sprite) => {
+    const blocks = [];
+    const usedLayerIndexes = (0, exports.getSpriteDrawableLayerIndexes)(sprite);
+    sprite.frames.forEach((frame, frameIndex) => {
+        for (const layerIndex of usedLayerIndexes) {
+            const layerColor = sprite.spritePalette[layerIndex];
+            if (!layerColor || layerColor === sprite.backgroundColor)
+                continue;
+            blocks.push({
+                frameIndex,
+                layerIndex,
+                layerColor,
+                bytes: (0, exports.generateSpriteLayerBytes)(frame.data, frame.msx1LayerData, layerIndex, layerColor, sprite.size.width, sprite.size.height),
+            });
+        }
+    });
+    return blocks;
+};
+exports.getSpriteLayerByteBlocks = getSpriteLayerByteBlocks;
 /**
  * Generates a raw byte array for a sprite asset.
  * It processes each frame, creating a separate byte layer for each color in the sprite's palette
@@ -17,94 +107,7 @@ const isLayerPixelSet = (frameData, layerData, layerIndex, layerColor, y, x) => 
  * @returns A Uint8Array containing the binary data for the sprite.
  */
 const generateSpriteBinaryData = (sprite) => {
-    const allFramesBytes = [];
-    sprite.frames.forEach(frame => {
-        // Iterate through the 4 sprite palette colors.
-        // Skip if the palette color is the same as the sprite's general background color,
-        // as that color isn't typically part of the drawable sprite pattern for VDP.
-        for (let layerIndex = 0; layerIndex < sprite.spritePalette.length; layerIndex++) {
-            const layerColor = sprite.spritePalette[layerIndex];
-            // Skip if the layer color is the same as the sprite's designated background/transparent color
-            if (layerColor === sprite.backgroundColor) {
-                continue;
-            }
-            let colorUsedInFrameLayer = false; // Check if this specific palette color is used in this frame
-            const frameLayerBytes = [];
-            const width = sprite.size.width;
-            const height = sprite.size.height;
-            if (width === 16 && height === 16) {
-                // 16x16 sprite - use MSX column-major format
-                // Left column, rows 0-7
-                for (let y = 0; y < 8; y++) {
-                    let byteValue = 0;
-                    for (let bit = 0; bit < 8; bit++) {
-                        if (isLayerPixelSet(frame.data, frame.msx1LayerData, layerIndex, layerColor, y, bit)) {
-                            byteValue |= (1 << (7 - bit));
-                            colorUsedInFrameLayer = true;
-                        }
-                    }
-                    frameLayerBytes.push(byteValue);
-                }
-                // Left column, rows 8-15
-                for (let y = 8; y < 16; y++) {
-                    let byteValue = 0;
-                    for (let bit = 0; bit < 8; bit++) {
-                        if (isLayerPixelSet(frame.data, frame.msx1LayerData, layerIndex, layerColor, y, bit)) {
-                            byteValue |= (1 << (7 - bit));
-                            colorUsedInFrameLayer = true;
-                        }
-                    }
-                    frameLayerBytes.push(byteValue);
-                }
-                // Right column, rows 0-7
-                for (let y = 0; y < 8; y++) {
-                    let byteValue = 0;
-                    for (let bit = 0; bit < 8; bit++) {
-                        if (isLayerPixelSet(frame.data, frame.msx1LayerData, layerIndex, layerColor, y, 8 + bit)) {
-                            byteValue |= (1 << (7 - bit));
-                            colorUsedInFrameLayer = true;
-                        }
-                    }
-                    frameLayerBytes.push(byteValue);
-                }
-                // Right column, rows 8-15
-                for (let y = 8; y < 16; y++) {
-                    let byteValue = 0;
-                    for (let bit = 0; bit < 8; bit++) {
-                        if (isLayerPixelSet(frame.data, frame.msx1LayerData, layerIndex, layerColor, y, 8 + bit)) {
-                            byteValue |= (1 << (7 - bit));
-                            colorUsedInFrameLayer = true;
-                        }
-                    }
-                    frameLayerBytes.push(byteValue);
-                }
-            }
-            else {
-                // 8x8 or other sizes - use linear format
-                for (let y = 0; y < height; y++) {
-                    for (let xByte = 0; xByte < Math.ceil(width / 8); xByte++) {
-                        let byteValue = 0;
-                        for (let bit = 0; bit < 8; bit++) {
-                            const px = xByte * 8 + bit;
-                            if (px < width) {
-                                if (isLayerPixelSet(frame.data, frame.msx1LayerData, layerIndex, layerColor, y, px)) {
-                                    byteValue |= (1 << (7 - bit));
-                                    colorUsedInFrameLayer = true;
-                                }
-                            }
-                        }
-                        frameLayerBytes.push(byteValue);
-                    }
-                }
-            }
-            // Only add this layer's bytes if the color was actually used in the frame.
-            // This avoids exporting empty layers for unused palette slots.
-            if (colorUsedInFrameLayer) {
-                allFramesBytes.push(frameLayerBytes);
-            }
-        }
-    });
-    const flatBytes = allFramesBytes.flat();
+    const flatBytes = (0, exports.getSpriteLayerByteBlocks)(sprite).flatMap(block => block.bytes);
     return new Uint8Array(flatBytes);
 };
 exports.generateSpriteBinaryData = generateSpriteBinaryData;
@@ -492,14 +495,16 @@ const generateSpriteASMCode = (sprite, dataFormat = 'hex', uniqueIndex) => {
     fullAsmCode += `SPRITE_${safeSpriteName}_FRAMES    EQU ${sprite.frames.length}\n\n`;
     // Keep a stable (and compact) layer set across all frames:
     // only non-background palette layers that are actually used at least once.
-    const usedLayerIndexes = sprite.spritePalette
-        .map((_color, index) => index)
-        .filter((layerIndex) => {
-        const layerColor = sprite.spritePalette[layerIndex];
-        if (!layerColor || layerColor === sprite.backgroundColor)
-            return false;
-        return sprite.frames.some((frame) => frameUsesLayer(frame, layerIndex, layerColor));
-    });
+    // Palette order is emitted as hardware priority order. On MSX1, the lower
+    // hardware sprite index is in front, so Slot 2 is drawn over Slot 3/4.
+    const usedLayerIndexes = (0, exports.getSpriteDrawableLayerIndexes)(sprite);
+    if (usedLayerIndexes.length > 0) {
+        fullAsmCode += `;; MSX1 HW Layer Order (front to back): ${usedLayerIndexes.map(index => `C${index}=${sprite.spritePalette[index]}`).join(', ')}\n`;
+        if (sprite.msx1LayerOffsets && Object.keys(sprite.msx1LayerOffsets).length > 0) {
+            fullAsmCode += `;; MSX1 HW Layer Y Offsets: ${usedLayerIndexes.map(index => `C${index}=${sprite.msx1LayerOffsets?.[index]?.offsetY ?? 0}`).join(', ')}\n`;
+        }
+        fullAsmCode += `\n`;
+    }
     sprite.frames.forEach((frame, index) => {
         fullAsmCode += (0, exports.generateSingleFrameASMCode)(`${uniqueName}_F${index}`, frame.data, sprite.spritePalette, sprite.backgroundColor, sprite.size.width, sprite.size.height, dataFormat, usedLayerIndexes, frame.msx1LayerData);
     });

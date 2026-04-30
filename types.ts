@@ -1161,6 +1161,21 @@ export interface BossCrushMovement {
   cooldownFrames: number;
 }
 
+export interface BossForm {
+  /** Unique form ID inside a boss phase. */
+  id: string;
+  /** Display name for the visual pose/form. */
+  name: string;
+  /** Tile dimensions for this form. */
+  dimensions: { width: number; height: number };
+  /** Tile layout used by this form. */
+  tileMatrix: (string | null)[][];
+  /** Collision layout used by this form. */
+  collisionMatrix?: (boolean)[][];
+  /** Weak points active while this form is selected. */
+  weakPoints?: BossPhaseWeakPoint[];
+}
+
 export type BossBehaviorTargetType = 'fixed' | 'playerCurrent' | 'playerPredicted' | 'playerLastKnown' | 'bossRelative';
 
 export interface BossBehaviorTarget {
@@ -1178,7 +1193,7 @@ export interface BossBehaviorTarget {
   dyChar?: number;
 }
 
-export type BossBehaviorActionType = 'wait' | 'moveTo' | 'attack' | 'slam' | 'protect' | 'shield' | 'loop';
+export type BossBehaviorActionType = 'wait' | 'moveTo' | 'attack' | 'slam' | 'protect' | 'shield' | 'setForm' | 'animateForm' | 'loop';
 
 interface BossBehaviorActionBase {
   /** Unique action ID for editor selection and reordering. */
@@ -1234,6 +1249,18 @@ export interface BossShieldBehaviorAction extends BossBehaviorActionBase {
   shieldAssetId?: string;
 }
 
+export interface BossSetFormBehaviorAction extends BossBehaviorActionBase {
+  type: 'setForm';
+  formId?: string;
+}
+
+export interface BossAnimateFormBehaviorAction extends BossBehaviorActionBase {
+  type: 'animateForm';
+  formIds: string[];
+  frameDurationFrames: number;
+  loops: number;
+}
+
 export interface BossLoopBehaviorAction extends BossBehaviorActionBase {
   type: 'loop';
   targetIndex: number;
@@ -1246,6 +1273,8 @@ export type BossBehaviorAction =
   | BossSlamBehaviorAction
   | BossProtectBehaviorAction
   | BossShieldBehaviorAction
+  | BossSetFormBehaviorAction
+  | BossAnimateFormBehaviorAction
   | BossLoopBehaviorAction;
 
 /**
@@ -1272,6 +1301,10 @@ export interface BossPhase {
   collisionMatrix?: (boolean)[][];
   /** An array of weak points for this phase. */
   weakPoints?: BossPhaseWeakPoint[];
+  /** Optional visual forms/poses available within this phase. */
+  forms?: BossForm[];
+  /** Initial form ID used by behavior preview/runtime. */
+  initialFormId?: string;
   /** Optional ordered neck tile chain for segmented boss movement. */
   neckChain?: BossNeckChain;
   /** Optional slam/crush movement for this boss phase. */
@@ -2033,6 +2066,8 @@ export interface CopiedBossPhaseData {
   tileMatrix: (string | null)[][];
   collisionMatrix: (boolean)[][];
   dimensions: { width: number; height: number };
+  forms?: BossForm[];
+  initialFormId?: string;
   neckChain?: BossNeckChain;
   crushMovement?: BossCrushMovement;
   behaviorLoop?: BossBehaviorAction[];

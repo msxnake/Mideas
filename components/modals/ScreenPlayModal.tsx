@@ -2453,7 +2453,11 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             if (tileBuffer) {
                 ctx.drawImage(tileBuffer, 0, 0);
             }
-            renderBossInstancesToCanvas(ctx, screenMap, allAssets, tileset, currentScreenMode, TILE_SIZE);
+            renderBossInstancesToCanvas(ctx, screenMap, allAssets, tileset, currentScreenMode, TILE_SIZE, {
+                frame: Math.floor(performance.now() / (1000 / 30)),
+                playerXChar: playerRef.current ? Math.floor(playerRef.current.x / TILE_SIZE) : undefined,
+                playerYChar: playerRef.current ? Math.floor(playerRef.current.y / TILE_SIZE) : undefined,
+            });
 
             // 3. Render HUD elements (only if hudEnabled is true)
             if (hudEnabled) {

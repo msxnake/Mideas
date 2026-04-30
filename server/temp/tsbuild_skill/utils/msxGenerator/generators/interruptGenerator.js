@@ -542,7 +542,7 @@ function generateSharedMainlineTaskWrappers() {
     code += `    call FAST_GTSTCK            ; Direct hardware read\n`;
     code += `    ld b, a                     ; B = joystick direction\n`;
     code += `    or a\n`;
-    code += `    jr nz, .dir_ready\n\n`;
+    code += `    jp nz, .dir_ready\n\n`;
     code += `    ; Fallback to keyboard cursor keys (row 8, direct matrix read)\n`;
     code += `    ld a, 8\n`;
     code += `    call FAST_SNSMAT            ; Active low bits\n`;
@@ -759,7 +759,7 @@ function generateDefaultTasks(analysis) {
     code += `    call FAST_GTSTCK            ; Direct hardware read\n`;
     code += `    ld b, a                     ; B = joystick direction\n`;
     code += `    or a\n`;
-    code += `    jr nz, .dir_ready\n\n`;
+    code += `    jp nz, .dir_ready\n\n`;
     code += `    ; Fallback to keyboard cursor keys (row 8, direct matrix read)\n`;
     code += `    ld a, 8\n`;
     code += `    call FAST_SNSMAT            ; Active low bits\n`;

@@ -297,7 +297,35 @@ function buildBossLabelMap(analysis: ProjectAnalysis): Map<string, string> {
   return labels;
 }
 
-function buildBossPlacementRows(screen: ScreenMap, bossLabelById: Map<string, string>): string[] {
+function buildBossByIdMap(analysis: ProjectAnalysis): Map<string, Boss> {
+  const bosses = new Map<string, Boss>();
+  ((analysis.bosses || []) as Boss[]).forEach((boss) => {
+    if (boss.id) bosses.set(boss.id, boss);
+  });
+  return bosses;
+}
+
+function resolveBossPlacementForExport(screen: ScreenMap, instance: BossInstance, boss: Boss): { xChar: number; yChar: number } {
+  const bossName = boss.name || instance.bossAssetId;
+  if (!boss.linkedScreenId || boss.linkedScreenId !== screen.id) {
+    throw new Error(`Boss "${bossName}" is placed on screen "${screen.name}" but its Behavior screen is not set to this screen.`);
+  }
+
+  const hasBehaviorX = Number.isFinite(boss.behaviorPreviewStartXChar);
+  const hasBehaviorY = Number.isFinite(boss.behaviorPreviewStartYChar);
+  if (!hasBehaviorX && !hasBehaviorY) {
+    throw new Error(`Boss "${bossName}" is placed on screen "${screen.name}" but Behavior start X/Y is not defined.`);
+  }
+
+  // Migration tolerance: early Behavior saves could persist only one axis. Use the
+  // old screen placement for the missing axis while keeping Behavior authoritative.
+  return {
+    xChar: hasBehaviorX ? boss.behaviorPreviewStartXChar as number : instance.xChar,
+    yChar: hasBehaviorY ? boss.behaviorPreviewStartYChar as number : instance.yChar,
+  };
+}
+
+function buildBossPlacementRows(screen: ScreenMap, bossLabelById: Map<string, string>, bossById: Map<string, Boss>): string[] {
   const rows: string[] = [];
   const instances = (screen.bossInstances || []) as BossInstance[];
 
@@ -306,9 +334,14 @@ function buildBossPlacementRows(screen: ScreenMap, bossLabelById: Map<string, st
     if (!bossLabel) {
       return;
     }
+    const boss = bossById.get(instance.bossAssetId);
+    if (!boss) {
+      return;
+    }
+    const placement = resolveBossPlacementForExport(screen, instance, boss);
     const flags = instance.enabled === false ? 0 : 1;
     rows.push(`    dw ${bossLabel}_phase_table, ${bossLabel}_attack_table`);
-    rows.push(`    db ${clampByte(instance.xChar)}, ${clampByte(instance.yChar)}, ${clampByte(instance.initialPhaseIndex)}, ${flags}    ; xChar,yChar,initialPhase,flags`);
+    rows.push(`    db ${clampByte(placement.xChar)}, ${clampByte(placement.yChar)}, ${clampByte(instance.initialPhaseIndex)}, ${flags}    ; xChar,yChar,initialPhase,flags`);
   });
 
   return rows;
@@ -318,9 +351,10 @@ function generateBossPlacementTable(
   screenName: string,
   index: number,
   screen: ScreenMap,
-  bossLabelById: Map<string, string>
+  bossLabelById: Map<string, string>,
+  bossById: Map<string, Boss>
 ): string {
-  const rows = buildBossPlacementRows(screen, bossLabelById);
+  const rows = buildBossPlacementRows(screen, bossLabelById, bossById);
   let asm = `SCREEN_${screenName}_${index}_BOSS_TABLE:\n`;
   if (rows.length === 0) {
     asm += `    db 0    ; No boss placements\n`;
@@ -1061,6 +1095,7 @@ export function generateScreensFile(
   const worldMusicFlags = buildWorldMusicFlagMap(analysis);
   const fallbackGameplayMusic = hasAnyGameplayMusicConfigured(analysis) ? 1 : 0;
   const bossLabelById = buildBossLabelMap(analysis);
+  const bossById = buildBossByIdMap(analysis);
   // Skip screen system if no screens in project
   if (!analysis.screenMaps || analysis.screenMaps.length === 0) {
     return `; ==================================================================
@@ -1101,7 +1136,7 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, targetFo
     const hasEffectsLayoutData = effectsLayoutBytes.some(value => value !== 0);
     const effectZoneBytes = buildEffectZoneBytes(screen);
     const effectZoneCount = (screen.effectZones || []).length;
-    const bossPlacementRows = buildBossPlacementRows(screen, bossLabelById);
+    const bossPlacementRows = buildBossPlacementRows(screen, bossLabelById, bossById);
     const bossPlacementCount = bossPlacementRows.length / 2;
     const screenId = String(screen.id || `screen_${index}`);
     const animatedGroupCount = countAnimatedGroupsInScreen(
@@ -1344,7 +1379,7 @@ screen_runtime_summary_table:
               ]
         );
         code += `\n`;
-        code += generateBossPlacementTable(screenName, index, screen, bossLabelById);
+        code += generateBossPlacementTable(screenName, index, screen, bossLabelById, bossById);
         code += `\n`;
 
         if (false) {
@@ -1551,7 +1586,7 @@ screen_runtime_summary_table:
         code += `\n`;
         code += generateRawByteBlock(`SCREEN_${screenName}_${screenIndex}_INTERACTION_TARGET_MAP`, Array.from({ length: SCREEN_WIDTH * SCREEN_HEIGHT }, () => 0));
         code += `\n`;
-        code += generateBossPlacementTable(screenName, screenIndex, screen, bossLabelById);
+        code += generateBossPlacementTable(screenName, screenIndex, screen, bossLabelById, bossById);
         code += `\n`;
       }
 
@@ -2717,6 +2752,7 @@ export function getScreensBank4Data(analysis: ProjectAnalysis, romMode: string =
   const worldMusicFlags = buildWorldMusicFlagMap(analysis);
   const fallbackGameplayMusic = hasAnyGameplayMusicConfigured(analysis) ? 1 : 0;
   const bossLabelById = buildBossLabelMap(analysis);
+  const bossById = buildBossByIdMap(analysis);
 
   const screenExports = analysis.screenMaps.map((screen, index) => {
     const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
@@ -2823,7 +2859,7 @@ export function getScreensBank4Data(analysis: ProjectAnalysis, romMode: string =
           : [`No effect zones for ${screen.name}`]
       );
       asm += `\n`;
-      asm += generateBossPlacementTable(screenName, index, screen, bossLabelById);
+      asm += generateBossPlacementTable(screenName, index, screen, bossLabelById, bossById);
       asm += `\n`;
 
       if (screenExport.behaviorSource === 'backgroundChars' && screenExport.charBehaviorTable) {
@@ -2862,7 +2898,7 @@ export function getScreensBank4Data(analysis: ProjectAnalysis, romMode: string =
       asm += `SCREEN_${screenName}_${index}_LAYOUT:\n    db 0, 0, 0, 0, 0, 0, 0, 0\n\n`;
       asm += `SCREEN_${screenName}_${index}_EFFECTS_LAYOUT:\n    db 0\n\n`;
       asm += `SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE:\n    db 0\n\n`;
-      asm += generateBossPlacementTable(screenName, index, screen, bossLabelById);
+      asm += generateBossPlacementTable(screenName, index, screen, bossLabelById, bossById);
       asm += `\n`;
       if (resolveScreenBehaviorSource(screen) === 'backgroundChars') {
         asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`, Array.from({ length: 256 }, () => 0));

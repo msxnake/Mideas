@@ -621,23 +621,77 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     [allProjectAssets]
   );
 
-  const handleBossPlace = useCallback((point: Point) => {
-    if (!selectedBossAssetId) {
+  const currentScreenAsset = useMemo(
+    () => allProjectAssets.find(asset => asset.type === 'screenmap' && (asset.data as ScreenMap | undefined)?.id === screenMap.id),
+    [allProjectAssets, screenMap.id]
+  );
+
+  const currentScreenIdSet = useMemo(
+    () => new Set([screenMap.id, currentScreenAsset?.id].filter(Boolean) as string[]),
+    [currentScreenAsset?.id, screenMap.id]
+  );
+
+  const resolveBossBehaviorPlacement = useCallback((bossAsset: ProjectAsset & { data: Boss }) => {
+    const boss = bossAsset.data;
+    const bossName = bossAsset.name || boss.name || 'Boss';
+    if (!boss.linkedScreenId || !currentScreenIdSet.has(boss.linkedScreenId)) {
+      return {
+        error: `Boss "${bossName}" is not linked to this screen in Behavior. Open Boss Editor > Behavior, choose this screen and set the start position.`,
+      };
+    }
+    const existingInstance = (screenMap.bossInstances || []).find(instance => instance.bossAssetId === boss.id || instance.bossAssetId === bossAsset.id);
+    const hasBehaviorX = Number.isFinite(boss.behaviorPreviewStartXChar);
+    const hasBehaviorY = Number.isFinite(boss.behaviorPreviewStartYChar);
+    if (!hasBehaviorX && !hasBehaviorY) {
+      return {
+        error: `Boss "${bossName}" has no Behavior start position. Set X/Y in Boss Editor > Behavior before adding it to a screen.`,
+      };
+    }
+
+    return {
+      xChar: Math.max(0, Math.min(screenMap.width - 1, Math.round(hasBehaviorX ? boss.behaviorPreviewStartXChar as number : existingInstance?.xChar ?? 0))),
+      yChar: Math.max(0, Math.min(screenMap.height - 1, Math.round(hasBehaviorY ? boss.behaviorPreviewStartYChar as number : existingInstance?.yChar ?? 0))),
+    };
+  }, [currentScreenIdSet, screenMap.bossInstances, screenMap.height, screenMap.width]);
+
+  const handleBossPlace = useCallback((_point?: Point, bossAssetIdOverride?: string) => {
+    const targetBossAssetId = bossAssetIdOverride || selectedBossAssetId;
+    if (!targetBossAssetId) {
       setStatusBarMessage('Select a boss asset from the Bosses panel first.');
       return;
     }
 
-    const bossAsset = bossAssets.find(asset => asset.id === selectedBossAssetId || asset.data.id === selectedBossAssetId);
+    const bossAsset = bossAssets.find(asset => asset.id === targetBossAssetId || asset.data.id === targetBossAssetId);
     if (!bossAsset) {
       setStatusBarMessage('Selected boss asset was not found.');
       return;
     }
 
+    const placement = resolveBossBehaviorPlacement(bossAsset);
+    if ('error' in placement) {
+      setStatusBarMessage(placement.error);
+      return;
+    }
+
+    const bossAssetId = bossAsset.data.id || bossAsset.id;
+    const existingInstance = (screenMap.bossInstances || []).find(instance => instance.bossAssetId === bossAssetId);
+    if (existingInstance) {
+      const nextBossInstances = (screenMap.bossInstances || []).map(instance =>
+        instance.id === existingInstance.id
+          ? { ...instance, xChar: placement.xChar, yChar: placement.yChar, enabled: true }
+          : instance
+      );
+      onUpdate({ bossInstances: nextBossInstances });
+      setSelectedBossInstanceId(existingInstance.id);
+      setStatusBarMessage(`Boss "${bossAsset.name || bossAsset.data.name}" already exists on this screen. Synced to Behavior position (${placement.xChar}, ${placement.yChar}).`);
+      return;
+    }
+
     const newBossInstance: BossInstance = {
       id: `bossinst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      bossAssetId: bossAsset.data.id || bossAsset.id,
-      xChar: Math.max(0, Math.min(screenMap.width - 1, point.x)),
-      yChar: Math.max(0, Math.min(screenMap.height - 1, point.y)),
+      bossAssetId,
+      xChar: placement.xChar,
+      yChar: placement.yChar,
       enabled: true,
       initialPhaseIndex: 0,
     };
@@ -645,7 +699,12 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     onUpdate({ bossInstances: [...(screenMap.bossInstances || []), newBossInstance] });
     setSelectedBossInstanceId(newBossInstance.id);
     setStatusBarMessage(`Placed boss "${bossAsset.name || bossAsset.data.name}" at (${newBossInstance.xChar}, ${newBossInstance.yChar}).`);
-  }, [bossAssets, onUpdate, screenMap.bossInstances, screenMap.height, screenMap.width, selectedBossAssetId, setStatusBarMessage]);
+  }, [bossAssets, onUpdate, resolveBossBehaviorPlacement, screenMap.bossInstances, selectedBossAssetId, setStatusBarMessage]);
+
+  const handleBossAssetRequest = useCallback((bossAssetId: string) => {
+    setSelectedBossAssetId(bossAssetId);
+    handleBossPlace(undefined, bossAssetId);
+  }, [handleBossPlace]);
 
   const handleBossRemove = useCallback((bossInstanceId: string) => {
     const nextBossInstances = (screenMap.bossInstances || []).filter(instance => instance.id !== bossInstanceId);
@@ -2057,6 +2116,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           onTileContextMenu={handleTileContextMenu}
           selectedBossAssetId={selectedBossAssetId}
           onSelectBossAsset={setSelectedBossAssetId}
+          onPlaceBossAsset={handleBossAssetRequest}
         />
 
         <div className="flex-grow p-3 overflow-auto flex items-start justify-start relative bg-msx-bgcolor-darker/40">

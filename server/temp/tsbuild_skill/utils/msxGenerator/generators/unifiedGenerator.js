@@ -147,6 +147,8 @@ ${files['scroll.asm']}
 
 ${files['animtiles.asm']}
 
+${files['bosses.asm']}
+
 ${files['statemachine.asm'] && files['statemachine.asm'].trim() !== '; No State Machines' ? files['statemachine.asm'] : '; [statemachine.asm skipped - no state machines]\n'}
 
 ${analysis.gameFlow ? files['gameflow.asm'] : '; [gameflow.asm skipped - no GameFlow]\n'}
@@ -360,6 +362,8 @@ ${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load pattern and color da
 `}
     ; Initialize animated tile runtime (safe no-op if no animated groups)
     call init_animated_tiles
+    ; Initialize boss runtime (safe no-op if no boss assets)
+    call init_boss_system
 
 ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize game entities with real positions from JSON
     call init_entities
@@ -623,6 +627,8 @@ function getKnownEntryPoints(moduleKey, analysis) {
             ];
         case 'animtiles':
             return ['init_animated_tiles', 'update_animated_tiles', 'update_animated_tiles_vram'];
+        case 'bosses':
+            return ['init_boss_system', 'init_screen_boss_from_current_screen', 'update_boss_system', 'draw_boss_attack', 'draw_boss_meteor_attack', 'draw_boss_bomb_attack', 'draw_boss_boomerang_attack', 'draw_boss_rock_attack', 'draw_boss_laser_attack', 'draw_boss_sine_wave_attack', 'draw_boss_homing_missile_attack'];
         default:
             return [];
     }
@@ -807,6 +813,17 @@ function rewriteResidentCallSites(files, farModuleKeys) {
         ['init_animated_tiles', 'call_init_animated_tiles_resident'],
         ['update_animated_tiles', 'call_update_animated_tiles_resident'],
         ['update_animated_tiles_vram', 'call_update_animated_tiles_vram_resident'],
+        ['init_boss_system', 'call_init_boss_system_resident'],
+        ['init_screen_boss_from_current_screen', 'call_init_screen_boss_from_current_screen_resident'],
+        ['update_boss_system', 'call_update_boss_system_resident'],
+        ['draw_boss_attack', 'call_draw_boss_attack_resident'],
+        ['draw_boss_meteor_attack', 'call_draw_boss_meteor_attack_resident'],
+        ['draw_boss_bomb_attack', 'call_draw_boss_bomb_attack_resident'],
+        ['draw_boss_boomerang_attack', 'call_draw_boss_boomerang_attack_resident'],
+        ['draw_boss_rock_attack', 'call_draw_boss_rock_attack_resident'],
+        ['draw_boss_laser_attack', 'call_draw_boss_laser_attack_resident'],
+        ['draw_boss_sine_wave_attack', 'call_draw_boss_sine_wave_attack_resident'],
+        ['draw_boss_homing_missile_attack', 'call_draw_boss_homing_missile_attack_resident'],
         ['load_colors_to_vram', 'call_load_colors_to_vram_resident'],
         ['update_entities', 'call_update_entities_resident'],
     ];
@@ -838,6 +855,17 @@ function generateResidentCallWrappers(farModuleKeys, availableLabels) {
     const initAnimatedTilesCall = resolveResidentTarget('init_animated_tiles', 'animtiles');
     const updateAnimatedTilesCall = resolveResidentTarget('update_animated_tiles', 'animtiles');
     const updateAnimatedTilesVramCall = resolveResidentTarget('update_animated_tiles_vram', 'animtiles');
+    const initBossCall = resolveResidentTarget('init_boss_system', 'bosses');
+    const initScreenBossCall = resolveResidentTarget('init_screen_boss_from_current_screen', 'bosses');
+    const updateBossCall = resolveResidentTarget('update_boss_system', 'bosses');
+    const drawBossAttackCall = resolveResidentTarget('draw_boss_attack', 'bosses');
+    const drawBossMeteorCall = resolveResidentTarget('draw_boss_meteor_attack', 'bosses');
+    const drawBossBombCall = resolveResidentTarget('draw_boss_bomb_attack', 'bosses');
+    const drawBossBoomerangCall = resolveResidentTarget('draw_boss_boomerang_attack', 'bosses');
+    const drawBossRockCall = resolveResidentTarget('draw_boss_rock_attack', 'bosses');
+    const drawBossLaserCall = resolveResidentTarget('draw_boss_laser_attack', 'bosses');
+    const drawBossSineWaveCall = resolveResidentTarget('draw_boss_sine_wave_attack', 'bosses');
+    const drawBossHomingMissileCall = resolveResidentTarget('draw_boss_homing_missile_attack', 'bosses');
     const loadColorsToVramCall = resolveResidentTarget('load_colors_to_vram', 'colors_code');
     const updateEntitiesCall = resolveResidentTarget('update_entities', 'entities');
     const initSpritesCall = resolveResidentTarget('init_sprites', 'sprites');
@@ -998,6 +1026,39 @@ call_update_animated_tiles_resident:
 call_update_animated_tiles_vram_resident:
     jp ${updateAnimatedTilesVramCall}
 
+call_init_boss_system_resident:
+    jp ${initBossCall}
+
+call_init_screen_boss_from_current_screen_resident:
+    jp ${initScreenBossCall}
+
+call_update_boss_system_resident:
+    jp ${updateBossCall}
+
+call_draw_boss_attack_resident:
+    jp ${drawBossAttackCall}
+
+call_draw_boss_meteor_attack_resident:
+    jp ${drawBossMeteorCall}
+
+call_draw_boss_bomb_attack_resident:
+    jp ${drawBossBombCall}
+
+call_draw_boss_boomerang_attack_resident:
+    jp ${drawBossBoomerangCall}
+
+call_draw_boss_rock_attack_resident:
+    jp ${drawBossRockCall}
+
+call_draw_boss_laser_attack_resident:
+    jp ${drawBossLaserCall}
+
+call_draw_boss_sine_wave_attack_resident:
+    jp ${drawBossSineWaveCall}
+
+call_draw_boss_homing_missile_attack_resident:
+    jp ${drawBossHomingMissileCall}
+
 call_load_colors_to_vram_resident:
     jp ${loadColorsToVramCall}
 
@@ -1028,6 +1089,7 @@ function generateMegaromUnifiedFile(files, projectName, analysis, executionPlan,
         { key: 'components', content: files['components.asm'], estimatedBytes: estimateAsmBytesLocal(files['components.asm']) },
         { key: 'sprites', content: files['sprites.asm'], estimatedBytes: estimateAsmBytesLocal(files['sprites.asm']) },
         { key: 'animtiles', content: files['animtiles.asm'], estimatedBytes: estimateAsmBytesLocal(files['animtiles.asm']) },
+        { key: 'bosses', content: files['bosses.asm'], estimatedBytes: estimateAsmBytesLocal(files['bosses.asm']) },
         { key: 'scroll', content: files['scroll.asm'], estimatedBytes: estimateAsmBytesLocal(files['scroll.asm']) },
         { key: 'patterns_code', content: files['patterns.asm'], estimatedBytes: estimateAsmBytesLocal(files['patterns.asm']) },
         { key: 'colors_code', content: files['colors.asm'], estimatedBytes: estimateAsmBytesLocal(files['colors.asm']) },
@@ -1077,6 +1139,7 @@ function generateMegaromUnifiedFile(files, projectName, analysis, executionPlan,
     const loadPatternsToVramCall = farCallLabel('load_patterns_to_vram', farModuleKeySet, 'patterns_code');
     const loadColorsToVramCall = farCallLabel('load_colors_to_vram', farModuleKeySet, 'colors_code');
     const initAnimatedTilesCall = farCallLabel('init_animated_tiles', farModuleKeySet, 'animtiles');
+    const initBossCall = farCallLabel('init_boss_system', farModuleKeySet, 'bosses');
     const mapperWindow = (0, mapperWindowUtils_1.getMapperWindowConfig)(config.romMode, config.targetFormat);
     const dataZoneSize = mapperWindow.dataZoneSize;
     const totalCodeBanks = packedBanks.length; // primary + far code banks (boot bank 0 not counted)
@@ -1224,6 +1287,8 @@ ${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load shared gameplay patt
 `}
     ; Initialize animated tile runtime (safe no-op if no animated groups)
     call ${initAnimatedTilesCall}
+    ; Initialize boss runtime (safe no-op if no boss assets)
+    call ${initBossCall}
 
 ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize game entities with real positions from JSON
     call ${initEntitiesCall}
@@ -1264,6 +1329,7 @@ ${primaryBanks.map(bank => {
                 case 'components': return emittedFiles['components.asm'];
                 case 'sprites': return emittedFiles['sprites.asm'];
                 case 'animtiles': return emittedFiles['animtiles.asm'];
+                case 'bosses': return emittedFiles['bosses.asm'];
                 case 'scroll': return emittedFiles['scroll.asm'];
                 case 'patterns_code': return emittedFiles['patterns.asm'];
                 case 'colors_code': return emittedFiles['colors.asm'];
@@ -1300,6 +1366,7 @@ ${farCodeBanks.length > 0 ? `${farCodeBanks.map(bank => {
                 case 'components': return emittedFiles['components.asm'];
                 case 'sprites': return emittedFiles['sprites.asm'];
                 case 'animtiles': return emittedFiles['animtiles.asm'];
+                case 'bosses': return emittedFiles['bosses.asm'];
                 case 'scroll': return emittedFiles['scroll.asm'];
                 case 'patterns_code': return emittedFiles['patterns.asm'];
                 case 'colors_code': return emittedFiles['colors.asm'];

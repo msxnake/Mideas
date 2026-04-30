@@ -11099,19 +11099,19 @@ update_collectible_component:
     add hl, de
     ld a, (hl)
     or a
-    jr z, .collect_next
+    jp z, .collect_next
 
     ; Skip the hero and any non-collectible entities.
     ld a, (hero_entity_id)
     cp c
-    jr z, .collect_next
+    jp z, .collect_next
     ld hl, entity_collectible_enabled
     ld e, c
     ld d, 0
     add hl, de
     ld a, (hl)
     or a
-    jr z, .collect_next
+    jp z, .collect_next
 
     ; Check collision against resolved hero entity
     ; Get collectible position
@@ -11133,9 +11133,9 @@ update_collectible_component:
     sub b                         ; A = collectible_x - player_x
     ; Check if within range (-16 to +16)
     cp 240                        ; Negative check (< -16)
-    jr c, .collect_next
+    jp c, .collect_next
     cp 16                         ; Positive check (> +16)
-    jr nc, .collect_next
+    jp nc, .collect_next
 
     ; X is close, check Y
     ld hl, entity_y_pos
@@ -11153,9 +11153,9 @@ update_collectible_component:
 
     sub b                         ; A = collectible_y - player_y
     cp 240
-    jr c, .collect_next
+    jp c, .collect_next
     cp 16
-    jr nc, .collect_next
+    jp nc, .collect_next
 
     ; Collision detected - collect item!
     push bc
@@ -11181,7 +11181,7 @@ update_collectible_component:
 
 .collect_next:
     inc c
-    jr .collect_loop
+    jp .collect_loop
     `;
 }
 function generateRetractableGateSystem() {
@@ -11309,7 +11309,7 @@ update_retractable_gate_component:
     pop de
     pop hl
     dec d
-    jr .rg_loop
+    jp .rg_loop
 
 ; ------------------------------------------------------------------
 ; gate_trigger_condition_true

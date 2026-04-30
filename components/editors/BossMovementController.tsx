@@ -1,8 +1,15 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { BossPhase, Tile } from '../../types';
 import { createTileDataURL } from '../utils/screenUtils';
 
 type BossEditMode = 'tiles' | 'collision' | 'weakpoints' | 'neck';
+
+export interface BossTileSelection {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
 
 /**
  * Props for the BossMovementController component.
@@ -22,6 +29,12 @@ interface BossMovementControllerProps {
     zoom: number;
     /** Whether to show a warning about unassigned tiles. */
     showUnassignedTilesWarning: boolean;
+    /** Enables rectangle selection for tile editing. */
+    selectionEnabled?: boolean;
+    /** Current selected tile rectangle. */
+    tileSelection?: BossTileSelection | null;
+    /** Callback for changing the selected tile rectangle. */
+    onTileSelectionChange?: (selection: BossTileSelection | null) => void;
 }
 
 /**
@@ -36,12 +49,66 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
     onGridContextMenu,
     zoom = 1,
     showUnassignedTilesWarning,
+    selectionEnabled = false,
+    tileSelection = null,
+    onTileSelectionChange,
 }) => {
+    const dragAnchorRef = useRef<{ x: number; y: number } | null>(null);
+    const hasDraggedRef = useRef(false);
+
     if (!phase || !phase.dimensions) {
         return <div className="p-4 text-msx-textsecondary">No phase selected or phase has no dimensions.</div>;
     }
 
     const { width, height } = phase.dimensions;
+    const normalizeSelection = (startX: number, startY: number, endX: number, endY: number): BossTileSelection => ({
+        x: Math.min(startX, endX),
+        y: Math.min(startY, endY),
+        width: Math.abs(endX - startX) + 1,
+        height: Math.abs(endY - startY) + 1,
+    });
+    const isCellSelected = (x: number, y: number) => (
+        !!tileSelection &&
+        x >= tileSelection.x &&
+        y >= tileSelection.y &&
+        x < tileSelection.x + tileSelection.width &&
+        y < tileSelection.y + tileSelection.height
+    );
+
+    const handleCellMouseDown = (event: React.MouseEvent, x: number, y: number) => {
+        if (event.button !== 0) return;
+        if (!selectionEnabled) {
+            onGridClick(x, y);
+            return;
+        }
+
+        dragAnchorRef.current = { x, y };
+        hasDraggedRef.current = false;
+        onTileSelectionChange?.(normalizeSelection(x, y, x, y));
+        event.preventDefault();
+    };
+
+    const handleCellMouseEnter = (x: number, y: number) => {
+        const anchor = dragAnchorRef.current;
+        if (!selectionEnabled || !anchor) return;
+
+        if (anchor.x !== x || anchor.y !== y) {
+            hasDraggedRef.current = true;
+        }
+        onTileSelectionChange?.(normalizeSelection(anchor.x, anchor.y, x, y));
+    };
+
+    const handleCellMouseUp = (x: number, y: number) => {
+        if (!selectionEnabled) return;
+
+        const wasDrag = hasDraggedRef.current;
+        dragAnchorRef.current = null;
+        hasDraggedRef.current = false;
+
+        if (!wasDrag) {
+            onGridClick(x, y);
+        }
+    };
 
     return (
         <div className="flex flex-col items-center space-y-2" style={{ userSelect: 'none' }}>
@@ -58,7 +125,14 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
                     transformOrigin: 'top left'
                 }}
             >
-                <div className="grid" style={{ gridTemplateColumns: `repeat(${width}, 32px)` }}>
+                <div
+                    className="grid"
+                    style={{ gridTemplateColumns: `repeat(${width}, 32px)` }}
+                    onMouseLeave={() => {
+                        dragAnchorRef.current = null;
+                        hasDraggedRef.current = false;
+                    }}
+                >
                     {Array.from({ length: height * width }).map((_, i) => {
                         const x = i % width;
                         const y = Math.floor(i / width);
@@ -72,7 +146,9 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
                         return (
                             <div
                                 key={i}
-                                onClick={() => onGridClick(x, y)}
+                                onMouseDown={(e) => handleCellMouseDown(e, x, y)}
+                                onMouseEnter={() => handleCellMouseEnter(x, y)}
+                                onMouseUp={() => handleCellMouseUp(x, y)}
                                 onContextMenu={(e) => onGridContextMenu(e, x, y)}
                                 className="w-8 h-8 border border-msx-border/20 relative cursor-pointer"
                                 title={`x:${x} y:${y}${tile ? ` · ${tile.name}` : ''}${isNeckSegment ? ` · neck ${neckSegmentIndex + 1}` : ''}`}
@@ -107,13 +183,17 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
                                         {neckSegmentIndex + 1}
                                     </div>
                                 )}
+
+                                {selectionEnabled && isCellSelected(x, y) && (
+                                    <div className="absolute inset-0 pointer-events-none border-2 border-msx-highlight bg-msx-highlight/15" />
+                                )}
                             </div>
                         );
                     })}
                 </div>
             </div>
              <p className="text-xs text-msx-textsecondary">
-                {editMode === 'tiles' ? "Right-click a cell to create/edit a tile." : 
+                {editMode === 'tiles' ? "Drag to select a block. Click to place the selected tile. Right-click to create/edit a tile." : 
                  editMode === 'collision' ? "Click to toggle collision blocks." : 
                  editMode === 'weakpoints' ? "Click to toggle weak points." :
                  "Click tiles in order to build the neck movement vector."}

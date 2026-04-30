@@ -3688,7 +3688,7 @@ SM_WriteTileRelativeToEntity:
 
     ; Apply direction offset with bounds checks
     or a
-    jr z, .swt_apply
+    jp z, .swt_apply
     cp 1
     jr z, .swt_up
     cp 2
@@ -3712,28 +3712,28 @@ SM_WriteTileRelativeToEntity:
     cp 23
     jp nc, .swt_out
     inc c
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_up:
     ld a, c
     or a
     jp z, .swt_out
     dec c
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_left:
     ld a, b
     or a
     jp z, .swt_out
     dec b
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_right:
     ld a, b
     cp 31
     jp nc, .swt_out
     inc b
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_up_right:
     ld a, c
@@ -3744,7 +3744,7 @@ SM_WriteTileRelativeToEntity:
     jp nc, .swt_out
     dec c
     inc b
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_up_left:
     ld a, c
@@ -3755,7 +3755,7 @@ SM_WriteTileRelativeToEntity:
     jp z, .swt_out
     dec c
     dec b
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_down_right:
     ld a, c
@@ -3766,7 +3766,7 @@ SM_WriteTileRelativeToEntity:
     jp nc, .swt_out
     inc c
     inc b
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_down_left:
     ld a, c
@@ -5323,40 +5323,40 @@ Condition_VariableCompare:
 .op_equals:
     ld a, d
     cp e
-    jr z, .return_true
-    jr .return_false
+    jp z, .return_true
+    jp .return_false
 
 .op_not_equals:
     ld a, d
     cp e
-    jr nz, .return_true
-    jr .return_false
+    jp nz, .return_true
+    jp .return_false
 
 .op_greater:
     ld a, d
     cp e
-    jr z, .return_false
-    jr nc, .return_true
-    jr .return_false
+    jp z, .return_false
+    jp nc, .return_true
+    jp .return_false
 
 .op_less:
     ld a, d
     cp e
-    jr c, .return_true
-    jr .return_false
+    jp c, .return_true
+    jp .return_false
 
 .op_greater_equal:
     ld a, d
     cp e
-    jr nc, .return_true
-    jr .return_false
+    jp nc, .return_true
+    jp .return_false
 
 .op_less_equal:
     ld a, d
     cp e
-    jr z, .return_true
-    jr c, .return_true
-    jr .return_false
+    jp z, .return_true
+    jp c, .return_true
+    jp .return_false
 
 .load_variable_value:
     push bc

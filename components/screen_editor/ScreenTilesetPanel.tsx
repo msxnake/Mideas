@@ -65,6 +65,8 @@ interface ScreenTilesetPanelProps {
   selectedBossAssetId?: string | null;
   /** Callback to select a boss asset for placement. */
   onSelectBossAsset?: (bossAssetId: string | null) => void;
+  /** Callback to add/sync a boss asset using its Behavior placement. */
+  onPlaceBossAsset?: (bossAssetId: string) => void;
 }
 
 /**
@@ -102,6 +104,7 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
   onTileContextMenu,
   selectedBossAssetId,
   onSelectBossAsset,
+  onPlaceBossAsset,
 }) => {
 
   const eraserButtonClass = `w-full mt-1 p-1 text-xs rounded ${currentScreenTool === 'erase' ? 'bg-msx-highlight text-msx-bgcolor' : 'bg-msx-border text-msx-textsecondary hover:bg-msx-highlight/70'}`;
@@ -334,17 +337,23 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
                 type="button"
                 onClick={() => {
                   onSelectBossAsset?.(asset.id);
-                  onSetScreenTool('draw');
+                  onPlaceBossAsset?.(asset.id);
+                  onSetScreenTool('select');
                 }}
                 className={`w-full rounded border p-2 text-left text-xs transition-colors ${
                   isSelected
                     ? 'border-msx-accent bg-msx-accent/30 text-msx-textprimary'
                     : 'border-msx-border bg-msx-bgcolor/40 text-msx-textsecondary hover:border-msx-highlight hover:text-msx-textprimary'
                 }`}
-                title={`Place ${asset.name || boss?.name || 'Boss'} on the screen`}
+                title={`Add ${asset.name || boss?.name || 'Boss'} using its Behavior screen and start position`}
               >
                 <div className="truncate font-semibold">{asset.name || boss?.name || 'Unnamed Boss'}</div>
-                <div className="text-[0.65rem] text-msx-textsecondary">{sizeText}</div>
+                <div className="text-[0.65rem] text-msx-textsecondary">
+                  {sizeText}
+                  {boss?.linkedScreenId && Number.isFinite(boss.behaviorPreviewStartXChar) && Number.isFinite(boss.behaviorPreviewStartYChar)
+                    ? ` - Behavior @ ${boss.behaviorPreviewStartXChar},${boss.behaviorPreviewStartYChar}`
+                    : ' - Behavior required'}
+                </div>
               </button>
             );
           })}

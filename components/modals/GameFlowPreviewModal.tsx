@@ -6177,7 +6177,11 @@ useEffect(() => {
                 });
             }
 
-            renderBossInstancesToCanvas(ctx, currentScreenMapRef.current, allAssets, tileset, previewScreenMode, TILE_SIZE);
+            renderBossInstancesToCanvas(ctx, currentScreenMapRef.current, allAssets, tileset, previewScreenMode, TILE_SIZE, {
+                frame: Math.floor(currentTime / (1000 / 30)),
+                playerXChar: heroRef.current ? Math.floor(heroRef.current.x / TILE_SIZE) : undefined,
+                playerYChar: heroRef.current ? Math.floor(heroRef.current.y / TILE_SIZE) : undefined,
+            });
 
             // Debug overlay: outlines for solid tiles in Collision layer
             drawCollisionTileOutlines(ctx);

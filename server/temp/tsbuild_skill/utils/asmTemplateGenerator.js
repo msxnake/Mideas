@@ -66,6 +66,7 @@ function analyzeProject(projectName, assets) {
     const stateMachines = assets.filter(a => a.type === 'statemachine').map(a => a.data);
     const presentationScreenAsset = assets.find(a => a.type === 'presentationscreen');
     const presentationScreen = presentationScreenAsset?.data;
+    const bosses = assets.filter(a => a.type === 'boss').map(a => a.data);
     // CRITICAL: Extract entities from screenmaps
     // Deduplicate entities across possible storage formats
     // (layers.entities and legacy screen.entities) to avoid ghost duplicates.
@@ -148,6 +149,7 @@ function analyzeProject(projectName, assets) {
         dialogues,
         portraits,
         presentationScreen,
+        bosses,
         gameFlow, // CRITICAL: Include GameFlow for MSX ASM generation
         stateMachines, // CRITICAL: Include State Machines
         hasECS,

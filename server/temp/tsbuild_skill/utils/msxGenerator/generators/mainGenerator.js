@@ -118,6 +118,9 @@ include "sound.asm"
 ; 15. Animated tiles (background frame updates)
 include "animtiles.asm"
 
+; 15.5 Boss data and boss runtime helpers
+include "bosses.asm"
+
 ${analysis.stateMachines && analysis.stateMachines.length > 0 ? `; 16. State Machines (entity AI)
 include "statemachine.asm"
 ` : ''}

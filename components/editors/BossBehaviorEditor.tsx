@@ -5,6 +5,7 @@ import {
   BossBehaviorAction,
   BossBehaviorActionType,
   BossBehaviorTarget,
+  BossForm,
   BossPhase,
   ProjectAsset,
   ScreenMap,
@@ -37,6 +38,7 @@ interface BossBehaviorEditorProps {
 }
 
 const DEFAULT_TARGET: BossBehaviorTarget = { type: 'fixed', xChar: 16, yChar: 10 };
+const CURRENT_FORM_ID = '__phase_current_form';
 
 const ACTION_LABELS: Record<BossBehaviorActionType, string> = {
   wait: 'Wait',
@@ -45,6 +47,8 @@ const ACTION_LABELS: Record<BossBehaviorActionType, string> = {
   slam: 'Slam',
   protect: 'Protect',
   shield: 'Shield',
+  setForm: 'Set Form',
+  animateForm: 'Animate Form',
   loop: 'Loop',
 };
 
@@ -61,6 +65,10 @@ const actionDuration = (action: BossBehaviorAction): number => {
     case 'protect':
     case 'shield':
       return action.durationFrames;
+    case 'setForm':
+      return 1;
+    case 'animateForm':
+      return Math.max(1, action.frameDurationFrames) * Math.max(1, action.formIds.length) * Math.max(1, action.loops);
     case 'loop':
       return 1;
     default:
@@ -95,6 +103,10 @@ const createDefaultAction = (type: BossBehaviorActionType, attacks: BossAttack[]
       return { id, type, enabled: true, durationFrames: 60, damageReductionPercent: 100 };
     case 'shield':
       return { id, type, enabled: true, durationFrames: 90, hp: 3 };
+    case 'setForm':
+      return { id, type };
+    case 'animateForm':
+      return { id, type, formIds: [], frameDurationFrames: 8, loops: 1 };
     case 'loop':
       return { id, type, targetIndex: 0 };
     default:
@@ -126,6 +138,7 @@ interface BehaviorEvaluation {
   targetXChar?: number;
   targetYChar?: number;
   activeActionId?: string;
+  formId?: string;
   shieldActive: boolean;
   protectActive: boolean;
   attackActive: boolean;
@@ -162,10 +175,12 @@ const evaluateBehaviorAtFrame = (
   startX: number,
   startY: number,
   playerX: number,
-  playerY: number
+  playerY: number,
+  initialFormId?: string
 ): BehaviorEvaluation => {
   let xChar = startX;
   let yChar = startY;
+  let formId = initialFormId;
   let cursor = 0;
 
   for (const action of loop) {
@@ -183,6 +198,7 @@ const evaluateBehaviorAtFrame = (
           targetXChar: target.xChar,
           targetYChar: target.yChar,
           activeActionId: action.id,
+          formId,
           shieldActive: false,
           protectActive: false,
           attackActive: false,
@@ -214,13 +230,14 @@ const evaluateBehaviorAtFrame = (
             targetXChar: slamTargetX,
             targetYChar: slamTargetY,
             activeActionId: action.id,
+            formId,
             shieldActive: false,
             protectActive: false,
             attackActive: false,
           };
         }
         if (localFrame < holdEnd) {
-          return { xChar: slamTargetX, yChar: slamTargetY, targetXChar: slamTargetX, targetYChar: slamTargetY, activeActionId: action.id, shieldActive: false, protectActive: false, attackActive: false };
+          return { xChar: slamTargetX, yChar: slamTargetY, targetXChar: slamTargetX, targetYChar: slamTargetY, activeActionId: action.id, formId, shieldActive: false, protectActive: false, attackActive: false };
         }
         const progress = (localFrame - holdEnd) / Math.max(1, action.returnFrames);
         return {
@@ -229,10 +246,27 @@ const evaluateBehaviorAtFrame = (
           targetXChar: slamTargetX,
           targetYChar: slamTargetY,
           activeActionId: action.id,
+          formId,
           shieldActive: false,
           protectActive: false,
           attackActive: false,
         };
+      }
+    } else if (action.type === 'setForm') {
+      if (isActive) {
+        return { xChar, yChar, activeActionId: action.id, formId: action.formId || formId, shieldActive: false, protectActive: false, attackActive: false };
+      }
+      formId = action.formId || formId;
+    } else if (action.type === 'animateForm') {
+      if (isActive) {
+        const formIds = action.formIds.length > 0 ? action.formIds : formId ? [formId] : [];
+        const frameIndex = formIds.length > 0
+          ? Math.floor(localFrame / Math.max(1, action.frameDurationFrames)) % formIds.length
+          : 0;
+        return { xChar, yChar, activeActionId: action.id, formId: formIds[frameIndex] || formId, shieldActive: false, protectActive: false, attackActive: false };
+      }
+      if (action.formIds.length > 0) {
+        formId = action.formIds[action.formIds.length - 1];
       }
     } else if (isActive) {
       const hasTarget = 'target' in action;
@@ -243,6 +277,7 @@ const evaluateBehaviorAtFrame = (
         targetXChar: target?.xChar,
         targetYChar: target?.yChar,
         activeActionId: action.id,
+        formId,
         shieldActive: action.type === 'shield' && action.enabled,
         protectActive: action.type === 'protect' && action.enabled,
         attackActive: action.type === 'attack',
@@ -252,7 +287,7 @@ const evaluateBehaviorAtFrame = (
     cursor += duration;
   }
 
-  return { xChar, yChar, shieldActive: false, protectActive: false, attackActive: false };
+  return { xChar, yChar, formId, shieldActive: false, protectActive: false, attackActive: false };
 };
 
 const actionSummary = (action: BossBehaviorAction, attacks: BossAttack[]): string => {
@@ -271,6 +306,10 @@ const actionSummary = (action: BossBehaviorAction, attacks: BossAttack[]): strin
       return `${action.enabled ? 'On' : 'Off'} ${action.durationFrames}f`;
     case 'shield':
       return `${action.enabled ? 'On' : 'Off'} ${action.durationFrames}f`;
+    case 'setForm':
+      return action.formId || 'No form';
+    case 'animateForm':
+      return `${action.formIds.length} forms · ${action.frameDurationFrames}f`;
     case 'loop':
       return `to #${action.targetIndex + 1}`;
     default:
@@ -292,6 +331,10 @@ const getActionIcon = (type: BossBehaviorActionType) => {
       return <LockIcon className="w-4 h-4" />;
     case 'shield':
       return <ShieldIcon className="w-4 h-4" />;
+    case 'setForm':
+      return <ViewfinderCircleIcon className="w-4 h-4" />;
+    case 'animateForm':
+      return <ArrowPathIcon className="w-4 h-4" />;
     case 'loop':
       return <ArrowPathIcon className="w-4 h-4" />;
     default:
@@ -302,6 +345,29 @@ const getActionIcon = (type: BossBehaviorActionType) => {
 const toNumber = (value: string, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const cloneMatrix = <T,>(matrix: T[][] | undefined): T[][] => (matrix || []).map(row => [...row]);
+
+const createCurrentPhaseForm = (phase: BossPhase): BossForm => ({
+  id: CURRENT_FORM_ID,
+  name: 'Current Graphic',
+  dimensions: { ...(phase.dimensions || { width: 1, height: 1 }) },
+  tileMatrix: cloneMatrix(phase.tileMatrix),
+  collisionMatrix: cloneMatrix(phase.collisionMatrix),
+  weakPoints: phase.weakPoints ? JSON.parse(JSON.stringify(phase.weakPoints)) : undefined,
+});
+
+const formToPreviewPhase = (phase: BossPhase, form: BossForm | undefined): BossPhase => {
+  if (!form || form.id === CURRENT_FORM_ID) return phase;
+  return {
+    ...phase,
+    buildType: 'tile',
+    dimensions: form.dimensions,
+    tileMatrix: form.tileMatrix,
+    collisionMatrix: form.collisionMatrix,
+    weakPoints: form.weakPoints,
+  };
 };
 
 export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
@@ -344,6 +410,9 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
     () => allAssets.filter(asset => asset.type === 'tile' && asset.data).map(asset => asset.data as Tile),
     [allAssets]
   );
+  const currentPhaseForm = useMemo(() => createCurrentPhaseForm(phase), [phase]);
+  const forms = useMemo(() => [currentPhaseForm, ...(phase.forms || [])], [currentPhaseForm, phase.forms]);
+  const initialFormId = phase.initialFormId || forms[0]?.id;
 
   const startX = boss.behaviorPreviewStartXChar ?? selectedScreenBossInstance?.xChar ?? 12;
   const startY = boss.behaviorPreviewStartYChar ?? selectedScreenBossInstance?.yChar ?? 8;
@@ -352,9 +421,35 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
   const bossWidth = phase.dimensions?.width || 2;
   const bossHeight = phase.dimensions?.height || 2;
   const previewState = useMemo(
-    () => evaluateBehaviorAtFrame(behaviorLoop, playheadFrame, startX, startY, playerX, playerY),
-    [behaviorLoop, playheadFrame, startX, startY, playerX, playerY]
+    () => evaluateBehaviorAtFrame(behaviorLoop, playheadFrame, startX, startY, playerX, playerY, initialFormId),
+    [behaviorLoop, playheadFrame, startX, startY, playerX, playerY, initialFormId]
   );
+  const previewForm = forms.find(form => form.id === previewState.formId) || currentPhaseForm;
+  const previewPhase = formToPreviewPhase(phase, previewForm);
+
+  useEffect(() => {
+    if (!selectedScreenBossInstance) return;
+    const patch: Partial<Boss> = {};
+    if (!boss.linkedScreenId && selectedScreenAsset?.id) {
+      patch.linkedScreenId = selectedScreenAsset.id;
+    }
+    if (!Number.isFinite(boss.behaviorPreviewStartXChar)) {
+      patch.behaviorPreviewStartXChar = selectedScreenBossInstance.xChar;
+    }
+    if (!Number.isFinite(boss.behaviorPreviewStartYChar)) {
+      patch.behaviorPreviewStartYChar = selectedScreenBossInstance.yChar;
+    }
+    if (Object.keys(patch).length > 0) {
+      onUpdateBoss(patch);
+    }
+  }, [
+    boss.behaviorPreviewStartXChar,
+    boss.behaviorPreviewStartYChar,
+    boss.linkedScreenId,
+    onUpdateBoss,
+    selectedScreenAsset?.id,
+    selectedScreenBossInstance,
+  ]);
 
   const updateLoop = (nextLoop: BossBehaviorAction[]) => {
     onUpdatePhase({ behaviorLoop: nextLoop });
@@ -363,9 +458,53 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
 
   const addAction = (type: BossBehaviorActionType) => {
     const action = createDefaultAction(type, attacks);
+    if (action.type === 'setForm') {
+      action.formId = forms[0]?.id;
+    }
+    if (action.type === 'animateForm') {
+      action.formIds = forms.slice(0, 2).map(form => form.id);
+    }
     const nextLoop = [...behaviorLoop, action];
     onUpdatePhase({ behaviorLoop: nextLoop });
     setSelectedActionId(action.id);
+  };
+
+  const captureCurrentForm = () => {
+    const nextForm: BossForm = {
+      ...createCurrentPhaseForm(phase),
+      id: `boss_form_${Date.now()}`,
+      name: `Form ${(phase.forms || []).length + 1}`,
+    };
+    onUpdatePhase({
+      forms: [...(phase.forms || []), nextForm],
+      initialFormId: phase.initialFormId || nextForm.id,
+    });
+  };
+
+  const updateForm = (formId: string, patch: Partial<BossForm>) => {
+    if (formId === CURRENT_FORM_ID) return;
+    onUpdatePhase({
+      forms: (phase.forms || []).map(form => form.id === formId ? { ...form, ...patch } : form),
+    });
+  };
+
+  const deleteForm = (formId: string) => {
+    if (formId === CURRENT_FORM_ID) return;
+    const nextForms = (phase.forms || []).filter(form => form.id !== formId);
+    const nextLoop = behaviorLoop.map(action => {
+      if (action.type === 'setForm' && action.formId === formId) {
+        return { ...action, formId: nextForms[0]?.id || CURRENT_FORM_ID } as BossBehaviorAction;
+      }
+      if (action.type === 'animateForm') {
+        return { ...action, formIds: action.formIds.filter(id => id !== formId) } as BossBehaviorAction;
+      }
+      return action;
+    });
+    onUpdatePhase({
+      forms: nextForms,
+      initialFormId: phase.initialFormId === formId ? nextForms[0]?.id : phase.initialFormId,
+      behaviorLoop: nextLoop,
+    });
   };
 
   useEffect(() => {
@@ -503,7 +642,7 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
       ctx.fillRect(tx * tileSize, ty * tileSize, bossWidth * tileSize, bossHeight * tileSize);
       ctx.save();
       ctx.globalAlpha = 0.45;
-      renderBossPhaseToCanvas(ctx, phase, allAssets, tileset, currentScreenMode, tileSize, tx, ty);
+      renderBossPhaseToCanvas(ctx, previewPhase, allAssets, tileset, currentScreenMode, tileSize, tx, ty);
       ctx.restore();
       ctx.strokeRect(tx * tileSize + 0.5, ty * tileSize + 0.5, bossWidth * tileSize - 1, bossHeight * tileSize - 1);
     }
@@ -532,11 +671,11 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
           : '#00dcb4';
     ctx.lineWidth = 2;
     ctx.fillRect(previewState.xChar * tileSize, previewState.yChar * tileSize, bossWidth * tileSize, bossHeight * tileSize);
-    renderBossPhaseToCanvas(ctx, phase, allAssets, tileset, currentScreenMode, tileSize, previewState.xChar, previewState.yChar);
+    renderBossPhaseToCanvas(ctx, previewPhase, allAssets, tileset, currentScreenMode, tileSize, previewState.xChar, previewState.yChar);
     ctx.strokeRect(previewState.xChar * tileSize + 0.5, previewState.yChar * tileSize + 0.5, bossWidth * tileSize - 1, bossHeight * tileSize - 1);
 
     ctx.restore();
-  }, [selectedScreen, tileset, currentScreenMode, startX, startY, playerX, playerY, bossWidth, bossHeight, selectedAction, previewState, phase, allAssets]);
+  }, [selectedScreen, tileset, currentScreenMode, startX, startY, playerX, playerY, bossWidth, bossHeight, selectedAction, previewState, previewPhase, allAssets]);
 
   const renderTargetEditor = (
     target: BossBehaviorTarget | undefined,
@@ -643,7 +782,19 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
               <div className="flex items-center gap-2">
                 <select
                   value={boss.linkedScreenId || selectedScreenAsset?.id || ''}
-                  onChange={event => onUpdateBoss({ linkedScreenId: event.target.value || null })}
+                  onChange={event => {
+                    const linkedScreenId = event.target.value || null;
+                    const nextScreen = screenAssets.find(asset => asset.id === linkedScreenId);
+                    const nextScreenData = nextScreen?.data as ScreenMap | undefined;
+                    const nextBossInstance = (nextScreenData?.bossInstances || []).find(instance => instance.bossAssetId === boss.id);
+                    onUpdateBoss({
+                      linkedScreenId,
+                      ...(nextBossInstance ? {
+                        behaviorPreviewStartXChar: boss.behaviorPreviewStartXChar ?? nextBossInstance.xChar,
+                        behaviorPreviewStartYChar: boss.behaviorPreviewStartYChar ?? nextBossInstance.yChar,
+                      } : {}),
+                    });
+                  }}
                   className="max-w-56 rounded border border-msx-border bg-msx-bgcolor p-1"
                 >
                   <option value="">No screen</option>
@@ -702,6 +853,53 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
           <div className="rounded border border-msx-border/50 bg-msx-panelbg p-2">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div>
+                <div className="text-msx-highlight">Forms</div>
+                <div className="text-[0.65rem] text-msx-textsecondary">Visual poses available in this phase</div>
+              </div>
+              <Button size="sm" variant="secondary" onClick={captureCurrentForm} icon={<PlusCircleIcon className="w-3 h-3" />}>
+                Capture Current
+              </Button>
+            </div>
+            <div className="mb-2 grid grid-cols-[90px_minmax(0,1fr)] items-center gap-2">
+              <label className="text-msx-textsecondary">Initial</label>
+              <select
+                value={initialFormId || CURRENT_FORM_ID}
+                onChange={event => onUpdatePhase({ initialFormId: event.target.value })}
+                className="w-full rounded border border-msx-border bg-msx-bgcolor p-1"
+              >
+                {forms.map(form => (
+                  <option key={form.id} value={form.id}>{form.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
+              {forms.map(form => (
+                <div key={form.id} className="flex items-center gap-2 rounded border border-msx-border/40 bg-msx-bgcolor/40 p-1">
+                  <input
+                    type="text"
+                    value={form.name}
+                    disabled={form.id === CURRENT_FORM_ID}
+                    onChange={event => updateForm(form.id, { name: event.target.value })}
+                    className="min-w-0 flex-1 rounded border border-msx-border bg-msx-bgcolor p-1 disabled:border-transparent disabled:bg-transparent"
+                  />
+                  <span className="w-14 text-right font-mono text-[0.6rem] text-msx-textsecondary">{form.dimensions.width}x{form.dimensions.height}</span>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => deleteForm(form.id)}
+                    disabled={form.id === CURRENT_FORM_ID}
+                    icon={<TrashIcon className="w-3 h-3" />}
+                  >
+                    Del
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded border border-msx-border/50 bg-msx-panelbg p-2">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
                 <div className="text-msx-highlight">Timeline</div>
                 <div className="text-[0.65rem] text-msx-textsecondary">{behaviorLoop.length} blocks · {totalFrames} frames</div>
               </div>
@@ -730,7 +928,7 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
                 </span>
               </div>
               <div className="flex flex-wrap gap-1">
-                {(['wait', 'moveTo', 'attack', 'slam', 'protect', 'shield', 'loop'] as BossBehaviorActionType[]).map(type => (
+                {(['wait', 'moveTo', 'attack', 'slam', 'protect', 'shield', 'setForm', 'animateForm', 'loop'] as BossBehaviorActionType[]).map(type => (
                   <Button
                     key={type}
                     size="sm"
@@ -991,6 +1189,70 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
                       <label className="block text-msx-textsecondary">HP</label>
                       <input type="number" min="0" value={selectedAction.hp ?? 0} onChange={event => updateAction(selectedAction.id, { hp: Math.max(0, toNumber(event.target.value)) } as Partial<BossBehaviorAction>)} className="w-full rounded border border-msx-border bg-msx-bgcolor p-1" />
                     </div>
+                  </div>
+                </>
+              )}
+
+              {selectedAction.type === 'setForm' && (
+                <div>
+                  <label className="block text-msx-textsecondary">Form</label>
+                  <select
+                    value={selectedAction.formId || forms[0]?.id || CURRENT_FORM_ID}
+                    onChange={event => updateAction(selectedAction.id, { formId: event.target.value } as Partial<BossBehaviorAction>)}
+                    className="w-full rounded border border-msx-border bg-msx-bgcolor p-1"
+                  >
+                    {forms.map(form => (
+                      <option key={form.id} value={form.id}>{form.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {selectedAction.type === 'animateForm' && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-msx-textsecondary">Frame duration</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={selectedAction.frameDurationFrames}
+                        onChange={event => updateAction(selectedAction.id, { frameDurationFrames: Math.max(1, toNumber(event.target.value, 1)) } as Partial<BossBehaviorAction>)}
+                        className="w-full rounded border border-msx-border bg-msx-bgcolor p-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-msx-textsecondary">Loops</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={selectedAction.loops}
+                        onChange={event => updateAction(selectedAction.id, { loops: Math.max(1, toNumber(event.target.value, 1)) } as Partial<BossBehaviorAction>)}
+                        className="w-full rounded border border-msx-border bg-msx-bgcolor p-1"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1 rounded border border-msx-border/40 bg-msx-bgcolor/40 p-2">
+                    <label className="block text-msx-textsecondary">Forms in animation</label>
+                    {forms.map(form => {
+                      const checked = selectedAction.formIds.includes(form.id);
+                      return (
+                        <label key={form.id} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={event => {
+                              const nextFormIds = event.target.checked
+                                ? [...selectedAction.formIds, form.id]
+                                : selectedAction.formIds.filter(id => id !== form.id);
+                              updateAction(selectedAction.id, { formIds: nextFormIds } as Partial<BossBehaviorAction>);
+                            }}
+                            className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent"
+                          />
+                          <span className="truncate">{form.name}</span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </>
               )}

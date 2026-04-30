@@ -226,6 +226,14 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     () => allAssets.filter(asset => asset.type === 'boss' && asset.data) as Array<ProjectAsset & { data: Boss }>,
     [allAssets]
   );
+  const currentScreenAsset = useMemo(
+    () => allAssets.find(asset => asset.type === 'screenmap' && (asset.data as ScreenMap | undefined)?.id === mapData.id),
+    [allAssets, mapData.id]
+  );
+  const currentScreenIdSet = useMemo(
+    () => new Set([mapData.id, currentScreenAsset?.id].filter(Boolean) as string[]),
+    [currentScreenAsset?.id, mapData.id]
+  );
   const tileAssetsById = useMemo(
     () => new Map(allAssets.filter(asset => asset.type === 'tile' && asset.data).map(asset => [asset.id, asset.data as Tile])),
     [allAssets]
@@ -570,7 +578,17 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
       height: Math.max(1, phase?.tileMatrix?.length || 1),
     };
 
-    return { boss, phase, dimensions };
+    const hasBehaviorX = Number.isFinite(boss.behaviorPreviewStartXChar);
+    const hasBehaviorY = Number.isFinite(boss.behaviorPreviewStartYChar);
+    const isLinkedToThisScreen = !!boss.linkedScreenId && currentScreenIdSet.has(boss.linkedScreenId);
+    const xChar = hasBehaviorX && isLinkedToThisScreen
+      ? Math.max(0, Math.min(mapData.width - 1, Math.round(boss.behaviorPreviewStartXChar as number)))
+      : bossInstance.xChar;
+    const yChar = hasBehaviorY && isLinkedToThisScreen
+      ? Math.max(0, Math.min(mapData.height - 1, Math.round(boss.behaviorPreviewStartYChar as number)))
+      : bossInstance.yChar;
+
+    return { boss, phase, dimensions, xChar, yChar };
   };
 
   const findBossAtPoint = (point: Point): BossInstance | null => {
@@ -580,11 +598,13 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
       const previewInfo = getBossPreviewInfo(bossInstance);
       const width = previewInfo?.dimensions.width || 1;
       const height = previewInfo?.dimensions.height || 1;
+      const xChar = previewInfo?.xChar ?? bossInstance.xChar;
+      const yChar = previewInfo?.yChar ?? bossInstance.yChar;
       if (
-        point.x >= bossInstance.xChar &&
-        point.x < bossInstance.xChar + width &&
-        point.y >= bossInstance.yChar &&
-        point.y < bossInstance.yChar + height
+        point.x >= xChar &&
+        point.x < xChar + width &&
+        point.y >= yChar &&
+        point.y < yChar + height
       ) {
         return bossInstance;
       }
@@ -634,7 +654,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
       {activeLayer === 'bosses' && (mapData.bossInstances || []).map(bossInstance => {
         const previewInfo = getBossPreviewInfo(bossInstance);
         if (!previewInfo) return null;
-        const { boss, phase, dimensions } = previewInfo;
+        const { boss, phase, dimensions, xChar, yChar } = previewInfo;
         const isSelected = bossInstance.id === selectedBossInstanceId;
         const matrix = phase?.tileMatrix || [];
 
@@ -643,8 +663,8 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
             key={bossInstance.id}
             className={`absolute ${isSelected ? 'ring-2 ring-msx-highlight border border-msx-highlight' : 'border border-msx-accent/60 hover:ring-1 hover:ring-msx-highlight'}`}
             style={{
-              left: bossInstance.xChar * gridPixelSize,
-              top: bossInstance.yChar * gridPixelSize,
+              left: xChar * gridPixelSize,
+              top: yChar * gridPixelSize,
               width: dimensions.width * gridPixelSize,
               height: dimensions.height * gridPixelSize,
               zIndex: 18,
@@ -661,7 +681,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
               }
             }}
             onContextMenu={(event) => onBossContextMenu?.(event, bossInstance)}
-            title={`Boss: ${boss.name} @ (${bossInstance.xChar},${bossInstance.yChar})`}
+            title={`Boss: ${boss.name} @ (${xChar},${yChar})`}
           >
             {Array.from({ length: dimensions.height }).map((_, y) =>
               Array.from({ length: dimensions.width }).map((__, x) => {

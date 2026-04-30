@@ -365,7 +365,7 @@ ${clearHudArea}
     ; Check visible flag first (offset 8)
     ld a, (ix+8)                ; A = Visible
     or a
-    jr z, .skip_element         ; Skip if not visible
+    jp z, .skip_element         ; Skip if not visible
 
     ; Read element fields
     ld d, (ix+1)                ; D = X position (pixels)

@@ -1,13 +1,13 @@
-import React, { useState, useMemo } from 'react';
-import { Boss, BossBehaviorAction, BossPhase, ProjectAsset, Sprite, Tile, TileBank, BossAttack, BossCrushMovement, BossNeckChain, ContextMenuItem, EditorType } from '../../types';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Boss, BossBehaviorAction, BossForm, BossPhase, ProjectAsset, Sprite, Tile, TileBank, BossAttack, BossCrushMovement, BossNeckChain, ContextMenuItem, EditorType } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, TrashIcon, PencilIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
+import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, CopyIcon, EraserIcon, PasteIcon, PlusCircleIcon, TrashIcon, PencilIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { createTileDataURL } from '../utils/screenUtils';
 import { EDITOR_BASE_TILE_DIM_S2, DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, DEFAULT_SCREEN2_FG_COLOR, MSX_SCREEN5_PALETTE, DEFAULT_SCREEN2_BG_COLOR } from '../../constants';
 import { createDefaultLineAttributes } from '../utils/tileUtils';
-import { BossMovementController } from './BossMovementController';
+import { BossMovementController, BossTileSelection } from './BossMovementController';
 import { BossTilesetPanel } from './BossTilesetPanel';
 import { BossPreviewModal } from '../modals/BossPreviewModal';
 import { BossBehaviorEditor } from './BossBehaviorEditor';
@@ -76,6 +76,12 @@ const SpritePreview: React.FC<{ spriteAssetId: string; allAssets: ProjectAsset[]
 
 type BossEditMode = 'tiles' | 'collision' | 'weakpoints' | 'neck' | 'behavior';
 
+interface CopiedBossTileBlock {
+    width: number;
+    height: number;
+    tileMatrix: (string | null)[][];
+}
+
 const createDefaultBossNeckChain = (): BossNeckChain => ({
     enabled: true,
     segments: [],
@@ -141,6 +147,8 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(boss.phases[0]?.id || null);
     const [editMode, setEditMode] = useState<BossEditMode>('tiles');
     const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+    const [tileSelection, setTileSelection] = useState<BossTileSelection | null>(null);
+    const [copiedBossTileBlock, setCopiedBossTileBlock] = useState<CopiedBossTileBlock | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [collapsedAttackIds, setCollapsedAttackIds] = useState<Set<string>>(() => new Set());
     
@@ -148,6 +156,10 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
         isOpen: boolean; assetTypeToPick: ProjectAsset['type'] | null;
         onSelect: ((assetId: string) => void) | null; currentValue: string | null;
     }>({ isOpen: false, assetTypeToPick: null, onSelect: null, currentValue: null });
+
+    useEffect(() => {
+        setTileSelection(null);
+    }, [selectedPhaseId, editMode]);
 
     const openAssetPicker = (assetType: ProjectAsset['type'], currentValue: string | undefined, onSelectCallback: (assetId: string) => void) => {
         setAssetPickerState({
@@ -223,6 +235,8 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
             tileMatrix: JSON.parse(JSON.stringify(selectedPhase.tileMatrix || [])),
             collisionMatrix: JSON.parse(JSON.stringify(selectedPhase.collisionMatrix || [])),
             dimensions: { ...(selectedPhase.dimensions || { width: 8, height: 8 }) },
+            forms: selectedPhase.forms ? JSON.parse(JSON.stringify(selectedPhase.forms)) as BossForm[] : undefined,
+            initialFormId: selectedPhase.initialFormId,
             neckChain: selectedPhase.neckChain ? JSON.parse(JSON.stringify(selectedPhase.neckChain)) : undefined,
             crushMovement: selectedPhase.crushMovement ? JSON.parse(JSON.stringify(selectedPhase.crushMovement)) : undefined,
             behaviorLoop: selectedPhase.behaviorLoop ? JSON.parse(JSON.stringify(selectedPhase.behaviorLoop)) as BossBehaviorAction[] : undefined,
@@ -237,6 +251,8 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
             tileMatrix: copiedBossPhase.tileMatrix,
             collisionMatrix: copiedBossPhase.collisionMatrix,
             dimensions: copiedBossPhase.dimensions,
+            forms: copiedBossPhase.forms,
+            initialFormId: copiedBossPhase.initialFormId,
             neckChain: copiedBossPhase.neckChain,
             crushMovement: copiedBossPhase.crushMovement,
             behaviorLoop: copiedBossPhase.behaviorLoop,
@@ -472,6 +488,150 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const showUnassignedTilesWarning = useMemo(() => (
         allTiles.some(tile => tile.width === 8 && tile.height === 8 && !assignedTileIds.has(tile.id))
     ), [allTiles, assignedTileIds]);
+
+    const createPhaseTileMatrix = (phase: BossPhase): (string | null)[][] => {
+        const width = phase.dimensions?.width ?? 0;
+        const height = phase.dimensions?.height ?? 0;
+        return Array.from({ length: height }, (_, y) => (
+            Array.from({ length: width }, (_, x) => phase.tileMatrix?.[y]?.[x] ?? null)
+        ));
+    };
+
+    const getClampedTileSelection = (): BossTileSelection | null => {
+        if (!selectedPhase?.dimensions || selectedPhase.buildType !== 'tile' || !tileSelection) return null;
+
+        const phaseWidth = selectedPhase.dimensions.width;
+        const phaseHeight = selectedPhase.dimensions.height;
+        if (phaseWidth <= 0 || phaseHeight <= 0) return null;
+
+        const x = clampNumber(tileSelection.x, 0, phaseWidth - 1);
+        const y = clampNumber(tileSelection.y, 0, phaseHeight - 1);
+        const width = Math.min(tileSelection.width, phaseWidth - x);
+        const height = Math.min(tileSelection.height, phaseHeight - y);
+
+        return width > 0 && height > 0 ? { x, y, width, height } : null;
+    };
+
+    const updateSelectedPhaseTileMatrix = (updater: (matrix: (string | null)[][], phase: BossPhase) => (string | null)[][]) => {
+        if (!selectedPhaseId) return;
+
+        const updatedPhases = boss.phases.map(phase => {
+            if (phase.id !== selectedPhaseId || phase.buildType !== 'tile') return phase;
+
+            const nextMatrix = updater(createPhaseTileMatrix(phase), phase);
+            return { ...phase, tileMatrix: nextMatrix };
+        });
+        onUpdate({ phases: updatedPhases });
+    };
+
+    const copyTileSelection = () => {
+        const selection = getClampedTileSelection();
+        if (!selectedPhase || !selection) return;
+
+        const matrix = createPhaseTileMatrix(selectedPhase);
+        setCopiedBossTileBlock({
+            width: selection.width,
+            height: selection.height,
+            tileMatrix: Array.from({ length: selection.height }, (_, y) => (
+                Array.from({ length: selection.width }, (_, x) => matrix[selection.y + y]?.[selection.x + x] ?? null)
+            )),
+        });
+    };
+
+    const clearTileSelection = () => {
+        const selection = getClampedTileSelection();
+        if (!selection) return;
+
+        updateSelectedPhaseTileMatrix(matrix => {
+            const nextMatrix = matrix.map(row => [...row]);
+            for (let y = selection.y; y < selection.y + selection.height; y++) {
+                for (let x = selection.x; x < selection.x + selection.width; x++) {
+                    if (nextMatrix[y]) nextMatrix[y][x] = null;
+                }
+            }
+            return nextMatrix;
+        });
+    };
+
+    const moveTileSelection = (dx: number, dy: number) => {
+        const selection = getClampedTileSelection();
+        if (!selectedPhase?.dimensions || !selection) return;
+
+        const nextX = clampNumber(selection.x + dx, 0, selectedPhase.dimensions.width - selection.width);
+        const nextY = clampNumber(selection.y + dy, 0, selectedPhase.dimensions.height - selection.height);
+        if (nextX === selection.x && nextY === selection.y) return;
+
+        updateSelectedPhaseTileMatrix(matrix => {
+            const block = Array.from({ length: selection.height }, (_, y) => (
+                Array.from({ length: selection.width }, (_, x) => matrix[selection.y + y]?.[selection.x + x] ?? null)
+            ));
+            const nextMatrix = matrix.map(row => [...row]);
+
+            for (let y = selection.y; y < selection.y + selection.height; y++) {
+                for (let x = selection.x; x < selection.x + selection.width; x++) {
+                    if (nextMatrix[y]) nextMatrix[y][x] = null;
+                }
+            }
+
+            block.forEach((row, y) => {
+                row.forEach((tileId, x) => {
+                    if (nextMatrix[nextY + y]) nextMatrix[nextY + y][nextX + x] = tileId;
+                });
+            });
+
+            return nextMatrix;
+        });
+        setTileSelection({ ...selection, x: nextX, y: nextY });
+    };
+
+    const pasteTileSelection = () => {
+        if (!selectedPhase?.dimensions || !copiedBossTileBlock) return;
+
+        const destination = getClampedTileSelection();
+        const destX = destination?.x ?? 0;
+        const destY = destination?.y ?? 0;
+        const pasteWidth = Math.min(copiedBossTileBlock.width, selectedPhase.dimensions.width - destX);
+        const pasteHeight = Math.min(copiedBossTileBlock.height, selectedPhase.dimensions.height - destY);
+        if (pasteWidth <= 0 || pasteHeight <= 0) return;
+
+        updateSelectedPhaseTileMatrix(matrix => {
+            const nextMatrix = matrix.map(row => [...row]);
+            for (let y = 0; y < pasteHeight; y++) {
+                for (let x = 0; x < pasteWidth; x++) {
+                    if (nextMatrix[destY + y]) nextMatrix[destY + y][destX + x] = copiedBossTileBlock.tileMatrix[y]?.[x] ?? null;
+                }
+            }
+            return nextMatrix;
+        });
+        setTileSelection({ x: destX, y: destY, width: pasteWidth, height: pasteHeight });
+    };
+
+    const selectFilledTiles = () => {
+        if (!selectedPhase?.dimensions) return;
+
+        const matrix = createPhaseTileMatrix(selectedPhase);
+        let minX = selectedPhase.dimensions.width;
+        let minY = selectedPhase.dimensions.height;
+        let maxX = -1;
+        let maxY = -1;
+
+        matrix.forEach((row, y) => {
+            row.forEach((tileId, x) => {
+                if (!tileId) return;
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+            });
+        });
+
+        setTileSelection(maxX >= minX && maxY >= minY
+            ? { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 }
+            : null
+        );
+    };
+
+    const activeTileSelection = getClampedTileSelection();
 
     const handleUpdateAttack = (attackId: string, field: keyof BossAttack, value: any) => {
         const updatedAttacks = bossAttacks.map(a => a.id === attackId ? { ...a, [field]: value } : a);
@@ -759,15 +919,37 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                 onUpdateBoss={(patch) => onUpdate(patch)}
                             />
                         ) : selectedPhase && selectedPhase.buildType === 'tile' ? (
-                            <BossMovementController
-                                phase={selectedPhase}
-                                tileset={tileset}
-                                editMode={editMode}
-                                onGridClick={handleGridClick}
-                                onGridContextMenu={handleGridContextMenu}
-                                zoom={zoom}
-                                showUnassignedTilesWarning={showUnassignedTilesWarning}
-                            />
+                            <div className="flex flex-col items-start gap-2">
+                                {editMode === 'tiles' && (
+                                    <div className="flex flex-wrap items-center gap-1 text-xs">
+                                        <span className="mr-1 text-msx-textsecondary">
+                                            Selection: {activeTileSelection
+                                                ? `${activeTileSelection.width}x${activeTileSelection.height} @ ${activeTileSelection.x},${activeTileSelection.y}`
+                                                : 'none'}
+                                        </span>
+                                        <Button onClick={() => moveTileSelection(0, -1)} variant="ghost" size="sm" icon={<ArrowUpIcon className="w-3 h-3" />} disabled={!activeTileSelection}>Up</Button>
+                                        <Button onClick={() => moveTileSelection(0, 1)} variant="ghost" size="sm" icon={<ArrowDownIcon className="w-3 h-3" />} disabled={!activeTileSelection}>Down</Button>
+                                        <Button onClick={() => moveTileSelection(-1, 0)} variant="ghost" size="sm" icon={<ArrowLeftIcon className="w-3 h-3" />} disabled={!activeTileSelection}>Left</Button>
+                                        <Button onClick={() => moveTileSelection(1, 0)} variant="ghost" size="sm" icon={<ArrowRightIcon className="w-3 h-3" />} disabled={!activeTileSelection}>Right</Button>
+                                        <Button onClick={copyTileSelection} variant="ghost" size="sm" icon={<CopyIcon className="w-3 h-3" />} disabled={!activeTileSelection}>Copy</Button>
+                                        <Button onClick={pasteTileSelection} variant="ghost" size="sm" icon={<PasteIcon className="w-3 h-3" />} disabled={!copiedBossTileBlock}>Paste</Button>
+                                        <Button onClick={clearTileSelection} variant="ghost" size="sm" icon={<EraserIcon className="w-3 h-3" />} disabled={!activeTileSelection}>Clear</Button>
+                                        <Button onClick={selectFilledTiles} variant="ghost" size="sm" disabled={selectedPhaseTileCount === 0}>Select Filled</Button>
+                                    </div>
+                                )}
+                                <BossMovementController
+                                    phase={selectedPhase}
+                                    tileset={tileset}
+                                    editMode={editMode}
+                                    onGridClick={handleGridClick}
+                                    onGridContextMenu={handleGridContextMenu}
+                                    zoom={zoom}
+                                    showUnassignedTilesWarning={showUnassignedTilesWarning}
+                                    selectionEnabled={editMode === 'tiles'}
+                                    tileSelection={tileSelection}
+                                    onTileSelectionChange={setTileSelection}
+                                />
+                            </div>
                         ) : selectedPhase && selectedPhase.buildType === 'sprite' ? (
                             <div className="flex flex-col items-center space-y-2">
                                 {selectedPhase.spriteAssetId && <SpritePreview spriteAssetId={selectedPhase.spriteAssetId} allAssets={allAssets} />}

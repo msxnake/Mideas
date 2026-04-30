@@ -32,6 +32,7 @@ const interruptGenerator_1 = require("./generators/interruptGenerator");
 const soundGenerator_1 = require("./generators/soundGenerator");
 const scrollGenerator_1 = require("./generators/scrollGenerator");
 const animatedTilesGenerator_1 = require("./generators/animatedTilesGenerator");
+const bossesGenerator_1 = require("./generators/bossesGenerator");
 const page0Generator_1 = require("./generators/page0Generator");
 const mapperWindowUtils_1 = require("./generators/mapperWindowUtils");
 const executionPlan_1 = require("./planning/executionPlan");
@@ -112,6 +113,7 @@ function convertSummaryToAnalysis(summary) {
         tileBanks: [],
         screens: summary.assets.screens, // Added alias
         screenMaps: summary.assets.screens, // Added missing property
+        bosses: summary.assets.bosses || [],
         gameFlow: summary.execution.mainGameFlow,
         projectName: summary.projectInfo.name,
         customStates: [], // Added missing property
@@ -173,6 +175,7 @@ function generateModularASM(projectName, assets, config = {}) {
             tileBanks: [],
             screens: [],
             screenMaps: [],
+            bosses: [],
             projectName: projectName,
             customStates: [],
             stateMachines: [],
@@ -227,6 +230,7 @@ function generateModularASM(projectName, assets, config = {}) {
         'sound.asm': (0, soundGenerator_1.generateSoundFile)(analysis, executionPlan, romMode),
         'scroll.asm': (0, scrollGenerator_1.generateScrollFile)(analysis),
         'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis, romMode, targetFormat),
+        'bosses.asm': (0, bossesGenerator_1.generateBossesFile)(analysis),
         'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
             ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates, analysis.sounds, analysis.trackIndexByAssetId, romMode)
             : '; No State Machines\n',
@@ -317,6 +321,7 @@ function generateModularASMFromSummary(summary, config = {}) {
         'sound.asm': (0, soundGenerator_1.generateSoundFile)(analysis, executionPlan, romMode),
         'scroll.asm': (0, scrollGenerator_1.generateScrollFile)(analysis),
         'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis, romMode, targetFormat),
+        'bosses.asm': (0, bossesGenerator_1.generateBossesFile)(analysis),
         'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
             ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates, analysis.sounds, analysis.trackIndexByAssetId, romMode)
             : '; No State Machines\n',
