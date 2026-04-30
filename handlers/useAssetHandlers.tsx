@@ -296,6 +296,7 @@ export const useAssetHandlers = ({
           phases: [],
           phasesEnabled: [],
           attacks: [],
+          runtimeUpdateIntervalFrames: 1,
           currentPhaseId: null
         };
         newEditorType = EditorType.Boss;

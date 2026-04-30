@@ -1339,6 +1339,8 @@ export interface Boss {
   deathExplosionSpriteId?: string;
   /** The ID of the sound effect to play on death. */
   deathSoundId?: string;
+  /** ASM runtime update interval in frames. 1 updates every frame; higher values reduce CPU/VRAM load at lower boss speed. */
+  runtimeUpdateIntervalFrames?: number;
   /** The ID of the screen map where this boss appears. */
   linkedScreenId?: string | null;
   /** Editor-only boss start X coordinate for behavior/stage preview. */

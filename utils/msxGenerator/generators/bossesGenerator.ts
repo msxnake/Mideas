@@ -254,7 +254,7 @@ function renderBehaviorLoop(
   return `${label}:\n${db([clampByte(expandedActions.length), clampByte(totalFrames & 0xff), clampByte((totalFrames >> 8) & 0xff)], 'count,totalLo,totalHi')}\n${chunkedDb(actionBytes, 8)}`;
 }
 
-function renderTileMatrix(label: string, phase: BossPhase, tileIndexById: Map<string, number>, analysis: ProjectAnalysis): string {
+function renderTileMatrix(label: string, phase: BossPhase, tileIndexById: Map<string, number>, analysis: ProjectAnalysis, bossStartYChar = 0): string {
   const width = phase.dimensions?.width || 0;
   const height = phase.dimensions?.height || 0;
   const bytes: number[] = [];
@@ -270,7 +270,7 @@ function renderTileMatrix(label: string, phase: BossPhase, tileIndexById: Map<st
         analysis,
         phase.tileBankId,
         tileId,
-        y,
+        bossStartYChar + y,
         0,
         0
       );
@@ -284,7 +284,8 @@ function renderFormTable(
   label: string,
   phase: BossPhase,
   tileIndexById: Map<string, number>,
-  analysis: ProjectAnalysis
+  analysis: ProjectAnalysis,
+  bossStartYChar = 0
 ): string[] {
   const forms = phase.forms || [];
   const formLabels = [
@@ -294,7 +295,7 @@ function renderFormTable(
 
   const blocks: string[] = [];
   blocks.push(`${label}:\n${db([clampByte(formLabels.length)], 'count')}\n${formLabels.map(formLabel => dw([formLabel])).join('\n')}`);
-  blocks.push(renderTileMatrix(formLabels[0], phase, tileIndexById, analysis));
+  blocks.push(renderTileMatrix(formLabels[0], phase, tileIndexById, analysis, bossStartYChar));
 
   forms.forEach((form, index) => {
     const formPhase: BossPhase = {
@@ -305,7 +306,7 @@ function renderFormTable(
       collisionMatrix: form.collisionMatrix,
       weakPoints: form.weakPoints,
     };
-    blocks.push(renderTileMatrix(formLabels[index + 1], formPhase, tileIndexById, analysis));
+    blocks.push(renderTileMatrix(formLabels[index + 1], formPhase, tileIndexById, analysis, bossStartYChar));
   });
 
   return blocks;
@@ -476,6 +477,7 @@ BOSS_RUNTIME_PLACEMENT_X_OFF EQU 4
 BOSS_RUNTIME_PLACEMENT_Y_OFF EQU 5
 BOSS_RUNTIME_PLACEMENT_INITIAL_PHASE_OFF EQU 6
 BOSS_RUNTIME_PLACEMENT_FLAGS_OFF EQU 7
+BOSS_RUNTIME_PLACEMENT_UPDATE_INTERVAL_OFF EQU 8
 BOSS_RUNTIME_PLACEMENT_FLAG_ENABLED EQU #01
 BOSS_BEHAVIOR_WAIT EQU 0
 BOSS_BEHAVIOR_MOVE_TO EQU 1
@@ -529,8 +531,17 @@ init_screen_boss_from_current_screen:
     inc hl
     ld (boss_initial_phase_index), a
     ld a, (hl)
+    inc hl
     and BOSS_RUNTIME_PLACEMENT_FLAG_ENABLED
     jp z, .isb_done
+    ld a, (hl)
+    or a
+    jp nz, .isb_update_interval_ok
+    ld a, 1
+.isb_update_interval_ok:
+    ld (boss_update_interval), a
+    xor a
+    ld (boss_update_timer), a
 
     call boss_resolve_initial_phase
     call boss_init_behavior_state
@@ -2956,6 +2967,9 @@ init_boss_system:
     xor a
     ld (boss_runtime_tick), a
     ld (boss_active), a
+    ld (boss_update_timer), a
+    ld a, 1
+    ld (boss_update_interval), a
     ret
 
 update_boss_system:
@@ -3000,6 +3014,9 @@ ${renderBossRuntimeAsm()}
   lines.push(`    ld (boss_runtime_tick), a`);
   lines.push(`    ld (boss_active), a`);
   lines.push(`    ld (boss_visual_dirty), a`);
+  lines.push(`    ld (boss_update_timer), a`);
+  lines.push(`    ld a, 1`);
+  lines.push(`    ld (boss_update_interval), a`);
   lines.push(`    ret`);
   lines.push(``);
   lines.push(`; Register Contract:`);
@@ -3015,6 +3032,21 @@ ${renderBossRuntimeAsm()}
   lines.push(`    ld a, (boss_active)`);
   lines.push(`    or a`);
   lines.push(`    jp z, .ubs_done`);
+  lines.push(`    ld a, (boss_update_timer)`);
+  lines.push(`    or a`);
+  lines.push(`    jp z, .ubs_update_due`);
+  lines.push(`    dec a`);
+  lines.push(`    ld (boss_update_timer), a`);
+  lines.push(`    jp .ubs_done`);
+  lines.push(`.ubs_update_due:`);
+  lines.push(`    ld a, (boss_update_interval)`);
+  lines.push(`    or a`);
+  lines.push(`    jp nz, .ubs_update_interval_ok`);
+  lines.push(`    ld a, 1`);
+  lines.push(`    ld (boss_update_interval), a`);
+  lines.push(`.ubs_update_interval_ok:`);
+  lines.push(`    dec a`);
+  lines.push(`    ld (boss_update_timer), a`);
   lines.push(`    call update_boss_behavior`);
   lines.push(`    ld a, (boss_x_char)`);
   lines.push(`    ld b, a`);
@@ -3055,6 +3087,9 @@ ${renderBossRuntimeAsm()}
     const attackIndexById = new Map(attacks.map((attack, index) => [attack.id, index]));
     const phaseTableLabel = `${bossLabel}_phase_table`;
     const attackTableLabel = `${bossLabel}_attack_table`;
+    const bossStartYChar = Number.isFinite(boss.behaviorPreviewStartYChar)
+      ? Math.max(0, Math.min(23, Math.floor(Number(boss.behaviorPreviewStartYChar))))
+      : 0;
 
     bossTableRows.push(dw([phaseTableLabel, attackTableLabel], `${boss.name}`));
     bossTableRows.push(db([
@@ -3080,13 +3115,13 @@ ${renderBossRuntimeAsm()}
       const formIndexById = buildFormIndexById(phase);
       phaseRecordLabels.push(phaseLabel);
       phaseDataBlocks.push(`${phaseLabel}:\n${renderPhaseRecord(phase, labels)}`);
-      phaseDataBlocks.push(renderTileMatrix(labels.tileMatrix, phase, tileIndexById, analysis));
+      phaseDataBlocks.push(renderTileMatrix(labels.tileMatrix, phase, tileIndexById, analysis, bossStartYChar));
       phaseDataBlocks.push(renderCollisionMatrix(labels.collisionMatrix, phase));
       phaseDataBlocks.push(renderNeckChain(labels.neckChain, phase.neckChain));
       phaseDataBlocks.push(renderCrushMovement(labels.crushMovement, phase.crushMovement));
       phaseDataBlocks.push(renderAttackSequence(labels.attackSequence, phase, attackIndexById));
       phaseDataBlocks.push(renderBehaviorLoop(labels.behaviorLoop, phase, attackIndexById, formIndexById));
-      phaseDataBlocks.push(...renderFormTable(labels.formTable, phase, tileIndexById, analysis));
+      phaseDataBlocks.push(...renderFormTable(labels.formTable, phase, tileIndexById, analysis, bossStartYChar));
     });
 
     const attackRecordLabels: string[] = [];

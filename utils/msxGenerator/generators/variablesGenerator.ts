@@ -156,8 +156,8 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress += 2;
   code += `current_screen_boss_table_bank EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mapper bank for current screen boss placement table\n`;
   currentAddress++;
-  code += `current_screen_boss_entry EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; First current-screen boss placement copied to RAM (8 bytes)\n`;
-  currentAddress += 8;
+  code += `current_screen_boss_entry EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; First current-screen boss placement copied to RAM (9 bytes)\n`;
+  currentAddress += 9;
   code += `boss_active         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when a screen boss is active\n`;
   currentAddress++;
   code += `boss_phase_table_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active boss phase table pointer (16-bit)\n`;
@@ -199,6 +199,10 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   code += `boss_behavior_step_interval EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames between tile movement steps\n`;
   currentAddress++;
   code += `boss_behavior_step_timer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Countdown until next tile movement step\n`;
+  currentAddress++;
+  code += `boss_update_interval EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames between ASM boss updates (1=every frame)\n`;
+  currentAddress++;
+  code += `boss_update_timer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Countdown until next ASM boss update\n`;
   currentAddress++;
   code += `boss_behavior_action_type EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current boss behavior action type\n`;
   currentAddress++;

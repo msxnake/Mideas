@@ -23,6 +23,8 @@ interface ToolbarProps {
   onSaveProjectAs: () => void;
   /** Callback to open the file dialog to load a project. */
   onLoadProject: () => void;
+  /** Callback to open the Boss package import dialog. */
+  onImportBossPackage: () => void;
   /** @deprecated OBSOLETO - Callback to export all code files. */
   onExportAllCodeFiles?: () => void;
   /** Callback to export Z80 code. */
@@ -213,6 +215,7 @@ const DropdownToggleItem: React.FC<{
  */
 export const Toolbar: React.FC<ToolbarProps> = ({
   onNewProject, onNewAsset, onSaveProject, onSaveProjectAs, onLoadProject,
+  onImportBossPackage,
   onExportAllCodeFiles, onExportZ80Code, onExportGameStructureJson, onCompile, onDebug, onRun, onOpenHelpDocs,
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
   autosaveEnabled, setAutosaveEnabled, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, saveSectorLines, setSaveSectorLines, onSaveConfig, onResetConfig, isAutosaving,
@@ -303,6 +306,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={onSaveProject} icon={<SaveFloppyIcon />}>Save Project</DropdownItem>
         <DropdownItem onClick={onSaveProjectAs} icon={<SaveFloppyIcon />}>Save Project As...</DropdownItem>
         <DropdownItem onClick={onLoadProject} icon={<FolderOpenIcon />}>Load Project</DropdownItem>
+        <DropdownItem onClick={onImportBossPackage} icon={<BugIcon />}>Import Boss Package (.json)</DropdownItem>
 
         {/* Open Recent Submenu */}
         <div ref={recentMenuRef} className="relative">

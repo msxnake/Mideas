@@ -1,9 +1,10 @@
-import { useCallback } from 'react';
+import { useCallback, type ChangeEvent } from 'react';
 import JSZip from 'jszip';
 import { ProjectAsset, EditorType, Sprite, MSXFont, MSXFontColorAttributes } from '../types';
 import { normalizeImportedPT3Data } from '../components/utils/trackerUtils';
 import { buildIntermediateGameJsonV1 } from '../utils/intermediateGameJson';
 import { downloadTextFile } from '../utils/downloadUtils';
+import { createUniqueAssetId, createUniqueAssetName, parseBossExportPackage, remapBossPackageForImport } from '../utils/bossPackageUtils';
 
 interface ImportExportHandlersProps {
   assets: ProjectAsset[];
@@ -81,6 +82,49 @@ export const useImportExportHandlers = ({
       setStatusBarMessage('Error importing track. Please check the file format.');
     }
   };
+
+  const handleImportBossPackageFile = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      try {
+        const packageData = parseBossExportPackage(String(loadEvent.target?.result || ''));
+        const usedIds = new Set(assets.map(asset => asset.id));
+        const bossId = createUniqueAssetId('boss_imported', usedIds);
+        const bossName = createUniqueAssetName(packageData.boss.name || file.name.replace(/\.json$/i, ''), assets, 'boss');
+        const { boss, assetsToCreate } = remapBossPackageForImport(packageData, assets, {
+          bossId,
+          bossName,
+          existingTileBankIds: new Set(tileBanks.map(tileBank => tileBank.id)),
+          reservedAssetIds: new Set([bossId]),
+        });
+
+        const bossAsset: ProjectAsset = {
+          id: bossId,
+          name: bossName,
+          type: 'boss',
+          data: boss,
+        };
+
+        setAssetsWithHistory(prev => [...prev, ...assetsToCreate, bossAsset]);
+        setSelectedAssetId(bossId);
+        setCurrentEditor(EditorType.Boss);
+        setStatusBarMessage(`Boss "${bossName}" imported with ${assetsToCreate.length} dependency asset(s).`);
+      } catch (error) {
+        console.error('Error importing Boss package:', error);
+        setStatusBarMessage('Error importing Boss package. Please check the file format.');
+      } finally {
+        event.target.value = '';
+      }
+    };
+    reader.onerror = () => {
+      setStatusBarMessage('Error reading Boss package file.');
+      event.target.value = '';
+    };
+    reader.readAsText(file);
+  }, [assets, setAssetsWithHistory, setSelectedAssetId, setCurrentEditor, setStatusBarMessage, tileBanks]);
 
   const handleExportAllCodeFiles = async () => {
     setStatusBarMessage("Exporting complete MSX project (code, binary assets & main.asm)...");
@@ -196,6 +240,7 @@ export const useImportExportHandlers = ({
   return {
     handleSpriteImported,
     handleImportTrack,
+    handleImportBossPackageFile,
     handleExportAllCodeFiles,
     handleShowMapFile,
     handleGenerateTemplatesAsm,

@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { Boss, BossBehaviorAction, BossForm, BossPhase, ProjectAsset, Sprite, Tile, TileBank, BossAttack, BossCrushMovement, BossNeckChain, ContextMenuItem, EditorType } from '../../types';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { Boss, BossBehaviorAction, BossForm, BossPhase, ProjectAsset, Sprite, Tile, TileBank, TileBankDefinition, BossAttack, BossCrushMovement, BossNeckChain, ContextMenuItem, EditorType } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, CopyIcon, EraserIcon, PasteIcon, PlusCircleIcon, TrashIcon, PencilIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
+import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, CopyIcon, EraserIcon, PasteIcon, PlusCircleIcon, TrashIcon, PencilIcon, ViewfinderCircleIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { createTileDataURL } from '../utils/screenUtils';
 import { EDITOR_BASE_TILE_DIM_S2, DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, DEFAULT_SCREEN2_FG_COLOR, MSX_SCREEN5_PALETTE, DEFAULT_SCREEN2_BG_COLOR } from '../../constants';
@@ -11,6 +11,8 @@ import { BossMovementController, BossTileSelection } from './BossMovementControl
 import { BossTilesetPanel } from './BossTilesetPanel';
 import { BossPreviewModal } from '../modals/BossPreviewModal';
 import { BossBehaviorEditor } from './BossBehaviorEditor';
+import { createBossExportPackage, parseBossExportPackage, remapBossPackageForImport, sanitizeBossPackageFilename } from '../../utils/bossPackageUtils';
+import { downloadTextFile } from '../../utils/downloadUtils';
 
 
 import { CopiedBossPhaseData } from '../../types';
@@ -27,6 +29,8 @@ interface BossEditorProps {
     allAssets: ProjectAsset[];
     /** A list of all configured tile banks. */
     tileBanks: TileBank[];
+    /** Callback to update a tile bank asset from the compatibility tools. */
+    onUpdateTileBank: (tileBankId: string, data: Partial<TileBank>) => void;
     /** Callback to navigate to a different asset editor. */
     onNavigateToAsset: (assetId: string | null, editorTypeOverride?: EditorType) => void;
     /** Callback to display a context menu. */
@@ -117,7 +121,113 @@ const getPhaseTileCount = (phase: BossPhase | undefined) => (
     phase?.tileMatrix?.reduce((count, row) => count + row.filter(Boolean).length, 0) ?? 0
 );
 
+type BossBankTileStatus = 'assigned' | 'identical' | 'canAdd' | 'noSpace' | 'missing';
+
+interface BossBankTileCompatibility {
+    tileId: string;
+    tileName: string;
+    requiredBankIndexes: number[];
+    charsNeeded: number;
+    status: BossBankTileStatus;
+    charCode?: number;
+    matchedTileId?: string;
+    matchedTileName?: string;
+}
+
 const clonePixelData = (data: Tile['data']) => data.map(row => [...row]);
+
+const tileGraphicHash = (tile: Tile): string => JSON.stringify({
+    width: tile.width,
+    height: tile.height,
+    data: tile.data,
+    lineAttributes: tile.lineAttributes || null,
+});
+
+const getTileCharsNeeded = (tile: Tile): number => {
+    const widthInChars = Math.max(1, Math.ceil(tile.width / EDITOR_BASE_TILE_DIM_S2));
+    const heightInChars = Math.max(1, Math.ceil(tile.height / EDITOR_BASE_TILE_DIM_S2));
+    return widthInChars * heightInChars;
+};
+
+const collectUsedCharCodesFromBank = (bank: TileBankDefinition, tileById: Map<string, Tile>, ignoreTileId?: string): Set<number> => {
+    const used = new Set<number>();
+    Object.entries(bank.assignedTiles || {}).forEach(([tileId, assignment]) => {
+        if (ignoreTileId && tileId === ignoreTileId) return;
+        if (Array.isArray((assignment as any).fontCharacters)) {
+            (assignment as any).fontCharacters.forEach((fontCharacter: any) => {
+                const charCode = Number(fontCharacter.bankCharCode);
+                if (Number.isFinite(charCode)) used.add(charCode);
+            });
+            return;
+        }
+
+        const tile = tileById.get(tileId);
+        const charCode = Number((assignment as any).charCode);
+        if (!tile || !Number.isFinite(charCode)) return;
+        for (let index = 0; index < getTileCharsNeeded(tile); index++) {
+            used.add(charCode + index);
+        }
+    });
+    return used;
+};
+
+const isCharBlockAvailableInBank = (
+    bank: TileBankDefinition,
+    tileById: Map<string, Tile>,
+    tileId: string,
+    startCharCode: number,
+    numCodesNeeded: number
+): boolean => {
+    if (startCharCode < bank.charsetRangeStart || startCharCode + numCodesNeeded - 1 > bank.charsetRangeEnd) {
+        return false;
+    }
+    const used = collectUsedCharCodesFromBank(bank, tileById, tileId);
+    for (let offset = 0; offset < numCodesNeeded; offset++) {
+        if (used.has(startCharCode + offset)) return false;
+    }
+    return true;
+};
+
+const findSharedAvailableCharBlock = (
+    banks: TileBankDefinition[],
+    tileById: Map<string, Tile>,
+    tileId: string,
+    numCodesNeeded: number
+): number => {
+    const assignedCharCodes = banks
+        .map(bank => Number((bank.assignedTiles?.[tileId] as any)?.charCode))
+        .filter(charCode => Number.isFinite(charCode));
+
+    if (assignedCharCodes.length > 0) {
+        const existingCharCode = assignedCharCodes[0];
+        if (
+            assignedCharCodes.every(charCode => charCode === existingCharCode)
+            && banks.every(bank => isCharBlockAvailableInBank(bank, tileById, tileId, existingCharCode, numCodesNeeded))
+        ) {
+            return existingCharCode;
+        }
+    }
+
+    const minStart = Math.max(...banks.map(bank => bank.charsetRangeStart));
+    const maxEnd = Math.min(...banks.map(bank => bank.charsetRangeEnd));
+    const rangesToTry: Array<{ start: number; end: number }> = [];
+    const preferredStart = Math.max(minStart, 128);
+    const preferredEnd = Math.min(maxEnd, 255);
+    if (preferredStart <= preferredEnd) rangesToTry.push({ start: preferredStart, end: preferredEnd });
+    const fallbackStart = Math.max(minStart, 0);
+    const fallbackEnd = Math.min(maxEnd, 127);
+    if (fallbackStart <= fallbackEnd) rangesToTry.push({ start: fallbackStart, end: fallbackEnd });
+
+    for (const range of rangesToTry) {
+        for (let candidate = range.start; candidate <= range.end - numCodesNeeded + 1; candidate++) {
+            if (banks.every(bank => isCharBlockAvailableInBank(bank, tileById, tileId, candidate, numCodesNeeded))) {
+                return candidate;
+            }
+        }
+    }
+
+    return -1;
+};
 
 const mirrorPixelData = (data: Tile['data'], axis: 'horizontal' | 'vertical'): Tile['data'] => {
     const cloned = clonePixelData(data);
@@ -142,7 +252,7 @@ const mirrorLineAttributes = (
  * It includes a grid for tile-based construction, property editors for phases and attacks,
  * and panels for managing the boss's structure and tileset.
  */
-export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAssets, tileBanks, onNavigateToAsset, onShowContextMenu, currentScreenMode, zoom, setZoom, copiedBossPhase, setCopiedBossPhase }) => {
+export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAssets, tileBanks, onUpdateTileBank, onNavigateToAsset, onShowContextMenu, currentScreenMode, zoom, setZoom, copiedBossPhase, setCopiedBossPhase }) => {
     
     const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(boss.phases[0]?.id || null);
     const [editMode, setEditMode] = useState<BossEditMode>('tiles');
@@ -151,6 +261,8 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const [copiedBossTileBlock, setCopiedBossTileBlock] = useState<CopiedBossTileBlock | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [collapsedAttackIds, setCollapsedAttackIds] = useState<Set<string>>(() => new Set());
+    const [selectedCompatibilityTileBankId, setSelectedCompatibilityTileBankId] = useState<string>(tileBanks[0]?.id || '');
+    const bossPackageInputRef = useRef<HTMLInputElement>(null);
     
     const [assetPickerState, setAssetPickerState] = useState<{
         isOpen: boolean; assetTypeToPick: ProjectAsset['type'] | null;
@@ -160,6 +272,14 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     useEffect(() => {
         setTileSelection(null);
     }, [selectedPhaseId, editMode]);
+
+    useEffect(() => {
+        if (!selectedCompatibilityTileBankId && tileBanks[0]?.id) {
+            setSelectedCompatibilityTileBankId(tileBanks[0].id);
+        } else if (selectedCompatibilityTileBankId && !tileBanks.some(tileBank => tileBank.id === selectedCompatibilityTileBankId)) {
+            setSelectedCompatibilityTileBankId(tileBanks[0]?.id || '');
+        }
+    }, [selectedCompatibilityTileBankId, tileBanks]);
 
     const openAssetPicker = (assetType: ProjectAsset['type'], currentValue: string | undefined, onSelectCallback: (assetId: string) => void) => {
         setAssetPickerState({
@@ -172,6 +292,42 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
 
     const handleUpdateField = (field: keyof Boss, value: any) => {
         onUpdate({ [field]: value });
+    };
+
+    const handleExportBossPackage = () => {
+        const bossPackage = createBossExportPackage(boss, allAssets);
+        const filename = `${sanitizeBossPackageFilename(boss.name)}.boss.json`;
+        downloadTextFile(filename, JSON.stringify(bossPackage, null, 2), 'application/json');
+    };
+
+    const handleImportBossPackage = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (loadEvent) => {
+            try {
+                const packageData = parseBossExportPackage(String(loadEvent.target?.result || ''));
+                const { boss: importedBoss, assetsToCreate } = remapBossPackageForImport(packageData, allAssets, {
+                    bossId: boss.id,
+                    bossName: boss.name,
+                    existingTileBankIds: new Set(tileBanks.map(tileBank => tileBank.id)),
+                });
+                onUpdate(importedBoss, assetsToCreate);
+                setSelectedPhaseId(importedBoss.phases[0]?.id || null);
+                setTileSelection(null);
+            } catch (error) {
+                console.error('Error importing Boss package:', error);
+                window.alert('Could not import this Boss JSON. The file may be corrupted or in the wrong format.');
+            } finally {
+                event.target.value = '';
+            }
+        };
+        reader.onerror = () => {
+            window.alert('Could not read the selected Boss JSON file.');
+            event.target.value = '';
+        };
+        reader.readAsText(file);
     };
 
     const handleAddPhase = () => {
@@ -467,6 +623,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const selectedPhase = useMemo(() => boss.phases.find(p => p.id === selectedPhaseId), [boss.phases, selectedPhaseId]);
     const tileset = useMemo(() => allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile), [allAssets]);
     const allTiles = useMemo(() => allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile), [allAssets]);
+    const tileById = useMemo(() => new Map(allTiles.map(tile => [tile.id, tile])), [allTiles]);
     const bossAttacks = boss.attacks || [];
     const selectedNeckChain = selectedPhase?.neckChain || createDefaultBossNeckChain();
     const selectedCrushMovement = selectedPhase?.crushMovement || createDefaultBossCrushMovement();
@@ -488,6 +645,122 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const showUnassignedTilesWarning = useMemo(() => (
         allTiles.some(tile => tile.width === 8 && tile.height === 8 && !assignedTileIds.has(tile.id))
     ), [allTiles, assignedTileIds]);
+
+    const bossTileBankRequirements = useMemo(() => {
+        const requirements = new Map<string, Set<number>>();
+        const addRequirement = (tileId: string | null | undefined) => {
+            if (!tileId) return;
+            const bankIndexes = requirements.get(tileId) || new Set<number>();
+            bankIndexes.add(0);
+            bankIndexes.add(1);
+            bankIndexes.add(2);
+            requirements.set(tileId, bankIndexes);
+        };
+        const addMatrix = (matrix?: (string | null)[][]) => {
+            matrix?.forEach(row => row.forEach(tileId => addRequirement(tileId)));
+        };
+
+        boss.phases.forEach(phase => {
+            addMatrix(phase.tileMatrix);
+            phase.forms?.forEach(form => addMatrix(form.tileMatrix));
+            phase.weakPoints?.forEach(weakPoint => addRequirement(weakPoint.destroyedTileId));
+            phase.forms?.forEach(form => form.weakPoints?.forEach(weakPoint => addRequirement(weakPoint.destroyedTileId)));
+        });
+        boss.attacks?.forEach(attack => addRequirement(attack.laserTileAssetId));
+
+        return requirements;
+    }, [boss.phases, boss.attacks]);
+
+    const selectedCompatibilityTileBank = useMemo(
+        () => tileBanks.find(tileBank => tileBank.id === selectedCompatibilityTileBankId),
+        [tileBanks, selectedCompatibilityTileBankId]
+    );
+
+    const bossBankCompatibility = useMemo((): BossBankTileCompatibility[] => {
+        if (!selectedCompatibilityTileBank) return [];
+
+        const tileHashes = new Map(allTiles.map(tile => [tile.id, tileGraphicHash(tile)]));
+        const bankAssignedTileIdsByIndex = selectedCompatibilityTileBank.banks.map(bank => new Set(Object.keys(bank.assignedTiles || {})));
+
+        return Array.from(bossTileBankRequirements.entries()).map(([tileId, bankIndexes]) => {
+            const tile = tileById.get(tileId);
+            const requiredBankIndexes = Array.from(bankIndexes).sort((a, b) => a - b);
+            if (!tile) {
+                return {
+                    tileId,
+                    tileName: tileId,
+                    requiredBankIndexes,
+                    charsNeeded: 0,
+                    status: 'missing',
+                };
+            }
+
+            const charsNeeded = getTileCharsNeeded(tile);
+            const requiredBanks = requiredBankIndexes
+                .map(bankIndex => selectedCompatibilityTileBank.banks[bankIndex])
+                .filter((bank): bank is TileBankDefinition => !!bank);
+            const currentAssignedCharCodes = requiredBanks
+                .map(bank => Number((bank.assignedTiles?.[tileId] as any)?.charCode))
+                .filter(charCode => Number.isFinite(charCode));
+            const hasConsistentAssignment = currentAssignedCharCodes.length === requiredBanks.length
+                && currentAssignedCharCodes.every(charCode => charCode === currentAssignedCharCodes[0]);
+            const sharedCharCode = findSharedAvailableCharBlock(requiredBanks, tileById, tileId, charsNeeded);
+            const isAssignedEverywhere = requiredBankIndexes.every(bankIndex => bankAssignedTileIdsByIndex[bankIndex]?.has(tileId));
+            if (isAssignedEverywhere && hasConsistentAssignment && sharedCharCode === currentAssignedCharCodes[0]) {
+                return {
+                    tileId,
+                    tileName: tile.name,
+                    requiredBankIndexes,
+                    charsNeeded,
+                    status: 'assigned',
+                    charCode: sharedCharCode,
+                };
+            }
+
+            const tileHash = tileHashes.get(tileId);
+            const matchingTile = allTiles.find(candidate => {
+                if (candidate.id === tileId || tileGraphicHash(candidate) !== tileHash) return false;
+                const candidateSharedCharCode = findSharedAvailableCharBlock(requiredBanks, tileById, candidate.id, charsNeeded);
+                return candidateSharedCharCode !== -1
+                    && requiredBankIndexes.every(bankIndex => bankAssignedTileIdsByIndex[bankIndex]?.has(candidate.id));
+            });
+            if (matchingTile) {
+                return {
+                    tileId,
+                    tileName: tile.name,
+                    requiredBankIndexes,
+                    charsNeeded,
+                    status: 'identical',
+                    charCode: findSharedAvailableCharBlock(requiredBanks, tileById, matchingTile.id, charsNeeded),
+                    matchedTileId: matchingTile.id,
+                    matchedTileName: matchingTile.name,
+                };
+            }
+
+            const targetCharCode = requiredBanks.some(bank => bank.isLocked)
+                ? -1
+                : findSharedAvailableCharBlock(requiredBanks, tileById, tileId, charsNeeded);
+
+            return {
+                tileId,
+                tileName: tile.name,
+                requiredBankIndexes,
+                charsNeeded,
+                status: targetCharCode !== -1 ? 'canAdd' : 'noSpace',
+                charCode: targetCharCode !== -1 ? targetCharCode : undefined,
+            };
+        }).sort((a, b) => {
+            const statusOrder: Record<BossBankTileStatus, number> = { noSpace: 0, missing: 1, canAdd: 2, identical: 3, assigned: 4 };
+            return statusOrder[a.status] - statusOrder[b.status] || a.tileName.localeCompare(b.tileName);
+        });
+    }, [allTiles, bossTileBankRequirements, selectedCompatibilityTileBank, tileById]);
+
+    const bossBankCompatibilityCounts = useMemo(() => (
+        bossBankCompatibility.reduce<Record<BossBankTileStatus, number>>((counts, item) => {
+            counts[item.status] += 1;
+            return counts;
+        }, { assigned: 0, identical: 0, canAdd: 0, noSpace: 0, missing: 0 })
+    ), [bossBankCompatibility]);
 
     const createPhaseTileMatrix = (phase: BossPhase): (string | null)[][] => {
         const width = phase.dimensions?.width ?? 0;
@@ -632,6 +905,92 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     };
 
     const activeTileSelection = getClampedTileSelection();
+
+    const remapTileMatrix = (matrix: (string | null)[][] | undefined, remap: Map<string, string>) => (
+        matrix?.map(row => row.map(tileId => tileId && remap.has(tileId) ? remap.get(tileId)! : tileId))
+    );
+
+    const remapWeakPoints = (weakPoints: BossPhase['weakPoints'] | undefined, remap: Map<string, string>) => (
+        weakPoints?.map(weakPoint => ({
+            ...weakPoint,
+            destroyedTileId: weakPoint.destroyedTileId && remap.has(weakPoint.destroyedTileId)
+                ? remap.get(weakPoint.destroyedTileId)
+                : weakPoint.destroyedTileId,
+        }))
+    );
+
+    const handleMergeBossTilesIntoBank = () => {
+        if (!selectedCompatibilityTileBank) return;
+
+        const blockingItems = bossBankCompatibility.filter(item => item.status === 'noSpace' || item.status === 'missing');
+        if (blockingItems.length > 0) {
+            window.alert(`Cannot merge: ${blockingItems.length} Boss tile(s) are missing or do not fit in the selected Tile Bank.`);
+            return;
+        }
+
+        const remap = new Map<string, string>();
+        bossBankCompatibility.forEach(item => {
+            if (item.status === 'identical' && item.matchedTileId) {
+                remap.set(item.tileId, item.matchedTileId);
+            }
+        });
+
+        const nextBanks = selectedCompatibilityTileBank.banks.map(bank => ({
+            ...bank,
+            assignedTiles: { ...(bank.assignedTiles || {}) },
+        }));
+
+        let assignedCount = 0;
+        let repairedCount = 0;
+        for (const item of bossBankCompatibility) {
+            if (item.status !== 'canAdd') continue;
+            const tile = tileById.get(item.tileId);
+            if (!tile || item.charCode === undefined) continue;
+
+            for (const bankIndex of item.requiredBankIndexes) {
+                const bank = nextBanks[bankIndex];
+                if (!bank) continue;
+
+                if (!isCharBlockAvailableInBank(bank, tileById, item.tileId, item.charCode, item.charsNeeded)) {
+                    window.alert(`Cannot merge: tile "${item.tileName}" no longer fits in bank ${bankIndex}.`);
+                    return;
+                }
+
+                const previousCharCode = Number((bank.assignedTiles[item.tileId] as any)?.charCode);
+                bank.assignedTiles[item.tileId] = { charCode: item.charCode };
+                if (Number.isFinite(previousCharCode)) {
+                    if (previousCharCode !== item.charCode) repairedCount++;
+                } else {
+                    assignedCount++;
+                }
+            }
+        }
+
+        const nextPhases = boss.phases.map(phase => ({
+            ...phase,
+            tileBankId: phase.buildType === 'tile' ? selectedCompatibilityTileBank.id : phase.tileBankId,
+            tileMatrix: remapTileMatrix(phase.tileMatrix, remap),
+            weakPoints: remapWeakPoints(phase.weakPoints, remap),
+            forms: phase.forms?.map(form => ({
+                ...form,
+                tileMatrix: remapTileMatrix(form.tileMatrix, remap) || form.tileMatrix,
+                weakPoints: remapWeakPoints(form.weakPoints, remap),
+            })),
+        }));
+
+        const nextAttacks = boss.attacks.map(attack => ({
+            ...attack,
+            laserTileAssetId: attack.laserTileAssetId && remap.has(attack.laserTileAssetId)
+                ? remap.get(attack.laserTileAssetId)
+                : attack.laserTileAssetId,
+        }));
+
+        onUpdateTileBank(selectedCompatibilityTileBank.id, { banks: nextBanks });
+        onUpdate({ phases: nextPhases, attacks: nextAttacks });
+
+        const remappedCount = remap.size;
+        window.alert(`Boss Bank merge complete. Added ${assignedCount} bank assignment(s), repaired ${repairedCount}, reused ${remappedCount} identical tile(s).`);
+    };
 
     const handleUpdateAttack = (attackId: string, field: keyof BossAttack, value: any) => {
         const updatedAttacks = bossAttacks.map(a => a.id === attackId ? { ...a, [field]: value } : a);
@@ -964,6 +1323,13 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                  <div className="w-72 2xl:w-80 border-l border-msx-border p-2 overflow-y-auto space-y-4 flex-shrink-0">
                     <Panel title="General" collapsible defaultCollapsed>
                         <div className="space-y-2 text-xs">
+                            <input
+                                ref={bossPackageInputRef}
+                                type="file"
+                                accept=".json,.boss.json,application/json"
+                                className="hidden"
+                                onChange={handleImportBossPackage}
+                            />
                              <div>
                                 <label className="block text-msx-textsecondary">Boss Name:</label>
                                 <span className="block w-full p-1 text-msx-textprimary">{boss.name}</span>
@@ -971,6 +1337,18 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                             <div>
                                 <label className="block text-msx-textsecondary">Total Health:</label>
                                 <input type="number" value={boss.totalHealth} onChange={e => handleUpdateField('totalHealth', parseInt(e.target.value) || 0)} min="1" className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                            </div>
+                            <div>
+                                <label className="block text-msx-textsecondary">ASM Update Every N Frames:</label>
+                                <input
+                                    type="number"
+                                    value={boss.runtimeUpdateIntervalFrames ?? 1}
+                                    onChange={e => handleUpdateField('runtimeUpdateIntervalFrames', Math.max(1, Math.min(8, parseInt(e.target.value) || 1)))}
+                                    min="1"
+                                    max="8"
+                                    className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                                />
+                                <p className="text-[10px] leading-snug text-msx-textsecondary">1 = fastest. 2-4 reduces MSX slowdown by updating Boss movement/redraw less often.</p>
                             </div>
                             <div>
                                 <label className="block text-msx-textsecondary mt-2">Preview Screen:</label>
@@ -987,6 +1365,93 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                     ))}
                                 </select>
                             </div>
+                            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-msx-border/40">
+                                <Button onClick={handleExportBossPackage} variant="secondary" size="sm" icon={<SaveIcon className="w-3 h-3" />}>
+                                    Export Boss
+                                </Button>
+                                <Button onClick={() => bossPackageInputRef.current?.click()} variant="secondary" size="sm" icon={<LoadIcon className="w-3 h-3" />}>
+                                    Import Boss
+                                </Button>
+                            </div>
+                            <p className="text-[10px] leading-snug text-msx-textsecondary">
+                                Import replaces this Boss and brings referenced tiles, sprites and sounds. Screen placement is cleared.
+                            </p>
+                        </div>
+                    </Panel>
+                    <Panel title="Boss Bank Compatibility" collapsible>
+                        <div className="space-y-2 text-xs">
+                            <div>
+                                <label className="block text-msx-textsecondary">Target Tile Bank:</label>
+                                <select
+                                    value={selectedCompatibilityTileBankId}
+                                    onChange={event => setSelectedCompatibilityTileBankId(event.target.value)}
+                                    className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                                >
+                                    <option value="">Select Bank...</option>
+                                    {tileBanks.map(tileBank => (
+                                        <option key={tileBank.id} value={tileBank.id}>{tileBank.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {selectedCompatibilityTileBank ? (
+                                <>
+                                    <div className="grid grid-cols-5 gap-1 text-center text-[10px]">
+                                        <div className="rounded bg-msx-bgcolor p-1"><div className="text-msx-textsecondary">OK</div><div className="text-msx-green">{bossBankCompatibilityCounts.assigned}</div></div>
+                                        <div className="rounded bg-msx-bgcolor p-1"><div className="text-msx-textsecondary">Reuse</div><div className="text-msx-cyan">{bossBankCompatibilityCounts.identical}</div></div>
+                                        <div className="rounded bg-msx-bgcolor p-1"><div className="text-msx-textsecondary">Add</div><div className="text-msx-yellow">{bossBankCompatibilityCounts.canAdd}</div></div>
+                                        <div className="rounded bg-msx-bgcolor p-1"><div className="text-msx-textsecondary">Full</div><div className="text-msx-danger">{bossBankCompatibilityCounts.noSpace}</div></div>
+                                        <div className="rounded bg-msx-bgcolor p-1"><div className="text-msx-textsecondary">Missing</div><div className="text-msx-danger">{bossBankCompatibilityCounts.missing}</div></div>
+                                    </div>
+                                    <Button
+                                        onClick={handleMergeBossTilesIntoBank}
+                                        variant="primary"
+                                        size="sm"
+                                        className="w-full"
+                                        disabled={bossBankCompatibility.length === 0 || bossBankCompatibilityCounts.noSpace > 0 || bossBankCompatibilityCounts.missing > 0}
+                                    >
+                                        Merge Boss Tiles Into Bank
+                                    </Button>
+                                    <div className="max-h-40 overflow-y-auto border border-msx-border/50 rounded bg-msx-bgcolor p-1 space-y-1">
+                                        {bossBankCompatibility.length === 0 ? (
+                                            <p className="text-msx-textsecondary p-1">No tile-based Boss tiles detected.</p>
+                                        ) : bossBankCompatibility.map(item => {
+                                            const statusClass = item.status === 'assigned'
+                                                ? 'text-msx-green'
+                                                : item.status === 'identical'
+                                                    ? 'text-msx-cyan'
+                                                    : item.status === 'canAdd'
+                                                        ? 'text-msx-yellow'
+                                                        : 'text-msx-danger';
+                                            const statusLabel = item.status === 'assigned'
+                                                ? 'Assigned'
+                                                : item.status === 'identical'
+                                                    ? `Reuse ${item.matchedTileName || item.matchedTileId}`
+                                                    : item.status === 'canAdd'
+                                                        ? 'Can add'
+                                                        : item.status === 'missing'
+                                                            ? 'Missing asset'
+                                                            : 'No free block';
+                                            return (
+                                                <div key={item.tileId} className="flex items-start justify-between gap-2 border-b border-msx-border/30 pb-1 last:border-b-0">
+                                                    <div className="min-w-0">
+                                                        <div className="truncate text-msx-textprimary">{item.tileName}</div>
+                                                        <div className="text-[10px] text-msx-textsecondary">
+                                                            Banks {item.requiredBankIndexes.map(index => index + 1).join(', ')} · {item.charsNeeded} char{item.charsNeeded === 1 ? '' : 's'}
+                                                            {item.charCode !== undefined ? ` · #${item.charCode.toString(16).padStart(2, '0').toUpperCase()}` : ''}
+                                                        </div>
+                                                    </div>
+                                                    <span className={`shrink-0 text-[10px] ${statusClass}`}>{statusLabel}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <p className="text-[10px] leading-snug text-msx-textsecondary">
+                                        Merge never overwrites occupied chars. Boss tiles are placed in all 3 SCREEN 2 banks using the same char code, or remapped to identical tiles already assigned that way.
+                                    </p>
+                                </>
+                            ) : (
+                                <p className="text-msx-textsecondary">Select a Tile Bank to check Boss compatibility.</p>
+                            )}
                         </div>
                     </Panel>
                     <Panel title="Phase / Movement Properties" collapsible>
