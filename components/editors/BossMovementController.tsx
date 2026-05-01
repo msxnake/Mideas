@@ -151,7 +151,7 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
                                 onMouseUp={() => handleCellMouseUp(x, y)}
                                 onContextMenu={(e) => onGridContextMenu(e, x, y)}
                                 className="w-8 h-8 border border-msx-border/20 relative cursor-pointer"
-                                title={`x:${x} y:${y}${tile ? ` · ${tile.name}` : ''}${isNeckSegment ? ` · neck ${neckSegmentIndex + 1}` : ''}`}
+                                title={`x:${x} y:${y}${tile ? ` - ${tile.name}` : ''}${isWeakPoint ? ` - weak dmg ${Math.max(1, isWeakPoint.health || 1)}` : ''}${isNeckSegment ? ` - neck ${neckSegmentIndex + 1}` : ''}`}
                             >
                                 {tile ? (
                                     <img src={createTileDataURL(tile, 0, 0, 32, 32, tile.width, 'SCREEN 2 (Graphics I)')} alt={tile.name} className="w-full h-full" style={{ imageRendering: 'pixelated' }} />
@@ -165,7 +165,7 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
                                     <div className={`absolute inset-0 flex items-center justify-center font-bold transition-colors 
                                         ${isWeakPoint ? 'border-2 border-yellow-400 text-yellow-400 bg-yellow-400/20' : 'hover:bg-yellow-400/30'}`}
                                     >
-                                        {isWeakPoint && 'W'}
+                                        {isWeakPoint && Math.max(1, isWeakPoint.health || 1)}
                                     </div>
                                 )}
 
@@ -195,7 +195,7 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
              <p className="text-xs text-msx-textsecondary">
                 {editMode === 'tiles' ? "Drag to select a block. Click to place the selected tile. Right-click to create/edit a tile." : 
                  editMode === 'collision' ? "Click to toggle collision blocks." : 
-                 editMode === 'weakpoints' ? "Click to toggle weak points." :
+                 editMode === 'weakpoints' ? "Click an empty tile to add a weak point. Click a selected weak point again to remove it." :
                  "Click tiles in order to build the neck movement vector."}
             </p>
         </div>

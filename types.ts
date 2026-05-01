@@ -1036,7 +1036,7 @@ export interface BossAttack {
   /** The name of the attack. */
   name: string;
   /** The type of the attack. */
-  type: 'Projectile' | 'Boomerang' | 'Rock' | 'Laser' | 'Meteor' | 'Bomb' | 'SineWave' | 'HomingMissile' | 'Melee' | 'Special' | 'Pattern';
+  type: 'Projectile' | 'Boomerang' | 'Rock' | 'Laser' | 'Meteor' | 'Bomb' | 'SineWave' | 'HomingMissile' | 'SlamRocks' | 'FallingBlocks' | 'Melee' | 'Special' | 'Pattern';
   /** The ID of the sprite asset used for the attack's projectile. */
   spriteAssetId?: string;
   /** The ID of the sound effect asset for the attack. */
@@ -1077,6 +1077,18 @@ export interface BossAttack {
   meteorSpreadX?: number;
   /** Warning frames shown before meteors start falling. */
   meteorWarningFrames?: number;
+  /** Number of chars the boss rises before a SlamRocks impact. */
+  slamRiseChars?: number;
+  /** Frames spent in the raised telegraph pose for SlamRocks. */
+  slamWindupFrames?: number;
+  /** Frames spent dropping back to the floor for SlamRocks. */
+  slamFrames?: number;
+  /** Frames to hold on the floor before rocks start falling for SlamRocks. */
+  slamHoldFrames?: number;
+  /** Tile/char asset written into the screen when a falling block lands. */
+  blockTileAssetId?: string;
+  /** 8x8 char row where falling blocks become solid screen chars. */
+  landingYChar?: number;
   /** Number of bombs spawned by a bomb attack. */
   bombCount?: number;
   /** Horizontal spacing between bomb spawn points, in pixels. */
@@ -1099,7 +1111,7 @@ export interface BossPhaseWeakPoint {
   x: number;
   /** The y-coordinate of the weak point, in tiles. */
   y: number;
-  /** The health of the weak point. */
+  /** Damage applied to the boss when this weak point is hit. */
   health: number;
   /** The ID of the sprite to show when the weak point is hit. */
   hitSpriteId?: string;

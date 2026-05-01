@@ -227,9 +227,23 @@ export const BossPreviewModal: React.FC<BossPreviewModalProps> = ({ isOpen, onCl
     const activeMeteorAttacks = (currentPhase.attackSequence || [])
         .map(attackId => (boss.attacks || []).find(attack => attack.id === attackId))
         .filter((attack): attack is BossAttack => !!attack && attack.type === 'Meteor');
+    const activeSlamRocksAttacks = (currentPhase.attackSequence || [])
+        .map(attackId => (boss.attacks || []).find(attack => attack.id === attackId))
+        .filter((attack): attack is BossAttack => !!attack && attack.type === 'SlamRocks');
+    const activeFallingBlocksAttacks = (currentPhase.attackSequence || [])
+        .map(attackId => (boss.attacks || []).find(attack => attack.id === attackId))
+        .filter((attack): attack is BossAttack => !!attack && attack.type === 'FallingBlocks');
     const activeBombAttacks = (currentPhase.attackSequence || [])
         .map(attackId => (boss.attacks || []).find(attack => attack.id === attackId))
         .filter((attack): attack is BossAttack => !!attack && attack.type === 'Bomb');
+    const primarySlamRocksAttack = activeSlamRocksAttacks[0];
+    const primarySlamCycleFrames = primarySlamRocksAttack
+        ? Math.max(1, Math.round((primarySlamRocksAttack.cooldown || 4000) / 50))
+        : 1;
+    const primarySlamCycleTick = primarySlamRocksAttack ? animationTick % primarySlamCycleFrames : 0;
+    const primarySlamOffsetY = primarySlamRocksAttack && primarySlamCycleTick < Math.max(1, primarySlamRocksAttack.slamWindupFrames ?? 16)
+        ? -Math.max(1, primarySlamRocksAttack.slamRiseChars ?? 3) * tileSize
+        : 0;
 
     const goToPhase = (direction: -1 | 1) => {
         if (enabledPhases.length === 0) return;
@@ -257,7 +271,7 @@ export const BossPreviewModal: React.FC<BossPreviewModalProps> = ({ isOpen, onCl
                             imageRendering: 'pixelated',
                             top: '50%',
                             left: '50%',
-                            transform: `translate(-50%, -50%) translate(${crushOffset.x}px, ${crushOffset.y}px)`,
+                            transform: `translate(-50%, -50%) translate(${crushOffset.x}px, ${crushOffset.y + primarySlamOffsetY}px)`,
                         }}
                     >
                         {currentPhase.tileMatrix?.flat().map((tileId, index) => {
@@ -499,6 +513,95 @@ export const BossPreviewModal: React.FC<BossPreviewModalProps> = ({ isOpen, onCl
                                         width: `${meteorWidth}px`,
                                         height: `${meteorHeight}px`,
                                         backgroundImage: meteorDataUrl ? `url(${meteorDataUrl})` : undefined,
+                                        backgroundSize: 'cover',
+                                        imageRendering: 'pixelated',
+                                    }}
+                                />
+                            );
+                        });
+                    })}
+                    {activeSlamRocksAttacks.flatMap((attack, attackIndex) => {
+                        const rockSpriteAsset = attack.spriteAssetId
+                            ? allAssets.find(asset => asset.id === attack.spriteAssetId && asset.type === 'sprite')
+                            : null;
+                        const rockSprite = rockSpriteAsset?.data as Sprite | undefined;
+                        const rockDataUrl = rockSprite ? createSpriteFrameDataURL(rockSprite) : null;
+                        const rockWidth = rockSprite?.size.width || 8;
+                        const rockHeight = rockSprite?.size.height || 8;
+                        const rockCount = Math.max(1, Math.min(4, attack.meteorCount || 4));
+                        const cooldownFrames = Math.max(1, Math.round((attack.cooldown || 4000) / 50));
+                        const speed = Math.max(1, attack.speed || 4);
+                        const range = Math.max(32, attack.range || 216);
+                        const windupFrames = Math.max(1, attack.slamWindupFrames ?? 16);
+                        const slamFrames = Math.max(1, attack.slamFrames ?? 6);
+                        const holdFrames = Math.max(0, attack.slamHoldFrames ?? 8);
+                        const phaseOffset = attackIndex * Math.max(1, Math.floor(cooldownFrames / Math.max(1, activeSlamRocksAttacks.length)));
+                        const cycleTick = (animationTick + phaseOffset) % cooldownFrames;
+                        const rockStart = windupFrames + slamFrames + holdFrames;
+
+                        return Array.from({ length: rockCount }).map((_, rockIndex) => {
+                            const laneDelay = rockIndex * 8;
+                            const rockAge = cycleTick - rockStart - laneDelay;
+                            const laneX = ((rockIndex * 67) + (attackIndex * 37) + 24) % 224;
+                            if (rockAge < 0) return null;
+                            const distance = rockAge * speed;
+                            if (distance > range) return null;
+                            return (
+                                <div
+                                    key={`${attack.id}_slam_rock_${rockIndex}`}
+                                    title={`${attack.name} falling rock`}
+                                    className="absolute border border-msx-highlight/70 bg-msx-border"
+                                    style={{
+                                        left: `${laneX}px`,
+                                        top: `${distance}px`,
+                                        width: `${rockWidth}px`,
+                                        height: `${rockHeight}px`,
+                                        backgroundImage: rockDataUrl ? `url(${rockDataUrl})` : undefined,
+                                        backgroundSize: 'cover',
+                                        imageRendering: 'pixelated',
+                                    }}
+                                />
+                            );
+                        });
+                    })}
+                    {activeFallingBlocksAttacks.flatMap((attack, attackIndex) => {
+                        const blockSpriteAsset = attack.spriteAssetId
+                            ? allAssets.find(asset => asset.id === attack.spriteAssetId && asset.type === 'sprite')
+                            : null;
+                        const blockSprite = blockSpriteAsset?.data as Sprite | undefined;
+                        const blockSpriteDataUrl = blockSprite ? createSpriteFrameDataURL(blockSprite) : null;
+                        const blockTileAsset = attack.blockTileAssetId
+                            ? allAssets.find(asset => asset.id === attack.blockTileAssetId && asset.type === 'tile')
+                            : null;
+                        const blockTile = blockTileAsset?.data as Tile | undefined;
+                        const blockTileDataUrl = blockTile ? createTileDataURL(blockTile, 0, 0, blockTile.width, blockTile.height, blockTile.width, "SCREEN 5 (Graphics IV)") : null;
+                        const blockWidth = blockSprite?.size.width || 8;
+                        const blockHeight = blockSprite?.size.height || 8;
+                        const blockCount = Math.max(1, Math.min(4, attack.meteorCount || 4));
+                        const cooldownFrames = Math.max(1, Math.round((attack.cooldown || 4000) / 50));
+                        const speed = Math.max(1, attack.speed || 4);
+                        const landingY = Math.max(0, Math.min(23, attack.landingYChar ?? 20)) * 8;
+                        const phaseOffset = attackIndex * Math.max(1, Math.floor(cooldownFrames / Math.max(1, activeFallingBlocksAttacks.length)));
+                        const cycleTick = (animationTick + phaseOffset) % cooldownFrames;
+
+                        return Array.from({ length: blockCount }).map((_, blockIndex) => {
+                            const laneDelay = blockIndex * 8;
+                            const blockAge = cycleTick - laneDelay;
+                            const laneX = ((blockIndex * 67) + (attackIndex * 37) + 24) % 224;
+                            if (blockAge < 0) return null;
+                            const distance = blockAge * speed;
+                            const hasLanded = distance >= landingY;
+                            return (
+                                <div
+                                    key={`${attack.id}_falling_block_${blockIndex}`}
+                                    title={`${attack.name} ${hasLanded ? 'landed block' : 'falling block'}`}
+                                    className="absolute border border-msx-highlight/70 bg-msx-border"
+                                    style={{
+                                        left: `${laneX}px`,
+                                        top: `${hasLanded ? landingY : distance}px`,
+                                        width: `${hasLanded ? 8 : blockWidth}px`,
+                                        height: `${hasLanded ? 8 : blockHeight}px`,
+                                        backgroundImage: hasLanded && blockTileDataUrl ? `url(${blockTileDataUrl})` : blockSpriteDataUrl ? `url(${blockSpriteDataUrl})` : undefined,
                                         backgroundSize: 'cover',
                                         imageRendering: 'pixelated',
                                     }}

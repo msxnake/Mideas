@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { Boss, BossBehaviorAction, BossForm, BossPhase, ProjectAsset, Sprite, Tile, TileBank, TileBankDefinition, BossAttack, BossCrushMovement, BossNeckChain, ContextMenuItem, EditorType } from '../../types';
+import { Boss, BossBehaviorAction, BossForm, BossPhase, BossPhaseWeakPoint, ProjectAsset, Sprite, Tile, TileBank, TileBankDefinition, BossAttack, BossCrushMovement, BossNeckChain, ContextMenuItem, EditorType } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, CopyIcon, EraserIcon, PasteIcon, PlusCircleIcon, TrashIcon, PencilIcon, ViewfinderCircleIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
@@ -261,6 +261,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const [copiedBossTileBlock, setCopiedBossTileBlock] = useState<CopiedBossTileBlock | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [collapsedAttackIds, setCollapsedAttackIds] = useState<Set<string>>(() => new Set());
+    const [selectedWeakPointCoord, setSelectedWeakPointCoord] = useState<{ x: number; y: number } | null>(null);
     const [selectedCompatibilityTileBankId, setSelectedCompatibilityTileBankId] = useState<string>(tileBanks[0]?.id || '');
     const bossPackageInputRef = useRef<HTMLInputElement>(null);
     
@@ -272,6 +273,14 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     useEffect(() => {
         setTileSelection(null);
     }, [selectedPhaseId, editMode]);
+
+    useEffect(() => {
+        setSelectedWeakPointCoord(null);
+    }, [selectedPhaseId]);
+
+    useEffect(() => {
+        if (editMode !== 'weakpoints') setSelectedWeakPointCoord(null);
+    }, [editMode]);
 
     useEffect(() => {
         if (!selectedCompatibilityTileBankId && tileBanks[0]?.id) {
@@ -500,9 +509,15 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                         const newWeakPoints = [...(newPhase.weakPoints || [])];
                         const existingWpIndex = newWeakPoints.findIndex(wp => wp.x === x && wp.y === y);
                         if (existingWpIndex > -1) {
-                            newWeakPoints.splice(existingWpIndex, 1);
+                            if (selectedWeakPointCoord?.x === x && selectedWeakPointCoord?.y === y) {
+                                newWeakPoints.splice(existingWpIndex, 1);
+                                setSelectedWeakPointCoord(null);
+                            } else {
+                                setSelectedWeakPointCoord({ x, y });
+                            }
                         } else {
-                            newWeakPoints.push({ x, y, health: 10 });
+                            newWeakPoints.push({ x, y, health: 1 });
+                            setSelectedWeakPointCoord({ x, y });
                         }
                         newPhase.weakPoints = newWeakPoints;
                         break;
@@ -628,6 +643,10 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const selectedNeckChain = selectedPhase?.neckChain || createDefaultBossNeckChain();
     const selectedCrushMovement = selectedPhase?.crushMovement || createDefaultBossCrushMovement();
     const selectedPhaseTileCount = getPhaseTileCount(selectedPhase);
+    const selectedWeakPoints = selectedPhase?.weakPoints || [];
+    const selectedWeakPoint = selectedWeakPointCoord
+        ? selectedWeakPoints.find(weakPoint => weakPoint.x === selectedWeakPointCoord.x && weakPoint.y === selectedWeakPointCoord.y) || null
+        : null;
 
     const assignedTileIds = useMemo(() => {
         const assignedTileIds = new Set<string>();
@@ -666,7 +685,10 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
             phase.weakPoints?.forEach(weakPoint => addRequirement(weakPoint.destroyedTileId));
             phase.forms?.forEach(form => form.weakPoints?.forEach(weakPoint => addRequirement(weakPoint.destroyedTileId)));
         });
-        boss.attacks?.forEach(attack => addRequirement(attack.laserTileAssetId));
+        boss.attacks?.forEach(attack => {
+            addRequirement(attack.laserTileAssetId);
+            addRequirement(attack.blockTileAssetId);
+        });
 
         return requirements;
     }, [boss.phases, boss.attacks]);
@@ -983,6 +1005,9 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
             laserTileAssetId: attack.laserTileAssetId && remap.has(attack.laserTileAssetId)
                 ? remap.get(attack.laserTileAssetId)
                 : attack.laserTileAssetId,
+            blockTileAssetId: attack.blockTileAssetId && remap.has(attack.blockTileAssetId)
+                ? remap.get(attack.blockTileAssetId)
+                : attack.blockTileAssetId,
         }));
 
         onUpdateTileBank(selectedCompatibilityTileBank.id, { banks: nextBanks });
@@ -1027,6 +1052,43 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
             meteorCount: 4,
             meteorSpreadX: 32,
             meteorWarningFrames: 18,
+        };
+        onUpdate({ attacks: [...bossAttacks, newAttack] });
+    };
+
+    const handleAddSlamRocksAttack = () => {
+        const newAttack: BossAttack = {
+            id: `attack_${Date.now()}`,
+            name: `Slam Rocks ${bossAttacks.length + 1}`,
+            type: 'SlamRocks',
+            damage: 2,
+            speed: 4,
+            cooldown: 4000,
+            range: 216,
+            meteorCount: 4,
+            slamRiseChars: 3,
+            slamWindupFrames: 16,
+            slamFrames: 6,
+            slamHoldFrames: 8,
+        };
+        onUpdate({ attacks: [...bossAttacks, newAttack] });
+    };
+
+    const handleAddFallingBlocksAttack = () => {
+        const defaultBlockTile = allTiles.find(tile => tile.logicalProperties?.isSolid && tile.logicalProperties?.isBreakable)
+            || allTiles.find(tile => tile.logicalProperties?.isSolid)
+            || allTiles[0];
+        const newAttack: BossAttack = {
+            id: `attack_${Date.now()}`,
+            name: `Falling Blocks ${bossAttacks.length + 1}`,
+            type: 'FallingBlocks',
+            damage: 2,
+            speed: 4,
+            cooldown: 4000,
+            range: 216,
+            meteorCount: 4,
+            blockTileAssetId: defaultBlockTile?.id,
+            landingYChar: 20,
         };
         onUpdate({ attacks: [...bossAttacks, newAttack] });
     };
@@ -1155,6 +1217,37 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
         });
 
         onUpdate({ phases: updatedPhases });
+    };
+
+    const updateSelectedPhaseWeakPoints = (updater: (weakPoints: BossPhaseWeakPoint[]) => BossPhaseWeakPoint[]) => {
+        if (!selectedPhaseId) return;
+
+        const updatedPhases = boss.phases.map(phase => (
+            phase.id === selectedPhaseId
+                ? { ...phase, weakPoints: updater([...(phase.weakPoints || [])]) }
+                : phase
+        ));
+        onUpdate({ phases: updatedPhases });
+    };
+
+    const handleUpdateWeakPoint = (x: number, y: number, patch: Partial<BossPhaseWeakPoint>) => {
+        updateSelectedPhaseWeakPoints(weakPoints => weakPoints.map(weakPoint => (
+            weakPoint.x === x && weakPoint.y === y
+                ? { ...weakPoint, ...patch }
+                : weakPoint
+        )));
+    };
+
+    const handleDeleteWeakPoint = (x: number, y: number) => {
+        updateSelectedPhaseWeakPoints(weakPoints => weakPoints.filter(weakPoint => weakPoint.x !== x || weakPoint.y !== y));
+        if (selectedWeakPointCoord?.x === x && selectedWeakPointCoord?.y === y) {
+            setSelectedWeakPointCoord(null);
+        }
+    };
+
+    const handleClearWeakPoints = () => {
+        updateSelectedPhaseWeakPoints(() => []);
+        setSelectedWeakPointCoord(null);
     };
 
     const handleToggleAttackCollapsed = (attackId: string) => {
@@ -1488,6 +1581,84 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                             </select>
                                         </div>
                                         <div className="space-y-2 pt-2 border-t border-msx-border/30">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div>
+                                                    <div className="text-msx-textsecondary">Weak Points</div>
+                                                    <div className="text-[0.65rem] text-msx-textsecondary">
+                                                        {selectedWeakPoints.length} marked tile{selectedWeakPoints.length === 1 ? '' : 's'}
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-1">
+                                                    <Button onClick={() => setEditMode('weakpoints')} variant={editMode === 'weakpoints' ? 'secondary' : 'ghost'} size="sm">Edit</Button>
+                                                    <Button onClick={handleClearWeakPoints} variant="ghost" size="sm" disabled={selectedWeakPoints.length === 0}>Clear</Button>
+                                                </div>
+                                            </div>
+                                            <div className="max-h-28 overflow-y-auto rounded border border-msx-border/40 bg-msx-bgcolor/40 p-1 space-y-1">
+                                                {selectedWeakPoints.length === 0 ? (
+                                                    <div className="px-1 py-2 text-msx-textsecondary">No weak points in this phase.</div>
+                                                ) : selectedWeakPoints.map(weakPoint => {
+                                                    const isSelected = selectedWeakPointCoord?.x === weakPoint.x && selectedWeakPointCoord?.y === weakPoint.y;
+                                                    return (
+                                                        <button
+                                                            key={`${weakPoint.x},${weakPoint.y}`}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedWeakPointCoord({ x: weakPoint.x, y: weakPoint.y });
+                                                                setEditMode('weakpoints');
+                                                            }}
+                                                            className={`flex w-full items-center justify-between rounded px-2 py-1 text-left ${isSelected ? 'bg-yellow-400/20 text-yellow-300' : 'hover:bg-msx-border/40'}`}
+                                                        >
+                                                            <span>Tile {weakPoint.x},{weakPoint.y}</span>
+                                                            <span className="font-mono text-[0.65rem]">DMG {Math.max(1, weakPoint.health || 1)}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            {selectedWeakPoint && (
+                                                <div className="space-y-2 rounded border border-yellow-400/30 bg-yellow-400/10 p-2">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-yellow-300">Weak {selectedWeakPoint.x},{selectedWeakPoint.y}</span>
+                                                        <Button onClick={() => handleDeleteWeakPoint(selectedWeakPoint.x, selectedWeakPoint.y)} variant="danger" size="sm" icon={<TrashIcon className="w-3 h-3" />}>Delete</Button>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-msx-textsecondary">Damage to Boss:</label>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            max="255"
+                                                            value={Math.max(1, selectedWeakPoint.health || 1)}
+                                                            onChange={e => handleUpdateWeakPoint(
+                                                                selectedWeakPoint.x,
+                                                                selectedWeakPoint.y,
+                                                                { health: Math.max(1, Math.min(255, parseInt(e.target.value) || 1)) }
+                                                            )}
+                                                            className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-msx-textsecondary">Hit Sprite:</label>
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="min-w-0 flex-1 truncate rounded border border-msx-border/30 bg-msx-bgcolor p-1" title={allAssets.find(asset => asset.id === selectedWeakPoint.hitSpriteId)?.name || 'None'}>
+                                                                {allAssets.find(asset => asset.id === selectedWeakPoint.hitSpriteId)?.name || 'None'}
+                                                            </span>
+                                                            <Button size="sm" variant="secondary" onClick={() => openAssetPicker('sprite', selectedWeakPoint.hitSpriteId, assetId => handleUpdateWeakPoint(selectedWeakPoint.x, selectedWeakPoint.y, { hitSpriteId: assetId }))}>...</Button>
+                                                            <Button size="sm" variant="ghost" onClick={() => handleUpdateWeakPoint(selectedWeakPoint.x, selectedWeakPoint.y, { hitSpriteId: undefined })} disabled={!selectedWeakPoint.hitSpriteId}>Clear</Button>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-msx-textsecondary">Destroyed Tile:</label>
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="min-w-0 flex-1 truncate rounded border border-msx-border/30 bg-msx-bgcolor p-1" title={tileById.get(selectedWeakPoint.destroyedTileId || '')?.name || 'None'}>
+                                                                {tileById.get(selectedWeakPoint.destroyedTileId || '')?.name || 'None'}
+                                                            </span>
+                                                            <Button size="sm" variant="secondary" onClick={() => openAssetPicker('tile', selectedWeakPoint.destroyedTileId, assetId => handleUpdateWeakPoint(selectedWeakPoint.x, selectedWeakPoint.y, { destroyedTileId: assetId }))}>...</Button>
+                                                            <Button size="sm" variant="ghost" onClick={() => handleUpdateWeakPoint(selectedWeakPoint.x, selectedWeakPoint.y, { destroyedTileId: undefined })} disabled={!selectedWeakPoint.destroyedTileId}>Clear</Button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="space-y-2 pt-2 border-t border-msx-border/30">
                                             <div className="flex items-center justify-between">
                                                 <label className="flex items-center gap-2 text-msx-textsecondary">
                                                     <input
@@ -1656,6 +1827,12 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                 <Button onClick={handleAddMeteorAttack} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="w-full">
                                     Add Meteors
                                 </Button>
+                                <Button onClick={handleAddSlamRocksAttack} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="w-full">
+                                    Add Slam Rocks
+                                </Button>
+                                <Button onClick={handleAddFallingBlocksAttack} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="w-full">
+                                    Add Blocks
+                                </Button>
                                 <Button onClick={handleAddBombAttack} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="w-full">
                                     Add Bombs
                                 </Button>
@@ -1673,6 +1850,9 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                         : null;
                                     const laserTile = attack.laserTileAssetId
                                         ? allAssets.find(asset => asset.id === attack.laserTileAssetId && asset.type === 'tile')
+                                        : null;
+                                    const blockTile = attack.blockTileAssetId
+                                        ? allAssets.find(asset => asset.id === attack.blockTileAssetId && asset.type === 'tile')
                                         : null;
                                     const isEnabledInPhase = !!selectedPhase?.attackSequence?.includes(attack.id);
                                     const isAttackCollapsed = collapsedAttackIds.has(attack.id);
@@ -1726,6 +1906,8 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                                         <option value="HomingMissile">Homing Missile</option>
                                                         <option value="Laser">Laser</option>
                                                         <option value="Meteor">Meteor</option>
+                                                        <option value="SlamRocks">Slam Rocks</option>
+                                                        <option value="FallingBlocks">Falling Blocks</option>
                                                         <option value="Bomb">Bomb</option>
                                                         <option value="Melee">Melee</option>
                                                         <option value="Special">Special</option>
@@ -1870,6 +2052,120 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                                         <div>
                                                             <label className="block text-msx-textsecondary">Start Y:</label>
                                                             <input type="number" value={attack.spawnOffsetY ?? -16} onChange={e => handleUpdateAttack(attack.id, 'spawnOffsetY', parseInt(e.target.value) || 0)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
+                                            {attack.type === 'SlamRocks' && (
+                                                <>
+                                                    <div>
+                                                        <label className="block text-msx-textsecondary">Rock Sprite:</label>
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="min-w-0 flex-1 truncate rounded border border-msx-border/30 bg-msx-bgcolor p-1" title={attackSprite?.name || 'None'}>
+                                                                {attackSprite?.name || 'None'}
+                                                            </span>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="secondary"
+                                                                onClick={() => openAssetPicker('sprite', attack.spriteAssetId, assetId => handleUpdateAttack(attack.id, 'spriteAssetId', assetId))}
+                                                            >
+                                                                ...
+                                                            </Button>
+                                                            <Button size="sm" variant="ghost" onClick={() => handleUpdateAttack(attack.id, 'spriteAssetId', '')} disabled={!attack.spriteAssetId}>
+                                                                Clear
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <div>
+                                                            <label className="block text-msx-textsecondary">Rise chars:</label>
+                                                            <input type="number" min="1" max="8" value={attack.slamRiseChars ?? 3} onChange={e => handleUpdateAttack(attack.id, 'slamRiseChars', Math.max(1, parseInt(e.target.value) || 1))} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-msx-textsecondary">Rock count:</label>
+                                                            <input type="number" min="1" max="4" value={attack.meteorCount ?? 4} onChange={e => handleUpdateAttack(attack.id, 'meteorCount', Math.max(1, Math.min(4, parseInt(e.target.value) || 1)))} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-msx-textsecondary">Windup frames:</label>
+                                                            <input type="number" min="1" value={attack.slamWindupFrames ?? 16} onChange={e => handleUpdateAttack(attack.id, 'slamWindupFrames', Math.max(1, parseInt(e.target.value) || 1))} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-msx-textsecondary">Slam frames:</label>
+                                                            <input type="number" min="1" value={attack.slamFrames ?? 6} onChange={e => handleUpdateAttack(attack.id, 'slamFrames', Math.max(1, parseInt(e.target.value) || 1))} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-msx-textsecondary">Hold frames:</label>
+                                                            <input type="number" min="0" value={attack.slamHoldFrames ?? 8} onChange={e => handleUpdateAttack(attack.id, 'slamHoldFrames', Math.max(0, parseInt(e.target.value) || 0))} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-msx-textsecondary">Total ms:</label>
+                                                            <input type="number" min="500" step="50" value={attack.cooldown ?? 4000} onChange={e => handleUpdateAttack(attack.id, 'cooldown', parseInt(e.target.value) || 500)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-msx-textsecondary">Fall speed:</label>
+                                                            <input type="number" min="1" value={attack.speed ?? 4} onChange={e => handleUpdateAttack(attack.id, 'speed', parseInt(e.target.value) || 1)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-msx-textsecondary">Fall range px:</label>
+                                                            <input type="number" min="32" value={attack.range ?? 216} onChange={e => handleUpdateAttack(attack.id, 'range', parseInt(e.target.value) || 32)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
+                                            {attack.type === 'FallingBlocks' && (
+                                                <>
+                                                    <div>
+                                                        <label className="block text-msx-textsecondary">Falling Sprite:</label>
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="min-w-0 flex-1 truncate rounded border border-msx-border/30 bg-msx-bgcolor p-1" title={attackSprite?.name || 'None'}>
+                                                                {attackSprite?.name || 'None'}
+                                                            </span>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="secondary"
+                                                                onClick={() => openAssetPicker('sprite', attack.spriteAssetId, assetId => handleUpdateAttack(attack.id, 'spriteAssetId', assetId))}
+                                                            >
+                                                                ...
+                                                            </Button>
+                                                            <Button size="sm" variant="ghost" onClick={() => handleUpdateAttack(attack.id, 'spriteAssetId', '')} disabled={!attack.spriteAssetId}>
+                                                                Clear
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-msx-textsecondary">Landed Char Tile:</label>
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="min-w-0 flex-1 truncate rounded border border-msx-border/30 bg-msx-bgcolor p-1" title={blockTile?.name || 'None'}>
+                                                                {blockTile?.name || 'None'}
+                                                            </span>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="secondary"
+                                                                onClick={() => openAssetPicker('tile', attack.blockTileAssetId, assetId => handleUpdateAttack(attack.id, 'blockTileAssetId', assetId))}
+                                                            >
+                                                                ...
+                                                            </Button>
+                                                            <Button size="sm" variant="ghost" onClick={() => handleUpdateAttack(attack.id, 'blockTileAssetId', '')} disabled={!attack.blockTileAssetId}>
+                                                                Clear
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <div>
+                                                            <label className="block text-msx-textsecondary">Block count:</label>
+                                                            <input type="number" min="1" max="4" value={attack.meteorCount ?? 4} onChange={e => handleUpdateAttack(attack.id, 'meteorCount', Math.max(1, Math.min(4, parseInt(e.target.value) || 1)))} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-msx-textsecondary">Landing row:</label>
+                                                            <input type="number" min="0" max="23" value={attack.landingYChar ?? 20} onChange={e => handleUpdateAttack(attack.id, 'landingYChar', Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-msx-textsecondary">Fall speed:</label>
+                                                            <input type="number" min="1" value={attack.speed ?? 4} onChange={e => handleUpdateAttack(attack.id, 'speed', parseInt(e.target.value) || 1)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-msx-textsecondary">Total ms:</label>
+                                                            <input type="number" min="500" step="50" value={attack.cooldown ?? 4000} onChange={e => handleUpdateAttack(attack.id, 'cooldown', parseInt(e.target.value) || 500)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                                                         </div>
                                                     </div>
                                                 </>

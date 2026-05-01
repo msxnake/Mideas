@@ -79,6 +79,7 @@ export const collectBossDependencyAssetIds = (boss: Boss): Set<string> => {
     addId(ids, attack.spriteAssetId);
     addId(ids, attack.soundEffectAssetId);
     addId(ids, attack.laserTileAssetId);
+    addId(ids, attack.blockTileAssetId);
     addId(ids, attack.explosionSpriteAssetId);
   });
 
@@ -245,6 +246,7 @@ export const remapBossPackageForImport = (
     spriteAssetId: remapOptionalId(attack.spriteAssetId, idMap, existingIds),
     soundEffectAssetId: remapOptionalId(attack.soundEffectAssetId, idMap, existingIds),
     laserTileAssetId: remapOptionalId(attack.laserTileAssetId, idMap, existingIds),
+    blockTileAssetId: remapOptionalId(attack.blockTileAssetId, idMap, existingIds),
     explosionSpriteAssetId: remapOptionalId(attack.explosionSpriteAssetId, idMap, existingIds),
   }));
 

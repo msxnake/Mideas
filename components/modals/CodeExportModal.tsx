@@ -432,9 +432,20 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           requestedRomConfig: result.requestedRomConfig,
           sourceRomConfig: result.sourceRomConfig,
           sourceConfigMismatchWarning: result.sourceConfigMismatchWarning,
+          plain48kSupportWarning: result.plain48kSupportWarning,
           resolvedRomConfig: result.resolvedRomConfig,
           romModeConflictWarning: result.romModeConflictWarning,
-          romSizeInfo: result.romSizeInfo
+          romSizeInfo: result.romSizeInfo,
+          suggestedRomConfig: result.suggestedRomConfig
+        };
+      }
+
+      const resolvedRomMode = result?.resolvedRomConfig?.resolvedRomMode;
+      if (['megarom_required', 'megarom_failed', 'plain48k_recommended', 'plain48k_pending'].includes(resolvedRomMode)) {
+        return {
+          ...result,
+          success: false,
+          message: result.details || result.romModeConflictWarning || result.resolvedRomConfig?.reason || 'ROM does not fit in selected ROM mode'
         };
       }
 
@@ -640,6 +651,15 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
     if (compileResult?.romModeConflictWarning) {
       lines.push(`ROM mode warning: ${compileResult.romModeConflictWarning}`);
+    }
+
+    if (compileResult?.suggestedRomConfig) {
+      const suggested = compileResult.suggestedRomConfig;
+      const suggestedSize = suggested.romSizeKB ? `, size=${suggested.romSizeKB}KB` : '';
+      lines.push(`Suggested path: ${suggested.label || suggested.romMode} (mode=${suggested.romMode}, mapper=${suggested.targetFormat ?? 'unknown'}${suggestedSize})`);
+      if (suggested.reason) {
+        lines.push(`Suggestion reason: ${suggested.reason}`);
+      }
     }
 
     if (sourceWarning) {
@@ -863,7 +883,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
   };
 
-  const runMapperPipeline = async (launchAfterBuild: boolean) => {
+  const runMapperPipeline = async (launchAfterBuild: boolean, romConfigOverride?: RomBuildConfig) => {
     if (exportType !== 'asm_all_in_one') {
       alert(`${launchAfterBuild ? 'Build and Run' : 'Generate + Compress + Compile + Mapper'} is only available for ASM (all in one).`);
       return;
@@ -881,7 +901,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     setPipelineStatus('Generating ASM...');
 
     try {
-      const romConfig = buildCurrentRomConfig();
+      const romConfig = romConfigOverride || buildCurrentRomConfig();
       const bundle = await generateMapperReadyBundle(currentProjectName || 'MSX_Game', romConfig);
 
       setGeneratedCode(bundle.mainCode);
@@ -1046,6 +1066,28 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
   const handleGenerateCompressCompileMapper = async () => {
     await runMapperPipeline(false);
+  };
+
+  const handleSuggestedRomBuild = async (suggested: any) => {
+    const nextRomMode = ['auto', 'simple32k', 'plain48k', 'megarom'].includes(suggested?.romMode)
+      ? suggested.romMode as RomMode
+      : 'plain48k';
+    const nextMapperFormat = ['konami', 'ascii8', 'ascii16'].includes(suggested?.targetFormat)
+      ? suggested.targetFormat as MapperFormat
+      : mapperFormat;
+    const nextRomSizeKB = typeof suggested?.romSizeKB === 'number' ? suggested.romSizeKB : undefined;
+    const nextConfig: RomBuildConfig = {
+      romMode: nextRomMode,
+      targetFormat: nextMapperFormat,
+      autoMegaROM: typeof suggested?.autoMegaROM === 'boolean' ? suggested.autoMegaROM : nextRomMode === 'auto' || nextRomMode === 'megarom',
+      executionMode,
+      romSizeKB: nextRomSizeKB
+    };
+
+    setRomMode(nextConfig.romMode);
+    setMapperFormat(nextConfig.targetFormat);
+    setRomSizeKB(nextConfig.romSizeKB);
+    await runMapperPipeline(false, nextConfig);
   };
 
   const handleBuildAndRun = async () => {
@@ -1789,9 +1831,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
             </Panel>
 
             {compilationResult && (
-              <Panel title="Glass Compilation Result" className={compilationResult.success ? "border-green-500" : "border-red-500"}>
+              <Panel title="ROM Build Result" className={compilationResult.success ? "border-green-500" : "border-red-500"}>
                 <div className="p-3">
                   <div className={`text-sm ${compilationResult.success ? 'text-green-400' : 'text-red-400'}`}>
+                    {compilationResult.success
+                      ? 'Compilation successful'
+                      : (compilationResult as any).resolvedRomConfig?.resolvedRomMode === 'megarom_failed'
+                        ? 'MegaROM build failed'
+                      : (compilationResult as any).suggestedRomConfig
+                        ? 'ROM capacity limit reached'
+                        : 'Glass compilation failed'}
+                  </div>
+                  <div className="hidden">
                     {compilationResult.success ? '✓ Compilation successful!' : '✗ Glass compilation failed'}
                   </div>
                   <div className="text-xs text-msx-textsecondary mt-1 font-mono whitespace-pre-wrap">
@@ -1834,6 +1885,48 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                         )}
                       </div>
                     )}
+
+                  {(compilationResult as any).resolvedRomConfig?.resolvedRomMode === 'megarom_failed' && (
+                    <div className="mt-3 p-3 bg-red-950 bg-opacity-40 rounded border border-red-500">
+                      <div className="text-sm text-red-200 font-semibold">
+                        MegaROM build stopped before OpenMSX
+                      </div>
+                      <div className="mt-1 text-xs text-msx-textsecondary">
+                        {compilationResult.message || 'Glass could not produce a valid MegaROM image. Check the detailed logs and generated ASM bank layout.'}
+                      </div>
+                    </div>
+                  )}
+
+                  {(compilationResult as any).suggestedRomConfig && (
+                    <div className="mt-3 p-3 bg-red-950 bg-opacity-40 rounded border border-red-500">
+                      <div className="text-sm text-red-200 font-semibold">
+                        ROM mode blocked before OpenMSX
+                      </div>
+                      <div className="mt-1 text-xs text-msx-textsecondary">
+                        {compilationResult.message || (compilationResult as any).suggestedRomConfig.reason || 'The selected ROM mode cannot produce a valid ROM for this build.'}
+                      </div>
+                      {(compilationResult as any).requestedRomConfig?.romMode === 'plain48k' &&
+                        (compilationResult as any).suggestedRomConfig?.romMode === 'megarom' && (
+                          <div className="mt-2 text-xs text-red-100">
+                            Plain 48KB was already regenerated and checked. It did not fit, so the next valid path is MegaROM.
+                          </div>
+                        )}
+                      <div className="mt-2 text-xs text-msx-textsecondary">
+                        Suggested: mode=<strong>{(compilationResult as any).suggestedRomConfig.romMode}</strong>
+                        {', '}mapper=<strong>{(compilationResult as any).suggestedRomConfig.targetFormat}</strong>
+                        {(compilationResult as any).suggestedRomConfig.romSizeKB && (
+                          <>{', '}size=<strong>{(compilationResult as any).suggestedRomConfig.romSizeKB}KB</strong></>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleSuggestedRomBuild((compilationResult as any).suggestedRomConfig)}
+                        disabled={isPipelineBusy}
+                        className="mt-3 px-3 py-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs rounded transition-colors"
+                      >
+                        {(compilationResult as any).suggestedRomConfig.label || 'Generate suggested ROM'}
+                      </button>
+                    </div>
+                  )}
 
                   {/* Enhanced error details for debugging */}
                   {!compilationResult.success && (compilationResult as any).fullDetails && (

@@ -230,6 +230,76 @@ function disableMapperWritesForSimple32k(sourceCode) {
   return patched;
 }
 
+function isGlassRomCapacityError(text) {
+  const value = String(text || '').toLowerCase();
+  return (
+    value.includes('negative initial size') ||
+    value.includes('out of range') ||
+    value.includes('overflow') && value.includes('rom')
+  );
+}
+
+function getNegativeDsOverflowBytes(text) {
+  const match = String(text || '').match(/Negative initial size:\s*(-?\d+)/i);
+  if (!match) return null;
+
+  const parsed = Number.parseInt(match[1], 10);
+  if (!Number.isFinite(parsed) || parsed >= 0) return null;
+
+  return Math.abs(parsed);
+}
+
+function buildRomCapacitySuggestion(romMode, targetFormat, autoMegaROM, fitsPlain48k) {
+  if (romMode === 'megarom') {
+    return null;
+  }
+
+  if (romMode === 'simple32k' && fitsPlain48k) {
+    return {
+      romMode: 'plain48k',
+      targetFormat,
+      autoMegaROM: false,
+      romSizeKB: 48,
+      label: 'Try Plain 48KB ROM',
+      reason: 'The current simple32k build is above 32KB but small enough to try a regenerated Plain 48KB build. The 48KB build must still be compiled and checked.'
+    };
+  }
+
+  return {
+    romMode: 'megarom',
+    targetFormat,
+    autoMegaROM: true,
+    label: 'Generate MegaROM',
+    reason: romMode === 'plain48k'
+      ? 'The assembled output exceeds the 48KB plain ROM budget.'
+      : 'The assembled output cannot be represented by the selected ROM mode.'
+  };
+}
+
+function buildRomCapacityDetails(romMode, canSuggestPlain48k, negativeDsOverflowBytes) {
+  const overflowText = negativeDsOverflowBytes !== null
+    ? ` by ${negativeDsOverflowBytes} bytes`
+    : '';
+
+  if (romMode === 'plain48k') {
+    return `The project exceeds the Plain 48KB ROM budget${overflowText}. Generate as MegaROM.`;
+  }
+
+  if (romMode === 'megarom') {
+    return `The MegaROM build failed before Glass could write a valid ROM${overflowText}. Check the MegaROM bank layout or generated ASM.`;
+  }
+
+  if (romMode === 'simple32k' && canSuggestPlain48k) {
+    return `The project exceeds the Simple 32KB ROM limit${overflowText}. Mideas can try a regenerated Plain 48KB build, but it still has to compile and pass the 48KB limit.`;
+  }
+
+  if (romMode === 'simple32k') {
+    return `The project exceeds the Simple 32KB ROM limit${overflowText} and no longer fits in the 48KB plain budget. Generate as MegaROM.`;
+  }
+
+  return `The project exceeds the selected ROM mode${overflowText}.`;
+}
+
 function collectAsmDataBlocks(lines, labelRegex) {
   const blocks = [];
 
@@ -1961,7 +2031,26 @@ app.post('/compile', async (req, res) => {
 
         // Read the source file to see what we tried to compile
         fs.readFile(tempFilePath, 'utf8', (readErr, sourceCode) => {
+          const fullErrorText = `${compileStderr}\n${compileStdout}\n${error.message || ''}`;
+          const sourceRomConfig = parseSourceRomConfig(codeToCompile);
+          const capacityOverflow = isGlassRomCapacityError(fullErrorText);
+          const negativeDsOverflowBytes = getNegativeDsOverflowBytes(fullErrorText);
+          const canSuggestPlain48k =
+            normalizedRomMode === 'simple32k' &&
+            (negativeDsOverflowBytes === null || negativeDsOverflowBytes <= (PLAIN48_ROM_LIMIT_BYTES - SIMPLE_ROM_LIMIT_BYTES));
+          const suggestedRomConfig = capacityOverflow
+            ? buildRomCapacitySuggestion(
+                normalizedRomMode,
+                normalizedTargetFormat,
+                normalizedAutoMegaROM,
+                canSuggestPlain48k
+              )
+            : null;
+          const capacityDetails = capacityOverflow
+            ? buildRomCapacityDetails(normalizedRomMode, canSuggestPlain48k, negativeDsOverflowBytes)
+            : null;
           const errorResponse = {
+            success: false,
             error: 'Glass compilation failed',
             details: compileStderr || compileStdout || error.message,
             command: command,
@@ -1971,17 +2060,44 @@ app.post('/compile', async (req, res) => {
             fullStdout: compileStdout,
             errorCode: error.code,
             signal: error.signal,
+            negativeDsOverflowBytes: negativeDsOverflowBytes,
             requestedRomConfig: {
               romMode: normalizedRomMode,
               targetFormat: normalizedTargetFormat,
               autoMegaROM: normalizedAutoMegaROM
             },
+            sourceRomConfig: sourceRomConfig,
             screenCompressionInfo: screenCompressionInfo,
             compressedAsmFileInfo: compressedAsmFileInfo
           };
 
+          if (capacityOverflow) {
+            errorResponse.error = normalizedRomMode === 'megarom'
+              ? 'MegaROM build failed'
+              : 'ROM does not fit in selected ROM mode';
+            errorResponse.details = capacityDetails;
+            errorResponse.romModeConflictWarning = normalizedRomMode === 'megarom'
+              ? 'Requested megarom, but Glass could not produce a valid MegaROM image.'
+              : normalizedRomMode === 'plain48k'
+                ? 'Requested plain48k, but Glass reported that the ROM exceeds the 48KB limit.'
+                : 'Requested simple32k, but Glass reported that the ROM exceeds the 32KB limit.';
+            errorResponse.resolvedRomConfig = {
+              requestedRomMode: normalizedRomMode,
+              resolvedRomMode: suggestedRomConfig
+                ? (suggestedRomConfig.romMode === 'plain48k' ? 'plain48k_recommended' : 'megarom_required')
+                : 'megarom_failed',
+              targetFormat: !suggestedRomConfig || suggestedRomConfig.romMode === 'megarom' ? normalizedTargetFormat : 'none',
+              mapperTargetFormat: normalizedTargetFormat,
+              mapperActive: !suggestedRomConfig || suggestedRomConfig.romMode === 'megarom',
+              reason: suggestedRomConfig?.reason || 'MegaROM build failed before producing a valid ROM.'
+            };
+            if (suggestedRomConfig) {
+              errorResponse.suggestedRomConfig = suggestedRomConfig;
+            }
+          }
+
           console.log('Full error response:', errorResponse);
-          return res.status(500).json(errorResponse);
+          return res.status(capacityOverflow ? 409 : 500).json(errorResponse);
         });
         return;
       }
@@ -2112,10 +2228,17 @@ app.post('/compile', async (req, res) => {
 
         const banks8KB = paddedData.length / KB_8;
         const endAddress = ROM_ORIGIN + paddedData.length - 1;
-        const exceedsSimpleRomLimit = paddedData.length > SIMPLE_ROM_LIMIT_BYTES;
-        const exceedsPlain48RomLimit = paddedData.length > PLAIN48_ROM_LIMIT_BYTES;
+        const exceedsSimpleRomLimit = aligned8KBSize > SIMPLE_ROM_LIMIT_BYTES;
+        const exceedsPlain48RomLimit = aligned8KBSize > PLAIN48_ROM_LIMIT_BYTES;
+        const fitsPlain48RomLimit = exceedsSimpleRomLimit && !exceedsPlain48RomLimit;
+        const bytesOverSimpleLimit = Math.max(0, aligned8KBSize - SIMPLE_ROM_LIMIT_BYTES);
+        const bytesOverPlain48Limit = Math.max(0, aligned8KBSize - PLAIN48_ROM_LIMIT_BYTES);
         const mapperHint = exceedsSimpleRomLimit
-          ? 'ROM exceeds 32KB simple layout. Use mapper-aware build/runtime (Konami/ASCII).'
+          ? (
+              fitsPlain48RomLimit
+                ? 'ROM exceeds 32KB simple layout. A regenerated plain48k build may fit, but must be checked.'
+                : 'ROM exceeds 48KB plain layout. Use mapper-aware build/runtime (Konami/ASCII).'
+            )
           : null;
         let sourceConfigMismatchWarning = null;
         if (sourceRomConfig) {
@@ -2135,7 +2258,9 @@ app.post('/compile', async (req, res) => {
 
         let romModeConflictWarning = null;
         if (normalizedRomMode === 'simple32k' && exceedsSimpleRomLimit) {
-          romModeConflictWarning = 'Requested simple32k, but final ROM exceeds 32KB and requires a mapper.';
+          romModeConflictWarning = fitsPlain48RomLimit
+            ? 'Requested simple32k, but final ROM exceeds 32KB. Generate as plain48k instead.'
+            : 'Requested simple32k, but final ROM exceeds 48KB and requires a mapper.';
         } else if (normalizedRomMode === 'plain48k' && exceedsPlain48RomLimit) {
           romModeConflictWarning = 'Requested plain48k, but final ROM exceeds 48KB and requires a mapper.';
         }
@@ -2163,8 +2288,10 @@ app.post('/compile', async (req, res) => {
           }
         } else if (normalizedRomMode === 'simple32k') {
           if (exceedsSimpleRomLimit) {
-            resolvedRomMode = 'megarom_required';
-            mapperResolutionReason = 'ROM exceeds 32KB; simple32k request is not valid.';
+            resolvedRomMode = fitsPlain48RomLimit ? 'plain48k_recommended' : 'megarom_required';
+            mapperResolutionReason = fitsPlain48RomLimit
+              ? 'ROM exceeds 32KB; try a regenerated plain48k build and re-check the final size.'
+              : 'ROM exceeds 48KB; simple32k request is not valid.';
           } else {
             resolvedRomMode = 'simple32k';
             mapperResolutionReason = 'Forced simple32k by request and ROM fits.';
@@ -2195,6 +2322,7 @@ app.post('/compile', async (req, res) => {
           plain48RomLimitBytes: PLAIN48_ROM_LIMIT_BYTES,
           exceedsSimpleRomLimit,
           exceedsPlain48RomLimit,
+          fitsPlain48RomLimit,
           requestedRomMode: normalizedRomMode,
           requestedTargetFormat: normalizedTargetFormat,
           requestedAutoMegaROM: normalizedAutoMegaROM,
@@ -2320,6 +2448,9 @@ app.post('/compile', async (req, res) => {
             plain48RomLimitBytes: PLAIN48_ROM_LIMIT_BYTES,
             exceedsSimpleRomLimit: exceedsSimpleRomLimit,
             exceedsPlain48RomLimit: exceedsPlain48RomLimit,
+            fitsPlain48RomLimit: fitsPlain48RomLimit,
+            bytesOverSimpleLimit: bytesOverSimpleLimit,
+            bytesOverPlain48Limit: bytesOverPlain48Limit,
             mapperHint: mapperHint
           }
         };
@@ -2332,6 +2463,31 @@ app.post('/compile', async (req, res) => {
         // Add compressed ASM file info if available
         if (compressedAsmFileInfo) {
           Object.assign(responseData, compressedAsmFileInfo);
+        }
+
+        const shouldBlockInvalidRom =
+          (normalizedRomMode === 'simple32k' && exceedsSimpleRomLimit) ||
+          (normalizedRomMode === 'plain48k' && exceedsPlain48RomLimit);
+
+        if (shouldBlockInvalidRom) {
+          const suggestedRomConfig = buildRomCapacitySuggestion(
+            normalizedRomMode,
+            normalizedTargetFormat,
+            normalizedAutoMegaROM,
+            fitsPlain48RomLimit
+          );
+          const blockingMessage = fitsPlain48RomLimit
+            ? `ROM is ${bytesOverSimpleLimit} bytes over the 32KB simple limit. Mideas can try a regenerated Plain 48KB build, but that build must still pass the 48KB limit.`
+            : `ROM is ${bytesOverPlain48Limit || bytesOverSimpleLimit} bytes over the selected ROM budget and requires MegaROM.`;
+          const { data: _data, romFile: _romFile, romPath: _romPath, downloadUrl: _downloadUrl, ...blockedResponse } = responseData;
+
+          return res.status(409).json({
+            ...blockedResponse,
+            success: false,
+            error: 'ROM does not fit in selected ROM mode',
+            details: `${blockingMessage} Mideas stopped before launching OpenMSX because the current ROM would be misleading.`,
+            suggestedRomConfig
+          });
         }
 
         res.send(responseData);

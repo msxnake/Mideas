@@ -341,8 +341,9 @@ function buildBossPlacementRows(screen: ScreenMap, bossLabelById: Map<string, st
     const placement = resolveBossPlacementForExport(screen, instance, boss);
     const flags = instance.enabled === false ? 0 : 1;
     const updateInterval = Math.max(1, Math.min(8, Math.floor(Number(boss.runtimeUpdateIntervalFrames) || 1)));
+    const health = Math.max(1, Math.min(65535, Math.floor(Number(boss.totalHealth) || 1)));
     rows.push(`    dw ${bossLabel}_phase_table, ${bossLabel}_attack_table`);
-    rows.push(`    db ${clampByte(placement.xChar)}, ${clampByte(placement.yChar)}, ${clampByte(instance.initialPhaseIndex)}, ${flags}, ${updateInterval}    ; xChar,yChar,initialPhase,flags,updateEveryNFrames`);
+    rows.push(`    db ${clampByte(placement.xChar)}, ${clampByte(placement.yChar)}, ${clampByte(instance.initialPhaseIndex)}, ${flags}, ${updateInterval}, ${health & 0xff}, ${(health >> 8) & 0xff}    ; xChar,yChar,initialPhase,flags,updateEveryNFrames,healthLo,healthHi`);
   });
 
   return rows;
@@ -360,7 +361,7 @@ function generateBossPlacementTable(
   if (rows.length === 0) {
     asm += `    db 0    ; No boss placements\n`;
   } else {
-    asm += `    ; Entry format: dw phaseTable, dw attackTable, db xChar, yChar, initialPhase, flags(bit0=enabled), updateEveryNFrames\n`;
+    asm += `    ; Entry format: dw phaseTable, dw attackTable, db xChar, yChar, initialPhase, flags(bit0=enabled), updateEveryNFrames, healthLo, healthHi\n`;
     asm += `${rows.join('\n')}\n`;
   }
   return asm;
@@ -1224,7 +1225,7 @@ SCREEN_RUNTIME_SUMMARY_FLAG_MUSIC_IN_GAME EQU #01
 SCREEN_RUNTIME_SUMMARY_FLAG_HAS_HUD EQU #02
 SCREEN_RUNTIME_SUMMARY_FLAG_HAS_EFFECTS EQU #04
 SCREEN_RUNTIME_SUMMARY_FLAG_HAS_ANIM_TILES EQU #08
-BOSS_PLACEMENT_ENTRY_SIZE EQU 9
+BOSS_PLACEMENT_ENTRY_SIZE EQU 11
 BOSS_PLACEMENT_FLAG_ENABLED EQU #01
 
 `;
@@ -1259,7 +1260,7 @@ SCREEN_${screenName}_${index}_EFFECT_ZONE_COUNT EQU ${effectZoneCount}
 SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_SIZE EQU ${effectZoneCount * 8}
 SCREEN_${screenName}_${index}_BOSS_TABLE_BANK EQU ${buildMapperBankEqu(`SCREEN_${screenName}_${index}_BOSS_TABLE`, mapperWindow)}
 SCREEN_${screenName}_${index}_BOSS_COUNT EQU ${bossPlacementCount}
-SCREEN_${screenName}_${index}_BOSS_TABLE_SIZE EQU ${bossPlacementCount * 9}
+SCREEN_${screenName}_${index}_BOSS_TABLE_SIZE EQU ${bossPlacementCount * 11}
 SCREEN_${screenName}_${index}_BLOCK_LAYOUT_PRESENT EQU ${screenExport.backgroundBlockMap ? 1 : 0}
 SCREEN_${screenName}_${index}_BLOCK_LAYOUT_MODE EQU ${screenExport.backgroundBlockMap?.blockWidth ?? 0}
 SCREEN_${screenName}_${index}_BLOCK_CATALOG_BANK EQU ${screenExport.backgroundBlockMap ? buildMapperBankEqu(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`, mapperWindow) : 0}

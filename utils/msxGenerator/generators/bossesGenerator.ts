@@ -8,8 +8,258 @@
 import { Boss, BossAttack, BossBehaviorAction, BossBehaviorTarget, BossCrushMovement, BossNeckChain, BossPhase, Tile, Sprite } from '../../../types';
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { resolveRuntimeScreen2TileBankCharCode } from '../utils/screen2TileBanks';
+import { encodeBehaviorByteFromLogicalProperties } from '../../../components/utils/screenUtils';
 
 const EMPTY_REF = '#FFFF';
+
+const BOSS_ATTACK_RUNTIME_TYPES = [
+  'Projectile',
+  'Meteor',
+  'Bomb',
+  'Boomerang',
+  'Rock',
+  'Laser',
+  'SineWave',
+  'HomingMissile',
+  'SlamRocks',
+  'FallingBlocks'
+] as const;
+
+interface BossFeatureSet {
+  hasBosses: boolean;
+  hasForms: boolean;
+  hasWeakPoints: boolean;
+  hasNeckChains: boolean;
+  hasCrushMovement: boolean;
+  usedAttackTypes: Set<string>;
+  usedBehaviorTypes: Set<BossBehaviorAction['type']>;
+}
+
+function collectBossFeatureSet(bosses: Boss[]): BossFeatureSet {
+  const attackById = new Map<string, BossAttack>();
+  const usedAttackTypes = new Set<string>();
+  const usedAttackIds = new Set<string>();
+  const usedBehaviorTypes = new Set<BossBehaviorAction['type']>();
+  let hasForms = false;
+  let hasWeakPoints = false;
+  let hasNeckChains = false;
+  let hasCrushMovement = false;
+
+  bosses.forEach(boss => {
+    (boss.attacks || []).forEach(attack => {
+      attackById.set(attack.id, attack);
+    });
+
+    (boss.phases || []).forEach(phase => {
+      if ((phase.forms || []).length > 0) {
+        hasForms = true;
+      }
+      if ((phase.weakPoints || []).length > 0 || (phase.forms || []).some(form => (form.weakPoints || []).length > 0)) {
+        hasWeakPoints = true;
+      }
+      if (phase.neckChain?.enabled && (phase.neckChain.segments || []).length > 0) {
+        hasNeckChains = true;
+      }
+      if (phase.crushMovement?.enabled) {
+        hasCrushMovement = true;
+      }
+
+      (phase.attackSequence || []).forEach(attackId => {
+        usedAttackIds.add(attackId);
+      });
+
+      (phase.behaviorLoop || []).forEach(action => {
+        usedBehaviorTypes.add(action.type);
+        if (action.type === 'setForm' || action.type === 'animateForm') {
+          hasForms = true;
+        }
+        if (action.type === 'slam') {
+          hasCrushMovement = true;
+        }
+        if (action.type === 'attack' && action.attackId) {
+          usedAttackIds.add(action.attackId);
+        }
+      });
+    });
+  });
+
+  usedAttackIds.forEach(attackId => {
+    const attack = attackById.get(attackId);
+    if (attack) {
+      usedAttackTypes.add(attack.type || 'Projectile');
+    }
+  });
+
+  return {
+    hasBosses: bosses.length > 0,
+    hasForms,
+    hasWeakPoints,
+    hasNeckChains,
+    hasCrushMovement,
+    usedAttackTypes,
+    usedBehaviorTypes
+  };
+}
+
+function usesBossAttack(features: BossFeatureSet, type: string): boolean {
+  return features.usedAttackTypes.has(type);
+}
+
+function formatBossFeatureList(values: Iterable<string>): string {
+  const items = Array.from(values).sort();
+  return items.length > 0 ? items.join(', ') : 'none';
+}
+
+function renderBossFeatureSummary(features: BossFeatureSet): string[] {
+  const attackTypes = formatBossFeatureList(features.usedAttackTypes);
+  const behaviorTypes = formatBossFeatureList(features.usedBehaviorTypes);
+  const excludedAttackTypes = BOSS_ATTACK_RUNTIME_TYPES.filter(type => !features.usedAttackTypes.has(type));
+
+  return [
+    `; Boss feature set: bosses=${features.hasBosses ? 'yes' : 'no'}, forms=${features.hasForms ? 'yes' : 'no'}, weakPoints=${features.hasWeakPoints ? 'yes' : 'no'}, neckChains=${features.hasNeckChains ? 'yes' : 'no'}, crushMovement=${features.hasCrushMovement ? 'yes' : 'no'}`,
+    `; Boss behavior actions used: ${behaviorTypes}`,
+    `; Boss attack runtimes included: ${attackTypes}`,
+    `; Boss attack runtimes excluded: ${formatBossFeatureList(excludedAttackTypes)}`
+  ];
+}
+
+function replaceAsmLabelRange(asm: string, startLabel: string, endLabel: string, replacement: string): string {
+  const escapedStart = startLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedEnd = endLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`^${escapedStart}:[\\s\\S]*?(?=^${escapedEnd}:)`, 'm');
+  return asm.replace(pattern, replacement.trimEnd() + '\n\n');
+}
+
+function replaceAsmLabelRangeToEnd(asm: string, startLabel: string, replacement: string): string {
+  const escapedStart = startLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`^${escapedStart}:[\\s\\S]*$`, 'm');
+  return asm.replace(pattern, replacement.trimEnd() + '\n');
+}
+
+function stripUnusedBossAttackRuntime(asm: string, features: BossFeatureSet): string {
+  let optimizedAsm = asm;
+
+  if (features.usedAttackTypes.size === 0) {
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'boss_draw_behavior_attack', 'boss_attack_get_sprite_pattern', `
+boss_draw_behavior_attack:
+    ret
+`);
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'boss_attack_get_sprite_pattern', 'draw_boss_projectile_attack', `
+boss_attack_get_sprite_pattern:
+    ret
+
+draw_boss_attack:
+    ret
+`);
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_projectile_attack', 'draw_boss_slam_rocks_attack', '');
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_slam_rocks_attack', 'draw_boss_falling_blocks_attack', `
+boss_slam_rocks_hide_all:
+    ret
+`);
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_falling_blocks_attack', 'draw_boss_meteor_attack', `
+boss_falling_blocks_hide_all:
+    ret
+`);
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_meteor_attack', 'draw_boss_bomb_attack', '');
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_bomb_attack', 'draw_boss_boomerang_attack', '');
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_boomerang_attack', 'draw_boss_rock_attack', '');
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_rock_attack', 'draw_boss_sine_wave_attack', '');
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_sine_wave_attack', 'draw_boss_homing_missile_attack', '');
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_homing_missile_attack', 'draw_boss_laser_attack', '');
+    optimizedAsm = replaceAsmLabelRangeToEnd(optimizedAsm, 'draw_boss_laser_attack', '');
+    return optimizedAsm;
+  }
+
+  if (!usesBossAttack(features, 'Projectile')) {
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_projectile_attack', 'draw_boss_slam_rocks_attack', `
+draw_boss_projectile_attack:
+    ret
+
+update_boss_projectile_runtime:
+    ret
+
+boss_projectile_show_current:
+    ret
+`);
+  }
+
+  if (!usesBossAttack(features, 'SlamRocks')) {
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_slam_rocks_attack', 'draw_boss_falling_blocks_attack', `
+draw_boss_slam_rocks_attack:
+    ret
+
+update_boss_slam_rocks_runtime:
+    ret
+
+boss_slam_rocks_hide_all:
+    ret
+`);
+  }
+
+  if (!usesBossAttack(features, 'FallingBlocks')) {
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_falling_blocks_attack', 'draw_boss_meteor_attack', `
+draw_boss_falling_blocks_attack:
+    ret
+
+update_boss_falling_blocks_runtime:
+    ret
+
+boss_falling_blocks_hide_all:
+    ret
+`);
+  }
+
+  if (!usesBossAttack(features, 'Meteor')) {
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_meteor_attack', 'draw_boss_bomb_attack', `
+draw_boss_meteor_attack:
+    ret
+`);
+  }
+
+  if (!usesBossAttack(features, 'Bomb')) {
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_bomb_attack', 'draw_boss_boomerang_attack', `
+draw_boss_bomb_attack:
+    ret
+`);
+  }
+
+  if (!usesBossAttack(features, 'Boomerang')) {
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_boomerang_attack', 'draw_boss_rock_attack', `
+draw_boss_boomerang_attack:
+    ret
+`);
+  }
+
+  if (!usesBossAttack(features, 'Rock')) {
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_rock_attack', 'draw_boss_sine_wave_attack', `
+draw_boss_rock_attack:
+    ret
+`);
+  }
+
+  if (!usesBossAttack(features, 'SineWave')) {
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_sine_wave_attack', 'draw_boss_homing_missile_attack', `
+draw_boss_sine_wave_attack:
+    ret
+`);
+  }
+
+  if (!usesBossAttack(features, 'HomingMissile')) {
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'draw_boss_homing_missile_attack', 'draw_boss_laser_attack', `
+draw_boss_homing_missile_attack:
+    ret
+`);
+  }
+
+  if (!usesBossAttack(features, 'Laser')) {
+    optimizedAsm = replaceAsmLabelRangeToEnd(optimizedAsm, 'draw_boss_laser_attack', `
+draw_boss_laser_attack:
+    ret
+`);
+  }
+
+  return optimizedAsm;
+}
 
 function sanitizeLabel(value: string, fallback: string): string {
   const cleaned = String(value || '')
@@ -105,10 +355,37 @@ function getAttackTypeId(type: BossAttack['type']): number {
     case 'Laser': return 8;
     case 'SineWave': return 9;
     case 'HomingMissile': return 10;
+    case 'SlamRocks': return 11;
+    case 'FallingBlocks': return 12;
     case 'Projectile':
     default:
       return 0;
   }
+}
+
+function getAttackTileCharCode(
+  tileId: string | null | undefined,
+  tileIndexById: Map<string, number>,
+  analysis: ProjectAnalysis,
+  tileBankId: string | undefined,
+  yChar: number
+): number {
+  if (!tileId) return 0;
+  const runtimeCharCode = resolveRuntimeScreen2TileBankCharCode(
+    analysis,
+    tileBankId,
+    tileId,
+    Math.max(0, Math.min(23, Math.floor(yChar))),
+    0,
+    0
+  );
+  return runtimeCharCode > 0 ? clampByte(runtimeCharCode) : getTileIndex(tileId, tileIndexById);
+}
+
+function getAttackTileBehaviorByte(tileId: string | null | undefined, analysis: ProjectAnalysis, fallback = 0x11): number {
+  const tile = tileId ? (analysis.tiles || []).find(candidate => candidate.id === tileId) : undefined;
+  const behaviorByte = encodeBehaviorByteFromLogicalProperties(tile?.logicalProperties);
+  return behaviorByte > 0 ? clampByte(behaviorByte) : clampByte(fallback);
 }
 
 function getBuildTypeId(type: BossPhase['buildType']): number {
@@ -292,10 +569,15 @@ function renderFormTable(
     `${label}_current`,
     ...forms.map((_form, index) => `${label}_${index + 1}`)
   ];
+  const weakLabels = [
+    `${label}_current_weak`,
+    ...forms.map((_form, index) => `${label}_${index + 1}_weak`)
+  ];
 
   const blocks: string[] = [];
-  blocks.push(`${label}:\n${db([clampByte(formLabels.length)], 'count')}\n${formLabels.map(formLabel => dw([formLabel])).join('\n')}`);
+  blocks.push(`${label}:\n${db([clampByte(formLabels.length)], 'count')}\n${formLabels.map((formLabel, index) => dw([formLabel, weakLabels[index]])).join('\n')}`);
   blocks.push(renderTileMatrix(formLabels[0], phase, tileIndexById, analysis, bossStartYChar));
+  blocks.push(renderWeakMatrix(weakLabels[0], phase));
 
   forms.forEach((form, index) => {
     const formPhase: BossPhase = {
@@ -307,6 +589,7 @@ function renderFormTable(
       weakPoints: form.weakPoints,
     };
     blocks.push(renderTileMatrix(formLabels[index + 1], formPhase, tileIndexById, analysis, bossStartYChar));
+    blocks.push(renderWeakMatrix(weakLabels[index + 1], formPhase));
   });
 
   return blocks;
@@ -320,6 +603,26 @@ function renderCollisionMatrix(label: string, phase: BossPhase): string {
     const row = phase.collisionMatrix?.[y] || [];
     for (let x = 0; x < width; x++) {
       bytes.push(row[x] ? 1 : 0);
+    }
+  }
+  return `${label}:\n${chunkedDb(bytes)}`;
+}
+
+function renderWeakMatrix(label: string, phase: BossPhase): string {
+  const width = phase.dimensions?.width || 0;
+  const height = phase.dimensions?.height || 0;
+  const weakPointHealthByCell = new Map<string, number>();
+  (phase.weakPoints || []).forEach(weakPoint => {
+    const x = clampByte(weakPoint.x);
+    const y = clampByte(weakPoint.y);
+    if (x < width && y < height) {
+      weakPointHealthByCell.set(`${x},${y}`, Math.max(1, clampByte(weakPoint.health || 1)));
+    }
+  });
+  const bytes: number[] = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      bytes.push(weakPointHealthByCell.get(`${x},${y}`) || 0);
     }
   }
   return `${label}:\n${chunkedDb(bytes)}`;
@@ -379,7 +682,14 @@ function renderAttackSequence(label: string, phase: BossPhase, attackIndexById: 
   return `${label}:\n${db([sequence.length], 'count')}\n${chunkedDb(sequence, 16)}`;
 }
 
-function renderAttackRecord(attack: BossAttack, spriteIndexById: Map<string, number>, tileIndexById: Map<string, number>): string {
+function renderAttackRecord(
+  attack: BossAttack,
+  spriteIndexById: Map<string, number>,
+  tileIndexById: Map<string, number>,
+  analysis: ProjectAnalysis,
+  attackTileBankId: string | undefined
+): string {
+  const landingYChar = Math.max(0, Math.min(23, Math.floor(Number(attack.landingYChar ?? 20))));
   return [
     db([
       getAttackTypeId(attack.type),
@@ -413,7 +723,7 @@ function renderAttackRecord(attack: BossAttack, spriteIndexById: Map<string, num
       clampByte(attack.arcHeight || 0)
     ], 'arcHeight'),
     db([
-      getTileIndex(attack.laserTileAssetId, tileIndexById),
+      getAttackTileCharCode(attack.laserTileAssetId, tileIndexById, analysis, attackTileBankId, landingYChar),
       clampByte(attack.laserLengthChars || 0),
       clampByte(attack.laserDurationFrames || 0)
     ], 'laserTile,laserLength,laserDuration'),
@@ -423,12 +733,31 @@ function renderAttackRecord(attack: BossAttack, spriteIndexById: Map<string, num
     ], 'waveAmplitude,waveFrequencyFrames'),
     db([
       clampByte(attack.homingTurnStep || 0)
-    ], 'homingTurnStep')
+    ], 'homingTurnStep'),
+    db([
+      clampByte(attack.slamRiseChars || 0),
+      clampByte(attack.slamWindupFrames || 0),
+      clampByte(attack.slamFrames || 0),
+      clampByte(attack.slamHoldFrames || 0)
+    ], 'slamRiseChars,slamWindup,slamFrames,slamHold'),
+    db([
+      getAttackTileCharCode(attack.blockTileAssetId, tileIndexById, analysis, attackTileBankId, landingYChar),
+      clampByte(landingYChar),
+      getAttackTileBehaviorByte(attack.blockTileAssetId, analysis)
+    ], 'blockTile,landingYChar,blockBehavior')
   ].join('\n');
 }
 
-function renderBossRuntimeAsm(): string {
-  return `; ------------------------------------------------------------------
+function renderBossRuntimeAsm(features: BossFeatureSet = {
+  hasBosses: true,
+  hasForms: true,
+  hasWeakPoints: true,
+  hasNeckChains: true,
+  hasCrushMovement: true,
+  usedAttackTypes: new Set<string>(BOSS_ATTACK_RUNTIME_TYPES),
+  usedBehaviorTypes: new Set<BossBehaviorAction['type']>(['wait', 'moveTo', 'attack', 'slam', 'protect', 'shield', 'setForm', 'animateForm', 'loop'])
+}): string {
+  const asm = `; ------------------------------------------------------------------
 ; Boss attack record layout
 ; ------------------------------------------------------------------
 BOSS_ATTACK_TYPE_OFF EQU 0
@@ -459,7 +788,14 @@ BOSS_ATTACK_LASER_DURATION_OFF EQU 26
 BOSS_ATTACK_WAVE_AMPLITUDE_OFF EQU 27
 BOSS_ATTACK_WAVE_FREQUENCY_OFF EQU 28
 BOSS_ATTACK_HOMING_TURN_STEP_OFF EQU 29
-BOSS_ATTACK_RECORD_SIZE EQU 30
+BOSS_ATTACK_SLAM_RISE_CHARS_OFF EQU 30
+BOSS_ATTACK_SLAM_WINDUP_FRAMES_OFF EQU 31
+BOSS_ATTACK_SLAM_FRAMES_OFF EQU 32
+BOSS_ATTACK_SLAM_HOLD_FRAMES_OFF EQU 33
+BOSS_ATTACK_BLOCK_TILE_OFF EQU 34
+BOSS_ATTACK_BLOCK_LANDING_Y_OFF EQU 35
+BOSS_ATTACK_BLOCK_BEHAVIOR_OFF EQU 36
+BOSS_ATTACK_RECORD_SIZE EQU 37
 
 ; ------------------------------------------------------------------
 ; Boss phase and screen placement runtime layout
@@ -470,6 +806,7 @@ BOSS_PHASE_HEIGHT_OFF EQU 3
 BOSS_PHASE_TILE_MATRIX_PTR_OFF EQU 4
 BOSS_PHASE_BEHAVIOR_PTR_OFF EQU 14
 BOSS_PHASE_FORM_TABLE_PTR_OFF EQU 16
+BOSS_PHASE_WEAK_MATRIX_PTR_OFF EQU 18
 BOSS_BUILD_TYPE_TILE EQU 0
 BOSS_RUNTIME_PLACEMENT_PHASE_TABLE_OFF EQU 0
 BOSS_RUNTIME_PLACEMENT_ATTACK_TABLE_OFF EQU 2
@@ -478,6 +815,8 @@ BOSS_RUNTIME_PLACEMENT_Y_OFF EQU 5
 BOSS_RUNTIME_PLACEMENT_INITIAL_PHASE_OFF EQU 6
 BOSS_RUNTIME_PLACEMENT_FLAGS_OFF EQU 7
 BOSS_RUNTIME_PLACEMENT_UPDATE_INTERVAL_OFF EQU 8
+BOSS_RUNTIME_PLACEMENT_HEALTH_LO_OFF EQU 9
+BOSS_RUNTIME_PLACEMENT_HEALTH_HI_OFF EQU 10
 BOSS_RUNTIME_PLACEMENT_FLAG_ENABLED EQU #01
 BOSS_BEHAVIOR_WAIT EQU 0
 BOSS_BEHAVIOR_MOVE_TO EQU 1
@@ -504,6 +843,12 @@ init_screen_boss_from_current_screen:
     push ix
     xor a
     ld (boss_active), a
+    ld (boss_health_lo), a
+    ld (boss_health_hi), a
+    ld (boss_hit_cooldown), a
+    ld (boss_projectile_active), a
+    ld (boss_slam_rocks_active), a
+    ld (boss_falling_blocks_active), a
     ld a, (current_screen_boss_count)
     or a
     jp z, .isb_done
@@ -540,8 +885,16 @@ init_screen_boss_from_current_screen:
     ld a, 1
 .isb_update_interval_ok:
     ld (boss_update_interval), a
+    inc hl
     xor a
     ld (boss_update_timer), a
+    ld (boss_hit_cooldown), a
+    ld a, (hl)
+    inc hl
+    ld (boss_health_lo), a
+    ld a, (hl)
+    inc hl
+    ld (boss_health_hi), a
 
     call boss_resolve_initial_phase
     call boss_init_behavior_state
@@ -555,7 +908,7 @@ init_screen_boss_from_current_screen:
 
 ; Register Contract:
 ; input: boss_phase_table_ptr and boss_initial_phase_index
-; output: boss_phase_ptr, boss_tile_matrix_ptr, boss_width and boss_height populated from the selected phase record
+; output: boss_phase_ptr, boss_tile_matrix_ptr, boss_weak_matrix_ptr, boss_width and boss_height populated from the selected phase record
 ; clobbers: AF, DE, HL, IX
 boss_resolve_initial_phase:
     ld hl, (boss_phase_table_ptr)
@@ -583,6 +936,9 @@ boss_resolve_initial_phase:
     ld e, (ix+16)
     ld d, (ix+17)
     ld (boss_form_table_ptr), de
+    ld e, (ix+18)
+    ld d, (ix+19)
+    ld (boss_weak_matrix_ptr), de
     ret
 
 ; Register Contract:
@@ -1097,8 +1453,8 @@ boss_load_current_behavior_action:
     ret
 
 ; Register Contract:
-; input: boss_behavior_aux0 = visual form index, boss_form_table_ptr points to db count + dw form matrices
-; output: boss_tile_matrix_ptr switched and boss_visual_dirty set when form index is valid
+; input: boss_behavior_aux0 = visual form index, boss_form_table_ptr points to db count + dw tileMatrix, weakMatrix pairs
+; output: boss_tile_matrix_ptr/boss_weak_matrix_ptr switched and boss_visual_dirty set when form index is valid
 ; clobbers: AF, BC, DE, HL
 boss_apply_behavior_form:
     ld hl, (boss_form_table_ptr)
@@ -1118,13 +1474,20 @@ boss_apply_behavior_form:
     jp z, .babf_offset_done
     inc hl
     inc hl
+    inc hl
+    inc hl
     dec b
     jp .babf_offset_loop
 .babf_offset_done:
     ld e, (hl)
     inc hl
     ld d, (hl)
+    inc hl
     ld (boss_tile_matrix_ptr), de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld (boss_weak_matrix_ptr), de
     ld a, 1
     ld (boss_visual_dirty), a
     ld (boss_behavior_step_interval), a
@@ -1375,6 +1738,8 @@ boss_attack_get_sprite_pattern:
 ; clobbers: AF plus the selected renderer's documented clobbers
 draw_boss_attack:
     ld a, (hl)
+    cp BOSS_ATTACK_PROJECTILE
+    jp z, draw_boss_projectile_attack
     cp BOSS_ATTACK_METEOR
     jp z, draw_boss_meteor_attack
     cp BOSS_ATTACK_BOMB
@@ -1389,6 +1754,862 @@ draw_boss_attack:
     jp z, draw_boss_sine_wave_attack
     cp BOSS_ATTACK_HOMING_MISSILE
     jp z, draw_boss_homing_missile_attack
+    cp BOSS_ATTACK_SLAM_ROCKS
+    jp z, draw_boss_slam_rocks_attack
+    cp BOSS_ATTACK_FALLING_BLOCKS
+    jp z, draw_boss_falling_blocks_attack
+    ret
+
+; Register Contract:
+; input: HL = boss attack record
+;        B  = base X
+;        C  = base Y
+;        D  = hardware sprite slot to use
+;        E  = sprite color
+; output: starts one simple projectile if none is currently active
+; clobbers: AF, BC, DE, HL
+; preserves: IX
+draw_boss_projectile_attack:
+    push ix
+    push hl
+    pop ix
+    ld a, (ix+0)
+    cp BOSS_ATTACK_PROJECTILE
+    jp nz, .dbpa_done
+    ld a, (boss_projectile_active)
+    or a
+    jp nz, .dbpa_done
+
+    ld a, b
+    add a, (ix+5)
+    ld (boss_projectile_x), a
+    ld a, c
+    add a, (ix+6)
+    ld (boss_projectile_y), a
+    ld a, d
+    ld (boss_projectile_sprite_slot), a
+    ld a, e
+    ld (boss_projectile_color), a
+
+    ld a, (ix+1)
+    call boss_attack_get_sprite_pattern
+    ld (boss_projectile_pattern), a
+
+    ld a, (ix+3)
+    or a
+    jp nz, .dbpa_speed_ok
+    ld a, 3
+.dbpa_speed_ok:
+    ld (boss_projectile_speed), a
+
+    ld a, (ix+7)
+    or a
+    jp nz, .dbpa_range_ok
+    ld a, 160
+.dbpa_range_ok:
+    ld (boss_projectile_range), a
+
+    ld a, (ix+4)
+    ld (boss_projectile_direction), a
+    xor a
+    ld (boss_projectile_distance), a
+    ld a, 1
+    ld (boss_projectile_active), a
+    call boss_projectile_show_current
+
+.dbpa_done:
+    pop ix
+    ret
+
+; Register Contract:
+; input: boss_projectile_* RAM state
+; output: active simple boss projectile moved one step or hidden when finished
+; clobbers: AF, BC, DE, HL
+update_boss_projectile_runtime:
+    ld a, (boss_projectile_active)
+    or a
+    ret z
+    ld a, (boss_projectile_distance)
+    ld b, a
+    ld a, (boss_projectile_speed)
+    add a, b
+    ld (boss_projectile_distance), a
+    ld b, a
+    ld a, (boss_projectile_range)
+    cp b
+    jp c, .ubpr_hide
+    jp z, .ubpr_hide
+
+    ld a, (boss_projectile_direction)
+    cp BOSS_DIR_RIGHT
+    jp z, .ubpr_right
+    cp BOSS_DIR_UP
+    jp z, .ubpr_up
+    cp BOSS_DIR_DOWN
+    jp z, .ubpr_down
+    ld a, (boss_projectile_x)
+    ld b, a
+    ld a, (boss_projectile_speed)
+    ld h, a
+    ld a, b
+    sub h
+    ld (boss_projectile_x), a
+    jp .ubpr_bounds
+.ubpr_right:
+    ld a, (boss_projectile_x)
+    ld b, a
+    ld a, (boss_projectile_speed)
+    add a, b
+    ld (boss_projectile_x), a
+    jp .ubpr_bounds
+.ubpr_up:
+    ld a, (boss_projectile_y)
+    ld b, a
+    ld a, (boss_projectile_speed)
+    ld h, a
+    ld a, b
+    sub h
+    ld (boss_projectile_y), a
+    jp .ubpr_bounds
+.ubpr_down:
+    ld a, (boss_projectile_y)
+    ld b, a
+    ld a, (boss_projectile_speed)
+    add a, b
+    ld (boss_projectile_y), a
+.ubpr_bounds:
+    ld a, (boss_projectile_x)
+    cp 248
+    jp nc, .ubpr_hide
+    ld a, (boss_projectile_y)
+    cp 208
+    jp nc, .ubpr_hide
+    call boss_projectile_show_current
+    ret
+.ubpr_hide:
+    ld a, (boss_projectile_sprite_slot)
+    call hide_sprite
+    xor a
+    ld (boss_projectile_active), a
+    ret
+
+; Register Contract:
+; input: boss_projectile_* RAM state
+; output: projectile sprite attributes written
+; clobbers: AF, BC, DE, HL
+boss_projectile_show_current:
+    ld a, (boss_projectile_x)
+    ld b, a
+    ld a, (boss_projectile_y)
+    ld c, a
+    ld a, (boss_projectile_pattern)
+    ld d, a
+    ld a, (boss_projectile_color)
+    ld e, a
+    ld a, (boss_projectile_sprite_slot)
+    call show_sprite
+    ret
+
+; Register Contract:
+; input: HL = boss attack record
+;        B  = base X
+;        C  = base Y
+;        D  = first hardware sprite slot to use
+;        E  = sprite color
+; output: starts one boss rise/slam plus falling-rock sequence if inactive
+; clobbers: AF, BC, DE, HL
+; preserves: IX
+draw_boss_slam_rocks_attack:
+    push ix
+    push hl
+    pop ix
+    ld a, (ix+0)
+    cp BOSS_ATTACK_SLAM_ROCKS
+    jp nz, .dbsr_done
+    ld a, (boss_slam_rocks_active)
+    or a
+    jp nz, .dbsr_done
+
+    ld a, (boss_y_char)
+    ld (boss_slam_rocks_origin_y), a
+    ld a, d
+    ld (boss_slam_rocks_sprite_slot), a
+    ld a, e
+    ld (boss_slam_rocks_color), a
+
+    ld a, (ix+1)
+    call boss_attack_get_sprite_pattern
+    ld (boss_slam_rocks_pattern), a
+
+    ld a, (ix+3)
+    or a
+    jp nz, .dbsr_speed_ok
+    ld a, 4
+.dbsr_speed_ok:
+    ld (boss_slam_rocks_speed), a
+
+    ld a, (ix+7)
+    or a
+    jp nz, .dbsr_range_ok
+    ld a, 216
+.dbsr_range_ok:
+    ld (boss_slam_rocks_range), a
+
+    ld a, (ix+13)
+    or a
+    jp nz, .dbsr_count_nonzero
+    ld a, 4
+.dbsr_count_nonzero:
+    cp 5
+    jp c, .dbsr_count_ok
+    ld a, 4
+.dbsr_count_ok:
+    ld (boss_slam_rocks_count), a
+
+    ld a, (ix+16)
+    or a
+    jp nz, .dbsr_duration_ok
+    ld a, 80
+.dbsr_duration_ok:
+    ld (boss_slam_rocks_duration), a
+
+    ld a, (ix+30)
+    or a
+    jp nz, .dbsr_rise_ok
+    ld a, 3
+.dbsr_rise_ok:
+    ld (boss_slam_rocks_rise_chars), a
+
+    ld a, (ix+31)
+    or a
+    jp nz, .dbsr_windup_ok
+    ld a, 16
+.dbsr_windup_ok:
+    ld (boss_slam_rocks_windup), a
+
+    ld a, (ix+32)
+    or a
+    jp nz, .dbsr_slam_ok
+    ld a, 6
+.dbsr_slam_ok:
+    ld (boss_slam_rocks_slam), a
+
+    ld a, (ix+33)
+    ld (boss_slam_rocks_hold), a
+
+    ld a, (boss_runtime_tick)
+    xor b
+    xor c
+    ld (boss_slam_rocks_rng), a
+    call boss_slam_rocks_seed_lanes
+    xor a
+    ld (boss_slam_rocks_age), a
+    ld a, 1
+    ld (boss_slam_rocks_active), a
+
+.dbsr_done:
+    pop ix
+    ret
+
+; Register Contract:
+; input: boss_slam_rocks_* RAM state
+; output: boss_y_char and falling rock sprites updated, or sequence hidden when complete
+; clobbers: AF, BC, DE, HL
+update_boss_slam_rocks_runtime:
+    ld a, (boss_slam_rocks_active)
+    or a
+    ret z
+    ld a, (boss_slam_rocks_age)
+    inc a
+    ld (boss_slam_rocks_age), a
+    ld b, a
+    ld a, (boss_slam_rocks_duration)
+    cp b
+    jp c, .ubsr_finish
+    jp z, .ubsr_finish
+
+    call boss_slam_rocks_update_boss_y
+    call boss_slam_rocks_draw_lanes
+    ret
+.ubsr_finish:
+    ld a, (boss_slam_rocks_origin_y)
+    ld (boss_y_char), a
+    call boss_slam_rocks_hide_all
+    xor a
+    ld (boss_slam_rocks_active), a
+    ret
+
+; Register Contract:
+; input: boss_slam_rocks_age/windup/rise/origin in RAM
+; output: boss_y_char raised during windup, restored afterwards
+; clobbers: AF, B
+boss_slam_rocks_update_boss_y:
+    ld a, (boss_slam_rocks_age)
+    ld b, a
+    ld a, (boss_slam_rocks_windup)
+    cp b
+    jp c, .bsru_origin
+    jp z, .bsru_origin
+    ld a, (boss_slam_rocks_origin_y)
+    ld b, a
+    ld a, (boss_slam_rocks_rise_chars)
+    cp b
+    jp c, .bsru_subtract
+    xor a
+    ld (boss_y_char), a
+    ret
+.bsru_subtract:
+    ld a, b
+    ld b, a
+    ld a, (boss_slam_rocks_rise_chars)
+    ld h, a
+    ld a, b
+    sub h
+    ld (boss_y_char), a
+    ret
+.bsru_origin:
+    ld a, (boss_slam_rocks_origin_y)
+    ld (boss_y_char), a
+    ret
+
+; Register Contract:
+; input: none
+; output: random X lanes stored for up to four falling rocks
+; clobbers: AF, B
+boss_slam_rocks_seed_lanes:
+    call boss_slam_rocks_random_byte
+    call boss_slam_rocks_clamp_random_x
+    ld (boss_slam_rock_x0), a
+    call boss_slam_rocks_random_byte
+    call boss_slam_rocks_clamp_random_x
+    ld (boss_slam_rock_x1), a
+    call boss_slam_rocks_random_byte
+    call boss_slam_rocks_clamp_random_x
+    ld (boss_slam_rock_x2), a
+    call boss_slam_rocks_random_byte
+    call boss_slam_rocks_clamp_random_x
+    ld (boss_slam_rock_x3), a
+    ret
+
+; Register Contract:
+; input: boss_slam_rocks_rng
+; output: A = pseudo-random byte
+; clobbers: AF, HL
+boss_slam_rocks_random_byte:
+    ld hl, boss_slam_rocks_rng
+    ld a, (hl)
+    add a, 37
+    xor #A7
+    ld (hl), a
+    ret
+
+; Register Contract:
+; input: A = random byte
+; output: A = screen-safe X coordinate for a 16px sprite
+; clobbers: AF, B
+boss_slam_rocks_clamp_random_x:
+    and #F8
+    ld b, a
+    cp 240
+    jp c, .bsrcrx_ok
+    ld a, b
+    sub 32
+.bsrcrx_ok:
+    ret
+
+; Register Contract:
+; input: boss_slam_rocks_* RAM state
+; output: falling rock sprites updated/hidden
+; clobbers: AF, BC, DE, HL
+boss_slam_rocks_draw_lanes:
+    xor a
+    ld (boss_slam_rocks_index), a
+.bsrdl_loop:
+    ld a, (boss_slam_rocks_index)
+    ld b, a
+    ld a, (boss_slam_rocks_count)
+    cp b
+    ret z
+    ld a, (boss_slam_rocks_index)
+    add a, a
+    add a, a
+    add a, a
+    ld b, a
+    ld a, (boss_slam_rocks_windup)
+    add a, b
+    ld b, a
+    ld a, (boss_slam_rocks_slam)
+    add a, b
+    ld b, a
+    ld a, (boss_slam_rocks_hold)
+    add a, b
+    ld b, a                         ; B = lane start age
+    ld a, (boss_slam_rocks_age)
+    cp b
+    jp c, .bsrdl_hide_lane
+    sub b
+    call boss_slam_rocks_age_to_distance
+    ld c, a
+    ld a, (boss_slam_rocks_range)
+    cp c
+    jp c, .bsrdl_hide_lane
+    ld b, c                         ; B = Y distance
+    call boss_slam_rocks_get_lane_x ; C = X
+    ld a, c
+    ld b, a                         ; B = X
+    ld c, 0
+    ld a, (boss_slam_rocks_age)
+    ; C already starts at top; B has X. Restore falling Y from saved distance.
+    ld a, (boss_slam_rocks_range)
+    ; The distance remains in B only until X assignment, so recompute cheaply.
+    ld a, (boss_slam_rocks_index)
+    add a, a
+    add a, a
+    add a, a
+    ld h, a
+    ld a, (boss_slam_rocks_windup)
+    add a, h
+    ld h, a
+    ld a, (boss_slam_rocks_slam)
+    add a, h
+    ld h, a
+    ld a, (boss_slam_rocks_hold)
+    add a, h
+    ld h, a
+    ld a, (boss_slam_rocks_age)
+    sub h
+    call boss_slam_rocks_age_to_distance
+    ld c, a                         ; C = Y
+    ld a, (boss_slam_rocks_pattern)
+    ld d, a
+    ld a, (boss_slam_rocks_color)
+    ld e, a
+    ld a, (boss_slam_rocks_sprite_slot)
+    ld h, a
+    ld a, (boss_slam_rocks_index)
+    add a, h
+    call show_sprite
+    jp .bsrdl_next
+.bsrdl_hide_lane:
+    ld a, (boss_slam_rocks_sprite_slot)
+    ld h, a
+    ld a, (boss_slam_rocks_index)
+    add a, h
+    call hide_sprite
+.bsrdl_next:
+    ld a, (boss_slam_rocks_index)
+    inc a
+    ld (boss_slam_rocks_index), a
+    jp .bsrdl_loop
+
+; Register Contract:
+; input: A = fall age in frames
+; output: A = age * boss_slam_rocks_speed, 8-bit wrapping
+; clobbers: AF, BC, H
+boss_slam_rocks_age_to_distance:
+    ld b, a
+    ld a, (boss_slam_rocks_speed)
+    ld c, a
+    xor a
+.bsratd_loop:
+    ld h, a
+    ld a, b
+    or a
+    ld a, h
+    ret z
+    add a, c
+    dec b
+    jp .bsratd_loop
+
+; Register Contract:
+; input: boss_slam_rocks_index
+; output: C = lane X
+; clobbers: AF, C, HL
+boss_slam_rocks_get_lane_x:
+    ld hl, boss_slam_rock_x0
+    ld a, (boss_slam_rocks_index)
+    ld c, a
+    ld b, 0
+    add hl, bc
+    ld c, (hl)
+    ret
+
+; Register Contract:
+; input: boss_slam_rocks_sprite_slot
+; output: all SlamRocks sprites hidden
+; clobbers: AF, B
+boss_slam_rocks_hide_all:
+    ld a, (boss_slam_rocks_sprite_slot)
+    call hide_sprite
+    ld a, (boss_slam_rocks_sprite_slot)
+    inc a
+    call hide_sprite
+    ld a, (boss_slam_rocks_sprite_slot)
+    inc a
+    inc a
+    call hide_sprite
+    ld a, (boss_slam_rocks_sprite_slot)
+    inc a
+    inc a
+    inc a
+    call hide_sprite
+    ret
+
+; Register Contract:
+; input: HL = boss attack record
+;        B  = base X
+;        C  = base Y
+;        D  = first hardware sprite slot to use
+;        E  = sprite color
+; output: starts a falling-block sequence if inactive
+; clobbers: AF, BC, DE, HL
+; preserves: IX
+draw_boss_falling_blocks_attack:
+    push ix
+    push hl
+    pop ix
+    ld a, (ix+0)
+    cp BOSS_ATTACK_FALLING_BLOCKS
+    jp nz, .dbfb_done
+    ld a, (boss_falling_blocks_active)
+    or a
+    jp nz, .dbfb_done
+
+    ld a, d
+    ld (boss_falling_blocks_sprite_slot), a
+    ld a, e
+    ld (boss_falling_blocks_color), a
+
+    ld a, (ix+1)
+    call boss_attack_get_sprite_pattern
+    ld (boss_falling_blocks_pattern), a
+
+    ld a, (ix+3)
+    or a
+    jp nz, .dbfb_speed_ok
+    ld a, 4
+.dbfb_speed_ok:
+    ld (boss_falling_blocks_speed), a
+
+    ld a, (ix+13)
+    or a
+    jp nz, .dbfb_count_nonzero
+    ld a, 4
+.dbfb_count_nonzero:
+    cp 5
+    jp c, .dbfb_count_ok
+    ld a, 4
+.dbfb_count_ok:
+    ld (boss_falling_blocks_count), a
+
+    ld a, (ix+16)
+    or a
+    jp nz, .dbfb_duration_ok
+    ld a, 80
+.dbfb_duration_ok:
+    ld (boss_falling_blocks_duration), a
+
+    ld a, (ix+34)
+    ld (boss_falling_blocks_tile_char), a
+    ld a, (ix+35)
+    or a
+    jp nz, .dbfb_landing_ok
+    ld a, 20
+.dbfb_landing_ok:
+    cp 24
+    jp c, .dbfb_landing_store
+    ld a, 23
+.dbfb_landing_store:
+    ld (boss_falling_blocks_landing_y), a
+    ld a, (ix+36)
+    or a
+    jp nz, .dbfb_behavior_ok
+    ld a, #11
+.dbfb_behavior_ok:
+    ld (boss_falling_blocks_behavior), a
+
+    ld a, (boss_runtime_tick)
+    xor b
+    xor c
+    ld (boss_falling_blocks_rng), a
+    call boss_falling_blocks_seed_lanes
+    xor a
+    ld (boss_falling_blocks_age), a
+    ld (boss_falling_blocks_landed_flags), a
+    ld a, 1
+    ld (boss_falling_blocks_active), a
+
+.dbfb_done:
+    pop ix
+    ret
+
+; Register Contract:
+; input: boss_falling_blocks_* RAM state
+; output: falling block sprites updated; landed blocks are written to runtime maps and SCREEN 2 name table
+; clobbers: AF, BC, DE, HL
+update_boss_falling_blocks_runtime:
+    ld a, (boss_falling_blocks_active)
+    or a
+    ret z
+    ld a, (boss_falling_blocks_age)
+    inc a
+    ld (boss_falling_blocks_age), a
+    ld b, a
+    ld a, (boss_falling_blocks_duration)
+    cp b
+    jp c, .ubfb_finish
+    jp z, .ubfb_finish
+    call boss_falling_blocks_draw_lanes
+    ret
+.ubfb_finish:
+    call boss_falling_blocks_hide_all
+    xor a
+    ld (boss_falling_blocks_active), a
+    ret
+
+; Register Contract:
+; input: none
+; output: random X lanes stored for up to four falling blocks
+; clobbers: AF, B
+boss_falling_blocks_seed_lanes:
+    call boss_falling_blocks_random_byte
+    call boss_falling_blocks_clamp_random_x
+    ld (boss_falling_blocks_x0), a
+    call boss_falling_blocks_random_byte
+    call boss_falling_blocks_clamp_random_x
+    ld (boss_falling_blocks_x1), a
+    call boss_falling_blocks_random_byte
+    call boss_falling_blocks_clamp_random_x
+    ld (boss_falling_blocks_x2), a
+    call boss_falling_blocks_random_byte
+    call boss_falling_blocks_clamp_random_x
+    ld (boss_falling_blocks_x3), a
+    ret
+
+; Register Contract:
+; input: boss_falling_blocks_rng
+; output: A = pseudo-random byte
+; clobbers: AF, HL
+boss_falling_blocks_random_byte:
+    ld hl, boss_falling_blocks_rng
+    ld a, (hl)
+    add a, 53
+    xor #6D
+    ld (hl), a
+    ret
+
+; Register Contract:
+; input: A = random byte
+; output: A = screen-safe X coordinate for a 16px sprite
+; clobbers: AF, B
+boss_falling_blocks_clamp_random_x:
+    and #F8
+    ld b, a
+    cp 240
+    jp c, .bfbcx_ok
+    ld a, b
+    sub 32
+.bfbcx_ok:
+    ret
+
+; Register Contract:
+; input: boss_falling_blocks_* RAM state
+; output: falling block sprites shown/hidden and landed chars committed
+; clobbers: AF, BC, DE, HL
+boss_falling_blocks_draw_lanes:
+    xor a
+    ld (boss_falling_blocks_index), a
+.bfbdl_loop:
+    ld a, (boss_falling_blocks_index)
+    ld b, a
+    ld a, (boss_falling_blocks_count)
+    cp b
+    ret z
+    call boss_falling_blocks_lane_mask
+    ld b, a
+    ld a, (boss_falling_blocks_landed_flags)
+    and b
+    jp nz, .bfbdl_hide_lane
+    ld a, (boss_falling_blocks_index)
+    add a, a
+    add a, a
+    add a, a
+    ld b, a                         ; B = lane start age
+    ld a, (boss_falling_blocks_age)
+    cp b
+    jp c, .bfbdl_hide_lane
+    sub b
+    call boss_falling_blocks_age_to_distance
+    ld h, a                         ; H = falling Y in pixels
+    ld a, (boss_falling_blocks_landing_y)
+    add a, a
+    add a, a
+    add a, a
+    ld b, a                         ; B = landing Y in pixels
+    ld a, h
+    cp b
+    jp nc, .bfbdl_land_lane
+    push af
+    call boss_falling_blocks_get_lane_x
+    ld b, c
+    pop af
+    ld c, a
+    ld a, (boss_falling_blocks_pattern)
+    ld d, a
+    ld a, (boss_falling_blocks_color)
+    ld e, a
+    ld a, (boss_falling_blocks_sprite_slot)
+    ld h, a
+    ld a, (boss_falling_blocks_index)
+    add a, h
+    call show_sprite
+    jp .bfbdl_next
+.bfbdl_land_lane:
+    call boss_falling_blocks_get_lane_x
+    ld a, c
+    srl a
+    srl a
+    srl a
+    ld (boss_falling_blocks_tile_x), a
+    call boss_falling_blocks_write_landed_tile
+    ld a, (boss_falling_blocks_sprite_slot)
+    ld h, a
+    ld a, (boss_falling_blocks_index)
+    add a, h
+    call hide_sprite
+    call boss_falling_blocks_lane_mask
+    ld b, a
+    ld a, (boss_falling_blocks_landed_flags)
+    or b
+    ld (boss_falling_blocks_landed_flags), a
+    jp .bfbdl_next
+.bfbdl_hide_lane:
+    ld a, (boss_falling_blocks_sprite_slot)
+    ld h, a
+    ld a, (boss_falling_blocks_index)
+    add a, h
+    call hide_sprite
+.bfbdl_next:
+    ld a, (boss_falling_blocks_index)
+    inc a
+    ld (boss_falling_blocks_index), a
+    jp .bfbdl_loop
+
+; Register Contract:
+; input: A = fall age in frames
+; output: A = age * boss_falling_blocks_speed, 8-bit wrapping
+; clobbers: AF, BC, H
+boss_falling_blocks_age_to_distance:
+    ld b, a
+    ld a, (boss_falling_blocks_speed)
+    ld c, a
+    xor a
+.bfbatd_loop:
+    ld h, a
+    ld a, b
+    or a
+    ld a, h
+    ret z
+    add a, c
+    dec b
+    jp .bfbatd_loop
+
+; Register Contract:
+; input: boss_falling_blocks_index
+; output: A = bit mask for current lane
+; clobbers: AF
+boss_falling_blocks_lane_mask:
+    ld a, (boss_falling_blocks_index)
+    or a
+    jp z, .bfblm_lane0
+    cp 1
+    jp z, .bfblm_lane1
+    cp 2
+    jp z, .bfblm_lane2
+    ld a, #08
+    ret
+.bfblm_lane0:
+    ld a, #01
+    ret
+.bfblm_lane1:
+    ld a, #02
+    ret
+.bfblm_lane2:
+    ld a, #04
+    ret
+
+; Register Contract:
+; input: boss_falling_blocks_index
+; output: C = lane X
+; clobbers: AF, C, HL
+boss_falling_blocks_get_lane_x:
+    ld hl, boss_falling_blocks_x0
+    ld a, (boss_falling_blocks_index)
+    ld c, a
+    ld b, 0
+    add hl, bc
+    ld c, (hl)
+    ret
+
+; Register Contract:
+; input: boss_falling_blocks_tile_x/landing_y/tile_char/behavior
+; output: one landed block committed to runtime_screen_layout, runtime_behavior_map and SCREEN 2 name table
+; clobbers: AF, DE, HL
+boss_falling_blocks_write_landed_tile:
+    ld a, (boss_falling_blocks_tile_x)
+    cp 32
+    ret nc
+    ld a, (boss_falling_blocks_landing_y)
+    cp 24
+    ret nc
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld a, (boss_falling_blocks_tile_x)
+    ld e, a
+    ld d, 0
+    add hl, de
+    push hl
+    ld de, runtime_screen_layout
+    add hl, de
+    ld a, (boss_falling_blocks_tile_char)
+    ld (hl), a
+    pop hl
+    push hl
+    ld de, runtime_behavior_map
+    add hl, de
+    ld a, (boss_falling_blocks_behavior)
+    ld (hl), a
+    pop hl
+    ld de, NAMETBL
+    add hl, de
+    ld a, (boss_falling_blocks_tile_char)
+    call FAST_WRTVRM
+    ret
+
+; Register Contract:
+; input: boss_falling_blocks_sprite_slot
+; output: all FallingBlocks sprites hidden
+; clobbers: AF
+boss_falling_blocks_hide_all:
+    ld a, (boss_falling_blocks_sprite_slot)
+    call hide_sprite
+    ld a, (boss_falling_blocks_sprite_slot)
+    inc a
+    call hide_sprite
+    ld a, (boss_falling_blocks_sprite_slot)
+    inc a
+    inc a
+    call hide_sprite
+    ld a, (boss_falling_blocks_sprite_slot)
+    inc a
+    inc a
+    inc a
+    call hide_sprite
     ret
 
 ; Register Contract:
@@ -2886,6 +4107,7 @@ boss_laser_write_current_tile:
     ret
 
 `;
+  return stripUnusedBossAttackRuntime(asm, features);
 }
 
 function renderPhaseRecord(
@@ -2893,6 +4115,7 @@ function renderPhaseRecord(
   labels: {
     tileMatrix: string;
     collisionMatrix: string;
+    weakMatrix: string;
     neckChain: string;
     crushMovement: string;
     attackSequence: string;
@@ -2914,8 +4137,9 @@ function renderPhaseRecord(
       labels.crushMovement,
       labels.attackSequence,
       labels.behaviorLoop,
-      labels.formTable
-    ], 'tileMatrix,collision,neck,crush,attacks,behavior,forms')
+      labels.formTable,
+      labels.weakMatrix
+    ], 'tileMatrix,collision,neck,crush,attacks,behavior,forms,weak')
   ].join('\n');
 }
 
@@ -2962,12 +4186,18 @@ BOSS_ATTACK_ROCK EQU 7
 BOSS_ATTACK_LASER EQU 8
 BOSS_ATTACK_SINE_WAVE EQU 9
 BOSS_ATTACK_HOMING_MISSILE EQU 10
+BOSS_ATTACK_SLAM_ROCKS EQU 11
+BOSS_ATTACK_FALLING_BLOCKS EQU 12
 
 init_boss_system:
     xor a
     ld (boss_runtime_tick), a
     ld (boss_active), a
+    ld (boss_health_lo), a
+    ld (boss_health_hi), a
+    ld (boss_hit_cooldown), a
     ld (boss_update_timer), a
+    ld (boss_falling_blocks_active), a
     ld a, 1
     ld (boss_update_interval), a
     ret
@@ -2975,17 +4205,19 @@ init_boss_system:
 update_boss_system:
     ret
 
-${renderBossRuntimeAsm()}
+${renderBossRuntimeAsm(collectBossFeatureSet([]))}
 `;
   }
 
+  const runtimeFeatures = collectBossFeatureSet(bosses);
   const tileIndexById = buildIndexById<Tile>(analysis.tiles || []);
   const spriteIndexById = buildIndexById<Sprite>(analysis.sprites || []);
   const lines: string[] = [];
 
   lines.push(`; ==================================================================`);
   lines.push(`; BOSSES`);
-  lines.push(`; Generated boss data for tile bosses, neck chains, crush movement, projectiles, sine waves, boomerangs, rocks, char lasers, meteors and bombs.`);
+  lines.push(`; Generated boss data and project-aware runtime.`);
+  lines.push(...renderBossFeatureSummary(runtimeFeatures));
   lines.push(`; ==================================================================`);
   lines.push(``);
   lines.push(`BOSS_COUNT EQU ${bosses.length}`);
@@ -3004,6 +4236,8 @@ ${renderBossRuntimeAsm()}
   lines.push(`BOSS_ATTACK_LASER EQU 8`);
   lines.push(`BOSS_ATTACK_SINE_WAVE EQU 9`);
   lines.push(`BOSS_ATTACK_HOMING_MISSILE EQU 10`);
+  lines.push(`BOSS_ATTACK_SLAM_ROCKS EQU 11`);
+  lines.push(`BOSS_ATTACK_FALLING_BLOCKS EQU 12`);
   lines.push(``);
   lines.push(`; Register Contract:`);
   lines.push(`; input: none`);
@@ -3013,7 +4247,19 @@ ${renderBossRuntimeAsm()}
   lines.push(`    xor a`);
   lines.push(`    ld (boss_runtime_tick), a`);
   lines.push(`    ld (boss_active), a`);
+  lines.push(`    ld (boss_health_lo), a`);
+  lines.push(`    ld (boss_health_hi), a`);
+  lines.push(`    ld (boss_hit_cooldown), a`);
   lines.push(`    ld (boss_visual_dirty), a`);
+  if (usesBossAttack(runtimeFeatures, 'Projectile')) {
+    lines.push(`    ld (boss_projectile_active), a`);
+  }
+  if (usesBossAttack(runtimeFeatures, 'SlamRocks')) {
+    lines.push(`    ld (boss_slam_rocks_active), a`);
+  }
+  if (usesBossAttack(runtimeFeatures, 'FallingBlocks')) {
+    lines.push(`    ld (boss_falling_blocks_active), a`);
+  }
   lines.push(`    ld (boss_update_timer), a`);
   lines.push(`    ld a, 1`);
   lines.push(`    ld (boss_update_interval), a`);
@@ -3048,6 +4294,15 @@ ${renderBossRuntimeAsm()}
   lines.push(`    dec a`);
   lines.push(`    ld (boss_update_timer), a`);
   lines.push(`    call update_boss_behavior`);
+  if (usesBossAttack(runtimeFeatures, 'Projectile')) {
+    lines.push(`    call update_boss_projectile_runtime`);
+  }
+  if (usesBossAttack(runtimeFeatures, 'SlamRocks')) {
+    lines.push(`    call update_boss_slam_rocks_runtime`);
+  }
+  if (usesBossAttack(runtimeFeatures, 'FallingBlocks')) {
+    lines.push(`    call update_boss_falling_blocks_runtime`);
+  }
   lines.push(`    ld a, (boss_x_char)`);
   lines.push(`    ld b, a`);
   lines.push(`    ld a, (boss_prev_x_char)`);
@@ -3074,7 +4329,7 @@ ${renderBossRuntimeAsm()}
   lines.push(`    pop ix`);
   lines.push(`    ret`);
   lines.push(``);
-  lines.push(renderBossRuntimeAsm());
+  lines.push(renderBossRuntimeAsm(runtimeFeatures));
   lines.push(`boss_table:`);
 
   const bossTableRows: string[] = [];
@@ -3085,6 +4340,7 @@ ${renderBossRuntimeAsm()}
     const phases = boss.phases || [];
     const attacks = boss.attacks || [];
     const attackIndexById = new Map(attacks.map((attack, index) => [attack.id, index]));
+    const attackTileBankId = phases.find(phase => phase.tileBankId)?.tileBankId;
     const phaseTableLabel = `${bossLabel}_phase_table`;
     const attackTableLabel = `${bossLabel}_attack_table`;
     const bossStartYChar = Number.isFinite(boss.behaviorPreviewStartYChar)
@@ -3106,6 +4362,7 @@ ${renderBossRuntimeAsm()}
       const labels = {
         tileMatrix: `${phaseLabel}_tiles`,
         collisionMatrix: `${phaseLabel}_collision`,
+        weakMatrix: `${phaseLabel}_weak`,
         neckChain: `${phaseLabel}_neck`,
         crushMovement: `${phaseLabel}_crush`,
         attackSequence: `${phaseLabel}_attacks`,
@@ -3117,6 +4374,7 @@ ${renderBossRuntimeAsm()}
       phaseDataBlocks.push(`${phaseLabel}:\n${renderPhaseRecord(phase, labels)}`);
       phaseDataBlocks.push(renderTileMatrix(labels.tileMatrix, phase, tileIndexById, analysis, bossStartYChar));
       phaseDataBlocks.push(renderCollisionMatrix(labels.collisionMatrix, phase));
+      phaseDataBlocks.push(renderWeakMatrix(labels.weakMatrix, phase));
       phaseDataBlocks.push(renderNeckChain(labels.neckChain, phase.neckChain));
       phaseDataBlocks.push(renderCrushMovement(labels.crushMovement, phase.crushMovement));
       phaseDataBlocks.push(renderAttackSequence(labels.attackSequence, phase, attackIndexById));
@@ -3129,7 +4387,7 @@ ${renderBossRuntimeAsm()}
     attacks.forEach((attack, attackIndex) => {
       const attackLabel = `${bossLabel}_attack_${attackIndex}`;
       attackRecordLabels.push(attackLabel);
-      attackDataBlocks.push(`${attackLabel}:\n${renderAttackRecord(attack, spriteIndexById, tileIndexById)}`);
+      attackDataBlocks.push(`${attackLabel}:\n${renderAttackRecord(attack, spriteIndexById, tileIndexById, analysis, attackTileBankId)}`);
     });
 
     detailBlocks.push(`; ------------------------------------------------------------------`);

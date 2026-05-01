@@ -2494,6 +2494,9 @@ ensure_player_fast_runtime_bound:
     ld (player_runtime_enabled), a
     ld (player_vx_runtime), a
     ld (player_vy_runtime), a
+    ld (player_dash_timer), a
+    ld (player_dash_cooldown), a
+    ld (player_dash_dir), a
     ld (player_x), a
     ld (player_x+1), a
     ld (player_y), a
@@ -2648,6 +2651,431 @@ update_entity_ladder_state_c:
     ld (hl), a
     pop af
     pop bc
+    ret
+
+; ------------------------------------------------------------------
+; Player dash helpers
+; ------------------------------------------------------------------
+; Register Contract:
+; input: C = player entity index, input_btn_curr/input_btn_prev refreshed
+; output: A = 1 while dash is active this frame, entity_vel_x/y overridden
+; clobbers: AF, BC, DE, HL
+; preserved: None
+player_fast_dash_process_c:
+    ld e, c
+    ld d, 0
+    ld hl, entity_input_disabled
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .pfd_input_ok
+    xor a
+    ld (player_dash_timer), a
+    ret
+.pfd_input_ok:
+    ld a, (boss_hit_cooldown)
+    or a
+    jp z, .pfd_hit_cooldown_done
+    dec a
+    ld (boss_hit_cooldown), a
+.pfd_hit_cooldown_done:
+    ld a, (player_dash_timer)
+    or a
+    jp nz, .pfd_active
+    ld a, (player_dash_cooldown)
+    or a
+    jp z, .pfd_check_start
+    dec a
+    ld (player_dash_cooldown), a
+.pfd_check_start:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_GRAB
+    jp z, .pfd_inactive
+    ld a, (input_btn_prev)
+    and INPUT_BTN_GRAB
+    jp nz, .pfd_inactive
+    call player_fast_dash_resolve_dir_c
+    ld (player_dash_dir), a
+    ld a, 8
+    ld (player_dash_timer), a
+    ld a, 18
+    ld (player_dash_cooldown), a
+.pfd_active:
+    ld a, (player_dash_timer)
+    dec a
+    ld (player_dash_timer), a
+    ld a, (player_dash_dir)
+    cp 1
+    jp z, .pfd_left
+    cp 3
+    jp z, .pfd_up
+    cp 4
+    jp z, .pfd_down
+.pfd_right:
+    ld b, 8
+    xor a
+    call player_fast_dash_store_velocity_c
+    call player_dash_break_front_tile_c
+    call player_dash_hit_boss_weakpoint
+    ld a, 1
+    ret
+.pfd_left:
+    ld b, #F8
+    xor a
+    call player_fast_dash_store_velocity_c
+    call player_dash_break_front_tile_c
+    call player_dash_hit_boss_weakpoint
+    ld a, 1
+    ret
+.pfd_up:
+    ld b, 0
+    ld a, #F8
+    call player_fast_dash_store_velocity_c
+    call player_dash_break_front_tile_c
+    call player_dash_hit_boss_weakpoint
+    ld a, 1
+    ret
+.pfd_down:
+    ld b, 0
+    ld a, 8
+    call player_fast_dash_store_velocity_c
+    call player_dash_break_front_tile_c
+    call player_dash_hit_boss_weakpoint
+    ld a, 1
+    ret
+.pfd_inactive:
+    xor a
+    ret
+
+; Register Contract:
+; input: C = player entity index, input_state/entity_facing_dir
+; output: A = dash direction (1=left,2=right,3=up,4=down)
+; clobbers: AF, DE, HL
+; preserved: C
+player_fast_dash_resolve_dir_c:
+    ld a, (input_state)
+    cp STICK_RIGHT
+    jp z, .pfdr_right
+    cp STICK_UPRIGHT
+    jp z, .pfdr_right
+    cp STICK_DOWNRIGHT
+    jp z, .pfdr_right
+    cp STICK_LEFT
+    jp z, .pfdr_left
+    cp STICK_UPLEFT
+    jp z, .pfdr_left
+    cp STICK_DOWNLEFT
+    jp z, .pfdr_left
+    cp STICK_UP
+    jp z, .pfdr_up
+    cp STICK_DOWN
+    jp z, .pfdr_down
+    ld e, c
+    ld d, 0
+    ld hl, entity_facing_dir
+    add hl, de
+    ld a, (hl)
+    cp 1
+    ret z
+    cp 2
+    ret z
+    cp 3
+    ret z
+    cp 4
+    ret z
+.pfdr_right:
+    ld a, 2
+    ret
+.pfdr_left:
+    ld a, 1
+    ret
+.pfdr_up:
+    ld a, 3
+    ret
+.pfdr_down:
+    ld a, 4
+    ret
+
+; Register Contract:
+; input: B = signed X velocity, A = signed Y velocity, C = entity index
+; output: entity_vel_x/y updated
+; clobbers: AF, DE, HL
+; preserved: BC
+player_fast_dash_store_velocity_c:
+    push af
+    ld e, c
+    ld d, 0
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), b
+    pop af
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+    ret
+
+; Register Contract:
+; input: C = player entity index, player_dash_dir
+; output: player_dash_tile_x/y updated for the front probe; Breakable tile at that probe cleared from runtime maps and VRAM
+; clobbers: AF, BC, DE, HL
+; preserved: None
+player_dash_break_front_tile_c:
+    ld a, #FF
+    ld (player_dash_tile_x), a
+    ld (player_dash_tile_y), a
+    ld e, c
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld b, (hl)                    ; B = player X pixel
+    ld hl, entity_y_pos
+    add hl, de
+    ld c, (hl)                    ; C = player Y pixel
+
+    ld a, (player_dash_dir)
+    cp 1
+    jp z, .pdb_left
+    cp 3
+    jp z, .pdb_up
+    cp 4
+    jp z, .pdb_down
+
+.pdb_right:
+    ld a, b
+    cp 240
+    ret nc
+    add a, 16
+    ld b, a
+    ld a, c
+    cp 184
+    ret nc
+    add a, 8
+    ld c, a
+    jp .pdb_probe_tile
+
+.pdb_left:
+    ld a, b
+    or a
+    ret z
+    dec a
+    ld b, a
+    ld a, c
+    cp 184
+    ret nc
+    add a, 8
+    ld c, a
+    jp .pdb_probe_tile
+
+.pdb_up:
+    ld a, c
+    or a
+    ret z
+    dec a
+    ld c, a
+    ld a, b
+    cp 248
+    ret nc
+    add a, 8
+    ld b, a
+    jp .pdb_probe_tile
+
+.pdb_down:
+    ld a, c
+    cp 176
+    ret nc
+    add a, 16
+    ld c, a
+    ld a, b
+    cp 248
+    ret nc
+    add a, 8
+    ld b, a
+
+.pdb_probe_tile:
+    ld a, b
+    srl a
+    srl a
+    srl a
+    cp 32
+    ret nc
+    ld (player_dash_tile_x), a
+    ld a, c
+    srl a
+    srl a
+    srl a
+    cp 24
+    ret nc
+    ld (player_dash_tile_y), a
+
+    ld a, (player_dash_tile_y)
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld a, (player_dash_tile_x)
+    ld e, a
+    ld d, 0
+    add hl, de                    ; HL = tile index
+    push hl
+    ld de, runtime_behavior_map
+    add hl, de
+    ld a, (hl)
+    and TILE_BREAKABLE
+    pop hl
+    ret z
+
+    push hl
+    ld de, runtime_behavior_map
+    add hl, de
+    ld (hl), 0
+    pop hl
+
+    push hl
+    ld de, runtime_screen_layout
+    add hl, de
+    ld (hl), 0
+    pop hl
+
+    ld de, NAMETBL
+    add hl, de
+    xor a
+    call FAST_WRTVRM
+    ret
+
+; Register Contract:
+; input: player_dash_tile_x/y = front dash probe tile, active boss runtime RAM
+; output: boss_health_lo/hi decremented by the weak matrix damage byte when hit
+; clobbers: AF, BC, DE, HL
+; preserved: None
+player_dash_hit_boss_weakpoint:
+    ld a, (boss_active)
+    or a
+    ret z
+    ld a, (boss_hit_cooldown)
+    or a
+    ret nz
+    ld a, (player_dash_tile_x)
+    cp #FF
+    ret z
+    ld b, a                       ; B = screen tile X
+    ld a, (player_dash_tile_y)
+    cp #FF
+    ret z
+    ld c, a                       ; C = screen tile Y
+
+    ld a, (boss_x_char)
+    ld d, a
+    ld a, b
+    cp d
+    ret c
+    sub d
+    ld b, a                       ; B = local boss X
+    ld a, (boss_width)
+    cp b
+    ret z
+    ret c
+
+    ld a, (boss_y_char)
+    ld d, a
+    ld a, c
+    cp d
+    ret c
+    sub d
+    ld c, a                       ; C = local boss Y
+    ld a, (boss_height)
+    cp c
+    ret z
+    ret c
+
+    ld hl, 0
+    ld a, c
+    or a
+    jp z, .pdhb_row_done
+    ld e, a
+.pdhb_row_loop:
+    ld a, (boss_width)
+    ld d, 0
+    add a, l
+    ld l, a
+    ld a, h
+    adc a, d
+    ld h, a
+    dec e
+    jp nz, .pdhb_row_loop
+.pdhb_row_done:
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld de, (boss_weak_matrix_ptr)
+    add hl, de
+    ld a, (hl)
+    or a
+    ret z
+    ld e, a                       ; E = weak point damage
+
+    ld a, (boss_health_lo)
+    ld l, a
+    ld a, (boss_health_hi)
+    ld h, a
+    or l
+    ret z
+    ld a, l
+    sub e
+    ld l, a
+    ld a, h
+    sbc a, 0
+    ld h, a
+    jp nc, .pdhb_store_health
+    ld hl, 0
+.pdhb_store_health:
+    ld a, l
+    ld (boss_health_lo), a
+    ld a, h
+    ld (boss_health_hi), a
+
+.pdhb_after_damage:
+    ld a, 12
+    ld (boss_hit_cooldown), a
+    ld a, (boss_health_lo)
+    ld b, a
+    ld a, (boss_health_hi)
+    or b
+    ret nz
+    call restore_active_boss_tiles
+    call player_dash_cleanup_dead_boss_attacks
+    xor a
+    ld (boss_active), a
+    ret
+
+; Register Contract:
+; input: boss projectile/slam/falling block active flags and sprite slots
+; output: active boss attack sprites hidden and boss attack active flags cleared
+; clobbers: AF, BC, DE, HL
+; preserved: None
+player_dash_cleanup_dead_boss_attacks:
+    ld a, (boss_projectile_active)
+    or a
+    jp z, .pdcdba_no_projectile
+    ld a, (boss_projectile_sprite_slot)
+    call hide_sprite
+.pdcdba_no_projectile:
+    ld a, (boss_slam_rocks_active)
+    or a
+    jp z, .pdcdba_no_slam
+    call boss_slam_rocks_hide_all
+.pdcdba_no_slam:
+    ld a, (boss_falling_blocks_active)
+    or a
+    jp z, .pdcdba_clear_flags
+    call boss_falling_blocks_hide_all
+.pdcdba_clear_flags:
+    xor a
+    ld (boss_projectile_active), a
+    ld (boss_slam_rocks_active), a
+    ld (boss_falling_blocks_active), a
     ret
 
 ; ------------------------------------------------------------------
@@ -2964,6 +3392,12 @@ update_player_fastpath:
 .player_fast_skip_patrol_facing:
 
 .player_fast_after_input:
+    push bc
+    call player_fast_dash_process_c
+    pop bc
+    or a
+    jp nz, .player_fast_after_walljump
+
     ; --------------------------------------------------------------
     ; WALL JUMP PRIORITY
     ; --------------------------------------------------------------
