@@ -244,6 +244,11 @@ function generateEntitiesFile(analysis) {
     // INTELLIGENT FILTERING: Analyze which entities are actually used
     const componentUsage = (0, componentAnalyzer_1.analyzeComponentUsage)(analysis);
     const activeEntities = componentUsage.activeEntities;
+    const totalTemplateCount = analysis.templates?.length || 0;
+    const usedTemplateCount = new Set(activeEntities
+        .map((entity) => entity?.entityTemplateId)
+        .filter((templateId) => typeof templateId === 'string' && templateId.length > 0)).size;
+    const filteredOutTemplateCount = Math.max(0, totalTemplateCount - usedTemplateCount);
     const spriteCatalog = (0, spriteUtils_1.buildMSXDirectionalSpriteCatalog)((analysis.sprites || []));
     const spriteNameToIndex = spriteCatalog.nameToIndex;
     const spriteCount = Math.max(1, spriteCatalog.sprites.length);
@@ -274,9 +279,10 @@ function generateEntitiesFile(analysis) {
     const wallGrabConfigs = [];
     const airControlConfigs = [];
     console.log('🎯 Generating optimized entities.asm...');
-    console.log(`  - Total entity templates in JSON: ${analysis.templates?.length || 0}`);
+    console.log(`  - Total entity templates in JSON: ${totalTemplateCount}`);
     console.log(`  - Actually instantiated entities: ${activeEntities.length}`);
-    console.log(`  - Filtered out: ${(analysis.templates?.length || 0) - activeEntities.length} unused templates`);
+    console.log(`  - Used entity templates: ${usedTemplateCount}`);
+    console.log(`  - Filtered out: ${filteredOutTemplateCount} unused templates`);
     let code = `; ==================================================================
 ; GAME ENTITIES
 ; File: entities.asm
@@ -284,9 +290,10 @@ function generateEntitiesFile(analysis) {
 ; ==================================================================
 ;
 ; INTELLIGENT FILTERING ACTIVE:
-;   Entity templates in project: ${analysis.templates?.length || 0}
+;   Entity templates in project: ${totalTemplateCount}
 ;   Actually instantiated: ${activeEntities.length}
-;   Filtered out: ${(analysis.templates?.length || 0) - activeEntities.length} unused templates
+;   Used entity templates: ${usedTemplateCount}
+;   Filtered out: ${filteredOutTemplateCount} unused templates
 ;
 ; ==================================================================
 

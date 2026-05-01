@@ -249,6 +249,79 @@ function getNegativeDsOverflowBytes(text) {
   return Math.abs(parsed);
 }
 
+function parsePlain48kPage0Diagnostics(sourceCode) {
+  const text = String(sourceCode || '');
+  if (!/^\s*;\s*ROM Mode:\s*plain48k\s*$/im.test(text)) {
+    return null;
+  }
+
+  const parseNumberComment = (label) => {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = text.match(new RegExp(`^\\s*;\\s*${escaped}:\\s*(\\d+)\\s*bytes\\s*$`, 'im'));
+    return match ? Number.parseInt(match[1], 10) : null;
+  };
+
+  const linearPage0Data = text.match(/^\s*;\s*Linear48K Page0 Data:\s*(Yes|No)\b/im)?.[1] || null;
+  const selectedGroups = [];
+  const skippedGroups = [];
+  let currentList = null;
+
+  for (const line of text.split(/\r?\n/)) {
+    if (/^\s*;\s*Selected groups:\s*$/i.test(line)) {
+      currentList = selectedGroups;
+      continue;
+    }
+    if (/^\s*;\s*Selected groups:\s*none\s*$/i.test(line)) {
+      currentList = null;
+      continue;
+    }
+    if (/^\s*;\s*Skipped groups:\s*$/i.test(line)) {
+      currentList = skippedGroups;
+      continue;
+    }
+    const groupMatch = line.match(/^\s*;\s*-\s*(.+?):\s*(\d+)\s*bytes\s*\[([^\]]+)\]\s*(.*)$/);
+    if (groupMatch && currentList) {
+      currentList.push({
+        label: groupMatch[1].trim(),
+        sizeBytes: Number.parseInt(groupMatch[2], 10),
+        mode: groupMatch[3].trim(),
+        reason: groupMatch[4].trim()
+      });
+      continue;
+    }
+    if (/^\s*;\s*(?:Group:|[-=]{3,}|CRITICAL:|BIOS|CONSTANTS|VARIABLES|SPRITE|SCREEN|COMPONENT)/i.test(line)) {
+      currentList = null;
+    }
+  }
+
+  return {
+    linearPage0Data,
+    budgetBytes: parseNumberComment('Budget'),
+    usedBytes: parseNumberComment('Used') ?? parseNumberComment('Page0 Used Bytes'),
+    remainingBytes: parseNumberComment('Remaining') ?? parseNumberComment('Page0 Remaining Bytes'),
+    selectedGroups,
+    skippedGroups
+  };
+}
+
+function formatPlain48kPage0Diagnostic(page0Info, overflowBytes) {
+  if (!page0Info) return '';
+
+  const used = Number.isFinite(page0Info.usedBytes) ? page0Info.usedBytes : 0;
+  const remaining = Number.isFinite(page0Info.remainingBytes) ? page0Info.remainingBytes : 0;
+  const selected = page0Info.selectedGroups?.length
+    ? page0Info.selectedGroups.map(group => `${group.label} (${group.sizeBytes} bytes)`).join(', ')
+    : 'none';
+  const skipped = page0Info.skippedGroups?.length
+    ? page0Info.skippedGroups.map(group => `${group.label} (${group.sizeBytes} bytes: ${group.reason})`).join('; ')
+    : 'none';
+  const overflow = overflowBytes !== null
+    ? ` Main #4000-#BFFF overflow after page-0 packing: ${overflowBytes} bytes.`
+    : '';
+
+  return ` Plain48K uses a restricted page-0 packing path: only groups with safe page-0 access can move to #0000-#3FFF. Page0 used ${used} bytes, remaining ${remaining} bytes. Selected: ${selected}. Skipped: ${skipped}.${overflow}`;
+}
+
 function buildRomCapacitySuggestion(romMode, targetFormat, autoMegaROM, fitsPlain48k) {
   if (romMode === 'megarom') {
     return null;
@@ -258,17 +331,21 @@ function buildRomCapacitySuggestion(romMode, targetFormat, autoMegaROM, fitsPlai
     return {
       romMode: 'plain48k',
       targetFormat,
+      mapperActive: false,
       autoMegaROM: false,
       romSizeKB: 48,
-      label: 'Try Plain 48KB ROM',
-      reason: 'The current simple32k build is above 32KB but small enough to try a regenerated Plain 48KB build. The 48KB build must still be compiled and checked.'
+      validationStatus: 'candidate',
+      label: 'Validate Plain 48KB ROM',
+      reason: 'The current simple32k output is above 32KB but within the 48KB raw budget, so Plain 48KB is only a candidate. Mideas must regenerate and compile the Plain 48KB build before it can be treated as valid.'
     };
   }
 
   return {
     romMode: 'megarom',
     targetFormat,
+    mapperActive: true,
     autoMegaROM: true,
+    validationStatus: 'required',
     label: 'Generate MegaROM',
     reason: romMode === 'plain48k'
       ? 'The assembled output exceeds the 48KB plain ROM budget.'
@@ -276,13 +353,13 @@ function buildRomCapacitySuggestion(romMode, targetFormat, autoMegaROM, fitsPlai
   };
 }
 
-function buildRomCapacityDetails(romMode, canSuggestPlain48k, negativeDsOverflowBytes) {
+function buildRomCapacityDetails(romMode, canSuggestPlain48k, negativeDsOverflowBytes, page0Info = null) {
   const overflowText = negativeDsOverflowBytes !== null
     ? ` by ${negativeDsOverflowBytes} bytes`
     : '';
 
   if (romMode === 'plain48k') {
-    return `The project exceeds the Plain 48KB ROM budget${overflowText}. Generate as MegaROM.`;
+    return `The project exceeds the Plain 48KB ROM budget${overflowText}. Generate as MegaROM.${formatPlain48kPage0Diagnostic(page0Info, negativeDsOverflowBytes)}`;
   }
 
   if (romMode === 'megarom') {
@@ -290,7 +367,7 @@ function buildRomCapacityDetails(romMode, canSuggestPlain48k, negativeDsOverflow
   }
 
   if (romMode === 'simple32k' && canSuggestPlain48k) {
-    return `The project exceeds the Simple 32KB ROM limit${overflowText}. Mideas can try a regenerated Plain 48KB build, but it still has to compile and pass the 48KB limit.`;
+    return `The project exceeds the Simple 32KB ROM limit${overflowText}. Plain 48KB is a candidate only; Mideas must regenerate it and verify that the regenerated build still fits 48KB.`;
   }
 
   if (romMode === 'simple32k') {
@@ -2035,6 +2112,7 @@ app.post('/compile', async (req, res) => {
           const sourceRomConfig = parseSourceRomConfig(codeToCompile);
           const capacityOverflow = isGlassRomCapacityError(fullErrorText);
           const negativeDsOverflowBytes = getNegativeDsOverflowBytes(fullErrorText);
+          const plain48kPage0Info = parsePlain48kPage0Diagnostics(codeToCompile);
           const canSuggestPlain48k =
             normalizedRomMode === 'simple32k' &&
             (negativeDsOverflowBytes === null || negativeDsOverflowBytes <= (PLAIN48_ROM_LIMIT_BYTES - SIMPLE_ROM_LIMIT_BYTES));
@@ -2047,7 +2125,7 @@ app.post('/compile', async (req, res) => {
               )
             : null;
           const capacityDetails = capacityOverflow
-            ? buildRomCapacityDetails(normalizedRomMode, canSuggestPlain48k, negativeDsOverflowBytes)
+            ? buildRomCapacityDetails(normalizedRomMode, canSuggestPlain48k, negativeDsOverflowBytes, plain48kPage0Info)
             : null;
           const errorResponse = {
             success: false,
@@ -2061,6 +2139,7 @@ app.post('/compile', async (req, res) => {
             errorCode: error.code,
             signal: error.signal,
             negativeDsOverflowBytes: negativeDsOverflowBytes,
+            plain48kPage0Info: plain48kPage0Info,
             requestedRomConfig: {
               romMode: normalizedRomMode,
               targetFormat: normalizedTargetFormat,
@@ -2236,7 +2315,7 @@ app.post('/compile', async (req, res) => {
         const mapperHint = exceedsSimpleRomLimit
           ? (
               fitsPlain48RomLimit
-                ? 'ROM exceeds 32KB simple layout. A regenerated plain48k build may fit, but must be checked.'
+                ? 'ROM exceeds 32KB simple layout. Plain 48KB is only a validation candidate until regenerated and compiled.'
                 : 'ROM exceeds 48KB plain layout. Use mapper-aware build/runtime (Konami/ASCII).'
             )
           : null;
@@ -2259,7 +2338,7 @@ app.post('/compile', async (req, res) => {
         let romModeConflictWarning = null;
         if (normalizedRomMode === 'simple32k' && exceedsSimpleRomLimit) {
           romModeConflictWarning = fitsPlain48RomLimit
-            ? 'Requested simple32k, but final ROM exceeds 32KB. Generate as plain48k instead.'
+            ? 'Requested simple32k, but final ROM exceeds 32KB. Validate a regenerated plain48k build before using it.'
             : 'Requested simple32k, but final ROM exceeds 48KB and requires a mapper.';
         } else if (normalizedRomMode === 'plain48k' && exceedsPlain48RomLimit) {
           romModeConflictWarning = 'Requested plain48k, but final ROM exceeds 48KB and requires a mapper.';
@@ -2290,7 +2369,7 @@ app.post('/compile', async (req, res) => {
           if (exceedsSimpleRomLimit) {
             resolvedRomMode = fitsPlain48RomLimit ? 'plain48k_recommended' : 'megarom_required';
             mapperResolutionReason = fitsPlain48RomLimit
-              ? 'ROM exceeds 32KB; try a regenerated plain48k build and re-check the final size.'
+              ? 'ROM exceeds 32KB; regenerated plain48k is a candidate and must be compiled before OpenMSX.'
               : 'ROM exceeds 48KB; simple32k request is not valid.';
           } else {
             resolvedRomMode = 'simple32k';
@@ -2477,7 +2556,7 @@ app.post('/compile', async (req, res) => {
             fitsPlain48RomLimit
           );
           const blockingMessage = fitsPlain48RomLimit
-            ? `ROM is ${bytesOverSimpleLimit} bytes over the 32KB simple limit. Mideas can try a regenerated Plain 48KB build, but that build must still pass the 48KB limit.`
+            ? `ROM is ${bytesOverSimpleLimit} bytes over the 32KB simple limit. Plain 48KB is only a candidate; Mideas must regenerate and compile it before OpenMSX.`
             : `ROM is ${bytesOverPlain48Limit || bytesOverSimpleLimit} bytes over the selected ROM budget and requires MegaROM.`;
           const { data: _data, romFile: _romFile, romPath: _romPath, downloadUrl: _downloadUrl, ...blockedResponse } = responseData;
 
@@ -3123,5 +3202,15 @@ if (require.main === module) {
 
 module.exports = {
   app,
-  injectZx0IntoUnifiedAsm
+  injectZx0IntoUnifiedAsm,
+  __romCapacityForTests: {
+    SIMPLE_ROM_LIMIT_BYTES,
+    PLAIN48_ROM_LIMIT_BYTES,
+    buildRomCapacitySuggestion,
+    buildRomCapacityDetails,
+    parsePlain48kPage0Diagnostics,
+    formatPlain48kPage0Diagnostic,
+    getNegativeDsOverflowBytes,
+    isGlassRomCapacityError
+  }
 };

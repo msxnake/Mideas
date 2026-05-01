@@ -1,0 +1,201 @@
+MSX IDE Compiler Backend listening at http://localhost:3001
+Compilation request received
+  projectName: codex_pato_plain48_diag
+  generateSymbols parameter: undefined
+  requested ROM config: { romMode: 'plain48k', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 909740
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\codex_pato_plain48_diag_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 9,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 8,
+  candidateBehaviorMaps: 8,
+  candidateTilePatterns: 4,
+  candidateTileColors: 4,
+  candidateFontPatterns: 1,
+  candidateFontColors: 1,
+  candidateSpritePatterns: 31,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 5647,
+  compressedBytes: 5647,
+  savedBytes: 0,
+  netSavedBytes: 0,
+  warning: null,
+  screenBufferSymbol: 'ZX0_SCREEN_BUFFER',
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: 'ZX0_BEHAVIOR_BUFFER',
+  tilePatternBufferSymbol: 'ZX0_TILE_PATTERN_BUFFER',
+  tileColorBufferSymbol: 'ZX0_TILE_COLOR_BUFFER',
+  fontPatternBufferSymbol: 'ZX0_FONT_PATTERN_BUFFER',
+  fontColorBufferSymbol: 'ZX0_FONT_COLOR_BUFFER',
+  spritePatternBufferSymbol: null,
+  alreadyCompressed: true
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\codex_pato_plain48_diag.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\codex_pato_plain48_diag.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\codex_pato_plain48_diag.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\codex_pato_plain48_diag.rom"
+Attempt: 1
+Error object: Error: Command failed: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\codex_pato_plain48_diag.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\codex_pato_plain48_diag.rom"
+Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -23537
+	at java.io.ByteArrayOutputStream.<init>(Unknown Source)
+	at nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)
+	at nl.grauw.glass.Line.getBytes(Line.java:119)
+	at nl.grauw.glass.Source.getBytes(Source.java:91)
+	at nl.grauw.glass.Source.assemble(Source.java:53)
+	at nl.grauw.glass.Assembler.writeObject(Assembler.java:72)
+	at nl.grauw.glass.Assembler.main(Assembler.java:59)
+
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at ChildProcess.exithandler (node:child_process:417:12)
+    at ChildProcess.emit (node:events:519:28)
+    at maybeClose (node:internal/child_process:1101:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+  code: 1,
+  killed: false,
+  signal: null,
+  cmd: 'java -jar "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\glass.jar" -I "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\codex_pato_plain48_diag.asm" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\codex_pato_plain48_diag.rom"'
+}
+STDOUT: 
+STDERR: Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -23537
+	at java.io.ByteArrayOutputStream.<init>(Unknown Source)
+	at nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)
+	at nl.grauw.glass.Line.getBytes(Line.java:119)
+	at nl.grauw.glass.Source.getBytes(Source.java:91)
+	at nl.grauw.glass.Source.assemble(Source.java:53)
+	at nl.grauw.glass.Assembler.writeObject(Assembler.java:72)
+	at nl.grauw.glass.Assembler.main(Assembler.java:59)
+
+===================================
+Glass compilation failed. Temp file: C:\Users\salam\Documents\Programacion\Mideas\server\temp\codex_pato_plain48_diag.asm
+Full error response: {
+  success: false,
+  error: 'ROM does not fit in selected ROM mode',
+  details: 'The project exceeds the Plain 48KB ROM budget by 23537 bytes. Generate as MegaROM. Plain48K uses a restricted page-0 packing path: only groups with safe page-0 access can move to #0000-#3FFF. Page0 used 6800 bytes, remaining 9584 bytes. Selected: Presentation Screen (6080 bytes), Font Data (patterns + colors) (720 bytes). Skipped: none. Main #4000-#BFFF overflow after page-0 packing: 23537 bytes.',
+  command: 'java -jar "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\glass.jar" -I "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\codex_pato_plain48_diag.asm" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\codex_pato_plain48_diag.rom"',
+  sourceFile: 'C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\codex_pato_plain48_diag.asm',
+  sourceCode: '; ==================================================================\n' +
+    '; PATOANTIC248 - UNIFIED FILE\n' +
+    '; File: unitedFiles.asm\n' +
+    '; Description: All-in-one file combining all modular files\n' +
+    '; Generated by Mideas MSX Modular Generator\n' +
+    ';\n' +
+    '; OPTIMIZED: Only includes necessary code for this project\n' +
+    '; Tiles: 21\n' +
+    '; Sprites: 10\n' +
+    '; Screens: 8\n' +
+    '; Entities: 6\n' +
+    '; Menus: Yes\n' +
+    '; HUD: Yes\n' +
+    '; State Machines: 2\n' +
+    '; ROM Mode: plain48k\n' +
+    '; Mapper Target: konami\n' +
+    '; Auto MegaROM: No\n' +
+    '; Engine Execution Mode: interruptTaskManager\n' +
+    '; IRQ Task: slot 0 -> music_update (audio, every 1 frame)\n' +
+    '; IRQ Task: slot 1 -> task_frame_counter (timer, every 1 frame)\n' +
+    '; Mainline: postHalt -> update_sprites_to_vram (sprites)\n' +
+    '; Mainline: preUpdate -> check_world_screen_transition (screenFlow)\n' +
+    '; Mainline: postUpdate -> update_all_entities (entities)\n' +
+    '; Mainline: postUpdate -> execute_all_state_machines (stateMachines)\n' +
+    '; Mainline: postUpdate -> update_animated_tiles (animation)\n' +
+    '; Mainline: postUpdate -> sfx_update (sfx)\n' +
+    '; Mainline: render -> render_h',
+  fullStderr: 'Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -23537\r\n' +
+    '\tat java.io.ByteArrayOutputStream.<init>(Unknown Source)\r\n' +
+    '\tat nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)\r\n' +
+    '\tat nl.grauw.glass.Line.getBytes(Line.java:119)\r\n' +
+    '\tat nl.grauw.glass.Source.getBytes(Source.java:91)\r\n' +
+    '\tat nl.grauw.glass.Source.assemble(Source.java:53)\r\n' +
+    '\tat nl.grauw.glass.Assembler.writeObject(Assembler.java:72)\r\n' +
+    '\tat nl.grauw.glass.Assembler.main(Assembler.java:59)\r\n',
+  fullStdout: '',
+  errorCode: 1,
+  signal: null,
+  negativeDsOverflowBytes: 23537,
+  plain48kPage0Info: {
+    linearPage0Data: 'Yes',
+    budgetBytes: 16384,
+    usedBytes: 6800,
+    remainingBytes: 9584,
+    selectedGroups: [ [Object], [Object] ],
+    skippedGroups: []
+  },
+  requestedRomConfig: { romMode: 'plain48k', targetFormat: 'konami', autoMegaROM: false },
+  sourceRomConfig: { romMode: 'plain48k', targetFormat: 'konami', autoMegaROM: false },
+  screenCompressionInfo: {
+    attempted: true,
+    applied: true,
+    method: 'ZX0',
+    candidateScreens: 9,
+    candidateScreenBlockMaps: 0,
+    candidateEffects: 8,
+    candidateBehaviorMaps: 8,
+    candidateTilePatterns: 4,
+    candidateTileColors: 4,
+    candidateFontPatterns: 1,
+    candidateFontColors: 1,
+    candidateSpritePatterns: 31,
+    compressedScreens: 0,
+    compressedScreenBlockMaps: 0,
+    compressedEffects: 0,
+    compressedBehaviorMaps: 0,
+    compressedTilePatterns: 0,
+    compressedTileColors: 0,
+    compressedFontPatterns: 0,
+    compressedFontColors: 0,
+    compressedSpritePatterns: 0,
+    originalBytes: 5647,
+    compressedBytes: 5647,
+    savedBytes: 0,
+    netSavedBytes: 0,
+    warning: null,
+    screenBufferSymbol: 'ZX0_SCREEN_BUFFER',
+    effectsBufferSymbol: 'runtime_effects_layout',
+    behaviorBufferSymbol: 'ZX0_BEHAVIOR_BUFFER',
+    tilePatternBufferSymbol: 'ZX0_TILE_PATTERN_BUFFER',
+    tileColorBufferSymbol: 'ZX0_TILE_COLOR_BUFFER',
+    fontPatternBufferSymbol: 'ZX0_FONT_PATTERN_BUFFER',
+    fontColorBufferSymbol: 'ZX0_FONT_COLOR_BUFFER',
+    spritePatternBufferSymbol: null,
+    alreadyCompressed: true
+  },
+  compressedAsmFileInfo: {
+    compressedAsmFile: 'codex_pato_plain48_diag_compressed.asm',
+    compressedAsmPath: 'C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\codex_pato_plain48_diag_compressed.asm',
+    compressedAsmDownloadUrl: '/download/codex_pato_plain48_diag_compressed.asm',
+    unitedCompressedAsmFile: 'unitedCompressedFiles.asm',
+    unitedCompressedAsmPath: 'C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\unitedCompressedFiles.asm',
+    unitedCompressedAsmDownloadUrl: '/download/unitedCompressedFiles.asm'
+  },
+  romModeConflictWarning: 'Requested plain48k, but Glass reported that the ROM exceeds the 48KB limit.',
+  resolvedRomConfig: {
+    requestedRomMode: 'plain48k',
+    resolvedRomMode: 'megarom_required',
+    targetFormat: 'konami',
+    mapperTargetFormat: 'konami',
+    mapperActive: true,
+    reason: 'The assembled output exceeds the 48KB plain ROM budget.'
+  },
+  suggestedRomConfig: {
+    romMode: 'megarom',
+    targetFormat: 'konami',
+    mapperActive: true,
+    autoMegaROM: true,
+    validationStatus: 'required',
+    label: 'Generate MegaROM',
+    reason: 'The assembled output exceeds the 48KB plain ROM budget.'
+  }
+}

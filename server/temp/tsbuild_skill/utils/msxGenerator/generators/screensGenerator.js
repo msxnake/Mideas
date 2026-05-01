@@ -1089,6 +1089,7 @@ screen_runtime_summary_table:
 `;
         screenExports.forEach((screenExport) => {
             const { screen, index, screenName, screenNameWithIndex, backgroundLayoutBytes, backgroundBlockMap, effectsLayoutBytes, hasEffectsLayoutData, effectZoneBytes, effectZoneCount } = screenExport;
+            const screenRuntimeInPage0 = romMode === 'plain48k' && (0, page0Generator_1.screenRuntimeDataUsesPage0Group)(analysis, romMode, index);
             if (screen.layers && screen.layers.background) {
                 if (dataInBank4) {
                     // Data tables are emitted in bank4 section; skip here
@@ -1109,6 +1110,33 @@ screen_runtime_summary_table:
                     code += screenExport.behaviorSource === 'backgroundChars'
                         ? `; [SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE emitted in bank4 section]\n\n`
                         : `; [BEHAVIOR_${screenName}_${index}_DATA emitted in bank4 section]\n\n`;
+                }
+                else if (screenRuntimeInPage0) {
+                    if (backgroundBlockMap) {
+                        code += `; [SCREEN_${screenName}_${index}_BLOCK_CATALOG emitted in page0.asm]\n`;
+                        code += `; [SCREEN_${screenName}_${index}_BLOCK_MAP emitted in page0.asm]\n`;
+                    }
+                    else {
+                        code += `; [SCREEN_${screenName}_${index}_LAYOUT emitted in page0.asm]\n`;
+                    }
+                    code += `; [SCREEN_${screenName}_${index}_EFFECTS_LAYOUT emitted in page0.asm]\n`;
+                    code += screenExport.behaviorSource === 'backgroundChars'
+                        ? `; [SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE emitted in page0.asm]\n`
+                        : `; [BEHAVIOR_${screenName}_${index}_DATA emitted in page0.asm]\n`;
+                    code += `; [SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP emitted in page0.asm]\n`;
+                    code += `; [SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP emitted in page0.asm]\n`;
+                    code += `; [SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP emitted in page0.asm]\n`;
+                    code += generateRawByteBlock(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`, effectZoneBytes, effectZoneCount > 0
+                        ? [
+                            `Effect zones for ${screen.name}`,
+                            `Entry format: x, y, width, height, effectType, param0, param1, reserved`,
+                        ]
+                        : [
+                            `No effect zones exported for ${screen.name}`,
+                        ]);
+                    code += `\n`;
+                    code += generateBossPlacementTable(screenName, index, screen, bossLabelById, bossById);
+                    code += `\n`;
                 }
                 else { // not dataInBank4 - emit all data inline
                     if (backgroundBlockMap) {
@@ -1798,6 +1826,7 @@ ${tileBankReadyLabel}:
             const runtimeEffectZoneCount = Math.min((screen.effectZones || []).length, MAX_RUNTIME_EFFECT_ZONES);
             const hasBackgroundBlockMap = !!screenExport?.backgroundBlockMap;
             const behaviorSource = screenExport?.behaviorSource ?? 'collisionLayer';
+            const screenRuntimeInPage0 = romMode === 'plain48k' && (0, page0Generator_1.screenRuntimeDataUsesPage0Group)(analysis, romMode, index);
             const layoutResourceId = buildResourceId(`SCREEN_${screenName}_${index}_LAYOUT`);
             const blockCatalogResourceId = buildResourceId(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`);
             const blockMapResourceId = buildResourceId(`SCREEN_${screenName}_${index}_BLOCK_MAP`);
@@ -1844,8 +1873,23 @@ ${bossDoneLabel}:
             const hasImportedHudFrame = importedHudFrameCells.length > 0;
             const importedHudFrameLabelBase = `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
             const zoneDoneLabel = `.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done`;
+            const page0CopyToRam = (label, destination, size) => `    ld hl, ${label}
+    ld de, ${destination}
+    ld bc, ${size}
+    call page0_copy_to_ram
+`;
             const backgroundRuntimeLoadCode = hasBackgroundBlockMap
-                ? useResourceManager ? `    ; Load optimized background block data into RAM scratch buffers and expand it
+                ? screenRuntimeInPage0 ? `    ; Load optimized background block data from page 0 into RAM scratch buffers and expand it
+${page0CopyToRam(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`, 'runtime_effects_layout', `SCREEN_${screenName}_${index}_BLOCK_CATALOG_SIZE`)}${page0CopyToRam(`SCREEN_${screenName}_${index}_BLOCK_MAP`, 'runtime_screen_layout', `SCREEN_${screenName}_${index}_BLOCK_MAP_SIZE`)}    ld hl, runtime_effects_layout
+    ld de, runtime_screen_layout
+    ld a, SCREEN_${screenName}_${index}_BLOCK_LAYOUT_MODE
+    call expand_screen_block_layout_to_background
+    ld hl, runtime_background_layout
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+`
+                    : useResourceManager ? `    ; Load optimized background block data into RAM scratch buffers and expand it
     ld a, ${blockCatalogResourceId}
     ld de, runtime_effects_layout
     call resource_load_to_ram_by_id
@@ -1861,7 +1905,7 @@ ${bossDoneLabel}:
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
 `
-                    : usesMapper ? `    ; Load optimized background block data into RAM scratch buffers and expand it
+                        : usesMapper ? `    ; Load optimized background block data into RAM scratch buffers and expand it
     call mapper_push_${mapperWindow.dataWindowPage}
     ld a, SCREEN_${screenName}_${index}_BLOCK_CATALOG_BANK
     call mapper_set_bank_${mapperWindow.dataWindowPage}
@@ -1889,7 +1933,7 @@ ${bossDoneLabel}:
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
 `
-                        : `    ; Load optimized background block data into RAM scratch buffers and expand it
+                            : `    ; Load optimized background block data into RAM scratch buffers and expand it
     ld hl, SCREEN_${screenName}_${index}_BLOCK_CATALOG
     ld de, runtime_effects_layout
     ld bc, SCREEN_${screenName}_${index}_BLOCK_CATALOG_SIZE
@@ -1907,11 +1951,17 @@ ${bossDoneLabel}:
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
 `
-                : useResourceManager ? `    ; Rebuild mutable runtime screen background from RAM cache
+                : screenRuntimeInPage0 ? `    ; Build mutable runtime screen background maps in RAM from page 0
+${page0CopyToRam(`SCREEN_${screenName}_${index}_LAYOUT`, 'runtime_background_layout', 'RUNTIME_SCREEN_MAP_SIZE')}    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    call page0_copy_to_ram
+`
+                    : useResourceManager ? `    ; Rebuild mutable runtime screen background from RAM cache
     ld a, ${layoutResourceId}
     call resource_load_screen_layout_cached
 `
-                    : usesMapper ? `    ; Build mutable runtime screen background maps in RAM
+                        : usesMapper ? `    ; Build mutable runtime screen background maps in RAM
     call mapper_push_${mapperWindow.dataWindowPage}
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_${mapperWindow.dataWindowPage}
@@ -1925,7 +1975,7 @@ ${bossDoneLabel}:
     ldir
     call mapper_pop_${mapperWindow.dataWindowPage}
 `
-                        : `    ; Build mutable runtime screen background maps in RAM
+                            : `    ; Build mutable runtime screen background maps in RAM
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
     ld de, runtime_background_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
@@ -1936,7 +1986,19 @@ ${bossDoneLabel}:
     ldir
 `;
             const effectsBehaviorRuntimeLoadCode = behaviorSource === 'backgroundChars'
-                ? useResourceManager ? `    ld a, ${effectsLayoutResourceId}
+                ? screenRuntimeInPage0 ? `${page0CopyToRam(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`, 'runtime_effects_layout', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`, 'runtime_char_behavior_table', `SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE_SIZE`)}${page0CopyToRam(`SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`, 'runtime_interaction_type_map', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`, 'runtime_interaction_value_map', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`, 'runtime_interaction_target_map', 'RUNTIME_SCREEN_MAP_SIZE')}    ld hl, runtime_screen_layout
+    call build_runtime_behavior_map_from_screen_layout
+    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, ${zoneDoneLabel}
+    ld hl, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE
+    ld de, runtime_effect_zone_table
+    ld bc, ${runtimeEffectZoneCount * 8}
+    ldir
+${zoneDoneLabel}:
+`
+                    : useResourceManager ? `    ld a, ${effectsLayoutResourceId}
     call resource_load_effects_layout_cached
     ld a, ${charBehaviorTableResourceId}
     ld de, runtime_char_behavior_table
@@ -1960,7 +2022,7 @@ ${bossDoneLabel}:
     call resource_load_effect_zone_table_cached
 ${zoneDoneLabel}:
 `
-                    : usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}
+                        : usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}
     ld a, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_BANK
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`)}
@@ -2022,7 +2084,7 @@ ${zoneDoneLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 ${zoneDoneLabel}:
 `
-                        : `    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
+                            : `    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
     ld de, runtime_effects_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
@@ -2060,7 +2122,17 @@ ${zoneDoneLabel}:
     ldir
 ${zoneDoneLabel}:
 `
-                : useResourceManager ? `    ld a, ${effectsLayoutResourceId}
+                : screenRuntimeInPage0 ? `${page0CopyToRam(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`, 'runtime_effects_layout', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`BEHAVIOR_${screenName}_${index}_DATA`, 'runtime_behavior_map', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`, 'runtime_interaction_type_map', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`, 'runtime_interaction_value_map', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`, 'runtime_interaction_target_map', 'RUNTIME_SCREEN_MAP_SIZE')}    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, ${zoneDoneLabel}
+    ld hl, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE
+    ld de, runtime_effect_zone_table
+    ld bc, ${runtimeEffectZoneCount * 8}
+    ldir
+${zoneDoneLabel}:
+`
+                    : useResourceManager ? `    ld a, ${effectsLayoutResourceId}
     call resource_load_effects_layout_cached
     ld a, ${behaviorResourceId}
     call resource_load_behavior_map_cached
@@ -2081,7 +2153,7 @@ ${zoneDoneLabel}:
     call resource_load_effect_zone_table_cached
 ${zoneDoneLabel}:
 `
-                    : usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}
+                        : usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}
     ld a, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_BANK
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`)}
@@ -2140,7 +2212,7 @@ ${zoneDoneLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 ${zoneDoneLabel}:
 `
-                        : `    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
+                            : `    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
     ld de, runtime_effects_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir

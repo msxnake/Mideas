@@ -18,15 +18,12 @@ function generateResourceManagerFile(mapperWindow) {
 ; RESOURCE MANAGER
 ; File: resource_manager.asm
 ; Description: Centralized banked resource lookup and copy helpers
-; Descriptor format: db id, type, group, bank / dw address / dw size
+; Descriptor format: db bank / dw address / dw size
+; Resource id is the zero-based descriptor index.
 ; ==================================================================
 
 resource_manager_init:
     xor a
-    ld (resource_descriptor_ptr), a
-    ld (resource_descriptor_ptr + 1), a
-    ld (resource_descriptor_type), a
-    ld (resource_descriptor_group), a
     ld (resource_descriptor_bank), a
     ld (resource_descriptor_addr), a
     ld (resource_descriptor_addr + 1), a
@@ -135,43 +132,28 @@ resource_find_by_id:
     ld c, a
     ld a, (resource_descriptor_id)
     cp c
-    jr nz, .resource_find_scan
-    ld hl, (resource_descriptor_ptr)
-    ld a, h
-    or l
-    jr z, .resource_find_scan
+    jr nz, .resource_find_lookup
     ld a, (resource_descriptor_bank)
     ld de, (resource_descriptor_addr)
     ld bc, (resource_descriptor_size)
     or a
     ret
-.resource_find_scan:
-    ld hl, resource_table
-    ld b, RESOURCE_TABLE_COUNT
-.resource_find_loop:
-    ld a, b
-    or a
-    jp z, .resource_find_not_found
-    ld a, (hl)
-    cp c
-    jp z, .resource_find_found
-    ld de, RESOURCE_TABLE_ENTRY_SIZE
+.resource_find_lookup:
+    ld a, c
+    cp RESOURCE_TABLE_COUNT
+    jp nc, .resource_find_not_found
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    ld e, a
+    ld d, 0
     add hl, de
-    dec b
-    jp .resource_find_loop
-
-.resource_find_found:
-    ld (resource_descriptor_ptr), hl
-    push hl
-    ld a, (hl)
+    ld de, resource_table
+    add hl, de
+    ld a, c
     ld (resource_descriptor_id), a
-    inc hl
-    ld a, (hl)
-    ld (resource_descriptor_type), a
-    inc hl
-    ld a, (hl)
-    ld (resource_descriptor_group), a
-    inc hl
+    push hl
     ld a, (hl)
     ld (resource_descriptor_bank), a
     inc hl
@@ -191,10 +173,6 @@ resource_find_by_id:
 
 .resource_find_not_found:
     xor a
-    ld (resource_descriptor_ptr), a
-    ld (resource_descriptor_ptr + 1), a
-    ld (resource_descriptor_type), a
-    ld (resource_descriptor_group), a
     ld (resource_descriptor_bank), a
     ld (resource_descriptor_addr), a
     ld (resource_descriptor_addr + 1), a

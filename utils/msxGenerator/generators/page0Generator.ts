@@ -3,6 +3,10 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import { ScreenMap } from '../../../types';
+import { buildScreenCharBehaviorTable, buildScreenInteractionMaps, encodeBehaviorByteFromLogicalProperties, generateScreenMapLayoutBytes, resolveScreenBehaviorSource } from '../../../components/utils/screenUtils';
+import { buildScreenBlockMapFromBytes } from '../../screenOptimization/blockMapBuilder';
+import { resolveRuntimeScreen2TileBankDefinitions } from '../utils/screen2TileBanks';
 import type { FontRawData } from './fontGenerator';
 
 export const PAGE0_BUDGET_BYTES = 16 * 1024;
@@ -10,7 +14,21 @@ const SCREEN_WIDTH = 32;
 const SCREEN_HEIGHT = 24;
 const ASM_BYTES_PER_LINE = 16;
 
-type Page0GroupId = 'presentationScreen' | 'fontData';
+type Page0GroupId = 'presentationScreen' | 'fontData' | `screenRuntime:${number}`;
+
+interface Page0DataBlock {
+  label: string;
+  bytes: number[];
+  comments: string[];
+}
+
+interface ScreenRuntimePage0Candidate {
+  screenIndex: number;
+  screenName: string;
+  displayName: string;
+  sizeBytes: number;
+  blocks: Page0DataBlock[];
+}
 
 interface Page0GroupSelection {
   id: Page0GroupId;
@@ -65,6 +83,205 @@ function getPresentationScreenTotalBytes(analysis: ProjectAnalysis): number {
   ].reduce((total, bytes) => total + (Array.isArray(bytes) ? bytes.length : 0), 0);
 }
 
+function screenRuntimeGroupId(screenIndex: number): `screenRuntime:${number}` {
+  return `screenRuntime:${screenIndex}`;
+}
+
+function sanitizeScreenName(value: string, fallback: string): string {
+  const cleaned = String(value || '')
+    .trim()
+    .replace(/[^A-Z0-9]/gi, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toUpperCase();
+  return cleaned || fallback;
+}
+
+function resolveTileBankDefinitions(screen: ScreenMap, analysis: ProjectAnalysis) {
+  return resolveRuntimeScreen2TileBankDefinitions(analysis, screen.tileBankAssetId);
+}
+
+function buildLayerLayoutBytes(
+  screen: ScreenMap,
+  layerName: 'background' | 'effects',
+  analysis: ProjectAnalysis,
+  tileBankDefinitions: ReturnType<typeof resolveTileBankDefinitions>
+): number[] {
+  const exportScreen: ScreenMap = {
+    ...screen,
+    activeAreaX: 0,
+    activeAreaY: 0,
+    activeAreaWidth: SCREEN_WIDTH,
+    activeAreaHeight: SCREEN_HEIGHT,
+    layers: {
+      ...screen.layers,
+      background: screen.layers[layerName],
+    },
+  };
+
+  return Array.from(
+    generateScreenMapLayoutBytes(
+      exportScreen,
+      analysis.tiles || [],
+      tileBankDefinitions,
+      'SCREEN 2 (Graphics I)'
+    )
+  );
+}
+
+function buildBehaviorMapDataFromCollisionLayer(screen: ScreenMap, analysis: ProjectAnalysis): number[] {
+  const collisionLayer = screen.layers.collision || [];
+  const behaviorMapData: number[] = [];
+  const collisionRows = collisionLayer.length;
+  const collisionCols = collisionLayer[0]?.length ?? 0;
+  const tileById = new Map((analysis.tiles || []).map((tile: any) => [tile.id, tile]));
+
+  for (let row = 0; row < SCREEN_HEIGHT; row++) {
+    for (let col = 0; col < SCREEN_WIDTH; col++) {
+      const srcRow = collisionRows > 0
+        ? Math.min(collisionRows - 1, Math.floor((row * collisionRows) / SCREEN_HEIGHT))
+        : 0;
+      const srcCol = collisionCols > 0
+        ? Math.min(collisionCols - 1, Math.floor((col * collisionCols) / SCREEN_WIDTH))
+        : 0;
+      const tileId = collisionLayer[srcRow]?.[srcCol]?.tileId;
+      behaviorMapData.push(encodeBehaviorByteFromLogicalProperties(tileId ? tileById.get(tileId)?.logicalProperties : undefined));
+    }
+  }
+
+  return behaviorMapData;
+}
+
+function buildInteractionTargetIdMap(analysis: ProjectAnalysis): Map<string, number> {
+  const targetIdByKey = new Map<string, number>();
+  const globalVariables = Array.isArray((analysis as any).globalVariables)
+    ? (analysis as any).globalVariables
+    : [];
+  let nextId = 1;
+
+  for (const variable of globalVariables) {
+    const name = typeof variable?.name === 'string' ? variable.name.trim() : '';
+    const asmName = typeof variable?.asmName === 'string' ? variable.asmName.trim() : '';
+    if (!asmName) continue;
+
+    const existingId = targetIdByKey.get(asmName) ?? targetIdByKey.get(asmName.toLowerCase());
+    const targetId = existingId ?? nextId++;
+
+    targetIdByKey.set(asmName, targetId);
+    targetIdByKey.set(asmName.toLowerCase(), targetId);
+    if (name) {
+      targetIdByKey.set(name, targetId);
+      targetIdByKey.set(name.toLowerCase(), targetId);
+    }
+  }
+  return targetIdByKey;
+}
+
+function buildScreenRuntimePage0Candidates(analysis: ProjectAnalysis): ScreenRuntimePage0Candidate[] {
+  const screens = Array.isArray(analysis.screenMaps) ? analysis.screenMaps : [];
+  if (screens.length === 0) return [];
+
+  const interactionTargetIdMap = buildInteractionTargetIdMap(analysis);
+  return screens
+    .map((screen, index) => {
+      const screenName = sanitizeScreenName(screen.name, `SCREEN_${index}`);
+      const tileBankDefinitions = resolveTileBankDefinitions(screen, analysis);
+      const backgroundLayoutBytes = buildLayerLayoutBytes(screen, 'background', analysis, tileBankDefinitions);
+      const backgroundBlockMap = buildScreenBlockMapFromBytes({
+        bytes: backgroundLayoutBytes,
+        width: SCREEN_WIDTH,
+        height: SCREEN_HEIGHT,
+        mode: screen.blockOptimization?.backgroundMode,
+      });
+      const effectsLayoutBytes = buildLayerLayoutBytes(screen, 'effects', analysis, tileBankDefinitions);
+      const interactionMaps = buildScreenInteractionMaps(screen, analysis.tiles || []);
+      const interactionTargetMap = interactionMaps.targetMap.map((targetRef) => {
+        if (typeof targetRef !== 'string') return 0;
+        const trimmed = targetRef.trim();
+        if (!trimmed) return 0;
+        return interactionTargetIdMap.get(trimmed) ?? interactionTargetIdMap.get(trimmed.toLowerCase()) ?? 0;
+      });
+      const behaviorSource = resolveScreenBehaviorSource(screen);
+      const blocks: Page0DataBlock[] = [];
+
+      if (backgroundBlockMap) {
+        blocks.push({
+          label: `SCREEN_${screenName}_${index}_BLOCK_CATALOG`,
+          bytes: backgroundBlockMap.catalogFlatBytes,
+          comments: [`${screen.name} - block catalog`, `Packed into page 0 group for plain48k layout.`],
+        });
+        blocks.push({
+          label: `SCREEN_${screenName}_${index}_BLOCK_MAP`,
+          bytes: backgroundBlockMap.mapIndices,
+          comments: [`${screen.name} - block index map`, `Packed into page 0 group for plain48k layout.`],
+        });
+      } else {
+        blocks.push({
+          label: `SCREEN_${screenName}_${index}_LAYOUT`,
+          bytes: backgroundLayoutBytes,
+          comments: [`${screen.name} - background layout`, `Packed into page 0 group for plain48k layout.`],
+        });
+      }
+
+      blocks.push({
+        label: `SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`,
+        bytes: effectsLayoutBytes,
+        comments: [`${screen.name} - effects layout`, `Copied from page 0 to runtime_effects_layout on screen load.`],
+      });
+
+      if (behaviorSource === 'backgroundChars') {
+        blocks.push({
+          label: `SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`,
+          bytes: buildScreenCharBehaviorTable(
+            {
+              ...screen,
+              activeAreaX: 0,
+              activeAreaY: 0,
+              activeAreaWidth: SCREEN_WIDTH,
+              activeAreaHeight: SCREEN_HEIGHT,
+            },
+            analysis.tiles || [],
+            tileBankDefinitions,
+            'SCREEN 2 (Graphics I)'
+          ),
+          comments: [`${screen.name} - background char -> behavior lookup table`],
+        });
+      } else {
+        blocks.push({
+          label: `BEHAVIOR_${screenName}_${index}_DATA`,
+          bytes: buildBehaviorMapDataFromCollisionLayer(screen, analysis),
+          comments: [`${screen.name} - behavior map`, `Copied from page 0 to runtime_behavior_map on screen load.`],
+        });
+      }
+
+      blocks.push({
+        label: `SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`,
+        bytes: interactionMaps.typeMap,
+        comments: [`${screen.name} - per-cell interaction type map`],
+      });
+      blocks.push({
+        label: `SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`,
+        bytes: interactionMaps.valueMap,
+        comments: [`${screen.name} - per-cell interaction value map`],
+      });
+      blocks.push({
+        label: `SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`,
+        bytes: interactionTargetMap,
+        comments: [`${screen.name} - per-cell interaction target map`],
+      });
+
+      const sizeBytes = blocks.reduce((total, block) => total + block.bytes.length, 0);
+      return {
+        screenIndex: index,
+        screenName,
+        displayName: screen.name || `Screen ${index}`,
+        sizeBytes,
+        blocks,
+      };
+    })
+    .filter(candidate => candidate.sizeBytes > 0);
+}
+
 export function buildPage0Plan(
   analysis: ProjectAnalysis,
   romMode: string = 'simple32k',
@@ -117,6 +334,33 @@ export function buildPage0Plan(
         reason: mode === 'page0'
           ? `Forced page 0 placement requested, but ${sizeBytes} bytes exceeds remaining budget.`
           : `Auto-pack skipped because ${sizeBytes} bytes exceeds remaining page-0 budget.`,
+      });
+    }
+  }
+
+  // Group: per-screen runtime data (priority 8) - copied to RAM on screen load.
+  for (const screenCandidate of buildScreenRuntimePage0Candidates(analysis)) {
+    const mode = 'auto' as const;
+    const baseGroup = {
+      id: screenRuntimeGroupId(screenCandidate.screenIndex),
+      label: `Screen Runtime Data (${screenCandidate.displayName})`,
+      sizeBytes: screenCandidate.sizeBytes,
+      priority: 8,
+    };
+
+    if (screenCandidate.sizeBytes <= plan.remainingBytes) {
+      plan.selectedGroups.push({
+        ...baseGroup,
+        mode,
+        reason: 'Auto-packed into page 0; copied to RAM during screen load.',
+      });
+      plan.usedBytes += screenCandidate.sizeBytes;
+      plan.remainingBytes -= screenCandidate.sizeBytes;
+    } else {
+      plan.rejectedGroups.push({
+        ...baseGroup,
+        mode,
+        reason: `Auto-pack skipped because ${screenCandidate.sizeBytes} bytes exceeds remaining page-0 budget.`,
       });
     }
   }
@@ -181,6 +425,17 @@ export function fontDataUsesPage0Group(
   fontRawData?: FontRawData
 ): boolean {
   return buildPage0Plan(analysis, romMode, fontRawData).selectedGroups.some(group => group.id === 'fontData');
+}
+
+export function screenRuntimeDataUsesPage0Group(
+  analysis: ProjectAnalysis,
+  romMode: string = 'plain48k',
+  screenIndex: number,
+  fontRawData?: FontRawData
+): boolean {
+  return buildPage0Plan(analysis, romMode, fontRawData).selectedGroups.some(
+    group => group.id === screenRuntimeGroupId(screenIndex)
+  );
 }
 
 export function hasPage0DataGroups(
@@ -324,6 +579,25 @@ ${formatPage0PlanComments(plan)}
       'Font color attribute data (raw, ZX0-compressed by server.js)',
     ]);
     code += '\n';
+  }
+
+  // Per-screen runtime data groups
+  for (const screenCandidate of buildScreenRuntimePage0Candidates(analysis)) {
+    if (!plan.selectedGroups.some(g => g.id === screenRuntimeGroupId(screenCandidate.screenIndex))) {
+      continue;
+    }
+
+    code += `; ------------------------------------------------------------------
+; Group: Screen Runtime Data (${screenCandidate.displayName})
+; SCREEN_RUNTIME_DATA_ROM_DATA_GROUP: page0
+; Copied to RAM during load_screen_*; not read directly during gameplay.
+; ------------------------------------------------------------------
+
+`;
+    for (const block of screenCandidate.blocks) {
+      code += generateRawByteBlock(block.label, block.bytes, block.comments);
+      code += '\n';
+    }
   }
 
   return code;

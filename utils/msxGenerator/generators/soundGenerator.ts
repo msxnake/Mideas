@@ -59,7 +59,9 @@ export function generateSoundFile(
   const bankedTrackData = romMode === 'megarom' && pt3Tracks.length === 0 && tracks.length > 0;
   const musicBlock = pt3Tracks.length > 0
     ? buildPT3MusicBlock(pt3Tracks)
-    : buildTrackerMusicBlock(tracks, bankedTrackData);
+    : tracks.length > 0
+      ? buildTrackerMusicBlock(tracks, bankedTrackData)
+      : buildNoMusicBlock();
   const usesInterruptAudio = executionPlan?.tasks.some((task) => task.responsibility === 'audio') ?? false;
   return `; ==================================================================
 ; PSG SOUND SYSTEM
@@ -2565,4 +2567,78 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[], bankedTrackData: bool
   }
 
   return trackTableLines.join('\n');
+}
+
+function buildNoMusicBlock(): string {
+  return [
+    '; ==================================================================',
+    '; TRACKER MUSIC RUNTIME',
+    '; No exportable music tracks are referenced by this project.',
+    '; Public labels are kept as no-op stubs so GameFlow/audio wrappers',
+    '; remain link-compatible without carrying the tracker interpreter.',
+    '; ==================================================================',
+    '',
+    'music_init_system:',
+    '    xor a',
+    '    ld (music_active), a',
+    '    ld (music_muted), a',
+    '    ld (music_loop), a',
+    '    ld (music_track_index), a',
+    '    ld (music_row_frames), a',
+    '    ld (music_row_countdown), a',
+    '    ld (music_order_pos), a',
+    '    ld (music_pattern_index), a',
+    '    ld (music_pattern_row), a',
+    '    ld (music_pattern_rows), a',
+    '    ld (music_track_ptr_l), a',
+    '    ld (music_track_ptr_h), a',
+    '    ld (music_pattern_ptr_l), a',
+    '    ld (music_pattern_ptr_h), a',
+    '    ld a, #3F',
+    '    ld (music_mixer_shadow), a',
+    '    ret',
+    '',
+    'music_reset_channel_state:',
+    '    ret',
+    '',
+    'music_silence_channels:',
+    '    xor a',
+    '    ld b, 0',
+    '    call psg_set_volume',
+    '    ld a, 1',
+    '    ld b, 0',
+    '    call psg_set_volume',
+    '    ld a, 2',
+    '    ld b, 0',
+    '    call psg_set_volume',
+    '    ld a, #3F',
+    '    call psg_set_mixer',
+    '    ret',
+    '',
+    'music_stop:',
+    '    call music_init_system',
+    '    call music_silence_channels',
+    '    ret',
+    '',
+    'music_mute:',
+    'music_resume:',
+    'music_update:',
+    'music_update_channel_effects:',
+    'music_play_track:',
+    '    ret',
+    '',
+    'music_execute_command:',
+    '    ld a, (de)',
+    '    cp #FF',
+    '    ret z',
+    '    or a',
+    '    jp z, music_stop',
+    '    ret',
+    '',
+    'music_track_count:',
+    '    DB #00',
+    '',
+    'music_track_ptr_table:',
+    '    DW 0',
+  ].join('\n');
 }

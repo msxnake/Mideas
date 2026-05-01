@@ -35,10 +35,26 @@ interface BossFeatureSet {
   usedBehaviorTypes: Set<BossBehaviorAction['type']>;
 }
 
-function collectBossFeatureSet(bosses: Boss[]): BossFeatureSet {
-  const attackById = new Map<string, BossAttack>();
-  const usedAttackTypes = new Set<string>();
+function collectUsedBossAttackIds(boss: Boss): Set<string> {
   const usedAttackIds = new Set<string>();
+
+  (boss.phases || []).forEach(phase => {
+    (phase.attackSequence || []).forEach(attackId => {
+      usedAttackIds.add(attackId);
+    });
+
+    (phase.behaviorLoop || []).forEach(action => {
+      if (action.type === 'attack' && action.attackId) {
+        usedAttackIds.add(action.attackId);
+      }
+    });
+  });
+
+  return usedAttackIds;
+}
+
+function collectBossFeatureSet(bosses: Boss[]): BossFeatureSet {
+  const usedAttackTypes = new Set<string>();
   const usedBehaviorTypes = new Set<BossBehaviorAction['type']>();
   let hasForms = false;
   let hasWeakPoints = false;
@@ -46,8 +62,12 @@ function collectBossFeatureSet(bosses: Boss[]): BossFeatureSet {
   let hasCrushMovement = false;
 
   bosses.forEach(boss => {
-    (boss.attacks || []).forEach(attack => {
-      attackById.set(attack.id, attack);
+    const attackById = new Map((boss.attacks || []).map(attack => [attack.id, attack]));
+    collectUsedBossAttackIds(boss).forEach(attackId => {
+      const attack = attackById.get(attackId);
+      if (attack) {
+        usedAttackTypes.add(attack.type || 'Projectile');
+      }
     });
 
     (boss.phases || []).forEach(phase => {
@@ -64,10 +84,6 @@ function collectBossFeatureSet(bosses: Boss[]): BossFeatureSet {
         hasCrushMovement = true;
       }
 
-      (phase.attackSequence || []).forEach(attackId => {
-        usedAttackIds.add(attackId);
-      });
-
       (phase.behaviorLoop || []).forEach(action => {
         usedBehaviorTypes.add(action.type);
         if (action.type === 'setForm' || action.type === 'animateForm') {
@@ -76,18 +92,8 @@ function collectBossFeatureSet(bosses: Boss[]): BossFeatureSet {
         if (action.type === 'slam') {
           hasCrushMovement = true;
         }
-        if (action.type === 'attack' && action.attackId) {
-          usedAttackIds.add(action.attackId);
-        }
       });
     });
-  });
-
-  usedAttackIds.forEach(attackId => {
-    const attack = attackById.get(attackId);
-    if (attack) {
-      usedAttackTypes.add(attack.type || 'Projectile');
-    }
   });
 
   return {
@@ -259,6 +265,38 @@ draw_boss_laser_attack:
   }
 
   return optimizedAsm;
+}
+
+function stripUnusedBossBehaviorRuntime(asm: string, features: BossFeatureSet): string {
+  let optimizedAsm = asm;
+
+  if (!features.usedBehaviorTypes.has('slam')) {
+    optimizedAsm = optimizedAsm.replace(
+      `    cp BOSS_BEHAVIOR_SLAM\n    jp z, .ubb_move\n`,
+      ''
+    );
+    optimizedAsm = optimizedAsm.replace(
+      `    cp BOSS_BEHAVIOR_SLAM\n    jp z, boss_prepare_behavior_move_timing\n`,
+      ''
+    );
+  }
+
+  if (!features.usedBehaviorTypes.has('attack')) {
+    optimizedAsm = optimizedAsm.replace(
+      `    cp BOSS_BEHAVIOR_ATTACK\n    jp z, .ubb_attack\n`,
+      ''
+    );
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, '.ubb_attack', '.ubb_loop', '');
+  }
+
+  return optimizedAsm;
+}
+
+function stripUnusedBossGeneralRuntime(asm: string): string {
+  return replaceAsmLabelRange(asm, 'restore_active_boss_tiles', 'restore_active_boss_tiles_exposed', `
+restore_active_boss_tiles:
+    ret
+`);
 }
 
 function sanitizeLabel(value: string, fallback: string): string {
@@ -562,22 +600,28 @@ function renderFormTable(
   phase: BossPhase,
   tileIndexById: Map<string, number>,
   analysis: ProjectAnalysis,
-  bossStartYChar = 0
+  bossStartYChar = 0,
+  currentTileMatrixLabel?: string,
+  currentWeakMatrixLabel?: string
 ): string[] {
   const forms = phase.forms || [];
   const formLabels = [
-    `${label}_current`,
+    currentTileMatrixLabel || `${label}_current`,
     ...forms.map((_form, index) => `${label}_${index + 1}`)
   ];
   const weakLabels = [
-    `${label}_current_weak`,
+    currentWeakMatrixLabel || `${label}_current_weak`,
     ...forms.map((_form, index) => `${label}_${index + 1}_weak`)
   ];
 
   const blocks: string[] = [];
   blocks.push(`${label}:\n${db([clampByte(formLabels.length)], 'count')}\n${formLabels.map((formLabel, index) => dw([formLabel, weakLabels[index]])).join('\n')}`);
-  blocks.push(renderTileMatrix(formLabels[0], phase, tileIndexById, analysis, bossStartYChar));
-  blocks.push(renderWeakMatrix(weakLabels[0], phase));
+  if (!currentTileMatrixLabel) {
+    blocks.push(renderTileMatrix(formLabels[0], phase, tileIndexById, analysis, bossStartYChar));
+  }
+  if (!currentWeakMatrixLabel) {
+    blocks.push(renderWeakMatrix(weakLabels[0], phase));
+  }
 
   forms.forEach((form, index) => {
     const formPhase: BossPhase = {
@@ -4107,7 +4151,7 @@ boss_laser_write_current_tile:
     ret
 
 `;
-  return stripUnusedBossAttackRuntime(asm, features);
+  return stripUnusedBossGeneralRuntime(stripUnusedBossBehaviorRuntime(stripUnusedBossAttackRuntime(asm, features), features));
 }
 
 function renderPhaseRecord(
@@ -4338,7 +4382,9 @@ ${renderBossRuntimeAsm(collectBossFeatureSet([]))}
   bosses.forEach((boss, bossIndex) => {
     const bossLabel = `boss_${bossIndex}_${sanitizeLabel(boss.name, 'boss')}`;
     const phases = boss.phases || [];
-    const attacks = boss.attacks || [];
+    const allAttacks = boss.attacks || [];
+    const usedAttackIds = collectUsedBossAttackIds(boss);
+    const attacks = allAttacks.filter(attack => usedAttackIds.has(attack.id));
     const attackIndexById = new Map(attacks.map((attack, index) => [attack.id, index]));
     const attackTileBankId = phases.find(phase => phase.tileBankId)?.tileBankId;
     const phaseTableLabel = `${bossLabel}_phase_table`;
@@ -4369,17 +4415,29 @@ ${renderBossRuntimeAsm(collectBossFeatureSet([]))}
         behaviorLoop: `${phaseLabel}_behavior`,
         formTable: `${phaseLabel}_forms`
       };
+      const effectivePhaseLabels = {
+        ...labels,
+        collisionMatrix: EMPTY_REF,
+        neckChain: runtimeFeatures.hasNeckChains ? labels.neckChain : EMPTY_REF,
+        crushMovement: runtimeFeatures.hasCrushMovement ? labels.crushMovement : EMPTY_REF,
+        attackSequence: runtimeFeatures.usedAttackTypes.size > 0 ? labels.attackSequence : EMPTY_REF
+      };
       const formIndexById = buildFormIndexById(phase);
       phaseRecordLabels.push(phaseLabel);
-      phaseDataBlocks.push(`${phaseLabel}:\n${renderPhaseRecord(phase, labels)}`);
+      phaseDataBlocks.push(`${phaseLabel}:\n${renderPhaseRecord(phase, effectivePhaseLabels)}`);
       phaseDataBlocks.push(renderTileMatrix(labels.tileMatrix, phase, tileIndexById, analysis, bossStartYChar));
-      phaseDataBlocks.push(renderCollisionMatrix(labels.collisionMatrix, phase));
       phaseDataBlocks.push(renderWeakMatrix(labels.weakMatrix, phase));
-      phaseDataBlocks.push(renderNeckChain(labels.neckChain, phase.neckChain));
-      phaseDataBlocks.push(renderCrushMovement(labels.crushMovement, phase.crushMovement));
-      phaseDataBlocks.push(renderAttackSequence(labels.attackSequence, phase, attackIndexById));
+      if (runtimeFeatures.hasNeckChains) {
+        phaseDataBlocks.push(renderNeckChain(labels.neckChain, phase.neckChain));
+      }
+      if (runtimeFeatures.hasCrushMovement) {
+        phaseDataBlocks.push(renderCrushMovement(labels.crushMovement, phase.crushMovement));
+      }
+      if (runtimeFeatures.usedAttackTypes.size > 0) {
+        phaseDataBlocks.push(renderAttackSequence(labels.attackSequence, phase, attackIndexById));
+      }
       phaseDataBlocks.push(renderBehaviorLoop(labels.behaviorLoop, phase, attackIndexById, formIndexById));
-      phaseDataBlocks.push(...renderFormTable(labels.formTable, phase, tileIndexById, analysis, bossStartYChar));
+      phaseDataBlocks.push(...renderFormTable(labels.formTable, phase, tileIndexById, analysis, bossStartYChar, labels.tileMatrix, labels.weakMatrix));
     });
 
     const attackRecordLabels: string[] = [];
@@ -4392,6 +4450,7 @@ ${renderBossRuntimeAsm(collectBossFeatureSet([]))}
 
     detailBlocks.push(`; ------------------------------------------------------------------`);
     detailBlocks.push(`; Boss ${bossIndex}: ${boss.name}`);
+    detailBlocks.push(`; Boss attack definitions: ${allAttacks.length} defined, ${attacks.length} referenced`);
     detailBlocks.push(`${phaseTableLabel}:`);
     detailBlocks.push(phaseRecordLabels.length > 0 ? phaseRecordLabels.map(label => dw([label])).join('\n') : dw([EMPTY_REF]));
     detailBlocks.push(`${attackTableLabel}:`);

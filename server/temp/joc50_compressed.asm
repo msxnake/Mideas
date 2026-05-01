@@ -30,8 +30,8 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 104526
-; Estimated banks used: 13
+; Estimated payload bytes: 96486
+; Estimated banks used: 12
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : page0.asm (96 bytes)
 ; BANK 00 @#0060 : patterns.asm (3030 bytes)
@@ -49,19 +49,18 @@
 ; BANK 05 @#010A : font.asm (3467 bytes)
 ; BANK 05 @#0E95 : hud.asm (3947 bytes)
 ; BANK 05 @#1E00 : menus.asm (168 bytes)
-; BANK 05 @#1EA8 : sound.asm part 1/2 (344 bytes)
-; BANK 06 @#0000 : sound.asm part 2/2 (8192 bytes)
-; BANK 07 @#0000 : sound.asm part 3/2 (2755 bytes)
-; BANK 07 @#0AC3 : scroll.asm (2353 bytes)
-; BANK 07 @#13F4 : animtiles.asm (3084 bytes)
-; BANK 08 @#0000 : animtiles.asm (2440 bytes)
-; BANK 08 @#0988 : bosses.asm part 1/2 (5752 bytes)
-; BANK 09 @#0000 : bosses.asm part 2/2 (2498 bytes)
-; BANK 09 @#09C2 : statemachine.asm part 1/3 (5694 bytes)
-; BANK 10 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 11 @#0000 : statemachine.asm part 3/3 (7071 bytes)
-; BANK 11 @#1B9F : gameflow.asm (1121 bytes)
-; BANK 12 @#0000 : gameflow.asm (6222 bytes)
+; BANK 05 @#1EA8 : sound.asm (344 bytes)
+; BANK 06 @#0000 : sound.asm (4074 bytes)
+; BANK 06 @#0FEA : scroll.asm (2353 bytes)
+; BANK 06 @#191B : animtiles.asm (1765 bytes)
+; BANK 07 @#0000 : animtiles.asm (3759 bytes)
+; BANK 07 @#0EAF : bosses.asm (4433 bytes)
+; BANK 08 @#0000 : bosses.asm (2994 bytes)
+; BANK 08 @#0BB2 : statemachine.asm part 1/3 (5198 bytes)
+; BANK 09 @#0000 : statemachine.asm part 2/3 (8192 bytes)
+; BANK 10 @#0000 : statemachine.asm part 3/3 (7970 bytes)
+; BANK 10 @#1F22 : gameflow.asm (222 bytes)
+; BANK 11 @#0000 : gameflow.asm (6374 bytes)
 
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
@@ -2586,7 +2585,7 @@ task_frame_counter:
 ; INTELLIGENT FILTERING ACTIVE:
 ;   Active entities: 3
 ;   Used components: Position, Sprite, Behavior, Health, DeadlyTiles, TileInteraction, Jump, Gravity, Animation, Collision, Carry, Input, StateMachine, Cursors, WallCollision, Damage, AutoControlScript
-;   Filtered out: -9 unused component systems
+;   Filtered out: 9 unused component systems
     ;
 ; ==================================================================
 
@@ -6969,307 +6968,13 @@ init_tile_interaction_system:
 ; for solid tiles before each step.  Covers the remaining distance
 ; stored in entity_slash_vel_x/y (decayed by 8 each frame).
 ; ------------------------------------------------------------------
+; ------------------------------------------------------------------
+; update_slash_component
+; Filtered out: no tile bonus uses grant_extra_jump/slash in this project.
+; Public label is kept because older generated call paths may still reference it.
+; ------------------------------------------------------------------
 update_slash_component:
-    ld a, (active_entity_count)
-    or a
-    ret z
-    ld b, a
-    ld hl, active_entity_list
-
-.slash_loop:
-    ld c, (hl)
-    inc hl
-    push hl                    ; Save list pointer
-    ld e, c
-    ld d, 0
-
-    ; Check if entity has any slash velocity (X or Y)
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld a, (hl)
-    ld hl, entity_slash_vel_y
-    add hl, de
-    or (hl)
-    jp z, .slash_next          ; both zero → skip
-
-    push bc
-
-    ; --- Build hitbox for tile checks (reuse wall_hit_* scratch) ---
-    ; hitbox_left = entity_x + collision_offset_x
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    ld hl, entity_collision_offset_x
-    add hl, de
-    add a, (hl)
-    ld (wall_hit_left), a
-
-    ; hitbox_right = left + w - 1
-    ld hl, entity_collision_hitbox_w
-    add hl, de
-    ld a, (hl)
-    or a
-    jp nz, .sl_w_ok
-    ld a, 1
-.sl_w_ok:
-    ld c, a
-    ld a, (wall_hit_left)
-    add a, c
-    dec a
-    ld (wall_hit_right), a
-
-    ; hitbox_top = entity_y + collision_offset_y
-    ld hl, entity_y_pos
-    add hl, de
-    ld a, (hl)
-    ld hl, entity_collision_offset_y
-    add hl, de
-    add a, (hl)
-    ld (wall_hit_top), a
-
-    ; hitbox_bottom = top + h - 1
-    ld hl, entity_collision_hitbox_h
-    add hl, de
-    ld a, (hl)
-    or a
-    jp nz, .sl_h_ok
-    ld a, 1
-.sl_h_ok:
-    ld c, a
-    ld a, (wall_hit_top)
-    add a, c
-    dec a
-    ld (wall_hit_bottom), a
-
-    ; ============ PROCESS X SLASH ============
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, .slash_x_done
-    bit 7, a
-    jp nz, .slash_x_left
-
-.slash_x_right:
-    ; Check tile at column (hitbox_right + 8) / 8
-    ld a, (wall_hit_right)
-    add a, 8
-    jp c, .slash_x_stop        ; overflow → screen edge
-    srl a
-    srl a
-    srl a
-    ld c, a                    ; C = probe column
-    ; Probe top row
-    ld a, (wall_hit_top)
-    srl a
-    srl a
-    srl a
-    ld b, a
-    push bc
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    pop bc
-    jp nz, .slash_x_stop
-    ; Probe bottom row
-    ld a, (wall_hit_bottom)
-    srl a
-    srl a
-    srl a
-    ld b, a
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    jp nz, .slash_x_stop
-
-    ; Passable → override vel_x = +8, decay slash_vel_x by 8
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), 8
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld a, (hl)
-    sub 8
-    jp nc, .slash_x_store
-    xor a
-.slash_x_store:
-    ld (hl), a
-    jp .slash_x_done
-
-.slash_x_left:
-    ; Check tile at column (hitbox_left - 8) / 8
-    ld a, (wall_hit_left)
-    cp 8
-    jp c, .slash_x_stop        ; < 8 → screen edge
-    sub 8
-    srl a
-    srl a
-    srl a
-    ld c, a                    ; C = probe column
-    ; Probe top row
-    ld a, (wall_hit_top)
-    srl a
-    srl a
-    srl a
-    ld b, a
-    push bc
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    pop bc
-    jp nz, .slash_x_stop
-    ; Probe bottom row
-    ld a, (wall_hit_bottom)
-    srl a
-    srl a
-    srl a
-    ld b, a
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    jp nz, .slash_x_stop
-
-    ; Passable → override vel_x = -8, decay slash_vel_x by 8 toward 0
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), #F8               ; -8
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld a, (hl)
-    add a, 8                   ; negative + 8 → toward zero
-    bit 7, a
-    jp nz, .slash_x_store_l
-    xor a                      ; crossed zero → clamp
-.slash_x_store_l:
-    ld (hl), a
-    jp .slash_x_done
-
-.slash_x_stop:
-    ; Hit solid tile or screen edge → kill X slash and X velocity
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld (hl), 0
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), 0
-
-.slash_x_done:
-
-    ; ============ PROCESS Y SLASH ============
-    ld hl, entity_slash_vel_y
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, .slash_y_done
-    bit 7, a
-    jp nz, .slash_y_up
-
-.slash_y_down:
-    ; Check tile at row (hitbox_bottom + 8) / 8
-    ld a, (wall_hit_bottom)
-    add a, 8
-    cp 192
-    jp nc, .slash_y_stop       ; off-screen bottom
-    srl a
-    srl a
-    srl a
-    ld b, a                    ; B = probe row
-    ; Probe left column
-    ld a, (wall_hit_left)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    push bc
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    pop bc
-    jp nz, .slash_y_stop
-    ; Probe right column
-    ld a, (wall_hit_right)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    jp nz, .slash_y_stop
-
-    ; Passable → override vel_y = +8, decay slash_vel_y by 8
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), 8
-    ld hl, entity_slash_vel_y
-    add hl, de
-    ld a, (hl)
-    sub 8
-    jp nc, .slash_y_store
-    xor a
-.slash_y_store:
-    ld (hl), a
-    jp .slash_y_done
-
-.slash_y_up:
-    ; Check tile at row (hitbox_top - 8) / 8
-    ld a, (wall_hit_top)
-    cp 8
-    jp c, .slash_y_stop        ; < 8 → screen edge
-    sub 8
-    srl a
-    srl a
-    srl a
-    ld b, a                    ; B = probe row
-    ; Probe left column
-    ld a, (wall_hit_left)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    push bc
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    pop bc
-    jp nz, .slash_y_stop
-    ; Probe right column
-    ld a, (wall_hit_right)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    jp nz, .slash_y_stop
-
-    ; Passable → override vel_y = -8, decay slash_vel_y by 8 toward 0
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), #F8               ; -8
-    ld hl, entity_slash_vel_y
-    add hl, de
-    ld a, (hl)
-    add a, 8                   ; negative + 8 → toward zero
-    bit 7, a
-    jp nz, .slash_y_store_u
-    xor a
-.slash_y_store_u:
-    ld (hl), a
-    jp .slash_y_done
-
-.slash_y_stop:
-    ; Hit solid tile or screen edge → kill Y slash and Y velocity
-    ld hl, entity_slash_vel_y
-    add hl, de
-    ld (hl), 0
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), 0
-
-.slash_y_done:
-    pop bc
-
-.slash_next:
-    pop hl
-    dec b
-    jp nz, .slash_loop
     ret
-
-
 record_bonus_respawn_slot:
     ret
 
@@ -9795,19 +9500,8 @@ tile_behavior_table:
     db TILE_PASSABLE
 
 check_collision_at_point:
-    ; Input: D=x pixels, E=y pixels. Convert to Screen 2 cell coords.
-    ld a, d
-    srl a
-    srl a
-    srl a
-    ld c, a
-    ld a, e
-    srl a
-    srl a
-    srl a
-    ld b, a
-    call get_behavior_tile
-    and #F0                       ; family bits: 0=passable, #10+=solid
+    ; Deprecated legacy helper. WallCollision uses behavior maps directly.
+    xor a
     ret
 
 ; ------------------------------------------------------------------
@@ -9831,14 +9525,7 @@ check_collision_box:
 ; Destroys: B
 ; ------------------------------------------------------------------
 div_a_by_c:
-    ld b, 0                       ; B = quotient
-.tile_div_loop:
-    sub c
-    jr c, .tile_div_done
-    inc b
-    jr .tile_div_loop
-.tile_div_done:
-    ld a, b
+    xor a
     ret
 
 
@@ -14506,24 +14193,12 @@ sfx_update:
     ret
 
 ; ==================================================================
-; TRACKER MUSIC RUNTIME (Phase 1)
-; Phase 1 plays row data and loop state in ROM; descriptor tables are
-; serialized now for compatibility and future expansion.
+; TRACKER MUSIC RUNTIME
+; No exportable music tracks are referenced by this project.
+; Public labels are kept as no-op stubs so GameFlow/audio wrappers
+; remain link-compatible without carrying the tracker interpreter.
 ; ==================================================================
 
-MUSIC_TRACK_ORDER_TABLE     EQU 5
-MUSIC_TRACK_PATTERN_TABLE   EQU 7
-MUSIC_TRACK_INSTRUMENT_TABLE EQU 9
-MUSIC_TRACK_ORNAMENT_TABLE  EQU 11
-MUSIC_TRACK_NOISE_DEFAULT   EQU 15
-
-; ------------------------------------------------------------------
-; music_init_system
-; Reset tracker runtime RAM and default PSG mixer shadow.
-; Input:  None
-; Output: music_active=0, music_muted=0, music_mixer_shadow=#3F
-; Destroys: AF
-; ------------------------------------------------------------------
 music_init_system:
     xor a
     ld (music_active), a
@@ -14542,40 +14217,9 @@ music_init_system:
     ld (music_pattern_ptr_h), a
     ld a, #3F
     ld (music_mixer_shadow), a
-    call music_reset_channel_state
     ret
 
 music_reset_channel_state:
-    ld a, #FF
-    ld (music_ch_a_note), a
-    ld (music_ch_b_note), a
-    ld (music_ch_c_note), a
-    xor a
-    ld (music_ch_a_instrument), a
-    ld (music_ch_b_instrument), a
-    ld (music_ch_c_instrument), a
-    ld (music_ch_a_ornament), a
-    ld (music_ch_b_ornament), a
-    ld (music_ch_c_ornament), a
-    ld (music_ch_a_vol_step), a
-    ld (music_ch_b_vol_step), a
-    ld (music_ch_c_vol_step), a
-    ld (music_ch_a_tone_step), a
-    ld (music_ch_b_tone_step), a
-    ld (music_ch_c_tone_step), a
-    ld (music_ch_a_noise_step), a
-    ld (music_ch_b_noise_step), a
-    ld (music_ch_c_noise_step), a
-    ld (music_ch_a_orn_step), a
-    ld (music_ch_b_orn_step), a
-    ld (music_ch_c_orn_step), a
-    ld (music_ch_a_hw_env_step), a
-    ld (music_ch_b_hw_env_step), a
-    ld (music_ch_c_hw_env_step), a
-    ld a, #0F
-    ld (music_ch_a_volume), a
-    ld (music_ch_b_volume), a
-    ld (music_ch_c_volume), a
     ret
 
 music_silence_channels:
@@ -14593,1082 +14237,24 @@ music_silence_channels:
     ret
 
 music_stop:
-    push af
     call music_init_system
     call music_silence_channels
-    pop af
     ret
 
 music_mute:
-    ld a, (music_active)
-    or a
-    ret z
-    ld a, 1
-    ld (music_muted), a
-    call music_silence_channels
-    ret
-
 music_resume:
-    ld a, (music_active)
-    or a
-    ret z
-    xor a
-    ld (music_muted), a
-    call music_update_channel_effects
+music_update:
+music_update_channel_effects:
+music_play_track:
     ret
 
-; ------------------------------------------------------------------
-; music_execute_command
-; Dispatch a compact music command stream used by Game Flow nodes.
-; Input:  DE -> [command, trackIndex, loopFlag]
-;         command: 0=stop, 1=play, 2=mute, 3=resume, #FF=no-op
-; Output: Selected command executed, DE may advance while parsing
-; Destroys: AF, BC (play path), DE (play path), HL (via callees)
-; ------------------------------------------------------------------
 music_execute_command:
     ld a, (de)
     cp #FF
     ret z
     or a
     jp z, music_stop
-    cp 1
-    jp z, .play_track
-    cp 2
-    jp z, music_mute
-    cp 3
-    jp z, music_resume
     ret
-.play_track:
-    inc de
-    ld a, (de)
-    ld c, a
-    inc de
-    ld a, (de)
-    ld b, a
-    ld a, c
-    call music_play_track
-    ret
-
-music_load_track_pointer_from_index:
-    add a, a
-    ld e, a
-    ld d, 0
-    ld hl, music_track_ptr_table
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld a, e
-    ld (music_track_ptr_l), a
-    ld a, d
-    ld (music_track_ptr_h), a
-    or a
-    ret
-
-music_get_track_ptr:
-    ld a, (music_track_ptr_l)
-    ld l, a
-    ld a, (music_track_ptr_h)
-    ld h, a
-    ret
-
-music_get_track_header_ptr:
-    ld e, a
-    ld d, 0
-    call music_get_track_ptr
-    add hl, de
-    ret
-
-music_read_track_byte:
-    call music_get_track_header_ptr
-    ld a, (hl)
-    ret
-
-music_read_track_word:
-    call music_get_track_header_ptr
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld h, d
-    ld l, e
-    ret
-
-music_get_instrument_ptr:
-    or a
-    jr z, .no_instrument
-    add a, a
-    ld e, a
-    ld d, 0
-    push de
-    ld a, MUSIC_TRACK_INSTRUMENT_TABLE
-    call music_read_track_word
-    pop de
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld h, d
-    ld l, e
-    ret
-.no_instrument:
-    ld hl, 0
-    ret
-
-; ------------------------------------------------------------------
-; music_get_channel_instrument_ptr
-; Resolve current channel instrument pointer from the cached channel id.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: HL = instrument descriptor or 0 when none is active
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_get_channel_instrument_ptr:
-    ld hl, music_ch_instrument_base
-    call music_load_channel_byte
-    call music_get_instrument_ptr
-    ret
-
-; ------------------------------------------------------------------
-; music_get_channel_ornament_ptr
-; Resolve current channel ornament pointer from the cached ornament id.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: HL = ornament descriptor or 0 when none is active
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_get_channel_ornament_ptr:
-    ld hl, music_ch_ornament_base
-    call music_load_channel_byte
-    or a
-    jr z, .no_ornament
-    add a, a
-    ld e, a
-    ld d, 0
-    push de
-    ld a, MUSIC_TRACK_ORNAMENT_TABLE
-    call music_read_track_word
-    pop de
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld h, d
-    ld l, e
-    ret
-.no_ornament:
-    ld hl, 0
-    ret
-
-; ------------------------------------------------------------------
-; music_apply_signed_offset_to_note_work
-; Apply signed semitone offset in A to music_pitch_note_work, clamped 0..95.
-; ------------------------------------------------------------------
-music_apply_signed_offset_to_note_work:
-    bit 7, a
-    jr z, .positive_offset
-    cpl
-    inc a
-    ld e, a
-    ld a, (music_pitch_note_work)
-    cp e
-    jr nc, .subtract_ok
-    xor a
-    ld (music_pitch_note_work), a
-    ret
-.subtract_ok:
-    sub e
-    ld (music_pitch_note_work), a
-    ret
-.positive_offset:
-    ld e, a
-    ld a, (music_pitch_note_work)
-    add a, e
-    jr c, .clamp_high
-    cp 96
-    jr c, .store_positive
-.clamp_high:
-    ld a, 95
-.store_positive:
-    ld (music_pitch_note_work), a
-    ret
-
-; ------------------------------------------------------------------
-; music_apply_channel_tone_macro
-; Apply active instrument toneEnvelope as relative semitone offsets.
-; Input:  C = channel index, B = current note index
-; Output: B = adjusted note index
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_apply_channel_tone_macro:
-    ld a, b
-    ld (music_pitch_note_work), a
-    call music_get_channel_instrument_ptr
-    ld a, h
-    or l
-    jp z, .tone_done
-    push hl
-    ld de, 12
-    add hl, de
-    ld a, (hl)
-    pop hl
-    or a
-    jp z, .tone_done
-    ld (music_pitch_len_work), a
-    push hl
-    ld hl, music_ch_tone_step_base
-    call music_load_channel_byte
-    pop hl
-    ld e, a
-    ld d, e
-    ld a, (music_pitch_len_work)
-    cp d
-    jr z, .tone_step_clamp
-    jr nc, .tone_step_in_range
-.tone_step_clamp:
-    dec a
-    ld e, a
-.tone_step_in_range:
-    ld a, e
-    ld (music_pitch_step_work), a
-    inc a
-    ld e, a
-    ld d, e
-    ld a, (music_pitch_len_work)
-    cp d
-    jr z, .tone_use_loop
-    jr nc, .tone_store_next
-.tone_use_loop:
-    push hl
-    ld de, 13
-    add hl, de
-    ld e, (hl)
-    pop hl
-    ld d, e
-    ld a, (music_pitch_len_work)
-    cp d
-    jr z, .tone_loop_clamp
-    jr nc, .tone_store_next
-.tone_loop_clamp:
-    dec a
-    ld e, a
-.tone_store_next:
-    ld a, e
-    push hl
-    ld hl, music_ch_tone_step_base
-    call music_store_channel_byte
-    pop hl
-    push hl
-    ld de, 10
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld h, d
-    ld l, e
-    ld a, (music_pitch_step_work)
-    ld e, a
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    call music_apply_signed_offset_to_note_work
-    pop hl
-.tone_done:
-    ld a, (music_pitch_note_work)
-    ld b, a
-    ret
-
-; ------------------------------------------------------------------
-; music_apply_channel_ornament_macro
-; Apply active ornament as relative semitone offsets without pitch drift.
-; Input:  C = channel index, B = current note index
-; Output: B = adjusted note index
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_apply_channel_ornament_macro:
-    ld a, b
-    ld (music_pitch_note_work), a
-    call music_get_channel_ornament_ptr
-    ld a, h
-    or l
-    jp z, .orn_done
-    push hl
-    inc hl
-    inc hl
-    ld a, (hl)
-    pop hl
-    or a
-    jp z, .orn_done
-    ld (music_pitch_len_work), a
-    push hl
-    ld hl, music_ch_orn_step_base
-    call music_load_channel_byte
-    pop hl
-    ld e, a
-    ld d, e
-    ld a, (music_pitch_len_work)
-    cp d
-    jr z, .orn_step_clamp
-    jr nc, .orn_step_in_range
-.orn_step_clamp:
-    dec a
-    ld e, a
-.orn_step_in_range:
-    ld a, e
-    ld (music_pitch_step_work), a
-    inc a
-    ld e, a
-    ld d, e
-    ld a, (music_pitch_len_work)
-    cp d
-    jr z, .orn_use_loop
-    jr nc, .orn_store_next
-.orn_use_loop:
-    push hl
-    ld de, 3
-    add hl, de
-    ld e, (hl)
-    pop hl
-    ld d, e
-    ld a, (music_pitch_len_work)
-    cp d
-    jr z, .orn_loop_clamp
-    jr nc, .orn_store_next
-.orn_loop_clamp:
-    dec a
-    ld e, a
-.orn_store_next:
-    ld a, e
-    push hl
-    ld hl, music_ch_orn_step_base
-    call music_store_channel_byte
-    pop hl
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld h, d
-    ld l, e
-    ld a, (music_pitch_step_work)
-    ld e, a
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    call music_apply_signed_offset_to_note_work
-.orn_done:
-    ld a, (music_pitch_note_work)
-    ld b, a
-    ret
-
-; ------------------------------------------------------------------
-; music_resolve_channel_note_index
-; Combine base note + tone macro + ornament into final note index.
-; Input:  C = channel index
-; Output: A = final note index or #FF when silent
-; Destroys: AF, B, DE, HL
-; ------------------------------------------------------------------
-music_resolve_channel_note_index:
-    ld hl, music_ch_note_base
-    call music_load_channel_byte
-    cp #FF
-    ret z
-    ld b, a
-    call music_apply_channel_tone_macro
-    call music_apply_channel_ornament_macro
-    ld a, b
-    ret
-
-; ------------------------------------------------------------------
-; music_channel_uses_hardware_env
-; Check if the active instrument routes channel volume through PSG ENV.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: A = 1 when PSG hardware envelope is enabled, else 0
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_channel_uses_hardware_env:
-    push hl
-    call music_get_channel_instrument_ptr
-    ld a, h
-    or l
-    jr z, music_channel_uses_hardware_env_no_hw_env
-    ld a, (hl)
-    and #04
-    jr z, music_channel_uses_hardware_env_no_hw_env
-    ld a, 1
-    pop hl
-    ret
-music_channel_uses_hardware_env_no_hw_env:
-    xor a
-    pop hl
-    ret
-
-; ------------------------------------------------------------------
-; music_trigger_channel_attack
-; Hook kept for compatibility. The preview-style hardware envelope is
-; emulated in software per channel, so new-note state is already reset
-; by music_apply_channel_cell before this helper is called.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: None
-; Destroys: None
-; ------------------------------------------------------------------
-music_trigger_channel_attack:
-    ret
-
-; ------------------------------------------------------------------
-; music_resolve_channel_volume
-; Resolve per-frame channel volume.
-; Current Phase 1 behavior:
-; - emulates AY hardware envelope shapes in software when ayEnvelopeShape is set
-; - falls back to music_ch_volume_base when no envelope data exists
-; - applies a simple software volumeEnvelope when present
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: B = PSG volume 0-15
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_resolve_channel_volume:
-    push af
-    push de
-    push hl
-    ld hl, music_ch_instrument_base
-    call music_load_channel_byte
-    or a
-    jp z, .fallback_base
-    call music_get_instrument_ptr
-    ld a, h
-    or l
-    jp z, .fallback_base
-    ld a, (hl)
-    and #04
-    jp nz, .hardware_env
-.check_software_env:
-    push hl
-    ld de, 8
-    add hl, de
-    ld b, (hl)
-    pop hl
-    ld a, b
-    or a
-    jp z, .fallback_base
-    push hl
-    ld de, 6
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    pop hl
-    push hl
-    ld hl, music_ch_vol_step_base
-    call music_load_channel_byte
-    cp b
-    jr c, .step_ok_restore
-    pop hl
-    push de
-    push hl
-    ld de, 9
-    add hl, de
-    ld a, (hl)
-    pop hl
-    pop de
-    cp b
-    jr c, .step_ok
-    ld a, b
-    push af
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    pop af
-    ld hl, music_ch_note_base
-    ld a, #FF
-    call music_store_channel_byte
-    xor a
-    ld b, a
-    jp .mrcv_done
-.step_ok_restore:
-    pop hl
-.step_ok:
-    push af
-    inc a
-    cp b
-    jr c, .next_step_ok
-    push de
-    push hl
-    ld de, 9
-    add hl, de
-    ld a, (hl)
-    pop hl
-    pop de
-    cp b
-    jr c, .next_step_ok
-    ld a, b
-.next_step_ok:
-    push de
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    pop de
-    pop af
-    ld l, a
-    ld h, 0
-    add hl, de
-    ld a, (hl)
-    cp 16
-    jr c, .env_volume_ok
-    ld a, 15
-.env_volume_ok:
-    ld b, a
-    jp .mrcv_done
-.hardware_env:
-    ld hl, music_ch_hw_env_step_base
-    call music_load_channel_byte
-    inc a
-    cp 2
-    jr c, .hw_store_counter
-    xor a
-    push af
-    ld hl, music_ch_hw_env_step_base
-    call music_store_channel_byte
-    pop af
-    ld hl, music_ch_vol_step_base
-    call music_load_channel_byte
-    cp 15
-    jr nc, .hw_phase_ready
-    inc a
-    push af
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    pop af
-    jr .hw_phase_ready
-.hw_store_counter:
-    push af
-    ld hl, music_ch_hw_env_step_base
-    call music_store_channel_byte
-    pop af
-    ld hl, music_ch_vol_step_base
-    call music_load_channel_byte
-.hw_phase_ready:
-    push af
-    call music_get_channel_instrument_ptr
-    ld a, h
-    or l
-    pop af
-    jr z, .hw_decay
-    push af
-    inc hl
-    inc hl
-    ld a, (hl)
-    and #04
-    pop af
-    jr z, .hw_decay
-    ld b, a
-    jp .mrcv_done
-.hw_decay:
-    ld e, a
-    ld a, 15
-    sub e
-    ld b, a
-    jp .mrcv_done
-.fallback_base:
-    ld hl, music_ch_volume_base
-    call music_load_channel_byte
-    ld b, a
-.mrcv_done:
-    pop hl
-    pop de
-    pop af
-    ret
-
-; ------------------------------------------------------------------
-; music_resolve_channel_noise
-; Resolve per-frame channel noise period, including the PT3-inspired
-; software noise macro appended to the instrument descriptor.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: A = PSG noise period 0-31
-; Destroys: AF, DE, HL
-; Preserves: Stack balance restored before return
-; ------------------------------------------------------------------
-music_resolve_channel_noise:
-    push de
-    push hl
-    ld hl, music_ch_instrument_base
-    call music_load_channel_byte
-    or a
-    jp z, .mrcn_track_default
-    call music_get_instrument_ptr
-    ld a, h
-    or l
-    jp z, .mrcn_track_default
-    push hl
-    ld de, 16
-    add hl, de
-    ld b, (hl)
-    pop hl
-    ld a, b
-    or a
-    jp z, .mrcn_static_noise
-    push hl
-    ld hl, music_ch_noise_step_base
-    call music_load_channel_byte
-    cp b
-    jr c, .mrcn_step_ok
-    ld a, b
-    dec a
-.mrcn_step_ok:
-    push af
-    pop af
-    pop hl
-    push af
-    inc a
-    cp b
-    jr c, .mrcn_store_next
-    push de
-    ld de, 17
-    add hl, de
-    ld a, (hl)
-    pop de
-    cp b
-    jr c, .mrcn_store_next
-    ld a, b
-    dec a
-.mrcn_store_next:
-    push hl
-    push af
-    ld hl, music_ch_noise_step_base
-    call music_store_channel_byte
-    pop af
-    pop hl
-    ld de, 14
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    pop af
-    ld l, a
-    ld h, 0
-    add hl, de
-    ld a, (hl)
-    and #1F
-    jp .mrcn_done
-.mrcn_static_noise:
-    push de
-    ld de, 3
-    add hl, de
-    ld a, (hl)
-    pop de
-    and #1F
-    jp .mrcn_done
-.mrcn_track_default:
-    ld a, MUSIC_TRACK_NOISE_DEFAULT
-    call music_read_track_byte
-    and #1F
-.mrcn_done:
-    pop hl
-    pop de
-    ret
-
-; ------------------------------------------------------------------
-; music_play_track
-; Start a serialized PSG tracker song from ROM.
-; Input:  A = track index in music_track_ptr_table
-;         B bit 0 = loop enabled flag
-; Output: music_active=1 and first row applied immediately
-; Destroys: AF, BC, DE, HL
-; Preserves: Stack balance restored on all exits
-; ------------------------------------------------------------------
-music_play_track:
-    push bc
-    push de
-    push hl
-    ld hl, music_track_count
-    cp (hl)
-    jp nc, .mpt_done
-    ld (music_track_index), a
-    call music_load_track_pointer_from_index
-    jp c, .mpt_done
-    ld a, b
-    and 1
-    ld (music_loop), a
-    xor a
-    ld (music_muted), a
-    ld (music_order_pos), a
-    ld (music_pattern_index), a
-    ld (music_pattern_row), a
-    ld a, 1
-    ld (music_active), a
-    call music_reset_channel_state
-    call music_apply_row
-.mpt_done:
-    pop hl
-    pop de
-    pop bc
-    ret
-
-music_store_channel_byte:
-    push de
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld (hl), a
-    pop de
-    ret
-
-music_load_channel_byte:
-    push de
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    pop de
-    ret
-
-music_apply_channel_cell:
-    ld c, a
-    ld d, 0
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jp z, .note_done
-    cp #FE
-    jp nz, .store_note
-    ld a, #FF
-    jr .store_note
-.store_note:
-    cp #FF
-    jr z, .store_note_value
-    ld d, 1
-.store_note_value:
-    push hl
-    ld hl, music_ch_note_base
-    call music_store_channel_byte
-    xor a
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    ld hl, music_ch_tone_step_base
-    call music_store_channel_byte
-    ld hl, music_ch_noise_step_base
-    call music_store_channel_byte
-    ld hl, music_ch_orn_step_base
-    call music_store_channel_byte
-    ld hl, music_ch_hw_env_step_base
-    call music_store_channel_byte
-    pop hl
-.note_done:
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jp z, .instrument_done
-    push hl
-    ld hl, music_ch_instrument_base
-    call music_store_channel_byte
-    pop hl
-.instrument_done:
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jp z, .ornament_done
-    push hl
-    ld hl, music_ch_ornament_base
-    call music_store_channel_byte
-    pop hl
-.ornament_done:
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jr z, .maybe_trigger_attack
-    push hl
-    ld hl, music_ch_volume_base
-    call music_store_channel_byte
-    pop hl
-.maybe_trigger_attack:
-    ld a, d
-    or a
-    ret z
-    push hl
-    call music_trigger_channel_attack
-    pop hl
-    ret
-
-; ------------------------------------------------------------------
-; music_apply_row
-; Decode current order/pattern row and cache channel state for A/B/C.
-; Input:  Runtime variables select track/order/pattern position
-; Output: Channel note/instrument/volume caches updated
-;         Row countdown reloaded and PSG refreshed once
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-music_apply_row:
-    ld a, MUSIC_TRACK_ORDER_TABLE
-    call music_read_track_word
-    ld a, (music_order_pos)
-    ld e, a
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    ld (music_pattern_index), a
-    ld a, MUSIC_TRACK_PATTERN_TABLE
-    call music_read_track_word
-    ld a, (music_pattern_index)
-    ld e, a
-    ld d, 0
-    add hl, de
-    add hl, de
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    inc hl
-    ld a, (hl)
-    ld (music_pattern_rows), a
-    ld a, e
-    ld (music_pattern_ptr_l), a
-    ld a, d
-    ld (music_pattern_ptr_h), a
-    ld h, d
-    ld l, e
-    ld a, (music_pattern_row)
-    or a
-    jp z, .row_ptr_ready
-    ld b, a
-.row_offset_loop:
-    ld de, 12
-    add hl, de
-    djnz .row_offset_loop
-.row_ptr_ready:
-    xor a
-    call music_apply_channel_cell
-    ld a, 1
-    call music_apply_channel_cell
-    ld a, 2
-    call music_apply_channel_cell
-    ld a, (music_pattern_row)
-    inc a
-    ld d, a
-    ld a, (music_pattern_rows)
-    cp d
-    jp z, .advance_order
-    jp c, .advance_order
-    ld a, d
-    ld (music_pattern_row), a
-    jp .row_done
-.advance_order:
-    xor a
-    ld (music_pattern_row), a
-    ld a, (music_order_pos)
-    inc a
-    ld d, a
-    ld a, 1
-    call music_read_track_byte
-    cp d
-    jp z, .end_of_order
-    jp c, .end_of_order
-    ld a, d
-    ld (music_order_pos), a
-    jp .row_done
-.end_of_order:
-    ld a, (music_loop)
-    or a
-    jp z, music_stop
-    ld a, 2
-    call music_read_track_byte
-    ld (music_order_pos), a
-.row_done:
-    xor a
-    call music_read_track_byte
-    ld (music_row_frames), a
-    ld (music_row_countdown), a
-    call music_update_channel_effects
-    ret
-
-; ------------------------------------------------------------------
-; music_update
-; Advance the tracker once per game frame.
-; Input:  None
-; Output: Current channel PSG state refreshed; next row applied when due
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-music_update:
-    ld a, (music_active)
-    or a
-    ret z
-    ld a, (music_muted)
-    or a
-    ret nz
-    ld a, (music_row_countdown)
-    or a
-    jp z, music_apply_row
-    dec a
-    ld (music_row_countdown), a
-    jp z, music_apply_row
-    call music_update_channel_effects
-    ret
-
-; ------------------------------------------------------------------
-; music_update_channel_effects
-; Rebuild mixer bits and push current cached channel state to PSG.
-; Input:  music_ch_* caches already populated
-; Output: PSG tone/volume registers updated for channels A/B/C
-;         music_mixer_shadow rewritten with current enable bits
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-music_update_channel_effects:
-    ld a, #3F
-    ld (music_mixer_shadow), a
-    ld c, 0
-    call music_update_one_channel
-    ld c, 1
-    call music_update_one_channel
-    ld c, 2
-    call music_update_one_channel
-    ld a, (music_mixer_shadow)
-    call psg_set_mixer
-    ret
-
-; ------------------------------------------------------------------
-; music_update_one_channel
-; Apply one cached channel to PSG and update the mixer shadow bits.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: Channel PSG tone/volume updated or silenced
-;         music_mixer_shadow updated for that channel
-; Destroys: AF, BC, DE, HL
-; Preserves: Stack balance restored before return
-; ------------------------------------------------------------------
-music_update_one_channel:
-    push bc
-    push de
-    push hl
-    call music_resolve_channel_note_index
-    cp #FF
-    jp z, .silent_channel
-    add a, a
-    ld e, a
-    ld d, 0
-    ld hl, music_note_period_table
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld h, d
-    ld l, e
-    ld a, c
-    push bc
-    call psg_set_tone
-    pop bc
-    call music_resolve_channel_volume
-    ld a, c
-    push bc
-    call psg_set_volume
-    pop bc
-    ld d, 1
-    ld e, 0
-    call music_get_channel_instrument_ptr
-    ld a, h
-    or l
-    jr z, .apply_mixer_bits
-    ld a, (hl)
-    and #01
-    ld d, a
-    ld a, (hl)
-    and #02
-    srl a
-    ld e, a
-    ld a, e
-    or a
-    jr z, .apply_mixer_bits
-    push de
-    call music_resolve_channel_noise
-    call psg_set_noise
-    pop de
-.apply_mixer_bits:
-    ld a, (music_mixer_shadow)
-    ld b, a
-    ld a, c
-    cp 1
-    jp z, .enable_b
-    cp 2
-    jp z, .enable_c
-    ld a, b
-    bit 0, d
-    jr z, .a_tone_off
-    and #3E
-    jr .a_noise_gate
-.a_tone_off:
-    or #01
-.a_noise_gate:
-    bit 0, e
-    jr z, .a_noise_off
-    and #37
-    jp .store_mixer
-.a_noise_off:
-    or #08
-    jp .store_mixer
-.enable_b:
-    ld a, b
-    bit 0, d
-    jr z, .b_tone_off
-    and #3D
-    jr .b_noise_gate
-.b_tone_off:
-    or #02
-.b_noise_gate:
-    bit 0, e
-    jr z, .b_noise_off
-    and #2F
-    jp .store_mixer
-.b_noise_off:
-    or #10
-    jp .store_mixer
-.enable_c:
-    ld a, b
-    bit 0, d
-    jr z, .c_tone_off
-    and #3B
-    jr .c_noise_gate
-.c_tone_off:
-    or #04
-.c_noise_gate:
-    bit 0, e
-    jr z, .c_noise_off
-    and #1F
-    jp .store_mixer
-.c_noise_off:
-    or #20
-    jp .store_mixer
-.silent_channel:
-    ld b, 0
-    ld a, c
-    push bc
-    call psg_set_volume
-    pop bc
-    ld a, (music_mixer_shadow)
-    ld b, a
-    ld a, c
-    cp 1
-    jp z, .disable_b
-    cp 2
-    jp z, .disable_c
-    ld a, b
-    or #09
-    jp .store_mixer
-.disable_b:
-    ld a, b
-    or #12
-    jp .store_mixer
-.disable_c:
-    ld a, b
-    or #24
-.store_mixer:
-    ld (music_mixer_shadow), a
-    pop hl
-    pop de
-    pop bc
-    ret
-
-music_note_period_table:
-    DW #1AB9,#1939,#17CF,#1679,#1536,#1405,#12E5,#11D6
-    DW #10D6,#0FE4,#0EFF,#0E28,#0D5C,#0C9D,#0BE7,#0B3C
-    DW #0A9B,#0A02,#0973,#08EB,#086B,#07F2,#0780,#0714
-    DW #06AE,#064E,#05F4,#059E,#054D,#0501,#04B9,#0475
-    DW #0435,#03F9,#03C0,#038A,#0357,#0327,#02FA,#02CF
-    DW #02A7,#0281,#025D,#023B,#021B,#01FC,#01E0,#01C5
-    DW #01AC,#0194,#017D,#0168,#0153,#0140,#012E,#011D
-    DW #010D,#00FE,#00F0,#00E2,#00D6,#00CA,#00BE,#00B4
-    DW #00AA,#00A0,#0097,#008F,#0087,#007F,#0078,#0071
-    DW #006B,#0065,#005F,#005A,#0055,#0050,#004C,#0047
-    DW #0043,#0040,#003C,#0039,#0035,#0032,#0030,#002D
-    DW #002A,#0028,#0026,#0024,#0022,#0020,#001E,#001C
 
 music_track_count:
     DB #00
@@ -16828,7 +15414,11 @@ get_tile_animation_frame:
 
 ; ==================================================================
 ; BOSSES
-; Generated boss data for tile bosses, neck chains, crush movement, projectiles, sine waves, boomerangs, rocks, char lasers, meteors, falling blocks and bombs.
+; Generated boss data and project-aware runtime.
+; Boss feature set: bosses=yes, forms=yes, weakPoints=yes, neckChains=no, crushMovement=no
+; Boss behavior actions used: animateForm, loop, moveTo, setForm, wait
+; Boss attack runtimes included: none
+; Boss attack runtimes excluded: Bomb, Boomerang, FallingBlocks, HomingMissile, Laser, Meteor, Projectile, Rock, SineWave, SlamRocks
 ; ==================================================================
 
 BOSS_COUNT EQU 1
@@ -17209,76 +15799,10 @@ draw_active_boss_tiles:
 ; output: previous boss footprint restored from runtime_screen_layout into SCREEN 2 name table
 ; clobbers: AF, BC, DE, HL
 ; preserves: IX
+
 restore_active_boss_tiles:
-    push ix
-    ld a, (boss_active)
-    or a
-    jp z, .rabt_done
-    ld a, (boss_width)
-    or a
-    jp z, .rabt_done
-    ld a, (boss_height)
-    or a
-    jp z, .rabt_done
-
-    xor a
-    ld (boss_draw_row), a
-.rabt_row_loop:
-    ld a, (boss_draw_row)
-    ld c, a
-    ld a, (boss_height)
-    cp c
-    jp z, .rabt_done
-
-    xor a
-    ld (boss_draw_col), a
-.rabt_col_loop:
-    ld a, (boss_draw_col)
-    ld c, a
-    ld a, (boss_width)
-    cp c
-    jp z, .rabt_next_row
-
-    ld a, (boss_prev_x_char)
-    ld b, a
-    ld a, (boss_draw_col)
-    add a, b
-    cp 32
-    jp nc, .rabt_skip_cell
-    ld (boss_draw_screen_x), a
-
-    ld a, (boss_prev_y_char)
-    ld b, a
-    ld a, (boss_draw_row)
-    add a, b
-    cp 24
-    jp nc, .rabt_skip_cell
-    ld (boss_draw_screen_y), a
-    call boss_get_runtime_layout_char
-    ld (boss_draw_char), a
-    call boss_draw_write_cell
-
-.rabt_skip_cell:
-    ld a, (boss_draw_col)
-    inc a
-    ld (boss_draw_col), a
-    jp .rabt_col_loop
-
-.rabt_next_row:
-    ld a, (boss_draw_row)
-    inc a
-    ld (boss_draw_row), a
-    jp .rabt_row_loop
-
-.rabt_done:
-    pop ix
     ret
 
-; Register Contract:
-; input: boss_prev_x_char/boss_prev_y_char, current boss_x_char/boss_y_char and active boss dimensions
-; output: only previous boss cells not covered by the current opaque boss shape are restored from runtime_screen_layout
-; clobbers: AF, BC, DE, HL
-; preserves: IX
 restore_active_boss_tiles_exposed:
     push ix
     ld a, (boss_active)
@@ -17492,10 +16016,6 @@ update_boss_behavior:
     ld a, (boss_behavior_action_type)
     cp BOSS_BEHAVIOR_MOVE_TO
     jp z, .ubb_move
-    cp BOSS_BEHAVIOR_SLAM
-    jp z, .ubb_move
-    cp BOSS_BEHAVIOR_ATTACK
-    jp z, .ubb_attack
     cp BOSS_BEHAVIOR_SET_FORM
     jp z, .ubb_tick
     cp BOSS_BEHAVIOR_LOOP
@@ -17508,9 +16028,7 @@ update_boss_behavior:
     call boss_step_towards_behavior_target
     jp .ubb_tick
 
-.ubb_attack:
-    call boss_draw_behavior_attack
-    jp .ubb_tick
+
 
 .ubb_loop:
     ld a, (boss_behavior_aux0)
@@ -17607,8 +16125,6 @@ boss_load_current_behavior_action:
     ld (boss_behavior_aux2), a
     ld a, (boss_behavior_action_type)
     cp BOSS_BEHAVIOR_MOVE_TO
-    jp z, boss_prepare_behavior_move_timing
-    cp BOSS_BEHAVIOR_SLAM
     jp z, boss_prepare_behavior_move_timing
     cp BOSS_BEHAVIOR_SET_FORM
     jp z, boss_apply_behavior_form
@@ -17880,36 +16396,24 @@ boss_table:
 
 ; ------------------------------------------------------------------
 ; Boss 0: New Boss
+; Boss attack definitions: 0 defined, 0 referenced
 boss_0_new_boss_phase_table:
     dw boss_0_new_boss_phase_0
 boss_0_new_boss_attack_table:
     dw #FFFF
 boss_0_new_boss_phase_0:
     db #00, #00, #08, #08    ; healthThreshold,buildType,width,height
-    dw boss_0_new_boss_phase_0_tiles, boss_0_new_boss_phase_0_collision, boss_0_new_boss_phase_0_neck, boss_0_new_boss_phase_0_crush, boss_0_new_boss_phase_0_attacks, boss_0_new_boss_phase_0_behavior, boss_0_new_boss_phase_0_forms, boss_0_new_boss_phase_0_weak    ; tileMatrix,collision,neck,crush,attacks,behavior,forms,weak
+    dw boss_0_new_boss_phase_0_tiles, #FFFF, #FFFF, #FFFF, #FFFF, boss_0_new_boss_phase_0_behavior, boss_0_new_boss_phase_0_forms, boss_0_new_boss_phase_0_weak    ; tileMatrix,collision,neck,crush,attacks,behavior,forms,weak
 boss_0_new_boss_phase_0_tiles:
     db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
     db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #9C, #9C, #FF, #FF, #FF
     db #FF, #FF, #96, #94, #94, #96, #FF, #FF, #FF, #FF, #97, #95, #9B, #97, #FF, #FF
     db #FF, #FF, #98, #93, #9A, #99, #FF, #FF, #FF, #FF, #FF, #98, #99, #FF, #FF, #FF
-boss_0_new_boss_phase_0_collision:
-    db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00
-    db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00
-    db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00
-    db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00
 boss_0_new_boss_phase_0_weak:
     db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00
     db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #0A, #00, #00, #0A, #00, #00
     db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00
     db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00
-boss_0_new_boss_phase_0_neck:
-    db #00, #00, #00, #08, #10, #04, #55    ; enabled,count,ampX,ampY,speed16,delay,followPct
-    db #FF
-boss_0_new_boss_phase_0_crush:
-    db #00, #03, #30, #12, #08, #0E, #18, #28    ; enabled,dir,distance,windup,slam,hold,return,cooldown
-boss_0_new_boss_phase_0_attacks:
-    db #00    ; count
-    db #FF
 boss_0_new_boss_phase_0_behavior:
     db #0A, #7D, #01    ; count,totalLo,totalHi
     db #06, #01, #00, #00, #00, #03, #00, #00
@@ -17924,20 +16428,10 @@ boss_0_new_boss_phase_0_behavior:
     db #08, #01, #00, #00, #00, #00, #00, #00
 boss_0_new_boss_phase_0_forms:
     db #04    ; count
-    dw boss_0_new_boss_phase_0_forms_current, boss_0_new_boss_phase_0_forms_current_weak
+    dw boss_0_new_boss_phase_0_tiles, boss_0_new_boss_phase_0_weak
     dw boss_0_new_boss_phase_0_forms_1, boss_0_new_boss_phase_0_forms_1_weak
     dw boss_0_new_boss_phase_0_forms_2, boss_0_new_boss_phase_0_forms_2_weak
     dw boss_0_new_boss_phase_0_forms_3, boss_0_new_boss_phase_0_forms_3_weak
-boss_0_new_boss_phase_0_forms_current:
-    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
-    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #9C, #9C, #FF, #FF, #FF
-    db #FF, #FF, #96, #94, #94, #96, #FF, #FF, #FF, #FF, #97, #95, #9B, #97, #FF, #FF
-    db #FF, #FF, #98, #93, #9A, #99, #FF, #FF, #FF, #FF, #FF, #98, #99, #FF, #FF, #FF
-boss_0_new_boss_phase_0_forms_current_weak:
-    db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00
-    db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #0A, #00, #00, #0A, #00, #00
-    db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00
-    db #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00, #00
 boss_0_new_boss_phase_0_forms_1:
     db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF, #9C, #9C, #FF, #FF, #FF
     db #FF, #FF, #96, #94, #94, #96, #FF, #FF, #FF, #FF, #97, #95, #9B, #97, #FF, #FF
@@ -18514,6 +17008,11 @@ Action_ChangeSprite:
 
     ; WallGrab owns the visible sprite while active. Consume the
     ; CHANGE_SPRITE parameter but do not reset animation state or palette.
+    ld hl, entity_wallgrab_cfg_enabled
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr z, .acs_not_wall_grabbing
     ld hl, entity_wallgrab_active
     add hl, bc
     ld a, (hl)
@@ -18531,6 +17030,8 @@ Action_ChangeSprite:
     add hl, bc              ; HL = &entity_sprite_asset_index[entity]
 
     pop af                  ; A = Sprite Asset ID (recuperado del stack)
+    push hl                 ; [stack] guarda &entity_sprite_asset_index[entity]
+    push af                 ; [stack] guarda Sprite Asset ID durante refresh facing
 
     ; ------------------------------------------------------------------
     ; BLOQUE 1: Redirect direccional
@@ -18549,6 +17050,41 @@ Action_ChangeSprite:
     ; IMPORTANTE: este bloque usa B como temporal para guardar el sprite ID.
     ; Al salir, B queda con el sprite ID (no con 0). Se corrige después.
     ; ------------------------------------------------------------------
+    ; StateMachine runs before the Cursors/Input movement systems in the
+    ; frame update. For input-driven entities, refresh facing from the
+    ; current input_state now so KEY_PRESSED -> CHANGE_SPRITE resolves the
+    ; left/right mirror on the same frame as the transition.
+    ld hl, entity_comp_masks
+    add hl, bc
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    jr z, .acs_input_facing_done
+    ld a, (input_state)
+    or a
+    jr z, .acs_input_facing_done
+    cp 2
+    jr c, .acs_input_facing_up
+    cp 5
+    jr c, .acs_input_facing_right
+    jr z, .acs_input_facing_down
+    ld a, 1                     ; FACING_LEFT
+    jr .acs_input_facing_write
+.acs_input_facing_right:
+    ld a, 2                     ; FACING_RIGHT
+    jr .acs_input_facing_write
+.acs_input_facing_up:
+    ld a, 3                     ; FACING_UP
+    jr .acs_input_facing_write
+.acs_input_facing_down:
+    ld a, 4                     ; FACING_DOWN
+.acs_input_facing_write:
+    ld hl, entity_facing_dir
+    add hl, bc
+    ld (hl), a
+.acs_input_facing_done:
+
+    pop af                  ; A = Sprite Asset ID original
+    pop hl                  ; HL = &entity_sprite_asset_index[entity]
     push hl                 ; [stack] guarda &entity_sprite_asset_index[entity]
 
     ld h, 0
@@ -21385,137 +19921,14 @@ gameflow_node_gfn_1776512119008_conn:
 ; init_psg_silence
 ; Silence all PSG channels
 ; ------------------------------------------------------------------
-init_psg_silence:
-    push af
-    push bc
 
-    ; Silence channel A
-    ld a, #08    ; Volume register channel A
-    out (#A0), a
-    ld a, 0      ; Volume = 0
-    out (#A1), a
 
-    ; Silence channel B
-    ld a, #09    ; Volume register channel B
-    out (#A0), a
-    ld a, 0
-    out (#A1), a
 
-    ; Silence channel C
-    ld a, #0A    ; Volume register channel C
-    out (#A0), a
-    ld a, 0
-    out (#A1), a
 
-    pop bc
-    pop af
-    ret
 
-; ------------------------------------------------------------------
-; clear_sprite_table
-; Clear sprite attribute table in VRAM
-; ------------------------------------------------------------------
-clear_sprite_table:
-    push af
-    push bc
-    push de
-    push hl
 
-    ; Clear sprite attribute table (#1B00-#1B7F, 128 bytes)
-    ld hl, #1B00         ; Sprite attribute table base
-    ld bc, 128           ; 128 bytes (32 sprites × 4 bytes)
-    ld a, #D1            ; Y=209 (off-screen)
-.cst_loop:
-    push af
-    push bc
-    push hl
-    call WRTVRM          ; Write to VRAM
-    pop hl
-    pop bc
-    pop af
-    inc hl
-    dec bc
-    ld a, b
-    or c
-    jr nz, .cst_loop
 
-    pop hl
-    pop de
-    pop bc
-    pop af
-    ret
 
-; ------------------------------------------------------------------
-; clear_vram_areas
-; Clear VRAM pattern and color tables
-; ------------------------------------------------------------------
-clear_vram_areas:
-    push af
-    push bc
-    push de
-    push hl
-
-    ; Clear pattern table (#0000-#17FF, 6144 bytes)
-    ld hl, #0000
-    ld bc, 6144
-    ld a, 0
-.clear_patterns:
-    push af
-    push bc
-    push hl
-    call WRTVRM
-    pop hl
-    pop bc
-    pop af
-    inc hl
-    dec bc
-    ld a, b
-    or c
-    jr nz, .clear_patterns
-
-    ; Clear color table (#2000-#37FF, 6144 bytes)
-    ld hl, #2000
-    ld bc, 6144
-    ld a, #F0            ; White on black
-.clear_colors:
-    push af
-    push bc
-    push hl
-    call WRTVRM
-    pop hl
-    pop bc
-    pop af
-    inc hl
-    dec bc
-    ld a, b
-    or c
-    jr nz, .clear_colors
-
-    pop hl
-    pop de
-    pop bc
-    pop af
-    ret
-
-; ------------------------------------------------------------------
-; reset_vdp_registers
-; Reset VDP registers to Screen 2 defaults
-; ------------------------------------------------------------------
-reset_vdp_registers:
-    push af
-    push bc
-
-    ; Already configured in init_rom, this is a no-op for now
-    ; Could be extended to reset specific registers if needed
-
-    pop bc
-    pop af
-    ret
-
-; ------------------------------------------------------------------
-; init_all_global_variables
-; Initialize all global variables to their default values
-; ------------------------------------------------------------------
 init_all_global_variables:
     ; Initialize global variables
     ld a, 0

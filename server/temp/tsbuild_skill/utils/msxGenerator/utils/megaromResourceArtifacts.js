@@ -141,28 +141,14 @@ function buildResourceIdsAsm(resources) {
     return lines.join('\n').trimEnd();
 }
 function buildResourceTableAsm(resources) {
-    const groupCodes = buildGroupCodeMap(resources);
-    const typeCodes = buildTypeCodeMap(resources);
     const lines = [];
     lines.push('; ==================================================================');
     lines.push('; GENERATED RESOURCE TABLE');
-    lines.push('; Descriptor format: db id, type, group, bank / dw address / dw size');
+    lines.push('; Descriptor format: db bank / dw address / dw size');
+    lines.push('; Resource id is the zero-based descriptor index.');
     lines.push('; Address is the mapper-window address visible after selecting bank.');
     lines.push('; ==================================================================');
-    lines.push(`RESOURCE_TABLE_ENTRY_SIZE EQU 8`);
-    lines.push('');
-    for (const [groupKey, code] of groupCodes) {
-        lines.push(`${`RESOURCE_GROUP_${groupKey}`.padEnd(40)} EQU ${code}`);
-    }
-    if (groupCodes.size > 0) {
-        lines.push('');
-    }
-    for (const [typeKey, code] of typeCodes) {
-        lines.push(`${`RESOURCE_TYPE_${typeKey}`.padEnd(40)} EQU ${code}`);
-    }
-    if (typeCodes.size > 0) {
-        lines.push('');
-    }
+    lines.push(`RESOURCE_TABLE_ENTRY_SIZE EQU 5`);
     lines.push(`RESOURCE_TABLE_COUNT EQU ${resources.length}`);
     lines.push('');
     lines.push('resource_table:');
@@ -171,10 +157,7 @@ function buildResourceTableAsm(resources) {
     }
     for (const resource of resources) {
         lines.push(`    ; ${resource.label}`);
-        lines.push(`    db ${resource.resourceIdLabel}, ` +
-            `RESOURCE_TYPE_${resource.resourceTypeKey}, ` +
-            `RESOURCE_GROUP_${resource.resourceGroupKey}, ` +
-            `${resource.physicalBank}`);
+        lines.push(`    db ${resource.physicalBank}`);
         lines.push(`    dw ${formatHex(resource.windowAddress)}`);
         lines.push(`    dw ${resource.size}`);
     }

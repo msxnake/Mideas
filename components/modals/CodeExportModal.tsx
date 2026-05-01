@@ -436,7 +436,9 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           resolvedRomConfig: result.resolvedRomConfig,
           romModeConflictWarning: result.romModeConflictWarning,
           romSizeInfo: result.romSizeInfo,
-          suggestedRomConfig: result.suggestedRomConfig
+          suggestedRomConfig: result.suggestedRomConfig,
+          negativeDsOverflowBytes: result.negativeDsOverflowBytes,
+          plain48kPage0Info: result.plain48kPage0Info
         };
       }
 
@@ -653,10 +655,27 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       lines.push(`ROM mode warning: ${compileResult.romModeConflictWarning}`);
     }
 
+    if (compileResult?.plain48kPage0Info) {
+      const page0 = compileResult.plain48kPage0Info;
+      const selected = Array.isArray(page0.selectedGroups) && page0.selectedGroups.length > 0
+        ? page0.selectedGroups.map((group: any) => `${group.label} (${group.sizeBytes} bytes)`).join(', ')
+        : 'none';
+      const skipped = Array.isArray(page0.skippedGroups) && page0.skippedGroups.length > 0
+        ? page0.skippedGroups.map((group: any) => `${group.label} (${group.sizeBytes} bytes)`).join(', ')
+        : 'none';
+      lines.push(`Plain48K page0: used=${page0.usedBytes ?? '?'} bytes, remaining=${page0.remainingBytes ?? '?'} bytes`);
+      lines.push(`Plain48K page0 selected: ${selected}`);
+      lines.push(`Plain48K page0 skipped: ${skipped}`);
+    }
+
     if (compileResult?.suggestedRomConfig) {
       const suggested = compileResult.suggestedRomConfig;
       const suggestedSize = suggested.romSizeKB ? `, size=${suggested.romSizeKB}KB` : '';
-      lines.push(`Suggested path: ${suggested.label || suggested.romMode} (mode=${suggested.romMode}, mapper=${suggested.targetFormat ?? 'unknown'}${suggestedSize})`);
+      const suggestedMapper = suggested.mapperActive === false ? 'none' : (suggested.targetFormat ?? 'unknown');
+      lines.push(`Suggested path: ${suggested.label || suggested.romMode} (mode=${suggested.romMode}, mapper=${suggestedMapper}${suggestedSize})`);
+      if (suggested.validationStatus === 'candidate') {
+        lines.push('Suggestion status: candidate only; the regenerated build must compile before it can be used.');
+      }
       if (suggested.reason) {
         lines.push(`Suggestion reason: ${suggested.reason}`);
       }
@@ -1036,9 +1055,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
             setPipelineStatus('Build completed, launch failed');
           }
         } else {
-          summary += '\nRun skipped: no ROM was produced.';
+          summary += compileResult?.success
+            ? '\nRun skipped: no ROM was produced.'
+            : '\nRun skipped: build failed or ROM mode was blocked before a valid ROM was produced.';
           setPipelineProgress(100);
-          setPipelineStatus('Build completed, run skipped');
+          setPipelineStatus(compileResult?.success ? 'Build completed, run skipped' : 'Build blocked, run skipped');
         }
       } else if (compileResult?.success) {
         setPipelineProgress(100);
@@ -1911,9 +1932,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                             Plain 48KB was already regenerated and checked. It did not fit, so the next valid path is MegaROM.
                           </div>
                         )}
+                      {(compilationResult as any).suggestedRomConfig?.validationStatus === 'candidate' && (
+                        <div className="mt-2 text-xs text-red-100">
+                          Plain 48KB is not guaranteed here. Mideas will regenerate and compile it; if that checked build exceeds 48KB, the valid path is MegaROM.
+                        </div>
+                      )}
                       <div className="mt-2 text-xs text-msx-textsecondary">
                         Suggested: mode=<strong>{(compilationResult as any).suggestedRomConfig.romMode}</strong>
-                        {', '}mapper=<strong>{(compilationResult as any).suggestedRomConfig.targetFormat}</strong>
+                        {', '}mapper=<strong>{(compilationResult as any).suggestedRomConfig.mapperActive === false ? 'none' : (compilationResult as any).suggestedRomConfig.targetFormat}</strong>
                         {(compilationResult as any).suggestedRomConfig.romSizeKB && (
                           <>{', '}size=<strong>{(compilationResult as any).suggestedRomConfig.romSizeKB}KB</strong></>
                         )}
@@ -1925,6 +1951,31 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       >
                         {(compilationResult as any).suggestedRomConfig.label || 'Generate suggested ROM'}
                       </button>
+                    </div>
+                  )}
+
+                  {(compilationResult as any).plain48kPage0Info && (
+                    <div className="mt-3 p-3 bg-yellow-950 bg-opacity-30 rounded border border-yellow-600">
+                      <div className="text-sm text-yellow-100 font-semibold">
+                        Plain48K page 0 packing
+                      </div>
+                      <div className="mt-1 text-xs text-msx-textsecondary">
+                        Page 0 is restricted to data groups with safe access routines. A ROM can be under 48KB in raw size and still fail if too much remains in #4000-#BFFF.
+                      </div>
+                      <div className="mt-2 text-xs text-yellow-100">
+                        Used <strong>{(compilationResult as any).plain48kPage0Info.usedBytes ?? '?'}</strong> bytes,
+                        remaining <strong>{(compilationResult as any).plain48kPage0Info.remainingBytes ?? '?'}</strong> bytes.
+                      </div>
+                      <div className="mt-2 text-xs text-msx-textsecondary">
+                        Selected: {Array.isArray((compilationResult as any).plain48kPage0Info.selectedGroups) && (compilationResult as any).plain48kPage0Info.selectedGroups.length > 0
+                          ? (compilationResult as any).plain48kPage0Info.selectedGroups.map((group: any) => `${group.label} (${group.sizeBytes} bytes)`).join(', ')
+                          : 'none'}
+                      </div>
+                      <div className="mt-1 text-xs text-msx-textsecondary">
+                        Skipped: {Array.isArray((compilationResult as any).plain48kPage0Info.skippedGroups) && (compilationResult as any).plain48kPage0Info.skippedGroups.length > 0
+                          ? (compilationResult as any).plain48kPage0Info.skippedGroups.map((group: any) => `${group.label} (${group.sizeBytes} bytes)`).join(', ')
+                          : 'none'}
+                      </div>
                     </div>
                   )}
 

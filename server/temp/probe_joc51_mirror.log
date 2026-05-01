@@ -1,0 +1,16 @@
+boot_2s input=00 player=00 hero=33 idx=00 face=E3 sprite=33 sm=0033 smctl=00 wallgrab=43 xy=51,0
+intro_before input=00 player=00 hero=00 idx=00 face=02 sprite=00 sm=A61B smctl=01 wallgrab=43 xy=16,144
+intro_after input=00 player=00 hero=00 idx=00 face=02 sprite=00 sm=A61B smctl=01 wallgrab=43 xy=16,112
+after_intro_wait input=00 player=00 hero=00 idx=00 face=02 sprite=00 sm=A61B smctl=01 wallgrab=43 xy=16,144
+start_before input=00 player=00 hero=00 idx=00 face=02 sprite=00 sm=A61B smctl=01 wallgrab=43 xy=16,144
+start_after input=00 player=00 hero=00 idx=00 face=02 sprite=00 sm=A61B smctl=01 wallgrab=43 xy=16,118
+game_start input=00 player=00 hero=00 idx=00 face=02 sprite=00 sm=A61B smctl=01 wallgrab=43 xy=16,144
+SHOTOK joc51_mirror_start.png
+left_before input=00 player=00 hero=00 idx=00 face=02 sprite=00 sm=A61B smctl=01 wallgrab=43 xy=16,144
+left_during_015 input=07 player=00 hero=00 idx=00 face=01 sprite=06 sm=A70B smctl=01 wallgrab=43 xy=7,144
+left_during_045 input=07 player=00 hero=00 idx=00 face=01 sprite=06 sm=A70B smctl=01 wallgrab=43 xy=7,144
+left_mid input=07 player=00 hero=00 idx=00 face=01 sprite=06 sm=A70B smctl=01 wallgrab=43 xy=7,144
+SHOTOK joc51_mirror_left_mid.png
+left_after input=07 player=00 hero=00 idx=00 face=01 sprite=06 sm=A70B smctl=01 wallgrab=43 xy=7,144
+left_after input=00 player=00 hero=00 idx=00 face=01 sprite=09 sm=A61B smctl=01 wallgrab=43 xy=7,144
+SHOTOK joc51_mirror_left_after.png

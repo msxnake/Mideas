@@ -32,6 +32,31 @@ function buildGameFlowAudioTickAsm(analysis, executionPlan) {
 function sanitizeId(id) {
     return id.replace(/[^a-zA-Z0-9]/g, '_');
 }
+function replaceAsmLabelRange(asm, startLabel, endLabel, replacement) {
+    const escapedStart = startLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedEnd = endLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`^${escapedStart}:[\\s\\S]*?(?=^${escapedEnd}:)`, 'm');
+    return asm.replace(pattern, replacement.trimEnd() + '\n\n');
+}
+function gameFlowHasControlTransferToLabel(asm, label) {
+    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b(?:call|jp|jr)\\s+${escapedLabel}\\b`, 'i').test(asm);
+}
+function stripUnusedGameFlowUtilityBlocks(asm) {
+    let optimizedAsm = asm;
+    const utilityRanges = [
+        ['init_psg_silence', 'clear_sprite_table'],
+        ['clear_sprite_table', 'clear_vram_areas'],
+        ['clear_vram_areas', 'reset_vdp_registers'],
+        ['reset_vdp_registers', 'init_all_global_variables'],
+    ];
+    utilityRanges.forEach(([startLabel, endLabel]) => {
+        if (!gameFlowHasControlTransferToLabel(optimizedAsm, startLabel)) {
+            optimizedAsm = replaceAsmLabelRange(optimizedAsm, startLabel, endLabel, '');
+        }
+    });
+    return optimizedAsm;
+}
 /**
  * Normalize text for ASM string literals used in generated labels/data.
  */
@@ -1143,7 +1168,7 @@ empty_row_data:
 ; END OF GAMEFLOW
 ; ==================================================================
 `;
-    return code;
+    return stripUnusedGameFlowUtilityBlocks(code);
 }
 /**
  * Generate handlers for all node types

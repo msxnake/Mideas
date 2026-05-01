@@ -155,6 +155,30 @@ const TILE_DIRECTION_IDS = {
     'down-right': 7,
     'down-left': 8,
 };
+function projectUsesWallGrab(templates) {
+    if (!Array.isArray(templates))
+        return false;
+    return templates.some((template) => {
+        const components = Array.isArray(template?.components) ? template.components : [];
+        return components.some((component) => {
+            const tokens = [
+                component?.definitionId,
+                component?.id,
+                component?.type,
+                component?.name,
+            ].map((value) => String(value || '').toLowerCase());
+            return tokens.some((token) => token.includes('wallgrab') || token.includes('wall_grab'));
+        });
+    });
+}
+function stripWallGrabOwnershipGuards(asm) {
+    return asm
+        .replace(/    ; WallGrab owns the visible sprite while active\.[\s\S]*?\.acs_not_wall_grabbing:\r?\n\r?\n/, '')
+        .replace(/    ; WallGrab owns animation playback while active\.[\s\S]*?\.apa_not_wall_grabbing:\r?\n\r?\n/, '')
+        .replace(/    ; WallGrab should keep the configured grab animation cadence stable\.[\s\S]*?\.asa_not_wall_grabbing:\r?\n\r?\n/, '')
+        .replace(/    ; WallGrab should not be paused\/restarted by StateMachine animation actions\.[\s\S]*?\.ata_not_wall_grabbing:\r?\n\r?\n/, '')
+        .replace(/    ld l, b\r?\n    ld h, 0\r?\n    ld de, entity_wallgrab_active\r?\n    add hl, de\r?\n    ld a, \(hl\)\r?\n    or a\r?\n    jp nz, \.scp_done\r?\n\r?\n/g, '');
+}
 // Compact IDs for SET_COMPONENT_PROPERTY runtime encoding.
 const COMPONENT_IDS = {
     'comp_pos': 1,
@@ -989,6 +1013,11 @@ Action_ChangeSprite:
 
     ; WallGrab owns the visible sprite while active. Consume the
     ; CHANGE_SPRITE parameter but do not reset animation state or palette.
+    ld hl, entity_wallgrab_cfg_enabled
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr z, .acs_not_wall_grabbing
     ld hl, entity_wallgrab_active
     add hl, bc
     ld a, (hl)
@@ -1006,6 +1035,8 @@ Action_ChangeSprite:
     add hl, bc              ; HL = &entity_sprite_asset_index[entity]
 
     pop af                  ; A = Sprite Asset ID (recuperado del stack)
+    push hl                 ; [stack] guarda &entity_sprite_asset_index[entity]
+    push af                 ; [stack] guarda Sprite Asset ID durante refresh facing
 
     ; ------------------------------------------------------------------
     ; BLOQUE 1: Redirect direccional
@@ -1024,6 +1055,41 @@ Action_ChangeSprite:
     ; IMPORTANTE: este bloque usa B como temporal para guardar el sprite ID.
     ; Al salir, B queda con el sprite ID (no con 0). Se corrige después.
     ; ------------------------------------------------------------------
+    ; StateMachine runs before the Cursors/Input movement systems in the
+    ; frame update. For input-driven entities, refresh facing from the
+    ; current input_state now so KEY_PRESSED -> CHANGE_SPRITE resolves the
+    ; left/right mirror on the same frame as the transition.
+    ld hl, entity_comp_masks
+    add hl, bc
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    jr z, .acs_input_facing_done
+    ld a, (input_state)
+    or a
+    jr z, .acs_input_facing_done
+    cp 2
+    jr c, .acs_input_facing_up
+    cp 5
+    jr c, .acs_input_facing_right
+    jr z, .acs_input_facing_down
+    ld a, 1                     ; FACING_LEFT
+    jr .acs_input_facing_write
+.acs_input_facing_right:
+    ld a, 2                     ; FACING_RIGHT
+    jr .acs_input_facing_write
+.acs_input_facing_up:
+    ld a, 3                     ; FACING_UP
+    jr .acs_input_facing_write
+.acs_input_facing_down:
+    ld a, 4                     ; FACING_DOWN
+.acs_input_facing_write:
+    ld hl, entity_facing_dir
+    add hl, bc
+    ld (hl), a
+.acs_input_facing_done:
+
+    pop af                  ; A = Sprite Asset ID original
+    pop hl                  ; HL = &entity_sprite_asset_index[entity]
     push hl                 ; [stack] guarda &entity_sprite_asset_index[entity]
 
     ld h, 0
@@ -1277,6 +1343,11 @@ Action_PlayAnimation:
 
     ; WallGrab owns animation playback while active. Consume the
     ; PLAY_ANIMATION parameter but do not reset frame/tick/flags.
+    ld hl, entity_wallgrab_cfg_enabled
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp z, .apa_not_wall_grabbing
     ld hl, entity_wallgrab_active
     add hl, bc
     ld a, (hl)
@@ -1340,6 +1411,11 @@ Action_SetAnimSpeed:
     ld b, 0
 
     ; WallGrab should keep the configured grab animation cadence stable.
+    ld hl, entity_wallgrab_cfg_enabled
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp z, .asa_not_wall_grabbing
     ld hl, entity_wallgrab_active
     add hl, bc
     ld a, (hl)
@@ -1371,6 +1447,11 @@ Action_ToggleAnim:
     ld b, 0
 
     ; WallGrab should not be paused/restarted by StateMachine animation actions.
+    ld hl, entity_wallgrab_cfg_enabled
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp z, .ata_not_wall_grabbing
     ld hl, entity_wallgrab_active
     add hl, bc
     ld a, (hl)
@@ -1974,11 +2055,19 @@ Action_SetCompProp:
 .scp_set_sprite:
     ld l, b
     ld h, 0
+    ld de, entity_wallgrab_cfg_enabled
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .scp_set_sprite_wallgrab_done
+    ld l, b
+    ld h, 0
     ld de, entity_wallgrab_active
     add hl, de
     ld a, (hl)
     or a
     jp nz, .scp_done
+.scp_set_sprite_wallgrab_done:
 
     ld a, c
     cp SM_SpriteAssetCount
@@ -2020,11 +2109,19 @@ Action_SetCompProp:
 .scp_set_frame:
     ld l, b
     ld h, 0
+    ld de, entity_wallgrab_cfg_enabled
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .scp_set_frame_wallgrab_done
+    ld l, b
+    ld h, 0
     ld de, entity_wallgrab_active
     add hl, de
     ld a, (hl)
     or a
     jp nz, .scp_done
+.scp_set_frame_wallgrab_done:
 
     ld l, b
     ld h, 0
@@ -2036,11 +2133,19 @@ Action_SetCompProp:
 .scp_set_anim_speed:
     ld l, b
     ld h, 0
+    ld de, entity_wallgrab_cfg_enabled
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .scp_set_anim_speed_wallgrab_done
+    ld l, b
+    ld h, 0
     ld de, entity_wallgrab_active
     add hl, de
     ld a, (hl)
     or a
     jp nz, .scp_done
+.scp_set_anim_speed_wallgrab_done:
 
     ld l, b
     ld h, 0
@@ -2052,11 +2157,19 @@ Action_SetCompProp:
 .scp_set_anim_playing:
     ld l, b
     ld h, 0
+    ld de, entity_wallgrab_cfg_enabled
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .scp_set_anim_playing_wallgrab_done
+    ld l, b
+    ld h, 0
     ld de, entity_wallgrab_active
     add hl, de
     ld a, (hl)
     or a
     jp nz, .scp_done
+.scp_set_anim_playing_wallgrab_done:
 
     ld l, b
     ld h, 0
@@ -5907,6 +6020,7 @@ function generateStateMachineSystem(stateMachines, globalVariables, sprites, til
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
     const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
     const hasHardwareSprites = Array.isArray(sprites) && sprites.length > 0;
+    const hasWallGrabRuntime = projectUsesWallGrab(templates);
     const hasLivesGlobal = Array.isArray(globalVariables) &&
         globalVariables.some((variable) => String(variable?.asmName || '').trim() === 'global_var_lives');
     asm = asm.replace(/Action_CleanSprites:[\s\S]*?Action_ExitCurrentWorld:/, hasHardwareSprites
@@ -5934,6 +6048,9 @@ Action_ExitCurrentWorld:`);
     }
     if (!hasLivesGlobal) {
         asm = asm.replace(/[ \t]*ld \(global_var_lives\), a\s*; Keep FSM global "Lives" in sync with entity health\r?\n/g, '');
+    }
+    if (!hasWallGrabRuntime) {
+        asm = stripWallGrabOwnershipGuards(asm);
     }
     if (!usesMapper) {
         const mapperTileWriteBlock = `    ; Update mutable screen layout map

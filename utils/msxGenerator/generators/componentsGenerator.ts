@@ -8,6 +8,7 @@ import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { analyzeComponentUsage, ComponentUsageAnalysis } from '../utils/componentAnalyzer';
 import { buildRegisterContractComment } from './registerContract';
 import { usesMapperBanking } from './romModeUtils';
+import { buildScreenInteractionMaps } from '../../../components/utils/screenUtils';
 
 type AutoControlScriptBuild = {
     dataAsm: string;
@@ -9811,6 +9812,152 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
     };
 }
 
+function replaceAsmLabelRange(
+    asm: string,
+    startLabel: string,
+    endLabel: string,
+    replacement: string
+): string {
+    const startNeedle = `\n${startLabel}:`;
+    const endNeedle = `\n${endLabel}:`;
+    const start = asm.indexOf(startNeedle);
+    if (start === -1) return asm;
+
+    const end = asm.indexOf(endNeedle, start + startNeedle.length);
+    if (end === -1) return asm;
+
+    return `${asm.slice(0, start + 1)}${replacement.trimEnd()}\n${asm.slice(end + 1)}`;
+}
+
+function stripUnusedTileSlashRuntime(asm: string): string {
+    return replaceAsmLabelRange(
+        asm,
+        'update_slash_component',
+        'record_bonus_respawn_slot',
+        `; ------------------------------------------------------------------
+; update_slash_component
+; Filtered out: no tile bonus uses grant_extra_jump/slash in this project.
+; Public label is kept because older generated call paths may still reference it.
+; ------------------------------------------------------------------
+update_slash_component:
+    ret
+`
+    );
+}
+
+function projectHasBossRuntime(analysis: ProjectAnalysis): boolean {
+    return Array.isArray((analysis as any).bosses) && (analysis as any).bosses.length > 0;
+}
+
+function projectHasBreakableTiles(analysis: ProjectAnalysis): boolean {
+    return Array.isArray((analysis as any).tiles) && (analysis as any).tiles.some((tile: any) => {
+        const props = tile?.logicalProperties || {};
+        return props.isBreakable === true || props.isBreakable === 'true' || ((props.mapId ?? 0) & 0x01) !== 0;
+    });
+}
+
+function stripUnusedPlayerDashOptionalRuntime(
+    asm: string,
+    options: { hasBosses: boolean; hasBreakableTiles: boolean }
+): string {
+    if (options.hasBosses || options.hasBreakableTiles) {
+        return asm;
+    }
+
+    let optimizedAsm = asm.replace(
+        /    call player_dash_break_front_tile_c\r?\n    call player_dash_hit_boss_weakpoint\r?\n/g,
+        ''
+    );
+
+    optimizedAsm = replaceAsmLabelRange(
+        optimizedAsm,
+        'player_dash_break_front_tile_c',
+        'player_dash_hit_boss_weakpoint',
+        `player_dash_break_front_tile_c:
+    ret
+`
+    );
+    optimizedAsm = replaceAsmLabelRange(
+        optimizedAsm,
+        'player_dash_hit_boss_weakpoint',
+        'player_dash_cleanup_dead_boss_attacks',
+        `player_dash_hit_boss_weakpoint:
+    ret
+`
+    );
+    optimizedAsm = replaceAsmLabelRange(
+        optimizedAsm,
+        'player_dash_cleanup_dead_boss_attacks',
+        'update_player_fastpath',
+        `player_dash_cleanup_dead_boss_attacks:
+    ret
+`
+    );
+
+    return optimizedAsm;
+}
+
+function collectUsedScreenInteractionTypes(analysis: ProjectAnalysis): Set<number> {
+    const usedTypes = new Set<number>();
+    const screens = Array.isArray((analysis as any).screenMaps) ? (analysis as any).screenMaps : [];
+    const tiles = Array.isArray((analysis as any).tiles) ? (analysis as any).tiles : [];
+
+    for (const screen of screens) {
+        const maps = buildScreenInteractionMaps(screen, tiles);
+        for (const value of maps.typeMap) {
+            const typeId = Number(value) & 0xff;
+            if (typeId !== 0) {
+                usedTypes.add(typeId);
+            }
+        }
+    }
+
+    return usedTypes;
+}
+
+function stripUnusedTileInteractionDispatchRuntime(asm: string, usedInteractionTypes: Set<number>): string {
+    const onlyCollectibleInteractions =
+        usedInteractionTypes.size > 0 &&
+        Array.from(usedInteractionTypes).every((typeId) => typeId === 1);
+
+    if (!onlyCollectibleInteractions) {
+        return asm;
+    }
+
+    let optimizedAsm = asm.replace(
+        /    ld a, \(last_interaction_type\)\r?\n    cp 5\r?\n    jr z, \.ti_dispatch_ready\r?\n    call interaction_clear_button_contact_c\r?\n\.ti_dispatch_ready:\r?\n    ld a, \(last_interaction_type\)\r?\n    cp 1\r?\n    jp z, \.ti_collect_gem\r?\n    cp 2\r?\n    jp z, \.ti_collect_item\r?\n    cp 3\r?\n    jp z, \.ti_add_energy\r?\n    cp 4\r?\n    jp z, \.ti_lever_toggle\r?\n    cp 5\r?\n    jp z, \.ti_button_press\r?\n    cp 6\r?\n    jp z, \.ti_jumper\r?\n    cp 7\r?\n    jp z, \.ti_next\r?\n    jp \.ti_next/,
+        `    ld a, (last_interaction_type)
+    cp 1
+    jp z, .ti_collect_gem
+    jp .ti_next`
+    );
+
+    optimizedAsm = replaceAsmLabelRange(
+        optimizedAsm,
+        'interaction_set_last_value_default1',
+        'interaction_clear_behavior_at_de',
+        ''
+    );
+
+    optimizedAsm = replaceAsmLabelRange(
+        optimizedAsm,
+        '.ti_collect_item',
+        '.ti_collect_bonus',
+        ''
+    );
+
+    optimizedAsm = optimizedAsm.replace(
+        /\.ti_no_collect:\r?\n    pop hl                         ; Balance idx push\r?\n    pop de                         ; Balance tileX\/tileY push\r?\n    pop bc                         ; Restore B=count, C=entity\r?\n    push bc\r?\n    call interaction_clear_button_contact_c\r?\n/,
+        `.ti_no_collect:
+    pop hl                         ; Balance idx push
+    pop de                         ; Balance tileX/tileY push
+    pop bc                         ; Restore B=count, C=entity
+`
+    );
+
+    return optimizedAsm;
+}
+
 function generateWallHitboxHelpers(): string {
     return `
 ; ------------------------------------------------------------------
@@ -10656,7 +10803,8 @@ record_bonus_respawn_slot:
 update_bonus_respawns:
     ret
 `;
-    const wallBehaviorHelperCode = hasWallCollision
+    const hasBonusSlashEffect = tileCollectorConfig.bonusEntityEffect === 'grant_extra_jump' && tileCollectorConfig.bonusEffectAmount > 0;
+    const wallBehaviorHelperCode = hasWallCollision || !hasBonusSlashEffect
         ? ``
         : `
 ; ------------------------------------------------------------------
@@ -10677,7 +10825,7 @@ wall_behavior_is_full_blocker:
     ret
 `;
 
-    return `
+    let asm = `
 ; ==================================================================
 ; TILE INTERACTION SYSTEM
 ; ==================================================================
@@ -11572,6 +11720,12 @@ refresh_player_tile_interaction_fastpath:
     ld (player_runtime_enabled), a
     ret
 `;
+
+    if (!hasBonusSlashEffect) {
+        asm = stripUnusedTileSlashRuntime(asm);
+    }
+
+    return asm;
 }
 
 /**
@@ -13237,9 +13391,17 @@ entity_last_collision_entity EQU temp_byte_24
     }
 
     console.log('🎯 Generating optimized components.asm...');
+    const generatedComponentNames = [
+        'Position', 'Sprite', 'Movement', 'Collision', 'Input', 'Behavior', 'Health', 'Animation',
+        'Jump', 'Gravity', 'AirControl', 'WallGrab', 'WallJump', 'AutoDestroy', 'Cursors',
+        'StateMachine', 'RetractableGate', 'Carry', 'Damage', 'Shoot', 'WallCollision',
+        'DeadlyTiles', 'Collectible', 'TileInteraction', 'Patrol', 'AutoControlScript'
+    ];
+    const filteredOutComponentCount = generatedComponentNames.filter(component => !usedComponents.has(component)).length;
+
     console.log(`  - Active entities: ${componentUsage.activeEntities.length} `);
     console.log(`  - Used components: ${Array.from(usedComponents).join(', ')} `);
-    console.log(`  - Filtered out: ${8 - usedComponents.size} unused components`);
+    console.log(`  - Filtered out: ${filteredOutComponentCount} unused components`);
 
     // Build the complete ASM file
     let code = `; ==================================================================
@@ -13252,7 +13414,7 @@ entity_last_collision_entity EQU temp_byte_24
 ; INTELLIGENT FILTERING ACTIVE:
 ;   Active entities: ${componentUsage.activeEntities.length}
 ;   Used components: ${Array.from(usedComponents).join(', ')}
-;   Filtered out: ${8 - usedComponents.size} unused component systems
+;   Filtered out: ${filteredOutComponentCount} unused component systems
     ;
 ; ==================================================================
 
@@ -13966,19 +14128,8 @@ tile_behavior_table:
     db TILE_PASSABLE
 
 check_collision_at_point:
-    ; Input: D=x pixels, E=y pixels. Convert to Screen 2 cell coords.
-    ld a, d
-    srl a
-    srl a
-    srl a
-    ld c, a
-    ld a, e
-    srl a
-    srl a
-    srl a
-    ld b, a
-    call get_behavior_tile
-    and #F0                       ; family bits: 0=passable, #10+=solid
+    ; Deprecated legacy helper. WallCollision uses behavior maps directly.
+    xor a
     ret
 
 ; ------------------------------------------------------------------
@@ -14002,14 +14153,7 @@ check_collision_box:
 ; Destroys: B
 ; ------------------------------------------------------------------
 div_a_by_c:
-    ld b, 0                       ; B = quotient
-.tile_div_loop:
-    sub c
-    jr c, .tile_div_done
-    inc b
-    jr .tile_div_loop
-.tile_div_done:
-    ld a, b
+    xor a
     ret
 
 `;
@@ -14300,6 +14444,12 @@ update_secret_zone_component:
                 code.slice(firstWallHitboxHelper + wallHitboxHelpersBlock.length);
         }
     }
+
+    code = stripUnusedPlayerDashOptionalRuntime(code, {
+        hasBosses: projectHasBossRuntime(analysis),
+        hasBreakableTiles: projectHasBreakableTiles(analysis),
+    });
+    code = stripUnusedTileInteractionDispatchRuntime(code, collectUsedScreenInteractionTypes(analysis));
 
     // End of file
     code += `
