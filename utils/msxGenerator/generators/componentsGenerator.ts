@@ -5055,6 +5055,27 @@ refresh_player_sprite_fastpath:
     ret
 
 ; ==================================================================
+; PLAYER REALTIME PIPELINE
+; Runs only the hero-critical systems. This is callable from the optional
+; VBlank hard tick, so keep it bounded and keep long/background jobs out.
+; ==================================================================
+update_player_realtime_pipeline:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    call update_player_fastpath
+    call refresh_player_deadly_fastpath
+    call refresh_player_tile_interaction_fastpath
+    call refresh_player_state_machine_fastpath
+    call refresh_player_wallgrab_fastpath
+    call refresh_player_animation_fastpath
+    call refresh_player_sprite_fastpath
+    ret
+
+; ==================================================================
 ; HELPER: Force update a single entity's sprite (used by init_entities)
 ; Input: C = Entity Index
 ; ==================================================================
@@ -5260,7 +5281,12 @@ compute_entity_base_pattern:
         kind: 'routine',
         owner: 'components',
         preserve: false,
-        roots: ['component-sprite'],
+        roots: [
+            'component-sprite',
+            'refresh_player_sprite_fastpath',
+            'update_player_realtime_pipeline',
+            'force_update_entity_sprite',
+        ],
     });
 }
 function generateMovementSystem(): string {
@@ -16088,6 +16114,15 @@ entity_job_should_run_c:
             ld e, c
             ld d, 0
 
+            ; HARD_PLAYER invariant: entity job cadence never gates the Player.
+            ; Soft scheduling can degrade enemies/NPCs, but the hero must remain
+            ; visible to the active buckets every VBlank-derived frame.
+            ld hl, entity_is_player
+            add hl, de
+            ld a, (hl)
+            or a
+            jr nz, entity_job_run_active
+
             ld hl, entity_job_period
             add hl, de
             ld a, (hl)
@@ -16965,6 +17000,9 @@ update_sprite_component:
     ret
 
 refresh_player_sprite_fastpath:
+    ret
+
+update_player_realtime_pipeline:
     ret
 
 force_update_entity_sprite:

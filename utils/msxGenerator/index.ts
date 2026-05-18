@@ -49,6 +49,7 @@ export type MSXRomMode = 'auto' | 'simple32k' | 'plain48k' | 'megarom';
 export interface MSXInterruptConfig {
   enableAudioTask?: boolean;
   enableFrameCounterTask?: boolean;
+  enableHardPlayerTick?: boolean;
   enableInputTask?: boolean;
   maxIrqCyclesPerFrame?: number;
   strictIrqValidation?: boolean;
@@ -240,6 +241,8 @@ export function generateModularASM(
   const executionPlan = buildValidatedExecutionPlan(analysis, config);
   const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
   const keepRuntimeBackgroundLayout = shouldKeepRuntimeBackgroundLayout(analysis);
+  const hardPlayerTickEnabled = (config.interruptConfig?.enableHardPlayerTick ?? false)
+    && !(romMode === 'megarom' && targetFormat === 'ascii16');
 
   // Generate individual files
   console.log('📝 [MSX GENERATOR] Generating all ASM files...');
@@ -274,7 +277,11 @@ export function generateModularASM(
     'resource_ids.asm': '; Resource ids are emitted by the unified MegaROM backend when available.\nRESOURCE_ID_INVALID EQU #FF\n',
     'resource_table.asm': '; Resource table is emitted by the unified MegaROM backend when available.\nRESOURCE_TABLE_ENTRY_SIZE EQU 8\nRESOURCE_TABLE_COUNT EQU 0\nresource_table:\n',
     'resource_manager.asm': generateResourceManagerFile(mapperWindow, { keepRuntimeBackgroundLayout }),
-    'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
+    'interrupt.asm': generateInterruptFile(
+      analysis,
+      { interruptDrivenComponents, romMode, hardPlayerTickEnabled },
+      executionPlan
+    ),
     'header.asm': generateHeaderFile(projectName, analysis, executionPlan, romMode, targetFormat),
     'patterns.asm': generatePatternsFile(analysis, romMode, romMode === 'megarom', targetFormat),
     'colors.asm': generateColorsFile(analysis, romMode, romMode === 'megarom', targetFormat),
@@ -357,6 +364,8 @@ export function generateModularASMFromSummary(
   const autoMegaROM = config.autoMegaROM ?? false;
   const executionPlan = buildValidatedExecutionPlan(analysis, config);
   const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
+  const hardPlayerTickEnabled = (config.interruptConfig?.enableHardPlayerTick ?? false)
+    && !(romMode === 'megarom' && targetFormat === 'ascii16');
 
   console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
 
@@ -391,7 +400,11 @@ export function generateModularASMFromSummary(
     'resource_ids.asm': '; Resource ids are emitted by the unified MegaROM backend when available.\nRESOURCE_ID_INVALID EQU #FF\n',
     'resource_table.asm': '; Resource table is emitted by the unified MegaROM backend when available.\nRESOURCE_TABLE_ENTRY_SIZE EQU 8\nRESOURCE_TABLE_COUNT EQU 0\nresource_table:\n',
     'resource_manager.asm': generateResourceManagerFile(mapperWindow, { keepRuntimeBackgroundLayout: keepRuntimeBackgroundLayout2 }),
-    'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
+    'interrupt.asm': generateInterruptFile(
+      analysis,
+      { interruptDrivenComponents, romMode, hardPlayerTickEnabled },
+      executionPlan
+    ),
     'header.asm': generateHeaderFile(summary.projectInfo.name, analysis, executionPlan, romMode, targetFormat),
     'patterns.asm': generatePatternsFile(analysis, romMode, romMode === 'megarom', targetFormat),
     'colors.asm': generateColorsFile(analysis, romMode, romMode === 'megarom', targetFormat),

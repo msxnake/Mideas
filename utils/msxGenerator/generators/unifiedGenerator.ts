@@ -995,7 +995,7 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
         case 'statemachine':
             return ['init_statemachine_system', 'update_statemachine_system', 'execute_all_state_machines', 'SM_ExecuteActions', 'SM_UpdateSound'];
         case 'components_tail':
-            return ['update_player_fastpath', 'execute_all_state_machines', 'refresh_player_state_machine_fastpath'];
+            return ['update_player_fastpath', 'update_player_realtime_pipeline', 'execute_all_state_machines', 'refresh_player_state_machine_fastpath'];
         case 'components_autocontrol':
             return ['init_auto_control_script_system', 'update_auto_control_script_component', 'update_auto_event_string_component'];
         case 'gameflow':
@@ -1047,6 +1047,7 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
             return [
                 'init_sprites',
                 'update_sprites_to_vram',
+                'upload_player_sprites_to_vram',
                 'clear_all_sprites',
                 'hide_sprite',
                 'load_sprite_patterns_by_pack_id',
@@ -2680,6 +2681,7 @@ function rewriteResidentCallSites(
         ['set_screen_colors', 'call_set_screen_colors_resident'],
         ['init_char0_color', 'call_init_char0_color_resident'],
         ['update_sprites_to_vram', 'call_update_sprites_to_vram_resident'],
+        ['upload_player_sprites_to_vram', 'call_upload_player_sprites_to_vram_resident'],
         ['clear_all_sprites', 'call_clear_all_sprites_resident'],
         ['hide_sprite', 'call_hide_sprite_resident'],
         ['init_animated_tiles', 'call_init_animated_tiles_resident'],
@@ -2702,6 +2704,7 @@ function rewriteResidentCallSites(
         ['create_entity', 'call_create_entity_resident'],
         ['entity_job_set', 'call_entity_job_set_resident'],
         ['force_update_entity_sprite', 'call_force_update_entity_sprite_resident'],
+        ['update_player_realtime_pipeline', 'call_update_player_realtime_pipeline_resident'],
         ['rebuild_used_entity_list', 'call_rebuild_used_entity_list_resident'],
         ['sync_player_runtime_from_entity', 'call_sync_player_runtime_from_entity_resident'],
         ['apply_collected_tiles', 'call_apply_collected_tiles_resident'],
@@ -2967,6 +2970,51 @@ call_update_sprites_to_vram_resident:
     call FAST_LDIRVM
     ret
 
+call_upload_player_sprites_to_vram_resident:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_SPRITE
+    ret z
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld c, (hl)
+    ld b, 0
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    push hl
+    ld de, sprite_attributes
+    add hl, de
+    ex de, hl
+    pop hl
+    push de
+    ld de, SPRATR
+    add hl, de
+    ex de, hl
+    pop hl
+    ld a, c
+    or a
+    ret z
+    add a, a
+    add a, a
+    ld c, a
+    ld b, 0
+    call FAST_LDIRVM
+    ret
+
 call_clear_all_sprites_resident:
     ld hl, sprite_attributes
     ld b, 32
@@ -3114,6 +3162,14 @@ ${targetFormat === 'ascii16' ? `call_force_update_entity_sprite_resident:
     call force_update_entity_sprite
     call mapper_pop_p${componentWindowPage}
     ret
+`}
+
+${targetFormat === 'ascii16' ? `call_update_player_realtime_pipeline_resident:
+    ; HARD_PLAYER is disabled for ASCII16 MegaROM because components_tail is
+    ; not kept in a stable IRQ-visible window for this mapper target.
+    ret
+` : `call_update_player_realtime_pipeline_resident:
+    jp update_player_realtime_pipeline
 `}
 
 ${targetFormat === 'ascii16' ? ascii16ComponentCall('call_rebuild_used_entity_list_resident', 'rebuild_used_entity_list') : `call_rebuild_used_entity_list_resident:

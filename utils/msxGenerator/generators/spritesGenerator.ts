@@ -626,6 +626,32 @@ export function generateSpritesFile(
 
   console.log(`  - activeEntities.length: ${activeEntities.length}`);
 
+  const parseBool = (value: any, defaultValue: boolean): boolean => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true') return true;
+      if (normalized === 'false') return false;
+      const asNum = parseInt(normalized, 10);
+      if (!Number.isNaN(asNum)) return asNum !== 0;
+    }
+    return defaultValue;
+  };
+
+  const hasExplicitPlayerTemplate = Array.isArray(analysis.templates)
+    && analysis.templates.some((tpl: any) => parseBool(tpl?.isPlayer, false));
+
+  const isPlayerEntity = (entity: any): boolean => {
+    const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
+    const hasLegacyPlayerInput = !!template?.components?.some((component: any) =>
+      component?.definitionId === 'comp_player_input' || component?.definitionId === 'comp_input'
+    );
+    return hasExplicitPlayerTemplate
+      ? parseBool(template?.isPlayer, false)
+      : hasLegacyPlayerInput;
+  };
+
   // Helper to parse hex color to RGB
   const hexToRGB = (hex: string): { r: number; g: number; b: number } | null => {
     if (!hex || hex.startsWith('rgba')) return null;
@@ -867,52 +893,87 @@ export function generateSpritesFile(
     spriteAssetIndex: number;
     baseHwSpriteIndex: number;
     layerCount: number;
+    reservedSlotCount: number;
     colors: number[];
     yOffsets: number[];
   }
 
   const entityAllocations: EntitySpriteAllocation[] = [];
-  let currentHwSpriteIndex = 0;
-
-  activeEntities.forEach((entity, entityIndex) => {
-    const spriteInfo = getEntitySpriteInfo(entity);
-
-    if (!spriteInfo) {
-      // Fallback: ensure every active entity gets at least a placeholder sprite
-      entityAllocations.push({
-        entityIndex,
-        spriteName: 'PLACEHOLDER',
-        spriteAssetIndex: -1,
-        baseHwSpriteIndex: currentHwSpriteIndex,
-        layerCount: 1,
-        colors: [15], // White placeholder
-        yOffsets: [0]
-      });
-      currentHwSpriteIndex += 1;
-      return;
-    }
-
-    entityAllocations.push({
-      entityIndex,
-      spriteName: spriteInfo.spriteName,
-      spriteAssetIndex: spriteInfo.spriteAssetIndex,
-      baseHwSpriteIndex: currentHwSpriteIndex,
-      layerCount: spriteInfo.colors.length,
-      colors: spriteInfo.colors,
-      yOffsets: spriteInfo.yOffsets
-    });
-
-    currentHwSpriteIndex += spriteInfo.colors.length;
-  });
-
-  const spritePatternUsage = buildSpritePatternUsage(sprites);
-
   // Always reserve full hardware sprite table (32) in RAM.
   // VRAM upload can be smaller: active range + one SAT end marker sprite.
   // However, if any SubMenu node uses a sprite cursor (slots 28-31),
   // or any boss uses attack sprites (slots 24-31), we must upload the
   // full SAT so those high slots reach VRAM.
   const totalHardwareSprites = 32;
+  let currentHwSpriteIndex = 0;
+  const playerEntityIndexes = new Set(
+    activeEntities
+      .map((entity, entityIndex) => (isPlayerEntity(entity) ? entityIndex : -1))
+      .filter(entityIndex => entityIndex >= 0)
+  );
+  const allocationOrder = activeEntities
+    .map((entity, entityIndex) => ({ entity, entityIndex, isPlayer: playerEntityIndexes.has(entityIndex) }))
+    .sort((a, b) => {
+      if (a.isPlayer !== b.isPlayer) return a.isPlayer ? -1 : 1;
+      return a.entityIndex - b.entityIndex;
+    });
+
+  allocationOrder.forEach(({ entity, entityIndex, isPlayer }) => {
+    const spriteInfo = getEntitySpriteInfo(entity);
+
+    if (!spriteInfo) {
+      const layerCount = 1;
+      const reservedSlotCount = isPlayer ? Math.max(layerCount, 4) : layerCount;
+      // Fallback: ensure every active entity gets at least a placeholder sprite
+      entityAllocations.push({
+        entityIndex,
+        spriteName: 'PLACEHOLDER',
+        spriteAssetIndex: -1,
+        baseHwSpriteIndex: currentHwSpriteIndex,
+        layerCount,
+        reservedSlotCount,
+        colors: [15], // White placeholder
+        yOffsets: [0]
+      });
+      currentHwSpriteIndex += reservedSlotCount;
+      return;
+    }
+
+    const layerCount = spriteInfo.colors.length;
+    const reservedSlotCount = isPlayer ? Math.max(layerCount, 4) : layerCount;
+    entityAllocations.push({
+      entityIndex,
+      spriteName: spriteInfo.spriteName,
+      spriteAssetIndex: spriteInfo.spriteAssetIndex,
+      baseHwSpriteIndex: currentHwSpriteIndex,
+      layerCount,
+      reservedSlotCount,
+      colors: spriteInfo.colors,
+      yOffsets: spriteInfo.yOffsets
+    });
+
+    currentHwSpriteIndex += reservedSlotCount;
+  });
+  const entityAllocationsByEntityIndex = [...entityAllocations].sort((a, b) => a.entityIndex - b.entityIndex);
+  const spriteLayerColorsInit = Array(totalHardwareSprites).fill(0);
+  const spriteLayerYOffsetsInit = Array(totalHardwareSprites).fill(0);
+  entityAllocations.forEach(alloc => {
+    alloc.colors.forEach((color, offset) => {
+      const hwSlot = alloc.baseHwSpriteIndex + offset;
+      if (hwSlot >= 0 && hwSlot < totalHardwareSprites) {
+        spriteLayerColorsInit[hwSlot] = color;
+      }
+    });
+    alloc.yOffsets.forEach((offsetY, offset) => {
+      const hwSlot = alloc.baseHwSpriteIndex + offset;
+      if (hwSlot >= 0 && hwSlot < totalHardwareSprites) {
+        spriteLayerYOffsetsInit[hwSlot] = clampLayerYOffset(offsetY);
+      }
+    });
+  });
+
+  const spritePatternUsage = buildSpritePatternUsage(sprites);
+
   const SUBMENU_CURSOR_BASE = 28;
   const SUBMENU_CURSOR_MAX = 4;
   const hasSubmenuCursorSprite = (analysis.gameFlow?.nodes || []).some(
@@ -1101,13 +1162,13 @@ SPRITE_0_FRAME_PTRS:
 ; Format: db base_hw_sprite_index, layer_count 
 entity_sprite_config${mapperRamTableSuffix}:
 `;
-  entityAllocations.forEach(alloc => {
+  entityAllocationsByEntityIndex.forEach(alloc => {
     const baseIndex = alloc.baseHwSpriteIndex >= 0 ? alloc.baseHwSpriteIndex : 0;
     code += `    db ${baseIndex}, ${alloc.layerCount} ; Entity ${alloc.entityIndex} (${alloc.spriteName})\n`;
   });
   // Fill for remaining entities (if any mismatch)
-  if (entityAllocations.length < 32) {
-    code += `    ds ${(32 - entityAllocations.length) * 2}, 0 ; Padding\n`;
+  if (entityAllocationsByEntityIndex.length < 32) {
+    code += `    ds ${(32 - entityAllocationsByEntityIndex.length) * 2}, 0 ; Padding\n`;
   }
 
   code += `
@@ -1116,12 +1177,12 @@ entity_sprite_config${mapperRamTableSuffix}:
 ; Format: db sprite_asset_index (#FF = none)
 entity_sprite_asset_index_init:
 `;
-  entityAllocations.forEach(alloc => {
+  entityAllocationsByEntityIndex.forEach(alloc => {
     const idx = alloc.spriteAssetIndex >= 0 ? alloc.spriteAssetIndex : 0xFF;
     code += `    db #${idx.toString(16).toUpperCase().padStart(2, '0')} ; Entity ${alloc.entityIndex} (${alloc.spriteName})\n`;
   });
-  if (entityAllocations.length < 32) {
-    code += `    ds ${32 - entityAllocations.length}, #FF ; Padding\n`;
+  if (entityAllocationsByEntityIndex.length < 32) {
+    code += `    ds ${32 - entityAllocationsByEntityIndex.length}, #FF ; Padding\n`;
   }
 
   // Compute max layer count across runtime sprites. Boss attacks can reference
@@ -1140,41 +1201,18 @@ entity_sprite_asset_index_init:
 ; Format: db color_index
 sprite_layer_colors_init:
 `;
-  let colorsWritten = 0;
-  entityAllocations.forEach(alloc => {
-    if (alloc.layerCount > 0) {
-      code += `    ; Entity ${alloc.entityIndex} (${alloc.spriteName}) layers:\n`;
-      alloc.colors.forEach((color, i) => {
-        code += `    db ${color} ; Layer ${i}\n`;
-        colorsWritten += 1;
-      });
-    }
+  spriteLayerColorsInit.forEach((color, hwSlot) => {
+    code += `    db ${color} ; HW sprite slot ${hwSlot}\n`;
   });
-  // Padding to fill 32 slots total
-  const remainingColors = totalHardwareSprites - colorsWritten;
-  if (remainingColors > 0) {
-    code += `    ds ${remainingColors}, 0 ; Padding\n`;
-  }
 
   code += `
 ; Table: Hardware Sprite Layer Y Offsets (ROM initial values - copied to RAM at init)
 ; Format: db signed_offset_y
 sprite_layer_y_offsets_init:
 `;
-  let yOffsetsWritten = 0;
-  entityAllocations.forEach(alloc => {
-    if (alloc.layerCount > 0) {
-      code += `    ; Entity ${alloc.entityIndex} (${alloc.spriteName}) layers:\n`;
-      alloc.yOffsets.forEach((offsetY, i) => {
-        code += `    db ${clampLayerYOffset(offsetY)} ; Layer ${i}\n`;
-        yOffsetsWritten += 1;
-      });
-    }
+  spriteLayerYOffsetsInit.forEach((offsetY, hwSlot) => {
+    code += `    db ${offsetY} ; HW sprite slot ${hwSlot}\n`;
   });
-  const remainingYOffsets = totalHardwareSprites - yOffsetsWritten;
-  if (remainingYOffsets > 0) {
-    code += `    ds ${remainingYOffsets}, 0 ; Padding\n`;
-  }
 
   // SM_SpriteLayerColorTable: per-sprite color table for Action_ChangeSprite
   // Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite, in the same layer order
@@ -1563,6 +1601,54 @@ update_sprites_to_vram:
     ld hl, sprite_attributes
     ld de, SPRATR
     ld bc, ${uploadBytes}  ; Upload active sprite range + SAT end marker
+    call FAST_LDIRVM
+    ret
+
+; Copy only the Player-owned hardware sprite slots from RAM to VRAM.
+; This is the SAT fast path used by the optional VBlank hard Player tick.
+upload_player_sprites_to_vram:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_SPRITE
+    ret z
+
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de
+    ld a, (hl)                 ; A = base HW sprite slot
+    inc hl
+    ld c, (hl)                 ; C = layer count
+    ld b, 0
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl                 ; HL = base slot * 4
+    push hl
+    ld de, sprite_attributes
+    add hl, de                 ; HL = RAM SAT source
+    ex de, hl                  ; DE = RAM SAT source
+    pop hl
+    push de
+    ld de, SPRATR
+    add hl, de                 ; HL = VRAM SAT destination
+    ex de, hl                  ; DE = VRAM destination
+    pop hl                     ; HL = RAM SAT source
+    ld a, c
+    or a
+    ret z
+    add a, a
+    add a, a
+    ld c, a
+    ld b, 0                    ; BC = layer count * 4 bytes
     call FAST_LDIRVM
     ret
 
