@@ -1,0 +1,64 @@
+{
+  "target": "creature",
+  "mode": "single",
+  "prompt": "Single 2D pixel art sprite asset: full-body whimsical monkey wearing a black top hat with a red band, brown fur, cream muzzle and belly, 3/4 view, neutral pose, crisp dark outline, centered, solid #FF00FF magenta background, no text, no UI, no border.",
+  "role": "",
+  "input": "generated_sprites\\mono_sombrero_copa\\raw-sheet.png",
+  "threshold": 100,
+  "edge_threshold": 150,
+  "duration": 200,
+  "rows": 1,
+  "cols": 1,
+  "cell_size": 128,
+  "fit_scale": 0.88,
+  "trim_border": 4,
+  "edge_clean_depth": 3,
+  "align": "bottom",
+  "shared_scale": false,
+  "component_mode": "largest",
+  "component_padding": 8,
+  "min_component_area": 1,
+  "edge_touch_margin": 0,
+  "frame_labels": [
+    "single-1"
+  ],
+  "frames": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "source_box": [
+        0,
+        0,
+        1254,
+        1254
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 261278,
+      "selected_component_bbox": [
+        381,
+        170,
+        849,
+        1014
+      ],
+      "crop_bbox": [
+        373,
+        162,
+        857,
+        1022
+      ],
+      "edge_touch": false,
+      "output_size": [
+        63,
+        112
+      ],
+      "paste_position": [
+        32,
+        9
+      ]
+    }
+  ],
+  "edge_touch_frames": []
+}

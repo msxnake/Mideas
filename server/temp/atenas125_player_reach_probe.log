@@ -1,0 +1,36 @@
+t1 pc=108B sp=F2FE exit=FF sel=FF ac=FF ae=FF aew=FF dialog=FF text=FF screen=FF engine=FF world=FF smptr=FFFF smtim=FFFF pxy=65535,65535
+t2 pc=108B sp=F2FE exit=FF sel=FF ac=FF ae=FF aew=FF dialog=FF text=FF screen=FF engine=FF world=FF smptr=FFFF smtim=FFFF pxy=65535,65535
+t3 pc=40DC sp=F36A exit=00 sel=FF ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=FFFF smtim=FFFF pxy=65535,65535
+t4 pc=96CB sp=F37C exit=00 sel=FF ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=95AF smtim=0000 pxy=56,160
+t5 pc=96CB sp=F37C exit=00 sel=FF ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=95AF smtim=0000 pxy=56,160
+shot_t05 pc=96CB sp=F37C exit=00 sel=FF ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=95AF smtim=0000 pxy=56,160
+SHOTOK t05_controls.png
+t6 pc=6715 sp=F35C exit=00 sel=FF ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=95AF smtim=0000 pxy=56,160
+controls_done1_forced_done pc=6715 sp=F35C exit=00 sel=04 ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=95AF smtim=0000 pxy=56,160
+controls_done1_before pc=6715 sp=F35C exit=00 sel=04 ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=95AF smtim=0000 pxy=56,160
+controls_done1_after pc=40DB sp=F370 exit=00 sel=04 ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=95AF smtim=0000 pxy=56,160
+t7 pc=9E2A sp=F378 exit=00 sel=04 ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=95AF smtim=0000 pxy=56,160
+t8 pc=9E64 sp=F376 exit=00 sel=00 ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=95AF smtim=0000 pxy=56,160
+controls_done2_forced_done pc=9E64 sp=F376 exit=00 sel=04 ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=95AF smtim=0000 pxy=56,160
+controls_done2_before pc=9E64 sp=F376 exit=00 sel=04 ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=95AF smtim=0000 pxy=56,160
+controls_done2_after pc=4BBE sp=F366 exit=00 sel=04 ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=95AF smtim=0000 pxy=56,160
+t9 pc=9E2A sp=F378 exit=00 sel=04 ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=FF world=00 smptr=95AF smtim=0000 pxy=56,160
+t10 pc=47C7 sp=F354 exit=00 sel=04 ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=01 world=00 smptr=95AF smtim=0000 pxy=56,160
+shot_t10 pc=47C7 sp=F354 exit=00 sel=04 ac=FF ae=FF aew=FF dialog=FF text=FF screen=00 engine=01 world=00 smptr=95AF smtim=0000 pxy=56,160
+SHOTOK t10_after_done.png
+t11 pc=9E2A sp=F378 exit=00 sel=04 ac=FF ae=FF aew=FF dialog=FF text=FF screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+t12 pc=1997 sp=F364 exit=00 sel=04 ac=01 ae=00 aew=00 dialog=FF text=FF screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+t13 pc=40DB sp=F378 exit=00 sel=04 ac=01 ae=00 aew=00 dialog=FF text=FF screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+t14 pc=9F15 sp=F37C exit=00 sel=04 ac=01 ae=00 aew=00 dialog=01 text=01 screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+t15 pc=9F15 sp=F37C exit=00 sel=04 ac=01 ae=00 aew=00 dialog=01 text=01 screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+t16 pc=9F15 sp=F37C exit=00 sel=04 ac=01 ae=00 aew=00 dialog=01 text=01 screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+shot_t16 pc=9F15 sp=F37C exit=00 sel=04 ac=01 ae=00 aew=00 dialog=01 text=01 screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+SHOTOK t16_dialog_or_world.png
+t17 pc=9F15 sp=F37C exit=00 sel=04 ac=01 ae=00 aew=00 dialog=01 text=00 screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+t18 pc=41BE sp=F36C exit=00 sel=04 ac=01 ae=00 aew=00 dialog=01 text=00 screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+t19 pc=6163 sp=F36E exit=00 sel=04 ac=01 ae=00 aew=00 dialog=01 text=00 screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+t20 pc=9F15 sp=F37C exit=00 sel=04 ac=01 ae=00 aew=00 dialog=01 text=00 screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+dialog_space20_before pc=9F15 sp=F37C exit=00 sel=04 ac=01 ae=00 aew=00 dialog=01 text=00 screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+dialog_space20_after pc=9F15 sp=F37C exit=00 sel=04 ac=01 ae=00 aew=00 dialog=01 text=01 screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+t21 pc=9F15 sp=F37C exit=00 sel=04 ac=01 ae=00 aew=00 dialog=01 text=01 screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160
+t22 pc=9F15 sp=F37C exit=00 sel=04 ac=01 ae=00 aew=00 dialog=01 text=01 screen=03 engine=01 world=01 smptr=95AF smtim=0000 pxy=56,160

@@ -1,0 +1,258 @@
+{
+  "version": 1,
+  "scope": "konami8k_segment_budget",
+  "segmentSize": 8192,
+  "codeBanks": [
+    {
+      "bank": 1,
+      "role": "resident_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "usedBytes": 54621,
+      "freeBytes": 0,
+      "overBudget": true,
+      "modules": [
+        {
+          "key": "components",
+          "estimatedBytes": 54621
+        }
+      ]
+    },
+    {
+      "bank": 2,
+      "role": "resident_code",
+      "page": 2,
+      "orgAddress": 32768,
+      "endAddress": 40960,
+      "usedBytes": 21488,
+      "freeBytes": 0,
+      "overBudget": true,
+      "modules": [
+        {
+          "key": "statemachine",
+          "estimatedBytes": 21488
+        }
+      ]
+    },
+    {
+      "bank": 3,
+      "role": "resident_code",
+      "page": 3,
+      "orgAddress": 40960,
+      "endAddress": 49152,
+      "usedBytes": 6598,
+      "freeBytes": 1594,
+      "overBudget": false,
+      "modules": [
+        {
+          "key": "gameflow",
+          "estimatedBytes": 6598
+        }
+      ]
+    },
+    {
+      "bank": 4,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "usedBytes": 7430,
+      "freeBytes": 762,
+      "overBudget": false,
+      "modules": [
+        {
+          "key": "bosses",
+          "estimatedBytes": 7430
+        }
+      ]
+    },
+    {
+      "bank": 5,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "usedBytes": 7135,
+      "freeBytes": 1057,
+      "overBudget": false,
+      "modules": [
+        {
+          "key": "screens_code",
+          "estimatedBytes": 7135
+        }
+      ]
+    },
+    {
+      "bank": 6,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "usedBytes": 5998,
+      "freeBytes": 2194,
+      "overBudget": false,
+      "modules": [
+        {
+          "key": "entities",
+          "estimatedBytes": 5998
+        }
+      ]
+    },
+    {
+      "bank": 7,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "usedBytes": 5340,
+      "freeBytes": 2852,
+      "overBudget": false,
+      "modules": [
+        {
+          "key": "sprites",
+          "estimatedBytes": 5340
+        }
+      ]
+    },
+    {
+      "bank": 8,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "usedBytes": 4418,
+      "freeBytes": 3774,
+      "overBudget": false,
+      "modules": [
+        {
+          "key": "sound",
+          "estimatedBytes": 4418
+        }
+      ]
+    },
+    {
+      "bank": 9,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "usedBytes": 3947,
+      "freeBytes": 4245,
+      "overBudget": false,
+      "modules": [
+        {
+          "key": "hud",
+          "estimatedBytes": 3947
+        }
+      ]
+    },
+    {
+      "bank": 10,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "usedBytes": 3503,
+      "freeBytes": 4689,
+      "overBudget": false,
+      "modules": [
+        {
+          "key": "font",
+          "estimatedBytes": 3503
+        }
+      ]
+    },
+    {
+      "bank": 11,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "usedBytes": 3330,
+      "freeBytes": 4862,
+      "overBudget": false,
+      "modules": [
+        {
+          "key": "animtiles",
+          "estimatedBytes": 3330
+        }
+      ]
+    },
+    {
+      "bank": 12,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "usedBytes": 2353,
+      "freeBytes": 5839,
+      "overBudget": false,
+      "modules": [
+        {
+          "key": "scroll",
+          "estimatedBytes": 2353
+        }
+      ]
+    },
+    {
+      "bank": 13,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "usedBytes": 2092,
+      "freeBytes": 6100,
+      "overBudget": false,
+      "modules": [
+        {
+          "key": "worlds",
+          "estimatedBytes": 2092
+        }
+      ]
+    },
+    {
+      "bank": 14,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "usedBytes": 894,
+      "freeBytes": 7298,
+      "overBudget": false,
+      "modules": [
+        {
+          "key": "patterns_code",
+          "estimatedBytes": 894
+        }
+      ]
+    },
+    {
+      "bank": 15,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "usedBytes": 846,
+      "freeBytes": 7346,
+      "overBudget": false,
+      "modules": [
+        {
+          "key": "colors_code",
+          "estimatedBytes": 846
+        }
+      ]
+    }
+  ],
+  "dataBanks": [
+    {
+      "bank": 16,
+      "role": "asset_data",
+      "orgAddress": 147456,
+      "endAddress": 155648,
+      "usedBytes": 4534,
+      "freeBytes": 3658,
+      "resources": 55
+    }
+  ]
+}

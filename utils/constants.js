@@ -198,6 +198,7 @@ exports.PT3_KEYBOARD_OCTAVE_MIN_MAX = { min: -2, max: 2 };
 /**
  * The default configuration for tile banks in a new project.
  * Divides the screen into HUD, main game area, and status bar.
+ * Characters 254 and 255 are reserved runtime sentinels and are not assignable.
  */
 exports.DEFAULT_TILE_BANK_DEFINITIONS = [
     {
@@ -208,7 +209,7 @@ exports.DEFAULT_TILE_BANK_DEFINITIONS = [
         vramColorStart: 0x2000,
         screenZone: { x: 0, y: 0, width: exports.DEFAULT_SCREEN_WIDTH_TILES, height: 8 },
         charsetRangeStart: 0,
-        charsetRangeEnd: 255,
+        charsetRangeEnd: 253,
         defaultFgColorIndex: 15,
         defaultBgColorIndex: 4,
         isLocked: false,
@@ -222,7 +223,7 @@ exports.DEFAULT_TILE_BANK_DEFINITIONS = [
         vramColorStart: 0x2800,
         screenZone: { x: 0, y: 8, width: exports.DEFAULT_SCREEN_WIDTH_TILES, height: 8 },
         charsetRangeStart: 0,
-        charsetRangeEnd: 255,
+        charsetRangeEnd: 253,
         defaultFgColorIndex: 2,
         defaultBgColorIndex: 1,
         isLocked: false,
@@ -236,7 +237,7 @@ exports.DEFAULT_TILE_BANK_DEFINITIONS = [
         vramColorStart: 0x3000,
         screenZone: { x: 0, y: 16, width: exports.DEFAULT_SCREEN_WIDTH_TILES, height: 8 },
         charsetRangeStart: 0,
-        charsetRangeEnd: 255,
+        charsetRangeEnd: 253,
         defaultFgColorIndex: 11,
         defaultBgColorIndex: 6,
         isLocked: false,

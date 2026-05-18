@@ -1,0 +1,48 @@
+
+> copy-of-copy-of-copy-of-copy-of--mideas---world-view.tsx@0.260 dev
+> vite --host 127.0.0.1
+
+
+  [32m[1mVITE[22m v6.4.1[39m  [2mready in [0m[1m148[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m3000[22m/[39m
+[2m8:06:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/TileFileOperationsModal.tsx[22m
+[2m9:46:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m9:46:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m9:46:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m9:46:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m9:46:34[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m9:46:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m9:47:03[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m9:52:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m9:52:50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m9:52:59[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m9:53:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m9:53:24[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m9:53:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m10:00:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m10:01:03[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m11:57:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m12:09:19[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m12:36:15[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m16:49:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/App.tsx, /components/editors/HUDEditorModal.tsx, /components/editors/TileBankEditor.tsx, /components/tools/PropertiesPanel.tsx, /components/modals/SpriteFramesModal.tsx, /components/modals/SpriteSheetReorderModal.tsx, /components/editors/ScreenEditor.tsx, /components/editors/TileEditor.tsx, /components/modals/AssetPickerModal.tsx, /components/modals/MainMenuPreviewModal.tsx, /components/modals/ExportLayoutASMModal.tsx, /components/modals/ExportBehaviorMapASMModal.tsx, /components/modals/GameFlowPreviewModal.tsx, /components/screen_editor/ScreenTilesetPanel.tsx, /components/screen_editor/ScreenGrid.tsx, /components/modals/AnimationWatcherModal.tsx, /components/editors/BossTilesetPanel.tsx, /components/editors/BossMovementController.tsx, /components/modals/BossPreviewModal.tsx, /components/editors/BossBehaviorEditor.tsx, /components/modals/CodeExportModal.tsx[22m
+[2m16:50:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/editors/TileBankEditor.tsx[22m
+[2m16:53:04[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/SpriteFramesModal.tsx, /components/modals/SpriteSheetReorderModal.tsx, /components/editors/HUDEditorModal.tsx, /components/editors/ScreenEditor.tsx, /components/editors/TileEditor.tsx, /components/modals/AssetPickerModal.tsx, /components/modals/MainMenuPreviewModal.tsx, /components/modals/ExportLayoutASMModal.tsx, /components/modals/ExportBehaviorMapASMModal.tsx, /components/modals/GameFlowPreviewModal.tsx, /components/screen_editor/ScreenTilesetPanel.tsx, /components/screen_editor/ScreenGrid.tsx, /components/modals/AnimationWatcherModal.tsx, /components/editors/BossTilesetPanel.tsx, /components/editors/BossMovementController.tsx, /components/modals/BossPreviewModal.tsx, /components/editors/BossBehaviorEditor.tsx, /components/modals/CodeExportModal.tsx[22m
+[2m16:53:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/SpriteFramesModal.tsx, /components/modals/SpriteSheetReorderModal.tsx, /components/editors/HUDEditorModal.tsx, /components/editors/ScreenEditor.tsx, /components/editors/TileEditor.tsx, /components/modals/AssetPickerModal.tsx, /components/modals/MainMenuPreviewModal.tsx, /components/modals/ExportLayoutASMModal.tsx, /components/modals/ExportBehaviorMapASMModal.tsx, /components/modals/GameFlowPreviewModal.tsx, /components/screen_editor/ScreenTilesetPanel.tsx, /components/screen_editor/ScreenGrid.tsx, /components/modals/AnimationWatcherModal.tsx, /components/editors/BossTilesetPanel.tsx, /components/editors/BossMovementController.tsx, /components/modals/BossPreviewModal.tsx, /components/editors/BossBehaviorEditor.tsx, /components/modals/CodeExportModal.tsx[22m
+[2m16:53:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m16:53:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m16:54:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/editors/TileBankEditor.tsx[22m
+[2m17:10:14[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/editors/StateMachineEditor.tsx[22m
+[2m17:10:37[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/editors/StateMachineEditor.tsx[22m
+[2m17:11:13[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/editors/StateMachineEditor.tsx[22m
+[2m17:40:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/tracker/TrackerHeader.tsx[22m
+[2m17:40:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/editors/TrackerComposer.tsx[22m
+[2m17:54:34[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/editors/GameFlowEditor.tsx[22m
+[2m17:54:44[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/editors/GameFlowEditor.tsx[22m
+[2m18:40:03[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/modals/CodeExportModal.tsx[22m
+[2m19:05:08[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/editors/TrackerComposer.tsx[22m
+[2m19:10:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/App.tsx[22m
+[2m19:10:43[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/editors/TrackerComposer.tsx[22m
+[2m19:26:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/components/editors/TrackerComposer.tsx[22m
+[2m19:26:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/App.tsx[22m
+[2m19:27:19[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/App.tsx[22m

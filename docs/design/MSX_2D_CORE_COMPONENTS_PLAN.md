@@ -54,7 +54,7 @@ Componentes definidos por defecto en `data/defaults.ts`:
 - `comp_ai_behavior`: comportamiento AI basico.
 - `comp_patrol`: rutas de patrulla.
 - `comp_aiming`: apuntado.
-- `comp_shoot`: disparo.
+- `comp_shoot`: disparo con trigger configurable (`fire`, `action2`, `up`) y cooldown.
 - `comp_spawner`: generador de entidades.
 - `comp_bounce`: rebote.
 - `comp_statemachine`: maquina de estados.
@@ -263,13 +263,22 @@ Resultado esperado:
 - TileBehavior como fuente unica de verdad para collision/effects.
 - TileCollector con reemplazo de tile en VRAM y actualizacion de mapa runtime.
 - BreakableTile, Switch, Gate/Door, Warp.
+- Superficies interactivas por char dentro de objetos compuestos: una caja 2x2
+  puede seguir siendo caja/carryable y, a la vez, tener los dos chars superiores
+  marcados como `interact:bounce`. El rebote pertenece a la superficie superior,
+  no al tipo entero de objeto.
+- Contrato de bounce para cajas 2x2: los 4 chars pueden ser solidos; solo los 2
+  chars superiores disparan rebote; solo debe activarse si el jugador esta
+  cayendo y la colision entra desde arriba. Laterales y contacto desde abajo no
+  deben rebotar.
 - Persistencia por variables globales.
 
 Resultado esperado:
 
 - Pac-Man puede comer puntos en ROM.
 - Metroid puede abrir puertas y recordar estado.
-- Plataformas pueden tener pinchos, llaves y bloques rompibles.
+- Plataformas pueden tener pinchos, llaves, bloques rompibles y cajas con
+  superficie saltadora.
 
 ### Fase 4: Combate y proyectiles
 

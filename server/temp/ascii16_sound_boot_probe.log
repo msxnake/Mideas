@@ -1,0 +1,9 @@
+t1_0 pc=811D sp=F2F6 af=9040 bc=049A de=81C0 hl=C020 bank=00/04/33/3A far=00 old=00 addr=0400
+t2_0 pc=1130 sp=F2FE af=8E44 bc=599A de=82D2 hl=FAFC bank=00/04/33/3A far=00 old=00 addr=0400
+BP_4010_INIT_01 pc=4010 sp=F2EC af=1F08 bc=0101 de=4010 hl=4004 bank=00/04/33/3A far=00 old=00 addr=0400
+BP_4F31_INIT_SOUND_FAR_01 pc=4F31 sp=F37E af=0144 bc=0000 de=E782 hl=E781 bank=00/00/01/01 far=00 old=00 addr=0400
+BP_C139_FARCALL_RAM_01 pc=C139 sp=F37A af=0C44 bc=0000 de=E782 hl=6000 bank=00/00/01/01 far=00 old=00 addr=0400
+BP_6000_P1_ENTRY_01 pc=6000 sp=F376 af=0C44 bc=0000 de=C15A hl=6000 bank=0C/0C/01/01 far=0C old=00 addr=6000
+BP_6081_SFX_SILENCE_01 pc=6081 sp=F376 af=0C44 bc=0000 de=C15A hl=6000 bank=0C/0C/01/01 far=0C old=00 addr=6000
+t4_0 pc=1A04 sp=F258 af=1F08 bc=04F3 de=01FF hl=247A bank=0C/0C/01/01 far=0C old=00 addr=6000
+t6_0 pc=19A4 sp=DCCA af=F4A0 bc=04F3 de=01FF hl=247A bank=0C/0C/01/01 far=0C old=00 addr=6000

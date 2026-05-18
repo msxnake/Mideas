@@ -1,0 +1,5 @@
+WORLD MUSIC POLICY
+Source: inferred from Game Flow paths reaching each WorldLink.
+Mode preserve: multiple different music states can reach the same world.
+
+No worlds detected.

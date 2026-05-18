@@ -1,0 +1,77 @@
+SCREEN RESOURCE POLICY
+Logical view of resources consumed by screen/world loading paths.
+
+COMMON RESOURCES
+- patterns: RESOURCE_ID_TILE_PATTERN_BANK0 -> load_pattern_bank0/load_pattern_bank1/load_pattern_bank2
+- colors: RESOURCE_ID_TILE_COLOR_BANK0 -> load_color_bank0/load_color_bank1/load_color_bank2
+- font patterns: RESOURCE_ID_FONT_PATTERN_DATA
+- font colors: RESOURCE_ID_FONT_COLOR_DATA
+- presentation nametable: RESOURCE_ID_PRESENTATION_SCREEN_NAMETBL
+- presentation patterns: RESOURCE_ID_PRESENTATION_SCREEN_PATTERNS_B0, RESOURCE_ID_PRESENTATION_SCREEN_PATTERNS_B1, RESOURCE_ID_PRESENTATION_SCREEN_PATTERNS_B2
+- presentation colors: RESOURCE_ID_PRESENTATION_SCREEN_COLORS_B0, RESOURCE_ID_PRESENTATION_SCREEN_COLORS_B1, RESOURCE_ID_PRESENTATION_SCREEN_COLORS_B2
+- tilebank loaders:
+  tilebank_1778059819923: load_tilebank_tilebank_1778059819923_patterns_to_vram / load_tilebank_tilebank_1778059819923_colors_to_vram
+
+SCREEN 00 pantalla1 (screenmap_1778062394614)
+- worlds: worldmap_1778070705501
+- tile_bank: tilebank_1778059819923
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- background_block_catalog: RESOURCE_ID_SCREEN_PANTALLA1_0_BLOCK_CATALOG
+- background_block_map: RESOURCE_ID_SCREEN_PANTALLA1_0_BLOCK_MAP
+- effects_layout: RESOURCE_ID_SCREEN_PANTALLA1_0_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PANTALLA1_0_DATA
+- char_behavior_table: RESOURCE_ID_SCREEN_PANTALLA1_0_CHAR_BEHAVIOR_TABLE
+- behavior_rebuild_table: used only when runtime code must rebuild from char layout
+
+SCREEN 01 pantalla2 (screenmap_1778230236021)
+- worlds: worldmap_1778070705501
+- tile_bank: tilebank_1778059819923
+- sprite_pattern_slots: 48
+- music_in_game: 0
+- background_block_catalog: RESOURCE_ID_SCREEN_PANTALLA2_1_BLOCK_CATALOG
+- background_block_map: RESOURCE_ID_SCREEN_PANTALLA2_1_BLOCK_MAP
+- effects_layout: RESOURCE_ID_SCREEN_PANTALLA2_1_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PANTALLA2_1_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PANTALLA2_1_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PANTALLA2_1_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PANTALLA2_1_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PANTALLA2_1_DATA
+- char_behavior_table: RESOURCE_ID_SCREEN_PANTALLA2_1_CHAR_BEHAVIOR_TABLE
+- behavior_rebuild_table: used only when runtime code must rebuild from char layout
+
+SCREEN 02 pantalla3 (screenmap_1778230684484)
+- worlds: worldmap_1778070705501
+- tile_bank: tilebank_1778059819923
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- background_block_catalog: RESOURCE_ID_SCREEN_PANTALLA3_2_BLOCK_CATALOG
+- background_block_map: RESOURCE_ID_SCREEN_PANTALLA3_2_BLOCK_MAP
+- effects_layout: RESOURCE_ID_SCREEN_PANTALLA3_2_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PANTALLA3_2_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PANTALLA3_2_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PANTALLA3_2_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PANTALLA3_2_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PANTALLA3_2_DATA
+- char_behavior_table: RESOURCE_ID_SCREEN_PANTALLA3_2_CHAR_BEHAVIOR_TABLE
+- behavior_rebuild_table: used only when runtime code must rebuild from char layout
+
+SCREEN 03 d_pantalla1 (screenmap_1778241953722)
+- worlds: worldmap_1778241700081
+- tile_bank: tilebank_1778059819923
+- sprite_pattern_slots: 9
+- music_in_game: 0
+- background_block_catalog: RESOURCE_ID_SCREEN_D_PANTALLA1_3_BLOCK_CATALOG
+- background_block_map: RESOURCE_ID_SCREEN_D_PANTALLA1_3_BLOCK_MAP
+- effects_layout: RESOURCE_ID_SCREEN_D_PANTALLA1_3_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_D_PANTALLA1_3_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_D_PANTALLA1_3_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_D_PANTALLA1_3_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_D_PANTALLA1_3_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_D_PANTALLA1_3_DATA
+- char_behavior_table: RESOURCE_ID_SCREEN_D_PANTALLA1_3_CHAR_BEHAVIOR_TABLE
+- behavior_rebuild_table: used only when runtime code must rebuild from char layout

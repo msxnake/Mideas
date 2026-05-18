@@ -1,0 +1,433 @@
+{
+  "version": 1,
+  "scope": "konami8k_segment_budget",
+  "mapperFormat": "konami",
+  "mapper": {
+    "format": "konami",
+    "dataWindowPage": "p3",
+    "windowBase": "#A000",
+    "windowMask": "#1FFF",
+    "bankDivisor": "#2000",
+    "codeSegmentSize": 8192,
+    "dataSegmentSize": 8192
+  },
+  "segmentSize": 8192,
+  "segmentSizeMeaning": "code overlay bank size",
+  "codeSegmentSize": 8192,
+  "dataSegmentSize": 8192,
+  "runtimeLayout": {
+    "mapperFormat": "konami",
+    "codeWindowGranularity": 8192,
+    "status": "smoke-candidate",
+    "smokeBlocked": false,
+    "lowerPageResidentBanks": [],
+    "lowerPageFarBanks": [],
+    "upperPageResidentBanks": [],
+    "lowerPageHazardBankCount": 0,
+    "dataWindowResidentConflict": false,
+    "ramTrampolineRequired": false,
+    "ramTrampolineInstalled": false,
+    "residentEstimatedWindowOverflowCount": 0,
+    "residentEstimatedWindowOverflowSamples": [],
+    "residentEstimatedOutOfWindowLabelCount": 0,
+    "residentEstimatedOutOfWindowLabelSamples": [],
+    "residentEstimatedOutOfWindowCallCount": 0,
+    "residentEstimatedOutOfWindowCallSamples": [],
+    "farToFarDirectCallCount": 0,
+    "farToFarDirectCallSamples": [],
+    "lowerPageHiddenResidentCallCount": 0,
+    "lowerPageHiddenResidentCallSamples": [],
+    "reason": "No ASCII16 lower-page code-window hazard detected."
+  },
+  "codeBanks": [
+    {
+      "bank": 1,
+      "role": "resident_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "resident kernel slot 1; fixed P1 window #6000-#8000; stays always mapped so runtime flow does not depend on P3 data-window state",
+      "estimatedUsedBytes": 55214,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "components",
+          "placementReason": "resident kernel slot 1; fixed P1 window #6000-#8000; stays always mapped so runtime flow does not depend on P3 data-window state; module components is part of the resident execution kernel",
+          "estimatedBytes": 55214
+        }
+      ]
+    },
+    {
+      "bank": 2,
+      "role": "resident_code",
+      "segmentSize": 8192,
+      "page": 2,
+      "orgAddress": 32768,
+      "endAddress": 40960,
+      "placementReason": "resident kernel slot 2; fixed P2 window #8000-#A000; stays always mapped so runtime flow does not depend on P3 data-window state",
+      "estimatedUsedBytes": 48881,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "components_tail",
+          "placementReason": "resident kernel slot 2; fixed P2 window #8000-#A000; stays always mapped so runtime flow does not depend on P3 data-window state; module components_tail is part of the resident execution kernel",
+          "estimatedBytes": 14621
+        },
+        {
+          "key": "statemachine",
+          "placementReason": "resident kernel slot 2; fixed P2 window #8000-#A000; stays always mapped so runtime flow does not depend on P3 data-window state; module statemachine is part of the resident execution kernel",
+          "estimatedBytes": 16635
+        },
+        {
+          "key": "gameflow",
+          "placementReason": "resident kernel slot 2; fixed P2 window #8000-#A000; stays always mapped so runtime flow does not depend on P3 data-window state; module gameflow is part of the resident execution kernel",
+          "estimatedBytes": 17625
+        }
+      ]
+    },
+    {
+      "bank": 9,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 1; physical bank 9; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 12661,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "sound",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 1; physical bank 9; executes through P1/#6000 after reserved asset-data banks; module sound is callable only through bank-0 far trampolines",
+          "estimatedBytes": 12661
+        }
+      ]
+    },
+    {
+      "bank": 10,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 2; physical bank 10; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 9111,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "screen_loaders",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 2; physical bank 10; executes through P1/#6000 after reserved asset-data banks; module screen_loaders is callable only through bank-0 far trampolines",
+          "estimatedBytes": 9111
+        }
+      ]
+    },
+    {
+      "bank": 11,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 3; physical bank 11; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 7924,
+      "estimatedFreeBytes": 268,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "sprites",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 3; physical bank 11; executes through P1/#6000 after reserved asset-data banks; module sprites is callable only through bank-0 far trampolines",
+          "estimatedBytes": 7924
+        }
+      ]
+    },
+    {
+      "bank": 12,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 4; physical bank 12; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 7278,
+      "estimatedFreeBytes": 914,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "entities",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 4; physical bank 12; executes through P1/#6000 after reserved asset-data banks; module entities is callable only through bank-0 far trampolines",
+          "estimatedBytes": 7278
+        }
+      ]
+    },
+    {
+      "bank": 13,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 5; physical bank 13; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 5067,
+      "estimatedFreeBytes": 3125,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "screens_code",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 5; physical bank 13; executes through P1/#6000 after reserved asset-data banks; module screens_code is callable only through bank-0 far trampolines",
+          "estimatedBytes": 5067
+        }
+      ]
+    },
+    {
+      "bank": 14,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 6; physical bank 14; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 4913,
+      "estimatedFreeBytes": 3279,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "gameflow_aux",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 6; physical bank 14; executes through P1/#6000 after reserved asset-data banks; module gameflow_aux is callable only through bank-0 far trampolines",
+          "estimatedBytes": 4913
+        }
+      ]
+    },
+    {
+      "bank": 15,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 7; physical bank 15; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 4532,
+      "estimatedFreeBytes": 3660,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "worlds",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 7; physical bank 15; executes through P1/#6000 after reserved asset-data banks; module worlds is callable only through bank-0 far trampolines",
+          "estimatedBytes": 4532
+        }
+      ]
+    },
+    {
+      "bank": 16,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 8; physical bank 16; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 3695,
+      "estimatedFreeBytes": 4497,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "font",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 8; physical bank 16; executes through P1/#6000 after reserved asset-data banks; module font is callable only through bank-0 far trampolines",
+          "estimatedBytes": 3695
+        }
+      ]
+    },
+    {
+      "bank": 17,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 9; physical bank 17; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 2640,
+      "estimatedFreeBytes": 5552,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "animtiles",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 9; physical bank 17; executes through P1/#6000 after reserved asset-data banks; module animtiles is callable only through bank-0 far trampolines",
+          "estimatedBytes": 2640
+        }
+      ]
+    },
+    {
+      "bank": 18,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 10; physical bank 18; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 2389,
+      "estimatedFreeBytes": 5803,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "scroll",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 10; physical bank 18; executes through P1/#6000 after reserved asset-data banks; module scroll is callable only through bank-0 far trampolines",
+          "estimatedBytes": 2389
+        }
+      ]
+    },
+    {
+      "bank": 19,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 11; physical bank 19; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 1070,
+      "estimatedFreeBytes": 7122,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "patterns_code",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 11; physical bank 19; executes through P1/#6000 after reserved asset-data banks; module patterns_code is callable only through bank-0 far trampolines",
+          "estimatedBytes": 1070
+        }
+      ]
+    },
+    {
+      "bank": 20,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 12; physical bank 20; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 1023,
+      "estimatedFreeBytes": 7169,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "colors_code",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 12; physical bank 20; executes through P1/#6000 after reserved asset-data banks; module colors_code is callable only through bank-0 far trampolines",
+          "estimatedBytes": 1023
+        }
+      ]
+    },
+    {
+      "bank": 21,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 13; physical bank 21; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 331,
+      "estimatedFreeBytes": 7861,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "bosses",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 13; physical bank 21; executes through P1/#6000 after reserved asset-data banks; module bosses is callable only through bank-0 far trampolines",
+          "estimatedBytes": 331
+        }
+      ]
+    },
+    {
+      "bank": 22,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 14; physical bank 22; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 219,
+      "estimatedFreeBytes": 7973,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "menus",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 14; physical bank 22; executes through P1/#6000 after reserved asset-data banks; module menus is callable only through bank-0 far trampolines",
+          "estimatedBytes": 219
+        }
+      ]
+    },
+    {
+      "bank": 23,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 15; physical bank 23; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 114,
+      "estimatedFreeBytes": 8078,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "hud",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 15; physical bank 23; executes through P1/#6000 after reserved asset-data banks; module hud is callable only through bank-0 far trampolines",
+          "estimatedBytes": 114
+        }
+      ]
+    }
+  ],
+  "dataBanks": [
+    {
+      "bank": 3,
+      "role": "asset_data",
+      "orgAddress": 40960,
+      "endAddress": 49152,
+      "usedBytes": 6506,
+      "freeBytes": 1686,
+      "resources": 8
+    },
+    {
+      "bank": 4,
+      "role": "asset_data",
+      "orgAddress": 49152,
+      "endAddress": 57344,
+      "usedBytes": 8086,
+      "freeBytes": 106,
+      "resources": 30
+    },
+    {
+      "bank": 5,
+      "role": "asset_data",
+      "orgAddress": 57344,
+      "endAddress": 65536,
+      "usedBytes": 2896,
+      "freeBytes": 5296,
+      "resources": 63
+    },
+    {
+      "bank": 6,
+      "role": "asset_data",
+      "orgAddress": 65536,
+      "endAddress": 73728,
+      "usedBytes": 0,
+      "freeBytes": 8192,
+      "resources": 0
+    },
+    {
+      "bank": 7,
+      "role": "asset_data",
+      "orgAddress": 73728,
+      "endAddress": 81920,
+      "usedBytes": 0,
+      "freeBytes": 8192,
+      "resources": 0
+    },
+    {
+      "bank": 8,
+      "role": "asset_data",
+      "orgAddress": 81920,
+      "endAddress": 90112,
+      "usedBytes": 0,
+      "freeBytes": 8192,
+      "resources": 0
+    }
+  ]
+}

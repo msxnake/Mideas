@@ -1,0 +1,21 @@
+SCREEN RESOURCE POLICY
+Logical view of resources consumed by screen/world loading paths.
+
+COMMON RESOURCES
+- patterns/colors: none
+- font patterns: RESOURCE_ID_FONT_PATTERN_DATA
+- font colors: RESOURCE_ID_FONT_COLOR_DATA
+- presentation: none
+
+SCREEN 00 pantalla1 (screenmap_1767095338721)
+- worlds: worldmap_1767095499385
+- tile_bank: default/base
+- sprite_pattern_slots: 2
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_PANTALLA1_0_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PANTALLA1_0_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PANTALLA1_0_DATA

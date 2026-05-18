@@ -1,0 +1,12 @@
+boot_2s pc=1130 screen=55 pidx=00 exy=51,0 pxy=13107,8243 evy=33 gv=0000 ground=33 last=00/00 at=0,0 map18_14=33 type=33 val=33
+BP_4010 pc=4010 screen=55 pidx=00 exy=51,0 pxy=13107,8243 evy=33 gv=0000 ground=33 last=00/00 at=0,0 map18_14=33 type=33 val=33
+intro_before pc=CA29 screen=55 pidx=00 exy=51,0 pxy=13107,8243 evy=33 gv=0000 ground=33 last=00/00 at=0,0 map18_14=33 type=33 val=33
+intro_after pc=CA29 screen=55 pidx=00 exy=51,0 pxy=13107,8243 evy=33 gv=0000 ground=33 last=00/00 at=0,0 map18_14=33 type=33 val=33
+start_before pc=CA29 screen=55 pidx=00 exy=51,0 pxy=13107,8243 evy=33 gv=0000 ground=33 last=00/00 at=0,0 map18_14=33 type=33 val=33
+start_after pc=CA29 screen=55 pidx=00 exy=51,0 pxy=13107,8243 evy=33 gv=0000 ground=33 last=00/00 at=0,0 map18_14=33 type=33 val=33
+pre_place pc=CA29 screen=55 pidx=00 exy=51,0 pxy=13107,8243 evy=33 gv=0000 ground=33 last=00/00 at=0,0 map18_14=33 type=33 val=33
+placed_on_jumper pc=CA29 screen=55 pidx=00 exy=136,104 pxy=136,104 evy=00 gv=0000 ground=01 last=00/00 at=0,0 map18_14=33 type=33 val=33
+after_place_0_2 pc=CA29 screen=55 pidx=00 exy=136,104 pxy=136,104 evy=00 gv=0000 ground=01 last=00/00 at=0,0 map18_14=33 type=33 val=33
+after_place_0_5 pc=CA29 screen=55 pidx=00 exy=136,104 pxy=136,104 evy=00 gv=0000 ground=01 last=00/00 at=0,0 map18_14=33 type=33 val=33
+after_place_1_0 pc=CA29 screen=55 pidx=00 exy=136,104 pxy=136,104 evy=00 gv=0000 ground=01 last=00/00 at=0,0 map18_14=33 type=33 val=33
+after_place_2_0 pc=CA29 screen=55 pidx=00 exy=136,104 pxy=136,104 evy=00 gv=0000 ground=01 last=00/00 at=0,0 map18_14=33 type=33 val=33

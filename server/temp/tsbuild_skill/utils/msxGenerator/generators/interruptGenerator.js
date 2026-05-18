@@ -119,6 +119,8 @@ init_interrupt_system:
     ld (interrupt_counter), a
     ld (interrupt_counter+1), a
     ld (vblank_flag), a
+    ld (interrupt_in_progress), a
+    ld (far_call_irq_lock_depth), a
 
     ; --- STEP 5: Mark system as enabled ---
     ld a, 1
@@ -133,7 +135,8 @@ init_interrupt_system:
  * Generate stop_interrupt_system routine
  */
 function generateStopInterruptSystem() {
-    return `; ==================================================================
+    return `; @mideas:block id=runtime.interrupt.stop kind=routine owner=interrupt roots=stop_interrupt_system
+; ==================================================================
 ; STOP_INTERRUPT_SYSTEM - Restore original H.TIMI hook
 ; ==================================================================
 ${(0, registerContract_1.buildRegisterContractComment)({
@@ -167,6 +170,7 @@ stop_interrupt_system:
 
     ei                          ; Re-enable interrupts
     ret
+; @mideas:endblock id=runtime.interrupt.stop
 
 `;
 }
@@ -174,7 +178,8 @@ stop_interrupt_system:
  * Generate interrupt_dispatcher (ISR)
  */
 function generateInterruptDispatcher() {
-    return `; ==================================================================
+    return `; @mideas:block id=runtime.interrupt.dispatcher kind=routine owner=interrupt preserve=true roots=interrupt_dispatcher
+; ==================================================================
 ; INTERRUPT_DISPATCHER - Main ISR (60Hz/50Hz)
 ; ==================================================================
 ${(0, registerContract_1.buildRegisterContractComment)({
@@ -284,6 +289,7 @@ interrupt_dispatcher:
 .call_task:
     jp (hl)                     ; Jump to task (task will RET back here)
 
+; @mideas:endblock id=runtime.interrupt.dispatcher
 `;
 }
 /**
@@ -302,6 +308,7 @@ function generateTaskManagementFunctions() {
 ; ==================================================================
 ; UPDATE_VBLANK_FLAG - For interrupt dispatcher use only
 ; ==================================================================
+; @mideas:block id=runtime.interrupt.vblank_flag kind=routine owner=interrupt roots=update_vblank_flag
 ${(0, registerContract_1.buildRegisterContractComment)({
         purpose: 'Read VDP status register and latch VBlank state in RAM flag.',
         inputs: ['None'],
@@ -330,10 +337,12 @@ update_vblank_flag:
 .uvf_done:
     pop af
     ret
+; @mideas:endblock id=runtime.interrupt.vblank_flag
 
 ; ==================================================================
 ; ENABLE_TASK - Activate a task in the system
 ; ==================================================================
+; @mideas:block id=runtime.interrupt.task_api kind=routine owner=interrupt roots=enable_task,disable_task,get_frame_count
 ${(0, registerContract_1.buildRegisterContractComment)({
         purpose: 'Store routine pointer into task_table slot.',
         inputs: ['A = task slot (0-7)', 'HL = task routine address'],
@@ -434,6 +443,7 @@ ${(0, registerContract_1.buildRegisterContractComment)({
 get_frame_count:
     ld hl, (interrupt_counter)
     ret
+; @mideas:endblock id=runtime.interrupt.task_api
 
 `;
 }
@@ -443,6 +453,7 @@ function generateInitDefaultTasksFromPlan(executionPlan, romMode = 'simple32k') 
         : [];
     let code = `; ==================================================================\n`;
     code += `; INIT_DEFAULT_TASKS_FROM_PLAN - Register engine-selected IRQ tasks\n`;
+    code += `; @mideas:block id=runtime.interrupt.task_input kind=routine owner=interrupt roots=task_update_input\n`;
     code += `; ==================================================================\n`;
     code += (0, registerContract_1.buildRegisterContractComment)({
         purpose: 'Enable the IRQ task set selected by the engine execution plan.',
@@ -516,14 +527,15 @@ function generateSharedMainlineTaskWrappers() {
     code += `; ==================================================================\n`;
     code += (0, registerContract_1.buildRegisterContractComment)({
         purpose: 'Poll joystick + keyboard fallback and update input state buffers.',
-        inputs: ['Reads hardware via FAST_GTSTCK / FAST_GTTRIG / FAST_SNSMAT'],
+        inputs: ['Reads hardware via FAST_GTSTCK / FAST_GTTRIG and BIOS SNSMAT for keyboard rows'],
         outputs: ['input_state, prev_input_state, input_btn_curr, input_btn_prev, input_fire'],
         clobbers: ['AF', 'BC', 'DE'],
         preserved: ['AF', 'BC', 'DE (by push/pop wrapper)', 'HL'],
         usage: [
             'A = hardware reads and final scalar writes',
             'B = direction accumulator',
-            'D = button bitmask and keyboard direction flags',
+            'C = logical button bitmask after control remap',
+            'D = physical button bitmask and keyboard direction flags',
             'E = temporary keyboard row bits',
         ],
         notes: ['Wrapper preserves caller-visible regs despite internal mutation.'],
@@ -531,7 +543,8 @@ function generateSharedMainlineTaskWrappers() {
     code += `task_update_input:\n`;
     code += `    push af\n`;
     code += `    push bc\n`;
-    code += `    push de\n\n`;
+    code += `    push de\n`;
+    code += `    push hl\n\n`;
     code += `    ; Save previous state\n`;
     code += `    ld a, (input_state)\n`;
     code += `    ld (prev_input_state), a\n`;
@@ -543,9 +556,10 @@ function generateSharedMainlineTaskWrappers() {
     code += `    ld b, a                     ; B = joystick direction\n`;
     code += `    or a\n`;
     code += `    jp nz, .dir_ready\n\n`;
-    code += `    ; Fallback to keyboard cursor keys (row 8, direct matrix read)\n`;
+    code += `    ; Fallback to keyboard cursor keys (row 8). Use BIOS SNSMAT here so\n`;
+    code += `    ; OpenMSX keymatrix probes and real keyboard scans share one path.\n`;
     code += `    ld a, 8\n`;
-    code += `    call FAST_SNSMAT            ; Active low bits\n`;
+    code += `    call SNSMAT                 ; Active low bits\n`;
     code += `    ld e, a\n`;
     code += `    xor a\n`;
     code += `    ld d, a                     ; D = direction flags: 0=none\n`;
@@ -642,30 +656,30 @@ function generateSharedMainlineTaskWrappers() {
     code += `.dir_norm_store:\n`;
     code += `    ld b, a\n`;
     code += `.dir_norm_done:\n`;
-    code += `    xor a                       ; Joystick 0\n`;
+    code += `    ld d, 0                     ; D = physical button bitmask (bit0=button1, bit1=button2)\n`;
+    code += `    xor a                       ; Joystick 0 button A -> physical button 1\n`;
     code += `    call FAST_GTTRIG            ; A = #FF if pressed, 0 if not\n`;
-    code += `    ld d, 0                     ; D = button bitmask\n`;
     code += `    or a\n`;
-    code += `    jr z, .no_fire              ; Jump if NOT pressed (A=0)\n`;
-    code += `    ld d, INPUT_BTN_FIRE\n`;
-    code += `    ld a, 1                     ; Fire pressed\n`;
-    code += `    ld (input_fire), a\n`;
-    code += `    jr .fire_done\n`;
-    code += `.no_fire:\n`;
-    code += `    ; Keyboard fallback for fire (SPACE, row 8 bit 0, active low)\n`;
-    code += `    ld a, 8\n`;
-    code += `    call FAST_SNSMAT\n`;
-    code += `    bit 0, a\n`;
-    code += `    jr nz, .fire_released\n`;
-    code += `    ld d, INPUT_BTN_FIRE\n`;
-    code += `    ld a, 1\n`;
-    code += `    ld (input_fire), a\n`;
-    code += `    jr .fire_done\n`;
-    code += `.fire_released:\n`;
-    code += `    xor a                       ; Fire not pressed\n`;
-    code += `    ld (input_fire), a\n`;
-    code += `.fire_done:\n`;
-    code += `    ; Second action button: joystick button B or keyboard N\n`;
+    code += `    jr z, .phys_btn1_keyboard\n`;
+    code += `    set 0, d\n`;
+    code += `.phys_btn1_keyboard:\n`;
+    code += `    ld a, (input_key_button1_mode)\n`;
+    code += `    or a\n`;
+    code += `    jr nz, .phys_btn1_ctrl\n`;
+    code += `    ld a, 8                    ; SPACE row\n`;
+    code += `    call SNSMAT\n`;
+    code += `    bit 0, a                   ; SPC (active low)\n`;
+    code += `    jr nz, .phys_btn1_done\n`;
+    code += `    set 0, d\n`;
+    code += `    jr .phys_btn1_done\n`;
+    code += `.phys_btn1_ctrl:\n`;
+    code += `    ld a, 6                    ; CTRL row\n`;
+    code += `    call SNSMAT\n`;
+    code += `    bit 2, a                   ; CTRL (active low)\n`;
+    code += `    jr nz, .phys_btn1_done\n`;
+    code += `    set 0, d\n`;
+    code += `.phys_btn1_done:\n`;
+    code += `    ; Joystick button B or configured keyboard key -> physical button 2\n`;
     code += `    push bc\n`;
     code += `    push hl\n`;
     code += `    ld a, 3                    ; GTTRIG(3) = joystick 1 button B\n`;
@@ -675,24 +689,69 @@ function generateSharedMainlineTaskWrappers() {
     code += `    pop bc\n`;
     code += `    ld a, e\n`;
     code += `    or a\n`;
-    code += `    jr nz, .grab_pressed\n`;
+    code += `    jr z, .phys_btn2_keyboard\n`;
+    code += `    set 1, d\n`;
+    code += `.phys_btn2_keyboard:\n`;
+    code += `    ld a, (input_key_button2_mode)\n`;
+    code += `    or a\n`;
+    code += `    jr nz, .phys_btn2_ctrl\n`;
     code += `    ld a, 4                    ; Keyboard row containing N\n`;
-    code += `    call FAST_SNSMAT\n`;
+    code += `    call SNSMAT\n`;
     code += `    bit 3, a                   ; N key (active low)\n`;
-    code += `    jr nz, .grab_done\n`;
-    code += `.grab_pressed:\n`;
-    code += `    ld a, d\n`;
-    code += `    or INPUT_BTN_GRAB\n`;
-    code += `    ld d, a\n`;
-    code += `.grab_done:\n`;
+    code += `    jr nz, .phys_btn2_done\n`;
+    code += `    set 1, d\n`;
+    code += `    jr .phys_btn2_done\n`;
+    code += `.phys_btn2_ctrl:\n`;
+    code += `    ld a, 6                    ; CTRL row\n`;
+    code += `    call SNSMAT\n`;
+    code += `    bit 2, a                   ; CTRL (active low)\n`;
+    code += `    jr nz, .phys_btn2_done\n`;
+    code += `    set 1, d\n`;
+    code += `.phys_btn2_done:\n`;
+    code += `    ld c, 0                    ; C = logical buttons after action remap\n`;
+    code += `    ld a, (control_jump_button)\n`;
+    code += `    or a\n`;
+    code += `    jr nz, .jump_uses_btn2\n`;
+    code += `    bit 0, d\n`;
+    code += `    jr z, .jump_done\n`;
+    code += `    set 0, c                   ; logical fire/jump\n`;
+    code += `    jr .jump_done\n`;
+    code += `.jump_uses_btn2:\n`;
+    code += `    bit 1, d\n`;
+    code += `    jr z, .jump_done\n`;
+    code += `    set 0, c\n`;
+    code += `.jump_done:\n`;
+    code += `    ld a, (control_action_button)\n`;
+    code += `    or a\n`;
+    code += `    jr nz, .action_uses_btn2\n`;
+    code += `    bit 0, d\n`;
+    code += `    jr z, .action_done\n`;
+    code += `    set 1, c                   ; logical action/grab\n`;
+    code += `    jr .action_done\n`;
+    code += `.action_uses_btn2:\n`;
+    code += `    bit 1, d\n`;
+    code += `    jr z, .action_done\n`;
+    code += `    set 1, c\n`;
+    code += `.action_done:\n`;
+    code += `    ld a, c\n`;
+    code += `    and INPUT_BTN_FIRE\n`;
+    code += `    jr z, .fire_state_released\n`;
+    code += `    ld a, 1\n`;
+    code += `    jr .store_fire_state\n`;
+    code += `.fire_state_released:\n`;
+    code += `    xor a\n`;
+    code += `.store_fire_state:\n`;
+    code += `    ld (input_fire), a\n`;
     code += `    ld a, b\n`;
     code += `    ld (input_state), a\n`;
-    code += `    ld a, d\n`;
+    code += `    ld a, c\n`;
     code += `    ld (input_btn_curr), a\n\n`;
+    code += `    pop hl\n`;
     code += `    pop de\n`;
     code += `    pop bc\n`;
     code += `    pop af\n`;
     code += `    ret\n\n`;
+    code += `; @mideas:endblock id=runtime.interrupt.task_input\n\n`;
     return code;
 }
 function generateFrameCounterTask() {
@@ -733,14 +792,15 @@ function generateDefaultTasks(analysis) {
     code += `; ==================================================================\n`;
     code += (0, registerContract_1.buildRegisterContractComment)({
         purpose: 'Poll joystick + keyboard fallback and update input state buffers.',
-        inputs: ['Reads hardware via FAST_GTSTCK / FAST_GTTRIG / FAST_SNSMAT'],
+        inputs: ['Reads hardware via FAST_GTSTCK / FAST_GTTRIG and BIOS SNSMAT for keyboard rows'],
         outputs: ['input_state, prev_input_state, input_btn_curr, input_btn_prev, input_fire'],
         clobbers: ['AF', 'BC', 'DE'],
         preserved: ['AF', 'BC', 'DE (by push/pop wrapper)', 'HL'],
         usage: [
             'A = hardware reads and final scalar writes',
             'B = direction accumulator',
-            'D = button bitmask and keyboard direction flags',
+            'C = logical button bitmask after control remap',
+            'D = physical button bitmask and keyboard direction flags',
             'E = temporary keyboard row bits',
         ],
         notes: ['Wrapper preserves caller-visible regs despite internal mutation.'],
@@ -748,7 +808,8 @@ function generateDefaultTasks(analysis) {
     code += `task_update_input:\n`;
     code += `    push af\n`;
     code += `    push bc\n`;
-    code += `    push de\n\n`;
+    code += `    push de\n`;
+    code += `    push hl\n\n`;
     code += `    ; Save previous state\n`;
     code += `    ld a, (input_state)\n`;
     code += `    ld (prev_input_state), a\n`;
@@ -760,9 +821,10 @@ function generateDefaultTasks(analysis) {
     code += `    ld b, a                     ; B = joystick direction\n`;
     code += `    or a\n`;
     code += `    jp nz, .dir_ready\n\n`;
-    code += `    ; Fallback to keyboard cursor keys (row 8, direct matrix read)\n`;
+    code += `    ; Fallback to keyboard cursor keys (row 8). Use BIOS SNSMAT here so\n`;
+    code += `    ; OpenMSX keymatrix probes and real keyboard scans share one path.\n`;
     code += `    ld a, 8\n`;
-    code += `    call FAST_SNSMAT            ; Active low bits\n`;
+    code += `    call SNSMAT                 ; Active low bits\n`;
     code += `    ld e, a\n`;
     code += `    xor a\n`;
     code += `    ld d, a                     ; D = direction flags: 0=none\n`;
@@ -859,30 +921,30 @@ function generateDefaultTasks(analysis) {
     code += `.dir_norm_store:\n`;
     code += `    ld b, a\n`;
     code += `.dir_norm_done:\n`;
-    code += `    xor a                       ; Joystick 0\n`;
+    code += `    ld d, 0                     ; D = physical button bitmask (bit0=button1, bit1=button2)\n`;
+    code += `    xor a                       ; Joystick 0 button A -> physical button 1\n`;
     code += `    call FAST_GTTRIG            ; A = #FF if pressed, 0 if not\n`;
-    code += `    ld d, 0                     ; D = button bitmask\n`;
     code += `    or a\n`;
-    code += `    jr z, .no_fire              ; Jump if NOT pressed (A=0)\n`;
-    code += `    ld d, INPUT_BTN_FIRE\n`;
-    code += `    ld a, 1                     ; Fire pressed\n`;
-    code += `    ld (input_fire), a\n`;
-    code += `    jr .fire_done\n`;
-    code += `.no_fire:\n`;
-    code += `    ; Keyboard fallback for fire (SPACE, row 8 bit 0, active low)\n`;
-    code += `    ld a, 8\n`;
-    code += `    call FAST_SNSMAT\n`;
-    code += `    bit 0, a\n`;
-    code += `    jr nz, .fire_released\n`;
-    code += `    ld d, INPUT_BTN_FIRE\n`;
-    code += `    ld a, 1\n`;
-    code += `    ld (input_fire), a\n`;
-    code += `    jr .fire_done\n`;
-    code += `.fire_released:\n`;
-    code += `    xor a                       ; Fire not pressed\n`;
-    code += `    ld (input_fire), a\n`;
-    code += `.fire_done:\n`;
-    code += `    ; Second action button: joystick button B or keyboard N\n`;
+    code += `    jr z, .phys_btn1_keyboard\n`;
+    code += `    set 0, d\n`;
+    code += `.phys_btn1_keyboard:\n`;
+    code += `    ld a, (input_key_button1_mode)\n`;
+    code += `    or a\n`;
+    code += `    jr nz, .phys_btn1_ctrl\n`;
+    code += `    ld a, 8                    ; SPACE row\n`;
+    code += `    call SNSMAT\n`;
+    code += `    bit 0, a                   ; SPC (active low)\n`;
+    code += `    jr nz, .phys_btn1_done\n`;
+    code += `    set 0, d\n`;
+    code += `    jr .phys_btn1_done\n`;
+    code += `.phys_btn1_ctrl:\n`;
+    code += `    ld a, 6                    ; CTRL row\n`;
+    code += `    call SNSMAT\n`;
+    code += `    bit 2, a                   ; CTRL (active low)\n`;
+    code += `    jr nz, .phys_btn1_done\n`;
+    code += `    set 0, d\n`;
+    code += `.phys_btn1_done:\n`;
+    code += `    ; Joystick button B or configured keyboard key -> physical button 2\n`;
     code += `    push bc\n`;
     code += `    push hl\n`;
     code += `    ld a, 3                    ; GTTRIG(3) = joystick 1 button B\n`;
@@ -892,24 +954,69 @@ function generateDefaultTasks(analysis) {
     code += `    pop bc\n`;
     code += `    ld a, e\n`;
     code += `    or a\n`;
-    code += `    jr nz, .grab_pressed\n`;
+    code += `    jr z, .phys_btn2_keyboard\n`;
+    code += `    set 1, d\n`;
+    code += `.phys_btn2_keyboard:\n`;
+    code += `    ld a, (input_key_button2_mode)\n`;
+    code += `    or a\n`;
+    code += `    jr nz, .phys_btn2_ctrl\n`;
     code += `    ld a, 4                    ; Keyboard row containing N\n`;
-    code += `    call FAST_SNSMAT\n`;
+    code += `    call SNSMAT\n`;
     code += `    bit 3, a                   ; N key (active low)\n`;
-    code += `    jr nz, .grab_done\n`;
-    code += `.grab_pressed:\n`;
-    code += `    ld a, d\n`;
-    code += `    or INPUT_BTN_GRAB\n`;
-    code += `    ld d, a\n`;
-    code += `.grab_done:\n`;
+    code += `    jr nz, .phys_btn2_done\n`;
+    code += `    set 1, d\n`;
+    code += `    jr .phys_btn2_done\n`;
+    code += `.phys_btn2_ctrl:\n`;
+    code += `    ld a, 6                    ; CTRL row\n`;
+    code += `    call SNSMAT\n`;
+    code += `    bit 2, a                   ; CTRL (active low)\n`;
+    code += `    jr nz, .phys_btn2_done\n`;
+    code += `    set 1, d\n`;
+    code += `.phys_btn2_done:\n`;
+    code += `    ld c, 0                    ; C = logical buttons after action remap\n`;
+    code += `    ld a, (control_jump_button)\n`;
+    code += `    or a\n`;
+    code += `    jr nz, .jump_uses_btn2\n`;
+    code += `    bit 0, d\n`;
+    code += `    jr z, .jump_done\n`;
+    code += `    set 0, c                   ; logical fire/jump\n`;
+    code += `    jr .jump_done\n`;
+    code += `.jump_uses_btn2:\n`;
+    code += `    bit 1, d\n`;
+    code += `    jr z, .jump_done\n`;
+    code += `    set 0, c\n`;
+    code += `.jump_done:\n`;
+    code += `    ld a, (control_action_button)\n`;
+    code += `    or a\n`;
+    code += `    jr nz, .action_uses_btn2\n`;
+    code += `    bit 0, d\n`;
+    code += `    jr z, .action_done\n`;
+    code += `    set 1, c                   ; logical action/grab\n`;
+    code += `    jr .action_done\n`;
+    code += `.action_uses_btn2:\n`;
+    code += `    bit 1, d\n`;
+    code += `    jr z, .action_done\n`;
+    code += `    set 1, c\n`;
+    code += `.action_done:\n`;
+    code += `    ld a, c\n`;
+    code += `    and INPUT_BTN_FIRE\n`;
+    code += `    jr z, .fire_state_released\n`;
+    code += `    ld a, 1\n`;
+    code += `    jr .store_fire_state\n`;
+    code += `.fire_state_released:\n`;
+    code += `    xor a\n`;
+    code += `.store_fire_state:\n`;
+    code += `    ld (input_fire), a\n`;
     code += `    ld a, b\n`;
     code += `    ld (input_state), a\n`;
-    code += `    ld a, d\n`;
+    code += `    ld a, c\n`;
     code += `    ld (input_btn_curr), a\n\n`;
+    code += `    pop hl\n`;
     code += `    pop de\n`;
     code += `    pop bc\n`;
     code += `    pop af\n`;
     code += `    ret\n\n`;
+    code += `; @mideas:endblock id=runtime.interrupt.task_input\n\n`;
     // Task 1: Physics Update (OPTIMIZED - only generates calls for used components)
     if (analysis.hasEntities) {
         // Analyze which physics components are actually used

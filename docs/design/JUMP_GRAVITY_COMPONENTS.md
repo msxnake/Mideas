@@ -14,7 +14,7 @@ Este documento describe la implementación de los componentes **Jump** y **Gravi
 
 ### Componente Jump
 - **Saltos múltiples:** Soporte para doble/triple salto configurable
-- **Activación por botón:** Usa el botón de fuego (bit 4 del input)
+- **Activación configurable:** Usa `trigger` por componente. Por defecto es `fire` para mantener compatibilidad, pero puede configurarse como `up` o `action2`.
 - **Física suave:** Fixed-Point 8.8 arithmetic para movimiento sin parpadeos
 - **Detección de suelo:** Sistema de ground detection para resetear contador de saltos
 
@@ -40,6 +40,12 @@ Este documento describe la implementación de los componentes **Jump** y **Gravi
       type: "word",
       defaultValue: "256",
       description: "Initial upward velocity or force."
+    },
+    {
+      name: "trigger",
+      type: "string",
+      defaultValue: "fire",
+      description: "Input action that starts a jump: fire, action2, or up."
     },
     {
       name: "maxJumps",
@@ -102,6 +108,7 @@ COMP_MASK_GRAVITY    EQU #0200  ; Binary: 0000001000000000
 ; Jump Component Data (Fixed-Point 8.8 for smooth physics)
 entity_jump_vel_y   EQU temp_word_3       ; Y velocity (signed word, 64 bytes)
 entity_jump_count   EQU temp_byte_4       ; Jump count (32 bytes)
+entity_jump_trigger EQU temp_byte_29      ; Trigger action selector (32 bytes)
 entity_on_ground    EQU temp_byte_5       ; Ground flag (32 bytes)
 
 ; Gravity Component Data
@@ -109,9 +116,9 @@ entity_gravity_vel  EQU temp_word_4       ; Gravity velocity (signed word, 64 by
 ```
 
 **Memoria utilizada:**
-- Jump: 64 + 32 + 32 = **128 bytes**
+- Jump: 64 + 32 + 32 + 32 = **160 bytes**
 - Gravity: 64 = **64 bytes**
-- **Total:** 192 bytes
+- **Total:** 224 bytes
 
 ### 3.3 Sistema de Inicialización
 
@@ -168,9 +175,13 @@ jump_update_loop:
     jr z, jump_next_entity
     dec hl
 
-    ; Check fire button input
-    ld a, (input_state)
-    bit 4, a                   ; Bit 4 = fire button
+    ; Check configured jump trigger edge
+    ld hl, entity_jump_trigger
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    call component_trigger_edge_pressed_a
     jr z, jump_no_input
 
     ; Check if can jump (grounded or has jumps remaining)
@@ -339,7 +350,7 @@ gravity_done:
 |-----------|-------|-------------|
 | **Jump Velocity** | -512 (fixed-point) | Velocidad inicial de salto hacia arriba |
 | **Max Jumps** | 2 (default) | Número máximo de saltos antes de tocar suelo |
-| **Jump Trigger** | Bit 4 (Fire Button) | Botón que activa el salto |
+| **Jump Trigger** | `trigger` (`fire`, `action2`, `up`) | Acción lógica que activa el salto |
 
 ### Gravity Component
 | Parámetro | Valor | Descripción |
@@ -375,10 +386,11 @@ Result: -2.0 pixels/frame upward velocity
    - Ajustar propiedades según necesidad:
      - `jumpPower`: 256-512 (rango recomendado)
      - `maxJumps`: 1 (salto simple), 2 (doble salto), 3 (triple salto)
+     - `trigger`: `fire`, `action2` o `up`
 
 3. **Configurar Input:**
    - Agregar componente "Input" para control del jugador
-   - El botón de fuego activará el salto automáticamente
+   - El `trigger` configurado activará el salto automáticamente
 
 4. **Configurar Colisión:**
    - Agregar componente "Collision" para detección de suelo
@@ -388,8 +400,8 @@ Result: -2.0 pixels/frame upward velocity
 
 ```
 Frame N:
-  1. update_input_component     -> Lee botón de fuego
-  2. update_jump_component       -> Aplica salto si botón presionado
+  1. update_input_component     -> Lee direcciones y botones
+  2. update_jump_component       -> Aplica salto si el trigger configurado se pulsa
   3. update_gravity_component    -> Aplica gravedad si no está en suelo
   4. update_collision_component  -> Detecta suelo, actualiza entity_on_ground
   5. update_position_component   -> Aplica velocidades finales
@@ -459,14 +471,14 @@ const gravityStrength = entity.components.Gravity.gravityStrength;
 
 1. **Salto Simple:**
    - Entidad con Jump (maxJumps=1) + Gravity
-   - Presionar fuego → salta
-   - Soltar fuego → cae por gravedad
+   - Presionar el trigger configurado → salta
+   - Soltar el trigger configurado → cae por gravedad
    - Tocar suelo → puede saltar de nuevo
 
 2. **Doble Salto:**
    - Entidad con Jump (maxJumps=2) + Gravity
-   - Presionar fuego → primer salto
-   - Presionar fuego en aire → segundo salto
+   - Presionar el trigger configurado → primer salto
+   - Presionar el trigger configurado en aire → segundo salto
    - Tercer press → no hace nada
    - Tocar suelo → resetea contador
 

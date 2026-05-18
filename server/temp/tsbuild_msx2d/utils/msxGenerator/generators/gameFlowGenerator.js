@@ -11,8 +11,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateGameFlowFile = generateGameFlowFile;
 const constants_1 = require("../../../constants");
 const spriteUtils_1 = require("../../../components/utils/spriteUtils");
+const megaromResourceArtifacts_1 = require("../utils/megaromResourceArtifacts");
+const componentsGenerator_1 = require("./componentsGenerator");
 function hasFrameAudio(analysis) {
-    return ((analysis.tracks?.length || 0) > 0) || ((analysis.stateMachines?.length || 0) > 0);
+    return ((analysis.tracks?.length || 0) > 0) || ((analysis.sounds?.length || 0) > 0);
 }
 function shouldTickAudioInGameFlow(analysis, executionPlan) {
     if (!hasFrameAudio(analysis)) {
@@ -26,11 +28,42 @@ function buildGameFlowAudioTickAsm(analysis, executionPlan) {
     }
     return '    call task_audio_tick\n';
 }
+function shouldEmitComponentTriggerHelpersInGameFlow(_analysis, _romMode) {
+    // Trigger helpers are component-owned routines. Emitting them from GameFlow in
+    // MegaROM creates duplicate labels in a far overlay, so component code can
+    // resolve calls to an address that is only valid while that overlay is mapped.
+    return false;
+}
 /**
  * Sanitize node ID for use in ASM labels
  */
 function sanitizeId(id) {
     return id.replace(/[^a-zA-Z0-9]/g, '_');
+}
+function replaceAsmLabelRange(asm, startLabel, endLabel, replacement) {
+    const escapedStart = startLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedEnd = endLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`^${escapedStart}:[\\s\\S]*?(?=^${escapedEnd}:)`, 'm');
+    return asm.replace(pattern, replacement.trimEnd() + '\n\n');
+}
+function gameFlowHasControlTransferToLabel(asm, label) {
+    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b(?:call|jp|jr)\\s+${escapedLabel}\\b`, 'i').test(asm);
+}
+function stripUnusedGameFlowUtilityBlocks(asm) {
+    let optimizedAsm = asm;
+    const utilityRanges = [
+        ['init_psg_silence', 'clear_sprite_table'],
+        ['clear_sprite_table', 'clear_vram_areas'],
+        ['clear_vram_areas', 'reset_vdp_registers'],
+        ['reset_vdp_registers', 'init_all_global_variables'],
+    ];
+    utilityRanges.forEach(([startLabel, endLabel]) => {
+        if (!gameFlowHasControlTransferToLabel(optimizedAsm, startLabel)) {
+            optimizedAsm = replaceAsmLabelRange(optimizedAsm, startLabel, endLabel, '');
+        }
+    });
+    return optimizedAsm;
 }
 /**
  * Normalize text for ASM string literals used in generated labels/data.
@@ -225,6 +258,11 @@ function getSpriteFrameLayerLabel(sprite, spriteIndex, frameIndex, layerIndex) {
     const safeSpriteName = uniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
     return `${safeSpriteName}_F${frameIndex}_LAYER${layerIndex}`;
 }
+function getLocalCodeBankExpr(label, useFarCall) {
+    // In MegaROM, GameFlow can be packed into an overlay bank; the physical bank
+    // is only known later when unifiedGenerator places the module.
+    return useFarCall ? '__MIDEAS_CURRENT_CODE_BANK__' : `((${label} - #4000) / #2000)`;
+}
 /**
  * Resolve a global variable reference used by GameFlow nodes.
  * Returns the matching variable definition or null when not found.
@@ -387,6 +425,11 @@ function getHudRuntimeScreenIndexes(analysis) {
     }
     return Array.from(runtimeIndexes).sort((a, b) => a - b);
 }
+function projectHasBossRuntime(analysis) {
+    const hasBossAssets = (analysis.bosses?.length || 0) > 0;
+    const hasBossInstances = (analysis.screenMaps || []).some((screen) => Array.isArray(screen?.bossInstances) && screen.bossInstances.length > 0);
+    return hasBossAssets || hasBossInstances;
+}
 /**
  * Emit conditional HUD rendering for current_screen_id.
  */
@@ -407,6 +450,108 @@ function generateConditionalRenderHudAsm(runtimeScreenIndexes, labelBase, setDir
     code += `    call render_hud\n`;
     code += `.${labelBase}_skip:\n`;
     return code;
+}
+function buildPreservedFrameAudioTickAsm(frameAudioTickAsm) {
+    if (!frameAudioTickAsm.trim()) {
+        return '';
+    }
+    return `    push bc
+    push de
+    push hl
+${frameAudioTickAsm}    pop hl
+    pop de
+    pop bc
+`;
+}
+/**
+ * Emit PresentationScreen waits in GameFlow for MegaROM builds.
+ *
+ * The screen image itself can live in a far `screens_code` overlay, but waits
+ * with HALT/input polling must run after the far-call trampoline has restored
+ * the mapper window. Keeping the wait here avoids holding ASCII8 P2 on a
+ * screen overlay while GameFlow expects resident/runtime code to remain stable.
+ */
+function buildGameFlowPresentationWaitAsm(analysis) {
+    const runtime = analysis.presentationScreen?.runtime;
+    if (!runtime) {
+        return '';
+    }
+    let code = '';
+    const waitFrames = Math.max(0, Math.min(255, Math.floor(Number(runtime.waitForFrames) || 0)));
+    if (waitFrames > 0) {
+        code += `    ld b, ${waitFrames}
+    call gameflow_presentation_wait_frames
+`;
+    }
+    if (runtime.waitForKey) {
+        code += `    call gameflow_presentation_wait_for_fire
+`;
+    }
+    return code;
+}
+function generateGameFlowPresentationWaitHelpers(analysis, frameAudioTickAsm) {
+    const waitAsm = buildGameFlowPresentationWaitAsm(analysis);
+    if (!waitAsm) {
+        return '';
+    }
+    const audioTickAsm = buildPreservedFrameAudioTickAsm(frameAudioTickAsm);
+    return `; ------------------------------------------------------------------
+; PresentationScreen wait helpers for MegaROM GameFlow.
+; These run after show_presentation_screen_image_far has restored mapper P2.
+; ------------------------------------------------------------------
+; gameflow_presentation_wait_frames
+; Input:  B = frame count
+; Output: none
+; Clobbers: AF
+; Preserves: BC, DE, HL, IX, IY
+; @mideas:block id=runtime.gameflow.presentation_wait_frames kind=routine owner=gameflow
+gameflow_presentation_wait_frames:
+    push bc
+    ld a, b
+    or a
+    jr z, .gfpwf_done
+.gfpwf_loop:
+    halt
+${audioTickAsm}    djnz .gfpwf_loop
+.gfpwf_done:
+    pop bc
+    ret
+; @mideas:endblock id=runtime.gameflow.presentation_wait_frames
+
+; gameflow_presentation_wait_for_fire
+; Wait for SPACE press and release using keyboard matrix row 8 bit 0.
+; Output: none
+; Clobbers: AF
+; Preserves: BC, DE, HL, IX, IY
+gameflow_presentation_wait_for_fire:
+.gfpwff_wait_press:
+    halt
+${audioTickAsm}    call gameflow_presentation_read_fire_direct
+    or a
+    jr z, .gfpwff_wait_press
+.gfpwff_wait_release:
+    halt
+${audioTickAsm}    call gameflow_presentation_read_fire_direct
+    or a
+    jr nz, .gfpwff_wait_release
+    ret
+
+; gameflow_presentation_read_fire_direct
+; Output: A = 1 when SPACE is pressed, A = 0 otherwise
+; Clobbers: AF
+; Preserves: BC, DE, HL, IX, IY
+gameflow_presentation_read_fire_direct:
+    ld a, 8
+    call FAST_SNSMAT
+    bit 0, a
+    jr z, .gfprd_pressed
+    xor a
+    ret
+.gfprd_pressed:
+    ld a, 1
+    ret
+
+`;
 }
 /**
  * Generate complete GameFlow file (gameflow.asm)
@@ -564,7 +709,12 @@ gameflow_get_default_connection:
 ; Get connection by type
 ; Input: BC = connection table pointer, A = connection type to find
 ; Output: HL = next node address (or 0 if not found)
+; Preserves: BC, DE
+; Clobbers: AF, HL
+; @mideas:block id=runtime.gameflow.connection_by_type kind=routine owner=gameflow
 gameflow_get_connection_by_type:
+    push bc
+    push de
     ld d, a         ; Save connection type
     ld h, b
     ld l, c
@@ -588,11 +738,16 @@ gameflow_get_connection_by_type:
     inc hl
     ld h, (hl)
     ld l, a
+    pop de
+    pop bc
     ret
 
 .not_found:
     ld hl, 0
+    pop de
+    pop bc
     ret
+; @mideas:endblock id=runtime.gameflow.connection_by_type
 
 ; Connection type constants
 CONNECTION_DEFAULT      EQU 0
@@ -610,6 +765,26 @@ CONNECTION_END          EQU 255
 gameflow_no_data:
     db #C9                        ; RET instruction - returns immediately
 
+; ------------------------------------------------------------------
+; gameflow_read_confirm_direct
+; Read submenu/text confirm input directly from keyboard matrix.
+; Output: A = 1 when SPACE is pressed, A = 0 otherwise
+; Clobbers: AF
+; Preserves: BC, DE, HL, IX, IY
+; ------------------------------------------------------------------
+; @mideas:block id=runtime.gameflow.confirm_input_direct kind=routine owner=gameflow
+gameflow_read_confirm_direct:
+    ld a, 8
+    call FAST_SNSMAT
+    bit 0, a
+    jr z, .grcd_pressed
+    xor a
+    ret
+.grcd_pressed:
+    ld a, 1
+    ret
+; @mideas:endblock id=runtime.gameflow.confirm_input_direct
+
 `;
     // ===================================================================
     // SECTION 5: GAME LOOP (for WorldLink nodes)
@@ -619,6 +794,12 @@ gameflow_no_data:
     const hasHud = hudRuntimeScreenIndexes.length > 0;
     const timeRemainingAsmName = resolveGlobalVariableAsmName('TimeRemaining', analysis);
     const hasScreenTimer = !!timeRemainingAsmName;
+    const hasSfxAssets = (analysis.sounds?.length || 0) > 0;
+    const bossUpdateAsm = projectHasBossRuntime(analysis)
+        ? `    call update_boss_system
+
+`
+        : '';
     const worldLoopHudRenderAsm = generateConditionalRenderHudAsm(hudRuntimeScreenIndexes, 'gf_worldloop_hud');
     const worldLinkHudBootstrapAsm = generateConditionalRenderHudAsm(hudRuntimeScreenIndexes, 'gf_worldlink_hud', true);
     code += `; ==================================================================
@@ -627,6 +808,7 @@ gameflow_no_data:
 
 ; Main game loop - executed by WorldLink nodes
 ; This loop runs while a world/level is active
+; @mideas:block id=runtime.gameflow.world_loop kind=routine owner=gameflow roots=gameflow_world_game_loop
 gameflow_world_game_loop:
     ; Check exit flag
     ld a, (gameflow_exit_requested)
@@ -662,15 +844,22 @@ ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stag
     ; Execute all state machines
     call execute_all_state_machines
 
-    ; Update timed PSG sound effects
+    ; WallGrab owns the visible sprite while the grab button is held.
+    ; Re-apply it after StateMachine actions so idle/jump/walk sprites
+    ; cannot win the frame immediately before animation/sprite refresh.
+    call refresh_player_wallgrab_fastpath
+    call update_wallgrab_component
+
+${hasSfxAssets ? `    ; Update timed PSG sound effects
     call sfx_update
 
-    ; Refresh player animation with the final state of this frame.
+` : ``}    ; Refresh player animation with the final state of this frame.
     call refresh_player_animation_fastpath
 
     ; Refresh player sprite once with the final state of this frame.
     call refresh_player_sprite_fastpath
 
+${bossUpdateAsm}
     ; Upload sprites after gameplay so the hero position computed this frame
     ; is what gets shown on screen, instead of the previous frame's SAT.
     call update_sprites_to_vram
@@ -685,6 +874,7 @@ ${hasHud ? `
 ${worldLoopHudRenderAsm}` : ``}
     ; Loop
     jp gameflow_world_game_loop
+; @mideas:endblock id=runtime.gameflow.world_loop
 
 `;
     if (hasScreenTimer && timeRemainingAsmName) {
@@ -693,6 +883,7 @@ ${worldLoopHudRenderAsm}` : ``}
 ; Resets TimeRemaining to 60 on every screen load/transition and
 ; decrements it once per real second using interrupt_counter deltas.
 ; ==================================================================
+; @mideas:block id=runtime.gameflow.screen_timer kind=routine owner=gameflow roots=get_world_screen_timer_frames_per_second,reload_world_screen_timer_frames,snapshot_world_screen_timer_interrupt_counter,reset_world_screen_timer,update_world_screen_timer
 
 get_world_screen_timer_frames_per_second:
     ld a, (isComputer50HzOr60Hz)
@@ -716,6 +907,9 @@ snapshot_world_screen_timer_interrupt_counter:
 
 reset_world_screen_timer:
     push af
+    ld a, (current_screen_engine)
+    or a
+    jr nz, .world_timer_reset_done
     ld a, 60
     ld (${timeRemainingAsmName}), a
     xor a
@@ -724,7 +918,8 @@ reset_world_screen_timer:
     call snapshot_world_screen_timer_interrupt_counter
 ${hasHud ? `    ld a, 1
     ld (hud_dirty_flag), a
-` : ``}    pop af
+` : ``}.world_timer_reset_done:
+    pop af
     ret
 
 update_world_screen_timer:
@@ -733,17 +928,21 @@ update_world_screen_timer:
     push de
     push hl
 
+    ld a, (current_screen_engine)
+    or a
+    jp nz, .world_timer_done
+
     ld a, (${timeRemainingAsmName})
     ld b, a
     ld a, (${timeRemainingAsmName}+1)
     or b
-    jr z, .world_timer_done
+    jp z, .world_timer_done
 
     ld hl, (interrupt_counter)
     ld de, (time_last_interrupt_counter)
     or a
     sbc hl, de
-    jr z, .world_timer_done
+    jp z, .world_timer_done
 
     call snapshot_world_screen_timer_interrupt_counter
 
@@ -827,6 +1026,7 @@ ${hasHud ? `    ld a, 1
     pop bc
     pop af
     ret
+; @mideas:endblock id=runtime.gameflow.screen_timer
 
 `;
     }
@@ -1046,6 +1246,7 @@ init_all_global_variables:
 ; ------------------------------------------------------------------
 ; Helper: Clear screen area for menus/end screens
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.gameflow.clear_screen_area_helpers kind=routine owner=gameflow
 clear_screen_area:
     ; Clear center area of screen
     ld b, 8                       ; 8 rows
@@ -1104,12 +1305,16 @@ empty_row_data:
     db 0, 0, 0, 0, 0, 0, 0, 0
     db 0, 0, 0, 0, 0, 0, 0, 0
     db 0, 0, 0, 0, 0, 0, 0, 0
+; @mideas:endblock id=runtime.gameflow.clear_screen_area_helpers
 
 ; ==================================================================
 ; END OF GAMEFLOW
 ; ==================================================================
 `;
-    return code;
+    if (shouldEmitComponentTriggerHelpersInGameFlow(analysis, romMode)) {
+        code += (0, componentsGenerator_1.generateComponentTriggerHelpers)();
+    }
+    return stripUnusedGameFlowUtilityBlocks(code);
 }
 /**
  * Generate handlers for all node types
@@ -1164,7 +1369,8 @@ function generateNodeHandlers(nodeTypes, analysis, executionPlan, romMode = 'sim
 `;
                 break;
             case 'WorldLink':
-                code += `gameflow_handle_worldlink:
+                code += `; @mideas:block id=runtime.gameflow.worldlink kind=routine owner=gameflow roots=gameflow_handle_worldlink
+gameflow_handle_worldlink:
     ; WorldLink node - load world and enter game loop
     ; DE = world data pointer:
     ;   [load_world_ptr DW][load_world_bank DB][init_ptr DW][init_bank DB]
@@ -1238,11 +1444,13 @@ ${worldLinkHudBootstrapAsm}` : ``}
     or l
     ret z
     jp gameflow_execute_node
+; @mideas:endblock id=runtime.gameflow.worldlink
 
 `;
                 break;
             case 'End':
-                code += `gameflow_handle_end:
+                code += `; @mideas:block id=runtime.gameflow.end_screen kind=routine owner=gameflow roots=gameflow_handle_end,display_end_screen,print_string_vram
+gameflow_handle_end:
     ; End node - stop execution and show end screen
     ; DE = end screen data pointer (screen type, message pointer)
     ; BC = connection table (unused, end stops execution)
@@ -1385,6 +1593,7 @@ str_game_over:
 
 str_credits:
     db "CREDITS", 0
+; @mideas:endblock id=runtime.gameflow.end_screen
 
 `;
                 break;
@@ -1404,9 +1613,10 @@ str_credits:
                     let submenuCursorPatternTable = '';
                     let submenuCursorLayerPtrTable = '';
                     let submenuCursorLayerBankTable = '';
+                    let submenuCursorLayerResourceTable = '';
                     for (let i = 0; i < submenuCursorPatternCount; i++) {
                         const sprite = sprites[i];
-                        submenuCursorPatternTable += `    dw SPRITE_${i}_PATTERN\n`;
+                        submenuCursorPatternTable += useFarCall ? `    dw 0\n` : `    dw SPRITE_${i}_PATTERN\n`;
                         const selectedLayers = sprite
                             ? analyzeDrawableLayerIndexes(sprite).slice(0, 4)
                             : [];
@@ -1415,13 +1625,209 @@ str_credits:
                             if (sourceLayerIndex === undefined) {
                                 submenuCursorLayerPtrTable += `    dw 0\n`;
                                 submenuCursorLayerBankTable += `    db 0\n`;
+                                submenuCursorLayerResourceTable += `    db #FF\n`;
                                 continue;
                             }
                             const layerLabel = getSpriteFrameLayerLabel(sprite, i, 0, sourceLayerIndex);
-                            submenuCursorLayerPtrTable += `    dw ${layerLabel}\n`;
-                            submenuCursorLayerBankTable += `    db ((${layerLabel} - #4000) / #2000)\n`;
+                            submenuCursorLayerPtrTable += useFarCall ? `    dw 0\n` : `    dw ${layerLabel}\n`;
+                            submenuCursorLayerBankTable += useFarCall ? `    db 0\n` : `    db ((${layerLabel} - #4000) / #2000)\n`;
+                            submenuCursorLayerResourceTable += useFarCall
+                                ? `    db ${(0, megaromResourceArtifacts_1.buildResourceIdLabelFromAsmLabel)(layerLabel)}\n`
+                                : `    db #FF\n`;
                         }
                     }
+                    const submenuPrepareCursorSpriteAsm = useFarCall ? `; ------------------------------------------------------------------
+; submenu_prepare_cursor_sprite
+; Load cursor sprite patterns and initialize cursor state.
+; Uses sprite slots SUBMENU_CURSOR_BASE_SPRITE..+3.
+; MegaROM path resolves sprite layer resources by id.
+; ------------------------------------------------------------------
+submenu_prepare_cursor_sprite:
+    push bc
+    push de
+    push hl
+
+    ; Default: no sprite cursor
+    xor a
+    ld (gameflow_submenu_cursor_enabled), a
+    ld (gameflow_submenu_cursor_layer_count), a
+
+    ; Clear SAT buffer once to avoid stale sprite garbage in menus
+    call clear_all_sprites
+
+    ld hl, (gameflow_submenu_data_ptr)
+    inc hl                        ; +1 cursor_sprite_idx
+    ld a, (hl)
+    cp #FF
+    jp z, .sps_done               ; no sprite cursor configured
+    ld b, a                       ; B = sprite asset index
+
+    ; Read and clamp layer count (+2)
+    ld hl, (gameflow_submenu_data_ptr)
+    ld de, 2
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .sps_done
+    cp 5
+    jp c, .sps_layer_ok
+    ld a, 4
+.sps_layer_ok:
+    ld (gameflow_submenu_cursor_layer_count), a
+
+    ld c, 0                       ; C = compact layer slot
+.sps_load_loop:
+    ld a, (gameflow_submenu_cursor_layer_count)
+    cp c
+    jp z, .sps_enable_cursor
+
+    ld a, b                       ; A = sprite asset index
+    call submenu_get_cursor_layer_resource_id
+    jp c, .sps_done
+
+    push bc
+    push af                       ; save resource id
+    ld a, c
+    add a, SUBMENU_CURSOR_BASE_SPRITE
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                    ; HL = sprite slot * 32
+    ld de, SPRPAT
+    add hl, de
+    push hl
+    pop de                        ; DE = destination in VRAM
+    pop af                        ; A = resource id
+    call resource_load_to_vram_by_id
+    pop bc
+
+    inc c
+    jp .sps_load_loop
+
+.sps_enable_cursor:
+    ld a, 1
+    ld (gameflow_submenu_cursor_enabled), a
+
+.sps_done:
+    call submenu_update_cursor_sprite
+    pop hl
+    pop de
+    pop bc
+    ret
+
+` : `; ------------------------------------------------------------------
+; submenu_prepare_cursor_sprite
+; Load cursor sprite patterns and initialize cursor state.
+; Uses sprite slots SUBMENU_CURSOR_BASE_SPRITE..+3.
+; ------------------------------------------------------------------
+submenu_prepare_cursor_sprite:
+    push bc
+    push de
+    push hl
+
+    ; Default: no sprite cursor
+    xor a
+    ld (gameflow_submenu_cursor_enabled), a
+    ld (gameflow_submenu_cursor_layer_count), a
+
+    ; Clear SAT buffer once to avoid stale sprite garbage in menus
+    call clear_all_sprites
+
+    ld hl, (gameflow_submenu_data_ptr)
+    inc hl                        ; +1 cursor_sprite_idx
+    ld a, (hl)
+    cp #FF
+    jr z, .sps_done               ; no sprite cursor configured
+
+    ; Resolve pattern pointer from sprite asset index
+    call submenu_get_cursor_pattern_ptr
+    jr c, .sps_done               ; invalid index -> fallback to char marker
+    push hl                       ; save pattern ptr
+
+    ; Read and clamp layer count (+2)
+    ld hl, (gameflow_submenu_data_ptr)
+    ld bc, 2
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr z, .sps_restore_no_cursor
+    cp 5
+    jr c, .sps_layer_ok
+    ld a, 4
+.sps_layer_ok:
+    ld (gameflow_submenu_cursor_layer_count), a
+
+    ; Upload all layers as one contiguous block.
+    ; SPRITE_X_PATTERN points to layer0 data; layers are stored sequentially
+    ; in ROM so layer_count * 32 bytes covers all of them.
+    ; SPRPAT + (SUBMENU_CURSOR_BASE_SPRITE * 32) is an assembly-time constant
+    ; (no 8-bit runtime overflow).
+    pop hl                        ; HL = source pattern base (SPRITE_X_PATTERN)
+    ld a, (gameflow_submenu_cursor_layer_count)
+    add a, a                      ; *2
+    add a, a                      ; *4
+    add a, a                      ; *8
+    add a, a                      ; *16
+    add a, a                      ; *32  (layer_count <= 4, max 128 - fits in A)
+    ld c, a
+    ld b, 0                       ; BC = layer_count * 32
+    ld de, SPRPAT + (SUBMENU_CURSOR_BASE_SPRITE * 32)
+    call FAST_LDIRVM
+
+.sps_enable_cursor:
+
+    ld a, 1
+    ld (gameflow_submenu_cursor_enabled), a
+    jr .sps_done
+
+.sps_restore_no_cursor:
+    pop hl
+
+.sps_done:
+    call submenu_update_cursor_sprite
+    pop hl
+    pop de
+    pop bc
+    ret
+
+`;
+                    const submenuCursorResourceHelperAsm = useFarCall ? `; ------------------------------------------------------------------
+; submenu_get_cursor_layer_resource_id
+; Input: A = sprite asset index, C = compact layer slot (0..3)
+; Output: A = resource id, CF=1 on invalid/missing layer
+; ------------------------------------------------------------------
+submenu_get_cursor_layer_resource_id:
+    cp SUBMENU_CURSOR_PATTERN_COUNT
+    jp nc, .sgcr_invalid
+    ld b, a
+    ld a, c
+    cp 4
+    jp nc, .sgcr_invalid
+
+    ; Resource table offset = sprite_index * 4 + layer_slot
+    ld l, b
+    ld h, 0
+    add hl, hl                    ; *2
+    add hl, hl                    ; *4
+    ld d, 0
+    ld e, c
+    add hl, de
+    ld de, submenu_cursor_sprite_layer_resource_table
+    add hl, de
+    ld a, (hl)
+    cp #FF
+    jp z, .sgcr_invalid
+    or a                          ; clear carry
+    ret
+
+.sgcr_invalid:
+    scf
+    ret
+
+` : '';
                     code += `gameflow_handle_submenu:
     ; SubMenu node - interactive navigation
     ; DE points to SubMenu data:
@@ -1456,6 +1862,7 @@ str_credits:
 ;           DW title_ptr, DW option_ptr[n]
 ; Output: gameflow_menu_selection = selected index (0..5)
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.gameflow.submenu kind=routine owner=gameflow roots=show_menu_placeholder,render_submenu_screen,submenu_update_cursor_sprite,submenu_hide_cursor_sprite,submenu_get_cursor_pattern_ptr,submenu_get_cursor_layer_source
 show_menu_placeholder:
     push bc
     push de
@@ -1484,7 +1891,7 @@ show_menu_placeholder:
     ld (gameflow_menu_selection), a
     call submenu_prepare_cursor_sprite
     call render_submenu_screen
-    jr .smp_exit
+    jp .smp_exit
 
 .smp_has_options:
     ld b, a
@@ -1546,7 +1953,7 @@ ${frameAudioTickAsm}
     call gameflow_read_confirm_direct
     or a
     jr nz, .smp_wait_fire_release
-    jr .smp_exit
+    jp .smp_exit
 
 .smp_wait_neutral:
 .smp_wait_neutral_loop:
@@ -1626,7 +2033,7 @@ render_submenu_screen:
 .rss_read_count:
     ; Background loaders may overwrite character patterns/colors used for text.
     ; Restore font before printing title/options in submenu.
-    call init_font_system
+    call reload_font_system
 
     ld hl, (gameflow_submenu_data_ptr)
     ld bc, 14                     ; offset to option_count (+11-12 fn, +13 bank)
@@ -1638,7 +2045,7 @@ render_submenu_screen:
 .rss_count_ok:
     ld b, a
     or a
-    jr z, .rss_done
+    jp z, .rss_done
 
     inc hl                        ; skip option_count
     inc hl                        ; skip initial_selection
@@ -1662,7 +2069,7 @@ render_submenu_screen:
 .rss_option_loop:
     ld a, c
     cp b
-    jr nc, .rss_done
+    jp nc, .rss_done
 
     ; Read option string pointer
     ld e, (hl)
@@ -1802,12 +2209,13 @@ submenu_compute_center_col:
     pop bc
     ret
 
+${submenuPrepareCursorSpriteAsm}
 ; ------------------------------------------------------------------
 ; submenu_prepare_cursor_sprite
 ; Load cursor sprite patterns and initialize cursor state.
 ; Uses sprite slots SUBMENU_CURSOR_BASE_SPRITE..+3.
 ; ------------------------------------------------------------------
-submenu_prepare_cursor_sprite:
+submenu_prepare_cursor_sprite_legacy:
     push bc
     push de
     push hl
@@ -1824,11 +2232,11 @@ submenu_prepare_cursor_sprite:
     inc hl                        ; +1 cursor_sprite_idx
     ld a, (hl)
     cp #FF
-    jr z, .sps_done               ; no sprite cursor configured
+    jr z, .sps_legacy_done        ; no sprite cursor configured
 
     ; Resolve pattern pointer from sprite asset index
     call submenu_get_cursor_pattern_ptr
-    jr c, .sps_done               ; invalid index -> fallback to char marker
+    jr c, .sps_legacy_done        ; invalid index -> fallback to char marker
     push hl                       ; save pattern ptr
 
     ; Read and clamp layer count (+2)
@@ -1837,11 +2245,11 @@ submenu_prepare_cursor_sprite:
     add hl, bc
     ld a, (hl)
     or a
-    jr z, .sps_restore_no_cursor
+    jr z, .sps_legacy_restore_no_cursor
     cp 5
-    jr c, .sps_layer_ok
+    jr c, .sps_legacy_layer_ok
     ld a, 4
-.sps_layer_ok:
+.sps_legacy_layer_ok:
     ld (gameflow_submenu_cursor_layer_count), a
 
     ; Upload all layers as one contiguous block.
@@ -1859,18 +2267,18 @@ submenu_prepare_cursor_sprite:
     ld c, a
     ld b, 0                       ; BC = layer_count * 32
     ld de, SPRPAT + (SUBMENU_CURSOR_BASE_SPRITE * 32)
-    call COPY_SPRITE_SRC_TO_VRAM
+    call FAST_LDIRVM
 
-.sps_enable_cursor:
+.sps_legacy_enable_cursor:
 
     ld a, 1
     ld (gameflow_submenu_cursor_enabled), a
-    jr .sps_done
+    jr .sps_legacy_done
 
-.sps_restore_no_cursor:
+.sps_legacy_restore_no_cursor:
     pop hl
 
-.sps_done:
+.sps_legacy_done:
     call submenu_update_cursor_sprite
     pop hl
     pop de
@@ -1888,7 +2296,7 @@ submenu_update_cursor_sprite:
 
     ld a, (gameflow_submenu_cursor_enabled)
     or a
-    jr z, .sus_hide
+    jp z, .sus_hide
 
     ; Compute cursor Y from selected option row (row = 10 + selection*2)
     ; Y = (10 + selection*2) * 8 - 4 to match PC preview placement.
@@ -1938,7 +2346,7 @@ submenu_update_cursor_sprite:
 
     ld a, (gameflow_submenu_cursor_layer_count)
     or a
-    jr z, .sus_hide
+    jp z, .sus_hide
 
     ld d, SUBMENU_CURSOR_BASE_SPRITE
 .sus_draw_loop:
@@ -2093,6 +2501,7 @@ submenu_get_cursor_layer_source:
     scf
     ret
 
+${submenuCursorResourceHelperAsm}
 SUBMENU_CURSOR_BASE_SPRITE EQU 28
 SUBMENU_CURSOR_MAX_LAYERS  EQU 4
 SUBMENU_CURSOR_PATTERN_COUNT EQU ${submenuCursorPatternCount}
@@ -2106,6 +2515,10 @@ ${submenuCursorLayerPtrTable}
 submenu_cursor_sprite_layer_bank_table:
 ${submenuCursorLayerBankTable}
 
+submenu_cursor_sprite_layer_resource_table:
+${submenuCursorLayerResourceTable}
+
+; @mideas:endblock id=runtime.gameflow.submenu
 `;
                     break;
                 }
@@ -2141,6 +2554,7 @@ ${submenuCursorLayerBankTable}
 ; (the load_screen function sets VDP colors and name table from screen asset)
 ; If screen_load_ptr == 0: sets bgColor, clears screen, renders text on solid bg
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.gameflow.text_screen kind=routine owner=gameflow roots=show_text_screen,wait_for_fire
 show_text_screen:
     push bc
     push de
@@ -2206,7 +2620,7 @@ show_text_screen:
 .sts_render:
     ; Background loaders may overwrite character patterns/colors used for text.
     ; Restore font before rendering text lines.
-    call init_font_system
+    call reload_font_system
 
     ; Now render each text line
     pop hl                        ; (1) HL = pointer to numLines
@@ -2299,28 +2713,12 @@ ${frameAudioTickAsm}    pop bc
     pop bc
     ret
 
-; ------------------------------------------------------------------
-; gameflow_read_confirm_direct
-; Read submenu/text confirm input directly from keyboard matrix.
-; Output: A = 1 when SPACE is pressed, A = 0 otherwise
-; Clobbers: AF
-; Preserves: BC, DE, HL, IX, IY
-; ------------------------------------------------------------------
-gameflow_read_confirm_direct:
-    ld a, 8
-    call FAST_SNSMAT
-    bit 0, a
-    jr z, .grcd_pressed
-    xor a
-    ret
-.grcd_pressed:
-    ld a, 1
-    ret
-
+; @mideas:endblock id=runtime.gameflow.text_screen
 `;
                 break;
             case 'IfThenElse':
-                code += `gameflow_handle_ifthenelse:
+                code += `; @mideas:block id=runtime.gameflow.if_then_else kind=routine owner=gameflow roots=gameflow_handle_ifthenelse
+gameflow_handle_ifthenelse:
     ; IfThenElse node - conditional branching
     ; DE = condition data pointer
     ;      dw variable address
@@ -2456,6 +2854,7 @@ gameflow_read_confirm_direct:
     or l
     ret z
     jp gameflow_execute_node
+; @mideas:endblock id=runtime.gameflow.if_then_else
 
 `;
                 break;
@@ -2991,11 +3390,17 @@ trans_fast_filvrm:
 `;
                 break;
             case 'PresentationScreen':
-                code += `gameflow_handle_presentationscreen:
+                {
+                    const megaRomPresentationWaitAsm = useFarCall ? buildGameFlowPresentationWaitAsm(analysis) : '';
+                    const megaRomPresentationWaitHelpers = useFarCall
+                        ? generateGameFlowPresentationWaitHelpers(analysis, frameAudioTickAsm)
+                        : '';
+                    code += `gameflow_handle_presentationscreen:
     ; PresentationScreen node - show full-screen presentation image
     ; BC = connection table
     push bc
-${useFarCall ? `    call show_presentation_screen_far` : `    call show_presentation_screen`}
+${useFarCall ? `    call show_presentation_screen_image_far
+${megaRomPresentationWaitAsm}` : `    call show_presentation_screen`}
     ; show_presentation_screen overwrites ALL of CHRTBL2 (chars 0-255 x 3 banks).
     ; Game tile patterns live at char 128+ and are now corrupted.
     ; Reload game VRAM (patterns + colors) before entering gameplay.
@@ -3006,7 +3411,10 @@ ${useFarCall ? `    call show_presentation_screen_far` : `    call show_presenta
     or l
     ret z
     jp gameflow_execute_node
+
+${megaRomPresentationWaitHelpers}
 `;
+                }
                 break;
             default:
                 code += `gameflow_handle_${nodeType.toLowerCase()}:
@@ -3087,7 +3495,7 @@ ${nodeLabel}:
             case 'Start':
                 // Generate Start node initialization data
                 code += `    dw ${nodeLabel}_init    ; Initialization routine address\n`;
-                code += `    db ((${nodeLabel}_init - #4000) / #2000)    ; Initialization routine bank\n`;
+                code += `    db ${getLocalCodeBankExpr(`${nodeLabel}_init`, useFarCall)}    ; Initialization routine bank\n`;
                 // Generate initialization routine after the data structure
                 // This will be appended after the switch
                 break;
@@ -3099,7 +3507,7 @@ ${nodeLabel}:
                 code += `    dw ${worldLoadLabel}\n`;
                 code += `    db ((${worldLoadLabel} - #4000) / #2000)\n`;
                 code += `    dw ${nodeLabel}_init\n`;
-                code += `    db ((${nodeLabel}_init - #4000) / #2000)\n`;
+                code += `    db ${getLocalCodeBankExpr(`${nodeLabel}_init`, useFarCall)}\n`;
                 break;
             case 'SubMenu':
                 {
@@ -3400,7 +3808,7 @@ ${nodeLabel}:
     code += `    db CONNECTION_END\n\n`;
     // Generate initialization routine for Start nodes
     if (node.type === 'Start') {
-        code += generateStartNodeInitRoutine(node, nodeLabel, analysis);
+        code += generateStartNodeInitRoutine(node, nodeLabel, analysis, gameFlow, romMode);
     }
     if (node.type === 'WorldLink') {
         code += generateWorldLinkNodeInitRoutine(node, nodeLabel, analysis);
@@ -3466,7 +3874,16 @@ ${nodeLabel}_init:
 /**
  * Generate initialization routine for Start node
  */
-function generateStartNodeInitRoutine(node, nodeLabel, analysis) {
+function startNodeDefersGameInitForPresentation(node, gameFlow, romMode) {
+    if (romMode !== 'megarom') {
+        return false;
+    }
+    const defaultConnection = gameFlow.connections?.find((connection) => (connection.from?.nodeId || connection.from) === node.id);
+    const nextNodeId = defaultConnection?.to?.nodeId || defaultConnection?.to;
+    const nextNode = gameFlow.nodes?.find((candidate) => candidate.id === nextNodeId);
+    return nextNode?.type === 'PresentationScreen';
+}
+function generateStartNodeInitRoutine(node, nodeLabel, analysis, gameFlow, romMode) {
     let code = `; ------------------------------------------------------------------
 ; ${nodeLabel}_init
 ; Initialization routine for Start node
@@ -3475,11 +3892,18 @@ function generateStartNodeInitRoutine(node, nodeLabel, analysis) {
 ${nodeLabel}_init:
 `;
     const systemConfig = node.systemConfig;
-    // CRITICAL: Always call init_game_systems to initialize ECS components,
-    // entities, and load game assets. Without this, the screen stays black
-    // because no patterns, sprites, or entities are set up.
-    code += `    ; === Core Game Systems Initialization (ALWAYS required) ===\n`;
-    code += `    call init_game_systems\n\n`;
+    const deferGameInitForPresentation = startNodeDefersGameInitForPresentation(node, gameFlow, romMode);
+    if (deferGameInitForPresentation) {
+        code += `    ; === Core Game Systems Initialization deferred ===\n`;
+        code += `    ; PresentationScreen reloads gameplay VRAM and entities after its wait.\n\n`;
+    }
+    else {
+        // CRITICAL: Always call init_game_systems to initialize ECS components,
+        // entities, and load game assets. Without this, the screen stays black
+        // because no patterns, sprites, or entities are set up.
+        code += `    ; === Core Game Systems Initialization (ALWAYS required) ===\n`;
+        code += `    call init_game_systems\n\n`;
+    }
     // 1. Initialize MSX Systems (if configured)
     if (systemConfig) {
         code += `    ; === MSX System Initialization ===\n`;
@@ -3522,12 +3946,19 @@ function generateDefaultGameFlow(analysis, executionPlan, romMode = 'simple32k')
     const defaultStartHudAsm = generateConditionalRenderHudAsm(defaultHudRuntimeScreenIndexes, 'gf_default_start_hud', true);
     const defaultLoopHudAsm = generateConditionalRenderHudAsm(defaultHudRuntimeScreenIndexes, 'gf_default_loop_hud');
     const frameAudioTickAsm = buildGameFlowAudioTickAsm(analysis, executionPlan);
+    const defaultBossUpdateAsm = projectHasBossRuntime(analysis)
+        ? `    call update_boss_system
+`
+        : '';
     const firstScreen = analysis.screenMaps && analysis.screenMaps.length > 0 ? analysis.screenMaps[0] : null;
     const firstImportedHudFrameDrawRoutine = firstScreen ? getImportedHudFrameDrawRoutineName(firstScreen) : null;
     const useFarCall = romMode === 'megarom';
     const firstScreenLoadCode = firstScreen
         ? `    call ${getScreenLoadRoutineName(firstScreen)}${useFarCall ? '_far' : ''}\n`
         : `    ; No screens available\n`;
+    const componentTriggerHelpersAsm = shouldEmitComponentTriggerHelpersInGameFlow(analysis, romMode)
+        ? (0, componentsGenerator_1.generateComponentTriggerHelpers)()
+        : '';
     return `; ==================================================================
 ; DEFAULT GAMEFLOW (No GameFlow defined in project)
 ; ==================================================================
@@ -3543,6 +3974,7 @@ ${firstScreenLoadCode}${firstImportedHudFrameDrawRoutine ? `    ; Draw imported 
 ${defaultHasHud ? `    ; Bootstrap HUD only on screens that define HUD elements
 ${defaultStartHudAsm}` : ``}    ret
 
+; @mideas:block id=runtime.gameflow.world_loop kind=routine owner=gameflow roots=gameflow_world_game_loop
 gameflow_world_game_loop:
     halt                            ; Frame sync at loop start (V-Blank edge)
 ${frameAudioTickAsm}    ; Poll input immediately after V-Blank so hero movement lands
@@ -3555,16 +3987,21 @@ ${frameAudioTickAsm}    ; Poll input immediately after V-Blank so hero movement 
     call refresh_player_tile_interaction_fastpath
     call refresh_player_state_machine_fastpath
     call execute_all_state_machines
+    call refresh_player_wallgrab_fastpath
+    call update_wallgrab_component
     call refresh_player_animation_fastpath
     call refresh_player_sprite_fastpath
-    call update_sprites_to_vram     ; Upload current-frame sprite positions
+${defaultBossUpdateAsm}    call update_sprites_to_vram     ; Upload current-frame sprite positions
     call update_animated_tiles      ; Defer tile VRAM work behind hero updates
 ${defaultHasHud ? `    ; Render HUD only on screens that define HUD elements
 ${defaultLoopHudAsm}
 ` : ``}
     jp gameflow_world_game_loop
+; @mideas:endblock id=runtime.gameflow.world_loop
 
 ; gameflow_exit_requested is allocated in variables.asm (RAM EQU)
+
+${componentTriggerHelpersAsm}
 
 ; ==================================================================
 ; END OF DEFAULT GAMEFLOW

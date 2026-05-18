@@ -145,6 +145,8 @@ export interface Tile {
   lineAttributes?: LineColorAttribute[][];
   /** Logical properties for game mechanics. */
   logicalProperties: TileLogicalProperties;
+  /** Optional per-8x8 character logical overrides, keyed as "charX,charY". Missing entries inherit logicalProperties. */
+  charLogicalProperties?: Record<string, TileLogicalProperties>;
   /** Optional custom palette definition for SCREEN 5 tiles. */
   screen5Palette?: Screen5PaletteSlot[];
   /** Optional tile animation metadata for ASM generation. */
@@ -550,6 +552,8 @@ export type ScreenEngineKind = 'player' | 'fakePlayer';
 export interface ScreenBlockOptimization {
   /** Background export strategy. `raw` preserves the current 32x24 tile stream. */
   backgroundMode?: ScreenBlockExportMode;
+  /** Include this screen in the shared ROM block catalog group for its mode/TileBank. */
+  sharedCatalogEnabled?: boolean;
 }
 
 /** Optional behavior generation settings for a screen. */
@@ -973,6 +977,33 @@ export interface TileAssignment {
   charCode: number;
 }
 
+export interface TileBankOptimizedChar {
+  /** Local 8x8 character index inside the tile, row-major. */
+  charIndex: number;
+  /** Physical MSX character code used by this local character. */
+  charCode: number;
+  /** Stable visual/logical signature used for deduplication. */
+  signature: string;
+  /** Whether the visual pattern is empty. */
+  isEmpty?: boolean;
+}
+
+export interface TileBankTileAssignment {
+  /** Base or first physical character code assigned to the tile. */
+  charCode: number;
+  /** Direct local-char-index -> physical character code map for optimized assignments. */
+  charMap?: number[];
+  /** Marks assignments produced by the tile bank optimizer. */
+  optimized?: boolean;
+  /** Metadata for the unique physical chars materialized by this tile assignment. */
+  optimizedChars?: TileBankOptimizedChar[];
+}
+
+export interface TileBankFontAssignment {
+  charCode: number;
+  fontCharacters: { character: string; bankCharCode: number; originalCharCode: number }[];
+}
+
 /**
  * Represents a single tile bank for managing SCREEN 2 character sets and colors.
  */
@@ -1000,7 +1031,7 @@ export interface TileBankDefinition {
   /** Whether the bank is currently enabled. */
   enabled?: boolean;
   /** A record of tiles assigned to this bank, mapping tile ID to assignment data. */
-  assignedTiles: Record<string, { charCode: number } | { charCode: number; fontCharacters: { character: string; bankCharCode: number; originalCharCode: number }[] }>;
+  assignedTiles: Record<string, TileBankTileAssignment | TileBankFontAssignment>;
 }
 
 /**
@@ -1590,11 +1621,18 @@ export interface DialogueAsset {
     maxLinesPerBox: number;
     stripUnsupportedChars: boolean;
     charDelayFrames: number;
+    mouthToggleEveryChars?: number;
   };
 }
 // --- End Dialogue Asset Types ---
 
 // --- Portrait Asset Types ---
+export interface PortraitMouthConfig {
+  enabled: boolean;
+  cellIndex: number;
+  openTileId?: string;
+}
+
 export interface PortraitAsset {
   id: string;
   name: string;
@@ -1603,13 +1641,14 @@ export interface PortraitAsset {
   tileBankAssetId?: string;
   cells: string[];
   dedupeIdenticalTiles: boolean;
+  mouth?: PortraitMouthConfig;
 }
 // --- End Portrait Asset Types ---
 
 // --- Game Flow Types ---
 
 /** The type of a node in the game flow graph. */
-export type GameFlowNodeType = 'Start' | 'SubMenu' | 'WorldLink' | 'End' | 'Text' | 'Restart' | 'Waypoint' | 'Transition' | 'Group' | 'IfThenElse' | 'Music' | 'Globals' | 'PresentationScreen';
+export type GameFlowNodeType = 'Start' | 'SubMenu' | 'Controls' | 'WorldLink' | 'End' | 'Text' | 'TextScroll' | 'TextScrollColor' | 'TextScroll2' | 'Restart' | 'Waypoint' | 'Transition' | 'Group' | 'IfThenElse' | 'Music' | 'Globals' | 'PresentationScreen';
 
 /** The base interface for a game flow node. */
 export interface GameFlowNode_Base {
@@ -1677,6 +1716,22 @@ export interface GameFlowSubMenuNode extends GameFlowNode_Base {
   };
 }
 
+export type GameFlowKeyboardButton1Binding = 'SPC' | 'CTRL';
+export type GameFlowKeyboardButton2Binding = 'N' | 'CTRL';
+export type GameFlowActionButtonBinding = 'button1' | 'button2';
+
+/** Represents an in-game control configuration menu. */
+export interface GameFlowControlsNode extends GameFlowNode_Base {
+  type: 'Controls';
+  title: string;
+  keyboardButton1?: GameFlowKeyboardButton1Binding;
+  keyboardButton2?: GameFlowKeyboardButton2Binding;
+  jumpActionLabel?: string;
+  jumpActionButton?: GameFlowActionButtonBinding;
+  actionLabel?: string;
+  actionButton?: GameFlowActionButtonBinding;
+}
+
 /** Represents a link to a world map in the game flow. */
 export interface GameFlowWorldLinkNode extends GameFlowNode_Base {
   type: 'WorldLink';
@@ -1706,6 +1761,43 @@ export interface GameFlowTextNode extends GameFlowNode_Base {
       promptText: string;
     };
   };
+}
+
+/** Represents a Galious-style text scroll screen. */
+export interface GameFlowTextScrollNode extends GameFlowNode_Base {
+  type: 'TextScroll';
+  title: string;
+  text: string;
+  fontAssetId?: string;
+  backgroundColor: string;
+  stripeColor: string;
+  /** Frames to wait per scroll pixel in preview, clamped by exporters. */
+  speedFrames: number;
+}
+
+/** Represents a Galious-style text scroll screen with configurable foreground text color. */
+export interface GameFlowTextScrollColorNode extends GameFlowNode_Base {
+  type: 'TextScrollColor';
+  title: string;
+  text: string;
+  fontAssetId?: string;
+  backgroundColor: string;
+  stripeColor: string;
+  textColor: string;
+  /** Frames to wait per scroll pixel in preview, clamped by exporters. */
+  speedFrames: number;
+}
+
+/** Represents a SCREEN 2 pattern-table pixel scroll text screen. */
+export interface GameFlowTextScroll2Node extends GameFlowNode_Base {
+  type: 'TextScroll2';
+  title: string;
+  text: string;
+  fontAssetId?: string;
+  backgroundColor: string;
+  stripeColor: string;
+  /** Frames to wait per scroll pixel in preview, clamped by exporters. */
+  speedFrames: number;
 }
 
 /** Represents a restart node that loops back to the start of the game. */
@@ -1741,8 +1833,9 @@ export interface GameFlowMusicNode extends GameFlowNode_Base {
 /** Represents a screen transition effect node. */
 export interface GameFlowTransitionNode extends GameFlowNode_Base {
   type: 'Transition';
-  effect: 'cls' | 'dissolve_pixels' | 'dissolve_chars' | 'vertical_lines' | 'horizontal_lines' | 'spiral' | 'fill_white_squares';
+  effect: 'cls' | 'dissolve_pixels' | 'dissolve_chars' | 'vertical_lines' | 'horizontal_lines' | 'spiral' | 'fill_white_squares' | 'diagonal_clear' | 'diagonal_inverse' | 'checkerboard' | 'doors' | 'center_curtain' | 'venetian_blinds' | 'radial_wipe' | 'block4_shuffle' | 'zoom_box';
   duration?: number; // milliseconds (optional, for preview timing)
+  fillChar?: 254 | 255; // SCREEN 2 char used by name-table wipe effects
 }
 
 /** Represents a node that sets or initializes global variables at runtime. */
@@ -1787,7 +1880,7 @@ export interface GameFlowPresentationScreenNode extends GameFlowNode_Base {
 }
 
 /** A union type for all possible game flow node types. */
-export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode | GameFlowTextNode | GameFlowRestartNode | GameFlowWaypointNode | GameFlowMusicNode | GameFlowTransitionNode | GameFlowGroupNode | GameFlowIfThenElseNode | GameFlowGlobalsNode | GameFlowPresentationScreenNode;
+export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowControlsNode | GameFlowWorldLinkNode | GameFlowEndNode | GameFlowTextNode | GameFlowTextScrollNode | GameFlowTextScrollColorNode | GameFlowTextScroll2Node | GameFlowRestartNode | GameFlowWaypointNode | GameFlowMusicNode | GameFlowTransitionNode | GameFlowGroupNode | GameFlowIfThenElseNode | GameFlowGlobalsNode | GameFlowPresentationScreenNode;
 
 /** Represents a connection between two nodes in the game flow graph. */
 export interface GameFlowConnection {
@@ -1831,6 +1924,7 @@ export enum EditorType {
   StateMachine = "StateMachine",
   GlobalVariables = "GlobalVariables",
   Palette = "Palette",
+  PngMsxChars = "PngMsxChars",
 }
 
 /**
@@ -1882,6 +1976,7 @@ export interface PaletteAsset {
 }
 
 export type DataFormat = 'hex' | 'decimal';
+export type ExportRomMode = 'auto' | 'simple32k' | 'plain48k' | 'megarom';
 
 export interface Snippet { id: string; name: string; code: string; }
 

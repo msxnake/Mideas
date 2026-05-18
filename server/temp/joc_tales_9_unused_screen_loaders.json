@@ -1,0 +1,5425 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\joc_tales_9_matrix_megarom_konami_compressed.asm",
+  "metrics": {
+    "original_line_count": 21361,
+    "output_line_count": 21361,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "block_inventory": {
+      "count": 69,
+      "preserved": 1,
+      "removable": 68,
+      "dead_block_candidates": 20,
+      "total_lines": 11724,
+      "total_source_bytes": 317433,
+      "dead_candidate_lines": 260,
+      "dead_candidate_source_bytes": 7431,
+      "by_kind": {
+        "data": 1,
+        "routine": 68
+      },
+      "by_owner": {
+        "animtiles": 1,
+        "bosses": 2,
+        "components": 31,
+        "entities": 2,
+        "gameflow": 6,
+        "hud": 1,
+        "interrupt": 5,
+        "mapper": 1,
+        "resources": 1,
+        "screens": 6,
+        "scroll": 1,
+        "sound": 5,
+        "sprites": 1,
+        "stateMachine": 2,
+        "unified": 2,
+        "worlds": 2
+      },
+      "by_status": {
+        "candidate_unreferenced": 20,
+        "preserved": 1,
+        "referenced": 12,
+        "rooted": 36
+      },
+      "largest_blocks": [
+        {
+          "id": "runtime.components.scheduler",
+          "kind": "routine",
+          "owner": "components",
+          "status": "rooted",
+          "line_count": 1580,
+          "source_bytes": 35945
+        },
+        {
+          "id": "runtime.components.wallcollision",
+          "kind": "routine",
+          "owner": "components",
+          "status": "referenced",
+          "line_count": 839,
+          "source_bytes": 31288
+        },
+        {
+          "id": "runtime.statemachine.core",
+          "kind": "routine",
+          "owner": "stateMachine",
+          "status": "rooted",
+          "line_count": 1096,
+          "source_bytes": 25160
+        },
+        {
+          "id": "runtime.boss.core",
+          "kind": "routine",
+          "owner": "bosses",
+          "status": "rooted",
+          "line_count": 876,
+          "source_bytes": 19553
+        },
+        {
+          "id": "runtime.components.collision",
+          "kind": "routine",
+          "owner": "components",
+          "status": "referenced",
+          "line_count": 668,
+          "source_bytes": 18861
+        },
+        {
+          "id": "runtime.resources.manager",
+          "kind": "routine",
+          "owner": "resources",
+          "status": "rooted",
+          "line_count": 680,
+          "source_bytes": 17743
+        },
+        {
+          "id": "runtime.components.input",
+          "kind": "routine",
+          "owner": "components",
+          "status": "referenced",
+          "line_count": 388,
+          "source_bytes": 12766
+        },
+        {
+          "id": "runtime.components.animation",
+          "kind": "routine",
+          "owner": "components",
+          "status": "referenced",
+          "line_count": 342,
+          "source_bytes": 10555
+        },
+        {
+          "id": "runtime.components.sprite",
+          "kind": "routine",
+          "owner": "components",
+          "status": "rooted",
+          "line_count": 396,
+          "source_bytes": 10316
+        },
+        {
+          "id": "runtime.animtiles.core",
+          "kind": "routine",
+          "owner": "animtiles",
+          "status": "rooted",
+          "line_count": 318,
+          "source_bytes": 9265
+        },
+        {
+          "id": "runtime.scroll.core",
+          "kind": "routine",
+          "owner": "scroll",
+          "status": "rooted",
+          "line_count": 340,
+          "source_bytes": 8599
+        },
+        {
+          "id": "runtime.components.jump",
+          "kind": "routine",
+          "owner": "components",
+          "status": "referenced",
+          "line_count": 233,
+          "source_bytes": 7043
+        },
+        {
+          "id": "runtime.components.entity_management",
+          "kind": "routine",
+          "owner": "components",
+          "status": "rooted",
+          "line_count": 221,
+          "source_bytes": 6553
+        },
+        {
+          "id": "runtime.interrupt.task_input",
+          "kind": "routine",
+          "owner": "interrupt",
+          "status": "rooted",
+          "line_count": 228,
+          "source_bytes": 5981
+        },
+        {
+          "id": "runtime.components.deadly_tiles",
+          "kind": "routine",
+          "owner": "components",
+          "status": "rooted",
+          "line_count": 262,
+          "source_bytes": 5874
+        },
+        {
+          "id": "runtime.mapper.core",
+          "kind": "routine",
+          "owner": "mapper",
+          "status": "rooted",
+          "line_count": 213,
+          "source_bytes": 5412
+        },
+        {
+          "id": "data.entities.player_1.init",
+          "kind": "routine",
+          "owner": "entities",
+          "status": "rooted",
+          "line_count": 177,
+          "source_bytes": 4974
+        },
+        {
+          "id": "runtime.components.health",
+          "kind": "routine",
+          "owner": "components",
+          "status": "rooted",
+          "line_count": 152,
+          "source_bytes": 4701
+        },
+        {
+          "id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+          "kind": "routine",
+          "owner": "screens",
+          "status": "rooted",
+          "line_count": 114,
+          "source_bytes": 4685
+        },
+        {
+          "id": "runtime.components.gravity",
+          "kind": "routine",
+          "owner": "components",
+          "status": "rooted",
+          "line_count": 137,
+          "source_bytes": 4553
+        }
+      ],
+      "errors": []
+    },
+    "routine_inventory": {
+      "count": 679,
+      "unannotated_count": 331,
+      "by_category": {
+        "bank_marker": {
+          "count": 25,
+          "line_count": 715,
+          "source_bytes": 31224,
+          "unannotated_count": 25,
+          "unannotated_line_count": 715,
+          "unannotated_source_bytes": 31224
+        },
+        "bios_helper": {
+          "count": 9,
+          "line_count": 1721,
+          "source_bytes": 89611,
+          "unannotated_count": 9,
+          "unannotated_line_count": 1721,
+          "unannotated_source_bytes": 89611
+        },
+        "boot_or_init": {
+          "count": 57,
+          "line_count": 1577,
+          "source_bytes": 43547,
+          "unannotated_count": 33,
+          "unannotated_line_count": 792,
+          "unannotated_source_bytes": 21045
+        },
+        "data": {
+          "count": 132,
+          "line_count": 1338,
+          "source_bytes": 51692,
+          "unannotated_count": 112,
+          "unannotated_line_count": 1136,
+          "unannotated_source_bytes": 44233
+        },
+        "far_trampoline": {
+          "count": 78,
+          "line_count": 828,
+          "source_bytes": 16532,
+          "unannotated_count": 78,
+          "unannotated_line_count": 828,
+          "unannotated_source_bytes": 16532
+        },
+        "runtime_code": {
+          "count": 319,
+          "line_count": 10192,
+          "source_bytes": 272925,
+          "unannotated_count": 66,
+          "unannotated_line_count": 786,
+          "unannotated_source_bytes": 24199
+        },
+        "screen_loader": {
+          "count": 2,
+          "line_count": 100,
+          "source_bytes": 4050,
+          "unannotated_count": 1,
+          "unannotated_line_count": 18,
+          "unannotated_source_bytes": 458
+        },
+        "shared_runtime": {
+          "count": 53,
+          "line_count": 1528,
+          "source_bytes": 41248,
+          "unannotated_count": 3,
+          "unannotated_line_count": 59,
+          "unannotated_source_bytes": 1908
+        },
+        "unknown": {
+          "count": 4,
+          "line_count": 4,
+          "source_bytes": 70,
+          "unannotated_count": 4,
+          "unannotated_line_count": 4,
+          "unannotated_source_bytes": 70
+        }
+      },
+      "largest_routines": [
+        {
+          "name": "FAST_SNSMAT",
+          "line_count": 1120,
+          "source_bytes": 71322,
+          "block_id": null,
+          "category": "bios_helper",
+          "category_reason": "BIOS/direct hardware helper label"
+        },
+        {
+          "name": "update_wallcollision_component",
+          "line_count": 538,
+          "source_bytes": 20410,
+          "block_id": "runtime.components.wallcollision",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_player_fastpath",
+          "line_count": 604,
+          "source_bytes": 13839,
+          "block_id": "runtime.components.scheduler",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_entity_collision_fast",
+          "line_count": 345,
+          "source_bytes": 9814,
+          "block_id": "runtime.components.collision",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_animation_component",
+          "line_count": 255,
+          "source_bytes": 8328,
+          "block_id": "runtime.components.animation",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "BANK_0_USED_END",
+          "line_count": 141,
+          "source_bytes": 7659,
+          "block_id": null,
+          "category": "bank_marker",
+          "category_reason": "MegaROM bank boundary or far-bank marker"
+        },
+        {
+          "name": "vdpLoop",
+          "line_count": 192,
+          "source_bytes": 6712,
+          "block_id": null,
+          "category": "bios_helper",
+          "category_reason": "BIOS/direct hardware helper label"
+        },
+        {
+          "name": "task_update_input",
+          "line_count": 199,
+          "source_bytes": 4970,
+          "block_id": "runtime.interrupt.task_input",
+          "category": "shared_runtime",
+          "category_reason": "Shared low-level runtime helper"
+        },
+        {
+          "name": "init_player_1",
+          "line_count": 177,
+          "source_bytes": 4880,
+          "block_id": "data.entities.player_1.init",
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        },
+        {
+          "name": "jump_update_loop",
+          "line_count": 157,
+          "source_bytes": 4675,
+          "block_id": "runtime.components.jump",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "rebuild_used_entity_list",
+          "line_count": 207,
+          "source_bytes": 4475,
+          "block_id": "runtime.components.scheduler",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_boss_system",
+          "line_count": 134,
+          "source_bytes": 4229,
+          "block_id": "runtime.boss.entry",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "interrupt_dispatcher",
+          "line_count": 122,
+          "source_bytes": 4176,
+          "block_id": "runtime.interrupt.dispatcher",
+          "category": "shared_runtime",
+          "category_reason": "Shared low-level runtime helper"
+        },
+        {
+          "name": "tilebank_pattern_data_0",
+          "line_count": 59,
+          "source_bytes": 4015,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "FAR_BANK_6_ROM_START",
+          "line_count": 79,
+          "source_bytes": 3937,
+          "block_id": null,
+          "category": "bank_marker",
+          "category_reason": "MegaROM bank boundary or far-bank marker"
+        },
+        {
+          "name": "Condition_VariableCompare",
+          "line_count": 186,
+          "source_bytes": 3892,
+          "block_id": "runtime.statemachine.core",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "wall_build_hitbox_cache",
+          "line_count": 121,
+          "source_bytes": 3875,
+          "block_id": "runtime.components.wallcollision",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "tile_pattern_bank0",
+          "line_count": 56,
+          "source_bytes": 3821,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "load_screen_new_playable_screen_777833014252",
+          "line_count": 82,
+          "source_bytes": 3592,
+          "block_id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+          "category": "screen_loader",
+          "category_reason": "Generated screen loader routine"
+        },
+        {
+          "name": "wall_down_behavior_blocks",
+          "line_count": 75,
+          "source_bytes": 3286,
+          "block_id": "runtime.components.wallcollision",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "input_update_loop",
+          "line_count": 108,
+          "source_bytes": 3269,
+          "block_id": "runtime.components.input",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "FAR_BANK_8_ROM_START",
+          "line_count": 78,
+          "source_bytes": 3096,
+          "block_id": null,
+          "category": "bank_marker",
+          "category_reason": "MegaROM bank boundary or far-bank marker"
+        },
+        {
+          "name": "init_components",
+          "line_count": 83,
+          "source_bytes": 3021,
+          "block_id": "runtime.components.init",
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        },
+        {
+          "name": "input_apply_velocity",
+          "line_count": 68,
+          "source_bytes": 2776,
+          "block_id": "runtime.components.input",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_all_entities",
+          "line_count": 61,
+          "source_bytes": 2494,
+          "block_id": "runtime.components.scheduler",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "init_char0_color",
+          "line_count": 95,
+          "source_bytes": 2487,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        },
+        {
+          "name": "restart_rom_continue",
+          "line_count": 83,
+          "source_bytes": 2480,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        },
+        {
+          "name": "expand_screen_block_layout_4x4",
+          "line_count": 126,
+          "source_bytes": 2467,
+          "block_id": "runtime.screens.block_layout_expander",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "FAST_LDIRVM",
+          "line_count": 73,
+          "source_bytes": 2463,
+          "block_id": null,
+          "category": "bios_helper",
+          "category_reason": "BIOS/direct hardware helper label"
+        },
+        {
+          "name": "gameflow_world_game_loop",
+          "line_count": 71,
+          "source_bytes": 2447,
+          "block_id": "runtime.gameflow.world_loop",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        }
+      ],
+      "largest_unannotated_labels": [
+        {
+          "name": "FAST_SNSMAT",
+          "line_count": 1120,
+          "source_bytes": 71322,
+          "block_id": null,
+          "category": "bios_helper",
+          "category_reason": "BIOS/direct hardware helper label"
+        },
+        {
+          "name": "BANK_0_USED_END",
+          "line_count": 141,
+          "source_bytes": 7659,
+          "block_id": null,
+          "category": "bank_marker",
+          "category_reason": "MegaROM bank boundary or far-bank marker"
+        },
+        {
+          "name": "vdpLoop",
+          "line_count": 192,
+          "source_bytes": 6712,
+          "block_id": null,
+          "category": "bios_helper",
+          "category_reason": "BIOS/direct hardware helper label"
+        },
+        {
+          "name": "tilebank_pattern_data_0",
+          "line_count": 59,
+          "source_bytes": 4015,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "FAR_BANK_6_ROM_START",
+          "line_count": 79,
+          "source_bytes": 3937,
+          "block_id": null,
+          "category": "bank_marker",
+          "category_reason": "MegaROM bank boundary or far-bank marker"
+        },
+        {
+          "name": "tile_pattern_bank0",
+          "line_count": 56,
+          "source_bytes": 3821,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "FAR_BANK_8_ROM_START",
+          "line_count": 78,
+          "source_bytes": 3096,
+          "block_id": null,
+          "category": "bank_marker",
+          "category_reason": "MegaROM bank boundary or far-bank marker"
+        },
+        {
+          "name": "init_char0_color",
+          "line_count": 95,
+          "source_bytes": 2487,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        },
+        {
+          "name": "restart_rom_continue",
+          "line_count": 83,
+          "source_bytes": 2480,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        },
+        {
+          "name": "FAST_LDIRVM",
+          "line_count": 73,
+          "source_bytes": 2463,
+          "block_id": null,
+          "category": "bios_helper",
+          "category_reason": "BIOS/direct hardware helper label"
+        },
+        {
+          "name": "init_interrupt_system",
+          "line_count": 63,
+          "source_bytes": 2073,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        },
+        {
+          "name": "init_entities",
+          "line_count": 91,
+          "source_bytes": 2038,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        },
+        {
+          "name": "BANK_2_USED_END",
+          "line_count": 40,
+          "source_bytes": 1922,
+          "block_id": null,
+          "category": "bank_marker",
+          "category_reason": "MegaROM bank boundary or far-bank marker"
+        },
+        {
+          "name": "resource_table",
+          "line_count": 97,
+          "source_bytes": 1879,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "init_sprites",
+          "line_count": 68,
+          "source_bytes": 1814,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        },
+        {
+          "name": "FAST_WRTVDP",
+          "line_count": 59,
+          "source_bytes": 1764,
+          "block_id": null,
+          "category": "bios_helper",
+          "category_reason": "BIOS/direct hardware helper label"
+        },
+        {
+          "name": "FAST_WRTVRM",
+          "line_count": 60,
+          "source_bytes": 1682,
+          "block_id": null,
+          "category": "bios_helper",
+          "category_reason": "BIOS/direct hardware helper label"
+        },
+        {
+          "name": "FAST_FILLVRM",
+          "line_count": 76,
+          "source_bytes": 1677,
+          "block_id": null,
+          "category": "bios_helper",
+          "category_reason": "BIOS/direct hardware helper label"
+        },
+        {
+          "name": "FAST_RDVRM",
+          "line_count": 53,
+          "source_bytes": 1498,
+          "block_id": null,
+          "category": "bios_helper",
+          "category_reason": "BIOS/direct hardware helper label"
+        },
+        {
+          "name": "FAR_BANK_10_ROM_START",
+          "line_count": 34,
+          "source_bytes": 1434,
+          "block_id": null,
+          "category": "bank_marker",
+          "category_reason": "MegaROM bank boundary or far-bank marker"
+        },
+        {
+          "name": "tilebank_color_data_0",
+          "line_count": 22,
+          "source_bytes": 1426,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "joystick_direction_table",
+          "line_count": 54,
+          "source_bytes": 1407,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "tile_color_bank0",
+          "line_count": 21,
+          "source_bytes": 1354,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "init_player_from_hero_entity",
+          "line_count": 62,
+          "source_bytes": 1324,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        },
+        {
+          "name": "FAST_GTTRIG",
+          "line_count": 54,
+          "source_bytes": 1254,
+          "block_id": null,
+          "category": "bios_helper",
+          "category_reason": "BIOS/direct hardware helper label"
+        },
+        {
+          "name": "FAST_GTSTCK",
+          "line_count": 34,
+          "source_bytes": 1239,
+          "block_id": null,
+          "category": "bios_helper",
+          "category_reason": "BIOS/direct hardware helper label"
+        },
+        {
+          "name": "boss_0_new_boss_phase_0_forms_1_weak",
+          "line_count": 19,
+          "source_bytes": 1225,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "FAR_BANK_5_ROM_START",
+          "line_count": 37,
+          "source_bytes": 1199,
+          "block_id": null,
+          "category": "bank_marker",
+          "category_reason": "MegaROM bank boundary or far-bank marker"
+        },
+        {
+          "name": "boss_0_new_boss_phase_0_forms_1",
+          "line_count": 15,
+          "source_bytes": 1167,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        },
+        {
+          "name": "boss_0_new_boss_phase_0_tiles",
+          "line_count": 15,
+          "source_bytes": 1165,
+          "block_id": null,
+          "category": "data",
+          "category_reason": "Directive-only label"
+        }
+      ],
+      "largest_unannotated_by_category": {
+        "bank_marker": [
+          {
+            "name": "BANK_0_USED_END",
+            "line_count": 141,
+            "source_bytes": 7659,
+            "block_id": null,
+            "category": "bank_marker",
+            "category_reason": "MegaROM bank boundary or far-bank marker"
+          },
+          {
+            "name": "FAR_BANK_6_ROM_START",
+            "line_count": 79,
+            "source_bytes": 3937,
+            "block_id": null,
+            "category": "bank_marker",
+            "category_reason": "MegaROM bank boundary or far-bank marker"
+          },
+          {
+            "name": "FAR_BANK_8_ROM_START",
+            "line_count": 78,
+            "source_bytes": 3096,
+            "block_id": null,
+            "category": "bank_marker",
+            "category_reason": "MegaROM bank boundary or far-bank marker"
+          },
+          {
+            "name": "BANK_2_USED_END",
+            "line_count": 40,
+            "source_bytes": 1922,
+            "block_id": null,
+            "category": "bank_marker",
+            "category_reason": "MegaROM bank boundary or far-bank marker"
+          },
+          {
+            "name": "FAR_BANK_10_ROM_START",
+            "line_count": 34,
+            "source_bytes": 1434,
+            "block_id": null,
+            "category": "bank_marker",
+            "category_reason": "MegaROM bank boundary or far-bank marker"
+          },
+          {
+            "name": "FAR_BANK_5_ROM_START",
+            "line_count": 37,
+            "source_bytes": 1199,
+            "block_id": null,
+            "category": "bank_marker",
+            "category_reason": "MegaROM bank boundary or far-bank marker"
+          },
+          {
+            "name": "FAR_BANK_11_ROM_START",
+            "line_count": 26,
+            "source_bytes": 1143,
+            "block_id": null,
+            "category": "bank_marker",
+            "category_reason": "MegaROM bank boundary or far-bank marker"
+          },
+          {
+            "name": "FAR_BANK_7_ROM_START",
+            "line_count": 33,
+            "source_bytes": 1058,
+            "block_id": null,
+            "category": "bank_marker",
+            "category_reason": "MegaROM bank boundary or far-bank marker"
+          },
+          {
+            "name": "FAR_BANK_12_ROM_START",
+            "line_count": 28,
+            "source_bytes": 1036,
+            "block_id": null,
+            "category": "bank_marker",
+            "category_reason": "MegaROM bank boundary or far-bank marker"
+          },
+          {
+            "name": "FAR_BANK_9_ROM_START",
+            "line_count": 30,
+            "source_bytes": 1005,
+            "block_id": null,
+            "category": "bank_marker",
+            "category_reason": "MegaROM bank boundary or far-bank marker"
+          }
+        ],
+        "bios_helper": [
+          {
+            "name": "FAST_SNSMAT",
+            "line_count": 1120,
+            "source_bytes": 71322,
+            "block_id": null,
+            "category": "bios_helper",
+            "category_reason": "BIOS/direct hardware helper label"
+          },
+          {
+            "name": "vdpLoop",
+            "line_count": 192,
+            "source_bytes": 6712,
+            "block_id": null,
+            "category": "bios_helper",
+            "category_reason": "BIOS/direct hardware helper label"
+          },
+          {
+            "name": "FAST_LDIRVM",
+            "line_count": 73,
+            "source_bytes": 2463,
+            "block_id": null,
+            "category": "bios_helper",
+            "category_reason": "BIOS/direct hardware helper label"
+          },
+          {
+            "name": "FAST_WRTVDP",
+            "line_count": 59,
+            "source_bytes": 1764,
+            "block_id": null,
+            "category": "bios_helper",
+            "category_reason": "BIOS/direct hardware helper label"
+          },
+          {
+            "name": "FAST_WRTVRM",
+            "line_count": 60,
+            "source_bytes": 1682,
+            "block_id": null,
+            "category": "bios_helper",
+            "category_reason": "BIOS/direct hardware helper label"
+          },
+          {
+            "name": "FAST_FILLVRM",
+            "line_count": 76,
+            "source_bytes": 1677,
+            "block_id": null,
+            "category": "bios_helper",
+            "category_reason": "BIOS/direct hardware helper label"
+          },
+          {
+            "name": "FAST_RDVRM",
+            "line_count": 53,
+            "source_bytes": 1498,
+            "block_id": null,
+            "category": "bios_helper",
+            "category_reason": "BIOS/direct hardware helper label"
+          },
+          {
+            "name": "FAST_GTTRIG",
+            "line_count": 54,
+            "source_bytes": 1254,
+            "block_id": null,
+            "category": "bios_helper",
+            "category_reason": "BIOS/direct hardware helper label"
+          },
+          {
+            "name": "FAST_GTSTCK",
+            "line_count": 34,
+            "source_bytes": 1239,
+            "block_id": null,
+            "category": "bios_helper",
+            "category_reason": "BIOS/direct hardware helper label"
+          }
+        ],
+        "boot_or_init": [
+          {
+            "name": "init_char0_color",
+            "line_count": 95,
+            "source_bytes": 2487,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          },
+          {
+            "name": "restart_rom_continue",
+            "line_count": 83,
+            "source_bytes": 2480,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          },
+          {
+            "name": "init_interrupt_system",
+            "line_count": 63,
+            "source_bytes": 2073,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          },
+          {
+            "name": "init_entities",
+            "line_count": 91,
+            "source_bytes": 2038,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          },
+          {
+            "name": "init_sprites",
+            "line_count": 68,
+            "source_bytes": 1814,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          },
+          {
+            "name": "init_player_from_hero_entity",
+            "line_count": 62,
+            "source_bytes": 1324,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          },
+          {
+            "name": "init_game_systems",
+            "line_count": 32,
+            "source_bytes": 1088,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          },
+          {
+            "name": "init_all_global_variables",
+            "line_count": 21,
+            "source_bytes": 926,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          },
+          {
+            "name": "init_sound_system",
+            "line_count": 26,
+            "source_bytes": 880,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          },
+          {
+            "name": "init_player_fast_runtime",
+            "line_count": 21,
+            "source_bytes": 666,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          }
+        ],
+        "data": [
+          {
+            "name": "tilebank_pattern_data_0",
+            "line_count": 59,
+            "source_bytes": 4015,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "tile_pattern_bank0",
+            "line_count": 56,
+            "source_bytes": 3821,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "resource_table",
+            "line_count": 97,
+            "source_bytes": 1879,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "tilebank_color_data_0",
+            "line_count": 22,
+            "source_bytes": 1426,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "joystick_direction_table",
+            "line_count": 54,
+            "source_bytes": 1407,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "tile_color_bank0",
+            "line_count": 21,
+            "source_bytes": 1354,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "boss_0_new_boss_phase_0_forms_1_weak",
+            "line_count": 19,
+            "source_bytes": 1225,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "boss_0_new_boss_phase_0_forms_1",
+            "line_count": 15,
+            "source_bytes": 1167,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "boss_0_new_boss_phase_0_tiles",
+            "line_count": 15,
+            "source_bytes": 1165,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          },
+          {
+            "name": "boss_0_new_boss_phase_0_weak",
+            "line_count": 15,
+            "source_bytes": 1164,
+            "block_id": null,
+            "category": "data",
+            "category_reason": "Directive-only label"
+          }
+        ],
+        "far_trampoline": [
+          {
+            "name": "force_render_hud_far",
+            "line_count": 23,
+            "source_bytes": 686,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          },
+          {
+            "name": "update_animated_tiles_vram_far",
+            "line_count": 24,
+            "source_bytes": 533,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          },
+          {
+            "name": "load_world_worldmap_1777833018852_far",
+            "line_count": 21,
+            "source_bytes": 488,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          },
+          {
+            "name": "call_task_audio_tick_resident",
+            "line_count": 17,
+            "source_bytes": 485,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          },
+          {
+            "name": "music_execute_command_far",
+            "line_count": 21,
+            "source_bytes": 436,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          },
+          {
+            "name": "draw_boss_attack_far",
+            "line_count": 21,
+            "source_bytes": 416,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          },
+          {
+            "name": "call_show_sprite_resident",
+            "line_count": 29,
+            "source_bytes": 415,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          },
+          {
+            "name": "update_entities_far",
+            "line_count": 21,
+            "source_bytes": 412,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          },
+          {
+            "name": "show_presentation_screen_image_far",
+            "line_count": 18,
+            "source_bytes": 402,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          },
+          {
+            "name": "check_world_screen_transition_far",
+            "line_count": 18,
+            "source_bytes": 399,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          }
+        ],
+        "runtime_code": [
+          {
+            "name": "component_trigger_edge_pressed_a",
+            "line_count": 55,
+            "source_bytes": 1146,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "check_world_screen_transition",
+            "line_count": 45,
+            "source_bytes": 1078,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "gameflow_handle_start",
+            "line_count": 38,
+            "source_bytes": 1023,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "dzx0s_elias_backtrack",
+            "line_count": 16,
+            "source_bytes": 948,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "GETSLOT",
+            "line_count": 18,
+            "source_bytes": 940,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "gameflow_execute_node",
+            "line_count": 33,
+            "source_bytes": 841,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "update_sprites_to_vram",
+            "line_count": 27,
+            "source_bytes": 747,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "SETPAGES32K_NOPRET",
+            "line_count": 13,
+            "source_bytes": 740,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "update_player_1",
+            "line_count": 21,
+            "source_bytes": 712,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "dzx0s_new_offset",
+            "line_count": 16,
+            "source_bytes": 690,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          }
+        ],
+        "screen_loader": [
+          {
+            "name": "load_screen_new_playable_screen_777833014252_far",
+            "line_count": 18,
+            "source_bytes": 458,
+            "block_id": null,
+            "category": "screen_loader",
+            "category_reason": "Generated screen loader routine"
+          }
+        ],
+        "shared_runtime": [
+          {
+            "name": "task_frame_counter",
+            "line_count": 26,
+            "source_bytes": 969,
+            "block_id": null,
+            "category": "shared_runtime",
+            "category_reason": "Shared low-level runtime helper"
+          },
+          {
+            "name": "task_audio_tick",
+            "line_count": 28,
+            "source_bytes": 795,
+            "block_id": null,
+            "category": "shared_runtime",
+            "category_reason": "Shared low-level runtime helper"
+          },
+          {
+            "name": "dzx0_standard",
+            "line_count": 5,
+            "source_bytes": 144,
+            "block_id": null,
+            "category": "shared_runtime",
+            "category_reason": "Shared low-level runtime helper"
+          }
+        ],
+        "unknown": [
+          {
+            "name": "music_update_channel_effects",
+            "line_count": 1,
+            "source_bytes": 30,
+            "block_id": null,
+            "category": "unknown",
+            "category_reason": "No category heuristic matched"
+          },
+          {
+            "name": "music_update",
+            "line_count": 1,
+            "source_bytes": 14,
+            "block_id": null,
+            "category": "unknown",
+            "category_reason": "No category heuristic matched"
+          },
+          {
+            "name": "music_resume",
+            "line_count": 1,
+            "source_bytes": 14,
+            "block_id": null,
+            "category": "unknown",
+            "category_reason": "No category heuristic matched"
+          },
+          {
+            "name": "music_mute",
+            "line_count": 1,
+            "source_bytes": 12,
+            "block_id": null,
+            "category": "unknown",
+            "category_reason": "No category heuristic matched"
+          }
+        ]
+      }
+    },
+    "optimization_passes": [],
+    "optimization_summary": {
+      "passes_run": 0,
+      "removed_lines": 0,
+      "removed_source_bytes": 0
+    }
+  },
+  "blocks": [
+    {
+      "id": "runtime.mapper.core",
+      "kind": "routine",
+      "owner": "mapper",
+      "preserve": false,
+      "start_line": 5279,
+      "end_line": 5491,
+      "line_count": 213,
+      "labels": [
+        "mapper_runtime_init",
+        "mapper_set_bank_p1",
+        "mapper_set_bank_p2",
+        "mapper_set_bank_p3",
+        "mapper_set_bank_p4",
+        "mapper_push_p1",
+        "mapper_pop_p1",
+        "mapper_push_p2",
+        "mapper_pop_p2",
+        "mapper_push_p3",
+        "mapper_pop_p3",
+        "mapper_push_p4",
+        "mapper_pop_p4",
+        "mapper_call_hl_p1",
+        "mapper_call_hl_p2",
+        "mapper_call_hl_p3",
+        "mapper_call_hl_p4",
+        "mapper_call_hl_fixed",
+        "mapper_call_hl_auto"
+      ],
+      "deps": [],
+      "roots": [
+        "mapper_runtime_init",
+        "mapper_set_bank_p1",
+        "mapper_set_bank_p2",
+        "mapper_set_bank_p3",
+        "mapper_set_bank_p4",
+        "mapper_push_p1",
+        "mapper_pop_p1",
+        "mapper_push_p2",
+        "mapper_pop_p2",
+        "mapper_push_p3",
+        "mapper_pop_p3",
+        "mapper_push_p4",
+        "mapper_pop_p4",
+        "mapper_call_hl_p1",
+        "mapper_call_hl_p2",
+        "mapper_call_hl_p3",
+        "mapper_call_hl_p4",
+        "mapper_call_hl_auto"
+      ],
+      "attrs": {
+        "id": "runtime.mapper.core",
+        "kind": "routine",
+        "owner": "mapper",
+        "roots": "mapper_runtime_init,mapper_set_bank_p1,mapper_set_bank_p2,mapper_set_bank_p3,mapper_set_bank_p4,mapper_push_p1,mapper_pop_p1,mapper_push_p2,mapper_pop_p2,mapper_push_p3,mapper_pop_p3,mapper_push_p4,mapper_pop_p4,mapper_call_hl_p1,mapper_call_hl_p2,mapper_call_hl_p3,mapper_call_hl_p4,mapper_call_hl_auto"
+      }
+    },
+    {
+      "id": "runtime.resources.manager",
+      "kind": "routine",
+      "owner": "resources",
+      "preserve": false,
+      "start_line": 5676,
+      "end_line": 6355,
+      "line_count": 680,
+      "labels": [
+        "resource_manager_init",
+        "resource_invalidate_pattern_vram_cache",
+        "resource_invalidate_color_vram_cache",
+        "resource_invalidate_font_vram_cache",
+        "resource_invalidate_gameplay_vram_cache",
+        "resource_invalidate_screen_ram_cache",
+        "resource_find_by_id",
+        "resource_copy_from_bank_to_ram",
+        "resource_decompress_from_bank_to_ram",
+        "resource_copy_from_bank_to_vram",
+        "resource_decompress_from_bank_to_vram",
+        "resource_dzx0_to_vram",
+        "resource_load_to_ram_by_id",
+        "resource_load_to_vram_by_id",
+        "resource_load_screen_layout_cached",
+        "resource_load_effects_layout_cached",
+        "resource_load_behavior_map_cached",
+        "resource_load_effect_zone_table_cached",
+        "resource_read_byte_from_bank"
+      ],
+      "deps": [],
+      "roots": [
+        "resource_manager_init",
+        "resource_find_by_id",
+        "resource_copy_from_bank_to_ram",
+        "resource_decompress_from_bank_to_ram",
+        "resource_copy_from_bank_to_vram",
+        "resource_decompress_from_bank_to_vram",
+        "resource_dzx0_to_vram",
+        "resource_load_to_ram_by_id",
+        "resource_load_to_vram_by_id",
+        "resource_read_byte_from_bank"
+      ],
+      "attrs": {
+        "id": "runtime.resources.manager",
+        "kind": "routine",
+        "owner": "resources",
+        "roots": "resource_manager_init,resource_find_by_id,resource_copy_from_bank_to_ram,resource_decompress_from_bank_to_ram,resource_copy_from_bank_to_vram,resource_decompress_from_bank_to_vram,resource_dzx0_to_vram,resource_load_to_ram_by_id,resource_load_to_vram_by_id,resource_read_byte_from_bank"
+      }
+    },
+    {
+      "id": "runtime.components.input_trigger_level",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 6437,
+      "end_line": 6469,
+      "line_count": 33,
+      "labels": [
+        "component_trigger_level_pressed_a"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.input_trigger_level",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.page0.stubs",
+      "kind": "routine",
+      "owner": "unified",
+      "preserve": false,
+      "start_line": 6476,
+      "end_line": 6497,
+      "line_count": 22,
+      "labels": [
+        "init_page0_runtime_state",
+        "page0_map_expanded_slot",
+        "page0_map_game_rom",
+        "page0_restore_bios_rom",
+        "page0_copy_chunk_to_buffer",
+        "page0_decompress_to_ram",
+        "page0_copy_to_vram"
+      ],
+      "deps": [],
+      "roots": [
+        "init_page0_runtime_state",
+        "page0_map_expanded_slot",
+        "page0_map_game_rom",
+        "page0_restore_bios_rom",
+        "page0_copy_chunk_to_buffer",
+        "page0_decompress_to_ram",
+        "page0_copy_to_vram"
+      ],
+      "attrs": {
+        "id": "runtime.page0.stubs",
+        "kind": "routine",
+        "owner": "unified",
+        "roots": "init_page0_runtime_state,page0_map_expanded_slot,page0_map_game_rom,page0_restore_bios_rom,page0_copy_chunk_to_buffer,page0_decompress_to_ram,page0_copy_to_vram"
+      }
+    },
+    {
+      "id": "runtime.interrupt.stop",
+      "kind": "routine",
+      "owner": "interrupt",
+      "preserve": false,
+      "start_line": 6576,
+      "end_line": 6618,
+      "line_count": 43,
+      "labels": [
+        "stop_interrupt_system"
+      ],
+      "deps": [],
+      "roots": [
+        "stop_interrupt_system"
+      ],
+      "attrs": {
+        "id": "runtime.interrupt.stop",
+        "kind": "routine",
+        "owner": "interrupt",
+        "roots": "stop_interrupt_system"
+      }
+    },
+    {
+      "id": "runtime.interrupt.dispatcher",
+      "kind": "routine",
+      "owner": "interrupt",
+      "preserve": true,
+      "start_line": 6620,
+      "end_line": 6743,
+      "line_count": 124,
+      "labels": [
+        "interrupt_dispatcher"
+      ],
+      "deps": [],
+      "roots": [
+        "interrupt_dispatcher"
+      ],
+      "attrs": {
+        "id": "runtime.interrupt.dispatcher",
+        "kind": "routine",
+        "owner": "interrupt",
+        "preserve": "true",
+        "roots": "interrupt_dispatcher"
+      }
+    },
+    {
+      "id": "runtime.interrupt.vblank_flag",
+      "kind": "routine",
+      "owner": "interrupt",
+      "preserve": false,
+      "start_line": 6756,
+      "end_line": 6790,
+      "line_count": 35,
+      "labels": [
+        "update_vblank_flag"
+      ],
+      "deps": [],
+      "roots": [
+        "update_vblank_flag"
+      ],
+      "attrs": {
+        "id": "runtime.interrupt.vblank_flag",
+        "kind": "routine",
+        "owner": "interrupt",
+        "roots": "update_vblank_flag"
+      }
+    },
+    {
+      "id": "runtime.interrupt.task_api",
+      "kind": "routine",
+      "owner": "interrupt",
+      "preserve": false,
+      "start_line": 6795,
+      "end_line": 6915,
+      "line_count": 121,
+      "labels": [
+        "enable_task",
+        "disable_task",
+        "get_frame_count"
+      ],
+      "deps": [],
+      "roots": [
+        "enable_task",
+        "disable_task",
+        "get_frame_count"
+      ],
+      "attrs": {
+        "id": "runtime.interrupt.task_api",
+        "kind": "routine",
+        "owner": "interrupt",
+        "roots": "enable_task,disable_task,get_frame_count"
+      }
+    },
+    {
+      "id": "runtime.interrupt.task_input",
+      "kind": "routine",
+      "owner": "interrupt",
+      "preserve": false,
+      "start_line": 6919,
+      "end_line": 7146,
+      "line_count": 228,
+      "labels": [
+        "init_default_tasks_from_plan",
+        "task_update_input"
+      ],
+      "deps": [],
+      "roots": [
+        "task_update_input"
+      ],
+      "attrs": {
+        "id": "runtime.interrupt.task_input",
+        "kind": "routine",
+        "owner": "interrupt",
+        "roots": "task_update_input"
+      }
+    },
+    {
+      "id": "runtime.font.reload_stub",
+      "kind": "routine",
+      "owner": "unified",
+      "preserve": false,
+      "start_line": 8338,
+      "end_line": 8341,
+      "line_count": 4,
+      "labels": [
+        "reload_font_system"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.font.reload_stub",
+        "kind": "routine",
+        "owner": "unified"
+      }
+    },
+    {
+      "id": "runtime.components.init",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 8484,
+      "end_line": 8569,
+      "line_count": 86,
+      "labels": [
+        "component_fill_32_a",
+        "init_components"
+      ],
+      "deps": [],
+      "roots": [
+        "init_components",
+        "component_fill_32_a"
+      ],
+      "attrs": {
+        "id": "runtime.components.init",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false",
+        "roots": "init_components,component_fill_32_a"
+      }
+    },
+    {
+      "id": "runtime.components.position",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 8571,
+      "end_line": 8678,
+      "line_count": 108,
+      "labels": [
+        "init_position_system",
+        "update_position_component",
+        "position_update_loop",
+        "position_next_entity"
+      ],
+      "deps": [],
+      "roots": [
+        "component-position"
+      ],
+      "attrs": {
+        "id": "runtime.components.position",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false",
+        "roots": "component-position"
+      }
+    },
+    {
+      "id": "runtime.components.sprite",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 8679,
+      "end_line": 9074,
+      "line_count": 396,
+      "labels": [
+        "init_sprite_system",
+        "update_sprite_component",
+        "sprite_update_loop",
+        "sprite_layer_loop",
+        "sprite_continue",
+        "sprite_next_entity",
+        "refresh_player_sprite_fastpath",
+        "force_update_entity_sprite",
+        "force_sprite_layer_loop",
+        "force_sprite_done",
+        "compute_entity_base_pattern"
+      ],
+      "deps": [],
+      "roots": [
+        "component-sprite"
+      ],
+      "attrs": {
+        "id": "runtime.components.sprite",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false",
+        "roots": "component-sprite"
+      }
+    },
+    {
+      "id": "runtime.components.movement_stub",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 9080,
+      "end_line": 9083,
+      "line_count": 4,
+      "labels": [
+        "update_movement_component"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.movement_stub",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.components.collision",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 9084,
+      "end_line": 9751,
+      "line_count": 668,
+      "labels": [
+        "init_collision_system",
+        "update_collision_component",
+        "collision_update_loop",
+        "collision_next_entity",
+        "update_entity_collision_fast",
+        "coll_add_signed_offset_clamped",
+        "coll_flags_from_layer",
+        "check_tile_collision",
+        "no_tile_collision",
+        "check_entity_collision",
+        "entity_collision_loop",
+        "x_diff_positive",
+        "y_diff_positive",
+        "no_entity_collision",
+        "next_entity_collision",
+        "handle_boundary_collision",
+        "handle_tile_collision",
+        "handle_entity_collision"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.collision",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false"
+      }
+    },
+    {
+      "id": "runtime.components.behavior_tile",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 9752,
+      "end_line": 9861,
+      "line_count": 110,
+      "labels": [
+        "get_behavior_tile",
+        "get_behavior_tile_nb",
+        "gbt_oob"
+      ],
+      "deps": [],
+      "roots": [
+        "get_behavior_tile",
+        "get_behavior_tile_nb",
+        "gbt_oob"
+      ],
+      "attrs": {
+        "id": "runtime.components.behavior_tile",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false",
+        "roots": "get_behavior_tile,get_behavior_tile_nb,gbt_oob"
+      }
+    },
+    {
+      "id": "runtime.components.directional_sprite_sync",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 9862,
+      "end_line": 9948,
+      "line_count": 87,
+      "labels": [
+        "component_sync_directional_sprite_from_initial",
+        "component_sync_directional_sprite_from_current",
+        "component_sync_directional_sprite_common"
+      ],
+      "deps": [],
+      "roots": [
+        "component_sync_directional_sprite_from_initial",
+        "component_sync_directional_sprite_from_current",
+        "component_sync_directional_sprite_common"
+      ],
+      "attrs": {
+        "id": "runtime.components.directional_sprite_sync",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false",
+        "roots": "component_sync_directional_sprite_from_initial,component_sync_directional_sprite_from_current,component_sync_directional_sprite_common"
+      }
+    },
+    {
+      "id": "runtime.components.input",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 9949,
+      "end_line": 10336,
+      "line_count": 388,
+      "labels": [
+        "init_input_system",
+        "update_input_component",
+        "input_update_loop",
+        "input_move_up",
+        "input_move_down",
+        "input_move_left",
+        "input_move_right",
+        "input_move_upright",
+        "input_check_right_only",
+        "input_check_up_only",
+        "input_move_upleft",
+        "input_check_left_only1",
+        "input_check_up_only1",
+        "input_move_downright",
+        "input_check_right_only2",
+        "input_check_down_only2",
+        "input_move_downleft",
+        "input_check_left_only3",
+        "input_check_down_only3",
+        "input_apply_velocity",
+        "input_next_entity"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.input",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false"
+      }
+    },
+    {
+      "id": "runtime.components.health",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 10374,
+      "end_line": 10525,
+      "line_count": 152,
+      "labels": [
+        "init_health_system",
+        "update_health_component",
+        "decrease_entity_lives",
+        "increase_entity_lives"
+      ],
+      "deps": [],
+      "roots": [
+        "init_health_system",
+        "update_health_component",
+        "decrease_entity_lives",
+        "increase_entity_lives"
+      ],
+      "attrs": {
+        "id": "runtime.components.health",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false",
+        "roots": "init_health_system,update_health_component,decrease_entity_lives,increase_entity_lives"
+      }
+    },
+    {
+      "id": "runtime.components.animation",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 10526,
+      "end_line": 10867,
+      "line_count": 342,
+      "labels": [
+        "init_animation_system",
+        "update_animation_component",
+        "anim_done_entity",
+        "refresh_player_animation_fastpath"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.animation",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false"
+      }
+    },
+    {
+      "id": "runtime.components.jump",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 10868,
+      "end_line": 11100,
+      "line_count": 233,
+      "labels": [
+        "init_jump_system",
+        "update_jump_component",
+        "jump_update_loop",
+        "jump_done_entity",
+        "jump_next_entity"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.jump",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false"
+      }
+    },
+    {
+      "id": "runtime.components.gravity",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 11101,
+      "end_line": 11237,
+      "line_count": 137,
+      "labels": [
+        "init_gravity_system",
+        "update_gravity_component",
+        "gravity_update_loop",
+        "gravity_store_vel",
+        "gravity_grounded",
+        "gravity_done",
+        "gravity_next_entity"
+      ],
+      "deps": [],
+      "roots": [
+        "init_gravity_system",
+        "update_gravity_component"
+      ],
+      "attrs": {
+        "id": "runtime.components.gravity",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false",
+        "roots": "init_gravity_system,update_gravity_component"
+      }
+    },
+    {
+      "id": "runtime.components.walljump_stub",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 11258,
+      "end_line": 11275,
+      "line_count": 18,
+      "labels": [
+        "init_walljump_system",
+        "update_walljump_component",
+        "walljump_process_entity_c",
+        "walljump_input_is_left",
+        "walljump_input_is_right"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.walljump_stub",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.components.auto_destroy_stub",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 11278,
+      "end_line": 11284,
+      "line_count": 7,
+      "labels": [
+        "init_auto_destroy_system",
+        "update_auto_destroy_component"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.auto_destroy_stub",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.components.state_machine_component_stub",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 11308,
+      "end_line": 11314,
+      "line_count": 7,
+      "labels": [
+        "init_statemachine_system",
+        "update_statemachine_component"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.state_machine_component_stub",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.components.retractable_gate_stub",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 11320,
+      "end_line": 11323,
+      "line_count": 4,
+      "labels": [
+        "update_retractable_gate_component"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.retractable_gate_stub",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.components.carry",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 11324,
+      "end_line": 11404,
+      "line_count": 81,
+      "labels": [
+        "init_carry_system",
+        "update_carry_component"
+      ],
+      "deps": [],
+      "roots": [
+        "init_carry_system",
+        "update_carry_component"
+      ],
+      "attrs": {
+        "id": "runtime.components.carry",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false",
+        "roots": "init_carry_system,update_carry_component"
+      }
+    },
+    {
+      "id": "runtime.components.auto_control_script_stubs",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 11410,
+      "end_line": 11416,
+      "line_count": 7,
+      "labels": [
+        "update_auto_control_script_component",
+        "update_auto_event_string_component"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.auto_control_script_stubs",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.components.damage_stub",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 11422,
+      "end_line": 11425,
+      "line_count": 4,
+      "labels": [
+        "update_damage_component"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.damage_stub",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.components.shoot_stub",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 11431,
+      "end_line": 11434,
+      "line_count": 4,
+      "labels": [
+        "update_shoot_component"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.shoot_stub",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.components.platform_riding_stub",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 11454,
+      "end_line": 11460,
+      "line_count": 7,
+      "labels": [
+        "prepare_platform_detection",
+        "update_platform_riding"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.platform_riding_stub",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.components.wallcollision",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 11461,
+      "end_line": 12299,
+      "line_count": 839,
+      "labels": [
+        "init_wallcollision_system",
+        "wall_behavior_is_full_blocker",
+        "wall_down_behavior_blocks",
+        "update_wallcollision_component",
+        "wall_build_hitbox_cache",
+        "wall_add_signed_offset_clamped",
+        "wall_sub_signed_offset_clamped"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.wallcollision",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false"
+      }
+    },
+    {
+      "id": "runtime.components.deadly_tiles",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 12300,
+      "end_line": 12561,
+      "line_count": 262,
+      "labels": [
+        "init_deadly_tiles_system",
+        "deadly_tiles_runtime_tile_is_deadly_nb",
+        "update_entity_deadly_flag_runtime",
+        "update_deadly_tiles_component",
+        "refresh_player_deadly_fastpath"
+      ],
+      "deps": [],
+      "roots": [
+        "init_deadly_tiles_system",
+        "update_deadly_tiles_component",
+        "update_entity_deadly_flag_runtime",
+        "deadly_tiles_runtime_tile_is_deadly_nb",
+        "refresh_player_deadly_fastpath"
+      ],
+      "attrs": {
+        "id": "runtime.components.deadly_tiles",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false",
+        "roots": "init_deadly_tiles_system,update_deadly_tiles_component,update_entity_deadly_flag_runtime,deadly_tiles_runtime_tile_is_deadly_nb,refresh_player_deadly_fastpath"
+      }
+    },
+    {
+      "id": "runtime.components.in_water_stub",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 12567,
+      "end_line": 12570,
+      "line_count": 4,
+      "labels": [
+        "update_in_water_component"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.in_water_stub",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.components.collectible_stub",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 12576,
+      "end_line": 12579,
+      "line_count": 4,
+      "labels": [
+        "update_collectible_component"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.collectible_stub",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.components.entity_management",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 12597,
+      "end_line": 12817,
+      "line_count": 221,
+      "labels": [
+        "create_entity",
+        "entity_job_set",
+        "entity_job_set_period_ok",
+        "entity_job_set_entry_wrap",
+        "entity_job_set_entry_ok",
+        "entity_job_set_enable_scheduler",
+        "entity_job_should_run_c",
+        "entity_job_run_period_ok",
+        "entity_job_run_fallback_mod",
+        "entity_job_run_entry_mod",
+        "entity_job_run_entry_ready",
+        "entity_job_run_frame_mod16",
+        "entity_job_run_frame_mod16_no_sub",
+        "entity_job_run_active",
+        "entity_job_run_inactive",
+        "entity_job_run_done",
+        "init_entity_position",
+        "init_entity_sprite"
+      ],
+      "deps": [],
+      "roots": [
+        "create_entity",
+        "entity_job_set",
+        "entity_job_should_run_c",
+        "force_update_entity_sprite"
+      ],
+      "attrs": {
+        "id": "runtime.components.entity_management",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false",
+        "roots": "create_entity,entity_job_set,entity_job_should_run_c,force_update_entity_sprite"
+      }
+    },
+    {
+      "id": "runtime.components.scheduler",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 12818,
+      "end_line": 14397,
+      "line_count": 1580,
+      "labels": [
+        "update_all_entities",
+        "mark_used_entity_list_dirty",
+        "ensure_used_entity_list_current",
+        "rebuild_used_entity_list",
+        "ensure_player_fast_runtime_bound",
+        "sync_player_runtime_from_entity",
+        "get_runtime_interaction_type_tile",
+        "update_entity_ladder_state_c",
+        "player_fast_dash_process_c",
+        "player_fast_dash_resolve_dir_c",
+        "player_fast_dash_store_velocity_c",
+        "player_dash_break_front_tile_c",
+        "player_dash_hit_boss_weakpoint",
+        "player_dash_cleanup_dead_boss_attacks",
+        "update_player_fastpath"
+      ],
+      "deps": [],
+      "roots": [
+        "update_all_entities"
+      ],
+      "attrs": {
+        "id": "runtime.components.scheduler",
+        "kind": "routine",
+        "owner": "components",
+        "preserve": "false",
+        "roots": "update_all_entities"
+      }
+    },
+    {
+      "id": "runtime.components.state_machine_executor",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 14403,
+      "end_line": 14476,
+      "line_count": 74,
+      "labels": [
+        "execute_all_state_machines",
+        "refresh_player_state_machine_fastpath"
+      ],
+      "deps": [],
+      "roots": [
+        "execute_all_state_machines",
+        "refresh_player_state_machine_fastpath"
+      ],
+      "attrs": {
+        "id": "runtime.components.state_machine_executor",
+        "kind": "routine",
+        "owner": "components",
+        "roots": "execute_all_state_machines,refresh_player_state_machine_fastpath"
+      }
+    },
+    {
+      "id": "runtime.components.legacy_tile_collision",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 14486,
+      "end_line": 14528,
+      "line_count": 43,
+      "labels": [
+        "get_tile_at_position",
+        "get_tile_behavior",
+        "tile_behavior_table",
+        "check_collision_at_point",
+        "check_collision_box",
+        "div_a_by_c"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.legacy_tile_collision",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.components.secret_zone_stub",
+      "kind": "routine",
+      "owner": "components",
+      "preserve": false,
+      "start_line": 14565,
+      "end_line": 14568,
+      "line_count": 4,
+      "labels": [
+        "update_secret_zone_component"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.components.secret_zone_stub",
+        "kind": "routine",
+        "owner": "components"
+      }
+    },
+    {
+      "id": "runtime.statemachine.core",
+      "kind": "routine",
+      "owner": "stateMachine",
+      "preserve": false,
+      "start_line": 14586,
+      "end_line": 15681,
+      "line_count": 1096,
+      "labels": [
+        "SM_Update",
+        "sm_timer_no_overflow",
+        "sm_update_done",
+        "SM_CheckTransitions",
+        "SM_CheckTransitions_Loop",
+        "SM_TransitionTriggered",
+        "SM_ChangeState",
+        "SM_ExecuteActions",
+        "SM_ExecuteActions_Loop",
+        "SM_EvaluateCondition",
+        "SM_Dispatch",
+        "SM_ActionTable",
+        "Action_Nop",
+        "Action_SetVelocity",
+        "SM_MusicState",
+        "SM_MusicTrack",
+        "SM_RandSeed",
+        "SM_TemplateFilterToken",
+        "SM_SilencePSG",
+        "SM_ApplySoundFrame",
+        "SM_UpdateSound",
+        "SM_ConditionTable",
+        "Condition_Nop",
+        "SM_MatchDirection",
+        "Condition_KeyPressed",
+        "Condition_AnimComplete",
+        "Condition_VariableCompare"
+      ],
+      "deps": [],
+      "roots": [
+        "state-machine-runtime"
+      ],
+      "attrs": {
+        "id": "runtime.statemachine.core",
+        "kind": "routine",
+        "owner": "stateMachine",
+        "preserve": "false",
+        "roots": "state-machine-runtime"
+      }
+    },
+    {
+      "id": "data.statemachine.statemachine_1777833246195",
+      "kind": "data",
+      "owner": "stateMachine",
+      "preserve": false,
+      "start_line": 15747,
+      "end_line": 15771,
+      "line_count": 25,
+      "labels": [
+        "SM_New_Statemachine_state_1777833253256",
+        "SM_New_Statemachine_state_1777833253256_Transitions",
+        "SM_New_Statemachine_state_1777833253256_Transitions_Actions_0",
+        "SM_New_Statemachine_state_1777833256480"
+      ],
+      "deps": [],
+      "roots": [
+        "state-machine-data"
+      ],
+      "attrs": {
+        "id": "data.statemachine.statemachine_1777833246195",
+        "kind": "data",
+        "owner": "stateMachine",
+        "preserve": "false",
+        "roots": "state-machine-data"
+      }
+    },
+    {
+      "id": "runtime.gameflow.worldlink",
+      "kind": "routine",
+      "owner": "gameflow",
+      "preserve": false,
+      "start_line": 15893,
+      "end_line": 15966,
+      "line_count": 74,
+      "labels": [
+        "gameflow_handle_worldlink"
+      ],
+      "deps": [],
+      "roots": [
+        "gameflow_handle_worldlink"
+      ],
+      "attrs": {
+        "id": "runtime.gameflow.worldlink",
+        "kind": "routine",
+        "owner": "gameflow",
+        "roots": "gameflow_handle_worldlink"
+      }
+    },
+    {
+      "id": "runtime.gameflow.end_screen",
+      "kind": "routine",
+      "owner": "gameflow",
+      "preserve": false,
+      "start_line": 15968,
+      "end_line": 16113,
+      "line_count": 146,
+      "labels": [
+        "gameflow_handle_end",
+        "display_end_screen",
+        "print_string_vram",
+        "str_victory",
+        "str_game_over",
+        "str_credits"
+      ],
+      "deps": [],
+      "roots": [
+        "gameflow_handle_end",
+        "display_end_screen",
+        "print_string_vram"
+      ],
+      "attrs": {
+        "id": "runtime.gameflow.end_screen",
+        "kind": "routine",
+        "owner": "gameflow",
+        "roots": "gameflow_handle_end,display_end_screen,print_string_vram"
+      }
+    },
+    {
+      "id": "runtime.gameflow.connection_by_type",
+      "kind": "routine",
+      "owner": "gameflow",
+      "preserve": false,
+      "start_line": 16150,
+      "end_line": 16186,
+      "line_count": 37,
+      "labels": [
+        "gameflow_get_connection_by_type"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.gameflow.connection_by_type",
+        "kind": "routine",
+        "owner": "gameflow"
+      }
+    },
+    {
+      "id": "runtime.gameflow.confirm_input_direct",
+      "kind": "routine",
+      "owner": "gameflow",
+      "preserve": false,
+      "start_line": 16211,
+      "end_line": 16222,
+      "line_count": 12,
+      "labels": [
+        "gameflow_read_confirm_direct"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.gameflow.confirm_input_direct",
+        "kind": "routine",
+        "owner": "gameflow"
+      }
+    },
+    {
+      "id": "runtime.gameflow.world_loop",
+      "kind": "routine",
+      "owner": "gameflow",
+      "preserve": false,
+      "start_line": 16230,
+      "end_line": 16294,
+      "line_count": 65,
+      "labels": [
+        "gameflow_world_game_loop"
+      ],
+      "deps": [],
+      "roots": [
+        "gameflow_world_game_loop"
+      ],
+      "attrs": {
+        "id": "runtime.gameflow.world_loop",
+        "kind": "routine",
+        "owner": "gameflow",
+        "roots": "gameflow_world_game_loop"
+      }
+    },
+    {
+      "id": "runtime.gameflow.clear_screen_area_helpers",
+      "kind": "routine",
+      "owner": "gameflow",
+      "preserve": false,
+      "start_line": 16400,
+      "end_line": 16459,
+      "line_count": 60,
+      "labels": [
+        "clear_screen_area",
+        "clear_screen_row",
+        "empty_row_data"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.gameflow.clear_screen_area_helpers",
+        "kind": "routine",
+        "owner": "gameflow"
+      }
+    },
+    {
+      "id": "runtime.boss.entry",
+      "kind": "routine",
+      "owner": "bosses",
+      "preserve": false,
+      "start_line": 16756,
+      "end_line": 16828,
+      "line_count": 73,
+      "labels": [
+        "init_boss_system",
+        "update_boss_system"
+      ],
+      "deps": [],
+      "roots": [
+        "init_boss_system",
+        "update_boss_system"
+      ],
+      "attrs": {
+        "id": "runtime.boss.entry",
+        "kind": "routine",
+        "owner": "bosses",
+        "roots": "init_boss_system,update_boss_system"
+      }
+    },
+    {
+      "id": "runtime.boss.core",
+      "kind": "routine",
+      "owner": "bosses",
+      "preserve": false,
+      "start_line": 16830,
+      "end_line": 17705,
+      "line_count": 876,
+      "labels": [
+        "init_screen_boss_from_current_screen",
+        "boss_resolve_initial_phase",
+        "boss_init_behavior_state",
+        "draw_active_boss_tiles",
+        "restore_active_boss_tiles",
+        "restore_active_boss_tiles_exposed",
+        "boss_current_shape_covers_draw_cell",
+        "boss_get_runtime_layout_char",
+        "boss_get_active_tile_char",
+        "boss_draw_write_cell",
+        "update_boss_behavior",
+        "boss_load_current_behavior_action",
+        "boss_apply_behavior_form",
+        "boss_prepare_behavior_move_timing",
+        "boss_tick_behavior_move_step",
+        "boss_resolve_behavior_target",
+        "boss_step_towards_behavior_target",
+        "boss_draw_behavior_attack",
+        "boss_attack_get_sprite_pattern",
+        "draw_boss_attack",
+        "draw_boss_projectile_attack",
+        "update_boss_projectile_runtime",
+        "boss_projectile_show_current",
+        "boss_projectile_hide_all",
+        "boss_slam_rocks_hide_all",
+        "boss_falling_blocks_hide_all"
+      ],
+      "deps": [],
+      "roots": [
+        "bosses"
+      ],
+      "attrs": {
+        "id": "runtime.boss.core",
+        "kind": "routine",
+        "owner": "bosses",
+        "preserve": "false",
+        "roots": "bosses"
+      }
+    },
+    {
+      "id": "runtime.screens.colors",
+      "kind": "routine",
+      "owner": "screens",
+      "preserve": false,
+      "start_line": 17911,
+      "end_line": 17954,
+      "line_count": 44,
+      "labels": [
+        "color_shift_table",
+        "set_screen_colors"
+      ],
+      "deps": [],
+      "roots": [
+        "set_screen_colors"
+      ],
+      "attrs": {
+        "id": "runtime.screens.colors",
+        "kind": "routine",
+        "owner": "screens",
+        "roots": "set_screen_colors"
+      }
+    },
+    {
+      "id": "runtime.screens.copy_rect",
+      "kind": "routine",
+      "owner": "screens",
+      "preserve": false,
+      "start_line": 18048,
+      "end_line": 18124,
+      "line_count": 77,
+      "labels": [
+        "copy_layout_rect_to_vram",
+        "copy_layout_rect_ram_to_ram"
+      ],
+      "deps": [],
+      "roots": [
+        "copy_layout_rect_to_vram",
+        "copy_layout_rect_ram_to_ram"
+      ],
+      "attrs": {
+        "id": "runtime.screens.copy_rect",
+        "kind": "routine",
+        "owner": "screens",
+        "roots": "copy_layout_rect_to_vram,copy_layout_rect_ram_to_ram"
+      }
+    },
+    {
+      "id": "runtime.screens.block_layout_expander",
+      "kind": "routine",
+      "owner": "screens",
+      "preserve": false,
+      "start_line": 18126,
+      "end_line": 18319,
+      "line_count": 194,
+      "labels": [
+        "expand_screen_block_layout_to_background",
+        "expand_screen_block_layout_2x2",
+        "expand_screen_block_layout_4x4"
+      ],
+      "deps": [],
+      "roots": [
+        "expand_screen_block_layout_to_background",
+        "expand_screen_block_layout_2x2",
+        "expand_screen_block_layout_4x4"
+      ],
+      "attrs": {
+        "id": "runtime.screens.block_layout_expander",
+        "kind": "routine",
+        "owner": "screens",
+        "roots": "expand_screen_block_layout_to_background,expand_screen_block_layout_2x2,expand_screen_block_layout_4x4"
+      }
+    },
+    {
+      "id": "runtime.screens.behavior_map_rebuild",
+      "kind": "routine",
+      "owner": "screens",
+      "preserve": false,
+      "start_line": 18337,
+      "end_line": 18362,
+      "line_count": 26,
+      "labels": [
+        "build_runtime_behavior_map_from_screen_layout"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.screens.behavior_map_rebuild",
+        "kind": "routine",
+        "owner": "screens"
+      }
+    },
+    {
+      "id": "runtime.screens.load_screen_stub",
+      "kind": "routine",
+      "owner": "screens",
+      "preserve": false,
+      "start_line": 18363,
+      "end_line": 18368,
+      "line_count": 6,
+      "labels": [
+        "load_screen"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.screens.load_screen_stub",
+        "kind": "routine",
+        "owner": "screens"
+      }
+    },
+    {
+      "id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+      "kind": "routine",
+      "owner": "screens",
+      "preserve": false,
+      "start_line": 18370,
+      "end_line": 18483,
+      "line_count": 114,
+      "labels": [
+        "load_screen_new_playable_screen_777833014252",
+        "load_new_playable_screen_777833014252_boss_done"
+      ],
+      "deps": [],
+      "roots": [
+        "load_screen_new_playable_screen_777833014252"
+      ],
+      "attrs": {
+        "id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+        "kind": "routine",
+        "owner": "screens",
+        "roots": "load_screen_new_playable_screen_777833014252"
+      }
+    },
+    {
+      "id": "data.entities.player_1.init",
+      "kind": "routine",
+      "owner": "entities",
+      "preserve": false,
+      "start_line": 18641,
+      "end_line": 18817,
+      "line_count": 177,
+      "labels": [
+        "init_player_1"
+      ],
+      "deps": [],
+      "roots": [
+        "init_player_1"
+      ],
+      "attrs": {
+        "id": "data.entities.player_1.init",
+        "kind": "routine",
+        "owner": "entities",
+        "roots": "init_player_1"
+      }
+    },
+    {
+      "id": "runtime.entities.patrol_facing",
+      "kind": "routine",
+      "owner": "entities",
+      "preserve": false,
+      "start_line": 18994,
+      "end_line": 19081,
+      "line_count": 88,
+      "labels": [
+        "update_entity_patrol_facing"
+      ],
+      "deps": [],
+      "roots": [
+        "update_entity_patrol_facing"
+      ],
+      "attrs": {
+        "id": "runtime.entities.patrol_facing",
+        "kind": "routine",
+        "owner": "entities",
+        "roots": "update_entity_patrol_facing"
+      }
+    },
+    {
+      "id": "runtime.sound.psg_lowlevel",
+      "kind": "routine",
+      "owner": "sound",
+      "preserve": false,
+      "start_line": 19305,
+      "end_line": 19421,
+      "line_count": 117,
+      "labels": [
+        "psg_write",
+        "psg_set_tone",
+        "psg_set_volume",
+        "psg_set_noise",
+        "psg_set_mixer",
+        "psg_set_envelope"
+      ],
+      "deps": [],
+      "roots": [
+        "psg_write",
+        "psg_set_tone",
+        "psg_set_volume",
+        "psg_set_noise",
+        "psg_set_mixer",
+        "psg_set_envelope"
+      ],
+      "attrs": {
+        "id": "runtime.sound.psg_lowlevel",
+        "kind": "routine",
+        "owner": "sound",
+        "roots": "psg_write,psg_set_tone,psg_set_volume,psg_set_noise,psg_set_mixer,psg_set_envelope"
+      }
+    },
+    {
+      "id": "runtime.sound.sfx_silence",
+      "kind": "routine",
+      "owner": "sound",
+      "preserve": false,
+      "start_line": 19431,
+      "end_line": 19451,
+      "line_count": 21,
+      "labels": [
+        "sfx_silence_all"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.sound.sfx_silence",
+        "kind": "routine",
+        "owner": "sound"
+      }
+    },
+    {
+      "id": "runtime.sound.sfx_builtin_effects",
+      "kind": "routine",
+      "owner": "sound",
+      "preserve": false,
+      "start_line": 19457,
+      "end_line": 19583,
+      "line_count": 127,
+      "labels": [
+        "sfx_beep",
+        "sfx_jump",
+        "sfx_shoot",
+        "sfx_explosion",
+        "sfx_coin",
+        "sfx_damage"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.sound.sfx_builtin_effects",
+        "kind": "routine",
+        "owner": "sound"
+      }
+    },
+    {
+      "id": "runtime.sound.sfx_playback",
+      "kind": "routine",
+      "owner": "sound",
+      "preserve": false,
+      "start_line": 19601,
+      "end_line": 19719,
+      "line_count": 119,
+      "labels": [
+        "play_sound_effect",
+        "play_sound_effect_beep",
+        "play_sound_effect_jump",
+        "play_sound_effect_shoot",
+        "play_sound_effect_explosion",
+        "play_sound_effect_coin",
+        "play_sound_effect_damage",
+        "sfx_play",
+        "sfx_update"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.sound.sfx_playback",
+        "kind": "routine",
+        "owner": "sound"
+      }
+    },
+    {
+      "id": "runtime.sound.music_reset_noop",
+      "kind": "routine",
+      "owner": "sound",
+      "preserve": false,
+      "start_line": 19748,
+      "end_line": 19751,
+      "line_count": 4,
+      "labels": [
+        "music_reset_channel_state"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.sound.music_reset_noop",
+        "kind": "routine",
+        "owner": "sound"
+      }
+    },
+    {
+      "id": "runtime.sprites.show_sprite_legacy",
+      "kind": "routine",
+      "owner": "sprites",
+      "preserve": false,
+      "start_line": 20084,
+      "end_line": 20126,
+      "line_count": 43,
+      "labels": [
+        "show_sprite"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.sprites.show_sprite_legacy",
+        "kind": "routine",
+        "owner": "sprites"
+      }
+    },
+    {
+      "id": "runtime.animtiles.core",
+      "kind": "routine",
+      "owner": "animtiles",
+      "preserve": false,
+      "start_line": 20204,
+      "end_line": 20521,
+      "line_count": 318,
+      "labels": [
+        "init_animated_tiles",
+        "update_animated_tiles",
+        "update_animated_tiles_vram",
+        "set_animation_speed",
+        "anim_copy_8_bytes",
+        "anim_upload_char_frame",
+        "update_animated_transform_tiles_vram",
+        "anim_transform_char_frame",
+        "anim_transform_vram_block",
+        "anim_tile_table",
+        "anim_transform_table",
+        "anim_group_empty_data",
+        "register_animated_tile",
+        "get_tile_animation_frame"
+      ],
+      "deps": [],
+      "roots": [
+        "init_animated_tiles",
+        "update_animated_tiles",
+        "update_animated_tiles_vram",
+        "anim_upload_char_frame",
+        "set_animation_speed",
+        "register_animated_tile",
+        "get_tile_animation_frame"
+      ],
+      "attrs": {
+        "id": "runtime.animtiles.core",
+        "kind": "routine",
+        "owner": "animtiles",
+        "roots": "init_animated_tiles,update_animated_tiles,update_animated_tiles_vram,anim_upload_char_frame,set_animation_speed,register_animated_tile,get_tile_animation_frame"
+      }
+    },
+    {
+      "id": "runtime.scroll.core",
+      "kind": "routine",
+      "owner": "scroll",
+      "preserve": false,
+      "start_line": 20541,
+      "end_line": 20880,
+      "line_count": 340,
+      "labels": [
+        "init_scroll_system",
+        "set_camera_position",
+        "move_camera",
+        "center_camera_on_entity",
+        "update_scroll",
+        "redraw_viewport",
+        "multiply_a_by_b"
+      ],
+      "deps": [],
+      "roots": [
+        "init_scroll_system",
+        "set_camera_position",
+        "move_camera",
+        "center_camera_on_entity",
+        "update_scroll",
+        "redraw_viewport",
+        "multiply_a_by_b"
+      ],
+      "attrs": {
+        "id": "runtime.scroll.core",
+        "kind": "routine",
+        "owner": "scroll",
+        "roots": "init_scroll_system,set_camera_position,move_camera,center_camera_on_entity,update_scroll,redraw_viewport,multiply_a_by_b"
+      }
+    },
+    {
+      "id": "runtime.worlds.worldmap_1777833018852.loader",
+      "kind": "routine",
+      "owner": "worlds",
+      "preserve": false,
+      "start_line": 20980,
+      "end_line": 21011,
+      "line_count": 32,
+      "labels": [
+        "load_world_worldmap_1777833018852"
+      ],
+      "deps": [],
+      "roots": [
+        "load_world_worldmap_1777833018852"
+      ],
+      "attrs": {
+        "id": "runtime.worlds.worldmap_1777833018852.loader",
+        "kind": "routine",
+        "owner": "worlds",
+        "roots": "load_world_worldmap_1777833018852"
+      }
+    },
+    {
+      "id": "runtime.worlds.current_screen_helpers",
+      "kind": "routine",
+      "owner": "worlds",
+      "preserve": false,
+      "start_line": 21084,
+      "end_line": 21106,
+      "line_count": 23,
+      "labels": [
+        "get_current_world_id",
+        "get_current_screen_index",
+        "set_current_screen"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.worlds.current_screen_helpers",
+        "kind": "routine",
+        "owner": "worlds"
+      }
+    },
+    {
+      "id": "runtime.hud.empty_update_stubs",
+      "kind": "routine",
+      "owner": "hud",
+      "preserve": false,
+      "start_line": 21349,
+      "end_line": 21354,
+      "line_count": 6,
+      "labels": [
+        "update_hud_score",
+        "update_hud_lives"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "runtime.hud.empty_update_stubs",
+        "kind": "routine",
+        "owner": "hud"
+      }
+    }
+  ],
+  "block_analysis": [
+    {
+      "block_id": "runtime.mapper.core",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: mapper_runtime_init, mapper_set_bank_p1, mapper_set_bank_p2, mapper_set_bank_p3, mapper_set_bank_p4, mapper_push_p1, mapper_pop_p1, mapper_push_p2, mapper_pop_p2, mapper_push_p3, mapper_pop_p3, mapper_push_p4, mapper_pop_p4, mapper_call_hl_p1, mapper_call_hl_p2, mapper_call_hl_p3, mapper_call_hl_p4, mapper_call_hl_auto.",
+      "external_reference_count": 129,
+      "line_count": 213,
+      "source_bytes": 5412,
+      "incoming_references": [
+        {
+          "label": "mapper_runtime_init",
+          "line": 3383,
+          "source_block_id": null,
+          "source_label": "init_rom",
+          "raw": "call mapper_runtime_init"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 3390,
+          "source_block_id": null,
+          "source_label": "init_rom",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p2",
+          "line": 3392,
+          "source_block_id": null,
+          "source_label": "init_rom",
+          "raw": "call mapper_set_bank_p2"
+        },
+        {
+          "label": "mapper_set_bank_p3",
+          "line": 3394,
+          "source_block_id": null,
+          "source_label": "init_rom",
+          "raw": "call mapper_set_bank_p3"
+        },
+        {
+          "label": "mapper_push_p3",
+          "line": 5889,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_push_p3"
+        },
+        {
+          "label": "mapper_set_bank_p3",
+          "line": 5891,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_set_bank_p3"
+        },
+        {
+          "label": "mapper_pop_p3",
+          "line": 5893,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_pop_p3"
+        },
+        {
+          "label": "mapper_push_p3",
+          "line": 5916,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_push_p3"
+        },
+        {
+          "label": "mapper_set_bank_p3",
+          "line": 5918,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_set_bank_p3"
+        },
+        {
+          "label": "mapper_pop_p3",
+          "line": 5920,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_pop_p3"
+        },
+        {
+          "label": "mapper_push_p3",
+          "line": 5953,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_push_p3"
+        },
+        {
+          "label": "mapper_set_bank_p3",
+          "line": 5955,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_set_bank_p3"
+        },
+        {
+          "label": "mapper_pop_p3",
+          "line": 5974,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_pop_p3"
+        },
+        {
+          "label": "mapper_push_p3",
+          "line": 6018,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_push_p3"
+        },
+        {
+          "label": "mapper_set_bank_p3",
+          "line": 6020,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_set_bank_p3"
+        },
+        {
+          "label": "mapper_pop_p3",
+          "line": 6022,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_pop_p3"
+        },
+        {
+          "label": "mapper_push_p3",
+          "line": 6347,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_push_p3"
+        },
+        {
+          "label": "mapper_set_bank_p3",
+          "line": 6349,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_set_bank_p3"
+        },
+        {
+          "label": "mapper_pop_p3",
+          "line": 6352,
+          "source_block_id": "runtime.resources.manager",
+          "source_label": "dzx0_standard",
+          "raw": "call mapper_pop_p3"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7207,
+          "source_block_id": null,
+          "source_label": "init_boss_system_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7210,
+          "source_block_id": null,
+          "source_label": "init_boss_system_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7225,
+          "source_block_id": null,
+          "source_label": "init_screen_boss_from_current_screen_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7228,
+          "source_block_id": null,
+          "source_label": "init_screen_boss_from_current_screen_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7243,
+          "source_block_id": null,
+          "source_label": "update_boss_system_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7246,
+          "source_block_id": null,
+          "source_label": "update_boss_system_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7261,
+          "source_block_id": null,
+          "source_label": "update_boss_system_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7264,
+          "source_block_id": null,
+          "source_label": "update_boss_system_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7282,
+          "source_block_id": null,
+          "source_label": "load_screen_new_playable_screen_777833014252_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7285,
+          "source_block_id": null,
+          "source_label": "load_screen_new_playable_screen_777833014252_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7300,
+          "source_block_id": null,
+          "source_label": "show_presentation_screen_image_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7303,
+          "source_block_id": null,
+          "source_label": "show_presentation_screen_image_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7318,
+          "source_block_id": null,
+          "source_label": "show_presentation_screen_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7321,
+          "source_block_id": null,
+          "source_label": "show_presentation_screen_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7336,
+          "source_block_id": null,
+          "source_label": "set_screen_colors_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7341,
+          "source_block_id": null,
+          "source_label": "set_screen_colors_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7356,
+          "source_block_id": null,
+          "source_label": "init_char0_color_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7361,
+          "source_block_id": null,
+          "source_label": "init_char0_color_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7379,
+          "source_block_id": null,
+          "source_label": "init_entities_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7382,
+          "source_block_id": null,
+          "source_label": "init_entities_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7397,
+          "source_block_id": null,
+          "source_label": "update_entities_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7400,
+          "source_block_id": null,
+          "source_label": "update_entities_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7418,
+          "source_block_id": null,
+          "source_label": "init_sound_system_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7421,
+          "source_block_id": null,
+          "source_label": "init_sound_system_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7436,
+          "source_block_id": null,
+          "source_label": "task_audio_tick_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7439,
+          "source_block_id": null,
+          "source_label": "task_audio_tick_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7454,
+          "source_block_id": null,
+          "source_label": "sfx_update_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7457,
+          "source_block_id": null,
+          "source_label": "sfx_update_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7472,
+          "source_block_id": null,
+          "source_label": "music_update_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7475,
+          "source_block_id": null,
+          "source_label": "music_update_far",
+          "raw": "call mapper_set_bank_p1"
+        },
+        {
+          "label": "mapper_set_bank_p1",
+          "line": 7490,
+          "source_block_id": null,
+          "source_label": "music_stop_far",
+          "raw": "call mapper_set_bank_p1"
+        }
+      ],
+      "incoming_reference_truncated": 79
+    },
+    {
+      "block_id": "runtime.resources.manager",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: resource_manager_init, resource_find_by_id, resource_copy_from_bank_to_ram, resource_decompress_from_bank_to_ram, resource_copy_from_bank_to_vram, resource_decompress_from_bank_to_vram, resource_dzx0_to_vram, resource_load_to_ram_by_id, resource_load_to_vram_by_id, resource_read_byte_from_bank.",
+      "external_reference_count": 23,
+      "line_count": 680,
+      "source_bytes": 17743,
+      "incoming_references": [
+        {
+          "label": "resource_manager_init",
+          "line": 3386,
+          "source_block_id": null,
+          "source_label": "init_rom",
+          "raw": "call resource_manager_init"
+        },
+        {
+          "label": "resource_load_screen_layout_cached",
+          "line": 18400,
+          "source_block_id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+          "source_label": "load_screen_new_playable_screen_777833014252",
+          "raw": "call resource_load_screen_layout_cached"
+        },
+        {
+          "label": "resource_load_effects_layout_cached",
+          "line": 18402,
+          "source_block_id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+          "source_label": "load_screen_new_playable_screen_777833014252",
+          "raw": "call resource_load_effects_layout_cached"
+        },
+        {
+          "label": "resource_load_to_ram_by_id",
+          "line": 18405,
+          "source_block_id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+          "source_label": "load_screen_new_playable_screen_777833014252",
+          "raw": "call resource_load_to_ram_by_id"
+        },
+        {
+          "label": "resource_load_to_ram_by_id",
+          "line": 18408,
+          "source_block_id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+          "source_label": "load_screen_new_playable_screen_777833014252",
+          "raw": "call resource_load_to_ram_by_id"
+        },
+        {
+          "label": "resource_load_to_ram_by_id",
+          "line": 18411,
+          "source_block_id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+          "source_label": "load_screen_new_playable_screen_777833014252",
+          "raw": "call resource_load_to_ram_by_id"
+        },
+        {
+          "label": "resource_load_to_ram_by_id",
+          "line": 18414,
+          "source_block_id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+          "source_label": "load_screen_new_playable_screen_777833014252",
+          "raw": "call resource_load_to_ram_by_id"
+        },
+        {
+          "label": "resource_load_effect_zone_table_cached",
+          "line": 18422,
+          "source_block_id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+          "source_label": "load_screen_new_playable_screen_777833014252",
+          "raw": "call resource_load_effect_zone_table_cached"
+        },
+        {
+          "label": "resource_load_to_ram_by_id",
+          "line": 18443,
+          "source_block_id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+          "source_label": "load_screen_new_playable_screen_777833014252",
+          "raw": "call resource_load_to_ram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 20030,
+          "source_block_id": null,
+          "source_label": "load_sprite_patterns_worldmap_1777833018852",
+          "raw": "call resource_load_to_vram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 20034,
+          "source_block_id": null,
+          "source_label": "load_sprite_patterns_worldmap_1777833018852",
+          "raw": "call resource_load_to_vram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 21154,
+          "source_block_id": null,
+          "source_label": "load_pattern_bank0",
+          "raw": "call resource_load_to_vram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 21162,
+          "source_block_id": null,
+          "source_label": "load_pattern_bank1",
+          "raw": "call resource_load_to_vram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 21170,
+          "source_block_id": null,
+          "source_label": "load_pattern_bank2",
+          "raw": "call resource_load_to_vram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 21193,
+          "source_block_id": null,
+          "source_label": "load_patterns_to_vram",
+          "raw": "call resource_load_to_vram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 21199,
+          "source_block_id": null,
+          "source_label": "load_patterns_to_vram",
+          "raw": "call resource_load_to_vram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 21205,
+          "source_block_id": null,
+          "source_label": "load_patterns_to_vram",
+          "raw": "call resource_load_to_vram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 21258,
+          "source_block_id": null,
+          "source_label": "load_color_bank0",
+          "raw": "call resource_load_to_vram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 21266,
+          "source_block_id": null,
+          "source_label": "load_color_bank1",
+          "raw": "call resource_load_to_vram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 21274,
+          "source_block_id": null,
+          "source_label": "load_color_bank2",
+          "raw": "call resource_load_to_vram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 21297,
+          "source_block_id": null,
+          "source_label": "load_colors_to_vram",
+          "raw": "call resource_load_to_vram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 21303,
+          "source_block_id": null,
+          "source_label": "load_colors_to_vram",
+          "raw": "call resource_load_to_vram_by_id"
+        },
+        {
+          "label": "resource_load_to_vram_by_id",
+          "line": 21309,
+          "source_block_id": null,
+          "source_label": "load_colors_to_vram",
+          "raw": "call resource_load_to_vram_by_id"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.input_trigger_level",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 33,
+      "source_bytes": 773,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.page0.stubs",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: init_page0_runtime_state, page0_map_expanded_slot, page0_map_game_rom, page0_restore_bios_rom, page0_copy_chunk_to_buffer, page0_decompress_to_ram, page0_copy_to_vram.",
+      "external_reference_count": 1,
+      "line_count": 22,
+      "source_bytes": 505,
+      "incoming_references": [
+        {
+          "label": "init_page0_runtime_state",
+          "line": 3380,
+          "source_block_id": null,
+          "source_label": "init_rom",
+          "raw": "call init_page0_runtime_state"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.interrupt.stop",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: stop_interrupt_system.",
+      "external_reference_count": 0,
+      "line_count": 43,
+      "source_bytes": 1299,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.interrupt.dispatcher",
+      "status": "preserved",
+      "candidate": false,
+      "reason": "Block has preserve=true.",
+      "external_reference_count": 1,
+      "line_count": 124,
+      "source_bytes": 4150,
+      "incoming_references": [
+        {
+          "label": "interrupt_dispatcher",
+          "line": 6553,
+          "source_block_id": null,
+          "source_label": "init_interrupt_system",
+          "raw": "ld hl, interrupt_dispatcher ; Address of our ISR"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.interrupt.vblank_flag",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: update_vblank_flag.",
+      "external_reference_count": 1,
+      "line_count": 35,
+      "source_bytes": 983,
+      "incoming_references": [
+        {
+          "label": "update_vblank_flag",
+          "line": 6678,
+          "source_block_id": "runtime.interrupt.dispatcher",
+          "source_label": "init_interrupt_system",
+          "raw": "call update_vblank_flag"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.interrupt.task_api",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: enable_task, disable_task, get_frame_count.",
+      "external_reference_count": 1,
+      "line_count": 121,
+      "source_bytes": 3195,
+      "incoming_references": [
+        {
+          "label": "enable_task",
+          "line": 6941,
+          "source_block_id": "runtime.interrupt.task_input",
+          "source_label": "init_default_tasks_from_plan",
+          "raw": "call enable_task"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.interrupt.task_input",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: task_update_input.",
+      "external_reference_count": 2,
+      "line_count": 228,
+      "source_bytes": 5981,
+      "incoming_references": [
+        {
+          "label": "init_default_tasks_from_plan",
+          "line": 3445,
+          "source_block_id": null,
+          "source_label": "init_rom",
+          "raw": "call init_default_tasks_from_plan"
+        },
+        {
+          "label": "task_update_input",
+          "line": 16242,
+          "source_block_id": "runtime.gameflow.world_loop",
+          "source_label": "gameflow_world_game_loop",
+          "raw": "call task_update_input"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.font.reload_stub",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 4,
+      "source_bytes": 146,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.init",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: init_components, component_fill_32_a.",
+      "external_reference_count": 11,
+      "line_count": 86,
+      "source_bytes": 2962,
+      "incoming_references": [
+        {
+          "label": "init_components",
+          "line": 8229,
+          "source_block_id": null,
+          "source_label": "force_render_hud_far",
+          "raw": "call init_components"
+        },
+        {
+          "label": "init_components",
+          "line": 8310,
+          "source_block_id": null,
+          "source_label": "init_game_systems",
+          "raw": "call init_components"
+        },
+        {
+          "label": "component_fill_32_a",
+          "line": 8582,
+          "source_block_id": "runtime.components.position",
+          "source_label": "init_position_system",
+          "raw": "call component_fill_32_a"
+        },
+        {
+          "label": "component_fill_32_a",
+          "line": 8585,
+          "source_block_id": "runtime.components.position",
+          "source_label": "init_position_system",
+          "raw": "call component_fill_32_a"
+        },
+        {
+          "label": "component_fill_32_a",
+          "line": 9095,
+          "source_block_id": "runtime.components.collision",
+          "source_label": "init_collision_system",
+          "raw": "call component_fill_32_a"
+        },
+        {
+          "label": "component_fill_32_a",
+          "line": 9099,
+          "source_block_id": "runtime.components.collision",
+          "source_label": "init_collision_system",
+          "raw": "call component_fill_32_a"
+        },
+        {
+          "label": "component_fill_32_a",
+          "line": 9104,
+          "source_block_id": "runtime.components.collision",
+          "source_label": "init_collision_system",
+          "raw": "call component_fill_32_a"
+        },
+        {
+          "label": "component_fill_32_a",
+          "line": 9109,
+          "source_block_id": "runtime.components.collision",
+          "source_label": "init_collision_system",
+          "raw": "call component_fill_32_a"
+        },
+        {
+          "label": "component_fill_32_a",
+          "line": 9112,
+          "source_block_id": "runtime.components.collision",
+          "source_label": "init_collision_system",
+          "raw": "call component_fill_32_a"
+        },
+        {
+          "label": "component_fill_32_a",
+          "line": 9116,
+          "source_block_id": "runtime.components.collision",
+          "source_label": "init_collision_system",
+          "raw": "call component_fill_32_a"
+        },
+        {
+          "label": "component_fill_32_a",
+          "line": 9119,
+          "source_block_id": "runtime.components.collision",
+          "source_label": "init_collision_system",
+          "raw": "call component_fill_32_a"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.position",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: component-position.",
+      "external_reference_count": 3,
+      "line_count": 108,
+      "source_bytes": 3281,
+      "incoming_references": [
+        {
+          "label": "init_position_system",
+          "line": 8536,
+          "source_block_id": "runtime.components.init",
+          "source_label": "init_components",
+          "raw": "call init_position_system"
+        },
+        {
+          "label": "update_position_component",
+          "line": 12866,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call update_position_component      ; 7. Apply velocity"
+        },
+        {
+          "label": "update_position_component",
+          "line": 12877,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call update_position_component      ; 7. Apply velocity"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.sprite",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: component-sprite.",
+      "external_reference_count": 6,
+      "line_count": 396,
+      "source_bytes": 10316,
+      "incoming_references": [
+        {
+          "label": "force_update_entity_sprite",
+          "line": 8261,
+          "source_block_id": null,
+          "source_label": "force_render_hud_far",
+          "raw": "call force_update_entity_sprite"
+        },
+        {
+          "label": "init_sprite_system",
+          "line": 8538,
+          "source_block_id": "runtime.components.init",
+          "source_label": "init_components",
+          "raw": "call init_sprite_system"
+        },
+        {
+          "label": "update_sprite_component",
+          "line": 12873,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call update_sprite_component        ; 13. Sprite rendering"
+        },
+        {
+          "label": "update_sprite_component",
+          "line": 12879,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call update_sprite_component        ; 13. Sprite rendering"
+        },
+        {
+          "label": "update_sprite_component",
+          "line": 15951,
+          "source_block_id": "runtime.gameflow.worldlink",
+          "source_label": "gameflow_handle_worldlink",
+          "raw": "call update_sprite_component"
+        },
+        {
+          "label": "refresh_player_sprite_fastpath",
+          "line": 16278,
+          "source_block_id": "runtime.gameflow.world_loop",
+          "source_label": "gameflow_world_game_loop",
+          "raw": "call refresh_player_sprite_fastpath"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.movement_stub",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 4,
+      "source_bytes": 172,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.collision",
+      "status": "referenced",
+      "candidate": false,
+      "reason": "Block has 2 external label reference(s).",
+      "external_reference_count": 2,
+      "line_count": 668,
+      "source_bytes": 18861,
+      "incoming_references": [
+        {
+          "label": "init_collision_system",
+          "line": 8540,
+          "source_block_id": "runtime.components.init",
+          "source_label": "init_components",
+          "raw": "call init_collision_system"
+        },
+        {
+          "label": "update_collision_component",
+          "line": 12867,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call update_collision_component     ; 8b. Collision detection"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.behavior_tile",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: get_behavior_tile, get_behavior_tile_nb, gbt_oob.",
+      "external_reference_count": 9,
+      "line_count": 110,
+      "source_bytes": 3809,
+      "incoming_references": [
+        {
+          "label": "get_behavior_tile",
+          "line": 9622,
+          "source_block_id": "runtime.components.collision",
+          "source_label": "check_tile_collision",
+          "raw": "call get_behavior_tile; Returns A = behavior value"
+        },
+        {
+          "label": "get_behavior_tile",
+          "line": 11677,
+          "source_block_id": "runtime.components.wallcollision",
+          "source_label": "update_wallcollision_component",
+          "raw": "call get_behavior_tile"
+        },
+        {
+          "label": "get_behavior_tile_nb",
+          "line": 11688,
+          "source_block_id": "runtime.components.wallcollision",
+          "source_label": "update_wallcollision_component",
+          "raw": "call get_behavior_tile_nb"
+        },
+        {
+          "label": "get_behavior_tile",
+          "line": 11744,
+          "source_block_id": "runtime.components.wallcollision",
+          "source_label": "update_wallcollision_component",
+          "raw": "call get_behavior_tile"
+        },
+        {
+          "label": "get_behavior_tile_nb",
+          "line": 11755,
+          "source_block_id": "runtime.components.wallcollision",
+          "source_label": "update_wallcollision_component",
+          "raw": "call get_behavior_tile_nb"
+        },
+        {
+          "label": "get_behavior_tile",
+          "line": 11833,
+          "source_block_id": "runtime.components.wallcollision",
+          "source_label": "update_wallcollision_component",
+          "raw": "call get_behavior_tile"
+        },
+        {
+          "label": "get_behavior_tile",
+          "line": 11843,
+          "source_block_id": "runtime.components.wallcollision",
+          "source_label": "update_wallcollision_component",
+          "raw": "call get_behavior_tile"
+        },
+        {
+          "label": "get_behavior_tile",
+          "line": 11982,
+          "source_block_id": "runtime.components.wallcollision",
+          "source_label": "update_wallcollision_component",
+          "raw": "call get_behavior_tile"
+        },
+        {
+          "label": "get_behavior_tile",
+          "line": 11992,
+          "source_block_id": "runtime.components.wallcollision",
+          "source_label": "update_wallcollision_component",
+          "raw": "call get_behavior_tile"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.directional_sprite_sync",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: component_sync_directional_sprite_from_initial, component_sync_directional_sprite_from_current, component_sync_directional_sprite_common.",
+      "external_reference_count": 3,
+      "line_count": 87,
+      "source_bytes": 2084,
+      "incoming_references": [
+        {
+          "label": "component_sync_directional_sprite_from_initial",
+          "line": 10325,
+          "source_block_id": "runtime.components.input",
+          "source_label": "update_input_component",
+          "raw": "call component_sync_directional_sprite_from_initial"
+        },
+        {
+          "label": "component_sync_directional_sprite_from_initial",
+          "line": 14101,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_player_fastpath",
+          "raw": "call component_sync_directional_sprite_from_initial"
+        },
+        {
+          "label": "component_sync_directional_sprite_from_current",
+          "line": 14115,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_player_fastpath",
+          "raw": "call component_sync_directional_sprite_from_current"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.input",
+      "status": "referenced",
+      "candidate": false,
+      "reason": "Block has 2 external label reference(s).",
+      "external_reference_count": 2,
+      "line_count": 388,
+      "source_bytes": 12766,
+      "incoming_references": [
+        {
+          "label": "init_input_system",
+          "line": 8542,
+          "source_block_id": "runtime.components.init",
+          "source_label": "init_components",
+          "raw": "call init_input_system"
+        },
+        {
+          "label": "update_input_component",
+          "line": 12860,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call update_input_component         ; 1. Input (player control)"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.health",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: init_health_system, update_health_component, decrease_entity_lives, increase_entity_lives.",
+      "external_reference_count": 2,
+      "line_count": 152,
+      "source_bytes": 4701,
+      "incoming_references": [
+        {
+          "label": "init_health_system",
+          "line": 8546,
+          "source_block_id": "runtime.components.init",
+          "source_label": "init_components",
+          "raw": "call init_health_system"
+        },
+        {
+          "label": "update_health_component",
+          "line": 12871,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call update_health_component        ; 9. Health/Death"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.animation",
+      "status": "referenced",
+      "candidate": false,
+      "reason": "Block has 4 external label reference(s).",
+      "external_reference_count": 4,
+      "line_count": 342,
+      "source_bytes": 10555,
+      "incoming_references": [
+        {
+          "label": "init_animation_system",
+          "line": 8548,
+          "source_block_id": "runtime.components.init",
+          "source_label": "init_components",
+          "raw": "call init_animation_system"
+        },
+        {
+          "label": "update_animation_component",
+          "line": 12872,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call update_animation_component     ; 11. Animation"
+        },
+        {
+          "label": "update_animation_component",
+          "line": 12878,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call update_animation_component     ; 11. Animation"
+        },
+        {
+          "label": "refresh_player_animation_fastpath",
+          "line": 16275,
+          "source_block_id": "runtime.gameflow.world_loop",
+          "source_label": "gameflow_world_game_loop",
+          "raw": "call refresh_player_animation_fastpath"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.jump",
+      "status": "referenced",
+      "candidate": false,
+      "reason": "Block has 2 external label reference(s).",
+      "external_reference_count": 2,
+      "line_count": 233,
+      "source_bytes": 7043,
+      "incoming_references": [
+        {
+          "label": "init_jump_system",
+          "line": 8550,
+          "source_block_id": "runtime.components.init",
+          "source_label": "init_components",
+          "raw": "call init_jump_system"
+        },
+        {
+          "label": "update_jump_component",
+          "line": 12862,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call update_jump_component          ; 4. Jump impulse"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.gravity",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: init_gravity_system, update_gravity_component.",
+      "external_reference_count": 2,
+      "line_count": 137,
+      "source_bytes": 4553,
+      "incoming_references": [
+        {
+          "label": "init_gravity_system",
+          "line": 8552,
+          "source_block_id": "runtime.components.init",
+          "source_label": "init_components",
+          "raw": "call init_gravity_system"
+        },
+        {
+          "label": "update_gravity_component",
+          "line": 12864,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call update_gravity_component       ; 6. Gravity"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.walljump_stub",
+      "status": "referenced",
+      "candidate": false,
+      "reason": "Block has 2 external label reference(s).",
+      "external_reference_count": 2,
+      "line_count": 18,
+      "source_bytes": 326,
+      "incoming_references": [
+        {
+          "label": "walljump_process_entity_c",
+          "line": 14141,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_player_fastpath",
+          "raw": "call walljump_process_entity_c"
+        },
+        {
+          "label": "walljump_process_entity_c",
+          "line": 14344,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_player_fastpath",
+          "raw": "call walljump_process_entity_c"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.auto_destroy_stub",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 7,
+      "source_bytes": 219,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.state_machine_component_stub",
+      "status": "referenced",
+      "candidate": false,
+      "reason": "Block has 1 external label reference(s).",
+      "external_reference_count": 1,
+      "line_count": 7,
+      "source_bytes": 241,
+      "incoming_references": [
+        {
+          "label": "init_statemachine_system",
+          "line": 8096,
+          "source_block_id": null,
+          "source_label": "force_render_hud_far",
+          "raw": "jp init_statemachine_system"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.retractable_gate_stub",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 4,
+      "source_bytes": 196,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.carry",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: init_carry_system, update_carry_component.",
+      "external_reference_count": 1,
+      "line_count": 81,
+      "source_bytes": 2148,
+      "incoming_references": [
+        {
+          "label": "init_carry_system",
+          "line": 8558,
+          "source_block_id": "runtime.components.init",
+          "source_label": "init_components",
+          "raw": "call init_carry_system"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.auto_control_script_stubs",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 7,
+      "source_bytes": 252,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.damage_stub",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 4,
+      "source_bytes": 166,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.shoot_stub",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 4,
+      "source_bytes": 163,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.platform_riding_stub",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 7,
+      "source_bytes": 220,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.wallcollision",
+      "status": "referenced",
+      "candidate": false,
+      "reason": "Block has 3 external label reference(s).",
+      "external_reference_count": 3,
+      "line_count": 839,
+      "source_bytes": 31288,
+      "incoming_references": [
+        {
+          "label": "init_wallcollision_system",
+          "line": 8562,
+          "source_block_id": "runtime.components.init",
+          "source_label": "init_components",
+          "raw": "call init_wallcollision_system"
+        },
+        {
+          "label": "wall_build_hitbox_cache",
+          "line": 12424,
+          "source_block_id": "runtime.components.deadly_tiles",
+          "source_label": "update_entity_deadly_flag_runtime",
+          "raw": "call wall_build_hitbox_cache"
+        },
+        {
+          "label": "update_wallcollision_component",
+          "line": 12868,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call update_wallcollision_component ; 8d. Wall collision"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.deadly_tiles",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: init_deadly_tiles_system, update_deadly_tiles_component, update_entity_deadly_flag_runtime, deadly_tiles_runtime_tile_is_deadly_nb, refresh_player_deadly_fastpath.",
+      "external_reference_count": 3,
+      "line_count": 262,
+      "source_bytes": 5874,
+      "incoming_references": [
+        {
+          "label": "init_deadly_tiles_system",
+          "line": 8564,
+          "source_block_id": "runtime.components.init",
+          "source_label": "init_components",
+          "raw": "call init_deadly_tiles_system"
+        },
+        {
+          "label": "update_deadly_tiles_component",
+          "line": 12869,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call update_deadly_tiles_component  ; 8e. Deadly tiles"
+        },
+        {
+          "label": "refresh_player_deadly_fastpath",
+          "line": 16254,
+          "source_block_id": "runtime.gameflow.world_loop",
+          "source_label": "gameflow_world_game_loop",
+          "raw": "call refresh_player_deadly_fastpath"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.in_water_stub",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 4,
+      "source_bytes": 172,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.collectible_stub",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 4,
+      "source_bytes": 181,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.entity_management",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: create_entity, entity_job_set, entity_job_should_run_c, force_update_entity_sprite.",
+      "external_reference_count": 3,
+      "line_count": 221,
+      "source_bytes": 6553,
+      "incoming_references": [
+        {
+          "label": "create_entity",
+          "line": 8239,
+          "source_block_id": null,
+          "source_label": "force_render_hud_far",
+          "raw": "call create_entity"
+        },
+        {
+          "label": "entity_job_set",
+          "line": 8251,
+          "source_block_id": null,
+          "source_label": "force_render_hud_far",
+          "raw": "call entity_job_set"
+        },
+        {
+          "label": "entity_job_should_run_c",
+          "line": 13012,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_all_entities",
+          "raw": "call entity_job_should_run_c"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.scheduler",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: update_all_entities.",
+      "external_reference_count": 7,
+      "line_count": 1580,
+      "source_bytes": 35945,
+      "incoming_references": [
+        {
+          "label": "update_all_entities",
+          "line": 3465,
+          "source_block_id": null,
+          "source_label": "init_rom",
+          "raw": "call update_all_entities"
+        },
+        {
+          "label": "rebuild_used_entity_list",
+          "line": 8270,
+          "source_block_id": null,
+          "source_label": "force_render_hud_far",
+          "raw": "call rebuild_used_entity_list"
+        },
+        {
+          "label": "sync_player_runtime_from_entity",
+          "line": 8279,
+          "source_block_id": null,
+          "source_label": "force_render_hud_far",
+          "raw": "call sync_player_runtime_from_entity"
+        },
+        {
+          "label": "rebuild_used_entity_list",
+          "line": 8326,
+          "source_block_id": null,
+          "source_label": "init_game_systems",
+          "raw": "call rebuild_used_entity_list"
+        },
+        {
+          "label": "update_entity_ladder_state_c",
+          "line": 10018,
+          "source_block_id": "runtime.components.input",
+          "source_label": "update_input_component",
+          "raw": "call update_entity_ladder_state_c"
+        },
+        {
+          "label": "update_player_fastpath",
+          "line": 16243,
+          "source_block_id": "runtime.gameflow.world_loop",
+          "source_label": "gameflow_world_game_loop",
+          "raw": "call update_player_fastpath"
+        },
+        {
+          "label": "update_all_entities",
+          "line": 16251,
+          "source_block_id": "runtime.gameflow.world_loop",
+          "source_label": "gameflow_world_game_loop",
+          "raw": "call update_all_entities"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.state_machine_executor",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: execute_all_state_machines, refresh_player_state_machine_fastpath.",
+      "external_reference_count": 2,
+      "line_count": 74,
+      "source_bytes": 1973,
+      "incoming_references": [
+        {
+          "label": "execute_all_state_machines",
+          "line": 8102,
+          "source_block_id": null,
+          "source_label": "force_render_hud_far",
+          "raw": "jp execute_all_state_machines"
+        },
+        {
+          "label": "refresh_player_state_machine_fastpath",
+          "line": 16260,
+          "source_block_id": "runtime.gameflow.world_loop",
+          "source_label": "gameflow_world_game_loop",
+          "raw": "call refresh_player_state_machine_fastpath"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.legacy_tile_collision",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 43,
+      "source_bytes": 1404,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.components.secret_zone_stub",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 4,
+      "source_bytes": 181,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.statemachine.core",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: state-machine-runtime.",
+      "external_reference_count": 4,
+      "line_count": 1096,
+      "source_bytes": 25160,
+      "incoming_references": [
+        {
+          "label": "SM_ExecuteActions",
+          "line": 8105,
+          "source_block_id": null,
+          "source_label": "force_render_hud_far",
+          "raw": "jp SM_ExecuteActions"
+        },
+        {
+          "label": "SM_UpdateSound",
+          "line": 8108,
+          "source_block_id": null,
+          "source_label": "force_render_hud_far",
+          "raw": "jp SM_UpdateSound"
+        },
+        {
+          "label": "SM_Update",
+          "line": 14445,
+          "source_block_id": "runtime.components.state_machine_executor",
+          "source_label": "update_player_fastpath",
+          "raw": "call SM_Update                ; Execute state machine (A = entity index)"
+        },
+        {
+          "label": "SM_Update",
+          "line": 14474,
+          "source_block_id": "runtime.components.state_machine_executor",
+          "source_label": "update_player_fastpath",
+          "raw": "call SM_Update"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "data.statemachine.statemachine_1777833246195",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: state-machine-data.",
+      "external_reference_count": 1,
+      "line_count": 25,
+      "source_bytes": 863,
+      "incoming_references": [
+        {
+          "label": "SM_New_Statemachine_state_1777833253256",
+          "line": 18807,
+          "source_block_id": "data.entities.player_1.init",
+          "source_label": "init_player_1",
+          "raw": "ld hl, SM_New_Statemachine_state_1777833253256          ; HL = initial state address"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.gameflow.worldlink",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: gameflow_handle_worldlink.",
+      "external_reference_count": 1,
+      "line_count": 74,
+      "source_bytes": 2164,
+      "incoming_references": [
+        {
+          "label": "gameflow_handle_worldlink",
+          "line": 15842,
+          "source_block_id": null,
+          "source_label": "gameflow_execute_node",
+          "raw": "jp z, gameflow_handle_worldlink"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.gameflow.end_screen",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: gameflow_handle_end, display_end_screen, print_string_vram.",
+      "external_reference_count": 1,
+      "line_count": 146,
+      "source_bytes": 4078,
+      "incoming_references": [
+        {
+          "label": "gameflow_handle_end",
+          "line": 15844,
+          "source_block_id": null,
+          "source_label": "gameflow_execute_node",
+          "raw": "jp z, gameflow_handle_end"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.gameflow.connection_by_type",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 37,
+      "source_bytes": 701,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.gameflow.confirm_input_direct",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 12,
+      "source_bytes": 298,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.gameflow.world_loop",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: gameflow_world_game_loop.",
+      "external_reference_count": 1,
+      "line_count": 65,
+      "source_bytes": 2282,
+      "incoming_references": [
+        {
+          "label": "gameflow_world_game_loop",
+          "line": 15957,
+          "source_block_id": "runtime.gameflow.worldlink",
+          "source_label": "gameflow_handle_worldlink",
+          "raw": "call gameflow_world_game_loop"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.gameflow.clear_screen_area_helpers",
+      "status": "referenced",
+      "candidate": false,
+      "reason": "Block has 1 external label reference(s).",
+      "external_reference_count": 1,
+      "line_count": 60,
+      "source_bytes": 1737,
+      "incoming_references": [
+        {
+          "label": "clear_screen_area",
+          "line": 16027,
+          "source_block_id": "runtime.gameflow.end_screen",
+          "source_label": "gameflow_handle_end",
+          "raw": "call clear_screen_area"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.boss.entry",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: init_boss_system, update_boss_system.",
+      "external_reference_count": 2,
+      "line_count": 73,
+      "source_bytes": 1760,
+      "incoming_references": [
+        {
+          "label": "init_boss_system",
+          "line": 7208,
+          "source_block_id": null,
+          "source_label": "init_boss_system_far",
+          "raw": "call init_boss_system"
+        },
+        {
+          "label": "update_boss_system",
+          "line": 7244,
+          "source_block_id": null,
+          "source_label": "update_boss_system_far",
+          "raw": "call update_boss_system"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.boss.core",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: bosses.",
+      "external_reference_count": 9,
+      "line_count": 876,
+      "source_bytes": 19553,
+      "incoming_references": [
+        {
+          "label": "init_screen_boss_from_current_screen",
+          "line": 7226,
+          "source_block_id": null,
+          "source_label": "init_screen_boss_from_current_screen_far",
+          "raw": "call init_screen_boss_from_current_screen"
+        },
+        {
+          "label": "draw_boss_attack",
+          "line": 7262,
+          "source_block_id": null,
+          "source_label": "update_boss_system_far",
+          "raw": "call draw_boss_attack"
+        },
+        {
+          "label": "restore_active_boss_tiles",
+          "line": 13745,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_entity_ladder_state_c",
+          "raw": "call restore_active_boss_tiles"
+        },
+        {
+          "label": "boss_projectile_hide_all",
+          "line": 13760,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_entity_ladder_state_c",
+          "raw": "call boss_projectile_hide_all"
+        },
+        {
+          "label": "boss_slam_rocks_hide_all",
+          "line": 13765,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_entity_ladder_state_c",
+          "raw": "call boss_slam_rocks_hide_all"
+        },
+        {
+          "label": "boss_falling_blocks_hide_all",
+          "line": 13770,
+          "source_block_id": "runtime.components.scheduler",
+          "source_label": "update_entity_ladder_state_c",
+          "raw": "call boss_falling_blocks_hide_all"
+        },
+        {
+          "label": "update_boss_behavior",
+          "line": 16802,
+          "source_block_id": "runtime.boss.entry",
+          "source_label": "update_boss_system",
+          "raw": "call update_boss_behavior"
+        },
+        {
+          "label": "restore_active_boss_tiles_exposed",
+          "line": 16817,
+          "source_block_id": "runtime.boss.entry",
+          "source_label": "update_boss_system",
+          "raw": "call restore_active_boss_tiles_exposed"
+        },
+        {
+          "label": "draw_active_boss_tiles",
+          "line": 16818,
+          "source_block_id": "runtime.boss.entry",
+          "source_label": "update_boss_system",
+          "raw": "call draw_active_boss_tiles"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.screens.colors",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: set_screen_colors.",
+      "external_reference_count": 1,
+      "line_count": 44,
+      "source_bytes": 1514,
+      "incoming_references": [
+        {
+          "label": "set_screen_colors",
+          "line": 7338,
+          "source_block_id": null,
+          "source_label": "set_screen_colors_far",
+          "raw": "call set_screen_colors"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.screens.copy_rect",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: copy_layout_rect_to_vram, copy_layout_rect_ram_to_ram.",
+      "external_reference_count": 0,
+      "line_count": 77,
+      "source_bytes": 1494,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.screens.block_layout_expander",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: expand_screen_block_layout_to_background, expand_screen_block_layout_2x2, expand_screen_block_layout_4x4.",
+      "external_reference_count": 0,
+      "line_count": 194,
+      "source_bytes": 3798,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.screens.behavior_map_rebuild",
+      "status": "referenced",
+      "candidate": false,
+      "reason": "Block has 1 external label reference(s).",
+      "external_reference_count": 1,
+      "line_count": 26,
+      "source_bytes": 709,
+      "incoming_references": [
+        {
+          "label": "build_runtime_behavior_map_from_screen_layout",
+          "line": 18416,
+          "source_block_id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+          "source_label": "load_screen_new_playable_screen_777833014252",
+          "raw": "call build_runtime_behavior_map_from_screen_layout"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.screens.load_screen_stub",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 6,
+      "source_bytes": 232,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.screens.load_screen_new_playable_screen_777833014252.loader",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: load_screen_new_playable_screen_777833014252.",
+      "external_reference_count": 1,
+      "line_count": 114,
+      "source_bytes": 4685,
+      "incoming_references": [
+        {
+          "label": "load_screen_new_playable_screen_777833014252",
+          "line": 7283,
+          "source_block_id": null,
+          "source_label": "load_screen_new_playable_screen_777833014252_far",
+          "raw": "call load_screen_new_playable_screen_777833014252"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "data.entities.player_1.init",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: init_player_1.",
+      "external_reference_count": 1,
+      "line_count": 177,
+      "source_bytes": 4974,
+      "incoming_references": [
+        {
+          "label": "init_player_1",
+          "line": 18624,
+          "source_block_id": null,
+          "source_label": "init_entities",
+          "raw": "call init_player_1"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.entities.patrol_facing",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: update_entity_patrol_facing.",
+      "external_reference_count": 0,
+      "line_count": 88,
+      "source_bytes": 2125,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.sound.psg_lowlevel",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: psg_write, psg_set_tone, psg_set_volume, psg_set_noise, psg_set_mixer, psg_set_envelope.",
+      "external_reference_count": 27,
+      "line_count": 117,
+      "source_bytes": 3450,
+      "incoming_references": [
+        {
+          "label": "psg_set_volume",
+          "line": 19436,
+          "source_block_id": "runtime.sound.sfx_silence",
+          "source_label": "sfx_silence_all",
+          "raw": "call psg_set_volume"
+        },
+        {
+          "label": "psg_set_volume",
+          "line": 19440,
+          "source_block_id": "runtime.sound.sfx_silence",
+          "source_label": "sfx_silence_all",
+          "raw": "call psg_set_volume"
+        },
+        {
+          "label": "psg_set_volume",
+          "line": 19444,
+          "source_block_id": "runtime.sound.sfx_silence",
+          "source_label": "sfx_silence_all",
+          "raw": "call psg_set_volume"
+        },
+        {
+          "label": "psg_set_mixer",
+          "line": 19448,
+          "source_block_id": "runtime.sound.sfx_silence",
+          "source_label": "sfx_silence_all",
+          "raw": "call psg_set_mixer"
+        },
+        {
+          "label": "psg_set_tone",
+          "line": 19462,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_beep",
+          "raw": "call psg_set_tone"
+        },
+        {
+          "label": "psg_set_volume",
+          "line": 19467,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_beep",
+          "raw": "call psg_set_volume"
+        },
+        {
+          "label": "psg_set_mixer",
+          "line": 19471,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_beep",
+          "raw": "call psg_set_mixer"
+        },
+        {
+          "label": "psg_set_tone",
+          "line": 19483,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_jump",
+          "raw": "call psg_set_tone"
+        },
+        {
+          "label": "psg_set_volume",
+          "line": 19488,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_jump",
+          "raw": "call psg_set_volume"
+        },
+        {
+          "label": "psg_set_mixer",
+          "line": 19492,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_jump",
+          "raw": "call psg_set_mixer"
+        },
+        {
+          "label": "psg_set_tone",
+          "line": 19505,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_shoot",
+          "raw": "call psg_set_tone"
+        },
+        {
+          "label": "psg_set_volume",
+          "line": 19510,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_shoot",
+          "raw": "call psg_set_volume"
+        },
+        {
+          "label": "psg_set_noise",
+          "line": 19514,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_shoot",
+          "raw": "call psg_set_noise"
+        },
+        {
+          "label": "psg_set_mixer",
+          "line": 19518,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_shoot",
+          "raw": "call psg_set_mixer"
+        },
+        {
+          "label": "psg_set_noise",
+          "line": 19529,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_explosion",
+          "raw": "call psg_set_noise"
+        },
+        {
+          "label": "psg_set_volume",
+          "line": 19534,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_explosion",
+          "raw": "call psg_set_volume"
+        },
+        {
+          "label": "psg_set_mixer",
+          "line": 19538,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_explosion",
+          "raw": "call psg_set_mixer"
+        },
+        {
+          "label": "psg_set_tone",
+          "line": 19550,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_coin",
+          "raw": "call psg_set_tone"
+        },
+        {
+          "label": "psg_set_volume",
+          "line": 19555,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_coin",
+          "raw": "call psg_set_volume"
+        },
+        {
+          "label": "psg_set_mixer",
+          "line": 19559,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_coin",
+          "raw": "call psg_set_mixer"
+        },
+        {
+          "label": "psg_set_noise",
+          "line": 19571,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_damage",
+          "raw": "call psg_set_noise"
+        },
+        {
+          "label": "psg_set_volume",
+          "line": 19576,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_damage",
+          "raw": "call psg_set_volume"
+        },
+        {
+          "label": "psg_set_mixer",
+          "line": 19580,
+          "source_block_id": "runtime.sound.sfx_builtin_effects",
+          "source_label": "sfx_damage",
+          "raw": "call psg_set_mixer"
+        },
+        {
+          "label": "psg_set_volume",
+          "line": 19756,
+          "source_block_id": null,
+          "source_label": "music_silence_channels",
+          "raw": "call psg_set_volume"
+        },
+        {
+          "label": "psg_set_volume",
+          "line": 19759,
+          "source_block_id": null,
+          "source_label": "music_silence_channels",
+          "raw": "call psg_set_volume"
+        },
+        {
+          "label": "psg_set_volume",
+          "line": 19762,
+          "source_block_id": null,
+          "source_label": "music_silence_channels",
+          "raw": "call psg_set_volume"
+        },
+        {
+          "label": "psg_set_mixer",
+          "line": 19764,
+          "source_block_id": null,
+          "source_label": "music_silence_channels",
+          "raw": "call psg_set_mixer"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.sound.sfx_silence",
+      "status": "referenced",
+      "candidate": false,
+      "reason": "Block has 2 external label reference(s).",
+      "external_reference_count": 2,
+      "line_count": 21,
+      "source_bytes": 579,
+      "incoming_references": [
+        {
+          "label": "sfx_silence_all",
+          "line": 19277,
+          "source_block_id": null,
+          "source_label": "init_sound_system",
+          "raw": "call sfx_silence_all"
+        },
+        {
+          "label": "sfx_silence_all",
+          "line": 19715,
+          "source_block_id": "runtime.sound.sfx_playback",
+          "source_label": "sfx_update",
+          "raw": "call sfx_silence_all"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.sound.sfx_builtin_effects",
+      "status": "referenced",
+      "candidate": false,
+      "reason": "Block has 6 external label reference(s).",
+      "external_reference_count": 6,
+      "line_count": 127,
+      "source_bytes": 3025,
+      "incoming_references": [
+        {
+          "label": "sfx_beep",
+          "line": 19620,
+          "source_block_id": "runtime.sound.sfx_playback",
+          "source_label": "sfx_damage",
+          "raw": "ld hl, sfx_beep"
+        },
+        {
+          "label": "sfx_jump",
+          "line": 19626,
+          "source_block_id": "runtime.sound.sfx_playback",
+          "source_label": "sfx_damage",
+          "raw": "ld hl, sfx_jump"
+        },
+        {
+          "label": "sfx_shoot",
+          "line": 19632,
+          "source_block_id": "runtime.sound.sfx_playback",
+          "source_label": "sfx_damage",
+          "raw": "ld hl, sfx_shoot"
+        },
+        {
+          "label": "sfx_explosion",
+          "line": 19638,
+          "source_block_id": "runtime.sound.sfx_playback",
+          "source_label": "sfx_damage",
+          "raw": "ld hl, sfx_explosion"
+        },
+        {
+          "label": "sfx_coin",
+          "line": 19644,
+          "source_block_id": "runtime.sound.sfx_playback",
+          "source_label": "sfx_damage",
+          "raw": "ld hl, sfx_coin"
+        },
+        {
+          "label": "sfx_damage",
+          "line": 19650,
+          "source_block_id": "runtime.sound.sfx_playback",
+          "source_label": "sfx_damage",
+          "raw": "ld hl, sfx_damage"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.sound.sfx_playback",
+      "status": "referenced",
+      "candidate": false,
+      "reason": "Block has 1 external label reference(s).",
+      "external_reference_count": 1,
+      "line_count": 119,
+      "source_bytes": 2384,
+      "incoming_references": [
+        {
+          "label": "sfx_update",
+          "line": 7455,
+          "source_block_id": null,
+          "source_label": "sfx_update_far",
+          "raw": "call sfx_update"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.sound.music_reset_noop",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 4,
+      "source_bytes": 163,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.sprites.show_sprite_legacy",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 43,
+      "source_bytes": 981,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.animtiles.core",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: init_animated_tiles, update_animated_tiles, update_animated_tiles_vram, anim_upload_char_frame, set_animation_speed, register_animated_tile, get_tile_animation_frame.",
+      "external_reference_count": 3,
+      "line_count": 318,
+      "source_bytes": 9265,
+      "incoming_references": [
+        {
+          "label": "init_animated_tiles",
+          "line": 7687,
+          "source_block_id": null,
+          "source_label": "init_animated_tiles_far",
+          "raw": "call init_animated_tiles"
+        },
+        {
+          "label": "update_animated_tiles",
+          "line": 7705,
+          "source_block_id": null,
+          "source_label": "update_animated_tiles_far",
+          "raw": "call update_animated_tiles"
+        },
+        {
+          "label": "update_animated_tiles_vram",
+          "line": 7723,
+          "source_block_id": null,
+          "source_label": "update_animated_tiles_vram_far",
+          "raw": "call update_animated_tiles_vram"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.scroll.core",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: init_scroll_system, set_camera_position, move_camera, center_camera_on_entity, update_scroll, redraw_viewport, multiply_a_by_b.",
+      "external_reference_count": 0,
+      "line_count": 340,
+      "source_bytes": 8599,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.worlds.worldmap_1777833018852.loader",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: load_world_worldmap_1777833018852.",
+      "external_reference_count": 2,
+      "line_count": 32,
+      "source_bytes": 1257,
+      "incoming_references": [
+        {
+          "label": "load_world_worldmap_1777833018852",
+          "line": 7783,
+          "source_block_id": null,
+          "source_label": "load_world_worldmap_1777833018852_far",
+          "raw": "call load_world_worldmap_1777833018852"
+        },
+        {
+          "label": "load_world_worldmap_1777833018852",
+          "line": 21023,
+          "source_block_id": null,
+          "source_label": "load_world_default",
+          "raw": "jp load_world_worldmap_1777833018852"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.worlds.current_screen_helpers",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 23,
+      "source_bytes": 633,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "runtime.hud.empty_update_stubs",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 6,
+      "source_bytes": 178,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    }
+  ],
+  "block_errors": [],
+  "findings": [],
+  "applied_patches": 0
+}

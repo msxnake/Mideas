@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "scope": "konami8k_scene_load_plan",
+  "strategy": "group current banked resources by scene and physical bank; optimizer consumes this before repacking",
+  "mapper": {
+    "format": "ascii16",
+    "segmentSize": 16384,
+    "dataWindowPage": "p3",
+    "windowBase": "#8000",
+    "windowMask": "#3FFF",
+    "bankDivisor": "#4000"
+  },
+  "summary": {
+    "sceneCount": 2,
+    "resourceCount": 55,
+    "uniqueDataBanks": 1,
+    "totalSceneBankTouches": 2,
+    "maxSceneBankTouches": 1,
+    "totalStoredBytes": 4138,
+    "totalRawBytes": 14734,
+    "compressedResources": 51
+  },
+  "scenes": [
+    {
+      "index": 0,
+      "id": "screenmap_1776511902784",
+      "name": "pan1",
+      "tileBankAssetId": "tilebank_1776511918552",
+      "resourceCount": 9,
+      "totalStoredBytes": 103,
+      "totalRawBytes": 3484,
+      "compressedResources": 7,
+      "banks": [
+        {
+          "bank": 1,
+          "count": 9,
+          "storedBytes": 103,
+          "rawBytes": 3484,
+          "resourceIds": [
+            40,
+            44,
+            45,
+            46,
+            43,
+            38,
+            39,
+            42,
+            41
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+            "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+            "SCREEN_PAN1_0_BLOCK_CATALOG",
+            "SCREEN_PAN1_0_BLOCK_MAP",
+            "SCREEN_PAN1_0_BOSS_TABLE",
+            "SCREEN_PAN1_0_EFFECT_ZONE_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 1,
+          "resourceIds": [
+            40,
+            44,
+            45,
+            46,
+            43,
+            38,
+            39,
+            42,
+            41
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+            "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+            "SCREEN_PAN1_0_BLOCK_CATALOG",
+            "SCREEN_PAN1_0_BLOCK_MAP",
+            "SCREEN_PAN1_0_BOSS_TABLE",
+            "SCREEN_PAN1_0_EFFECT_ZONE_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 1,
+      "id": "screenmap_1777377884059",
+      "name": "New Dialog Screen",
+      "tileBankAssetId": "tilebank_1776511918552",
+      "resourceCount": 8,
+      "totalStoredBytes": 53,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 1,
+          "count": 8,
+          "storedBytes": 53,
+          "rawBytes": 4610,
+          "resourceIds": [
+            47,
+            48,
+            51,
+            52,
+            53,
+            54,
+            49,
+            50
+          ],
+          "resourceLabels": [
+            "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+            "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+            "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+            "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+            "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+            "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP",
+            "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+            "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 1,
+          "resourceIds": [
+            47,
+            48,
+            51,
+            52,
+            53,
+            54,
+            49,
+            50
+          ],
+          "resourceLabels": [
+            "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+            "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+            "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+            "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+            "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+            "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP",
+            "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+            "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    }
+  ]
+}

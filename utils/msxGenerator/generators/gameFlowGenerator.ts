@@ -11,9 +11,11 @@ import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { MSX1_PALETTE } from '../../../constants';
 import type { ExecutionPlan } from '../types/executionTypes';
 import { buildMSXDirectionalSpriteCatalog } from '../../../components/utils/spriteUtils';
+import { buildResourceIdLabelFromAsmLabel } from '../utils/megaromResourceArtifacts';
+import { generateComponentTriggerHelpers } from './componentsGenerator';
 
 function hasFrameAudio(analysis: ProjectAnalysis): boolean {
-  return ((analysis.tracks?.length || 0) > 0) || ((analysis.stateMachines?.length || 0) > 0);
+  return ((analysis.tracks?.length || 0) > 0) || ((analysis.sounds?.length || 0) > 0);
 }
 
 function shouldTickAudioInGameFlow(analysis: ProjectAnalysis, executionPlan?: ExecutionPlan): boolean {
@@ -28,6 +30,13 @@ function buildGameFlowAudioTickAsm(analysis: ProjectAnalysis, executionPlan?: Ex
     return '';
   }
   return '    call task_audio_tick\n';
+}
+
+function shouldEmitComponentTriggerHelpersInGameFlow(_analysis: ProjectAnalysis, _romMode: string): boolean {
+  // Trigger helpers are component-owned routines. Emitting them from GameFlow in
+  // MegaROM creates duplicate labels in a far overlay, so component code can
+  // resolve calls to an address that is only valid while that overlay is mapped.
+  return false;
 }
 
 /**
@@ -247,6 +256,25 @@ function getSubMenuInitialOptionIndex(node: any): number {
   return Math.floor(explicit);
 }
 
+function getControlsKeyButton1Mode(node: any): 0 | 1 {
+  return String(node?.keyboardButton1 || node?.button1Key || 'SPC').toUpperCase() === 'CTRL' ? 1 : 0;
+}
+
+function getControlsKeyButton2Mode(node: any): 0 | 1 {
+  return String(node?.keyboardButton2 || node?.button2Key || 'N').toUpperCase() === 'CTRL' ? 1 : 0;
+}
+
+function getControlsActionButtonMode(value: any, fallback: 'button1' | 'button2'): 0 | 1 {
+  const normalized = String(value || fallback).trim().toLowerCase();
+  return normalized === 'button2' || normalized === 'btn2' || normalized === 'b2' || normalized === '2' ? 1 : 0;
+}
+
+function getControlsActionLabel(value: any, fallback: string): string {
+  const normalized = sanitizeAsmText(value || fallback).replace(/:/g, '').trim().toUpperCase();
+  const label = normalized || fallback.toUpperCase();
+  return `${label.slice(0, 10)}:`;
+}
+
 /**
  * Convert node type to constant name (e.g., "WorldLink" -> "NODE_TYPE_WORLD_LINK")
  */
@@ -271,6 +299,12 @@ function getSpriteFrameLayerLabel(sprite: any, spriteIndex: number, frameIndex: 
   const uniqueName = `${spriteName}_${spriteIndex}`;
   const safeSpriteName = uniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
   return `${safeSpriteName}_F${frameIndex}_LAYER${layerIndex}`;
+}
+
+function getLocalCodeBankExpr(label: string, useFarCall: boolean): string {
+  // In MegaROM, GameFlow can be packed into an overlay bank; the physical bank
+  // is only known later when unifiedGenerator places the module.
+  return useFarCall ? '__MIDEAS_CURRENT_CODE_BANK__' : `((${label} - #4000) / #2000)`;
 }
 
 /**
@@ -454,6 +488,14 @@ function getHudRuntimeScreenIndexes(analysis: ProjectAnalysis): number[] {
   return Array.from(runtimeIndexes).sort((a, b) => a - b);
 }
 
+function projectHasBossRuntime(analysis: ProjectAnalysis): boolean {
+  const hasBossAssets = (analysis.bosses?.length || 0) > 0;
+  const hasBossInstances = (analysis.screenMaps || []).some((screen: any) =>
+    Array.isArray(screen?.bossInstances) && screen.bossInstances.length > 0
+  );
+  return hasBossAssets || hasBossInstances;
+}
+
 /**
  * Emit conditional HUD rendering for current_screen_id.
  */
@@ -478,6 +520,124 @@ function generateConditionalRenderHudAsm(
   code += `    call render_hud\n`;
   code += `.${labelBase}_skip:\n`;
   return code;
+}
+
+function buildPreservedFrameAudioTickAsm(frameAudioTickAsm: string): string {
+  if (!frameAudioTickAsm.trim()) {
+    return '';
+  }
+  return `    push bc
+    push de
+    push hl
+${frameAudioTickAsm}    pop hl
+    pop de
+    pop bc
+`;
+}
+
+/**
+ * Emit PresentationScreen waits in GameFlow for MegaROM builds.
+ *
+ * The screen image itself can live in a far `screens_code` overlay, but waits
+ * with HALT/input polling must run after the far-call trampoline has restored
+ * the mapper window. Keeping the wait here avoids holding ASCII8 P2 on a
+ * screen overlay while GameFlow expects resident/runtime code to remain stable.
+ */
+function buildGameFlowPresentationWaitAsm(analysis: ProjectAnalysis): string {
+  const runtime = analysis.presentationScreen?.runtime;
+  if (!runtime) {
+    return '';
+  }
+
+  let code = '';
+  const waitFrames = Math.max(0, Math.min(255, Math.floor(Number(runtime.waitForFrames) || 0)));
+  if (waitFrames > 0) {
+    code += `    ld b, ${waitFrames}
+    call gameflow_presentation_wait_frames
+`;
+  }
+  if (runtime.waitForKey) {
+    code += `    call gameflow_presentation_wait_for_fire
+`;
+  }
+  return code;
+}
+
+function generateGameFlowPresentationWaitHelpers(analysis: ProjectAnalysis, frameAudioTickAsm: string): string {
+  const waitAsm = buildGameFlowPresentationWaitAsm(analysis);
+  if (!waitAsm) {
+    return '';
+  }
+
+  const audioTickAsm = buildPreservedFrameAudioTickAsm(frameAudioTickAsm);
+  return `; ------------------------------------------------------------------
+; PresentationScreen wait helpers for MegaROM GameFlow.
+; These run after show_presentation_screen_image_far has restored mapper P2.
+; ------------------------------------------------------------------
+; gameflow_presentation_wait_frames
+; Input:  B = frame count
+; Output: none
+; Clobbers: AF
+; Preserves: BC, DE, HL, IX, IY
+; @mideas:block id=runtime.gameflow.presentation_wait_frames kind=routine owner=gameflow
+gameflow_presentation_wait_frames:
+    push bc
+    ld a, b
+    or a
+    jr z, .gfpwf_done
+.gfpwf_loop:
+    ei
+    halt
+${audioTickAsm}    djnz .gfpwf_loop
+.gfpwf_done:
+    pop bc
+    ret
+; @mideas:endblock id=runtime.gameflow.presentation_wait_frames
+
+; gameflow_presentation_wait_for_fire
+; Wait for SPACE press and release using keyboard matrix row 8 bit 0.
+; Output: none
+; Clobbers: AF
+; Preserves: BC, DE, HL, IX, IY
+gameflow_presentation_wait_for_fire:
+.gfpwff_wait_press:
+    ei
+    halt
+${audioTickAsm}    call gameflow_presentation_read_fire_direct
+    or a
+    jr z, .gfpwff_wait_press
+.gfpwff_wait_release:
+    ei
+    halt
+${audioTickAsm}    call gameflow_presentation_read_fire_direct
+    or a
+    jr nz, .gfpwff_wait_release
+    ret
+
+; gameflow_presentation_read_fire_direct
+; Output: A = 1 when SPACE is pressed, A = 0 otherwise
+; Clobbers: AF
+; Preserves: BC, DE, HL, IX, IY
+gameflow_presentation_read_fire_direct:
+    ; GameFlow confirm waits are not timing-critical. Use BIOS SNSMAT here
+    ; so OpenMSX key injection and real keyboard scanning follow the same path.
+    push bc
+    push de
+    push hl
+    ld a, 8
+    call SNSMAT
+    pop hl
+    pop de
+    pop bc
+    bit 0, a
+    jr z, .gfprd_pressed
+    xor a
+    ret
+.gfprd_pressed:
+    ld a, 1
+    ret
+
+`;
 }
 
 /**
@@ -540,6 +700,8 @@ gameflow_init:
     xor a
     ld (gameflow_exit_requested), a
     ld (current_flow_state), a
+    ld (gameflow_deferred_game_init), a
+    ld (gameflow_reveal_world_after_load), a
     ret
 
 ; Main entry point - called from init_rom
@@ -654,7 +816,12 @@ gameflow_get_default_connection:
 ; Get connection by type
 ; Input: BC = connection table pointer, A = connection type to find
 ; Output: HL = next node address (or 0 if not found)
+; Preserves: BC, DE
+; Clobbers: AF, HL
+; @mideas:block id=runtime.gameflow.connection_by_type kind=routine owner=gameflow
 gameflow_get_connection_by_type:
+    push bc
+    push de
     ld d, a         ; Save connection type
     ld h, b
     ld l, c
@@ -678,11 +845,16 @@ gameflow_get_connection_by_type:
     inc hl
     ld h, (hl)
     ld l, a
+    pop de
+    pop bc
     ret
 
 .not_found:
     ld hl, 0
+    pop de
+    pop bc
     ret
+; @mideas:endblock id=runtime.gameflow.connection_by_type
 
 ; Connection type constants
 CONNECTION_DEFAULT      EQU 0
@@ -707,9 +879,18 @@ gameflow_no_data:
 ; Clobbers: AF
 ; Preserves: BC, DE, HL, IX, IY
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.gameflow.confirm_input_direct kind=routine owner=gameflow
 gameflow_read_confirm_direct:
+    ; Keep menu/text confirmation on BIOS SNSMAT; this runs outside the
+    ; gameplay hot path and avoids direct PPI keyboard edge cases.
+    push bc
+    push de
+    push hl
     ld a, 8
-    call FAST_SNSMAT
+    call SNSMAT
+    pop hl
+    pop de
+    pop bc
     bit 0, a
     jr z, .grcd_pressed
     xor a
@@ -717,6 +898,7 @@ gameflow_read_confirm_direct:
 .grcd_pressed:
     ld a, 1
     ret
+; @mideas:endblock id=runtime.gameflow.confirm_input_direct
 
 `;
 
@@ -729,6 +911,12 @@ gameflow_read_confirm_direct:
   const hasHud = hudRuntimeScreenIndexes.length > 0;
   const timeRemainingAsmName = resolveGlobalVariableAsmName('TimeRemaining', analysis);
   const hasScreenTimer = !!timeRemainingAsmName;
+  const hasSfxAssets = (analysis.sounds?.length || 0) > 0;
+  const bossUpdateAsm = projectHasBossRuntime(analysis)
+    ? `    call update_boss_system
+
+`
+    : '';
   const worldLoopHudRenderAsm = generateConditionalRenderHudAsm(hudRuntimeScreenIndexes, 'gf_worldloop_hud');
   const worldLinkHudBootstrapAsm = generateConditionalRenderHudAsm(hudRuntimeScreenIndexes, 'gf_worldlink_hud', true);
 
@@ -738,6 +926,7 @@ gameflow_read_confirm_direct:
 
 ; Main game loop - executed by WorldLink nodes
 ; This loop runs while a world/level is active
+; @mideas:block id=runtime.gameflow.world_loop kind=routine owner=gameflow roots=gameflow_world_game_loop
 gameflow_world_game_loop:
     ; Check exit flag
     ld a, (gameflow_exit_requested)
@@ -749,7 +938,11 @@ gameflow_world_game_loop:
 ${frameAudioTickAsm}    ; Poll input immediately after V-Blank edge so the hero uses
     ; the freshest input state in the same visible frame.
     call task_update_input
+    ld a, (current_screen_engine)
+    or a
+    jp nz, .skip_player_fastpath_pre_update
     call update_player_fastpath
+.skip_player_fastpath_pre_update:
 
 ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stage)
     call update_world_screen_timer
@@ -761,6 +954,10 @@ ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stag
     ; Update all entities
     call update_all_entities
 
+    ld a, (current_screen_engine)
+    or a
+    jp nz, .skip_player_fastpath_before_sm
+
     ; Refresh player deadly-tile state before state machines consume it.
     call refresh_player_deadly_fastpath
 
@@ -769,9 +966,14 @@ ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stag
 
     ; Run the player state machine before the generic SM sweep.
     call refresh_player_state_machine_fastpath
+.skip_player_fastpath_before_sm:
 
     ; Execute all state machines
     call execute_all_state_machines
+
+    ld a, (current_screen_engine)
+    or a
+    jp nz, .skip_player_fastpath_post_update
 
     ; WallGrab owns the visible sprite while the grab button is held.
     ; Re-apply it after StateMachine actions so idle/jump/walk sprites
@@ -779,17 +981,17 @@ ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stag
     call refresh_player_wallgrab_fastpath
     call update_wallgrab_component
 
-    ; Update timed PSG sound effects
+${hasSfxAssets ? `    ; Update timed PSG sound effects
     call sfx_update
 
-    ; Refresh player animation with the final state of this frame.
+` : ``}    ; Refresh player animation with the final state of this frame.
     call refresh_player_animation_fastpath
 
     ; Refresh player sprite once with the final state of this frame.
     call refresh_player_sprite_fastpath
+.skip_player_fastpath_post_update:
 
-    call update_boss_system
-
+${bossUpdateAsm}
     ; Upload sprites after gameplay so the hero position computed this frame
     ; is what gets shown on screen, instead of the previous frame's SAT.
     call update_sprites_to_vram
@@ -804,6 +1006,7 @@ ${hasHud ? `
 ${worldLoopHudRenderAsm}` : ``}
     ; Loop
     jp gameflow_world_game_loop
+; @mideas:endblock id=runtime.gameflow.world_loop
 
 `;
 
@@ -813,6 +1016,7 @@ ${worldLoopHudRenderAsm}` : ``}
 ; Resets TimeRemaining to 60 on every screen load/transition and
 ; decrements it once per real second using interrupt_counter deltas.
 ; ==================================================================
+; @mideas:block id=runtime.gameflow.screen_timer kind=routine owner=gameflow roots=get_world_screen_timer_frames_per_second,reload_world_screen_timer_frames,snapshot_world_screen_timer_interrupt_counter,reset_world_screen_timer,update_world_screen_timer
 
 get_world_screen_timer_frames_per_second:
     ld a, (isComputer50HzOr60Hz)
@@ -955,6 +1159,7 @@ ${hasHud ? `    ld a, 1
     pop bc
     pop af
     ret
+; @mideas:endblock id=runtime.gameflow.screen_timer
 
 `;
   }
@@ -1184,6 +1389,7 @@ init_all_global_variables:
 ; ------------------------------------------------------------------
 ; Helper: Clear screen area for menus/end screens
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.gameflow.clear_screen_area_helpers kind=routine owner=gameflow
 clear_screen_area:
     ; Clear center area of screen
     ld b, 8                       ; 8 rows
@@ -1242,11 +1448,16 @@ empty_row_data:
     db 0, 0, 0, 0, 0, 0, 0, 0
     db 0, 0, 0, 0, 0, 0, 0, 0
     db 0, 0, 0, 0, 0, 0, 0, 0
+; @mideas:endblock id=runtime.gameflow.clear_screen_area_helpers
 
 ; ==================================================================
 ; END OF GAMEFLOW
 ; ==================================================================
 `;
+
+  if (shouldEmitComponentTriggerHelpersInGameFlow(analysis, romMode)) {
+    code += generateComponentTriggerHelpers();
+  }
 
   return stripUnusedGameFlowUtilityBlocks(code);
 }
@@ -1266,9 +1477,20 @@ function generateNodeHandlers(
 
   const hudRuntimeScreenIndexes = getHudRuntimeScreenIndexes(analysis);
   const hasHud = hudRuntimeScreenIndexes.length > 0;
+  const visualNodeTypes = new Set(['WorldLink', 'SubMenu', 'Controls', 'Text', 'TextScroll', 'TextScrollColor', 'End', 'Restart', 'PresentationScreen']);
+  const hasTextScrollNode = nodeTypes.includes('TextScroll');
+  const hasTextScrollColorNode = nodeTypes.includes('TextScrollColor');
+  const needsTransitionRuntime = nodeTypes.includes('Transition') || nodeTypes.some((nodeType) => visualNodeTypes.has(nodeType));
+  const baseHandlerNodeTypes = needsTransitionRuntime && !nodeTypes.includes('Transition')
+    ? [...nodeTypes, 'Transition']
+    : nodeTypes;
+  const handlerNodeTypesBase = baseHandlerNodeTypes.filter((nodeType) => nodeType !== 'TextScrollColor');
+  const handlerNodeTypes = hasTextScrollColorNode && !handlerNodeTypesBase.includes('TextScroll')
+    ? [...handlerNodeTypesBase, 'TextScroll']
+    : handlerNodeTypesBase;
   const worldLinkHudBootstrapAsm = generateConditionalRenderHudAsm(hudRuntimeScreenIndexes, 'gf_worldlink_hud', true);
 
-  nodeTypes.forEach((nodeType: string) => {
+  handlerNodeTypes.forEach((nodeType: string) => {
     switch (nodeType) {
       case 'Start':
         code += `gameflow_handle_start:
@@ -1312,7 +1534,8 @@ function generateNodeHandlers(
         break;
 
       case 'WorldLink':
-        code += `gameflow_handle_worldlink:
+        code += `; @mideas:block id=runtime.gameflow.worldlink kind=routine owner=gameflow roots=gameflow_handle_worldlink
+gameflow_handle_worldlink:
     ; WorldLink node - load world and enter game loop
     ; DE = world data pointer:
     ;   [load_world_ptr DW][load_world_bank DB][init_ptr DW][init_bank DB]
@@ -1357,6 +1580,14 @@ function generateNodeHandlers(
     call mapper_call_hl_auto
 
 .after_init:
+    ld a, (gameflow_reveal_world_after_load)
+    or a
+    jr z, .after_target_reveal
+    xor a
+    ld (gameflow_reveal_world_after_load), a
+    call ENASCR
+    call execute_transition_reveal_target
+.after_target_reveal:
     ; Set game state
     xor a
     ld (gameflow_exit_requested), a
@@ -1386,12 +1617,14 @@ ${worldLinkHudBootstrapAsm}` : ``}
     or l
     ret z
     jp gameflow_execute_node
+; @mideas:endblock id=runtime.gameflow.worldlink
 
 `;
         break;
 
       case 'End':
-        code += `gameflow_handle_end:
+        code += `; @mideas:block id=runtime.gameflow.end_screen kind=routine owner=gameflow roots=gameflow_handle_end,display_end_screen,print_string_vram
+gameflow_handle_end:
     ; End node - stop execution and show end screen
     ; DE = end screen data pointer (screen type, message pointer)
     ; BC = connection table (unused, end stops execution)
@@ -1410,7 +1643,9 @@ ${worldLinkHudBootstrapAsm}` : ``}
     pop af                        ; Restore screen type
 
     ; Display end screen based on type
+    call gameflow_begin_transition_target_render
     call display_end_screen
+    call gameflow_finish_transition_target_render
 
     pop de
 
@@ -1534,6 +1769,7 @@ str_game_over:
 
 str_credits:
     db "CREDITS", 0
+; @mideas:endblock id=runtime.gameflow.end_screen
 
 `;
         break;
@@ -1555,9 +1791,10 @@ str_credits:
           let submenuCursorPatternTable = '';
           let submenuCursorLayerPtrTable = '';
           let submenuCursorLayerBankTable = '';
+          let submenuCursorLayerResourceTable = '';
           for (let i = 0; i < submenuCursorPatternCount; i++) {
             const sprite = sprites[i];
-            submenuCursorPatternTable += `    dw SPRITE_${i}_PATTERN\n`;
+            submenuCursorPatternTable += useFarCall ? `    dw 0\n` : `    dw SPRITE_${i}_PATTERN\n`;
 
             const selectedLayers = sprite
               ? analyzeDrawableLayerIndexes(sprite).slice(0, 4)
@@ -1568,14 +1805,212 @@ str_credits:
               if (sourceLayerIndex === undefined) {
                 submenuCursorLayerPtrTable += `    dw 0\n`;
                 submenuCursorLayerBankTable += `    db 0\n`;
+                submenuCursorLayerResourceTable += `    db #FF\n`;
                 continue;
               }
 
               const layerLabel = getSpriteFrameLayerLabel(sprite, i, 0, sourceLayerIndex);
-              submenuCursorLayerPtrTable += `    dw ${layerLabel}\n`;
-              submenuCursorLayerBankTable += `    db ((${layerLabel} - #4000) / #2000)\n`;
+              submenuCursorLayerPtrTable += useFarCall ? `    dw 0\n` : `    dw ${layerLabel}\n`;
+              submenuCursorLayerBankTable += useFarCall ? `    db 0\n` : `    db ((${layerLabel} - #4000) / #2000)\n`;
+              submenuCursorLayerResourceTable += useFarCall
+                ? `    db ${buildResourceIdLabelFromAsmLabel(layerLabel)}\n`
+                : `    db #FF\n`;
             }
           }
+
+          const submenuPrepareCursorSpriteAsm = useFarCall ? `; ------------------------------------------------------------------
+; submenu_prepare_cursor_sprite
+; Load cursor sprite patterns and initialize cursor state.
+; Uses sprite slots SUBMENU_CURSOR_BASE_SPRITE..+3.
+; MegaROM path resolves sprite layer resources by id.
+; ------------------------------------------------------------------
+submenu_prepare_cursor_sprite:
+    push bc
+    push de
+    push hl
+
+    ; Default: no sprite cursor
+    xor a
+    ld (gameflow_submenu_cursor_enabled), a
+    ld (gameflow_submenu_cursor_layer_count), a
+
+    ; Clear SAT buffer once to avoid stale sprite garbage in menus
+    call clear_all_sprites
+
+    ld hl, (gameflow_submenu_data_ptr)
+    inc hl                        ; +1 cursor_sprite_idx
+    ld a, (hl)
+    cp #FF
+    jp z, .sps_done               ; no sprite cursor configured
+    ld b, a                       ; B = sprite asset index
+
+    ; Read and clamp layer count (+2)
+    ld hl, (gameflow_submenu_data_ptr)
+    ld de, 2
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .sps_done
+    cp 5
+    jp c, .sps_layer_ok
+    ld a, 4
+.sps_layer_ok:
+    ld (gameflow_submenu_cursor_layer_count), a
+
+    ld c, 0                       ; C = compact layer slot
+.sps_load_loop:
+    ld a, (gameflow_submenu_cursor_layer_count)
+    cp c
+    jp z, .sps_enable_cursor
+
+    ld a, b                       ; A = sprite asset index
+    call submenu_get_cursor_layer_resource_id
+    jp c, .sps_done
+
+    push bc
+    push af                       ; save resource id
+    ld a, c
+    add a, SUBMENU_CURSOR_BASE_SPRITE
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                    ; HL = sprite slot * 32
+    ld de, SPRPAT
+    add hl, de
+    push hl
+    pop de                        ; DE = destination in VRAM
+    pop af                        ; A = resource id
+    call resource_load_to_vram_by_id
+    pop bc
+
+    inc c
+    jp .sps_load_loop
+
+.sps_enable_cursor:
+    ld a, 1
+    ld (gameflow_submenu_cursor_enabled), a
+
+.sps_done:
+    call submenu_update_cursor_sprite
+    pop hl
+    pop de
+    pop bc
+    ret
+
+` : `; ------------------------------------------------------------------
+; submenu_prepare_cursor_sprite
+; Load cursor sprite patterns and initialize cursor state.
+; Uses sprite slots SUBMENU_CURSOR_BASE_SPRITE..+3.
+; ------------------------------------------------------------------
+submenu_prepare_cursor_sprite:
+    push bc
+    push de
+    push hl
+
+    ; Default: no sprite cursor
+    xor a
+    ld (gameflow_submenu_cursor_enabled), a
+    ld (gameflow_submenu_cursor_layer_count), a
+
+    ; Clear SAT buffer once to avoid stale sprite garbage in menus
+    call clear_all_sprites
+
+    ld hl, (gameflow_submenu_data_ptr)
+    inc hl                        ; +1 cursor_sprite_idx
+    ld a, (hl)
+    cp #FF
+    jr z, .sps_done               ; no sprite cursor configured
+
+    ; Resolve pattern pointer from sprite asset index
+    call submenu_get_cursor_pattern_ptr
+    jr c, .sps_done               ; invalid index -> fallback to char marker
+    push hl                       ; save pattern ptr
+
+    ; Read and clamp layer count (+2)
+    ld hl, (gameflow_submenu_data_ptr)
+    ld bc, 2
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr z, .sps_restore_no_cursor
+    cp 5
+    jr c, .sps_layer_ok
+    ld a, 4
+.sps_layer_ok:
+    ld (gameflow_submenu_cursor_layer_count), a
+
+    ; Upload all layers as one contiguous block.
+    ; SPRITE_X_PATTERN points to layer0 data; layers are stored sequentially
+    ; in ROM so layer_count * 32 bytes covers all of them.
+    ; SPRPAT + (SUBMENU_CURSOR_BASE_SPRITE * 32) is an assembly-time constant
+    ; (no 8-bit runtime overflow).
+    pop hl                        ; HL = source pattern base (SPRITE_X_PATTERN)
+    ld a, (gameflow_submenu_cursor_layer_count)
+    add a, a                      ; *2
+    add a, a                      ; *4
+    add a, a                      ; *8
+    add a, a                      ; *16
+    add a, a                      ; *32  (layer_count <= 4, max 128 - fits in A)
+    ld c, a
+    ld b, 0                       ; BC = layer_count * 32
+    ld de, SPRPAT + (SUBMENU_CURSOR_BASE_SPRITE * 32)
+    call FAST_LDIRVM
+
+.sps_enable_cursor:
+
+    ld a, 1
+    ld (gameflow_submenu_cursor_enabled), a
+    jr .sps_done
+
+.sps_restore_no_cursor:
+    pop hl
+
+.sps_done:
+    call submenu_update_cursor_sprite
+    pop hl
+    pop de
+    pop bc
+    ret
+
+`;
+
+          const submenuCursorResourceHelperAsm = useFarCall ? `; ------------------------------------------------------------------
+; submenu_get_cursor_layer_resource_id
+; Input: A = sprite asset index, C = compact layer slot (0..3)
+; Output: A = resource id, CF=1 on invalid/missing layer
+; ------------------------------------------------------------------
+submenu_get_cursor_layer_resource_id:
+    cp SUBMENU_CURSOR_PATTERN_COUNT
+    jp nc, .sgcr_invalid
+    ld b, a
+    ld a, c
+    cp 4
+    jp nc, .sgcr_invalid
+
+    ; Resource table offset = sprite_index * 4 + layer_slot
+    ld l, b
+    ld h, 0
+    add hl, hl                    ; *2
+    add hl, hl                    ; *4
+    ld d, 0
+    ld e, c
+    add hl, de
+    ld de, submenu_cursor_sprite_layer_resource_table
+    add hl, de
+    ld a, (hl)
+    cp #FF
+    jp z, .sgcr_invalid
+    or a                          ; clear carry
+    ret
+
+.sgcr_invalid:
+    scf
+    ret
+
+` : '';
 
         code += `gameflow_handle_submenu:
     ; SubMenu node - interactive navigation
@@ -1611,6 +2046,7 @@ str_credits:
 ;           DW title_ptr, DW option_ptr[n]
 ; Output: gameflow_menu_selection = selected index (0..5)
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.gameflow.submenu kind=routine owner=gameflow roots=show_menu_placeholder,render_submenu_screen,submenu_update_cursor_sprite,submenu_hide_cursor_sprite,submenu_get_cursor_pattern_ptr,submenu_get_cursor_layer_source
 show_menu_placeholder:
     push bc
     push de
@@ -1637,8 +2073,10 @@ show_menu_placeholder:
     jr nz, .smp_has_options
     xor a
     ld (gameflow_menu_selection), a
+    call gameflow_begin_transition_target_render
     call submenu_prepare_cursor_sprite
     call render_submenu_screen
+    call gameflow_finish_transition_target_render
     jp .smp_exit
 
 .smp_has_options:
@@ -1651,8 +2089,10 @@ show_menu_placeholder:
 .smp_sel_ok:
     ld (gameflow_menu_selection), a
 
+    call gameflow_begin_transition_target_render
     call submenu_prepare_cursor_sprite
     call render_submenu_screen
+    call gameflow_finish_transition_target_render
 
 .smp_loop:
     halt
@@ -1957,12 +2397,13 @@ submenu_compute_center_col:
     pop bc
     ret
 
+${submenuPrepareCursorSpriteAsm}
 ; ------------------------------------------------------------------
 ; submenu_prepare_cursor_sprite
 ; Load cursor sprite patterns and initialize cursor state.
 ; Uses sprite slots SUBMENU_CURSOR_BASE_SPRITE..+3.
 ; ------------------------------------------------------------------
-submenu_prepare_cursor_sprite:
+submenu_prepare_cursor_sprite_legacy:
     push bc
     push de
     push hl
@@ -1979,11 +2420,11 @@ submenu_prepare_cursor_sprite:
     inc hl                        ; +1 cursor_sprite_idx
     ld a, (hl)
     cp #FF
-    jr z, .sps_done               ; no sprite cursor configured
+    jr z, .sps_legacy_done        ; no sprite cursor configured
 
     ; Resolve pattern pointer from sprite asset index
     call submenu_get_cursor_pattern_ptr
-    jr c, .sps_done               ; invalid index -> fallback to char marker
+    jr c, .sps_legacy_done        ; invalid index -> fallback to char marker
     push hl                       ; save pattern ptr
 
     ; Read and clamp layer count (+2)
@@ -1992,11 +2433,11 @@ submenu_prepare_cursor_sprite:
     add hl, bc
     ld a, (hl)
     or a
-    jr z, .sps_restore_no_cursor
+    jr z, .sps_legacy_restore_no_cursor
     cp 5
-    jr c, .sps_layer_ok
+    jr c, .sps_legacy_layer_ok
     ld a, 4
-.sps_layer_ok:
+.sps_legacy_layer_ok:
     ld (gameflow_submenu_cursor_layer_count), a
 
     ; Upload all layers as one contiguous block.
@@ -2016,16 +2457,16 @@ submenu_prepare_cursor_sprite:
     ld de, SPRPAT + (SUBMENU_CURSOR_BASE_SPRITE * 32)
     call FAST_LDIRVM
 
-.sps_enable_cursor:
+.sps_legacy_enable_cursor:
 
     ld a, 1
     ld (gameflow_submenu_cursor_enabled), a
-    jr .sps_done
+    jr .sps_legacy_done
 
-.sps_restore_no_cursor:
+.sps_legacy_restore_no_cursor:
     pop hl
 
-.sps_done:
+.sps_legacy_done:
     call submenu_update_cursor_sprite
     pop hl
     pop de
@@ -2248,6 +2689,7 @@ submenu_get_cursor_layer_source:
     scf
     ret
 
+${submenuCursorResourceHelperAsm}
 SUBMENU_CURSOR_BASE_SPRITE EQU 28
 SUBMENU_CURSOR_MAX_LAYERS  EQU 4
 SUBMENU_CURSOR_PATTERN_COUNT EQU ${submenuCursorPatternCount}
@@ -2261,9 +2703,328 @@ ${submenuCursorLayerPtrTable}
 submenu_cursor_sprite_layer_bank_table:
 ${submenuCursorLayerBankTable}
 
+submenu_cursor_sprite_layer_resource_table:
+${submenuCursorLayerResourceTable}
+
+; @mideas:endblock id=runtime.gameflow.submenu
 `;
-          break;
+        break;
         }
+
+      case 'Controls':
+        code += `gameflow_handle_controls:
+    ; Controls node - configure keyboard bindings and logical action mapping
+    ; DE = controls data pointer:
+    ;   [key_button1][key_button2][jump_button][action_button]
+    ;   [title_ptr DW][primary_label_ptr DW][secondary_label_ptr DW]
+    ; BC = connection table
+    push bc
+    call show_controls_menu
+    pop bc
+    call gameflow_get_default_connection
+    ld a, h
+    or l
+    ret z
+    jp gameflow_execute_node
+
+; ------------------------------------------------------------------
+; show_controls_menu
+; Runtime controls menu. Defaults are applied before the menu opens,
+; so projects can use this node as a fixed preset or let the player edit.
+; ------------------------------------------------------------------
+show_controls_menu:
+    push bc
+    push de
+    push hl
+
+    ld h, d
+    ld l, e
+    ld (gameflow_submenu_data_ptr), hl
+
+    ld a, (hl)
+    ld (input_key_button1_mode), a
+    inc hl
+    ld a, (hl)
+    ld (input_key_button2_mode), a
+    inc hl
+    ld a, (hl)
+    ld (control_jump_button), a
+    inc hl
+    ld a, (hl)
+    ld (control_action_button), a
+
+    xor a
+    ld (gameflow_menu_selection), a
+    call gameflow_begin_transition_target_render
+    call render_controls_screen
+    call gameflow_finish_transition_target_render
+
+.gfc_loop:
+    halt
+${frameAudioTickAsm}    call init_font_system
+    ld a, 0
+    call GTSTCK
+    cp STICK_UP
+    jp z, .gfc_up
+    cp STICK_DOWN
+    jp z, .gfc_down
+    cp STICK_LEFT
+    jp z, .gfc_toggle
+    cp STICK_RIGHT
+    jp z, .gfc_toggle
+
+    call gameflow_read_confirm_direct
+    or a
+    jp z, .gfc_loop
+    ld a, (gameflow_menu_selection)
+    cp 4
+    jp z, .gfc_wait_confirm_release_exit
+    call controls_toggle_selected
+    call render_controls_screen
+    jp .gfc_wait_confirm_release
+
+.gfc_up:
+    ld a, (gameflow_menu_selection)
+    or a
+    jp z, .gfc_wait_neutral
+    dec a
+    ld (gameflow_menu_selection), a
+    call render_controls_screen
+    jp .gfc_wait_neutral
+
+.gfc_down:
+    ld a, (gameflow_menu_selection)
+    cp 4
+    jp nc, .gfc_wait_neutral
+    inc a
+    ld (gameflow_menu_selection), a
+    call render_controls_screen
+    jp .gfc_wait_neutral
+
+.gfc_toggle:
+    call controls_toggle_selected
+    call render_controls_screen
+    jp .gfc_wait_neutral
+
+.gfc_wait_confirm_release:
+    halt
+${frameAudioTickAsm}    call init_font_system
+    call gameflow_read_confirm_direct
+    or a
+    jp nz, .gfc_wait_confirm_release
+    jp .gfc_loop
+
+.gfc_wait_confirm_release_exit:
+    halt
+${frameAudioTickAsm}    call init_font_system
+    call gameflow_read_confirm_direct
+    or a
+    jp nz, .gfc_wait_confirm_release_exit
+    jp .gfc_exit
+
+.gfc_wait_neutral:
+.gfc_wait_neutral_loop:
+    halt
+${frameAudioTickAsm}    call init_font_system
+    ld a, 0
+    call GTSTCK
+    or a
+    jp nz, .gfc_wait_neutral_loop
+    jp .gfc_loop
+
+.gfc_exit:
+    pop hl
+    pop de
+    pop bc
+    ret
+
+controls_toggle_selected:
+    ld a, (gameflow_menu_selection)
+    cp 0
+    jp z, .ct_key1
+    cp 1
+    jp z, .ct_key2
+    cp 2
+    jp z, .ct_jump
+    cp 3
+    jp z, .ct_action
+    ret
+.ct_key1:
+    ld a, (input_key_button1_mode)
+    xor 1
+    ld (input_key_button1_mode), a
+    ret
+.ct_key2:
+    ld a, (input_key_button2_mode)
+    xor 1
+    ld (input_key_button2_mode), a
+    ret
+.ct_jump:
+    ld a, (control_jump_button)
+    xor 1
+    ld (control_jump_button), a
+    ret
+.ct_action:
+    ld a, (control_action_button)
+    xor 1
+    ld (control_action_button), a
+    ret
+
+render_controls_screen:
+    push bc
+    push de
+    push hl
+    xor a
+    call init_char0_color
+    ld a, 0
+    ld b, 24
+.rc_clear_loop:
+    push af
+    push bc
+    call clear_screen_row
+    pop bc
+    pop af
+    inc a
+    djnz .rc_clear_loop
+
+    ld hl, (gameflow_submenu_data_ptr)
+    ld bc, 4
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+    ld de, #18CA
+    call print_string_vram
+
+    ld hl, str_controls_btn1
+    ld de, #1905
+    call print_string_vram
+    ld a, (input_key_button1_mode)
+    or a
+    ld hl, str_controls_spc
+    jp z, .rc_btn1_value_ready
+    ld hl, str_controls_ctrl
+.rc_btn1_value_ready:
+    ld de, #1911
+    call print_string_vram
+
+    ld hl, str_controls_btn2
+    ld de, #1925
+    call print_string_vram
+    ld a, (input_key_button2_mode)
+    or a
+    ld hl, str_controls_n
+    jp z, .rc_btn2_value_ready
+    ld hl, str_controls_ctrl
+.rc_btn2_value_ready:
+    ld de, #1931
+    call print_string_vram
+
+    ld hl, (gameflow_submenu_data_ptr)
+    ld bc, 6
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+    ld de, #1945
+    call print_string_vram
+    ld a, (control_jump_button)
+    or a
+    ld hl, str_controls_b1
+    jp z, .rc_jump_value_ready
+    ld hl, str_controls_b2
+.rc_jump_value_ready:
+    ld de, #1955
+    call print_string_vram
+
+    ld hl, (gameflow_submenu_data_ptr)
+    ld bc, 8
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+    ld de, #1965
+    call print_string_vram
+    ld a, (control_action_button)
+    or a
+    ld hl, str_controls_b1
+    jp z, .rc_action_value_ready
+    ld hl, str_controls_b2
+.rc_action_value_ready:
+    ld de, #1975
+    call print_string_vram
+
+    ld hl, str_controls_done
+    ld de, #19C5
+    call print_string_vram
+
+    call render_controls_markers
+    pop hl
+    pop de
+    pop bc
+    ret
+
+render_controls_markers:
+    ld a, (gameflow_menu_selection)
+    ld b, a
+    ld de, #1903
+    ld a, b
+    cp 0
+    call controls_print_marker_a
+    ld de, #1923
+    ld a, b
+    cp 1
+    call controls_print_marker_a
+    ld de, #1943
+    ld a, b
+    cp 2
+    call controls_print_marker_a
+    ld de, #1963
+    ld a, b
+    cp 3
+    call controls_print_marker_a
+    ld de, #19C3
+    ld a, b
+    cp 4
+    call controls_print_marker_a
+    ret
+
+controls_print_marker_a:
+    push af
+    ld hl, str_controls_blank
+    jp nz, .cpma_print
+    ld hl, str_controls_marker
+.cpma_print:
+    call print_string_vram
+    pop af
+    ret
+
+str_controls_marker:
+    db ">", 0
+str_controls_blank:
+    db " ", 0
+str_controls_btn1:
+    db "B1 KEY:", 0
+str_controls_btn2:
+    db "B2 KEY:", 0
+str_controls_done:
+    db "DONE", 0
+str_controls_spc:
+    db "SPC ", 0
+str_controls_ctrl:
+    db "CTRL", 0
+str_controls_n:
+    db "N   ", 0
+str_controls_b1:
+    db "B1", 0
+str_controls_b2:
+    db "B2", 0
+
+`;
+        break;
 
       case 'Text':
         code += `gameflow_handle_text:
@@ -2297,6 +3058,7 @@ ${submenuCursorLayerBankTable}
 ; (the load_screen function sets VDP colors and name table from screen asset)
 ; If screen_load_ptr == 0: sets bgColor, clears screen, renders text on solid bg
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.gameflow.text_screen kind=routine owner=gameflow roots=show_text_screen,wait_for_fire
 show_text_screen:
     push bc
     push de
@@ -2414,7 +3176,7 @@ show_text_screen:
     djnz .sts_line_loop
 
 .sts_enable:
-    call ENASCR
+    call gameflow_finish_transition_target_render
 
     pop hl
     pop de
@@ -2430,6 +3192,7 @@ wait_for_fire:
 
     ; Wait for fire button press
 .wait_press:
+    ei
     halt
 ${frameAudioTickAsm}
     call gameflow_read_confirm_direct
@@ -2438,6 +3201,7 @@ ${frameAudioTickAsm}
 
     ; Wait for fire button release
 .wait_release:
+    ei
     halt
 ${frameAudioTickAsm}
     call gameflow_read_confirm_direct
@@ -2447,6 +3211,7 @@ ${frameAudioTickAsm}
     ; Small delay after release
     ld b, 5
 .delay_loop:
+    ei
     halt
     push bc
 ${frameAudioTickAsm}    pop bc
@@ -2455,11 +3220,818 @@ ${frameAudioTickAsm}    pop bc
     pop bc
     ret
 
+; @mideas:endblock id=runtime.gameflow.text_screen
+`;
+        break;
+
+      case 'TextScroll':
+        code += `gameflow_handle_textscroll:
+    ; Galious-style pixel text scroll.
+    ; DE = text scroll data pointer
+    ; BC = connection table
+    push bc
+    call show_textscroll_screen
+    pop bc
+
+    call gameflow_get_default_connection
+    ld a, h
+    or l
+    ret z
+    jp gameflow_execute_node
+
+${hasTextScrollColorNode ? `gameflow_handle_textscrollcolor:
+    ; Colored Galious-style pixel text scroll.
+    ; DE = text scroll color data pointer
+    ; BC = connection table
+    push bc
+    call show_textscroll_color_screen
+    pop bc
+
+    call gameflow_get_default_connection
+    ld a, h
+    or l
+    ret z
+    jp gameflow_execute_node
+
+` : ''}TEXTSCROLL_FONT_FIRST EQU 32
+TEXTSCROLL_FONT_COUNT EQU 64
+TEXTSCROLL_FONT_BYTES EQU #0200
+TEXTSCROLL_CHUNK_GLYPHS EQU 32
+TEXTSCROLL_CHUNK_BYTES EQU #0200
+TEXTSCROLL_FONT_SRC EQU page0_transfer_buffer
+TEXTSCROLL_FRAME_BUF EQU page0_transfer_buffer + TEXTSCROLL_FONT_BYTES
+
+; ------------------------------------------------------------------
+; show_textscroll_screen
+; Data format:
+;   db background_color
+;   db stripe_color
+;   db speed_frames_per_pixel
+;   db line_count
+;   repeated line_count times: db centered_col, dw string_ptr
+; ------------------------------------------------------------------
+show_textscroll_screen:
+    ex de, hl
+    xor a
+    ld (gameflow_textscroll_skip_enabled), a
+    ld (gameflow_textscroll_skip_armed), a
+    ld a, #0F
+    ld (gameflow_textscroll_text_color), a
+    jr textscroll_read_common_data
+
+; ------------------------------------------------------------------
+; show_textscroll_color_screen
+; Data format:
+;   db background_color
+;   db stripe_color
+;   db text_color
+;   db speed_frames_per_pixel
+;   db line_count
+;   repeated line_count times: db centered_col, dw string_ptr
+; ------------------------------------------------------------------
+show_textscroll_color_screen:
+    ex de, hl
+    xor a
+    ld (gameflow_textscroll_skip_armed), a
+    ld a, 1
+    ld (gameflow_textscroll_skip_enabled), a
+    call textscroll_read_bg_stripe
+    ld a, (hl)
+    and #0F
+    ld (gameflow_textscroll_text_color), a
+    inc hl
+    jr textscroll_read_speed_count
+
+textscroll_read_common_data:
+    call textscroll_read_bg_stripe
+
+textscroll_read_speed_count:
+    ld a, (hl)
+    or a
+    jr nz, .ts2_speed_ok
+    inc a
+.ts2_speed_ok:
+    ld (gameflow_textscroll_speed), a
+    inc hl
+    ld a, (hl)
+    ld (gameflow_textscroll_line_count), a
+    inc hl
+    ld (gameflow_textscroll_line_table_ptr), hl
+
+    call DISSCR
+    ld a, (gameflow_textscroll_bg_color)
+    and #0F
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
+    ld a, (gameflow_textscroll_bg_color)
+${useFarCall ? `    call call_init_char0_color_resident` : `    call init_char0_color`}
+${useFarCall ? `    call call_reload_font_system_resident` : `    call reload_font_system`}
+    call textscroll_capture_font_patterns
+    call textscroll_prepare_pattern_masks
+    call textscroll_clear_name_table
+
+    xor a
+    ld (gameflow_textscroll_step), a
+    ld (gameflow_textscroll_fine), a
+    ld (gameflow_textscroll_tile_base), a
+    call textscroll_render_name_frame
+    call textscroll_update_pattern_frame
+    call ENASCR
+.scroll_loop:
+    ld a, (gameflow_textscroll_line_count)
+    add a, a
+    add a, 25
+    ld b, a
+    ld a, (gameflow_textscroll_step)
+    cp b
+    jr nc, .scroll_done
+
+.fine_wait:
+    call textscroll_poll_skip
+    or a
+    jr nz, .scroll_done
+    call textscroll_wait_speed
+    or a
+    jr nz, .scroll_done
+    ld hl, gameflow_textscroll_fine
+    inc (hl)
+    ld a, (hl)
+    cp 8
+    jr c, .fine_loop
+
+    ld hl, gameflow_textscroll_step
+    inc (hl)
+    ld a, (gameflow_textscroll_tile_base)
+    xor 128
+    ld (gameflow_textscroll_tile_base), a
+    xor a
+    ld (gameflow_textscroll_fine), a
+    call textscroll_update_pattern_frame
+    call textscroll_render_name_frame
+    jr .scroll_loop
+
+.fine_loop:
+    call textscroll_update_pattern_frame
+    jr .fine_wait
+
+.scroll_done:
+${useFarCall ? `    call call_reload_font_system_resident` : `    call reload_font_system`}
+    ret
+
+textscroll_read_bg_stripe:
+    ld a, (hl)
+    ld (gameflow_textscroll_bg_color), a
+    inc hl
+    ld a, (hl)
+    ld (gameflow_textscroll_stripe_color), a
+    inc hl
+    ret
+
+; ------------------------------------------------------------------
+; Capture current font glyphs 32..95 from the first pattern bank.
+; DI/EI protects the VDP address latch while the interrupt task manager is
+; active, otherwise the mask may be built from corrupted scanlines.
+; ------------------------------------------------------------------
+textscroll_capture_font_patterns:
+    di
+    ; FAST_RDVRM returns the byte after the programmed address on this path,
+    ; so start one byte earlier to capture exact glyph rows.
+    ld hl, CHRTBL2 + (TEXTSCROLL_FONT_FIRST * 8) - 1
+    ld de, TEXTSCROLL_FONT_SRC
+    ld bc, TEXTSCROLL_FONT_BYTES
+.capture_loop:
+    call FAST_RDVRM
+    ld (de), a
+    inc hl
+    inc de
+    dec bc
+    ld a, b
+    or c
+    jr nz, .capture_loop
+    ei
+    ret
+
+textscroll_prepare_pattern_masks:
+    ld a, (gameflow_textscroll_text_color)
+    and #0F
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ld b, a
+    ld a, (gameflow_textscroll_stripe_color)
+    and #0F
+    or b
+    ld hl, CLRTBL2
+    ld bc, #1800
+    call FAST_FILLVRM
+    xor a
+    ld hl, CHRTBL2
+    ld bc, #1800
+    jp FAST_FILLVRM
+
+textscroll_clear_name_table:
+    xor a
+    ld hl, NAMETBL
+    ld bc, #0300
+    jp FAST_FILLVRM
+
+; Output: A = 1 when TextScrollColor should leave the node, A = 0 otherwise.
+; Preserves BC, DE and HL so callers can poll inside scroll timing safely.
+textscroll_poll_skip:
+    ld a, (gameflow_textscroll_skip_enabled)
+    or a
+    ret z
+    push bc
+    push de
+    push hl
+    call gameflow_read_confirm_direct
+    or a
+    jr nz, .skip_input_down
+    xor a
+    call FAST_GTTRIG
+    or a
+    jr nz, .skip_input_down
+    ld a, 1
+    ld (gameflow_textscroll_skip_armed), a
+    jr .skip_not_pressed
+.skip_input_down:
+    ld a, (gameflow_textscroll_skip_armed)
+    or a
+    jr z, .skip_not_pressed
+    pop hl
+    pop de
+    pop bc
+    ld a, 1
+    ret
+.skip_not_pressed:
+    pop hl
+    pop de
+    pop bc
+    xor a
+    ret
+
+; ------------------------------------------------------------------
+; Galious-style text scroll.
+; The name table moves only on 8-pixel row steps. Fine pixel motion is
+; done by rebuilding a compact pair-tile font and copying it to the
+; three SCREEN 2 pattern banks.
+; ------------------------------------------------------------------
+textscroll_render_name_frame:
+    call textscroll_clear_name_table
+    xor a
+    ld (gameflow_textscroll_base_line), a
+.line_loop:
+    ld a, (gameflow_textscroll_base_line)
+    ld hl, gameflow_textscroll_line_count
+    cp (hl)
+    ret nc
+
+    ld c, a
+    ld a, 24
+    add a, c
+    add a, c
+    ld hl, gameflow_textscroll_step
+    sub (hl)
+    ld (gameflow_textscroll_row), a
+
+    bit 7, a
+    jr nz, .next_line
+    cp 24
+    jr nc, .try_upper
+    ld a, 1
+    ld (gameflow_textscroll_scan), a
+    call textscroll_print_current_line_row
+
+.try_upper:
+    ld a, (gameflow_textscroll_row)
+    dec a
+    ld (gameflow_textscroll_row), a
+    bit 7, a
+    jr nz, .next_line
+    cp 24
+    jr nc, .next_line
+    xor a
+    ld (gameflow_textscroll_scan), a
+    call textscroll_print_current_line_row
+
+.next_line:
+    ld hl, gameflow_textscroll_base_line
+    inc (hl)
+    jr .line_loop
+
+; Input: A = line index.
+textscroll_load_line_entry:
+    ld e, a
+    ld d, 0
+    ld h, d
+    ld l, e
+    add hl, hl
+    add hl, de
+    ld de, (gameflow_textscroll_line_table_ptr)
+    add hl, de
+    ld a, (hl)
+    ld (gameflow_textscroll_line_col), a
+    inc hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld (gameflow_textscroll_line_ptr), de
+    ret
+
+textscroll_print_current_line_row:
+    ld a, (gameflow_textscroll_base_line)
+    call textscroll_load_line_entry
+    ld a, (gameflow_textscroll_row)
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld a, (gameflow_textscroll_line_col)
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld de, NAMETBL
+    add hl, de
+    ld de, (gameflow_textscroll_line_ptr)
+.char_loop:
+    ld a, (de)
+    or a
+    ret z
+    push de
+    call textscroll_encode_tile_for_part
+    call FAST_WRTVRM
+    pop de
+    inc de
+    inc hl
+    jr .char_loop
+
+; Input: A = character code, gameflow_textscroll_scan = tile part 0/1.
+; Output: A = pair-tile code. Unsupported characters become blank.
+textscroll_encode_tile_for_part:
+    cp TEXTSCROLL_FONT_FIRST
+    jr c, .blank
+    cp TEXTSCROLL_FONT_FIRST + TEXTSCROLL_FONT_COUNT
+    jr nc, .blank
+    sub TEXTSCROLL_FONT_FIRST
+    add a, a
+    ld b, a
+    ld a, (gameflow_textscroll_tile_base)
+    add a, b
+    ld b, a
+    ld a, (gameflow_textscroll_scan)
+    or b
+    ret
+.blank:
+    ld a, (gameflow_textscroll_tile_base)
+    ret
+
+textscroll_update_pattern_frame:
+    xor a
+    ld (gameflow_textscroll_col), a
+    call textscroll_build_pattern_chunk
+    call textscroll_copy_pattern_chunk_all_banks
+    ld a, TEXTSCROLL_CHUNK_GLYPHS
+    ld (gameflow_textscroll_col), a
+    call textscroll_build_pattern_chunk
+    jp textscroll_copy_pattern_chunk_all_banks
+
+textscroll_build_pattern_chunk:
+    xor a
+    ld (gameflow_textscroll_row), a
+.glyph_loop:
+    ld a, (gameflow_textscroll_row)
+    cp TEXTSCROLL_CHUNK_GLYPHS
+    ret nc
+
+    ld b, a
+    ld a, (gameflow_textscroll_col)
+    add a, b
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld de, TEXTSCROLL_FONT_SRC
+    add hl, de
+    ld (gameflow_textscroll_line_ptr), hl
+
+    ld a, (gameflow_textscroll_row)
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld de, TEXTSCROLL_FRAME_BUF
+    add hl, de
+
+    xor a
+    ld (gameflow_textscroll_scan), a
+.upper_scan_loop:
+    ld a, (gameflow_textscroll_fine)
+    or a
+    jr z, .upper_blank
+    ld b, a
+    ld a, (gameflow_textscroll_scan)
+    add a, b
+    cp 8
+    jr c, .upper_blank
+    sub 8
+    push hl
+    call textscroll_get_current_font_row
+    pop hl
+    jr .store_upper
+.upper_blank:
+    xor a
+.store_upper:
+    ld (hl), a
+    inc hl
+    ld a, (gameflow_textscroll_scan)
+    inc a
+    ld (gameflow_textscroll_scan), a
+    cp 8
+    jr c, .upper_scan_loop
+
+    xor a
+    ld (gameflow_textscroll_scan), a
+.lower_scan_loop:
+    ld a, (gameflow_textscroll_fine)
+    ld b, a
+    ld a, (gameflow_textscroll_scan)
+    add a, b
+    cp 8
+    jr nc, .lower_blank
+    push hl
+    call textscroll_get_current_font_row
+    pop hl
+    jr .store_lower
+.lower_blank:
+    xor a
+.store_lower:
+    ld (hl), a
+    inc hl
+    ld a, (gameflow_textscroll_scan)
+    inc a
+    ld (gameflow_textscroll_scan), a
+    cp 8
+    jr c, .lower_scan_loop
+
+    ld hl, gameflow_textscroll_row
+    inc (hl)
+    jr .glyph_loop
+
+; Input: A = source font scanline 0..7.
+; Output: A = captured font byte. Clobbers DE/HL.
+textscroll_get_current_font_row:
+    ld e, a
+    ld d, 0
+    ld hl, (gameflow_textscroll_line_ptr)
+    add hl, de
+    ld a, (hl)
+    ret
+
+textscroll_copy_pattern_chunk_all_banks:
+    ld a, (gameflow_textscroll_tile_base)
+    or a
+    jr z, .base_zero
+    ld de, CHRTBL2 + #0400
+    jr .have_base
+.base_zero:
+    ld de, CHRTBL2
+.have_base:
+    ld a, (gameflow_textscroll_col)
+    or a
+    jr z, .copy_chunk
+    ld hl, #0200
+    add hl, de
+    ex de, hl
+.copy_chunk:
+    ld hl, TEXTSCROLL_FRAME_BUF
+    ld bc, TEXTSCROLL_CHUNK_BYTES
+    call FAST_LDIRVM
+    ld hl, #0800
+    add hl, de
+    ex de, hl
+    ld hl, TEXTSCROLL_FRAME_BUF
+    ld bc, TEXTSCROLL_CHUNK_BYTES
+    call FAST_LDIRVM
+    ld hl, #0800
+    add hl, de
+    ex de, hl
+    ld hl, TEXTSCROLL_FRAME_BUF
+    ld bc, TEXTSCROLL_CHUNK_BYTES
+    jp FAST_LDIRVM
+
+textscroll_wait_speed:
+    ld a, (gameflow_textscroll_speed)
+    or a
+    jr z, .wait_done
+    ld b, a
+.wait_loop:
+    halt
+    push bc
+${frameAudioTickAsm}    pop bc
+    push bc
+    call textscroll_poll_skip
+    pop bc
+    or a
+    jr nz, .wait_skip
+    djnz .wait_loop
+    xor a
+    ret
+.wait_done:
+    xor a
+    ret
+.wait_skip:
+    ld a, 1
+    ret
+
+`;
+        break;
+
+      case 'TextScroll2':
+        code += `gameflow_handle_textscroll2:
+    ; SCREEN 2 pattern-table pixel text scroll.
+    ; DE = text scroll data pointer
+    ; BC = connection table
+    push bc
+    call show_textscroll2_screen
+    pop bc
+
+    call gameflow_get_default_connection
+    ld a, h
+    or l
+    ret z
+    jp gameflow_execute_node
+
+TEXTSCROLL2_FONT_FIRST EQU 32
+TEXTSCROLL2_FONT_COUNT EQU 64
+TEXTSCROLL2_FONT_BYTES EQU #0200
+TEXTSCROLL2_FONT_SRC EQU page0_transfer_buffer
+TEXTSCROLL2_PATTERN_BYTES EQU #1800
+
+; ------------------------------------------------------------------
+; show_textscroll2_screen
+; Data format:
+;   db background_color
+;   db stripe_color
+;   db speed_frames_per_pixel
+;   db line_count
+;   dw fixed_32_byte_text_lines
+; Text lines are exactly 32 bytes each and end with a line whose first
+; byte is #FF. This follows the classic pattern-table scroll model, but
+; uses Mideas SCREEN 2 VRAM constants instead of reserving a 6144-byte
+; RAM mirror.
+; ------------------------------------------------------------------
+show_textscroll2_screen:
+    ex de, hl
+    ld a, (hl)
+    ld (gameflow_textscroll2_bg_color), a
+    inc hl
+    ld a, (hl)
+    ld (gameflow_textscroll2_stripe_color), a
+    inc hl
+    ld a, (hl)
+    or a
+    jr nz, .speed_ok
+    inc a
+.speed_ok:
+    ld (gameflow_textscroll2_speed), a
+    inc hl
+    ld a, (hl)
+    ld (gameflow_textscroll2_line_count), a
+    inc hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld (gameflow_textscroll2_text_ptr), de
+
+    ld a, (gameflow_textscroll2_line_count)
+    add a, 24
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld (gameflow_textscroll2_steps_left), hl
+
+    call DISSCR
+    ld a, (gameflow_textscroll2_bg_color)
+    and #0F
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
+    call reload_font_system
+    call textscroll2_capture_font_patterns
+    call textscroll2_init_name_table
+    call textscroll2_init_color_table
+    call textscroll2_clear_pattern_table
+    xor a
+    ld (gameflow_textscroll2_text_pix), a
+    call ENASCR
+
+.ts2_scroll_loop:
+    ld hl, (gameflow_textscroll2_steps_left)
+    ld a, h
+    or l
+    jr z, .ts2_scroll_done
+    call textscroll2_shift_vram_up1
+    call textscroll2_wait_speed
+    ld hl, (gameflow_textscroll2_steps_left)
+    dec hl
+    ld (gameflow_textscroll2_steps_left), hl
+    jr .ts2_scroll_loop
+
+.ts2_scroll_done:
+    call reload_font_system
+    ret
+
+textscroll2_capture_font_patterns:
+    di
+    ; FAST_RDVRM returns the byte after the programmed address on this path,
+    ; so start one byte earlier to capture exact glyph rows.
+    ld hl, CHRTBL2 + (TEXTSCROLL2_FONT_FIRST * 8) - 1
+    ld de, TEXTSCROLL2_FONT_SRC
+    ld bc, TEXTSCROLL2_FONT_BYTES
+.ts2_capture_loop:
+    call FAST_RDVRM
+    ld (de), a
+    inc hl
+    inc de
+    dec bc
+    ld a, b
+    or c
+    jr nz, .ts2_capture_loop
+    ei
+    ret
+
+textscroll2_init_name_table:
+    ld hl, NAMETBL
+    ld d, 3
+.ts2_bank_loop:
+    xor a
+    ld b, 0
+.ts2_byte_loop:
+    call FAST_WRTVRM
+    inc hl
+    inc a
+    djnz .ts2_byte_loop
+    dec d
+    jr nz, .ts2_bank_loop
+    ret
+
+textscroll2_init_color_table:
+    ld a, (gameflow_textscroll2_stripe_color)
+    and #0F
+    or #F0
+    ld hl, CLRTBL2
+    ld bc, TEXTSCROLL2_PATTERN_BYTES
+    jp FAST_FILLVRM
+
+textscroll2_clear_pattern_table:
+    xor a
+    ld hl, CHRTBL2
+    ld bc, TEXTSCROLL2_PATTERN_BYTES
+    jp FAST_FILLVRM
+
+textscroll2_shift_vram_up1:
+    di
+    ld hl, CHRTBL2
+    ld c, 23
+.ts2_row_loop:
+    ld b, 32
+.ts2_col_loop:
+    push bc
+    call textscroll2_shift_tile_take_below
+    pop bc
+    djnz .ts2_col_loop
+    dec c
+    jr nz, .ts2_row_loop
+
+    ld de, (gameflow_textscroll2_text_ptr)
+    ld b, 32
+.ts2_last_col_loop:
+    push bc
+    push de
+    call textscroll2_shift_tile_up7
+    pop de
+    ld a, (de)
+    inc de
+    push de
+    call textscroll2_get_font_byte
+    call FAST_WRTVRM
+    inc hl
+    pop de
+    pop bc
+    djnz .ts2_last_col_loop
+
+    ei
+    jp textscroll2_advance_text_scanline
+
+textscroll2_shift_tile_take_below:
+    push hl
+    call textscroll2_shift_tile_up7
+    push hl
+    pop de
+    pop hl
+    inc h
+    call FAST_RDVRM
+    ex de, hl
+    call FAST_WRTVRM
+    inc hl
+    ret
+
+textscroll2_shift_tile_up7:
+    ld b, 7
+.ts2_shift_loop:
+    push bc
+    push hl
+    inc hl
+    call FAST_RDVRM
+    pop hl
+    call FAST_WRTVRM
+    inc hl
+    pop bc
+    djnz .ts2_shift_loop
+    ret
+
+; IN: A = ASCII char. OUT: A = font scanline. Preserves HL.
+textscroll2_get_font_byte:
+    push hl
+    cp TEXTSCROLL2_FONT_FIRST
+    jr nc, .ts2_min_ok
+    ld a, TEXTSCROLL2_FONT_FIRST
+.ts2_min_ok:
+    cp TEXTSCROLL2_FONT_FIRST + TEXTSCROLL2_FONT_COUNT
+    jr c, .ts2_range_ok
+    ld a, TEXTSCROLL2_FONT_FIRST
+.ts2_range_ok:
+    sub TEXTSCROLL2_FONT_FIRST
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld a, (gameflow_textscroll2_text_pix)
+    add a, l
+    ld l, a
+    jr nc, .ts2_no_carry
+    inc h
+.ts2_no_carry:
+    ld de, TEXTSCROLL2_FONT_SRC
+    add hl, de
+    ld a, (hl)
+    pop hl
+    ret
+
+textscroll2_advance_text_scanline:
+    ld a, (gameflow_textscroll2_text_pix)
+    inc a
+    cp 8
+    jr nz, .ts2_store_pix
+    xor a
+    ld hl, (gameflow_textscroll2_text_ptr)
+    ld de, 32
+    add hl, de
+    ld e, a
+    ld a, (hl)
+    cp #FF
+    jr nz, .ts2_set_ptr
+    ld hl, textscroll2_blank_line
+.ts2_set_ptr:
+    ld (gameflow_textscroll2_text_ptr), hl
+    ld a, e
+.ts2_store_pix:
+    ld (gameflow_textscroll2_text_pix), a
+    ret
+
+textscroll2_blank_line:
+    db "                                "
+    db #FF
+
+textscroll2_wait_speed:
+    ld a, (gameflow_textscroll2_speed)
+    or a
+    ret z
+    ld b, a
+.ts2_wait_loop:
+    halt
+    push bc
+${frameAudioTickAsm}    pop bc
+    djnz .ts2_wait_loop
+    ret
+
 `;
         break;
 
       case 'IfThenElse':
-        code += `gameflow_handle_ifthenelse:
+        code += `; @mideas:block id=runtime.gameflow.if_then_else kind=routine owner=gameflow roots=gameflow_handle_ifthenelse
+gameflow_handle_ifthenelse:
     ; IfThenElse node - conditional branching
     ; DE = condition data pointer
     ;      dw variable address
@@ -2595,6 +4167,7 @@ ${frameAudioTickAsm}    pop bc
     or l
     ret z
     jp gameflow_execute_node
+; @mideas:endblock id=runtime.gameflow.if_then_else
 
 `;
         break;
@@ -2660,47 +4233,194 @@ ${frameAudioTickAsm}    pop bc
         break;
 
       case 'Transition':
+        const transitionGameplayCacheInvalidateAsm = useFarCall
+          ? `    call resource_invalidate_gameplay_vram_cache`
+          : `    xor a
+    ld (vram_cache_tile_patterns_ready), a
+    ld (vram_cache_tile_colors_ready), a
+    ld (vram_cache_font_ready), a
+    ld a, #FF
+    ld (current_screen2_tilebank_id), a`;
         code += `gameflow_handle_transition:
     ; Transition node - visual screen wipe/fade effect
-    ; DE = transition data pointer (db effect_id)
+    ; DE = transition data pointer (db effect_id, frames_per_step, fill_char)
     ; BC = connection table
     push bc
-    call execute_transition_effect
-    ; Restore VRAM after transition:
-    ; 1. Tile colors (chars 128+) — corrupted by color-table effects (#11 = black)
-    call resource_invalidate_color_vram_cache
-    call load_colors_to_vram
-    ; 2. Font patterns + colors (chars 0-127) — also zeroed by color-table effects.
-    ;    init_font_system reloads both pattern bytes and color attributes for all
-    ;    font characters.  If no font is used in the project this is a no-op (ret).
-    call resource_invalidate_font_vram_cache
-    call init_font_system
-    pop bc                        ; Restore connection table AFTER VRAM restore
+    ; Presentation/background screens can overwrite all SCREEN 2 chars.
+    ; Reinstall reserved char #FE immediately before the transition wipe.
+    ld a, 1
+    call init_char0_color
+    push de                       ; Keep transition data while resolving the next node
     call gameflow_get_default_connection
+    pop de
     ld a, h
     or l
-    ret z
+    jr z, .gft_no_connection
+    push hl                       ; Preserve next node while transition clobbers HL
+    call execute_transition_effect
+    pop hl
+    pop bc                        ; Drop saved connection table after transition clobbers BC
+    ld a, (hl)                    ; Next node type
+    cp NODE_TYPE_TRANSITION
+    jp z, gameflow_execute_node   ; Chain transitions without an intermediate VRAM restore/clear
+    call gameflow_mark_transition_target_if_visual
+    ld a, (gameflow_reveal_world_after_load)
+    or a
+    jr z, .gft_next_not_worldlink
+    call DISSCR                   ; Cover raster is complete; hide VRAM reloads before the reveal raster.
+    jr .gft_next_not_worldlink
+.gft_no_connection:
+    call execute_transition_effect
+    pop bc                        ; Drop saved connection table after transition clobbers BC
+    ret
+.gft_next_not_worldlink:
+    push hl                       ; Preserve next node while restoring VRAM
+    ld a, (gameflow_deferred_game_init)
+    or a
+    jr z, .gft_restore_shared_vram
+    xor a
+    ld (gameflow_deferred_game_init), a
+    call init_game_systems
+    jr .gft_restore_done
+.gft_restore_shared_vram:
+    ; Restore VRAM after transition:
+    ; 1. Invalidate all shared gameplay/font VRAM caches. A transition may
+    ;    follow presentation/dialog screens that used different CHRTBL/CLRTBL
+    ;    contents, so the next WorldLink must reload its tilebank patterns.
+${transitionGameplayCacheInvalidateAsm}
+    ; 2. Tile colors (chars 128+) - may belong to the previous screen.
+    call load_colors_to_vram
+    ; 3. Font patterns + colors (chars 0-127) - may belong to the previous screen.
+    ;    init_font_system reloads both pattern bytes and color attributes for all
+    ;    font characters.  If no font is used in the project this is a no-op (ret).
+    call init_font_system
+.gft_restore_done:
+    pop hl                        ; Restore next node
     jp gameflow_execute_node
+
+; Mark visual targets that can render while the transition cover is visible
+; and then reveal their completed Name Table with the same raster.
+; Input: HL = target node pointer
+; Preserves: BC, DE, HL
+; Destroys: AF
+gameflow_mark_transition_target_if_visual:
+    ld a, (hl)
+    cp NODE_TYPE_WORLD_LINK
+    jr z, .gmt_mark
+    cp NODE_TYPE_SUBMENU
+    jr z, .gmt_mark
+    cp NODE_TYPE_CONTROLS
+    jr z, .gmt_mark
+    cp NODE_TYPE_TEXT
+    jr z, .gmt_mark
+    cp NODE_TYPE_PRESENTATION_SCREEN
+    jr z, .gmt_mark
+    cp NODE_TYPE_END
+    jr z, .gmt_mark
+    ret
+.gmt_mark:
+    ld a, 1
+    ld (gameflow_reveal_world_after_load), a
+    ret
+
+; If a Transition selected a reveal target, hide the active display before
+; that target starts writing patterns/colors/name table.
+; Preserves: BC, DE, HL
+; Destroys: AF
+gameflow_begin_transition_target_render:
+    ld a, (gameflow_reveal_world_after_load)
+    or a
+    ret z
+    call DISSCR
+    ret
+
+; Finish a non-WorldLink visual target render during transition reveal mode:
+; copy the rendered Name Table to runtime_screen_layout, put the cover char
+; back on screen instantly, enable display, then reveal with the stored raster.
+; Destroys: AF, BC, DE, HL
+gameflow_finish_transition_target_render:
+    ld a, (gameflow_reveal_world_after_load)
+    or a
+    jr nz, .gfttr_reveal
+    call ENASCR
+    ret
+.gfttr_reveal:
+    call DISSCR
+    call gameflow_capture_nametable_to_runtime_screen_layout
+    ld hl, #1800
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ld a, (transition_fill_char)
+    call trans_fast_filvrm
+    call ENASCR
+    xor a
+    ld (gameflow_reveal_world_after_load), a
+    call execute_transition_reveal_target
+    ret
+
+; Capture the visible SCREEN 2 Name Table into runtime_screen_layout.
+; Destroys: AF, BC, DE, HL
+gameflow_capture_nametable_to_runtime_screen_layout:
+    ld hl, #1800
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    di
+.gcnt_loop:
+    call FAST_RDVRM
+    ld (de), a
+    inc hl
+    inc de
+    dec bc
+    ld a, b
+    or c
+    jr nz, .gcnt_loop
+    ei
+    ret
 
 ; ==================================================================
 ; execute_transition_effect
 ; Execute visual screen transition by clearing the Name Table
-; in different patterns. All effects write tile 0 (blank/black)
-; to Name Table (#1800-#1AFF, 768 bytes = 32x24 tiles).
+; in different patterns. Name-table wipe effects write the node-selected
+; transition_fill_char: #FE outline square or #FF SPC blank.
+; Target is Name Table (#1800-#1AFF, 768 bytes = 32x24 tiles).
 ;
 ; Input:  DE = Transition data pointer
 ;         (DE) = effect id: 0=cls, 1=dissolve_pixels, 2=dissolve_chars,
 ;                           3=vertical_lines, 4=horizontal_lines,
-;                           5=spiral, 6=fill_white_squares
+;                           5=spiral, 6=fill_white_squares,
+;                           7=diagonal_clear, 8=diagonal_inverse,
+;                           9=checkerboard, 10=doors, 11=center_curtain,
+;                           12=venetian_blinds, 13=radial_wipe,
+;                           14=block4_shuffle, 15=zoom_box
+;         (DE+1) = frames per step
+;         (DE+2) = fill char (#FE box or #FF SPC)
 ; Destroys: AF, BC, DE, HL
 ; ==================================================================
-execute_transition_effect:
-    ld a, (de)                    ; A = effect id (0-6)
+; ------------------------------------------------------------------
+; load_transition_effect_config
+; Reads Transition node data without executing a wipe.
+; Input:  DE = Transition data pointer
+; Output: A = effect id
+; Destroys: AF, DE
+; ------------------------------------------------------------------
+load_transition_effect_config:
+    ld a, (de)                    ; A = effect id (0-15)
+    ld (transition_effect_id), a
     inc de
     push af                       ; Save effect id
     ld a, (de)                    ; A = frames per step (from node data)
+    inc de
     ld (transition_delay_var), a  ; Store for trans_wait_frames
+    ld a, (de)                    ; A = fill char (#FE box or #FF SPC)
+    cp #FF
+    jr z, .ete_store_fill_char
+    ld a, #FE                     ; Default/guard: transition box char
+.ete_store_fill_char:
+    ld (transition_fill_char), a
     pop af                        ; Restore effect id
+    ret
+
+execute_transition_effect:
+    call load_transition_effect_config
     or a
     jp z, .trans_cls
     dec a
@@ -2715,6 +4435,24 @@ execute_transition_effect:
     jp z, .trans_spiral
     dec a
     jp z, .trans_fill_white_squares
+    dec a
+    jp z, .trans_diagonal_clear
+    dec a
+    jp z, .trans_diagonal_inverse
+    dec a
+    jp z, .trans_checkerboard
+    dec a
+    jp z, .trans_doors
+    dec a
+    jp z, .trans_center_curtain
+    dec a
+    jp z, .trans_venetian_blinds
+    dec a
+    jp z, .trans_radial_wipe
+    dec a
+    jp z, .trans_block4_shuffle
+    dec a
+    jp z, .trans_zoom_box
     ret                           ; Unknown id - do nothing
 
 ; ------------------------------------------------------------------
@@ -2723,7 +4461,7 @@ execute_transition_effect:
 .trans_cls:
     ld hl, #1800
     ld bc, 768
-    xor a                         ; Tile 0 = blank
+    ld a, (transition_fill_char)
     call trans_fast_filvrm
     call trans_wait_frames        ; Hold black screen for configured time
     ret
@@ -2754,25 +4492,20 @@ execute_transition_effect:
     ret
 
 ; ------------------------------------------------------------------
-; EFFECT 2: DISSOLVE_CHARS - Pixel-row interleaved dissolve (8 passes)
-; Pass D clears pixel rows D, D+8, D+16, ..., D+184 (24 rows per pass)
-; Uses color table manipulation for 1-pixel-row granularity (8x finer
-; than tile-row approach).
+; EFFECT 2: DISSOLVE_CHARS - Name-table row interleaved dissolve (8 passes)
+; Pass D clears tile rows D, D+8, D+16. Only the Name Table is touched.
 ; ------------------------------------------------------------------
 .trans_dissolve_chars:
     ld d, 0                       ; D = pass counter (0-7)
 .tdc_loop:
-    ld b, d                       ; B = starting pixel row for this pass
-    ld e, 24                      ; E = 24 pixel rows per pass (192/8)
-.tdc_inner:
-    ld a, b
-    call trans_clear_pixel_row_colors   ; clear pixel row B (color table)
-    ; trans_clear_pixel_row_colors preserves BC,DE,HL via push/pop
-    ld a, b
-    add a, 8                      ; next pixel row in this pass (step +8)
-    ld b, a
-    dec e
-    jr nz, .tdc_inner
+    ld a, d
+    call trans_clear_row_direct    ; row D
+    ld a, d
+    add a, 8
+    call trans_clear_row_direct    ; row D+8
+    ld a, d
+    add a, 16
+    call trans_clear_row_direct    ; row D+16
     call trans_wait_frames
     inc d
     ld a, d
@@ -2799,24 +4532,13 @@ execute_transition_effect:
     ret
 
 ; ------------------------------------------------------------------
-; EFFECT 4: HORIZONTAL_LINES - Top-to-bottom row wipe (1 row/frame)
+; EFFECT 4: HORIZONTAL_LINES - Top-to-bottom Name Table raster
 ; ------------------------------------------------------------------
 .trans_horizontal_lines:
-    ; Pixel-row resolution: 24 tile-rows x 8 sub-rows = 192 pixel rows
-    ; Each step: clear all 8 pixel sub-rows of one tile-row, then wait
     ld c, 0                       ; C = tile row (0-23)
 .thl_loop:
     ld a, c
-    add a, a
-    add a, a
-    add a, a                      ; A = tile_row * 8 = first pixel row of tile
-    ld e, a                       ; E = first pixel row
-    ld b, 8                       ; 8 pixel sub-rows per tile row
-.thl_inner:
-    ld a, e
-    call trans_clear_pixel_row_colors
-    inc e
-    djnz .thl_inner
+    call trans_clear_row_direct    ; clear one 32-char row in the Name Table
     call trans_wait_frames
     inc c
     ld a, c
@@ -2825,26 +4547,48 @@ execute_transition_effect:
     ret
 
 ; ------------------------------------------------------------------
-; EFFECT 5: SPIRAL - Pixel-row resolution via color table manipulation
-; Clears pixel rows from outside in (top+bottom simultaneously).
-; Works by setting color table bytes to 0x11 (black fg + black bg)
-; for all 256 tile patterns at the given pixel sub-row in each bank.
-; 96 rings: rows (0,191), (1,190), (2,189), ..., (95,96)
+; EFFECT 5: SPIRAL - Name-table rectangular rings from outside to inside.
+; Clears only 8x8 character cells in the Name Table.
 ; ------------------------------------------------------------------
 .trans_spiral:
-    ld b, 0                       ; B = top pixel row (0..95)
-    ld c, 191                     ; C = bottom pixel row (191..96)
+    ld b, 0                       ; B = ring index (0..11)
 .tsp_loop:
+    ; Clear top and bottom row segments for this ring.
     ld a, b
-    call trans_clear_pixel_row_colors   ; blacken pixel row B (top)
-    ld a, c
-    call trans_clear_pixel_row_colors   ; blacken pixel row C (bottom)
+    add a, a
+    ld e, a                       ; E = ring * 2
+    ld a, 32
+    sub e
+    ld e, a                       ; E = row segment width
+    ld d, b                       ; D = start column
+    ld a, b                       ; A = top row
+    call trans_clear_row_range
+    ld a, 23
+    sub b                         ; A = bottom row
+    call trans_clear_row_range
+
+    ; Clear left and right column segments between those two rows.
+    ld a, b
+    add a, a
+    ld d, a
+    ld a, 22
+    sub d                         ; A = side segment height
+    jr z, .tsp_after_sides
+    ld d, a                       ; D = row count
+    ld a, b
+    inc a
+    ld c, a                       ; C = start row
+    ld a, b                       ; A = left column
+    call trans_clear_column_range
+    ld a, 31
+    sub b                         ; A = right column
+    call trans_clear_column_range
+.tsp_after_sides:
     call trans_wait_frames
     inc b
-    dec c
     ld a, b
-    cp c
-    jr c, .tsp_loop               ; loop while top < bottom
+    cp 12
+    jr c, .tsp_loop
     ret
 
 ; ------------------------------------------------------------------
@@ -2885,78 +4629,1190 @@ execute_transition_effect:
     jr c, .tws_loop
     ret
 
-; ==================================================================
-; trans_clear_pixel_row_colors
-; Blackens a single pixel row (1px tall) by setting the color table
-; entry for all 256 tile patterns in the appropriate bank to 0x11
-; (fg=black, bg=black).  Works at 1-pixel-row granularity unlike
-; trans_clear_row_direct which works at 8-pixel (tile-row) granularity.
-;
-; Screen 2 color table layout:
-;   Bank 0 (#2000): tiles used in name-table rows 0-7   (pixel rows 0-63)
-;   Bank 1 (#2800): tiles used in name-table rows 8-15  (pixel rows 64-127)
-;   Bank 2 (#3000): tiles used in name-table rows 16-23 (pixel rows 128-191)
-; Each tile has 8 color bytes; byte J covers pixel sub-row J of that tile.
-; Tile T color byte for sub-row J:  bank_base + T*8 + J
-;
-; Input:  A = pixel row (0-191)
-;         bank    = A >> 6   (0-2)
-;         sub_row = A & 7    (0-7)
-;         color_base = #2000 + bank * #0800
-; Preserves: BC, DE, HL
-; ==================================================================
-trans_clear_pixel_row_colors:
+; ------------------------------------------------------------------
+; EFFECT 7: DIAGONAL_CLEAR - Name-table raster wipe.
+; Writes char #FE in diagonal order: (0,0), (1,0)/(0,1), ...
+; The update routine clears one name-table char and returns Carry set
+; when the full 32x24 table is complete. The effect runs several
+; updates per frame so the configured duration remains practical.
+; ------------------------------------------------------------------
+.trans_diagonal_clear:
+    call trans_diag_clear_init
+.tdiag_frame_loop:
+    ld b, 16                      ; one visible batch per frame
+.tdiag_batch_loop:
     push bc
-    push de
+    call trans_diag_clear_update
+    pop bc
+    jr c, .tdiag_done
+    djnz .tdiag_batch_loop
+    call trans_wait_frames
+    jr .tdiag_frame_loop
+.tdiag_done:
+    ret
+
+; ------------------------------------------------------------------
+; EFFECT 8: DIAGONAL_INVERSE - Name-table raster wipe, opposite slope.
+; Writes transition_fill_char in diagonal order: (31,0), (30,0)/(31,1), ...
+; ------------------------------------------------------------------
+.trans_diagonal_inverse:
+    call trans_diag_inverse_init
+.tdiagi_frame_loop:
+    ld b, 16                      ; one visible batch per frame
+.tdiagi_batch_loop:
+    push bc
+    call trans_diag_inverse_clear_update
+    pop bc
+    jr c, .tdiagi_done
+    djnz .tdiagi_batch_loop
+    call trans_wait_frames
+    jr .tdiagi_frame_loop
+.tdiagi_done:
+    ret
+
+; ------------------------------------------------------------------
+; EFFECT 9: CHECKERBOARD - Two-pass 32x24 Name Table damero wipe.
+; ------------------------------------------------------------------
+.trans_checkerboard:
+    xor a
+    call trans_clear_checkerboard_pass
+    call trans_wait_frames
+    ld a, 1
+    call trans_clear_checkerboard_pass
+    call trans_wait_frames
+    ret
+
+; ------------------------------------------------------------------
+; EFFECT 10: DOORS - Side panels close towards the center.
+; ------------------------------------------------------------------
+.trans_doors:
+    ld c, 0
+.tdoor_loop:
+    ld a, c
+    call trans_clear_column       ; left panel column
+    ld a, 31
+    sub c
+    call trans_clear_column       ; right panel column
+    call trans_wait_frames
+    inc c
+    ld a, c
+    cp 16
+    jr c, .tdoor_loop
+    ret
+
+; ------------------------------------------------------------------
+; EFFECT 11: CENTER_CURTAIN - Columns close from center to edges.
+; ------------------------------------------------------------------
+.trans_center_curtain:
+    ld c, 0
+.tccurt_loop:
+    ld a, 15
+    sub c
+    call trans_clear_column       ; center-left outward
+    ld a, 16
+    add a, c
+    call trans_clear_column       ; center-right outward
+    call trans_wait_frames
+    inc c
+    ld a, c
+    cp 16
+    jr c, .tccurt_loop
+    ret
+
+; ------------------------------------------------------------------
+; EFFECT 12: VENETIAN_BLINDS - Alternating even/odd tile rows.
+; ------------------------------------------------------------------
+.trans_venetian_blinds:
+    ld c, 0
+.tvb_even_loop:
+    ld a, c
+    call trans_clear_row_direct
+    inc c
+    inc c
+    ld a, c
+    cp 24
+    jr c, .tvb_even_loop
+    call trans_wait_frames
+    ld c, 1
+.tvb_odd_loop:
+    ld a, c
+    call trans_clear_row_direct
+    inc c
+    inc c
+    ld a, c
+    cp 24
+    jr c, .tvb_odd_loop
+    call trans_wait_frames
+    ret
+
+; ------------------------------------------------------------------
+; EFFECT 13: RADIAL_WIPE - Approximate circular wipe from outside in.
+; ------------------------------------------------------------------
+.trans_radial_wipe:
+    ld d, 26                      ; max Manhattan distance from center 2x2
+.trw_loop:
+    ld a, d
+    call trans_clear_manhattan_pass
+    call trans_wait_frames
+    ld a, d
+    or a
+    jr z, .trw_done
+    dec d
+    jr .trw_loop
+.trw_done:
+    ret
+
+; ------------------------------------------------------------------
+; EFFECT 14: BLOCK4_SHUFFLE - Fixed pseudo-random 4x3 block wipe.
+; ------------------------------------------------------------------
+.trans_block4_shuffle:
+    ld c, 0
+.tb4_loop:
+    ld a, c
+    call trans_clear_block4_order
+    call trans_wait_frames
+    inc c
+    ld a, c
+    cp 64
+    jr c, .tb4_loop
+    ret
+
+; ------------------------------------------------------------------
+; EFFECT 15: ZOOM_BOX - 2-cell rectangular bands from outside to inside.
+; ------------------------------------------------------------------
+.trans_zoom_box:
+    ld c, 0
+.tzb_loop:
+    ld a, c
+    call trans_clear_zoom_band
+    call trans_wait_frames
+    ld a, c
+    add a, 2
+    ld c, a
+    cp 12
+    jr c, .tzb_loop
+    ret
+
+; ==================================================================
+; execute_transition_reveal_target
+; Reveal the freshly prepared target screen from runtime_screen_layout.
+; WorldLink fills runtime_screen_layout directly while skipping the final
+; Name Table copy; other visual nodes render hidden, then capture their
+; completed Name Table into runtime_screen_layout before this reveal.
+;
+; Input:  runtime_screen_layout = destination 32x24 Name Table data
+;         transition_effect_id / transition_delay_var from prior Transition
+; Destroys: AF, BC, DE, HL
+; ==================================================================
+execute_transition_reveal_target:
+    ld a, (transition_effect_id)
+    or a
+    jp z, .trt_full
+    dec a
+    jp z, .trt_dissolve_columns
+    dec a
+    jp z, .trt_dissolve_chars
+    dec a
+    jp z, .trt_vertical_lines
+    dec a
+    jp z, .trt_horizontal_lines
+    dec a
+    jp z, .trt_spiral
+    dec a
+    jp z, .trt_stripe_columns
+    dec a
+    jp z, .trt_diagonal
+    dec a
+    jp z, .trt_diagonal_inverse
+    dec a
+    jp z, .trt_checkerboard
+    dec a
+    jp z, .trt_doors
+    dec a
+    jp z, .trt_center_curtain
+    dec a
+    jp z, .trt_venetian_blinds
+    dec a
+    jp z, .trt_radial_wipe
+    dec a
+    jp z, .trt_block4_shuffle
+    dec a
+    jp z, .trt_zoom_box
+    jp .trt_full
+
+.trt_full:
+    ld hl, runtime_screen_layout
+    ld de, #1800
+    ld bc, 768
+    call FAST_LDIRVM
+    call trans_wait_frames
+    ret
+
+.trt_dissolve_columns:
+    ld d, 0
+.trtc_loop:
+    ld a, d
+    call trans_reveal_column
+    ld a, d
+    add a, 8
+    call trans_reveal_column
+    ld a, d
+    add a, 16
+    call trans_reveal_column
+    ld a, d
+    add a, 24
+    call trans_reveal_column
+    call trans_wait_frames
+    inc d
+    ld a, d
+    cp 8
+    jr c, .trtc_loop
+    ret
+
+.trt_dissolve_chars:
+    ld d, 0
+.trtch_loop:
+    ld a, d
+    call trans_reveal_row_direct
+    ld a, d
+    add a, 8
+    call trans_reveal_row_direct
+    ld a, d
+    add a, 16
+    call trans_reveal_row_direct
+    call trans_wait_frames
+    inc d
+    ld a, d
+    cp 8
+    jr c, .trtch_loop
+    ret
+
+.trt_vertical_lines:
+    ld c, 0
+.trtv_loop:
+    ld a, c
+    call trans_reveal_column
+    inc c
+    ld a, c
+    call trans_reveal_column
+    inc c
+    call trans_wait_frames
+    ld a, c
+    cp 32
+    jr c, .trtv_loop
+    ret
+
+.trt_horizontal_lines:
+    ld c, 0
+.trth_loop:
+    ld a, c
+    call trans_reveal_row_direct
+    call trans_wait_frames
+    inc c
+    ld a, c
+    cp 24
+    jp c, .trth_loop
+    ret
+
+.trt_stripe_columns:
+    ld c, 0
+.trts_loop:
+    ld a, c
+    call trans_reveal_column
+    ld a, c
+    inc a
+    call trans_reveal_column
+    ld a, c
+    add a, 2
+    call trans_reveal_column
+    ld a, c
+    add a, 3
+    call trans_reveal_column
+    ld a, c
+    add a, 4
+    call trans_reveal_column
+    ld a, c
+    add a, 5
+    call trans_reveal_column
+    ld a, c
+    add a, 6
+    call trans_reveal_column
+    ld a, c
+    add a, 7
+    call trans_reveal_column
+    ld a, c
+    add a, 8
+    ld c, a
+    call trans_wait_frames
+    ld a, c
+    cp 32
+    jr c, .trts_loop
+    ret
+
+.trt_spiral:
+    ld b, 0
+.trtsp_loop:
+    ld a, b
+    add a, a
+    ld e, a
+    ld a, 32
+    sub e
+    ld e, a
+    ld d, b
+    ld a, b
+    call trans_reveal_row_range
+    ld a, 23
+    sub b
+    call trans_reveal_row_range
+
+    ld a, b
+    add a, a
+    ld d, a
+    ld a, 22
+    sub d
+    jr z, .trtsp_after_sides
+    ld d, a
+    ld a, b
+    inc a
+    ld c, a
+    ld a, b
+    call trans_reveal_column_range
+    ld a, 31
+    sub b
+    call trans_reveal_column_range
+.trtsp_after_sides:
+    call trans_wait_frames
+    inc b
+    ld a, b
+    cp 12
+    jr c, .trtsp_loop
+    ret
+
+.trt_diagonal:
+    call trans_diag_clear_init
+.trtd_frame_loop:
+    ld b, 16
+.trtd_batch_loop:
+    push bc
+    call trans_diag_reveal_update
+    pop bc
+    jr c, .trtd_done
+    djnz .trtd_batch_loop
+    call trans_wait_frames
+    jr .trtd_frame_loop
+.trtd_done:
+    ret
+
+.trt_diagonal_inverse:
+    call trans_diag_inverse_init
+.trtdi_frame_loop:
+    ld b, 16
+.trtdi_batch_loop:
+    push bc
+    call trans_diag_inverse_reveal_update
+    pop bc
+    jr c, .trtdi_done
+    djnz .trtdi_batch_loop
+    call trans_wait_frames
+    jr .trtdi_frame_loop
+.trtdi_done:
+    ret
+
+.trt_checkerboard:
+    xor a
+    call trans_reveal_checkerboard_pass
+    call trans_wait_frames
+    ld a, 1
+    call trans_reveal_checkerboard_pass
+    call trans_wait_frames
+    ret
+
+.trt_doors:
+    ld c, 0
+.trtdoor_loop:
+    ld a, c
+    call trans_reveal_column      ; left panel column
+    ld a, 31
+    sub c
+    call trans_reveal_column      ; right panel column
+    call trans_wait_frames
+    inc c
+    ld a, c
+    cp 16
+    jr c, .trtdoor_loop
+    ret
+
+.trt_center_curtain:
+    ld c, 0
+.trtcurt_loop:
+    ld a, 15
+    sub c
+    call trans_reveal_column      ; center-left outward
+    ld a, 16
+    add a, c
+    call trans_reveal_column      ; center-right outward
+    call trans_wait_frames
+    inc c
+    ld a, c
+    cp 16
+    jr c, .trtcurt_loop
+    ret
+
+.trt_venetian_blinds:
+    ld c, 0
+.trtvb_even_loop:
+    ld a, c
+    call trans_reveal_row_direct
+    inc c
+    inc c
+    ld a, c
+    cp 24
+    jr c, .trtvb_even_loop
+    call trans_wait_frames
+    ld c, 1
+.trtvb_odd_loop:
+    ld a, c
+    call trans_reveal_row_direct
+    inc c
+    inc c
+    ld a, c
+    cp 24
+    jr c, .trtvb_odd_loop
+    call trans_wait_frames
+    ret
+
+.trt_radial_wipe:
+    ld d, 26
+.trtrw_loop:
+    ld a, d
+    call trans_reveal_manhattan_pass
+    call trans_wait_frames
+    ld a, d
+    or a
+    jr z, .trtrw_done
+    dec d
+    jr .trtrw_loop
+.trtrw_done:
+    ret
+
+.trt_block4_shuffle:
+    ld c, 0
+.trtb4_loop:
+    ld a, c
+    call trans_reveal_block4_order
+    call trans_wait_frames
+    inc c
+    ld a, c
+    cp 64
+    jr c, .trtb4_loop
+    ret
+
+.trt_zoom_box:
+    ld c, 0
+.trtzb_loop:
+    ld a, c
+    call trans_reveal_zoom_band
+    call trans_wait_frames
+    ld a, c
+    add a, 2
+    ld c, a
+    cp 12
+    jr c, .trtzb_loop
+    ret
+
+; ------------------------------------------------------------------
+; trans_diag_clear_init
+; Initializes the diagonal clear runtime state in RAM.
+; Output: Carry clear.
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+trans_diag_clear_init:
+    xor a
+    ld (transition_diag_done), a
+    ld (transition_diag_index), a
+    call trans_diag_clear_setup_diagonal
+    or a
+    ret
+
+; ------------------------------------------------------------------
+; trans_diag_inverse_init
+; Initializes inverse diagonal clear/reveal runtime state in RAM.
+; Output: Carry clear.
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+trans_diag_inverse_init:
+    xor a
+    ld (transition_diag_done), a
+    ld (transition_diag_index), a
+    call trans_diag_inverse_setup_diagonal
+    or a
+    ret
+
+; ------------------------------------------------------------------
+; trans_diag_clear_update
+; Clears one char in the name table.
+; Output: Carry clear while active, Carry set when complete.
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+trans_diag_clear_update:
+    ld a, (transition_diag_done)
+    or a
+    jr z, .tdcu_do_one
+    scf
+    ret
+
+.tdcu_do_one:
+    ld hl, (transition_diag_addr)
+    ld a, (transition_fill_char)
+    call trans_diag_vdp_write_byte
+
+    ld de, 31                     ; next char in diagonal: +32 row, -1 col
+    add hl, de
+    ld (transition_diag_addr), hl
+
+    ld hl, transition_diag_len
+    dec (hl)
+    jr nz, .tdcu_active_ret
+
+    ld hl, transition_diag_index
+    inc (hl)
+    ld a, (hl)
+    cp 55                         ; diagonals 0..54
+    jr c, .tdcu_new_diagonal
+
+    ld a, 1
+    ld (transition_diag_done), a
+    scf
+    ret
+
+.tdcu_new_diagonal:
+    call trans_diag_clear_setup_diagonal
+
+.tdcu_active_ret:
+    or a
+    ret
+
+; ------------------------------------------------------------------
+; trans_diag_reveal_update
+; Reveals one char from runtime_screen_layout in the diagonal order.
+; Output: Carry clear while active, Carry set when complete.
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+trans_diag_reveal_update:
+    ld a, (transition_diag_done)
+    or a
+    jr z, .tdru_do_one
+    scf
+    ret
+
+.tdru_do_one:
+    ld hl, (transition_diag_addr)
     push hl
-    ; --- Compute sub_row = A & 7 ---
-    ld l, a                       ; L = pixel row (save)
-    and 7
-    ld e, a                       ; E = sub_row (0-7)
-    ; --- Compute bank = A >> 6 (0-2) ---
-    ld a, l
-    srl a
-    srl a
-    srl a
-    srl a
-    srl a
-    srl a                         ; A = bank (0, 1 or 2)
-    ; --- Compute H = #20 + bank*8 (color table high byte) ---
-    ; bank=0 -> H=#20, bank=1 -> H=#28, bank=2 -> H=#30
-    add a, a                      ; bank * 2
-    add a, a                      ; bank * 4
-    add a, a                      ; bank * 8
-    add a, #20
-    ld h, a                       ; H = color table high byte for this bank
-    ld l, e                       ; L = sub_row  (offset within tile 0 entry)
-    ; HL now = address of tile-0 color byte for this pixel sub-row
-    ; --- Write 0x11 (black/black) for all 256 tiles ---
-    ; Tile addresses: HL, HL+8, HL+16, ... HL+255*8
-    ; (consecutive tiles are 8 bytes apart in the color table)
-    ld b, 0                       ; B=0 → djnz executes 256 times
-.tpcr_loop:
-    ; DI only around the 3 critical VDP port writes.
-    ; Keeping DI for the whole loop would leave interrupts disabled for ~6ms
-    ; and can cause DI+HALT if trans_wait_frames is reached before EI fires.
+    or a
+    ld de, #1800
+    sbc hl, de                    ; HL = name-table offset
+    ld de, runtime_screen_layout
+    add hl, de
+    ld a, (hl)
+    pop hl
+    call trans_diag_vdp_write_byte
+
+    ld de, 31                     ; next char in diagonal: +32 row, -1 col
+    add hl, de
+    ld (transition_diag_addr), hl
+
+    ld hl, transition_diag_len
+    dec (hl)
+    jr nz, .tdru_active_ret
+
+    ld hl, transition_diag_index
+    inc (hl)
+    ld a, (hl)
+    cp 55                         ; diagonals 0..54
+    jr c, .tdru_new_diagonal
+
+    ld a, 1
+    ld (transition_diag_done), a
+    scf
+    ret
+
+.tdru_new_diagonal:
+    call trans_diag_clear_setup_diagonal
+
+.tdru_active_ret:
+    or a
+    ret
+
+; ------------------------------------------------------------------
+; trans_diag_inverse_clear_update
+; Clears one char in the name table using opposite-slope diagonals.
+; Output: Carry clear while active, Carry set when complete.
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+trans_diag_inverse_clear_update:
+    ld a, (transition_diag_done)
+    or a
+    jr z, .tdicu_do_one
+    scf
+    ret
+
+.tdicu_do_one:
+    ld hl, (transition_diag_addr)
+    ld a, (transition_fill_char)
+    call trans_diag_vdp_write_byte
+
+    ld de, 33                     ; next char: +32 row, +1 col
+    add hl, de
+    ld (transition_diag_addr), hl
+
+    ld hl, transition_diag_len
+    dec (hl)
+    jr nz, .tdicu_active_ret
+
+    ld hl, transition_diag_index
+    inc (hl)
+    ld a, (hl)
+    cp 55                         ; diagonals 0..54
+    jr c, .tdicu_new_diagonal
+
+    ld a, 1
+    ld (transition_diag_done), a
+    scf
+    ret
+
+.tdicu_new_diagonal:
+    call trans_diag_inverse_setup_diagonal
+
+.tdicu_active_ret:
+    or a
+    ret
+
+; ------------------------------------------------------------------
+; trans_diag_inverse_reveal_update
+; Reveals one char from runtime_screen_layout using opposite-slope diagonals.
+; Output: Carry clear while active, Carry set when complete.
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+trans_diag_inverse_reveal_update:
+    ld a, (transition_diag_done)
+    or a
+    jr z, .tdiru_do_one
+    scf
+    ret
+
+.tdiru_do_one:
+    ld hl, (transition_diag_addr)
+    push hl
+    or a
+    ld de, #1800
+    sbc hl, de                    ; HL = name-table offset
+    ld de, runtime_screen_layout
+    add hl, de
+    ld a, (hl)
+    pop hl
+    call trans_diag_vdp_write_byte
+
+    ld de, 33                     ; next char: +32 row, +1 col
+    add hl, de
+    ld (transition_diag_addr), hl
+
+    ld hl, transition_diag_len
+    dec (hl)
+    jr nz, .tdiru_active_ret
+
+    ld hl, transition_diag_index
+    inc (hl)
+    ld a, (hl)
+    cp 55                         ; diagonals 0..54
+    jr c, .tdiru_new_diagonal
+
+    ld a, 1
+    ld (transition_diag_done), a
+    scf
+    ret
+
+.tdiru_new_diagonal:
+    call trans_diag_inverse_setup_diagonal
+
+.tdiru_active_ret:
+    or a
+    ret
+
+; ------------------------------------------------------------------
+; trans_diag_clear_setup_diagonal
+; Calculates the starting VRAM address and length for diagonal d.
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+trans_diag_clear_setup_diagonal:
+    ld a, (transition_diag_index)
+    cp 32
+    jr nc, .tdcs_32_plus
+
+.tdcs_0_31:
+    ld e, a
+    ld d, 0
+    ld hl, #1800
+    add hl, de
+    ld (transition_diag_addr), hl
+
+    ld a, (transition_diag_index)
+    cp 24
+    jr c, .tdcs_len_d_plus_1
+    ld a, 24
+    jr .tdcs_store_len
+
+.tdcs_len_d_plus_1:
+    inc a
+    jr .tdcs_store_len
+
+.tdcs_32_plus:
+    sub 31
+    ld e, a
+    ld d, 0
+    ld h, d
+    ld l, e
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                    ; HL = (d - 31) * 32
+    ld de, #181F                  ; NAME_TABLE + 31
+    add hl, de
+    ld (transition_diag_addr), hl
+
+    ld a, 55
+    ld hl, transition_diag_index
+    sub (hl)
+
+.tdcs_store_len:
+    ld (transition_diag_len), a
+    ret
+
+; ------------------------------------------------------------------
+; trans_diag_inverse_setup_diagonal
+; Calculates the starting VRAM address and length for inverse diagonal d.
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+trans_diag_inverse_setup_diagonal:
+    ld a, (transition_diag_index)
+    cp 32
+    jr nc, .tdis_32_plus
+
+.tdis_0_31:
+    ld e, a
+    ld a, 31
+    sub e                         ; A = 31 - d
+    ld e, a
+    ld d, 0
+    ld hl, #1800
+    add hl, de
+    ld (transition_diag_addr), hl
+
+    ld a, (transition_diag_index)
+    cp 24
+    jr c, .tdis_len_d_plus_1
+    ld a, 24
+    jr .tdis_store_len
+
+.tdis_len_d_plus_1:
+    inc a
+    jr .tdis_store_len
+
+.tdis_32_plus:
+    sub 31
+    ld e, a
+    ld d, 0
+    ld h, d
+    ld l, e
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                    ; HL = (d - 31) * 32
+    ld de, #1800
+    add hl, de
+    ld (transition_diag_addr), hl
+
+    ld a, 55
+    ld hl, transition_diag_index
+    sub (hl)
+
+.tdis_store_len:
+    ld (transition_diag_len), a
+    ret
+
+; ------------------------------------------------------------------
+; trans_diag_vdp_write_byte
+; Input: HL = VRAM address, A = byte.
+; Destroys: AF. Preserves BC, DE, HL.
+; ------------------------------------------------------------------
+trans_diag_vdp_write_byte:
+    push af
     di
     ld a, l
-    out (#99), a                  ; VRAM address low
+    out (#99), a
     ld a, h
     or #40
-    out (#99), a                  ; VRAM address high + write mode
-    ld a, #11                     ; fg=1 (black), bg=1 (black)
-    out (#98), a                  ; Write to VRAM color table
-    ei                            ; Re-enable: interrupt fires after next instr
-    ld a, l                       ; (EI delay instruction) Advance HL += 8
-    add a, 8
-    ld l, a
-    jr nc, .tpcr_nc
-    inc h
-.tpcr_nc:
-    djnz .tpcr_loop
+    out (#99), a
+    pop af
+    out (#98), a
+    ei
+    ret
+
+; ------------------------------------------------------------------
+; trans_clear_checkerboard_pass
+; Input: A = parity pass (0 or 1). Clears cells where (row + col) & 1 == A.
+; Destroys: AF, BC, DE, HL.
+; ------------------------------------------------------------------
+trans_clear_checkerboard_pass:
+    ld e, a                       ; E = target parity
+    ld hl, #1800
+    ld b, 0                       ; B = row
+.tcbp_row:
+    ld c, 0                       ; C = col
+.tcbp_col:
+    ld a, b
+    add a, c
+    and 1
+    cp e
+    jr nz, .tcbp_skip
+    ld a, (transition_fill_char)
+    call trans_diag_vdp_write_byte
+.tcbp_skip:
+    inc hl
+    inc c
+    ld a, c
+    cp 32
+    jr c, .tcbp_col
+    inc b
+    ld a, b
+    cp 24
+    jr c, .tcbp_row
+    ret
+
+; ------------------------------------------------------------------
+; trans_reveal_checkerboard_pass
+; Input: A = parity pass (0 or 1). Reveals cells where (row + col) & 1 == A.
+; Destroys: AF, BC, DE, HL.
+; ------------------------------------------------------------------
+trans_reveal_checkerboard_pass:
+    ld e, a                       ; E = target parity
+    ld hl, #1800
+    ld b, 0                       ; B = row
+.trbp_row:
+    ld c, 0                       ; C = col
+.trbp_col:
+    ld a, b
+    add a, c
+    and 1
+    cp e
+    jr nz, .trbp_skip
+    push de                       ; Preserve parity while deriving source byte.
+    push hl
+    or a
+    ld de, #1800
+    sbc hl, de                    ; HL = name-table offset
+    ld de, runtime_screen_layout
+    add hl, de
+    ld a, (hl)
     pop hl
     pop de
-    pop bc
+    call trans_diag_vdp_write_byte
+.trbp_skip:
+    inc hl
+    inc c
+    ld a, c
+    cp 32
+    jr c, .trbp_col
+    inc b
+    ld a, b
+    cp 24
+    jr c, .trbp_row
+    ret
+
+; ------------------------------------------------------------------
+; trans_clear_manhattan_pass
+; Input: A = distance from center 2x2. Clears matching Name Table cells.
+; Destroys: AF, BC, DE, HL.
+; ------------------------------------------------------------------
+trans_clear_manhattan_pass:
+    ld d, a                       ; D = target distance
+    ld hl, #1800
+    ld b, 0                       ; B = row
+.tcmp_row:
+    ld c, 0                       ; C = col
+.tcmp_col:
+    ld a, c
+    cp 16
+    jr nc, .tcmp_x_right
+    ld a, 15
+    sub c
+    jr .tcmp_x_done
+.tcmp_x_right:
+    ld a, c
+    sub 16
+.tcmp_x_done:
+    ld e, a                       ; E = x distance from center 2x2
+    ld a, b
+    cp 12
+    jr nc, .tcmp_y_bottom
+    ld a, 11
+    sub b
+    jr .tcmp_y_done
+.tcmp_y_bottom:
+    ld a, b
+    sub 12
+.tcmp_y_done:
+    add a, e                      ; A = Manhattan distance
+    cp d
+    jr nz, .tcmp_skip
+    ld a, (transition_fill_char)
+    call trans_diag_vdp_write_byte
+.tcmp_skip:
+    inc hl
+    inc c
+    ld a, c
+    cp 32
+    jr c, .tcmp_col
+    inc b
+    ld a, b
+    cp 24
+    jr c, .tcmp_row
+    ret
+
+; ------------------------------------------------------------------
+; trans_reveal_manhattan_pass
+; Input: A = distance from center 2x2. Reveals matching Name Table cells.
+; Destroys: AF, BC, DE, HL.
+; ------------------------------------------------------------------
+trans_reveal_manhattan_pass:
+    ld d, a                       ; D = target distance
+    ld hl, #1800
+    ld b, 0                       ; B = row
+.trmp_row:
+    ld c, 0                       ; C = col
+.trmp_col:
+    ld a, c
+    cp 16
+    jr nc, .trmp_x_right
+    ld a, 15
+    sub c
+    jr .trmp_x_done
+.trmp_x_right:
+    ld a, c
+    sub 16
+.trmp_x_done:
+    ld e, a                       ; E = x distance from center 2x2
+    ld a, b
+    cp 12
+    jr nc, .trmp_y_bottom
+    ld a, 11
+    sub b
+    jr .trmp_y_done
+.trmp_y_bottom:
+    ld a, b
+    sub 12
+.trmp_y_done:
+    add a, e                      ; A = Manhattan distance
+    cp d
+    jr nz, .trmp_skip
+    push de
+    push hl
+    or a
+    ld de, #1800
+    sbc hl, de                    ; HL = name-table offset
+    ld de, runtime_screen_layout
+    add hl, de
+    ld a, (hl)
+    pop hl
+    pop de
+    call trans_diag_vdp_write_byte
+.trmp_skip:
+    inc hl
+    inc c
+    ld a, c
+    cp 32
+    jr c, .trmp_col
+    inc b
+    ld a, b
+    cp 24
+    jr c, .trmp_row
+    ret
+
+; ------------------------------------------------------------------
+; trans_clear_block4_order
+; Input: A = step index (0..63). Clears one 4-column x 3-row block.
+; Destroys: AF, BC, DE, HL.
+; ------------------------------------------------------------------
+trans_clear_block4_order:
+    ld e, a
+    ld d, 0
+    ld hl, trans_block4_order
+    add hl, de
+    ld a, (hl)                    ; A = block id (row*8 + col)
+    ld c, a                       ; C = block id
+    and 7
+    add a, a
+    add a, a
+    ld d, a                       ; D = start column (block col * 4)
+    ld a, c
+    srl a
+    srl a
+    srl a                         ; A = block row
+    ld e, a
+    add a, a
+    add a, e                      ; A = start row (block row * 3)
+    ld c, a                       ; C = current row
+    ld b, 3
+.tcb4_row:
+    ld a, c
+    ld e, 4
+    call trans_clear_row_range
+    inc c
+    djnz .tcb4_row
+    ret
+
+; ------------------------------------------------------------------
+; trans_reveal_block4_order
+; Input: A = step index (0..63). Reveals one 4-column x 3-row block.
+; Destroys: AF, BC, DE, HL.
+; ------------------------------------------------------------------
+trans_reveal_block4_order:
+    ld e, a
+    ld d, 0
+    ld hl, trans_block4_order
+    add hl, de
+    ld a, (hl)                    ; A = block id (row*8 + col)
+    ld c, a                       ; C = block id
+    and 7
+    add a, a
+    add a, a
+    ld d, a                       ; D = start column (block col * 4)
+    ld a, c
+    srl a
+    srl a
+    srl a                         ; A = block row
+    ld e, a
+    add a, a
+    add a, e                      ; A = start row (block row * 3)
+    ld c, a                       ; C = current row
+    ld b, 3
+.trb4_row:
+    ld a, c
+    ld e, 4
+    call trans_reveal_row_range
+    inc c
+    djnz .trb4_row
+    ret
+
+trans_block4_order:
+    db 0, 37, 10, 47, 20, 57, 30, 3
+    db 40, 13, 50, 23, 60, 33, 6, 43
+    db 16, 53, 26, 63, 36, 9, 46, 19
+    db 56, 29, 2, 39, 12, 49, 22, 59
+    db 32, 5, 42, 15, 52, 25, 62, 35
+    db 8, 45, 18, 55, 28, 1, 38, 11
+    db 48, 21, 58, 31, 4, 41, 14, 51
+    db 24, 61, 34, 7, 44, 17, 54, 27
+
+; ------------------------------------------------------------------
+; trans_clear_zoom_band
+; Input: A = ring start (0,2,4,6,8,10). Clears a 2-cell-thick band.
+; Destroys: AF, BC, DE, HL.
+; ------------------------------------------------------------------
+trans_clear_zoom_band:
+    ld b, a                       ; B = ring
+    ld a, b
+    add a, a
+    ld e, a
+    ld a, 32
+    sub e
+    ld e, a                       ; E = row segment width
+    ld d, b                       ; D = start column
+    ld a, b
+    call trans_clear_row_range
+    ld a, b
+    inc a
+    call trans_clear_row_range
+    ld a, 23
+    sub b
+    call trans_clear_row_range
+    ld a, 22
+    sub b
+    call trans_clear_row_range
+
+    ld a, b
+    add a, a
+    ld e, a
+    ld a, 20
+    sub e                         ; A = side segment height
+    jr z, .tczb_done
+    ld d, a                       ; D = row count
+    ld a, b
+    add a, 2
+    ld c, a                       ; C = start row
+    ld a, b
+    call trans_clear_column_range
+    ld a, b
+    inc a
+    call trans_clear_column_range
+    ld a, 30
+    sub b
+    call trans_clear_column_range
+    ld a, 31
+    sub b
+    call trans_clear_column_range
+.tczb_done:
+    ret
+
+; ------------------------------------------------------------------
+; trans_reveal_zoom_band
+; Input: A = ring start (0,2,4,6,8,10). Reveals a 2-cell-thick band.
+; Destroys: AF, BC, DE, HL.
+; ------------------------------------------------------------------
+trans_reveal_zoom_band:
+    ld b, a                       ; B = ring
+    ld a, b
+    add a, a
+    ld e, a
+    ld a, 32
+    sub e
+    ld e, a                       ; E = row segment width
+    ld d, b                       ; D = start column
+    ld a, b
+    call trans_reveal_row_range
+    ld a, b
+    inc a
+    call trans_reveal_row_range
+    ld a, 23
+    sub b
+    call trans_reveal_row_range
+    ld a, 22
+    sub b
+    call trans_reveal_row_range
+
+    ld a, b
+    add a, a
+    ld e, a
+    ld a, 20
+    sub e                         ; A = side segment height
+    jr z, .trzb_done
+    ld d, a                       ; D = row count
+    ld a, b
+    add a, 2
+    ld c, a                       ; C = start row
+    ld a, b
+    call trans_reveal_column_range
+    ld a, b
+    inc a
+    call trans_reveal_column_range
+    ld a, 30
+    sub b
+    call trans_reveal_column_range
+    ld a, 31
+    sub b
+    call trans_reveal_column_range
+.trzb_done:
     ret
 
 ; ==================================================================
@@ -2982,7 +5838,7 @@ ${frameAudioTickAsm}    pop bc
 
 ; ==================================================================
 ; trans_clear_column
-; Write tile 0 to all 24 rows of a single column in the Name Table
+; Write transition_fill_char to all 24 rows of a single column in the Name Table
 ; Input:  A = column (0-31)
 ; Preserves: BC, DE, HL
 ; ==================================================================
@@ -3000,8 +5856,8 @@ trans_clear_column:
     ld a, h
     or #40
     out (#99), a                  ; VRAM address high + write mode
-    xor a
-    out (#98), a                  ; Write tile 0
+    ld a, (transition_fill_char)
+    out (#98), a                  ; Write transition fill char
     ld a, l                       ; HL += 32 (advance to next row)
     add a, 32
     ld l, a
@@ -3016,8 +5872,155 @@ trans_clear_column:
     ret
 
 ; ==================================================================
+; trans_clear_column_range
+; Clears part of a Name Table column.
+; Input:  A = column (0-31), C = start row (0-23), D = row count
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_clear_column_range:
+    push bc
+    push de
+    push hl
+    ld b, d
+    ld l, c
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                    ; HL = start row * 32
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld de, #1800
+    add hl, de                    ; HL = NAME_TABLE + row*32 + col
+.tccr_loop:
+    di
+    ld a, l
+    out (#99), a
+    ld a, h
+    or #40
+    out (#99), a
+    ld a, (transition_fill_char)
+    out (#98), a
+    ei
+    ld a, l
+    add a, 32
+    ld l, a
+    jr nc, .tccr_no_carry
+    inc h
+.tccr_no_carry:
+    djnz .tccr_loop
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_reveal_column
+; Copy one column from runtime_screen_layout to the Name Table.
+; Input:  A = column (0-31)
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_reveal_column:
+    push bc
+    push de
+    push hl
+    ld c, a
+    ld e, a
+    ld d, 0
+    ld hl, runtime_screen_layout
+    add hl, de                    ; HL = source row 0 + column
+    ld e, c
+    ld d, #18                     ; DE = #1800 + column
+    ld b, 24
+    di
+.trc_row:
+    ld a, e
+    out (#99), a
+    ld a, d
+    or #40
+    out (#99), a
+    ld a, (hl)
+    out (#98), a
+    push de
+    ld de, 32
+    add hl, de
+    pop de
+    ld a, e
+    add a, 32
+    ld e, a
+    jr nc, .trc_no_carry
+    inc d
+.trc_no_carry:
+    djnz .trc_row
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_reveal_column_range
+; Copies part of a column from runtime_screen_layout to the Name Table.
+; Input:  A = column (0-31), C = start row (0-23), D = row count
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_reveal_column_range:
+    push bc
+    push de
+    push hl
+    ld b, d
+    ld l, c
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                    ; HL = start row * 32
+    ld e, a
+    ld d, 0
+    add hl, de
+    push hl                       ; save row+col offset
+    ld de, runtime_screen_layout
+    add hl, de
+    ex de, hl                     ; DE = source cell
+    pop hl
+    push de
+    ld de, #1800
+    add hl, de                    ; HL = destination cell
+    pop de
+    di
+.trcr_loop:
+    ld a, l
+    out (#99), a
+    ld a, h
+    or #40
+    out (#99), a
+    ld a, (de)
+    out (#98), a
+    ld a, e
+    add a, 32
+    ld e, a
+    jr nc, .trcr_src_no_carry
+    inc d
+.trcr_src_no_carry:
+    ld a, l
+    add a, 32
+    ld l, a
+    jr nc, .trcr_dst_no_carry
+    inc h
+.trcr_dst_no_carry:
+    djnz .trcr_loop
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
 ; trans_clear_row_direct
-; Write tile 0 to all 32 columns of a single row in the Name Table
+; Write transition_fill_char to all 32 columns of a single Name Table row.
 ; Input:  A = row (0-23)
 ; Preserves: BC, DE, HL
 ; ==================================================================
@@ -3042,10 +6045,140 @@ trans_clear_row_direct:
     or #40
     out (#99), a                  ; VRAM address high + write mode
     ld b, 32
-    xor a                         ; Tile 0
+    ld a, (transition_fill_char)
 .tcrd_loop:
     out (#98), a
     djnz .tcrd_loop
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_clear_row_range
+; Clears part of a Name Table row.
+; Input:  A = row (0-23), D = start column (0-31), E = char count
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_clear_row_range:
+    push bc
+    push de
+    push hl
+    ld b, e
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                    ; HL = row * 32
+    ld e, d
+    ld d, 0
+    add hl, de
+    ld de, #1800
+    add hl, de                    ; HL = NAME_TABLE + row*32 + start col
+    di
+    ld a, l
+    out (#99), a
+    ld a, h
+    or #40
+    out (#99), a
+    ld a, (transition_fill_char)
+.tcrr_loop:
+    out (#98), a
+    djnz .tcrr_loop
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_reveal_row_direct
+; Copy one row from runtime_screen_layout to the Name Table.
+; Input:  A = row (0-23)
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_reveal_row_direct:
+    push bc
+    push de
+    push hl
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; *2
+    add hl, hl                    ; *4
+    add hl, hl                    ; *8
+    add hl, hl                    ; *16
+    add hl, hl                    ; *32
+    push hl                       ; save row offset
+    ld de, runtime_screen_layout
+    add hl, de
+    ex de, hl                     ; DE = source row
+    pop hl                        ; HL = row offset
+    ld bc, #1800
+    add hl, bc                    ; HL = name table row start
+    di
+    ld a, l
+    out (#99), a
+    ld a, h
+    or #40
+    out (#99), a
+    ex de, hl                     ; HL = source row
+    ld b, 32
+.trrd_loop:
+    ld a, (hl)
+    out (#98), a
+    inc hl
+    djnz .trrd_loop
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_reveal_row_range
+; Copies part of a row from runtime_screen_layout to the Name Table.
+; Input:  A = row (0-23), D = start column (0-31), E = char count
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_reveal_row_range:
+    push bc
+    push de
+    push hl
+    ld b, e
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                    ; HL = row * 32
+    ld e, d
+    ld d, 0
+    add hl, de
+    push hl                       ; save row+col offset
+    ld de, runtime_screen_layout
+    add hl, de
+    ex de, hl                     ; DE = source range
+    pop hl
+    push de
+    ld de, #1800
+    add hl, de                    ; HL = destination range
+    pop de
+    di
+    ld a, l
+    out (#99), a
+    ld a, h
+    or #40
+    out (#99), a
+    ex de, hl                     ; HL = source range
+.trrr_loop:
+    ld a, (hl)
+    out (#98), a
+    inc hl
+    djnz .trrr_loop
     ei
     pop hl
     pop de
@@ -3119,13 +6252,14 @@ trans_fast_filvrm:
         break;
 
       case 'Music':
+        const musicExecuteCommandCall = useFarCall ? 'call_music_execute_command_resident' : 'music_execute_command';
         code += `gameflow_handle_music:
     ; Music node - play/stop music
     ; DE = music data (command, track index, loop flag)
     ; BC = connection table
 
     push bc
-    call music_execute_command
+    call ${musicExecuteCommandCall}
     pop bc
     call gameflow_get_default_connection
     ld a, h
@@ -3136,22 +6270,43 @@ trans_fast_filvrm:
         break;
 
       case 'PresentationScreen':
+        {
+          const megaRomPresentationWaitAsm = useFarCall ? buildGameFlowPresentationWaitAsm(analysis) : '';
+          const megaRomPresentationWaitHelpers = useFarCall
+            ? generateGameFlowPresentationWaitHelpers(analysis, frameAudioTickAsm)
+            : '';
         code += `gameflow_handle_presentationscreen:
     ; PresentationScreen node - show full-screen presentation image
+    ; DE = presentation data pointer:
+    ;   [defer_init_until_transition DB]
     ; BC = connection table
+    ld a, (de)
+    ld (gameflow_deferred_game_init), a
     push bc
-${useFarCall ? `    call show_presentation_screen_far` : `    call show_presentation_screen`}
+    call gameflow_begin_transition_target_render
+${useFarCall ? `    call show_presentation_screen_image_far
+    call gameflow_finish_transition_target_render
+${megaRomPresentationWaitAsm}` : `    call show_presentation_screen`}
+${useFarCall ? `` : `    call gameflow_finish_transition_target_render`}
     ; show_presentation_screen overwrites ALL of CHRTBL2 (chars 0-255 x 3 banks).
     ; Game tile patterns live at char 128+ and are now corrupted.
-    ; Reload game VRAM (patterns + colors) before entering gameplay.
+    ; If the next node is a Transition, keep the presentation in VRAM so
+    ; the transition wipes that image first. Otherwise reload gameplay now.
+    ld a, (gameflow_deferred_game_init)
+    or a
+    jr nz, .gps_skip_init_game_systems
     call init_game_systems
+.gps_skip_init_game_systems:
     pop bc
     call gameflow_get_default_connection
     ld a, h
     or l
     ret z
     jp gameflow_execute_node
+
+${megaRomPresentationWaitHelpers}
 `;
+        }
         break;
 
       default:
@@ -3168,7 +6323,7 @@ ${useFarCall ? `    call show_presentation_screen_far` : `    call show_presenta
     }
   });
 
-  const needsPrintStringVram = nodeTypes.includes('Text') || nodeTypes.includes('SubMenu');
+  const needsPrintStringVram = nodeTypes.includes('Text') || nodeTypes.includes('TextScroll') || nodeTypes.includes('TextScrollColor') || nodeTypes.includes('SubMenu') || nodeTypes.includes('Controls');
   const hasEndNode = nodeTypes.includes('End');
   if (needsPrintStringVram && !hasEndNode) {
     code += `; ------------------------------------------------------------------
@@ -3207,6 +6362,35 @@ print_string_vram:
 `;
   }
 
+  const hasScreenColorRuntime = Array.isArray((analysis as any).screenMaps) && (analysis as any).screenMaps.length > 0;
+  const needsScreenColorRuntime = handlerNodeTypes.some((nodeType) =>
+    ['SubMenu', 'Controls', 'Text', 'TextScroll', 'TextScrollColor', 'Transition', 'End', 'Restart', 'PresentationScreen'].includes(nodeType)
+  );
+  if (!hasScreenColorRuntime && needsScreenColorRuntime) {
+    code += `; ------------------------------------------------------------------
+; Fallback screen color helpers for GameFlow-only projects.
+; Full projects get these from screens.asm; this keeps standalone visual
+; GameFlow nodes linkable when no screenmap asset exists.
+; ------------------------------------------------------------------
+set_screen_colors:
+    push af
+    push bc
+    and #0F
+    ld (BAKCLR), a
+    ld a, b
+    and #0F
+    ld (BDRCLR), a
+    call CHGCLR
+    pop bc
+    pop af
+    ret
+
+init_char0_color:
+    ret
+
+`;
+  }
+
   return code;
 }
 
@@ -3224,7 +6408,7 @@ function generateNodeStructure(
   const connLabel = `${nodeLabel}_conn`;
 
   // Check if node has data
-  const hasData = ['Start', 'WorldLink', 'SubMenu', 'Text', 'IfThenElse', 'Globals', 'Transition', 'Music'].includes(node.type) ||
+  const hasData = ['Start', 'WorldLink', 'SubMenu', 'Controls', 'Text', 'TextScroll', 'TextScrollColor', 'TextScroll2', 'IfThenElse', 'Globals', 'Transition', 'Music', 'PresentationScreen'].includes(node.type) ||
                   (node.type === 'Globals' && node.variables && node.variables.length > 0);
 
   const dataLabel = hasData ? `${nodeLabel}_data` : 'gameflow_no_data';
@@ -3246,7 +6430,7 @@ ${nodeLabel}:
       case 'Start':
         // Generate Start node initialization data
         code += `    dw ${nodeLabel}_init    ; Initialization routine address\n`;
-        code += `    db ((${nodeLabel}_init - #4000) / #2000)    ; Initialization routine bank\n`;
+        code += `    db ${getLocalCodeBankExpr(`${nodeLabel}_init`, useFarCall)}    ; Initialization routine bank\n`;
 
         // Generate initialization routine after the data structure
         // This will be appended after the switch
@@ -3260,7 +6444,7 @@ ${nodeLabel}:
         code += `    dw ${worldLoadLabel}\n`;
         code += `    db ((${worldLoadLabel} - #4000) / #2000)\n`;
         code += `    dw ${nodeLabel}_init\n`;
-        code += `    db ((${nodeLabel}_init - #4000) / #2000)\n`;
+        code += `    db ${getLocalCodeBankExpr(`${nodeLabel}_init`, useFarCall)}\n`;
         break;
 
       case 'SubMenu':
@@ -3338,6 +6522,31 @@ ${nodeLabel}:
           });
         }
         break;
+
+      case 'Controls': {
+        const nodeId = sanitizeId(node.id);
+        const titleText = sanitizeAsmText(node.title || node.name || 'CONTROLES').toUpperCase();
+        const primaryLabel = getControlsActionLabel(node.jumpActionLabel ?? node.jumpText ?? node.jumpLabel ?? node.primaryActionLabel, 'SALTO');
+        const secondaryLabel = getControlsActionLabel(node.actionLabel ?? node.actionText ?? node.gameActionLabel ?? node.secondaryActionLabel, 'ACCION');
+        const keyButton1 = getControlsKeyButton1Mode(node);
+        const keyButton2 = getControlsKeyButton2Mode(node);
+        const jumpButton = getControlsActionButtonMode(node.jumpActionButton ?? node.jumpButton, 'button1');
+        const actionButton = getControlsActionButtonMode(node.actionButton ?? node.gameActionButton, 'button2');
+        code += `    db ${keyButton1}    ; keyboard button 1 mode (0=SPC, 1=CTRL)\n`;
+        code += `    db ${keyButton2}    ; keyboard button 2 mode (0=N, 1=CTRL)\n`;
+        code += `    db ${jumpButton}    ; jump action physical button (0=B1, 1=B2)\n`;
+        code += `    db ${actionButton}    ; action physical button (0=B1, 1=B2)\n`;
+        code += `    dw controls_${nodeId}_title\n`;
+        code += `    dw controls_${nodeId}_primary_label\n`;
+        code += `    dw controls_${nodeId}_secondary_label\n\n`;
+        code += `controls_${nodeId}_title:\n`;
+        code += `    db "${titleText}", 0\n`;
+        code += `controls_${nodeId}_primary_label:\n`;
+        code += `    db "${primaryLabel}", 0\n`;
+        code += `controls_${nodeId}_secondary_label:\n`;
+        code += `    db "${secondaryLabel}", 0\n`;
+        break;
+      }
 
       case 'Text': {
         const nodeId = sanitizeId(node.id);
@@ -3424,6 +6633,145 @@ ${nodeLabel}:
           code += `${line.label}:\n`;
           code += `    DB "${line.text}", 0\n`;
         }
+        break;
+      }
+
+      case 'TextScroll':
+      case 'TextScrollColor': {
+        const nodeId = sanitizeId(node.id);
+        const bgHex = node.backgroundColor || '#000000';
+        const stripeHex = node.stripeColor || '#000080';
+        const textHex = node.textColor || '#FFFFFF';
+        const bgColor = hexToMSXColor(bgHex);
+        const stripeColor = hexToMSXColor(stripeHex);
+        const textColor = hexToMSXColor(textHex);
+        const speedFrames = Math.max(1, Math.min(8, Number(node.speedFrames || 2) || 2));
+        const rawText = String(node.text || '').replace(/\\n/g, '\n');
+        const maxLineWidth = 28;
+        const normalizeLine = (value: string): string => sanitizeAsmText(value)
+          .toUpperCase()
+          .replace(/[^\x20-\x5F]/g, '?')
+          .slice(0, maxLineWidth);
+        const lines: string[] = [];
+
+        rawText.split(/\r?\n/).forEach((paragraph) => {
+          const words = paragraph.split(/\s+/).filter(Boolean);
+          if (words.length === 0) {
+            lines.push('');
+            return;
+          }
+          let currentLine = '';
+          words.forEach((word) => {
+            const upperWord = normalizeLine(word);
+            const testLine = currentLine ? `${currentLine} ${upperWord}` : upperWord;
+            if (testLine.length > maxLineWidth && currentLine) {
+              lines.push(currentLine);
+              currentLine = upperWord.slice(0, maxLineWidth);
+            } else {
+              currentLine = testLine.slice(0, maxLineWidth);
+            }
+          });
+          lines.push(currentLine);
+        });
+
+        const visibleLines = lines.map(normalizeLine).slice(0, 80);
+        const allLines: { text: string; label: string }[] = [];
+        const title = normalizeLine(node.title || 'TEXTO SCROLL');
+        if (title.trim()) {
+          allLines.push({
+            text: title,
+            label: `textscroll_${nodeId}_title`,
+          });
+          allLines.push({
+            text: '',
+            label: `textscroll_${nodeId}_blank0`,
+          });
+        }
+        visibleLines.forEach((line, index) => {
+          allLines.push({
+            text: normalizeLine(line),
+            label: `textscroll_${nodeId}_line${index}`,
+          });
+        });
+
+        code += `    db ${bgColor}                  ; Background color (MSX index from ${bgHex})\n`;
+        code += `    db ${stripeColor}                  ; Stripe color (MSX index from ${stripeHex})\n`;
+        if (node.type === 'TextScrollColor') {
+          code += `    db ${textColor}                  ; Text color (MSX index from ${textHex})\n`;
+        }
+        code += `    db ${speedFrames}                  ; Frames per pixel step\n`;
+        code += `    db ${allLines.length}                  ; Number of lines\n`;
+        allLines.forEach((line) => {
+          const col = Math.max(0, Math.floor((32 - line.text.length) / 2));
+          code += `    db ${col}\n`;
+          code += `    dw ${line.label}\n`;
+        });
+
+        code += `\n`;
+        allLines.forEach((line) => {
+          code += `${line.label}:\n`;
+          const text = line.text.replace(/"/g, '');
+          code += text ? `    db "${text}", 0\n` : `    db 0\n`;
+        });
+        break;
+      }
+
+      case 'TextScroll2': {
+        const nodeId = sanitizeId(node.id);
+        const bgHex = node.backgroundColor || '#000000';
+        const stripeHex = node.stripeColor || '#000000';
+        const bgColor = hexToMSXColor(bgHex);
+        const stripeColor = hexToMSXColor(stripeHex);
+        const speedFrames = Math.max(1, Math.min(8, Number(node.speedFrames || 2) || 2));
+        const rawText = String(node.text || '').replace(/\\n/g, '\n');
+        const maxLineWidth = 32;
+        const normalizeLine = (value: string): string => sanitizeAsmText(value)
+          .toUpperCase()
+          .replace(/[^\x20-\x5F]/g, '?')
+          .slice(0, maxLineWidth);
+        const fixedLine = (value: string): string => normalizeLine(value).padEnd(32, ' ').slice(0, 32);
+        const lines: string[] = [];
+
+        rawText.split(/\r?\n/).forEach((paragraph) => {
+          const words = paragraph.split(/\s+/).filter(Boolean);
+          if (words.length === 0) {
+            lines.push('');
+            return;
+          }
+          let currentLine = '';
+          words.forEach((word) => {
+            const upperWord = normalizeLine(word);
+            const testLine = currentLine ? `${currentLine} ${upperWord}` : upperWord;
+            if (testLine.length > maxLineWidth && currentLine) {
+              lines.push(currentLine);
+              currentLine = upperWord.slice(0, maxLineWidth);
+            } else {
+              currentLine = testLine.slice(0, maxLineWidth);
+            }
+          });
+          lines.push(currentLine);
+        });
+
+        const allLines: string[] = [];
+        const title = normalizeLine(node.title || 'TEXTO SCROLL 2');
+        if (title.trim()) {
+          allLines.push(title);
+          allLines.push('');
+        }
+        lines.map(normalizeLine).slice(0, 80).forEach((line) => allLines.push(line));
+        const emittedLines = allLines.length > 0 ? allLines : [''];
+        const lineLabel = `textscroll2_${nodeId}_lines`;
+
+        code += `    db ${bgColor}                  ; Background color (MSX index from ${bgHex})\n`;
+        code += `    db ${stripeColor}                  ; Pattern background color (MSX index from ${stripeHex})\n`;
+        code += `    db ${speedFrames}                  ; Frames per pixel step\n`;
+        code += `    db ${emittedLines.length}                  ; Number of fixed 32-byte lines\n`;
+        code += `    dw ${lineLabel}\n\n`;
+        code += `${lineLabel}:\n`;
+        emittedLines.forEach((line) => {
+          code += `    db "${fixedLine(line)}"\n`;
+        });
+        code += `    db #FF\n`;
         break;
       }
 
@@ -3515,7 +6863,7 @@ ${nodeLabel}:
         break;
 
       case 'Transition': {
-        // Effect IDs match execute_transition_effect dispatch (0-6)
+        // Effect IDs match execute_transition_effect dispatch (0-15)
         const transEffectMap: Record<string, number> = {
           'cls': 0,
           'dissolve_pixels': 1,
@@ -3524,6 +6872,15 @@ ${nodeLabel}:
           'horizontal_lines': 4,
           'spiral': 5,
           'fill_white_squares': 6,
+          'diagonal_clear': 7,
+          'diagonal_inverse': 8,
+          'checkerboard': 9,
+          'doors': 10,
+          'center_curtain': 11,
+          'venetian_blinds': 12,
+          'radial_wipe': 13,
+          'block4_shuffle': 14,
+          'zoom_box': 15,
         };
         // Steps per effect = number of animation stages (each stage = N frames)
         const transStepsMap: Record<string, number> = {
@@ -3532,8 +6889,17 @@ ${nodeLabel}:
           'dissolve_chars': 8,
           'vertical_lines': 16,
           'horizontal_lines': 24,
-          'spiral': 96,   // 96 pixel-row rings (top+bottom closing in, 192px/2)
+          'spiral': 12,   // 12 Name Table rings
           'fill_white_squares': 4,
+          'diagonal_clear': 48, // 768 name-table chars in 16-char batches
+          'diagonal_inverse': 48, // 768 name-table chars in 16-char batches
+          'checkerboard': 2,
+          'doors': 16,
+          'center_curtain': 16,
+          'venetian_blinds': 2,
+          'radial_wipe': 27,
+          'block4_shuffle': 64,
+          'zoom_box': 6,
         };
         const transEffectId = transEffectMap[node.effect] ?? 0;
         const transSteps = transStepsMap[node.effect] ?? 8;
@@ -3542,8 +6908,16 @@ ${nodeLabel}:
         const transFramesPerStep = Math.max(1, Math.min(255,
           Math.round(transDurationMs / transSteps / 20)
         ));
+        const transFillChar = Number(node.fillChar) === 255 ? 255 : 254;
         code += `    db ${transEffectId}              ; Effect: ${node.effect || 'cls'}\n`;
         code += `    db ${transFramesPerStep}              ; Frames per step (duration ${transDurationMs}ms / ${transSteps} steps / 20ms)\n`;
+        code += `    db ${transFillChar}              ; Fill char (${transFillChar === 255 ? 'SPC blank' : 'box outline'})\n`;
+        break;
+      }
+
+      case 'PresentationScreen': {
+        const deferInit = presentationScreenDefersGameInitToTransition(node, gameFlow) ? 1 : 0;
+        code += `    db ${deferInit}              ; Defer init_game_systems until after next Transition\n`;
         break;
       }
     }
@@ -3587,7 +6961,7 @@ ${nodeLabel}:
 
   // Generate initialization routine for Start nodes
   if (node.type === 'Start') {
-    code += generateStartNodeInitRoutine(node, nodeLabel, analysis);
+    code += generateStartNodeInitRoutine(node, nodeLabel, analysis, gameFlow, romMode);
   }
   if (node.type === 'WorldLink') {
     code += generateWorldLinkNodeInitRoutine(node, nodeLabel, analysis);
@@ -3661,10 +7035,35 @@ ${nodeLabel}_init:
   return code;
 }
 
+function getDefaultConnectionTargetNode(node: any, gameFlow: any): any | undefined {
+  const defaultConnection = gameFlow.connections?.find((connection: any) =>
+    (connection.from?.nodeId || connection.from) === node.id
+  );
+  const nextNodeId = defaultConnection?.to?.nodeId || defaultConnection?.to;
+  return gameFlow.nodes?.find((candidate: any) => candidate.id === nextNodeId);
+}
+
+function presentationScreenDefersGameInitToTransition(node: any, gameFlow: any): boolean {
+  return getDefaultConnectionTargetNode(node, gameFlow)?.type === 'Transition';
+}
+
 /**
  * Generate initialization routine for Start node
  */
-function generateStartNodeInitRoutine(node: any, nodeLabel: string, analysis: ProjectAnalysis): string {
+function startNodeDefersGameInitForPresentation(node: any, gameFlow: any, romMode: string): boolean {
+  if (romMode !== 'megarom') {
+    return false;
+  }
+  return getDefaultConnectionTargetNode(node, gameFlow)?.type === 'PresentationScreen';
+}
+
+function generateStartNodeInitRoutine(
+  node: any,
+  nodeLabel: string,
+  analysis: ProjectAnalysis,
+  gameFlow: any,
+  romMode: string
+): string {
   let code = `; ------------------------------------------------------------------
 ; ${nodeLabel}_init
 ; Initialization routine for Start node
@@ -3675,11 +7074,17 @@ ${nodeLabel}_init:
 
   const systemConfig = node.systemConfig;
 
-  // CRITICAL: Always call init_game_systems to initialize ECS components,
-  // entities, and load game assets. Without this, the screen stays black
-  // because no patterns, sprites, or entities are set up.
-  code += `    ; === Core Game Systems Initialization (ALWAYS required) ===\n`;
-  code += `    call init_game_systems\n\n`;
+  const deferGameInitForPresentation = startNodeDefersGameInitForPresentation(node, gameFlow, romMode);
+  if (deferGameInitForPresentation) {
+    code += `    ; === Core Game Systems Initialization deferred ===\n`;
+    code += `    ; PresentationScreen reloads gameplay VRAM and entities after its wait.\n\n`;
+  } else {
+    // CRITICAL: Always call init_game_systems to initialize ECS components,
+    // entities, and load game assets. Without this, the screen stays black
+    // because no patterns, sprites, or entities are set up.
+    code += `    ; === Core Game Systems Initialization (ALWAYS required) ===\n`;
+    code += `    call init_game_systems\n\n`;
+  }
 
   // 1. Initialize MSX Systems (if configured)
   if (systemConfig) {
@@ -3736,12 +7141,20 @@ function generateDefaultGameFlow(
   const defaultStartHudAsm = generateConditionalRenderHudAsm(defaultHudRuntimeScreenIndexes, 'gf_default_start_hud', true);
   const defaultLoopHudAsm = generateConditionalRenderHudAsm(defaultHudRuntimeScreenIndexes, 'gf_default_loop_hud');
   const frameAudioTickAsm = buildGameFlowAudioTickAsm(analysis, executionPlan);
+  const defaultBossUpdateAsm = projectHasBossRuntime(analysis)
+    ? `    call update_boss_system
+`
+    : '';
   const firstScreen = analysis.screenMaps && analysis.screenMaps.length > 0 ? analysis.screenMaps[0] : null;
   const firstImportedHudFrameDrawRoutine = firstScreen ? getImportedHudFrameDrawRoutineName(firstScreen as any) : null;
   const useFarCall = romMode === 'megarom';
   const firstScreenLoadCode = firstScreen
     ? `    call ${getScreenLoadRoutineName(firstScreen)}${useFarCall ? '_far' : ''}\n`
     : `    ; No screens available\n`;
+
+  const componentTriggerHelpersAsm = shouldEmitComponentTriggerHelpersInGameFlow(analysis, romMode)
+    ? generateComponentTriggerHelpers()
+    : '';
 
   return `; ==================================================================
 ; DEFAULT GAMEFLOW (No GameFlow defined in project)
@@ -3758,31 +7171,46 @@ ${firstScreenLoadCode}${firstImportedHudFrameDrawRoutine ? `    ; Draw imported 
 ${defaultHasHud ? `    ; Bootstrap HUD only on screens that define HUD elements
 ${defaultStartHudAsm}` : ``}    ret
 
+; @mideas:block id=runtime.gameflow.world_loop kind=routine owner=gameflow roots=gameflow_world_game_loop
 gameflow_world_game_loop:
     halt                            ; Frame sync at loop start (V-Blank edge)
 ${frameAudioTickAsm}    ; Poll input immediately after V-Blank so hero movement lands
     ; in the same frame that gets uploaded to SAT.
     call task_update_input
+    ld a, (current_screen_engine)
+    or a
+    jp nz, .skip_player_fastpath_pre_update
     call update_player_fastpath
+.skip_player_fastpath_pre_update:
     call check_world_screen_transition
     call update_all_entities
+    ld a, (current_screen_engine)
+    or a
+    jp nz, .skip_player_fastpath_before_sm
     call refresh_player_deadly_fastpath
     call refresh_player_tile_interaction_fastpath
     call refresh_player_state_machine_fastpath
+.skip_player_fastpath_before_sm:
     call execute_all_state_machines
+    ld a, (current_screen_engine)
+    or a
+    jp nz, .skip_player_fastpath_post_update
     call refresh_player_wallgrab_fastpath
     call update_wallgrab_component
     call refresh_player_animation_fastpath
     call refresh_player_sprite_fastpath
-    call update_boss_system
-    call update_sprites_to_vram     ; Upload current-frame sprite positions
+.skip_player_fastpath_post_update:
+${defaultBossUpdateAsm}    call update_sprites_to_vram     ; Upload current-frame sprite positions
     call update_animated_tiles      ; Defer tile VRAM work behind hero updates
 ${defaultHasHud ? `    ; Render HUD only on screens that define HUD elements
 ${defaultLoopHudAsm}
 ` : ``}
     jp gameflow_world_game_loop
+; @mideas:endblock id=runtime.gameflow.world_loop
 
 ; gameflow_exit_requested is allocated in variables.asm (RAM EQU)
+
+${componentTriggerHelpersAsm}
 
 ; ==================================================================
 ; END OF DEFAULT GAMEFLOW

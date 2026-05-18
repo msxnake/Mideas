@@ -1,0 +1,461 @@
+# Post-ASM Report
+
+- Input: `C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas115_bgfree_compressed.asm`
+- Selected rules: dead-blocks, unused-screen-loaders, inactive-feature-runtime, unused-boss-attack-runtime, unused-component-runtime, state-machine-dispatch-handlers
+- Findings: 152
+- Applied patches: 102
+- Original lines: 47876
+- Output lines: 47305
+- Net line delta: -571
+
+- Optimization passes run: 1
+- Optimization source removed: 571 lines / 17244 bytes
+
+## Mideas Block Inventory
+
+- Blocks: 110
+- Preserved blocks: 25
+- Removable-by-policy blocks: 85
+- Dead-block candidates: 20
+- Annotated block source: 17155 lines / 485603 bytes
+- Dead-candidate source: 208 lines / 6157 bytes
+- Marker errors: 2
+
+- By kind: data=2, routine=98, trampoline=10
+- By owner: animtiles=1, bosses=13, components=33, dialogues=1, entities=3, far-call=10, font=1, gameflow=7, hud=1, interrupt=5, mapper=1, menus=1, resources=1, screens=10, scroll=1, sound=13, sprites=1, stateMachine=3, unified=1, worlds=3
+- By status: candidate_unreferenced=20, empty=2, preserved=25, referenced=18, rooted=45
+
+### Largest Annotated Blocks
+
+| ID | Status | Source | Kind | Owner |
+| --- | --- | --- | --- | --- |
+| `runtime.gameflow.world_loop` | `rooted` | 2046l/63558b | `routine` | `gameflow` |
+| `runtime.components.scheduler` | `rooted` | 2649l/61306b | `routine` | `components` |
+| `runtime.statemachine.core` | `rooted` | 1852l/52596b | `routine` | `stateMachine` |
+| `runtime.components.wallcollision` | `referenced` | 839l/31288b | `routine` | `components` |
+| `runtime.components.collision` | `referenced` | 668l/18861b | `routine` | `components` |
+| `runtime.resources.manager` | `rooted` | 681l/17677b | `routine` | `resources` |
+| `runtime.components.tile_interaction` | `rooted` | 622l/15401b | `routine` | `components` |
+| `runtime.components.input` | `referenced` | 393l/13136b | `routine` | `components` |
+| `runtime.dialogue.system` | `preserved` | 584l/12271b | `routine` | `dialogues` |
+| `runtime.components.animation` | `referenced` | 342l/10555b | `routine` | `components` |
+| `runtime.components.sprite` | `rooted` | 396l/10316b | `routine` | `components` |
+| `runtime.animtiles.core` | `rooted` | 325l/9460b | `routine` | `animtiles` |
+| `runtime.scroll.core` | `rooted` | 332l/8535b | `routine` | `scroll` |
+| `runtime.interrupt.task_input` | `rooted` | 272l/7149b | `routine` | `interrupt` |
+| `runtime.components.jump` | `referenced` | 233l/7043b | `routine` | `components` |
+| `runtime.font.loading` | `rooted` | 229l/6905b | `routine` | `font` |
+| `runtime.components.entity_management` | `rooted` | 221l/6553b | `routine` | `components` |
+| `data.entities.player_1.init` | `rooted` | 222l/6316b | `routine` | `entities` |
+| `runtime.components.deadly_tiles` | `rooted` | 262l/5874b | `routine` | `components` |
+| `runtime.mapper.core` | `rooted` | 213l/5412b | `routine` | `mapper` |
+
+- Marker error: Line 37958: @mideas:endblock without open block.
+- Marker error: Line 45831: @mideas:block id=runtime.gameflow.world_loop has no closing @mideas:endblock.
+
+## Inactive Feature Runtime Inventory
+
+| Feature | Findings | Patchable | Annotated | Unannotated | Preserved | Owners |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `bosses` | 18 | 0 | 18 | 0 | 15 | bosses=15, far-call=3 |
+| `menus` | 3 | 0 | 3 | 0 | 3 | menus=3 |
+
+## Global Label Inventory
+
+- Global labels: 1113
+
+| Label | Category | Source |
+| --- | --- | --- |
+| `FAST_SNSMAT` | `bios_helper` | 1094l/67846b |
+| `update_wallcollision_component` | `runtime_code` | 538l/20410b |
+| `Action_ChangeSprite` | `runtime_code` | 330l/14930b |
+| `update_player_fastpath` | `runtime_code` | 604l/13839b |
+| `execute_transition_effect` | `runtime_code` | 398l/11680b |
+| `update_entity_collision_fast` | `runtime_code` | 345l/9814b |
+| `FAR_BANK_12_ROM_START` | `bank_marker` | 178l/9623b |
+| `resource_table` | `data` | 625l/9544b |
+| `PRESENTATION_SCREEN_PATTERNS_B2` | `data` | 131l/9095b |
+| `PRESENTATION_SCREEN_COLORS_B2` | `data` | 131l/9091b |
+| `scan_tile_interaction_entities` | `runtime_code` | 342l/9011b |
+| `update_animation_component` | `runtime_code` | 255l/8328b |
+| `PRESENTATION_SCREEN_PATTERNS_B1` | `data` | 120l/8107b |
+| `PRESENTATION_SCREEN_COLORS_B1` | `data` | 114l/7884b |
+| `BANK_0_USED_END` | `bank_marker` | 142l/7782b |
+| `PRESENTATION_SCREEN_COLORS_B0` | `data` | 108l/7434b |
+| `load_sprite_patterns_worldmap_1778070705501` | `data` | 182l/7399b |
+| `PRESENTATION_SCREEN_PATTERNS_B0` | `data` | 105l/7249b |
+| `BANK_2_USED_END` | `bank_marker` | 131l/6722b |
+| `vdpLoop` | `bios_helper` | 192l/6712b |
+| `mapper_call_hl_auto` | `shared_runtime` | 147l/6328b |
+| `init_player_1` | `boot_or_init` | 222l/6222b |
+| `task_update_input` | `shared_runtime` | 242l/6074b |
+| `walljump_process_entity_c` | `runtime_code` | 256l/5548b |
+| `screen_runtime_summary_table` | `data` | 106l/5176b |
+| `execute_transition_reveal_target` | `runtime_code` | 265l/4788b |
+| `jump_update_loop` | `runtime_code` | 157l/4675b |
+| `rebuild_used_entity_list` | `runtime_code` | 207l/4475b |
+| `init_fakeplayer_1` | `boot_or_init` | 162l/4450b |
+| `interrupt_dispatcher` | `shared_runtime` | 122l/4176b |
+
+### Largest Unannotated Global Labels
+
+- Unannotated labels: 513
+
+| Category | Labels | Source |
+| --- | ---: | ---: |
+| `bank_marker` | 13 | 737l/35471b |
+| `bios_helper` | 9 | 1719l/86638b |
+| `boot_or_init` | 30 | 924l/23942b |
+| `data` | 233 | 3625l/149667b |
+| `far_trampoline` | 71 | 1272l/27882b |
+| `runtime_code` | 151 | 5464l/132189b |
+| `screen_loader` | 4 | 100l/2486b |
+| `shared_runtime` | 2 | 32l/1222b |
+
+| Label | Category | Source |
+| --- | --- | --- |
+| `FAST_SNSMAT` | `bios_helper` | 1094l/67846b |
+| `execute_transition_effect` | `runtime_code` | 398l/11680b |
+| `FAR_BANK_12_ROM_START` | `bank_marker` | 178l/9623b |
+| `resource_table` | `data` | 625l/9544b |
+| `PRESENTATION_SCREEN_PATTERNS_B2` | `data` | 131l/9095b |
+| `PRESENTATION_SCREEN_COLORS_B2` | `data` | 131l/9091b |
+| `PRESENTATION_SCREEN_PATTERNS_B1` | `data` | 120l/8107b |
+| `PRESENTATION_SCREEN_COLORS_B1` | `data` | 114l/7884b |
+| `BANK_0_USED_END` | `bank_marker` | 142l/7782b |
+| `PRESENTATION_SCREEN_COLORS_B0` | `data` | 108l/7434b |
+| `load_sprite_patterns_worldmap_1778070705501` | `data` | 182l/7399b |
+| `PRESENTATION_SCREEN_PATTERNS_B0` | `data` | 105l/7249b |
+| `BANK_2_USED_END` | `bank_marker` | 131l/6722b |
+| `vdpLoop` | `bios_helper` | 192l/6712b |
+| `walljump_process_entity_c` | `runtime_code` | 256l/5548b |
+| `screen_runtime_summary_table` | `data` | 106l/5176b |
+| `execute_transition_reveal_target` | `runtime_code` | 265l/4788b |
+| `init_entities` | `boot_or_init` | 152l/3531b |
+| `music_track_0_Glass_Runner_data` | `data` | 147l/3503b |
+| `PRESENTATION_SCREEN_NAMETBL` | `data` | 52l/3486b |
+| `init_char0_color` | `boot_or_init` | 127l/3471b |
+| `tilebank_pattern_data_1` | `data` | 50l/3404b |
+| `tilebank_pattern_data_0` | `data` | 48l/3253b |
+| `FAR_BANK_8_ROM_START` | `bank_marker` | 79l/3183b |
+| `music_resolve_channel_volume` | `runtime_code` | 159l/3078b |
+| `gameflow_handle_transition` | `runtime_code` | 66l/3068b |
+| `load_sprite_patterns_worldmap_1778241700081` | `data` | 72l/2850b |
+| `FAR_BANK_10_ROM_START` | `bank_marker` | 78l/2814b |
+| `gameflow_world_game_loop` | `runtime_code` | 81l/2698b |
+| `FAST_LDIRVM` | `bios_helper` | 80l/2624b |
+
+| ID | Kind | Owner | Status | Incoming | Source | Lines | Labels |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `runtime.mapper.core` | `routine` | `mapper` | `rooted` | 173 | 213l/5412b | 19956-20168 | mapper_runtime_init, mapper_set_bank_p1, mapper_set_bank_p2, mapper_set_bank_p3, mapper_set_bank_p4, ... (+14) |
+| `runtime.resources.manager` | `routine` | `resources` | `rooted` | 128 | 681l/17677b | 20969-21649 | resource_manager_init, resource_invalidate_pattern_vram_cache, resource_invalidate_color_vram_cache, resource_invalidate_font_vram_cache, resource_invalidate_gameplay_vram_cache, ... (+14) |
+| `runtime.components.input_trigger_level` | `routine` | `components` | `candidate_unreferenced` | 0 | 33l/773b | 21731-21763 | component_trigger_level_pressed_a |
+| `runtime.page0.stubs` | `routine` | `unified` | `rooted` | 1 | 22l/505b | 21770-21791 | init_page0_runtime_state, page0_map_expanded_slot, page0_map_game_rom, page0_restore_bios_rom, page0_copy_chunk_to_buffer, ... (+2) |
+| `runtime.interrupt.stop` | `routine` | `interrupt` | `rooted` | 0 | 43l/1299b | 21872-21914 | stop_interrupt_system |
+| `runtime.interrupt.dispatcher` | `routine` | `interrupt` | `preserved` | 1 | 124l/4150b | 21916-22039 | interrupt_dispatcher |
+| `runtime.interrupt.vblank_flag` | `routine` | `interrupt` | `rooted` | 1 | 35l/983b | 22052-22086 | update_vblank_flag |
+| `runtime.interrupt.task_api` | `routine` | `interrupt` | `rooted` | 1 | 121l/3195b | 22091-22211 | enable_task, disable_task, get_frame_count |
+| `runtime.interrupt.task_input` | `routine` | `interrupt` | `rooted` | 2 | 272l/7149b | 22215-22486 | init_default_tasks_from_plan, task_update_input |
+| `runtime.far_trampoline.init_sound_system_far` | `trampoline` | `far-call` | `preserved` | 1 | 26l/709b | 22541-22566 | init_sound_system_far |
+| `runtime.far_trampoline.task_audio_tick_far` | `trampoline` | `far-call` | `preserved` | 0 | 26l/695b | 22568-22593 | task_audio_tick_far |
+| `runtime.far_trampoline.sfx_update_far` | `trampoline` | `far-call` | `preserved` | 1 | 26l/660b | 22595-22620 | sfx_update_far |
+| `runtime.far_trampoline.music_update_far` | `trampoline` | `far-call` | `preserved` | 1 | 26l/674b | 22622-22647 | music_update_far |
+| `runtime.far_trampoline.music_stop_far` | `trampoline` | `far-call` | `preserved` | 1 | 26l/660b | 22649-22674 | music_stop_far |
+| `runtime.far_trampoline.music_play_track_far` | `trampoline` | `far-call` | `preserved` | 1 | 28l/739b | 22676-22703 | music_play_track_far |
+| `runtime.far_trampoline.music_execute_command_far` | `trampoline` | `far-call` | `preserved` | 1 | 26l/737b | 22705-22730 | music_execute_command_far |
+| `runtime.far_trampoline.init_boss_system_far` | `trampoline` | `far-call` | `preserved` | 1 | 26l/703b | 24129-24154 | init_boss_system_far |
+| `runtime.far_trampoline.init_screen_boss_from_current_screen_far` | `trampoline` | `far-call` | `preserved` | 1 | 26l/843b | 24156-24181 | init_screen_boss_from_current_screen_far |
+| `runtime.far_trampoline.update_boss_system_far` | `trampoline` | `far-call` | `preserved` | 1 | 26l/717b | 24183-24208 | update_boss_system_far |
+| `runtime.sound.resident.init` | `routine` | `sound` | `referenced` | 1 | 4l/184b | 24289-24292 | call_init_sound_system_resident |
+| `runtime.sound.resident.tick` | `routine` | `sound` | `referenced` | 10 | 18l/606b | 24294-24311 | call_task_audio_tick_resident |
+| `runtime.sound.resident.music_update` | `routine` | `sound` | `referenced` | 2 | 4l/190b | 24313-24316 | call_music_update_resident |
+| `runtime.sound.resident.sfx_update` | `routine` | `sound` | `candidate_unreferenced` | 0 | 4l/182b | 24318-24321 | call_sfx_update_resident |
+| `runtime.sound.resident.music_stop` | `routine` | `sound` | `referenced` | 1 | 4l/182b | 24323-24326 | call_music_stop_resident |
+| `runtime.sound.resident.music_play_track` | `routine` | `sound` | `referenced` | 2 | 4l/206b | 24328-24331 | call_music_play_track_resident |
+| `runtime.sound.resident.music_execute_command` | `routine` | `sound` | `referenced` | 1 | 4l/226b | 24333-24336 | call_music_execute_command_resident |
+| `runtime.boss.resident.init` | `routine` | `bosses` | `preserved` | 0 | 4l/232b | 24450-24453 | call_init_boss_system_resident |
+| `runtime.boss.resident.init_screen` | `routine` | `bosses` | `preserved` | 0 | 4l/306b | 24455-24458 | call_init_screen_boss_from_current_screen_resident |
+| `runtime.boss.resident.update` | `routine` | `bosses` | `preserved` | 0 | 4l/242b | 24460-24463 | call_update_boss_system_resident |
+| `runtime.boss.resident.update_projectile` | `routine` | `bosses` | `preserved` | 0 | 4l/279b | 24465-24468 | call_update_boss_projectile_runtime_resident |
+| `runtime.boss.resident.draw_attack` | `routine` | `bosses` | `preserved` | 0 | 4l/239b | 24470-24473 | call_draw_boss_attack_resident |
+| `runtime.boss.resident.draw_meteor` | `routine` | `bosses` | `preserved` | 0 | 4l/253b | 24475-24478 | call_draw_boss_meteor_attack_resident |
+| `runtime.boss.resident.draw_bomb` | `routine` | `bosses` | `preserved` | 0 | 4l/245b | 24480-24483 | call_draw_boss_bomb_attack_resident |
+| `runtime.boss.resident.draw_boomerang` | `routine` | `bosses` | `preserved` | 0 | 4l/265b | 24485-24488 | call_draw_boss_boomerang_attack_resident |
+| `runtime.boss.resident.draw_rock` | `routine` | `bosses` | `preserved` | 0 | 4l/245b | 24490-24493 | call_draw_boss_rock_attack_resident |
+| `runtime.boss.resident.draw_laser` | `routine` | `bosses` | `preserved` | 0 | 4l/249b | 24495-24498 | call_draw_boss_laser_attack_resident |
+| `runtime.boss.resident.draw_sine_wave` | `routine` | `bosses` | `preserved` | 0 | 4l/265b | 24500-24503 | call_draw_boss_sine_wave_attack_resident |
+| `runtime.boss.resident.draw_homing_missile` | `routine` | `bosses` | `preserved` | 0 | 4l/285b | 24505-24508 | call_draw_boss_homing_missile_attack_resident |
+| `runtime.components.init` | `routine` | `components` | `rooted` | 11 | 84l/2913b | 24774-24857 | component_fill_32_a, init_components |
+| `runtime.components.position` | `routine` | `components` | `rooted` | 3 | 120l/3613b | 24859-24978 | init_position_system, update_position_component, position_update_loop, position_next_entity |
+| `runtime.components.sprite` | `routine` | `components` | `rooted` | 6 | 396l/10316b | 24979-25374 | init_sprite_system, update_sprite_component, sprite_update_loop, sprite_layer_loop, sprite_continue, ... (+6) |
+| `runtime.components.movement_stub` | `routine` | `components` | `candidate_unreferenced` | 0 | 4l/172b | 25380-25383 | update_movement_component |
+| `runtime.components.collision` | `routine` | `components` | `referenced` | 2 | 668l/18861b | 25384-26051 | init_collision_system, update_collision_component, collision_update_loop, collision_next_entity, update_entity_collision_fast, ... (+13) |
+| `runtime.components.behavior_tile` | `routine` | `components` | `rooted` | 13 | 110l/3809b | 26052-26161 | get_behavior_tile, get_behavior_tile_nb, gbt_oob |
+| `runtime.components.directional_sprite_sync` | `routine` | `components` | `rooted` | 3 | 87l/2084b | 26162-26248 | component_sync_directional_sprite_from_initial, component_sync_directional_sprite_from_current, component_sync_directional_sprite_common |
+| `runtime.components.input` | `routine` | `components` | `referenced` | 2 | 393l/13136b | 26249-26641 | init_input_system, update_input_component, input_update_loop, input_move_up, input_move_down, ... (+16) |
+| `runtime.components.behavior_stub` | `routine` | `components` | `candidate_unreferenced` | 0 | 4l/172b | 26647-26650 | update_behavior_component |
+| `runtime.components.health` | `routine` | `components` | `rooted` | 3 | 152l/4701b | 26651-26802 | init_health_system, update_health_component, decrease_entity_lives, increase_entity_lives |
+| `runtime.components.animation` | `routine` | `components` | `referenced` | 4 | 342l/10555b | 26803-27144 | init_animation_system, update_animation_component, anim_done_entity, refresh_player_animation_fastpath |
+| `runtime.components.jump` | `routine` | `components` | `referenced` | 2 | 233l/7043b | 27145-27377 | init_jump_system, update_jump_component, jump_update_loop, jump_done_entity, jump_next_entity |
+| `runtime.components.gravity` | `routine` | `components` | `rooted` | 2 | 137l/4553b | 27378-27514 | init_gravity_system, update_gravity_component, gravity_update_loop, gravity_store_vel, gravity_grounded, ... (+2) |
+| `runtime.components.auto_destroy_stub` | `routine` | `components` | `candidate_unreferenced` | 0 | 7l/219b | 28834-28840 | init_auto_destroy_system, update_auto_destroy_component |
+| `runtime.components.state_machine_component_stub` | `routine` | `components` | `referenced` | 1 | 7l/241b | 28864-28870 | init_statemachine_system, update_statemachine_component |
+| `runtime.components.retractable_gate_stub` | `routine` | `components` | `candidate_unreferenced` | 0 | 4l/196b | 28876-28879 | update_retractable_gate_component |
+| `runtime.components.carry_stub` | `routine` | `components` | `candidate_unreferenced` | 0 | 4l/163b | 28885-28888 | update_carry_component |
+| `runtime.components.damage_stub` | `routine` | `components` | `candidate_unreferenced` | 0 | 4l/166b | 28896-28899 | update_damage_component |
+| `runtime.components.shoot_stub` | `routine` | `components` | `candidate_unreferenced` | 0 | 4l/163b | 28905-28908 | update_shoot_component |
+| `runtime.components.platform_riding_stub` | `routine` | `components` | `candidate_unreferenced` | 0 | 7l/220b | 28928-28934 | prepare_platform_detection, update_platform_riding |
+| `runtime.components.wallcollision` | `routine` | `components` | `referenced` | 8 | 839l/31288b | 28935-29773 | init_wallcollision_system, wall_behavior_is_full_blocker, wall_down_behavior_blocks, update_wallcollision_component, wall_build_hitbox_cache, ... (+2) |
+| `runtime.components.deadly_tiles` | `routine` | `components` | `rooted` | 3 | 262l/5874b | 29774-30035 | init_deadly_tiles_system, deadly_tiles_runtime_tile_is_deadly_nb, update_entity_deadly_flag_runtime, update_deadly_tiles_component, refresh_player_deadly_fastpath |
+| `runtime.components.in_water_stub` | `routine` | `components` | `candidate_unreferenced` | 0 | 4l/172b | 30041-30044 | update_in_water_component |
+| `runtime.components.collectible_stub` | `routine` | `components` | `candidate_unreferenced` | 0 | 4l/181b | 30050-30053 | update_collectible_component |
+| `runtime.components.tile_interaction` | `routine` | `components` | `rooted` | 4 | 622l/15401b | 30054-30675 | interaction_target_variable_ptr_table, interaction_target_variable_word_table, init_tile_interaction_system, update_slash_component, record_bonus_respawn_slot, ... (+11) |
+| `runtime.components.collected_tiles` | `routine` | `components` | `rooted` | 1 | 76l/3015b | 30676-30751 | apply_collected_tiles |
+| `runtime.components.mirror_stub` | `routine` | `components` | `candidate_unreferenced` | 0 | 4l/166b | 30757-30760 | update_mirror_component |
+| `runtime.components.entity_management` | `routine` | `components` | `rooted` | 3 | 221l/6553b | 30761-30981 | create_entity, entity_job_set, entity_job_set_period_ok, entity_job_set_entry_wrap, entity_job_set_entry_ok, ... (+13) |
+| `runtime.components.scheduler` | `routine` | `components` | `rooted` | 7 | 2649l/61306b | 30982-33630 | update_all_entities, mark_used_entity_list_dirty, ensure_used_entity_list_current, rebuild_used_entity_list, ensure_player_fast_runtime_bound, ... (+130) |
+| `runtime.dialogue.system` | `routine` | `dialogues` | `preserved` | 37 | 584l/12271b | 32271-32854 | dialogue_update_typewriter, dialogue_typewriter_emit, dialogue_typewriter_newline, dialogue_typewriter_done, dialogue_open_box, ... (+25) |
+| `runtime.components.state_machine_executor` | `routine` | `components` | `rooted` | 2 | 74l/1973b | 33636-33709 | execute_all_state_machines, refresh_player_state_machine_fastpath |
+| `runtime.components.legacy_tile_collision` | `routine` | `components` | `referenced` | 3 | 43l/1404b | 33719-33761 | get_tile_at_position, get_tile_behavior, tile_behavior_table, check_collision_at_point, check_collision_box, ... (+1) |
+| `runtime.components.secret_zone_stub` | `routine` | `components` | `candidate_unreferenced` | 0 | 4l/181b | 33798-33801 | update_secret_zone_component |
+| `runtime.statemachine.core` | `routine` | `stateMachine` | `rooted` | 4 | 1852l/52596b | 33809-35660 | SM_Update, sm_timer_no_overflow, sm_timer_paused, sm_update_done, SM_ShouldPauseTimerForDialogue, ... (+34) |
+| `data.statemachine.statemachine_1778070349580` | `data` | `stateMachine` | `rooted` | 2 | 112l/2808b | 35738-35849 | SM_state1_state_1778070362171, SM_state1_state_1778070362171_OnEnter, SM_state1_state_1778070362171_Transitions, SM_state1_state_1778070367956, SM_state1_state_1778070367956_OnEnter, ... (+13) |
+| `data.statemachine.statemachine_dialog_jump_test` | `data` | `stateMachine` | `rooted` | 1 | 24l/895b | 35850-35873 | SM_dialog_jump_to_pantalla2_state_dialog_wait, SM_dialog_jump_to_pantalla2_state_dialog_wait_Transitions, SM_dialog_jump_to_pantalla2_state_dialog_wait_Transitions_Actions_0, SM_dialog_jump_to_pantalla2_state_dialog_done |
+| `runtime.gameflow.worldlink` | `routine` | `gameflow` | `rooted` | 1 | 81l/2372b | 36005-36085 | gameflow_handle_worldlink |
+| `runtime.gameflow.end_screen` | `routine` | `gameflow` | `rooted` | 16 | 86l/2567b | 36087-36172 | gameflow_handle_end, print_string_vram |
+| `runtime.gameflow.presentation_wait_frames` | `routine` | `gameflow` | `empty` | 0 | 3l/230b | 36210-36212 |  |
+| `runtime.gameflow.connection_by_type` | `routine` | `gameflow` | `empty` | 0 | 3l/216b | 37864-37866 |  |
+| `runtime.sound.init` | `routine` | `sound` | `rooted` | 1 | 22l/725b | 40078-40099 | init_sound_system |
+| `runtime.sound.tick` | `routine` | `sound` | `rooted` | 1 | 17l/320b | 40106-40122 | task_audio_tick |
+| `runtime.sound.psg_lowlevel` | `routine` | `sound` | `rooted` | 32 | 117l/3450b | 40127-40243 | psg_write, psg_set_tone, psg_set_volume, psg_set_noise, psg_set_mixer, ... (+1) |
+| `runtime.sound.sfx_silence` | `routine` | `sound` | `referenced` | 2 | 21l/579b | 40253-40273 | sfx_silence_all |
+| `runtime.sound.sfx_builtin_effects` | `routine` | `sound` | `referenced` | 6 | 127l/3025b | 40279-40405 | sfx_beep, sfx_jump, sfx_shoot, sfx_explosion, sfx_coin, ... (+1) |
+| `runtime.sound.sfx_playback` | `routine` | `sound` | `referenced` | 1 | 119l/2384b | 40423-40541 | play_sound_effect, play_sound_effect_beep, play_sound_effect_jump, play_sound_effect_shoot, play_sound_effect_explosion, ... (+4) |
+| `runtime.screens.colors` | `routine` | `screens` | `rooted` | 1 | 44l/1514b | 41761-41804 | color_shift_table, set_screen_colors |
+| `runtime.screens.copy_rect` | `routine` | `screens` | `rooted` | 0 | 77l/1494b | 41933-42009 | copy_layout_rect_to_vram, copy_layout_rect_ram_to_ram |
+| `runtime.screens.block_layout_expander` | `routine` | `screens` | `rooted` | 4 | 194l/3765b | 42011-42204 | expand_screen_block_layout_to_background, expand_screen_block_layout_2x2, expand_screen_block_layout_4x4 |
+| `runtime.screens.behavior_map_rebuild` | `routine` | `screens` | `candidate_unreferenced` | 0 | 26l/709b | 42222-42247 | build_runtime_behavior_map_from_screen_layout |
+| `runtime.screens.load_screen_stub` | `routine` | `screens` | `candidate_unreferenced` | 0 | 6l/232b | 42248-42253 | load_screen |
+| `runtime.screens.load_screen_pantalla1_778062394614.loader` | `routine` | `screens` | `rooted` | 1 | 130l/5134b | 42255-42384 | load_screen_pantalla1_778062394614, load_screen_pantalla1_778062394614_skip_vram_copy, load_pantalla1_778062394614_boss_done |
+| `runtime.screens.load_screen_pantalla2_778230236021.loader` | `routine` | `screens` | `rooted` | 1 | 130l/5135b | 42386-42515 | load_screen_pantalla2_778230236021, load_screen_pantalla2_778230236021_skip_vram_copy, load_pantalla2_778230236021_boss_done |
+| `runtime.screens.load_screen_pantalla3_778230684484.loader` | `routine` | `screens` | `rooted` | 1 | 130l/5134b | 42517-42646 | load_screen_pantalla3_778230684484, load_screen_pantalla3_778230684484_skip_vram_copy, load_pantalla3_778230684484_boss_done |
+| `runtime.screens.load_screen_d_pantalla1_778241953722.loader` | `routine` | `screens` | `rooted` | 1 | 130l/5193b | 42648-42777 | load_screen_d_pantalla1_778241953722, load_screen_d_pantalla1_778241953722_skip_vram_copy, load_d_pantalla1_778241953722_boss_done |
+| `runtime.sprites.show_sprite_legacy` | `routine` | `sprites` | `candidate_unreferenced` | 0 | 43l/981b | 43542-43584 | show_sprite |
+| `data.entities.player_1.init` | `routine` | `entities` | `rooted` | 1 | 222l/6316b | 43872-44093 | init_player_1 |
+| `data.entities.fakeplayer_1.init` | `routine` | `entities` | `rooted` | 1 | 162l/4552b | 44112-44273 | init_fakeplayer_1 |
+| `runtime.entities.patrol_facing` | `routine` | `entities` | `rooted` | 0 | 88l/2125b | 44450-44537 | update_entity_patrol_facing |
+| `runtime.screens.presentation_wait_frames` | `routine` | `screens` | `candidate_unreferenced` | 0 | 13l/298b | 44921-44933 | presentation_wait_frames |
+| `runtime.gameflow.clear_screen_area_helpers` | `routine` | `gameflow` | `referenced` | 2 | 60l/1737b | 45094-45153 | clear_screen_area, clear_screen_row, empty_row_data |
+| `runtime.gameflow.confirm_input_direct` | `routine` | `gameflow` | `referenced` | 1 | 12l/298b | 45812-45823 | gameflow_read_confirm_direct |
+| ... | ... | ... | ... | ... | ... | ... | +10 more blocks |
+
+## Dead-Block Candidates
+
+- `runtime.sprites.show_sprite_legacy`: 43 lines / 981 bytes. No external references found for any global label in this block.
+- `runtime.components.input_trigger_level`: 33 lines / 773 bytes. No external references found for any global label in this block.
+- `runtime.screens.behavior_map_rebuild`: 26 lines / 709 bytes. No external references found for any global label in this block.
+- `runtime.worlds.current_screen_helpers`: 23 lines / 633 bytes. No external references found for any global label in this block.
+- `runtime.screens.presentation_wait_frames`: 13 lines / 298 bytes. No external references found for any global label in this block.
+- `runtime.screens.load_screen_stub`: 6 lines / 232 bytes. No external references found for any global label in this block.
+- `runtime.components.platform_riding_stub`: 7 lines / 220 bytes. No external references found for any global label in this block.
+- `runtime.components.auto_destroy_stub`: 7 lines / 219 bytes. No external references found for any global label in this block.
+- `runtime.components.retractable_gate_stub`: 4 lines / 196 bytes. No external references found for any global label in this block.
+- `runtime.sound.resident.sfx_update`: 4 lines / 182 bytes. No external references found for any global label in this block.
+- `runtime.components.secret_zone_stub`: 4 lines / 181 bytes. No external references found for any global label in this block.
+- `runtime.components.collectible_stub`: 4 lines / 181 bytes. No external references found for any global label in this block.
+- `runtime.hud.empty_update_stubs`: 6 lines / 178 bytes. No external references found for any global label in this block.
+- `runtime.components.movement_stub`: 4 lines / 172 bytes. No external references found for any global label in this block.
+- `runtime.components.in_water_stub`: 4 lines / 172 bytes. No external references found for any global label in this block.
+- `runtime.components.behavior_stub`: 4 lines / 172 bytes. No external references found for any global label in this block.
+- `runtime.components.mirror_stub`: 4 lines / 166 bytes. No external references found for any global label in this block.
+- `runtime.components.damage_stub`: 4 lines / 166 bytes. No external references found for any global label in this block.
+- `runtime.components.shoot_stub`: 4 lines / 163 bytes. No external references found for any global label in this block.
+- `runtime.components.carry_stub`: 4 lines / 163 bytes. No external references found for any global label in this block.
+
+## ROM Validation
+
+- Original ROM bytes: 188416
+- Optimized ROM bytes: 188416
+- ROM byte delta: 0
+- ROM SHA256 equal: False
+
+## dead-blocks
+
+- Metrics: findings=20, patchable=20, removed_lines=208, removed_source_bytes=6157
+- Routines: runtime.components.auto_destroy_stub, runtime.components.behavior_stub, runtime.components.carry_stub, runtime.components.collectible_stub, runtime.components.damage_stub, runtime.components.in_water_stub, runtime.components.input_trigger_level, runtime.components.mirror_stub, runtime.components.movement_stub, runtime.components.platform_riding_stub, runtime.components.retractable_gate_stub, runtime.components.secret_zone_stub, runtime.components.shoot_stub, runtime.hud.empty_update_stubs, runtime.screens.behavior_map_rebuild, runtime.screens.load_screen_stub, runtime.screens.presentation_wait_frames, runtime.sound.resident.sfx_update, runtime.sprites.show_sprite_legacy, runtime.worlds.current_screen_helpers
+
+- [patchable] `runtime.components.input_trigger_level` lines 21731-21763: Block `runtime.components.input_trigger_level` (routine/components) is a dead-code candidate. No external references found for any global label in this block. Labels: component_trigger_level_pressed_a.
+- [patchable] `runtime.sound.resident.sfx_update` lines 24318-24321: Block `runtime.sound.resident.sfx_update` (routine/sound) is a dead-code candidate. No external references found for any global label in this block. Labels: call_sfx_update_resident.
+- [patchable] `runtime.components.movement_stub` lines 25380-25383: Block `runtime.components.movement_stub` (routine/components) is a dead-code candidate. No external references found for any global label in this block. Labels: update_movement_component.
+- [patchable] `runtime.components.behavior_stub` lines 26647-26650: Block `runtime.components.behavior_stub` (routine/components) is a dead-code candidate. No external references found for any global label in this block. Labels: update_behavior_component.
+- [patchable] `runtime.components.auto_destroy_stub` lines 28834-28840: Block `runtime.components.auto_destroy_stub` (routine/components) is a dead-code candidate. No external references found for any global label in this block. Labels: init_auto_destroy_system, update_auto_destroy_component.
+- [patchable] `runtime.components.retractable_gate_stub` lines 28876-28879: Block `runtime.components.retractable_gate_stub` (routine/components) is a dead-code candidate. No external references found for any global label in this block. Labels: update_retractable_gate_component.
+- [patchable] `runtime.components.carry_stub` lines 28885-28888: Block `runtime.components.carry_stub` (routine/components) is a dead-code candidate. No external references found for any global label in this block. Labels: update_carry_component.
+- [patchable] `runtime.components.damage_stub` lines 28896-28899: Block `runtime.components.damage_stub` (routine/components) is a dead-code candidate. No external references found for any global label in this block. Labels: update_damage_component.
+- [patchable] `runtime.components.shoot_stub` lines 28905-28908: Block `runtime.components.shoot_stub` (routine/components) is a dead-code candidate. No external references found for any global label in this block. Labels: update_shoot_component.
+- [patchable] `runtime.components.platform_riding_stub` lines 28928-28934: Block `runtime.components.platform_riding_stub` (routine/components) is a dead-code candidate. No external references found for any global label in this block. Labels: prepare_platform_detection, update_platform_riding.
+- [patchable] `runtime.components.in_water_stub` lines 30041-30044: Block `runtime.components.in_water_stub` (routine/components) is a dead-code candidate. No external references found for any global label in this block. Labels: update_in_water_component.
+- [patchable] `runtime.components.collectible_stub` lines 30050-30053: Block `runtime.components.collectible_stub` (routine/components) is a dead-code candidate. No external references found for any global label in this block. Labels: update_collectible_component.
+- [patchable] `runtime.components.mirror_stub` lines 30757-30760: Block `runtime.components.mirror_stub` (routine/components) is a dead-code candidate. No external references found for any global label in this block. Labels: update_mirror_component.
+- [patchable] `runtime.components.secret_zone_stub` lines 33798-33801: Block `runtime.components.secret_zone_stub` (routine/components) is a dead-code candidate. No external references found for any global label in this block. Labels: update_secret_zone_component.
+- [patchable] `runtime.screens.behavior_map_rebuild` lines 42222-42247: Block `runtime.screens.behavior_map_rebuild` (routine/screens) is a dead-code candidate. No external references found for any global label in this block. Labels: build_runtime_behavior_map_from_screen_layout.
+- [patchable] `runtime.screens.load_screen_stub` lines 42248-42253: Block `runtime.screens.load_screen_stub` (routine/screens) is a dead-code candidate. No external references found for any global label in this block. Labels: load_screen.
+- [patchable] `runtime.sprites.show_sprite_legacy` lines 43542-43584: Block `runtime.sprites.show_sprite_legacy` (routine/sprites) is a dead-code candidate. No external references found for any global label in this block. Labels: show_sprite.
+- [patchable] `runtime.screens.presentation_wait_frames` lines 44921-44933: Block `runtime.screens.presentation_wait_frames` (routine/screens) is a dead-code candidate. No external references found for any global label in this block. Labels: presentation_wait_frames.
+- [patchable] `runtime.worlds.current_screen_helpers` lines 46336-46358: Block `runtime.worlds.current_screen_helpers` (routine/worlds) is a dead-code candidate. No external references found for any global label in this block. Labels: get_current_world_id, get_current_screen_index, set_current_screen.
+- [patchable] `runtime.hud.empty_update_stubs` lines 47864-47869: Block `runtime.hud.empty_update_stubs` (routine/hud) is a dead-code candidate. No external references found for any global label in this block. Labels: update_hud_score, update_hud_lives.
+
+## inactive-feature-runtime
+
+- Metrics: findings=41, patchable=18, removed_lines=144, removed_source_bytes=5771
+- Routines: call_draw_boss_attack_resident, call_draw_boss_bomb_attack_resident, call_draw_boss_boomerang_attack_resident, call_draw_boss_homing_missile_attack_resident, call_draw_boss_laser_attack_resident, call_draw_boss_meteor_attack_resident, call_draw_boss_rock_attack_resident, call_draw_boss_sine_wave_attack_resident, call_init_boss_system_resident, call_init_screen_boss_from_current_screen_resident, call_update_boss_projectile_runtime_resident, call_update_boss_system_resident, init_boss_system, init_boss_system_far, init_menus, init_screen_boss_from_current_screen, init_screen_boss_from_current_screen_far, runtime.boss.group.stubs, runtime.boss.group.stubs:call_draw_boss_attack_resident, runtime.boss.group.stubs:call_draw_boss_bomb_attack_resident, runtime.boss.group.stubs:call_draw_boss_boomerang_attack_resident, runtime.boss.group.stubs:call_draw_boss_homing_missile_attack_resident, runtime.boss.group.stubs:call_draw_boss_laser_attack_resident, runtime.boss.group.stubs:call_draw_boss_meteor_attack_resident, runtime.boss.group.stubs:call_draw_boss_rock_attack_resident, runtime.boss.group.stubs:call_draw_boss_sine_wave_attack_resident, runtime.boss.group.stubs:call_init_boss_system_resident, runtime.boss.group.stubs:call_init_screen_boss_from_current_screen_resident, runtime.boss.group.stubs:call_update_boss_projectile_runtime_resident, runtime.boss.group.stubs:call_update_boss_system_resident, runtime.boss.group.stubs:init_boss_system, runtime.boss.group.stubs:init_boss_system_far, runtime.boss.group.stubs:init_screen_boss_from_current_screen, runtime.boss.group.stubs:init_screen_boss_from_current_screen_far, runtime.boss.group.stubs:update_boss_system, runtime.boss.group.stubs:update_boss_system_far, runtime.menu.group.core, show_main_menu, update_boss_system, update_boss_system_far, update_menu_state
+
+- [patchable] `runtime.boss.group.stubs:init_boss_system_far` lines 24129-24154: `init_boss_system_far` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `runtime.boss.group.stubs` lines 24130-47798: `runtime.boss.group.stubs` groups inactive boss compatibility stubs runtime labels: call_draw_boss_attack_resident, call_draw_boss_bomb_attack_resident, call_draw_boss_boomerang_attack_resident, call_draw_boss_homing_missile_attack_resident, call_draw_boss_laser_attack_resident, call_draw_boss_meteor_attack_resident, call_draw_boss_rock_attack_resident, call_draw_boss_sine_wave_attack_resident, call_init_boss_system_resident, call_init_screen_boss_from_current_screen_resident, call_update_boss_projectile_runtime_resident, call_update_boss_system_resident, init_boss_system, init_boss_system_far, init_screen_boss_from_current_screen, init_screen_boss_from_current_screen_far, update_boss_system, update_boss_system_far. No external references outside the group were found. This is ready for a future atomic multi-window patch, or for dead-blocks to remove the annotated windows as whole groups. Atomic patch enabled as `runtime.boss.group.stubs` with 18 window(s).
+- [report-only] `init_boss_system_far` lines 24130-24156: `init_boss_system_far` looks like bosses runtime (27 lines, 724 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: boot_or_init (Boot/init routine). External references still exist (1): call_init_boss_system_resident@24452. Deletion must stay blocked until callers are proven dead or rewired. Block ownership: `runtime.far_trampoline.init_boss_system_far` owner=`far-call` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:init_screen_boss_from_current_screen_far` lines 24156-24181: `init_screen_boss_from_current_screen_far` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `init_screen_boss_from_current_screen_far` lines 24157-24183: `init_screen_boss_from_current_screen_far` looks like bosses runtime (27 lines, 826 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: boot_or_init (Boot/init routine). External references still exist (1): call_init_screen_boss_from_current_screen_resident@24457. Deletion must stay blocked until callers are proven dead or rewired. Block ownership: `runtime.far_trampoline.init_screen_boss_from_current_screen_far` owner=`far-call` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:update_boss_system_far` lines 24183-24208: `update_boss_system_far` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `update_boss_system_far` lines 24184-24215: `update_boss_system_far` looks like bosses runtime (32 lines, 754 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). External references still exist (1): call_update_boss_system_resident@24462. Deletion must stay blocked until callers are proven dead or rewired. Block ownership: `runtime.far_trampoline.update_boss_system_far` owner=`far-call` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:call_init_boss_system_resident` lines 24450-24453: `call_init_boss_system_resident` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `call_init_boss_system_resident` lines 24451-24455: `call_init_boss_system_resident` looks like bosses runtime (5 lines, 260 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.boss.resident.init` owner=`bosses` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:call_init_screen_boss_from_current_screen_resident` lines 24455-24458: `call_init_screen_boss_from_current_screen_resident` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `call_init_screen_boss_from_current_screen_resident` lines 24456-24460: `call_init_screen_boss_from_current_screen_resident` looks like bosses runtime (5 lines, 284 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.boss.resident.init_screen` owner=`bosses` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:call_update_boss_system_resident` lines 24460-24463: `call_update_boss_system_resident` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `call_update_boss_system_resident` lines 24461-24465: `call_update_boss_system_resident` looks like bosses runtime (5 lines, 266 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.boss.resident.update` owner=`bosses` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:call_update_boss_projectile_runtime_resident` lines 24465-24468: `call_update_boss_projectile_runtime_resident` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `call_update_boss_projectile_runtime_resident` lines 24466-24470: `call_update_boss_projectile_runtime_resident` looks like bosses runtime (5 lines, 260 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.boss.resident.update_projectile` owner=`bosses` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:call_draw_boss_attack_resident` lines 24470-24473: `call_draw_boss_attack_resident` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `call_draw_boss_attack_resident` lines 24471-24475: `call_draw_boss_attack_resident` looks like bosses runtime (5 lines, 247 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.boss.resident.draw_attack` owner=`bosses` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:call_draw_boss_meteor_attack_resident` lines 24475-24478: `call_draw_boss_meteor_attack_resident` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `call_draw_boss_meteor_attack_resident` lines 24476-24480: `call_draw_boss_meteor_attack_resident` looks like bosses runtime (5 lines, 250 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.boss.resident.draw_meteor` owner=`bosses` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:call_draw_boss_bomb_attack_resident` lines 24480-24483: `call_draw_boss_bomb_attack_resident` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `call_draw_boss_bomb_attack_resident` lines 24481-24485: `call_draw_boss_bomb_attack_resident` looks like bosses runtime (5 lines, 256 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.boss.resident.draw_bomb` owner=`bosses` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:call_draw_boss_boomerang_attack_resident` lines 24485-24488: `call_draw_boss_boomerang_attack_resident` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `call_draw_boss_boomerang_attack_resident` lines 24486-24490: `call_draw_boss_boomerang_attack_resident` looks like bosses runtime (5 lines, 256 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.boss.resident.draw_boomerang` owner=`bosses` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:call_draw_boss_rock_attack_resident` lines 24490-24493: `call_draw_boss_rock_attack_resident` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `call_draw_boss_rock_attack_resident` lines 24491-24495: `call_draw_boss_rock_attack_resident` looks like bosses runtime (5 lines, 248 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.boss.resident.draw_rock` owner=`bosses` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:call_draw_boss_laser_attack_resident` lines 24495-24498: `call_draw_boss_laser_attack_resident` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `call_draw_boss_laser_attack_resident` lines 24496-24500: `call_draw_boss_laser_attack_resident` looks like bosses runtime (5 lines, 258 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.boss.resident.draw_laser` owner=`bosses` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:call_draw_boss_sine_wave_attack_resident` lines 24500-24503: `call_draw_boss_sine_wave_attack_resident` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `call_draw_boss_sine_wave_attack_resident` lines 24501-24505: `call_draw_boss_sine_wave_attack_resident` looks like bosses runtime (5 lines, 276 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.boss.resident.draw_sine_wave` owner=`bosses` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:call_draw_boss_homing_missile_attack_resident` lines 24505-24508: `call_draw_boss_homing_missile_attack_resident` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `call_draw_boss_homing_missile_attack_resident` lines 24506-24509: `call_draw_boss_homing_missile_attack_resident` looks like bosses runtime (4 lines, 133 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.boss.resident.draw_homing_missile` owner=`bosses` preserve=true. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:init_boss_system` lines 47775-47788: `init_boss_system` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `init_boss_system` lines 47775-47789: `init_boss_system` looks like bosses runtime (15 lines, 330 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: boot_or_init (Boot/init routine). External references still exist (1): init_boss_system_far@24139. Deletion must stay blocked until callers are proven dead or rewired. Block ownership: `runtime.boss.entry` owner=`bosses` preserve=false. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:update_boss_system` lines 47790-47791: `update_boss_system` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `update_boss_system` lines 47790-47792: `update_boss_system` looks like bosses runtime (3 lines, 29 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: runtime_code (Instruction-bearing runtime label). External references still exist (1): update_boss_system_far@24193. Deletion must stay blocked until callers are proven dead or rewired. Block ownership: `runtime.boss.entry` owner=`bosses` preserve=false. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [patchable] `runtime.boss.group.stubs:init_screen_boss_from_current_screen` lines 47793-47794: `init_screen_boss_from_current_screen` is part of inactive runtime group `runtime.boss.group.stubs`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `init_screen_boss_from_current_screen` lines 47793-47798: `init_screen_boss_from_current_screen` looks like bosses runtime (6 lines, 140 source bytes), but project_usage marks feature `bosses` disabled (bosses=0, bossInstances=0). Category: boot_or_init (Boot/init routine). External references still exist (1): init_screen_boss_from_current_screen_far@24166. Deletion must stay blocked until callers are proven dead or rewired. Block ownership: `runtime.boss.entry` owner=`bosses` preserve=false. Patch policy: feature family `bosses` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [report-only] `runtime.menu.group.core` lines 47825-47840: `runtime.menu.group.core` groups inactive menu core runtime labels: init_menus, show_main_menu, update_menu_state. No external references outside the group were found. This is ready for a future atomic multi-window patch, or for dead-blocks to remove the annotated windows as whole groups. Patch policy: runtime group `runtime.menu.group.core` is report-only until it is added to the validated patchable set.
+- [report-only] `init_menus` lines 47825-47827: `init_menus` looks like menus runtime (3 lines, 21 source bytes), but project_usage marks feature `menus` disabled (menus=0). Category: boot_or_init (Boot/init routine). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.menus.compat_stubs` owner=`menus` preserve=true. Patch policy: feature family `menus` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [report-only] `show_main_menu` lines 47828-47830: `show_main_menu` looks like menus runtime (3 lines, 25 source bytes), but project_usage marks feature `menus` disabled (menus=0). Category: runtime_code (Instruction-bearing runtime label). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.menus.compat_stubs` owner=`menus` preserve=true. Patch policy: feature family `menus` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+- [report-only] `update_menu_state` lines 47831-47840: `update_menu_state` looks like menus runtime (10 lines, 301 source bytes), but project_usage marks feature `menus` disabled (menus=0). Category: runtime_code (Instruction-bearing runtime label). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: `runtime.menus.compat_stubs` owner=`menus` preserve=true. Patch policy: feature family `menus` is report-only; currently patchable inactive families: `sounds`. This is report-only until the generator metadata and invariants prove deletion is safe.
+
+## unused-component-runtime
+
+- Metrics: findings=25, patchable=16, removed_lines=53, removed_source_bytes=1817
+- Routines: runtime.components.system.auto_destroy, runtime.components.system.auto_destroy:init_auto_destroy_system, runtime.components.system.behavior, runtime.components.system.behavior:update_behavior_component, runtime.components.system.carry, runtime.components.system.carry:init_carry_system, runtime.components.system.carry:update_carry_component, runtime.components.system.collectible, runtime.components.system.collectible:init_collectible_system, runtime.components.system.collectible:update_collectible_component, runtime.components.system.damage, runtime.components.system.damage:init_damage_system, runtime.components.system.damage:update_damage_component, runtime.components.system.in_water, runtime.components.system.in_water:init_in_water_system, runtime.components.system.in_water:update_in_water_component, runtime.components.system.movement, runtime.components.system.movement:init_movement_system, runtime.components.system.movement:update_movement_component, runtime.components.system.retractable_gate, runtime.components.system.retractable_gate:init_retractable_gate_system, runtime.components.system.retractable_gate:update_retractable_gate_component, runtime.components.system.shoot, runtime.components.system.shoot:init_shoot_system, runtime.components.system.shoot:update_shoot_component
+
+- [report-only] `runtime.components.system.movement` lines 25377-25389: `runtime.components.system.movement` covers unused movement component labels: init_movement_system, update_movement_component. `project_usage.componentRuntime.usedComponents` is Animation, AutoControlScript, Collision, Cursors, DeadlyTiles, Gravity, Health, Input, Jump, Position, Sprite, StateMachine, TileInteraction, WallCollision, WallGrab, WallJump, so component type `Movement` is not used by active entities. No external references outside this component group were found. This is a candidate for a future atomic component-system patch. Atomic patch enabled as `runtime.components.system.movement` with 2 window(s).
+- [patchable] `runtime.components.system.movement:init_movement_system` lines 25377-25378: `init_movement_system` is part of unused component runtime group `runtime.components.system.movement`. The group has no external references, so this window is removed only together with the other group windows.
+- [patchable] `runtime.components.system.movement:update_movement_component` lines 25380-25383: `update_movement_component` is part of unused component runtime group `runtime.components.system.movement`. The group has no external references, so this window is removed only together with the other group windows.
+- [patchable] `runtime.components.system.behavior:update_behavior_component` lines 26647-26650: `update_behavior_component` is part of unused component runtime group `runtime.components.system.behavior`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `runtime.components.system.behavior` lines 26648-26660: `runtime.components.system.behavior` covers unused behavior component labels: update_behavior_component. `project_usage.componentRuntime.usedComponents` is Animation, AutoControlScript, Collision, Cursors, DeadlyTiles, Gravity, Health, Input, Jump, Position, Sprite, StateMachine, TileInteraction, WallCollision, WallGrab, WallJump, so component type `Behavior` is not used by active entities. No external references outside this component group were found. This is a candidate for a future atomic component-system patch. Atomic patch enabled as `runtime.components.system.behavior` with 1 window(s).
+- [patchable] `runtime.components.system.auto_destroy:init_auto_destroy_system` lines 28834-28840: `init_auto_destroy_system` is part of unused component runtime group `runtime.components.system.auto_destroy`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `runtime.components.system.auto_destroy` lines 28835-28849: `runtime.components.system.auto_destroy` covers unused auto-destroy component labels: init_auto_destroy_system, update_auto_destroy_component. `project_usage.componentRuntime.usedComponents` is Animation, AutoControlScript, Collision, Cursors, DeadlyTiles, Gravity, Health, Input, Jump, Position, Sprite, StateMachine, TileInteraction, WallCollision, WallGrab, WallJump, so component type `AutoDestroy` is not used by active entities. No external references outside this component group were found. This is a candidate for a future atomic component-system patch. Atomic patch enabled as `runtime.components.system.auto_destroy` with 1 window(s).
+- [report-only] `runtime.components.system.retractable_gate` lines 28873-28881: `runtime.components.system.retractable_gate` covers unused retractable-gate component labels: init_retractable_gate_system, update_retractable_gate_component. `project_usage.componentRuntime.usedComponents` is Animation, AutoControlScript, Collision, Cursors, DeadlyTiles, Gravity, Health, Input, Jump, Position, Sprite, StateMachine, TileInteraction, WallCollision, WallGrab, WallJump, so component type `RetractableGate` is not used by active entities. No external references outside this component group were found. This is a candidate for a future atomic component-system patch. Atomic patch enabled as `runtime.components.system.retractable_gate` with 2 window(s).
+- [patchable] `runtime.components.system.retractable_gate:init_retractable_gate_system` lines 28873-28874: `init_retractable_gate_system` is part of unused component runtime group `runtime.components.system.retractable_gate`. The group has no external references, so this window is removed only together with the other group windows.
+- [patchable] `runtime.components.system.retractable_gate:update_retractable_gate_component` lines 28876-28879: `update_retractable_gate_component` is part of unused component runtime group `runtime.components.system.retractable_gate`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `runtime.components.system.carry` lines 28882-28892: `runtime.components.system.carry` covers unused carry component labels: init_carry_system, update_carry_component. `project_usage.componentRuntime.usedComponents` is Animation, AutoControlScript, Collision, Cursors, DeadlyTiles, Gravity, Health, Input, Jump, Position, Sprite, StateMachine, TileInteraction, WallCollision, WallGrab, WallJump, so component type `Carry` is not used by active entities. No external references outside this component group were found. This is a candidate for a future atomic component-system patch. Atomic patch enabled as `runtime.components.system.carry` with 2 window(s).
+- [patchable] `runtime.components.system.carry:init_carry_system` lines 28882-28883: `init_carry_system` is part of unused component runtime group `runtime.components.system.carry`. The group has no external references, so this window is removed only together with the other group windows.
+- [patchable] `runtime.components.system.carry:update_carry_component` lines 28885-28888: `update_carry_component` is part of unused component runtime group `runtime.components.system.carry`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `runtime.components.system.damage` lines 28893-28901: `runtime.components.system.damage` covers unused damage component labels: init_damage_system, update_damage_component. `project_usage.componentRuntime.usedComponents` is Animation, AutoControlScript, Collision, Cursors, DeadlyTiles, Gravity, Health, Input, Jump, Position, Sprite, StateMachine, TileInteraction, WallCollision, WallGrab, WallJump, so component type `Damage` is not used by active entities. No external references outside this component group were found. This is a candidate for a future atomic component-system patch. Atomic patch enabled as `runtime.components.system.damage` with 2 window(s).
+- [patchable] `runtime.components.system.damage:init_damage_system` lines 28893-28894: `init_damage_system` is part of unused component runtime group `runtime.components.system.damage`. The group has no external references, so this window is removed only together with the other group windows.
+- [patchable] `runtime.components.system.damage:update_damage_component` lines 28896-28899: `update_damage_component` is part of unused component runtime group `runtime.components.system.damage`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `runtime.components.system.shoot` lines 28902-28913: `runtime.components.system.shoot` covers unused shoot component labels: init_shoot_system, update_shoot_component. `project_usage.componentRuntime.usedComponents` is Animation, AutoControlScript, Collision, Cursors, DeadlyTiles, Gravity, Health, Input, Jump, Position, Sprite, StateMachine, TileInteraction, WallCollision, WallGrab, WallJump, so component type `Shoot` is not used by active entities. No external references outside this component group were found. This is a candidate for a future atomic component-system patch. Atomic patch enabled as `runtime.components.system.shoot` with 2 window(s).
+- [patchable] `runtime.components.system.shoot:init_shoot_system` lines 28902-28903: `init_shoot_system` is part of unused component runtime group `runtime.components.system.shoot`. The group has no external references, so this window is removed only together with the other group windows.
+- [patchable] `runtime.components.system.shoot:update_shoot_component` lines 28905-28908: `update_shoot_component` is part of unused component runtime group `runtime.components.system.shoot`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `runtime.components.system.in_water` lines 30038-30046: `runtime.components.system.in_water` covers unused in-water component labels: init_in_water_system, update_in_water_component. `project_usage.componentRuntime.usedComponents` is Animation, AutoControlScript, Collision, Cursors, DeadlyTiles, Gravity, Health, Input, Jump, Position, Sprite, StateMachine, TileInteraction, WallCollision, WallGrab, WallJump, so component type `InWater` is not used by active entities. No external references outside this component group were found. This is a candidate for a future atomic component-system patch. Atomic patch enabled as `runtime.components.system.in_water` with 2 window(s).
+- [patchable] `runtime.components.system.in_water:init_in_water_system` lines 30038-30039: `init_in_water_system` is part of unused component runtime group `runtime.components.system.in_water`. The group has no external references, so this window is removed only together with the other group windows.
+- [patchable] `runtime.components.system.in_water:update_in_water_component` lines 30041-30044: `update_in_water_component` is part of unused component runtime group `runtime.components.system.in_water`. The group has no external references, so this window is removed only together with the other group windows.
+- [report-only] `runtime.components.system.collectible` lines 30047-30066: `runtime.components.system.collectible` covers unused collectible component labels: init_collectible_system, update_collectible_component. `project_usage.componentRuntime.usedComponents` is Animation, AutoControlScript, Collision, Cursors, DeadlyTiles, Gravity, Health, Input, Jump, Position, Sprite, StateMachine, TileInteraction, WallCollision, WallGrab, WallJump, so component type `Collectible` is not used by active entities. No external references outside this component group were found. This is a candidate for a future atomic component-system patch. Atomic patch enabled as `runtime.components.system.collectible` with 2 window(s).
+- [patchable] `runtime.components.system.collectible:init_collectible_system` lines 30047-30048: `init_collectible_system` is part of unused component runtime group `runtime.components.system.collectible`. The group has no external references, so this window is removed only together with the other group windows.
+- [patchable] `runtime.components.system.collectible:update_collectible_component` lines 30050-30053: `update_collectible_component` is part of unused component runtime group `runtime.components.system.collectible`. The group has no external references, so this window is removed only together with the other group windows.
+
+## state-machine-dispatch-handlers
+
+- Metrics: findings=66, patchable=57, removed_lines=205, removed_source_bytes=5103
+- Routines: Action_ChangeSprite, Action_ExitCurrentWorld, Action_Nop, Action_Nop:table:0, Action_Nop:table:1, Action_Nop:table:10, Action_Nop:table:11, Action_Nop:table:12, Action_Nop:table:13, Action_Nop:table:14, Action_Nop:table:15, Action_Nop:table:16, Action_Nop:table:17, Action_Nop:table:18, Action_Nop:table:19, Action_Nop:table:2, Action_Nop:table:20, Action_Nop:table:21, Action_Nop:table:22, Action_Nop:table:23, Action_Nop:table:24, Action_Nop:table:25, Action_Nop:table:26, Action_Nop:table:27, Action_Nop:table:28, Action_Nop:table:29, Action_Nop:table:3, Action_Nop:table:30, Action_Nop:table:31, Action_Nop:table:32, Action_Nop:table:33, Action_Nop:table:34, Action_Nop:table:35, Action_Nop:table:36, Action_Nop:table:37, Action_Nop:table:38, Action_Nop:table:39, Action_Nop:table:4, Action_Nop:table:41, Action_Nop:table:42, Action_Nop:table:43, Action_Nop:table:6, Action_Nop:table:9, Action_SetAnimSpeed, Action_ToggleAnim, Condition_And, Condition_AnimComplete, Condition_AnimComplete:table:12, Condition_KeyAndMove, Condition_Nop, Condition_Nop:table:0, Condition_Nop:table:10, Condition_Nop:table:11, Condition_Nop:table:15, Condition_Nop:table:16, Condition_Nop:table:17, Condition_Nop:table:4, Condition_Nop:table:5, Condition_Nop:table:7, Condition_Nop:table:8, Condition_Nop:table:9, Condition_Not, Condition_Or, Condition_TimeOut, Condition_VariableCompare, Condition_VariableCompare:table:14
+
+- [patchable] `Action_Nop:table:0` lines 34253-34253: `Action_Nop` dispatch id 0 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:1` lines 34254-34254: `Action_Nop` dispatch id 1 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:2` lines 34255-34255: `Action_Nop` dispatch id 2 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:3` lines 34256-34256: `Action_Nop` dispatch id 3 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:4` lines 34257-34257: `Action_Nop` dispatch id 4 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:6` lines 34259-34259: `Action_Nop` dispatch id 6 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:9` lines 34262-34262: `Action_Nop` dispatch id 9 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:10` lines 34263-34263: `Action_Nop` dispatch id 10 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:11` lines 34264-34264: `Action_Nop` dispatch id 11 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:12` lines 34265-34265: `Action_Nop` dispatch id 12 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:13` lines 34266-34266: `Action_Nop` dispatch id 13 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:14` lines 34267-34267: `Action_Nop` dispatch id 14 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:15` lines 34268-34268: `Action_Nop` dispatch id 15 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:16` lines 34269-34269: `Action_Nop` dispatch id 16 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:17` lines 34270-34270: `Action_Nop` dispatch id 17 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:18` lines 34271-34271: `Action_Nop` dispatch id 18 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:19` lines 34272-34272: `Action_Nop` dispatch id 19 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:20` lines 34273-34273: `Action_Nop` dispatch id 20 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:21` lines 34274-34274: `Action_Nop` dispatch id 21 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:22` lines 34275-34275: `Action_Nop` dispatch id 22 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:23` lines 34276-34276: `Action_Nop` dispatch id 23 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:24` lines 34277-34277: `Action_Nop` dispatch id 24 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:25` lines 34278-34278: `Action_Nop` dispatch id 25 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:26` lines 34279-34279: `Action_Nop` dispatch id 26 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:27` lines 34280-34280: `Action_Nop` dispatch id 27 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:28` lines 34281-34281: `Action_Nop` dispatch id 28 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:29` lines 34282-34282: `Action_Nop` dispatch id 29 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:30` lines 34283-34283: `Action_Nop` dispatch id 30 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:31` lines 34284-34284: `Action_Nop` dispatch id 31 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:32` lines 34285-34285: `Action_Nop` dispatch id 32 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:33` lines 34286-34286: `Action_Nop` dispatch id 33 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:34` lines 34287-34287: `Action_Nop` dispatch id 34 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:35` lines 34288-34288: `Action_Nop` dispatch id 35 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:36` lines 34289-34289: `Action_Nop` dispatch id 36 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:37` lines 34290-34290: `Action_Nop` dispatch id 37 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:38` lines 34291-34291: `Action_Nop` dispatch id 38 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:39` lines 34292-34292: `Action_Nop` dispatch id 39 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:41` lines 34294-34294: `Action_Nop` dispatch id 41 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:42` lines 34295-34295: `Action_Nop` dispatch id 42 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop:table:43` lines 34296-34296: `Action_Nop` dispatch id 43 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Action_Nop` lines 34302-34312: `Action_Nop` is a state-machine action handler referenced by `SM_ActionTable` (40 table reference(s): SM_ActionTable@34253: `DW Action_Nop; 0`, SM_ActionTable@34254: `DW Action_Nop ; 1 [Action_SetPosition stripped]`, SM_ActionTable@34255: `DW Action_Nop ; 2 [Action_MoveBy stripped]`). Direct external references: none. Dispatch id 0 is not listed in `project_usage.stateMachineRuntime.usedActionIds`; this is only an unused-by-metadata signal. Patch enabled: all dispatch table ids for this handler are unused by project_usage metadata and there are no direct external references.
+- [report-only] `Action_ChangeSprite` lines 34378-34707: `Action_ChangeSprite` is a state-machine action handler referenced by `SM_ActionTable` (1 table reference(s): SM_ActionTable@34258: `DW Action_ChangeSprite; 5`). Direct external references: none. Dispatch id 5 is listed in `project_usage.stateMachineRuntime.usedActionIds`. Patch disabled because one or more table dispatch ids are used or unknown.
+- [report-only] `Action_SetAnimSpeed` lines 34708-34741: `Action_SetAnimSpeed` is a state-machine action handler referenced by `SM_ActionTable` (1 table reference(s): SM_ActionTable@34260: `DW Action_SetAnimSpeed; 7`). Direct external references: none. Dispatch id 7 is listed in `project_usage.stateMachineRuntime.usedActionIds`. Patch disabled because one or more table dispatch ids are used or unknown.
+- [report-only] `Action_ToggleAnim` lines 34742-34841: `Action_ToggleAnim` is a state-machine action handler referenced by `SM_ActionTable` (1 table reference(s): SM_ActionTable@34261: `DW Action_ToggleAnim; 8`). Direct external references: none. Dispatch id 8 is listed in `project_usage.stateMachineRuntime.usedActionIds`. Patch disabled because one or more table dispatch ids are used or unknown.
+- [report-only] `Action_ExitCurrentWorld` lines 34992-35001: `Action_ExitCurrentWorld` is a state-machine action handler referenced by `SM_ActionTable` (1 table reference(s): SM_ActionTable@34293: `DW Action_ExitCurrentWorld; 40`). Direct external references: none. Dispatch id 40 is listed in `project_usage.stateMachineRuntime.usedActionIds`. Patch disabled because one or more table dispatch ids are used or unknown.
+- [patchable] `Condition_Nop:table:0` lines 35003-35003: `Condition_Nop` dispatch id 0 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Condition_Nop:table:4` lines 35007-35007: `Condition_Nop` dispatch id 4 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Condition_Nop:table:5` lines 35008-35008: `Condition_Nop` dispatch id 5 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Condition_Nop:table:7` lines 35010-35010: `Condition_Nop` dispatch id 7 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Condition_Nop:table:8` lines 35011-35011: `Condition_Nop` dispatch id 8 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Condition_Nop:table:9` lines 35012-35012: `Condition_Nop` dispatch id 9 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Condition_Nop:table:10` lines 35013-35013: `Condition_Nop` dispatch id 10 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Condition_Nop:table:11` lines 35014-35014: `Condition_Nop` dispatch id 11 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Condition_AnimComplete:table:12` lines 35015-35015: `Condition_AnimComplete` dispatch id 12 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Condition_VariableCompare:table:14` lines 35017-35017: `Condition_VariableCompare` dispatch id 14 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Condition_Nop:table:15` lines 35018-35018: `Condition_Nop` dispatch id 15 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Condition_Nop:table:16` lines 35019-35019: `Condition_Nop` dispatch id 16 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Condition_Nop:table:17` lines 35020-35020: `Condition_Nop` dispatch id 17 is unused by metadata, so the dispatch table entry is replaced with `DW 0` together with the handler body removal.
+- [patchable] `Condition_Nop` lines 35026-35029: `Condition_Nop` is a state-machine condition handler referenced by `SM_ConditionTable` (11 table reference(s): SM_ConditionTable@35003: `DW Condition_Nop            ; 0`, SM_ConditionTable@35007: `DW Condition_Nop ; 4 [Condition_KeyPressed stripped]`, SM_ConditionTable@35008: `DW Condition_Nop ; 5 [Condition_KeyReleased stripped]`). Direct external references: none. Dispatch id 0 is not listed in `project_usage.stateMachineRuntime.usedConditionIds`; this is only an unused-by-metadata signal. Patch enabled: all dispatch table ids for this handler are unused by project_usage metadata and there are no direct external references.
+- [report-only] `Condition_And` lines 35030-35062: `Condition_And` is a state-machine condition handler referenced by `SM_ConditionTable` (1 table reference(s): SM_ConditionTable@35004: `DW Condition_And            ; 1`). Direct external references: none. Dispatch id 1 is listed in `project_usage.stateMachineRuntime.usedConditionIds`. Patch disabled because one or more table dispatch ids are used or unknown.
+- [report-only] `Condition_Or` lines 35063-35097: `Condition_Or` is a state-machine condition handler referenced by `SM_ConditionTable` (1 table reference(s): SM_ConditionTable@35005: `DW Condition_Or             ; 2`). Direct external references: none. Dispatch id 2 is listed in `project_usage.stateMachineRuntime.usedConditionIds`. Patch disabled because one or more table dispatch ids are used or unknown.
+- [report-only] `Condition_Not` lines 35098-35124: `Condition_Not` is a state-machine condition handler referenced by `SM_ConditionTable` (1 table reference(s): SM_ConditionTable@35006: `DW Condition_Not            ; 3`). Direct external references: none. Dispatch id 3 is listed in `project_usage.stateMachineRuntime.usedConditionIds`. Patch disabled because one or more table dispatch ids are used or unknown.
+- [report-only] `Condition_TimeOut` lines 35351-35412: `Condition_TimeOut` is a state-machine condition handler referenced by `SM_ConditionTable` (1 table reference(s): SM_ConditionTable@35009: `DW Condition_TimeOut        ; 6`). Direct external references: none. Dispatch id 6 is listed in `project_usage.stateMachineRuntime.usedConditionIds`. Patch disabled because one or more table dispatch ids are used or unknown.
+- [patchable] `Condition_AnimComplete` lines 35413-35433: `Condition_AnimComplete` is a state-machine condition handler referenced by `SM_ConditionTable` (1 table reference(s): SM_ConditionTable@35015: `DW Condition_AnimComplete   ; 12`). Direct external references: none. Dispatch id 12 is not listed in `project_usage.stateMachineRuntime.usedConditionIds`; this is only an unused-by-metadata signal. Patch enabled: all dispatch table ids for this handler are unused by project_usage metadata and there are no direct external references.
+- [report-only] `Condition_KeyAndMove` lines 35434-35479: `Condition_KeyAndMove` is a state-machine condition handler referenced by `SM_ConditionTable` (1 table reference(s): SM_ConditionTable@35016: `DW Condition_KeyAndMove     ; 13`). Direct external references: none. Dispatch id 13 is listed in `project_usage.stateMachineRuntime.usedConditionIds`. Patch disabled because one or more table dispatch ids are used or unknown.
+- [patchable] `Condition_VariableCompare` lines 35480-35665: `Condition_VariableCompare` is a state-machine condition handler referenced by `SM_ConditionTable` (1 table reference(s): SM_ConditionTable@35017: `DW Condition_VariableCompare; 14`). Direct external references: none. Dispatch id 14 is not listed in `project_usage.stateMachineRuntime.usedConditionIds`; this is only an unused-by-metadata signal. Patch enabled: all dispatch table ids for this handler are unused by project_usage metadata and there are no direct external references.
+
+## Optimization Passes
+
+- Pass 1: findings=152, patchable=102, removed=571 lines / 17244 bytes, lines=47876->47305
+

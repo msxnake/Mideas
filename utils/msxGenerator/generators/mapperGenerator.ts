@@ -27,12 +27,15 @@ function buildMapperAutoCallSection(format: MapperFormat): string {
 ; Direct call helper for Konami fixed window (#4000-#5FFF).
 ; Input:
 ;   HL = target routine address in fixed window
+; Preserves: DE across mapper trampoline code
 ; ------------------------------------------------------------------
 mapper_call_hl_fixed:
+    push de
     ld de, .return_fixed
     push de
     jp (hl)
 .return_fixed:
+    pop de
     ret
 
 ; ------------------------------------------------------------------
@@ -69,6 +72,30 @@ mapper_call_hl_auto:
 .use_p2:
     pop af
     jp mapper_call_hl_p2
+`;
+  }
+
+  if (format === 'ascii16') {
+    return `; ------------------------------------------------------------------
+; mapper_call_hl_auto
+; Auto-select mapper window from HL target address range:
+;   4000-7FFF -> p1 (ASCII16 lower 16 KB page)
+;   8000-BFFF -> p3 (ASCII16 upper 16 KB page)
+; Input:
+;   A = target bank
+;   HL = target routine address
+; ------------------------------------------------------------------
+mapper_call_hl_auto:
+    push af
+    ld a, h
+    cp #80
+    jr c, .use_p1
+    pop af
+    jp mapper_call_hl_p3
+
+.use_p1:
+    pop af
+    jp mapper_call_hl_p1
 `;
   }
 
@@ -253,12 +280,16 @@ mapper_pop_p4:
 
 ; ------------------------------------------------------------------
 ; Far call helpers (simple32k no-op bank switch).
+; Preserve DE across the trampoline so simple and MegaROM calls share
+; the same caller-visible register behavior.
 ; ------------------------------------------------------------------
 mapper_call_hl_p1:
+    push de
     ld de, .return_p1
     push de
     jp (hl)
 .return_p1:
+    pop de
     ret
 
 mapper_call_hl_p2:
@@ -277,11 +308,44 @@ mapper_call_hl_auto:
 
   const layout = resolveMapperRegisterLayout(targetFormat);
   const mapperAutoCallSection = buildMapperAutoCallSection(targetFormat);
+  const mapperRuntimeInit = targetFormat === 'konami'
+    ? `    ; Konami4 / Konami 8K without SCC:
+    ;   bank 0 is fixed at #4000-#5FFF.
+    ;   p1/p2/p3 are the selectable #6000/#8000/#A000 windows.
+    ld a, 1
+    call mapper_set_bank_p1
+    ld a, 2
+    call mapper_set_bank_p2
+    ld a, 3
+    call mapper_set_bank_p3
+    ld (mapper_bank_p4_current), a
+    ret`
+    : targetFormat === 'ascii16'
+      ? `    ; ASCII16 switches 16 KB pages, so P1/P2 and P3/P4 are mirrors.
+    ; Do not write P2 separately during boot: it shares register #6000
+    ; with P1 and would remap the bank-0 trampoline/header page.
+    xor a
+    call mapper_set_bank_p1
+    ld (mapper_bank_p2_current), a
+    ld a, 1
+    call mapper_set_bank_p3
+    ld (mapper_bank_p4_current), a
+    ret`
+      : `    xor a
+    call mapper_set_bank_p1
+    ld a, 1
+    call mapper_set_bank_p2
+    ld a, 2
+    call mapper_set_bank_p3
+    ld a, 3
+    call mapper_set_bank_p4
+    ret`;
   const writeComment = mapperWritesEnabled
     ? '; Mapper register writes are enabled for this build configuration.'
     : '; Mapper register writes are disabled (simple32k mode).';
 
-  return `; ==================================================================
+  return `; @mideas:block id=runtime.mapper.core kind=routine owner=mapper roots=mapper_runtime_init,mapper_set_bank_p1,mapper_set_bank_p2,mapper_set_bank_p3,mapper_set_bank_p4,mapper_push_p1,mapper_pop_p1,mapper_push_p2,mapper_pop_p2,mapper_push_p3,mapper_pop_p3,mapper_push_p4,mapper_pop_p4,mapper_call_hl_p1,mapper_call_hl_p2,mapper_call_hl_p3,mapper_call_hl_p4,mapper_call_hl_auto
+; ==================================================================
 ; MAPPER RUNTIME API
 ; File: mapper.asm
 ; Description: Centralized mapper register writes (no scattered inline writes)
@@ -303,21 +367,31 @@ MAPPER_REG_P4       EQU ${layout.regP4}
 ; Initializes mapper state variables with deterministic defaults.
 ; ------------------------------------------------------------------
 mapper_runtime_init:
-    xor a
-    ld (mapper_bank_p1_current), a
-    ld a, 1
-    ld (mapper_bank_p2_current), a
-    ld a, 2
-    ld (mapper_bank_p3_current), a
-    ld a, 3
-    ld (mapper_bank_p4_current), a
-    ret
+${mapperRuntimeInit}
 
 ; ------------------------------------------------------------------
 ; API: mapper_set_bank_pX
 ; Input: A = bank number
 ; ------------------------------------------------------------------
-mapper_set_bank_p1:
+${targetFormat === 'ascii16' ? `mapper_set_bank_p1:
+    ; ASCII16 maps #4000-#7FFF as a single 16 KB segment.
+    ld (mapper_bank_p1_current), a
+    ld (mapper_bank_p2_current), a
+${mapperWritesEnabled ? `    ld (MAPPER_REG_P1), a` : `    ; write disabled in current ROM mode`}
+    ret
+
+mapper_set_bank_p2:
+    jp mapper_set_bank_p1
+
+mapper_set_bank_p3:
+    ; ASCII16 maps #8000-#BFFF as a single 16 KB segment.
+    ld (mapper_bank_p3_current), a
+    ld (mapper_bank_p4_current), a
+${mapperWritesEnabled ? `    ld (MAPPER_REG_P3), a` : `    ; write disabled in current ROM mode`}
+    ret
+
+mapper_set_bank_p4:
+    jp mapper_set_bank_p3` : `mapper_set_bank_p1:
     ld (mapper_bank_p1_current), a
 ${mapperWritesEnabled ? `    ld (MAPPER_REG_P1), a` : `    ; write disabled in current ROM mode`}
     ret
@@ -337,7 +411,7 @@ ${targetFormat === 'konami' ? `mapper_set_bank_p4:
 ` : `mapper_set_bank_p4:
     ld (mapper_bank_p4_current), a
 ${mapperWritesEnabled ? `    ld (MAPPER_REG_P4), a` : `    ; write disabled in current ROM mode`}
-    ret`}
+    ret`}`}
 
 ; ------------------------------------------------------------------
 ; Helpers for deterministic save/restore around far calls.
@@ -390,19 +464,31 @@ mapper_pop_p4:
 ;   HL = target routine address in selected page window
 ; Output:
 ;   Returns after restoring previous bank.
+; Preserves:
+;   DE across mapper trampoline code. The target routine may still define
+;   its own clobbers; callers must save any live registers required by GameFlow.
 ; ------------------------------------------------------------------
-mapper_call_hl_p1:
+${targetFormat === 'ascii16' ? `mapper_call_hl_p1:
+    ; ASCII16 remaps the full #4000-#7FFF lower page. Execute the
+    ; switch/call/restore sequence from RAM so this bank-0 helper is not hidden.
+    jp ASCII16_FAR_CALL_P1_RAM
+
+mapper_call_hl_p2:
+    jp mapper_call_hl_p1
+` : `mapper_call_hl_p1:
     push hl
     push af
     call mapper_push_p1
     pop af
     call mapper_set_bank_p1
     pop hl
+    push de
     ld de, .return_p1
     push de
     jp (hl)
 .return_p1:
     call mapper_pop_p1
+    pop de
     ret
 
 mapper_call_hl_p2:
@@ -412,12 +498,14 @@ mapper_call_hl_p2:
     pop af
     call mapper_set_bank_p2
     pop hl
+    push de
     ld de, .return_p2
     push de
     jp (hl)
 .return_p2:
     call mapper_pop_p2
-    ret
+    pop de
+    ret`}
 
 mapper_call_hl_p3:
     push hl
@@ -426,11 +514,13 @@ mapper_call_hl_p3:
     pop af
     call mapper_set_bank_p3
     pop hl
+    push de
     ld de, .return_p3
     push de
     jp (hl)
 .return_p3:
     call mapper_pop_p3
+    pop de
     ret
 
 ${targetFormat === 'konami' ? `mapper_call_hl_p4:
@@ -442,14 +532,17 @@ ${targetFormat === 'konami' ? `mapper_call_hl_p4:
     pop af
     call mapper_set_bank_p4
     pop hl
+    push de
     ld de, .return_p4
     push de
     jp (hl)
 .return_p4:
     call mapper_pop_p4
+    pop de
     ret`}
 
 ; ------------------------------------------------------------------
 ${mapperAutoCallSection}
+; @mideas:endblock id=runtime.mapper.core
 `;
 }

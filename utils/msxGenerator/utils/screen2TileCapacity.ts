@@ -1,7 +1,8 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 
 const SCREEN2_TILE_CHAR_START = 128;
-const SCREEN2_TILE_CHAR_END = 255;
+// Chars 254 and 255 are reserved runtime sentinels in generated SCREEN 2 maps.
+const SCREEN2_TILE_CHAR_END = 253;
 const SCREEN2_TILE_CHAR_CAPACITY = SCREEN2_TILE_CHAR_END - SCREEN2_TILE_CHAR_START + 1;
 
 type TileLike = {

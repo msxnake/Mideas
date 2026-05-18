@@ -1,0 +1,881 @@
+{
+  "version": 1,
+  "scope": "konami8k_bank_optimizer",
+  "strategy": "analysis-only scene-aware first-fit input; later pass may repack or duplicate resources",
+  "constraints": {
+    "mapperFormat": "konami",
+    "segmentSize": 8192,
+    "dynamicWindows": 1,
+    "dataWindow": {
+      "page": "p3",
+      "base": "#A000",
+      "mask": "#1FFF",
+      "bankDivisor": "#2000"
+    },
+    "maxRecommendedSceneBanks": 3
+  },
+  "currentPlacement": {
+    "bankCount": 2,
+    "resourceCount": 14,
+    "totalStoredBytes": 8380,
+    "totalRawBytes": 8380,
+    "compressedResources": 0,
+    "banks": [
+      {
+        "bank": 3,
+        "count": 13,
+        "storedBytes": 8124,
+        "rawBytes": 8124,
+        "resourceIds": [
+          3,
+          5,
+          2,
+          4,
+          6,
+          7,
+          11,
+          12,
+          13,
+          0,
+          1,
+          9,
+          8
+        ],
+        "resourceLabels": [
+          "tilebank_pattern_data_0",
+          "tilebank_color_data_0",
+          "tile_pattern_bank0",
+          "tile_color_bank0",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP",
+          "NEW_SPRITE_0_F0_LAYER2",
+          "SPRITE_PLACEHOLDER_PATTERN",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE"
+        ]
+      },
+      {
+        "bank": 4,
+        "count": 1,
+        "storedBytes": 256,
+        "rawBytes": 256,
+        "resourceIds": [
+          10
+        ],
+        "resourceLabels": [
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE"
+        ]
+      }
+    ]
+  },
+  "proposedPlacement": {
+    "strategy": "dry-run scene bundles first-fit decreasing with mapper data-zone capacity; current ROM placement is unchanged",
+    "zoneSize": 8192,
+    "bankCount": 2,
+    "resourceCount": 14,
+    "totalStoredBytes": 8380,
+    "resourcePlacements": [
+      {
+        "id": 6,
+        "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT",
+        "group": "SCREENS",
+        "type": "SCREEN_LAYOUT",
+        "bank": 3,
+        "zoneOffset": 0,
+        "windowAddress": 40960,
+        "storedSize": 768,
+        "uncompressedSize": 768,
+        "flags": 0,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1777833014252",
+        "sceneName": "New Playable Screen",
+        "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0000; window=p3/#A000"
+      },
+      {
+        "id": 7,
+        "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT",
+        "group": "SCREENS",
+        "type": "SCREEN_EFFECTS_LAYOUT",
+        "bank": 3,
+        "zoneOffset": 768,
+        "windowAddress": 41728,
+        "storedSize": 768,
+        "uncompressedSize": 768,
+        "flags": 0,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1777833014252",
+        "sceneName": "New Playable Screen",
+        "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0300; window=p3/#A000"
+      },
+      {
+        "id": 11,
+        "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP",
+        "group": "SCREENS",
+        "type": "SCREEN_DATA",
+        "bank": 3,
+        "zoneOffset": 1536,
+        "windowAddress": 42496,
+        "storedSize": 768,
+        "uncompressedSize": 768,
+        "flags": 0,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1777833014252",
+        "sceneName": "New Playable Screen",
+        "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0600; window=p3/#A000"
+      },
+      {
+        "id": 12,
+        "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP",
+        "group": "SCREENS",
+        "type": "SCREEN_DATA",
+        "bank": 3,
+        "zoneOffset": 2304,
+        "windowAddress": 43264,
+        "storedSize": 768,
+        "uncompressedSize": 768,
+        "flags": 0,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1777833014252",
+        "sceneName": "New Playable Screen",
+        "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0900; window=p3/#A000"
+      },
+      {
+        "id": 13,
+        "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP",
+        "group": "SCREENS",
+        "type": "SCREEN_DATA",
+        "bank": 3,
+        "zoneOffset": 3072,
+        "windowAddress": 44032,
+        "storedSize": 768,
+        "uncompressedSize": 768,
+        "flags": 0,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1777833014252",
+        "sceneName": "New Playable Screen",
+        "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0C00; window=p3/#A000"
+      },
+      {
+        "id": 9,
+        "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE",
+        "group": "SCREENS",
+        "type": "SCREEN_DATA",
+        "bank": 3,
+        "zoneOffset": 3840,
+        "windowAddress": 44800,
+        "storedSize": 11,
+        "uncompressedSize": 11,
+        "flags": 0,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1777833014252",
+        "sceneName": "New Playable Screen",
+        "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0F00; window=p3/#A000"
+      },
+      {
+        "id": 8,
+        "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE",
+        "group": "SCREENS",
+        "type": "SCREEN_EFFECT_ZONE_TABLE",
+        "bank": 3,
+        "zoneOffset": 3851,
+        "windowAddress": 44811,
+        "storedSize": 1,
+        "uncompressedSize": 1,
+        "flags": 0,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1777833014252",
+        "sceneName": "New Playable Screen",
+        "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0F0B; window=p3/#A000"
+      },
+      {
+        "id": 10,
+        "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE",
+        "group": "SCREENS",
+        "type": "SCREEN_DATA",
+        "bank": 3,
+        "zoneOffset": 3852,
+        "windowAddress": 44812,
+        "storedSize": 256,
+        "uncompressedSize": 256,
+        "flags": 0,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1777833014252",
+        "sceneName": "New Playable Screen",
+        "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0F0C; window=p3/#A000"
+      },
+      {
+        "id": 3,
+        "label": "tilebank_pattern_data_0",
+        "group": "PATTERNS",
+        "type": "TILE_PATTERNS",
+        "bank": 3,
+        "zoneOffset": 4108,
+        "windowAddress": 45068,
+        "storedSize": 1088,
+        "uncompressedSize": 1088,
+        "flags": 0,
+        "unitKind": "shared",
+        "sceneIndex": null,
+        "sceneId": null,
+        "sceneName": null,
+        "placementReason": "shared/global first-fit unit; resources=1; stored=1088; zoneSize=8192; proposedBank=3; offset=#100C; window=p3/#A000"
+      },
+      {
+        "id": 5,
+        "label": "tilebank_color_data_0",
+        "group": "COLORS",
+        "type": "TILE_COLORS",
+        "bank": 3,
+        "zoneOffset": 5196,
+        "windowAddress": 46156,
+        "storedSize": 1088,
+        "uncompressedSize": 1088,
+        "flags": 0,
+        "unitKind": "shared",
+        "sceneIndex": null,
+        "sceneId": null,
+        "sceneName": null,
+        "placementReason": "shared/global first-fit unit; resources=1; stored=1088; zoneSize=8192; proposedBank=3; offset=#144C; window=p3/#A000"
+      },
+      {
+        "id": 2,
+        "label": "tile_pattern_bank0",
+        "group": "PATTERNS",
+        "type": "TILE_PATTERNS",
+        "bank": 3,
+        "zoneOffset": 6284,
+        "windowAddress": 47244,
+        "storedSize": 1016,
+        "uncompressedSize": 1016,
+        "flags": 0,
+        "unitKind": "shared",
+        "sceneIndex": null,
+        "sceneId": null,
+        "sceneName": null,
+        "placementReason": "shared/global first-fit unit; resources=1; stored=1016; zoneSize=8192; proposedBank=3; offset=#188C; window=p3/#A000"
+      },
+      {
+        "id": 0,
+        "label": "NEW_SPRITE_0_F0_LAYER2",
+        "group": "SPRITES",
+        "type": "SPRITE_PATTERNS",
+        "bank": 3,
+        "zoneOffset": 7300,
+        "windowAddress": 48260,
+        "storedSize": 32,
+        "uncompressedSize": 32,
+        "flags": 0,
+        "unitKind": "shared",
+        "sceneIndex": null,
+        "sceneId": null,
+        "sceneName": null,
+        "placementReason": "shared/global first-fit unit; resources=1; stored=32; zoneSize=8192; proposedBank=3; offset=#1C84; window=p3/#A000"
+      },
+      {
+        "id": 1,
+        "label": "SPRITE_PLACEHOLDER_PATTERN",
+        "group": "SPRITES",
+        "type": "SPRITE_PATTERNS",
+        "bank": 3,
+        "zoneOffset": 7332,
+        "windowAddress": 48292,
+        "storedSize": 32,
+        "uncompressedSize": 32,
+        "flags": 0,
+        "unitKind": "shared",
+        "sceneIndex": null,
+        "sceneId": null,
+        "sceneName": null,
+        "placementReason": "shared/global first-fit unit; resources=1; stored=32; zoneSize=8192; proposedBank=3; offset=#1CA4; window=p3/#A000"
+      },
+      {
+        "id": 4,
+        "label": "tile_color_bank0",
+        "group": "COLORS",
+        "type": "TILE_COLORS",
+        "bank": 4,
+        "zoneOffset": 0,
+        "windowAddress": 40960,
+        "storedSize": 1016,
+        "uncompressedSize": 1016,
+        "flags": 0,
+        "unitKind": "shared",
+        "sceneIndex": null,
+        "sceneId": null,
+        "sceneName": null,
+        "placementReason": "shared/global first-fit unit; resources=1; stored=1016; zoneSize=8192; proposedBank=4; offset=#0000; window=p3/#A000"
+      }
+    ],
+    "banks": [
+      {
+        "bank": 3,
+        "usedBytes": 7364,
+        "freeBytes": 828,
+        "units": [
+          {
+            "kind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1777833014252",
+            "sceneName": "New Playable Screen",
+            "resourceIds": [
+              6,
+              7,
+              11,
+              12,
+              13,
+              9,
+              8,
+              10
+            ],
+            "resourceLabels": [
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE"
+            ],
+            "storedBytes": 4108,
+            "rawBytes": 4108,
+            "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192"
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              3
+            ],
+            "resourceLabels": [
+              "tilebank_pattern_data_0"
+            ],
+            "storedBytes": 1088,
+            "rawBytes": 1088,
+            "placementReason": "shared/global first-fit unit; resources=1; stored=1088; zoneSize=8192"
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              5
+            ],
+            "resourceLabels": [
+              "tilebank_color_data_0"
+            ],
+            "storedBytes": 1088,
+            "rawBytes": 1088,
+            "placementReason": "shared/global first-fit unit; resources=1; stored=1088; zoneSize=8192"
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              2
+            ],
+            "resourceLabels": [
+              "tile_pattern_bank0"
+            ],
+            "storedBytes": 1016,
+            "rawBytes": 1016,
+            "placementReason": "shared/global first-fit unit; resources=1; stored=1016; zoneSize=8192"
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              0
+            ],
+            "resourceLabels": [
+              "NEW_SPRITE_0_F0_LAYER2"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32,
+            "placementReason": "shared/global first-fit unit; resources=1; stored=32; zoneSize=8192"
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              1
+            ],
+            "resourceLabels": [
+              "SPRITE_PLACEHOLDER_PATTERN"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32,
+            "placementReason": "shared/global first-fit unit; resources=1; stored=32; zoneSize=8192"
+          }
+        ],
+        "resourcePlacements": [
+          {
+            "id": 6,
+            "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT",
+            "group": "SCREENS",
+            "type": "SCREEN_LAYOUT",
+            "bank": 3,
+            "zoneOffset": 0,
+            "windowAddress": 40960,
+            "storedSize": 768,
+            "uncompressedSize": 768,
+            "flags": 0,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1777833014252",
+            "sceneName": "New Playable Screen",
+            "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0000; window=p3/#A000"
+          },
+          {
+            "id": 7,
+            "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT",
+            "group": "SCREENS",
+            "type": "SCREEN_EFFECTS_LAYOUT",
+            "bank": 3,
+            "zoneOffset": 768,
+            "windowAddress": 41728,
+            "storedSize": 768,
+            "uncompressedSize": 768,
+            "flags": 0,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1777833014252",
+            "sceneName": "New Playable Screen",
+            "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0300; window=p3/#A000"
+          },
+          {
+            "id": 11,
+            "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP",
+            "group": "SCREENS",
+            "type": "SCREEN_DATA",
+            "bank": 3,
+            "zoneOffset": 1536,
+            "windowAddress": 42496,
+            "storedSize": 768,
+            "uncompressedSize": 768,
+            "flags": 0,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1777833014252",
+            "sceneName": "New Playable Screen",
+            "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0600; window=p3/#A000"
+          },
+          {
+            "id": 12,
+            "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP",
+            "group": "SCREENS",
+            "type": "SCREEN_DATA",
+            "bank": 3,
+            "zoneOffset": 2304,
+            "windowAddress": 43264,
+            "storedSize": 768,
+            "uncompressedSize": 768,
+            "flags": 0,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1777833014252",
+            "sceneName": "New Playable Screen",
+            "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0900; window=p3/#A000"
+          },
+          {
+            "id": 13,
+            "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP",
+            "group": "SCREENS",
+            "type": "SCREEN_DATA",
+            "bank": 3,
+            "zoneOffset": 3072,
+            "windowAddress": 44032,
+            "storedSize": 768,
+            "uncompressedSize": 768,
+            "flags": 0,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1777833014252",
+            "sceneName": "New Playable Screen",
+            "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0C00; window=p3/#A000"
+          },
+          {
+            "id": 9,
+            "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE",
+            "group": "SCREENS",
+            "type": "SCREEN_DATA",
+            "bank": 3,
+            "zoneOffset": 3840,
+            "windowAddress": 44800,
+            "storedSize": 11,
+            "uncompressedSize": 11,
+            "flags": 0,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1777833014252",
+            "sceneName": "New Playable Screen",
+            "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0F00; window=p3/#A000"
+          },
+          {
+            "id": 8,
+            "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE",
+            "group": "SCREENS",
+            "type": "SCREEN_EFFECT_ZONE_TABLE",
+            "bank": 3,
+            "zoneOffset": 3851,
+            "windowAddress": 44811,
+            "storedSize": 1,
+            "uncompressedSize": 1,
+            "flags": 0,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1777833014252",
+            "sceneName": "New Playable Screen",
+            "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0F0B; window=p3/#A000"
+          },
+          {
+            "id": 10,
+            "label": "SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE",
+            "group": "SCREENS",
+            "type": "SCREEN_DATA",
+            "bank": 3,
+            "zoneOffset": 3852,
+            "windowAddress": 44812,
+            "storedSize": 256,
+            "uncompressedSize": 256,
+            "flags": 0,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1777833014252",
+            "sceneName": "New Playable Screen",
+            "placementReason": "scene-aware first-fit unit; scene=New Playable Screen; resources=8; stored=4108; zoneSize=8192; proposedBank=3; offset=#0F0C; window=p3/#A000"
+          },
+          {
+            "id": 3,
+            "label": "tilebank_pattern_data_0",
+            "group": "PATTERNS",
+            "type": "TILE_PATTERNS",
+            "bank": 3,
+            "zoneOffset": 4108,
+            "windowAddress": 45068,
+            "storedSize": 1088,
+            "uncompressedSize": 1088,
+            "flags": 0,
+            "unitKind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "placementReason": "shared/global first-fit unit; resources=1; stored=1088; zoneSize=8192; proposedBank=3; offset=#100C; window=p3/#A000"
+          },
+          {
+            "id": 5,
+            "label": "tilebank_color_data_0",
+            "group": "COLORS",
+            "type": "TILE_COLORS",
+            "bank": 3,
+            "zoneOffset": 5196,
+            "windowAddress": 46156,
+            "storedSize": 1088,
+            "uncompressedSize": 1088,
+            "flags": 0,
+            "unitKind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "placementReason": "shared/global first-fit unit; resources=1; stored=1088; zoneSize=8192; proposedBank=3; offset=#144C; window=p3/#A000"
+          },
+          {
+            "id": 2,
+            "label": "tile_pattern_bank0",
+            "group": "PATTERNS",
+            "type": "TILE_PATTERNS",
+            "bank": 3,
+            "zoneOffset": 6284,
+            "windowAddress": 47244,
+            "storedSize": 1016,
+            "uncompressedSize": 1016,
+            "flags": 0,
+            "unitKind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "placementReason": "shared/global first-fit unit; resources=1; stored=1016; zoneSize=8192; proposedBank=3; offset=#188C; window=p3/#A000"
+          },
+          {
+            "id": 0,
+            "label": "NEW_SPRITE_0_F0_LAYER2",
+            "group": "SPRITES",
+            "type": "SPRITE_PATTERNS",
+            "bank": 3,
+            "zoneOffset": 7300,
+            "windowAddress": 48260,
+            "storedSize": 32,
+            "uncompressedSize": 32,
+            "flags": 0,
+            "unitKind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "placementReason": "shared/global first-fit unit; resources=1; stored=32; zoneSize=8192; proposedBank=3; offset=#1C84; window=p3/#A000"
+          },
+          {
+            "id": 1,
+            "label": "SPRITE_PLACEHOLDER_PATTERN",
+            "group": "SPRITES",
+            "type": "SPRITE_PATTERNS",
+            "bank": 3,
+            "zoneOffset": 7332,
+            "windowAddress": 48292,
+            "storedSize": 32,
+            "uncompressedSize": 32,
+            "flags": 0,
+            "unitKind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "placementReason": "shared/global first-fit unit; resources=1; stored=32; zoneSize=8192; proposedBank=3; offset=#1CA4; window=p3/#A000"
+          }
+        ],
+        "resourceIds": [
+          6,
+          7,
+          11,
+          12,
+          13,
+          9,
+          8,
+          10,
+          3,
+          5,
+          2,
+          0,
+          1
+        ],
+        "resourceLabels": [
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE",
+          "tilebank_pattern_data_0",
+          "tilebank_color_data_0",
+          "tile_pattern_bank0",
+          "NEW_SPRITE_0_F0_LAYER2",
+          "SPRITE_PLACEHOLDER_PATTERN"
+        ]
+      },
+      {
+        "bank": 4,
+        "usedBytes": 1016,
+        "freeBytes": 7176,
+        "units": [
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              4
+            ],
+            "resourceLabels": [
+              "tile_color_bank0"
+            ],
+            "storedBytes": 1016,
+            "rawBytes": 1016,
+            "placementReason": "shared/global first-fit unit; resources=1; stored=1016; zoneSize=8192"
+          }
+        ],
+        "resourcePlacements": [
+          {
+            "id": 4,
+            "label": "tile_color_bank0",
+            "group": "COLORS",
+            "type": "TILE_COLORS",
+            "bank": 4,
+            "zoneOffset": 0,
+            "windowAddress": 40960,
+            "storedSize": 1016,
+            "uncompressedSize": 1016,
+            "flags": 0,
+            "unitKind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "placementReason": "shared/global first-fit unit; resources=1; stored=1016; zoneSize=8192; proposedBank=4; offset=#0000; window=p3/#A000"
+          }
+        ],
+        "resourceIds": [
+          4
+        ],
+        "resourceLabels": [
+          "tile_color_bank0"
+        ]
+      }
+    ],
+    "sceneBankPlan": [
+      {
+        "index": 0,
+        "id": "screenmap_1777833014252",
+        "name": "New Playable Screen",
+        "currentBanks": [
+          3,
+          4
+        ],
+        "proposedBanks": [
+          3
+        ]
+      }
+    ],
+    "delta": {
+      "currentBankCount": 2,
+      "proposedBankCount": 2,
+      "currentSceneBankTouches": 2,
+      "proposedSceneBankTouches": 1
+    }
+  },
+  "sceneClusters": [
+    {
+      "index": 0,
+      "id": "screenmap_1777833014252",
+      "name": "New Playable Screen",
+      "resourceIds": [
+        6,
+        7,
+        11,
+        12,
+        13,
+        9,
+        8,
+        10
+      ],
+      "banks": [
+        3,
+        4
+      ],
+      "bankCount": 2,
+      "storedBytes": 4108,
+      "rawBytes": 4108,
+      "coLocated": false,
+      "preferredBank": 3
+    }
+  ],
+  "pressureWarnings": [],
+  "sharedOrGlobalResources": [
+    {
+      "id": 3,
+      "label": "tilebank_pattern_data_0",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 40960,
+      "zoneOffset": 0,
+      "size": 1088,
+      "storedSize": 1088,
+      "uncompressedSize": 1088,
+      "flags": 0
+    },
+    {
+      "id": 5,
+      "label": "tilebank_color_data_0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 3,
+      "windowAddress": 42048,
+      "zoneOffset": 1088,
+      "size": 1088,
+      "storedSize": 1088,
+      "uncompressedSize": 1088,
+      "flags": 0
+    },
+    {
+      "id": 2,
+      "label": "tile_pattern_bank0",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 43136,
+      "zoneOffset": 2176,
+      "size": 1016,
+      "storedSize": 1016,
+      "uncompressedSize": 1016,
+      "flags": 0
+    },
+    {
+      "id": 4,
+      "label": "tile_color_bank0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 3,
+      "windowAddress": 44152,
+      "zoneOffset": 3192,
+      "size": 1016,
+      "storedSize": 1016,
+      "uncompressedSize": 1016,
+      "flags": 0
+    },
+    {
+      "id": 0,
+      "label": "NEW_SPRITE_0_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 49008,
+      "zoneOffset": 8048,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 1,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 49040,
+      "zoneOffset": 8080,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    }
+  ],
+  "duplicationCandidates": [
+    {
+      "id": 0,
+      "label": "NEW_SPRITE_0_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 1,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    }
+  ]
+}

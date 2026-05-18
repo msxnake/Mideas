@@ -118,41 +118,46 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
         return (
           <div className="space-y-2">
             <ParamInput
-              label="Speed (ms)"
+              label="Speed"
               type="number"
-              value={action.params.speedMs ?? 200}
+              value={action.params.speed ?? action.params.speedMs ?? 6}
               onChange={(e) => {
                 const val = e.target.value;
-                const parsedVal = val === '' ? 200 : parseInt(val, 10);
-                handleParamChange('speedMs', isNaN(parsedVal) ? 200 : parsedVal);
+                const parsedVal = val === '' ? 6 : parseInt(val, 10);
+                handleParamChange('speed', isNaN(parsedVal) ? 6 : parsedVal);
               }}
             />
             <div className="text-xs text-blue-400 italic">
-              🎬 Sets animation speed in milliseconds per frame (lower = faster)
+              Sets animation speed in game ticks per frame (lower = faster).
             </div>
           </div>
         );
 
       case ActionTypes.TOGGLE_ANIMATION:
+        const animationMode = action.params.mode || (action.params.playing === 0 ? 'stop' : action.params.playing ? 'start' : 'toggle');
         return (
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
               <label className="text-xs text-gray-400 w-16">Mode</label>
               <select
-                value={action.params.mode || 'toggle'}
-                onChange={(e) => handleParamChange('mode', e.target.value)}
+                value={animationMode}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  const playing = mode === 'stop' ? 0 : 1;
+                  onUpdateParams({ ...action.params, mode, playing });
+                }}
                 className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
               >
-                <option value="start">▶️ Start Animation</option>
-                <option value="stop">⏸️ Stop Animation</option>
-                <option value="toggle">🔄 Toggle Animation</option>
-              </select>
+                  <option value="start">Start Animation</option>
+                  <option value="stop">Stop Animation</option>
+                  <option value="toggle">Toggle Animation</option>
+                </select>
+              </div>
+              <div className="text-xs text-blue-400 italic">
+                Controls animation playback. Toggle is exported as play for ROM builds.
+              </div>
             </div>
-            <div className="text-xs text-blue-400 italic">
-              🎬 Controls animation playback (start/stop/toggle)
-            </div>
-          </div>
-        );
+          );
 
       case ActionTypes.PLAY_SOUND:
         const availableSounds = allAssets.filter(a => a.type === 'sound');

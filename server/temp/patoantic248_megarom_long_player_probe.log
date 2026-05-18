@@ -1,0 +1,15 @@
+BP_4010 pc=4010 sp=F2EC bank=FF/FF/FF flow=FF runtime=FF player=FF pxy=65535,65535 sat=FF FF FF FF FF FF FF FF FF FF FF FF satv=D1 00 00 0F D1 00 01 0F D1 00 02 0F
+t13_start pc=77D2 sp=F376 bank=01/02/03 flow=01 runtime=01 player=00 pxy=8,80 sat=50 08 60 06 50 08 64 0F A0 6D 70 0E satv=50 08 60 06 50 08 64 0F A0 6D 70 0E
+SHOTOK t13_start.png
+t17_right pc=885A sp=F360 bank=01/02/03 flow=01 runtime=01 player=00 pxy=120,80 sat=50 78 60 06 50 78 64 0F A0 7D 74 0E satv=50 78 60 06 50 78 64 0F A0 7E 74 0E
+SHOTOK t17_right.png
+t19_left pc=793B sp=F378 bank=01/02/03 flow=01 runtime=01 player=00 pxy=22,80 sat=50 16 D0 06 50 16 D4 0F A0 6A 74 0E satv=50 16 D0 06 50 16 D4 0F A0 6A 74 0E
+SHOTOK t19_left.png
+t22_up pc=40DF sp=F378 bank=01/02/03 flow=01 runtime=01 player=00 pxy=22,80 sat=50 16 38 06 50 16 3C 0F A0 90 70 0E satv=50 16 38 06 50 16 3C 0F A0 90 70 0E
+SHOTOK t22_up.png
+t30_stability pc=40D8 sp=F358 bank=0B/02/03 flow=01 runtime=01 player=00 pxy=22,80 sat=50 16 60 06 50 16 64 0F A0 77 70 0E satv=50 16 60 06 50 16 64 0F A0 77 70 0E
+SHOTOK t30_stability.png
+t42_stability pc=80E9 sp=F362 bank=01/02/03 flow=01 runtime=01 player=00 pxy=22,80 sat=50 16 60 06 50 16 64 0F A0 81 70 0E satv=50 16 60 06 50 16 64 0F A0 82 70 0E
+SHOTOK t42_stability.png
+t50_final pc=6827 sp=F346 bank=08/02/03 flow=01 runtime=01 player=00 pxy=22,80 sat=50 16 60 06 50 16 64 0F A0 6A 70 0E satv=50 16 60 06 50 16 64 0F A0 6A 70 0E
+SHOTOK t50_final.png

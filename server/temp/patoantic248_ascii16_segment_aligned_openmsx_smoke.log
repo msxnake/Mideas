@@ -1,0 +1,13 @@
+BP_4010 pc=4010 sp=F2EC bank=00/04/33/3A flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+space1_before pc=199F sp=D1FE bank=03/03/01/01 flow=00 screen=7A irq=04F3 inirq=24 pos=19040,6583
+space1_after pc=199E sp=CF4C bank=03/03/01/01 flow=00 screen=7A irq=04F3 inirq=24 pos=19040,6583
+space2_before pc=1130 sp=F2FE bank=E7/5A/C1/00 flow=08 screen=7A irq=04F3 inirq=24 pos=19040,6583
+space2_after pc=1130 sp=F2FE bank=E7/5A/C1/00 flow=08 screen=7A irq=04F3 inirq=24 pos=19040,6583
+t12 pc=1B19 sp=F300 bank=E7/5A/C1/00 flow=08 screen=7A irq=04F3 inirq=24 pos=19040,6583
+SHOTOK patoantic248_ascii16_segment_aligned_t12.png
+right_before pc=1B19 sp=F300 bank=E7/5A/C1/00 flow=08 screen=7A irq=04F3 inirq=24 pos=19040,6583
+right_after pc=1B19 sp=F300 bank=E7/5A/C1/00 flow=08 screen=7A irq=04F3 inirq=24 pos=19040,6583
+t16 pc=1B19 sp=F300 bank=E7/5A/C1/00 flow=08 screen=7A irq=04F3 inirq=24 pos=19040,6583
+SHOTOK patoantic248_ascii16_segment_aligned_t16.png
+t22 pc=1B19 sp=F300 bank=E7/5A/C1/00 flow=08 screen=7A irq=04F3 inirq=24 pos=19040,6583
+SHOTOK patoantic248_ascii16_segment_aligned_t22.png

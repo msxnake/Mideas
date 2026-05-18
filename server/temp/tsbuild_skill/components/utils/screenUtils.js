@@ -1,11 +1,35 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.renderScreenToCanvas = exports.deepCompareTiles = exports.generateSuperRLEData = exports.generateOptimizedRLEData = exports.generateBehaviorMapData = exports.buildScreenInteractionMaps = exports.buildScreenCharBehaviorTable = exports.encodeBehaviorByteFromLogicalProperties = exports.encodeInteractionTargetFromLogicalProperties = exports.encodeInteractionValueFromLogicalProperties = exports.encodeInteractionTypeIdFromLogicalProperties = exports.normalizeTileInteractionType = exports.isTriggeredTileInteractionType = exports.getScreenBehaviorLayer = exports.resolveScreenBehaviorSource = exports.generateBehaviorMapASMCode = exports.generateScreenLayoutExportBinary = exports.generateScreenLayoutExportASMCode = exports.generateScreenLayoutASMCode = exports.generateScreenMapLayoutBytes = void 0;
+exports.renderScreenToCanvas = exports.deepCompareTiles = exports.generateSuperRLEData = exports.generateOptimizedRLEData = exports.generateBehaviorMapData = exports.buildScreenInteractionMaps = exports.buildScreenCharBehaviorTable = exports.getScreenTileLogicalProperties = exports.getTileCharLogicalProperties = exports.encodeBehaviorByteFromLogicalProperties = exports.encodeInteractionTargetFromLogicalProperties = exports.encodeInteractionValueFromLogicalProperties = exports.encodeInteractionTypeIdFromLogicalProperties = exports.normalizeTileInteractionType = exports.isTriggeredTileInteractionType = exports.getScreenBehaviorLayer = exports.resolveScreenBehaviorSource = exports.generateBehaviorMapASMCode = exports.generateScreenLayoutExportBinary = exports.generateScreenLayoutExportASMCode = exports.generateScreenLayoutASMCode = exports.generateScreenMapLayoutBytes = exports.getScreen2TileBanksForCell = void 0;
 exports.createTileDataURL = createTileDataURL;
 exports.createSpriteDataURL = createSpriteDataURL;
 const types_1 = require("../../types");
+const tileBankOptimization_1 = require("../../utils/tileBankOptimization");
 const constants_1 = require("../../constants");
 const screenModeConfig_1 = require("../../utils/screenModeConfig");
+const getScreen2TileBanksForCell = (tileBanks, mapX, mapY) => {
+    if (!tileBanks?.length)
+        return [];
+    const enabledBanks = tileBanks.filter(bank => bank.enabled ?? true);
+    if (enabledBanks.length === 0)
+        return [];
+    const zoneMatches = enabledBanks.filter(bank => {
+        const zone = bank.screenZone;
+        if (!zone)
+            return false;
+        return mapX >= zone.x
+            && mapX < zone.x + zone.width
+            && mapY >= zone.y
+            && mapY < zone.y + zone.height;
+    });
+    if (zoneMatches.length > 0) {
+        return zoneMatches;
+    }
+    const sectorIndex = Math.max(0, Math.min(enabledBanks.length - 1, Math.floor((mapY || 0) / 8)));
+    const sectorBank = enabledBanks[sectorIndex];
+    return sectorBank ? [sectorBank] : enabledBanks;
+};
+exports.getScreen2TileBanksForCell = getScreen2TileBanksForCell;
 const RLE_MARKER_PLETTER = 0xC9;
 // Constants for SuperRLE
 const RLE_CONTROL_MIN_COUNT = 3;
@@ -166,16 +190,14 @@ const generateScreenMapLayoutBytes = (screenMap, tileset, tileBanks, currentScre
                         });
                         globalThis.screenUtils_firstTileLogged = true;
                     }
-                    for (const bank of tileBanks) {
+                    for (const bank of (0, exports.getScreen2TileBanksForCell)(tileBanks, mapX, mapY)) {
                         // Only process if bank is enabled and tile is assigned
                         if ((bank.enabled ?? true) && bank.assignedTiles[screenTile.tileId]) {
                             const assignment = bank.assignedTiles[screenTile.tileId];
                             const subX = screenTile.subTileX || 0;
                             const subY = screenTile.subTileY || 0;
                             if (tileAsset) {
-                                const baseCharCode = assignment.charCode;
-                                const widthInChars = Math.ceil(tileAsset.width / constants_1.EDITOR_BASE_TILE_DIM_S2);
-                                actualCharCodeForCell = baseCharCode + (subY * widthInChars) + subX;
+                                actualCharCodeForCell = (0, tileBankOptimization_1.resolveTileAssignmentCharCode)(assignment, tileAsset, subX, subY) ?? constants_1.EMPTY_CELL_CHAR_CODE;
                             }
                             else if (Array.isArray(assignment.fontCharacters)) {
                                 const fontChar = assignment.fontCharacters[subX];
@@ -430,6 +452,19 @@ const encodeBehaviorByteFromLogicalProperties = (logicalProperties) => {
     return ((familyId & 0x0f) << 4) | (flagBits & 0x0f);
 };
 exports.encodeBehaviorByteFromLogicalProperties = encodeBehaviorByteFromLogicalProperties;
+const getTileCharLogicalProperties = (tile, charX = 0, charY = 0) => {
+    if (!tile)
+        return undefined;
+    const key = `${Math.max(0, Math.floor(charX))},${Math.max(0, Math.floor(charY))}`;
+    return tile.charLogicalProperties?.[key] || tile.logicalProperties;
+};
+exports.getTileCharLogicalProperties = getTileCharLogicalProperties;
+const getScreenTileLogicalProperties = (screenTile, tileById) => {
+    if (!screenTile?.tileId)
+        return undefined;
+    return (0, exports.getTileCharLogicalProperties)(tileById.get(screenTile.tileId), screenTile.subTileX ?? 0, screenTile.subTileY ?? 0);
+};
+exports.getScreenTileLogicalProperties = getScreenTileLogicalProperties;
 const mergeBehaviorBytes = (existing, next) => {
     if (existing === 0)
         return next;
@@ -458,8 +493,8 @@ const buildScreenCharBehaviorTable = (screenMapData, tileset, tileBanks, current
     for (let row = 0; row < (screenMapData.height ?? 0); row++) {
         for (let col = 0; col < (screenMapData.width ?? 0); col++) {
             const charCode = layoutBytes[(row * (screenMapData.width ?? 0)) + col] ?? 0;
-            const tileId = screenMapData.layers.background[row]?.[col]?.tileId;
-            const behaviorByte = (0, exports.encodeBehaviorByteFromLogicalProperties)(tileId ? tileById.get(tileId)?.logicalProperties : undefined);
+            const screenTile = screenMapData.layers.background[row]?.[col];
+            const behaviorByte = (0, exports.encodeBehaviorByteFromLogicalProperties)((0, exports.getScreenTileLogicalProperties)(screenTile, tileById));
             charBehaviorTable[charCode & 0xff] = mergeBehaviorBytes(charBehaviorTable[charCode & 0xff], behaviorByte);
         }
     }
@@ -482,8 +517,7 @@ const buildScreenInteractionMaps = (screenMapData, tileset) => {
             const srcCol = sourceCols > 0
                 ? Math.min(sourceCols - 1, Math.floor((col * sourceCols) / SCREEN_WIDTH))
                 : 0;
-            const tileId = sourceLayer[srcRow]?.[srcCol]?.tileId;
-            const logicalProperties = tileId ? tileById.get(tileId)?.logicalProperties : undefined;
+            const logicalProperties = (0, exports.getScreenTileLogicalProperties)(sourceLayer[srcRow]?.[srcCol], tileById);
             typeMap.push((0, exports.encodeInteractionTypeIdFromLogicalProperties)(logicalProperties));
             valueMap.push((0, exports.encodeInteractionValueFromLogicalProperties)(logicalProperties));
             targetMap.push((0, exports.encodeInteractionTargetFromLogicalProperties)(logicalProperties));
@@ -502,9 +536,21 @@ exports.buildScreenInteractionMaps = buildScreenInteractionMaps;
 const generateBehaviorMapData = (screenMapData, tileset, options) => {
     const source = options?.source ?? (0, exports.resolveScreenBehaviorSource)(screenMapData);
     if (source === 'backgroundChars') {
-        const charBehaviorTable = (0, exports.buildScreenCharBehaviorTable)(screenMapData, tileset, options?.tileBanks, options?.currentScreenMode);
-        const layoutBytes = Array.from((0, exports.generateScreenMapLayoutBytes)(screenMapData, tileset, options?.tileBanks, options?.currentScreenMode ?? "SCREEN 2 (Graphics I)"));
-        return layoutBytes.map(value => charBehaviorTable[value & 0xff] ?? 0);
+        const behaviorMapData = [];
+        const tileById = new Map(tileset.map(tile => [tile.id, tile]));
+        const backgroundLayer = screenMapData.layers.background;
+        const activeX = screenMapData.activeAreaX ?? 0;
+        const activeY = screenMapData.activeAreaY ?? 0;
+        const activeW = screenMapData.activeAreaWidth ?? screenMapData.width;
+        const activeH = screenMapData.activeAreaHeight ?? screenMapData.height;
+        for (let r = 0; r < activeH; r++) {
+            const mapY = activeY + r;
+            for (let c = 0; c < activeW; c++) {
+                const mapX = activeX + c;
+                behaviorMapData.push((0, exports.encodeBehaviorByteFromLogicalProperties)((0, exports.getScreenTileLogicalProperties)(backgroundLayer[mapY]?.[mapX], tileById)));
+            }
+        }
+        return behaviorMapData;
     }
     const behaviorMapData = [];
     const activeCollisionLayer = screenMapData.layers.collision;
@@ -514,13 +560,7 @@ const generateBehaviorMapData = (screenMapData, tileset, options) => {
         for (let c = 0; c < (screenMapData.activeAreaWidth ?? screenMapData.width); c++) {
             const mapX = (screenMapData.activeAreaX ?? 0) + c;
             const screenTile = activeCollisionLayer[mapY]?.[mapX];
-            if (screenTile?.tileId) {
-                const tileAsset = tileById.get(screenTile.tileId);
-                behaviorMapData.push((0, exports.encodeBehaviorByteFromLogicalProperties)(tileAsset?.logicalProperties));
-            }
-            else {
-                behaviorMapData.push(0);
-            }
+            behaviorMapData.push((0, exports.encodeBehaviorByteFromLogicalProperties)((0, exports.getScreenTileLogicalProperties)(screenTile, tileById)));
         }
     }
     return behaviorMapData;
@@ -602,7 +642,7 @@ const generateSuperRLEData = (backgroundLayer, tileset, baseTileDim, tileBanks, 
     const tilePartReferencesList = [];
     const tilePartToByteMap = new Map();
     let nextByteValueForRefs = 0;
-    const getByteForTilePart = (tileId, subTileX, subTileY) => {
+    const getByteForTilePart = (tileId, subTileX, subTileY, mapX = 0, mapY = 0) => {
         const emptyKey = "EMPTY_TILE_PART_PLACEHOLDER";
         if (!tileId) {
             if (!tilePartToByteMap.has(emptyKey)) {
@@ -625,14 +665,14 @@ const generateSuperRLEData = (backgroundLayer, tileset, baseTileDim, tileBanks, 
         let charCodeForCell = constants_1.EMPTY_CELL_CHAR_CODE;
         if (tileBanks && baseTileDim === constants_1.EDITOR_BASE_TILE_DIM_S2) {
             let foundInBank = false;
-            for (const bank of tileBanks) {
+            for (const bank of (0, exports.getScreen2TileBanksForCell)(tileBanks, mapX, mapY)) {
                 const isBankEffectivelyEnabled = bank.enabled ?? true;
                 if (isBankEffectivelyEnabled && bank.assignedTiles[tileId]) {
                     const assignment = bank.assignedTiles[tileId];
                     const sX = subTileX || 0;
                     const sY = subTileY || 0;
                     const calculatedCharCode = tileAsset
-                        ? assignment.charCode + (sY * Math.ceil(tileAsset.width / baseTileDim)) + sX
+                        ? (0, tileBankOptimization_1.resolveTileAssignmentCharCode)(assignment, tileAsset, sX, sY) ?? constants_1.EMPTY_CELL_CHAR_CODE
                         : (Array.isArray(assignment.fontCharacters) ? (assignment.fontCharacters[sX]?.bankCharCode ?? constants_1.EMPTY_CELL_CHAR_CODE) : constants_1.EMPTY_CELL_CHAR_CODE);
                     if (calculatedCharCode >= bank.charsetRangeStart && calculatedCharCode <= bank.charsetRangeEnd) {
                         charCodeForCell = calculatedCharCode;
@@ -676,7 +716,7 @@ const generateSuperRLEData = (backgroundLayer, tileset, baseTileDim, tileBanks, 
         for (let r = 0; r < mapHeight; r++) {
             for (let c = 0; c < mapWidth; c++) {
                 const screenTile = backgroundLayer[r][c];
-                uncompressedBytes.push(getByteForTilePart(screenTile.tileId, screenTile.subTileX, screenTile.subTileY));
+                uncompressedBytes.push(getByteForTilePart(screenTile.tileId, screenTile.subTileX, screenTile.subTileY, c, r));
             }
         }
     }
@@ -795,6 +835,9 @@ const deepCompareTiles = (tile1, tile2) => {
     }
     // Compare logical properties
     if (JSON.stringify(tile1.logicalProperties) !== JSON.stringify(tile2.logicalProperties)) {
+        return false;
+    }
+    if (JSON.stringify(tile1.charLogicalProperties || {}) !== JSON.stringify(tile2.charLogicalProperties || {})) {
         return false;
     }
     return true;

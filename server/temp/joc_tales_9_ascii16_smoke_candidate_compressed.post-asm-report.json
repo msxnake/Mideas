@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\joc_tales_9_ascii16_smoke_candidate_compressed.asm",
+  "metrics": {
+    "original_line_count": 20325,
+    "output_line_count": 20325,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-u3c8fsnh\\joc_tales_9_ascii16_smoke_candidate_compressed.optimized.optimized.rom",
+        "size_bytes": 131072,
+        "sha256": "eb3288ba2963af68c9c950ee8d582c30678779fddd4aafcbc462ae2b51b81ad1"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-u3c8fsnh\\joc_tales_9_ascii16_smoke_candidate_compressed.original.rom",
+        "size_bytes": 131072,
+        "sha256": "eb3288ba2963af68c9c950ee8d582c30678779fddd4aafcbc462ae2b51b81ad1"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

@@ -1,0 +1,17 @@
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/04 flow=00 screen=33 irq=0000 player=0,0 boss active=05 count=00 xy=0,4 prev=51,51 tick=01 beh idx=00 type=00 timer=00/00 target=00:0,0 dirty=00
+space1_before pc=C208 sp=F376 bank=00/06/01/01 flow=01 screen=00 irq=00B8 player=16,144 boss active=01 count=01 xy=17,10 prev=17,10 tick=83 beh idx=02 type=01 timer=3C/5A target=00:4,10 dirty=00
+space1_after pc=68A7 sp=F36A bank=00/00/01/01 flow=01 screen=00 irq=00C7 player=16,116 boss active=01 count=01 xy=15,10 prev=15,10 tick=8C beh idx=02 type=01 timer=33/5A target=00:4,10 dirty=00
+space2_before pc=62CF sp=F364 bank=04/04/01/01 flow=01 screen=00 irq=0130 player=16,144 boss active=01 count=01 xy=4,10 prev=4,10 tick=D0 beh idx=04 type=06 timer=0F/10 target=00:0,0 dirty=01
+space2_after pc=781D sp=F372 bank=00/00/01/01 flow=01 screen=00 irq=013F player=16,110 boss active=01 count=01 xy=4,10 prev=4,10 tick=DC beh idx=04 type=06 timer=03/10 target=00:0,0 dirty=00
+t115 pc=6A76 sp=F372 bank=00/00/01/01 flow=01 screen=00 irq=01C6 player=16,144 boss active=01 count=01 xy=5,10 prev=5,10 tick=57 beh idx=08 type=01 timer=25/28 target=00:24,10 dirty=00
+SHOTOK joc51_boss_t115.png
+t130 pc=C21D sp=F372 bank=00/00/01/01 flow=01 screen=00 irq=0220 player=16,144 boss active=01 count=01 xy=23,10 prev=23,10 tick=7B beh idx=08 type=01 timer=01/28 target=00:24,10 dirty=00
+SHOTOK joc51_boss_t130.png
+t150 pc=616B sp=F37C bank=06/06/01/01 flow=01 screen=00 irq=0297 player=16,144 boss active=01 count=01 xy=23,10 prev=23,10 tick=E8 beh idx=02 type=01 timer=54/5A target=00:4,10 dirty=00
+SHOTOK joc51_boss_t150.png
+t170 pc=616B sp=F37C bank=06/06/01/01 flow=01 screen=00 irq=030F player=16,144 boss active=01 count=01 xy=6,10 prev=6,10 tick=2C beh idx=02 type=01 timer=10/5A target=00:4,10 dirty=00
+SHOTOK joc51_boss_t170.png
+t200 pc=61C8 sp=F36C bank=00/00/01/01 flow=01 screen=00 irq=03C3 player=16,144 boss active=01 count=01 xy=4,10 prev=4,10 tick=CC beh idx=07 type=00 timer=05/64 target=00:0,0 dirty=00
+SHOTOK joc51_boss_t200.png
+t240 pc=62E2 sp=F36A bank=00/00/01/01 flow=01 screen=00 irq=04B3 player=16,144 boss active=01 count=01 xy=20,10 prev=20,10 tick=6F beh idx=02 type=01 timer=4A/5A target=00:4,10 dirty=00
+SHOTOK joc51_boss_t240.png

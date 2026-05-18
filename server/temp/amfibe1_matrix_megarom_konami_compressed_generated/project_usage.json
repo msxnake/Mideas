@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "scope": "konami8k_megarom_data",
+  "mapper": {
+    "format": "konami",
+    "segmentSize": 8192,
+    "dataWindowPage": "p3",
+    "windowBase": "#A000",
+    "windowMask": "#1FFF",
+    "bankDivisor": "#2000"
+  },
+  "features": {
+    "sprites": true,
+    "tiles": true,
+    "screens": false,
+    "entities": false,
+    "components": true,
+    "gameFlow": false,
+    "menus": false,
+    "bosses": true,
+    "dialogues": false,
+    "worldmaps": false,
+    "fonts": true,
+    "animations": false,
+    "collisions": false,
+    "sounds": false,
+    "stateMachines": false
+  },
+  "counts": {
+    "components": 35,
+    "componentRuntimeTypes": 0,
+    "templates": 17,
+    "sprites": 0,
+    "tiles": 207,
+    "tileBanks": 0,
+    "screens": 0,
+    "entities": 0,
+    "menus": 0,
+    "bosses": 1,
+    "bossInstances": 0,
+    "bossAttackTypes": 0,
+    "bossAttacksReferenced": 0,
+    "dialogues": 0,
+    "worldmaps": 0,
+    "presentationScreens": 0,
+    "sounds": 0,
+    "tracks": 0,
+    "stateMachines": 0,
+    "stateMachineActionTypes": 0,
+    "stateMachineConditionTypes": 0,
+    "bankedResources": 3
+  },
+  "resourceGroups": [
+    {
+      "key": "COLORS",
+      "count": 1
+    },
+    {
+      "key": "PATTERNS",
+      "count": 1
+    },
+    {
+      "key": "SPRITES",
+      "count": 1
+    }
+  ],
+  "resourceTypes": [
+    {
+      "key": "SPRITE_PATTERNS",
+      "count": 1
+    },
+    {
+      "key": "TILE_COLORS",
+      "count": 1
+    },
+    {
+      "key": "TILE_PATTERNS",
+      "count": 1
+    }
+  ],
+  "bossAttackRuntime": {
+    "usedTypes": [],
+    "unusedTypes": [
+      "Projectile",
+      "Meteor",
+      "Bomb",
+      "Boomerang",
+      "Rock",
+      "Laser",
+      "SineWave",
+      "HomingMissile",
+      "SlamRocks",
+      "FallingBlocks"
+    ],
+    "typeCounts": {},
+    "referencedAttacks": 0
+  },
+  "componentRuntime": {
+    "usedComponents": [],
+    "unusedComponents": [
+      "Input",
+      "Position",
+      "Movement",
+      "Collision",
+      "Sprite",
+      "Behavior",
+      "Health",
+      "Animation",
+      "Jump",
+      "Gravity",
+      "WallGrab",
+      "WallJump",
+      "TileInteraction",
+      "AutoDestroy",
+      "Cursors",
+      "StateMachine",
+      "Carry",
+      "Damage",
+      "Shoot",
+      "WallCollision",
+      "DeadlyTiles",
+      "InWater",
+      "Collectible",
+      "RetractableGate",
+      "AutoControlScript",
+      "Mirror"
+    ],
+    "componentCounts": {},
+    "activeEntities": 0
+  },
+  "stateMachineRuntime": {
+    "stateMachines": 0,
+    "transitions": 0,
+    "usedActionIds": [],
+    "usedActionTypes": [],
+    "actionTypeCounts": {},
+    "unknownActionTypes": [],
+    "usedConditionIds": [],
+    "usedConditionTypes": [],
+    "conditionTypeCounts": {},
+    "unknownConditionTypes": [],
+    "implicitAlwaysTrueConditions": 0
+  },
+  "gameFlowReachability": {
+    "hasGameFlow": false,
+    "reachableScreenIds": [],
+    "reachableWorldIds": [],
+    "scenes": [],
+    "counts": {
+      "totalScreens": 0,
+      "reachableScreens": 0,
+      "unreachableScreens": 0,
+      "unknownScreens": 0
+    }
+  },
+  "scenes": [],
+  "bankedResources": [
+    {
+      "id": 0,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 42501,
+      "size": 5,
+      "storedSize": 5,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0605; zone slack after pack 6646 bytes"
+    },
+    {
+      "id": 1,
+      "label": "tile_pattern_bank0",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 40960,
+      "size": 982,
+      "storedSize": 982,
+      "uncompressedSize": 1008,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single patterns resource; ZX0 982/1008 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 6646 bytes"
+    },
+    {
+      "id": 2,
+      "label": "tile_color_bank0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 3,
+      "windowAddress": 41942,
+      "size": 559,
+      "storedSize": 559,
+      "uncompressedSize": 1008,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single colors resource; ZX0 559/1008 bytes; bank 3 zone 0 offset +#03D6; zone slack after pack 6646 bytes"
+    }
+  ]
+}

@@ -6,6 +6,7 @@
 import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig, DialogueAsset, PortraitAsset, Boss } from '../types';
 import { StateMachine } from '../statemachine.types';
 import { getUsedGlobalVariables } from './globalVariablesUtils';
+import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
 
 /**
  * Hot spot marker interface
@@ -70,8 +71,8 @@ export interface TemplateConfig {
  * Analyze project assets to extract useful information
  */
 export function analyzeProject(projectName: string, assets: ProjectAsset[]): ProjectAnalysis {
-  const components = assets.filter(a => a.type === 'componentdefinition').map(a => a.data as ComponentDefinition);
-  const templates = assets.filter(a => a.type === 'entitytemplate').map(a => a.data as EntityTemplate);
+  let components = assets.filter(a => a.type === 'componentdefinition').map(a => a.data as ComponentDefinition);
+  let templates = assets.filter(a => a.type === 'entitytemplate').map(a => a.data as EntityTemplate);
   const sprites = assets.filter(a => a.type === 'sprite').map(a => a.data as Sprite);
   const sounds = assets
     .filter(a => a.type === 'sound')
@@ -164,6 +165,42 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
       (screenMap as any).entities.forEach((entity: any) => addEntityFromScreen(entity, screenMap, screenIndex));
     }
   });
+
+  // Projects exported from the app often omit built-in component/template
+  // assets and keep only references such as tpl_player/tpl_fake_player.
+  // Complete those references here so the ASM generator sees the same
+  // defaults the editor/preview uses.
+  const templateIdsInUse = new Set(
+    entities
+      .map(entity => String(entity?.entityTemplateId || '').trim())
+      .filter(Boolean)
+  );
+  const templateIdsPresent = new Set(templates.map(template => template.id));
+  const missingDefaultTemplates = DEFAULT_ENTITY_TEMPLATES.filter(template =>
+    templateIdsInUse.has(template.id) && !templateIdsPresent.has(template.id)
+  );
+  if (missingDefaultTemplates.length > 0) {
+    templates = [...templates, ...missingDefaultTemplates];
+  }
+
+  const componentIdsInUse = new Set<string>();
+  templates.forEach(template => {
+    (template.components || []).forEach(component => {
+      const definitionId = component.definitionId || (component as any).componentDefinitionId;
+      if (definitionId) componentIdsInUse.add(definitionId);
+    });
+  });
+  entities.forEach(entity => {
+    Object.keys(entity?.componentOverrides || {}).forEach(componentId => componentIdsInUse.add(componentId));
+  });
+
+  const componentIdsPresent = new Set(components.map(component => component.id));
+  const missingDefaultComponents = DEFAULT_COMPONENT_DEFINITIONS.filter(component =>
+    componentIdsInUse.has(component.id) && !componentIdsPresent.has(component.id)
+  );
+  if (missingDefaultComponents.length > 0) {
+    components = [...components, ...missingDefaultComponents];
+  }
 
   // CRITICAL: Detect GameFlow for ASM generation control
   const gameFlowAsset = assets.find(a => a.type === 'gameflow');

@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Load Indian Woman Tile</title>
+<script>
+  (async () => {
+    const projectPath = "generated-sprites/indian_woman_profile_32x32/msx-screen2/indian_woman_profile_mideas_project.json";
+    const projectName = "Indian Woman Profile Tile";
+    const response = await fetch("/" + projectPath, { cache: "no-store" });
+    const projectText = await response.text();
+    const now = Date.now();
+
+    const recentKey = "mideas_recent_projects";
+    const dataKey = "mideas_recent_projects_data";
+    const recent = JSON.parse(localStorage.getItem(recentKey) || "[]")
+      .filter((project) => project.path !== projectPath);
+    recent.unshift({ name: projectName, path: projectPath, lastOpened: now });
+    localStorage.setItem(recentKey, JSON.stringify(recent.slice(0, 10)));
+
+    const data = JSON.parse(localStorage.getItem(dataKey) || "{}");
+    data[projectPath] = projectText;
+    localStorage.setItem(dataKey, JSON.stringify(data));
+
+    location.href = "/";
+  })().catch((error) => {
+    document.body.textContent = "Error loading project into Mideas: " + error.message;
+  });
+</script>

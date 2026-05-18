@@ -1,0 +1,581 @@
+{
+  "version": 1,
+  "segmentSize": 8192,
+  "dataWindow": {
+    "page": "p3",
+    "base": "#A000",
+    "mask": "#1FFF",
+    "bankDivisor": "#2000"
+  },
+  "banks": [
+    {
+      "bank": 16,
+      "origin": 147456,
+      "end": 155648,
+      "usedBytes": 8182,
+      "freeBytes": 10,
+      "resources": [
+        {
+          "id": 40,
+          "label": "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+          "bank": 16,
+          "offset": 0,
+          "address": 40960,
+          "size": 768,
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECTS_LAYOUT"
+        },
+        {
+          "id": 44,
+          "label": "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+          "bank": 16,
+          "offset": 768,
+          "address": 41728,
+          "size": 768,
+          "group": "SCREENS",
+          "type": "SCREEN_DATA"
+        },
+        {
+          "id": 45,
+          "label": "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+          "bank": 16,
+          "offset": 1536,
+          "address": 42496,
+          "size": 768,
+          "group": "SCREENS",
+          "type": "SCREEN_DATA"
+        },
+        {
+          "id": 46,
+          "label": "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+          "bank": 16,
+          "offset": 2304,
+          "address": 43264,
+          "size": 768,
+          "group": "SCREENS",
+          "type": "SCREEN_DATA"
+        },
+        {
+          "id": 47,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+          "bank": 16,
+          "offset": 3072,
+          "address": 44032,
+          "size": 768,
+          "group": "SCREENS",
+          "type": "SCREEN_LAYOUT"
+        },
+        {
+          "id": 48,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+          "bank": 16,
+          "offset": 3840,
+          "address": 44800,
+          "size": 768,
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECTS_LAYOUT"
+        },
+        {
+          "id": 51,
+          "label": "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+          "bank": 16,
+          "offset": 4608,
+          "address": 45568,
+          "size": 768,
+          "group": "SCREENS",
+          "type": "SCREEN_BEHAVIOR_MAP"
+        },
+        {
+          "id": 52,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+          "bank": 16,
+          "offset": 5376,
+          "address": 46336,
+          "size": 768,
+          "group": "SCREENS",
+          "type": "SCREEN_DATA"
+        },
+        {
+          "id": 53,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+          "bank": 16,
+          "offset": 6144,
+          "address": 47104,
+          "size": 768,
+          "group": "SCREENS",
+          "type": "SCREEN_DATA"
+        },
+        {
+          "id": 54,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP",
+          "bank": 16,
+          "offset": 6912,
+          "address": 47872,
+          "size": 768,
+          "group": "SCREENS",
+          "type": "SCREEN_DATA"
+        },
+        {
+          "id": 32,
+          "label": "tile_pattern_bank0",
+          "bank": 16,
+          "offset": 7680,
+          "address": 48640,
+          "size": 392,
+          "group": "PATTERNS",
+          "type": "TILE_PATTERNS"
+        },
+        {
+          "id": 38,
+          "label": "SCREEN_PAN1_0_BLOCK_CATALOG",
+          "bank": 16,
+          "offset": 8072,
+          "address": 49032,
+          "size": 96,
+          "group": "SCREENS",
+          "type": "SCREEN_BLOCK_CATALOG"
+        },
+        {
+          "id": 42,
+          "label": "SCREEN_PAN1_0_BOSS_TABLE",
+          "bank": 16,
+          "offset": 8168,
+          "address": 49128,
+          "size": 11,
+          "group": "SCREENS",
+          "type": "SCREEN_DATA"
+        },
+        {
+          "id": 41,
+          "label": "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+          "bank": 16,
+          "offset": 8179,
+          "address": 49139,
+          "size": 1,
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECT_ZONE_TABLE"
+        },
+        {
+          "id": 49,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+          "bank": 16,
+          "offset": 8180,
+          "address": 49140,
+          "size": 1,
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECT_ZONE_TABLE"
+        },
+        {
+          "id": 50,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+          "bank": 16,
+          "offset": 8181,
+          "address": 49141,
+          "size": 1,
+          "group": "SCREENS",
+          "type": "SCREEN_DATA"
+        }
+      ]
+    },
+    {
+      "bank": 17,
+      "origin": 155648,
+      "end": 163840,
+      "usedBytes": 2648,
+      "freeBytes": 5544,
+      "resources": [
+        {
+          "id": 35,
+          "label": "tile_color_bank0",
+          "bank": 17,
+          "offset": 0,
+          "address": 40960,
+          "size": 392,
+          "group": "COLORS",
+          "type": "TILE_COLORS"
+        },
+        {
+          "id": 43,
+          "label": "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+          "bank": 17,
+          "offset": 392,
+          "address": 41352,
+          "size": 256,
+          "group": "SCREENS",
+          "type": "SCREEN_DATA"
+        },
+        {
+          "id": 33,
+          "label": "tilebank_pattern_data_0",
+          "bank": 17,
+          "offset": 648,
+          "address": 41608,
+          "size": 232,
+          "group": "PATTERNS",
+          "type": "TILE_PATTERNS"
+        },
+        {
+          "id": 34,
+          "label": "tilebank_pattern_data_1",
+          "bank": 17,
+          "offset": 880,
+          "address": 41840,
+          "size": 232,
+          "group": "PATTERNS",
+          "type": "TILE_PATTERNS"
+        },
+        {
+          "id": 36,
+          "label": "tilebank_color_data_0",
+          "bank": 17,
+          "offset": 1112,
+          "address": 42072,
+          "size": 232,
+          "group": "COLORS",
+          "type": "TILE_COLORS"
+        },
+        {
+          "id": 37,
+          "label": "tilebank_color_data_1",
+          "bank": 17,
+          "offset": 1344,
+          "address": 42304,
+          "size": 232,
+          "group": "COLORS",
+          "type": "TILE_COLORS"
+        },
+        {
+          "id": 39,
+          "label": "SCREEN_PAN1_0_BLOCK_MAP",
+          "bank": 17,
+          "offset": 1576,
+          "address": 42536,
+          "size": 48,
+          "group": "SCREENS",
+          "type": "SCREEN_BLOCK_MAP"
+        },
+        {
+          "id": 0,
+          "label": "NINA_WALK_RIGHT_0_F0_LAYER0",
+          "bank": 17,
+          "offset": 1624,
+          "address": 42584,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 1,
+          "label": "NINA_WALK_RIGHT_0_F0_LAYER1",
+          "bank": 17,
+          "offset": 1656,
+          "address": 42616,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 2,
+          "label": "NINA_WALK_RIGHT_0_F1_LAYER0",
+          "bank": 17,
+          "offset": 1688,
+          "address": 42648,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 3,
+          "label": "NINA_WALK_RIGHT_0_F1_LAYER1",
+          "bank": 17,
+          "offset": 1720,
+          "address": 42680,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 4,
+          "label": "NINA_GRUB_RIGHT_1_F0_LAYER1",
+          "bank": 17,
+          "offset": 1752,
+          "address": 42712,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 5,
+          "label": "NINA_GRUB_RIGHT_1_F0_LAYER2",
+          "bank": 17,
+          "offset": 1784,
+          "address": 42744,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 6,
+          "label": "NINA_GRUB_RIGHT_1_F1_LAYER1",
+          "bank": 17,
+          "offset": 1816,
+          "address": 42776,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 7,
+          "label": "NINA_GRUB_RIGHT_1_F1_LAYER2",
+          "bank": 17,
+          "offset": 1848,
+          "address": 42808,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 8,
+          "label": "NEW_SPRITE_2_F0_LAYER1",
+          "bank": 17,
+          "offset": 1880,
+          "address": 42840,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 9,
+          "label": "NEW_SPRITE_2_F0_LAYER2",
+          "bank": 17,
+          "offset": 1912,
+          "address": 42872,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 10,
+          "label": "NEW_SPRITE_2_F0_LAYER3",
+          "bank": 17,
+          "offset": 1944,
+          "address": 42904,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 11,
+          "label": "NINA_JUMP_RIGHT_3_F0_LAYER0",
+          "bank": 17,
+          "offset": 1976,
+          "address": 42936,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 12,
+          "label": "NINA_JUMP_RIGHT_3_F0_LAYER1",
+          "bank": 17,
+          "offset": 2008,
+          "address": 42968,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 13,
+          "label": "NINA_IDLE_RIGHT_4_F0_LAYER1",
+          "bank": 17,
+          "offset": 2040,
+          "address": 43000,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 14,
+          "label": "NINA_IDLE_RIGHT_4_F0_LAYER2",
+          "bank": 17,
+          "offset": 2072,
+          "address": 43032,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 15,
+          "label": "NEW_SPRITE_RIGHT_5_F0_LAYER1",
+          "bank": 17,
+          "offset": 2104,
+          "address": 43064,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 16,
+          "label": "NEW_SPRITE_RIGHT_5_F0_LAYER2",
+          "bank": 17,
+          "offset": 2136,
+          "address": 43096,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 17,
+          "label": "NINA_WALK_LEFT_6_F0_LAYER0",
+          "bank": 17,
+          "offset": 2168,
+          "address": 43128,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 18,
+          "label": "NINA_WALK_LEFT_6_F0_LAYER1",
+          "bank": 17,
+          "offset": 2200,
+          "address": 43160,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 19,
+          "label": "NINA_WALK_LEFT_6_F1_LAYER0",
+          "bank": 17,
+          "offset": 2232,
+          "address": 43192,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 20,
+          "label": "NINA_WALK_LEFT_6_F1_LAYER1",
+          "bank": 17,
+          "offset": 2264,
+          "address": 43224,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 21,
+          "label": "NINA_GRUB_LEFT_7_F0_LAYER1",
+          "bank": 17,
+          "offset": 2296,
+          "address": 43256,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 22,
+          "label": "NINA_GRUB_LEFT_7_F0_LAYER2",
+          "bank": 17,
+          "offset": 2328,
+          "address": 43288,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 23,
+          "label": "NINA_GRUB_LEFT_7_F1_LAYER1",
+          "bank": 17,
+          "offset": 2360,
+          "address": 43320,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 24,
+          "label": "NINA_GRUB_LEFT_7_F1_LAYER2",
+          "bank": 17,
+          "offset": 2392,
+          "address": 43352,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 25,
+          "label": "NINA_JUMP_LEFT_8_F0_LAYER0",
+          "bank": 17,
+          "offset": 2424,
+          "address": 43384,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 26,
+          "label": "NINA_JUMP_LEFT_8_F0_LAYER1",
+          "bank": 17,
+          "offset": 2456,
+          "address": 43416,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 27,
+          "label": "NINA_IDLE_LEFT_9_F0_LAYER1",
+          "bank": 17,
+          "offset": 2488,
+          "address": 43448,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 28,
+          "label": "NINA_IDLE_LEFT_9_F0_LAYER2",
+          "bank": 17,
+          "offset": 2520,
+          "address": 43480,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 29,
+          "label": "NEW_SPRITE_LEFT_10_F0_LAYER1",
+          "bank": 17,
+          "offset": 2552,
+          "address": 43512,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 30,
+          "label": "NEW_SPRITE_LEFT_10_F0_LAYER2",
+          "bank": 17,
+          "offset": 2584,
+          "address": 43544,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 31,
+          "label": "SPRITE_PLACEHOLDER_PATTERN",
+          "bank": 17,
+          "offset": 2616,
+          "address": 43576,
+          "size": 32,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        }
+      ]
+    }
+  ],
+  "overflow": []
+}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Connection } from '@xyflow/react';
 import { StateMachine, StateMachineState, StateMachineStateName, StateMachineTransition, Condition, Action } from '../../statemachine.types';
 import { ProjectAsset, EntityTemplate } from '../../types';
@@ -10,6 +10,8 @@ import StateMachineVisualizer from './statemachine/StateMachineVisualizer';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { InitStatePanel } from './statemachine/InitStatePanel';
+import { LoadIcon, SaveIcon } from '../icons/MsxIcons';
+import { downloadJsonFile } from '../../utils/downloadUtils';
 
 interface StateMachineEditorProps {
   currentAsset: ProjectAsset;
@@ -17,6 +19,95 @@ interface StateMachineEditorProps {
   allAssets: ProjectAsset[];
   entityTemplates: EntityTemplate[];
 }
+
+interface StateMachineExportPackage {
+  format: 'mideas.statemachine';
+  version: 1;
+  exportedAt: string;
+  stateMachine: StateMachine;
+}
+
+const sanitizeFilenamePart = (value: string): string => {
+  const sanitized = value.trim().replace(/[^a-z0-9_-]+/gi, '_').replace(/^_+|_+$/g, '');
+  return sanitized || 'state_machine';
+};
+
+const isRecord = (value: unknown): value is Record<string, any> => (
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+);
+
+const cloneJson = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
+
+const extractStateMachineFromJson = (parsed: unknown): unknown => {
+  if (!isRecord(parsed)) return null;
+  if (isRecord(parsed.stateMachine)) return parsed.stateMachine;
+  if (isRecord(parsed.data) && parsed.type === 'statemachine') return parsed.data;
+  return parsed;
+};
+
+const normalizeImportedStateMachine = (
+  imported: unknown,
+  currentStateMachine: StateMachine,
+  currentAsset: ProjectAsset
+): StateMachine => {
+  if (!isRecord(imported)) {
+    throw new Error('The JSON root is not a State Machine object.');
+  }
+
+  if (!Array.isArray(imported.states) || !Array.isArray(imported.transitions)) {
+    throw new Error('The JSON does not contain State Machine states and transitions arrays.');
+  }
+
+  const states: StateMachineState[] = imported.states.map((state, index) => {
+    if (!isRecord(state) || typeof state.id !== 'string' || typeof state.name !== 'string') {
+      throw new Error(`State at index ${index} is missing a valid id or name.`);
+    }
+    return {
+      ...cloneJson(state),
+      id: state.id,
+      name: state.name as StateMachineStateName,
+      properties: isRecord(state.properties) ? cloneJson(state.properties) : {},
+      onEnter: Array.isArray(state.onEnter) ? cloneJson(state.onEnter) : undefined,
+      onExit: Array.isArray(state.onExit) ? cloneJson(state.onExit) : undefined,
+    };
+  });
+
+  const transitions: StateMachineTransition[] = imported.transitions.map((transition, index) => {
+    if (
+      !isRecord(transition)
+      || typeof transition.fromStateId !== 'string'
+      || typeof transition.toStateId !== 'string'
+    ) {
+      throw new Error(`Transition at index ${index} is missing valid from/to state ids.`);
+    }
+    return {
+      ...cloneJson(transition),
+      id: typeof transition.id === 'string' && transition.id ? transition.id : `transition_${Date.now()}_${index}`,
+      fromStateId: transition.fromStateId,
+      toStateId: transition.toStateId,
+      conditions: isRecord(transition.conditions) ? cloneJson(transition.conditions) : undefined,
+      actions: Array.isArray(transition.actions) ? cloneJson(transition.actions) : [],
+      guard: isRecord(transition.guard) ? cloneJson(transition.guard) : undefined,
+    };
+  });
+
+  const stateIds = new Set(states.map(state => state.id));
+  const importedInitialStateId = typeof imported.initialStateId === 'string' ? imported.initialStateId : null;
+  const initialStateId = importedInitialStateId && stateIds.has(importedInitialStateId)
+    ? importedInitialStateId
+    : states[0]?.id || null;
+
+  return {
+    ...currentStateMachine,
+    ...cloneJson(imported),
+    id: typeof currentStateMachine.id === 'string' && currentStateMachine.id ? currentStateMachine.id : currentAsset.id,
+    name: currentStateMachine.name || currentAsset.name,
+    states,
+    events: Array.isArray(imported.events) ? cloneJson(imported.events) : [],
+    transitions,
+    initialStateId,
+  };
+};
 
 const StateDetailView = ({
   state,
@@ -117,6 +208,7 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
   const [language, setLanguage] = useState<'en' | 'es'>('en');
   const [view, setView] = useState<'list' | 'visual'>('list');
   const [selectedStateId, setSelectedStateId] = useState<string | null>(null);
+  const stateMachineFileInputRef = useRef<HTMLInputElement>(null);
   const stateMachine = currentAsset.data as StateMachine;
 
   if (!stateMachine) {
@@ -215,6 +307,42 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
     });
   };
 
+  const handleSaveStateMachine = () => {
+    const exportPackage: StateMachineExportPackage = {
+      format: 'mideas.statemachine',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      stateMachine: cloneJson(stateMachine),
+    };
+    downloadJsonFile(`${sanitizeFilenamePart(stateMachine.name || currentAsset.name)}.statemachine.json`, exportPackage);
+  };
+
+  const handleLoadStateMachine = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      try {
+        const parsed = JSON.parse(String(loadEvent.target?.result || ''));
+        const imported = extractStateMachineFromJson(parsed);
+        const normalized = normalizeImportedStateMachine(imported, stateMachine, currentAsset);
+        onUpdateAsset(normalized);
+        setSelectedStateId(null);
+      } catch (error) {
+        console.error('Error importing State Machine JSON:', error);
+        window.alert('Could not load this State Machine JSON. The file may be corrupted or in the wrong format.');
+      } finally {
+        event.target.value = '';
+      }
+    };
+    reader.onerror = () => {
+      window.alert('Could not read the selected State Machine JSON file.');
+      event.target.value = '';
+    };
+    reader.readAsText(file);
+  };
+
   const selectedState = stateMachine.states.find(s => s.id === selectedStateId);
 
   return (
@@ -222,6 +350,33 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
       title={`State Machine Editor: ${stateMachine.name}`}
       headerButtons={
         <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-1">
+            <Button
+              onClick={handleSaveStateMachine}
+              variant="ghost"
+              size="sm"
+              icon={<SaveIcon className="w-4 h-4" />}
+              title="Save State Machine JSON"
+            >
+              Save State Machine
+            </Button>
+            <Button
+              onClick={() => stateMachineFileInputRef.current?.click()}
+              variant="ghost"
+              size="sm"
+              icon={<LoadIcon className="w-4 h-4" />}
+              title="Load State Machine JSON"
+            >
+              Load State Machine
+            </Button>
+            <input
+              ref={stateMachineFileInputRef}
+              type="file"
+              accept=".json,.statemachine.json,application/json"
+              onChange={handleLoadStateMachine}
+              className="hidden"
+            />
+          </div>
           <div className="flex items-center space-x-1 p-1 bg-msx-bgcolor-dark rounded-md">
             <Button onClick={() => setView('list')} variant={view === 'list' ? 'primary' : 'ghost'} size="sm">List</Button>
             <Button onClick={() => setView('visual')} variant={view === 'visual' ? 'primary' : 'ghost'} size="sm">Visual</Button>

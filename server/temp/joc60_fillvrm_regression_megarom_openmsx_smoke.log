@@ -1,0 +1,3 @@
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/04 flow=00 screen=33 irq=0000 inirq=00 pos=13107,13107
+space1_before pc=4912 sp=F378 bank=01/02/03/03 flow=01 screen=00 irq=00AD inirq=00 pos=16,144
+space1_after pc=61E5 sp=F36C bank=01/02/03/03 flow=01 screen=00 irq=00BC inirq=00 pos=16,108

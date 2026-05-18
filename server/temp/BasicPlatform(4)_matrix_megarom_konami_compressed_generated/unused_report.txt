@@ -1,0 +1,27 @@
+MIDEAS UNUSED MODULE REPORT
+Scope: konami8k_megarom_resident_modules
+Candidate unused modules: 3
+Estimated removable bytes: 7295
+
+Candidates:
+- sound: 4763 estimated bytes
+- scroll: 2418 estimated bytes
+- hud: 114 estimated bytes
+
+Retained modules:
+- animtiles: 3645 estimated bytes
+- bosses: 6250 estimated bytes
+- colors_code: 577 estimated bytes
+- components: 31814 estimated bytes
+- components_tail: 4971 estimated bytes
+- entities: 22071 estimated bytes
+- font: 3585 estimated bytes
+- gameflow: 16373 estimated bytes
+- menus: 751 estimated bytes
+- patterns_code: 606 estimated bytes
+- screen_loaders: 58887 estimated bytes
+- screens_code: 38169 estimated bytes
+- sprites: 8473 estimated bytes
+- worlds: 21225 estimated bytes
+
+Note: report-only; module removal is a later pipeline step.

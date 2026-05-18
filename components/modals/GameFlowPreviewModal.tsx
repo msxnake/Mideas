@@ -9,8 +9,12 @@ import {
     ProjectAsset,
     GameFlowNode,
     GameFlowSubMenuNode,
+    GameFlowControlsNode,
     GameFlowWorldLinkNode,
     GameFlowTextNode,
+    GameFlowTextScrollNode,
+    GameFlowTextScrollColorNode,
+    GameFlowTextScroll2Node,
     MSXFont,
     MSXFontColorAttributes,
     EntityTemplate,
@@ -28,11 +32,12 @@ import {
     TileBank,
     DialogueAsset,
     DialogueLine,
-    PortraitAsset
+    PortraitAsset,
+    resolveEffectZoneType
 } from '../../types';
 import { Button } from '../common/Button';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
-import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, normalizeTileInteractionType } from '../utils/screenUtils';
+import { renderScreenToCanvas, createSpriteDataURL, getScreenBehaviorLayer, getScreenTileLogicalProperties, normalizeTileInteractionType } from '../utils/screenUtils';
 import { renderBossInstancesToCanvas } from '../utils/bossRenderUtils';
 import { drawPresentationScreenPreview } from '../utils/presentationScreenUtils';
 import type { PresentationScreenConfig } from '../../types';
@@ -57,6 +62,7 @@ const ANIMATION_SPEED_MS = 200; // Fallback if sprite.animationSpeedMs is undefi
 const SCREEN2_LABEL = "SCREEN 2 (Graphics I)";
 const SCREEN5_LABEL = "SCREEN 5 (Graphics III)";
 const DEADLY_TILES_COMPONENT_ID = 'comp_deadly_tiles';
+const IN_WATER_COMPONENT_ID = 'comp_in_water';
 
 const resolveScreenModeForMap = (map: ScreenMap | null, fallback: string): string => {
     if (!map) return fallback;
@@ -134,6 +140,7 @@ interface AnimatedEntity {
     isFacingMirrored?: boolean; // Track if entity is currently facing mirrored direction (for idle pose)
     lastDamageTime?: number; // Timestamp of last damage taken (for invincibility frames)
     hasDangerousTileCollision?: boolean; // True when touching a deadly tile
+    isInWater?: boolean; // True when entity center is inside a Water effect zone
     // Multi-screen properties
     globalX?: number; // Global X coordinate in world space (for multi-screen entities)
     globalY?: number; // Global Y coordinate in world space
@@ -148,6 +155,7 @@ interface AnimatedEntity {
     ownerScreenId?: string | null; // For Box entities: which screen this box belongs to (null if being carried)
     // Timer/Wait system
     waitUntilTime?: number; // Timestamp when WAIT action will complete (blocks state machine transitions)
+    stateElapsedFrames?: number; // Frames spent in current state, used by TIME_OUT conditions
     // Shooting / projectile
     lastShotTime?: number; // Cooldown tracker for shooting
     isProjectile?: boolean; // Marks this entity as a projectile
@@ -194,6 +202,25 @@ interface AutoEventRuntimeState {
     baseSprite?: Sprite;
     baseSpriteAssetId?: string;
     spriteMode?: 'idle' | 'walk';
+}
+
+interface RuntimeCharShot {
+    x: number;
+    y: number;
+    dir: -1 | 1;
+    charCode: number;
+    age: number;
+    ownerId: string;
+}
+
+interface DroppedBoxTilePlacement {
+    id: string;
+    screenId: string;
+    entityId: string;
+    tileX: number;
+    tileY: number;
+    tiles: ScreenTile[][];
+    previousCollision: ScreenTile[][];
 }
 
 interface AutoDialoguePreviewState {
@@ -439,6 +466,13 @@ interface EnrichedConnection extends WorldMapConnection {
     targetNodeId: string;
 }
 
+interface PreviewControlSettings {
+    keyboardButton1: 'SPC' | 'CTRL';
+    keyboardButton2: 'N' | 'CTRL';
+    jumpActionButton: 'button1' | 'button2';
+    actionButton: 'button1' | 'button2';
+}
+
 export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     isOpen,
     onClose,
@@ -457,6 +491,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const modalRef = useRef<HTMLDivElement>(null);
     const animationFrameId = useRef<number>();
     const entitiesRef = useRef<AnimatedEntity[]>([]);
+    const charShotsRef = useRef<RuntimeCharShot[]>([]);
     const heroRef = useRef<AnimatedEntity | null>(null);
     const pressedKeys = useRef<Set<string>>(new Set());
     // Track last gamepad-derived keys to emit key transitions cleanly
@@ -498,6 +533,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
     const [navigationStack, setNavigationStack] = useState<string[]>([]);
     const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
+    const [previewControlSettings, setPreviewControlSettings] = useState<PreviewControlSettings>({
+        keyboardButton1: 'SPC',
+        keyboardButton2: 'N',
+        jumpActionButton: 'button1',
+        actionButton: 'button2',
+    });
     const [currentScreenMap, setCurrentScreenMap] = useState<ScreenMap | null>(null);
     const [currentWorldMapGraph, setCurrentWorldMapGraph] = useState<WorldMapGraph | null>(null);
     const [isDynamic, setIsDynamic] = useState(initialIsDynamic);
@@ -590,12 +631,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [cursorBlinkOn, setCursorBlinkOn] = useState(true);
     const [runtimeCollisionLayer, setRuntimeCollisionLayer] = useState<ScreenTile[][]>([]);
     const tileBufferNeedsUpdate = useRef<boolean>(false);
+    const droppedBoxTilesRef = useRef<Map<string, DroppedBoxTilePlacement[]>>(new Map());
     const screenWorldMapRef = useRef<Map<string, ScreenWorldPosition>>(new Map()); // Multi-screen coordinate system
     const tileBufferRef = useRef<HTMLCanvasElement | null>(null);
     const tileAnimGroupsRef = useRef<TileAnimGroupState[]>([]);
     const gameFlowExitRequestedRef = useRef(false);
     const cleanSpritesNextFrameRef = useRef(false);
     const pendingNodeTransitionRef = useRef<string | null>(null);
+    const pendingTransitionRevealRef = useRef<{ effect: string; duration: number; fillChar: 254 | 255 } | null>(null);
+    const transitionRevealInProgressRef = useRef(false);
     const screenTimerRuntimeRef = useRef<{ screenId: string | null; lastTickTime: number; carryMs: number }>({
         screenId: null,
         lastTickTime: 0,
@@ -617,6 +661,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     useEffect(() => {
         if (currentNode?.type === 'Start' || currentNode?.type === 'WorldLink') {
             applyNodeGlobalInitialization(currentNode.initializeGlobals);
+        }
+        if (currentNode?.type === 'Controls') {
+            const controlsNode = currentNode as GameFlowControlsNode;
+            setSelectedOptionIndex(0);
+            setPreviewControlSettings({
+                keyboardButton1: controlsNode.keyboardButton1 || 'SPC',
+                keyboardButton2: controlsNode.keyboardButton2 || 'N',
+                jumpActionButton: controlsNode.jumpActionButton || 'button1',
+                actionButton: controlsNode.actionButton || 'button2',
+            });
         }
     }, [currentNodeId, currentNode, applyNodeGlobalInitialization]);
 
@@ -657,12 +711,140 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             ...(overrides || {})
         };
     }, []);
+    const parseAutoControlCommandsForPreview = useCallback((commands: string, dialogue?: DialogueAsset): AutoEventToken[] => {
+        const tokens: AutoEventToken[] = [];
+        const appendDelayMs = (ms: number) => {
+            tokens.push({ type: 'delay', ms: Math.max(20, Math.round(ms || 1000)) });
+        };
+        const appendDelaySeconds = (seconds: number) => {
+            tokens.push({ type: 'delay', ms: Math.max(20, Math.round((seconds || 1) * 1000)) });
+        };
+        const appendMove = (axis: 'x' | 'y', amount: number) => {
+            tokens.push({ type: 'move', axis, amount });
+        };
+
+        const lines = String(commands || '')
+            .split(/\r?\n/)
+            .map(line => line.replace(/[;#].*/, '').trim())
+            .filter(Boolean);
+
+        for (const line of lines) {
+            const parts = line.split(/[\s,]+/).filter(Boolean);
+            let command = String(parts[0] || '').trim().toLowerCase();
+            let operandToken = parts[1];
+            const second = String(parts[1] || '').trim().toLowerCase();
+
+            if ((command === 'move' || command === 'dash') && ['left', 'right', 'up', 'down'].includes(second)) {
+                command = `${command}_${second}`;
+                operandToken = parts[2];
+            } else if (command === 'wait' && ['spc', 'space'].includes(second)) {
+                command = 'wait_spc';
+                operandToken = parts[2];
+            } else if (command === 'wait' && ['text', 'typewriter'].includes(second)) {
+                command = 'wait_text';
+                operandToken = parts[2];
+            } else if (command === 'wait' && ['second', 'seconds'].includes(second)) {
+                command = 'wait_seconds';
+                operandToken = parts[2];
+            } else if ((command === 'write' || command === 'write_text') && ['text', 'line'].includes(second)) {
+                command = 'write_line';
+                operandToken = parts[2];
+            } else if (command === 'open' && ['dialog', 'dialogue', 'frame_dialog', 'frame-dialog'].includes(second)) {
+                command = 'open_dialog';
+            } else if (command === 'close' && ['dialog', 'dialogue', 'frame_dialog', 'frame-dialog'].includes(second)) {
+                command = 'close_dialog';
+            }
+
+            if (command === 'spc') command = 'wait_spc';
+            if (command === 'clean') command = 'clear_dialog';
+            if (command === 'write_text') command = 'write_line';
+            if (command === 'open_frame_dialog' || command === 'open-frame-dialog') command = 'open_dialog';
+            if (command === 'close_frame_dialog' || command === 'close-frame-dialog') command = 'close_dialog';
+
+            const operand = Number(operandToken);
+            const amount = Number.isFinite(operand) ? operand : 0;
+
+            switch (command) {
+                case 'move_right':
+                case 'right':
+                    appendMove('x', amount || 16);
+                    break;
+                case 'move_left':
+                case 'left':
+                    appendMove('x', -(amount || 16));
+                    break;
+                case 'move_down':
+                case 'down':
+                    appendMove('y', amount || 16);
+                    break;
+                case 'move_up':
+                case 'up':
+                    appendMove('y', -(amount || 16));
+                    break;
+                case 'dash_right':
+                    appendMove('x', amount || 48);
+                    break;
+                case 'dash_left':
+                    appendMove('x', -(amount || 48));
+                    break;
+                case 'dash_down':
+                    appendMove('y', amount || 32);
+                    break;
+                case 'dash_up':
+                case 'jump':
+                    appendMove('y', -(amount || 24));
+                    break;
+                case 'delay':
+                case 'delay_ms':
+                case 'wait_ms':
+                    appendDelayMs(amount);
+                    break;
+                case 'wait':
+                case 'wait_seconds':
+                case 'delay_seconds':
+                    appendDelaySeconds(amount);
+                    break;
+                case 'wait_spc':
+                case 'wait_space':
+                    tokens.push({ type: 'waitSpc' });
+                    break;
+                case 'wait_text':
+                case 'wait_typewriter':
+                    tokens.push({ type: 'waitText' });
+                    break;
+                case 'play_dialog':
+                case 'play_dialogue':
+                    tokens.push({ type: 'openDialog' });
+                    (dialogue?.lines || []).forEach((dialogueLine, index) => {
+                        const text = `${dialogueLine.speaker?.trim() ? `${dialogueLine.speaker.trim()}: ` : ''}${dialogueLine.text || ''}`.trim();
+                        if (!text) return;
+                        tokens.push({ type: 'writeLine', lineNumber: index + 1 });
+                        tokens.push({ type: dialogueLine.waitForInput === false ? 'waitText' : 'waitSpc' });
+                    });
+                    tokens.push({ type: 'closeDialog' });
+                    break;
+                case 'open_dialog':
+                    tokens.push({ type: 'openDialog' });
+                    break;
+                case 'write_line':
+                    tokens.push({ type: 'writeLine', lineNumber: Math.max(1, Math.floor(amount) + 1) });
+                    break;
+                case 'clear_dialog':
+                    tokens.push({ type: 'clearDialog' });
+                    break;
+                case 'close_dialog':
+                    tokens.push({ type: 'closeDialog' });
+                    break;
+            }
+        }
+
+        return tokens;
+    }, []);
     const createAutoEventRuntime = useCallback((template: EntityTemplate, instance: EntityInstance): AutoEventRuntimeState | undefined => {
         const values = resolveTemplateComponentValues(template, instance, 'comp_auto_control_script');
         if (!values) return undefined;
         if (values.enabled === false || values.enabled === 'false') return undefined;
         if (values.startsOnScreenLoad === false || values.startsOnScreenLoad === 'false') return undefined;
-        if (String(values.scriptFormat || 'commands') !== 'eventString') return undefined;
 
         const dialogueAssetId = String(values.defaultDialogueAssetId || '');
         const dialogueAsset = allAssets.find(asset => asset.id === dialogueAssetId && asset.type === 'dialogue');
@@ -671,11 +853,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const idleSpriteAsset = allAssets.find(asset => asset.id === idleSpriteAssetId && asset.type === 'sprite');
         const walkSpriteAssetId = String(values.walkSpriteAssetId || '');
         const walkSpriteAsset = allAssets.find(asset => asset.id === walkSpriteAssetId && asset.type === 'sprite');
-        const parsed = parseAutoEventString(String(values.eventString || ''), dialogue);
-        if (parsed.tokens.length === 0) return undefined;
+        const scriptFormat = String(values.scriptFormat || 'commands');
+        const rawEventString = String(values.eventString || '');
+        const rawCommands = String(values.commands || '');
+        let tokens: AutoEventToken[] = [];
+        if (scriptFormat === 'eventString' && rawEventString.trim().length > 0) {
+            tokens = parseAutoEventString(rawEventString, dialogue).tokens;
+        }
+        if (tokens.length === 0 && rawCommands.trim().length > 0) {
+            tokens = parseAutoControlCommandsForPreview(rawCommands, dialogue);
+        }
+        if (tokens.length === 0) return undefined;
 
         return {
-            tokens: parsed.tokens,
+            tokens,
             index: 0,
             loop: values.loop === true || values.loop === 'true',
             moveRemaining: 0,
@@ -685,7 +876,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             walkSprite: walkSpriteAsset?.data as Sprite | undefined,
             walkSpriteAssetId: walkSpriteAsset?.id,
         };
-    }, [allAssets, resolveTemplateComponentValues]);
+    }, [allAssets, parseAutoControlCommandsForPreview, resolveTemplateComponentValues]);
     const drawAutoDialoguePreview = useCallback((ctx: CanvasRenderingContext2D) => {
         const state = autoDialoguePreviewRef.current;
         if (!state.active) return;
@@ -715,6 +906,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const graphicWidth = graphicEnabled ? Math.max(1, Math.floor(graphic!.width)) : 0;
         const graphicHeight = graphicEnabled ? Math.max(1, Math.floor(graphic!.height)) : 0;
         const graphicPadding = graphicEnabled ? Math.max(0, Math.floor(graphic!.padding || 0)) : 0;
+        const mouthInterval = Math.max(0, Math.floor(state.dialogue?.exportOptions?.mouthToggleEveryChars ?? 3));
+        const mouth = portraitAsset?.mouth;
+        const mouthOpen = Boolean(
+            mouth?.enabled
+            && mouth.openTileId
+            && mouthInterval > 0
+            && state.visibleChars > 0
+            && state.visibleChars < state.text.length
+            && Math.floor(state.visibleChars / mouthInterval) % 2 === 1
+        );
         const graphicReservedW = graphicEnabled ? (graphicWidth + graphicPadding) * charW : 0;
         const textX = boxX + charW + (graphicEnabled && graphic!.side !== 'right' ? graphicReservedW : 0);
         const textY = boxY + charH;
@@ -744,7 +945,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             const pixelH = Math.max(1, charH / 8);
             for (let gy = 0; gy < graphicHeight; gy++) {
                 for (let gx = 0; gx < graphicWidth; gx++) {
-                    const tile = tileById.get(graphic!.tileIds?.[(gy * graphicWidth) + gx] || '');
+                    const tileIndex = (gy * graphicWidth) + gx;
+                    const tileId = mouthOpen && tileIndex === mouth?.cellIndex
+                        ? mouth.openTileId
+                        : graphic!.tileIds?.[tileIndex] || '';
+                    const tile = tileById.get(tileId || '');
                     if (!tile?.data) {
                         ctx.fillStyle = '#202020';
                         ctx.fillRect(graphicX + gx * charW, graphicY + gy * charH, charW, charH);
@@ -989,6 +1194,58 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             bottomPx: (activeAreaY + activeAreaHeight) * TILE_SIZE,
         };
     }, [TILE_SIZE, screenModeMetrics.heightTiles, screenModeMetrics.widthTiles]);
+    const isEntityComponentEnabled = useCallback((entity: AnimatedEntity, componentId: string) => {
+        const templateComp = entity.template.components.find(c => c.definitionId === componentId);
+        const overrides = entity.instance.componentOverrides?.[componentId];
+        if (!templateComp && !overrides) return false;
+        const enabledValue = overrides?.isEnabled ?? templateComp?.defaultValues?.isEnabled;
+        return enabledValue !== false && enabledValue !== 'false';
+    }, []);
+    const clampEntityToScreenBounds = useCallback((
+        entity: AnimatedEntity,
+        bounds: ReturnType<typeof getScreenActiveBoundsPx>,
+        direction?: 'north' | 'south' | 'east' | 'west'
+    ) => {
+        const spriteWidth = entity.sprite.size.width;
+        const spriteHeight = entity.sprite.size.height;
+        const minX = bounds.leftPx;
+        const maxX = Math.max(minX, bounds.rightPx - spriteWidth);
+        const minY = bounds.topPx;
+        const maxY = Math.max(minY, bounds.bottomPx - spriteHeight);
+
+        if (!direction || direction === 'west') {
+            if (entity.x < minX) {
+                entity.x = minX;
+                if (entity.vx < 0) entity.vx = 0;
+            }
+        }
+        if (!direction || direction === 'east') {
+            if (entity.x > maxX) {
+                entity.x = maxX;
+                if (entity.vx > 0) entity.vx = 0;
+            }
+        }
+        if (!direction || direction === 'north') {
+            if (entity.y < minY) {
+                entity.y = minY;
+                if (entity.vy < 0) entity.vy = 0;
+                if ((entity as any).gravityVel !== undefined && (entity as any).gravityVel < 0) {
+                    (entity as any).gravityVel = 0;
+                }
+            }
+        }
+        if (!direction || direction === 'south') {
+            if (entity.y > maxY) {
+                entity.y = maxY;
+                if (entity.vy > 0) entity.vy = 0;
+                if ((entity as any).gravityVel !== undefined && (entity as any).gravityVel > 0) {
+                    (entity as any).gravityVel = 0;
+                }
+                entity.isOnGround = true;
+                entity.isGrounded = true;
+            }
+        }
+    }, [getScreenActiveBoundsPx]);
     const getArrowCursor = useCallback((direction: 'north' | 'south' | 'east' | 'west') => {
         const rotation = direction === 'east' ? 0 : direction === 'south' ? 90 : direction === 'west' ? 180 : -90;
         const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><polygon points='8,4 26,16 8,28 8,20 2,20 2,12 8,12' fill='red' transform='rotate(${rotation} 16 16)'/></svg>`;
@@ -1201,6 +1458,71 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const carrySpriteData = carrySpriteAsset?.data as Sprite | undefined;
         if (!carrySpriteData) return;
         applySpriteToEntity(entity, carrySpriteData, carrySpriteAsset.id);
+    };
+
+    const getBoxComponentValues = (entity: AnimatedEntity): Record<string, any> => {
+        const boxTemplateComp = entity.template.components.find(c => c.definitionId === 'comp_box');
+        return {
+            ...(boxTemplateComp?.defaultValues || {}),
+            ...(entity.instance.componentOverrides?.comp_box || {})
+        };
+    };
+
+    const buildDroppedBoxTileMatrix = (entity: AnimatedEntity, tileById: Map<string, Tile>): ScreenTile[][] | null => {
+        const boxProps = getBoxComponentValues(entity);
+        const droppedTileId = boxProps.droppedTileAssetId || boxProps.dropTileAssetId || boxProps.tileAssetId || boxProps.tileId;
+        if (!droppedTileId) return null;
+
+        const tile = tileById.get(droppedTileId);
+        if (!tile) return null;
+
+        const cols = Math.max(1, Math.ceil((tile.width || TILE_SIZE) / TILE_SIZE));
+        const rows = Math.max(1, Math.ceil((tile.height || TILE_SIZE) / TILE_SIZE));
+        return Array.from({ length: rows }, (_, y) => (
+            Array.from({ length: cols }, (_, x) => ({
+                tileId: tile.id,
+                subTileX: x,
+                subTileY: y
+            }))
+        ));
+    };
+
+    const writeTileMatrixToRuntimeCollisionLayer = (
+        tileX: number,
+        tileY: number,
+        matrix: ScreenTile[][]
+    ) => {
+        const currentLayer = runtimeCollisionLayerRef.current;
+        const maxRows = currentLayer.length || currentScreenMapRef.current?.height || 0;
+        const maxCols = (currentLayer[0]?.length ?? currentScreenMapRef.current?.width) || 0;
+        if (maxRows <= 0 || maxCols <= 0) return;
+
+        setRuntimeCollisionLayer(prev => {
+            const sourceLayer = currentLayer.length > 0 ? currentLayer : prev;
+            const nextLayer = JSON.parse(JSON.stringify(sourceLayer));
+            for (let row = 0; row < matrix.length; row++) {
+                for (let col = 0; col < (matrix[row]?.length || 0); col++) {
+                    const destX = tileX + col;
+                    const destY = tileY + row;
+                    if (destX < 0 || destX >= maxCols || destY < 0 || destY >= maxRows) continue;
+                    if (!nextLayer[destY]) nextLayer[destY] = [];
+                    nextLayer[destY][destX] = { ...matrix[row][col] };
+                }
+            }
+            runtimeCollisionLayerRef.current = nextLayer;
+            return nextLayer;
+        });
+
+        tileBufferNeedsUpdate.current = true;
+    };
+
+    const removeDroppedBoxTilePlacement = (placement: DroppedBoxTilePlacement) => {
+        const placements = droppedBoxTilesRef.current.get(placement.screenId) || [];
+        droppedBoxTilesRef.current.set(
+            placement.screenId,
+            placements.filter(item => item.id !== placement.id)
+        );
+        writeTileMatrixToRuntimeCollisionLayer(placement.tileX, placement.tileY, placement.previousCollision);
     };
 
     const refreshVisibleEntityCount = useCallback((currentScreenId?: string | null) => {
@@ -1694,11 +2016,24 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // Check whether the specified key is currently pressed
                 const key = condition.params?.key;
                 if (!key) return false;
-                const isPressed = pressedKeys.current.has(key);
+                const keyAliases: Record<string, string[]> = {
+                    up: ['up', 'ArrowUp'],
+                    down: ['down', 'ArrowDown'],
+                    left: ['left', 'ArrowLeft'],
+                    right: ['right', 'ArrowRight'],
+                    space: ['space', 'Space', ' '],
+                    fire: ['fire', 'Space', 'KeyX', 'x', 'X'],
+                };
+                const isPressed = (keyAliases[String(key).toLowerCase()] || [key]).some(alias => pressedKeys.current.has(alias));
                 return isPressed;
 
             case 'TIME_OUT': {
-                // Default to GameTime global variable, allow override via params
+                const durationFrames = Number(condition.params?.duration ?? condition.params?.frames);
+                if (Number.isFinite(durationFrames) && durationFrames > 0) {
+                    return (entity.stateElapsedFrames ?? 0) >= durationFrames;
+                }
+
+                // Legacy fallback: allow projects that used a global countdown variable.
                 const targetVar = normalizeVariableName(
                     condition.params?.variable ?? condition.params?.variableName ?? 'GameTime'
                 );
@@ -1806,6 +2141,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             case 'HAS_DEADLY_TILE_COLLISION':
                 // Verificar si la entidad estA tocando un tile mortal
                 return entity.hasDangerousTileCollision === true;
+
+            case 'IN_WATER':
+                return entity.isInWater === true;
+
+            case 'IS_WALL_GRABBING':
+                return entity.isWallGrabbing === true;
 
             case 'ANIMATION_COMPLETE':
                 // Check directly on entity property (not events)
@@ -2059,6 +2400,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             entity.sprite = spriteData;
                             entity.spriteAssetId = spriteAssetData.id;
                             entity.currentFrame = 0; // Reset to first frame
+                            entity.lastFrameUpdateTime = performance.now();
+                            entity.animationHasCompleted = false;
+                            (entity as any).isAnimationPlaying = true;
+                            (entity as any).animationLoop = spriteData.loops !== undefined ? spriteData.loops : true;
 
                             // Regenerate frame images for the new sprite
                             // Use Promise.all to wait for all images to load
@@ -2557,6 +2902,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             lastFrameUpdateTime: performance.now(),
             stateMachine,
             currentState,
+            stateElapsedFrames: 0,
             isOnGround: false,
             isOnLadder: false,
             spawnTime: performance.now(),
@@ -2598,10 +2944,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 }
 
                 case 'SET_ANIMATION_SPEED': {
-    const speedMs = Number(action.params.speedMs || 200);
-    if (entity.sprite) {
+      const rawSpeed = action.params.speed ?? action.params.speedMs ?? 200;
+      const speedMs = action.params.speed !== undefined
+        ? Math.max(16, Math.round(Number(rawSpeed) * (1000 / 60)))
+        : Math.max(16, Number(rawSpeed) || 200);
+      if (entity.sprite) {
         entity.sprite.animationSpeedMs = speedMs;
-    }
+      }
     break;
 }
 
@@ -3252,6 +3601,9 @@ function changeEntityState(
     }
 
     entity.currentState = nextState.name;
+    if (stateChanged) {
+        entity.stateElapsedFrames = 0;
+    }
     applyStatePropertiesFromState(entity, nextState);
 
     const shouldRunEnter =
@@ -3421,6 +3773,7 @@ useEffect(() => {
         // Reset transient session state to avoid stale values between plays
         // - Clear collected item registries
         try { boxPickedUpRegistry.current.clear(); } catch { }
+        try { droppedBoxTilesRef.current.clear(); } catch { }
         try { collectedItemsRegistry.current.clear(); } catch { }
         try { collectedTilesRegistry.current.clear(); } catch { }
         try { consumedInteractionRegistry.current.clear(); } catch { }
@@ -3571,13 +3924,13 @@ const resolveDefaultGameFlowExitNode = useCallback((fromNodeId: string): string 
 
 const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
     // Remove both e.key and e.code for compatibility
+    if (pressedKeys.current.has(e.key)) {
+        pressedKeys.current.delete(e.key);
+    }
+    if (e.code && pressedKeys.current.has(e.code)) {
+        pressedKeys.current.delete(e.code);
+    }
     if (heroRef.current) {
-        if (pressedKeys.current.has(e.key)) {
-            pressedKeys.current.delete(e.key);
-        }
-        if (e.code && pressedKeys.current.has(e.code)) {
-            pressedKeys.current.delete(e.code);
-        }
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
             checkKeyTransitions(heroRef.current.instance.id, e.key, false);
         }
@@ -3632,12 +3985,59 @@ const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
             case ' ': case 'Enter': handleAction(); break;
             case 'Escape': handleGoBack(); break;
         }
+    } else if (currentNode.type === 'Controls') {
+        const toggleControlSetting = (index: number) => {
+            setPreviewControlSettings(prev => {
+                if (index === 0) return { ...prev, keyboardButton1: prev.keyboardButton1 === 'SPC' ? 'CTRL' : 'SPC' };
+                if (index === 1) return { ...prev, keyboardButton2: prev.keyboardButton2 === 'N' ? 'CTRL' : 'N' };
+                if (index === 2) return { ...prev, jumpActionButton: prev.jumpActionButton === 'button1' ? 'button2' : 'button1' };
+                if (index === 3) return { ...prev, actionButton: prev.actionButton === 'button1' ? 'button2' : 'button1' };
+                return prev;
+            });
+        };
+        const goNext = () => {
+            const conn = connections.find(c => c.from.nodeId === currentNode.id);
+            if (!conn) return;
+            let targetNodeId = conn.to.nodeId;
+            let targetNode = nodes.find(n => n.id === targetNodeId);
+            while (targetNode && targetNode.type === 'Waypoint') {
+                const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
+                if (!nextConn) break;
+                targetNodeId = nextConn.to.nodeId;
+                targetNode = nodes.find(n => n.id === targetNodeId);
+            }
+            setCurrentNodeId(targetNodeId);
+            setSelectedOptionIndex(0);
+        };
+        switch (e.key) {
+            case 'ArrowUp': setSelectedOptionIndex(prev => Math.max(0, prev - 1)); break;
+            case 'ArrowDown': setSelectedOptionIndex(prev => Math.min(4, prev + 1)); break;
+            case 'ArrowLeft': case 'ArrowRight': toggleControlSetting(selectedOptionIndex); break;
+            case ' ': case 'Enter':
+                if (selectedOptionIndex === 4) goNext();
+                else toggleControlSetting(selectedOptionIndex);
+                break;
+            case 'Escape': handleGoBack(); break;
+        }
+    } else if (currentNode.type === 'TextScrollColor') {
+        switch (e.key) {
+            case ' ':
+            case 'x':
+            case 'X':
+                if (!pressedKeys.current.has(e.key)) pressedKeys.current.add(e.key);
+                if (e.code && !pressedKeys.current.has(e.code)) pressedKeys.current.add(e.code);
+                break;
+            case 'Escape':
+                handleGoBack();
+                break;
+        }
     } else if (currentNode.type === 'Text' || currentNode.type === 'Restart' || currentNode.type === 'Music' || currentNode.type === 'PresentationScreen') {
         switch (e.key) {
             case ' ': case 'Enter':
                 if (currentNode.type === 'Restart') {
                     // Hard reset transient gameplay/session state to avoid stale entities (e.g., carried boxes)
                     try { boxPickedUpRegistry.current.clear(); } catch { }
+                    try { droppedBoxTilesRef.current.clear(); } catch { }
                     try { collectedItemsRegistry.current.clear(); } catch { }
                     try { collectedTilesRegistry.current.clear(); } catch { }
                     try { consumedInteractionRegistry.current.clear(); } catch { }
@@ -3670,6 +4070,7 @@ const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
 
                     // Clear runtime entities and input state
                     entitiesRef.current = [];
+                    charShotsRef.current = [];
                     heroRef.current = null;
                     pressedKeys.current.clear();
                     jumpKeyProcessed.current = false;
@@ -3751,7 +4152,7 @@ const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
             case 'Escape': handleGoBack(); break;
         }
     }
-}, [currentNode, currentScreenMap, currentWorldMapGraph, handleScreenTransition, handleAction, handleGoBack, checkKeyTransitions, expandMenuOptions, nodes, connections, isFullscreen]);
+}, [currentNode, currentScreenMap, currentWorldMapGraph, handleScreenTransition, handleAction, handleGoBack, checkKeyTransitions, expandMenuOptions, nodes, connections, selectedOptionIndex, isFullscreen]);
 
 useEffect(() => {
     if (!isOpen || currentNode?.type !== 'WorldLink' || currentScreenMap) return;
@@ -3831,6 +4232,7 @@ useEffect(() => {
     }
     if (!currentScreenMap) {
         entitiesRef.current = [];
+        charShotsRef.current = [];
         nucleoPositionsRef.current = [];
         autoDialoguePreviewRef.current = { active: false, text: '', visibleChars: 0, lastCharAt: 0, charDelayMs: 35, dialogue: undefined };
         autoEventSpaceWasDownRef.current = false;
@@ -4019,7 +4421,7 @@ useEffect(() => {
             instance, template, sprite, spriteAssetId, x: startX, y: startY, vx, vy,
             gravityVel: 0,
             frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
-                    stateMachine, currentState, isOnGround: false, isOnLadder: false, spawnTime: performance.now(),
+                    stateMachine, currentState, stateElapsedFrames: 0, isOnGround: false, isOnLadder: false, spawnTime: performance.now(),
             screenAssetId: currentScreenMap.id,
             globalX, globalY, originScreenId, parentEntityId: null, platformGraceFramesLeft: 0,
             ownerScreenId,
@@ -4271,6 +4673,7 @@ useEffect(() => {
     const bgAsset = bgScreenAssetId ? allAssets.find(a => a.id === bgScreenAssetId) : null;
     const screenMapToRender = currentScreenMap || (bgAsset?.data as ScreenMap);
     const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
+    const tileById = new Map<string, Tile>(tileset.map(tile => [tile.id, tile] as [string, Tile]));
 
     type CollisionCheckOptions = {
         ignoreTopSolid?: boolean;
@@ -4288,8 +4691,7 @@ useEffect(() => {
         const tileOnLayer = collisionLayer[tileY]?.[tileX];
 
         if (!tileOnLayer || !tileOnLayer.tileId) return false;
-        const tile = tileset.find(t => t.id === tileOnLayer.tileId);
-        const logical = tile?.logicalProperties;
+        const logical = getScreenTileLogicalProperties(tileOnLayer, tileById);
         if (!logical?.isSolid) return false;
 
         // Treat familyId 2 as "top-solid/platform": only solid when approached from above
@@ -4311,6 +4713,103 @@ useEffect(() => {
         return true;
     };
 
+    const getLayerCellAt = (layer: ScreenTile[][] | undefined, tileX: number, tileY: number): ScreenTile | undefined => (
+        layer?.[tileY]?.[tileX]
+    );
+
+    const hasTileCell = (cell: ScreenTile | undefined): boolean => !!cell?.tileId;
+
+    const isSolidTileCell = (cell: ScreenTile | undefined): boolean => (
+        getScreenTileLogicalProperties(cell, tileById)?.isSolid ?? false
+    );
+
+    const isDropTargetBlockedAt = (tileX: number, tileY: number, screenMap: ScreenMap): boolean => {
+        if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) {
+            return true;
+        }
+
+        const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
+
+        if (useRuntimeLayer) {
+            const runtimeCell = getLayerCellAt(runtimeCollisionLayerRef.current, tileX, tileY);
+            if (isSolidTileCell(runtimeCell)) return true;
+        }
+
+        if (isSolidTileCell(getLayerCellAt(screenMap.layers.collision, tileX, tileY))) {
+            return true;
+        }
+
+        if (isSolidTileCell(getLayerCellAt(getScreenBehaviorLayer(screenMap), tileX, tileY))) {
+            return true;
+        }
+
+        return isSolidTileCell(getLayerCellAt(screenMap.layers.background, tileX, tileY));
+    };
+
+    const isDropSupportSolidAt = (tileX: number, tileY: number, screenMap: ScreenMap): boolean => {
+        if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) {
+            return false;
+        }
+
+        const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
+        const runtimeCell = useRuntimeLayer ? getLayerCellAt(runtimeCollisionLayerRef.current, tileX, tileY) : undefined;
+        return isSolidTileCell(runtimeCell)
+            || isSolidTileCell(getLayerCellAt(screenMap.layers.collision, tileX, tileY))
+            || isSolidTileCell(getLayerCellAt(getScreenBehaviorLayer(screenMap), tileX, tileY))
+            || isSolidTileCell(getLayerCellAt(screenMap.layers.background, tileX, tileY));
+    };
+
+    const isCollisionRectClear = (left: number, top: number, width: number, height: number, screenMap: ScreenMap): boolean => {
+        if (width <= 0 || height <= 0) return false;
+
+        const startTileX = Math.floor(left / TILE_SIZE);
+        const endTileX = Math.floor((left + width - 1) / TILE_SIZE);
+        const startTileY = Math.floor(top / TILE_SIZE);
+        const endTileY = Math.floor((top + height - 1) / TILE_SIZE);
+
+        for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+            for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+                if (isDropTargetBlockedAt(tileX, tileY, screenMap)) return false;
+            }
+        }
+        return true;
+    };
+
+    const isTileMatrixDropTargetClear = (
+        tileX: number,
+        tileY: number,
+        matrix: ScreenTile[][],
+        screenMap: ScreenMap
+    ): boolean => {
+        if (matrix.length <= 0 || (matrix[0]?.length || 0) <= 0) return false;
+
+        for (let row = 0; row < matrix.length; row++) {
+            for (let col = 0; col < (matrix[row]?.length || 0); col++) {
+                if (!matrix[row][col]?.tileId) continue;
+                if (isDropTargetBlockedAt(tileX + col, tileY + row, screenMap)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    };
+
+    const hasTileMatrixSolidSupport = (
+        tileX: number,
+        tileY: number,
+        matrix: ScreenTile[][],
+        screenMap: ScreenMap
+    ): boolean => {
+        if (matrix.length <= 0 || (matrix[0]?.length || 0) <= 0) return false;
+        const supportY = tileY + matrix.length;
+        if (supportY < 0 || supportY >= screenMap.height) return false;
+        for (let col = 0; col < (matrix[0]?.length || 0); col++) {
+            if (!isDropSupportSolidAt(tileX + col, supportY, screenMap)) return false;
+        }
+        return true;
+    };
+
     const checkDangerousTileAt = (x: number, y: number, screenMap: ScreenMap) => {
         const tileX = Math.floor(x / TILE_SIZE);
         const tileY = Math.floor(y / TILE_SIZE);
@@ -4321,8 +4820,7 @@ useEffect(() => {
         const tileOnLayer = collisionLayer[tileY]?.[tileX];
 
         if (!tileOnLayer || !tileOnLayer.tileId) return false;
-        const tile = tileset.find(t => t.id === tileOnLayer.tileId);
-        return tile?.logicalProperties?.causesDamage ?? false;
+        return getScreenTileLogicalProperties(tileOnLayer, tileById)?.causesDamage ?? false;
     };
 
     const isLadderTileAt = (x: number, y: number, screenMap: ScreenMap) => {
@@ -4335,8 +4833,7 @@ useEffect(() => {
         const tileOnLayer = collisionLayer[tileY]?.[tileX];
         if (!tileOnLayer?.tileId) return false;
 
-        const tile = tileset.find(t => t.id === tileOnLayer.tileId);
-        return normalizeTileInteractionType(tile?.logicalProperties) === 'ladder';
+        return normalizeTileInteractionType(getScreenTileLogicalProperties(tileOnLayer, tileById)) === 'ladder';
     };
 
     const detectLadderStateForEntity = (entity: AnimatedEntity, screenMap: ScreenMap | null) => {
@@ -4581,7 +5078,33 @@ useEffect(() => {
     };
 
     const entityHasDeadlyTilesComponent = (entity: AnimatedEntity) =>
-        entity.template.components?.some(c => c.definitionId === DEADLY_TILES_COMPONENT_ID);
+        entity.template.components?.some(c => c.definitionId === DEADLY_TILES_COMPONENT_ID) ||
+        !!entity.instance.componentOverrides?.[DEADLY_TILES_COMPONENT_ID];
+
+    const entityHasInWaterComponent = (entity: AnimatedEntity) =>
+        entity.template.components?.some(c => c.definitionId === IN_WATER_COMPONENT_ID) ||
+        !!entity.instance.componentOverrides?.[IN_WATER_COMPONENT_ID];
+
+    const updateInWaterFlagForEntity = (entity: AnimatedEntity, screenMap: ScreenMap | null) => {
+        if (!screenMap || !entityHasInWaterComponent(entity)) {
+            entity.isInWater = false;
+            return;
+        }
+
+        const centerCellX = Math.floor((entity.x + 8) / 8);
+        const centerCellY = Math.floor((entity.y + 8) / 8);
+        const zones = Array.isArray(screenMap.effectZones) ? screenMap.effectZones : [];
+
+        entity.isInWater = zones.some(zone => {
+            if (resolveEffectZoneType(zone) !== 'water') return false;
+            const rect = zone.rect || { x: 0, y: 0, width: 0, height: 0 };
+            const x = Number(rect.x) || 0;
+            const y = Number(rect.y) || 0;
+            const width = Number(rect.width) || 0;
+            const height = Number(rect.height) || 0;
+            return centerCellX >= x && centerCellX < x + width && centerCellY >= y && centerCellY < y + height;
+        });
+    };
 
     const updateDeadlyTileFlagForEntity = (entity: AnimatedEntity, screenMap: ScreenMap | null) => {
         if (!screenMap || !entityHasDeadlyTilesComponent(entity)) {
@@ -4624,16 +5147,40 @@ useEffect(() => {
         if (!ctx) return null;
         ctx.imageSmoothingEnabled = false;
 
+        const droppedPlacements = droppedBoxTilesRef.current.get(map.id) || [];
+        const visualBackground = droppedPlacements.length > 0
+            ? JSON.parse(JSON.stringify(map.layers.background || []))
+            : map.layers.background;
+        if (droppedPlacements.length > 0) {
+            for (const placement of droppedPlacements) {
+                for (let row = 0; row < placement.tiles.length; row++) {
+                    for (let col = 0; col < (placement.tiles[row]?.length || 0); col++) {
+                        const destX = placement.tileX + col;
+                        const destY = placement.tileY + row;
+                        if (destY < 0 || destY >= map.height || destX < 0 || destX >= map.width) continue;
+                        if (!visualBackground[destY]) visualBackground[destY] = [];
+                        visualBackground[destY][destX] = { ...placement.tiles[row][col] };
+                    }
+                }
+            }
+        }
+
         // Si hay runtime layer, crear copia temporal del screenMap con ese layer solo para collision
         // El background se mantiene original para el renderizado visual
         const mapToRender = runtimeLayer ? {
             ...map,
             layers: {
                 ...map.layers,
-                background: map.layers.background,  // Mantener background original para renderizado
+                background: visualBackground,
                 collision: runtimeLayer              // Solo usar runtime para deteccin de colisiones
             }
-        } : map;
+        } : {
+            ...map,
+            layers: {
+                ...map.layers,
+                background: visualBackground
+            }
+        };
 
         renderScreenToCanvas(canvas, mapToRender, tset, mode, TILE_SIZE);
         tileBufferRef.current = canvas;
@@ -4980,12 +5527,6 @@ useEffect(() => {
 
         if (!collisionLayer) return;
 
-        // Precompute solid tile ids
-        const solidIds = new Set<string>();
-        for (const t of tileset) {
-            if (t?.logicalProperties?.isSolid) solidIds.add(t.id);
-        }
-
         ctx.save();
         ctx.lineWidth = 1;
         ctx.strokeStyle = '#00FFFF';
@@ -4995,8 +5536,7 @@ useEffect(() => {
             if (!row) continue;
             for (let tx = 0; tx < map.width; tx++) {
                 const cell = row[tx];
-                const id = cell?.tileId || null;
-                if (!id || !solidIds.has(id)) continue;
+                if (!getScreenTileLogicalProperties(cell, tileById)?.isSolid) continue;
                 ctx.strokeRect(tx * TILE_SIZE + 0.5, ty * TILE_SIZE + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
             }
         }
@@ -5028,9 +5568,73 @@ useEffect(() => {
         } as Record<string, any>;
     };
 
-    const spawnProjectile = (shooter: AnimatedEntity) => {
+    const isCharShootMode = (shootProps: Record<string, any>): boolean => {
+        const mode = String(shootProps.mode ?? shootProps.shotMode ?? shootProps.renderMode ?? '').trim().toLowerCase();
+        return mode === 'char' || mode === 'tile' || mode === 'screenchar' || mode === 'screen-char';
+    };
+
+    const getShootFirePressed = (shootProps: Record<string, any>, charMode = false): boolean => {
+        const trigger = String(shootProps.trigger ?? '').trim().toLowerCase();
+        const defaultKey = charMode || trigger === 'action2' || trigger === 'n' || trigger === 'keyn' ? 'KeyN' : 'KeyX';
+        const configuredFireKey = shootProps.fireKey;
+        const fireKey = charMode && (!configuredFireKey || configuredFireKey === 'KeyX')
+            ? 'KeyN'
+            : (configuredFireKey || defaultKey);
+        if (pressedKeys.current.has(fireKey)) return true;
+        if (fireKey === 'KeyN' || trigger === 'action2' || charMode) {
+            return pressedKeys.current.has('n') || pressedKeys.current.has('N') || pressedKeys.current.has('KeyN');
+        }
+        return pressedKeys.current.has('x') || pressedKeys.current.has('X') || pressedKeys.current.has('KeyX');
+    };
+
+    const getHorizontalFacingDir = (entity: AnimatedEntity): -1 | 1 => {
+        if (entity.sprite.facingDirection === 'right') {
+            return entity.isFacingMirrored ? -1 : 1;
+        }
+        if (entity.sprite.facingDirection === 'left') {
+            return entity.isFacingMirrored ? 1 : -1;
+        }
+        return entity.vx < 0 ? -1 : 1;
+    };
+
+    const isShootBlockedByPlayerState = (shooter: AnimatedEntity): boolean => {
+        if (shooter.isWallGrabbing) return true;
+        if (shooter.carriedBox) return true;
+        if (shooter === heroRef.current && heroRef.current?.carriedBox) return true;
+        return entitiesRef.current.some(entity => entity.carriedBox === shooter);
+    };
+
+    const spawnCharShot = (shooter: AnimatedEntity, shootProps: Record<string, any>, screenMap: ScreenMap | null | undefined): boolean => {
+        if (!screenMap) return false;
+        if (isShootBlockedByPlayerState(shooter)) return false;
+        if (charShotsRef.current.some(shot => shot.ownerId === shooter.instance.id)) return false;
+
+        const hitboxProps = entityCollisionProps(shooter);
+        const hitbox = hitboxProps
+            ? getHitboxFor(shooter, hitboxProps)
+            : { x: shooter.x, y: shooter.y, width: shooter.sprite.size.width, height: shooter.sprite.size.height };
+        const dir = getHorizontalFacingDir(shooter);
+        const tileY = Math.max(0, Math.min(screenMap.height - 1, Math.floor((hitbox.y + hitbox.height / 2) / TILE_SIZE)));
+        const tileX = dir > 0
+            ? Math.floor((hitbox.x + hitbox.width) / TILE_SIZE)
+            : Math.floor((hitbox.x - TILE_SIZE) / TILE_SIZE);
+        if (tileX < 0 || tileX >= screenMap.width) return false;
+
+        const x = tileX * TILE_SIZE;
+        const y = tileY * TILE_SIZE;
+        if (checkCollisionAt(x + 4, y + 4, screenMap, { ignoreTopSolid: true })) return false;
+
+        const parsedChar = Number(shootProps.charCode ?? shootProps.tileChar ?? 250);
+        const charCode = Number.isFinite(parsedChar) ? Math.max(0, Math.min(255, Math.round(parsedChar))) : 250;
+        charShotsRef.current.push({ x, y, dir, charCode, age: 0, ownerId: shooter.instance.id });
+        shooter.lastShotTime = performance.now();
+        return true;
+    };
+
+    const spawnProjectile = (shooter: AnimatedEntity): boolean => {
         const shootProps = getMergedComponentValues(shooter, 'comp_shoot');
-        if (!shootProps) return;
+        if (!shootProps) return false;
+        if (isShootBlockedByPlayerState(shooter)) return false;
 
         const spriteAssetId = shootProps.spriteAssetId || shootProps.renderSpriteAssetId || shootProps.render;
         // Allow lookup by asset id or asset name (or inner data name/id)
@@ -5043,7 +5647,7 @@ useEffect(() => {
             )
         ));
         const projectileSprite = projectileSpriteAsset?.data as Sprite | undefined;
-        if (!projectileSprite || !projectileSprite.frames?.length) return;
+        if (!projectileSprite || !projectileSprite.frames?.length) return false;
 
         // --- Determine aim and velocity (supports 4-direction shooting) ---
         const aimMode = String(shootProps.aimMode || 'facing').toLowerCase();
@@ -5205,6 +5809,7 @@ useEffect(() => {
 
         entitiesRef.current.push(proj);
         shooter.lastShotTime = performance.now();
+        return true;
     };
 
     const drawTextAsync = (text: string, x: number, y: number, colorAttrs: MSXFontColorAttributes, customFont?: MSXFont, customColorAttrs?: MSXFontColorAttributes) => {
@@ -5254,89 +5859,108 @@ useEffect(() => {
         }
     };
 
-    const applyTransitionEffect = async (effect: string, duration: number) => {
+    const applyTransitionEffect = async (effect: string, duration: number, fillChar: 254 | 255 = 254, revealSource?: HTMLCanvasElement) => {
         const steps = Math.max(10, Math.floor(duration / 50));
+        const transitionCharW = PREVIEW_WIDTH / 32;
+        const transitionCharH = PREVIEW_HEIGHT / 24;
+        const drawOutline = fillChar !== 255;
+        const drawCoverChar = (col: number, row: number) => {
+            const x = Math.floor(col * transitionCharW);
+            const y = Math.floor(row * transitionCharH);
+            const w = Math.ceil(transitionCharW);
+            const h = Math.ceil(transitionCharH);
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(x, y, w, h);
+            if (drawOutline) {
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x + 0.5, y + 0.5, Math.max(1, w - 1), Math.max(1, h - 1));
+            }
+        };
+        const drawRevealChar = (col: number, row: number) => {
+            if (!revealSource) return;
+            const x = Math.floor(col * transitionCharW);
+            const y = Math.floor(row * transitionCharH);
+            const w = Math.ceil(transitionCharW);
+            const h = Math.ceil(transitionCharH);
+            ctx.drawImage(revealSource, x, y, w, h, x, y, w, h);
+        };
+        const drawTransitionChar = revealSource ? drawRevealChar : drawCoverChar;
+        if (revealSource) {
+            for (let row = 0; row < 24; row++) {
+                for (let col = 0; col < 32; col++) drawCoverChar(col, row);
+            }
+        }
+        const drawTransitionColumn = (col: number) => {
+            if (col < 0 || col >= 32) return;
+            for (let row = 0; row < 24; row++) drawTransitionChar(col, row);
+        };
+        const drawTransitionRow = (row: number) => {
+            if (row < 0 || row >= 24) return;
+            for (let col = 0; col < 32; col++) drawTransitionChar(col, row);
+        };
+        const drawTransitionColumnRange = (col: number, startRow: number, rowCount: number) => {
+            if (col < 0 || col >= 32 || rowCount <= 0) return;
+            const endRow = Math.min(24, startRow + rowCount);
+            for (let row = Math.max(0, startRow); row < endRow; row++) drawTransitionChar(col, row);
+        };
+        const drawTransitionRowRange = (row: number, startCol: number, colCount: number) => {
+            if (row < 0 || row >= 24 || colCount <= 0) return;
+            const endCol = Math.min(32, startCol + colCount);
+            for (let col = Math.max(0, startCol); col < endCol; col++) drawTransitionChar(col, row);
+        };
         switch (effect) {
             case 'cls':
-                ctx.fillStyle = '#000000';
-                ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                for (let row = 0; row < 24; row++) drawTransitionRow(row);
                 await new Promise(resolve => setTimeout(resolve, 100));
                 break;
             case 'dissolve_pixels':
-                for (let i = 0; i < steps; i++) {
-                    const pixelsPerStep = Math.floor((PREVIEW_WIDTH * PREVIEW_HEIGHT) / steps);
-                    for (let j = 0; j < pixelsPerStep; j++) {
-                        const x = Math.floor(Math.random() * PREVIEW_WIDTH);
-                        const y = Math.floor(Math.random() * PREVIEW_HEIGHT);
-                        ctx.fillStyle = '#000000';
-                        ctx.fillRect(x, y, 1, 1);
-                    }
-                    await new Promise(resolve => setTimeout(resolve, duration / steps));
+                for (let pass = 0; pass < 8; pass++) {
+                    drawTransitionColumn(pass);
+                    drawTransitionColumn(pass + 8);
+                    drawTransitionColumn(pass + 16);
+                    drawTransitionColumn(pass + 24);
+                    await new Promise(resolve => setTimeout(resolve, duration / 8));
                 }
                 break;
             case 'dissolve_chars':
-                const charWidth = 8;
-                const charHeight = 8;
-                const charsX = Math.floor(PREVIEW_WIDTH / charWidth);
-                const charsY = Math.floor(PREVIEW_HEIGHT / charHeight);
-                const totalChars = charsX * charsY;
-                const charsPerStep = Math.max(1, Math.floor(totalChars / steps));
-                const positions = Array.from({ length: totalChars }, (_, i) => i);
-                for (let i = positions.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [positions[i], positions[j]] = [positions[j], positions[i]];
-                }
-                for (let i = 0; i < steps && positions.length > 0; i++) {
-                    for (let j = 0; j < charsPerStep && positions.length > 0; j++) {
-                        const pos = positions.pop()!;
-                        const cx = (pos % charsX) * charWidth;
-                        const cy = Math.floor(pos / charsX) * charHeight;
-                        ctx.fillStyle = '#000000';
-                        ctx.fillRect(cx, cy, charWidth, charHeight);
-                    }
-                    await new Promise(resolve => setTimeout(resolve, duration / steps));
+                for (let pass = 0; pass < 8; pass++) {
+                    drawTransitionRow(pass);
+                    drawTransitionRow(pass + 8);
+                    drawTransitionRow(pass + 16);
+                    await new Promise(resolve => setTimeout(resolve, duration / 8));
                 }
                 break;
             case 'vertical_lines':
-                for (let x = 0; x < PREVIEW_WIDTH; x += Math.max(1, Math.floor(PREVIEW_WIDTH / steps))) {
-                    ctx.fillStyle = '#000000';
-                    ctx.fillRect(x, 0, Math.max(1, Math.floor(PREVIEW_WIDTH / steps)), PREVIEW_HEIGHT);
-                    await new Promise(resolve => setTimeout(resolve, duration / steps));
+                for (let col = 0; col < 32; col += 2) {
+                    drawTransitionColumn(col);
+                    drawTransitionColumn(col + 1);
+                    await new Promise(resolve => setTimeout(resolve, duration / 16));
                 }
                 break;
             case 'horizontal_lines':
-                for (let y = 0; y < PREVIEW_HEIGHT; y += Math.max(1, Math.floor(PREVIEW_HEIGHT / steps))) {
-                    ctx.fillStyle = '#000000';
-                    ctx.fillRect(0, y, PREVIEW_WIDTH, Math.max(1, Math.floor(PREVIEW_HEIGHT / steps)));
-                    await new Promise(resolve => setTimeout(resolve, duration / steps));
+                const rowDelay = duration / 24;
+                for (let row = 0; row < 24; row++) {
+                    drawTransitionRow(row);
+                    await new Promise(resolve => setTimeout(resolve, rowDelay));
                 }
                 break;
             case 'spiral':
-                let left = 0, right = PREVIEW_WIDTH - 1, top = 0, bottom = PREVIEW_HEIGHT - 1;
-                const spiralStep = Math.max(1, Math.floor(Math.min(PREVIEW_WIDTH, PREVIEW_HEIGHT) / (steps * 2)));
-                while (left <= right && top <= bottom) {
-                    ctx.fillStyle = '#000000';
-                    ctx.fillRect(left, top, right - left + 1, spiralStep);
-                    top += spiralStep;
-                    if (left <= right && top <= bottom) {
-                        ctx.fillRect(right - spiralStep + 1, top, spiralStep, bottom - top + 1);
-                        right -= spiralStep;
+                for (let ring = 0; ring < 12; ring++) {
+                    const width = 32 - ring * 2;
+                    drawTransitionRowRange(ring, ring, width);
+                    drawTransitionRowRange(23 - ring, ring, width);
+                    const sideHeight = 22 - ring * 2;
+                    if (sideHeight > 0) {
+                        drawTransitionColumnRange(ring, ring + 1, sideHeight);
+                        drawTransitionColumnRange(31 - ring, ring + 1, sideHeight);
                     }
-                    if (left <= right && top <= bottom) {
-                        ctx.fillRect(left, bottom - spiralStep + 1, right - left + 1, spiralStep);
-                        bottom -= spiralStep;
-                    }
-                    if (left <= right && top <= bottom) {
-                        ctx.fillRect(left, top, spiralStep, bottom - top + 1);
-                        left += spiralStep;
-                    }
-                    await new Promise(resolve => setTimeout(resolve, duration / Math.ceil(steps / 4)));
+                    await new Promise(resolve => setTimeout(resolve, duration / 12));
                 }
                 break;
             case 'fill_white_squares':
-                const squareSize = 16;
-                const squaresX = Math.ceil(PREVIEW_WIDTH / squareSize);
-                const squaresY = Math.ceil(PREVIEW_HEIGHT / squareSize);
+                const squaresX = 32;
+                const squaresY = 24;
                 const totalSquares = squaresX * squaresY;
                 const squarePositions = Array.from({ length: totalSquares }, (_, i) => i);
                 for (let i = squarePositions.length - 1; i > 0; i--) {
@@ -5347,18 +5971,164 @@ useEffect(() => {
                 for (let i = 0; i < steps && squarePositions.length > 0; i++) {
                     for (let j = 0; j < squaresPerStep && squarePositions.length > 0; j++) {
                         const pos = squarePositions.pop()!;
-                        const sx = (pos % squaresX) * squareSize;
-                        const sy = Math.floor(pos / squaresX) * squareSize;
-                        ctx.fillStyle = '#FFFFFF';
-                        ctx.fillRect(sx, sy, squareSize, squareSize);
+                        drawTransitionChar(pos % squaresX, Math.floor(pos / squaresX));
                     }
                     await new Promise(resolve => setTimeout(resolve, duration / steps));
                 }
+                while (squarePositions.length > 0) {
+                    const pos = squarePositions.pop()!;
+                    drawTransitionChar(pos % squaresX, Math.floor(pos / squaresX));
+                }
                 await new Promise(resolve => setTimeout(resolve, 200));
-                ctx.fillStyle = '#000000';
-                ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                if (!revealSource) {
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                }
                 break;
+            case 'diagonal_clear': {
+                const diagonalDelay = duration / 55;
+                for (let d = 0; d < 55; d++) {
+                    const xStart = d < 32 ? d : 31;
+                    const yStart = d < 32 ? 0 : d - 31;
+                    const len = d < 24 ? d + 1 : (d < 32 ? 24 : 55 - d);
+                    for (let i = 0; i < len; i++) {
+                        const x = xStart - i;
+                        const y = yStart + i;
+                        drawTransitionChar(x, y);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, diagonalDelay));
+                }
+                break;
+            }
+            case 'diagonal_inverse': {
+                const diagonalDelay = duration / 55;
+                for (let d = 0; d < 55; d++) {
+                    const xStart = d < 32 ? 31 - d : 0;
+                    const yStart = d < 32 ? 0 : d - 31;
+                    const len = d < 24 ? d + 1 : (d < 32 ? 24 : 55 - d);
+                    for (let i = 0; i < len; i++) {
+                        const x = xStart + i;
+                        const y = yStart + i;
+                        drawTransitionChar(x, y);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, diagonalDelay));
+                }
+                break;
+            }
+            case 'checkerboard': {
+                for (let parity = 0; parity < 2; parity++) {
+                    for (let row = 0; row < 24; row++) {
+                        for (let col = 0; col < 32; col++) {
+                            if (((row + col) & 1) === parity) drawTransitionChar(col, row);
+                        }
+                    }
+                    await new Promise(resolve => setTimeout(resolve, duration / 2));
+                }
+                break;
+            }
+            case 'doors': {
+                for (let step = 0; step < 16; step++) {
+                    drawTransitionColumn(step);
+                    drawTransitionColumn(31 - step);
+                    await new Promise(resolve => setTimeout(resolve, duration / 16));
+                }
+                break;
+            }
+            case 'center_curtain': {
+                for (let step = 0; step < 16; step++) {
+                    drawTransitionColumn(15 - step);
+                    drawTransitionColumn(16 + step);
+                    await new Promise(resolve => setTimeout(resolve, duration / 16));
+                }
+                break;
+            }
+            case 'venetian_blinds': {
+                for (let row = 0; row < 24; row += 2) drawTransitionRow(row);
+                await new Promise(resolve => setTimeout(resolve, duration / 2));
+                for (let row = 1; row < 24; row += 2) drawTransitionRow(row);
+                await new Promise(resolve => setTimeout(resolve, duration / 2));
+                break;
+            }
+            case 'radial_wipe': {
+                for (let distance = 26; distance >= 0; distance--) {
+                    for (let row = 0; row < 24; row++) {
+                        const dy = row < 12 ? 11 - row : row - 12;
+                        for (let col = 0; col < 32; col++) {
+                            const dx = col < 16 ? 15 - col : col - 16;
+                            if (dx + dy === distance) drawTransitionChar(col, row);
+                        }
+                    }
+                    await new Promise(resolve => setTimeout(resolve, duration / 27));
+                }
+                break;
+            }
+            case 'block4_shuffle': {
+                const order = [
+                    0, 37, 10, 47, 20, 57, 30, 3,
+                    40, 13, 50, 23, 60, 33, 6, 43,
+                    16, 53, 26, 63, 36, 9, 46, 19,
+                    56, 29, 2, 39, 12, 49, 22, 59,
+                    32, 5, 42, 15, 52, 25, 62, 35,
+                    8, 45, 18, 55, 28, 1, 38, 11,
+                    48, 21, 58, 31, 4, 41, 14, 51,
+                    24, 61, 34, 7, 44, 17, 54, 27,
+                ];
+                for (const block of order) {
+                    const startCol = (block & 7) * 4;
+                    const startRow = Math.floor(block / 8) * 3;
+                    for (let row = startRow; row < startRow + 3; row++) {
+                        drawTransitionRowRange(row, startCol, 4);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, duration / 64));
+                }
+                break;
+            }
+            case 'zoom_box': {
+                for (let ring = 0; ring < 12; ring += 2) {
+                    const width = 32 - ring * 2;
+                    drawTransitionRowRange(ring, ring, width);
+                    drawTransitionRowRange(ring + 1, ring, width);
+                    drawTransitionRowRange(23 - ring, ring, width);
+                    drawTransitionRowRange(22 - ring, ring, width);
+                    const sideHeight = 20 - ring * 2;
+                    if (sideHeight > 0) {
+                        drawTransitionColumnRange(ring, ring + 2, sideHeight);
+                        drawTransitionColumnRange(ring + 1, ring + 2, sideHeight);
+                        drawTransitionColumnRange(30 - ring, ring + 2, sideHeight);
+                        drawTransitionColumnRange(31 - ring, ring + 2, sideHeight);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, duration / 6));
+                }
+                break;
+            }
         }
+    };
+
+    const isTransitionRevealPreviewTarget = (nodeType: string) => (
+        nodeType === 'WorldLink'
+        || nodeType === 'SubMenu'
+        || nodeType === 'Controls'
+        || nodeType === 'Text'
+        || nodeType === 'PresentationScreen'
+        || nodeType === 'End'
+        || nodeType === 'Restart'
+    );
+
+    const applyPendingTransitionRevealPreview = async () => {
+        const pending = pendingTransitionRevealRef.current;
+        const canvas = canvasRef.current;
+        if (!pending || !canvas || transitionRevealInProgressRef.current) return;
+        pendingTransitionRevealRef.current = null;
+        transitionRevealInProgressRef.current = true;
+        const sourceCanvas = document.createElement('canvas');
+        sourceCanvas.width = PREVIEW_WIDTH;
+        sourceCanvas.height = PREVIEW_HEIGHT;
+        const sourceCtx = sourceCanvas.getContext('2d');
+        if (sourceCtx) {
+            sourceCtx.drawImage(canvas, 0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+            await applyTransitionEffect(pending.effect, pending.duration, pending.fillChar, sourceCanvas);
+        }
+        transitionRevealInProgressRef.current = false;
     };
 
     const renderTextNodes = async () => {
@@ -5368,6 +6138,8 @@ useEffect(() => {
                 bgColor = (currentNode as GameFlowSubMenuNode).appearance?.colors?.background || '#000000';
             } else if (currentNode.type === 'Text') {
                 bgColor = (currentNode as GameFlowTextNode).appearance?.colors?.background || '#000000';
+            } else if (currentNode.type === 'TextScroll' || currentNode.type === 'TextScrollColor' || currentNode.type === 'TextScroll2') {
+                bgColor = (currentNode as GameFlowTextScrollNode | GameFlowTextScrollColorNode | GameFlowTextScroll2Node).backgroundColor || '#000000';
             }
             ctx.fillStyle = bgColor;
             ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
@@ -5437,6 +6209,27 @@ useEffect(() => {
                     await drawTextAsync(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + displayIndex * 12, colorAttrs, subMenuFont, colorAttrs);
                 }
                 break;
+            case 'Controls': {
+                const controlsNode = currentNode as GameFlowControlsNode;
+                const title = controlsNode.title || 'Controles';
+                const primaryLabel = (controlsNode.jumpActionLabel || 'Salto').slice(0, 10);
+                const secondaryLabel = (controlsNode.actionLabel || 'Accion').slice(0, 10);
+                const titleDims = getTextDimensionsMSX1(title, 1);
+                await drawTextAsync(title, (PREVIEW_WIDTH - titleDims.width) / 2, 40, msxFontColorAttributes);
+                const rows = [
+                    `B1 KEY: ${previewControlSettings.keyboardButton1}`,
+                    `B2 KEY: ${previewControlSettings.keyboardButton2}`,
+                    `${primaryLabel}: ${previewControlSettings.jumpActionButton === 'button1' ? 'B1' : 'B2'}`,
+                    `${secondaryLabel}: ${previewControlSettings.actionButton === 'button1' ? 'B1' : 'B2'}`,
+                    'DONE',
+                ];
+                for (const [index, rowText] of rows.entries()) {
+                    const text = `${selectedOptionIndex === index ? '>' : ' '} ${rowText}`;
+                    const dims = getTextDimensionsMSX1(text, 1);
+                    await drawTextAsync(text, (PREVIEW_WIDTH - dims.width) / 2, 80 + index * 12, msxFontColorAttributes);
+                }
+                break;
+            }
             case 'Text':
                 const textNode = currentNode as GameFlowTextNode;
                 const textNodeFontAsset = textNode.appearance?.fontAssetId
@@ -5473,6 +6266,90 @@ useEffect(() => {
                 const promptDims = getTextDimensionsMSX1(promptText, 1);
                 await drawTextAsync(promptText, (PREVIEW_WIDTH - promptDims.width) / 2, PREVIEW_HEIGHT - 30, msxFontColorAttributes, textNodeFont, textNodeFontColorAttrs);
                 break;
+            case 'TextScroll':
+            case 'TextScrollColor':
+            case 'TextScroll2': {
+                const scrollNode = currentNode as GameFlowTextScrollNode | GameFlowTextScrollColorNode | GameFlowTextScroll2Node;
+                const fontAsset = scrollNode.fontAssetId
+                    ? allAssets.find(a => a.id === scrollNode.fontAssetId && a.type === 'font')
+                    : null;
+                const scrollFont = fontAsset ? (fontAsset.data as any)?.fontData as MSXFont | undefined : undefined;
+                const scrollFontColorAttrs = fontAsset ? (fontAsset.data as any)?.fontColorAttributes as MSXFontColorAttributes | undefined : undefined;
+                const rawParagraphs = String(scrollNode.text || '').replace(/\\n/g, '\n').split(/\r?\n/);
+                const lines: string[] = [];
+                const maxLineWidth = PREVIEW_WIDTH - 24;
+                for (const paragraph of rawParagraphs) {
+                    const words = paragraph.split(/\s+/).filter(Boolean);
+                    if (words.length === 0) {
+                        lines.push('');
+                        continue;
+                    }
+                    let currentLine = '';
+                    for (const word of words) {
+                        const testLine = currentLine ? `${currentLine} ${word}` : word;
+                        if (getTextDimensionsMSX1(testLine, 1).width > maxLineWidth && currentLine) {
+                            lines.push(currentLine);
+                            currentLine = word;
+                        } else {
+                            currentLine = testLine;
+                        }
+                    }
+                    lines.push(currentLine);
+                }
+
+                const speedFrames = Math.max(1, Math.min(8, Math.trunc(scrollNode.speedFrames || 2)));
+                const frameDelayMs = speedFrames * 20;
+                const stripeTop = 24;
+                const stripeHeight = PREVIEW_HEIGHT - 48;
+                const stripeBottom = stripeTop + stripeHeight;
+                const lineHeight = 10;
+                const travelPixels = stripeHeight + Math.max(1, lines.length) * lineHeight;
+                let textScrollColorSkipArmed = false;
+                const isTextScrollColorSkipPressed = () => pressedKeys.current.has(' ')
+                    || pressedKeys.current.has('Space')
+                    || pressedKeys.current.has('KeyX')
+                    || pressedKeys.current.has('x')
+                    || pressedKeys.current.has('X');
+                const shouldSkipTextScrollColor = () => {
+                    if (currentNode.type !== 'TextScrollColor') return false;
+                    try { syncGamepadToPressedKeys(); } catch { }
+                    const pressed = isTextScrollColorSkipPressed();
+                    if (!pressed) {
+                        textScrollColorSkipArmed = true;
+                        return false;
+                    }
+                    return textScrollColorSkipArmed;
+                };
+
+                for (let offset = 0; offset <= travelPixels; offset++) {
+                    if (shouldSkipTextScrollColor()) break;
+                    ctx.save();
+                    ctx.fillStyle = scrollNode.backgroundColor || '#000000';
+                    ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                    ctx.fillStyle = scrollNode.stripeColor || '#000000';
+                    ctx.fillRect(0, stripeTop, PREVIEW_WIDTH, stripeHeight);
+                    ctx.beginPath();
+                    ctx.rect(0, stripeTop, PREVIEW_WIDTH, stripeHeight);
+                    ctx.clip();
+
+                    const firstY = stripeBottom - offset;
+                    for (let i = 0; i < lines.length; i++) {
+                        const y = firstY + i * lineHeight;
+                        if (y < stripeTop - lineHeight || y > stripeBottom) continue;
+                        const text = lines[i].toUpperCase();
+                        if (!text) continue;
+                        const dims = getTextDimensionsMSX1(text, 1);
+                        await drawTextAsync(text, (PREVIEW_WIDTH - dims.width) / 2, y, msxFontColorAttributes, scrollFont, scrollFontColorAttrs);
+                    }
+                    ctx.restore();
+                    await new Promise(resolve => setTimeout(resolve, frameDelayMs));
+                    if (shouldSkipTextScrollColor()) break;
+                }
+
+                const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                if (conn) setCurrentNodeId(conn.to.nodeId);
+                break;
+            }
             case 'Globals':
                 try {
                     const globalsNode: any = currentNode;
@@ -5691,7 +6568,8 @@ useEffect(() => {
                 const transitionNode = currentNode as any;
                 const effect = transitionNode.effect || 'cls';
                 const duration = transitionNode.duration || 1000;
-                await applyTransitionEffect(effect, duration);
+                const fillChar = transitionNode.fillChar === 255 ? 255 : 254;
+                await applyTransitionEffect(effect, duration, fillChar);
                 const transitionConn = connections.find(c => c.from.nodeId === currentNode.id);
                 if (transitionConn) {
                     let targetNodeId = transitionConn.to.nodeId;
@@ -5704,6 +6582,11 @@ useEffect(() => {
                         } else {
                             break;
                         }
+                    }
+                    if (targetNode && isTransitionRevealPreviewTarget(targetNode.type)) {
+                        pendingTransitionRevealRef.current = { effect, duration, fillChar };
+                    } else {
+                        pendingTransitionRevealRef.current = null;
                     }
                     setCurrentNodeId(targetNodeId);
                 }
@@ -5737,6 +6620,9 @@ useEffect(() => {
                     }
                 }
                 break;
+        }
+        if (isTransitionRevealPreviewTarget(currentNode.type)) {
+            await applyPendingTransitionRevealPreview();
         }
     };
 
@@ -6077,6 +6963,10 @@ useEffect(() => {
     // --- New animation function ---
     let lastTime = 0;
     const animate = (currentTime: number) => {
+        if (transitionRevealInProgressRef.current) {
+            animationFrameId.current = requestAnimationFrame(animate);
+            return;
+        }
         // Sync gamepad state into pressedKeys before processing input/physics
         try { syncGamepadToPressedKeys(); } catch { }
         // Allow gamepad to navigate SubMenu
@@ -6193,11 +7083,42 @@ useEffect(() => {
             } else if (currentNode.type === 'Text') {
                 const textNode = currentNode as GameFlowTextNode;
                 ctx.fillStyle = textNode.appearance?.colors?.background || '#000000';
+            } else if (currentNode.type === 'TextScroll' || currentNode.type === 'TextScrollColor' || currentNode.type === 'TextScroll2') {
+                const textScrollNode = currentNode as GameFlowTextScrollNode | GameFlowTextScrollColorNode | GameFlowTextScroll2Node;
+                ctx.fillStyle = textScrollNode.backgroundColor || '#000000';
             }
             ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
         }
 
         const now = performance.now();
+        if (screenMapToRender && charShotsRef.current.length > 0) {
+            const activeShots: RuntimeCharShot[] = [];
+            for (const shot of charShotsRef.current) {
+                const nextX = shot.age === 0 ? shot.x : shot.x + shot.dir * TILE_SIZE;
+                const tileX = Math.floor((nextX + 4) / TILE_SIZE);
+                const tileY = Math.floor((shot.y + 4) / TILE_SIZE);
+                const blocked = tileX < 0 || tileX >= screenMapToRender.width
+                    || tileY < 0 || tileY >= screenMapToRender.height
+                    || checkCollisionAt(nextX + 4, shot.y + 4, screenMapToRender, { ignoreTopSolid: true });
+                if (blocked) continue;
+
+                shot.x = nextX;
+                shot.age++;
+                activeShots.push(shot);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(shot.x, shot.y, TILE_SIZE, TILE_SIZE);
+                ctx.fillStyle = '#111111';
+                if (shot.charCode >= 32 && shot.charCode <= 126) {
+                    ctx.font = '8px monospace';
+                    ctx.textBaseline = 'top';
+                    ctx.fillText(String.fromCharCode(shot.charCode), shot.x, shot.y);
+                } else {
+                    ctx.fillRect(shot.x + 1, shot.y + 3, TILE_SIZE - 2, 2);
+                }
+            }
+            charShotsRef.current = activeShots;
+        }
         updateGameGlobalVariables(prev => ({
             ...prev,
             last_interaction_pending: false
@@ -6277,6 +7198,15 @@ useEffect(() => {
 
             if (entityA.autoEventRuntime) {
                 updateAutoEventRuntime(entityA, now);
+            }
+            if (entityA.stateMachine && entityA.currentState) {
+                const dialogueState = autoDialoguePreviewRef.current;
+                const pauseStateTimer = currentScreenMapRef.current
+                    && !isPlayerRuntimeScreen(currentScreenMapRef.current)
+                    && (Boolean(entityA.autoEventRuntime) || dialogueState.active);
+                if (!pauseStateTimer) {
+                    entityA.stateElapsedFrames = (entityA.stateElapsedFrames ?? 0) + 1;
+                }
             }
 
             // --- PROJECTILES: movement, range and collisions ---
@@ -6714,8 +7644,14 @@ useEffect(() => {
                             const proximityPxDown = TILE_SIZE * 3; // 24px down (can pick box underneath)
                             const proximityPxUp = TILE_SIZE; // 8px up
 
-                            const candidate = entitiesRef.current.find(e => (
-                                e !== entityA && isBoxEntity(e) && e !== heroRef.current?.carriedBox
+                            let droppedPlacement: DroppedBoxTilePlacement | null = null;
+                            let candidate = entitiesRef.current.find(e => (
+                                e !== entityA &&
+                                isBoxEntity(e) &&
+                                (e.ownerScreenId === undefined || e.ownerScreenId === null || e.ownerScreenId === currentScreenMapRef.current?.id) &&
+                                getBoxComponentValues(e).isCarriable !== false &&
+                                getBoxComponentValues(e).isCarriable !== 'false' &&
+                                e !== heroRef.current?.carriedBox
                             ) && (() => {
                                 const boxProps = entityCollisionProps(e);
                                 const boxHitbox = boxProps ? getHitboxFor(e, boxProps) : { x: e.x, y: e.y, width: e.sprite.size.width, height: e.sprite.size.height };
@@ -6730,7 +7666,32 @@ useEffect(() => {
                                 return inRangeX && inRangeY;
                             })());
 
+                            if (!candidate && currentScreenMap?.id) {
+                                const placements = droppedBoxTilesRef.current.get(currentScreenMap.id) || [];
+                                droppedPlacement = placements.find(placement => {
+                                    const widthPx = Math.max(1, placement.tiles[0]?.length || 1) * TILE_SIZE;
+                                    const heightPx = Math.max(1, placement.tiles.length || 1) * TILE_SIZE;
+                                    const boxCenterX = (placement.tileX * TILE_SIZE) + (widthPx / 2);
+                                    const boxCenterY = (placement.tileY * TILE_SIZE) + (heightPx / 2);
+                                    const deltaX = Math.abs(boxCenterX - heroCenterX);
+                                    const deltaY = boxCenterY - heroCenterY;
+                                    return deltaX <= proximityPxHorizontal && deltaY >= -proximityPxUp && deltaY <= proximityPxDown;
+                                }) || null;
+                                if (droppedPlacement) {
+                                    candidate = entitiesRef.current.find(e => {
+                                        if (e.instance.id !== droppedPlacement?.entityId) return false;
+                                        const values = getBoxComponentValues(e);
+                                        return values.isCarriable !== false && values.isCarriable !== 'false';
+                                    }) || undefined;
+                                }
+                            }
+
                             if (candidate) {
+                                if (droppedPlacement) {
+                                    removeDroppedBoxTilePlacement(droppedPlacement);
+                                    candidate.x = droppedPlacement.tileX * TILE_SIZE;
+                                    candidate.y = droppedPlacement.tileY * TILE_SIZE;
+                                }
                                 entityA.carriedBox = candidate;
                                 // Freeze box motion immediately
                                 candidate.vx = 0; candidate.vy = 0;
@@ -6777,14 +7738,46 @@ useEffect(() => {
                                 // Convert desired hitbox position to sprite (visual) top-left
                                 const dropX = hx - offX;
                                 const dropY = hy - offY;
-                                const clear = !(
-                                    checkCollisionAt(hx, hy, screenMapToRender) ||
-                                    checkCollisionAt(hx + boxW - 1, hy, screenMapToRender) ||
-                                    checkCollisionAt(hx, hy + boxH - 1, screenMapToRender) ||
-                                    checkCollisionAt(hx + boxW - 1, hy + boxH - 1, screenMapToRender)
-                                );
+                                const droppedTiles = buildDroppedBoxTileMatrix(box, tileById);
+                                const tileDropX = Math.round(hx / TILE_SIZE);
+                                const tileDropY = Math.round(hy / TILE_SIZE);
+                                const tileTargetClear = !!droppedTiles
+                                    && isTileMatrixDropTargetClear(tileDropX, tileDropY, droppedTiles, screenMapToRender);
+                                const canMaterializeAsTiles = tileTargetClear
+                                    && hasTileMatrixSolidSupport(tileDropX, tileDropY, droppedTiles, screenMapToRender);
+                                const canDropAsEntity = droppedTiles
+                                    ? tileTargetClear
+                                    : isCollisionRectClear(hx, hy, boxW, boxH, screenMapToRender);
 
-                                if (clear) {
+                                if (canMaterializeAsTiles && droppedTiles) {
+                                    const previousCollision = droppedTiles.map((row, rowIndex) => (
+                                        row.map((_, colIndex) => {
+                                            const existing = runtimeCollisionLayerRef.current[tileDropY + rowIndex]?.[tileDropX + colIndex];
+                                            return existing ? { ...existing } : { tileId: null };
+                                        })
+                                    ));
+                                    const placement: DroppedBoxTilePlacement = {
+                                        id: `${box.instance.id}_${Date.now()}`,
+                                        screenId: currentScreenMap?.id || screenMapToRender.id,
+                                        entityId: box.instance.id,
+                                        tileX: tileDropX,
+                                        tileY: tileDropY,
+                                        tiles: droppedTiles,
+                                        previousCollision
+                                    };
+                                    const screenPlacements = droppedBoxTilesRef.current.get(placement.screenId) || [];
+                                    droppedBoxTilesRef.current.set(placement.screenId, [...screenPlacements, placement]);
+                                    writeTileMatrixToRuntimeCollisionLayer(tileDropX, tileDropY, droppedTiles);
+                                    box.x = tileDropX * TILE_SIZE - offX;
+                                    box.y = tileDropY * TILE_SIZE - offY;
+                                    box.vx = 0;
+                                    box.vy = 0;
+                                    box.isOnGround = true;
+                                    box.platformUnderneath = null;
+                                    box.ownerScreenId = '__tile_box__';
+                                    entityA.carriedBox = null;
+                                    restoreSpriteAfterCarry(entityA);
+                                } else if (canDropAsEntity) {
                                     box.x = dropX;
                                     box.y = dropY;
                                     // Apply impulse in facing direction and vertical
@@ -6799,7 +7792,6 @@ useEffect(() => {
                                     box.ownerScreenId = currentScreenMap?.id || null;
                                     entityA.carriedBox = null;
                                     restoreSpriteAfterCarry(entityA);
-                                } else {
                                 }
                             }
                         }
@@ -6811,8 +7803,8 @@ useEffect(() => {
                     const shootComp = entityA.template.components.find(c => c.definitionId === 'comp_shoot');
                     if (shootComp) {
                         const shootProps = getMergedComponentValues(entityA, 'comp_shoot') || {};
-                        const fireKey = shootProps.fireKey || 'KeyX';
-                        const firePressed = pressedKeys.current.has(fireKey) || pressedKeys.current.has('x') || pressedKeys.current.has('X');
+                        const charMode = isCharShootMode(shootProps);
+                        const firePressed = getShootFirePressed(shootProps, charMode);
                         const cooldownMs = Number(shootProps.cooldownMs || shootProps.fireRateMs || 250);
                         const nowTs = performance.now();
                         const canFire = !entityA.lastShotTime || (nowTs - entityA.lastShotTime >= cooldownMs);
@@ -6831,10 +7823,15 @@ useEffect(() => {
                         }
 
                         if (firePressed && canFire && hasAmmo && allowByAmmoVar) {
-                            spawnProjectile(entityA);
+                            let didFire = true;
+                            if (charMode) {
+                                didFire = spawnCharShot(entityA, shootProps, screenMapToRender);
+                            } else {
+                                didFire = spawnProjectile(entityA);
+                            }
 
                             // Decrementar Ammo si es finito (>= 0)
-                            if (ammoRaw !== undefined) {
+                            if (didFire && ammoRaw !== undefined) {
                                 const currentAmmo = Number(ammoRaw);
                                 if (!Number.isNaN(currentAmmo) && currentAmmo >= 0) {
                                     const newAmmo = Math.max(0, currentAmmo - 1);
@@ -6914,14 +7911,13 @@ useEffect(() => {
                         entityA.isTouchingWallRight ? 'right' :
                         undefined;
                     const touchingWall = !!wallGrabFacing;
-                    const grabFallSpeed = Math.max(0, Number(wallGrabProps.grabFallSpeed ?? 0) || 0);
                     const climbSpeed = Math.max(0, Number(wallGrabProps.climbSpeed ?? 1) || 0);
                     const grabDurationFrames = Math.max(0, Number(wallGrabProps.grabDurationFrames ?? 240) || 0);
-                    if (onGroundNow) {
+                    if (onGroundNow && !entityA.isWallGrabbing) {
                         entityA.wallGrabLockout = false;
                         entityA.wallGrabTimerRemaining = undefined;
                     }
-                    const canWallGrab = wallGrabEnabled && gravityEnabled && grabPressed && !onGroundNow && !entityA.isOnLadder && !entityA.wallGrabLockout;
+                    const canWallGrab = wallGrabEnabled && gravityEnabled && grabPressed && (!onGroundNow || entityA.isWallGrabbing) && !entityA.isOnLadder && !entityA.wallGrabLockout;
                     const graceFrames = entityA.wallGrabReleaseGraceFrames ?? 0;
                     const wallGrabActiveNow = canWallGrab && (touchingWall || (entityA.isWallGrabbing && graceFrames > 0));
 
@@ -6937,13 +7933,13 @@ useEffect(() => {
                         const climbUpPressed = pressedKeys.current.has('ArrowUp');
                         const climbDownPressed = pressedKeys.current.has('ArrowDown');
                         const remainingFrames = Math.max(0, entityA.wallGrabTimerRemaining ?? grabDurationFrames);
-                        let wallGrabVy = grabFallSpeed;
+                        let wallGrabVy = 0;
                         if (climbSpeed > 0 && (climbUpPressed || climbDownPressed)) {
                             wallGrabVy = climbUpPressed ? -climbSpeed : climbSpeed;
                         }
-                        const nextTimer = Math.max(0, remainingFrames - 1);
+                        releaseAfterTimerExpired = remainingFrames <= 0;
+                        const nextTimer = releaseAfterTimerExpired ? 0 : Math.max(0, remainingFrames - 1);
                         entityA.wallGrabTimerRemaining = nextTimer;
-                        releaseAfterTimerExpired = nextTimer <= 0;
 
                         entityA.vy = wallGrabVy;
                         entityA.gravityVel = ((wallGrabVy & 0xFF) << 8) & 0xFFFF;
@@ -7182,6 +8178,7 @@ useEffect(() => {
                 entityA.vy = 0;
             }
 
+            updateInWaterFlagForEntity(entityA, screenMapToRender ?? null);
             updateDeadlyTileFlagForEntity(entityA, screenMapToRender ?? null);
 
             // --- 2b. Tile interaction (collect interactable tiles, matching Z80 step 8e) ---
@@ -7245,6 +8242,8 @@ useEffect(() => {
                                 setPlayerEntryPoint(newPlayerPos);
                                 handleScreenTransition(targetNodeId);
                                 return; // Stop processing this frame so the transition can run cleanly
+                            } else if (isEntityComponentEnabled(entityA, 'comp_limit_on')) {
+                                clampEntityToScreenBounds(entityA, currentActiveBounds, exitDirection);
                             }
                         }
                     }
@@ -7360,6 +8359,12 @@ useEffect(() => {
 
                 for (let indexB = indexA + 1; indexB < entitiesRef.current.length; indexB++) {
                     const entityB = entitiesRef.current[indexB];
+                    if (
+                        entityB.ownerScreenId &&
+                        entityB.ownerScreenId !== currentScreenMapRef.current?.id
+                    ) {
+                        continue;
+                    }
                     // Skip collisions for carried box
                     if (heroRef.current?.carriedBox === entityA || heroRef.current?.carriedBox === entityB) {
                         continue;
@@ -7756,13 +8761,17 @@ useEffect(() => {
             }
 
             // --- 7. Sprite animation ---
-            const animComp = entityA.template.components.find(c => c.definitionId === 'comp_animation');
-            if (animComp && entityA.frameImages.length > 1) {
+              const animComp = entityA.template.components.find(c => c.definitionId === 'comp_animation');
+              if (animComp && entityA.frameImages.length > 1) {
                 const spriteAnimMs = (entityA.sprite && typeof entityA.sprite.animationSpeedMs === 'number') ? entityA.sprite.animationSpeedMs! : ANIMATION_SPEED_MS;
                 if (now - entityA.lastFrameUpdateTime > spriteAnimMs) {
                     // Check if animation should only play when moving
-                    const animateOnlyWhenMoving = animComp.defaultValues?.animateOnlyWhenMoving === true;
+                    const animOverrides = entityA.instance.componentOverrides?.['comp_animation'] || {};
+                    const animateOnlyWhenMoving = (animOverrides.animateOnlyWhenMoving ?? animComp.defaultValues?.animateOnlyWhenMoving) === true;
                     const isMoving = entityA.vx !== 0 || entityA.vy !== 0;
+                    const stateName = (entityA.currentState || '').toLowerCase();
+                    const isMovementState = ['run', 'running', 'walk', 'walking', 'dash', 'dashing'].some(state => stateName.includes(state));
+                    const isAnimationPlaying = (entityA as any).isAnimationPlaying ?? animOverrides.isPlaying ?? animComp.defaultValues?.isPlaying ?? true;
 
                     // Priority states that should always animate (death, hurt, attack, etc.)
                     const priorityStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Attack', 'Attacking', 'Stunned', 'GameOver', 'Invulnerable', 'Landing'];
@@ -7782,9 +8791,9 @@ useEffect(() => {
                         entityA.lastAnimationState = entityA.currentState;
                     }
 
-                    // Animate if: not restricted to movement, OR is moving, OR in priority state
-                    // AND (animation hasn't completed OR animation loops)
-                    if ((!animateOnlyWhenMoving || isMoving || isInPriorityState) && (!entityA.animationHasCompleted || loops)) {
+                      // Animate if: not restricted to movement, OR is moving, OR in priority state
+                      // AND (animation hasn't completed OR animation loops)
+                    if (isAnimationPlaying && (!animateOnlyWhenMoving || isMoving || isMovementState || isInPriorityState) && (!entityA.animationHasCompleted || loops)) {
                         const previousFrame = entityA.currentFrame;
 
                         if (loops) {
@@ -8016,6 +9025,11 @@ useEffect(() => {
             ctx.drawImage(hudBufferRef.current, 0, 0);
         }
         drawAutoDialoguePreview(ctx);
+        if (pendingTransitionRevealRef.current && currentNode.type === 'WorldLink') {
+            void applyPendingTransitionRevealPreview();
+            animationFrameId.current = requestAnimationFrame(animate);
+            return;
+        }
         autoEventSpaceWasDownRef.current = pressedKeys.current.has(' ');
 
         // --- Remove destroyed entities ---
@@ -8167,6 +9181,9 @@ useEffect(() => {
                 ctx.drawImage(hudBufferRef.current, 0, 0);
             }
             drawAutoDialoguePreview(ctx);
+            if (pendingTransitionRevealRef.current && currentNode.type === 'WorldLink') {
+                void applyPendingTransitionRevealPreview();
+            }
 
             refreshVisibleEntityCount(currentScreenMapRef.current?.id);
         }
@@ -8181,10 +9198,11 @@ useEffect(() => {
     };
 }, [
     isOpen, isDynamic, currentNode, currentScreenMap, allAssets, connections, currentGraphData,
-    msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, checkKeyTransitions,
+    msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, previewControlSettings, checkKeyTransitions,
     // Asegurarse de que dependencias de las funciones internas estAn aquA si cambian
     componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT, showHitboxDebug, showTileHitboxes, isFullscreen,
-    refreshVisibleEntityCount, showEntityCount, createAutoEventRuntime, drawAutoDialoguePreview, updateAutoEventRuntime
+    refreshVisibleEntityCount, showEntityCount, createAutoEventRuntime, drawAutoDialoguePreview, updateAutoEventRuntime,
+    getScreenActiveBoundsPx, isEntityComponentEnabled, clampEntityToScreenBounds
 ]);
 
 if (!isOpen) return null;

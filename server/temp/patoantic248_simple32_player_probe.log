@@ -1,0 +1,11 @@
+BP_4010 pc=4010 sp=F2EC flow=FF runtime=F0 player=FF pxy=65535,65535 sat=FF FF FF FF FF FF FF FF FF FF FF FF satv=D1 00 00 0F D1 00 01 0F D1 00 02 0F
+BP_4010 pc=4010 sp=F27E flow=FF runtime=F0 player=FF pxy=65535,65535 sat=FF FF FF FF FF FF FF FF FF FF FF FF satv=D1 00 00 00 D1 00 01 00 D1 00 02 00
+BP_4010 pc=4010 sp=F256 flow=FF runtime=F0 player=FF pxy=65535,65535 sat=FF FF FF FF FF FF FF FF FF FF FF FF satv=D1 00 00 00 D1 00 01 00 D1 00 02 00
+BP_4010 pc=4010 sp=F1F6 flow=FF runtime=F0 player=FF pxy=65535,65535 sat=FF FF FF FF FF FF FF FF FF FF FF FF satv=D1 00 00 00 D1 00 01 00 D1 00 02 00
+BP_4010 pc=4010 sp=F1CE flow=FF runtime=F0 player=FF pxy=65535,65535 sat=FF FF FF FF FF FF FF FF FF FF FF FF satv=D1 00 00 00 D1 00 01 00 D1 00 02 00
+t13_start pc=3197 sp=F130 flow=FF runtime=F0 player=FF pxy=65535,65535 sat=FF FF FF FF FF FF FF FF FF FF FF FF satv=D1 00 00 00 D1 00 01 00 D1 00 02 00
+SHOTOK t13_start.png
+t17_right pc=3199 sp=F0F8 flow=FF runtime=F0 player=FF pxy=65535,65535 sat=FF FF FF FF FF FF FF FF FF FF FF FF satv=D1 00 00 00 D1 00 01 00 D1 00 02 00
+SHOTOK t17_right.png
+t23_final pc=319C sp=F0C0 flow=FF runtime=F0 player=FF pxy=65535,65535 sat=FF FF FF FF FF FF FF FF FF FF FF FF satv=D1 00 00 00 D1 00 01 00 D1 00 02 00
+SHOTOK t23_final.png

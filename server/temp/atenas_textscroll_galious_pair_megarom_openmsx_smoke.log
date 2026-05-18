@@ -1,0 +1,13 @@
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/00 flow=00 screen=33 irq=0000 inirq=00 pos=13107,13107
+space1_before pc=40D7 sp=F370 bank=06/02/03/03 flow=00 screen=00 irq=0033 inirq=00 pos=0,0
+space1_after pc=62D3 sp=F372 bank=06/02/03/03 flow=00 screen=00 irq=0037 inirq=00 pos=0,0
+space2_before pc=62BA sp=F372 bank=06/02/03/03 flow=00 screen=00 irq=0057 inirq=00 pos=0,0
+space2_after pc=40DD sp=F370 bank=06/02/03/03 flow=00 screen=00 irq=005B inirq=00 pos=0,0
+t12 pc=40DE sp=F372 bank=06/02/03/03 flow=00 screen=00 irq=008C inirq=00 pos=0,0
+SHOTOK atenas_textscroll_galious_pair_megarom_t12.png
+right_before pc=62E4 sp=F372 bank=06/02/03/03 flow=00 screen=00 irq=00A8 inirq=00 pos=0,0
+right_after pc=62C2 sp=F372 bank=06/02/03/03 flow=00 screen=00 irq=00B9 inirq=00 pos=0,0
+t16 pc=40D8 sp=F374 bank=06/02/03/03 flow=00 screen=00 irq=00D2 inirq=00 pos=0,0
+SHOTOK atenas_textscroll_galious_pair_megarom_t16.png
+t22 pc=62E4 sp=F372 bank=06/02/03/03 flow=00 screen=00 irq=013D inirq=00 pos=0,0
+SHOTOK atenas_textscroll_galious_pair_megarom_t22.png

@@ -1,0 +1,265 @@
+? Generating modular ASM files...
+? Project: joc_tales_9, Assets: 198, Config: {
+  generateUnified: true,
+  romMode: 'megarom',
+  targetFormat: 'ascii8',
+  executionMode: 'interruptTaskManager',
+  autoMegaROM: false
+}
+? Analysis complete: 1 sprites, 136 tiles
+? [MSX GENERATOR] Generating all ASM files...
+? Hardware Mode: HYBRID, Optimize: safe
+[MSX GENERATOR] ROM config: mode=megarom, mapper=ascii8, autoMegaROM=false
+ÐYZî [INTERRUPT GENERATOR] Generating interrupt.asm...
+ƒo. [INTERRUPT GENERATOR] Generated interrupt.asm (19993 chars)
+? Analyzing component usage...
+? Total entities in project: 1
+  - Entity: Player 1 (template: tpl_player)
+? Active entities: 1
+? Used templates: tpl_player
+  ? Analyzing template "Player" for entity "Player 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_behavior ? Behavior
+    - Component: comp_health ? Health
+    - Component: comp_deadly_tiles ? DeadlyTiles
+    - Component: comp_tile_collector ? TileInteraction
+    - Component: comp_jump ? Jump
+    - Component: comp_gravity ? Gravity
+    - Component: comp_animation ? Animation
+    - Component: comp_collision ? Collision
+    - Component: comp_carry ? Carry
+    - Component: comp_player_input ? Input
+    - Component: comp_statemachine ? StateMachine
+    - Component: comp_cursors ? Cursors
+    - Component: comp_wall_collision ? WallCollision
+    - Override: comp_render ? Sprite
+    - Override: comp_statemachine ? StateMachine
+? Component usage summary:
+  - Total used components: 15
+    • Position: 1 entities
+    • Sprite: 1 entities
+    • Behavior: 1 entities
+    • Health: 1 entities
+    • DeadlyTiles: 1 entities
+    • TileInteraction: 1 entities
+    • Jump: 1 entities
+    • Gravity: 1 entities
+    • Animation: 1 entities
+    • Collision: 1 entities
+    • Carry: 1 entities
+    • Input: 1 entities
+    • StateMachine: 1 entities
+    • Cursors: 1 entities
+    • WallCollision: 1 entities
+? Generating optimized components.asm...
+  - Active entities: 1 
+  - Used components: Position, Sprite, Behavior, Health, DeadlyTiles, TileInteraction, Jump, Gravity, Animation, Collision, Carry, Input, StateMachine, Cursors, WallCollision 
+  - Filtered out: 12 unused components
+? Analyzing component usage...
+? Total entities in project: 1
+  - Entity: Player 1 (template: tpl_player)
+? Active entities: 1
+? Used templates: tpl_player
+  ? Analyzing template "Player" for entity "Player 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_behavior ? Behavior
+    - Component: comp_health ? Health
+    - Component: comp_deadly_tiles ? DeadlyTiles
+    - Component: comp_tile_collector ? TileInteraction
+    - Component: comp_jump ? Jump
+    - Component: comp_gravity ? Gravity
+    - Component: comp_animation ? Animation
+    - Component: comp_collision ? Collision
+    - Component: comp_carry ? Carry
+    - Component: comp_player_input ? Input
+    - Component: comp_statemachine ? StateMachine
+    - Component: comp_cursors ? Cursors
+    - Component: comp_wall_collision ? WallCollision
+    - Override: comp_render ? Sprite
+    - Override: comp_statemachine ? StateMachine
+? Component usage summary:
+  - Total used components: 15
+    • Position: 1 entities
+    • Sprite: 1 entities
+    • Behavior: 1 entities
+    • Health: 1 entities
+    • DeadlyTiles: 1 entities
+    • TileInteraction: 1 entities
+    • Jump: 1 entities
+    • Gravity: 1 entities
+    • Animation: 1 entities
+    • Collision: 1 entities
+    • Carry: 1 entities
+    • Input: 1 entities
+    • StateMachine: 1 entities
+    • Cursors: 1 entities
+    • WallCollision: 1 entities
+? Generating optimized entities.asm...
+  - Total entity templates in JSON: 17
+  - Actually instantiated entities: 1
+  - Used entity templates: 1
+  - Filtered out: 16 unused templates
+? First tile structure check: {
+  tileId: 'pngmsx_boss_empedocles_rodillas_antes_golpe_1777832954692_b0_t17',
+  position: { x: 0, y: 23 },
+  banksCount: 3,
+  banks: [
+    {
+      name: 'Bank 0 - HUD/Fonts',
+      assignedTileIds: [Array],
+      hasThisTile: true,
+      assignedTilesType: 'object',
+      assignedTilesSample: [Array]
+    },
+    {
+      name: 'Bank 1 - Game Tileset',
+      assignedTileIds: [Array],
+      hasThisTile: true,
+      assignedTilesType: 'object',
+      assignedTilesSample: [Array]
+    },
+    {
+      name: 'Bank 2 - Background/Status',
+      assignedTileIds: [Array],
+      hasThisTile: true,
+      assignedTilesType: 'object',
+      assignedTilesSample: [Array]
+    }
+  ]
+}
+? generateSpritesFile() called:
+  - analysis.sprites.length: 1
+  - expandedSprites.length: 1
+  - analysis.entities.length: 1
+  - analysis.templates.length: 17
+? Analyzing component usage...
+? Total entities in project: 1
+  - Entity: Player 1 (template: tpl_player)
+? Active entities: 1
+? Used templates: tpl_player
+  ? Analyzing template "Player" for entity "Player 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_behavior ? Behavior
+    - Component: comp_health ? Health
+    - Component: comp_deadly_tiles ? DeadlyTiles
+    - Component: comp_tile_collector ? TileInteraction
+    - Component: comp_jump ? Jump
+    - Component: comp_gravity ? Gravity
+    - Component: comp_animation ? Animation
+    - Component: comp_collision ? Collision
+    - Component: comp_carry ? Carry
+    - Component: comp_player_input ? Input
+    - Component: comp_statemachine ? StateMachine
+    - Component: comp_cursors ? Cursors
+    - Component: comp_wall_collision ? WallCollision
+    - Override: comp_render ? Sprite
+    - Override: comp_statemachine ? StateMachine
+? Component usage summary:
+  - Total used components: 15
+    • Position: 1 entities
+    • Sprite: 1 entities
+    • Behavior: 1 entities
+    • Health: 1 entities
+    • DeadlyTiles: 1 entities
+    • TileInteraction: 1 entities
+    • Jump: 1 entities
+    • Gravity: 1 entities
+    • Animation: 1 entities
+    • Collision: 1 entities
+    • Carry: 1 entities
+    • Input: 1 entities
+    • StateMachine: 1 entities
+    • Cursors: 1 entities
+    • WallCollision: 1 entities
+  - activeEntities.length: 1
+
+? getEntitySpriteInfo for entity: "Player 1" (template: tpl_player)
+   Available sprites: "New Sprite" (sprite_1777833184355)
+   Template found: "Player"
+   Template components: comp_pos, comp_render, comp_behavior, comp_health, comp_deadly_tiles, comp_tile_collector, comp_jump, comp_gravity, comp_animation, comp_collision, comp_carry, comp_player_input, comp_statemachine, comp_cursors, comp_wall_collision
+   ? Found spriteAssetId in overrides: "sprite_1777833184355"
+   Resolved spriteAssetId: "sprite_1777833184355"
+   ? Found sprite "New Sprite" at index 0
+? [HUD Generator] Total screens: 1
+  ? Screen "New Playable Screen" (screenmap_1777833014252): hudConfiguration=true, elements=0
+? [HUD Generator] Total HUD elements found: 0
+? Modular ASM files generated successfully!
+? Generated 28 files
+? [DEBUG] Files generated: [
+  'page0.asm',          'bios.asm',
+  'constants.asm',      'variables.asm',
+  'mapper.asm',         'resource_ids.asm',
+  'resource_table.asm', 'resource_manager.asm',
+  'interrupt.asm',      'header.asm',
+  'patterns.asm',       'colors.asm',
+  'components.asm',     'entities.asm',
+  'worlds.asm',         'screens.asm',
+  'sprites.asm',        'font.asm',
+  'hud.asm',            'menus.asm',
+  'sound.asm',          'scroll.asm',
+  'animtiles.asm',      'bosses.asm',
+  'statemachine.asm',   'gameflow.asm',
+  'main.asm',           'unitedFiles.asm'
+]
+? [DEBUG] interrupt.asm length: 19993
+ASM generated: C:\Users\salam\Documents\Programacion\Mideas\server\temp\joc_tales_9_matrix_megarom_ascii8.asm
+Project: joc_tales_9
+Assets: 198
+ASM chars: 682603
+ROM config: mode=megarom, mapper=ascii8, engine=interruptTaskManager, autoMegaROM=false
+Running: C:\Program Files\nodejs\npx.cmd tsc --pretty false --module commonjs --target ES2020 --outDir C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill --moduleResolution node --skipLibCheck --noEmitOnError false utils\msxGenerator\index.ts
+Running: node C:\Users\salam\AppData\Local\Temp\tmpikqqpoz7.cjs C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\index.js C:\Users\salam\Downloads\joc_tales_9.json C:\Users\salam\Documents\Programacion\Mideas\server\temp\joc_tales_9_matrix_megarom_ascii8.asm joc_tales_9 megarom ascii8 interruptTaskManager false
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_073: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_074: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_075: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_076: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_077: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_078: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_079: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_080: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_081: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_073: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_074: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_075: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_076: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_077: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_078: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_079: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_080: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_081: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_073: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_074: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_075: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_076: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_077: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_078: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_079: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_080: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 pattern load for boss_empedocles_rodillas_antes_golpe_B1_081: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_073: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_074: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_075: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_076: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_077: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_078: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_079: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_080: char 255 is reserved for empty/SPC
+Skipping base SCREEN 2 color load for boss_empedocles_rodillas_antes_golpe_B1_081: char 255 is reserved for empty/SPC
+{"outputPath":"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\joc_tales_9_matrix_megarom_ascii8_compressed.asm","info":{"attempted":true,"applied":true,"method":"ZX0","candidateScreens":8,"candidateScreenBlockMaps":0,"candidateEffects":0,"candidateBehaviorMaps":0,"candidateTilePatterns":2,"candidateTileColors":2,"candidateFontPatterns":0,"candidateFontColors":0,"candidateSpritePatterns":2,"compressedScreens":6,"compressedScreenBlockMaps":0,"compressedEffects":0,"compressedBehaviorMaps":0,"compressedTilePatterns":2,"compressedTileColors":2,"compressedFontPatterns":0,"compressedFontColors":0,"compressedSpritePatterns":2,"originalBytes":8380,"compressedBytes":2407,"savedBytes":5973,"netSavedBytes":5973,"warning":null,"screenBufferSymbol":null,"effectsBufferSymbol":"runtime_effects_layout","behaviorBufferSymbol":null,"tilePatternBufferSymbol":null,"tileColorBufferSymbol":null,"fontPatternBufferSymbol":null,"fontColorBufferSymbol":null,"spritePatternBufferSymbol":null}}
+Running: node C:\Users\salam\AppData\Local\Temp\tmpv7_8vwjg.cjs C:\Users\salam\Documents\Programacion\Mideas\server\server.js C:\Users\salam\Documents\Programacion\Mideas\server\temp\joc_tales_9_matrix_megarom_ascii8.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp\joc_tales_9_matrix_megarom_ascii8_compressed.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp
+Running: java -jar C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar -I C:\Users\salam\Documents\Programacion\Mideas\server C:\Users\salam\Documents\Programacion\Mideas\server\temp\joc_tales_9_matrix_megarom_ascii8_compressed.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp\joc_tales_9_matrix_megarom_ascii8.rom C:\Users\salam\Documents\Programacion\Mideas\server\temp\joc_tales_9_matrix_megarom_ascii8.sym
+
+Done.
+Project: joc_tales_9
+JSON: C:\Users\salam\Downloads\joc_tales_9.json
+ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\joc_tales_9_matrix_megarom_ascii8.asm (682603 chars)
+Generated artifacts: C:\Users\salam\Documents\Programacion\Mideas\server\temp\joc_tales_9_matrix_megarom_ascii8_compressed_generated
+ZX0 ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\joc_tales_9_matrix_megarom_ascii8_compressed.asm
+ZX0: applied=True, netSavedBytes=5973, warning=none
+ROM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\joc_tales_9_matrix_megarom_ascii8.rom (original=131072 bytes, padded=131072 bytes)
+MegaROM mapper artifacts: format=ascii8, segmentSize=8192, window=p3/#8000, banks=2, resources=14, tilebankIssueScreens=0, tilebankIssueCells=0, tilebankMissingAssetCells=0, tilebankUnassignedCells=0
+Glass: C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar
+Generator config: mode=megarom, mapper=ascii8, engine=interruptTaskManager, autoMegaROM=False

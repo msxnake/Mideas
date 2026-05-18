@@ -1,0 +1,45 @@
+GF_START pc=6008 sp=F380 a=06 f=A0 bc=0001 hl=6008 de=E816 p1=06 p3=01 irq=0 player=FF
+GF_EXEC pc=600E sp=F380 a=06 f=A0 bc=0001 hl=6858 de=E816 p1=06 p3=01 irq=0 player=FF
+GF_HANDLE_START pc=603B sp=F380 a=00 f=42 bc=6860 hl=685C de=685D p1=06 p3=01 irq=0 player=FF
+RESOURCE_LOAD pc=48BD sp=F35A a=3C f=44 bc=0000 hl=601B de=0400 p1=00 p3=01 irq=1 player=FF
+RESOURCE_LOAD pc=48BD sp=F35A a=3C f=44 bc=0000 hl=EC30 de=0C00 p1=00 p3=01 irq=1 player=FF
+RESOURCE_LOAD pc=48BD sp=F35A a=3C f=44 bc=0000 hl=EC30 de=1400 p1=00 p3=01 irq=2 player=FF
+RESOURCE_LOAD pc=48BD sp=F35A a=3E f=44 bc=0000 hl=601B de=2400 p1=00 p3=01 irq=3 player=FF
+RESOURCE_LOAD pc=48BD sp=F35A a=3E f=44 bc=0000 hl=EC30 de=2C00 p1=00 p3=01 irq=4 player=FF
+RESOURCE_LOAD pc=48BD sp=F35A a=3E f=44 bc=0000 hl=EC30 de=3400 p1=00 p3=01 irq=5 player=FF
+GF_EXEC pc=600E sp=F380 a=EB f=AC bc=6860 hl=6983 de=6864 p1=06 p3=01 irq=13 player=01
+GF_HANDLE_PRESENTATION pc=6590 sp=F380 a=0D f=4A bc=6988 hl=6987 de=6723 p1=06 p3=01 irq=13 player=01
+SHOW_IMAGE_FAR pc=4DC0 sp=F376 a=0D f=4A bc=6988 hl=6987 de=6723 p1=00 p3=01 irq=13 player=01
+SCREEN_IMAGE pc=6047 sp=F36C a=05 f=4A bc=6988 hl=6047 de=C158 p1=05 p3=01 irq=13 player=01
+RESOURCE_LOAD pc=48BD sp=F364 a=81 f=44 bc=0000 hl=E133 de=0000 p1=00 p3=01 irq=16 player=01
+RESOURCE_LOAD pc=48BD sp=F364 a=82 f=44 bc=0000 hl=9B74 de=0800 p1=00 p3=01 irq=17 player=01
+RESOURCE_LOAD pc=48BD sp=F364 a=83 f=44 bc=0000 hl=85D0 de=1000 p1=00 p3=01 irq=18 player=01
+RESOURCE_LOAD pc=48BD sp=F364 a=84 f=44 bc=0000 hl=A004 de=2000 p1=00 p3=01 irq=19 player=01
+RESOURCE_LOAD pc=48BD sp=F364 a=85 f=44 bc=0000 hl=9E1C de=2800 p1=00 p3=01 irq=19 player=01
+RESOURCE_LOAD pc=48BD sp=F364 a=86 f=44 bc=0000 hl=8BA0 de=3000 p1=00 p3=01 irq=20 player=01
+RESOURCE_LOAD pc=48BD sp=F364 a=80 f=44 bc=0000 hl=A1EC de=1800 p1=00 p3=01 irq=20 player=01
+SPC1_before pc=65AF sp=F37C a=00 f=44 bc=0008 hl=98CC de=6723 p1=06 p3=01 irq=182 player=01
+RESOURCE_LOAD pc=48BD sp=F360 a=3C f=44 bc=0000 hl=601B de=0400 p1=00 p3=01 irq=196 player=01
+RESOURCE_LOAD pc=48BD sp=F360 a=3C f=44 bc=0000 hl=EC30 de=0C00 p1=00 p3=01 irq=197 player=01
+RESOURCE_LOAD pc=48BD sp=F360 a=3C f=44 bc=0000 hl=EC30 de=1400 p1=00 p3=01 irq=198 player=01
+RESOURCE_LOAD pc=48BD sp=F360 a=3E f=44 bc=0000 hl=601B de=2400 p1=00 p3=01 irq=199 player=01
+RESOURCE_LOAD pc=48BD sp=F360 a=3E f=44 bc=0000 hl=EC30 de=2C00 p1=00 p3=01 irq=200 player=01
+RESOURCE_LOAD pc=48BD sp=F360 a=3E f=44 bc=0000 hl=EC30 de=3400 p1=00 p3=01 irq=201 player=01
+SPC1_after pc=40DC sp=F360 a=87 f=84 bc=0087 hl=EBA9 de=3400 p1=00 p3=01 irq=201 player=01
+GF_EXEC pc=600E sp=F380 a=ED f=AC bc=6988 hl=698C de=C28A p1=06 p3=01 irq=209 player=01
+GF_HANDLE_MUSIC pc=65CB sp=F380 a=0C f=4A bc=6994 hl=6990 de=6991 p1=06 p3=01 irq=209 player=01
+GF_EXEC pc=600E sp=F380 a=E9 f=A8 bc=6994 hl=68C9 de=6991 p1=06 p3=01 irq=209 player=01
+SPC2_before pc=6140 sp=F376 a=00 f=44 bc=0208 hl=63AE de=0000 p1=06 p3=01 irq=482 player=01
+GF_EXEC pc=600E sp=F380 a=F9 f=AC bc=6909 hl=6998 de=68CE p1=06 p3=01 irq=496 player=01
+RESOURCE_LOAD pc=48BD sp=F34C a=00 f=A0 bc=0000 hl=6291 de=3800 p1=00 p3=01 irq=497 player=01
+SPC2_after pc=4678 sp=F340 a=20 f=20 bc=0000 hl=A67C de=EB09 p1=00 p3=01 irq=501 player=01
+FINAL pc=6A89 sp=E358 a=10 f=30 bc=5082 hl=E3D4 de=0082 p1=00 p3=01 irq=43370 player=6A
+COUNT GF_EXEC 5
+COUNT GF_GET_DEFAULT 0
+COUNT GF_HANDLE_MUSIC 1
+COUNT GF_HANDLE_PRESENTATION 1
+COUNT GF_HANDLE_START 1
+COUNT GF_START 1
+COUNT RESOURCE_LOAD 84
+COUNT SCREEN_IMAGE 1
+COUNT SHOW_IMAGE_FAR 1

@@ -1,0 +1,561 @@
+? Generating modular ASM files...
+? Project: patoantic248, Assets: 80, Config: {
+  generateUnified: true,
+  romMode: 'plain48k',
+  targetFormat: 'konami',
+  executionMode: 'interruptTaskManager',
+  autoMegaROM: false
+}
+? Analysis complete: 10 sprites, 21 tiles
+? Analyzing component usage...
+? Total entities in project: 6
+  - Entity: hero 1 (template: tpl_1771166650770_6ibnk)
+  - Entity: pato 1 (template: tpl_1770837237607_l05j9)
+  - Entity: exit trigger (template: tpl_1775000000010)
+  - Entity: pato3 (template: tpl_1770837237607_l05j9)
+  - Entity: bola2 (template: tpl_1770837237607_l05j9)
+  - Entity: hero 2 (template: tpl_1771166650770_6ibnk)
+? Active entities: 6
+? Used templates: tpl_1771166650770_6ibnk, tpl_1770837237607_l05j9, tpl_1775000000010
+  ? Analyzing template "hero" for entity "hero 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_player_input ? Input
+    - Component: comp_cursors ? Cursors
+    - Component: comp_gravity ? Gravity
+    - Component: comp_wall_collision ? WallCollision
+    - Component: comp_animation ? Animation
+    - Component: comp_jump ? Jump
+    - Component: comp_statemachine ? StateMachine
+    - Component: comp_collision ? Collision
+    - Component: comp_tile_collector ? TileInteraction
+    - Component: comp_health ? Health
+    - Component: comp_deadly_tiles ? DeadlyTiles
+    - Override: comp_render ? Sprite
+    - Override: comp_cursors ? Cursors
+    - Override: comp_statemachine ? StateMachine
+    - Override: comp_collision ? Collision
+    - Override: comp_animation ? Animation
+    - Override: comp_tile_collector ? TileInteraction
+  ? Analyzing template "pato" for entity "pato 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_animation ? Animation
+    - Component: comp_patrol ? Patrol
+    - Component: comp_collision ? Collision
+    - Override: comp_render ? Sprite
+    - Override: comp_patrol ? Patrol
+    - Override: comp_animation ? Animation
+    - Override: comp_collision ? Collision
+  ? Analyzing template "exit_trigger" for entity "exit trigger"
+    - Component: comp_pos ? Position
+    - Component: comp_collision ? Collision
+    - Component: comp_statemachine ? StateMachine
+    - Override: comp_collision ? Collision
+  ? Analyzing template "pato" for entity "pato3"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_animation ? Animation
+    - Component: comp_patrol ? Patrol
+    - Component: comp_collision ? Collision
+    - Override: comp_render ? Sprite
+    - Override: comp_patrol ? Patrol
+    - Override: comp_collision ? Collision
+  ? Analyzing template "pato" for entity "bola2"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_animation ? Animation
+    - Component: comp_patrol ? Patrol
+    - Component: comp_collision ? Collision
+    - Override: comp_render ? Sprite
+    - Override: comp_patrol ? Patrol
+    - Override: comp_collision ? Collision
+  ? Analyzing template "hero" for entity "hero 2"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_player_input ? Input
+    - Component: comp_cursors ? Cursors
+    - Component: comp_gravity ? Gravity
+    - Component: comp_wall_collision ? WallCollision
+    - Component: comp_animation ? Animation
+    - Component: comp_jump ? Jump
+    - Component: comp_statemachine ? StateMachine
+    - Component: comp_collision ? Collision
+    - Component: comp_tile_collector ? TileInteraction
+    - Component: comp_health ? Health
+    - Component: comp_deadly_tiles ? DeadlyTiles
+    - Override: comp_render ? Sprite
+? Component usage summary:
+  - Total used components: 14
+    • Position: 6 entities
+    • Sprite: 5 entities
+    • Input: 2 entities
+    • Cursors: 2 entities
+    • Gravity: 2 entities
+    • WallCollision: 2 entities
+    • Animation: 5 entities
+    • Jump: 2 entities
+    • StateMachine: 3 entities
+    • Collision: 6 entities
+    • TileInteraction: 2 entities
+    • Health: 2 entities
+    • DeadlyTiles: 2 entities
+    • Patrol: 3 entities
+? [MSX GENERATOR] Generating all ASM files...
+? Hardware Mode: HYBRID, Optimize: safe
+[MSX GENERATOR] ROM config: mode=plain48k, mapper=konami, autoMegaROM=false
+? First tile structure check: {
+  tileId: 'tile_1773594231184',
+  position: { x: 12, y: 1 },
+  banksCount: 3,
+  banks: [
+    {
+      name: 'Bank 0 - HUD/Fonts',
+      assignedTileIds: [Array],
+      hasThisTile: true,
+      assignedTilesType: 'object',
+      assignedTilesSample: [Array]
+    },
+    {
+      name: 'Bank 1 - Game Tileset',
+      assignedTileIds: [Array],
+      hasThisTile: true,
+      assignedTilesType: 'object',
+      assignedTilesSample: [Array]
+    },
+    {
+      name: 'Bank 2 - Background/Status',
+      assignedTileIds: [Array],
+      hasThisTile: true,
+      assignedTilesType: 'object',
+      assignedTilesSample: [Array]
+    }
+  ]
+}
+ÐYZî [INTERRUPT GENERATOR] Generating interrupt.asm...
+? Analyzing component usage...
+? Total entities in project: 6
+  - Entity: hero 1 (template: tpl_1771166650770_6ibnk)
+  - Entity: pato 1 (template: tpl_1770837237607_l05j9)
+  - Entity: exit trigger (template: tpl_1775000000010)
+  - Entity: pato3 (template: tpl_1770837237607_l05j9)
+  - Entity: bola2 (template: tpl_1770837237607_l05j9)
+  - Entity: hero 2 (template: tpl_1771166650770_6ibnk)
+? Active entities: 6
+? Used templates: tpl_1771166650770_6ibnk, tpl_1770837237607_l05j9, tpl_1775000000010
+  ? Analyzing template "hero" for entity "hero 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_player_input ? Input
+    - Component: comp_cursors ? Cursors
+    - Component: comp_gravity ? Gravity
+    - Component: comp_wall_collision ? WallCollision
+    - Component: comp_animation ? Animation
+    - Component: comp_jump ? Jump
+    - Component: comp_statemachine ? StateMachine
+    - Component: comp_collision ? Collision
+    - Component: comp_tile_collector ? TileInteraction
+    - Component: comp_health ? Health
+    - Component: comp_deadly_tiles ? DeadlyTiles
+    - Override: comp_render ? Sprite
+    - Override: comp_cursors ? Cursors
+    - Override: comp_statemachine ? StateMachine
+    - Override: comp_collision ? Collision
+    - Override: comp_animation ? Animation
+    - Override: comp_tile_collector ? TileInteraction
+  ? Analyzing template "pato" for entity "pato 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_animation ? Animation
+    - Component: comp_patrol ? Patrol
+    - Component: comp_collision ? Collision
+    - Override: comp_render ? Sprite
+    - Override: comp_patrol ? Patrol
+    - Override: comp_animation ? Animation
+    - Override: comp_collision ? Collision
+  ? Analyzing template "exit_trigger" for entity "exit trigger"
+    - Component: comp_pos ? Position
+    - Component: comp_collision ? Collision
+    - Component: comp_statemachine ? StateMachine
+    - Override: comp_collision ? Collision
+  ? Analyzing template "pato" for entity "pato3"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_animation ? Animation
+    - Component: comp_patrol ? Patrol
+    - Component: comp_collision ? Collision
+    - Override: comp_render ? Sprite
+    - Override: comp_patrol ? Patrol
+    - Override: comp_collision ? Collision
+  ? Analyzing template "pato" for entity "bola2"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_animation ? Animation
+    - Component: comp_patrol ? Patrol
+    - Component: comp_collision ? Collision
+    - Override: comp_render ? Sprite
+    - Override: comp_patrol ? Patrol
+    - Override: comp_collision ? Collision
+  ? Analyzing template "hero" for entity "hero 2"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_player_input ? Input
+    - Component: comp_cursors ? Cursors
+    - Component: comp_gravity ? Gravity
+    - Component: comp_wall_collision ? WallCollision
+    - Component: comp_animation ? Animation
+    - Component: comp_jump ? Jump
+    - Component: comp_statemachine ? StateMachine
+    - Component: comp_collision ? Collision
+    - Component: comp_tile_collector ? TileInteraction
+    - Component: comp_health ? Health
+    - Component: comp_deadly_tiles ? DeadlyTiles
+    - Override: comp_render ? Sprite
+? Component usage summary:
+  - Total used components: 14
+    • Position: 6 entities
+    • Sprite: 5 entities
+    • Input: 2 entities
+    • Cursors: 2 entities
+    • Gravity: 2 entities
+    • WallCollision: 2 entities
+    • Animation: 5 entities
+    • Jump: 2 entities
+    • StateMachine: 3 entities
+    • Collision: 6 entities
+    • TileInteraction: 2 entities
+    • Health: 2 entities
+    • DeadlyTiles: 2 entities
+    • Patrol: 3 entities
+? Generating optimized components.asm...
+  - Active entities: 6 
+  - Used components: Position, Sprite, Input, Cursors, Gravity, WallCollision, Animation, Jump, StateMachine, Collision, TileInteraction, Health, DeadlyTiles, Patrol 
+  - Filtered out: 12 unused components
+  - Tile Interaction system: ENABLED (interactable tiles detected)
+ƒo. [INTERRUPT GENERATOR] Generated interrupt.asm (219202 chars)
+? Analyzing component usage...
+? Total entities in project: 6
+  - Entity: hero 1 (template: tpl_1771166650770_6ibnk)
+  - Entity: pato 1 (template: tpl_1770837237607_l05j9)
+  - Entity: exit trigger (template: tpl_1775000000010)
+  - Entity: pato3 (template: tpl_1770837237607_l05j9)
+  - Entity: bola2 (template: tpl_1770837237607_l05j9)
+  - Entity: hero 2 (template: tpl_1771166650770_6ibnk)
+? Active entities: 6
+? Used templates: tpl_1771166650770_6ibnk, tpl_1770837237607_l05j9, tpl_1775000000010
+  ? Analyzing template "hero" for entity "hero 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_player_input ? Input
+    - Component: comp_cursors ? Cursors
+    - Component: comp_gravity ? Gravity
+    - Component: comp_wall_collision ? WallCollision
+    - Component: comp_animation ? Animation
+    - Component: comp_jump ? Jump
+    - Component: comp_statemachine ? StateMachine
+    - Component: comp_collision ? Collision
+    - Component: comp_tile_collector ? TileInteraction
+    - Component: comp_health ? Health
+    - Component: comp_deadly_tiles ? DeadlyTiles
+    - Override: comp_render ? Sprite
+    - Override: comp_cursors ? Cursors
+    - Override: comp_statemachine ? StateMachine
+    - Override: comp_collision ? Collision
+    - Override: comp_animation ? Animation
+    - Override: comp_tile_collector ? TileInteraction
+  ? Analyzing template "pato" for entity "pato 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_animation ? Animation
+    - Component: comp_patrol ? Patrol
+    - Component: comp_collision ? Collision
+    - Override: comp_render ? Sprite
+    - Override: comp_patrol ? Patrol
+    - Override: comp_animation ? Animation
+    - Override: comp_collision ? Collision
+  ? Analyzing template "exit_trigger" for entity "exit trigger"
+    - Component: comp_pos ? Position
+    - Component: comp_collision ? Collision
+    - Component: comp_statemachine ? StateMachine
+    - Override: comp_collision ? Collision
+  ? Analyzing template "pato" for entity "pato3"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_animation ? Animation
+    - Component: comp_patrol ? Patrol
+    - Component: comp_collision ? Collision
+    - Override: comp_render ? Sprite
+    - Override: comp_patrol ? Patrol
+    - Override: comp_collision ? Collision
+  ? Analyzing template "pato" for entity "bola2"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_animation ? Animation
+    - Component: comp_patrol ? Patrol
+    - Component: comp_collision ? Collision
+    - Override: comp_render ? Sprite
+    - Override: comp_patrol ? Patrol
+    - Override: comp_collision ? Collision
+  ? Analyzing template "hero" for entity "hero 2"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_player_input ? Input
+    - Component: comp_cursors ? Cursors
+    - Component: comp_gravity ? Gravity
+    - Component: comp_wall_collision ? WallCollision
+    - Component: comp_animation ? Animation
+    - Component: comp_jump ? Jump
+    - Component: comp_statemachine ? StateMachine
+    - Component: comp_collision ? Collision
+    - Component: comp_tile_collector ? TileInteraction
+    - Component: comp_health ? Health
+    - Component: comp_deadly_tiles ? DeadlyTiles
+    - Override: comp_render ? Sprite
+? Component usage summary:
+  - Total used components: 14
+    • Position: 6 entities
+    • Sprite: 5 entities
+    • Input: 2 entities
+    • Cursors: 2 entities
+    • Gravity: 2 entities
+    • WallCollision: 2 entities
+    • Animation: 5 entities
+    • Jump: 2 entities
+    • StateMachine: 3 entities
+    • Collision: 6 entities
+    • TileInteraction: 2 entities
+    • Health: 2 entities
+    • DeadlyTiles: 2 entities
+    • Patrol: 3 entities
+? Generating optimized entities.asm...
+  - Total entity templates in JSON: 5
+  - Actually instantiated entities: 6
+  - Used entity templates: 3
+  - Filtered out: 2 unused templates
+? generateSpritesFile() called:
+  - analysis.sprites.length: 10
+  - expandedSprites.length: 18
+  - analysis.entities.length: 6
+  - analysis.templates.length: 5
+? Analyzing component usage...
+? Total entities in project: 6
+  - Entity: hero 1 (template: tpl_1771166650770_6ibnk)
+  - Entity: pato 1 (template: tpl_1770837237607_l05j9)
+  - Entity: exit trigger (template: tpl_1775000000010)
+  - Entity: pato3 (template: tpl_1770837237607_l05j9)
+  - Entity: bola2 (template: tpl_1770837237607_l05j9)
+  - Entity: hero 2 (template: tpl_1771166650770_6ibnk)
+? Active entities: 6
+? Used templates: tpl_1771166650770_6ibnk, tpl_1770837237607_l05j9, tpl_1775000000010
+  ? Analyzing template "hero" for entity "hero 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_player_input ? Input
+    - Component: comp_cursors ? Cursors
+    - Component: comp_gravity ? Gravity
+    - Component: comp_wall_collision ? WallCollision
+    - Component: comp_animation ? Animation
+    - Component: comp_jump ? Jump
+    - Component: comp_statemachine ? StateMachine
+    - Component: comp_collision ? Collision
+    - Component: comp_tile_collector ? TileInteraction
+    - Component: comp_health ? Health
+    - Component: comp_deadly_tiles ? DeadlyTiles
+    - Override: comp_render ? Sprite
+    - Override: comp_cursors ? Cursors
+    - Override: comp_statemachine ? StateMachine
+    - Override: comp_collision ? Collision
+    - Override: comp_animation ? Animation
+    - Override: comp_tile_collector ? TileInteraction
+  ? Analyzing template "pato" for entity "pato 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_animation ? Animation
+    - Component: comp_patrol ? Patrol
+    - Component: comp_collision ? Collision
+    - Override: comp_render ? Sprite
+    - Override: comp_patrol ? Patrol
+    - Override: comp_animation ? Animation
+    - Override: comp_collision ? Collision
+  ? Analyzing template "exit_trigger" for entity "exit trigger"
+    - Component: comp_pos ? Position
+    - Component: comp_collision ? Collision
+    - Component: comp_statemachine ? StateMachine
+    - Override: comp_collision ? Collision
+  ? Analyzing template "pato" for entity "pato3"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_animation ? Animation
+    - Component: comp_patrol ? Patrol
+    - Component: comp_collision ? Collision
+    - Override: comp_render ? Sprite
+    - Override: comp_patrol ? Patrol
+    - Override: comp_collision ? Collision
+  ? Analyzing template "pato" for entity "bola2"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_animation ? Animation
+    - Component: comp_patrol ? Patrol
+    - Component: comp_collision ? Collision
+    - Override: comp_render ? Sprite
+    - Override: comp_patrol ? Patrol
+    - Override: comp_collision ? Collision
+  ? Analyzing template "hero" for entity "hero 2"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_player_input ? Input
+    - Component: comp_cursors ? Cursors
+    - Component: comp_gravity ? Gravity
+    - Component: comp_wall_collision ? WallCollision
+    - Component: comp_animation ? Animation
+    - Component: comp_jump ? Jump
+    - Component: comp_statemachine ? StateMachine
+    - Component: comp_collision ? Collision
+    - Component: comp_tile_collector ? TileInteraction
+    - Component: comp_health ? Health
+    - Component: comp_deadly_tiles ? DeadlyTiles
+    - Override: comp_render ? Sprite
+? Component usage summary:
+  - Total used components: 14
+    • Position: 6 entities
+    • Sprite: 5 entities
+    • Input: 2 entities
+    • Cursors: 2 entities
+    • Gravity: 2 entities
+    • WallCollision: 2 entities
+    • Animation: 5 entities
+    • Jump: 2 entities
+    • StateMachine: 3 entities
+    • Collision: 6 entities
+    • TileInteraction: 2 entities
+    • Health: 2 entities
+    • DeadlyTiles: 2 entities
+    • Patrol: 3 entities
+  - activeEntities.length: 6
+
+? getEntitySpriteInfo for entity: "hero 1" (template: tpl_1771166650770_6ibnk)
+   Available sprites: "anec_right" (sprite_1770836857310), "bola" (sprite_1771166577403), "panell" (sprite_1771275639509), "nina_walk_right" (sprite_imported_1771963989223), "nina_jump_right" (sprite_imported_1771967720887), "nina_land_right" (sprite_imported_1772260256596), "nina_dead_right" (sprite_from_frame_1772260953366), "nina_idle_right" (sprite_from_frame_1772268030375), "nina_fall_right" (sprite_from_frame_1772284948044), "capcuadrat1_right" (sprite_1772742814609), "anec_left" (sprite_1770836857310__auto_left), "nina_walk_left" (sprite_imported_1771963989223__auto_left), "nina_jump_left" (sprite_imported_1771967720887__auto_left), "nina_land_left" (sprite_imported_1772260256596__auto_left), "nina_dead_left" (sprite_from_frame_1772260953366__auto_left), "nina_idle_left" (sprite_from_frame_1772268030375__auto_left), "nina_fall_left" (sprite_from_frame_1772284948044__auto_left), "capcuadrat1_left" (sprite_1772742814609__auto_left)
+   Template found: "hero"
+   Template components: comp_pos, comp_render, comp_player_input, comp_cursors, comp_gravity, comp_wall_collision, comp_animation, comp_jump, comp_statemachine, comp_collision, comp_tile_collector, comp_health, comp_deadly_tiles
+   ? Found spriteAssetId in overrides: "sprite_from_frame_1772268030375"
+   Resolved spriteAssetId: "sprite_from_frame_1772268030375"
+   ? Found sprite "nina_idle_right" at index 7
+
+? getEntitySpriteInfo for entity: "pato 1" (template: tpl_1770837237607_l05j9)
+   Available sprites: "anec_right" (sprite_1770836857310), "bola" (sprite_1771166577403), "panell" (sprite_1771275639509), "nina_walk_right" (sprite_imported_1771963989223), "nina_jump_right" (sprite_imported_1771967720887), "nina_land_right" (sprite_imported_1772260256596), "nina_dead_right" (sprite_from_frame_1772260953366), "nina_idle_right" (sprite_from_frame_1772268030375), "nina_fall_right" (sprite_from_frame_1772284948044), "capcuadrat1_right" (sprite_1772742814609), "anec_left" (sprite_1770836857310__auto_left), "nina_walk_left" (sprite_imported_1771963989223__auto_left), "nina_jump_left" (sprite_imported_1771967720887__auto_left), "nina_land_left" (sprite_imported_1772260256596__auto_left), "nina_dead_left" (sprite_from_frame_1772260953366__auto_left), "nina_idle_left" (sprite_from_frame_1772268030375__auto_left), "nina_fall_left" (sprite_from_frame_1772284948044__auto_left), "capcuadrat1_left" (sprite_1772742814609__auto_left)
+   Template found: "pato"
+   Template components: comp_pos, comp_render, comp_animation, comp_patrol, comp_collision
+   ? Found spriteAssetId in overrides: "sprite_1772742814609"
+   Resolved spriteAssetId: "sprite_1772742814609"
+   ? Found sprite "capcuadrat1_right" at index 9
+
+? getEntitySpriteInfo for entity: "exit trigger" (template: tpl_1775000000010)
+   Available sprites: "anec_right" (sprite_1770836857310), "bola" (sprite_1771166577403), "panell" (sprite_1771275639509), "nina_walk_right" (sprite_imported_1771963989223), "nina_jump_right" (sprite_imported_1771967720887), "nina_land_right" (sprite_imported_1772260256596), "nina_dead_right" (sprite_from_frame_1772260953366), "nina_idle_right" (sprite_from_frame_1772268030375), "nina_fall_right" (sprite_from_frame_1772284948044), "capcuadrat1_right" (sprite_1772742814609), "anec_left" (sprite_1770836857310__auto_left), "nina_walk_left" (sprite_imported_1771963989223__auto_left), "nina_jump_left" (sprite_imported_1771967720887__auto_left), "nina_land_left" (sprite_imported_1772260256596__auto_left), "nina_dead_left" (sprite_from_frame_1772260953366__auto_left), "nina_idle_left" (sprite_from_frame_1772268030375__auto_left), "nina_fall_left" (sprite_from_frame_1772284948044__auto_left), "capcuadrat1_left" (sprite_1772742814609__auto_left)
+   Template found: "exit_trigger"
+   Template components: comp_pos, comp_collision, comp_statemachine
+   Resolved spriteAssetId: "undefined"
+   ?? No sprite_ref property found in any component
+   ?? Defaulting to first sprite "anec_right"
+
+? getEntitySpriteInfo for entity: "pato3" (template: tpl_1770837237607_l05j9)
+   Available sprites: "anec_right" (sprite_1770836857310), "bola" (sprite_1771166577403), "panell" (sprite_1771275639509), "nina_walk_right" (sprite_imported_1771963989223), "nina_jump_right" (sprite_imported_1771967720887), "nina_land_right" (sprite_imported_1772260256596), "nina_dead_right" (sprite_from_frame_1772260953366), "nina_idle_right" (sprite_from_frame_1772268030375), "nina_fall_right" (sprite_from_frame_1772284948044), "capcuadrat1_right" (sprite_1772742814609), "anec_left" (sprite_1770836857310__auto_left), "nina_walk_left" (sprite_imported_1771963989223__auto_left), "nina_jump_left" (sprite_imported_1771967720887__auto_left), "nina_land_left" (sprite_imported_1772260256596__auto_left), "nina_dead_left" (sprite_from_frame_1772260953366__auto_left), "nina_idle_left" (sprite_from_frame_1772268030375__auto_left), "nina_fall_left" (sprite_from_frame_1772284948044__auto_left), "capcuadrat1_left" (sprite_1772742814609__auto_left)
+   Template found: "pato"
+   Template components: comp_pos, comp_render, comp_animation, comp_patrol, comp_collision
+   ? Found spriteAssetId in overrides: "sprite_1770836857310"
+   Resolved spriteAssetId: "sprite_1770836857310"
+   ? Found sprite "anec_right" at index 0
+
+? getEntitySpriteInfo for entity: "bola2" (template: tpl_1770837237607_l05j9)
+   Available sprites: "anec_right" (sprite_1770836857310), "bola" (sprite_1771166577403), "panell" (sprite_1771275639509), "nina_walk_right" (sprite_imported_1771963989223), "nina_jump_right" (sprite_imported_1771967720887), "nina_land_right" (sprite_imported_1772260256596), "nina_dead_right" (sprite_from_frame_1772260953366), "nina_idle_right" (sprite_from_frame_1772268030375), "nina_fall_right" (sprite_from_frame_1772284948044), "capcuadrat1_right" (sprite_1772742814609), "anec_left" (sprite_1770836857310__auto_left), "nina_walk_left" (sprite_imported_1771963989223__auto_left), "nina_jump_left" (sprite_imported_1771967720887__auto_left), "nina_land_left" (sprite_imported_1772260256596__auto_left), "nina_dead_left" (sprite_from_frame_1772260953366__auto_left), "nina_idle_left" (sprite_from_frame_1772268030375__auto_left), "nina_fall_left" (sprite_from_frame_1772284948044__auto_left), "capcuadrat1_left" (sprite_1772742814609__auto_left)
+   Template found: "pato"
+   Template components: comp_pos, comp_render, comp_animation, comp_patrol, comp_collision
+   ? Found spriteAssetId in overrides: "sprite_1771166577403"
+   Resolved spriteAssetId: "sprite_1771166577403"
+   ? Found sprite "bola" at index 1
+
+? getEntitySpriteInfo for entity: "hero 2" (template: tpl_1771166650770_6ibnk)
+   Available sprites: "anec_right" (sprite_1770836857310), "bola" (sprite_1771166577403), "panell" (sprite_1771275639509), "nina_walk_right" (sprite_imported_1771963989223), "nina_jump_right" (sprite_imported_1771967720887), "nina_land_right" (sprite_imported_1772260256596), "nina_dead_right" (sprite_from_frame_1772260953366), "nina_idle_right" (sprite_from_frame_1772268030375), "nina_fall_right" (sprite_from_frame_1772284948044), "capcuadrat1_right" (sprite_1772742814609), "anec_left" (sprite_1770836857310__auto_left), "nina_walk_left" (sprite_imported_1771963989223__auto_left), "nina_jump_left" (sprite_imported_1771967720887__auto_left), "nina_land_left" (sprite_imported_1772260256596__auto_left), "nina_dead_left" (sprite_from_frame_1772260953366__auto_left), "nina_idle_left" (sprite_from_frame_1772268030375__auto_left), "nina_fall_left" (sprite_from_frame_1772284948044__auto_left), "capcuadrat1_left" (sprite_1772742814609__auto_left)
+   Template found: "hero"
+   Template components: comp_pos, comp_render, comp_player_input, comp_cursors, comp_gravity, comp_wall_collision, comp_animation, comp_jump, comp_statemachine, comp_collision, comp_tile_collector, comp_health, comp_deadly_tiles
+   ? Found spriteAssetId in overrides: "sprite_from_frame_1772268030375"
+   Resolved spriteAssetId: "sprite_from_frame_1772268030375"
+   ? Found sprite "nina_idle_right" at index 7
+? [HUD Generator] Total screens: 8
+  ? Screen "pan1" (screenmap_1770754008863): hudConfiguration=true, elements=5
+    ? Element[0]: type=Score, name="Score 1", text="SCORE 00000" pos=(0,8) visible=true
+    ? Element[1]: type=Lives, name="Lives 1", text="3" pos=(104,8) visible=true
+    ? Element[2]: type=SceneName, name="Scene Name Display 1", text="STAGE 1" pos=(192,8) visible=true
+    ? Element[3]: type=CustomCounter, name="Custom Counter 1", text="00" pos=(128,8) visible=true
+    ? Element[4]: type=CustomCounter, name="Custom Counter 2", text="00" pos=(160,8) visible=true
+  ? Screen "pan2" (screenmap_1771184738851): hudConfiguration=true, elements=0
+  ? Screen "background1" (screenmap_1771482721894): hudConfiguration=true, elements=0
+  ? Screen "pan3" (screenmap_1771880109228): hudConfiguration=true, elements=0
+  ? Screen "pan4" (screenmap_1772291683578): hudConfiguration=true, elements=0
+  ? Screen "pan5" (screenmap_1773321312901): hudConfiguration=true, elements=0
+  ? Screen "pan6" (screenmap_1773382451315): hudConfiguration=true, elements=0
+  ? Screen "pan1_2" (screenmap_1774194791624): hudConfiguration=true, elements=0
+? [HUD Generator] Total HUD elements found: 5
+? Modular ASM files generated successfully!
+? Generated 28 files
+? [DEBUG] Files generated: [
+  'page0.asm',          'bios.asm',
+  'constants.asm',      'variables.asm',
+  'mapper.asm',         'resource_ids.asm',
+  'resource_table.asm', 'resource_manager.asm',
+  'interrupt.asm',      'header.asm',
+  'patterns.asm',       'colors.asm',
+  'components.asm',     'entities.asm',
+  'worlds.asm',         'screens.asm',
+  'sprites.asm',        'font.asm',
+  'hud.asm',            'menus.asm',
+  'sound.asm',          'scroll.asm',
+  'animtiles.asm',      'bosses.asm',
+  'statemachine.asm',   'gameflow.asm',
+  'main.asm',           'unitedFiles.asm'
+]
+? [DEBUG] interrupt.asm length: 219202
+ASM generated: C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248_matrix_plain48k.asm
+Project: patoantic248
+Assets: 80
+ASM chars: 994972
+ROM config: mode=plain48k, mapper=konami, engine=interruptTaskManager, autoMegaROM=false
+Running: C:\Program Files\nodejs\npx.cmd tsc --pretty false --module commonjs --target ES2020 --outDir C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill --moduleResolution node --skipLibCheck --noEmitOnError false utils\msxGenerator\index.ts
+Running: node C:\Users\salam\AppData\Local\Temp\tmppgzctwoe.cjs C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\index.js C:\Users\salam\Downloads\patoantic248.json C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248_matrix_plain48k.asm patoantic248 plain48k konami interruptTaskManager false
+[Sprites Generator] Auto-generated "anec_left" from "anec_right" using horizontal mirror.
+[Sprites Generator] Auto-generated "nina_walk_left" from "nina_walk_right" using horizontal mirror.
+[Sprites Generator] Auto-generated "nina_jump_left" from "nina_jump_right" using horizontal mirror.
+[Sprites Generator] Auto-generated "nina_land_left" from "nina_land_right" using horizontal mirror.
+[Sprites Generator] Auto-generated "nina_dead_left" from "nina_dead_right" using horizontal mirror.
+[Sprites Generator] Auto-generated "nina_idle_left" from "nina_idle_right" using horizontal mirror.
+[Sprites Generator] Auto-generated "nina_fall_left" from "nina_fall_right" using horizontal mirror.
+[Sprites Generator] Auto-generated "capcuadrat1_left" from "capcuadrat1_right" using horizontal mirror.
+[State Machine Generator] Auto-generated "anec_left" from "anec_right" using horizontal mirror.
+[State Machine Generator] Auto-generated "nina_walk_left" from "nina_walk_right" using horizontal mirror.
+[State Machine Generator] Auto-generated "nina_jump_left" from "nina_jump_right" using horizontal mirror.
+[State Machine Generator] Auto-generated "nina_land_left" from "nina_land_right" using horizontal mirror.
+[State Machine Generator] Auto-generated "nina_dead_left" from "nina_dead_right" using horizontal mirror.
+[State Machine Generator] Auto-generated "nina_idle_left" from "nina_idle_right" using horizontal mirror.
+[State Machine Generator] Auto-generated "nina_fall_left" from "nina_fall_right" using horizontal mirror.
+[State Machine Generator] Auto-generated "capcuadrat1_left" from "capcuadrat1_right" using horizontal mirror.
+{"outputPath":"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\patoantic248_matrix_plain48k_compressed.asm","info":{"attempted":true,"applied":true,"method":"ZX0","candidateScreens":9,"candidateScreenBlockMaps":0,"candidateEffects":8,"candidateBehaviorMaps":8,"candidateTilePatterns":4,"candidateTileColors":4,"candidateFontPatterns":1,"candidateFontColors":1,"candidateSpritePatterns":60,"compressedScreens":9,"compressedScreenBlockMaps":0,"compressedEffects":8,"compressedBehaviorMaps":8,"compressedTilePatterns":4,"compressedTileColors":4,"compressedFontPatterns":1,"compressedFontColors":1,"compressedSpritePatterns":29,"originalBytes":26832,"compressedBytes":6422,"savedBytes":20410,"netSavedBytes":19838,"warning":null,"screenBufferSymbol":"ZX0_SCREEN_BUFFER","effectsBufferSymbol":"runtime_effects_layout","behaviorBufferSymbol":"ZX0_BEHAVIOR_BUFFER","tilePatternBufferSymbol":"ZX0_TILE_PATTERN_BUFFER","tileColorBufferSymbol":"ZX0_TILE_COLOR_BUFFER","fontPatternBufferSymbol":"ZX0_FONT_PATTERN_BUFFER","fontColorBufferSymbol":"ZX0_FONT_COLOR_BUFFER","spritePatternBufferSymbol":"ZX0_SPRITE_FRAME_BUFFER","alreadyCompressed":false}}
+Running: node C:\Users\salam\AppData\Local\Temp\tmpxtdl04st.cjs C:\Users\salam\Documents\Programacion\Mideas\server\server.js C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248_matrix_plain48k.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248_matrix_plain48k_compressed.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp
+Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -18085
+	at java.io.ByteArrayOutputStream.<init>(Unknown Source)
+	at nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)
+	at nl.grauw.glass.Line.getBytes(Line.java:119)
+	at nl.grauw.glass.Source.getBytes(Source.java:91)
+	at nl.grauw.glass.Source.assemble(Source.java:53)
+	at nl.grauw.glass.Assembler.writeObject(Assembler.java:72)
+	at nl.grauw.glass.Assembler.main(Assembler.java:59)
+Running: java -jar C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar -I C:\Users\salam\Documents\Programacion\Mideas\server C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248_matrix_plain48k_compressed.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248_matrix_plain48k.rom C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248_matrix_plain48k.sym
+Traceback (most recent call last):
+  File "C:\Users\salam\Documents\Programacion\Mideas\scripts\build_mideas_unified_rom.py", line 2036, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "C:\Users\salam\Documents\Programacion\Mideas\scripts\build_mideas_unified_rom.py", line 1931, in main
+    compile_with_glass(
+  File "C:\Users\salam\Documents\Programacion\Mideas\scripts\build_mideas_unified_rom.py", line 1408, in compile_with_glass
+    run_command(cmd, cwd=project_root)
+  File "C:\Users\salam\Documents\Programacion\Mideas\scripts\build_mideas_unified_rom.py", line 155, in run_command
+    raise RuntimeError(f"Command failed ({completed.returncode}): {' '.join(cmd)}")
+RuntimeError: Command failed (1): java -jar C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar -I C:\Users\salam\Documents\Programacion\Mideas\server C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248_matrix_plain48k_compressed.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248_matrix_plain48k.rom C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248_matrix_plain48k.sym

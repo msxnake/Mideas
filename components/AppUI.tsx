@@ -3,11 +3,11 @@ import {
   EditorType, ProjectAsset, Tile, Sprite, ScreenMap, MSXColorValue, SpriteFrame, PixelData, 
   LineColorAttribute, MSX1ColorValue, WorldMapGraph, PSGSoundData, 
   TrackerSongData, HUDConfiguration, TileBank, MSXFont,
-  MSXFontColorAttributes, MSXFontAsset, DataFormat,
+  MSXFontColorAttributes, MSXFontAsset, DataFormat, ExportRomMode,
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, ContextMenuItem,
-  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, DialogueAsset, PortraitAsset, ScreenKind
+  Boss, Point, HistoryState, WaypointPickerState, CopiedTileData, MainMenuConfig, GameFlowGraph, CopiedBossPhaseData, PresentationScreenConfig, DialogueAsset, PortraitAsset, ScreenKind, TileStamp
 } from '../types';
 import { 
   MSX_SCREEN5_PALETTE, MSX1_PALETTE,
@@ -43,6 +43,7 @@ import { DialogueEditor } from './editors/DialogueEditor';
 import { PortraitEditor } from './editors/PortraitEditor';
 import { GameFlowEditor } from './editors/GameFlowEditor';
 import { StateMachineEditor } from './editors/StateMachineEditor';
+import { PngMsxCharsTool } from './editors/PngMsxCharsTool';
 import { FileExplorerPanel, TILE_BANKS_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/FileExplorerPanel';
 import { PropertiesPanel } from './tools/PropertiesPanel';
 import { PalettePanel } from './tools/PalettePanel';
@@ -101,7 +102,7 @@ interface AppUIProps {
   isCompressDataModalOpen?: boolean;
   isCodeExportModalOpen: boolean;
   isConfirmModalOpen: boolean;
-  confirmModalProps: { title: string; message: string | React.ReactNode; onConfirm: () => void; confirmText?: string; cancelText?: string; confirmButtonVariant?: 'primary' | 'secondary' | 'danger' | 'ghost'; } | null;
+  confirmModalProps: { title: string; message: string | React.ReactNode; onConfirm: () => void; onCancel?: () => void; confirmText?: string; cancelText?: string; secondaryText?: string; onSecondaryAction?: () => void; secondaryButtonVariant?: 'primary' | 'secondary' | 'danger' | 'ghost'; confirmButtonVariant?: 'primary' | 'secondary' | 'danger' | 'ghost'; } | null;
   tileBanks: TileBank[];
   msxFont: MSXFont;
   msxFontColorAttributes: MSXFontColorAttributes;
@@ -115,6 +116,7 @@ interface AppUIProps {
   saveScreenZoom: boolean;
   showSectorLines: boolean;
   saveSectorLines: boolean;
+  defaultExportRomMode: ExportRomMode;
   snippetsEnabled: boolean;
   syntaxHighlightingEnabled: boolean;
   isConfigModalOpen: boolean;
@@ -169,7 +171,7 @@ interface AppUIProps {
   setIsCompressDataModalOpen?: React.Dispatch<React.SetStateAction<boolean>>;
   setIsCodeExportModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsConfirmModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setConfirmModalProps: React.Dispatch<React.SetStateAction<{ title: string; message: string | React.ReactNode; onConfirm: () => void; confirmText?: string; cancelText?: string; confirmButtonVariant?: 'primary' | 'secondary' | 'danger' | 'ghost'; } | null>>;
+  setConfirmModalProps: React.Dispatch<React.SetStateAction<{ title: string; message: string | React.ReactNode; onConfirm: () => void; onCancel?: () => void; confirmText?: string; cancelText?: string; secondaryText?: string; onSecondaryAction?: () => void; secondaryButtonVariant?: 'primary' | 'secondary' | 'danger' | 'ghost'; confirmButtonVariant?: 'primary' | 'secondary' | 'danger' | 'ghost'; } | null>>;
   setTileBanks: (updater: TileBank[] | ((prev: TileBank[]) => TileBank[])) => void;
   setMsxFont: (updater: MSXFont | ((prev: MSXFont) => MSXFont)) => void;
   setMsxFontColorAttributes: (updater: MSXFontColorAttributes | ((prev: MSXFontColorAttributes) => MSXFontColorAttributes)) => void;
@@ -181,6 +183,7 @@ interface AppUIProps {
   setSaveScreenZoom: React.Dispatch<React.SetStateAction<boolean>>;
   setShowSectorLines: React.Dispatch<React.SetStateAction<boolean>>;
   setSaveSectorLines: React.Dispatch<React.SetStateAction<boolean>>;
+  setDefaultExportRomMode: React.Dispatch<React.SetStateAction<ExportRomMode>>;
   setIsConfigModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsSpriteSheetModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsSpriteFramesModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -250,10 +253,10 @@ interface AppUIProps {
  */
 export const AppUI: React.FC<AppUIProps> = (props) => {
     const {
-        currentEditor, assets, selectedAssetId, currentProjectName, currentScreenMode, statusBarMessage, selectedColor, screenEditorSelectedTileId, currentScreenEditorActiveLayer, componentDefinitions, entityTemplates, mainMenuConfig, presentationScreen, currentEntityTypeToPlace, selectedEntityInstanceId, selectedEffectZoneId, selectedGameFlowNodeId, isRenameModalOpen, assetToRenameInfo, isSaveAsModalOpen, isNewProjectModalOpen, isAboutModalOpen, isCompressDataModalOpen, isCodeExportModalOpen, isConfirmModalOpen, confirmModalProps, tileBanks, msxFont, msxFontColorAttributes, currentLoadedFontName, helpDocsData, dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, isConfigModalOpen, isSpriteSheetModalOpen, isSpriteFramesModalOpen, spriteForFramesModal, snippetToInsert, userSnippets, isSnippetEditorModalOpen, editingSnippet, isAutosaving, history, copiedScreenBuffer, copiedTileData, copiedLayerBuffer, copiedBossPhase, contextMenu, waypointPickerState,
+        currentEditor, assets, selectedAssetId, currentProjectName, currentScreenMode, statusBarMessage, selectedColor, screenEditorSelectedTileId, currentScreenEditorActiveLayer, componentDefinitions, entityTemplates, mainMenuConfig, presentationScreen, currentEntityTypeToPlace, selectedEntityInstanceId, selectedEffectZoneId, selectedGameFlowNodeId, isRenameModalOpen, assetToRenameInfo, isSaveAsModalOpen, isNewProjectModalOpen, isAboutModalOpen, isCompressDataModalOpen, isCodeExportModalOpen, isConfirmModalOpen, confirmModalProps, tileBanks, msxFont, msxFontColorAttributes, currentLoadedFontName, helpDocsData, dataOutputFormat, autosaveEnabled, defaultExportRomMode, snippetsEnabled, syntaxHighlightingEnabled, isConfigModalOpen, isSpriteSheetModalOpen, isSpriteFramesModalOpen, spriteForFramesModal, snippetToInsert, userSnippets, isSnippetEditorModalOpen, editingSnippet, isAutosaving, history, copiedScreenBuffer, copiedTileData, copiedLayerBuffer, copiedBossPhase, contextMenu, waypointPickerState,
         
         setCopiedBossPhase, setCurrentEditor, setSelectedAssetId, setStatusBarMessage, setSelectedColor, setScreenEditorSelectedTileId, setCurrentScreenEditorActiveLayer, setCurrentEntityTypeToPlace, setSelectedEntityInstanceId, setSelectedEffectZoneId, setSelectedGameFlowNodeId, setIsRenameModalOpen, setAssetToRenameInfo, setIsSaveAsModalOpen, setIsNewProjectModalOpen, setIsAboutModalOpen, setIsCompressDataModalOpen, setIsCodeExportModalOpen, setIsConfirmModalOpen, setConfirmModalProps, setComponentDefinitions, setEntityTemplates, onUpdateMainMenuConfig, onUpdatePresentationScreen, setTileBanks, setMsxFont, setMsxFontColorAttributes, setDataOutputFormat, setAutosaveEnabled, setIsConfigModalOpen, setIsSpriteSheetModalOpen, setIsSpriteFramesModalOpen, setSpriteForFramesModal, setUserSnippets, setIsSnippetEditorModalOpen, setEditingSnippet, setCopiedScreenBuffer, setCopiedLayerBuffer, setContextMenu, setWaypointPickerState, handleUpdateSpriteOrder, handleReorderSpriteFrames, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, onSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, handleOpenRecentProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleExportIntermediateGameJson, handleCopyTileData, handleGenerateTemplatesAsm,
-        isToggleEditorDisabled, onToggleEditor, bossEditorZoom, setBossEditorZoom, tileEditorZoom, setTileEditorZoom, screenEditorZoom, setScreenEditorZoom, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, showSectorLines, setShowSectorLines, saveSectorLines, setSaveSectorLines,
+        isToggleEditorDisabled, onToggleEditor, bossEditorZoom, setBossEditorZoom, tileEditorZoom, setTileEditorZoom, screenEditorZoom, setScreenEditorZoom, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, showSectorLines, setShowSectorLines, saveSectorLines, setSaveSectorLines, setDefaultExportRomMode,
         onRequestSaveTile, onRequestSaveTrack, onImportTrack, handleImportBossPackageFile, onRequestLoadTile, onRequestSaveSelectedTiles
     } = props;
 
@@ -271,10 +274,27 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
 
   const allTileAssetsData = assets.filter(a => a.type === 'tile').map(a => a.data as Tile);
 
+  const handleUpdateBossTileBank = useCallback((tileBankId: string, data: Partial<TileBank>) => {
+    setTileBanks(prevBanks => prevBanks.map(tileBank => (
+      tileBank.id === tileBankId
+        ? { ...tileBank, ...data }
+        : tileBank
+    )));
+
+    const tileBankAsset = assets.find(asset =>
+      asset.type === 'tilebank'
+      && (asset.id === tileBankId || (asset.data as TileBank | undefined)?.id === tileBankId)
+    );
+    if (tileBankAsset) {
+      handleUpdateAsset(tileBankAsset.id, data);
+    }
+  }, [assets, handleUpdateAsset, setTileBanks]);
 
 
-  const isUndoDisabled = history.undoStack.length === 0 || [EditorType.HelpDocs, EditorType.WorldView].includes(currentEditor);
-  const isRedoDisabled = history.redoStack.length === 0 || [EditorType.HelpDocs, EditorType.WorldView].includes(currentEditor);
+
+  const nonAssetEditorTypes = [EditorType.HelpDocs, EditorType.WorldView, EditorType.PngMsxChars];
+  const isUndoDisabled = history.undoStack.length === 0 || nonAssetEditorTypes.includes(currentEditor);
+  const isRedoDisabled = history.redoStack.length === 0 || nonAssetEditorTypes.includes(currentEditor);
 
   /* OBSOLETO: handleCompile - eliminado junto con menú Run en v0.267
   const handleCompile = async () => {
@@ -314,6 +334,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
 
   const [isAsmCompilerHelpOpen, setIsAsmCompilerHelpOpen] = React.useState(false);
   const [isMsxEmulatorHelpOpen, setIsMsxEmulatorHelpOpen] = React.useState(false);
+  const [selectedScreenCatalogBlock, setSelectedScreenCatalogBlock] = useState<TileStamp | null>(null);
 
   const handleEditGeneratedFile = React.useCallback((filename: string, content: string) => {
     const existingId = assets.find(a => a.type === 'code' && a.name === filename)?.id;
@@ -454,6 +475,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         setDataOutputFormat={setDataOutputFormat}
         autosaveEnabled={autosaveEnabled}
         setAutosaveEnabled={setAutosaveEnabled}
+        defaultExportRomMode={defaultExportRomMode}
+        setDefaultExportRomMode={setDefaultExportRomMode}
         saveBossZoom={saveBossZoom}
         setSaveBossZoom={setSaveBossZoom}
         saveSpriteZoom={saveSpriteZoom}
@@ -475,6 +498,10 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onOpenComponentDefEditor={() => onSelectAsset(COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, EditorType.ComponentDefinitionEditor)}
         onOpenEntityTemplateEditor={() => onSelectAsset(ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, EditorType.EntityTemplateEditor)}
         onOpenWorldView={() => onSelectAsset(WORLD_VIEW_SYSTEM_ASSET_ID, EditorType.WorldView)}
+        onOpenPngMsxTool={() => {
+          onSelectAsset(null, EditorType.PngMsxChars);
+          setStatusBarMessage('Opened PNG a MSX conversion tool.');
+        }}
         onConfigureASM={() => setIsAsmCompilerHelpOpen(true)}
         onConfigureEmulator={() => setIsMsxEmulatorHelpOpen(true)}
         onToggleEditor={onToggleEditor}
@@ -530,18 +557,19 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           )}
           {currentEditor === EditorType.Portrait && activeAsset?.type === 'portrait' && (
             <PortraitEditor
-              portrait={(activeAsset.data as PortraitAsset) || ({ id: activeAsset.id, name: activeAsset.name, widthChars: 4, heightChars: 4, cells: Array(16).fill(''), dedupeIdenticalTiles: true } as PortraitAsset)}
-              onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}
+              portrait={(activeAsset.data as PortraitAsset) || ({ id: activeAsset.id, name: activeAsset.name, widthChars: 4, heightChars: 4, cells: Array(16).fill(''), dedupeIdenticalTiles: true, mouth: { enabled: false, cellIndex: 0, openTileId: '' } } as PortraitAsset)}
+              onUpdate={(data, newAssetsToCreate) => handleUpdateAsset(activeAsset.id, data, newAssetsToCreate)}
               allAssets={assets}
               tileBanks={tileBanks}
+              setStatusBarMessage={setStatusBarMessage}
               onCreateAsset={handleNewAsset}
             />
           )}
           
           {currentEditor === EditorType.Tile && activeAsset?.type === 'tile' && ( <TileEditor currentTile={activeAsset.data as Tile} onUpdateCurrentTile={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allTileAssets={assets.filter(a => a.type === 'tile')} onUpdateAllTileAssets={(newTiles) => setAssetsWithHistory(prev => [...prev.filter(a => a.type !== 'tile'), ...newTiles])} selectedColor={selectedColor} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} copiedTileData={copiedTileData} onCopyTileData={handleCopyTileData} setStatusBarMessage={setStatusBarMessage} zoom={tileEditorZoom} setZoom={setTileEditorZoom} onSelectGlobalColor={setSelectedColor} />)}
           {currentEditor === EditorType.Sprite && activeAsset?.type === 'sprite' && ( <SpriteEditor sprite={activeAsset.data as Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} onSpriteImported={handleSpriteImported} onCreateSpriteFromFrame={handleCreateSpriteFromFrame} globalSelectedColor={selectedColor} dataOutputFormat={dataOutputFormat} allAssets={assets} currentScreenMode={currentScreenMode} onOpenSpriteSheetModal={() => setIsSpriteSheetModalOpen(true)} saveSpriteZoom={saveSpriteZoom} />)}
-          {currentEditor === EditorType.Boss && activeAsset?.type === 'boss' && ( <BossEditor boss={activeAsset.data as Boss} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} tileBanks={tileBanks} onUpdateTileBank={(tileBankId, data) => { const tileBankAsset = assets.find(asset => asset.type === 'tilebank' && (asset.id === tileBankId || (asset.data as TileBank | undefined)?.id === tileBankId)); if (tileBankAsset) handleUpdateAsset(tileBankAsset.id, data); }} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} currentScreenMode={currentScreenMode} zoom={bossEditorZoom} setZoom={setBossEditorZoom} copiedBossPhase={copiedBossPhase} setCopiedBossPhase={setCopiedBossPhase} /> )}
-          {currentEditor === EditorType.Screen && activeAsset?.type === 'screenmap' && ( <ScreenEditor screenMap={activeAsset.data as ScreenMap} onUpdate={(data, newTilesToCreate) => { if (data.layers?.entities === undefined && (activeAsset.data as ScreenMap).layers.entities) { (data as Partial<ScreenMap>).layers = { ... (activeAsset.data as ScreenMap).layers, ...data.layers, entities: (activeAsset.data as ScreenMap).layers.entities };} if(data.effectZones === undefined && (activeAsset.data as ScreenMap).effectZones) { (data as Partial<ScreenMap>).effectZones = (activeAsset.data as ScreenMap).effectZones;} handleUpdateAsset(activeAsset.id, data, newTilesToCreate);}} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} sprites={assets.filter(a => a.type === 'sprite')} selectedTileId={screenEditorSelectedTileId} setSelectedTileId={setScreenEditorSelectedTileId} currentEntityTypeToPlace={currentEntityTypeToPlace} currentScreenMode={currentScreenMode} tileBanks={tileBanks} msx1FontData={msxFont} msxFontColorAttributes={msxFontColorAttributes} dataOutputFormat={dataOutputFormat} selectedEntityInstanceId={selectedEntityInstanceId} onSelectEntityInstance={setSelectedEntityInstanceId} selectedEffectZoneId={selectedEffectZoneId} onSelectEffectZone={setSelectedEffectZoneId} copiedScreenBuffer={copiedScreenBuffer} setCopiedScreenBuffer={setCopiedScreenBuffer} allProjectAssets={assets} copiedLayerBuffer={copiedLayerBuffer} setCopiedLayerBuffer={setCopiedLayerBuffer} setStatusBarMessage={setStatusBarMessage} onActiveLayerChange={setCurrentScreenEditorActiveLayer} componentDefinitions={componentDefinitions} entityTemplates={entityTemplates} onShowMapFile={handleShowMapFile} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} waypointPickerState={waypointPickerState} onWaypointPicked={handleWaypointPicked} zoom={screenEditorZoom} setZoom={setScreenEditorZoom} showSectorLines={showSectorLines} onToggleSectorLines={() => setShowSectorLines(v => !v)} />)}
+          {currentEditor === EditorType.Boss && activeAsset?.type === 'boss' && ( <BossEditor boss={activeAsset.data as Boss} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} tileBanks={tileBanks} onUpdateTileBank={handleUpdateBossTileBank} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} currentScreenMode={currentScreenMode} zoom={bossEditorZoom} setZoom={setBossEditorZoom} copiedBossPhase={copiedBossPhase} setCopiedBossPhase={setCopiedBossPhase} /> )}
+          {currentEditor === EditorType.Screen && activeAsset?.type === 'screenmap' && ( <ScreenEditor screenMap={activeAsset.data as ScreenMap} onUpdate={(data, newTilesToCreate) => { if (data.layers?.entities === undefined && (activeAsset.data as ScreenMap).layers.entities) { (data as Partial<ScreenMap>).layers = { ... (activeAsset.data as ScreenMap).layers, ...data.layers, entities: (activeAsset.data as ScreenMap).layers.entities };} if(data.effectZones === undefined && (activeAsset.data as ScreenMap).effectZones) { (data as Partial<ScreenMap>).effectZones = (activeAsset.data as ScreenMap).effectZones;} handleUpdateAsset(activeAsset.id, data, newTilesToCreate);}} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} sprites={assets.filter(a => a.type === 'sprite')} selectedTileId={screenEditorSelectedTileId} setSelectedTileId={setScreenEditorSelectedTileId} currentEntityTypeToPlace={currentEntityTypeToPlace} currentScreenMode={currentScreenMode} tileBanks={tileBanks} msx1FontData={msxFont} msxFontColorAttributes={msxFontColorAttributes} dataOutputFormat={dataOutputFormat} selectedEntityInstanceId={selectedEntityInstanceId} onSelectEntityInstance={setSelectedEntityInstanceId} selectedEffectZoneId={selectedEffectZoneId} onSelectEffectZone={setSelectedEffectZoneId} copiedScreenBuffer={copiedScreenBuffer} setCopiedScreenBuffer={setCopiedScreenBuffer} allProjectAssets={assets} copiedLayerBuffer={copiedLayerBuffer} setCopiedLayerBuffer={setCopiedLayerBuffer} setStatusBarMessage={setStatusBarMessage} onActiveLayerChange={setCurrentScreenEditorActiveLayer} componentDefinitions={componentDefinitions} entityTemplates={entityTemplates} onShowMapFile={handleShowMapFile} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} waypointPickerState={waypointPickerState} onWaypointPicked={handleWaypointPicked} zoom={screenEditorZoom} setZoom={setScreenEditorZoom} showSectorLines={showSectorLines} onToggleSectorLines={() => setShowSectorLines(v => !v)} catalogStamp={selectedScreenCatalogBlock} onClearCatalogStamp={() => setSelectedScreenCatalogBlock(null)} />)}
           {currentEditor === EditorType.Code && activeAsset?.type === 'code' && ( <div className="flex flex-grow h-full overflow-hidden"> <div className="flex-grow h-full"> <CodeEditor code={activeAsset.data as string} onUpdate={(code) => handleUpdateAsset(activeAsset.id, code)} language="z80" assetName={activeAsset.name} snippetToInsert={snippetToInsert} /> </div> {snippetsEnabled && ( <SnippetsPanel snippets={userSnippets.filter(s => !Z80_BEHAVIOR_SNIPPETS.find(bs => bs.name === s.name))} onSnippetSelect={handleSnippetSelected} isEnabled={true} onAddSnippet={() => handleOpenSnippetEditor(null)} onEditSnippet={handleOpenSnippetEditor} onDeleteSnippet={handleDeleteSnippet}/>)}</div>)}
           {currentEditor === EditorType.BehaviorEditor && activeAsset?.type === 'behavior' && ( <BehaviorEditor behaviorScript={activeAsset.data as BehaviorScript} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} userSnippets={userSnippets} onSnippetSelect={handleSnippetSelected} onAddSnippet={() => handleOpenSnippetEditor(null)} onEditSnippet={handleOpenSnippetEditor} onDeleteSnippet={handleDeleteSnippet} isSnippetsPanelEnabled={snippetsEnabled} /> )}
           {currentEditor === EditorType.WorldMap && activeAsset?.type === 'worldmap' && ( <WorldMapEditor worldMapGraph={activeAsset.data as WorldMapGraph} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} availableScreenMaps={assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap)} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} onNavigateToAsset={onSelectAsset} onShowContextMenu={showContextMenu} setStatusBarMessage={setStatusBarMessage} />)}
@@ -601,9 +629,23 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           )}
           {currentEditor === EditorType.Font && !activeAsset && ( <FontEditor fontData={msxFont} onUpdateFont={setMsxFont} fontColorAttributes={msxFontColorAttributes} onUpdateFontColorAttributes={setMsxFontColorAttributes} currentScreenMode={currentScreenMode} selectedColor={selectedColor as MSX1ColorValue} dataOutputFormat={dataOutputFormat}/>)}
           {currentEditor === EditorType.HelpDocs && ( <HelpDocsViewer helpDocsData={helpDocsData} /> )}
+          {currentEditor === EditorType.PngMsxChars && ( <PngMsxCharsTool /> )}
            
            {currentEditor === EditorType.ComponentDefinitionEditor && <ComponentDefinitionEditor componentDefinitions={componentDefinitions} onUpdateComponentDefinitions={setComponentDefinitions} />}
-           {currentEditor === EditorType.EntityTemplateEditor && <EntityTemplateEditor entityTemplates={entityTemplates} onUpdateEntityTemplates={setEntityTemplates} componentDefinitions={componentDefinitions} onGenerateAsm={handleGenerateTemplatesAsm} allAssets={assets} />}
+           {currentEditor === EditorType.EntityTemplateEditor && (
+            <EntityTemplateEditor
+              entityTemplates={entityTemplates}
+              onUpdateEntityTemplates={setEntityTemplates}
+              onUpdateComponentDefinitions={setComponentDefinitions}
+              onCreateAssets={(assetsToCreate) => {
+                setAssetsWithHistory(prevAssets => [...prevAssets, ...assetsToCreate]);
+              }}
+              componentDefinitions={componentDefinitions}
+              onGenerateAsm={handleGenerateTemplatesAsm}
+              allAssets={assets}
+              setStatusBarMessage={setStatusBarMessage}
+            />
+           )}
            {currentEditor === EditorType.GlobalVariables && activeAsset && activeAsset.type === 'globalvariables' && (
            <GlobalVariablesEditor
               currentAsset={activeAsset as any}
@@ -719,6 +761,11 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             onSetWaypointPickerState={setWaypointPickerState}
             onUpdateAsset={(assetId, data) => handleUpdateAsset(assetId, data)}
             onCreateAsset={handleNewAsset}
+            selectedScreenCatalogBlockId={selectedScreenCatalogBlock?.id ?? null}
+            onSelectScreenCatalogBlock={(stamp) => {
+              setSelectedScreenCatalogBlock(stamp);
+              setStatusBarMessage(`${stamp.name} selected. Click the screen grid to place it.`);
+            }}
           />
         </div>
       </div>
@@ -738,7 +785,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         />
       )}
       {isSnippetEditorModalOpen && ( <SnippetEditorModal isOpen={isSnippetEditorModalOpen} onClose={() => { setIsSnippetEditorModalOpen(false); setEditingSnippet(null); }} onSave={handleSaveSnippet} editingSnippet={editingSnippet} allAssets={assets} tileBanks={tileBanks} />)}
-      {isConfirmModalOpen && confirmModalProps && ( <ConfirmationModal isOpen={isConfirmModalOpen} title={confirmModalProps.title} message={confirmModalProps.message} onConfirm={confirmModalProps.onConfirm} onCancel={() => { setIsConfirmModalOpen(false); setConfirmModalProps(null);}} confirmText={confirmModalProps.confirmText} cancelText={confirmModalProps.cancelText} confirmButtonVariant={confirmModalProps.confirmButtonVariant}/>)}
+      {isConfirmModalOpen && confirmModalProps && ( <ConfirmationModal isOpen={isConfirmModalOpen} title={confirmModalProps.title} message={confirmModalProps.message} onConfirm={confirmModalProps.onConfirm} onCancel={confirmModalProps.onCancel || (() => { setIsConfirmModalOpen(false); setConfirmModalProps(null);})} confirmText={confirmModalProps.confirmText} cancelText={confirmModalProps.cancelText} secondaryText={confirmModalProps.secondaryText} onSecondaryAction={confirmModalProps.onSecondaryAction} secondaryButtonVariant={confirmModalProps.secondaryButtonVariant} confirmButtonVariant={confirmModalProps.confirmButtonVariant}/>)}
       {screenMapForHudModal && currentEditor === EditorType.Screen && 
          <HUDEditorModal 
             isOpen={false} 
@@ -799,6 +846,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           onClose={() => setIsCodeExportModalOpen(false)}
           assets={assets}
           currentProjectName={currentProjectName}
+          defaultRomMode={defaultExportRomMode}
           projectData={{
             tileBanks,
             msxFont,

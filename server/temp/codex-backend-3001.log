@@ -1,0 +1,2459 @@
+
+> msx-ide-backend@1.0.0 start
+> node server.js
+
+MSX IDE Compiler Backend listening at http://localhost:3001
+Compilation request received
+  projectName: atenas78
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1449098
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas78_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 4,
+  candidateTileColors: 4,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27559,
+  compressedBytes: 5765,
+  savedBytes: 21794,
+  netSavedBytes: 21794,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas78.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas78.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas78.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas78.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas78.rom
+Compilation request received
+  projectName: atenas79
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1450816
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas79_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 4,
+  candidateTileColors: 4,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 29336,
+  compressedBytes: 6219,
+  savedBytes: 23117,
+  netSavedBytes: 23117,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas79.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas79.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas79.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas79.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas79.rom
+Compilation request received
+  projectName: atenas80
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1433381
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas80_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27303,
+  compressedBytes: 5605,
+  savedBytes: 21698,
+  netSavedBytes: 21698,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas80.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas80.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas80.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas80.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas80.rom
+Compilation request received
+  projectName: atenas80
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1433381
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas80_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27303,
+  compressedBytes: 5605,
+  savedBytes: 21698,
+  netSavedBytes: 21698,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas80.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas80.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas80.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas80.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas80.rom
+Compilation request received
+  projectName: atenas81
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1433881
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27351,
+  compressedBytes: 5656,
+  savedBytes: 21695,
+  netSavedBytes: 21695,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas81.rom
+Compilation request received
+  projectName: atenas81
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1433881
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27351,
+  compressedBytes: 5656,
+  savedBytes: 21695,
+  netSavedBytes: 21695,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas81.rom
+Compilation request received
+  projectName: atenas81
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1434915
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27351,
+  compressedBytes: 5656,
+  savedBytes: 21695,
+  netSavedBytes: 21695,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas81.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas81.rom
+Compilation request received
+  projectName: atenas82
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1434786
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas82_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27367,
+  compressedBytes: 5671,
+  savedBytes: 21696,
+  netSavedBytes: 21696,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas82.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas82.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas82.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas82.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas82.rom
+Compilation request received
+  projectName: atenas83
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1435310
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas83_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27367,
+  compressedBytes: 5671,
+  savedBytes: 21696,
+  netSavedBytes: 21696,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas83.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas83.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas83.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas83.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas83.rom
+Compilation request received
+  projectName: atenas84
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1435667
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas84_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27367,
+  compressedBytes: 5671,
+  savedBytes: 21696,
+  netSavedBytes: 21696,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas84.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas84.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas84.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas84.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas84.rom
+Compilation request received
+  projectName: atenas85
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1435667
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas85_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27367,
+  compressedBytes: 5671,
+  savedBytes: 21696,
+  netSavedBytes: 21696,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas85.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas85.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas85.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas85.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas85.rom
+Compilation request received
+  projectName: atenas88
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1455173
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas88_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 4,
+  candidateTileColors: 4,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27879,
+  compressedBytes: 6033,
+  savedBytes: 21846,
+  netSavedBytes: 21846,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas88.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas88.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas88.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas88.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas88.rom
+Compilation request received
+  projectName: atenas90
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1475077
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas90_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 5,
+  candidateTileColors: 5,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 28135,
+  compressedBytes: 6243,
+  savedBytes: 21892,
+  netSavedBytes: 21892,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas90.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas90.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas90.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas90.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas90.rom
+Compilation request received
+  projectName: atenas92
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1474859
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas92_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 5,
+  candidateTileColors: 5,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 28135,
+  compressedBytes: 6243,
+  savedBytes: 21892,
+  netSavedBytes: 21892,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas92.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas92.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas92.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas92.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas92.rom
+Compilation request received
+  projectName: atenas92
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1475513
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas92_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 5,
+  candidateTileColors: 5,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 28135,
+  compressedBytes: 6243,
+  savedBytes: 21892,
+  netSavedBytes: 21892,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas92.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas92.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas92.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas92.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas92.rom
+Compilation request received
+  projectName: atenas93
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1475036
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas93_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 5,
+  candidateTileColors: 5,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 28135,
+  compressedBytes: 6243,
+  savedBytes: 21892,
+  netSavedBytes: 21892,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas93.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas93.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas93.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas93.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas93.rom
+Compilation request received
+  projectName: atenas93
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1477640
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas93_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 5,
+  candidateTileColors: 5,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 28119,
+  compressedBytes: 6229,
+  savedBytes: 21890,
+  netSavedBytes: 21890,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas93.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas93.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas93.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas93.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas93.rom
+Compilation request received
+  projectName: atenas94
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1468446
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas94_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 4,
+  candidateTileColors: 4,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 29624,
+  compressedBytes: 6454,
+  savedBytes: 23170,
+  netSavedBytes: 23170,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas94.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas94.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas94.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas94.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 180224 bytes
+   8KB aligned: 180224 bytes (22x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 81920 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas94.rom
+Compilation request received
+  projectName: atenas95
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1468442
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas95_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 4,
+  candidateTileColors: 4,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 29624,
+  compressedBytes: 6453,
+  savedBytes: 23171,
+  netSavedBytes: 23171,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas95.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas95.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas95.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas95.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 180224 bytes
+   8KB aligned: 180224 bytes (22x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 81920 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas95.rom
+Compilation request received
+  projectName: atenas96
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1468486
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas96_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 4,
+  candidateTileColors: 4,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 29624,
+  compressedBytes: 6453,
+  savedBytes: 23171,
+  netSavedBytes: 23171,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas96.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas96.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas96.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas96.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 180224 bytes
+   8KB aligned: 180224 bytes (22x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 81920 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas96.rom
+Compilation request received
+  projectName: atenas97
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1442164
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas97_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27607,
+  compressedBytes: 5853,
+  savedBytes: 21754,
+  netSavedBytes: 21754,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas97.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas97.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas97.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas97.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas97.rom
+Compilation request received
+  projectName: atenas97
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1442480
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas97_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27607,
+  compressedBytes: 5853,
+  savedBytes: 21754,
+  netSavedBytes: 21754,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas97.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas97.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas97.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas97.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas97.rom
+Compilation request received
+  projectName: atenas98
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1450238
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas98_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27607,
+  compressedBytes: 5853,
+  savedBytes: 21754,
+  netSavedBytes: 21754,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas98.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas98.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas98.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas98.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas98.rom
+Compilation request received
+  projectName: atenas99
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1449711
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas99_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27607,
+  compressedBytes: 5853,
+  savedBytes: 21754,
+  netSavedBytes: 21754,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas99.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas99.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas99.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas99.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas99.rom
+Compilation request received
+  projectName: atenas100
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1449710
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27607,
+  compressedBytes: 5853,
+  savedBytes: 21754,
+  netSavedBytes: 21754,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas100.rom
+Compilation request received
+  projectName: atenas100
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1449710
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27607,
+  compressedBytes: 5853,
+  savedBytes: 21754,
+  netSavedBytes: 21754,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas100.rom
+Compilation request received
+  projectName: atenas100
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1449910
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27607,
+  compressedBytes: 5853,
+  savedBytes: 21754,
+  netSavedBytes: 21754,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas100.rom
+Compilation request received
+  projectName: atenas102
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1451994
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas102_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27623,
+  compressedBytes: 5864,
+  savedBytes: 21759,
+  netSavedBytes: 21759,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas102.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas102.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas102.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas102.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas102.rom
+Compilation request received
+  projectName: atenas103
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1452102
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas103_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27639,
+  compressedBytes: 5868,
+  savedBytes: 21771,
+  netSavedBytes: 21771,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas103.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas103.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas103.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas103.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas103.rom
+Compilation request received
+  projectName: atenas104
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1452106
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas104_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27639,
+  compressedBytes: 5869,
+  savedBytes: 21770,
+  netSavedBytes: 21770,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas104.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas104.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas104.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas104.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 172032 bytes
+   8KB aligned: 172032 bytes (21x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 90112 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas104.rom
+Failed to start OpenMSX: Command failed: "C:\Users\salam\Documents\Programacion\Mideas\automation\openmsx\run-openmsx.bat" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.rom" "konami"
+
+Failed to start OpenMSX: Command failed: "C:\Users\salam\Documents\Programacion\Mideas\automation\openmsx\run-openmsx.bat" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas102.rom" "konami"
+
+Failed to start OpenMSX: Command failed: "C:\Users\salam\Documents\Programacion\Mideas\automation\openmsx\run-openmsx.bat" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas103.rom" "konami"
+
+Failed to start OpenMSX: Command failed: "C:\Users\salam\Documents\Programacion\Mideas\automation\openmsx\run-openmsx.bat" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas104.rom" "konami"
+
+Failed to start OpenMSX: Command failed: "C:\Users\salam\Documents\Programacion\Mideas\automation\openmsx\run-openmsx.bat" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.rom" "konami"
+
+Failed to start OpenMSX: Command failed: "C:\Users\salam\Documents\Programacion\Mideas\automation\openmsx\run-openmsx.bat" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas100.rom" "konami"
+
+Failed to start OpenMSX: Command failed: "C:\Users\salam\Documents\Programacion\Mideas\automation\openmsx\run-openmsx.bat" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas97.rom" "konami"
+
+Failed to start OpenMSX: Command failed: "C:\Users\salam\Documents\Programacion\Mideas\automation\openmsx\run-openmsx.bat" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas99.rom" "konami"
+
+Failed to start OpenMSX: Command failed: "C:\Users\salam\Documents\Programacion\Mideas\automation\openmsx\run-openmsx.bat" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas95.rom" "konami"
+
+Failed to start OpenMSX: Command failed: "C:\Users\salam\Documents\Programacion\Mideas\automation\openmsx\run-openmsx.bat" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas97.rom" "konami"
+
+Failed to start OpenMSX: Command failed: "C:\Users\salam\Documents\Programacion\Mideas\automation\openmsx\run-openmsx.bat" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas96.rom" "konami"
+
+Failed to start OpenMSX: Command failed: "C:\Users\salam\Documents\Programacion\Mideas\automation\openmsx\run-openmsx.bat" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas98.rom" "konami"
+

@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\patoantic248_ascii16_runtime_bank_fix_compressed.asm",
+  "metrics": {
+    "original_line_count": 46273,
+    "output_line_count": 46273,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-b5nc1rek\\patoantic248_ascii16_runtime_bank_fix_compressed.optimized.optimized.rom",
+        "size_bytes": 188416,
+        "sha256": "6a7df7d48e2e8897fe2ee2770558131ba996ac42ed0ef47efec52db45b56988d"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-b5nc1rek\\patoantic248_ascii16_runtime_bank_fix_compressed.original.rom",
+        "size_bytes": 188416,
+        "sha256": "6a7df7d48e2e8897fe2ee2770558131ba996ac42ed0ef47efec52db45b56988d"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

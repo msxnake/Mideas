@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "scope": "konami8k_scene_load_plan",
+  "strategy": "group current banked resources by scene and physical bank; optimizer consumes this before repacking",
+  "mapper": {
+    "format": "konami",
+    "segmentSize": 8192,
+    "dataWindowPage": "p3",
+    "windowBase": "#A000",
+    "windowMask": "#1FFF",
+    "bankDivisor": "#2000"
+  },
+  "summary": {
+    "sceneCount": 1,
+    "resourceCount": 15,
+    "uniqueDataBanks": 1,
+    "totalSceneBankTouches": 1,
+    "maxSceneBankTouches": 1,
+    "totalStoredBytes": 2409,
+    "totalRawBytes": 9134,
+    "compressedResources": 13
+  },
+  "scenes": [
+    {
+      "index": 0,
+      "id": "screenmap_1777833014252",
+      "name": "New Playable Screen",
+      "tileBankAssetId": "tilebank_1777833005588",
+      "resourceCount": 9,
+      "totalStoredBytes": 69,
+      "totalRawBytes": 4878,
+      "compressedResources": 7,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 9,
+          "storedBytes": 69,
+          "rawBytes": 4878,
+          "resourceIds": [
+            6,
+            7,
+            10,
+            12,
+            13,
+            9,
+            8,
+            14,
+            11
+          ],
+          "resourceLabels": [
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT",
+            "BEHAVIOR_NEW_PLAYABLE_SCREEN_0_DATA",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            6,
+            7,
+            10,
+            12,
+            13,
+            9,
+            8,
+            14,
+            11
+          ],
+          "resourceLabels": [
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT",
+            "BEHAVIOR_NEW_PLAYABLE_SCREEN_0_DATA",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    }
+  ]
+}

@@ -11,6 +11,24 @@ export interface DirectHardwareOptions {
   includeDebug?: boolean;
 }
 
+function buildIrqRestoreGuard(doneLabel: string): string {
+  return `    ld a, (interrupt_in_progress)
+    or a
+    jp nz, ${doneLabel}
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, ${doneLabel}
+    ei
+`;
+}
+
+function buildPreservedAfIrqRestoreGuard(doneLabel: string): string {
+  return `    push af
+${buildIrqRestoreGuard(doneLabel)}${doneLabel}:
+    pop af
+`;
+}
+
 /**
  * Generate direct hardware access routines file
  *
@@ -45,6 +63,7 @@ export function generateDirectHardwareFile(options: DirectHardwareOptions = { mo
 
   // Generate core routines (always included)
   code += generateFastLDIRVM();
+  code += generateFastFILLVRM();
   code += generateFastWRTVRM();
   code += generateFastRDVRM();
   code += generateFastWRTVDP();
@@ -71,6 +90,89 @@ export function generateDirectHardwareFile(options: DirectHardwareOptions = { mo
 `;
 
   return code;
+}
+
+/**
+ * Generate FAST_FILLVRM - Optimized repeated-byte fill to VRAM
+ */
+function generateFastFILLVRM(): string {
+  return `
+; ==================================================================
+; FAST_FILLVRM - Fast Repeated Byte Fill to VRAM
+; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Fill a sequential VRAM range with one repeated byte using VDP data port auto-increment.',
+  inputs: [
+    'A = byte to write',
+    'HL = destination address (VRAM)',
+    'BC = byte count',
+  ],
+  outputs: ['None'],
+  clobbers: ['AF', 'BC'],
+  preserved: ['DE', 'HL'],
+  usage: [
+    'A = VDP address bytes, loop zero-test, and data byte',
+    'BC = countdown loop counter',
+    'E = cached fill byte while DE is saved on stack',
+    'HL = only used to program initial VRAM address',
+  ],
+  notes: [
+    'Returns without touching VRAM when BC = 0.',
+    'Caller must preserve AF/BC if needed after call.',
+  ],
+})}
+; Replaces small loops that call FAST_WRTVRM for repeated values
+;
+; Input:
+;   A  = Data byte to write
+;   HL = Destination address (VRAM)
+;   BC = Byte count
+;
+; Output:
+;   None
+;
+; Destroys:
+;   AF, BC
+;
+; Performance:
+;   Avoids reprogramming the VDP address for every byte.
+; ==================================================================
+FAST_FILLVRM:
+    push de
+    ld e, a                ; Cache fill byte while AF is free for address setup/checks
+    ld a, b
+    or c
+    jr z, .fill_done
+
+    ; Disable interrupts during VDP port sequence (see FAST_LDIRVM note).
+    di
+
+    ; Set VRAM write address once; the VDP auto-increments after each data write.
+    ld a, l
+    out (#99), a
+    nop
+    nop
+    ld a, h
+    or #40
+    out (#99), a
+    nop
+    nop
+
+    ld a, e
+.fill_loop:
+    out (#98), a
+    dec bc
+    ld a, b
+    or c
+    ld a, e
+    jr nz, .fill_loop
+
+${buildIrqRestoreGuard('.fill_irq_done')}.fill_irq_done:
+.fill_done:
+    pop de
+    ret
+
+`;
 }
 
 /**
@@ -124,7 +226,7 @@ ${buildRegisterContractComment({
 ; ==================================================================
 FAST_LDIRVM:
     ; Disable interrupts during VDP port sequence to prevent ISR races.
-    ; Always re-enables on exit (called from main loop where EI is guaranteed).
+    ; Re-enables on exit unless a far trampoline still owns the mapper window.
     ; NOTE: The old LD A,I / PUSH AF / RET PO pattern is unreliable on Z80 —
     ; an interrupt between LD A,I and PUSH AF clears P/V, skipping EI and
     ; leaving interrupts permanently disabled (next HALT locks the system).
@@ -134,10 +236,12 @@ FAST_LDIRVM:
     ld a, e
     out (#99), a           ; Write address low byte to VDP
     nop                    ; Real VDPs need a short settle time between control writes
+    nop
     ld a, d
     or #40                 ; Set bit 6 for write mode
     out (#99), a           ; Write address high byte + write command
     nop                    ; Let the VDP latch the address before the first data write
+    nop
 
     ; Copy loop
 .ldirvm_loop:
@@ -149,7 +253,7 @@ FAST_LDIRVM:
     or c                   ; (4 cycles)
     jr nz, .ldirvm_loop    ; Loop if not zero (12/7 cycles)
 
-    ei
+${buildIrqRestoreGuard('.ldirvm_irq_done')}.ldirvm_irq_done:
     ret
 
 `;
@@ -202,9 +306,11 @@ FAST_LDIRVM_256:
     ld a, e
     out (#99), a
     nop
+    nop
     ld a, d
     or #40
     out (#99), a
+    nop
     nop
 
     ; Copy 256 bytes using DJNZ (B=0 means 256)
@@ -216,7 +322,7 @@ FAST_LDIRVM_256:
     inc hl
     djnz .ldirvm_256_loop  ; Faster than dec bc + check (13/8 cycles)
 
-    ei
+${buildIrqRestoreGuard('.ldirvm_256_irq_done')}.ldirvm_256_irq_done:
     ret
 
 `;
@@ -270,14 +376,18 @@ FAST_WRTVRM:
     di
     ld a, l
     out (#99), a           ; Address low (11 cycles)
+    nop                    ; TMS9918/MSX1 needs settling time between control writes
+    nop
     ld a, h
     or #40                 ; Write mode (7 cycles)
     out (#99), a           ; Address high + command (11 cycles)
+    nop                    ; Let the VDP latch the address before data write
+    nop
     ld a, c
     out (#98), a           ; Write to VRAM (11 cycles)
     pop af                 ; Restore caller AF
     pop bc
-    ei
+${buildPreservedAfIrqRestoreGuard('.wrtvrm_irq_done')}
     ret
 
 `;
@@ -325,10 +435,13 @@ ${buildRegisterContractComment({
 FAST_RDVRM:
     ld a, l
     out (#99), a           ; Address low
+    nop
+    nop
     ld a, h
     and #3F                ; Clear bit 6 for read mode (bit 7 must be 0)
     out (#99), a           ; Address high + read command
     nop                    ; Let the VDP latch the read address
+    nop
     in a, (#98)            ; Dummy read: primes the TMS9918 prefetch buffer
     in a, (#98)            ; Actual byte from VRAM[HL]
     ret
@@ -639,9 +752,13 @@ COPY_SPRITE_PATTERN_UNROLLED:
     ; Set VRAM write address
     ld a, e
     out (#99), a
+    nop
+    nop
     ld a, d
     or #40
     out (#99), a
+    nop
+    nop
 
     ; Unrolled copy (32 iterations)
     ; Each iteration: LD A,(HL) + OUT + INC HL = 7+11+6 = 24 cycles

@@ -1,0 +1,11 @@
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/04 flow=00 screen=33 irq=0000 inirq=00 pos=13107,13107
+space1_before pc=4912 sp=F378 bank=01/02/03/03 flow=01 screen=00 irq=00AD inirq=00 pos=16,144
+space1_after pc=61E5 sp=F36C bank=01/02/03/03 flow=01 screen=00 irq=00BC inirq=00 pos=16,108
+t10 pc=689F sp=F378 bank=01/02/03/03 flow=01 screen=00 irq=0161 inirq=00 pos=16,144
+SHOTOK joc60_fillvrm_regression2_megarom_t10.png
+right_before pc=77C3 sp=F372 bank=01/02/03/03 flow=01 screen=00 irq=01D9 inirq=00 pos=16,144
+right_after pc=1A56 sp=F364 bank=01/02/03/03 flow=01 screen=00 irq=0218 inirq=00 pos=134,144
+t14 pc=19D0 sp=F366 bank=01/02/03/03 flow=01 screen=00 irq=0251 inirq=00 pos=134,144
+SHOTOK joc60_fillvrm_regression2_megarom_t14.png
+t20 pc=A165 sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=03B8 inirq=00 pos=134,144
+SHOTOK joc60_fillvrm_regression2_megarom_t20.png

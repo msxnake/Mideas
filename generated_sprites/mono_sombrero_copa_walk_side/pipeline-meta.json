@@ -1,0 +1,175 @@
+{
+  "target": "creature",
+  "mode": "walk",
+  "prompt": "Side-view platformer walking animation sheet: 2x2 grid, monkey with black top hat and red band, facing right, four visibly different walk poses, same scale and identity, solid #FF00FF magenta background, no text, no UI.",
+  "role": "",
+  "input": "generated_sprites\\mono_sombrero_copa_walk_side_v2\\raw-sheet.png",
+  "threshold": 100,
+  "edge_threshold": 150,
+  "duration": 120,
+  "rows": 2,
+  "cols": 2,
+  "cell_size": 128,
+  "fit_scale": 0.9,
+  "trim_border": 4,
+  "edge_clean_depth": 3,
+  "align": "feet",
+  "shared_scale": true,
+  "component_mode": "largest",
+  "component_padding": 8,
+  "min_component_area": 1,
+  "edge_touch_margin": 0,
+  "frame_labels": [
+    "walk-1",
+    "walk-2",
+    "walk-3",
+    "walk-4"
+  ],
+  "frames": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "source_box": [
+        0,
+        0,
+        627,
+        627
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 73241,
+      "selected_component_bbox": [
+        155,
+        113,
+        481,
+        547
+      ],
+      "crop_bbox": [
+        147,
+        105,
+        489,
+        555
+      ],
+      "edge_touch": false,
+      "output_size": [
+        85,
+        112
+      ],
+      "paste_position": [
+        21,
+        10
+      ]
+    },
+    {
+      "grid": [
+        0,
+        1
+      ],
+      "source_box": [
+        627,
+        0,
+        1254,
+        627
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 64120,
+      "selected_component_bbox": [
+        66,
+        95,
+        364,
+        538
+      ],
+      "crop_bbox": [
+        58,
+        87,
+        372,
+        546
+      ],
+      "edge_touch": false,
+      "output_size": [
+        78,
+        115
+      ],
+      "paste_position": [
+        25,
+        7
+      ]
+    },
+    {
+      "grid": [
+        1,
+        0
+      ],
+      "source_box": [
+        0,
+        627,
+        627,
+        1254
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 73632,
+      "selected_component_bbox": [
+        151,
+        62,
+        476,
+        495
+      ],
+      "crop_bbox": [
+        143,
+        54,
+        484,
+        503
+      ],
+      "edge_touch": false,
+      "output_size": [
+        85,
+        112
+      ],
+      "paste_position": [
+        21,
+        10
+      ]
+    },
+    {
+      "grid": [
+        1,
+        1
+      ],
+      "source_box": [
+        627,
+        627,
+        1254,
+        1254
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 66428,
+      "selected_component_bbox": [
+        25,
+        94,
+        393,
+        493
+      ],
+      "crop_bbox": [
+        17,
+        86,
+        401,
+        501
+      ],
+      "edge_touch": false,
+      "output_size": [
+        96,
+        104
+      ],
+      "paste_position": [
+        16,
+        18
+      ]
+    }
+  ],
+  "edge_touch_frames": []
+}

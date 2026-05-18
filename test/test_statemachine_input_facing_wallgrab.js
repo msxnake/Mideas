@@ -11,6 +11,7 @@ import fs from 'fs';
 console.log('StateMachine input-facing and WallGrab guard regression test\n');
 
 const source = fs.readFileSync('utils/msxGenerator/generators/stateMachineGenerator.ts', 'utf8');
+const typesSource = fs.readFileSync('statemachine.types.ts', 'utf8');
 
 function sectionBetween(text, start, end) {
   const startIndex = text.indexOf(start);
@@ -41,23 +42,22 @@ function assertOrdered(text, tokens, label) {
 }
 
 function assertWallGrabGuard(text, label) {
-  const cfg = text.indexOf('entity_wallgrab_cfg_enabled');
   const active = text.indexOf('entity_wallgrab_active');
-  assert(cfg !== -1, `${label}: missing entity_wallgrab_cfg_enabled`);
   assert(active !== -1, `${label}: missing entity_wallgrab_active`);
-  assert(cfg < active, `${label}: active state is checked before config`);
 
-  const between = text.slice(cfg, active);
-  assert(/j[pr] z,/.test(between), `${label}: missing disabled-config skip before active check`);
+  const after = text.slice(active, active + 160);
+  assert(after.includes('ld a, (hl)'), `${label}: missing active flag read`);
+  assert(after.includes('or a'), `${label}: missing active flag zero check`);
+  assert(/j[pr] (?:z|nz),/.test(after), `${label}: missing branch after active check`);
 }
 
 try {
   const changeSprite = sectionBetween(source, 'Action_ChangeSprite:', 'Action_PlayAnimation:');
 
   assertOrdered(changeSprite, [
-    'ld hl, entity_wallgrab_cfg_enabled',
-    'jr z, .acs_not_wall_grabbing',
     'ld hl, entity_wallgrab_active',
+    'ld a, (hl)',
+    'or a',
     'jr z, .acs_not_wall_grabbing',
   ], 'Action_ChangeSprite WallGrab guard');
 
@@ -95,15 +95,30 @@ try {
     const nextLabel = setComponentProperty.indexOf('\n.scp_', start + label.length + 1);
     const body = setComponentProperty.slice(start, nextLabel === -1 ? undefined : nextLabel);
     assertOrdered(body, [
-      'entity_wallgrab_cfg_enabled',
-      'jp z,',
       'entity_wallgrab_active',
+      'ld a, (hl)',
+      'or a',
       'jp nz, .scp_done',
     ], `${label} WallGrab guard`);
   }
 
+  const conditionHandler = sectionBetween(source, 'Condition_IsWallGrabbing:', 'Condition_AnimComplete:');
+  assert(typesSource.includes("IS_WALL_GRABBING: 'IS_WALL_GRABBING'"), 'Missing IS_WALL_GRABBING condition type');
+  assert(source.includes('[ConditionTypes.IS_WALL_GRABBING]: 17'), 'Missing IS_WALL_GRABBING condition ID');
+  assert(source.includes('DW Condition_IsWallGrabbing ; 17'), 'Missing IS_WALL_GRABBING dispatch entry');
+  assertOrdered(conditionHandler, [
+    'ld hl, entity_wallgrab_active',
+    'ld e, b',
+    'add hl, de',
+    'ld a, (hl)',
+    'ld a, 1',
+  ], 'Condition_IsWallGrabbing handler');
+  assert(source.includes("stripSection(asm, 'Condition_IsWallGrabbing', 'Condition_AnimComplete')"), 'Missing IS_WALL_GRABBING strip section');
+  assert(source.includes("patchConditionEntry(asm, 'Condition_IsWallGrabbing')"), 'Missing IS_WALL_GRABBING dispatch patch');
+
   console.log('OK: CHANGE_SPRITE refreshes input-facing before directional remap.');
-  console.log('OK: WallGrab active state is only consulted after per-entity WallGrab config.');
+  console.log('OK: WallGrab animation guards read the RAM active flag.');
+  console.log('OK: IS_WALL_GRABBING condition reads the active WallGrab runtime flag.');
 } catch (error) {
   console.error(`FAIL: ${error.message}`);
   process.exit(1);

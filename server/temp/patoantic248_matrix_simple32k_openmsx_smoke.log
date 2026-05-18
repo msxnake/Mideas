@@ -1,0 +1,11 @@
+BP_4010 pc=4010 sp=F2EC bank=00/04/33/3A flow=00 screen=00 irq=2222 inirq=22 pos=0,0
+space1_before pc=1130 sp=F2FE bank=00/04/33/3A flow=00 screen=00 irq=2222 inirq=22 pos=0,0
+space1_after pc=1130 sp=F2FE bank=00/04/33/3A flow=00 screen=00 irq=2222 inirq=22 pos=0,0
+t10 pc=1B19 sp=F300 bank=00/04/33/3A flow=00 screen=00 irq=2222 inirq=22 pos=0,0
+SHOTOK patoantic248_matrix_simple32k_t10.png
+right_before pc=1B19 sp=F300 bank=00/04/33/3A flow=00 screen=00 irq=2222 inirq=22 pos=0,0
+right_after pc=1B19 sp=F300 bank=00/04/33/3A flow=00 screen=00 irq=2222 inirq=22 pos=0,0
+t14 pc=1B19 sp=F300 bank=00/04/33/3A flow=00 screen=00 irq=2222 inirq=22 pos=0,0
+SHOTOK patoantic248_matrix_simple32k_t14.png
+t20 pc=1B19 sp=F300 bank=00/04/33/3A flow=00 screen=00 irq=2222 inirq=22 pos=0,0
+SHOTOK patoantic248_matrix_simple32k_t20.png

@@ -1,0 +1,29 @@
+waiting_left_first_shot tick=000 player=16,144 projectileActive=0 projectile=255,255 vel=-1,-1 abs=255,255 target=255
+jump1_before tick=000 player=16,144 projectileActive=0 projectile=255,255 vel=-1,-1 abs=255,255 target=255
+jump1_after tick=000 player=16,144 projectileActive=0 projectile=255,255 vel=-1,-1 abs=255,255 target=255
+jump2_before tick=025 player=16,144 projectileActive=0 projectile=255,255 vel=-1,-1 abs=255,255 target=0
+jump2_after tick=033 player=16,118 projectileActive=0 projectile=255,255 vel=-1,-1 abs=255,255 target=0
+jump3_before tick=064 player=16,144 projectileActive=0 projectile=255,255 vel=-1,-1 abs=255,255 target=0
+jump3_after tick=070 player=16,123 projectileActive=0 projectile=255,255 vel=-1,-1 abs=255,255 target=0
+active_frame1 tick=103 player=16,144 projectileActive=1 projectile=50,113 vel=-2,3 abs=32,48 target=1
+SHOTOK joc64_gameplay_active_frame1.png
+right_down_after_frame1 tick=103 player=16,144 projectileActive=1 projectile=50,113 vel=-2,3 abs=32,48 target=1
+jump4_before tick=105 player=22,144 projectileActive=1 projectile=46,119 vel=-2,3 abs=32,48 target=1
+jump4_after tick=113 player=36,120 projectileActive=1 projectile=30,143 vel=-2,3 abs=32,48 target=0
+jump_after_frame1_1_before tick=115 player=42,114 projectileActive=1 projectile=26,149 vel=-2,3 abs=32,48 target=0
+jump_after_frame1_1_after tick=123 player=58,108 projectileActive=1 projectile=10,173 vel=-2,3 abs=32,48 target=0
+jump5_before tick=150 player=112,144 projectileActive=0 projectile=254,191 vel=-2,3 abs=32,48 target=0
+jump_after_frame1_2_before tick=153 player=116,136 projectileActive=0 projectile=254,191 vel=-2,3 abs=32,48 target=0
+jump5_after tick=158 player=128,118 projectileActive=0 projectile=254,191 vel=-2,3 abs=32,48 target=0
+jump_after_frame1_2_after tick=161 player=132,114 projectileActive=0 projectile=254,191 vel=-2,3 abs=32,48 target=0
+jump_after_frame1_3_before tick=188 player=186,152 projectileActive=0 projectile=254,191 vel=-2,3 abs=32,48 target=0
+jump_after_frame1_3_after tick=195 player=202,126 projectileActive=0 projectile=254,191 vel=-2,3 abs=32,48 target=0
+jump_after_frame1_4_before tick=233 player=20,144 projectileActive=0 projectile=254,191 vel=-2,3 abs=32,48 target=0
+jump_after_frame1_4_after tick=237 player=28,129 projectileActive=0 projectile=254,191 vel=-2,3 abs=32,48 target=0
+jump_after_frame1_5_before tick=014 player=94,144 projectileActive=0 projectile=254,191 vel=-2,3 abs=32,48 target=0
+jump_after_frame1_5_after tick=022 player=110,118 projectileActive=0 projectile=254,191 vel=-2,3 abs=32,48 target=0
+active_frame2 tick=029 player=124,108 projectileActive=1 projectile=62,106 vel=3,1 abs=74,13 target=1
+SHOTOK joc64_gameplay_active_frame2.png
+active_frame3 tick=211 player=193,152 projectileActive=1 projectile=59,105 vel=3,1 abs=145,56 target=1
+SHOTOK joc64_gameplay_active_frame3.png
+done tick=211 player=193,152 projectileActive=1 projectile=59,105 vel=3,1 abs=145,56 target=1

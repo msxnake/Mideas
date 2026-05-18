@@ -8,7 +8,7 @@
 ; Tiles: 32
 ; Sprites: 6
 ; Screens: 2
-; Entities: 3
+; Entities: 2
 ; Menus: No
 ; HUD: Yes
 ; State Machines: 1
@@ -30,7 +30,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 96486
+; Estimated payload bytes: 95008
 ; Estimated banks used: 12
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : page0.asm (96 bytes)
@@ -38,29 +38,29 @@
 ; BANK 00 @#0C36 : colors.asm (2678 bytes)
 ; BANK 00 @#16AC : components.asm (22 bytes)
 ; BANK 00 @#16C2 : entities.asm (2366 bytes)
-; BANK 01 @#0000 : entities.asm (5041 bytes)
-; BANK 01 @#13B1 : worlds.asm (1837 bytes)
-; BANK 01 @#1ADE : screens.asm part 1/3 (1314 bytes)
+; BANK 01 @#0000 : entities.asm (3632 bytes)
+; BANK 01 @#0E30 : worlds.asm (1837 bytes)
+; BANK 01 @#155D : screens.asm part 1/3 (2723 bytes)
 ; BANK 02 @#0000 : screens.asm part 2/3 (8192 bytes)
-; BANK 03 @#0000 : screens.asm part 3/3 (8032 bytes)
-; BANK 03 @#1F60 : sprites.asm part 1/2 (160 bytes)
-; BANK 04 @#0000 : sprites.asm part 2/2 (8192 bytes)
-; BANK 05 @#0000 : sprites.asm part 3/2 (266 bytes)
-; BANK 05 @#010A : font.asm (3467 bytes)
-; BANK 05 @#0E95 : hud.asm (3947 bytes)
-; BANK 05 @#1E00 : menus.asm (168 bytes)
-; BANK 05 @#1EA8 : sound.asm (344 bytes)
-; BANK 06 @#0000 : sound.asm (4074 bytes)
-; BANK 06 @#0FEA : scroll.asm (2353 bytes)
-; BANK 06 @#191B : animtiles.asm (1765 bytes)
-; BANK 07 @#0000 : animtiles.asm (3759 bytes)
-; BANK 07 @#0EAF : bosses.asm (4433 bytes)
-; BANK 08 @#0000 : bosses.asm (2994 bytes)
-; BANK 08 @#0BB2 : statemachine.asm part 1/3 (5198 bytes)
+; BANK 03 @#0000 : screens.asm part 3/3 (6623 bytes)
+; BANK 03 @#19DF : sprites.asm part 1/2 (1569 bytes)
+; BANK 04 @#0000 : sprites.asm part 2/2 (6980 bytes)
+; BANK 04 @#1B44 : font.asm (1212 bytes)
+; BANK 05 @#0000 : font.asm (2255 bytes)
+; BANK 05 @#08CF : hud.asm (3947 bytes)
+; BANK 05 @#183A : menus.asm (168 bytes)
+; BANK 05 @#18E2 : sound.asm (1822 bytes)
+; BANK 06 @#0000 : sound.asm (2596 bytes)
+; BANK 06 @#0A24 : scroll.asm (2353 bytes)
+; BANK 06 @#1355 : animtiles.asm (3243 bytes)
+; BANK 07 @#0000 : animtiles.asm (2281 bytes)
+; BANK 07 @#08E9 : bosses.asm (5911 bytes)
+; BANK 08 @#0000 : bosses.asm (1516 bytes)
+; BANK 08 @#05EC : statemachine.asm part 1/3 (6676 bytes)
 ; BANK 09 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 10 @#0000 : statemachine.asm part 3/3 (7970 bytes)
-; BANK 10 @#1F22 : gameflow.asm (222 bytes)
-; BANK 11 @#0000 : gameflow.asm (6374 bytes)
+; BANK 10 @#0000 : statemachine.asm part 3/3 (6492 bytes)
+; BANK 10 @#195C : gameflow.asm (1700 bytes)
+; BANK 11 @#0000 : gameflow.asm (4896 bytes)
 
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
@@ -2583,9 +2583,9 @@ task_frame_counter:
     ; ==================================================================
 ;
 ; INTELLIGENT FILTERING ACTIVE:
-;   Active entities: 3
-;   Used components: Position, Sprite, Behavior, Health, DeadlyTiles, TileInteraction, Jump, Gravity, Animation, Collision, Carry, Input, StateMachine, Cursors, WallCollision, Damage, AutoControlScript
-;   Filtered out: 9 unused component systems
+;   Active entities: 2
+;   Used components: Position, Sprite, Behavior, Health, DeadlyTiles, TileInteraction, Jump, Gravity, Animation, Collision, Carry, Input, StateMachine, Cursors, WallCollision, AutoControlScript
+;   Filtered out: 10 unused component systems
     ;
 ; ==================================================================
 
@@ -2709,7 +2709,7 @@ entity_input_disabled EQU temp_byte_26 ; 0=enabled, 1=disabled (32 bytes)
 
 init_components: 
 ; Initialize component systems(OPTIMIZED - only used components) 
-    ; Used: Position, Sprite, Behavior, Health, DeadlyTiles, TileInteraction, Jump, Gravity, Animation, Collision, Carry, Input, StateMachine, Cursors, WallCollision, Damage, AutoControlScript 
+    ; Used: Position, Sprite, Behavior, Health, DeadlyTiles, TileInteraction, Jump, Gravity, Animation, Collision, Carry, Input, StateMachine, Cursors, WallCollision, AutoControlScript 
  
 ; Initialize current screen ID(multi - screen support) 
         ld a, 0; Start at screen 0 
@@ -2772,8 +2772,6 @@ init_components:
     call init_statemachine_system
         ; Initialize carry system (stub)
     call init_carry_system
-        ; Initialize damage system
-    call init_damage_system
         ; Initialize platform riding system
     call init_platform_riding_system
         ; Initialize wall collision system (stub)
@@ -4048,7 +4046,7 @@ coll_flags_from_layer:
 ;   Notes:
 ;     - Maintains a single-row cache (behavior_cache_row / behavior_cache_row_base)
 ;     - so consecutive calls for the same row skip the row*32 multiply.
-;     - Mapper push/pop protects P2 bank around the map read (no-op in simple32k mode).
+;     - Mapper push/pop protects data-window bank around the map read (no-op in simple32k mode).
 ;     - MUST be called with DE = entity index already set (DE is preserved, not used).
 
 get_behavior_tile:
@@ -5558,128 +5556,11 @@ update_auto_control_script_component:
 update_auto_event_string_component:
     ret
 
-    ; ==================================================================
-    ; DAMAGE COMPONENT SYSTEM
-    ; ==================================================================
-    ; Manages damage dealing and invincibility frames
-    ;
-    ; Components:
-    ; - entity_invincibility_frames: Countdown timer for invulnerability (32 bytes)
-    ; - entity_damage_amount: How much damage this entity deals (32 bytes)
-    ;
-    ; Invincibility frames prevent damage for ~1 second after being hit
-
+    ; Damage system filtered out(not used)
 init_damage_system:
-    ; Initialize invincibility frames to 0 for all entities
-    ld hl, entity_invincibility_frames
-    ld de, entity_invincibility_frames + 1
-    ld bc, 31                     ; 32 bytes - 1
-    ld (hl), 0
-    ldir
-
-    ; Initialize damage amounts (default: 1 damage per entity)
-    ld hl, entity_damage_amount
-    ld de, entity_damage_amount + 1
-    ld bc, 31
-    ld (hl), 1
-    ldir
     ret
 
 update_damage_component:
-    ; Update invincibility frames for all entities with Damage component
-    ; Decrements invincibility_frames counter each frame
-    ld a, (active_entity_count)
-    or a
-    ret z
-    ld b, a                       ; Loop used entities only
-    ld hl, active_entity_list
-
-.damage_update_loop:
-    ld c, (hl)                    ; C = entity index
-    inc hl                        ; Advance list pointer
-    push hl                       ; Save list pointer
-    ld e, c
-    ld d, 0
-    ld hl, entity_comp_masks_hi
-    add hl, de
-    ld a, (hl)
-    pop hl                        ; Restore list pointer
-    and #08                       ; COMP_MASK_DAMAGE (bit 3 in high byte = #0800)
-    jr z, .damage_next_entity     ; Skip if no damage component
-
-    ; Decrement invincibility frames if > 0
-    push bc
-    push hl
-
-    ld hl, entity_invincibility_frames
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)                    ; A = current invincibility frames
-    or a                          ; Check if 0
-    jr z, .damage_frames_done     ; Already 0, skip
-
-    dec a                         ; Decrement
-    ld (hl), a                    ; Store back
-
-.damage_frames_done:
-    pop hl
-    pop bc
-
-.damage_next_entity:
-    dec b
-    jp nz, .damage_update_loop
-    ret
-
-; ==================================================================
-; DAMAGE HELPER FUNCTIONS
-; ==================================================================
-
-apply_damage_to_entity:
-    ; Apply damage to entity and set invincibility frames
-    ; Input: C = entity index, A = damage amount
-    ; Destroys: AF, DE, HL
-    push bc
-    ld b, a                       ; B = damage amount
-
-    ; Check if entity has invincibility frames active
-    ld hl, entity_invincibility_frames
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    or a
-    jr nz, .damage_blocked        ; Still invincible, block damage
-
-    ; Apply damage using decrease_entity_lives
-    ld a, b                       ; A = damage amount
-    call decrease_entity_lives    ; C still holds entity index
-
-    ; Set invincibility frames (60 frames = 1 second @ 60 FPS)
-    ld hl, entity_invincibility_frames
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld (hl), 60                   ; 1 second of invincibility
-
-.damage_blocked:
-    pop bc
-    ret
-
-check_entity_invincible:
-    ; Check if entity is currently invincible
-    ; Input: C = entity index
-    ; Output: A = 1 if invincible, 0 if vulnerable
-    ; Destroys: DE, HL
-    ld hl, entity_invincibility_frames
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    or a                          ; Sets Z flag if 0
-    ret z                         ; Return 0 if vulnerable
-
-    ld a, 1                       ; Return 1 if invincible
     ret
     
     ; Shoot system filtered out(not used)
@@ -7891,7 +7772,6 @@ update_all_entities:
     call update_deadly_tiles_component  ; 8e. Deadly tiles
     call check_tile_interaction         ; 8f. Tile interaction (gems/collectibles)
     call update_health_component        ; 9. Health/Death
-    call update_damage_component        ; 10. Damage
     call update_animation_component     ; 11. Animation
     call update_sprite_component        ; 13. Sprite rendering
     call sync_player_runtime_from_entity
@@ -7903,7 +7783,7 @@ update_all_entities:
     call update_animation_component     ; 11. Animation
     call update_sprite_component        ; 13. Sprite rendering
     ret
-; Total player systems called: 17 (optimized from 16)
+; Total player systems called: 16 (optimized from 16)
 ; Total fake-player systems called: 3 (screen engine optimized)
 
 
@@ -9900,9 +9780,9 @@ tilebank_color_data_1:
 ; SPRITE DATA
 ; File: sprites.asm
 ; Description: Sprite pattern and animation data
-; Entities: 3
+; Entities: 2
 ; Total Hardware Sprites (Layers): 32
-; SAT Upload Sprites per frame: 7
+; SAT Upload Sprites per frame: 5
 ; Sprite Pattern Preload Mode: STATIC_ALL_FRAMES
 ; Runtime Sprite Pattern Packs: 1
 ; ==================================================================
@@ -10234,18 +10114,16 @@ sprite_dir_down_table:
 ; Format: db base_hw_sprite_index, layer_count 
 entity_sprite_config:
     db 0, 2 ; Entity 0 (nina_walk_right)
-    db 2, 2 ; Entity 1 (New Sprite_right)
-    db 4, 2 ; Entity 2 (nina_walk_right)
-    ds 58, 0 ; Padding
+    db 2, 2 ; Entity 1 (nina_walk_right)
+    ds 60, 0 ; Padding
 
 ; Table: Entity -> Sprite Asset Index (ROM initial values)
 ; Copied to RAM entity_sprite_asset_index at init
 ; Format: db sprite_asset_index (#FF = none)
 entity_sprite_asset_index_init:
     db #00 ; Entity 0 (nina_walk_right)
-    db #05 ; Entity 1 (New Sprite_right)
-    db #00 ; Entity 2 (nina_walk_right)
-    ds 29, #FF ; Padding
+    db #00 ; Entity 1 (nina_walk_right)
+    ds 30, #FF ; Padding
 SPRITE_MAX_ENTITY_LAYERS EQU 2  ; Max HW sprite layers per entity
 
 ; Table: Hardware Sprite Layer Colors (ROM initial values - copied to RAM at init)
@@ -10254,13 +10132,10 @@ sprite_layer_colors_init:
     ; Entity 0 (nina_walk_right) layers:
     db 6 ; Layer 0
     db 15 ; Layer 1
-    ; Entity 1 (New Sprite_right) layers:
-    db 15 ; Layer 0
-    db 4 ; Layer 1
-    ; Entity 2 (nina_walk_right) layers:
+    ; Entity 1 (nina_walk_right) layers:
     db 6 ; Layer 0
     db 15 ; Layer 1
-    ds 26, 0 ; Padding
+    ds 28, 0 ; Padding
 
 ; Table: Hardware Sprite Layer Y Offsets (ROM initial values - copied to RAM at init)
 ; Format: db signed_offset_y
@@ -10268,13 +10143,10 @@ sprite_layer_y_offsets_init:
     ; Entity 0 (nina_walk_right) layers:
     db 0 ; Layer 0
     db 0 ; Layer 1
-    ; Entity 1 (New Sprite_right) layers:
-    db 0 ; Layer 0
-    db 9 ; Layer 1
-    ; Entity 2 (nina_walk_right) layers:
+    ; Entity 1 (nina_walk_right) layers:
     db 0 ; Layer 0
     db 0 ; Layer 1
-    ds 26, 0 ; Padding
+    ds 28, 0 ; Padding
 
 ; Table: SM Sprite Layer Colors (for Action_ChangeSprite runtime color update)
 ; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
@@ -10561,7 +10433,7 @@ update_sprites_to_vram:
     ld (sprites_dirty), a
     ld hl, sprite_attributes
     ld de, SPRATR
-    ld bc, 28  ; Upload active sprite range + SAT end marker
+    ld bc, 20  ; Upload active sprite range + SAT end marker
     call FAST_LDIRVM
     ret
 
@@ -10641,7 +10513,7 @@ SCREEN_PAN1_0_BLOCK_MAP_HEIGHT EQU 6
 SCREEN_PAN1_0_BLOCK_MAP_SIZE EQU 48
 SCREEN_PAN1_0_BLOCK_TOTAL_SIZE EQU 144
 SCREEN_PAN1_0_ANIM_GROUP_COUNT EQU 0
-SCREEN_PAN1_0_ENTITY_COUNT EQU 2
+SCREEN_PAN1_0_ENTITY_COUNT EQU 1
 SCREEN_PAN1_0_SPRITE_PATTERN_SLOTS EQU 18
 SCREEN_PAN1_0_MUSIC_IN_GAME EQU 0
 SCREEN_PAN1_0_SUMMARY_FLAGS EQU #06
@@ -10688,7 +10560,7 @@ SCREEN_NEW_DIALOG_SCREEN_1_SUMMARY_FLAGS EQU #04
 ; ==================================================================
 
 screen_runtime_summary_table:
-    db 0, 2, 18, #06    ; Screen 0: pan1
+    db 0, 1, 18, #06    ; Screen 0: pan1
     db 0, 1, 9, #04    ; Screen 1: New Dialog Screen
 
 ; ==================================================================
@@ -11637,7 +11509,7 @@ load_screen_pan1_776511902784:
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     ld a, 0
     ld (current_screen_anim_group_count), a
-    ld a, 2
+    ld a, 1
     ld (current_screen_entity_count), a
     ld a, 18
     ld (current_screen_sprite_pattern_slots), a
@@ -11847,8 +11719,9 @@ load_new_dialog_screen_777377884059_boss_done:
 ;
 ; INTELLIGENT FILTERING ACTIVE:
 ;   Entity templates in project: 17
-;   Actually instantiated: 3
-;   Filtered out: 14 unused templates
+;   Actually instantiated: 2
+;   Used entity templates: 2
+;   Filtered out: 15 unused templates
 ;
 ; ==================================================================
 
@@ -11863,15 +11736,8 @@ ENTITY_PLAYER_1_COMP_MASK EQU #23FB  ; Component mask: 10001111111011b
 ENTITY_PLAYER_1_X EQU 2
 ENTITY_PLAYER_1_Y EQU 18
 
-; Entity: Basic Enemy 1 (instance from template: tpl_enemy_basic)
-ENTITY_BASIC_ENEMY_1_ID EQU 1
-ENTITY_BASIC_ENEMY_1_COMP_MASK EQU #AEB  ; Component mask: 101011101011b
-; Template: tpl_enemy_basic
-ENTITY_BASIC_ENEMY_1_X EQU 18
-ENTITY_BASIC_ENEMY_1_Y EQU 17
-
 ; Entity: FakePlayer 1 (instance from template: tpl_fake_player)
-ENTITY_FAKEPLAYER_1_ID EQU 2
+ENTITY_FAKEPLAYER_1_ID EQU 1
 ENTITY_FAKEPLAYER_1_COMP_MASK EQU #83  ; Component mask: 10000011b
 ; Template: tpl_fake_player
 ENTITY_FAKEPLAYER_1_X EQU 0
@@ -11882,7 +11748,7 @@ ENTITY_FAKEPLAYER_1_Y EQU 18
 ; ==================================================================
 
 init_entities:
-    ; Initialize all active game entities (3 entities)
+    ; Initialize all active game entities (2 entities)
 
     ; Ensure sprite system is reset whenever entities are initialized
     call init_sprites
@@ -11969,13 +11835,12 @@ init_entities:
     ldir
     
     call init_player_1
-    call init_basic_enemy_1
     call init_fakeplayer_1
     call init_player_from_hero_entity
     ret
 
 update_entities:
-    ; Update all active entities (3 entities)
+    ; Update all active entities (2 entities)
     ; Skip entity update if entity belongs to another screen
     ld hl, entity_screen_id + 0
     ld a, (hl)
@@ -11992,17 +11857,8 @@ update_entities:
     cp (hl)
     jr nz, .skip_update_1
     ; Run per-entity update
-    call update_basic_enemy_1
-.skip_update_1:
-    ; Skip entity update if entity belongs to another screen
-    ld hl, entity_screen_id + 2
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    jr nz, .skip_update_2
-    ; Run per-entity update
     call update_fakeplayer_1
-.skip_update_2:
+.skip_update_1:
     ret
 
 init_player_1:
@@ -12203,18 +12059,18 @@ update_player_1:
     ; Position update happens in UPDATE_POSITION_COMPONENT
     ret
 
-init_basic_enemy_1:
-    ; Initialize Basic Enemy 1 at real position from JSON
-    ; JSON position: (18, 17) tiles = (144, 136) pixels
-    ; Template: tpl_enemy_basic
-    ; Components: Position, Sprite, Collision, Behavior, Health, Animation, Gravity
+init_fakeplayer_1:
+    ; Initialize FakePlayer 1 at real position from JSON
+    ; JSON position: (100, 18) tiles = (240, 144) pixels
+    ; Template: tpl_fake_player
+    ; Components: Position, Sprite, Animation
     ; Direction mask: #0F (1111b) = All directions
 
     ; Set entity ID and component mask (DYNAMIC - based on template)
     ; Mask is 16-bit: B=low byte, C=high byte
     ld a, 1             ; Entity ID
-    ld b, #EB              ; Mask low byte
-    ld c, #0A              ; Mask high byte
+    ld b, #83              ; Mask low byte
+    ld c, #00              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
     ; Configure per-entity job cadence
@@ -12227,178 +12083,6 @@ init_basic_enemy_1:
     ; Set real position from JSON data
     ld hl, entity_x_pos
     ld e, 1             ; Entity index
-    ld d, 0
-    add hl, de
-    ld (hl), 144         ; Set real X position from JSON
-
-    ld hl, entity_y_pos
-    add hl, de
-    ld (hl), 136         ; Set real Y position from JSON
-
-    ; Set entity screen ID (for multi-screen support)
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), 0                 ; Screen ID (world node index / fallback screen index)
-
-    ld hl, entity_is_player
-    add hl, de
-    ld (hl), 0                 ; Player/hero marker from template
-
-    ; Template token for state-machine template-aware actions
-    ld hl, entity_template_token
-    add hl, de
-    ld (hl), 4
-
-    ; Mark whether this entity's state machine actually owns sprite changes.
-    ; Plain state machines without ChangeSprite should keep auto-facing active.
-    ld hl, entity_sm_sprite_control
-    add hl, de
-    ld (hl), 0
-
-
-
-    ; Initialize Animation component
-    ld hl, entity_anim_frame
-    add hl, de
-    ld (hl), #00           ; currentFrameIndex
-
-    ld hl, entity_anim_tick
-    add hl, de
-    ld (hl), 0                ; tick counter
-
-    ld hl, entity_anim_speed
-    add hl, de
-    ld (hl), #0A           ; animationSpeed
-
-    ld hl, entity_anim_flags
-    add hl, de
-    ld (hl), #03           ; flags (playing/loop/onlyWhenMoving)
-
-
-
-    ; Initialize Collision component (hitbox + layer masks)
-    ld hl, entity_collision_hitbox_w
-    add hl, de
-    ld (hl), #10      ; hitboxWidth
-
-    ld hl, entity_collision_hitbox_h
-    add hl, de
-    ld (hl), #10      ; hitboxHeight
-
-    ld hl, entity_collision_offset_x
-    add hl, de
-    ld (hl), #00      ; offsetX (0)
-
-    ld hl, entity_collision_offset_y
-    add hl, de
-    ld (hl), #00      ; offsetY (0)
-
-    ld hl, entity_collision_layer
-    add hl, de
-    ld (hl), #02      ; collisionLayer
-
-    ld hl, entity_collides_with
-    add hl, de
-    ld (hl), #01      ; collidesWith
-
-
-    ; Initialize Health component
-    ld hl, entity_health_current
-    add hl, de
-    ld (hl), #01      ; current health
-
-    ld hl, entity_health_max
-    add hl, de
-    ld (hl), #01      ; max health
-
-
-
-    ; Initialize Damage component
-    ld hl, entity_damage_amount
-    add hl, de
-    ld (hl), #01      ; damage amount
-
-
-
-
-    ; Set sprite pattern and color (renderable entity)
-    ld hl, sprite_pattern
-    add hl, de
-    ld (hl), 4          ; Use entity index * 4 for 16x16 sprites
-
-    ld hl, sprite_color
-    add hl, de
-    ld (hl), 3                ; Distinct color for debugging
-
-
-    ; Set direction mask for Cursors component (if entity has Input component)
-    ld hl, entity_dir_mask
-    add hl, de
-    ld (hl), #0F            ; Direction restrictions: All directions
-
-    ; Set input speed for Cursors component (if entity has Input component)
-    ld hl, entity_input_speed
-    add hl, de
-    ld (hl), 2            ; Cursor speed (px/frame)
-
-
-    ; Force update sprite attributes only if entity is in current screen
-    ld hl, entity_screen_id + 1
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    jr nz, .skip_force_show_1
-
-    ; Force update sprite attributes (using correct multi-layer config)
-    ld c, 1             ; Entity Index
-    call force_update_entity_sprite
-.skip_force_show_1:
-
-
-
-    ret
-
-update_basic_enemy_1:
-    ; Update Basic Enemy 1 logic with real behavior
-    ; Check if entity has input component (player entities)
-    ld a, 1
-    ld hl, entity_comp_masks
-    ld e, a
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    and COMP_MASK_INPUT
-    ret z                      ; Skip if no input component
-
-    ; This is a player entity - update based on input
-    ; Input velocity is already calculated in UPDATE_INPUT_COMPONENT
-    ; Position update happens in UPDATE_POSITION_COMPONENT
-    ret
-
-init_fakeplayer_1:
-    ; Initialize FakePlayer 1 at real position from JSON
-    ; JSON position: (100, 18) tiles = (240, 144) pixels
-    ; Template: tpl_fake_player
-    ; Components: Position, Sprite, Animation
-    ; Direction mask: #0F (1111b) = All directions
-
-    ; Set entity ID and component mask (DYNAMIC - based on template)
-    ; Mask is 16-bit: B=low byte, C=high byte
-    ld a, 2             ; Entity ID
-    ld b, #83              ; Mask low byte
-    ld c, #00              ; Mask high byte
-    call create_entity         ; Create with actual components from template
-
-    ; Configure per-entity job cadence
-    ; period: 1 frame(s), entry: 0
-    ld a, 2
-    ld b, 1
-    ld c, 0
-    call entity_job_set
-
-    ; Set real position from JSON data
-    ld hl, entity_x_pos
-    ld e, 2             ; Entity index
     ld d, 0
     add hl, de
     ld (hl), 240         ; Set real X position from JSON
@@ -12457,11 +12141,11 @@ init_fakeplayer_1:
     ; Set sprite pattern and color (renderable entity)
     ld hl, sprite_pattern
     add hl, de
-    ld (hl), 8          ; Use entity index * 4 for 16x16 sprites
+    ld (hl), 4          ; Use entity index * 4 for 16x16 sprites
 
     ld hl, sprite_color
     add hl, de
-    ld (hl), 4                ; Distinct color for debugging
+    ld (hl), 3                ; Distinct color for debugging
 
 
     ; Set direction mask for Cursors component (if entity has Input component)
@@ -12476,16 +12160,16 @@ init_fakeplayer_1:
 
 
     ; Force update sprite attributes only if entity is in current screen
-    ld hl, entity_screen_id + 2
+    ld hl, entity_screen_id + 1
     ld a, (hl)
     ld hl, current_screen_id
     cp (hl)
-    jr nz, .skip_force_show_2
+    jr nz, .skip_force_show_1
 
     ; Force update sprite attributes (using correct multi-layer config)
-    ld c, 2             ; Entity Index
+    ld c, 1             ; Entity Index
     call force_update_entity_sprite
-.skip_force_show_2:
+.skip_force_show_1:
 
 
 
@@ -12494,7 +12178,7 @@ init_fakeplayer_1:
 update_fakeplayer_1:
     ; Update FakePlayer 1 logic with real behavior
     ; Check if entity has input component (player entities)
-    ld a, 2
+    ld a, 1
     ld hl, entity_comp_masks
     ld e, a
     ld d, 0
@@ -12519,17 +12203,17 @@ entity_gate_cfg_x:
 entity_gate_cfg_y:
     DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 entity_gate_cfg_width:
-    DB 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    DB 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 entity_gate_cfg_height:
-    DB 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    DB 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 entity_gate_cfg_direction:
-    DB 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    DB 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 entity_gate_cfg_fill_char:
     DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 entity_gate_cfg_total_steps:
     DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 entity_gate_cfg_step_delay:
-    DB 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    DB 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 entity_gate_cfg_trigger_ptr:
     DW 0
     DW 0
@@ -20412,6 +20096,48 @@ page0_copy_to_vram:
     or c
     jp nz, .page0_copy_loop
 .page0_copy_done:
+    ret
+
+;-----------------------------------------------
+; Copy cold data from page 0 ROM to RAM using a RAM buffer.
+; input:
+;   hl: source in page 0
+;   de: destination RAM
+;   bc: byte count
+; output:
+;   de advanced by byte count
+page0_copy_to_ram:
+    ld a, b
+    or c
+    ret z
+.page0_ram_copy_loop:
+    push bc
+    ld a, b
+    or a
+    jr z, .page0_ram_copy_final_chunk
+    ld bc, #0100
+    jr .page0_ram_copy_chunk_ready
+.page0_ram_copy_final_chunk:
+    ; Final chunk keeps the original BC (1..255 bytes).
+.page0_ram_copy_chunk_ready:
+    push bc
+    push de
+    call page0_copy_chunk_to_buffer
+    pop de
+    pop bc
+    push hl
+    ld hl, page0_transfer_buffer
+    ldir
+    pop hl
+    pop bc
+    ld a, b
+    or a
+    jr z, .page0_ram_copy_done
+    dec b
+    ld a, b
+    or c
+    jp nz, .page0_ram_copy_loop
+.page0_ram_copy_done:
     ret
 
 init_game_systems:

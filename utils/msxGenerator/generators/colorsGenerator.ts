@@ -17,6 +17,39 @@ import {
 } from './mapperWindowUtils';
 import { buildResourceIdLabelFromAsmLabel } from '../utils/megaromResourceArtifacts';
 
+const BASE_SCREEN2_DYNAMIC_CHAR_CAPACITY = 126; // chars 128-253; chars 254/255 are reserved
+
+function collectBaseColorEntries(analysis: ProjectAnalysis) {
+  const entries: Array<{
+    tile: any;
+    index: number;
+    totalChars: number;
+    colorBytes: Uint8Array | number[] | null;
+  }> = [];
+  let usedChars = 0;
+
+  (analysis.tiles || []).forEach((tile: any, index: number) => {
+    const charsWide = Math.ceil(tile.width / 8);
+    const charsHigh = Math.ceil(tile.height / 8);
+    const totalChars = charsWide * charsHigh;
+
+    if (usedChars + totalChars > BASE_SCREEN2_DYNAMIC_CHAR_CAPACITY) {
+      console.warn(`Skipping base SCREEN 2 color load for ${tile.name || tile.id}: chars 254/255 are reserved`);
+      return;
+    }
+
+    entries.push({
+      tile,
+      index,
+      totalChars,
+      colorBytes: generateTileColorBytes(tile),
+    });
+    usedChars += totalChars;
+  });
+
+  return entries;
+}
+
 /**
  * Generate color data file (colors.asm)
  *
@@ -47,11 +80,12 @@ export function generateColorsFile(
   const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
   const mapperPush = usesMapper ? buildMapperDataPushAsm('COLOR_DATA_BANK', mapperWindow) : '';
   const mapperPop  = usesMapper ? buildMapperDataPopAsm(mapperWindow) : '';
-  // Window-relative HL formula: (label & #1FFF) | #8000 maps any bank to P2 window.
+  // Window-relative HL formula is mapper-specific (Konami: A000h/P3).
   const dataHl = (label: string) => usesMapper ? buildMapperWindowedAddress(label, mapperWindow) : label;
   const referencedTileBanks = buildReferencedScreen2TileBanks(analysis);
   const bankBaseExpressions = ['CLRTBL2', 'CLRTBL2 + #800', 'CLRTBL2 + #1000'];
   const colorDataResourceId = buildResourceIdLabelFromAsmLabel('tile_color_bank0');
+  const baseColorEntries = collectBaseColorEntries(analysis);
 
   const formatBytes = (bytes: number[]): string => {
     if (bytes.length === 0) return '    db #00\n';
@@ -66,6 +100,17 @@ export function generateColorsFile(
   const sharedColorDataBySignature = new Map<string, string>();
   const sharedColorDataBlocks: string[] = [];
   let nextSharedColorDataIndex = 0;
+
+  const buildTileBankColorClearAsm = (bank: any, bankIndex: number): string => {
+    if (!bank || bank.byteCount <= 0) return '';
+    return `    ; Clear the full color bank first so reserved/stale chars
+    ; from presentation/dialog tilebanks cannot leak through unused chars.
+    ld a, #F0
+    ld hl, ${bankBaseExpressions[bankIndex]}
+    ld bc, 2048
+    call FAST_FILLVRM
+`;
+  };
 
   const tileBankRuntimeAsm = referencedTileBanks.map((runtime) => {
     let asm = `; ==================================================================
@@ -86,6 +131,7 @@ export function generateColorsFile(
       if (bank.byteCount > 0) {
         const dataResourceId = buildResourceIdLabelFromAsmLabel(dataLabel);
         asm += `${runtime.labelBase}_load_color_bank${bankIndex}:\n`;
+        asm += buildTileBankColorClearAsm(bank, bankIndex);
         if (useResourceManager) {
           asm += `    ld a, ${dataResourceId}\n`;
           asm += `    ld de, ${bankBaseExpressions[bankIndex]} + (${bank.startChar} * 8)\n`;
@@ -112,11 +158,7 @@ export function generateColorsFile(
     return asm;
   }).join('');
 
-  const totalColorBytes = analysis.tiles.reduce((total, tile) => {
-    const charsWide = Math.ceil(tile.width / 8);
-    const charsHigh = Math.ceil(tile.height / 8);
-    return total + (charsWide * charsHigh * 8);
-  }, 0);
+  const totalColorBytes = baseColorEntries.reduce((total, entry) => total + (entry.totalChars * 8), 0);
 
   // Build the data section (tile_color_bank0 + tilebank shared data)
   let dataSection = '';
@@ -125,8 +167,7 @@ export function generateColorsFile(
 ; TILE COLOR BANK 0 (Base colors)
 ; ==================================================================
 tile_color_bank0:\n`;
-    dataSection += analysis.tiles.map((tile, index) => {
-      const colorBytes = generateTileColorBytes(tile);
+    dataSection += baseColorEntries.map(({ tile, index, colorBytes }) => {
       const bytesHex = colorBytes ?
         Array.from(colorBytes).map(b => `#${b.toString(16).padStart(2, '0').toUpperCase()}`) :
         ['#F0', '#F0', '#F0', '#F0', '#F0', '#F0', '#F0', '#F0'];
@@ -162,7 +203,7 @@ ${useResourceManager ? `    ld a, ${colorDataResourceId}
     call resource_load_to_vram_by_id
     ret` : `${mapperPush}    ld hl, ${dataHl('tile_color_bank0')}
     ld de, CLRTBL2 + (128 * 8)    ; VRAM color table bank 0 (start at char 128)
-    ld bc, ${totalColorBytes}     ; Total color bytes for all tile characters
+    ld bc, ${totalColorBytes}     ; Base tile bytes capped to chars 128-253
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
 ${mapperPop}    ret`}
 
@@ -174,7 +215,7 @@ ${useResourceManager ? `    ld a, ${colorDataResourceId}
     call resource_load_to_vram_by_id
     ret` : `${mapperPush}    ld hl, ${dataHl('tile_color_bank0')}       ; Same source as Bank 0
     ld de, CLRTBL2 + #800 + (128 * 8) ; VRAM color table bank 1 (+#800 offset + char 128)
-    ld bc, ${totalColorBytes}     ; Total color bytes for all tile characters
+    ld bc, ${totalColorBytes}     ; Base tile bytes capped to chars 128-253
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
 ${mapperPop}    ret`}
 
@@ -186,7 +227,7 @@ ${useResourceManager ? `    ld a, ${colorDataResourceId}
     call resource_load_to_vram_by_id
     ret` : `${mapperPush}    ld hl, ${dataHl('tile_color_bank0')}       ; Same source as Bank 0
     ld de, CLRTBL2 + #1000 + (128 * 8) ; VRAM color table bank 2 (+#1000 offset + char 128)
-    ld bc, ${totalColorBytes}     ; Total color bytes for all tile characters
+    ld bc, ${totalColorBytes}     ; Base tile bytes capped to chars 128-253
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
 ${mapperPop}    ret`}
 
@@ -235,8 +276,7 @@ export function getColorsBank4Data(analysis: ProjectAnalysis): string {
 ; ==================================================================
 tile_color_bank0:\n`;
 
-  asm += analysis.tiles.map((tile, index) => {
-    const colorBytes = generateTileColorBytes(tile);
+  asm += collectBaseColorEntries(analysis).map(({ tile, index, colorBytes }) => {
     const bytesHex = colorBytes ?
       Array.from(colorBytes).map(b => `#${b.toString(16).padStart(2, '0').toUpperCase()}`) :
       ['#F0', '#F0', '#F0', '#F0', '#F0', '#F0', '#F0', '#F0'];

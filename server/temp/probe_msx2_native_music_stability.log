@@ -1,0 +1,14 @@
+t_1 pc=8113 sp=F2F6 banks=00/00/00 music=FF muted=FF
+t_2 pc=1130 sp=F2FE banks=00/00/00 music=FF muted=FF
+t_3 pc=1130 sp=F2FE banks=00/00/00 music=FF muted=FF
+t_4 pc=1130 sp=F2FE banks=00/00/00 music=FF muted=FF
+BP_4010_1 pc=4010 sp=F2EC banks=00/00/00 music=FF muted=FF
+t_5 pc=4725 sp=F374 banks=0D/02/04 music=01 muted=00
+t_6 pc=8CE8 sp=F37C banks=01/02/03 music=01 muted=00
+t_8 pc=1A0F sp=F378 banks=01/02/03 music=01 muted=00
+t_10 pc=8CE8 sp=F37C banks=01/02/03 music=01 muted=00
+t_15 pc=65C5 sp=F354 banks=08/02/03 music=01 muted=00
+t_20 pc=9511 sp=F378 banks=01/02/03 music=01 muted=00
+t_25 pc=952F sp=F37C banks=01/02/03 music=01 muted=00
+t_30 pc=40DE sp=F378 banks=01/02/03 music=01 muted=00
+done reset_count=1

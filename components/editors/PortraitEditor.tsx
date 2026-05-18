@@ -2,12 +2,21 @@ import React, { useMemo } from 'react';
 import { PortraitAsset, ProjectAsset, Tile, TileBank } from '../../types';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
+import { FolderOpenIcon, SaveFloppyIcon } from '../icons/MsxIcons';
+import { downloadTextFile } from '../../utils/downloadUtils';
+import {
+  createDialoguePortraitPackage,
+  parseDialoguePortraitPackage,
+  remapDialoguePortraitPackageForImport,
+  sanitizePortraitPackageFilename,
+} from '../../utils/portraitPackageUtils';
 
 interface PortraitEditorProps {
   portrait: PortraitAsset;
-  onUpdate: (data: PortraitAsset) => void;
+  onUpdate: (data: PortraitAsset, newAssetsToCreate?: ProjectAsset[]) => void;
   allAssets: ProjectAsset[];
   tileBanks: TileBank[];
+  setStatusBarMessage: (message: string) => void;
   onCreateAsset?: (type: ProjectAsset['type'], options?: { select?: boolean }) => ProjectAsset | void;
 }
 
@@ -34,6 +43,11 @@ function ensurePortrait(portrait: PortraitAsset): PortraitAsset {
     heightChars,
     cells,
     dedupeIdenticalTiles: portrait.dedupeIdenticalTiles !== false,
+    mouth: {
+      enabled: portrait.mouth?.enabled === true,
+      cellIndex: clampNumber(Math.floor(portrait.mouth?.cellIndex ?? 0), 0, Math.max(0, count - 1)),
+      openTileId: portrait.mouth?.openTileId || '',
+    },
   };
 }
 
@@ -65,6 +79,7 @@ export const PortraitEditor: React.FC<PortraitEditorProps> = ({
   onUpdate,
   allAssets,
   tileBanks,
+  setStatusBarMessage,
   onCreateAsset,
 }) => {
   const data = ensurePortrait(portrait);
@@ -90,8 +105,11 @@ export const PortraitEditor: React.FC<PortraitEditorProps> = ({
     ? Array.from(new Set(selectedBank.banks.flatMap(bank => Object.keys(bank.assignedTiles || {}))))
     : [];
   const selectableTiles = tileAssets.filter(asset => bankTileIds.length === 0 || bankTileIds.includes(asset.id));
-  const tileById = new Map(tileAssets.map(asset => [asset.id, asset.data]));
-  const usedTileIds = Array.from(new Set(data.cells.filter(Boolean)));
+  const tileById = new Map<string, Tile>(tileAssets.map(asset => [asset.id, asset.data]));
+  const usedTileIds = Array.from(new Set([
+    ...data.cells.filter(Boolean),
+    ...(data.mouth?.openTileId ? [data.mouth.openTileId] : []),
+  ]));
 
   const update = (patch: Partial<PortraitAsset>) => {
     onUpdate({ ...data, ...patch });
@@ -113,11 +131,70 @@ export const PortraitEditor: React.FC<PortraitEditorProps> = ({
     update({ cells });
   };
 
+  const updateMouth = (patch: Partial<NonNullable<PortraitAsset['mouth']>>) => {
+    update({
+      mouth: {
+        enabled: data.mouth?.enabled === true,
+        cellIndex: clampNumber(Math.floor(data.mouth?.cellIndex ?? 0), 0, Math.max(0, data.cells.length - 1)),
+        openTileId: data.mouth?.openTileId || '',
+        ...patch,
+      },
+    });
+  };
+
   const createAndAssignTileBank = () => {
     const created = onCreateAsset?.('tilebank', { select: false });
     if (created?.id) {
       update({ tileBankAssetId: created.id });
     }
+  };
+
+  const handleSavePortraitJson = () => {
+    try {
+      const portraitPackage = createDialoguePortraitPackage(data, allAssets, tileBanks);
+      const filename = `${sanitizePortraitPackageFilename(data.name)}_dialogue_portrait.json`;
+      downloadTextFile(filename, JSON.stringify(portraitPackage, null, 2), 'application/json');
+      setStatusBarMessage(`Portrait "${data.name}" saved as JSON.`);
+    } catch (error) {
+      console.error('Failed to save portrait JSON:', error);
+      setStatusBarMessage('Error saving Portrait JSON.');
+    }
+  };
+
+  const handleLoadPortraitJson = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = (event: Event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (loadEvent) => {
+        try {
+          const packageData = parseDialoguePortraitPackage(String(loadEvent.target?.result || ''));
+          const { portrait: importedPortrait, assetsToCreate } = remapDialoguePortraitPackageForImport(
+            packageData,
+            allAssets,
+            {
+              portraitId: data.id,
+              portraitName: packageData.assets.find(asset => asset.id === packageData.portraitAssetId)?.name,
+              reservedAssetIds: new Set([data.id]),
+            }
+          );
+          onUpdate(importedPortrait, assetsToCreate);
+          setStatusBarMessage(
+            `Portrait "${importedPortrait.name}" loaded. Imported ${assetsToCreate.length} dependency asset${assetsToCreate.length === 1 ? '' : 's'}.`
+          );
+        } catch (error) {
+          console.error('Failed to load portrait JSON:', error);
+          setStatusBarMessage('Error loading Portrait JSON. Invalid file format?');
+        }
+      };
+      reader.onerror = () => setStatusBarMessage('Error reading Portrait JSON file.');
+      reader.readAsText(file);
+    };
+    input.click();
   };
 
   return (
@@ -198,10 +275,78 @@ export const PortraitEditor: React.FC<PortraitEditorProps> = ({
                 >
                   Clear
                 </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<SaveFloppyIcon className="w-3.5 h-3.5" />}
+                  onClick={handleSavePortraitJson}
+                  title="Save Portrait package as JSON"
+                >
+                  Save JSON
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<FolderOpenIcon className="w-3.5 h-3.5" />}
+                  onClick={handleLoadPortraitJson}
+                  title="Load Portrait package JSON"
+                >
+                  Load JSON
+                </Button>
               </div>
               <p className="text-xs text-msx-textsecondary">
                 Uses {usedTileIds.length} unique tile{usedTileIds.length === 1 ? '' : 's'} across {data.cells.length} cells.
               </p>
+            </section>
+
+            <section className="border border-msx-border bg-msx-bgcolor rounded p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-msx-highlight">Mouth Animation</h3>
+                <label className="flex items-center gap-2 text-xs text-msx-textsecondary">
+                  <input
+                    type="checkbox"
+                    checked={data.mouth?.enabled === true}
+                    onChange={event => updateMouth({ enabled: event.target.checked })}
+                  />
+                  Enabled
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={labelClassName}>Mouth Cell</label>
+                  <select
+                    className={compactInputClassName}
+                    value={data.mouth?.cellIndex ?? 0}
+                    onChange={event => updateMouth({ cellIndex: clampNumber(Number(event.target.value), 0, Math.max(0, data.cells.length - 1)) })}
+                    disabled={data.mouth?.enabled !== true}
+                  >
+                    {data.cells.map((tileId, index) => (
+                      <option key={index} value={index}>
+                        {index + 1}{tileById.get(tileId)?.name ? ` - ${tileById.get(tileId)?.name}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClassName}>Open Mouth Tile</label>
+                  <select
+                    className={compactInputClassName}
+                    value={data.mouth?.openTileId || ''}
+                    onChange={event => updateMouth({ openTileId: event.target.value })}
+                    disabled={data.mouth?.enabled !== true}
+                  >
+                    <option value="">None</option>
+                    {selectableTiles.map(asset => (
+                      <option key={asset.id} value={asset.id}>{asset.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {data.mouth?.enabled === true && (
+                <p className="text-xs text-msx-textsecondary">
+                  Closed mouth uses cell {(data.mouth.cellIndex ?? 0) + 1}; open mouth uses the selected tile.
+                </p>
+              )}
             </section>
 
             <section className="border border-msx-border bg-msx-bgcolor rounded p-3 space-y-3">

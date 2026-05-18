@@ -1,0 +1,27 @@
+BP_4010 pc=4010 sp=F2EC bank=FF/FF/FF flow=FF menu=FF screen=FF pack=FF slots=FF player=FF pxy=65535,65535 e0=FF exy=65535,65535 spriteAsset0=FF
+BP_4010 sprites r0=FF,FF,FF,FF/v=D1,00,00,0F r1=FF,FF,FF,FF/v=D1,00,01,0F r2=FF,FF,FF,FF/v=D1,00,02,0F r3=FF,FF,FF,FF/v=D1,00,03,0F r4=FF,FF,FF,FF/v=D1,00,04,0F r5=FF,FF,FF,FF/v=D1,00,05,0F r6=FF,FF,FF,FF/v=D1,00,06,0F r7=FF,FF,FF,FF/v=D1,00,07,0F
+t08_menu pc=602B sp=F374 bank=04/02/03 flow=00 menu=FF screen=00 pack=FF slots=FF player=FF pxy=0,0 e0=01 exy=24584,41040 spriteAsset0=07
+t08_menu sprites r0=E0,08,00,06/v=E0,08,00,06 r1=E0,08,04,0F/v=E0,08,04,0F r2=E0,60,00,0E/v=E0,60,00,0E r3=E0,FF,FF,FF/v=E0,FF,FF,FF r4=E0,FF,FF,FF/v=E0,FF,FF,FF r5=E0,FF,FF,FF/v=E0,FF,FF,FF r6=E0,FF,FF,FF/v=E0,FF,FF,FF r7=E0,FF,FF,FF/v=E0,FF,FF,FF
+SHOTOK t08_menu.png
+space_symbol_before pc=602B sp=F374 bank=04/02/03 flow=00 menu=FF screen=00 pack=FF slots=FF player=FF pxy=0,0 e0=01 exy=24584,41040 spriteAsset0=07
+space_symbol_before sprites r0=E0,08,00,06/v=E0,08,00,06 r1=E0,08,04,0F/v=E0,08,04,0F r2=E0,60,00,0E/v=E0,60,00,0E r3=E0,FF,FF,FF/v=E0,FF,FF,FF r4=E0,FF,FF,FF/v=E0,FF,FF,FF r5=E0,FF,FF,FF/v=E0,FF,FF,FF r6=E0,FF,FF,FF/v=E0,FF,FF,FF r7=E0,FF,FF,FF/v=E0,FF,FF,FF
+t11_after_symbol_space pc=602B sp=F374 bank=04/02/03 flow=00 menu=FF screen=00 pack=FF slots=FF player=FF pxy=0,0 e0=01 exy=24584,41040 spriteAsset0=07
+t11_after_symbol_space sprites r0=E0,08,00,06/v=E0,08,00,06 r1=E0,08,04,0F/v=E0,08,04,0F r2=E0,60,00,0E/v=E0,60,00,0E r3=E0,FF,FF,FF/v=E0,FF,FF,FF r4=E0,FF,FF,FF/v=E0,FF,FF,FF r5=E0,FF,FF,FF/v=E0,FF,FF,FF r6=E0,FF,FF,FF/v=E0,FF,FF,FF r7=E0,FF,FF,FF/v=E0,FF,FF,FF
+SHOTOK t11_after_symbol_space.png
+space_row8_before pc=602B sp=F374 bank=04/02/03 flow=00 menu=FF screen=00 pack=FF slots=FF player=FF pxy=0,0 e0=01 exy=24584,41040 spriteAsset0=07
+space_row8_before sprites r0=E0,08,00,06/v=E0,08,00,06 r1=E0,08,04,0F/v=E0,08,04,0F r2=E0,60,00,0E/v=E0,60,00,0E r3=E0,FF,FF,FF/v=E0,FF,FF,FF r4=E0,FF,FF,FF/v=E0,FF,FF,FF r5=E0,FF,FF,FF/v=E0,FF,FF,FF r6=E0,FF,FF,FF/v=E0,FF,FF,FF r7=E0,FF,FF,FF/v=E0,FF,FF,FF
+space_row8_after pc=40D9 sp=F370 bank=0F/02/03 flow=00 menu=FF screen=00 pack=FF slots=FF player=FF pxy=0,0 e0=01 exy=0,0 spriteAsset0=19
+space_row8_after sprites r0=E0,08,00,06/v=E0,08,00,06 r1=E0,08,04,0F/v=E0,08,04,0F r2=E0,60,00,0E/v=E0,60,00,0E r3=E0,FF,FF,FF/v=E0,FF,FF,FF r4=E0,FF,FF,FF/v=E0,FF,FF,FF r5=E0,FF,FF,FF/v=E0,FF,FF,FF r6=E0,FF,FF,FF/v=E0,FF,FF,FF r7=E0,FF,FF,FF/v=E0,FF,FF,FF
+BP_submenu pc=A0F0 sp=F380 bank=01/02/03 flow=00 menu=FF screen=00 pack=FF slots=FF player=00 pxy=8,80 e0=01 exy=24584,41040 spriteAsset0=07
+BP_submenu sprites r0=50,08,00,06/v=E0,08,00,06 r1=50,08,04,0F/v=E0,08,04,0F r2=A0,60,00,0E/v=E0,60,00,0E r3=E0,FF,FF,FF/v=E0,FF,FF,FF r4=E0,FF,FF,FF/v=E0,FF,FF,FF r5=E0,FF,FF,FF/v=E0,FF,FF,FF r6=E0,FF,FF,FF/v=E0,FF,FF,FF r7=E0,FF,FF,FF/v=E0,FF,FF,FF
+t14_after_row8_space pc=A140 sp=F376 bank=01/02/03 flow=00 menu=00 screen=00 pack=FF slots=FF player=00 pxy=8,80 e0=01 exy=24584,41040 spriteAsset0=07
+t14_after_row8_space sprites r0=E0,08,00,06/v=E0,08,00,06 r1=E0,08,04,0F/v=E0,08,04,0F r2=E0,60,00,0E/v=E0,60,00,0E r3=E0,FF,FF,FF/v=E0,FF,FF,FF r4=E0,FF,FF,FF/v=E0,FF,FF,FF r5=E0,FF,FF,FF/v=E0,FF,FF,FF r6=E0,FF,FF,FF/v=E0,FF,FF,FF r7=E0,FF,FF,FF/v=E0,FF,FF,FF
+SHOTOK t14_after_row8_space.png
+right_symbol_before pc=A140 sp=F376 bank=01/02/03 flow=00 menu=00 screen=00 pack=FF slots=FF player=00 pxy=8,80 e0=01 exy=24584,41040 spriteAsset0=07
+right_symbol_before sprites r0=E0,08,00,06/v=E0,08,00,06 r1=E0,08,04,0F/v=E0,08,04,0F r2=E0,60,00,0E/v=E0,60,00,0E r3=E0,FF,FF,FF/v=E0,FF,FF,FF r4=E0,FF,FF,FF/v=E0,FF,FF,FF r5=E0,FF,FF,FF/v=E0,FF,FF,FF r6=E0,FF,FF,FF/v=E0,FF,FF,FF r7=E0,FF,FF,FF/v=E0,FF,FF,FF
+t17_after_right pc=A140 sp=F376 bank=01/02/03 flow=00 menu=00 screen=00 pack=FF slots=FF player=00 pxy=8,80 e0=01 exy=24584,41040 spriteAsset0=07
+t17_after_right sprites r0=E0,08,00,06/v=E0,08,00,06 r1=E0,08,04,0F/v=E0,08,04,0F r2=E0,60,00,0E/v=E0,60,00,0E r3=E0,FF,FF,FF/v=E0,FF,FF,FF r4=E0,FF,FF,FF/v=E0,FF,FF,FF r5=E0,FF,FF,FF/v=E0,FF,FF,FF r6=E0,FF,FF,FF/v=E0,FF,FF,FF r7=E0,FF,FF,FF/v=E0,FF,FF,FF
+SHOTOK t17_after_right.png
+t19_final pc=A140 sp=F376 bank=01/02/03 flow=00 menu=00 screen=00 pack=FF slots=FF player=00 pxy=8,80 e0=01 exy=24584,41040 spriteAsset0=07
+t19_final sprites r0=E0,08,00,06/v=E0,08,00,06 r1=E0,08,04,0F/v=E0,08,04,0F r2=E0,60,00,0E/v=E0,60,00,0E r3=E0,FF,FF,FF/v=E0,FF,FF,FF r4=E0,FF,FF,FF/v=E0,FF,FF,FF r5=E0,FF,FF,FF/v=E0,FF,FF,FF r6=E0,FF,FF,FF/v=E0,FF,FF,FF r7=E0,FF,FF,FF/v=E0,FF,FF,FF
+SHOTOK t19_final.png

@@ -1,0 +1,1357 @@
+{
+  "version": 1,
+  "scope": "konami8k_megarom_data",
+  "mapper": {
+    "format": "konami",
+    "segmentSize": 8192,
+    "dataWindowPage": "p3",
+    "windowBase": "#A000",
+    "windowMask": "#1FFF",
+    "bankDivisor": "#2000"
+  },
+  "features": {
+    "sprites": true,
+    "tiles": true,
+    "screens": true,
+    "entities": true,
+    "components": true,
+    "gameFlow": true,
+    "menus": false,
+    "bosses": true,
+    "dialogues": false,
+    "worldmaps": true,
+    "fonts": true,
+    "animations": true,
+    "collisions": true,
+    "sounds": false,
+    "stateMachines": true
+  },
+  "counts": {
+    "components": 35,
+    "templates": 17,
+    "sprites": 7,
+    "tiles": 156,
+    "tileBanks": 2,
+    "screens": 2,
+    "entities": 2,
+    "menus": 0,
+    "bosses": 2,
+    "bossInstances": 1,
+    "dialogues": 0,
+    "worldmaps": 1,
+    "presentationScreens": 0,
+    "sounds": 0,
+    "tracks": 0,
+    "stateMachines": 1,
+    "bankedResources": 59
+  },
+  "resourceGroups": [
+    {
+      "key": "COLORS",
+      "count": 3
+    },
+    {
+      "key": "PATTERNS",
+      "count": 3
+    },
+    {
+      "key": "SCREENS",
+      "count": 17
+    },
+    {
+      "key": "SPRITES",
+      "count": 36
+    }
+  ],
+  "resourceTypes": [
+    {
+      "key": "SCREEN_BEHAVIOR_MAP",
+      "count": 1
+    },
+    {
+      "key": "SCREEN_BLOCK_CATALOG",
+      "count": 1
+    },
+    {
+      "key": "SCREEN_BLOCK_MAP",
+      "count": 1
+    },
+    {
+      "key": "SCREEN_DATA",
+      "count": 9
+    },
+    {
+      "key": "SCREEN_EFFECT_ZONE_TABLE",
+      "count": 2
+    },
+    {
+      "key": "SCREEN_EFFECTS_LAYOUT",
+      "count": 2
+    },
+    {
+      "key": "SCREEN_LAYOUT",
+      "count": 1
+    },
+    {
+      "key": "SPRITE_PATTERNS",
+      "count": 36
+    },
+    {
+      "key": "TILE_COLORS",
+      "count": 3
+    },
+    {
+      "key": "TILE_PATTERNS",
+      "count": 3
+    }
+  ],
+  "gameFlowReachability": {
+    "hasGameFlow": true,
+    "reachableScreenIds": [
+      "screenmap_1776511902784"
+    ],
+    "reachableWorldIds": [
+      "worldmap_1776512078647"
+    ],
+    "scenes": [
+      {
+        "index": 0,
+        "id": "screenmap_1776511902784",
+        "name": "pan1",
+        "reachable": true,
+        "sources": [
+          "worldmap:worldmap_1776512078647:node:wmnode_1776512081420"
+        ],
+        "reason": "reachable from GameFlow start graph"
+      },
+      {
+        "index": 1,
+        "id": "screenmap_1777377884059",
+        "name": "New Dialog Screen",
+        "reachable": false,
+        "sources": [],
+        "reason": "not reached from GameFlow start graph"
+      }
+    ],
+    "counts": {
+      "totalScreens": 2,
+      "reachableScreens": 1,
+      "unreachableScreens": 1,
+      "unknownScreens": 0
+    }
+  },
+  "scenes": [
+    {
+      "index": 0,
+      "id": "screenmap_1776511902784",
+      "name": "pan1",
+      "size": {
+        "width": 32,
+        "height": 24
+      },
+      "screenKind": "playable",
+      "screenEngine": "player",
+      "tileBankAssetId": "tilebank_1776511918552",
+      "tileUsage": {
+        "backgroundTileIds": [
+          "tile_1770753922382",
+          "tile_1772141640113",
+          "tile_1772960221849",
+          "tile_1776511854312",
+          "tile_1776514675238",
+          "tile_1776777705689",
+          "tile_1776787618678",
+          "tile_1776878493940",
+          "tile_1777378210884",
+          "tile_split_tile_1776511854312_0_0_1776878629578",
+          "tile_split_tile_1776511854312_1_1_1776878629578"
+        ],
+        "collisionTileIds": [
+          "tile_1776511854312"
+        ],
+        "effectsTileIds": [],
+        "uniqueTileIds": [
+          "tile_1770753922382",
+          "tile_1772141640113",
+          "tile_1772960221849",
+          "tile_1776511854312",
+          "tile_1776514675238",
+          "tile_1776777705689",
+          "tile_1776787618678",
+          "tile_1776878493940",
+          "tile_1777378210884",
+          "tile_split_tile_1776511854312_0_0_1776878629578",
+          "tile_split_tile_1776511854312_1_1_1776878629578"
+        ]
+      },
+      "entities": {
+        "count": 1,
+        "templateIds": [
+          "tpl_player"
+        ],
+        "names": [
+          "Player 1"
+        ]
+      },
+      "effectZones": {
+        "count": 0
+      },
+      "bosses": {
+        "count": 1,
+        "bossIds": [
+          "bossinst_1777673024815_wokl4"
+        ]
+      },
+      "resourceIds": [
+        44,
+        48,
+        49,
+        47,
+        46,
+        45,
+        50,
+        42,
+        43
+      ],
+      "resources": [
+        {
+          "id": 44,
+          "label": "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECTS_LAYOUT",
+          "bank": 3,
+          "windowAddress": 46576,
+          "zoneOffset": 5616,
+          "size": 768,
+          "storedSize": 768,
+          "uncompressedSize": 768,
+          "flags": 0
+        },
+        {
+          "id": 48,
+          "label": "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 3,
+          "windowAddress": 47344,
+          "zoneOffset": 6384,
+          "size": 768,
+          "storedSize": 768,
+          "uncompressedSize": 768,
+          "flags": 0
+        },
+        {
+          "id": 49,
+          "label": "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 3,
+          "windowAddress": 48112,
+          "zoneOffset": 7152,
+          "size": 768,
+          "storedSize": 768,
+          "uncompressedSize": 768,
+          "flags": 0
+        },
+        {
+          "id": 47,
+          "label": "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 3,
+          "windowAddress": 48880,
+          "zoneOffset": 7920,
+          "size": 256,
+          "storedSize": 256,
+          "uncompressedSize": 256,
+          "flags": 0
+        },
+        {
+          "id": 46,
+          "label": "SCREEN_PAN1_0_BOSS_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 3,
+          "windowAddress": 49136,
+          "zoneOffset": 8176,
+          "size": 11,
+          "storedSize": 11,
+          "uncompressedSize": 11,
+          "flags": 0
+        },
+        {
+          "id": 45,
+          "label": "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECT_ZONE_TABLE",
+          "bank": 3,
+          "windowAddress": 49147,
+          "zoneOffset": 8187,
+          "size": 1,
+          "storedSize": 1,
+          "uncompressedSize": 1,
+          "flags": 0
+        },
+        {
+          "id": 50,
+          "label": "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 40960,
+          "zoneOffset": 0,
+          "size": 768,
+          "storedSize": 768,
+          "uncompressedSize": 768,
+          "flags": 0
+        },
+        {
+          "id": 42,
+          "label": "SCREEN_PAN1_0_BLOCK_CATALOG",
+          "group": "SCREENS",
+          "type": "SCREEN_BLOCK_CATALOG",
+          "bank": 4,
+          "windowAddress": 46336,
+          "zoneOffset": 5376,
+          "size": 96,
+          "storedSize": 96,
+          "uncompressedSize": 96,
+          "flags": 0
+        },
+        {
+          "id": 43,
+          "label": "SCREEN_PAN1_0_BLOCK_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_BLOCK_MAP",
+          "bank": 4,
+          "windowAddress": 46432,
+          "zoneOffset": 5472,
+          "size": 48,
+          "storedSize": 48,
+          "uncompressedSize": 48,
+          "flags": 0
+        }
+      ],
+      "banks": [
+        {
+          "bank": 3,
+          "count": 6,
+          "storedBytes": 2572,
+          "rawBytes": 2572,
+          "resourceIds": [
+            44,
+            48,
+            49,
+            47,
+            46,
+            45
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+            "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+            "SCREEN_PAN1_0_BOSS_TABLE",
+            "SCREEN_PAN1_0_EFFECT_ZONE_TABLE"
+          ]
+        },
+        {
+          "bank": 4,
+          "count": 3,
+          "storedBytes": 912,
+          "rawBytes": 912,
+          "resourceIds": [
+            50,
+            42,
+            43
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN1_0_BLOCK_CATALOG",
+            "SCREEN_PAN1_0_BLOCK_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            44,
+            48,
+            49,
+            47,
+            46,
+            45
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+            "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+            "SCREEN_PAN1_0_BOSS_TABLE",
+            "SCREEN_PAN1_0_EFFECT_ZONE_TABLE"
+          ]
+        },
+        {
+          "bank": 4,
+          "resourceIds": [
+            50,
+            42,
+            43
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN1_0_BLOCK_CATALOG",
+            "SCREEN_PAN1_0_BLOCK_MAP"
+          ]
+        }
+      ],
+      "totals": {
+        "resourceCount": 9,
+        "storedBytes": 3484,
+        "rawBytes": 3484,
+        "compressedResources": 0
+      }
+    },
+    {
+      "index": 1,
+      "id": "screenmap_1777377884059",
+      "name": "New Dialog Screen",
+      "size": {
+        "width": 32,
+        "height": 24
+      },
+      "screenKind": "dialog",
+      "screenEngine": "fakePlayer",
+      "tileBankAssetId": "tilebank_1776511918552",
+      "tileUsage": {
+        "backgroundTileIds": [
+          "tile_1770753922382"
+        ],
+        "collisionTileIds": [],
+        "effectsTileIds": [],
+        "uniqueTileIds": [
+          "tile_1770753922382"
+        ]
+      },
+      "entities": {
+        "count": 1,
+        "templateIds": [
+          "tpl_fake_player"
+        ],
+        "names": [
+          "FakePlayer 1"
+        ]
+      },
+      "effectZones": {
+        "count": 0
+      },
+      "bosses": {
+        "count": 0,
+        "bossIds": []
+      },
+      "resourceIds": [
+        53,
+        54,
+        51,
+        52,
+        55,
+        56,
+        57,
+        58
+      ],
+      "resources": [
+        {
+          "id": 53,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECT_ZONE_TABLE",
+          "bank": 3,
+          "windowAddress": 49148,
+          "zoneOffset": 8188,
+          "size": 1,
+          "storedSize": 1,
+          "uncompressedSize": 1,
+          "flags": 0
+        },
+        {
+          "id": 54,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 3,
+          "windowAddress": 49149,
+          "zoneOffset": 8189,
+          "size": 1,
+          "storedSize": 1,
+          "uncompressedSize": 1,
+          "flags": 0
+        },
+        {
+          "id": 51,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+          "group": "SCREENS",
+          "type": "SCREEN_LAYOUT",
+          "bank": 4,
+          "windowAddress": 41728,
+          "zoneOffset": 768,
+          "size": 768,
+          "storedSize": 768,
+          "uncompressedSize": 768,
+          "flags": 0
+        },
+        {
+          "id": 52,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECTS_LAYOUT",
+          "bank": 4,
+          "windowAddress": 42496,
+          "zoneOffset": 1536,
+          "size": 768,
+          "storedSize": 768,
+          "uncompressedSize": 768,
+          "flags": 0
+        },
+        {
+          "id": 55,
+          "label": "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+          "group": "SCREENS",
+          "type": "SCREEN_BEHAVIOR_MAP",
+          "bank": 4,
+          "windowAddress": 43264,
+          "zoneOffset": 2304,
+          "size": 768,
+          "storedSize": 768,
+          "uncompressedSize": 768,
+          "flags": 0
+        },
+        {
+          "id": 56,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 44032,
+          "zoneOffset": 3072,
+          "size": 768,
+          "storedSize": 768,
+          "uncompressedSize": 768,
+          "flags": 0
+        },
+        {
+          "id": 57,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 44800,
+          "zoneOffset": 3840,
+          "size": 768,
+          "storedSize": 768,
+          "uncompressedSize": 768,
+          "flags": 0
+        },
+        {
+          "id": 58,
+          "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 45568,
+          "zoneOffset": 4608,
+          "size": 768,
+          "storedSize": 768,
+          "uncompressedSize": 768,
+          "flags": 0
+        }
+      ],
+      "banks": [
+        {
+          "bank": 3,
+          "count": 2,
+          "storedBytes": 2,
+          "rawBytes": 2,
+          "resourceIds": [
+            53,
+            54
+          ],
+          "resourceLabels": [
+            "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+            "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE"
+          ]
+        },
+        {
+          "bank": 4,
+          "count": 6,
+          "storedBytes": 4608,
+          "rawBytes": 4608,
+          "resourceIds": [
+            51,
+            52,
+            55,
+            56,
+            57,
+            58
+          ],
+          "resourceLabels": [
+            "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+            "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+            "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+            "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+            "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+            "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            53,
+            54
+          ],
+          "resourceLabels": [
+            "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+            "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE"
+          ]
+        },
+        {
+          "bank": 4,
+          "resourceIds": [
+            51,
+            52,
+            55,
+            56,
+            57,
+            58
+          ],
+          "resourceLabels": [
+            "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+            "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+            "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+            "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+            "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+            "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "totals": {
+        "resourceCount": 8,
+        "storedBytes": 4610,
+        "rawBytes": 4610,
+        "compressedResources": 0
+      }
+    }
+  ],
+  "bankedResources": [
+    {
+      "id": 0,
+      "label": "NINA_WALK_RIGHT_0_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46480,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 1,
+      "label": "NINA_WALK_RIGHT_0_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46512,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 2,
+      "label": "NINA_WALK_RIGHT_0_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46544,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 3,
+      "label": "NINA_WALK_RIGHT_0_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46576,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 4,
+      "label": "NINA_GRUB_RIGHT_1_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46608,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 5,
+      "label": "NINA_GRUB_RIGHT_1_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46640,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 6,
+      "label": "NINA_GRUB_RIGHT_1_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46672,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 7,
+      "label": "NINA_GRUB_RIGHT_1_F1_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46704,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 8,
+      "label": "NEW_SPRITE_2_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46736,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 9,
+      "label": "NEW_SPRITE_2_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46768,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 10,
+      "label": "NEW_SPRITE_2_F0_LAYER3",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46800,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 11,
+      "label": "NINA_JUMP_RIGHT_3_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46832,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 12,
+      "label": "NINA_JUMP_RIGHT_3_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46864,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 13,
+      "label": "NINA_IDLE_RIGHT_4_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46896,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 14,
+      "label": "NINA_IDLE_RIGHT_4_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46928,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 15,
+      "label": "NEW_SPRITE_RIGHT_5_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46960,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 16,
+      "label": "NEW_SPRITE_RIGHT_5_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46992,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 17,
+      "label": "PROJECTIL1_6_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47024,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 18,
+      "label": "PROJECTIL1_6_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47056,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 19,
+      "label": "PROJECTIL1_6_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47088,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 20,
+      "label": "PROJECTIL1_6_F1_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47120,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 21,
+      "label": "NINA_WALK_LEFT_7_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47152,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 22,
+      "label": "NINA_WALK_LEFT_7_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47184,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 23,
+      "label": "NINA_WALK_LEFT_7_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47216,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 24,
+      "label": "NINA_WALK_LEFT_7_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47248,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 25,
+      "label": "NINA_GRUB_LEFT_8_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47280,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 26,
+      "label": "NINA_GRUB_LEFT_8_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47312,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 27,
+      "label": "NINA_GRUB_LEFT_8_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47344,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 28,
+      "label": "NINA_GRUB_LEFT_8_F1_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47376,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 29,
+      "label": "NINA_JUMP_LEFT_9_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47408,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 30,
+      "label": "NINA_JUMP_LEFT_9_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47440,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 31,
+      "label": "NINA_IDLE_LEFT_10_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47472,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 32,
+      "label": "NINA_IDLE_LEFT_10_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47504,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 33,
+      "label": "NEW_SPRITE_LEFT_11_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47536,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 34,
+      "label": "NEW_SPRITE_LEFT_11_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47568,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 35,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 47600,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0
+    },
+    {
+      "id": 36,
+      "label": "tile_pattern_bank0",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 40960,
+      "size": 1016,
+      "storedSize": 1016,
+      "uncompressedSize": 1016,
+      "flags": 0
+    },
+    {
+      "id": 37,
+      "label": "tilebank_pattern_data_0",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 42992,
+      "size": 896,
+      "storedSize": 896,
+      "uncompressedSize": 896,
+      "flags": 0
+    },
+    {
+      "id": 38,
+      "label": "tilebank_pattern_data_1",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 43888,
+      "size": 896,
+      "storedSize": 896,
+      "uncompressedSize": 896,
+      "flags": 0
+    },
+    {
+      "id": 39,
+      "label": "tile_color_bank0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 3,
+      "windowAddress": 41976,
+      "size": 1016,
+      "storedSize": 1016,
+      "uncompressedSize": 1016,
+      "flags": 0
+    },
+    {
+      "id": 40,
+      "label": "tilebank_color_data_0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 3,
+      "windowAddress": 44784,
+      "size": 896,
+      "storedSize": 896,
+      "uncompressedSize": 896,
+      "flags": 0
+    },
+    {
+      "id": 41,
+      "label": "tilebank_color_data_1",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 3,
+      "windowAddress": 45680,
+      "size": 896,
+      "storedSize": 896,
+      "uncompressedSize": 896,
+      "flags": 0
+    },
+    {
+      "id": 42,
+      "label": "SCREEN_PAN1_0_BLOCK_CATALOG",
+      "group": "SCREENS",
+      "type": "SCREEN_BLOCK_CATALOG",
+      "bank": 4,
+      "windowAddress": 46336,
+      "size": 96,
+      "storedSize": 96,
+      "uncompressedSize": 96,
+      "flags": 0
+    },
+    {
+      "id": 43,
+      "label": "SCREEN_PAN1_0_BLOCK_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_BLOCK_MAP",
+      "bank": 4,
+      "windowAddress": 46432,
+      "size": 48,
+      "storedSize": 48,
+      "uncompressedSize": 48,
+      "flags": 0
+    },
+    {
+      "id": 44,
+      "label": "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECTS_LAYOUT",
+      "bank": 3,
+      "windowAddress": 46576,
+      "size": 768,
+      "storedSize": 768,
+      "uncompressedSize": 768,
+      "flags": 0
+    },
+    {
+      "id": 45,
+      "label": "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECT_ZONE_TABLE",
+      "bank": 3,
+      "windowAddress": 49147,
+      "size": 1,
+      "storedSize": 1,
+      "uncompressedSize": 1,
+      "flags": 0
+    },
+    {
+      "id": 46,
+      "label": "SCREEN_PAN1_0_BOSS_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 3,
+      "windowAddress": 49136,
+      "size": 11,
+      "storedSize": 11,
+      "uncompressedSize": 11,
+      "flags": 0
+    },
+    {
+      "id": 47,
+      "label": "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 3,
+      "windowAddress": 48880,
+      "size": 256,
+      "storedSize": 256,
+      "uncompressedSize": 256,
+      "flags": 0
+    },
+    {
+      "id": 48,
+      "label": "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 3,
+      "windowAddress": 47344,
+      "size": 768,
+      "storedSize": 768,
+      "uncompressedSize": 768,
+      "flags": 0
+    },
+    {
+      "id": 49,
+      "label": "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 3,
+      "windowAddress": 48112,
+      "size": 768,
+      "storedSize": 768,
+      "uncompressedSize": 768,
+      "flags": 0
+    },
+    {
+      "id": 50,
+      "label": "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 40960,
+      "size": 768,
+      "storedSize": 768,
+      "uncompressedSize": 768,
+      "flags": 0
+    },
+    {
+      "id": 51,
+      "label": "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+      "group": "SCREENS",
+      "type": "SCREEN_LAYOUT",
+      "bank": 4,
+      "windowAddress": 41728,
+      "size": 768,
+      "storedSize": 768,
+      "uncompressedSize": 768,
+      "flags": 0
+    },
+    {
+      "id": 52,
+      "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECTS_LAYOUT",
+      "bank": 4,
+      "windowAddress": 42496,
+      "size": 768,
+      "storedSize": 768,
+      "uncompressedSize": 768,
+      "flags": 0
+    },
+    {
+      "id": 53,
+      "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECT_ZONE_TABLE",
+      "bank": 3,
+      "windowAddress": 49148,
+      "size": 1,
+      "storedSize": 1,
+      "uncompressedSize": 1,
+      "flags": 0
+    },
+    {
+      "id": 54,
+      "label": "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 3,
+      "windowAddress": 49149,
+      "size": 1,
+      "storedSize": 1,
+      "uncompressedSize": 1,
+      "flags": 0
+    },
+    {
+      "id": 55,
+      "label": "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+      "group": "SCREENS",
+      "type": "SCREEN_BEHAVIOR_MAP",
+      "bank": 4,
+      "windowAddress": 43264,
+      "size": 768,
+      "storedSize": 768,
+      "uncompressedSize": 768,
+      "flags": 0
+    },
+    {
+      "id": 56,
+      "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 44032,
+      "size": 768,
+      "storedSize": 768,
+      "uncompressedSize": 768,
+      "flags": 0
+    },
+    {
+      "id": 57,
+      "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 44800,
+      "size": 768,
+      "storedSize": 768,
+      "uncompressedSize": 768,
+      "flags": 0
+    },
+    {
+      "id": 58,
+      "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 45568,
+      "size": 768,
+      "storedSize": 768,
+      "uncompressedSize": 768,
+      "flags": 0
+    }
+  ]
+}

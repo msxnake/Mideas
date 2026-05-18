@@ -172,13 +172,51 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
             height, 
             data: pixelData, 
             lineAttributes: lineAttrs,
-            logicalProperties: tileData.logicalProperties || defaultLogicalProps // Ensure logicalProperties exists
+            logicalProperties: tileData.logicalProperties || defaultLogicalProps, // Ensure logicalProperties exists
+            charLogicalProperties: tileData.charLogicalProperties ? { ...tileData.charLogicalProperties } : undefined
           };
+
+          if (currentScreenMode === "SCREEN 2 (Graphics I)") {
+            const charLogicalProperties = { ...(validatedTile.charLogicalProperties || {}) };
+            const patternBytes = Array.from(generateTilePatternBytes(validatedTile, currentScreenMode));
+            const charsX = Math.max(1, Math.ceil(width / 8));
+            const charsY = Math.max(1, Math.ceil(height / 8));
+            for (let charY = 0; charY < charsY; charY++) {
+              for (let charX = 0; charX < charsX; charX++) {
+                const charIndex = charY * charsX + charX;
+                const patternOffset = charIndex * 8;
+                const isEmptyPattern = patternBytes
+                  .slice(patternOffset, patternOffset + 8)
+                  .every(byte => byte === 0);
+                const key = `${charX},${charY}`;
+                if (isEmptyPattern && !charLogicalProperties[key]) {
+                  charLogicalProperties[key] = {
+                    ...validatedTile.logicalProperties,
+                    mapId: 0,
+                    familyId: 0,
+                    instanceId: 0,
+                    isSolid: false,
+                    isBreakable: false,
+                    causesDamage: false,
+                    isMovable: false,
+                    isInteractiveSwitch: false,
+                    isInteractable: false,
+                    interactionType: 'none',
+                    interactionValue: 1,
+                    interactionTarget: ''
+                  };
+                }
+              }
+            }
+            if (Object.keys(charLogicalProperties).length > 0) {
+              validatedTile.charLogicalProperties = charLogicalProperties;
+            }
+          }
           return { id, name, type: 'tile', data: validatedTile };
         });
 
         onUpdateAllTileAssets(newProjectAssets);
-        alert(`Tileset "${file.name}" loaded successfully with ${newProjectAssets.length} tiles.`);
+        alert(`Tileset "${file.name}" cargado con ${newProjectAssets.length} tiles. Los chars vacios de SCREEN 2 se marcan como NoSolid y los bancos reutilizaran chars 8x8 repetidos al asignar u optimizar.`);
 
       } catch (error) {
         console.error("Error loading or parsing tileset file:", error);

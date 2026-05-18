@@ -1,0 +1,9 @@
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/00 flow=00 screen=00 irq=0000 inirq=00 pos=0,0
+space1_before pc=A174 sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=00BA inirq=00 pos=24,80
+space1_after pc=73F7 sp=F378 bank=01/02/03/03 flow=01 screen=00 irq=00C9 inirq=00 pos=24,46
+t10 pc=6B8F sp=F378 bank=01/02/03/03 flow=01 screen=00 irq=016E inirq=00 pos=24,80
+SHOTOK pato_s_lock_parallel2_megarom_t10.png
+right_before pc=766D sp=F376 bank=01/02/03/03 flow=01 screen=00 irq=01E6 inirq=00 pos=24,80
+right_after pc=7B9A sp=F37A bank=01/02/03/03 flow=01 screen=00 irq=0225 inirq=00 pos=70,80
+t14 pc=1A04 sp=F368 bank=01/02/03/03 flow=01 screen=00 irq=025E inirq=00 pos=70,80
+SHOTOK pato_s_lock_parallel2_megarom_t14.png

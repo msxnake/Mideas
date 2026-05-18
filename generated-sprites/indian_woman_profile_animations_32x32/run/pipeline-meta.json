@@ -1,0 +1,175 @@
+{
+  "target": "npc",
+  "mode": "run",
+  "prompt": "1x4 32x32 pixel-art running cycle for the same Indian woman in side profile facing right: black braid, warm brown skin, red sari with gold trim, small bindi, sandals, magenta background.",
+  "role": "",
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\generated-sprites\\indian_woman_profile_animations_32x32\\run\\raw-sheet.png",
+  "threshold": 100,
+  "edge_threshold": 150,
+  "duration": 200,
+  "rows": 1,
+  "cols": 4,
+  "cell_size": 32,
+  "fit_scale": 0.92,
+  "trim_border": 4,
+  "edge_clean_depth": 3,
+  "align": "bottom",
+  "shared_scale": true,
+  "component_mode": "largest",
+  "component_padding": 2,
+  "min_component_area": 1,
+  "edge_touch_margin": 1,
+  "frame_labels": [
+    "indian_woman_profile_run-1",
+    "indian_woman_profile_run-2",
+    "indian_woman_profile_run-3",
+    "indian_woman_profile_run-4"
+  ],
+  "frames": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "source_box": [
+        0,
+        0,
+        495,
+        793
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 87361,
+      "selected_component_bbox": [
+        108,
+        130,
+        427,
+        628
+      ],
+      "crop_bbox": [
+        106,
+        128,
+        429,
+        630
+      ],
+      "edge_touch": false,
+      "output_size": [
+        18,
+        29
+      ],
+      "paste_position": [
+        7,
+        2
+      ]
+    },
+    {
+      "grid": [
+        0,
+        1
+      ],
+      "source_box": [
+        495,
+        0,
+        990,
+        793
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 75434,
+      "selected_component_bbox": [
+        79,
+        130,
+        396,
+        628
+      ],
+      "crop_bbox": [
+        77,
+        128,
+        398,
+        630
+      ],
+      "edge_touch": false,
+      "output_size": [
+        18,
+        29
+      ],
+      "paste_position": [
+        7,
+        2
+      ]
+    },
+    {
+      "grid": [
+        0,
+        2
+      ],
+      "source_box": [
+        990,
+        0,
+        1485,
+        793
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 87699,
+      "selected_component_bbox": [
+        51,
+        120,
+        421,
+        580
+      ],
+      "crop_bbox": [
+        49,
+        118,
+        423,
+        582
+      ],
+      "edge_touch": false,
+      "output_size": [
+        21,
+        27
+      ],
+      "paste_position": [
+        5,
+        4
+      ]
+    },
+    {
+      "grid": [
+        0,
+        3
+      ],
+      "source_box": [
+        1485,
+        0,
+        1980,
+        793
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 75819,
+      "selected_component_bbox": [
+        23,
+        130,
+        326,
+        628
+      ],
+      "crop_bbox": [
+        21,
+        128,
+        328,
+        630
+      ],
+      "edge_touch": false,
+      "output_size": [
+        18,
+        29
+      ],
+      "paste_position": [
+        7,
+        2
+      ]
+    }
+  ],
+  "edge_touch_frames": []
+}

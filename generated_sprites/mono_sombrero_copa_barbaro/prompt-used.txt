@@ -1,0 +1,1 @@
+Single pixel art sprite: same monkey with black top hat and red band, dressed in original sword-and-sorcery barbarian outfit with leather loincloth, fur trim, chest strap, belt buckle, bracers, ankle wraps, solid #FF00FF magenta background, no text, no UI.

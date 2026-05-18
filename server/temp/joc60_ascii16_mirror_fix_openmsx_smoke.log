@@ -1,0 +1,13 @@
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/04 flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+space1_before pc=6A84 sp=F374 bank=00/00/01/01 flow=01 screen=00 irq=00B0 inirq=00 pos=16,144
+space1_after pc=6449 sp=F37A bank=05/05/01/01 flow=01 screen=00 irq=00BF inirq=00 pos=16,108
+space2_before pc=783A sp=F372 bank=00/00/01/01 flow=01 screen=00 irq=0128 inirq=00 pos=16,144
+space2_after pc=730A sp=F370 bank=00/00/01/01 flow=01 screen=00 irq=0137 inirq=00 pos=16,108
+t12 pc=48D3 sp=F36E bank=00/00/01/01 flow=01 screen=00 irq=01DC inirq=00 pos=16,144
+SHOTOK joc60_ascii16_mirror_fix_t12.png
+right_before pc=1A53 sp=F364 bank=05/05/01/01 flow=01 screen=00 irq=0236 inirq=00 pos=16,144
+right_after pc=616B sp=F37C bank=05/05/01/01 flow=01 screen=00 irq=0274 inirq=00 pos=136,144
+t16 pc=616B sp=F37C bank=05/05/01/01 flow=01 screen=00 irq=02CB inirq=00 pos=136,144
+SHOTOK joc60_ascii16_mirror_fix_t16.png
+t22 pc=641A sp=F37A bank=05/05/01/01 flow=01 screen=00 irq=0433 inirq=00 pos=136,144
+SHOTOK joc60_ascii16_mirror_fix_t22.png

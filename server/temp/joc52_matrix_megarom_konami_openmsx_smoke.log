@@ -1,0 +1,13 @@
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/04 flow=00 screen=33 irq=0000 inirq=00 pos=13107,13107
+space1_before pc=8C8B sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=00BA inirq=00 pos=16,144
+space1_after pc=4112 sp=F366 bank=05/02/03/03 flow=01 screen=00 irq=00C9 inirq=00 pos=16,114
+space2_before pc=8CB2 sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=0132 inirq=00 pos=16,144
+space2_after pc=8C8B sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=0141 inirq=00 pos=16,111
+t12 pc=62D5 sp=F36C bank=05/02/03/03 flow=01 screen=00 irq=01E6 inirq=00 pos=16,144
+SHOTOK joc52_matrix_megarom_konami_t12.png
+right_before pc=48CB sp=F374 bank=01/02/03/03 flow=01 screen=00 irq=0240 inirq=00 pos=16,144
+right_after pc=8C8B sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=027E inirq=00 pos=118,144
+t16 pc=6282 sp=F36C bank=05/02/03/03 flow=01 screen=00 irq=02D5 inirq=00 pos=118,144
+SHOTOK joc52_matrix_megarom_konami_t16.png
+t22 pc=874C sp=F36A bank=01/02/03/03 flow=01 screen=00 irq=043D inirq=00 pos=118,144
+SHOTOK joc52_matrix_megarom_konami_t22.png

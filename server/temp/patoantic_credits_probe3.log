@@ -1,0 +1,24 @@
+01_title.png pc=95EB sp=F37C
+SHOTOK 01_title.png
+space1-down pc=95EB sp=F37C
+space1-up pc=95FC sp=F37C
+02_submenu.png pc=955B sp=F376
+SHOTOK 02_submenu.png
+down1-down pc=955B sp=F376
+down1-up pc=95A8 sp=F376
+03_credits_selected.png pc=955B sp=F376
+SHOTOK 03_credits_selected.png
+space2-down pc=955B sp=F376
+space2-up pc=9598 sp=F376
+04_credits_screen.png pc=94DE sp=F37A
+SHOTOK 04_credits_screen.png
+space3-down pc=94DE sp=F37A
+space3-up pc=94E9 sp=F37A
+05_after_exit.png pc=19D0 sp=F366
+SHOTOK 05_after_exit.png
+space4-down pc=95EB sp=F37C
+space4-up pc=95FC sp=F37C
+06_after_main_space.png pc=955B sp=F376
+SHOTOK 06_after_main_space.png
+07_final.png pc=955B sp=F376
+SHOTOK 07_final.png

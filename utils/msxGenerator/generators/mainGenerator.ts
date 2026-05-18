@@ -143,10 +143,13 @@ include "gameflow.asm"
 
 ;-----------------------------------------------
 ; Capture the normal expanded slot used by each page.
+; @mideas:block id=runtime.page0.core kind=routine owner=main roots=init_page0_runtime_state,page0_map_expanded_slot,page0_map_game_rom,page0_restore_bios_rom,page0_copy_chunk_to_buffer,page0_decompress_to_ram,page0_copy_to_vram,page0_copy_to_ram
 init_page0_runtime_state:
     in a, (#A8)
     ld (slot_primary_normal), a
     ld e, a
+    ld a, (#FFFF)
+    ld (slot_subslot_normal), a
     ld a, e
     and #03
     call GETSLOT
@@ -183,6 +186,18 @@ init_page0_runtime_state:
 ;   interrupts remain disabled on return
 page0_map_expanded_slot:
     ld c, a
+
+    ; Keep the raw expanded-slot register value captured while page 3 RAM was visible.
+    ; Recomputing it is unsafe because MSX stores the hardware value as-is.
+    ld d, 0
+    ld a, (page3_normal_slot)
+    and #80
+    jr z, .page0_subslot_ready
+    inc d
+.page0_subslot_ready:
+    ld a, (slot_subslot_normal)
+    ld e, a
+
     ld a, (slot_primary_normal)
     ; Keep pages 1-3 exactly as they were; only replace page 0 primary slot bits.
     and #FC
@@ -193,31 +208,12 @@ page0_map_expanded_slot:
     di
     out (#A8), a
 
-    ld a, c
-    and #80
+    ld a, d
+    or a
     ret z
-    ld a, c
-    and #0C
-    rrca
-    rrca
-    ld b, a
-    ld a, (ROM_slot)
-    and #0C
-    or b
-    ld b, a
-    ld a, (page2_normal_slot)
-    and #0C
-    rlca
-    rlca
-    or b
-    ld b, a
-    ld a, (page3_normal_slot)
-    and #0C
-    rlca
-    rlca
-    rlca
-    rlca
-    or b
+.page0_write_subslots:
+    ld a, e
+    cpl
     ld (#FFFF), a
     ret
 
@@ -246,7 +242,9 @@ page0_restore_bios_rom:
 ; output:
 ;   hl: source advanced by chunk size
 page0_copy_chunk_to_buffer:
+    push bc
     call page0_map_game_rom
+    pop bc
     ld de, page0_transfer_buffer
     ldir
     jp page0_restore_bios_rom
@@ -354,6 +352,7 @@ page0_copy_to_ram:
     jp nz, .page0_ram_copy_loop
 .page0_ram_copy_done:
     ret
+; @mideas:endblock id=runtime.page0.core
 
 ;-----------------------------------------------
 ; Calls a function from page 1

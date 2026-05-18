@@ -1,0 +1,3417 @@
+{
+  "version": 1,
+  "scope": "konami8k_scene_load_plan",
+  "strategy": "group current banked resources by scene and physical bank; optimizer consumes this before repacking",
+  "mapper": {
+    "format": "konami",
+    "segmentSize": 8192,
+    "dataWindowPage": "p3",
+    "windowBase": "#A000",
+    "windowMask": "#1FFF",
+    "bankDivisor": "#2000"
+  },
+  "summary": {
+    "sceneCount": 53,
+    "resourceCount": 498,
+    "uniqueDataBanks": 1,
+    "totalSceneBankTouches": 53,
+    "maxSceneBankTouches": 1,
+    "totalStoredBytes": 6660,
+    "totalRawBytes": 248554,
+    "compressedResources": 377
+  },
+  "scenes": [
+    {
+      "index": 0,
+      "id": "screenmap_1752520188906",
+      "name": "pan1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 271,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 271,
+          "rawBytes": 4610,
+          "resourceIds": [
+            74,
+            75,
+            78,
+            79,
+            80,
+            81,
+            76,
+            77
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN1_0_LAYOUT",
+            "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN1_0_DATA",
+            "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN1_0_BOSS_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            74,
+            75,
+            78,
+            79,
+            80,
+            81,
+            76,
+            77
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN1_0_LAYOUT",
+            "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN1_0_DATA",
+            "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN1_0_BOSS_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 1,
+      "id": "screenmap_1754755287165",
+      "name": "pan2",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 170,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 170,
+          "rawBytes": 4610,
+          "resourceIds": [
+            82,
+            83,
+            86,
+            87,
+            88,
+            89,
+            84,
+            85
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN2_1_LAYOUT",
+            "SCREEN_PAN2_1_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN2_1_DATA",
+            "SCREEN_PAN2_1_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN2_1_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN2_1_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN2_1_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN2_1_BOSS_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            82,
+            83,
+            86,
+            87,
+            88,
+            89,
+            84,
+            85
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN2_1_LAYOUT",
+            "SCREEN_PAN2_1_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN2_1_DATA",
+            "SCREEN_PAN2_1_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN2_1_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN2_1_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN2_1_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN2_1_BOSS_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 2,
+      "id": "screenmap_1754757646433",
+      "name": "pan3",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 187,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 187,
+          "rawBytes": 4610,
+          "resourceIds": [
+            90,
+            91,
+            94,
+            95,
+            96,
+            97,
+            92,
+            93
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN3_2_LAYOUT",
+            "SCREEN_PAN3_2_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN3_2_DATA",
+            "SCREEN_PAN3_2_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN3_2_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN3_2_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN3_2_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN3_2_BOSS_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            90,
+            91,
+            94,
+            95,
+            96,
+            97,
+            92,
+            93
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN3_2_LAYOUT",
+            "SCREEN_PAN3_2_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN3_2_DATA",
+            "SCREEN_PAN3_2_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN3_2_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN3_2_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN3_2_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN3_2_BOSS_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 3,
+      "id": "screenmap_1754822837810",
+      "name": "pan4",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 146,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 146,
+          "rawBytes": 4610,
+          "resourceIds": [
+            98,
+            99,
+            102,
+            103,
+            104,
+            105,
+            100,
+            101
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN4_3_LAYOUT",
+            "SCREEN_PAN4_3_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN4_3_DATA",
+            "SCREEN_PAN4_3_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN4_3_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN4_3_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN4_3_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN4_3_BOSS_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            98,
+            99,
+            102,
+            103,
+            104,
+            105,
+            100,
+            101
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN4_3_LAYOUT",
+            "SCREEN_PAN4_3_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN4_3_DATA",
+            "SCREEN_PAN4_3_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN4_3_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN4_3_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN4_3_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN4_3_BOSS_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 4,
+      "id": "screenmap_1754823502769",
+      "name": "pan5",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 121,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 121,
+          "rawBytes": 4610,
+          "resourceIds": [
+            106,
+            107,
+            110,
+            111,
+            112,
+            113,
+            108,
+            109
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN5_4_LAYOUT",
+            "SCREEN_PAN5_4_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN5_4_DATA",
+            "SCREEN_PAN5_4_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN5_4_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN5_4_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN5_4_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN5_4_BOSS_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            106,
+            107,
+            110,
+            111,
+            112,
+            113,
+            108,
+            109
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN5_4_LAYOUT",
+            "SCREEN_PAN5_4_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN5_4_DATA",
+            "SCREEN_PAN5_4_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN5_4_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN5_4_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN5_4_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN5_4_BOSS_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 5,
+      "id": "screenmap_1754847853261",
+      "name": "pan6",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 97,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 97,
+          "rawBytes": 4610,
+          "resourceIds": [
+            114,
+            115,
+            118,
+            119,
+            120,
+            121,
+            116,
+            117
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN6_5_LAYOUT",
+            "SCREEN_PAN6_5_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN6_5_DATA",
+            "SCREEN_PAN6_5_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN6_5_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN6_5_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN6_5_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN6_5_BOSS_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            114,
+            115,
+            118,
+            119,
+            120,
+            121,
+            116,
+            117
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN6_5_LAYOUT",
+            "SCREEN_PAN6_5_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN6_5_DATA",
+            "SCREEN_PAN6_5_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN6_5_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN6_5_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN6_5_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN6_5_BOSS_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 6,
+      "id": "screenmap_1755254825434",
+      "name": "pan7",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 82,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 82,
+          "rawBytes": 4610,
+          "resourceIds": [
+            122,
+            123,
+            126,
+            127,
+            128,
+            129,
+            124,
+            125
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN7_6_LAYOUT",
+            "SCREEN_PAN7_6_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN7_6_DATA",
+            "SCREEN_PAN7_6_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN7_6_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN7_6_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN7_6_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN7_6_BOSS_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            122,
+            123,
+            126,
+            127,
+            128,
+            129,
+            124,
+            125
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN7_6_LAYOUT",
+            "SCREEN_PAN7_6_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN7_6_DATA",
+            "SCREEN_PAN7_6_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN7_6_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN7_6_INTERACTION_TARGET_MAP",
+            "SCREEN_PAN7_6_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN7_6_BOSS_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 7,
+      "id": "screenmap_random_0_1_1755255524322",
+      "name": "Room_boss_1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 65,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 65,
+          "rawBytes": 4610,
+          "resourceIds": [
+            130,
+            131,
+            134,
+            135,
+            136,
+            137,
+            132,
+            133
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_BOSS_1_7_LAYOUT",
+            "SCREEN_ROOM_BOSS_1_7_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_BOSS_1_7_DATA",
+            "SCREEN_ROOM_BOSS_1_7_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_BOSS_1_7_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_BOSS_1_7_INTERACTION_TARGET_MAP",
+            "SCREEN_ROOM_BOSS_1_7_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_BOSS_1_7_BOSS_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            130,
+            131,
+            134,
+            135,
+            136,
+            137,
+            132,
+            133
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_BOSS_1_7_LAYOUT",
+            "SCREEN_ROOM_BOSS_1_7_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_BOSS_1_7_DATA",
+            "SCREEN_ROOM_BOSS_1_7_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_BOSS_1_7_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_BOSS_1_7_INTERACTION_TARGET_MAP",
+            "SCREEN_ROOM_BOSS_1_7_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_BOSS_1_7_BOSS_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 8,
+      "id": "screenmap_random_0_2_1755255524322",
+      "name": "Room_enemy_1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 170,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 170,
+          "rawBytes": 4610,
+          "resourceIds": [
+            138,
+            139,
+            142,
+            143,
+            144,
+            145,
+            140,
+            141
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_1_8_LAYOUT",
+            "SCREEN_ROOM_ENEMY_1_8_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_1_8_DATA",
+            "SCREEN_ROOM_ENEMY_1_8_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_1_8_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_1_8_INTERACTION_TARGET_MAP",
+            "SCREEN_ROOM_ENEMY_1_8_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_1_8_BOSS_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            138,
+            139,
+            142,
+            143,
+            144,
+            145,
+            140,
+            141
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_1_8_LAYOUT",
+            "SCREEN_ROOM_ENEMY_1_8_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_1_8_DATA",
+            "SCREEN_ROOM_ENEMY_1_8_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_1_8_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_1_8_INTERACTION_TARGET_MAP",
+            "SCREEN_ROOM_ENEMY_1_8_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_1_8_BOSS_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 9,
+      "id": "screenmap_random_1_1_1755255524322",
+      "name": "Room_final_1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 133,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 133,
+          "rawBytes": 4610,
+          "resourceIds": [
+            146,
+            147,
+            150,
+            151,
+            148,
+            149,
+            152,
+            153
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_FINAL_1_9_LAYOUT",
+            "SCREEN_ROOM_FINAL_1_9_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_FINAL_1_9_DATA",
+            "SCREEN_ROOM_FINAL_1_9_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_FINAL_1_9_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_FINAL_1_9_BOSS_TABLE",
+            "SCREEN_ROOM_FINAL_1_9_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_FINAL_1_9_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            146,
+            147,
+            150,
+            151,
+            148,
+            149,
+            152,
+            153
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_FINAL_1_9_LAYOUT",
+            "SCREEN_ROOM_FINAL_1_9_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_FINAL_1_9_DATA",
+            "SCREEN_ROOM_FINAL_1_9_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_FINAL_1_9_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_FINAL_1_9_BOSS_TABLE",
+            "SCREEN_ROOM_FINAL_1_9_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_FINAL_1_9_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 10,
+      "id": "screenmap_random_1_2_1755255524322",
+      "name": "Room_enemy_2",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 199,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 199,
+          "rawBytes": 4610,
+          "resourceIds": [
+            156,
+            157,
+            154,
+            155,
+            158,
+            159,
+            160,
+            161
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_2_10_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_2_10_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_2_10_LAYOUT",
+            "SCREEN_ROOM_ENEMY_2_10_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_2_10_DATA",
+            "SCREEN_ROOM_ENEMY_2_10_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_2_10_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_2_10_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            156,
+            157,
+            154,
+            155,
+            158,
+            159,
+            160,
+            161
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_2_10_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_2_10_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_2_10_LAYOUT",
+            "SCREEN_ROOM_ENEMY_2_10_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_2_10_DATA",
+            "SCREEN_ROOM_ENEMY_2_10_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_2_10_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_2_10_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 11,
+      "id": "screenmap_random_1_3_1755255524322",
+      "name": "Room_key_1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 144,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 144,
+          "rawBytes": 4610,
+          "resourceIds": [
+            164,
+            165,
+            162,
+            163,
+            166,
+            167,
+            168,
+            169
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_KEY_1_11_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_KEY_1_11_BOSS_TABLE",
+            "SCREEN_ROOM_KEY_1_11_LAYOUT",
+            "SCREEN_ROOM_KEY_1_11_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_KEY_1_11_DATA",
+            "SCREEN_ROOM_KEY_1_11_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_KEY_1_11_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_KEY_1_11_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            164,
+            165,
+            162,
+            163,
+            166,
+            167,
+            168,
+            169
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_KEY_1_11_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_KEY_1_11_BOSS_TABLE",
+            "SCREEN_ROOM_KEY_1_11_LAYOUT",
+            "SCREEN_ROOM_KEY_1_11_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_KEY_1_11_DATA",
+            "SCREEN_ROOM_KEY_1_11_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_KEY_1_11_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_KEY_1_11_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 12,
+      "id": "screenmap_random_2_1_1755255524322",
+      "name": "Room_normal_1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 57,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 57,
+          "rawBytes": 4610,
+          "resourceIds": [
+            172,
+            173,
+            170,
+            171,
+            174,
+            175,
+            176,
+            177
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_1_12_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_1_12_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_1_12_LAYOUT",
+            "SCREEN_ROOM_NORMAL_1_12_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_1_12_DATA",
+            "SCREEN_ROOM_NORMAL_1_12_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_1_12_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_1_12_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            172,
+            173,
+            170,
+            171,
+            174,
+            175,
+            176,
+            177
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_1_12_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_1_12_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_1_12_LAYOUT",
+            "SCREEN_ROOM_NORMAL_1_12_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_1_12_DATA",
+            "SCREEN_ROOM_NORMAL_1_12_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_1_12_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_1_12_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 13,
+      "id": "screenmap_random_2_3_1755255524322",
+      "name": "Room_enemy_3",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 112,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 112,
+          "rawBytes": 4610,
+          "resourceIds": [
+            180,
+            181,
+            178,
+            179,
+            182,
+            183,
+            184,
+            185
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_3_13_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_3_13_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_3_13_LAYOUT",
+            "SCREEN_ROOM_ENEMY_3_13_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_3_13_DATA",
+            "SCREEN_ROOM_ENEMY_3_13_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_3_13_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_3_13_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            180,
+            181,
+            178,
+            179,
+            182,
+            183,
+            184,
+            185
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_3_13_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_3_13_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_3_13_LAYOUT",
+            "SCREEN_ROOM_ENEMY_3_13_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_3_13_DATA",
+            "SCREEN_ROOM_ENEMY_3_13_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_3_13_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_3_13_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 14,
+      "id": "screenmap_random_2_4_1755255524322",
+      "name": "Room_enemy_4",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 119,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 119,
+          "rawBytes": 4610,
+          "resourceIds": [
+            188,
+            189,
+            186,
+            187,
+            190,
+            191,
+            192,
+            193
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_4_14_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_4_14_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_4_14_LAYOUT",
+            "SCREEN_ROOM_ENEMY_4_14_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_4_14_DATA",
+            "SCREEN_ROOM_ENEMY_4_14_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_4_14_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_4_14_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            188,
+            189,
+            186,
+            187,
+            190,
+            191,
+            192,
+            193
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_4_14_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_4_14_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_4_14_LAYOUT",
+            "SCREEN_ROOM_ENEMY_4_14_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_4_14_DATA",
+            "SCREEN_ROOM_ENEMY_4_14_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_4_14_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_4_14_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 15,
+      "id": "screenmap_random_3_0_1755255524322",
+      "name": "Room_secret_1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 70,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 70,
+          "rawBytes": 4610,
+          "resourceIds": [
+            196,
+            197,
+            194,
+            195,
+            198,
+            199,
+            200,
+            201
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_SECRET_1_15_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_SECRET_1_15_BOSS_TABLE",
+            "SCREEN_ROOM_SECRET_1_15_LAYOUT",
+            "SCREEN_ROOM_SECRET_1_15_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_SECRET_1_15_DATA",
+            "SCREEN_ROOM_SECRET_1_15_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_SECRET_1_15_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_SECRET_1_15_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            196,
+            197,
+            194,
+            195,
+            198,
+            199,
+            200,
+            201
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_SECRET_1_15_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_SECRET_1_15_BOSS_TABLE",
+            "SCREEN_ROOM_SECRET_1_15_LAYOUT",
+            "SCREEN_ROOM_SECRET_1_15_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_SECRET_1_15_DATA",
+            "SCREEN_ROOM_SECRET_1_15_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_SECRET_1_15_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_SECRET_1_15_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 16,
+      "id": "screenmap_random_3_1_1755255524322",
+      "name": "Room_item_1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 94,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 94,
+          "rawBytes": 4610,
+          "resourceIds": [
+            204,
+            205,
+            202,
+            203,
+            206,
+            207,
+            208,
+            209
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ITEM_1_16_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ITEM_1_16_BOSS_TABLE",
+            "SCREEN_ROOM_ITEM_1_16_LAYOUT",
+            "SCREEN_ROOM_ITEM_1_16_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ITEM_1_16_DATA",
+            "SCREEN_ROOM_ITEM_1_16_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ITEM_1_16_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ITEM_1_16_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            204,
+            205,
+            202,
+            203,
+            206,
+            207,
+            208,
+            209
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ITEM_1_16_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ITEM_1_16_BOSS_TABLE",
+            "SCREEN_ROOM_ITEM_1_16_LAYOUT",
+            "SCREEN_ROOM_ITEM_1_16_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ITEM_1_16_DATA",
+            "SCREEN_ROOM_ITEM_1_16_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ITEM_1_16_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ITEM_1_16_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 17,
+      "id": "screenmap_random_3_2_1755255524322",
+      "name": "Room_key_2",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 98,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 98,
+          "rawBytes": 4610,
+          "resourceIds": [
+            212,
+            213,
+            210,
+            211,
+            214,
+            215,
+            216,
+            217
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_KEY_2_17_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_KEY_2_17_BOSS_TABLE",
+            "SCREEN_ROOM_KEY_2_17_LAYOUT",
+            "SCREEN_ROOM_KEY_2_17_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_KEY_2_17_DATA",
+            "SCREEN_ROOM_KEY_2_17_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_KEY_2_17_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_KEY_2_17_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            212,
+            213,
+            210,
+            211,
+            214,
+            215,
+            216,
+            217
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_KEY_2_17_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_KEY_2_17_BOSS_TABLE",
+            "SCREEN_ROOM_KEY_2_17_LAYOUT",
+            "SCREEN_ROOM_KEY_2_17_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_KEY_2_17_DATA",
+            "SCREEN_ROOM_KEY_2_17_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_KEY_2_17_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_KEY_2_17_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 18,
+      "id": "screenmap_random_3_3_1755255524322",
+      "name": "Room_normal_2",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 95,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 95,
+          "rawBytes": 4610,
+          "resourceIds": [
+            220,
+            221,
+            218,
+            219,
+            222,
+            223,
+            224,
+            225
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_2_18_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_2_18_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_2_18_LAYOUT",
+            "SCREEN_ROOM_NORMAL_2_18_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_2_18_DATA",
+            "SCREEN_ROOM_NORMAL_2_18_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_2_18_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_2_18_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            220,
+            221,
+            218,
+            219,
+            222,
+            223,
+            224,
+            225
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_2_18_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_2_18_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_2_18_LAYOUT",
+            "SCREEN_ROOM_NORMAL_2_18_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_2_18_DATA",
+            "SCREEN_ROOM_NORMAL_2_18_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_2_18_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_2_18_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 19,
+      "id": "screenmap_random_3_4_1755255524322",
+      "name": "Room_enemy_5",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 94,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 94,
+          "rawBytes": 4610,
+          "resourceIds": [
+            228,
+            229,
+            226,
+            227,
+            230,
+            231,
+            232,
+            233
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_5_19_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_5_19_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_5_19_LAYOUT",
+            "SCREEN_ROOM_ENEMY_5_19_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_5_19_DATA",
+            "SCREEN_ROOM_ENEMY_5_19_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_5_19_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_5_19_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            228,
+            229,
+            226,
+            227,
+            230,
+            231,
+            232,
+            233
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_5_19_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_5_19_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_5_19_LAYOUT",
+            "SCREEN_ROOM_ENEMY_5_19_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_5_19_DATA",
+            "SCREEN_ROOM_ENEMY_5_19_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_5_19_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_5_19_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 20,
+      "id": "screenmap_1755262663123",
+      "name": "pan8",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 66,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 66,
+          "rawBytes": 4610,
+          "resourceIds": [
+            236,
+            237,
+            234,
+            235,
+            238,
+            239,
+            240,
+            241
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN8_20_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN8_20_BOSS_TABLE",
+            "SCREEN_PAN8_20_LAYOUT",
+            "SCREEN_PAN8_20_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN8_20_DATA",
+            "SCREEN_PAN8_20_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN8_20_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN8_20_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            236,
+            237,
+            234,
+            235,
+            238,
+            239,
+            240,
+            241
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN8_20_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN8_20_BOSS_TABLE",
+            "SCREEN_PAN8_20_LAYOUT",
+            "SCREEN_PAN8_20_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN8_20_DATA",
+            "SCREEN_PAN8_20_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN8_20_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN8_20_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 21,
+      "id": "screenmap_1755262973244",
+      "name": "pan9",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 171,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 171,
+          "rawBytes": 4610,
+          "resourceIds": [
+            244,
+            245,
+            242,
+            243,
+            246,
+            247,
+            248,
+            249
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN9_21_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN9_21_BOSS_TABLE",
+            "SCREEN_PAN9_21_LAYOUT",
+            "SCREEN_PAN9_21_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN9_21_DATA",
+            "SCREEN_PAN9_21_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN9_21_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN9_21_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            244,
+            245,
+            242,
+            243,
+            246,
+            247,
+            248,
+            249
+          ],
+          "resourceLabels": [
+            "SCREEN_PAN9_21_EFFECT_ZONE_TABLE",
+            "SCREEN_PAN9_21_BOSS_TABLE",
+            "SCREEN_PAN9_21_LAYOUT",
+            "SCREEN_PAN9_21_EFFECTS_LAYOUT",
+            "BEHAVIOR_PAN9_21_DATA",
+            "SCREEN_PAN9_21_INTERACTION_TYPE_MAP",
+            "SCREEN_PAN9_21_INTERACTION_VALUE_MAP",
+            "SCREEN_PAN9_21_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 22,
+      "id": "screenmap_random_0_1_1755782082961",
+      "name": "Room_normal_1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            252,
+            253,
+            250,
+            251,
+            254,
+            255,
+            256,
+            257
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_1_22_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_1_22_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_1_22_LAYOUT",
+            "SCREEN_ROOM_NORMAL_1_22_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_1_22_DATA",
+            "SCREEN_ROOM_NORMAL_1_22_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_1_22_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_1_22_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            252,
+            253,
+            250,
+            251,
+            254,
+            255,
+            256,
+            257
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_1_22_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_1_22_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_1_22_LAYOUT",
+            "SCREEN_ROOM_NORMAL_1_22_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_1_22_DATA",
+            "SCREEN_ROOM_NORMAL_1_22_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_1_22_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_1_22_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 23,
+      "id": "screenmap_random_0_2_1755782082962",
+      "name": "Room_secret_1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            260,
+            261,
+            258,
+            259,
+            262,
+            263,
+            264,
+            265
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_SECRET_1_23_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_SECRET_1_23_BOSS_TABLE",
+            "SCREEN_ROOM_SECRET_1_23_LAYOUT",
+            "SCREEN_ROOM_SECRET_1_23_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_SECRET_1_23_DATA",
+            "SCREEN_ROOM_SECRET_1_23_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_SECRET_1_23_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_SECRET_1_23_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            260,
+            261,
+            258,
+            259,
+            262,
+            263,
+            264,
+            265
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_SECRET_1_23_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_SECRET_1_23_BOSS_TABLE",
+            "SCREEN_ROOM_SECRET_1_23_LAYOUT",
+            "SCREEN_ROOM_SECRET_1_23_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_SECRET_1_23_DATA",
+            "SCREEN_ROOM_SECRET_1_23_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_SECRET_1_23_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_SECRET_1_23_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 24,
+      "id": "screenmap_random_0_3_1755782082962",
+      "name": "Room_key_1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            268,
+            269,
+            266,
+            267,
+            270,
+            271,
+            272,
+            273
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_KEY_1_24_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_KEY_1_24_BOSS_TABLE",
+            "SCREEN_ROOM_KEY_1_24_LAYOUT",
+            "SCREEN_ROOM_KEY_1_24_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_KEY_1_24_DATA",
+            "SCREEN_ROOM_KEY_1_24_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_KEY_1_24_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_KEY_1_24_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            268,
+            269,
+            266,
+            267,
+            270,
+            271,
+            272,
+            273
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_KEY_1_24_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_KEY_1_24_BOSS_TABLE",
+            "SCREEN_ROOM_KEY_1_24_LAYOUT",
+            "SCREEN_ROOM_KEY_1_24_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_KEY_1_24_DATA",
+            "SCREEN_ROOM_KEY_1_24_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_KEY_1_24_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_KEY_1_24_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 25,
+      "id": "screenmap_random_0_4_1755782082962",
+      "name": "Room_enemy_1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            276,
+            277,
+            274,
+            275,
+            278,
+            279,
+            280,
+            281
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_1_25_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_1_25_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_1_25_LAYOUT",
+            "SCREEN_ROOM_ENEMY_1_25_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_1_25_DATA",
+            "SCREEN_ROOM_ENEMY_1_25_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_1_25_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_1_25_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            276,
+            277,
+            274,
+            275,
+            278,
+            279,
+            280,
+            281
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_1_25_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_1_25_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_1_25_LAYOUT",
+            "SCREEN_ROOM_ENEMY_1_25_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_1_25_DATA",
+            "SCREEN_ROOM_ENEMY_1_25_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_1_25_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_1_25_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 26,
+      "id": "screenmap_random_1_0_1755782082962",
+      "name": "Room_normal_2",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            284,
+            285,
+            282,
+            283,
+            286,
+            287,
+            288,
+            289
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_2_26_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_2_26_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_2_26_LAYOUT",
+            "SCREEN_ROOM_NORMAL_2_26_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_2_26_DATA",
+            "SCREEN_ROOM_NORMAL_2_26_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_2_26_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_2_26_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            284,
+            285,
+            282,
+            283,
+            286,
+            287,
+            288,
+            289
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_2_26_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_2_26_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_2_26_LAYOUT",
+            "SCREEN_ROOM_NORMAL_2_26_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_2_26_DATA",
+            "SCREEN_ROOM_NORMAL_2_26_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_2_26_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_2_26_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 27,
+      "id": "screenmap_random_1_1_1755782082962",
+      "name": "Room_normal_3",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            292,
+            293,
+            290,
+            291,
+            294,
+            295,
+            296,
+            297
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_3_27_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_3_27_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_3_27_LAYOUT",
+            "SCREEN_ROOM_NORMAL_3_27_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_3_27_DATA",
+            "SCREEN_ROOM_NORMAL_3_27_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_3_27_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_3_27_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            292,
+            293,
+            290,
+            291,
+            294,
+            295,
+            296,
+            297
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_3_27_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_3_27_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_3_27_LAYOUT",
+            "SCREEN_ROOM_NORMAL_3_27_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_3_27_DATA",
+            "SCREEN_ROOM_NORMAL_3_27_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_3_27_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_3_27_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 28,
+      "id": "screenmap_random_1_3_1755782082962",
+      "name": "Room_normal_4",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            300,
+            301,
+            298,
+            299,
+            302,
+            303,
+            304,
+            305
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_4_28_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_4_28_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_4_28_LAYOUT",
+            "SCREEN_ROOM_NORMAL_4_28_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_4_28_DATA",
+            "SCREEN_ROOM_NORMAL_4_28_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_4_28_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_4_28_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            300,
+            301,
+            298,
+            299,
+            302,
+            303,
+            304,
+            305
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_4_28_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_4_28_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_4_28_LAYOUT",
+            "SCREEN_ROOM_NORMAL_4_28_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_4_28_DATA",
+            "SCREEN_ROOM_NORMAL_4_28_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_4_28_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_4_28_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 29,
+      "id": "screenmap_random_1_4_1755782082962",
+      "name": "Room_enemy_2",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            308,
+            309,
+            306,
+            307,
+            310,
+            311,
+            312,
+            313
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_2_29_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_2_29_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_2_29_LAYOUT",
+            "SCREEN_ROOM_ENEMY_2_29_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_2_29_DATA",
+            "SCREEN_ROOM_ENEMY_2_29_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_2_29_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_2_29_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            308,
+            309,
+            306,
+            307,
+            310,
+            311,
+            312,
+            313
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_2_29_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_2_29_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_2_29_LAYOUT",
+            "SCREEN_ROOM_ENEMY_2_29_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_2_29_DATA",
+            "SCREEN_ROOM_ENEMY_2_29_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_2_29_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_2_29_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 30,
+      "id": "screenmap_random_1_5_1755782082962",
+      "name": "Room_item_1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            316,
+            317,
+            314,
+            315,
+            318,
+            319,
+            320,
+            321
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ITEM_1_30_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ITEM_1_30_BOSS_TABLE",
+            "SCREEN_ROOM_ITEM_1_30_LAYOUT",
+            "SCREEN_ROOM_ITEM_1_30_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ITEM_1_30_DATA",
+            "SCREEN_ROOM_ITEM_1_30_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ITEM_1_30_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ITEM_1_30_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            316,
+            317,
+            314,
+            315,
+            318,
+            319,
+            320,
+            321
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ITEM_1_30_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ITEM_1_30_BOSS_TABLE",
+            "SCREEN_ROOM_ITEM_1_30_LAYOUT",
+            "SCREEN_ROOM_ITEM_1_30_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ITEM_1_30_DATA",
+            "SCREEN_ROOM_ITEM_1_30_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ITEM_1_30_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ITEM_1_30_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 31,
+      "id": "screenmap_random_1_6_1755782082962",
+      "name": "Room_enemy_3",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            324,
+            325,
+            322,
+            323,
+            326,
+            327,
+            328,
+            329
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_3_31_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_3_31_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_3_31_LAYOUT",
+            "SCREEN_ROOM_ENEMY_3_31_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_3_31_DATA",
+            "SCREEN_ROOM_ENEMY_3_31_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_3_31_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_3_31_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            324,
+            325,
+            322,
+            323,
+            326,
+            327,
+            328,
+            329
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_3_31_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_3_31_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_3_31_LAYOUT",
+            "SCREEN_ROOM_ENEMY_3_31_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_3_31_DATA",
+            "SCREEN_ROOM_ENEMY_3_31_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_3_31_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_3_31_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 32,
+      "id": "screenmap_random_1_7_1755782082962",
+      "name": "Room_enemy_4",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            332,
+            333,
+            330,
+            331,
+            334,
+            335,
+            336,
+            337
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_4_32_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_4_32_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_4_32_LAYOUT",
+            "SCREEN_ROOM_ENEMY_4_32_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_4_32_DATA",
+            "SCREEN_ROOM_ENEMY_4_32_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_4_32_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_4_32_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            332,
+            333,
+            330,
+            331,
+            334,
+            335,
+            336,
+            337
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_4_32_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_4_32_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_4_32_LAYOUT",
+            "SCREEN_ROOM_ENEMY_4_32_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_4_32_DATA",
+            "SCREEN_ROOM_ENEMY_4_32_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_4_32_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_4_32_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 33,
+      "id": "screenmap_random_2_0_1755782082962",
+      "name": "Room_enemy_5",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            340,
+            341,
+            338,
+            339,
+            342,
+            343,
+            344,
+            345
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_5_33_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_5_33_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_5_33_LAYOUT",
+            "SCREEN_ROOM_ENEMY_5_33_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_5_33_DATA",
+            "SCREEN_ROOM_ENEMY_5_33_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_5_33_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_5_33_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            340,
+            341,
+            338,
+            339,
+            342,
+            343,
+            344,
+            345
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_5_33_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_5_33_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_5_33_LAYOUT",
+            "SCREEN_ROOM_ENEMY_5_33_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_5_33_DATA",
+            "SCREEN_ROOM_ENEMY_5_33_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_5_33_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_5_33_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 34,
+      "id": "screenmap_random_2_1_1755782082962",
+      "name": "Room_normal_5",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            348,
+            349,
+            346,
+            347,
+            350,
+            351,
+            352,
+            353
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_5_34_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_5_34_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_5_34_LAYOUT",
+            "SCREEN_ROOM_NORMAL_5_34_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_5_34_DATA",
+            "SCREEN_ROOM_NORMAL_5_34_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_5_34_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_5_34_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            348,
+            349,
+            346,
+            347,
+            350,
+            351,
+            352,
+            353
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_5_34_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_5_34_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_5_34_LAYOUT",
+            "SCREEN_ROOM_NORMAL_5_34_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_5_34_DATA",
+            "SCREEN_ROOM_NORMAL_5_34_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_5_34_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_5_34_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 35,
+      "id": "screenmap_random_2_2_1755782082962",
+      "name": "Room_normal_6",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            356,
+            357,
+            354,
+            355,
+            358,
+            359,
+            360,
+            361
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_6_35_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_6_35_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_6_35_LAYOUT",
+            "SCREEN_ROOM_NORMAL_6_35_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_6_35_DATA",
+            "SCREEN_ROOM_NORMAL_6_35_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_6_35_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_6_35_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            356,
+            357,
+            354,
+            355,
+            358,
+            359,
+            360,
+            361
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_6_35_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_6_35_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_6_35_LAYOUT",
+            "SCREEN_ROOM_NORMAL_6_35_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_6_35_DATA",
+            "SCREEN_ROOM_NORMAL_6_35_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_6_35_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_6_35_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 36,
+      "id": "screenmap_random_2_3_1755782082962",
+      "name": "Room_normal_7",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            364,
+            365,
+            362,
+            363,
+            366,
+            367,
+            368,
+            369
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_7_36_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_7_36_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_7_36_LAYOUT",
+            "SCREEN_ROOM_NORMAL_7_36_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_7_36_DATA",
+            "SCREEN_ROOM_NORMAL_7_36_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_7_36_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_7_36_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            364,
+            365,
+            362,
+            363,
+            366,
+            367,
+            368,
+            369
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_7_36_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_7_36_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_7_36_LAYOUT",
+            "SCREEN_ROOM_NORMAL_7_36_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_7_36_DATA",
+            "SCREEN_ROOM_NORMAL_7_36_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_7_36_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_7_36_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 37,
+      "id": "screenmap_random_2_4_1755782082963",
+      "name": "Room_key_2",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 90,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 90,
+          "rawBytes": 4610,
+          "resourceIds": [
+            372,
+            373,
+            370,
+            371,
+            374,
+            375,
+            376,
+            377
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_KEY_2_37_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_KEY_2_37_BOSS_TABLE",
+            "SCREEN_ROOM_KEY_2_37_LAYOUT",
+            "SCREEN_ROOM_KEY_2_37_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_KEY_2_37_DATA",
+            "SCREEN_ROOM_KEY_2_37_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_KEY_2_37_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_KEY_2_37_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            372,
+            373,
+            370,
+            371,
+            374,
+            375,
+            376,
+            377
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_KEY_2_37_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_KEY_2_37_BOSS_TABLE",
+            "SCREEN_ROOM_KEY_2_37_LAYOUT",
+            "SCREEN_ROOM_KEY_2_37_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_KEY_2_37_DATA",
+            "SCREEN_ROOM_KEY_2_37_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_KEY_2_37_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_KEY_2_37_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 38,
+      "id": "screenmap_random_2_5_1755782082963",
+      "name": "Room_item_2",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            380,
+            381,
+            378,
+            379,
+            382,
+            383,
+            384,
+            385
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ITEM_2_38_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ITEM_2_38_BOSS_TABLE",
+            "SCREEN_ROOM_ITEM_2_38_LAYOUT",
+            "SCREEN_ROOM_ITEM_2_38_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ITEM_2_38_DATA",
+            "SCREEN_ROOM_ITEM_2_38_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ITEM_2_38_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ITEM_2_38_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            380,
+            381,
+            378,
+            379,
+            382,
+            383,
+            384,
+            385
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ITEM_2_38_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ITEM_2_38_BOSS_TABLE",
+            "SCREEN_ROOM_ITEM_2_38_LAYOUT",
+            "SCREEN_ROOM_ITEM_2_38_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ITEM_2_38_DATA",
+            "SCREEN_ROOM_ITEM_2_38_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ITEM_2_38_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ITEM_2_38_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 39,
+      "id": "screenmap_random_2_6_1755782082963",
+      "name": "Room_normal_8",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            388,
+            389,
+            386,
+            387,
+            390,
+            391,
+            392,
+            393
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_8_39_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_8_39_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_8_39_LAYOUT",
+            "SCREEN_ROOM_NORMAL_8_39_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_8_39_DATA",
+            "SCREEN_ROOM_NORMAL_8_39_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_8_39_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_8_39_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            388,
+            389,
+            386,
+            387,
+            390,
+            391,
+            392,
+            393
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_8_39_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_8_39_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_8_39_LAYOUT",
+            "SCREEN_ROOM_NORMAL_8_39_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_8_39_DATA",
+            "SCREEN_ROOM_NORMAL_8_39_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_8_39_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_8_39_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 40,
+      "id": "screenmap_random_2_7_1755782082963",
+      "name": "Room_normal_9",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            396,
+            397,
+            394,
+            395,
+            398,
+            399,
+            400,
+            401
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_9_40_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_9_40_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_9_40_LAYOUT",
+            "SCREEN_ROOM_NORMAL_9_40_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_9_40_DATA",
+            "SCREEN_ROOM_NORMAL_9_40_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_9_40_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_9_40_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            396,
+            397,
+            394,
+            395,
+            398,
+            399,
+            400,
+            401
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_9_40_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_9_40_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_9_40_LAYOUT",
+            "SCREEN_ROOM_NORMAL_9_40_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_9_40_DATA",
+            "SCREEN_ROOM_NORMAL_9_40_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_9_40_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_9_40_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 41,
+      "id": "screenmap_random_3_1_1755782082963",
+      "name": "Room_normal_10",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            404,
+            405,
+            402,
+            403,
+            406,
+            407,
+            408,
+            409
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_10_41_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_10_41_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_10_41_LAYOUT",
+            "SCREEN_ROOM_NORMAL_10_41_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_10_41_DATA",
+            "SCREEN_ROOM_NORMAL_10_41_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_10_41_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_10_41_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            404,
+            405,
+            402,
+            403,
+            406,
+            407,
+            408,
+            409
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_10_41_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_10_41_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_10_41_LAYOUT",
+            "SCREEN_ROOM_NORMAL_10_41_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_10_41_DATA",
+            "SCREEN_ROOM_NORMAL_10_41_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_10_41_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_10_41_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 42,
+      "id": "screenmap_random_3_2_1755782082963",
+      "name": "Room_enemy_6",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            412,
+            413,
+            410,
+            411,
+            414,
+            415,
+            416,
+            417
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_6_42_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_6_42_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_6_42_LAYOUT",
+            "SCREEN_ROOM_ENEMY_6_42_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_6_42_DATA",
+            "SCREEN_ROOM_ENEMY_6_42_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_6_42_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_6_42_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            412,
+            413,
+            410,
+            411,
+            414,
+            415,
+            416,
+            417
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_6_42_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_6_42_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_6_42_LAYOUT",
+            "SCREEN_ROOM_ENEMY_6_42_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_6_42_DATA",
+            "SCREEN_ROOM_ENEMY_6_42_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_6_42_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_6_42_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 43,
+      "id": "screenmap_random_3_3_1755782082963",
+      "name": "Room_enemy_7",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            420,
+            421,
+            418,
+            419,
+            422,
+            423,
+            424,
+            425
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_7_43_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_7_43_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_7_43_LAYOUT",
+            "SCREEN_ROOM_ENEMY_7_43_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_7_43_DATA",
+            "SCREEN_ROOM_ENEMY_7_43_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_7_43_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_7_43_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            420,
+            421,
+            418,
+            419,
+            422,
+            423,
+            424,
+            425
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_7_43_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_7_43_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_7_43_LAYOUT",
+            "SCREEN_ROOM_ENEMY_7_43_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_7_43_DATA",
+            "SCREEN_ROOM_ENEMY_7_43_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_7_43_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_7_43_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 44,
+      "id": "screenmap_random_3_4_1755782082963",
+      "name": "Room_final_1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            428,
+            429,
+            426,
+            427,
+            430,
+            431,
+            432,
+            433
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_FINAL_1_44_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_FINAL_1_44_BOSS_TABLE",
+            "SCREEN_ROOM_FINAL_1_44_LAYOUT",
+            "SCREEN_ROOM_FINAL_1_44_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_FINAL_1_44_DATA",
+            "SCREEN_ROOM_FINAL_1_44_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_FINAL_1_44_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_FINAL_1_44_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            428,
+            429,
+            426,
+            427,
+            430,
+            431,
+            432,
+            433
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_FINAL_1_44_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_FINAL_1_44_BOSS_TABLE",
+            "SCREEN_ROOM_FINAL_1_44_LAYOUT",
+            "SCREEN_ROOM_FINAL_1_44_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_FINAL_1_44_DATA",
+            "SCREEN_ROOM_FINAL_1_44_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_FINAL_1_44_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_FINAL_1_44_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 45,
+      "id": "screenmap_random_3_5_1755782082963",
+      "name": "Room_normal_11",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            436,
+            437,
+            434,
+            435,
+            438,
+            439,
+            440,
+            441
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_11_45_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_11_45_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_11_45_LAYOUT",
+            "SCREEN_ROOM_NORMAL_11_45_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_11_45_DATA",
+            "SCREEN_ROOM_NORMAL_11_45_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_11_45_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_11_45_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            436,
+            437,
+            434,
+            435,
+            438,
+            439,
+            440,
+            441
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_11_45_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_11_45_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_11_45_LAYOUT",
+            "SCREEN_ROOM_NORMAL_11_45_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_11_45_DATA",
+            "SCREEN_ROOM_NORMAL_11_45_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_11_45_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_11_45_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 46,
+      "id": "screenmap_random_3_6_1755782082964",
+      "name": "Room_enemy_8",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            444,
+            445,
+            442,
+            443,
+            446,
+            447,
+            448,
+            449
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_8_46_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_8_46_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_8_46_LAYOUT",
+            "SCREEN_ROOM_ENEMY_8_46_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_8_46_DATA",
+            "SCREEN_ROOM_ENEMY_8_46_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_8_46_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_8_46_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            444,
+            445,
+            442,
+            443,
+            446,
+            447,
+            448,
+            449
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_8_46_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_8_46_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_8_46_LAYOUT",
+            "SCREEN_ROOM_ENEMY_8_46_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_8_46_DATA",
+            "SCREEN_ROOM_ENEMY_8_46_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_8_46_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_8_46_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 47,
+      "id": "screenmap_random_3_7_1755782082964",
+      "name": "Room_key_3",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            452,
+            453,
+            450,
+            451,
+            454,
+            455,
+            456,
+            457
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_KEY_3_47_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_KEY_3_47_BOSS_TABLE",
+            "SCREEN_ROOM_KEY_3_47_LAYOUT",
+            "SCREEN_ROOM_KEY_3_47_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_KEY_3_47_DATA",
+            "SCREEN_ROOM_KEY_3_47_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_KEY_3_47_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_KEY_3_47_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            452,
+            453,
+            450,
+            451,
+            454,
+            455,
+            456,
+            457
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_KEY_3_47_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_KEY_3_47_BOSS_TABLE",
+            "SCREEN_ROOM_KEY_3_47_LAYOUT",
+            "SCREEN_ROOM_KEY_3_47_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_KEY_3_47_DATA",
+            "SCREEN_ROOM_KEY_3_47_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_KEY_3_47_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_KEY_3_47_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 48,
+      "id": "screenmap_random_4_3_1755782082964",
+      "name": "Room_normal_12",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            460,
+            461,
+            458,
+            459,
+            462,
+            463,
+            464,
+            465
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_12_48_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_12_48_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_12_48_LAYOUT",
+            "SCREEN_ROOM_NORMAL_12_48_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_12_48_DATA",
+            "SCREEN_ROOM_NORMAL_12_48_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_12_48_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_12_48_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            460,
+            461,
+            458,
+            459,
+            462,
+            463,
+            464,
+            465
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_NORMAL_12_48_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_NORMAL_12_48_BOSS_TABLE",
+            "SCREEN_ROOM_NORMAL_12_48_LAYOUT",
+            "SCREEN_ROOM_NORMAL_12_48_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_NORMAL_12_48_DATA",
+            "SCREEN_ROOM_NORMAL_12_48_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_NORMAL_12_48_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_NORMAL_12_48_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 49,
+      "id": "screenmap_random_4_4_1755782082964",
+      "name": "Room_enemy_9",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            468,
+            469,
+            466,
+            467,
+            470,
+            471,
+            472,
+            473
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_9_49_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_9_49_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_9_49_LAYOUT",
+            "SCREEN_ROOM_ENEMY_9_49_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_9_49_DATA",
+            "SCREEN_ROOM_ENEMY_9_49_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_9_49_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_9_49_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            468,
+            469,
+            466,
+            467,
+            470,
+            471,
+            472,
+            473
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_9_49_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_9_49_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_9_49_LAYOUT",
+            "SCREEN_ROOM_ENEMY_9_49_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_9_49_DATA",
+            "SCREEN_ROOM_ENEMY_9_49_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_9_49_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_9_49_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 50,
+      "id": "screenmap_random_4_5_1755782082964",
+      "name": "Room_enemy_10",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            476,
+            477,
+            474,
+            475,
+            478,
+            479,
+            480,
+            481
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_10_50_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_10_50_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_10_50_LAYOUT",
+            "SCREEN_ROOM_ENEMY_10_50_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_10_50_DATA",
+            "SCREEN_ROOM_ENEMY_10_50_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_10_50_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_10_50_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            476,
+            477,
+            474,
+            475,
+            478,
+            479,
+            480,
+            481
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_ENEMY_10_50_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_ENEMY_10_50_BOSS_TABLE",
+            "SCREEN_ROOM_ENEMY_10_50_LAYOUT",
+            "SCREEN_ROOM_ENEMY_10_50_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_ENEMY_10_50_DATA",
+            "SCREEN_ROOM_ENEMY_10_50_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_ENEMY_10_50_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_ENEMY_10_50_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 51,
+      "id": "screenmap_random_4_7_1755782082964",
+      "name": "Room_secret_2",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            484,
+            485,
+            482,
+            483,
+            486,
+            487,
+            488,
+            489
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_SECRET_2_51_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_SECRET_2_51_BOSS_TABLE",
+            "SCREEN_ROOM_SECRET_2_51_LAYOUT",
+            "SCREEN_ROOM_SECRET_2_51_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_SECRET_2_51_DATA",
+            "SCREEN_ROOM_SECRET_2_51_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_SECRET_2_51_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_SECRET_2_51_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            484,
+            485,
+            482,
+            483,
+            486,
+            487,
+            488,
+            489
+          ],
+          "resourceLabels": [
+            "SCREEN_ROOM_SECRET_2_51_EFFECT_ZONE_TABLE",
+            "SCREEN_ROOM_SECRET_2_51_BOSS_TABLE",
+            "SCREEN_ROOM_SECRET_2_51_LAYOUT",
+            "SCREEN_ROOM_SECRET_2_51_EFFECTS_LAYOUT",
+            "BEHAVIOR_ROOM_SECRET_2_51_DATA",
+            "SCREEN_ROOM_SECRET_2_51_INTERACTION_TYPE_MAP",
+            "SCREEN_ROOM_SECRET_2_51_INTERACTION_VALUE_MAP",
+            "SCREEN_ROOM_SECRET_2_51_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 52,
+      "id": "screenmap_1756133205595",
+      "name": "New Screenmap",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 79,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 79,
+          "rawBytes": 4610,
+          "resourceIds": [
+            492,
+            493,
+            490,
+            491,
+            494,
+            495,
+            496,
+            497
+          ],
+          "resourceLabels": [
+            "SCREEN_NEW_SCREENMAP_52_EFFECT_ZONE_TABLE",
+            "SCREEN_NEW_SCREENMAP_52_BOSS_TABLE",
+            "SCREEN_NEW_SCREENMAP_52_LAYOUT",
+            "SCREEN_NEW_SCREENMAP_52_EFFECTS_LAYOUT",
+            "BEHAVIOR_NEW_SCREENMAP_52_DATA",
+            "SCREEN_NEW_SCREENMAP_52_INTERACTION_TYPE_MAP",
+            "SCREEN_NEW_SCREENMAP_52_INTERACTION_VALUE_MAP",
+            "SCREEN_NEW_SCREENMAP_52_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            492,
+            493,
+            490,
+            491,
+            494,
+            495,
+            496,
+            497
+          ],
+          "resourceLabels": [
+            "SCREEN_NEW_SCREENMAP_52_EFFECT_ZONE_TABLE",
+            "SCREEN_NEW_SCREENMAP_52_BOSS_TABLE",
+            "SCREEN_NEW_SCREENMAP_52_LAYOUT",
+            "SCREEN_NEW_SCREENMAP_52_EFFECTS_LAYOUT",
+            "BEHAVIOR_NEW_SCREENMAP_52_DATA",
+            "SCREEN_NEW_SCREENMAP_52_INTERACTION_TYPE_MAP",
+            "SCREEN_NEW_SCREENMAP_52_INTERACTION_VALUE_MAP",
+            "SCREEN_NEW_SCREENMAP_52_INTERACTION_TARGET_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    }
+  ]
+}

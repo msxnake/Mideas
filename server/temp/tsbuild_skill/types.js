@@ -121,6 +121,7 @@ var EditorType;
     EditorType["StateMachine"] = "StateMachine";
     EditorType["GlobalVariables"] = "GlobalVariables";
     EditorType["Palette"] = "Palette";
+    EditorType["PngMsxChars"] = "PngMsxChars";
 })(EditorType || (exports.EditorType = EditorType = {}));
 exports.DITHER_BRUSH_DIAMETERS = [1, 3, 5, 7];
 exports.SOLIDITY_TYPES = [

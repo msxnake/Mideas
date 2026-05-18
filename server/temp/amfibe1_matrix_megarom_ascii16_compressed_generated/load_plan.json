@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "scope": "konami8k_scene_load_plan",
+  "strategy": "group current banked resources by scene and physical bank; optimizer consumes this before repacking",
+  "mapper": {
+    "format": "ascii16",
+    "segmentSize": 16384,
+    "dataWindowPage": "p3",
+    "windowBase": "#8000",
+    "windowMask": "#3FFF",
+    "bankDivisor": "#4000"
+  },
+  "summary": {
+    "sceneCount": 0,
+    "resourceCount": 3,
+    "uniqueDataBanks": 1,
+    "totalSceneBankTouches": 0,
+    "maxSceneBankTouches": 0,
+    "totalStoredBytes": 1546,
+    "totalRawBytes": 2048,
+    "compressedResources": 3
+  },
+  "scenes": []
+}

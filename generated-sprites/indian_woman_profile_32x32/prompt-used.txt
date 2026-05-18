@@ -1,0 +1,1 @@
+One 2D pixel-art game sprite: an Indian woman from India shown in strict side profile, facing right; final sprite reads clearly at 32x32 pixels; black braided hair, warm brown skin, red sari with gold trim, small bindi, sandals; retro 16-bit RPG style; solid #FF00FF background.

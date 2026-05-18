@@ -1,0 +1,13 @@
+BP_4010 pc=4010 sp=F2EC bank=00/04/33/3A flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+space1_before pc=1A0E sp=D65E bank=07/07/01/01 flow=00 screen=04 irq=199F inirq=00 pos=49536,0
+space1_after pc=1A0D sp=D404 bank=07/07/01/01 flow=00 screen=04 irq=199F inirq=00 pos=49536,0
+space2_before pc=1A02 sp=C38E bank=07/07/01/01 flow=00 screen=04 irq=199F inirq=00 pos=49536,0
+space2_after pc=19B1 sp=C136 bank=07/07/01/01 flow=00 screen=04 irq=199F inirq=00 pos=49536,0
+t12 pc=1B19 sp=F300 bank=04/FF/01/7A flow=10 screen=04 irq=199F inirq=00 pos=49536,0
+SHOTOK patoantic248_ascii16_physical_stride_t12.png
+right_before pc=1B19 sp=F300 bank=04/FF/01/7A flow=10 screen=04 irq=199F inirq=00 pos=49536,0
+right_after pc=1B19 sp=F300 bank=04/FF/01/7A flow=10 screen=04 irq=199F inirq=00 pos=49536,0
+t16 pc=1B19 sp=F300 bank=04/FF/01/7A flow=10 screen=04 irq=199F inirq=00 pos=49536,0
+SHOTOK patoantic248_ascii16_physical_stride_t16.png
+t22 pc=1B19 sp=F300 bank=04/FF/01/7A flow=10 screen=04 irq=199F inirq=00 pos=49536,0
+SHOTOK patoantic248_ascii16_physical_stride_t22.png

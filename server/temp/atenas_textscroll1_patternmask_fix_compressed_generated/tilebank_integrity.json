@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "scope": "konami8k_tilebank_integrity",
+  "summary": {
+    "screens": 1,
+    "tileBanks": 0,
+    "checkedScreens": 0,
+    "issueScreens": 0,
+    "issueCells": 0,
+    "issueTiles": 0,
+    "missingAssetCells": 0,
+    "missingAssetTiles": 0,
+    "unassignedCells": 0,
+    "unassignedTiles": 0
+  },
+  "screens": [
+    {
+      "index": 0,
+      "id": "screenmap_1767095338721",
+      "name": "pantalla1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    }
+  ]
+}

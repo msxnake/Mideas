@@ -19,11 +19,24 @@ const page0Generator_1 = require("./page0Generator");
 const romModeUtils_1 = require("./romModeUtils");
 const megaromResourceArtifacts_1 = require("../utils/megaromResourceArtifacts");
 const blockMapBuilder_1 = require("../../screenOptimization/blockMapBuilder");
+const tileBankOptimization_1 = require("../../../utils/tileBankOptimization");
 const mapperWindowUtils_1 = require("./mapperWindowUtils");
 const SCREEN_WIDTH = 32;
 const SCREEN_HEIGHT = 24;
 const ASM_BYTES_PER_LINE = 16;
 const MAX_RUNTIME_EFFECT_ZONES = 64;
+const SCREEN_ENGINE_PLAYER = 0;
+const SCREEN_ENGINE_FAKE_PLAYER = 1;
+function sanitizeLabel(value, fallback) {
+    const cleaned = String(value || '')
+        .trim()
+        .replace(/[^a-zA-Z0-9_]/g, '_')
+        .replace(/^([0-9])/, '_$1')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .toLowerCase();
+    return cleaned || fallback;
+}
 const EFFECT_TYPE_IDS = {
     secretZone: 0,
     wind: 1,
@@ -42,6 +55,14 @@ function clampByte(value, fallback = 0) {
     if (!Number.isFinite(value))
         return fallback & 0xff;
     return Math.max(0, Math.min(255, value)) & 0xff;
+}
+function getScreenEngineValue(screen) {
+    const configuredEngine = String(screen.screenEngine || '').trim();
+    if (configuredEngine === 'fakePlayer')
+        return SCREEN_ENGINE_FAKE_PLAYER;
+    if (configuredEngine === 'player')
+        return SCREEN_ENGINE_PLAYER;
+    return screen.screenKind === 'playable' ? SCREEN_ENGINE_PLAYER : SCREEN_ENGINE_FAKE_PLAYER;
 }
 function resolveTileBankDefinitions(screen, analysis) {
     return (0, screen2TileBanks_1.resolveRuntimeScreen2TileBankDefinitions)(analysis, screen.tileBankAssetId);
@@ -74,8 +95,18 @@ function buildBehaviorMapDataFromCollisionLayer(screen, analysis) {
             const srcCol = collisionCols > 0
                 ? Math.min(collisionCols - 1, Math.floor((col * collisionCols) / SCREEN_WIDTH))
                 : 0;
-            const tileId = collisionLayer[srcRow]?.[srcCol]?.tileId;
-            behaviorMapData.push((0, screenUtils_1.encodeBehaviorByteFromLogicalProperties)(tileId ? tileById.get(tileId)?.logicalProperties : undefined));
+            behaviorMapData.push((0, screenUtils_1.encodeBehaviorByteFromLogicalProperties)((0, screenUtils_1.getScreenTileLogicalProperties)(collisionLayer[srcRow]?.[srcCol], tileById)));
+        }
+    }
+    return behaviorMapData;
+}
+function buildBehaviorMapDataFromBackgroundLayer(screen, analysis) {
+    const backgroundLayer = screen.layers.background || [];
+    const behaviorMapData = [];
+    const tileById = new Map((analysis.tiles || []).map((tile) => [tile.id, tile]));
+    for (let row = 0; row < SCREEN_HEIGHT; row++) {
+        for (let col = 0; col < SCREEN_WIDTH; col++) {
+            behaviorMapData.push((0, screenUtils_1.encodeBehaviorByteFromLogicalProperties)((0, screenUtils_1.getScreenTileLogicalProperties)(backgroundLayer[row]?.[col], tileById)));
         }
     }
     return behaviorMapData;
@@ -92,7 +123,7 @@ function buildBehaviorGenerationArtifacts(screen, analysis, tileBankDefinitions,
         }, analysis.tiles || [], tileBankDefinitions, 'SCREEN 2 (Graphics I)');
         return {
             behaviorSource,
-            behaviorMapData: backgroundLayoutBytes.map(value => charBehaviorTable[value & 0xff] ?? 0),
+            behaviorMapData: buildBehaviorMapDataFromBackgroundLayer(screen, analysis),
             charBehaviorTable,
         };
     }
@@ -191,10 +222,86 @@ function hasUsableImportedHudFrameSnapshot(screen) {
 function buildResourceId(label) {
     return (0, megaromResourceArtifacts_1.buildResourceIdLabelFromAsmLabel)(label);
 }
+function buildBossLabelMap(analysis) {
+    const labels = new Map();
+    (analysis.bosses || []).forEach((boss, index) => {
+        const label = `boss_${index}_${sanitizeLabel(boss.name, 'boss')}`;
+        if (boss.id) {
+            labels.set(boss.id, label);
+        }
+    });
+    return labels;
+}
+function buildBossByIdMap(analysis) {
+    const bosses = new Map();
+    (analysis.bosses || []).forEach((boss) => {
+        if (boss.id)
+            bosses.set(boss.id, boss);
+    });
+    return bosses;
+}
+function resolveBossPlacementForExport(screen, instance, boss) {
+    const bossName = boss.name || instance.bossAssetId;
+    if (!boss.linkedScreenId || boss.linkedScreenId !== screen.id) {
+        throw new Error(`Boss "${bossName}" is placed on screen "${screen.name}" but its Behavior screen is not set to this screen.`);
+    }
+    const hasBehaviorX = Number.isFinite(boss.behaviorPreviewStartXChar);
+    const hasBehaviorY = Number.isFinite(boss.behaviorPreviewStartYChar);
+    if (!hasBehaviorX && !hasBehaviorY) {
+        throw new Error(`Boss "${bossName}" is placed on screen "${screen.name}" but Behavior start X/Y is not defined.`);
+    }
+    // Migration tolerance: early Behavior saves could persist only one axis. Use the
+    // old screen placement for the missing axis while keeping Behavior authoritative.
+    return {
+        xChar: hasBehaviorX ? boss.behaviorPreviewStartXChar : instance.xChar,
+        yChar: hasBehaviorY ? boss.behaviorPreviewStartYChar : instance.yChar,
+    };
+}
+function buildBossPlacementRows(screen, bossLabelById, bossById, bossDataBanked) {
+    const rows = [];
+    const instances = (screen.bossInstances || []);
+    instances.forEach((instance) => {
+        const bossLabel = bossLabelById.get(instance.bossAssetId);
+        if (!bossLabel) {
+            return;
+        }
+        const boss = bossById.get(instance.bossAssetId);
+        if (!boss) {
+            return;
+        }
+        const placement = resolveBossPlacementForExport(screen, instance, boss);
+        const flags = instance.enabled === false ? 0 : 1;
+        const updateInterval = Math.max(1, Math.min(8, Math.floor(Number(boss.runtimeUpdateIntervalFrames) || 1)));
+        const health = Math.max(1, Math.min(65535, Math.floor(Number(boss.totalHealth) || 1)));
+        const phasePtr = bossDataBanked ? `((${bossLabel}_phase_table & #1FFF) | #A000)` : `${bossLabel}_phase_table`;
+        const attackPtr = bossDataBanked ? `((${bossLabel}_attack_table & #1FFF) | #A000)` : `${bossLabel}_attack_table`;
+        const dataBank = bossDataBanked ? `((${bossLabel}_phase_table - #4000) / #2000)` : '#00FF';
+        rows.push(`    dw ${phasePtr}, ${attackPtr}`);
+        rows.push(`    db ${clampByte(placement.xChar)}, ${clampByte(placement.yChar)}, ${clampByte(instance.initialPhaseIndex)}, ${flags}, ${updateInterval}, ${health & 0xff}, ${(health >> 8) & 0xff}    ; xChar,yChar,initialPhase,flags,updateEveryNFrames,healthLo,healthHi`);
+        rows.push(`    dw ${dataBank}    ; dataBank (low byte used by runtime)`);
+    });
+    return rows;
+}
+function generateBossPlacementTable(screenName, index, screen, bossLabelById, bossById, bossDataBanked) {
+    const rows = buildBossPlacementRows(screen, bossLabelById, bossById, bossDataBanked);
+    let asm = `SCREEN_${screenName}_${index}_BOSS_TABLE:\n`;
+    if (rows.length === 0) {
+        asm += `    db 0    ; No boss placements\n`;
+    }
+    else {
+        asm += `    ; Entry format: dw phaseTable, dw attackTable, db xChar, yChar, initialPhase, flags(bit0=enabled), updateEveryNFrames, healthLo, healthHi, dw dataBank\n`;
+        asm += `${rows.join('\n')}\n`;
+    }
+    return asm;
+}
 function generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, targetFormat) {
     if (!hasPresentationScreenData(analysis)) {
-        // Stub so GameFlow PresentationScreen nodes can always call show_presentation_screen
-        return `show_presentation_screen:
+        // Stubs so GameFlow PresentationScreen nodes can always call either the
+        // image-only MegaROM entrypoint or the legacy full show+wait wrapper.
+        return `show_presentation_screen_image:
+    ret
+
+show_presentation_screen:
     ret
 
 `;
@@ -206,8 +313,8 @@ function generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, t
     const useResourceManager = romMode === 'megarom';
     const usePage0DataGroup = romMode === 'plain48k' && (0, page0Generator_1.presentationScreenUsesPage0Group)(analysis, romMode);
     const useBank4DataGroup = romMode === 'megarom';
-    // For bank4 data, labels are assembled at org #C000+ and accessed via P2 window.
-    // Universal formula: (LABEL & #1FFF) | #8000 — works for any bank number.
+    // For bank4 data, labels are assembled at org #C000+ and accessed via the configured data window.
+    // Konami 8K uses A000h/P3: (LABEL & #1FFF) | #A000.
     const hlExpr = (label) => useBank4DataGroup ? (0, mapperWindowUtils_1.buildMapperWindowedAddress)(label, mapperWindow) : label;
     const patternSize = Math.max(config.data.patternBank0.length, config.data.patternBank1.length, config.data.patternBank2.length);
     const colorSize = Math.max(config.data.colorBank0.length, config.data.colorBank1.length, config.data.colorBank2.length);
@@ -310,7 +417,8 @@ PRESENTATION_SCREEN_MAX_COLOR_SIZE EQU ${colorSize}
         outputs: ['None'],
         clobbers: ['AF', 'B'],
         preserved: ['BC', 'DE', 'HL', 'IX', 'IY'],
-    })}presentation_wait_frames:
+    })}; @mideas:block id=runtime.screens.presentation_wait_frames kind=routine owner=screens
+presentation_wait_frames:
     push bc
     ld a, b
     or a
@@ -321,6 +429,7 @@ PRESENTATION_SCREEN_MAX_COLOR_SIZE EQU ${colorSize}
 .pwf_done:
     pop bc
     ret
+; @mideas:endblock id=runtime.screens.presentation_wait_frames
 
 ${(0, registerContract_1.buildRegisterContractComment)({
         purpose: 'Wait for SPACE press and release after showing the presentation screen.',
@@ -360,13 +469,13 @@ ${(0, registerContract_1.buildRegisterContractComment)({
     ret
 
 ${(0, registerContract_1.buildRegisterContractComment)({
-        purpose: 'Show the imported fullscreen presentation image in SCREEN 2.',
+        purpose: 'Show the imported fullscreen presentation image in SCREEN 2 without waiting for input.',
         inputs: ['None'],
         outputs: ['None'],
         clobbers: ['AF', 'BC', 'DE', 'HL'],
         preserved: ['IX', 'IY'],
-        notes: ['Loads pattern/color banks 0..2 and the 32x24 name table.', 'Optional wait/key behavior comes from Presentation Screen config.']
-    })}show_presentation_screen:
+        notes: ['Loads pattern/color banks 0..2 and the 32x24 name table.', 'MegaROM GameFlow uses this short entrypoint so waits happen after the far-call bank is restored.']
+    })}show_presentation_screen_image:
     call DISSCR
     ld a, 2
     call CHGMOD
@@ -465,7 +574,7 @@ ${emitPage0PresentationTransfer('PRESENTATION_SCREEN_NAMETBL', 'ZX0_SCREEN_BUFFE
     call ENASCR
 `
                 : `    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, PRESENTATION_SCREEN_PATTERNS_B0_BANK
+    ld a, PRESENTATION_SCREEN_PATTERNS_B0_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${hlExpr('PRESENTATION_SCREEN_PATTERNS_B0')}
     ld de, CHRTBL2
@@ -474,7 +583,7 @@ ${emitPage0PresentationTransfer('PRESENTATION_SCREEN_NAMETBL', 'ZX0_SCREEN_BUFFE
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, PRESENTATION_SCREEN_PATTERNS_B1_BANK
+    ld a, PRESENTATION_SCREEN_PATTERNS_B1_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${hlExpr('PRESENTATION_SCREEN_PATTERNS_B1')}
     ld de, CHRTBL2 + #800
@@ -483,7 +592,7 @@ ${emitPage0PresentationTransfer('PRESENTATION_SCREEN_NAMETBL', 'ZX0_SCREEN_BUFFE
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, PRESENTATION_SCREEN_PATTERNS_B2_BANK
+    ld a, PRESENTATION_SCREEN_PATTERNS_B2_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${hlExpr('PRESENTATION_SCREEN_PATTERNS_B2')}
     ld de, CHRTBL2 + #1000
@@ -492,7 +601,7 @@ ${emitPage0PresentationTransfer('PRESENTATION_SCREEN_NAMETBL', 'ZX0_SCREEN_BUFFE
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, PRESENTATION_SCREEN_COLORS_B0_BANK
+    ld a, PRESENTATION_SCREEN_COLORS_B0_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${hlExpr('PRESENTATION_SCREEN_COLORS_B0')}
     ld de, CLRTBL2
@@ -501,7 +610,7 @@ ${emitPage0PresentationTransfer('PRESENTATION_SCREEN_NAMETBL', 'ZX0_SCREEN_BUFFE
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, PRESENTATION_SCREEN_COLORS_B1_BANK
+    ld a, PRESENTATION_SCREEN_COLORS_B1_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${hlExpr('PRESENTATION_SCREEN_COLORS_B1')}
     ld de, CLRTBL2 + #800
@@ -510,7 +619,7 @@ ${emitPage0PresentationTransfer('PRESENTATION_SCREEN_NAMETBL', 'ZX0_SCREEN_BUFFE
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, PRESENTATION_SCREEN_COLORS_B2_BANK
+    ld a, PRESENTATION_SCREEN_COLORS_B2_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${hlExpr('PRESENTATION_SCREEN_COLORS_B2')}
     ld de, CLRTBL2 + #1000
@@ -519,7 +628,7 @@ ${emitPage0PresentationTransfer('PRESENTATION_SCREEN_NAMETBL', 'ZX0_SCREEN_BUFFE
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, PRESENTATION_SCREEN_NAMETBL_BANK
+    ld a, PRESENTATION_SCREEN_NAMETBL_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${hlExpr('PRESENTATION_SCREEN_NAMETBL')}
     ld de, NAMETBL
@@ -528,6 +637,18 @@ ${emitPage0PresentationTransfer('PRESENTATION_SCREEN_NAMETBL', 'ZX0_SCREEN_BUFFE
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call ENASCR
+`;
+    code += `    ret
+
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Show the imported fullscreen presentation image and apply its configured wait behavior.',
+        inputs: ['None'],
+        outputs: ['None'],
+        clobbers: ['AF', 'BC', 'DE', 'HL'],
+        preserved: ['IX', 'IY'],
+        notes: ['Legacy entrypoint for direct callers; GameFlow MegaROM handles waits from its own resident-safe path.']
+    })}show_presentation_screen:
+    call show_presentation_screen_image
 `;
     if (config.runtime.waitForFrames > 0) {
         code += `    ld b, ${Math.max(0, Math.min(255, config.runtime.waitForFrames))}
@@ -767,8 +888,9 @@ function buildScreenResourcePolicyManifest(analysis) {
         lines.push(`- interaction_value_map: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_INTERACTION_VALUE_MAP`)}`);
         lines.push(`- interaction_target_map: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_INTERACTION_TARGET_MAP`)}`);
         if ((0, screenUtils_1.resolveScreenBehaviorSource)(screen) === 'backgroundChars') {
+            lines.push(`- behavior: ${buildResourceId(`BEHAVIOR_${screenNameAsm}_${index}_DATA`)}`);
             lines.push(`- char_behavior_table: ${buildResourceId(`SCREEN_${screenNameAsm}_${index}_CHAR_BEHAVIOR_TABLE`)}`);
-            lines.push(`- behavior: runtime rebuilt from screen layout + char table`);
+            lines.push(`- behavior_rebuild_table: used only when runtime code must rebuild from char layout`);
         }
         else {
             lines.push(`- behavior: ${buildResourceId(`BEHAVIOR_${screenNameAsm}_${index}_DATA`)}`);
@@ -817,6 +939,8 @@ function generateScreensFile(analysis, romMode = 'simple32k', dataInBank4 = fals
     const interactionTargetIdMap = buildInteractionTargetIdMap(analysis);
     const worldMusicFlags = buildWorldMusicFlagMap(analysis);
     const fallbackGameplayMusic = hasAnyGameplayMusicConfigured(analysis) ? 1 : 0;
+    const bossLabelById = buildBossLabelMap(analysis);
+    const bossById = buildBossByIdMap(analysis);
     // Skip screen system if no screens in project
     if (!analysis.screenMaps || analysis.screenMaps.length === 0) {
         return `; ==================================================================
@@ -856,6 +980,8 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, targetFo
         const hasEffectsLayoutData = effectsLayoutBytes.some(value => value !== 0);
         const effectZoneBytes = buildEffectZoneBytes(screen);
         const effectZoneCount = (screen.effectZones || []).length;
+        const bossPlacementRows = buildBossPlacementRows(screen, bossLabelById, bossById, romMode === 'megarom');
+        const bossPlacementCount = bossPlacementRows.length / 3;
         const screenId = String(screen.id || `screen_${index}`);
         const animatedGroupCount = countAnimatedGroupsInScreen(backgroundLayoutBytes, effectsLayoutBytes, animatedTileGroups);
         const entityCount = screenEntityCounts.get(screenId) || 0;
@@ -888,6 +1014,7 @@ ${generatePresentationScreenSection(analysis, hasSpriteAssets, romMode, targetFo
             hasEffectsLayoutData,
             effectZoneBytes,
             effectZoneCount,
+            bossPlacementCount,
             animatedGroupCount,
             entityCount,
             spritePatternSlots,
@@ -928,14 +1055,16 @@ SCREEN_RUNTIME_SUMMARY_FLAG_MUSIC_IN_GAME EQU #01
 SCREEN_RUNTIME_SUMMARY_FLAG_HAS_HUD EQU #02
 SCREEN_RUNTIME_SUMMARY_FLAG_HAS_EFFECTS EQU #04
 SCREEN_RUNTIME_SUMMARY_FLAG_HAS_ANIM_TILES EQU #08
+BOSS_PLACEMENT_ENTRY_SIZE EQU 13
+BOSS_PLACEMENT_FLAG_ENABLED EQU #01
 
 `;
         screenExports.forEach((screenExport) => {
-            const { screenName, index, hasEffectsLayoutData, effectZoneCount, animatedGroupCount, entityCount, spritePatternSlots, musicInGame, summaryFlags, } = screenExport;
+            const { screenName, index, hasEffectsLayoutData, effectZoneCount, bossPlacementCount, animatedGroupCount, entityCount, spritePatternSlots, musicInGame, summaryFlags, } = screenExport;
             code += `SCREEN_${screenName}_${index}_ID EQU ${index}
 SCREEN_${screenName}_${index}_LAYOUT_BANK EQU ${screenExport.backgroundBlockMap ? 0 : (0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_LAYOUT`, mapperWindow)}
 SCREEN_${screenName}_${index}_BEHAVIOR_SOURCE EQU ${screenExport.behaviorSource === 'backgroundChars' ? 1 : 0}
-BEHAVIOR_${screenName}_${index}_DATA_BANK EQU ${screenExport.behaviorSource === 'collisionLayer' ? (0, mapperWindowUtils_1.buildMapperBankEqu)(`BEHAVIOR_${screenName}_${index}_DATA`, mapperWindow) : 0}
+BEHAVIOR_${screenName}_${index}_DATA_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)(`BEHAVIOR_${screenName}_${index}_DATA`, mapperWindow)}
 SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE_BANK EQU ${screenExport.behaviorSource === 'backgroundChars' ? (0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`, mapperWindow) : 0}
 SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE_SIZE EQU ${screenExport.behaviorSource === 'backgroundChars' ? 256 : 0}
 SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`, mapperWindow)}
@@ -947,6 +1076,9 @@ SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_SIZE EQU ${SCREEN_WIDTH * SCREEN_HE
 SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`, mapperWindow)}
 SCREEN_${screenName}_${index}_EFFECT_ZONE_COUNT EQU ${effectZoneCount}
 SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_SIZE EQU ${effectZoneCount * 8}
+SCREEN_${screenName}_${index}_BOSS_TABLE_BANK EQU ${(0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_BOSS_TABLE`, mapperWindow)}
+SCREEN_${screenName}_${index}_BOSS_COUNT EQU ${bossPlacementCount}
+SCREEN_${screenName}_${index}_BOSS_TABLE_SIZE EQU ${bossPlacementCount * 13}
 SCREEN_${screenName}_${index}_BLOCK_LAYOUT_PRESENT EQU ${screenExport.backgroundBlockMap ? 1 : 0}
 SCREEN_${screenName}_${index}_BLOCK_LAYOUT_MODE EQU ${screenExport.backgroundBlockMap?.blockWidth ?? 0}
 SCREEN_${screenName}_${index}_BLOCK_CATALOG_BANK EQU ${screenExport.backgroundBlockMap ? (0, mapperWindowUtils_1.buildMapperBankEqu)(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`, mapperWindow) : 0}
@@ -991,6 +1123,7 @@ screen_runtime_summary_table:
 `;
         screenExports.forEach((screenExport) => {
             const { screen, index, screenName, screenNameWithIndex, backgroundLayoutBytes, backgroundBlockMap, effectsLayoutBytes, hasEffectsLayoutData, effectZoneBytes, effectZoneCount } = screenExport;
+            const screenRuntimeInPage0 = romMode === 'plain48k' && (0, page0Generator_1.screenRuntimeDataUsesPage0Group)(analysis, romMode, index);
             if (screen.layers && screen.layers.background) {
                 if (dataInBank4) {
                     // Data tables are emitted in bank4 section; skip here
@@ -1004,12 +1137,40 @@ screen_runtime_summary_table:
                     }
                     code += `; [SCREEN_${screenName}_${index}_EFFECTS_LAYOUT emitted in bank4 section]\n`;
                     code += `; [SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE emitted in bank4 section]\n`;
+                    code += `; [SCREEN_${screenName}_${index}_BOSS_TABLE emitted in bank4 section]\n`;
                     code += `; [SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP emitted in bank4 section]\n`;
                     code += `; [SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP emitted in bank4 section]\n`;
                     code += `; [SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP emitted in bank4 section]\n`;
                     code += screenExport.behaviorSource === 'backgroundChars'
-                        ? `; [SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE emitted in bank4 section]\n\n`
+                        ? `; [BEHAVIOR_${screenName}_${index}_DATA emitted in bank4 section]\n; [SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE emitted in bank4 section]\n\n`
                         : `; [BEHAVIOR_${screenName}_${index}_DATA emitted in bank4 section]\n\n`;
+                }
+                else if (screenRuntimeInPage0) {
+                    if (backgroundBlockMap) {
+                        code += `; [SCREEN_${screenName}_${index}_BLOCK_CATALOG emitted in page0.asm]\n`;
+                        code += `; [SCREEN_${screenName}_${index}_BLOCK_MAP emitted in page0.asm]\n`;
+                    }
+                    else {
+                        code += `; [SCREEN_${screenName}_${index}_LAYOUT emitted in page0.asm]\n`;
+                    }
+                    code += `; [SCREEN_${screenName}_${index}_EFFECTS_LAYOUT emitted in page0.asm]\n`;
+                    code += screenExport.behaviorSource === 'backgroundChars'
+                        ? `; [BEHAVIOR_${screenName}_${index}_DATA emitted in page0.asm]\n; [SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE emitted in page0.asm]\n`
+                        : `; [BEHAVIOR_${screenName}_${index}_DATA emitted in page0.asm]\n`;
+                    code += `; [SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP emitted in page0.asm]\n`;
+                    code += `; [SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP emitted in page0.asm]\n`;
+                    code += `; [SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP emitted in page0.asm]\n`;
+                    code += generateRawByteBlock(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`, effectZoneBytes, effectZoneCount > 0
+                        ? [
+                            `Effect zones for ${screen.name}`,
+                            `Entry format: x, y, width, height, effectType, param0, param1, reserved`,
+                        ]
+                        : [
+                            `No effect zones exported for ${screen.name}`,
+                        ]);
+                    code += `\n`;
+                    code += generateBossPlacementTable(screenName, index, screen, bossLabelById, bossById, false);
+                    code += `\n`;
                 }
                 else { // not dataInBank4 - emit all data inline
                     if (backgroundBlockMap) {
@@ -1041,6 +1202,8 @@ screen_runtime_summary_table:
                         : [
                             `No effect zones exported for ${screen.name}`,
                         ]);
+                    code += `\n`;
+                    code += generateBossPlacementTable(screenName, index, screen, bossLabelById, bossById, romMode === 'megarom');
                     code += `\n`;
                     if (false) {
                         // Create automatic tile banks with assigned tiles for character mapping
@@ -1116,14 +1279,13 @@ screen_runtime_summary_table:
                                     const tileBanksList = tileBanks.length > 0 ? tileBanks[0].banks : undefined;
                                     if (currentScreenMode === "SCREEN 2 (Graphics I)" && tileBanksList && tileAsset) {
                                         let foundInBank = false;
-                                        for (const bank of tileBanksList) {
+                                        for (const bank of (0, screenUtils_1.getScreen2TileBanksForCell)(tileBanksList, c, r)) {
                                             // Only process if bank is enabled and tile is assigned
                                             if ((bank.enabled ?? true) && bank.assignedTiles[screenTile.tileId]) {
-                                                const baseCharCode = bank.assignedTiles[screenTile.tileId].charCode;
-                                                const widthInChars = Math.ceil(tileAsset.width / constants_1.EDITOR_BASE_TILE_DIM_S2);
+                                                const assignment = bank.assignedTiles[screenTile.tileId];
                                                 const subX = screenTile.subTileX || 0;
                                                 const subY = screenTile.subTileY || 0;
-                                                actualCharCodeForCell = baseCharCode + (subY * widthInChars) + subX;
+                                                actualCharCodeForCell = (0, tileBankOptimization_1.resolveTileAssignmentCharCode)(assignment, tileAsset, subX, subY) ?? 0;
                                                 const inRange = actualCharCodeForCell >= bank.charsetRangeStart && actualCharCodeForCell <= bank.charsetRangeEnd;
                                                 if (inRange) {
                                                     foundInBank = true;
@@ -1161,12 +1323,12 @@ screen_runtime_summary_table:
                         // Add the screen layout data
                         code += asmCode;
                     }
-                    if (screenExport.behaviorSource === 'backgroundChars' && screenExport.charBehaviorTable) {
-                        code += `\n${generateRawByteBlock(`SCREEN_${screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_${analysis.screenMaps.indexOf(screen)}_CHAR_BEHAVIOR_TABLE`, screenExport.charBehaviorTable, [`${screen.name} - background char -> behavior lookup table`])}`;
-                    }
-                    else if (screenExport.behaviorMapData) {
+                    if (screenExport.behaviorMapData) {
                         const behaviorASM = (0, screenUtils_1.generateBehaviorMapASMCode)(screenNameWithIndex, SCREEN_WIDTH, SCREEN_HEIGHT, screenExport.behaviorMapData, 'hex');
                         code += `\n${behaviorASM}`;
+                    }
+                    if (screenExport.behaviorSource === 'backgroundChars' && screenExport.charBehaviorTable) {
+                        code += `\n${generateRawByteBlock(`SCREEN_${screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_${analysis.screenMaps.indexOf(screen)}_CHAR_BEHAVIOR_TABLE`, screenExport.charBehaviorTable, [`${screen.name} - background char -> behavior lookup table`])}`;
                     }
                     code += `\n${generateRawByteBlock(`SCREEN_${screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_${analysis.screenMaps.indexOf(screen)}_INTERACTION_TYPE_MAP`, screenExport.interactionTypeMap, [`${screen.name} - per-cell interaction type map`])}`;
                     code += `\n${generateRawByteBlock(`SCREEN_${screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_${analysis.screenMaps.indexOf(screen)}_INTERACTION_VALUE_MAP`, screenExport.interactionValueMap, [`${screen.name} - per-cell interaction value map`])}`;
@@ -1196,6 +1358,8 @@ screen_runtime_summary_table:
                 code += `\n`;
                 code += generateRawByteBlock(`SCREEN_${screenName}_${screenIndex}_INTERACTION_TARGET_MAP`, Array.from({ length: SCREEN_WIDTH * SCREEN_HEIGHT }, () => 0));
                 code += `\n`;
+                code += generateBossPlacementTable(screenName, screenIndex, screen, bossLabelById, bossById, romMode === 'megarom');
+                code += `\n`;
             }
             code += `\n`;
         });
@@ -1204,6 +1368,7 @@ screen_runtime_summary_table:
 ; SCREEN LOADING FUNCTIONS
 ; ==================================================================
 
+; @mideas:block id=runtime.screens.colors kind=routine owner=screens roots=set_screen_colors
 ; Color shift lookup table (0-15 shifted to high nibble)
 ; OPTIMIZED: Table lookup is faster than 4× RLCA (11 cycles vs 16 cycles)
 color_shift_table:
@@ -1246,10 +1411,11 @@ set_screen_colors:
     pop bc
     pop af
     ret
+; @mideas:endblock id=runtime.screens.colors
 
-; Helper function to initialize character 0 (empty cell) with background color
+; Helper function to initialize blank sentinel characters with background color
 ; Input: A = background color (0-15)
-; This ensures empty cells show the correct background color instead of BIOS default (blue)
+; This ensures empty cells show the correct background color instead of stale VRAM.
 init_char0_color:
     push af
     push bc
@@ -1269,65 +1435,69 @@ init_char0_color:
     
     ; Write color to character 0 in all 3 banks (8 bytes each)
     ; Bank 0: CLRTBL2 + (0 * 8)
+    ld a, b                    ; Fill byte = background color in both nibbles
     ld hl, CLRTBL2
-    ld c, 8                    ; 8 bytes per character
-init_char0_bank0_loop:
-    ld a, b                    ; Get color byte
-    call FAST_WRTVRM                ; Write to VRAM
-    inc hl
-    dec c
-    jr nz, init_char0_bank0_loop
+    ld bc, 8                   ; 8 bytes per character
+    call FAST_FILLVRM
     
     ; Bank 1: CLRTBL2 + #800 + (0 * 8)
-    ld hl, CLRTBL2 + #800
-    ld c, 8
-init_char0_bank1_loop:
     ld a, b
-    call FAST_WRTVRM
-    inc hl
-    dec c
-    jr nz, init_char0_bank1_loop
+    ld hl, CLRTBL2 + #800
+    ld bc, 8
+    call FAST_FILLVRM
     
     ; Bank 2: CLRTBL2 + #1000 + (0 * 8)
-    ld hl, CLRTBL2 + #1000
-    ld c, 8
-init_char0_bank2_loop:
     ld a, b
-    call FAST_WRTVRM
-    inc hl
-    dec c
-    jr nz, init_char0_bank2_loop
+    ld hl, CLRTBL2 + #1000
+    ld bc, 8
+    call FAST_FILLVRM
+
+    ; Character 255 is also used as an empty/SPC sentinel by boss and layout data.
+    ld a, b
+    ld hl, CLRTBL2 + (255 * 8)
+    ld bc, 8
+    call FAST_FILLVRM
+    ld a, b
+    ld hl, CLRTBL2 + #800 + (255 * 8)
+    ld bc, 8
+    call FAST_FILLVRM
+    ld a, b
+    ld hl, CLRTBL2 + #1000 + (255 * 8)
+    ld bc, 8
+    call FAST_FILLVRM
     
     ; Also clear pattern for character 0 (all zeros = blank)
     ; Bank 0: CHRTBL2 + (0 * 8)
-    ld hl, CHRTBL2
-    ld c, 8
     xor a                      ; A = 0 (blank pattern)
-init_char0_pattern_bank0_loop:
-    call FAST_WRTVRM
-    inc hl
-    dec c
-    jr nz, init_char0_pattern_bank0_loop
+    ld hl, CHRTBL2
+    ld bc, 8
+    call FAST_FILLVRM
     
     ; Bank 1: CHRTBL2 + #800 + (0 * 8)
-    ld hl, CHRTBL2 + #800
-    ld c, 8
     xor a
-init_char0_pattern_bank1_loop:
-    call FAST_WRTVRM
-    inc hl
-    dec c
-    jr nz, init_char0_pattern_bank1_loop
+    ld hl, CHRTBL2 + #800
+    ld bc, 8
+    call FAST_FILLVRM
     
     ; Bank 2: CHRTBL2 + #1000 + (0 * 8)
-    ld hl, CHRTBL2 + #1000
-    ld c, 8
     xor a
-init_char0_pattern_bank2_loop:
-    call FAST_WRTVRM
-    inc hl
-    dec c
-    jr nz, init_char0_pattern_bank2_loop
+    ld hl, CHRTBL2 + #1000
+    ld bc, 8
+    call FAST_FILLVRM
+
+    ; Keep character 255 visually blank even when layouts use #FF for absence.
+    xor a
+    ld hl, CHRTBL2 + (255 * 8)
+    ld bc, 8
+    call FAST_FILLVRM
+    xor a
+    ld hl, CHRTBL2 + #800 + (255 * 8)
+    ld bc, 8
+    call FAST_FILLVRM
+    xor a
+    ld hl, CHRTBL2 + #1000 + (255 * 8)
+    ld bc, 8
+    call FAST_FILLVRM
     
     pop hl
     pop de
@@ -1335,6 +1505,7 @@ init_char0_pattern_bank2_loop:
     pop af
     ret
 
+; @mideas:block id=runtime.screens.copy_rect kind=routine owner=screens roots=copy_layout_rect_to_vram,copy_layout_rect_ram_to_ram
 ; Helper: Copy rectangular area from screen layout (RAM) to Name Table (VRAM)
 ; Input: HL = source in RAM
 ;        DE = destination in VRAM
@@ -1410,7 +1581,9 @@ copy_layout_rect_ram_to_ram:
     ex de, hl
     pop bc
     jr .copy_rect_ram_row_loop
+; @mideas:endblock id=runtime.screens.copy_rect
 
+; @mideas:block id=runtime.screens.block_layout_expander kind=routine owner=screens roots=expand_screen_block_layout_to_background,expand_screen_block_layout_2x2,expand_screen_block_layout_4x4
 ${(0, registerContract_1.buildRegisterContractComment)({
             purpose: 'Expand a block-optimized screen background into the linear 32x24 runtime layout buffer.',
             inputs: ['A = block width/mode (2 or 4)', 'HL = block catalog source pointer', 'DE = block index map source pointer'],
@@ -1591,6 +1764,7 @@ expand_screen_block_layout_4x4:
     pop iy
     pop ix
     ret
+; @mideas:endblock id=runtime.screens.block_layout_expander
 
 ${(0, registerContract_1.buildRegisterContractComment)({
             purpose: 'Rebuild runtime_behavior_map from the current runtime_screen_layout using the per-screen char behavior table.',
@@ -1599,7 +1773,8 @@ ${(0, registerContract_1.buildRegisterContractComment)({
             clobbers: ['AF', 'BC', 'DE', 'HL'],
             preserved: ['IX', 'IY'],
             notes: ['Uses screen_block_catalog_ptr and screen_block_map_ptr as generic scratch pointers during the rebuild.']
-        })}build_runtime_behavior_map_from_screen_layout:
+        })}; @mideas:block id=runtime.screens.behavior_map_rebuild kind=routine owner=screens
+build_runtime_behavior_map_from_screen_layout:
     ld (screen_block_map_ptr), hl
     ld hl, runtime_behavior_map
     ld (screen_block_catalog_ptr), hl
@@ -1623,12 +1798,13 @@ ${(0, registerContract_1.buildRegisterContractComment)({
     ld (screen_block_catalog_ptr), hl
     dec bc
     jr .build_behavior_loop
-
+; @mideas:endblock id=runtime.screens.behavior_map_rebuild
+; @mideas:block id=runtime.screens.load_screen_stub kind=routine owner=screens
 load_screen:
-
     ; Load screen (A = screen ID)
     ; TODO: Implement screen loading logic
     ret
+; @mideas:endblock id=runtime.screens.load_screen_stub
 
 `;
         analysis.screenMaps.forEach((screen, index) => {
@@ -1641,6 +1817,7 @@ load_screen:
             const animatedGroupCount = screenExport?.animatedGroupCount || 0;
             const entityCount = screenExport?.entityCount || 0;
             const spritePatternSlots = screenExport?.spritePatternSlots || 1;
+            const screenEngineValue = getScreenEngineValue(screen);
             const tileBankReadyLabel = `.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_tilebank_ready`;
             const tileBankLoadCode = screen.tileBankAssetId
                 ? `    ld a, (current_screen2_tilebank_id)
@@ -1694,6 +1871,7 @@ ${tileBankReadyLabel}:
             const runtimeEffectZoneCount = Math.min((screen.effectZones || []).length, MAX_RUNTIME_EFFECT_ZONES);
             const hasBackgroundBlockMap = !!screenExport?.backgroundBlockMap;
             const behaviorSource = screenExport?.behaviorSource ?? 'collisionLayer';
+            const screenRuntimeInPage0 = romMode === 'plain48k' && (0, page0Generator_1.screenRuntimeDataUsesPage0Group)(analysis, romMode, index);
             const layoutResourceId = buildResourceId(`SCREEN_${screenName}_${index}_LAYOUT`);
             const blockCatalogResourceId = buildResourceId(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`);
             const blockMapResourceId = buildResourceId(`SCREEN_${screenName}_${index}_BLOCK_MAP`);
@@ -1704,11 +1882,80 @@ ${tileBankReadyLabel}:
             const interactionValueMapResourceId = buildResourceId(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`);
             const interactionTargetMapResourceId = buildResourceId(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`);
             const effectZoneTableResourceId = buildResourceId(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`);
+            const bossTableResourceId = buildResourceId(`SCREEN_${screenName}_${index}_BOSS_TABLE`);
+            const bossTablePointer = mapperAddr(`SCREEN_${screenName}_${index}_BOSS_TABLE`);
+            const bossDoneLabel = `load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_boss_done`;
+            const hasScreenBossInstances = Array.isArray(screen.bossInstances) && screen.bossInstances.length > 0;
+            const initScreenBossCode = hasScreenBossInstances ? `    call init_screen_boss_from_current_screen
+` : ``;
+            const bossRuntimeLoadCode = useResourceManager ? `    ld a, SCREEN_${screenName}_${index}_BOSS_COUNT
+    ld (current_screen_boss_count), a
+    or a
+    jp z, ${bossDoneLabel}
+    ld a, ${bossTableResourceId}
+    ld de, current_screen_boss_entry
+    call resource_load_to_ram_by_id
+    jr nc, .${bossDoneLabel}_loaded
+    xor a
+    ld (current_screen_boss_count), a
+    jp ${bossDoneLabel}
+.${bossDoneLabel}_loaded:
+    ld hl, current_screen_boss_entry
+    ld (current_screen_boss_table), hl
+    ld a, #FF
+    ld (current_screen_boss_table_bank), a
+${bossDoneLabel}:
+` : usesMapper ? `    ld a, SCREEN_${screenName}_${index}_BOSS_COUNT
+    ld (current_screen_boss_count), a
+    or a
+    jp z, ${bossDoneLabel}
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_BOSS_TABLE_BANK & #FF
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${bossTablePointer}
+    ld de, current_screen_boss_entry
+    ld bc, BOSS_PLACEMENT_ENTRY_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+    ld hl, current_screen_boss_entry
+    ld (current_screen_boss_table), hl
+    ld a, #FF
+    ld (current_screen_boss_table_bank), a
+${bossDoneLabel}:
+` : `    ld a, SCREEN_${screenName}_${index}_BOSS_COUNT
+    ld (current_screen_boss_count), a
+    or a
+    jp z, ${bossDoneLabel}
+    ld hl, ${bossTablePointer}
+    ld de, current_screen_boss_entry
+    ld bc, BOSS_PLACEMENT_ENTRY_SIZE
+    ldir
+    ld hl, current_screen_boss_entry
+    ld (current_screen_boss_table), hl
+    ld a, #FF
+    ld (current_screen_boss_table_bank), a
+${bossDoneLabel}:
+`;
             const hasImportedHudFrame = importedHudFrameCells.length > 0;
             const importedHudFrameLabelBase = `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
             const zoneDoneLabel = `.load_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_zones_done`;
+            const page0CopyToRam = (label, destination, size) => `    ld hl, ${label}
+    ld de, ${destination}
+    ld bc, ${size}
+    call page0_copy_to_ram
+`;
             const backgroundRuntimeLoadCode = hasBackgroundBlockMap
-                ? useResourceManager ? `    ; Load optimized background block data into RAM scratch buffers and expand it
+                ? screenRuntimeInPage0 ? `    ; Load optimized background block data from page 0 into RAM scratch buffers and expand it
+${page0CopyToRam(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`, 'runtime_effects_layout', `SCREEN_${screenName}_${index}_BLOCK_CATALOG_SIZE`)}${page0CopyToRam(`SCREEN_${screenName}_${index}_BLOCK_MAP`, 'runtime_screen_layout', `SCREEN_${screenName}_${index}_BLOCK_MAP_SIZE`)}    ld hl, runtime_effects_layout
+    ld de, runtime_screen_layout
+    ld a, SCREEN_${screenName}_${index}_BLOCK_LAYOUT_MODE
+    call expand_screen_block_layout_to_background
+    ld hl, runtime_background_layout
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+`
+                    : useResourceManager ? `    ; Load optimized background block data into RAM scratch buffers and expand it
     ld a, ${blockCatalogResourceId}
     ld de, runtime_effects_layout
     call resource_load_to_ram_by_id
@@ -1724,9 +1971,9 @@ ${tileBankReadyLabel}:
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
 `
-                    : usesMapper ? `    ; Load optimized background block data into RAM scratch buffers and expand it
+                        : usesMapper ? `    ; Load optimized background block data into RAM scratch buffers and expand it
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_BLOCK_CATALOG_BANK
+    ld a, SCREEN_${screenName}_${index}_BLOCK_CATALOG_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_BLOCK_CATALOG`)}
     ld de, runtime_effects_layout
@@ -1735,7 +1982,7 @@ ${tileBankReadyLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_BLOCK_MAP_BANK
+    ld a, SCREEN_${screenName}_${index}_BLOCK_MAP_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_BLOCK_MAP`)}
     ld de, runtime_screen_layout
@@ -1752,7 +1999,7 @@ ${tileBankReadyLabel}:
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
 `
-                        : `    ; Load optimized background block data into RAM scratch buffers and expand it
+                            : `    ; Load optimized background block data into RAM scratch buffers and expand it
     ld hl, SCREEN_${screenName}_${index}_BLOCK_CATALOG
     ld de, runtime_effects_layout
     ld bc, SCREEN_${screenName}_${index}_BLOCK_CATALOG_SIZE
@@ -1770,13 +2017,19 @@ ${tileBankReadyLabel}:
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
 `
-                : useResourceManager ? `    ; Rebuild mutable runtime screen background from RAM cache
+                : screenRuntimeInPage0 ? `    ; Build mutable runtime screen background maps in RAM from page 0
+${page0CopyToRam(`SCREEN_${screenName}_${index}_LAYOUT`, 'runtime_background_layout', 'RUNTIME_SCREEN_MAP_SIZE')}    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    call page0_copy_to_ram
+`
+                    : useResourceManager ? `    ; Rebuild mutable runtime screen background from RAM cache
     ld a, ${layoutResourceId}
     call resource_load_screen_layout_cached
 `
-                    : usesMapper ? `    ; Build mutable runtime screen background maps in RAM
+                        : usesMapper ? `    ; Build mutable runtime screen background maps in RAM
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
+    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
     ld de, runtime_background_layout
@@ -1788,7 +2041,7 @@ ${tileBankReadyLabel}:
     ldir
     call mapper_pop_${mapperWindow.dataWindowPage}
 `
-                        : `    ; Build mutable runtime screen background maps in RAM
+                            : `    ; Build mutable runtime screen background maps in RAM
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_LAYOUT`)}
     ld de, runtime_background_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
@@ -1799,8 +2052,21 @@ ${tileBankReadyLabel}:
     ldir
 `;
             const effectsBehaviorRuntimeLoadCode = behaviorSource === 'backgroundChars'
-                ? useResourceManager ? `    ld a, ${effectsLayoutResourceId}
+                ? screenRuntimeInPage0 ? `${page0CopyToRam(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`, 'runtime_effects_layout', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`BEHAVIOR_${screenName}_${index}_DATA`, 'runtime_behavior_map', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`, 'runtime_char_behavior_table', `SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE_SIZE`)}${page0CopyToRam(`SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`, 'runtime_interaction_type_map', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`, 'runtime_interaction_value_map', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`, 'runtime_interaction_target_map', 'RUNTIME_SCREEN_MAP_SIZE')}    ; runtime_behavior_map is loaded per cell to preserve SCREEN 2 bank-specific behavior.
+    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, ${zoneDoneLabel}
+    ld hl, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE
+    ld de, runtime_effect_zone_table
+    ld bc, ${runtimeEffectZoneCount * 8}
+    ldir
+${zoneDoneLabel}:
+`
+                    : useResourceManager ? `    ld a, ${effectsLayoutResourceId}
     call resource_load_effects_layout_cached
+    ld a, ${behaviorResourceId}
+    call resource_load_behavior_map_cached
     ld a, ${charBehaviorTableResourceId}
     ld de, runtime_char_behavior_table
     call resource_load_to_ram_by_id
@@ -1813,8 +2079,7 @@ ${tileBankReadyLabel}:
     ld a, ${interactionTargetMapResourceId}
     ld de, runtime_interaction_target_map
     call resource_load_to_ram_by_id
-    ld hl, runtime_screen_layout
-    call build_runtime_behavior_map_from_screen_layout
+    ; runtime_behavior_map is loaded per cell to preserve SCREEN 2 bank-specific behavior.
     ld a, ${runtimeEffectZoneCount}
     ld (current_effect_zone_count), a
     or a
@@ -1823,8 +2088,8 @@ ${tileBankReadyLabel}:
     call resource_load_effect_zone_table_cached
 ${zoneDoneLabel}:
 `
-                    : usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_BANK
+                        : usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`)}
     ld de, runtime_effects_layout
@@ -1833,7 +2098,16 @@ ${zoneDoneLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE_BANK
+    ld a, BEHAVIOR_${screenName}_${index}_DATA_BANK & #FF
+    call mapper_set_bank_${mapperWindow.dataWindowPage}
+    ld hl, ${mapperAddr(`BEHAVIOR_${screenName}_${index}_DATA`)}
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_${mapperWindow.dataWindowPage}
+
+    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`)}
     ld de, runtime_char_behavior_table
@@ -1842,7 +2116,7 @@ ${zoneDoneLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP_BANK
+    ld a, SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`)}
     ld de, runtime_interaction_type_map
@@ -1851,7 +2125,7 @@ ${zoneDoneLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP_BANK
+    ld a, SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`)}
     ld de, runtime_interaction_value_map
@@ -1860,7 +2134,7 @@ ${zoneDoneLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP_BANK
+    ld a, SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`)}
     ld de, runtime_interaction_target_map
@@ -1868,15 +2142,14 @@ ${zoneDoneLabel}:
     ldir
     call mapper_pop_${mapperWindow.dataWindowPage}
 
-    ld hl, runtime_screen_layout
-    call build_runtime_behavior_map_from_screen_layout
+    ; runtime_behavior_map is loaded per cell to preserve SCREEN 2 bank-specific behavior.
 
     ld a, ${runtimeEffectZoneCount}
     ld (current_effect_zone_count), a
     or a
     jr z, ${zoneDoneLabel}
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK
+    ld a, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`)}
     ld de, runtime_effect_zone_table
@@ -1885,8 +2158,13 @@ ${zoneDoneLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 ${zoneDoneLabel}:
 `
-                        : `    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
+                            : `    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
     ld de, runtime_effects_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+
+    ld hl, BEHAVIOR_${screenName}_${index}_DATA
+    ld de, runtime_behavior_map
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
 
@@ -1910,8 +2188,7 @@ ${zoneDoneLabel}:
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
 
-    ld hl, runtime_screen_layout
-    call build_runtime_behavior_map_from_screen_layout
+    ; runtime_behavior_map is loaded per cell to preserve SCREEN 2 bank-specific behavior.
 
     ld a, ${runtimeEffectZoneCount}
     ld (current_effect_zone_count), a
@@ -1923,7 +2200,17 @@ ${zoneDoneLabel}:
     ldir
 ${zoneDoneLabel}:
 `
-                : useResourceManager ? `    ld a, ${effectsLayoutResourceId}
+                : screenRuntimeInPage0 ? `${page0CopyToRam(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`, 'runtime_effects_layout', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`BEHAVIOR_${screenName}_${index}_DATA`, 'runtime_behavior_map', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`, 'runtime_interaction_type_map', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`, 'runtime_interaction_value_map', 'RUNTIME_SCREEN_MAP_SIZE')}${page0CopyToRam(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`, 'runtime_interaction_target_map', 'RUNTIME_SCREEN_MAP_SIZE')}    ld a, ${runtimeEffectZoneCount}
+    ld (current_effect_zone_count), a
+    or a
+    jr z, ${zoneDoneLabel}
+    ld hl, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE
+    ld de, runtime_effect_zone_table
+    ld bc, ${runtimeEffectZoneCount * 8}
+    ldir
+${zoneDoneLabel}:
+`
+                    : useResourceManager ? `    ld a, ${effectsLayoutResourceId}
     call resource_load_effects_layout_cached
     ld a, ${behaviorResourceId}
     call resource_load_behavior_map_cached
@@ -1944,8 +2231,8 @@ ${zoneDoneLabel}:
     call resource_load_effect_zone_table_cached
 ${zoneDoneLabel}:
 `
-                    : usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_BANK
+                        : usesMapper ? `    call mapper_push_${mapperWindow.dataWindowPage}
+    ld a, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECTS_LAYOUT`)}
     ld de, runtime_effects_layout
@@ -1954,7 +2241,7 @@ ${zoneDoneLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, BEHAVIOR_${screenName}_${index}_DATA_BANK
+    ld a, BEHAVIOR_${screenName}_${index}_DATA_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`BEHAVIOR_${screenName}_${index}_DATA`)}
     ld de, runtime_behavior_map
@@ -1963,7 +2250,7 @@ ${zoneDoneLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP_BANK
+    ld a, SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_INTERACTION_TYPE_MAP`)}
     ld de, runtime_interaction_type_map
@@ -1972,7 +2259,7 @@ ${zoneDoneLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP_BANK
+    ld a, SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_INTERACTION_VALUE_MAP`)}
     ld de, runtime_interaction_value_map
@@ -1981,7 +2268,7 @@ ${zoneDoneLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP_BANK
+    ld a, SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_INTERACTION_TARGET_MAP`)}
     ld de, runtime_interaction_target_map
@@ -1994,7 +2281,7 @@ ${zoneDoneLabel}:
     or a
     jr z, ${zoneDoneLabel}
     call mapper_push_${mapperWindow.dataWindowPage}
-    ld a, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK
+    ld a, SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE_BANK & #FF
     call mapper_set_bank_${mapperWindow.dataWindowPage}
     ld hl, ${mapperAddr(`SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE`)}
     ld de, runtime_effect_zone_table
@@ -2003,7 +2290,7 @@ ${zoneDoneLabel}:
     call mapper_pop_${mapperWindow.dataWindowPage}
 ${zoneDoneLabel}:
 `
-                        : `    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
+                            : `    ld hl, SCREEN_${screenName}_${index}_EFFECTS_LAYOUT
     ld de, runtime_effects_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
@@ -2102,10 +2389,16 @@ ${importedHudFrameLabelBase}_draw_loop:
 `;
             }
             if (shouldPreserveHudArea) {
-                code += `load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}:
+                const screenLoaderLabel = `load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
+                code += `; @mideas:block id=runtime.screens.${screenLoaderLabel}.loader kind=routine owner=screens roots=${screenLoaderLabel}
+${screenLoaderLabel}:
     ; Load ${screen.name} screen (fast direct port access)
     ; Active Area: X=${activeAreaX}, Y=${activeAreaY}, W=${activeAreaWidth}, H=${activeAreaHeight}
     ; Preserve HUD/non-active area: only overwrite active game area
+    ld a, ${screenEngineValue}
+    ld (current_screen_engine), a
+    ld a, #FF
+    ld (autocontrol_screen_id), a
     ; Set VDP colors FIRST (before loading screen data)
     ld a, ${bgColor}           ; Background color
     ld b, ${borderColor}       ; Border color
@@ -2128,8 +2421,10 @@ ${tileBankLoadCode}`;
     ld (current_screen_sprite_pattern_slots), a
     ld a, SCREEN_${screenName}_${index}_SUMMARY_FLAGS
     ld (current_screen_summary_flags), a
+${bossRuntimeLoadCode}
 ${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
-` : ``}`;
+` : ``}${initScreenBossCode}
+`;
                 if (hasImportedHudFrame) {
                     code += `    ; Imported HUD frame is drawn on world/game start only
 `;
@@ -2161,12 +2456,19 @@ ${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
     ld (hl), a
     ldir
     ret
+; @mideas:endblock id=runtime.screens.${screenLoaderLabel}.loader
 
 `;
             }
             else {
-                code += `load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}:
+                const screenLoaderLabel = `load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
+                code += `; @mideas:block id=runtime.screens.${screenLoaderLabel}.loader kind=routine owner=screens roots=${screenLoaderLabel}
+${screenLoaderLabel}:
     ; Load ${screen.name} screen (fast direct port access)
+    ld a, ${screenEngineValue}
+    ld (current_screen_engine), a
+    ld a, #FF
+    ld (autocontrol_screen_id), a
     ; Set VDP colors FIRST (before loading screen data)
     ld a, ${bgColor}           ; Background color
     ld b, ${borderColor}       ; Border color
@@ -2189,8 +2491,10 @@ ${tileBankLoadCode}`;
     ld (current_screen_sprite_pattern_slots), a
     ld a, SCREEN_${screenName}_${index}_SUMMARY_FLAGS
     ld (current_screen_summary_flags), a
+${bossRuntimeLoadCode}
 ${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
-` : ``}`;
+` : ``}${initScreenBossCode}
+`;
                 if (hasImportedHudFrame) {
                     code += `    ; Imported HUD frame is drawn on world/game start only
 `;
@@ -2222,6 +2526,7 @@ ${animatedGroupCount > 0 ? `    call update_animated_tiles_vram
     ld (hl), a
     ldir
     ret
+; @mideas:endblock id=runtime.screens.${screenLoaderLabel}.loader
 
 `;
             }
@@ -2282,6 +2587,8 @@ function getScreensBank4Data(analysis, romMode = 'simple32k') {
     const interactionTargetIdMap = buildInteractionTargetIdMap(analysis);
     const worldMusicFlags = buildWorldMusicFlagMap(analysis);
     const fallbackGameplayMusic = hasAnyGameplayMusicConfigured(analysis) ? 1 : 0;
+    const bossLabelById = buildBossLabelMap(analysis);
+    const bossById = buildBossByIdMap(analysis);
     const screenExports = analysis.screenMaps.map((screen, index) => {
         const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
         const screenNameWithIndex = `${screen.name}_${index}`;
@@ -2364,12 +2671,14 @@ function getScreensBank4Data(analysis, romMode = 'simple32k') {
                 ? [`Effect zones for ${screen.name}`, `Entry format: x, y, width, height, effectType, param0, param1, reserved`]
                 : [`No effect zones for ${screen.name}`]);
             asm += `\n`;
-            if (screenExport.behaviorSource === 'backgroundChars' && screenExport.charBehaviorTable) {
-                asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`, screenExport.charBehaviorTable, [`${screen.name} - background char -> behavior lookup table`]);
+            asm += generateBossPlacementTable(screenName, index, screen, bossLabelById, bossById, true);
+            asm += `\n`;
+            if (screenExport.behaviorMapData) {
+                asm += (0, screenUtils_1.generateBehaviorMapASMCode)(screenNameWithIndex, SCREEN_WIDTH, SCREEN_HEIGHT, screenExport.behaviorMapData, 'hex');
                 asm += `\n`;
             }
-            else if (screenExport.behaviorMapData) {
-                asm += (0, screenUtils_1.generateBehaviorMapASMCode)(screenNameWithIndex, SCREEN_WIDTH, SCREEN_HEIGHT, screenExport.behaviorMapData, 'hex');
+            if (screenExport.behaviorSource === 'backgroundChars' && screenExport.charBehaviorTable) {
+                asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`, screenExport.charBehaviorTable, [`${screen.name} - background char -> behavior lookup table`]);
                 asm += `\n`;
             }
             else {
@@ -2387,6 +2696,8 @@ function getScreensBank4Data(analysis, romMode = 'simple32k') {
             asm += `SCREEN_${screenName}_${index}_LAYOUT:\n    db 0, 0, 0, 0, 0, 0, 0, 0\n\n`;
             asm += `SCREEN_${screenName}_${index}_EFFECTS_LAYOUT:\n    db 0\n\n`;
             asm += `SCREEN_${screenName}_${index}_EFFECT_ZONE_TABLE:\n    db 0\n\n`;
+            asm += generateBossPlacementTable(screenName, index, screen, bossLabelById, bossById, true);
+            asm += `\n`;
             if ((0, screenUtils_1.resolveScreenBehaviorSource)(screen) === 'backgroundChars') {
                 asm += generateRawByteBlock(`SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`, Array.from({ length: 256 }, () => 0));
                 asm += `\n`;

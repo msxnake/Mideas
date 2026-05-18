@@ -13,6 +13,17 @@ interface TileCharInfo {
   tileIndex: number;
 }
 
+function buildIrqRestoreGuard(doneLabel: string): string {
+  return `    ld a, (interrupt_in_progress)
+    or a
+    jp nz, ${doneLabel}
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, ${doneLabel}
+    ei
+`;
+}
+
 interface AnimationMeta {
   enabled: boolean;
   mode: 'frames' | 'transform';
@@ -357,7 +368,7 @@ function prepareAnimationGroups(analysis: ProjectAnalysis): {
 
       const targetCharCode = targetInfo.charCode;
       const charsPerTile = targetInfo.charsPerTile;
-      if (targetCharCode < 0 || targetCharCode + charsPerTile - 1 > 255) return;
+      if (targetCharCode < 0 || targetCharCode + charsPerTile - 1 > 253) return;
 
       const opCode = TRANSFORM_OPERATION_CODES[transformEffect];
       if (!opCode) return;
@@ -459,7 +470,7 @@ function prepareAnimationGroups(analysis: ProjectAnalysis): {
 
     const targetCharCode = targetInfo.charCode;
     const charsPerTile = targetInfo.charsPerTile;
-    if (targetCharCode < 0 || targetCharCode + charsPerTile - 1 > 255) continue;
+    if (targetCharCode < 0 || targetCharCode + charsPerTile - 1 > 253) continue;
 
     const frames: PreparedAnimationGroup['frames'] = [];
     const expectedPatternBytes = charsPerTile * 8;
@@ -546,7 +557,7 @@ export function generateAnimatedTilesFile(
     1,
     255
   );
-  const maxAnimTiles = Math.max(1, frameGroups.length + transformGroups.length);
+  const maxAnimTiles = Math.max(1, frameGroups.length);
 
   const tableEntries = hasFrameAnimatedTiles
     ? frameGroups.map((group) => `    db ${group.targetCharCode}, ${group.charsPerTile}, ${group.frameCount}, ${group.speed}, ${group.bytesPerFrame}    ; ${group.groupId} -> tile ${group.targetTileId}
@@ -679,7 +690,8 @@ ${frames}
     .filter(Boolean)
     .join('\n');
 
-  return `; ==================================================================
+  return `; @mideas:block id=runtime.animtiles.core kind=routine owner=animtiles roots=init_animated_tiles,update_animated_tiles,update_animated_tiles_vram,anim_upload_char_frame,set_animation_speed,register_animated_tile,get_tile_animation_frame
+; ==================================================================
 ; ANIMATED TILES SYSTEM
 ; File: animtiles.asm
 ; Description: Background tile animation for water, lava, fire, etc.
@@ -776,10 +788,10 @@ ${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Skip animation 
 ; ------------------------------------------------------------------
 update_animated_tiles_vram:
     ; Protect VDP port sequence from ISR VRAM writes.
-    ; Always re-enables on exit (see FAST_LDIRVM note on LD A,I bug).
+    ; Re-enables on exit unless a far trampoline still owns the mapper window.
     di
 ${updateVramBody}
-    ei
+${buildIrqRestoreGuard('.animtiles_vram_irq_done')}.animtiles_vram_irq_done:
     ret
 
 ; ------------------------------------------------------------------
@@ -802,14 +814,14 @@ set_animation_speed:
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
 anim_copy_8_bytes:
-    ld b, 8
-.anim_copy_loop:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_copy_loop
-
+    push de                         ; Save source pointer
+    push hl                         ; Save VRAM destination
+    pop de                          ; DE = VRAM destination for FAST_LDIRVM
+    pop hl                          ; HL = source pointer for FAST_LDIRVM
+    ld bc, 8
+    call FAST_LDIRVM
+    push hl
+    pop de                          ; Preserve legacy postcondition: DE = source + 8
     ret
 
 ; ==================================================================
@@ -894,421 +906,18 @@ anim_upload_char_frame:
     ret
 
 ; ==================================================================
-; TRANSFORM MODE ROUTINES (Z80 runtime bit/row transforms)
+; TRANSFORM MODE COMPATIBILITY STUBS
 ; ==================================================================
+; Transform-mode tiles are precomputed into normal frame data by the
+; generator. Runtime VRAM read/modify/write is intentionally disabled.
 
-; ------------------------------------------------------------------
-; Routine: update_animated_transform_tiles_vram
-; Purpose:
-;   Applies Z80 transform operations directly on tile bytes in VRAM.
-; Input:
-;   None
-; Output:
-;   None
-; Modifies:
-;   AF, BC, DE, HL
-; Preserves:
-;   IX, IY, SP
-; Flags:
-;   Not preserved
-; Stack:
-;   Uses PUSH/POP HL, BC and DE internally
-; ------------------------------------------------------------------
 update_animated_transform_tiles_vram:
-${hasTransformAnimatedTiles ? `    ld hl, anim_transform_table
+    ret
 
-.anim_transform_loop:
-    ld a, (hl)                      ; A = target char code
-    cp 255
-    ret z
-
-    ld c, a                         ; C = first char code
-    inc hl
-    ld b, (hl)                      ; B = chars per tile
-    inc hl
-    ld d, (hl)                      ; D = operation code
-    inc hl
-    ld a, (hl)                      ; A = flags
-    ld (anim_tile_transform_flags), a
-    inc hl                          ; HL = next table entry
-    push hl
-
-.anim_transform_char_loop:
-    ld a, b
-    or a
-    jr z, .anim_transform_next
-
-    push bc
-    push de
-    ld a, c
-    call anim_transform_char_frame
-    pop de
-    pop bc
-
-    inc c
-    dec b
-    jr .anim_transform_char_loop
-
-.anim_transform_next:
-    pop hl
-    jr .anim_transform_loop` : `    ret`}
-
-; ------------------------------------------------------------------
-; Routine: anim_transform_char_frame
-; Purpose:
-;   Transform one character pattern in all SCREEN 2 banks.
-; Input:
-;   A = character code
-;   D = transform operation code
-;   (anim_tile_transform_flags).bit0 = transform color rows too
-; Output:
-;   None
-; Modifies:
-;   AF, BC, DE, HL
-; Preserves:
-;   IX, IY, SP
-; Flags:
-;   Not preserved
-; Stack:
-;   Pushes/pops BC, DE and HL
-; ------------------------------------------------------------------
 anim_transform_char_frame:
-    push bc
-    push de
-    push hl
-
-    ; BC = charCode * 8 (row offset in pattern/color tables)
-    ld l, a
-    ld h, 0
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    ld b, h
-    ld c, l
-
-    ; Save opcode D to scratch RAM so anim_transform_vram_block can reload it
-    ; after DE is reused internally as a pointer.
-    ld a, d
-    ld (anim_tile_transform_flags + 1), a
-
-    ; Pattern banks: read bank 0 once and mirror the transformed result to all 3
-    ; SCREEN 2 banks to keep animation phase identical across thirds.
-    ld hl, CHRTBL2
-    add hl, bc
-    call anim_transform_vram_block
-
-    ; anim_transform_vram_block reuses DE internally, so reload the opcode
-    ; from scratch RAM before deciding whether color rows also need a transform.
-    ld a, (anim_tile_transform_flags + 1)
-    cp 5
-    jr c, .anim_transform_char_done
-
-    ld a, (anim_tile_transform_flags)
-    and 1
-    jr z, .anim_transform_char_done
-
-    ; Color banks: same approach, read bank 0 and mirror to all 3 banks.
-    ld a, (anim_tile_transform_flags + 1)
-    ld d, a
-    ld hl, CLRTBL2
-    add hl, bc
-    call anim_transform_vram_block
-
-.anim_transform_char_done:
-    pop hl
-    pop de
-    pop bc
     ret
 
-; ------------------------------------------------------------------
-; Routine: anim_transform_vram_block
-; Purpose:
-;   Apply transform to one 8-byte VRAM block (one char rows table).
-; Input:
-;   HL = VRAM base address for row 0 (8 consecutive bytes)
-;   D  = operation code:
-;        1 rotate_left  (RLCA)
-;        2 rotate_right (RRCA)
-;        3 shift_left   (SLA)
-;        4 shift_right  (SRL)
-;        5 shift_up rows
-;        6 shift_down rows
-;        7 swap top/bottom row
-; Output:
-;   None
-; Modifies:
-;   AF, BC, DE, HL
-; Preserves:
-;   IX, IY, SP
-; Flags:
-;   Not preserved
-; Stack:
-;   Uses stack while reading row bytes
-; ------------------------------------------------------------------
 anim_transform_vram_block:
-    ; HL = VRAM base address for bank 0. The routine captures the source rows
-    ; from bank 0, transforms them in RAM, then writes the same result to the
-    ; three SCREEN 2 banks. This prevents per-bank phase drift.
-    ld a, d
-    cp 5
-    jp nc, .anim_transform_vertical
-
-    ; Step 1: Read bank 0 into the RAM buffer.
-    push hl
-    ld de, anim_tile_row_buffer
-    ld b, 8
-.anim_read_horiz_loop:
-    push hl
-    call FAST_RDVRM                 ; A = row byte from VRAM[HL]
-    pop hl
-    ld (de), a
-    inc de
-    inc hl
-    djnz .anim_read_horiz_loop
-    pop hl
-
-    ; Step 2: Transform the buffered bytes in RAM.
-    ld de, anim_tile_row_buffer
-    ld b, 8
-    ld a, (anim_tile_transform_flags + 1)
-    ld c, a
-.anim_apply_horiz_loop:
-    ld a, (de)
-    push de
-    push bc
-    ld b, a
-    ld a, c
-    cp 1
-    jr nz, .anim_not_rl3
-    ld a, b
-    rlca
-    jr .anim_store_h
-.anim_not_rl3:
-    cp 2
-    jr nz, .anim_not_rr3
-    ld a, b
-    rrca
-    jr .anim_store_h
-.anim_not_rr3:
-    cp 3
-    jr nz, .anim_not_sla3
-    ld a, b
-    sla a
-    jr .anim_store_h
-.anim_not_sla3:
-    ld a, b
-    srl a
-.anim_store_h:
-    pop bc
-    pop de
-    ld (de), a
-    inc de
-    djnz .anim_apply_horiz_loop
-
-    ; Step 3: Mirror the transformed buffer to the 3 pattern/color banks.
-    push hl
-    ld de, anim_tile_row_buffer
-    ld b, 8
-.anim_write_bank0_loop:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_bank0_loop
-    pop hl
-
-    push hl
-    ld de, #0800
-    add hl, de
-    ld de, anim_tile_row_buffer
-    ld b, 8
-.anim_write_bank1_loop:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_bank1_loop
-    pop hl
-
-    ld de, #1000
-    add hl, de
-    ld de, anim_tile_row_buffer
-    ld b, 8
-.anim_write_bank2_loop:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_bank2_loop
-    ret
-
-.anim_transform_vertical:
-    ; Step 1: Read bank 0 into the RAM buffer.
-    push de
-    ld de, anim_tile_row_buffer
-    ld b, 8
-.anim_read_rows_loop:
-    push hl
-    call FAST_RDVRM                 ; A = row byte
-    pop hl
-    ld (de), a
-    inc de
-    inc hl
-    djnz .anim_read_rows_loop
-    pop de
-
-    ; Restore HL to the start of bank 0 and reload the opcode scratch byte.
-    ld de, #FFF8
-    add hl, de
-
-    ld a, (anim_tile_transform_flags + 1)
-    cp 5
-    jr nz, .anim_not_shift_up
-
-    ; shift_up: row0<-row1 ... row6<-row7 row7<-row0(original)
-    push hl
-    ld de, anim_tile_row_buffer + 1
-    ld b, 7
-.anim_write_up_b0:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_up_b0
-    ld a, (anim_tile_row_buffer)
-    call FAST_WRTVRM
-    pop hl
-
-    push hl
-    ld de, #0800
-    add hl, de
-    ld de, anim_tile_row_buffer + 1
-    ld b, 7
-.anim_write_up_b1:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_up_b1
-    ld a, (anim_tile_row_buffer)
-    call FAST_WRTVRM
-    pop hl
-
-    ld de, #1000
-    add hl, de
-    ld de, anim_tile_row_buffer + 1
-    ld b, 7
-.anim_write_up_b2:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_up_b2
-    ld a, (anim_tile_row_buffer)
-    call FAST_WRTVRM
-    ret
-
-.anim_not_shift_up:
-    cp 6
-    jr nz, .anim_not_shift_down
-
-    ; shift_down: row0<-row7(original) row1<-row0 ... row7<-row6
-    push hl
-    ld a, (anim_tile_row_buffer + 7)
-    call FAST_WRTVRM
-    inc hl
-    ld de, anim_tile_row_buffer
-    ld b, 7
-.anim_write_dn_b0:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_dn_b0
-    pop hl
-
-    push hl
-    ld de, #0800
-    add hl, de
-    ld a, (anim_tile_row_buffer + 7)
-    call FAST_WRTVRM
-    inc hl
-    ld de, anim_tile_row_buffer
-    ld b, 7
-.anim_write_dn_b1:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_dn_b1
-    pop hl
-
-    ld de, #1000
-    add hl, de
-    ld a, (anim_tile_row_buffer + 7)
-    call FAST_WRTVRM
-    inc hl
-    ld de, anim_tile_row_buffer
-    ld b, 7
-.anim_write_dn_b2:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_dn_b2
-    ret
-
-.anim_not_shift_down:
-    ; swap_top_bottom: row0<->row7, middle rows unchanged
-    push hl
-    ld a, (anim_tile_row_buffer + 7)
-    call FAST_WRTVRM
-    inc hl
-    ld de, anim_tile_row_buffer + 1
-    ld b, 6
-.anim_write_sw_mid_b0:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_sw_mid_b0
-    ld a, (anim_tile_row_buffer)
-    call FAST_WRTVRM
-    pop hl
-
-    push hl
-    ld de, #0800
-    add hl, de
-    ld a, (anim_tile_row_buffer + 7)
-    call FAST_WRTVRM
-    inc hl
-    ld de, anim_tile_row_buffer + 1
-    ld b, 6
-.anim_write_sw_mid_b1:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_sw_mid_b1
-    ld a, (anim_tile_row_buffer)
-    call FAST_WRTVRM
-    pop hl
-
-    ld de, #1000
-    add hl, de
-    ld a, (anim_tile_row_buffer + 7)
-    call FAST_WRTVRM
-    inc hl
-    ld de, anim_tile_row_buffer + 1
-    ld b, 6
-.anim_write_sw_mid_b2:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_sw_mid_b2
-    ld a, (anim_tile_row_buffer)
-    call FAST_WRTVRM
     ret
 
 ; ==================================================================
@@ -1396,5 +1005,6 @@ get_tile_animation_frame:
 ; ==================================================================
 ; END OF ANIMATED TILES SYSTEM
 ; ==================================================================
+; @mideas:endblock id=runtime.animtiles.core
 `;
 }

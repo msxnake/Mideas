@@ -3,14 +3,14 @@ import {
   EditorType, ProjectAsset, MSXColorValue, ScreenEditorLayerName,
   ComponentDefinition, EntityTemplate, MainMenuConfig, EntityInstance,
   HUDConfiguration, TileBank, MSXFont, MSXFontColorAttributes,
-  MSXFontAsset, DataFormat, Snippet, HistoryState, HistoryAction,
+  MSXFontAsset, DataFormat, ExportRomMode, Snippet, HistoryState, HistoryAction,
   CopiedScreenData, CopiedLayerData, CopiedTileData, WaypointPickerState,
   GameFlowGraph, CopiedBossPhaseData, HelpDocSection, PresentationScreenConfig
 } from '../types';
 import {
   MSX_SCREEN5_PALETTE, DEFAULT_SCREEN_MODE, DEFAULT_MAIN_MENU_CONFIG,
   DEFAULT_SCREEN2_BG_COLOR, MSX1_PALETTE, Z80_SNIPPETS as DEFAULT_Z80_SNIPPETS,
-  Z80_BEHAVIOR_SNIPPETS, DEFAULT_TILE_BANK_DEFINITIONS, MAX_HISTORY_LENGTH,
+  Z80_BEHAVIOR_SNIPPETS, MAX_HISTORY_LENGTH,
   DEFAULT_HELP_DOCS_DATA, DEFAULT_PRESENTATION_SCREEN_CONFIG
 } from '../constants';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
@@ -71,24 +71,27 @@ export const useAppState = () => {
     if (savedBanks) {
       try {
         const parsedBanks = JSON.parse(savedBanks);
-        const needsMigration = parsedBanks.some((bank: TileBank) =>
-          !bank.hasOwnProperty('logicalTilesEnabled') || !bank.hasOwnProperty('logicalTileTypes')
-        );
-        if (needsMigration) {
-          const migratedBanks = parsedBanks.map((bank: TileBank) => ({
-            ...bank,
-            logicalTilesEnabled: bank.logicalTilesEnabled ?? false,
-            logicalTileTypes: bank.logicalTileTypes ?? []
-          }));
-          localStorage.setItem('tileBanksConfig', JSON.stringify(migratedBanks));
+        if (Array.isArray(parsedBanks)) {
+          const migratedBanks = parsedBanks
+            .filter((tileBank: Partial<TileBank>) => Array.isArray(tileBank?.banks))
+            .map((tileBank: TileBank) => ({
+              ...tileBank,
+              banks: tileBank.banks.map(bank => ({
+                ...bank,
+                logicalTilesEnabled: (bank as any).logicalTilesEnabled ?? false,
+                logicalTileTypes: (bank as any).logicalTileTypes ?? []
+              }))
+            }));
+          if (migratedBanks.length !== parsedBanks.length || JSON.stringify(migratedBanks) !== savedBanks) {
+            localStorage.setItem('tileBanksConfig', JSON.stringify(migratedBanks));
+          }
           return migratedBanks;
         }
-        return parsedBanks;
       } catch (e) {
-        console.error('Failed to parse tile banks config. Using defaults.', e);
+        console.error('Failed to parse tile banks config. Using an empty TileBank list.', e);
       }
     }
-    return DEFAULT_TILE_BANK_DEFINITIONS;
+    return [];
   });
 
   const [msxFont, setMsxFont] = useState<MSXFont>(() => {
@@ -292,6 +295,22 @@ export const useAppState = () => {
     return false;
   });
 
+  const [defaultExportRomMode, setDefaultExportRomMode] = useState<ExportRomMode>(() => {
+    const savedConfig = localStorage.getItem('ideConfig');
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        const savedRomMode = config.defaultExportRomMode;
+        if (['auto', 'simple32k', 'plain48k', 'megarom'].includes(savedRomMode)) {
+          return savedRomMode as ExportRomMode;
+        }
+      } catch (e) {
+        console.error('Failed to parse IDE config. Using defaults.', e);
+      }
+    }
+    return 'simple32k';
+  });
+
   // History state
   const [historyStates, setHistoryStates] = useState<HistoryState[]>([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(-1);
@@ -442,6 +461,8 @@ export const useAppState = () => {
     setSaveScreenZoom,
     saveSectorLines,
     setSaveSectorLines,
+    defaultExportRomMode,
+    setDefaultExportRomMode,
 
     // History state
     historyStates,

@@ -1,0 +1,35 @@
+WORLD SPRITE PATTERN POLICY
+Source: runtime sprite packs inferred from entities present in each world.
+Pack capacity: 64 slots (including placeholder).
+
+PACKS
+PACK 00 worldmap_1778070705501
+- display: World "mon1"
+- slots: 48/64
+- placeholder_slot: 47
+- sprites:
+  0: nina_walk_right @ slot 0
+  1: nina_jump_right @ slot 4
+  2: nina_land_right @ slot 6
+  3: nina_dead @ slot 12
+  4: nina_idle_right @ slot 15
+  5: nina_fall_right @ slot 19
+  6: nina_grub_right @ slot 21
+  7: nina_walk_left @ slot 25
+  8: nina_jump_left @ slot 29
+  9: nina_land_left @ slot 31
+  10: nina_idle_left @ slot 37
+  11: nina_fall_left @ slot 41
+  12: nina_grub_left @ slot 43
+
+PACK 01 worldmap_1778241700081
+- display: World "dialeg_mon1"
+- slots: 9/64
+- placeholder_slot: 8
+- sprites:
+  4: nina_idle_right @ slot 0
+  10: nina_idle_left @ slot 4
+
+WORLD -> PACK
+00 mon1 (worldmap_1778070705501) -> worldmap_1778070705501 [id=0]
+01 dialeg_mon1 (worldmap_1778241700081) -> worldmap_1778241700081 [id=1]

@@ -1,0 +1,25 @@
+BP_4010_RESET_OR_BOOT pc=4010 sp=F2EC banks=00/04/33 screen=33 input=00 btn=27 player=00 ent=00 xy=0,0 v=00/00 irq=0
+BP_4010_RESET_OR_BOOT pc=4010 sp=F2EC banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+intro_spc_before pc=1130 sp=F2FE banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+intro_spc_after pc=1130 sp=F2FE banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+intro_spc_during pc=1130 sp=F2FE banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+BP_4010_RESET_OR_BOOT pc=4010 sp=F2EC banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+BP_4010_RESET_OR_BOOT pc=4010 sp=F2EC banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+start_spc_before pc=0D44 sp=F34A banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+start_spc_after pc=1130 sp=F2FE banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+start_spc_during pc=1130 sp=F2FE banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+gameplay_start pc=1130 sp=F2FE banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+SHOTOK patoantic248_ascii16_gameplay_start.png
+RIGHT_before pc=1130 sp=F2FE banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+RIGHT_during pc=1286 sp=F2F0 banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+BP_4010_RESET_OR_BOOT pc=4010 sp=F2EC banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+RIGHT_after pc=1130 sp=F2FE banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+after_right pc=1130 sp=F2FE banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+SHOTOK patoantic248_ascii16_after_right.png
+LEFT_before pc=1130 sp=F2FE banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+LEFT_during pc=1130 sp=F2FE banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+BP_4010_RESET_OR_BOOT pc=4010 sp=F2EC banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+LEFT_after pc=046F sp=F362 banks=00/00/01 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+after_left pc=1130 sp=F2FE banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0
+SHOTOK patoantic248_ascii16_after_left.png
+FINAL pc=1130 sp=F2FE banks=00/00/03 screen=E0 input=F0 btn=00 player=00 ent=00 xy=0,224 v=E0/00 irq=0

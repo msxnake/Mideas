@@ -1,0 +1,25 @@
+{
+  "source": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\generated-sprites\\indian_woman_profile_32x32\\sheet-transparent.png",
+  "outputDir": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\generated-sprites\\indian_woman_profile_32x32\\msx-screen2",
+  "size": [
+    32,
+    32
+  ],
+  "chars": [
+    4,
+    4
+  ],
+  "uniqueTiles": 9,
+  "correctedPixels": 27,
+  "conflictLinesBeforeCorrection": 20,
+  "files": [
+    "indian_woman_profile_mideas_tileset.json",
+    "indian_woman_profile_msx_screen2.asm",
+    "indian_woman_profile_msx_screen2.ct.bin",
+    "indian_woman_profile_msx_screen2.json",
+    "indian_woman_profile_msx_screen2.nt.bin",
+    "indian_woman_profile_msx_screen2.pt.bin",
+    "indian_woman_profile_msx_screen2_preview.png",
+    "indian_woman_profile_msx_screen2_tables.bin"
+  ]
+}

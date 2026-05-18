@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\joc51_boss_tilebanks_compressed.asm",
+  "metrics": {
+    "original_line_count": 32580,
+    "output_line_count": 32580,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-arzjlg1m\\joc51_boss_tilebanks_compressed.optimized.optimized.rom",
+        "size_bytes": 262144,
+        "sha256": "0e3647e87e69076307fa958896589316f9ebe2bda3956c0bbc9b8f5b73d3aeaf"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-arzjlg1m\\joc51_boss_tilebanks_compressed.original.rom",
+        "size_bytes": 262144,
+        "sha256": "0e3647e87e69076307fa958896589316f9ebe2bda3956c0bbc9b8f5b73d3aeaf"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

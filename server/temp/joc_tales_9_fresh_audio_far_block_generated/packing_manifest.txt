@@ -1,0 +1,24 @@
+MEGAROM PACKING MANIFEST
+Zone size: 8192
+Data start address: #A000
+Total resource blocks: 14
+
+BANK 03 used 8124 / 8192
+- tilebank_pattern_data_0           1088 stored /  1088 raw bytes @ #A000 (rom #A000, offset +#0000) [PATTERNS/TILE_PATTERNS]
+- tilebank_color_data_0             1088 stored /  1088 raw bytes @ #A440 (rom #A440, offset +#0440) [COLORS/TILE_COLORS]
+- tile_pattern_bank0                1016 stored /  1016 raw bytes @ #A880 (rom #A880, offset +#0880) [PATTERNS/TILE_PATTERNS]
+- tile_color_bank0                  1016 stored /  1016 raw bytes @ #AC78 (rom #AC78, offset +#0C78) [COLORS/TILE_COLORS]
+- SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT   768 stored /   768 raw bytes @ #B070 (rom #B070, offset +#1070) [SCREENS/SCREEN_LAYOUT]
+- SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT   768 stored /   768 raw bytes @ #B370 (rom #B370, offset +#1370) [SCREENS/SCREEN_EFFECTS_LAYOUT]
+- SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP   768 stored /   768 raw bytes @ #B670 (rom #B670, offset +#1670) [SCREENS/SCREEN_DATA]
+- SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP   768 stored /   768 raw bytes @ #B970 (rom #B970, offset +#1970) [SCREENS/SCREEN_DATA]
+- SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP   768 stored /   768 raw bytes @ #BC70 (rom #BC70, offset +#1C70) [SCREENS/SCREEN_DATA]
+- NEW_SPRITE_0_F0_LAYER2              32 stored /    32 raw bytes @ #BF70 (rom #BF70, offset +#1F70) [SPRITES/SPRITE_PATTERNS]
+- SPRITE_PLACEHOLDER_PATTERN          32 stored /    32 raw bytes @ #BF90 (rom #BF90, offset +#1F90) [SPRITES/SPRITE_PATTERNS]
+- SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE    11 stored /    11 raw bytes @ #BFB0 (rom #BFB0, offset +#1FB0) [SCREENS/SCREEN_DATA]
+- SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE     1 stored /     1 raw bytes @ #BFBB (rom #BFBB, offset +#1FBB) [SCREENS/SCREEN_EFFECT_ZONE_TABLE]
+FREE 68
+
+BANK 04 used 256 / 8192
+- SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE   256 stored /   256 raw bytes @ #A000 (rom #C000, offset +#0000) [SCREENS/SCREEN_DATA]
+FREE 7936

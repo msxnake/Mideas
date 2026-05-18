@@ -21,6 +21,7 @@ const STANDARD_COMPONENT_IDS = {
     'comp_physics': 'Movement',
     'comp_collision': 'Collision',
     'comp_wall_collision': 'WallCollision',
+    'comp_limit_on': 'LimitOn',
     'comp_player_input': 'Input',
     'comp_input': 'Input',
     'comp_ai_behavior': 'Behavior',
@@ -32,18 +33,22 @@ const STANDARD_COMPONENT_IDS = {
     'comp_jump': 'Jump',
     'comp_damage': 'Damage',
     'comp_deadly_tiles': 'DeadlyTiles',
+    'comp_in_water': 'InWater',
     'comp_wall_jump': 'WallJump',
     'comp_wall_grab': 'WallGrab',
+    'comp_dash': 'Dash',
     'comp_air_control': 'AirControl',
     'comp_statemachine': 'StateMachine',
     'comp_cursors': 'Cursors',
     'comp_carry': 'Carry',
+    'comp_box': 'Box',
     'comp_collectible': 'Collectible',
     'comp_tile_collector': 'TileInteraction',
     'comp_patrol': 'Patrol',
     'comp_shoot': 'Shoot',
     'comp_retractable_gate': 'RetractableGate',
-    'comp_auto_control_script': 'AutoControlScript'
+    'comp_auto_control_script': 'AutoControlScript',
+    'comp_mirror': 'Mirror'
 };
 /**
  * Resolve final spriteId for an entity (defaults + overrides)
@@ -87,6 +92,13 @@ function analyzeComponentUsage(analysis) {
     activeEntities.forEach((entity, entityIndex) => {
         const entityDisplayName = entity.name || entity.id;
         const entityKey = entity.id || entity.name || `entity_${entityIndex}`;
+        const addComponentUsage = (componentName) => {
+            usedComponents.add(componentName);
+            if (!componentToEntitiesMap.has(componentName)) {
+                componentToEntitiesMap.set(componentName, new Set());
+            }
+            componentToEntitiesMap.get(componentName).add(entityKey);
+        };
         // Get template definition
         const template = analysis.templates?.find((t) => t.id === entity.entityTemplateId);
         if (template) {
@@ -99,12 +111,7 @@ function analyzeComponentUsage(analysis) {
                         // Map component definition ID to standard name
                         const standardName = STANDARD_COMPONENT_IDS[componentDefId] || componentDefId;
                         console.log(`    - Component: ${componentDefId} → ${standardName}`);
-                        usedComponents.add(standardName);
-                        // Track which entities use this component
-                        if (!componentToEntitiesMap.has(standardName)) {
-                            componentToEntitiesMap.set(standardName, new Set());
-                        }
-                        componentToEntitiesMap.get(standardName).add(entityKey);
+                        addComponentUsage(standardName);
                     }
                 });
             }
@@ -113,11 +120,7 @@ function analyzeComponentUsage(analysis) {
                 Object.keys(entity.componentOverrides).forEach((compId) => {
                     const standardName = STANDARD_COMPONENT_IDS[compId] || compId;
                     console.log(`    - Override: ${compId} → ${standardName}`);
-                    usedComponents.add(standardName);
-                    if (!componentToEntitiesMap.has(standardName)) {
-                        componentToEntitiesMap.set(standardName, new Set());
-                    }
-                    componentToEntitiesMap.get(standardName).add(entityKey);
+                    addComponentUsage(standardName);
                 });
             }
         }

@@ -79,6 +79,637 @@ Current limitation to keep in mind:
 - That is useful for Konami and partial ASCII8 work, but it is not yet the
   final zone-aware allocator required for stable `ascii8`/`ascii16` builds.
 
+## Konami8K Paper Alignment (2026-05-02)
+
+Completed:
+
+- Konami MegaROM data uses the P3 `#A000-#BFFF` 8 KB window.
+- Generated `resource_table` descriptors now use the compression-ready format:
+  `bank`, `address`, `storedSize`, `uncompressedSize`, `flags`.
+- `RESOURCE_FLAG_COMPRESSED_ZX0` is defined for future ZX0 resource entries.
+- `resource_load_to_ram_by_id` can route flagged banked resources through the
+  resident `dzx0_standard` decoder while keeping the source bank mapped.
+- `resource_find_by_id` preserves the descriptor ABI after reading 8-byte table
+  entries: callers get `A=bank`, `DE=address`, and `BC=storedSize` on both cache
+  hits and fresh table lookups.
+- `resource_load_to_vram_by_id` now supports compressed banked resources with a
+  hybrid path: resources that fit the shared 1488-byte scratch buffer decode to
+  RAM and upload through `FAST_LDIRVM`; larger resources decode ZX0 directly to
+  VRAM.
+- Konami8K validation rejects uncommented `ld a,i` / `ld a,r` interrupt-state
+  reads because of the Z80 errata risk.
+- Table-backed MegaROM ZX0 post-processing is implemented for RAM-safe resource
+  categories. It rewrites compressed resource blocks, repacks the P3 8 KB data
+  banks, rebuilds `resource_table`, and regenerates `packing_manifest.json`,
+  `banks.json`, `project_usage.json`, `unused_report.txt`, and
+  `segment_budget.json` from final addresses and sizes.
+- The post-processor now measures both `DB` and `DW` data bytes when repacking.
+  Mixed `DW`/`DB` blocks are kept raw unless they have an exact byte stream, so
+  resource table addresses stay aligned with Glass symbols.
+- OpenMSX smoke for `joc52_banked_zx0v2_v6_megarom.rom` passed with
+  `-romtype konami`: no reset after boot, IRQ counter advances, SPACE enters the
+  game, RIGHT changes player X, and screenshots at t10/t14/t20 stay rendered.
+- OpenMSX smoke for `joc52_banked_zx0vram_v1_megarom.rom` passed after enabling
+  compressed VRAM resources: 51 resources compressed, including 32 sprite
+  pattern blocks, 3 tile pattern blocks, and 3 tile color blocks; net saved
+  bytes increased to 8933; screenshots at t10/t14/t20 stay rendered.
+- Current `joc52` regression matrix now passes the same scripted OpenMSX smoke:
+  - `simple32k` with ZX0: 28410 raw bytes, padded to 32768; player X moves
+    `16 -> 120`.
+  - raw Konami MegaROM with `--skip-zx0-preprocess`: 147456 raw bytes, padded
+    to 262144, 2 data banks; player X moves `16 -> 100`.
+  - table-backed ZX0+VRAM Konami MegaROM: 139264 raw bytes, padded to 262144,
+    1 compressed data bank; player X moves `16 -> 94`.
+- Current `joc60` regression matrix also passes the same scripted OpenMSX smoke:
+  - `simple32k` with ZX0: 32074 raw bytes, padded to 32768; net saved 4751
+    bytes; player X moves `16 -> 134`.
+  - raw Konami MegaROM with `--skip-zx0-preprocess`: 147456 raw bytes, padded
+    to 262144, 2 data banks; player X moves `16 -> 136`.
+  - table-backed ZX0+VRAM Konami MegaROM: 139264 raw bytes, padded to 262144,
+    1 compressed data bank, 51 compressed resources, net saved 10936 bytes;
+    player X moves `16 -> 136`.
+- `scripts/build_mideas_unified_rom.py --openmsx-smoke` now generates a debug
+  Tcl probe from the Glass `.sym`, launches OpenMSX with the resolved mapper
+  type, captures t10/t14/t20 screenshots, and fails if SPACE/RIGHT/regression
+  markers do not appear.
+- OpenMSX smoke runs are serialized with a local lock because the runner kills
+  stale `openmsx.exe` processes before launching a new probe. Each smoke also
+  retries once after a probe/emulator failure to absorb transient headless timing
+  issues without weakening deterministic failures.
+- MegaROM compressed VRAM resources now use RAM staging when they fit
+  `ZX0_VRAM_TRANSFER_BUFFER`, keeping the fast `FAST_LDIRVM` upload path for
+  common tiles and sprites. Larger VRAM resources fall back to direct-to-VRAM
+  ZX0 decode, so they are no longer capped by the 1488-byte shared scratch
+  buffer.
+- The large direct-to-VRAM fallback remains available for compressed VRAM
+  resources that do not fit the 1488-byte RAM staging buffer, but it still
+  needs validation with a known-good project JSON whose VRAM resources exceed
+  that threshold.
+- `--openmsx-smoke-require-movement` is available for stricter projects such as
+  `joc60`; default smoke now accepts stationary projects that still boot,
+  advance IRQs, and render screenshots.
+- Konami8K validation now enforces the paper's resident-kernel/data separation:
+  mapper/runtime/resource/ZX0/ISR routines must remain before the first
+  `org #6000`, asset banks must not overlap resident or far-code banks, and
+  active code cannot reference banked resource labels directly.
+- MegaROM screen boss placement loading now goes through `RESOURCE_ID` +
+  `resource_load_to_ram_by_id`, so boss placement data is copied into RAM
+  before runtime use instead of dereferencing a banked table symbol directly.
+- MegaROM sprite frame pointer tables no longer point at banked sprite pattern
+  labels; sprite pattern uploads use the resource manager/preload path.
+- Added `scripts/run_mideas_regression_matrix.py` to run the repeatable
+  `simple32k`, `plain48k`, and `megarom_konami` compile/OpenMSX smoke matrix
+  for a project JSON. By default it writes full per-mode build logs to
+  `server/temp/*_build.log` and prints only ROM, ZX0, Konami8K, and OpenMSX
+  summary lines; `--verbose` restores full streaming output.
+- Current `tales7` regression matrix passes the scripted OpenMSX smoke:
+  - `simple32k`: 16384-byte ROM, boots and renders.
+  - `plain48k`: 49152-byte ROM, boots and renders.
+  - `megarom_konami`: 131072-byte ROM, 16 Konami8K segments, 15 resources, 1
+    compressed data bank, boots and renders.
+- Current `joc52` regression matrix passes the same scripted OpenMSX smoke:
+  - `simple32k`: 32768-byte ROM; player X moves `16 -> 120`.
+  - `plain48k`: 49152-byte ROM; player X moves `16 -> 112`.
+  - `megarom_konami`: 262144-byte ROM, 32 Konami8K segments, 55 resources, 1
+    compressed data bank, net saved 8933 bytes, max real code-bank usage 7729
+    bytes; player X moves `16 -> 94`.
+- Current `joc60` regression matrix passes the same scripted OpenMSX smoke:
+  - `simple32k`: 32768-byte ROM; player X moves `16 -> 134`.
+  - `plain48k`: 49152-byte ROM; player X moves `16 -> 134`.
+  - `megarom_konami`: 262144-byte ROM, 32 Konami8K segments, 55 resources, 1
+    compressed data bank, net saved 10936 bytes, max real code-bank usage 7729
+    bytes; player X moves `16 -> 134`.
+- Code-bank validation now uses Glass symbols emitted by unique
+  `BANK_n_USED_END` labels. The old ASM-text module-size fields in
+  `segment_budget.json` are explicitly named `estimatedUsedBytes`,
+  `estimatedFreeBytes`, and `estimatedOverBudget`; hard validation checks the
+  assembled end labels instead, including bank 0.
+- Konami8K validation now rejects direct `call`/`jp` instructions from one
+  far-code bank to a label defined in a different far-code bank. Cross-overlay
+  branches must go through the bank-0 `_far` trampolines so P1 is saved,
+  remapped, restored, and returned without corrupting the caller's bank.
+- Konami8K validation now also rejects far-code `call`/`jp` branches directly into primary
+  bank 1/P1 or bank 3/P3 labels. P1 is occupied by the executing overlay, and
+  P3 is the dynamic asset-data window, so those calls must go through bank-0
+  resident wrappers. The `worlds` far bank now calls
+  `call_apply_collected_tiles_resident`, which maps component bank 1 only for
+  the duration of `apply_collected_tiles`.
+- Konami8K validation now rejects scattered mapper register writes. Writes to
+  `MAPPER_REG_Px` or raw Konami mapper addresses `#6000/#8000/#A000` must stay
+  inside the resident `mapper_set_bank_pX` routines, keeping bank switching
+  centralized and auditable.
+- Konami8K artifact validation now reports `residentP3Used`, measured from
+  Glass `BANK_3_USED_END`, so the pipeline exposes how much resident code still
+  occupies `#A000-#BFFF` before enforcing the paper's future "P3 data-only"
+  layout.
+- `scripts/build_mideas_unified_rom.py` now has `--strict-p3-data-window`,
+  which turns the `residentP3Used` diagnostic into a hard Konami MegaROM
+  validation failure and reports the responsible bank-3 resident modules. This
+  gives the P3 data-only refactor a deterministic red/green gate while keeping
+  current builds usable until GameFlow/resident code is moved out of `#A000`.
+- GameFlow is no longer emitted in the P3 `#A000-#BFFF` resident window for
+  Konami MegaROM builds. The unified packer now groups GameFlow after
+  StateMachine in P2 (`#8000-#9FFF`) and leaves Bank 3 as an empty reserved P3
+  window. `joc60` now passes `--strict-p3-data-window` with
+  `residentP3Used=0` and OpenMSX movement smoke (`playerX=16->136`).
+- Bank 3 is now the first physical asset-data segment for Konami MegaROM
+  builds. Resident code is limited to banks 1-2, data starts at
+  `#A000-#BFFF`, and far-code overlays are emitted after all reserved data
+  zones while still executing through the P1 `#6000-#7FFF` trampoline window.
+- The ZX0 post-processor now preserves the original data-zone count after
+  compression, including empty reserved zones, so compressed data cannot move
+  following far-code banks to different physical segments. `banks.json`,
+  `packing_manifest.json`, `segment_budget.json`, and
+  `bank_optimizer.json` all report those reserved empty data banks.
+- Konami8K validation now checks the paper's physical-bank formula for every
+  far-code overlay: `FAR_BANK_N_ROM_START` must assemble to a ROM address whose
+  `((label - #4000) / #2000)` value is exactly `N`.
+- Konami8K validation now checks every generated `_far` trampoline contract:
+  IRQ must be disabled before bank mapping, the current P1 bank must be saved
+  and restored through `mapper_bank_p1_current`, `EI` can only happen after the
+  original bank is back, and `AF`/alternate-`AF` save sequences must balance
+  before `RET`.
+- Strict P3 data-window OpenMSX smoke now passes on the current bank-3 data
+  layout:
+  - `joc60_data_bank3_strict`: 32 Konami8K segments, 2 data banks
+    (`bank 3` used, `bank 4` reserved empty after ZX0), `residentP3Used=0`,
+    player X moves `16 -> 136`.
+  - `joc52_data_bank3_strict`: 32 Konami8K segments, 2 data banks
+    (`bank 3` used, `bank 4` reserved empty after ZX0), `residentP3Used=0`,
+    player X moves `16 -> 118`.
+- The compile pipeline now has `--strict-vram-staging`, which fails Konami
+  MegaROM validation if any compressed VRAM resource is larger than the shared
+  RAM staging buffer and would fall back to the slow direct-to-VRAM ZX0 decoder.
+  Current `joc52`/`joc60` strict builds report `largeVramResources=0`, so their
+  compressed VRAM loads use the faster RAM staging path.
+- Final MegaROM packing artifacts now include `placementReason` for each banked
+  resource. The reason records the post-ZX0 first-fit placement, whether the
+  resource was part of a merged unit, compressed/raw size, bank/zone/offset, and
+  remaining zone slack. Konami8K artifact validation requires this field so
+  placement decisions stay inspectable during allocator work.
+- `segment_budget.json` now also reports `placementReason` for every code bank
+  and code module. Resident modules explain their fixed P1/P2 kernel window,
+  far modules explain their size-sorted overlay index and P1 trampoline window,
+  and Konami8K artifact validation requires those reasons before accepting the
+  build.
+- Mapper metadata is now carried through the MegaROM allocator artifacts:
+  `packing_manifest.json`, `banks.json`, `project_usage.json`, and
+  `bank_optimizer.json` record mapper format, data-window base/mask/divisor,
+  and segment size. The post-ZX0 resource-table rewrite now derives window
+  addresses from that parsed mapper window instead of hardcoding Konami
+  `#A000`, and it accepts both 8 KB and 16 KB data zones.
+- `bank_optimizer.json` proposed placement is now driven by mapper data-zone
+  capacity instead of a hardcoded 8 KB value. ASCII16 dry-run placement reports
+  `zoneSize=16384` with 16 KB `usedBytes/freeBytes` accounting, and the generic
+  MegaROM artifact validator rejects proposed placements whose zone size or
+  accounting does not match the requested mapper.
+- The generic MegaROM artifact validator now also verifies optimizer resource
+  coverage: `currentPlacement` and `proposedPlacement` must match the manifest
+  resource count, every proposed bank's `usedBytes` must equal the sum of its
+  resource sizes, and the proposed placement must include every manifest
+  resource exactly once.
+- The generic MegaROM validator now cross-checks `load_plan.json` summary
+  accounting against concrete scene/bank entries and the manifest: scene count,
+  unique data banks, bank touches, stored/raw bytes, and compressed-resource
+  totals must all agree before a MegaROM build is accepted.
+- The build script now validates mapper metadata for every MegaROM target, not
+  only Konami. `packing_manifest.json`, `banks.json`, `project_usage.json`, and
+  `bank_optimizer.json` must agree with the requested mapper format and each
+  resource must stay inside its mapper data segment/window.
+- `load_plan.json` now carries the same mapper metadata plus a global summary
+  of scene/resource counts, data-bank touches, stored/raw bytes, and compressed
+  resources. Both the TypeScript generator and the post-ZX0 artifact refresh
+  path emit this metadata, and the build validator rejects MegaROM artifacts
+  when the load plan mapper does not match the requested target.
+- `scripts/run_mideas_regression_matrix.py` can now expand a single MegaROM
+  regression run across multiple mapper targets via `--target-formats`, while
+  keeping simple32k/plain48k as single non-mapper cases. Compact summaries also
+  include the generic `MegaROM mapper artifacts` validation line.
+- OpenMSX smoke can now run with forced mapper type or with mapper auto-detect.
+  `scripts/build_mideas_unified_rom.py --openmsx-smoke-no-forced-romtype`
+  omits `-romtype`, and `scripts/run_mideas_regression_matrix.py
+  --openmsx-smoke-romtype-modes forced,auto` duplicates smoke cases with clear
+  suffixes and `romtype=forced|auto` summaries.
+- The regression matrix treats ASCII16 as a strict-promotion mapper target by
+  default: it still compiles and prints `ASCII16 runtime layout`, but skips
+  OpenMSX smoke unless `--strict-ascii16-runtime-layout` or the explicit force
+  override is present. This lets exploratory mapper-expanded matrices cover
+  `konami,ascii8,ascii16` without confusing layout-contract gaps with new
+  gameplay regressions.
+- The regression matrix accepts repeated `--json` arguments, so the current
+  baseline project set (`joc51`, `joc_tales_9`, `patoantic248`, `joc60`) can be
+  compiled through the same mapper matrix without external shell loops.
+- Baseline compile matrix passed for `joc51`, `joc_tales_9`, `patoantic248`,
+  and `joc60` across `megarom_konami`, `megarom_ascii8`, and
+  `megarom_ascii16`. The initial ASCII16 pass reported the expected `P1/#6000`
+  runtime-layout blocker, which became the strict promotion gate.
+- The mapper-expanded `joc52` runtime matrix found and fixed the first hard
+  ASCII8 contract mismatch. ASCII8 far-code trampolines now execute `#6000`
+  overlays through P2/register `#6800`, while P1 keeps bank 0 resident at
+  `#4000`. ASCII8 banked data and screen/behavior map access now use
+  P3/register `#7000` for the `#8000` data window, so RAM sentinel bank `#FF`
+  can no longer corrupt the component/input code window. OpenMSX smoke for
+  `joc52` now passes in ASCII8 with movement (`player X 16 -> 118`) and mapper
+  artifacts report `format=ascii8`, `segmentSize=8192`, `window=p3/#8000`,
+  `resources=55`.
+- ASCII16 compile metadata now validates the 16 KB data-window artifacts
+  (`format=ascii16`, `segmentSize=16384`, `window=p3/#8000`) while reporting a
+  separate runtime-layout diagnostic. The early ASCII16 output stayed blocked
+  because far-code trampolines still used the lower `#4000-#7FFF` 16 KB page
+  through `P1/#6000`; the OpenMSX smoke gate now rejects exact hazards instead
+  of treating all ASCII16 builds as an unexplained blanket block.
+- `segment_budget.json` now carries a mapper runtime-layout diagnostic. For
+  ASCII16 it reports the shared 16 KB code-window granularity, resident lower
+  page banks, far lower page banks, lower-page hazards, and the exact reason a
+  build is blocked or promoted before emulator acceptance.
+- `segment_budget.json` now carries mapper-aware budget metadata. Konami keeps
+  the legacy `konami8k_segment_budget` scope for existing validation, while
+  ASCII targets report `megarom_mapper_segment_budget`, `mapper.format`,
+  `codeSegmentSize`, `dataSegmentSize`, and per-data-bank window fields so
+  ASCII16 diagnostics no longer look like pure Konami8K output.
+- MegaROM resident wrappers now resolve only to labels that are actually placed
+  in emitted code banks or generated far trampolines. Optional modules such as
+  `font` can no longer leave wrappers pointing at unplaced labels like
+  `print_string_screen2`; absent targets fall back to `resident_noop`. The
+  `joc_tales_8` Konami build now compiles and passes OpenMSX smoke with
+  movement (`player X 216 -> 78`).
+- The Screen 2 tile pipeline now reserves char 254 for GameFlow transition box
+  cells and char 255 as the empty/SPC sentinel. Base pattern/color uploads are
+  capped to chars `128-253`, runtime tilebank allocation rejects assignments
+  that would touch 254/255, and `init_char0_color` reinstalls both reserved
+  chars across all three SCREEN 2 banks so stale VRAM cannot leak into
+  transition or empty boss/layout cells. `joc_tales_9` now compiles across
+  `konami/ascii8/ascii16` and renders the large boss without the repeated
+  reserved-char artifact.
+- The MegaROM build and regression matrix now expose a
+  `--strict-tilebank-integrity` gate. Normal builds still report
+  `tilebankIssueScreens/tilebankIssueCells`, while strict validation fails when
+  project screens reference missing or out-of-range Screen 2 tile assignments.
+- The regression matrix also forwards `--strict-p3-data-window` and
+  `--strict-vram-staging` to the builder, so Konami acceptance runs can enforce
+  the paper's P3 data-only layout and RAM-staged ZX0 VRAM loads without
+  dropping down to per-project build commands.
+- The build and regression matrix now expose `--strict-ascii16-runtime-layout`.
+  Non-strict ASCII16 runs skip OpenMSX smoke by default, while strict runs fail
+  when `segment_budget.json.runtimeLayout.smokeBlocked=true` or assembled
+  resident symbols overflow their window. This gives the 16 KB
+  code-placement/RAM-trampoline work a deterministic red/green gate.
+- Tilebank integrity diagnostics now split strict failures into
+  `missingAssetCells` and `unassignedCells`. The current `joc51`/`joc60`
+  strict tilebank failures are project-data issues (`missingAssetCells=96`,
+  `unassignedCells=0`): their screen maps still reference deleted tile IDs, not
+  mapper placement mistakes.
+- PresentationScreen MegaROM flow now separates the short image-load routine
+  from configurable SPACE/frame waits. GameFlow calls
+  `show_presentation_screen_image_far`, lets the far-call trampoline restore the
+  mapper window, then waits from GameFlow-owned code. This avoids holding ASCII8
+  P2 on a `screens_code` overlay during long HALT/input loops.
+- Optional boot PresentationScreen uses the same short image-load entrypoint and
+  boot-local wait helpers, so `showAtBoot` no longer needs to run a long
+  screen-code wrapper through a far trampoline.
+- The forced-romtype gameplay matrix now passes Konami and ASCII8 with movement
+  required for the baseline projects: `joc51`, `joc_tales_9`, `patoantic248`,
+  and `joc60`. The previously failing ASCII8 cases now move
+  `joc_tales_9` `216 -> 78` and `patoantic248` `8 -> 82`.
+- ASCII16 resource descriptors now emit runtime 16 KB segment ids instead of
+  logical ASM banks after the post-ZX0 repack step. This fixes the first
+  OpenMSX reset/crash in `patoantic248`: gameplay pattern/color resources now
+  map P3 segment `1` and decode real ZX0 bytes instead of reading `#FF`.
+- ASCII16 far overlays now route generated `call_*_resident` wrappers through
+  local RAM-bridge stubs as well as explicitly collected bank-0 labels. This
+  fixes the first hidden-wrapper fault where `init_animated_tiles` called
+  `call_update_animated_tiles_vram_resident` while the animtiles lower-page
+  segment was mapped.
+- Component trigger helpers are now emitted as a bank-0 resident copy when
+  MegaROM components call them directly. This avoids resolving
+  `component_trigger_edge_pressed_a` to a GameFlow lower-page overlay address
+  that is only valid while that ASCII16 segment is mapped.
+- `patoantic248` ASCII16 now reaches gameplay in OpenMSX and passes strict
+  movement smoke (`playerX=8->40`). The key fix was keeping init-time
+  `SM_ExecuteActions` no-op calls local to `entities.asm`; a direct
+  `call resident_noop` from a lower-page ASCII16 overlay executed the mapped
+  entity bank at the resident address instead of bank 0.
+- The ASCII16 runtime-layout gate now treats lower-page far banks as acceptable
+  when the RAM trampoline is installed, no hidden resident calls remain, and no
+  upper-page resident code overlaps the data window. The baseline compile matrix
+  for `joc51`, `joc_tales_9`, `patoantic248`, and `joc60` passes
+  `konami/ascii8/ascii16` with strict VRAM staging and strict ASCII16 layout.
+- The matrix runner now promotes ASCII16 to normal OpenMSX smoke when
+  `--strict-ascii16-runtime-layout` is enabled. Without that strict gate it
+  still skips ASCII16 smoke by default, so exploratory mapper matrices do not
+  run emulator probes without the layout contract.
+- `segment_budget.json` now reports ASCII16 resident code-window pressure as
+  explicit estimated runtime-layout metadata:
+  - `residentEstimatedWindowOverflowCount`
+  - `residentEstimatedWindowOverflowSamples`
+  - `residentEstimatedOutOfWindowLabelCount`
+  - `residentEstimatedOutOfWindowLabelSamples`
+  - `residentEstimatedOutOfWindowCallCount`
+  - `residentEstimatedOutOfWindowCallSamples`
+  - `status=smoke-candidate-risk` when no hard mapper hazard blocks smoke, but
+    resident modules such as `components` estimate beyond their fixed window.
+  This keeps existing OpenMSX smoke candidates runnable while making the
+  label-level component placement risk visible in the build output.
+- The first `joc60` ASCII16 pass with these diagnostics reports 67 estimated
+  resident labels outside the fixed window and 54 call sites targeting them.
+  `refresh_player_sprite_fastpath` itself remains inside the resident window
+  estimate, which narrows the next investigation to helper calls later in
+  `components` rather than that fastpath label directly.
+- Strict ASCII16 builds now emit a Glass `.sym` file by default and compare
+  actual `BANK_n_USED_END` labels against each resident bank window. The current
+  `joc60` ASCII16 strict pass reports `actualResidentOverflows=0` and
+  `maxActualResidentUsed=7739`, so the remaining `smoke-candidate-risk` status
+  is an estimator pressure warning rather than a proven assembled overflow.
+- The strict compile matrix for `joc51`, `joc_tales_9`, `patoantic248`, and
+  `joc60` passes across `konami`, `ascii8`, and `ascii16`. All four ASCII16
+  cases report `actualResidentOverflows=0`; their remaining risk is the
+  estimated component label/call pressure that still needs emulator promotion.
+- Strict ASCII16 OpenMSX smoke with movement now passes for `joc51`,
+  `joc_tales_9`, `patoantic248`, and `joc60` without the older
+  `--force-openmsx-smoke-compile-only` override. The latest `patoantic248` black
+  screen was a hidden resident-label call: the conservative init-time
+  `SM_ExecuteActions` skip used `resident_noop`, but that label is only valid
+  when bank 0 owns the lower page. The generator now emits
+  `entities_ascii16_init_noop` inside `entities.asm`, so the call returns inside
+  the currently mapped overlay.
+- `SM_ExecuteActions` still has a bank-0 trampoline/wrapper path for non-empty
+  runtime cases, preserving the entity index in `A`. The ASCII16 runtime layout
+  report exposes `farToFarDirectCallCount` and samples, and strict validation
+  treats any remaining direct lower-page overlay-to-overlay call as a hard smoke
+  blocker. The strict ASCII16 smoke set reports `farToFarDirectCalls=0`,
+  `hiddenResidentCalls=0`, and movement OK.
+- The OpenMSX mapper-smoke contract now receives the Glass `.sym` file for
+  ASCII16 and rejects smoke if assembled resident code really overflows its
+  window (`actualResidentOverflows > 0`), not only when the pre-assembly
+  `smokeBlocked` flag is true.
+- ASCII16 build output now reports the effective runtime status from real Glass
+  symbols when they are available. Estimated resident-window pressure is still
+  preserved as diagnostics, but `status=smoke-candidate` is emitted when
+  `actualResidentOverflows=0`; for example `joc60` reports
+  `estimatedResidentWindowOverflows=1`, `actualResidentOverflows=0`, and
+  `maxActualResidentUsed=7739`.
+- `segment_budget.json.runtimeLayout` is now annotated after assembly with the
+  same post-Glass status: `preAssemblyStatus` preserves the estimated state,
+  `status` carries the effective smoke state, and
+  `actualResidentWindowOverflowCount` / `maxActualResidentUsed` record the real
+  symbol-derived resident usage.
+- The post-Glass ASCII16 annotation now also records per-resident-bank usage in
+  `actualResidentBankUsages` plus `minActualResidentFree`, so future allocator
+  work can see exact free/overflow bytes per resident window instead of only the
+  aggregate maximum.
+- ASCII16 resident usage now has a low-margin warning threshold
+  (`actualResidentLowFreeThreshold=256`). Builds keep passing when the resident
+  window fits, but `actualResidentLowFreeBankCount` and
+  `actualResidentLowFreeBankUsages` flag cases such as `patoantic248`, where the
+  current resident window has very little free space left.
+- The build and regression matrix now expose
+  `--strict-ascii16-resident-free-bytes N`. This keeps the default pipeline
+  compatible, while acceptance runs can fail when any assembled ASCII16 resident
+  window has less than `N` bytes free.
+- StateMachine tree-shaking now keeps `Condition_AnimComplete` and
+  `Condition_VariableCompare` emitted. This avoids a bad strip path where
+  project data still references those handlers but Glass sees an undefined
+  dispatch-table symbol.
+- ASCII16 lower-page overlays now keep direct hardware helpers local after the
+  final emitted-module sync step. `FAST_LDIRVM`/`FAST_WRTVRM` copies are renamed
+  per far bank, including their local labels, so routines that stream ROM-local
+  data to VRAM keep the source bank visible instead of remapping bank 0 first.
+  This fixes the `joc51` ASCII16 HUD/font corruption: OpenMSX smoke renders the
+  HUD cleanly and movement changes `playerX=16->134`.
+- Runtime SCREEN 2 tilebanks now promote boss phase/form/attack tiles into all
+  three vertical pattern/color banks when a referenced tilebank only assigned
+  them in one bank. `joc51` proved the failure mode: the boss behavior RAM moved
+  correctly, but the Name Table wrote low fallback tile indices because the boss
+  chars were absent from the middle/lower SCREEN 2 banks. The fixed build emits
+  the boss matrix with runtime tilebank chars (`#93..#9C`) and OpenMSX captures
+  show the full boss moving across the screen.
+- The post-fix compile matrix passes for `joc51`, `joc_tales_9`,
+  `patoantic248`, and `joc60` across `megarom_konami`, `megarom_ascii8`, and
+  `megarom_ascii16` with strict ASCII16 runtime layout plus
+  `--strict-ascii16-resident-free-bytes 64`. `patoantic248` still reports the
+  expected low resident margin (`minActualResidentFree=73`) but remains above
+  the 64-byte acceptance gate.
+- Post-ASM block reports now include source-size pressure for annotated blocks:
+  total annotated lines/bytes and dead-candidate lines/bytes are emitted in the
+  Markdown/JSON reports and compact CLI output. Dead-block candidates are sorted
+  by source bytes in the report. The same inventory now includes the largest
+  annotated blocks by source pressure, which gives the next optimization pass a
+  deterministic priority list even when no block is currently removable. Reports
+  also rank the largest global label spans, so unannotated hot spots can be found
+  before adding more `@mideas:block` markers. A separate unannotated-label
+  ranking now filters out labels already owned by blocks, giving a direct queue
+  for the next annotation pass. Unannotated labels are now categorized as
+  `bios_helper`, `bank_marker`, `data`, `screen_loader`, `boot_or_init`, or
+  `runtime_code`, preventing BIOS/data/bank sentinels from being mixed with
+  routine-level optimization targets. On `joc_tales_9`, the largest remaining
+  unannotated entries are correctly split between `FAST_SNSMAT` (`bios_helper`),
+  `BANK_0_USED_END` (`bank_marker`), `tilebank_pattern_data_0` (`data`), and
+  `load_screen_new_playable_screen_777833014252` (`screen_loader`).
+- Components ASM annotation coverage now includes `runtime.components.animation`,
+  `runtime.components.wallcollision`, `runtime.components.collision`,
+  `runtime.components.input`, and `runtime.components.jump`. Interrupt ASM now
+  also marks `runtime.interrupt.dispatcher` and `runtime.interrupt.task_input`,
+  and entity initialization emits per-entity blocks such as
+  `data.entities.player_1.init`. Boss ASM now separates
+  `runtime.boss.entry` from the larger `runtime.boss.core` helper block. On
+  `joc_tales_9` this raises the optimized post-ASM block inventory from 6 to 15
+  blocks while keeping
+  `Dead-block candidates: 0`, marker errors at 0, and the ROM byte-identical
+  after post-ASM validation.
+- Init and screen-loader ASM now have explicit blocks too:
+  `runtime.components.init` covers `init_components` and the shared
+  `component_fill_32_a` helper, while generated `load_screen_*` routines emit
+  `runtime.screens.*.loader` blocks. On `joc_tales_9` this raises the optimized
+  block inventory to 17 blocks with `Dead-block candidates: 0`, marker errors
+  at 0, and a byte-identical ROM.
+- Runtime hot spots now have a first pass of label-to-block coverage:
+  `runtime.components.gravity` wraps `init_gravity_system` and
+  `update_gravity_component`, `runtime.gameflow.world_loop` wraps
+  `gameflow_world_game_loop`, and `runtime.scroll.core` wraps the generated
+  scroll helpers from `init_scroll_system` through `redraw_viewport`. On
+  `joc_tales_9` this raises the optimized block inventory to 20 blocks with
+  `Dead-block candidates: 0`, marker errors at 0, and a byte-identical 128 KB
+  ROM. The largest remaining unannotated `runtime_code` entries are now outside
+  those blocks, led by `expand_screen_block_layout_4x4`,
+  `gameflow_handle_worldlink`, `resource_dzx0_to_vram`,
+  `resource_find_by_id`, and `update_entity_patrol_facing`.
+- A second runtime annotation pass now covers those entries too:
+  `runtime.screens.block_layout_expander`, `runtime.gameflow.worldlink`,
+  `runtime.resources.manager`, and `runtime.entities.patrol_facing` mark the
+  screen-block expander, WorldLink handler, resource lookup/copy/decode helpers,
+  and directional patrol-facing helper. The marker parser now ignores
+  double-commented artifact copies such as `; ; @mideas:block`, preventing
+  compressed ASM reports from double-counting source-file snapshots. On
+  `joc_tales_9` this raises the optimized block inventory to 24 active blocks,
+  with `Dead-block candidates: 0`, marker errors at 0, and a byte-identical
+  128 KB ROM. The largest remaining unannotated `runtime_code` item is now
+  `mapper_call_hl_auto`, followed by smaller mapper/page0 helpers.
+- Mapper/page0 coverage now marks `runtime.mapper.core` and the MegaROM
+  `runtime.page0.stubs` block. `runtime.mapper.core` covers mapper bank
+  setters, push/pop helpers, far-call trampolines, and `mapper_call_hl_auto`.
+  The page0 marker covers the no-op MegaROM labels required by shared boot code.
+  On `joc_tales_9`, the optimized block inventory is now 26 active blocks with
+  `Dead-block candidates: 0`, marker errors at 0, and the ROM still
+  byte-identical after post-ASM validation.
+- Component/runtime helper coverage now includes `runtime.components.behavior_tile`,
+  `runtime.components.health`, `runtime.components.deadly_tiles`,
+  `runtime.components.entity_management`,
+  `runtime.components.state_machine_executor`, `runtime.gameflow.end_screen`,
+  and `runtime.interrupt.stop`. This removes the previous largest unannotated
+  runtime-code items (`get_behavior_tile_nb`, `gameflow_handle_end`,
+  `create_entity`, `stop_interrupt_system`, `update_entity_deadly_flag_runtime`,
+  `update_health_component`, and `execute_all_state_machines`) from the open
+  optimization queue. On `joc_tales_9`, the optimized block inventory is now 33
+  active blocks with `Dead-block candidates: 0`, marker errors at 0, and a
+  byte-identical 128 KB ROM.
+- The next annotation pass covers the remaining routine-level hot spots from
+  the same report: `runtime.animtiles.core`,
+  `runtime.interrupt.task_api`, `runtime.screens.copy_rect`,
+  `runtime.components.directional_sprite_sync`, `runtime.components.carry`,
+  per-world loader blocks such as `runtime.worlds.worldmap_1777833018852.loader`,
+  `runtime.interrupt.vblank_flag`, `runtime.screens.colors`, and
+  `runtime.sound.psg_lowlevel`. On `joc_tales_9`, strict post-ASM validation now
+  reports 42 active blocks, `Dead-block candidates: 0`, marker errors at 0, and
+  a byte-identical 128 KB ROM. The source-pressure inventory no longer lists any
+  unannotated `runtime_code` labels; the largest remaining unannotated entries
+  are intentionally classified as `bios_helper`, `bank_marker`, `data`, or
+  `boot_or_init`.
+- Cross-project source-pressure validation now covers the requested Downloads
+  fixtures under strict Konami MegaROM post-ASM optimization:
+  `joc_tales_9`, `joc64`, `joc51`, `patoantic249`, and `patoantic248`.
+  Follow-up blocks mark project-specific hot spots that did not appear in the
+  smaller `joc_tales_9` fixture: `runtime.components.tile_interaction`,
+  `runtime.components.collected_tiles`, `runtime.hud.core`,
+  `runtime.gameflow.screen_timer`, `runtime.font.loading`,
+  `runtime.components.damage`, `runtime.components.secret_zones`,
+  `runtime.gameflow.submenu`, `runtime.gameflow.text_screen`, and
+  `runtime.gameflow.if_then_else`. Screen/presentation/sprite asset labels are
+  categorized as data instead of runtime code. Final strict validation reports
+  0 dead-block candidates, 0 marker errors, 0 unannotated `runtime_code`
+  hot spots, and byte-identical optimized ROMs for all five fixtures
+  (`joc_tales_9`: 42 blocks, `joc64`: 49, `joc51`: 51, `patoantic249`: 64,
+  `patoantic248`: 64).
+- Builds can now enforce that policy with `--strict-post-asm-no-dead-blocks`.
+  The gate runs dead-block analysis on the exact ASM selected for Glass
+  compilation, so `--post-asm-opt` validates the optimized ASM while check-only
+  or strict-only builds validate the generated ASM. The regression matrix
+  exposes the same flag for acceptance runs. `test_post_asm_optimize.py` now
+  covers both the clean path and the strict failure path with a real optimizer
+  subprocess.
+- Mapper allocator artifacts now carry concrete placement explanations for both
+  current and proposed data layouts. `packing_manifest.json` and `banks.json`
+  resources emit `placementReason`, while `bank_optimizer.json` proposed banks
+  include per-resource `resourcePlacements` with proposed bank, zone offset,
+  mapper-window address, size, and reason. The generic MegaROM artifact
+  validator rejects missing reasons, proposed resources that cross the mapper
+  data segment, and mismatches between bank-level `resourceIds` and proposed
+  placements. `test_megarom_packing_manifest_json.py` covers the new fields, and
+  the strict Konami Downloads matrix (`joc_tales_9`, `joc64`, `joc51`,
+  `patoantic249`, `patoantic248`) still reports 0 dead-block candidates, 0
+  marker errors, no missing placement reasons, and valid proposed placements for
+  every banked resource.
+- The manifest/optimizer regression now also compiles `simple_sprite(2)` through
+  `megarom_ascii8` and `megarom_ascii16`, checking mapper-specific window bases
+  and zone sizes (`#8000` with 8 KB / 16 KB zones) plus proposed placement
+  bounds. This keeps the allocator diagnostics tied to all supported mapper
+  formats instead of only the Konami acceptance path.
+- Sprite fast-path builds without the generic Input component now still emit the
+  shared directional sprite sync helper when sprites are present. This fixes the
+  small `simple_sprite(2)` MegaROM build, where Glass previously saw a forward
+  call to `component_sync_directional_sprite_from_initial` but the helper block
+  had been filtered out with the unused Input system.
+- Direct-to-VRAM ZX0 fallback policy now has a dedicated artifact validation
+  test. `test_konami8k_vram_staging_validation.py` builds a minimal Konami
+  MegaROM artifact set with a compressed VRAM resource whose raw size exceeds
+  `ZX0_VRAM_TRANSFER_BUFFER_SIZE`; non-strict validation reports it through
+  `large_vram_resource_count` / `large_vram_resource_max`, while
+  `strict_vram_staging` rejects the same artifact with the resource label in the
+  diagnostic. This proves the compatibility fallback remains observable and
+  enforceable even without a large real-project fixture.
+- ASCII16 runtime-layout diagnostics now require risk counters to carry concrete
+  samples. The mapper artifact validator rejects positive resident-window,
+  out-of-window-label, out-of-window-call, far-to-far-call, or hidden-resident
+  call counts when the corresponding sample list is empty or internally
+  inconsistent. The manifest regression asserts the generated ASCII16 artifacts
+  include those samples whenever a counter is non-zero, which keeps the
+  label-level component placement work actionable instead of collapsing to
+  opaque counts.
+- ASCII16 lower-page resident-call localization is now reported explicitly in
+  `segment_budget.json.runtimeLayout` as `residentBridgeCallCount` plus
+  `residentBridgeCallSamples`. The generic mapper validator requires samples
+  when bridges are emitted, and build output prints `residentBridgeCalls=N`, so
+  the label-level component-call policy is visible even after hidden resident
+  calls have been rewritten to RAM bridge stubs.
+- Banked boss data now has first-class budget metadata. Each boss data bank is
+  reported in `segment_budget.json.bossDataBanks` with bank, physical range,
+  used/free bytes, boss id/name, mapper window fields, and a placement reason.
+  Generic and Konami validators reject malformed boss bank metadata, overlaps
+  with asset/code banks, and Konami boss banks outside the final ROM segment
+  count; build summaries print `bossDataBanks=N`.
+- ASCII16 runtime-layout validation now requires label/call risk samples to be
+  structurally actionable. Estimated resident-window overflow, out-of-window
+  label, out-of-window call, far-to-far call, and hidden-resident call samples
+  must carry the concrete bank/module/line/target fields needed for the
+  label-level component placement and call-policy pass.
+- The dry-run zone-aware allocator diagnostics now validate top-level
+  `proposedPlacement.resourcePlacements` with the same bank, offset, window,
+  size, and `placementReason` rules used for per-bank placements. A synthetic
+  unit test covers invalid aggregate placement metadata without requiring the
+  large baseline JSONs.
+- The regression matrix runner accepts `--skip-missing-json` so baseline runs can
+  keep testing available `Downloads` fixtures while clearly reporting absent
+  projects instead of treating fixture absence as a mapper/build failure.
+- The same runner now accepts `--artifact-dir`, allowing compile/smoke matrix
+  outputs to be written outside tracked `server/temp` paths during repeated
+  roadmap verification runs.
+- SCREEN block layouts now prefer shared catalogs by default for `blocks2x2` and
+  `blocks4x4` exports unless a screen explicitly sets `sharedCatalogEnabled:
+  false`. This keeps block-optimized screens on the byte-saving shared catalog
+  path. `atenas148.json` validates the edge case where one new `blocks4x4`
+  screen had no explicit shared flag: the latest Konami MegaROM smoke build
+  uses one `SCREEN_BLOCK_CATALOG_4X4_0` resource for five block maps, drops the
+  separate local catalog resource, and still passes OpenMSX movement smoke.
+- `scripts/run_konami8k_pipeline.py` now wraps the regression matrix with the
+  Konami 8K acceptance defaults: latest recursive `Downloads` matches for the
+  baseline fixtures (`joc51`, `joc_tales_9`, `patoantic248`, `joc60`),
+  `megarom/konami`, movement smoke, strict P3 data window, strict VRAM staging,
+  post-ASM check-only diagnostics, skipped missing fixtures, and artifacts
+  outside tracked `server/temp` by default. The dead-block gate remains
+  available via `--strict-post-asm-no-dead-blocks`, but is explicit because some
+  legacy fixtures still carry annotated report-only candidates. This gives the
+  paper pipeline one reproducible command instead of repeated hand-built matrix
+  invocations.
+- The OpenMSX movement smoke now probes input, key row 8, entity position, and
+  shadow OAM. When `player_x` is only a logical value or the configured player
+  entity has a hidden sprite slot, the checker falls back to a visible OAM
+  candidate and only accepts movement when the probe source stays consistent.
+  This catches `patoantic248` gameplay movement (`playerX=179->200`) instead of
+  falsely reporting the hidden entity at `x=8`.
+- Far-call IRQ lock bookkeeping no longer clobbers `HL`. The lock counter now
+  uses `A`, preserving pointer inputs for wrappers such as
+  `print_string_vram_far`; this fixes `patoantic248` SubMenu rendering, where
+  title/options disappeared because the text pointer was overwritten before
+  entering the far helper.
+- Secret-zone runtime no longer reserves a full 768-byte immutable background
+  copy in RAM. It now sizes `secret_zone_restore_buffer` to the largest active
+  zone rect and captures/restores only that packed rect, preserving the 1488-byte
+  ZX0 staging scratch on larger projects such as `patoantic248`.
+- GameFlow now has a second auxiliary far module for one-shot SubMenu handlers.
+  PresentationScreen stays resident because its `HALT` wait loop must not run
+  under a far-call `DI` window. This keeps the resident P2 bank below the Konami
+  8K limit while routing shared helpers through bank-0 trampolines. The baseline
+  compile-only Konami pipeline passes for `joc51`, `joc_tales_9`,
+  `patoantic248`, and `joc60`.
+Remaining:
+
+- ASCII16 still needs a label-level component placement/call policy. Large
+  projects split components.asm across multiple 16 KB runtime segments, so
+  GameFlow and entity-bank calls cannot assume component routines are resident
+  at a single lower-page address. The pipeline now reports this as
+  `estimatedResidentWindowOverflows=1` plus label/callsite samples for the
+  current baseline JSONs instead of hiding it behind a generic
+  `smoke-candidate` status.
+
 ## Next Phases
 
 ### Phase 4: Far-call API for banked code (In progress)
@@ -98,6 +729,10 @@ Current limitation to keep in mind:
   - `ld a, ((load_screen_X - #4000) / #2000)`
   - `ld hl, load_screen_X`
   - `call mapper_call_hl_auto`
+- Hardened text and presentation waits after far-rendered screens:
+  `wait_for_fire`, GameFlow PresentationScreen waits, and legacy presentation
+  waits now enable interrupts immediately before each `HALT`, avoiding hangs
+  when returning from mapper-protected code paths.
 
 Acceptance criteria:
 - No return-path bank corruption.
@@ -131,13 +766,25 @@ Acceptance criteria:
 - Keep hot/common code in stable 16 KB-friendly regions and move only explicit
   far-call modules to split banks.
 - Emit allocator diagnostics that explain why each asset/routine was placed in
-  a given bank group.
+  a given bank group. Data resources and code modules now report this through
+  `placementReason`; the remaining allocator work is to replace the current
+  diagnostic-first placement policy with mapper-aware repacking for ASCII8/16.
 
 ### Phase 6: Emulator regression matrix (Pending)
 
 - Smoke test generated ROMs in openMSX with and without forced `-romtype`.
 - Validate startup, screen transitions, collision reads, sprite loads.
+- Run mapper-expanded MegaROM compile/smoke cases with `--target-formats
+  konami,ascii8,ascii16`; Konami and ASCII8 have baseline gameplay smoke
+  coverage, and ASCII16 joins the same smoke path when
+  `--strict-ascii16-runtime-layout` is present. ASCII16 compile artifacts keep
+  estimated resident-pressure counters for future label-level hardening, while
+  the effective status is based on actual assembled resident usage when `.sym`
+  output is available.
+- `patoantic248` has a scripted menu route covering Main -> SubMenu -> Credits
+  -> Main -> SubMenu again, plus the standard player-movement smoke.
 
 Acceptance criteria:
-- Pass matrix for at least Konami + ASCII8 projects.
+- Pass matrix for Konami + ASCII8 projects and the strict ASCII16 gameplay
+  smoke project set.
 - No blank-screen/hang on bank-switch transitions.

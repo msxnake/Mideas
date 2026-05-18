@@ -1,0 +1,13 @@
+WORLD SPRITE PATTERN POLICY
+Source: runtime sprite packs inferred from entities present in each world.
+Pack capacity: 64 slots (including placeholder).
+
+PACKS
+PACK 00 default
+- display: Default runtime sprite set
+- slots: 1/64
+- placeholder_slot: 0
+- sprites: none
+
+WORLD -> PACK
+00 default -> default [id=0]

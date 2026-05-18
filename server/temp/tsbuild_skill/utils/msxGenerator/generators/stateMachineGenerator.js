@@ -4,14 +4,40 @@
  * Includes the runtime engine and data serialization logic.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.CONDITION_IDS = exports.ACTION_IDS = void 0;
 exports.generateStateMachineSystem = generateStateMachineSystem;
 const statemachine_types_1 = require("../../../statemachine.types");
 const spriteUtils_1 = require("../../../components/utils/spriteUtils");
 const romModeUtils_1 = require("./romModeUtils");
+function wrapMideasAsmBlock(asm, options) {
+    const attrs = [
+        `id=${options.id}`,
+        `kind=${options.kind}`,
+        `owner=${options.owner}`,
+        `preserve=${options.preserve === true ? 'true' : 'false'}`,
+        options.deps && options.deps.length > 0 ? `deps=${options.deps.join(',')}` : '',
+        options.roots && options.roots.length > 0 ? `roots=${options.roots.join(',')}` : '',
+        options.bank ? `bank=${options.bank}` : '',
+    ].filter(Boolean).join(' ');
+    return `; @mideas:block ${attrs}\n${asm.trimEnd()}\n; @mideas:endblock id=${options.id}\n`;
+}
+function safeMideasBlockId(value, fallback) {
+    const safe = String(value || '').replace(/[^A-Za-z0-9_.-]/g, '_').replace(/^_+|_+$/g, '');
+    return safe || fallback;
+}
+function applyMapperDataWindowPage(asm, targetFormat) {
+    if (!['konami', 'ascii8', 'ascii16'].includes(targetFormat)) {
+        return asm;
+    }
+    return asm
+        .replace(/mapper_push_p2/g, 'mapper_push_p3')
+        .replace(/mapper_pop_p2/g, 'mapper_pop_p3')
+        .replace(/mapper_set_bank_p2/g, 'mapper_set_bank_p3');
+}
 // =============================================================================
 // CONSTANTS & MAPPINGS
 // =============================================================================
-const ACTION_IDS = {
+exports.ACTION_IDS = {
     [statemachine_types_1.ActionTypes.NONE]: 0,
     [statemachine_types_1.ActionTypes.SET_POSITION]: 1,
     [statemachine_types_1.ActionTypes.MOVE_BY]: 2,
@@ -53,6 +79,8 @@ const ACTION_IDS = {
     [statemachine_types_1.ActionTypes.DISABLE_INPUT]: 37,
     [statemachine_types_1.ActionTypes.ENABLE_INPUT]: 38,
     [statemachine_types_1.ActionTypes.CLEAN_SPRITES]: 39,
+    // Runtime-compatible alias: request WorldLink exit so GameFlow advances.
+    [statemachine_types_1.ActionTypes.CHANGE_WORLD_SCREEN]: 40,
     [statemachine_types_1.ActionTypes.EXIT_CURRENT_WORLD]: 40,
     [statemachine_types_1.ActionTypes.REPLACE_TILE_AT]: 41,
     [statemachine_types_1.ActionTypes.MOVE_TILE_AREA]: 42,
@@ -60,7 +88,7 @@ const ACTION_IDS = {
     // Special
     END: 0xFF
 };
-const CONDITION_IDS = {
+exports.CONDITION_IDS = {
     [statemachine_types_1.ConditionTypes.AND]: 1,
     [statemachine_types_1.ConditionTypes.OR]: 2,
     [statemachine_types_1.ConditionTypes.NOT]: 3,
@@ -76,6 +104,8 @@ const CONDITION_IDS = {
     [statemachine_types_1.ConditionTypes.KEY_AND_MOVEMENT]: 13,
     [statemachine_types_1.ConditionTypes.VARIABLE_COMPARE]: 14,
     [statemachine_types_1.ConditionTypes.XOR]: 15,
+    [statemachine_types_1.ConditionTypes.IN_WATER]: 16,
+    [statemachine_types_1.ConditionTypes.IS_WALL_GRABBING]: 17,
 };
 // Variable IDs for VARIABLE_COMPARE condition
 const SM_SYSTEM_GLOBAL_START_ID = 6;
@@ -155,10 +185,26 @@ const TILE_DIRECTION_IDS = {
     'down-right': 7,
     'down-left': 8,
 };
-function projectUsesWallGrab(templates) {
+function templateKey(template) {
+    return String(template?.id ?? template?.templateId ?? template?.name ?? '').trim();
+}
+function entityTemplateKey(entity) {
+    return String(entity?.templateId ??
+        entity?.entityTemplateId ??
+        entity?.template?.id ??
+        entity?.template ??
+        '').trim();
+}
+function projectUsesWallGrab(templates, entities) {
     if (!Array.isArray(templates))
         return false;
-    return templates.some((template) => {
+    const activeTemplateIds = new Set((Array.isArray(entities) ? entities : [])
+        .map(entityTemplateKey)
+        .filter((id) => id.length > 0));
+    const candidateTemplates = activeTemplateIds.size > 0
+        ? templates.filter((template) => activeTemplateIds.has(templateKey(template)))
+        : templates;
+    return candidateTemplates.some((template) => {
         const components = Array.isArray(template?.components) ? template.components : [];
         return components.some((component) => {
             const tokens = [
@@ -173,8 +219,8 @@ function projectUsesWallGrab(templates) {
 }
 function stripWallGrabOwnershipGuards(asm) {
     return asm
-        .replace(/    ; WallGrab owns the visible sprite while active\.[\s\S]*?\.acs_not_wall_grabbing:\r?\n\r?\n/, '')
-        .replace(/    ; WallGrab owns animation playback while active\.[\s\S]*?\.apa_not_wall_grabbing:\r?\n\r?\n/, '')
+        .replace(/    ; WallGrab ownership is tracked in RAM\.[\s\S]*?\.acs_not_wall_grabbing:\r?\n\r?\n/, '')
+        .replace(/    ; WallGrab ownership is tracked in RAM\.[\s\S]*?\.apa_not_wall_grabbing:\r?\n\r?\n/, '')
         .replace(/    ; WallGrab should keep the configured grab animation cadence stable\.[\s\S]*?\.asa_not_wall_grabbing:\r?\n\r?\n/, '')
         .replace(/    ; WallGrab should not be paused\/restarted by StateMachine animation actions\.[\s\S]*?\.ata_not_wall_grabbing:\r?\n\r?\n/, '')
         .replace(/    ld l, b\r?\n    ld h, 0\r?\n    ld de, entity_wallgrab_active\r?\n    add hl, de\r?\n    ld a, \(hl\)\r?\n    or a\r?\n    jp nz, \.scp_done\r?\n\r?\n/g, '');
@@ -193,6 +239,8 @@ const COMPONENT_IDS = {
     'health': 5,
     'comp_cursors': 6,
     'cursors': 6,
+    'comp_shoot': 7,
+    'shoot': 7,
 };
 const COMPONENT_PROPERTY_IDS = {
     'x': 1,
@@ -213,6 +261,9 @@ const COMPONENT_PROPERTY_IDS = {
     'max': 11,
     'inputspeed': 12,
     'cursorspeed': 12,
+    'hasammo': 13,
+    'enabled': 13,
+    'shootenabled': 13,
 };
 /**
  * Build complete variable ID map including global variables
@@ -401,7 +452,14 @@ SM_Update:
 
 .sm_update_continue:
     ; BC is still Entity Index.
-    
+
+    ; FakePlayer dialog/cutscene screens can have state-machine TIME_OUT
+    ; transitions that leave the world. Do not spend that timer while the
+    ; scripted dialogue is still running or visible.
+    call SM_ShouldPauseTimerForDialogue
+    or a
+    jr nz, sm_timer_paused
+
     ; 1. Increment Timer
     ld hl, entity_sm_timer_l
     add hl, bc
@@ -412,6 +470,7 @@ SM_Update:
     add hl, bc
     inc (hl)
 sm_timer_no_overflow:
+sm_timer_paused:
 
     ; 2. Get Current State Pointer
     ld hl, entity_sm_ptr_l
@@ -456,6 +515,39 @@ sm_update_done:
     pop de
     pop bc
     pop af
+    ret
+
+    ; ------------------------------------------------------------------
+    ; SM_ShouldPauseTimerForDialogue
+    ; Returns A=1 when FakePlayer dialogue/auto-event runtime should pause
+    ; state timers. Preserves BC/DE/HL.
+    ; ------------------------------------------------------------------
+SM_ShouldPauseTimerForDialogue:
+    ld a, (current_screen_engine)
+    cp 1
+    jr z, .check_dialog_runtime
+    xor a
+    ret
+.check_dialog_runtime:
+    ld a, (autocontrol_active)
+    or a
+    jr nz, .pause_timer
+    ld a, (autoev_active)
+    or a
+    jr nz, .pause_timer
+    ld a, (autoev_wait_mode)
+    or a
+    jr nz, .pause_timer
+    ld a, (dialogue_text_active)
+    or a
+    jr nz, .pause_timer
+    ld a, (dialogue_active)
+    or a
+    jr nz, .pause_timer
+    xor a
+    ret
+.pause_timer:
+    ld a, 1
     ret
 
     ; ------------------------------------------------------------------
@@ -1011,13 +1103,8 @@ Action_ChangeSprite:
     ld c, b                 ; C = entity index
     ld b, 0                 ; B = 0  →  BC = (0, entity_index)
 
-    ; WallGrab owns the visible sprite while active. Consume the
-    ; CHANGE_SPRITE parameter but do not reset animation state or palette.
-    ld hl, entity_wallgrab_cfg_enabled
-    add hl, bc
-    ld a, (hl)
-    or a
-    jr z, .acs_not_wall_grabbing
+    ; WallGrab ownership is tracked in RAM. Do not read the WallGrab config
+    ; table here: in MegaROM builds it can live in an unmapped data bank.
     ld hl, entity_wallgrab_active
     add hl, bc
     ld a, (hl)
@@ -1341,13 +1428,8 @@ Action_PlayAnimation:
     ld c, b
     ld b, 0
 
-    ; WallGrab owns animation playback while active. Consume the
-    ; PLAY_ANIMATION parameter but do not reset frame/tick/flags.
-    ld hl, entity_wallgrab_cfg_enabled
-    add hl, bc
-    ld a, (hl)
-    or a
-    jp z, .apa_not_wall_grabbing
+    ; WallGrab ownership is tracked in RAM. Do not read the WallGrab config
+    ; table here: in MegaROM builds it can live in an unmapped data bank.
     ld hl, entity_wallgrab_active
     add hl, bc
     ld a, (hl)
@@ -1405,28 +1487,27 @@ Action_SetAnimSpeed:
     inc hl
 
     push hl                 ; Save Params Ptr
+    push af                 ; Save requested speed
 
     ; BC = Entity Index
     ld c, b
     ld b, 0
 
     ; WallGrab should keep the configured grab animation cadence stable.
-    ld hl, entity_wallgrab_cfg_enabled
-    add hl, bc
-    ld a, (hl)
-    or a
-    jp z, .asa_not_wall_grabbing
+    ; The active flag is RAM-resident and mapper-safe.
     ld hl, entity_wallgrab_active
     add hl, bc
     ld a, (hl)
     or a
     jp z, .asa_not_wall_grabbing
+    pop af                  ; discard requested speed
     pop hl
     ret
 
 .asa_not_wall_grabbing:
 
     ; Set entity_anim_speed
+    pop af                  ; A = requested speed
     ld hl, entity_anim_speed
     add hl, bc
     ld (hl), a              ; entity_anim_speed[entity] = speed
@@ -1447,11 +1528,7 @@ Action_ToggleAnim:
     ld b, 0
 
     ; WallGrab should not be paused/restarted by StateMachine animation actions.
-    ld hl, entity_wallgrab_cfg_enabled
-    add hl, bc
-    ld a, (hl)
-    or a
-    jp z, .ata_not_wall_grabbing
+    ; The active flag is RAM-resident and mapper-safe.
     ld hl, entity_wallgrab_active
     add hl, bc
     ld a, (hl)
@@ -1963,7 +2040,7 @@ Action_SetCompProp:
 ; Property IDs:
 ;   1=x, 2=y, 3=vx, 4=vy, 5=sprite, 6=isVisible, 7=frame,
 ;   8=animSpeed, 9=isPlaying, 10=healthCurrent, 11=healthMax,
-;   12=inputSpeed.
+;   12=inputSpeed, 13=shoot hasAmmo/enabled.
     ld d, (hl)              ; D = ComponentID
     inc hl
     ld e, (hl)              ; E = PropertyID
@@ -2003,6 +2080,8 @@ Action_SetCompProp:
     jp z, .scp_set_health_max
     cp 12
     jp z, .scp_set_input_speed
+    cp 13
+    jp z, .scp_set_shoot_enabled
 
     ; Fallback by component when PropertyID is unknown.
     ld a, d                 ; A = ComponentID
@@ -2018,6 +2097,8 @@ Action_SetCompProp:
     jp z, .scp_set_health_current
     cp 6
     jp z, .scp_set_input_speed
+    cp 7
+    jp z, .scp_set_shoot_enabled
     jp .scp_done
 
 .scp_set_x:
@@ -2053,13 +2134,6 @@ Action_SetCompProp:
     jp .scp_done
 
 .scp_set_sprite:
-    ld l, b
-    ld h, 0
-    ld de, entity_wallgrab_cfg_enabled
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, .scp_set_sprite_wallgrab_done
     ld l, b
     ld h, 0
     ld de, entity_wallgrab_active
@@ -2109,13 +2183,6 @@ Action_SetCompProp:
 .scp_set_frame:
     ld l, b
     ld h, 0
-    ld de, entity_wallgrab_cfg_enabled
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, .scp_set_frame_wallgrab_done
-    ld l, b
-    ld h, 0
     ld de, entity_wallgrab_active
     add hl, de
     ld a, (hl)
@@ -2133,13 +2200,6 @@ Action_SetCompProp:
 .scp_set_anim_speed:
     ld l, b
     ld h, 0
-    ld de, entity_wallgrab_cfg_enabled
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, .scp_set_anim_speed_wallgrab_done
-    ld l, b
-    ld h, 0
     ld de, entity_wallgrab_active
     add hl, de
     ld a, (hl)
@@ -2155,13 +2215,6 @@ Action_SetCompProp:
     jp .scp_done
 
 .scp_set_anim_playing:
-    ld l, b
-    ld h, 0
-    ld de, entity_wallgrab_cfg_enabled
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, .scp_set_anim_playing_wallgrab_done
     ld l, b
     ld h, 0
     ld de, entity_wallgrab_active
@@ -2215,6 +2268,27 @@ Action_SetCompProp:
     jr nz, .scp_input_speed_ok
     ld a, 1                 ; Cursor speed 0 would freeze the entity
 .scp_input_speed_ok:
+    ld (hl), a
+    jp .scp_done
+
+.scp_set_shoot_enabled:
+    ; comp_shoot.hasAmmo / enabled.
+    ; Bit 6 of entity_shoot_trigger disables shooting. Bits 0-1 keep the
+    ; trigger selector and bit 7 keeps the char-shot mode marker.
+    ld l, b
+    ld h, 0
+    ld de, entity_shoot_trigger
+    add hl, de
+    ld a, c
+    or a
+    jp z, .scp_disable_shoot
+    ld a, (hl)
+    and #BF
+    ld (hl), a
+    jp .scp_done
+.scp_disable_shoot:
+    ld a, (hl)
+    or #40
     ld (hl), a
 
 .scp_done:
@@ -4626,6 +4700,8 @@ SM_ConditionTable:
     DW Condition_KeyAndMove     ; 13
     DW Condition_VariableCompare; 14
     DW Condition_Xor            ; 15
+    DW Condition_InWater        ; 16
+    DW Condition_IsWallGrabbing ; 17
 
     ; ------------------------------------------------------------------
     ; CONDITION HANDLERS IMPLEMENTATION
@@ -5002,7 +5078,7 @@ Condition_KeyPressed:
     inc hl              ; Skip keyId param
     ret
 .sm_input_enabled:
-    ; Edge keydown: active now and inactive previous frame
+    ; Level keydown: active in the current input sample
     ; Params: Key ID (1=Up, 5=Down, 7=Left, 3=Right, 9=Fire)
     ld d, (hl)
     inc hl
@@ -5011,17 +5087,11 @@ Condition_KeyPressed:
     cp 9
     jr z, .ckp_fire
 
-    ; Directional edge: current active, previous inactive
+    ; Directional level: current active
     ld a, (input_state)
     call SM_MatchDirection
     or a
     jr z, .ckp_not_pressed
-
-    ld a, (prev_input_state)
-    call SM_MatchDirection
-    or a
-    jr nz, .ckp_not_pressed
-
     ld a, 1
     ret
 
@@ -5029,9 +5099,6 @@ Condition_KeyPressed:
     ld a, (input_btn_curr)
     and INPUT_BTN_FIRE
     jr z, .ckp_not_pressed
-    ld a, (input_btn_prev)
-    and INPUT_BTN_FIRE
-    jr nz, .ckp_not_pressed
     ld a, 1
     ret
 
@@ -5040,7 +5107,7 @@ Condition_KeyPressed:
     ret
 
 Condition_KeyReleased:
-    ; Edge keyup: inactive now and active previous frame
+    ; Level keyup: inactive in the current input sample
     ; Params: Key ID (1=Up, 5=Down, 7=Left, 3=Right, 9=Fire)
     ld d, (hl)
     inc hl
@@ -5049,17 +5116,11 @@ Condition_KeyReleased:
     cp 9
     jr z, .ckr_fire
 
-    ; Directional edge: current inactive, previous active
+    ; Directional level: current inactive
     ld a, (input_state)
     call SM_MatchDirection
     or a
     jr nz, .ckr_not_released
-
-    ld a, (prev_input_state)
-    call SM_MatchDirection
-    or a
-    jr z, .ckr_not_released
-
     ld a, 1
     ret
 
@@ -5067,9 +5128,6 @@ Condition_KeyReleased:
     ld a, (input_btn_curr)
     and INPUT_BTN_FIRE
     jr nz, .ckr_not_released
-    ld a, (input_btn_prev)
-    and INPUT_BTN_FIRE
-    jr z, .ckr_not_released
     ld a, 1
     ret
 
@@ -5305,6 +5363,38 @@ Condition_DeadlyTile:
     and #01                       ; Check bit 0
     pop hl
     ret                           ; A = 1 if deadly, 0 if safe
+
+Condition_InWater:
+    ; Check if entity center is inside a Water effect zone
+    ; Input: B = Entity Index, HL = Params Ptr (no params)
+    ; Output: A = 1 (in water) or 0 (not in water)
+    ; Destroys: DE, HL
+    push hl
+    ld hl, entity_flag_in_water
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    and #01
+    pop hl
+    ret
+
+Condition_IsWallGrabbing:
+    ; Check whether entity is actively grabbing a wall
+    ; Input: B = Entity Index, HL = Params Ptr (no params)
+    ; Output: A = 1 (grabbing) or 0 (not grabbing)
+    push hl
+    ld hl, entity_wallgrab_active
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .ciwg_done
+    ld a, 1
+.ciwg_done:
+    pop hl
+    ret
 
 Condition_AnimComplete:
     ; One-shot event latched by update_animation_component when
@@ -5826,7 +5916,7 @@ function applyConditionalHandlers(asm, usedActions, usedConditions) {
         asm = stripSection(asm, 'Action_CleanSprites', 'Action_ExitCurrentWorld');
         asm = patchActionEntry(asm, 'Action_CleanSprites');
     }
-    if (!hasAction(statemachine_types_1.ActionTypes.EXIT_CURRENT_WORLD)) {
+    if (!hasAction(statemachine_types_1.ActionTypes.EXIT_CURRENT_WORLD, statemachine_types_1.ActionTypes.CHANGE_WORLD_SCREEN)) {
         asm = stripSection(asm, 'Action_ExitCurrentWorld', 'SM_ConditionTable');
         asm = patchActionEntry(asm, 'Action_ExitCurrentWorld');
     }
@@ -5857,8 +5947,8 @@ function applyConditionalHandlers(asm, usedActions, usedConditions) {
     if (!hasCond(statemachine_types_1.ConditionTypes.CAN_MOVE_DIRECTION, statemachine_types_1.ConditionTypes.KEY_AND_MOVEMENT)) {
         asm = stripSection(asm, 'SM_DeduceDirectionFromVelocity', 'SM_TestMoveDirection');
     }
-    // SM_TestMoveDirection needed by CAN_MOVE_DIRECTION, PATH_CLEAR
-    if (!hasCond(statemachine_types_1.ConditionTypes.CAN_MOVE_DIRECTION, statemachine_types_1.ConditionTypes.PATH_CLEAR)) {
+    // SM_TestMoveDirection needed by CAN_MOVE_DIRECTION, PATH_CLEAR, KEY_AND_MOVEMENT
+    if (!hasCond(statemachine_types_1.ConditionTypes.CAN_MOVE_DIRECTION, statemachine_types_1.ConditionTypes.PATH_CLEAR, statemachine_types_1.ConditionTypes.KEY_AND_MOVEMENT)) {
         asm = stripSection(asm, 'SM_TestMoveDirection', 'Condition_KeyPressed');
     }
     if (!hasCond(statemachine_types_1.ConditionTypes.KEY_PRESSED)) {
@@ -5890,22 +5980,27 @@ function applyConditionalHandlers(asm, usedActions, usedConditions) {
         asm = patchConditionEntry(asm, 'Condition_OnWallCollision');
     }
     if (!hasCond(statemachine_types_1.ConditionTypes.HAS_DEADLY_TILE_COLLISION)) {
-        asm = stripSection(asm, 'Condition_DeadlyTile', 'Condition_AnimComplete');
+        asm = stripSection(asm, 'Condition_DeadlyTile', 'Condition_InWater');
         asm = patchConditionEntry(asm, 'Condition_DeadlyTile');
     }
-    if (!hasCond(statemachine_types_1.ConditionTypes.ANIMATION_COMPLETE)) {
-        asm = stripSection(asm, 'Condition_AnimComplete', 'Condition_KeyAndMove');
-        asm = patchConditionEntry(asm, 'Condition_AnimComplete');
+    if (!hasCond(statemachine_types_1.ConditionTypes.IN_WATER)) {
+        asm = stripSection(asm, 'Condition_InWater', 'Condition_IsWallGrabbing');
+        asm = patchConditionEntry(asm, 'Condition_InWater');
     }
+    if (!hasCond(statemachine_types_1.ConditionTypes.IS_WALL_GRABBING)) {
+        asm = stripSection(asm, 'Condition_IsWallGrabbing', 'Condition_AnimComplete');
+        asm = patchConditionEntry(asm, 'Condition_IsWallGrabbing');
+    }
+    // Keep Condition_AnimComplete emitted even when the initial scanner misses
+    // a nested use. Missing this label leaves the dispatch table pointing at an
+    // undefined symbol, while keeping it is harmless when no transition uses it.
     if (!hasCond(statemachine_types_1.ConditionTypes.KEY_AND_MOVEMENT)) {
         asm = stripSection(asm, 'Condition_KeyAndMove', 'Condition_VariableCompare');
         asm = patchConditionEntry(asm, 'Condition_KeyAndMove');
     }
-    if (!hasCond(statemachine_types_1.ConditionTypes.VARIABLE_COMPARE)) {
-        // Last condition - strip to end of dispatch table string
-        asm = stripSectionToEnd(asm, 'Condition_VariableCompare');
-        asm = patchConditionEntry(asm, 'Condition_VariableCompare');
-    }
+    // Keep Condition_VariableCompare emitted. It is common in project data and
+    // is the last condition handler before state-machine data tables, so a bad
+    // strip-to-end can remove more than intended.
     return asm;
 }
 function clampByte(value) {
@@ -6008,7 +6103,13 @@ function generateStateMachineSoundTables(sounds) {
         }
         asm += `\n`;
     });
-    return asm.trimEnd();
+    return wrapMideasAsmBlock(asm, {
+        id: 'data.statemachine.sound-tables',
+        kind: 'data',
+        owner: 'stateMachine',
+        preserve: false,
+        roots: ['state-machine-sound-actions'],
+    }).trimEnd();
 }
 // =============================================================================
 // GENERATOR FUNCTIONS
@@ -6016,11 +6117,11 @@ function generateStateMachineSoundTables(sounds) {
 /**
  * Generates the complete ASM file content for the State Machine system
  */
-function generateStateMachineSystem(stateMachines, globalVariables, sprites, tiles, templates, sounds, trackIndexByAssetId, romMode = 'simple32k') {
+function generateStateMachineSystem(stateMachines, globalVariables, sprites, tiles, templates, sounds, trackIndexByAssetId, romMode = 'simple32k', targetFormat = 'konami', entities) {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
     const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
     const hasHardwareSprites = Array.isArray(sprites) && sprites.length > 0;
-    const hasWallGrabRuntime = projectUsesWallGrab(templates);
+    const hasWallGrabRuntime = projectUsesWallGrab(templates, entities);
     const hasLivesGlobal = Array.isArray(globalVariables) &&
         globalVariables.some((variable) => String(variable?.asmName || '').trim() === 'global_var_lives');
     asm = asm.replace(/Action_CleanSprites:[\s\S]*?Action_ExitCurrentWorld:/, hasHardwareSprites
@@ -6179,6 +6280,13 @@ Action_ExitCurrentWorld:`);
             asm = asm.replace(mapperTileReadAtXYBlock, plainTileReadAtXYBlock);
         }
     }
+    asm = wrapMideasAsmBlock(asm, {
+        id: 'runtime.statemachine.core',
+        kind: 'routine',
+        owner: 'stateMachine',
+        preserve: false,
+        roots: ['state-machine-runtime'],
+    });
     // Build sprite name -> asset index map for CHANGE_SPRITE actions.
     // Must match spritesGenerator directional expansion to keep indexes aligned.
     const spriteCatalog = (0, spriteUtils_1.buildMSXDirectionalSpriteCatalog)((sprites || []));
@@ -6279,7 +6387,7 @@ Action_ExitCurrentWorld:`);
     for (const sm of stateMachines) {
         asm += generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex, trackIndexByAssetId);
     }
-    return asm;
+    return usesMapper ? applyMapperDataWindowPage(asm, targetFormat) : asm;
 }
 function generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex, trackIndexByAssetId) {
     let asm = `; State Machine: ${sm.name} (${sm.id}) \n`;
@@ -6363,7 +6471,13 @@ function generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdTo
         }
         asm += '\n';
     }
-    return asm;
+    return wrapMideasAsmBlock(asm, {
+        id: `data.statemachine.${safeMideasBlockId(sm.id || sm.name, 'unnamed')}`,
+        kind: 'data',
+        owner: 'stateMachine',
+        preserve: false,
+        roots: ['state-machine-data'],
+    });
 }
 function serializeValue(value) {
     if (typeof value === 'number') {
@@ -6411,7 +6525,7 @@ function resolveTrackIndex(value, trackIndexByAssetId) {
     return 0xFF;
 }
 function generateActionBytes(action, smName = '', variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex, trackIndexByAssetId) {
-    const id = ACTION_IDS[action.type];
+    const id = exports.ACTION_IDS[action.type];
     if (id === undefined)
         return `; Unknown Action: ${action.type} \n`;
     let bytes = `    DB ${id}; ${action.type} \n`;
@@ -6571,6 +6685,7 @@ function generateActionBytes(action, smName = '', variableIdMap, spriteNameToInd
         }
         case statemachine_types_1.ActionTypes.REGENERATE_HUD:
         case statemachine_types_1.ActionTypes.CLEAN_SPRITES:
+        case statemachine_types_1.ActionTypes.CHANGE_WORLD_SCREEN:
         case statemachine_types_1.ActionTypes.EXIT_CURRENT_WORLD:
             break;
         case statemachine_types_1.ActionTypes.BREAK_TILE: {
@@ -6682,7 +6797,7 @@ function generateActionBytes(action, smName = '', variableIdMap, spriteNameToInd
             if (sourceType !== 'variable') {
                 // Compile constant assign as SET_VARIABLE to preserve runtime semantics.
                 const sourceValue = action.params.sourceValue ?? action.params.value ?? 0;
-                const setVariableId = ACTION_IDS[statemachine_types_1.ActionTypes.SET_VARIABLE];
+                const setVariableId = exports.ACTION_IDS[statemachine_types_1.ActionTypes.SET_VARIABLE];
                 bytes = `    DB ${setVariableId}; ${statemachine_types_1.ActionTypes.SET_VARIABLE} (from ${statemachine_types_1.ActionTypes.ASSIGN_VARIABLE})\n`;
                 bytes += `    DB ${destId}, ${serializeValue(sourceValue)}        ; ${destName} = ${sourceValue}\n`;
                 break;
@@ -6699,7 +6814,7 @@ function generateActionBytes(action, smName = '', variableIdMap, spriteNameToInd
     return bytes;
 }
 function generateConditionBytes(condition, variableIdMap) {
-    const id = CONDITION_IDS[condition.type];
+    const id = exports.CONDITION_IDS[condition.type];
     if (!id) {
         console.warn(`[State Machine Generator] Unknown condition "${condition.type}". Falling back to NOP condition.`);
         return `    DB 0; FALLBACK NOP for unknown condition ${condition.type}\n`;
@@ -6753,8 +6868,11 @@ function generateConditionBytes(condition, variableIdMap) {
             bytes += `    DB ${directionId}          ; Direction (0=auto): ${directionName || 'auto'}\n`;
             break;
         }
+        case statemachine_types_1.ConditionTypes.HAS_DEADLY_TILE_COLLISION:
+        case statemachine_types_1.ConditionTypes.IN_WATER:
+        case statemachine_types_1.ConditionTypes.IS_WALL_GRABBING:
         case statemachine_types_1.ConditionTypes.ANIMATION_COMPLETE:
-            // No params. Runtime checks/consumes ANIM_FLAG_COMPLETED.
+            // No params. Runtime checks the current entity state.
             break;
         case statemachine_types_1.ConditionTypes.KEY_AND_MOVEMENT: {
             const keyName = String(condition.params?.key || '').toLowerCase();

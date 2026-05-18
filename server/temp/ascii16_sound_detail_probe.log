@@ -1,0 +1,38 @@
+probe_start
+BPSET BOOT 4010
+BPSET INIT_SOUND_FAR 4F31
+BPSET INIT_SOUND_FAR_RETURN 4F43
+BPSET FARCALL_ENTRY C139
+BPSET FARCALL_RETURN C15A
+BPSET SOUND_ENTRY 6000
+BPSET SOUND_CALL_MUSIC 6016
+BPSET SOUND_CALL_SILENCE 6019
+BPSET SOUND_RET 601C
+BPSET MUSIC_INIT 619E
+BPSET MUSIC_SILENCE 61AF
+BPSET SFX_SILENCE 6080
+BPSET PSG_SET_VOLUME 6055
+BPSET PSG_SET_MIXER 6063
+BPSET PSG_WRITE 602C
+BPSET SFX_AFTER_VOL_A 6086
+BPSET SFX_AFTER_VOL_B 608D
+BPSET SFX_AFTER_VOL_C 6094
+BPSET SFX_RET 6099
+BPSET GAMEFLOW_INIT_FAR 4D65
+BPSET GAMEFLOW_START_FAR 4D79
+t1 pc=811D sp=F2F6 bank=00/04/33/3A flow=00 screen=33 inirq=00 stk=F392,F043 far=BA old=99 target=BBBB
+t2 pc=1130 sp=F2FE bank=00/04/33/3A flow=00 screen=33 inirq=00 stk=0E0A,C9C9 far=BA old=99 target=BBBB
+BOOT#1 pc=4010 sp=F2EC bank=00/04/33/3A flow=00 screen=33 inirq=00 stk=F392,F043 far=BA old=99 target=BBBB
+INIT_SOUND_FAR#1 pc=4F31 sp=F37E bank=00/00/01/01 flow=00 screen=33 inirq=00 stk=406C,A8D3 far=BA old=00 target=FF00
+FARCALL_ENTRY#1 pc=C139 sp=F37A bank=00/00/01/01 flow=00 screen=33 inirq=00 stk=4F3B,0144 far=BA old=00 target=FF00
+SOUND_ENTRY#1 pc=6000 sp=F376 bank=07/07/01/01 flow=00 screen=33 inirq=00 stk=C15A,E782 far=BA old=00 target=FF00
+SOUND_CALL_MUSIC#1 pc=6016 sp=F376 bank=07/07/01/01 flow=00 screen=33 inirq=00 stk=C15A,E782 far=BA old=00 target=FF00
+SOUND_CALL_SILENCE#1 pc=6019 sp=F376 bank=07/07/01/01 flow=00 screen=33 inirq=00 stk=C15A,E782 far=BA old=00 target=FF00
+SOUND_RET#1 pc=601C sp=F376 bank=07/07/01/01 flow=00 screen=33 inirq=00 stk=C15A,E782 far=BA old=00 target=FF00
+PSG_WRITE#1 pc=602C sp=F376 bank=07/07/01/01 flow=00 screen=33 inirq=00 stk=C15A,E782 far=BA old=00 target=FF00
+PSG_SET_VOLUME#1 pc=6055 sp=F376 bank=07/07/01/01 flow=00 screen=33 inirq=00 stk=C15A,E782 far=BA old=00 target=FF00
+PSG_SET_MIXER#1 pc=6063 sp=F376 bank=07/07/01/01 flow=00 screen=33 inirq=00 stk=C15A,E782 far=BA old=00 target=FF00
+SFX_SILENCE#1 pc=6080 sp=F376 bank=07/07/01/01 flow=00 screen=33 inirq=00 stk=C15A,E782 far=BA old=00 target=FF00
+t4 pc=19A4 sp=F272 bank=07/07/01/01 flow=00 screen=33 inirq=00 stk=C180,04F3 far=BA old=00 target=FF00
+t6 pc=199A sp=DFC2 bank=07/07/01/01 flow=00 screen=04 inirq=00 stk=6A94,6000 far=BA old=00 target=FF00
+t8 pc=1A08 sp=CCF6 bank=07/07/01/01 flow=00 screen=04 inirq=00 stk=01FF,247A far=BA old=00 target=FF00

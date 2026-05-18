@@ -18,6 +18,8 @@ exports.ConditionTypes = {
     PATH_CLEAR: 'PATH_CLEAR',
     ON_WALL_COLLISION: 'ON_WALL_COLLISION',
     HAS_DEADLY_TILE_COLLISION: 'HAS_DEADLY_TILE_COLLISION',
+    IN_WATER: 'IN_WATER',
+    IS_WALL_GRABBING: 'IS_WALL_GRABBING',
     // Animation conditions (events)
     ANIMATION_COMPLETE: 'ANIMATION_COMPLETE',
     // Composite conditions

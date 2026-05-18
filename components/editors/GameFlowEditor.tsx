@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, GameFlowTextNode, GameFlowRestartNode, GameFlowWaypointNode, GameFlowIfThenElseNode, ContextMenuItem, GameFlowGlobalsNode, GameFlowPresentationScreenNode } from '../../types';
+import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, GameFlowTextNode, GameFlowTextScrollNode, GameFlowTextScrollColorNode, GameFlowTextScroll2Node, GameFlowRestartNode, GameFlowWaypointNode, GameFlowIfThenElseNode, ContextMenuItem, GameFlowGlobalsNode, GameFlowPresentationScreenNode, GameFlowControlsNode } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, CodeIcon, ArrowsPointingOutIcon, ScissorsIcon } from '../icons/MsxIcons';
@@ -8,6 +8,7 @@ import { GameFlowPreviewModal } from '../modals/GameFlowPreviewModal';
 import { GameFlowLogModal } from '../modals/GameFlowLogModalSimple';
 import { SubMenuAppearanceEditor } from './SubMenuAppearanceEditor';
 import { TextNodeEditor } from './TextNodeEditor';
+import { TextScrollNodeEditor } from './TextScrollNodeEditor';
 import { GlobalsNodeEditor } from './GlobalsNodeEditor';
 import { IfThenElseNodeEditor } from './IfThenElseNodeEditor';
 import { Modal } from '../modals/Modal';
@@ -22,6 +23,9 @@ const WAYPOINT_SIZE = 30; // Circular waypoint radius
 const getNodeHeight = (node: GameFlowNode | NodeToPlace): number => {
     if (node.type === 'SubMenu' && node.options) {
         return 60 + (node.options.length * 15) + 30;
+    }
+    if (node.type === 'Controls') {
+        return 125;
     }
     if (node.type === 'Waypoint') {
         return WAYPOINT_SIZE; // Circular waypoint
@@ -42,7 +46,66 @@ const getNodeWidth = (node: GameFlowNode | NodeToPlace): number => {
     return NODE_WIDTH;
 };
 
-type NodeToPlace = Omit<GameFlowNode, 'position' | 'id'> & { id?: string };
+type NodeToPlace = {
+  type: GameFlowNode['type'];
+  id?: string;
+  position?: Point;
+  [key: string]: any;
+};
+type AddableGameFlowNodeType = 'SubMenu' | 'Controls' | 'WorldLink' | 'Text' | 'TextScroll' | 'TextScrollColor' | 'End' | 'Restart' | 'Transition' | 'Group' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Globals' | 'PresentationScreen';
+
+const VISUAL_GAMEFLOW_NODE_TYPES = new Set<GameFlowNode['type']>([
+  'WorldLink',
+  'SubMenu',
+  'Controls',
+  'Text',
+  'TextScroll',
+  'TextScrollColor',
+  'End',
+  'Restart',
+  'PresentationScreen',
+]);
+
+const isVisualGameFlowNode = (node?: GameFlowNode | NodeToPlace | null): boolean =>
+  !!node && VISUAL_GAMEFLOW_NODE_TYPES.has(node.type as GameFlowNode['type']);
+
+const getNodeConnectionBlockReason = (
+  fromNode: GameFlowNode | undefined,
+  toNode: GameFlowNode | undefined
+): string | null => {
+  if (toNode?.type === 'Controls' && fromNode?.type !== 'Transition') {
+    return 'Controls nodes must be preceded by a Transition node.';
+  }
+  if (isVisualGameFlowNode(fromNode) && isVisualGameFlowNode(toNode)) {
+    return 'Add a Transition node first, even for a CLS transition.';
+  }
+  return null;
+};
+
+const canAddNodeAfterSelectedNode = (selectedNode: GameFlowNode | undefined, type: AddableGameFlowNodeType): boolean => {
+  if (type === 'Controls') return selectedNode?.type === 'Transition';
+  if (!selectedNode) return true;
+  if (type === 'Waypoint') return true;
+  if (selectedNode.type === 'End' || selectedNode.type === 'Restart') return false;
+  if (isVisualGameFlowNode(selectedNode) && VISUAL_GAMEFLOW_NODE_TYPES.has(type as GameFlowNode['type'])) {
+    return false;
+  }
+  return true;
+};
+
+const getDisabledAddNodeTitle = (selectedNode: GameFlowNode | undefined, type: AddableGameFlowNodeType, defaultTitle: string): string => {
+  if (canAddNodeAfterSelectedNode(selectedNode, type)) return defaultTitle;
+  if (type === 'Controls') {
+    return 'Select a Transition node first; Controls must be preceded by Transition';
+  }
+  if (selectedNode?.type === 'End' || selectedNode?.type === 'Restart') {
+    return 'This node ends the flow; it cannot continue to another node';
+  }
+  if (isVisualGameFlowNode(selectedNode) && VISUAL_GAMEFLOW_NODE_TYPES.has(type as GameFlowNode['type'])) {
+    return 'Add a Transition node first, even for a CLS transition';
+  }
+  return defaultTitle;
+};
 
 /**
  * Props for the GameFlowEditor component.
@@ -197,7 +260,7 @@ const GameFlowNodeComponent: React.FC<{
     /** Callback to open the appearance editor for a submenu node. */
     onEditAppearance: (node: GameFlowSubMenuNode) => void;
     /** Callback to open the editor for a text node. */
-    onEditTextNode: (node: GameFlowTextNode) => void;
+    onEditTextNode: (node: GameFlowTextNode | GameFlowTextScrollNode | GameFlowTextScrollColorNode | GameFlowTextScroll2Node) => void;
     /** Callback to open the editor for a restart node. */
     onEditRestartNode: (node: GameFlowRestartNode) => void;
     /** Callback to open the editor for a transition node. */
@@ -221,8 +284,12 @@ const GameFlowNodeComponent: React.FC<{
   const nodeColor =
       node.type === 'Start' ? (isMainGameFlow ? 'hsl(0, 100%, 50%)' : 'hsl(120, 30%, 40%)')
     : node.type === 'SubMenu' ? 'hsl(220, 30%, 40%)'
+    : node.type === 'Controls' ? 'hsl(185, 45%, 34%)'
     : node.type === 'WorldLink' ? 'hsl(340, 30%, 40%)'
     : node.type === 'Text' ? 'hsl(180, 30%, 40%)'
+    : node.type === 'TextScroll' ? 'hsl(195, 45%, 34%)'
+    : node.type === 'TextScrollColor' ? 'hsl(170, 45%, 32%)'
+    : node.type === 'TextScroll2' ? 'hsl(205, 45%, 32%)'
     : node.type === 'Restart' ? 'hsl(280, 30%, 40%)'
     : node.type === 'Transition' ? 'hsl(40, 60%, 40%)'
     : node.type === 'Group' ? 'hsl(270, 50%, 45%)'
@@ -236,8 +303,12 @@ const GameFlowNodeComponent: React.FC<{
       isHovered ? 'hsl(50, 100%, 85%)' :
       node.type === 'Start' ? (isMainGameFlow ? 'hsl(0, 100%, 60%)' : 'hsl(120, 50%, 70%)')
     : node.type === 'SubMenu' ? 'hsl(220, 50%, 70%)'
+    : node.type === 'Controls' ? 'hsl(185, 70%, 62%)'
     : node.type === 'WorldLink' ? 'hsl(340, 50%, 70%)'
     : node.type === 'Text' ? 'hsl(180, 50%, 70%)'
+    : node.type === 'TextScroll' ? 'hsl(195, 70%, 62%)'
+    : node.type === 'TextScrollColor' ? 'hsl(170, 72%, 62%)'
+    : node.type === 'TextScroll2' ? 'hsl(205, 72%, 62%)'
     : node.type === 'Restart' ? 'hsl(280, 50%, 70%)'
     : node.type === 'Transition' ? 'hsl(40, 70%, 60%)'
     : node.type === 'Group' ? 'hsl(270, 60%, 65%)'
@@ -255,9 +326,18 @@ const GameFlowNodeComponent: React.FC<{
       'dissolve_pixels': 'Disolver Píxeles',
       'dissolve_chars': 'Disolver Chars',
       'vertical_lines': 'Líneas Verticales',
-      'horizontal_lines': 'Líneas Horizontales',
+      'horizontal_lines': 'Raster Horizontal',
       'spiral': 'Espiral',
-      'fill_white_squares': 'Cuadrados Blancos'
+      'fill_white_squares': 'Cuadrados Blancos',
+      'diagonal_clear': 'Diagonal Raster',
+      'diagonal_inverse': 'Diagonal Raster Inversa',
+      'checkerboard': 'Damero',
+      'doors': 'Puertas',
+      'center_curtain': 'Cortina Centro',
+      'venetian_blinds': 'Persiana Alterna',
+      'radial_wipe': 'Barrido Circular',
+      'block4_shuffle': 'Bloques 4x3',
+      'zoom_box': 'Zoom Falso'
     };
     return labels[effect] || effect;
   };
@@ -269,9 +349,13 @@ const GameFlowNodeComponent: React.FC<{
   const nodeName =
       node.type === 'Start' ? (isMainGameFlow ? 'Main' : 'Start')
     : node.type === 'SubMenu' ? (node as GameFlowSubMenuNode).title
+    : node.type === 'Controls' ? (node as GameFlowControlsNode).title
     : node.type === 'WorldLink' ? `Mundo: ${worldNode?.name || '???'}`
     : node.type === 'End' ? (node as GameFlowEndNode).endType
     : node.type === 'Text' ? (node as GameFlowTextNode).title
+    : node.type === 'TextScroll' ? (node as GameFlowTextScrollNode).title
+    : node.type === 'TextScrollColor' ? (node as GameFlowTextScrollColorNode).title
+    : node.type === 'TextScroll2' ? (node as GameFlowTextScroll2Node).title
     : node.type === 'Music' ? ((node as any).stop ? 'Stop Music' : (musicTrack?.name || 'Music'))
     : node.type === 'Restart' ? 'Reiniciar'
     : node.type === 'Transition' ? getTransitionEffectLabel((node as any).effect)
@@ -393,8 +477,25 @@ const GameFlowNodeComponent: React.FC<{
       )}
 
       {hasInput && node.type !== 'Waypoint' && (
-        <g>
+        <g
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onPortClick(node.id, 'in');
+          }}
+          style={{ cursor: isLinkingMode ? 'crosshair' : 'pointer' }}
+        >
           {/* Puerto de entrada - clickeable también en linking mode para terminar conexiones */}
+          <rect
+            x={-22}
+            y={nodeHeight / 2 - 22}
+            width={44}
+            height={44}
+            fill="transparent"
+          />
           <rect
             x={-PORT_SIZE / 2}
             y={nodeHeight / 2 - PORT_SIZE / 2}
@@ -402,8 +503,6 @@ const GameFlowNodeComponent: React.FC<{
             height={PORT_SIZE}
             fill={blinkOn ? 'hsl(120, 80%, 55%)' : 'hsl(200, 80%, 60%)'}
             stroke={blinkOn ? 'hsl(120, 80%, 70%)' : 'hsl(200, 80%, 70%)'}
-            style={{ cursor: isLinkingMode ? 'crosshair' : 'pointer' }}
-            onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'in'); }}
             onMouseEnter={() => setIsInPortHovered(true)}
             onMouseLeave={() => setIsInPortHovered(false)}
           />
@@ -436,6 +535,23 @@ const GameFlowNodeComponent: React.FC<{
         </>
       )}
 
+      {node.type === 'Controls' && (
+        <>
+          <text x={10} y={55} fill="white" fontSize="9px" className="pixel-font select-none pointer-events-none">
+            B1: {(node as GameFlowControlsNode).keyboardButton1 || 'SPC'}
+          </text>
+          <text x={10} y={70} fill="white" fontSize="9px" className="pixel-font select-none pointer-events-none">
+            B2: {(node as GameFlowControlsNode).keyboardButton2 || 'N'}
+          </text>
+          <text x={10} y={85} fill="white" fontSize="9px" className="pixel-font select-none pointer-events-none">
+            {((node as GameFlowControlsNode).jumpActionLabel || 'Salto').slice(0, 8)}: {((node as GameFlowControlsNode).jumpActionButton || 'button1') === 'button1' ? 'B1' : 'B2'}
+          </text>
+          <text x={10} y={100} fill="white" fontSize="9px" className="pixel-font select-none pointer-events-none">
+            {((node as GameFlowControlsNode).actionLabel || 'Accion').slice(0, 8)}: {((node as GameFlowControlsNode).actionButton || 'button2') === 'button1' ? 'B1' : 'B2'}
+          </text>
+        </>
+      )}
+
       {node.type === 'IfThenElse' && (
         <>
           {/* THEN port (top right) */}
@@ -459,6 +575,12 @@ const GameFlowNodeComponent: React.FC<{
       {node.type === 'Text' && (
         <foreignObject x="10" y={nodeHeight - 30} width="130" height="25" style={foStyle}>
           <Button onClick={() => onEditTextNode(node as GameFlowTextNode)} size="xs">Edit</Button>
+        </foreignObject>
+      )}
+
+      {(node.type === 'TextScroll' || node.type === 'TextScrollColor' || node.type === 'TextScroll2') && (
+        <foreignObject x="10" y={nodeHeight - 30} width="130" height="25" style={foStyle}>
+          <Button onClick={() => onEditTextNode(node as any)} size="xs">Edit</Button>
         </foreignObject>
       )}
 
@@ -533,7 +655,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [isSubMenuModalOpen, setIsSubMenuModalOpen] = useState(false);
   const [editingSubMenu, setEditingSubMenu] = useState<GameFlowSubMenuNode | null>(null);
   const [isTextNodeModalOpen, setIsTextNodeModalOpen] = useState(false);
-  const [editingTextNode, setEditingTextNode] = useState<GameFlowTextNode | null>(null);
+  const [editingTextNode, setEditingTextNode] = useState<GameFlowTextNode | GameFlowTextScrollNode | GameFlowTextScrollColorNode | GameFlowTextScroll2Node | null>(null);
   const [isRestartNodeModalOpen, setIsRestartNodeModalOpen] = useState(false);
   const [editingRestartNode, setEditingRestartNode] = useState<GameFlowRestartNode | null>(null);
   const [isTransitionNodeModalOpen, setIsTransitionNodeModalOpen] = useState(false);
@@ -552,6 +674,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [localPanOffset, setLocalPanOffset] = useState<Point>({ x: 0, y: 0 });
 
   const { nodes, connections, gridSize } = { ...gameFlowGraph, gridSize: gameFlowGraph.gridSize || 40 };
+  const selectedNode = selectedNodeId ? nodes.find(node => node.id === selectedNodeId) : undefined;
 
   // Use local state for view, not JSON values
   const zoomLevel = localZoomLevel;
@@ -704,7 +827,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
     }
   };
 
-  const handleOpenTextNodeModal = (node: GameFlowTextNode) => {
+  const handleOpenTextNodeModal = (node: GameFlowTextNode | GameFlowTextScrollNode | GameFlowTextScrollColorNode | GameFlowTextScroll2Node) => {
     setEditingTextNode(node);
     setIsTextNodeModalOpen(true);
   };
@@ -740,7 +863,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
     handleCloseGlobalsNodeModal();
   };
 
-  const handleTextNodeChange = (newNode: GameFlowTextNode) => {
+  const handleTextNodeChange = (newNode: GameFlowTextNode | GameFlowTextScrollNode | GameFlowTextScrollColorNode | GameFlowTextScroll2Node) => {
     setEditingTextNode(newNode);
   };
 
@@ -808,9 +931,14 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
     handleCloseTransitionNodeModal();
   };
 
-  const handleTransitionNodeChange = (effect: string, duration: number) => {
+  const handleTransitionNodeChange = (effect: string, duration: number, fillChar?: 254 | 255) => {
     if (editingTransitionNode) {
-      setEditingTransitionNode({ ...editingTransitionNode, effect, duration });
+      setEditingTransitionNode({
+        ...editingTransitionNode,
+        effect,
+        duration,
+        fillChar: fillChar ?? editingTransitionNode.fillChar ?? 254
+      });
     }
   };
 
@@ -912,6 +1040,15 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               setIsLinkingMode(false);
               return;
           }
+          const fromNode = nodes.find(node => node.id === linkingState.fromNodeId);
+          const toNode = nodes.find(node => node.id === nodeId);
+          const blockReason = getNodeConnectionBlockReason(fromNode, toNode);
+          if (blockReason) {
+              alert(blockReason);
+              setLinkingState(null);
+              setIsLinkingMode(false);
+              return;
+          }
           const newConnection: GameFlowConnection = { id: `gfc_${Date.now()}`, from: { nodeId: linkingState.fromNodeId, sourceId: linkingState.fromPortId }, to: { nodeId: nodeId } };
           onUpdate({ connections: [...connections, newConnection] });
           setLinkingState(null);
@@ -934,7 +1071,10 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       }
   };
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
-  const handleAddNode = (type: 'SubMenu' | 'WorldLink' | 'Text' | 'End' | 'Restart' | 'Transition' | 'Group' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Globals' | 'PresentationScreen') => {
+  const handleAddNode = (type: AddableGameFlowNodeType) => {
+    if (!canAddNodeAfterSelectedNode(selectedNode, type)) {
+      return;
+    }
     let newNodeData: NodeToPlace;
     if (type === 'SubMenu') {
         newNodeData = {
@@ -944,6 +1084,18 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
             appearance: {
                 colors: DEFAULT_MAIN_MENU_CONFIG.menuColors,
             }
+        };
+        setNodeToPlace(newNodeData);
+    } else if (type === 'Controls') {
+        newNodeData = {
+            type: 'Controls',
+            title: 'Controles',
+            keyboardButton1: 'SPC',
+            keyboardButton2: 'N',
+            jumpActionLabel: 'Salto',
+            jumpActionButton: 'button1',
+            actionLabel: 'Accion',
+            actionButton: 'button2'
         };
         setNodeToPlace(newNodeData);
     } else if (type === 'WorldLink') {
@@ -963,6 +1115,27 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
                     promptText: '#F3F3F3'
                 }
             }
+        };
+        setNodeToPlace(newNodeData);
+    } else if (type === 'TextScroll') {
+        newNodeData = {
+            type: 'TextScroll',
+            title: 'Texto Scroll',
+            text: 'EN UN TIEMPO REMOTO...\nLA HISTORIA COMIENZA...',
+            backgroundColor: '#000000',
+            stripeColor: '#000000',
+            speedFrames: 2
+        };
+        setNodeToPlace(newNodeData);
+    } else if (type === 'TextScrollColor') {
+        newNodeData = {
+            type: 'TextScrollColor',
+            title: 'Texto Scroll Color',
+            text: 'EN UN TIEMPO REMOTO...\nLA HISTORIA COMIENZA...',
+            backgroundColor: '#000000',
+            stripeColor: '#000000',
+            textColor: '#F3F3F3',
+            speedFrames: 2
         };
         setNodeToPlace(newNodeData);
     } else if (type === 'End') {
@@ -988,7 +1161,8 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         newNodeData = {
             type: 'Transition',
             effect: 'cls',
-            duration: 1000
+            duration: 1000,
+            fillChar: 254
         };
         setNodeToPlace(newNodeData);
     } else if (type === 'Group') {
@@ -1255,24 +1429,35 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
     onUpdate({ nodes: updatedNodes });
   };
 
+  const addNodeButtonProps = (type: AddableGameFlowNodeType, title: string = '') => {
+    const disabled = !canAddNodeAfterSelectedNode(selectedNode, type);
+    return {
+      disabled,
+      title: getDisabledAddNodeTitle(selectedNode, type, title),
+    };
+  };
+
   return (
     <Panel title="Game Flow Editor" className="flex-grow flex flex-col bg-msx-bgcolor select-none">
       <div className="p-2 border-b border-msx-border flex flex-col gap-2 flex-shrink-0">
         <div className="flex items-center gap-2">
-        <Button onClick={() => handleAddNode('SubMenu')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Submenu</Button>
-        <Button onClick={() => handleAddNode('WorldLink')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add World Link</Button>
-        <Button onClick={() => handleAddNode('Text')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Text</Button>
-        <Button onClick={() => handleAddNode('Music')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add background music node">Add Music</Button>
-        <Button onClick={() => handleAddNode('IfThenElse')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add conditional node (if-then-else)">If/Then/Else</Button>
-        <Button onClick={() => handleAddNode('End')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add End</Button>
-        <Button onClick={() => handleAddNode('Restart')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Restart</Button>
-        <Button onClick={() => handleAddNode('Transition')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Transition</Button>
-        <Button onClick={() => handleAddNode('Group')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Group</Button>
-        <Button onClick={() => handleAddNode('Globals')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add node to set global variables">Add Globals</Button>
-        <Button onClick={() => handleAddNode('PresentationScreen')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add presentation screen node">Add Pres. Screen</Button>
+        <Button onClick={() => handleAddNode('SubMenu')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('SubMenu')}>Add Submenu</Button>
+        <Button onClick={() => handleAddNode('Controls')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('Controls', 'Add control binding menu')}>Add Controls</Button>
+        <Button onClick={() => handleAddNode('WorldLink')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('WorldLink')}>Add World Link</Button>
+        <Button onClick={() => handleAddNode('Text')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('Text')}>Add Text</Button>
+        <Button onClick={() => handleAddNode('TextScroll')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('TextScroll', 'Add Galious-style scrolling text')}>Texto Scroll</Button>
+        <Button onClick={() => handleAddNode('TextScrollColor')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('TextScrollColor', 'Add colored Galious-style scrolling text')}>Texto Scroll Color</Button>
+        <Button onClick={() => handleAddNode('Music')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('Music', 'Add background music node')}>Add Music</Button>
+        <Button onClick={() => handleAddNode('IfThenElse')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('IfThenElse', 'Add conditional node (if-then-else)')}>If/Then/Else</Button>
+        <Button onClick={() => handleAddNode('End')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('End')}>Add End</Button>
+        <Button onClick={() => handleAddNode('Restart')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('Restart')}>Add Restart</Button>
+        <Button onClick={() => handleAddNode('Transition')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('Transition')}>Add Transition</Button>
+        <Button onClick={() => handleAddNode('Group')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('Group')}>Add Group</Button>
+        <Button onClick={() => handleAddNode('Globals')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('Globals', 'Add node to set global variables')}>Add Globals</Button>
+        <Button onClick={() => handleAddNode('PresentationScreen')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('PresentationScreen', 'Add presentation screen node')}>Add Pres. Screen</Button>
         </div>
         <div className="flex items-center gap-2">
-        <Button onClick={() => handleAddNode('Waypoint')} size="sm" variant="ghost" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add waypoint for visual organization">Waypoint</Button>
+        <Button onClick={() => handleAddNode('Waypoint')} size="sm" variant="ghost" icon={<PlusCircleIcon className="w-4 h-4"/>} {...addNodeButtonProps('Waypoint', 'Add waypoint for visual organization')}>Waypoint</Button>
         <Button
           onClick={() => setIsCutMode(!isCutMode)}
           size="sm"
@@ -1384,7 +1569,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               const fromNode = nodes.find(n => n.id === linkingState.fromNodeId);
               if (!fromNode) return null;
               const p1 = getPortPosition(fromNode, linkingState.fromPortId);
-              return <line x1={p1.x} y1={p1.y} x2={mousePosition.x} y2={mousePosition.y} stroke="hsl(50, 80%, 60%)" strokeWidth="2" strokeDasharray="4 2" />
+              return <line x1={p1.x} y1={p1.y} x2={mousePosition.x} y2={mousePosition.y} stroke="hsl(50, 80%, 60%)" strokeWidth="2" strokeDasharray="4 2" style={{ pointerEvents: 'none' }} />
           })()}
         </svg>
       </div>
@@ -1406,12 +1591,20 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         </Modal>
       )}
       {isTextNodeModalOpen && editingTextNode && (
-        <Modal isOpen={isTextNodeModalOpen} onClose={handleCloseTextNodeModal} title="Edit Text Node">
-          <TextNodeEditor
-            node={editingTextNode}
-            onNodeChange={handleTextNodeChange}
-            allAssets={allAssets}
-          />
+        <Modal isOpen={isTextNodeModalOpen} onClose={handleCloseTextNodeModal} title={editingTextNode.type === 'TextScroll' || editingTextNode.type === 'TextScrollColor' || editingTextNode.type === 'TextScroll2' ? `Edit ${editingTextNode.type} Node` : 'Edit Text Node'}>
+          {editingTextNode.type === 'TextScroll' || editingTextNode.type === 'TextScrollColor' || editingTextNode.type === 'TextScroll2' ? (
+            <TextScrollNodeEditor
+              node={editingTextNode}
+              onNodeChange={handleTextNodeChange as (newNode: GameFlowTextScrollNode | GameFlowTextScrollColorNode | GameFlowTextScroll2Node) => void}
+              allAssets={allAssets}
+            />
+          ) : (
+            <TextNodeEditor
+              node={editingTextNode}
+              onNodeChange={handleTextNodeChange as (newNode: GameFlowTextNode) => void}
+              allAssets={allAssets}
+            />
+          )}
           <div className="flex justify-end p-4">
             <Button onClick={handleSaveTextNode}>Save</Button>
           </div>
@@ -1444,16 +1637,25 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               <label className="block text-sm font-medium mb-2">Effect Type:</label>
               <select
                 value={editingTransitionNode.effect}
-                onChange={(e) => handleTransitionNodeChange(e.target.value, editingTransitionNode.duration || 1000)}
+                onChange={(e) => handleTransitionNodeChange(e.target.value, editingTransitionNode.duration || 1000, editingTransitionNode.fillChar ?? 254)}
                 disabled={!!editingMusicNode?.stop} className="w-full p-2 border border-msx-border bg-msx-bgcolor text-white rounded"
               >
                 <option value="cls">CLS (Clear Screen)</option>
                 <option value="dissolve_pixels">Disolver Píxeles</option>
                 <option value="dissolve_chars">Disolver Chars</option>
                 <option value="vertical_lines">Líneas Verticales</option>
-                <option value="horizontal_lines">Líneas Horizontales</option>
+                <option value="horizontal_lines">Raster Horizontal</option>
                 <option value="spiral">Espiral</option>
                 <option value="fill_white_squares">Cuadrados Blancos</option>
+                <option value="diagonal_clear">Diagonal Raster</option>
+                <option value="diagonal_inverse">Diagonal Raster Inversa</option>
+                <option value="checkerboard">Damero</option>
+                <option value="doors">Puertas</option>
+                <option value="center_curtain">Cortina Centro</option>
+                <option value="venetian_blinds">Persiana Alterna</option>
+                <option value="radial_wipe">Barrido Circular</option>
+                <option value="block4_shuffle">Bloques 4x3</option>
+                <option value="zoom_box">Zoom Falso</option>
               </select>
             </div>
             <div>
@@ -1461,12 +1663,27 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               <input
                 type="number"
                 value={editingTransitionNode.duration || 1000}
-                onChange={(e) => handleTransitionNodeChange(editingTransitionNode.effect, parseInt(e.target.value) || 1000)}
+                onChange={(e) => handleTransitionNodeChange(editingTransitionNode.effect, parseInt(e.target.value) || 1000, editingTransitionNode.fillChar ?? 254)}
                 className="w-full p-2 border border-msx-border bg-msx-bgcolor text-white rounded"
                 min="100"
                 max="5000"
                 step="100"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Fill Char:</label>
+              <select
+                value={editingTransitionNode.fillChar ?? 254}
+                onChange={(e) => handleTransitionNodeChange(
+                  editingTransitionNode.effect,
+                  editingTransitionNode.duration || 1000,
+                  parseInt(e.target.value, 10) === 255 ? 255 : 254
+                )}
+                className="w-full p-2 border border-msx-border bg-msx-bgcolor text-white rounded"
+              >
+                <option value={254}>Box outline (254)</option>
+                <option value={255}>SPC blank (255)</option>
+              </select>
             </div>
           </div>
           <div className="flex justify-end p-4">

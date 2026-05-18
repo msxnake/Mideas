@@ -1,0 +1,18 @@
+t05 screen=00 engine=FF world=00 dirty=FF sprpack=FF e0=56,0 e1=0,0 frame=02/01
+SHOTOK t05_controls.png
+done_before screen=00 engine=FF world=00 dirty=FF sprpack=FF e0=56,0 e1=0,0 frame=02/01
+done_after screen=00 engine=FF world=00 dirty=FF sprpack=FF e0=56,0 e1=0,0 frame=02/01
+t10 screen=00 engine=FF world=00 dirty=FF sprpack=FF e0=56,0 e1=0,0 frame=02/01
+SHOTOK t10_enter_fakeplayer.png
+t14 screen=00 engine=FF world=00 dirty=FF sprpack=FF e0=56,0 e1=0,0 frame=02/01
+SHOTOK t14_fakeplayer.png
+t18 screen=00 engine=FF world=00 dirty=FF sprpack=FF e0=56,0 e1=0,0 frame=02/01
+SHOTOK t18_fakeplayer.png
+t22 screen=00 engine=FF world=00 dirty=FF sprpack=FF e0=56,0 e1=0,0 frame=02/01
+SHOTOK t22_fakeplayer.png
+t26 screen=00 engine=FF world=00 dirty=FF sprpack=FF e0=56,0 e1=0,0 frame=02/01
+SHOTOK t26_fakeplayer.png
+t30 screen=00 engine=FF world=00 dirty=FF sprpack=FF e0=56,0 e1=0,0 frame=02/01
+SHOTOK t30_fakeplayer.png
+t34 screen=00 engine=FF world=00 dirty=FF sprpack=FF e0=56,0 e1=0,0 frame=02/01
+SHOTOK t34_fakeplayer.png

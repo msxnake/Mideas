@@ -1,0 +1,9 @@
+pre_space pc=96BC sp=F37C bank=01/02/03 flow=00 sel=33
+space_to_controls_before pc=96BC sp=F37C bank=01/02/03 flow=00 sel=33
+space_to_controls_after pc=4598 sp=F364 bank=12/02/04 flow=00 sel=33
+t9 pc=9E40 sp=F376 bank=01/02/03 flow=00 sel=00
+SHOTOK controls_t9.png
+t12 pc=9E40 sp=F376 bank=01/02/03 flow=00 sel=00
+SHOTOK controls_t12.png
+t15 pc=9E40 sp=F376 bank=01/02/03 flow=00 sel=00
+SHOTOK controls_t15.png

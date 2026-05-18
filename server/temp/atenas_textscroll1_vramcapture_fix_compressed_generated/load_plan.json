@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "scope": "konami8k_scene_load_plan",
+  "strategy": "group current banked resources by scene and physical bank; optimizer consumes this before repacking",
+  "mapper": {
+    "format": "konami",
+    "segmentSize": 8192,
+    "dataWindowPage": "p3",
+    "windowBase": "#A000",
+    "windowMask": "#1FFF",
+    "bankDivisor": "#2000"
+  },
+  "summary": {
+    "sceneCount": 1,
+    "resourceCount": 10,
+    "uniqueDataBanks": 1,
+    "totalSceneBankTouches": 1,
+    "maxSceneBankTouches": 1,
+    "totalStoredBytes": 68,
+    "totalRawBytes": 4674,
+    "compressedResources": 8
+  },
+  "scenes": [
+    {
+      "index": 0,
+      "id": "screenmap_1767095338721",
+      "name": "pantalla1",
+      "tileBankAssetId": null,
+      "resourceCount": 8,
+      "totalStoredBytes": 38,
+      "totalRawBytes": 4610,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 38,
+          "rawBytes": 4610,
+          "resourceIds": [
+            2,
+            3,
+            6,
+            7,
+            8,
+            9,
+            4,
+            5
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_LAYOUT",
+            "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA1_0_DATA",
+            "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+            "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP",
+            "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA1_0_BOSS_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            2,
+            3,
+            6,
+            7,
+            8,
+            9,
+            4,
+            5
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_LAYOUT",
+            "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA1_0_DATA",
+            "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+            "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP",
+            "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA1_0_BOSS_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    }
+  ]
+}

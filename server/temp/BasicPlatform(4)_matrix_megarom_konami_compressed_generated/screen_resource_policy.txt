@@ -1,0 +1,698 @@
+SCREEN RESOURCE POLICY
+Logical view of resources consumed by screen/world loading paths.
+
+COMMON RESOURCES
+- patterns: RESOURCE_ID_TILE_PATTERN_BANK0 -> load_pattern_bank0/load_pattern_bank1/load_pattern_bank2
+- colors: RESOURCE_ID_TILE_COLOR_BANK0 -> load_color_bank0/load_color_bank1/load_color_bank2
+- font patterns: RESOURCE_ID_FONT_PATTERN_DATA
+- font colors: RESOURCE_ID_FONT_COLOR_DATA
+- presentation: none
+
+SCREEN 00 pan1 (screenmap_1752520188906)
+- worlds: worldmap_1754825914797
+- tile_bank: default/base
+- sprite_pattern_slots: 24
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_PAN1_0_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN1_0_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN1_0_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN1_0_DATA
+
+SCREEN 01 pan2 (screenmap_1754755287165)
+- worlds: worldmap_1754825914797
+- tile_bank: default/base
+- sprite_pattern_slots: 13
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_PAN2_1_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN2_1_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN2_1_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN2_1_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN2_1_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN2_1_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN2_1_DATA
+
+SCREEN 02 pan3 (screenmap_1754757646433)
+- worlds: worldmap_1754825914797
+- tile_bank: default/base
+- sprite_pattern_slots: 20
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_PAN3_2_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN3_2_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN3_2_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN3_2_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN3_2_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN3_2_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN3_2_DATA
+
+SCREEN 03 pan4 (screenmap_1754822837810)
+- worlds: worldmap_1754825914797
+- tile_bank: default/base
+- sprite_pattern_slots: 16
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_PAN4_3_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN4_3_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN4_3_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN4_3_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN4_3_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN4_3_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN4_3_DATA
+
+SCREEN 04 pan5 (screenmap_1754823502769)
+- worlds: worldmap_1754825914797
+- tile_bank: default/base
+- sprite_pattern_slots: 24
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_PAN5_4_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN5_4_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN5_4_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN5_4_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN5_4_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN5_4_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN5_4_DATA
+
+SCREEN 05 pan6 (screenmap_1754847853261)
+- worlds: worldmap_1754825914797
+- tile_bank: default/base
+- sprite_pattern_slots: 33
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_PAN6_5_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN6_5_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN6_5_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN6_5_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN6_5_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN6_5_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN6_5_DATA
+
+SCREEN 06 pan7 (screenmap_1755254825434)
+- worlds: worldmap_1754825914797
+- tile_bank: default/base
+- sprite_pattern_slots: 28
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_PAN7_6_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN7_6_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN7_6_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN7_6_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN7_6_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN7_6_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN7_6_DATA
+
+SCREEN 07 Room_boss_1 (screenmap_random_0_1_1755255524322)
+- worlds: worldmap_1755255512987
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_BOSS_1_7_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_BOSS_1_7_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_BOSS_1_7_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_BOSS_1_7_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_BOSS_1_7_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_BOSS_1_7_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_BOSS_1_7_DATA
+
+SCREEN 08 Room_enemy_1 (screenmap_random_0_2_1755255524322)
+- worlds: worldmap_1755255512987
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_1_8_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_1_8_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_1_8_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_1_8_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_1_8_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_1_8_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_1_8_DATA
+
+SCREEN 09 Room_final_1 (screenmap_random_1_1_1755255524322)
+- worlds: worldmap_1755255512987
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_FINAL_1_9_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_FINAL_1_9_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_FINAL_1_9_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_FINAL_1_9_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_FINAL_1_9_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_FINAL_1_9_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_FINAL_1_9_DATA
+
+SCREEN 10 Room_enemy_2 (screenmap_random_1_2_1755255524322)
+- worlds: worldmap_1755255512987
+- tile_bank: default/base
+- sprite_pattern_slots: 9
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_2_10_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_2_10_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_2_10_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_2_10_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_2_10_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_2_10_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_2_10_DATA
+
+SCREEN 11 Room_key_1 (screenmap_random_1_3_1755255524322)
+- worlds: worldmap_1755255512987
+- tile_bank: default/base
+- sprite_pattern_slots: 9
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_KEY_1_11_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_KEY_1_11_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_KEY_1_11_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_KEY_1_11_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_KEY_1_11_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_KEY_1_11_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_KEY_1_11_DATA
+
+SCREEN 12 Room_normal_1 (screenmap_random_2_1_1755255524322)
+- worlds: worldmap_1755255512987
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_1_12_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_1_12_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_1_12_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_1_12_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_1_12_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_1_12_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_1_12_DATA
+
+SCREEN 13 Room_enemy_3 (screenmap_random_2_3_1755255524322)
+- worlds: worldmap_1755255512987
+- tile_bank: default/base
+- sprite_pattern_slots: 9
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_3_13_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_3_13_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_3_13_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_3_13_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_3_13_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_3_13_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_3_13_DATA
+
+SCREEN 14 Room_enemy_4 (screenmap_random_2_4_1755255524322)
+- worlds: worldmap_1755255512987
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_4_14_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_4_14_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_4_14_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_4_14_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_4_14_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_4_14_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_4_14_DATA
+
+SCREEN 15 Room_secret_1 (screenmap_random_3_0_1755255524322)
+- worlds: worldmap_1755255512987
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_SECRET_1_15_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_SECRET_1_15_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_SECRET_1_15_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_SECRET_1_15_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_SECRET_1_15_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_SECRET_1_15_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_SECRET_1_15_DATA
+
+SCREEN 16 Room_item_1 (screenmap_random_3_1_1755255524322)
+- worlds: worldmap_1755255512987
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ITEM_1_16_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ITEM_1_16_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ITEM_1_16_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ITEM_1_16_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ITEM_1_16_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ITEM_1_16_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ITEM_1_16_DATA
+
+SCREEN 17 Room_key_2 (screenmap_random_3_2_1755255524322)
+- worlds: worldmap_1755255512987
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_KEY_2_17_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_KEY_2_17_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_KEY_2_17_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_KEY_2_17_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_KEY_2_17_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_KEY_2_17_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_KEY_2_17_DATA
+
+SCREEN 18 Room_normal_2 (screenmap_random_3_3_1755255524322)
+- worlds: worldmap_1755255512987
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_2_18_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_2_18_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_2_18_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_2_18_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_2_18_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_2_18_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_2_18_DATA
+
+SCREEN 19 Room_enemy_5 (screenmap_random_3_4_1755255524322)
+- worlds: worldmap_1755255512987
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_5_19_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_5_19_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_5_19_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_5_19_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_5_19_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_5_19_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_5_19_DATA
+
+SCREEN 20 pan8 (screenmap_1755262663123)
+- worlds: worldmap_1754825914797
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_PAN8_20_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN8_20_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN8_20_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN8_20_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN8_20_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN8_20_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN8_20_DATA
+
+SCREEN 21 pan9 (screenmap_1755262973244)
+- worlds: worldmap_1754825914797
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_PAN9_21_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_PAN9_21_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_PAN9_21_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_PAN9_21_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_PAN9_21_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_PAN9_21_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_PAN9_21_DATA
+
+SCREEN 22 Room_normal_1 (screenmap_random_0_1_1755782082961)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_1_22_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_1_22_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_1_22_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_1_22_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_1_22_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_1_22_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_1_22_DATA
+
+SCREEN 23 Room_secret_1 (screenmap_random_0_2_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_SECRET_1_23_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_SECRET_1_23_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_SECRET_1_23_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_SECRET_1_23_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_SECRET_1_23_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_SECRET_1_23_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_SECRET_1_23_DATA
+
+SCREEN 24 Room_key_1 (screenmap_random_0_3_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_KEY_1_24_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_KEY_1_24_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_KEY_1_24_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_KEY_1_24_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_KEY_1_24_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_KEY_1_24_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_KEY_1_24_DATA
+
+SCREEN 25 Room_enemy_1 (screenmap_random_0_4_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_1_25_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_1_25_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_1_25_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_1_25_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_1_25_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_1_25_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_1_25_DATA
+
+SCREEN 26 Room_normal_2 (screenmap_random_1_0_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_2_26_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_2_26_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_2_26_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_2_26_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_2_26_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_2_26_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_2_26_DATA
+
+SCREEN 27 Room_normal_3 (screenmap_random_1_1_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_3_27_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_3_27_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_3_27_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_3_27_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_3_27_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_3_27_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_3_27_DATA
+
+SCREEN 28 Room_normal_4 (screenmap_random_1_3_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_4_28_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_4_28_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_4_28_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_4_28_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_4_28_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_4_28_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_4_28_DATA
+
+SCREEN 29 Room_enemy_2 (screenmap_random_1_4_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_2_29_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_2_29_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_2_29_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_2_29_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_2_29_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_2_29_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_2_29_DATA
+
+SCREEN 30 Room_item_1 (screenmap_random_1_5_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ITEM_1_30_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ITEM_1_30_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ITEM_1_30_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ITEM_1_30_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ITEM_1_30_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ITEM_1_30_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ITEM_1_30_DATA
+
+SCREEN 31 Room_enemy_3 (screenmap_random_1_6_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_3_31_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_3_31_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_3_31_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_3_31_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_3_31_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_3_31_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_3_31_DATA
+
+SCREEN 32 Room_enemy_4 (screenmap_random_1_7_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_4_32_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_4_32_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_4_32_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_4_32_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_4_32_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_4_32_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_4_32_DATA
+
+SCREEN 33 Room_enemy_5 (screenmap_random_2_0_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_5_33_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_5_33_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_5_33_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_5_33_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_5_33_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_5_33_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_5_33_DATA
+
+SCREEN 34 Room_normal_5 (screenmap_random_2_1_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_5_34_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_5_34_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_5_34_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_5_34_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_5_34_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_5_34_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_5_34_DATA
+
+SCREEN 35 Room_normal_6 (screenmap_random_2_2_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_6_35_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_6_35_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_6_35_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_6_35_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_6_35_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_6_35_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_6_35_DATA
+
+SCREEN 36 Room_normal_7 (screenmap_random_2_3_1755782082962)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_7_36_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_7_36_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_7_36_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_7_36_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_7_36_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_7_36_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_7_36_DATA
+
+SCREEN 37 Room_key_2 (screenmap_random_2_4_1755782082963)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_KEY_2_37_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_KEY_2_37_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_KEY_2_37_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_KEY_2_37_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_KEY_2_37_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_KEY_2_37_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_KEY_2_37_DATA
+
+SCREEN 38 Room_item_2 (screenmap_random_2_5_1755782082963)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ITEM_2_38_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ITEM_2_38_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ITEM_2_38_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ITEM_2_38_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ITEM_2_38_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ITEM_2_38_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ITEM_2_38_DATA
+
+SCREEN 39 Room_normal_8 (screenmap_random_2_6_1755782082963)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_8_39_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_8_39_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_8_39_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_8_39_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_8_39_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_8_39_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_8_39_DATA
+
+SCREEN 40 Room_normal_9 (screenmap_random_2_7_1755782082963)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_9_40_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_9_40_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_9_40_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_9_40_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_9_40_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_9_40_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_9_40_DATA
+
+SCREEN 41 Room_normal_10 (screenmap_random_3_1_1755782082963)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_10_41_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_10_41_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_10_41_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_10_41_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_10_41_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_10_41_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_10_41_DATA
+
+SCREEN 42 Room_enemy_6 (screenmap_random_3_2_1755782082963)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_6_42_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_6_42_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_6_42_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_6_42_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_6_42_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_6_42_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_6_42_DATA
+
+SCREEN 43 Room_enemy_7 (screenmap_random_3_3_1755782082963)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_7_43_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_7_43_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_7_43_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_7_43_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_7_43_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_7_43_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_7_43_DATA
+
+SCREEN 44 Room_final_1 (screenmap_random_3_4_1755782082963)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_FINAL_1_44_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_FINAL_1_44_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_FINAL_1_44_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_FINAL_1_44_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_FINAL_1_44_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_FINAL_1_44_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_FINAL_1_44_DATA
+
+SCREEN 45 Room_normal_11 (screenmap_random_3_5_1755782082963)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_11_45_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_11_45_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_11_45_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_11_45_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_11_45_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_11_45_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_11_45_DATA
+
+SCREEN 46 Room_enemy_8 (screenmap_random_3_6_1755782082964)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_8_46_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_8_46_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_8_46_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_8_46_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_8_46_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_8_46_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_8_46_DATA
+
+SCREEN 47 Room_key_3 (screenmap_random_3_7_1755782082964)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_KEY_3_47_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_KEY_3_47_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_KEY_3_47_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_KEY_3_47_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_KEY_3_47_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_KEY_3_47_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_KEY_3_47_DATA
+
+SCREEN 48 Room_normal_12 (screenmap_random_4_3_1755782082964)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_12_48_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_NORMAL_12_48_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_NORMAL_12_48_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_12_48_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_12_48_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_NORMAL_12_48_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_NORMAL_12_48_DATA
+
+SCREEN 49 Room_enemy_9 (screenmap_random_4_4_1755782082964)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_9_49_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_9_49_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_9_49_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_9_49_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_9_49_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_9_49_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_9_49_DATA
+
+SCREEN 50 Room_enemy_10 (screenmap_random_4_5_1755782082964)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_10_50_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_ENEMY_10_50_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_ENEMY_10_50_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_10_50_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_10_50_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_ENEMY_10_50_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_ENEMY_10_50_DATA
+
+SCREEN 51 Room_secret_2 (screenmap_random_4_7_1755782082964)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 1
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_ROOM_SECRET_2_51_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_ROOM_SECRET_2_51_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_ROOM_SECRET_2_51_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_ROOM_SECRET_2_51_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_ROOM_SECRET_2_51_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_ROOM_SECRET_2_51_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_ROOM_SECRET_2_51_DATA
+
+SCREEN 52 New Screenmap (screenmap_1756133205595)
+- worlds: none
+- tile_bank: default/base
+- sprite_pattern_slots: 9
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_NEW_SCREENMAP_52_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_NEW_SCREENMAP_52_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_NEW_SCREENMAP_52_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_NEW_SCREENMAP_52_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_NEW_SCREENMAP_52_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_NEW_SCREENMAP_52_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_NEW_SCREENMAP_52_DATA

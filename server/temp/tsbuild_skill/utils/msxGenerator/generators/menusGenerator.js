@@ -67,6 +67,7 @@ function generateMenusFile(analysis) {
 ; This saves ~620 lines of unused menu management code
 
 ; Minimal stub functions for compatibility
+; @mideas:block id=runtime.menus.compat_stubs kind=routine owner=menus preserve=true roots=init_menus,show_main_menu,update_menu_state
 init_menus:
     ret
 
@@ -75,6 +76,7 @@ show_main_menu:
 
 update_menu_state:
     ret
+; @mideas:endblock id=runtime.menus.compat_stubs
 
 ; ==================================================================
 ; END OF MENUS (MINIMAL VERSION)
@@ -116,7 +118,8 @@ update_menu_state:
             // Convert hex colors to MSX color codes (0-15)
             const bgColorMSX = hexToMSXColor(bgColor);
             const borderColorMSX = hexToMSXColor(borderColor);
-            code += `show_menu_${menuId}:
+            code += `; @mideas:block id=runtime.menus.${menuId} kind=routine owner=menus
+show_menu_${menuId}:
     ; Display ${menu.title || menu.id} menu
     ; Set background color using VDP
     ld b, ${bgColorMSX * 16 + borderColorMSX} ; Background (high) | Border (low)
@@ -154,6 +157,7 @@ handle_menu_${menuId}:
     call GTSTCK
     ; TODO: Implement input handling
     ret
+; @mideas:endblock id=runtime.menus.${menuId}
 
 `;
         });

@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\patoantic248_ascii16_direct_psg_smoke_compressed.asm",
+  "metrics": {
+    "original_line_count": 46258,
+    "output_line_count": 46258,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-2vhnbaix\\patoantic248_ascii16_direct_psg_smoke_compressed.optimized.optimized.rom",
+        "size_bytes": 188416,
+        "sha256": "dff3832f6a11958f0715ceabd0997a59dfa9184448a8715233aebb446c60c567"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-2vhnbaix\\patoantic248_ascii16_direct_psg_smoke_compressed.original.rom",
+        "size_bytes": 188416,
+        "sha256": "dff3832f6a11958f0715ceabd0997a59dfa9184448a8715233aebb446c60c567"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

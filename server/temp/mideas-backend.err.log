@@ -1,0 +1,24 @@
+SyntaxError: Expected ',' or '}' after property value in JSON at position 1726 (line 5 column 1620)
+    at JSON.parse (<anonymous>)
+    at parse (C:\Users\salam\Documents\Programacion\Mideas\node_modules\body-parser\lib\types\json.js:74:19)
+    at C:\Users\salam\Documents\Programacion\Mideas\node_modules\body-parser\lib\read.js:163:18
+    at AsyncResource.runInAsyncScope (node:async_hooks:214:14)
+    at invokeCallback (C:\Users\salam\Documents\Programacion\Mideas\node_modules\raw-body\index.js:238:16)
+    at done (C:\Users\salam\Documents\Programacion\Mideas\node_modules\raw-body\index.js:227:7)
+    at IncomingMessage.onEnd (C:\Users\salam\Documents\Programacion\Mideas\node_modules\raw-body\index.js:287:7)
+    at IncomingMessage.emit (node:events:519:28)
+    at endReadableNT (node:internal/streams/readable:1698:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+MegaROM capacity failure detected. Retrying once with post-ASM optimization...
+MegaROM capacity failure detected. Retrying once with post-ASM optimization...
+Post-ASM MegaROM recovery failed: Command failed: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_1778703635701_52560.optimized.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.postasm.rom"
+Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -85
+	at java.io.ByteArrayOutputStream.<init>(Unknown Source)
+	at nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)
+	at nl.grauw.glass.Line.getBytes(Line.java:119)
+	at nl.grauw.glass.Source.getBytes(Source.java:91)
+	at nl.grauw.glass.Source.assemble(Source.java:53)
+	at nl.grauw.glass.Assembler.writeObject(Assembler.java:72)
+	at nl.grauw.glass.Assembler.main(Assembler.java:59)
+
+MegaROM capacity failure detected. Retrying once with post-ASM optimization...

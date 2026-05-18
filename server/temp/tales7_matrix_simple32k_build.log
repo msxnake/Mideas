@@ -1,0 +1,158 @@
+? Generating modular ASM files...
+? Project: tales7, Assets: 139, Config: {
+  generateUnified: true,
+  romMode: 'simple32k',
+  targetFormat: 'konami',
+  executionMode: 'interruptTaskManager',
+  autoMegaROM: false
+}
+? Analysis complete: 1 sprites, 80 tiles
+? [MSX GENERATOR] Generating all ASM files...
+? Hardware Mode: HYBRID, Optimize: safe
+[MSX GENERATOR] ROM config: mode=simple32k, mapper=konami, autoMegaROM=false
+ÐYZî [INTERRUPT GENERATOR] Generating interrupt.asm...
+? Analyzing component usage...
+? Total entities in project: 1
+  - Entity: Player Default 1 (template: tpl_player_default)
+? Active entities: 1
+? Used templates: tpl_player_default
+  ? Analyzing template "Player Default" for entity "Player Default 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_health ? Health
+    - Component: comp_cursors ? Cursors
+    - Override: comp_render ? Sprite
+? Component usage summary:
+  - Total used components: 4
+    • Position: 1 entities
+    • Sprite: 1 entities
+    • Health: 1 entities
+    • Cursors: 1 entities
+? Generating optimized components.asm...
+  - Active entities: 1 
+  - Used components: Position, Sprite, Health, Cursors 
+  - Filtered out: 22 unused components
+ƒo. [INTERRUPT GENERATOR] Generated interrupt.asm (100409 chars)
+? Analyzing component usage...
+? Total entities in project: 1
+  - Entity: Player Default 1 (template: tpl_player_default)
+? Active entities: 1
+? Used templates: tpl_player_default
+  ? Analyzing template "Player Default" for entity "Player Default 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_health ? Health
+    - Component: comp_cursors ? Cursors
+    - Override: comp_render ? Sprite
+? Component usage summary:
+  - Total used components: 4
+    • Position: 1 entities
+    • Sprite: 1 entities
+    • Health: 1 entities
+    • Cursors: 1 entities
+? Generating optimized entities.asm...
+  - Total entity templates in JSON: 17
+  - Actually instantiated entities: 1
+  - Used entity templates: 1
+  - Filtered out: 16 unused templates
+? First tile structure check: {
+  tileId: 'tile_1777742390957',
+  position: { x: 11, y: 20 },
+  banksCount: 3,
+  banks: [
+    {
+      name: 'Bank 0 - HUD/Fonts',
+      assignedTileIds: [Array],
+      hasThisTile: true,
+      assignedTilesType: 'object',
+      assignedTilesSample: [Array]
+    },
+    {
+      name: 'Bank 1 - Game Tileset',
+      assignedTileIds: [Array],
+      hasThisTile: true,
+      assignedTilesType: 'object',
+      assignedTilesSample: [Array]
+    },
+    {
+      name: 'Bank 2 - Background/Status',
+      assignedTileIds: [Array],
+      hasThisTile: true,
+      assignedTilesType: 'object',
+      assignedTilesSample: [Array]
+    }
+  ]
+}
+? generateSpritesFile() called:
+  - analysis.sprites.length: 1
+  - expandedSprites.length: 1
+  - analysis.entities.length: 1
+  - analysis.templates.length: 17
+? Analyzing component usage...
+? Total entities in project: 1
+  - Entity: Player Default 1 (template: tpl_player_default)
+? Active entities: 1
+? Used templates: tpl_player_default
+  ? Analyzing template "Player Default" for entity "Player Default 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_health ? Health
+    - Component: comp_cursors ? Cursors
+    - Override: comp_render ? Sprite
+? Component usage summary:
+  - Total used components: 4
+    • Position: 1 entities
+    • Sprite: 1 entities
+    • Health: 1 entities
+    • Cursors: 1 entities
+  - activeEntities.length: 1
+
+? getEntitySpriteInfo for entity: "Player Default 1" (template: tpl_player_default)
+   Available sprites: "New Sprite" (sprite_1777742138142)
+   Template found: "Player Default"
+   Template components: comp_pos, comp_render, comp_health, comp_cursors
+   ? Found spriteAssetId in overrides: "sprite_1777742138142"
+   Resolved spriteAssetId: "sprite_1777742138142"
+   ? Found sprite "New Sprite" at index 0
+? [HUD Generator] Total screens: 1
+  ? Screen "pan1" (screenmap_1777742057373): hudConfiguration=true, elements=0
+? [HUD Generator] Total HUD elements found: 0
+? Modular ASM files generated successfully!
+? Generated 28 files
+? [DEBUG] Files generated: [
+  'page0.asm',          'bios.asm',
+  'constants.asm',      'variables.asm',
+  'mapper.asm',         'resource_ids.asm',
+  'resource_table.asm', 'resource_manager.asm',
+  'interrupt.asm',      'header.asm',
+  'patterns.asm',       'colors.asm',
+  'components.asm',     'entities.asm',
+  'worlds.asm',         'screens.asm',
+  'sprites.asm',        'font.asm',
+  'hud.asm',            'menus.asm',
+  'sound.asm',          'scroll.asm',
+  'animtiles.asm',      'bosses.asm',
+  'statemachine.asm',   'gameflow.asm',
+  'main.asm',           'unitedFiles.asm'
+]
+? [DEBUG] interrupt.asm length: 100409
+ASM generated: C:\Users\salam\Documents\Programacion\Mideas\server\temp\tales7_matrix_simple32k.asm
+Project: tales7
+Assets: 139
+ASM chars: 378417
+ROM config: mode=simple32k, mapper=konami, engine=interruptTaskManager, autoMegaROM=false
+Running: C:\Program Files\nodejs\npx.cmd tsc --pretty false --module commonjs --target ES2020 --outDir C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill --moduleResolution node --skipLibCheck --noEmitOnError false utils\msxGenerator\index.ts
+Running: node C:\Users\salam\AppData\Local\Temp\tmpazvbvpbm.cjs C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\index.js C:\Users\salam\Downloads\tales7.json C:\Users\salam\Documents\Programacion\Mideas\server\temp\tales7_matrix_simple32k.asm tales7 simple32k konami interruptTaskManager false
+{"outputPath":"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\tales7_matrix_simple32k_compressed.asm","info":{"attempted":true,"applied":true,"method":"ZX0","candidateScreens":0,"candidateScreenBlockMaps":2,"candidateEffects":1,"candidateBehaviorMaps":0,"candidateTilePatterns":1,"candidateTileColors":1,"candidateFontPatterns":0,"candidateFontColors":0,"candidateSpritePatterns":2,"compressedScreens":0,"compressedScreenBlockMaps":2,"compressedEffects":1,"compressedBehaviorMaps":0,"compressedTilePatterns":1,"compressedTileColors":1,"compressedFontPatterns":0,"compressedFontColors":0,"compressedSpritePatterns":1,"originalBytes":2224,"compressedBytes":914,"savedBytes":1310,"netSavedBytes":1148,"warning":null,"screenBufferSymbol":"ZX0_SCREEN_BUFFER","effectsBufferSymbol":"runtime_effects_layout","behaviorBufferSymbol":"ZX0_BEHAVIOR_BUFFER","tilePatternBufferSymbol":"ZX0_TILE_PATTERN_BUFFER","tileColorBufferSymbol":"ZX0_TILE_COLOR_BUFFER","fontPatternBufferSymbol":"ZX0_FONT_PATTERN_BUFFER","fontColorBufferSymbol":"ZX0_FONT_COLOR_BUFFER","spritePatternBufferSymbol":"ZX0_SPRITE_FRAME_BUFFER","alreadyCompressed":false}}
+Running: node C:\Users\salam\AppData\Local\Temp\tmprl61cs3n.cjs C:\Users\salam\Documents\Programacion\Mideas\server\server.js C:\Users\salam\Documents\Programacion\Mideas\server\temp\tales7_matrix_simple32k.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp\tales7_matrix_simple32k_compressed.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp
+Running: java -jar C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar -I C:\Users\salam\Documents\Programacion\Mideas\server C:\Users\salam\Documents\Programacion\Mideas\server\temp\tales7_matrix_simple32k_compressed.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp\tales7_matrix_simple32k.rom C:\Users\salam\Documents\Programacion\Mideas\server\temp\tales7_matrix_simple32k.sym
+
+Done.
+Project: tales7
+JSON: C:\Users\salam\Downloads\tales7.json
+ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\tales7_matrix_simple32k.asm (378417 chars)
+ZX0 ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\tales7_matrix_simple32k_compressed.asm
+ZX0: applied=True, netSavedBytes=1148, warning=none
+ROM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\tales7_matrix_simple32k.rom (original=15732 bytes, padded=16384 bytes)
+Glass: C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar
+Generator config: mode=simple32k, mapper=konami, engine=interruptTaskManager, autoMegaROM=False

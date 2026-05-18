@@ -34,6 +34,7 @@ export const LoadIcon = wrapIcon(Lucide.Upload);
 export const SaveIcon = wrapIcon(Lucide.Download);
 export const SaveFloppyIcon = wrapIcon(Lucide.Save);
 export const FolderOpenIcon = wrapIcon(Lucide.FolderOpen);
+export const ImageIcon = wrapIcon(Lucide.Image);
 export const PlusCircleIcon = wrapIcon(Lucide.PlusCircle);
 export const DocumentPlusIcon = wrapIcon(Lucide.FilePlus);
 export const CogIcon = wrapIcon(Lucide.Settings);

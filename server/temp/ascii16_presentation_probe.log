@@ -1,0 +1,83 @@
+BOOT_4010 pc=4010 sp=F2EC a=1F f=08 bc=0101 hl=4004 de=4010 banks=00/04/33/3A res=99/3393/0040/00 irq=0 player=FF screen=00 input=00
+MAPPER_P3_AFTER pc=4195 sp=F37C a=01 f=44 bc=10CF hl=80C2 de=5530 banks=00/00/01/01 res=99/3393/0040/00 irq=0 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+MAPPER_P3_AFTER pc=4195 sp=F37E a=01 f=44 bc=10CF hl=80C2 de=5530 banks=00/00/01/01 res=00/0000/0000/00 irq=0 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+GAMEFLOW_START pc=6008 sp=F380 a=06 f=A0 bc=0001 hl=6008 de=E816 banks=06/06/01/01 res=00/0000/0000/00 irq=0 player=FF screen=00 input=00
+GAMEFLOW_EXECUTE_NODE pc=600E sp=F380 a=06 f=A0 bc=0001 hl=6858 de=E816 banks=06/06/01/01 res=00/0000/0000/00 irq=0 player=FF screen=00 input=00
+HANDLE_START pc=603B sp=F380 a=00 f=42 bc=6860 hl=685C de=685D banks=06/06/01/01 res=00/0000/0000/00 irq=0 player=FF screen=00 input=00
+HANDLE_START pc=603B sp=F364 a=01 f=40 bc=0000 hl=DBCA de=DBAA banks=00/00/01/01 res=00/0000/0000/00 irq=0 player=FF screen=00 input=00
+HANDLE_MUSIC pc=65CB sp=F362 a=00 f=44 bc=0000 hl=E594 de=E595 banks=00/00/01/01 res=00/0000/0000/00 irq=0 player=FF screen=00 input=00
+RESOURCE_LOAD_VRAM pc=48BD sp=F35A a=3C f=44 bc=0000 hl=601B de=0400 banks=00/00/01/01 res=00/0000/0000/00 irq=1 player=FF screen=00 input=00
+RESOURCE_FIND pc=46EB sp=F356 a=3C f=44 bc=0000 hl=601B de=0400 banks=00/00/01/01 res=00/0000/0000/00 irq=1 player=FF screen=00 input=00
+RESOURCE_DECOMPRESS_VRAM pc=47D8 sp=F35A a=01 f=10 bc=0130 hl=8E3B de=0400 banks=00/00/01/01 res=01/8E3B/0103/01 irq=1 player=FF screen=00 input=00
+MAPPER_P3_AFTER pc=4195 sp=F352 a=01 f=10 bc=0130 hl=8E3B de=EB00 banks=00/00/01/01 res=01/8E3B/0103/01 irq=1 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+MAPPER_P3_AFTER pc=4195 sp=F352 a=01 f=51 bc=FE00 hl=8F3E de=EC30 banks=00/00/01/01 res=01/8E3B/0103/01 irq=1 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+FAST_LDIRVM pc=40CA sp=F35A a=00 f=44 bc=0130 hl=EB00 de=0400 banks=00/00/01/01 res=01/8E3B/0103/01 irq=1 player=FF screen=00 input=00
+GAMEFLOW_START pc=6008 sp=F362 a=00 f=44 bc=0000 hl=EC30 de=0400 banks=10/10/01/01 res=01/8E3B/0103/01 irq=1 player=FF screen=00 input=00
+GAMEFLOW_EXECUTE_NODE pc=600E sp=F362 a=3C f=44 bc=0000 hl=EC30 de=0C00 banks=10/10/01/01 res=01/8E3B/0103/01 irq=1 player=FF screen=00 input=00
+RESOURCE_LOAD_VRAM pc=48BD sp=F35A a=3C f=44 bc=0000 hl=EC30 de=0C00 banks=00/00/01/01 res=01/8E3B/0103/01 irq=1 player=FF screen=00 input=00
+RESOURCE_FIND pc=46EB sp=F356 a=3C f=44 bc=0000 hl=EC30 de=0C00 banks=00/00/01/01 res=01/8E3B/0103/01 irq=1 player=FF screen=00 input=00
+RESOURCE_DECOMPRESS_VRAM pc=47D8 sp=F35A a=01 f=10 bc=0130 hl=8E3B de=0C00 banks=00/00/01/01 res=01/8E3B/0103/01 irq=1 player=FF screen=00 input=00
+MAPPER_P3_AFTER pc=4195 sp=F352 a=01 f=10 bc=0130 hl=8E3B de=EB00 banks=00/00/01/01 res=01/8E3B/0103/01 irq=1 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+MAPPER_P3_AFTER pc=4195 sp=F352 a=01 f=51 bc=FE00 hl=8F3E de=EC30 banks=00/00/01/01 res=01/8E3B/0103/01 irq=1 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+FAST_LDIRVM pc=40CA sp=F35A a=00 f=44 bc=0130 hl=EB00 de=0C00 banks=00/00/01/01 res=01/8E3B/0103/01 irq=2 player=FF screen=00 input=00
+RESOURCE_LOAD_VRAM pc=48BD sp=F35A a=3C f=44 bc=0000 hl=EC30 de=1400 banks=00/00/01/01 res=01/8E3B/0103/01 irq=2 player=FF screen=00 input=00
+RESOURCE_FIND pc=46EB sp=F356 a=3C f=44 bc=0000 hl=EC30 de=1400 banks=00/00/01/01 res=01/8E3B/0103/01 irq=2 player=FF screen=00 input=00
+RESOURCE_DECOMPRESS_VRAM pc=47D8 sp=F35A a=01 f=10 bc=0130 hl=8E3B de=1400 banks=00/00/01/01 res=01/8E3B/0103/01 irq=2 player=FF screen=00 input=00
+MAPPER_P3_AFTER pc=4195 sp=F352 a=01 f=10 bc=0130 hl=8E3B de=EB00 banks=00/00/01/01 res=01/8E3B/0103/01 irq=2 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+MAPPER_P3_AFTER pc=4195 sp=F352 a=01 f=51 bc=FE00 hl=8F3E de=EC30 banks=00/00/01/01 res=01/8E3B/0103/01 irq=2 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+FAST_LDIRVM pc=40CA sp=F35A a=00 f=44 bc=0130 hl=EB00 de=1400 banks=00/00/01/01 res=01/8E3B/0103/01 irq=3 player=FF screen=00 input=00
+RESOURCE_LOAD_VRAM pc=48BD sp=F35A a=3E f=44 bc=0000 hl=601B de=2400 banks=00/00/01/01 res=01/8E3B/0103/01 irq=3 player=FF screen=00 input=00
+RESOURCE_FIND pc=46EB sp=F356 a=3E f=44 bc=0000 hl=601B de=2400 banks=00/00/01/01 res=01/8E3B/0103/01 irq=3 player=FF screen=00 input=00
+RESOURCE_DECOMPRESS_VRAM pc=47D8 sp=F35A a=01 f=10 bc=0130 hl=A2EF de=2400 banks=00/00/01/01 res=01/A2EF/005F/01 irq=3 player=FF screen=00 input=00
+MAPPER_P3_AFTER pc=4195 sp=F352 a=01 f=10 bc=0130 hl=A2EF de=EB00 banks=00/00/01/01 res=01/A2EF/005F/01 irq=3 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+MAPPER_P3_AFTER pc=4195 sp=F352 a=01 f=51 bc=FE00 hl=A34E de=EC30 banks=00/00/01/01 res=01/A2EF/005F/01 irq=3 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+FAST_LDIRVM pc=40CA sp=F35A a=00 f=44 bc=0130 hl=EB00 de=2400 banks=00/00/01/01 res=01/A2EF/005F/01 irq=4 player=FF screen=00 input=00
+GAMEFLOW_START pc=6008 sp=F362 a=00 f=44 bc=0000 hl=EC30 de=2400 banks=11/11/01/01 res=01/A2EF/005F/01 irq=4 player=FF screen=00 input=00
+GAMEFLOW_EXECUTE_NODE pc=600E sp=F362 a=3E f=44 bc=0000 hl=EC30 de=2C00 banks=11/11/01/01 res=01/A2EF/005F/01 irq=4 player=FF screen=00 input=00
+RESOURCE_LOAD_VRAM pc=48BD sp=F35A a=3E f=44 bc=0000 hl=EC30 de=2C00 banks=00/00/01/01 res=01/A2EF/005F/01 irq=4 player=FF screen=00 input=00
+RESOURCE_FIND pc=46EB sp=F356 a=3E f=44 bc=0000 hl=EC30 de=2C00 banks=00/00/01/01 res=01/A2EF/005F/01 irq=4 player=FF screen=00 input=00
+RESOURCE_DECOMPRESS_VRAM pc=47D8 sp=F35A a=01 f=10 bc=0130 hl=A2EF de=2C00 banks=00/00/01/01 res=01/A2EF/005F/01 irq=4 player=FF screen=00 input=00
+MAPPER_P3_AFTER pc=4195 sp=F352 a=01 f=10 bc=0130 hl=A2EF de=EB00 banks=00/00/01/01 res=01/A2EF/005F/01 irq=4 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+MAPPER_P3_AFTER pc=4195 sp=F352 a=01 f=51 bc=FE00 hl=A34E de=EC30 banks=00/00/01/01 res=01/A2EF/005F/01 irq=4 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+FAST_LDIRVM pc=40CA sp=F35A a=00 f=44 bc=0130 hl=EB00 de=2C00 banks=00/00/01/01 res=01/A2EF/005F/01 irq=4 player=FF screen=00 input=00
+RESOURCE_LOAD_VRAM pc=48BD sp=F35A a=3E f=44 bc=0000 hl=EC30 de=3400 banks=00/00/01/01 res=01/A2EF/005F/01 irq=5 player=FF screen=00 input=00
+RESOURCE_FIND pc=46EB sp=F356 a=3E f=44 bc=0000 hl=EC30 de=3400 banks=00/00/01/01 res=01/A2EF/005F/01 irq=5 player=FF screen=00 input=00
+RESOURCE_DECOMPRESS_VRAM pc=47D8 sp=F35A a=01 f=10 bc=0130 hl=A2EF de=3400 banks=00/00/01/01 res=01/A2EF/005F/01 irq=5 player=FF screen=00 input=00
+MAPPER_P3_AFTER pc=4195 sp=F352 a=01 f=10 bc=0130 hl=A2EF de=EB00 banks=00/00/01/01 res=01/A2EF/005F/01 irq=5 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+MAPPER_P3_AFTER pc=4195 sp=F352 a=01 f=51 bc=FE00 hl=A34E de=EC30 banks=00/00/01/01 res=01/A2EF/005F/01 irq=5 player=FF screen=00 input=00
+MAPPER_P3_AFTER_BYTES_8000 FF FF FF FF FF FF FF FF 81 0E 82 C0 0F 03 FF FF 
+FAST_LDIRVM pc=40CA sp=F35A a=00 f=44 bc=0130 hl=EB00 de=3400 banks=00/00/01/01 res=01/A2EF/005F/01 irq=5 player=FF screen=00 input=00
+T4 pc=1A02 sp=F34C a=1F f=08 bc=04F3 hl=247A de=01FF banks=0D/0D/01/01 res=01/A2EF/005F/01 irq=6 player=FF screen=00 input=00
+SHOT patoantic248_ascii16_presentation_t4.png C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_ascii16_presentation_t4.png
+SPC1_before pc=5F56 sp=F352 a=08 f=44 bc=0000 hl=6000 de=C158 banks=0D/0D/01/01 res=01/A2EF/005F/01 irq=186 player=FF screen=00 input=00
+SPC1_after pc=19A2 sp=F342 a=00 f=44 bc=04F3 hl=247A de=01FF banks=0D/0D/01/01 res=01/A2EF/005F/01 irq=204 player=FF screen=00 input=00
+T95 pc=FD9A sp=F32A a=00 f=44 bc=04F3 hl=247A de=01FF banks=0D/0D/01/01 res=01/A2EF/005F/01 irq=336 player=FF screen=00 input=00
+SHOT patoantic248_ascii16_presentation_t95.png C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_ascii16_presentation_t95.png
+SPC2_before pc=19A6 sp=F320 a=00 f=44 bc=04F3 hl=247A de=01FF banks=0D/0D/01/01 res=01/A2EF/005F/01 irq=486 player=FF screen=00 input=00
+SPC2_after pc=1A06 sp=F320 a=1F f=08 bc=04F3 hl=247A de=01FF banks=0D/0D/01/01 res=01/A2EF/005F/01 irq=504 player=FF screen=00 input=00
+T145 pc=54D0 sp=F324 a=08 f=44 bc=0000 hl=6000 de=C158 banks=0D/0D/01/01 res=01/A2EF/005F/01 irq=635 player=FF screen=00 input=00
+SHOT patoantic248_ascii16_presentation_t145.png C:/Users/salam/Documents/Programacion/Mideas/screenshots/patoantic248_ascii16_presentation_t145.png
+FINAL pc=1A09 sp=F310 a=00 f=44 bc=04F3 hl=247A de=01FF banks=0D/0D/01/01 res=01/A2EF/005F/01 irq=725 player=FF screen=00 input=00
+COUNT BOOT_4010 1
+COUNT FAST_LDIRVM 6
+COUNT GAMEFLOW_EXECUTE_NODE 3
+COUNT GAMEFLOW_START 3
+COUNT HANDLE_MUSIC 1
+COUNT HANDLE_START 2
+COUNT MAPPER_P3_AFTER 14
+COUNT RESOURCE_DECOMPRESS_VRAM 6
+COUNT RESOURCE_FIND 6
+COUNT RESOURCE_LOAD_VRAM 6

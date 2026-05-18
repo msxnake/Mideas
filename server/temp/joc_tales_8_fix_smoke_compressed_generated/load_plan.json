@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "scope": "konami8k_scene_load_plan",
+  "strategy": "group current banked resources by scene and physical bank; optimizer consumes this before repacking",
+  "scenes": [
+    {
+      "index": 0,
+      "id": "screenmap_1777833014252",
+      "name": "New Playable Screen",
+      "tileBankAssetId": "tilebank_1777833005588",
+      "resourceCount": 8,
+      "totalStoredBytes": 58,
+      "totalRawBytes": 4108,
+      "compressedResources": 6,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 8,
+          "storedBytes": 58,
+          "rawBytes": 4108,
+          "resourceIds": [
+            6,
+            7,
+            11,
+            12,
+            13,
+            10,
+            9,
+            8
+          ],
+          "resourceLabels": [
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            6,
+            7,
+            11,
+            12,
+            13,
+            10,
+            9,
+            8
+          ],
+          "resourceLabels": [
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE",
+            "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    }
+  ]
+}

@@ -1,0 +1,236 @@
+{
+  "version": 1,
+  "scope": "konami8k_megarom_data",
+  "features": {
+    "sprites": true,
+    "tiles": true,
+    "screens": true,
+    "entities": true,
+    "components": true,
+    "gameFlow": true,
+    "menus": false,
+    "fonts": true,
+    "animations": false,
+    "collisions": true,
+    "sounds": false,
+    "stateMachines": false
+  },
+  "counts": {
+    "components": 35,
+    "templates": 17,
+    "sprites": 1,
+    "tiles": 235,
+    "tileBanks": 2,
+    "screens": 1,
+    "entities": 1,
+    "sounds": 0,
+    "tracks": 0,
+    "stateMachines": 0,
+    "bankedResources": 12
+  },
+  "resourceGroups": [
+    {
+      "key": "COLORS",
+      "count": 1
+    },
+    {
+      "key": "PATTERNS",
+      "count": 1
+    },
+    {
+      "key": "SCREENS",
+      "count": 8
+    },
+    {
+      "key": "SPRITES",
+      "count": 2
+    }
+  ],
+  "resourceTypes": [
+    {
+      "key": "SCREEN_BEHAVIOR_MAP",
+      "count": 1
+    },
+    {
+      "key": "SCREEN_DATA",
+      "count": 4
+    },
+    {
+      "key": "SCREEN_EFFECT_ZONE_TABLE",
+      "count": 1
+    },
+    {
+      "key": "SCREEN_EFFECTS_LAYOUT",
+      "count": 1
+    },
+    {
+      "key": "SCREEN_LAYOUT",
+      "count": 1
+    },
+    {
+      "key": "SPRITE_PATTERNS",
+      "count": 2
+    },
+    {
+      "key": "TILE_COLORS",
+      "count": 1
+    },
+    {
+      "key": "TILE_PATTERNS",
+      "count": 1
+    }
+  ],
+  "scenes": [
+    {
+      "index": 0,
+      "id": "screenmap_1777714750807",
+      "name": "pan1"
+    }
+  ],
+  "bankedResources": [
+    {
+      "id": 0,
+      "label": "NEW_SPRITE_0_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 15,
+      "windowAddress": 43512,
+      "size": 23,
+      "storedSize": 23,
+      "uncompressedSize": 32,
+      "flags": 1
+    },
+    {
+      "id": 1,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 15,
+      "windowAddress": 43535,
+      "size": 5,
+      "storedSize": 5,
+      "uncompressedSize": 32,
+      "flags": 1
+    },
+    {
+      "id": 2,
+      "label": "tile_pattern_bank0",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 15,
+      "windowAddress": 40960,
+      "size": 1697,
+      "storedSize": 1697,
+      "uncompressedSize": 1880,
+      "flags": 1
+    },
+    {
+      "id": 3,
+      "label": "tile_color_bank0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 15,
+      "windowAddress": 42657,
+      "size": 825,
+      "storedSize": 825,
+      "uncompressedSize": 1880,
+      "flags": 1
+    },
+    {
+      "id": 4,
+      "label": "SCREEN_PAN1_0_LAYOUT",
+      "group": "SCREENS",
+      "type": "SCREEN_LAYOUT",
+      "bank": 15,
+      "windowAddress": 43482,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1
+    },
+    {
+      "id": 5,
+      "label": "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECTS_LAYOUT",
+      "bank": 15,
+      "windowAddress": 43488,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1
+    },
+    {
+      "id": 6,
+      "label": "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECT_ZONE_TABLE",
+      "bank": 15,
+      "windowAddress": 43551,
+      "size": 1,
+      "storedSize": 1,
+      "uncompressedSize": 1,
+      "flags": 0
+    },
+    {
+      "id": 7,
+      "label": "SCREEN_PAN1_0_BOSS_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 15,
+      "windowAddress": 43540,
+      "size": 11,
+      "storedSize": 11,
+      "uncompressedSize": 11,
+      "flags": 0
+    },
+    {
+      "id": 8,
+      "label": "BEHAVIOR_PAN1_0_DATA",
+      "group": "SCREENS",
+      "type": "SCREEN_BEHAVIOR_MAP",
+      "bank": 15,
+      "windowAddress": 43494,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1
+    },
+    {
+      "id": 9,
+      "label": "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 15,
+      "windowAddress": 43500,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1
+    },
+    {
+      "id": 10,
+      "label": "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 15,
+      "windowAddress": 43506,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1
+    },
+    {
+      "id": 11,
+      "label": "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 15,
+      "windowAddress": 43552,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1
+    }
+  ]
+}

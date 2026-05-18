@@ -5,10 +5,2281 @@
  * NOW WITH INTELLIGENT FILTERING - Only generates code for components actually used
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateComponentTriggerHelpers = generateComponentTriggerHelpers;
 exports.generateComponentsFile = generateComponentsFile;
 const componentAnalyzer_1 = require("../utils/componentAnalyzer");
 const registerContract_1 = require("./registerContract");
 const romModeUtils_1 = require("./romModeUtils");
+const screenUtils_1 = require("../../../components/utils/screenUtils");
+function wrapMideasAsmBlock(asm, options) {
+    const attrs = [
+        `id=${options.id}`,
+        `kind=${options.kind}`,
+        `owner=${options.owner}`,
+        `preserve=${options.preserve === true ? 'true' : 'false'}`,
+        options.deps && options.deps.length > 0 ? `deps=${options.deps.join(',')}` : '',
+        options.roots && options.roots.length > 0 ? `roots=${options.roots.join(',')}` : '',
+        options.bank ? `bank=${options.bank}` : '',
+    ].filter(Boolean).join(' ');
+    return `; @mideas:block ${attrs}\n${asm.trimEnd()}\n; @mideas:endblock id=${options.id}\n`;
+}
+function applyMapperDataWindowPage(asm, targetFormat) {
+    if (!['konami', 'ascii8', 'ascii16'].includes(targetFormat)) {
+        return asm;
+    }
+    return asm
+        .replace(/mapper_push_p2/g, 'mapper_push_p3')
+        .replace(/mapper_pop_p2/g, 'mapper_pop_p3')
+        .replace(/mapper_set_bank_p2/g, 'mapper_set_bank_p3')
+        .replace(/P2 bank/g, 'data-window bank')
+        .replace(/protects P2/g, 'protects the mapper data window');
+}
+const AUTO_CMD = {
+    END: 0,
+    MOVE_RIGHT: 1,
+    MOVE_LEFT: 2,
+    MOVE_UP: 3,
+    MOVE_DOWN: 4,
+    DELAY: 5,
+    WAIT_SPC: 6,
+    NOP: 7,
+    OPEN_DIALOG: 8,
+    WRITE_LINE: 9,
+    CLEAR_DIALOG: 10,
+    CLOSE_DIALOG: 11,
+    WAIT_TEXT: 12,
+};
+function boolValue(value, fallback = false) {
+    if (typeof value === 'boolean')
+        return value;
+    if (typeof value === 'number')
+        return value !== 0;
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (['true', '1', 'yes', 'on'].includes(normalized))
+            return true;
+        if (['false', '0', 'no', 'off'].includes(normalized))
+            return false;
+    }
+    return fallback;
+}
+function getTemplateComponent(template, definitionId) {
+    return Array.isArray(template?.components)
+        ? template.components.find((component) => component?.definitionId === definitionId)
+        : undefined;
+}
+function getEntityComponentValues(entity, template, definitionId) {
+    const component = getTemplateComponent(template, definitionId);
+    const defaults = component?.defaultValues || {};
+    const overrides = entity?.componentOverrides?.[definitionId] || {};
+    return { ...defaults, ...overrides };
+}
+function sanitizeAsmLabelPart(value, fallback) {
+    const label = String(value || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    return label || fallback;
+}
+function clampByteValue(value, fallback = 0) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return fallback & 0xff;
+    return Math.max(0, Math.min(255, Math.round(numeric))) & 0xff;
+}
+function buildSpriteIndexByReference(analysis) {
+    const refs = new Map();
+    (analysis.sprites || []).forEach((sprite, index) => {
+        [sprite?.id, sprite?.name].forEach((ref) => {
+            if (typeof ref !== 'string' || !ref.trim())
+                return;
+            refs.set(ref, index);
+            refs.set(ref.trim().toLowerCase(), index);
+        });
+    });
+    return refs;
+}
+function resolveSpriteAssetIndex(spriteRef, spriteIndexByReference) {
+    const trimmed = String(spriteRef ?? '').trim();
+    if (!trimmed)
+        return 0xFF;
+    const direct = spriteIndexByReference.get(trimmed);
+    if (direct !== undefined)
+        return direct;
+    const lower = spriteIndexByReference.get(trimmed.toLowerCase());
+    return lower !== undefined ? lower : 0xFF;
+}
+function emitDirectionalFacingSpriteSync(labelPrefix, source = 'initial') {
+    const sourceComment = source === 'current'
+        ? 'Use the active sprite so StateMachine-owned animations keep their state.'
+        : 'Use the spawn sprite so plain auto-facing matches patrol/entity defaults.';
+    const helper = source === 'current'
+        ? 'component_sync_directional_sprite_from_current'
+        : 'component_sync_directional_sprite_from_initial';
+    return `
+            ; Apply directional sprite variants from entity_facing_dir locally.
+            ; Register contract: input DE = active entity index; preserves AF, BC, DE, HL.
+            ; This must not call update_entity_patrol_facing because MegaROM lower
+            ; page segments cannot safely call each other by raw address in ASCII16.
+            ; ${sourceComment}
+            call ${helper}
+    `;
+}
+function generateDirectionalFacingSpriteSyncHelpers() {
+    return wrapMideasAsmBlock(`
+; ------------------------------------------------------------------
+; component_sync_directional_sprite_from_initial/current
+; Shared resident helper for local directional sprite variant sync.
+; Input: DE = active entity index.
+; Output: entity_sprite_asset_index may be replaced and animation reset.
+; Clobbers internally: AF, BC, HL. Preserves: AF, BC, DE, HL.
+; ------------------------------------------------------------------
+component_sync_directional_sprite_from_initial:
+    push af
+    push bc
+    push de
+    push hl
+    ld bc, entity_sprite_asset_index_init
+    jp component_sync_directional_sprite_common
+
+component_sync_directional_sprite_from_current:
+    push af
+    push bc
+    push de
+    push hl
+    ld bc, entity_sprite_asset_index
+
+component_sync_directional_sprite_common:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .csds_done
+    cp 1
+    jp z, .csds_left
+    cp 2
+    jp z, .csds_right
+    cp 3
+    jp z, .csds_up
+    cp 4
+    jp z, .csds_down
+    jp .csds_done
+
+.csds_left:
+    ld hl, sprite_dir_left_table
+    jp .csds_lookup
+.csds_right:
+    ld hl, sprite_dir_right_table
+    jp .csds_lookup
+.csds_up:
+    ld hl, sprite_dir_up_table
+    jp .csds_lookup
+.csds_down:
+    ld hl, sprite_dir_down_table
+
+.csds_lookup:
+    push hl
+    ld h, b
+    ld l, c
+    add hl, de
+    ld a, (hl)
+    pop hl
+    cp #FF
+    jp z, .csds_done
+    cp SPRITE_ASSET_COUNT
+    jp nc, .csds_done
+    ld c, a
+    ld b, 0
+    add hl, bc
+    ld a, (hl)
+
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    cp (hl)
+    jp z, .csds_done
+    ld (hl), a
+    ld hl, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_anim_tick
+    add hl, de
+    ld (hl), 0
+
+.csds_done:
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+`, {
+        id: 'runtime.components.directional_sprite_sync',
+        kind: 'routine',
+        owner: 'components',
+        roots: ['component_sync_directional_sprite_from_initial', 'component_sync_directional_sprite_from_current', 'component_sync_directional_sprite_common'],
+    });
+}
+function wrapDialogueText(text, maxCharsPerLine, maxLines) {
+    const width = Math.max(1, maxCharsPerLine | 0);
+    const lineLimit = Math.max(1, maxLines | 0);
+    const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+    const rows = [];
+    let current = '';
+    const pushCurrent = () => {
+        if (rows.length >= lineLimit)
+            return;
+        rows.push(current.trimEnd());
+        current = '';
+    };
+    for (const word of words) {
+        if (rows.length >= lineLimit)
+            break;
+        if (!current) {
+            current = word.slice(0, width);
+            if (word.length > width)
+                pushCurrent();
+            continue;
+        }
+        if (current.length + 1 + word.length <= width) {
+            current += ` ${word}`;
+        }
+        else {
+            pushCurrent();
+            current = word.slice(0, width);
+            if (word.length > width)
+                pushCurrent();
+        }
+    }
+    if (current && rows.length < lineLimit)
+        rows.push(current.trimEnd());
+    return rows.length > 0 ? rows : [''];
+}
+function normalizeDialogueExportText(text, stripUnsupportedChars) {
+    if (!stripUnsupportedChars)
+        return String(text || '');
+    const replacements = {
+        '¿': '?',
+        '¡': '!',
+        '“': '"',
+        '”': '"',
+        '‘': "'",
+        '’': "'",
+        '…': '...',
+        '–': '-',
+        '—': '-',
+        '€': 'E',
+    };
+    return Array.from(String(text || ''))
+        .map(char => replacements[char] ?? char)
+        .join('')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\x20-\x7E]/g, ' ')
+        .toUpperCase();
+}
+function resolveDialogueBorderCharCode(analysis, tileBankAssetId, tileId, screenY, fallback) {
+    if (!tileBankAssetId || !tileId)
+        return fallback;
+    const tileBank = (analysis.tileBanks || []).find((bank) => bank?.id === tileBankAssetId);
+    if (!tileBank || !Array.isArray(tileBank.banks))
+        return fallback;
+    const sector = Math.max(0, Math.min(2, Math.floor(screenY / 8)));
+    const banks = [
+        tileBank.banks[sector],
+        ...tileBank.banks,
+    ].filter(Boolean);
+    for (const bank of banks) {
+        const assignment = bank?.assignedTiles?.[tileId];
+        const charCode = Number(assignment?.charCode);
+        if (Number.isFinite(charCode)) {
+            return clampByteValue(charCode, fallback);
+        }
+    }
+    return fallback;
+}
+function resolveDialogueGraphicConfig(analysis, graphicConfig) {
+    const portraitAssetId = String(graphicConfig?.portraitAssetId || '').trim();
+    if (!portraitAssetId)
+        return graphicConfig || {};
+    const portrait = (analysis.portraits || []).find((candidate) => candidate?.id === portraitAssetId);
+    if (!portrait)
+        return graphicConfig || {};
+    return {
+        ...(graphicConfig || {}),
+        tileBankAssetId: graphicConfig?.tileBankAssetId || portrait.tileBankAssetId,
+        width: portrait.widthChars,
+        height: portrait.heightChars,
+        tileIds: Array.isArray(portrait.cells) ? portrait.cells : [],
+    };
+}
+function buildDialogueRuntimeData(analysis) {
+    const dialogues = Array.isArray(analysis.dialogues) ? analysis.dialogues : [];
+    const dialogueIndexById = new Map();
+    const lineIndexByDialogueId = new Map();
+    const lineWaitForInputByDialogueId = new Map();
+    const boxVramEntries = [];
+    const textVramEntries = [];
+    const widthEntries = [];
+    const heightEntries = [];
+    const delayEntries = [];
+    const tlEntries = [];
+    const trEntries = [];
+    const blEntries = [];
+    const brEntries = [];
+    const hEntries = [];
+    const vEntries = [];
+    const graphicEnabledEntries = [];
+    const graphicVramEntries = [];
+    const graphicWidthEntries = [];
+    const graphicHeightEntries = [];
+    const graphicTilePtrEntries = [];
+    const lineTextVramEntries = [];
+    const lineGraphicEnabledEntries = [];
+    const lineGraphicVramEntries = [];
+    const lineGraphicWidthEntries = [];
+    const lineGraphicHeightEntries = [];
+    const lineGraphicTilePtrEntries = [];
+    const linePtrEntries = [];
+    const lineDelayEntries = [];
+    let dataAsm = '';
+    let lineGlobalIndex = 0;
+    dialogues.forEach((dialogue, dialogueIndex) => {
+        const dialogueId = String(dialogue?.id || `dialogue_${dialogueIndex}`);
+        dialogueIndexById.set(dialogueId, dialogueIndex);
+        const box = dialogue?.box || {};
+        const x = clampByteValue(box.x, 0);
+        const y = clampByteValue(box.y, 20);
+        const width = Math.max(3, Math.min(32 - Math.min(x, 31), clampByteValue(box.width, 32)));
+        const height = Math.max(3, Math.min(24 - Math.min(y, 23), clampByteValue(box.height, 4)));
+        const border = box.borderCharCodes || {};
+        const borderTiles = box.borderTiles || {};
+        const useTileBorder = box.borderSource === 'tilebank';
+        const charDelay = Math.max(0, Math.min(255, clampByteValue(dialogue?.exportOptions?.charDelayFrames, 2)));
+        const baseVram = `NAMETBL + ${(y * 32) + x}`;
+        const interiorWidth = Math.max(1, width - 2);
+        const interiorHeight = Math.max(1, height - 2);
+        const graphicY = y + 1;
+        const buildGraphicRuntime = (graphicConfig, label) => {
+            const resolvedGraphicConfig = resolveDialogueGraphicConfig(analysis, graphicConfig);
+            const requested = resolvedGraphicConfig?.enabled === true && interiorWidth >= 2 && interiorHeight >= 1;
+            const side = resolvedGraphicConfig?.side === 'right' ? 'right' : 'left';
+            const graphicWidth = requested
+                ? Math.max(1, Math.min(8, clampByteValue(resolvedGraphicConfig?.width, 4), interiorWidth - 1))
+                : 0;
+            const graphicHeight = requested
+                ? Math.max(1, Math.min(6, clampByteValue(resolvedGraphicConfig?.height, 3), interiorHeight))
+                : 0;
+            const padding = requested
+                ? Math.max(0, Math.min(4, clampByteValue(resolvedGraphicConfig?.padding, 1), interiorWidth - graphicWidth - 1))
+                : 0;
+            const reservedWidth = requested ? graphicWidth + padding : 0;
+            const textStartX = x + 1 + (requested && side === 'left' ? reservedWidth : 0);
+            const textWidth = Math.max(1, interiorWidth - reservedWidth);
+            const graphicX = side === 'right' ? x + width - 1 - graphicWidth : x + 1;
+            const tileIds = Array.isArray(resolvedGraphicConfig?.tileIds) ? resolvedGraphicConfig.tileIds : [];
+            const bytes = requested
+                ? Array.from({ length: graphicWidth * graphicHeight }, (_, index) => {
+                    const rowY = graphicY + Math.floor(index / Math.max(1, graphicWidth));
+                    return resolveDialogueBorderCharCode(analysis, resolvedGraphicConfig?.tileBankAssetId, tileIds[index], rowY, 32);
+                })
+                : [];
+            return {
+                requested,
+                label,
+                textVram: `NAMETBL + ${((y + 1) * 32) + textStartX}`,
+                textWidth,
+                vram: requested ? `NAMETBL + ${(graphicY * 32) + graphicX}` : '0',
+                width: graphicWidth,
+                height: graphicHeight,
+                bytes,
+            };
+        };
+        const generatedTopLeft = clampByteValue(border.topLeft, 43);
+        const generatedTopRight = clampByteValue(border.topRight, 43);
+        const generatedBottomLeft = clampByteValue(border.bottomLeft, 43);
+        const generatedBottomRight = clampByteValue(border.bottomRight, 43);
+        const generatedHorizontal = clampByteValue(border.horizontal, 45);
+        const generatedVertical = clampByteValue(border.vertical, 124);
+        const topY = y;
+        const bottomY = y + height - 1;
+        boxVramEntries.push(baseVram);
+        widthEntries.push(width);
+        heightEntries.push(height);
+        delayEntries.push(charDelay);
+        tlEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.topLeftTileId, topY, generatedTopLeft) : generatedTopLeft);
+        trEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.topRightTileId, topY, generatedTopRight) : generatedTopRight);
+        blEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.bottomLeftTileId, bottomY, generatedBottomLeft) : generatedBottomLeft);
+        brEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.bottomRightTileId, bottomY, generatedBottomRight) : generatedBottomRight);
+        hEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.horizontalTileId, topY, generatedHorizontal) : generatedHorizontal);
+        vEntries.push(useTileBorder ? resolveDialogueBorderCharCode(analysis, box.tileBankAssetId, borderTiles.verticalTileId, topY, generatedVertical) : generatedVertical);
+        const dialogueLabel = sanitizeAsmLabelPart(dialogue?.name || dialogueId, `dialogue_${dialogueIndex}`);
+        const defaultGraphic = buildGraphicRuntime(box.graphic || {}, `dialogue_graphic_${dialogueIndex}_${dialogueLabel}`);
+        textVramEntries.push(defaultGraphic.textVram);
+        if (defaultGraphic.requested) {
+            dataAsm += `${defaultGraphic.label}:\n    DB ${defaultGraphic.bytes.map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}\n`;
+            graphicEnabledEntries.push(1);
+            graphicVramEntries.push(defaultGraphic.vram);
+            graphicWidthEntries.push(defaultGraphic.width);
+            graphicHeightEntries.push(defaultGraphic.height);
+            graphicTilePtrEntries.push(defaultGraphic.label);
+        }
+        else {
+            graphicEnabledEntries.push(0);
+            graphicVramEntries.push('0');
+            graphicWidthEntries.push(0);
+            graphicHeightEntries.push(0);
+            graphicTilePtrEntries.push('0');
+        }
+        const lineMap = new Map();
+        const lineWaitMap = new Map();
+        lineIndexByDialogueId.set(dialogueId, lineMap);
+        lineWaitForInputByDialogueId.set(dialogueId, lineWaitMap);
+        const stripUnsupportedChars = dialogue?.exportOptions?.stripUnsupportedChars !== false;
+        (Array.isArray(dialogue?.lines) ? dialogue.lines : []).forEach((line, lineIndex) => {
+            const label = `dialogue_line_${lineGlobalIndex}_${dialogueLabel}`;
+            const lineGraphic = line?.graphic
+                ? buildGraphicRuntime(line.graphic, `dialogue_line_graphic_${lineGlobalIndex}_${dialogueLabel}`)
+                : defaultGraphic;
+            const maxChars = Math.min(lineGraphic.textWidth, Math.max(1, clampByteValue(dialogue?.exportOptions?.maxCharsPerLine, lineGraphic.textWidth)));
+            const maxLines = Math.min(interiorHeight, Math.max(1, clampByteValue(dialogue?.exportOptions?.maxLinesPerBox, interiorHeight)));
+            const speakerPrefix = String(line?.speaker || '').trim();
+            const lineText = normalizeDialogueExportText(`${speakerPrefix ? `${speakerPrefix}: ` : ''}${String(line?.text || '')}`, stripUnsupportedChars);
+            const rows = wrapDialogueText(lineText, maxChars, maxLines);
+            const bytes = [];
+            rows.forEach((row, rowIndex) => {
+                for (const char of row) {
+                    const code = char.charCodeAt(0);
+                    bytes.push(code >= 32 && code <= 126 ? code : 32);
+                }
+                if (rowIndex < rows.length - 1)
+                    bytes.push(10);
+            });
+            bytes.push(0);
+            if (line?.graphic && lineGraphic.requested) {
+                dataAsm += `${lineGraphic.label}:\n    DB ${lineGraphic.bytes.map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}\n`;
+            }
+            dataAsm += `${label}:\n    DB ${bytes.map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}\n`;
+            lineMap.set(lineIndex, lineGlobalIndex);
+            lineWaitMap.set(lineIndex, line?.waitForInput !== false);
+            lineTextVramEntries.push(lineGraphic.textVram);
+            lineGraphicEnabledEntries.push(lineGraphic.requested ? 1 : 0);
+            lineGraphicVramEntries.push(lineGraphic.vram);
+            lineGraphicWidthEntries.push(lineGraphic.width);
+            lineGraphicHeightEntries.push(lineGraphic.height);
+            lineGraphicTilePtrEntries.push(lineGraphic.requested ? lineGraphic.label : '0');
+            linePtrEntries.push(label);
+            lineDelayEntries.push(charDelay);
+            lineGlobalIndex++;
+        });
+    });
+    const ensureEntries = (entries, fallback) => entries.length > 0 ? entries : [fallback];
+    const ptrTable = (label, entries) => `${label}:\n${ensureEntries(entries, '0').map(entry => `    DW ${entry}`).join('\n')}\n`;
+    const byteTable = (label, entries, fallback = 0) => `${label}:\n    DB ${ensureEntries(entries, fallback).map(value => String(value & 0xff)).join(',')}\n`;
+    dataAsm += `dialogue_box_count:\n    DB ${Math.max(0, dialogues.length)}\n`;
+    dataAsm += ptrTable('dialogue_box_vram_table', boxVramEntries);
+    dataAsm += ptrTable('dialogue_text_vram_table', textVramEntries);
+    dataAsm += byteTable('dialogue_box_width_table', widthEntries, 32);
+    dataAsm += byteTable('dialogue_box_height_table', heightEntries, 4);
+    dataAsm += byteTable('dialogue_box_delay_table', delayEntries, 2);
+    dataAsm += byteTable('dialogue_box_tl_table', tlEntries, 43);
+    dataAsm += byteTable('dialogue_box_tr_table', trEntries, 43);
+    dataAsm += byteTable('dialogue_box_bl_table', blEntries, 43);
+    dataAsm += byteTable('dialogue_box_br_table', brEntries, 43);
+    dataAsm += byteTable('dialogue_box_h_table', hEntries, 45);
+    dataAsm += byteTable('dialogue_box_v_table', vEntries, 124);
+    dataAsm += byteTable('dialogue_graphic_enabled_table', graphicEnabledEntries, 0);
+    dataAsm += ptrTable('dialogue_graphic_vram_table', graphicVramEntries);
+    dataAsm += byteTable('dialogue_graphic_width_table', graphicWidthEntries, 0);
+    dataAsm += byteTable('dialogue_graphic_height_table', graphicHeightEntries, 0);
+    dataAsm += ptrTable('dialogue_graphic_tile_ptr_table', graphicTilePtrEntries);
+    dataAsm += ptrTable('dialogue_line_text_vram_table', lineTextVramEntries);
+    dataAsm += byteTable('dialogue_line_graphic_enabled_table', lineGraphicEnabledEntries, 0);
+    dataAsm += ptrTable('dialogue_line_graphic_vram_table', lineGraphicVramEntries);
+    dataAsm += byteTable('dialogue_line_graphic_width_table', lineGraphicWidthEntries, 0);
+    dataAsm += byteTable('dialogue_line_graphic_height_table', lineGraphicHeightEntries, 0);
+    dataAsm += ptrTable('dialogue_line_graphic_tile_ptr_table', lineGraphicTilePtrEntries);
+    dataAsm += ptrTable('dialogue_line_ptr_table', linePtrEntries);
+    dataAsm += byteTable('dialogue_line_delay_table', lineDelayEntries, 2);
+    return {
+        dataAsm,
+        dialogueIndexById,
+        lineIndexByDialogueId,
+        lineWaitForInputByDialogueId,
+        hasDialogue: dialogues.length > 0 && linePtrEntries.length > 0,
+    };
+}
+function parseAutoControlCommands(commands, defaultDialogueAssetId, dialogueRuntime) {
+    const bytes = [];
+    const append = (opcode, operand = 0) => {
+        bytes.push(opcode & 0xff, Math.max(0, Math.min(255, Math.round(operand))) & 0xff);
+    };
+    const appendDelayMs = (ms) => {
+        const frames = Math.max(1, Math.round((ms || 1000) / 20));
+        append(AUTO_CMD.DELAY, Math.min(255, frames));
+    };
+    const appendDelaySeconds = (seconds) => {
+        const frames = Math.max(1, Math.round((seconds || 1) * 50));
+        append(AUTO_CMD.DELAY, Math.min(255, frames));
+    };
+    const dialogueIndex = dialogueRuntime.dialogueIndexById.get(defaultDialogueAssetId) ?? 0;
+    const defaultLineMap = dialogueRuntime.lineIndexByDialogueId.get(defaultDialogueAssetId);
+    const defaultLineWaitMap = dialogueRuntime.lineWaitForInputByDialogueId.get(defaultDialogueAssetId);
+    const lines = String(commands || '')
+        .split(/\r?\n/)
+        .map(line => line.replace(/[;#].*/, '').trim())
+        .filter(Boolean);
+    for (const line of lines) {
+        const parts = line.split(/[\s,]+/).filter(Boolean);
+        let command = String(parts[0] || '').trim().toLowerCase();
+        let operandToken = parts[1];
+        const second = String(parts[1] || '').trim().toLowerCase();
+        if ((command === 'move' || command === 'dash') && ['left', 'right', 'up', 'down'].includes(second)) {
+            command = `${command}_${second}`;
+            operandToken = parts[2];
+        }
+        else if (command === 'wait' && ['spc', 'space'].includes(second)) {
+            command = 'wait_spc';
+            operandToken = parts[2];
+        }
+        else if (command === 'wait' && ['text', 'typewriter'].includes(second)) {
+            command = 'wait_text';
+            operandToken = parts[2];
+        }
+        else if (command === 'wait' && ['second', 'seconds'].includes(second)) {
+            command = 'wait_seconds';
+            operandToken = parts[2];
+        }
+        else if ((command === 'write' || command === 'write_text') && ['text', 'line'].includes(second)) {
+            command = 'write_line';
+            operandToken = parts[2];
+        }
+        else if (command === 'open' && ['dialog', 'dialogue', 'frame_dialog', 'frame-dialog'].includes(second)) {
+            command = 'open_dialog';
+            operandToken = parts[2];
+        }
+        else if (command === 'close' && ['dialog', 'dialogue', 'frame_dialog', 'frame-dialog'].includes(second)) {
+            command = 'close_dialog';
+            operandToken = parts[2];
+        }
+        if (command === 'spc')
+            command = 'wait_spc';
+        if (command === 'clean')
+            command = 'clear_dialog';
+        if (command === 'write_text')
+            command = 'write_line';
+        if (command === 'open_frame_dialog' || command === 'open-frame-dialog')
+            command = 'open_dialog';
+        if (command === 'close_frame_dialog' || command === 'close-frame-dialog')
+            command = 'close_dialog';
+        const operand = Number(operandToken);
+        const amount = Number.isFinite(operand) ? operand : 0;
+        switch (command) {
+            case 'move_right':
+            case 'right':
+                append(AUTO_CMD.MOVE_RIGHT, amount || 16);
+                break;
+            case 'move_left':
+            case 'left':
+                append(AUTO_CMD.MOVE_LEFT, amount || 16);
+                break;
+            case 'move_up':
+            case 'up':
+                append(AUTO_CMD.MOVE_UP, amount || 16);
+                break;
+            case 'move_down':
+            case 'down':
+                append(AUTO_CMD.MOVE_DOWN, amount || 16);
+                break;
+            case 'dash_right':
+                append(AUTO_CMD.MOVE_RIGHT, amount || 48);
+                break;
+            case 'dash_left':
+                append(AUTO_CMD.MOVE_LEFT, amount || 48);
+                break;
+            case 'dash_up':
+                append(AUTO_CMD.MOVE_UP, amount || 32);
+                break;
+            case 'dash_down':
+                append(AUTO_CMD.MOVE_DOWN, amount || 32);
+                break;
+            case 'jump':
+                append(AUTO_CMD.MOVE_UP, amount || 24);
+                break;
+            case 'delay':
+            case 'delay_ms':
+            case 'wait_ms': {
+                appendDelayMs(amount);
+                break;
+            }
+            case 'wait':
+            case 'wait_seconds':
+            case 'delay_seconds': {
+                appendDelaySeconds(amount);
+                break;
+            }
+            case 'wait_spc':
+            case 'wait_space':
+                append(AUTO_CMD.WAIT_SPC, 0);
+                break;
+            case 'wait_text':
+            case 'wait_typewriter':
+                append(AUTO_CMD.WAIT_TEXT, 0);
+                break;
+            case 'play_dialog':
+            case 'play_dialogue': {
+                append(AUTO_CMD.OPEN_DIALOG, dialogueIndex);
+                const lineEntries = Array.from(defaultLineMap?.entries() || [])
+                    .sort(([left], [right]) => left - right);
+                for (const [localLineIndex, globalLineIndex] of lineEntries) {
+                    append(AUTO_CMD.WRITE_LINE, globalLineIndex);
+                    append(defaultLineWaitMap?.get(localLineIndex) === false ? AUTO_CMD.WAIT_TEXT : AUTO_CMD.WAIT_SPC, 0);
+                }
+                append(AUTO_CMD.CLOSE_DIALOG, 0);
+                break;
+            }
+            case 'open_dialog':
+                append(AUTO_CMD.OPEN_DIALOG, dialogueIndex);
+                break;
+            case 'write_line': {
+                const lineIndex = Number.isFinite(amount) ? amount : 0;
+                append(AUTO_CMD.WRITE_LINE, defaultLineMap?.get(lineIndex) ?? 0);
+                break;
+            }
+            case 'clear_dialog':
+                append(AUTO_CMD.CLEAR_DIALOG, 0);
+                break;
+            case 'close_dialog':
+                append(AUTO_CMD.CLOSE_DIALOG, 0);
+                break;
+            case 'grab_wall':
+            case 'release_wall':
+                append(AUTO_CMD.NOP, 0);
+                break;
+            default:
+                append(AUTO_CMD.NOP, 0);
+                break;
+        }
+    }
+    append(AUTO_CMD.END, 0);
+    return bytes;
+}
+function encodeAsmByteString(value) {
+    const bytes = Array.from(String(value || ''))
+        .map(char => char.charCodeAt(0))
+        .filter(code => code >= 0x20 && code <= 0x7e);
+    bytes.push(0);
+    return bytes.map(code => `#${code.toString(16).toUpperCase().padStart(2, '0')}`).join(',');
+}
+function normalizeAutoEventStringForAsm(eventString, defaultDialogueAssetId, dialogueRuntime) {
+    const source = String(eventString || '').replace(/\s+/g, '');
+    const lineMap = dialogueRuntime.lineIndexByDialogueId.get(defaultDialogueAssetId);
+    let output = '';
+    let cursor = 0;
+    const tokenPattern = /([xXyYdw])(\d+)|[ostkc]/g;
+    let match;
+    while ((match = tokenPattern.exec(source)) !== null) {
+        if (match.index !== cursor)
+            break;
+        cursor = match.index + match[0].length;
+        const command = match[0][0];
+        const rawValue = Number(match[2] || 0);
+        if (command === 'w') {
+            const localLineIndex = Math.max(0, rawValue - 1);
+            output += `w${lineMap?.get(localLineIndex) ?? 0}`;
+        }
+        else {
+            output += match[0];
+        }
+    }
+    return cursor === source.length ? output : '';
+}
+function buildAutoControlScriptData(analysis) {
+    const entities = Array.isArray(analysis.entities) ? analysis.entities : [];
+    const dialogueRuntime = buildDialogueRuntimeData(analysis);
+    const scriptPresent = new Array(32).fill(false);
+    const loopFlags = new Array(32).fill(0);
+    const eventScriptPresent = new Array(32).fill(false);
+    const eventLoopFlags = new Array(32).fill(0);
+    const eventIdleSpriteIndexes = new Array(32).fill(0xFF);
+    const eventWalkSpriteIndexes = new Array(32).fill(0xFF);
+    const spriteIndexByReference = buildSpriteIndexByReference(analysis);
+    let dataAsm = dialogueRuntime.dataAsm;
+    let hasCommandScripts = false;
+    let hasEventScripts = false;
+    entities.slice(0, 32).forEach((entity, index) => {
+        const template = analysis.templates?.find((candidate) => candidate.id === entity.entityTemplateId);
+        const scriptComponent = getTemplateComponent(template, 'comp_auto_control_script');
+        if (!scriptComponent)
+            return;
+        const values = getEntityComponentValues(entity, template, 'comp_auto_control_script');
+        if (!boolValue(values.enabled, true) || !boolValue(values.startsOnScreenLoad, true))
+            return;
+        const scriptFormat = String(values.scriptFormat || 'commands');
+        if (scriptFormat === 'eventString') {
+            const eventString = normalizeAutoEventStringForAsm(String(values.eventString || ''), String(values.defaultDialogueAssetId || ''), dialogueRuntime);
+            if (!eventString)
+                return;
+            const label = `autoev_script_${index}`;
+            eventScriptPresent[index] = true;
+            eventLoopFlags[index] = boolValue(values.loop, false) ? 1 : 0;
+            const renderValues = getEntityComponentValues(entity, template, 'comp_render');
+            const renderSpriteIndex = resolveSpriteAssetIndex(renderValues.spriteAssetId, spriteIndexByReference);
+            const idleSpriteIndex = resolveSpriteAssetIndex(values.idleSpriteAssetId, spriteIndexByReference);
+            const walkSpriteIndex = resolveSpriteAssetIndex(values.walkSpriteAssetId, spriteIndexByReference);
+            eventIdleSpriteIndexes[index] = idleSpriteIndex !== 0xFF ? idleSpriteIndex : (walkSpriteIndex !== 0xFF ? renderSpriteIndex : 0xFF);
+            eventWalkSpriteIndexes[index] = walkSpriteIndex !== 0xFF ? walkSpriteIndex : (idleSpriteIndex !== 0xFF ? renderSpriteIndex : 0xFF);
+            hasEventScripts = true;
+            dataAsm += `${label}:
+    DB ${encodeAsmByteString(eventString)}
+`;
+            return;
+        }
+        const label = `autocontrol_script_${index}`;
+        scriptPresent[index] = true;
+        loopFlags[index] = boolValue(values.loop, false) ? 1 : 0;
+        hasCommandScripts = true;
+        const bytes = parseAutoControlCommands(String(values.commands || ''), String(values.defaultDialogueAssetId || ''), dialogueRuntime);
+        const byteLines = [];
+        for (let offset = 0; offset < bytes.length; offset += 16) {
+            byteLines.push(`    DB ${bytes.slice(offset, offset + 16).map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}`);
+        }
+        dataAsm += `${label}:
+${byteLines.join('\n')}
+`;
+    });
+    if (hasCommandScripts) {
+        const ptrEntries = entities.slice(0, 32).map((_, index) => scriptPresent[index] ? `autocontrol_script_${index}` : '0');
+        while (ptrEntries.length < 32)
+            ptrEntries.push('0');
+        const loopEntries = loopFlags.map(value => String(value));
+        dataAsm += `autocontrol_script_ptr_table:
+${ptrEntries.map(entry => `    DW ${entry}`).join('\n')}
+autocontrol_loop_flag_table:
+    DB ${loopEntries.join(',')}
+`;
+    }
+    if (hasEventScripts) {
+        const eventPtrEntries = entities.slice(0, 32).map((_, index) => eventScriptPresent[index] ? `autoev_script_${index}` : '0');
+        while (eventPtrEntries.length < 32)
+            eventPtrEntries.push('0');
+        dataAsm += `autoev_script_ptr_table:
+${eventPtrEntries.map(entry => `    DW ${entry}`).join('\n')}
+`;
+    }
+    const hasEventLoopFlags = eventLoopFlags.some(value => value !== 0);
+    if (hasEventScripts && hasEventLoopFlags) {
+        const eventLoopEntries = eventLoopFlags.map(value => String(value));
+        dataAsm += `autoev_loop_flag_table:
+    DB ${eventLoopEntries.join(',')}
+`;
+    }
+    const hasEventSpriteOverrides = eventIdleSpriteIndexes.some(value => value !== 0xFF) ||
+        eventWalkSpriteIndexes.some(value => value !== 0xFF);
+    if (hasEventScripts && hasEventSpriteOverrides) {
+        dataAsm += `autoev_idle_sprite_table:
+    DB ${eventIdleSpriteIndexes.map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}
+autoev_walk_sprite_table:
+    DB ${eventWalkSpriteIndexes.map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}
+`;
+    }
+    return {
+        dataAsm,
+        hasScripts: hasCommandScripts || hasEventScripts,
+        hasCommandScripts,
+        hasEventScripts,
+        hasEventLoopFlags,
+        hasEventSpriteOverrides,
+        hasDialogue: dialogueRuntime.hasDialogue
+    };
+}
+function generateAutoControlDialogueSystem(hasDialogue) {
+    if (!hasDialogue) {
+        return `
+; @mideas:block id=runtime.dialogue.system kind=routine owner=dialogues preserve=true roots=dialogue_update_typewriter,dialogue_open_box,dialogue_start_line,dialogue_clear_box,dialogue_close_box
+dialogue_update_typewriter:
+    ret
+
+dialogue_open_box:
+    ret
+
+dialogue_start_line:
+    ret
+
+dialogue_clear_box:
+    ret
+
+dialogue_close_box:
+    ret
+; @mideas:endblock id=runtime.dialogue.system
+`;
+    }
+    return `
+; @mideas:block id=runtime.dialogue.system kind=routine owner=dialogues preserve=true roots=dialogue_update_typewriter,dialogue_open_box,dialogue_start_line,dialogue_clear_box,dialogue_close_box
+dialogue_update_typewriter:
+    ld a, (dialogue_text_active)
+    or a
+    ret z
+    ld a, (dialogue_char_delay)
+    or a
+    jp z, dialogue_typewriter_emit
+    dec a
+    ld (dialogue_char_delay), a
+    ret
+
+dialogue_typewriter_emit:
+    ld a, (dialogue_text_ptr_l)
+    ld l, a
+    ld a, (dialogue_text_ptr_h)
+    ld h, a
+    ld a, (hl)
+    ld c, a
+    inc hl
+    ld a, l
+    ld (dialogue_text_ptr_l), a
+    ld a, h
+    ld (dialogue_text_ptr_h), a
+    ld a, c
+    or a
+    jp z, dialogue_typewriter_done
+    cp 10
+    jp z, dialogue_typewriter_newline
+
+    ld c, a
+    ld a, (dialogue_vram_ptr_l)
+    ld l, a
+    ld a, (dialogue_vram_ptr_h)
+    ld h, a
+    ld a, c
+    call FAST_WRTVRM
+    inc hl
+    ld a, l
+    ld (dialogue_vram_ptr_l), a
+    ld a, h
+    ld (dialogue_vram_ptr_h), a
+    ld a, (dialogue_char_delay_reload)
+    ld (dialogue_char_delay), a
+    ret
+
+dialogue_typewriter_newline:
+    ld a, (dialogue_row_start_l)
+    ld l, a
+    ld a, (dialogue_row_start_h)
+    ld h, a
+    ld de, 32
+    add hl, de
+    ld a, l
+    ld (dialogue_row_start_l), a
+    ld (dialogue_vram_ptr_l), a
+    ld a, h
+    ld (dialogue_row_start_h), a
+    ld (dialogue_vram_ptr_h), a
+    ld a, (dialogue_char_delay_reload)
+    ld (dialogue_char_delay), a
+    ret
+
+dialogue_typewriter_done:
+    xor a
+    ld (dialogue_text_active), a
+    ret
+
+dialogue_open_box:
+    call init_font_system
+    call dialogue_load_box_config
+    call dialogue_draw_box
+    call dialogue_draw_graphic
+    xor a
+    ld (dialogue_text_active), a
+    ld a, 1
+    ld (dialogue_active), a
+    ret
+
+dialogue_start_line:
+    ld c, a
+    ld b, 0
+    push bc
+    ld a, (dialogue_current_box)
+    call dialogue_load_box_config
+    call dialogue_clear_interior
+    pop bc
+    push bc
+    call dialogue_load_line_graphic_config
+    call dialogue_draw_graphic
+    pop bc
+
+    ld hl, dialogue_line_ptr_table
+    add hl, bc
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    ld (dialogue_text_ptr_l), a
+    ld a, d
+    ld (dialogue_text_ptr_h), a
+
+    ld hl, dialogue_line_delay_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_char_delay_reload), a
+    xor a
+    ld (dialogue_char_delay), a
+
+    ld hl, dialogue_line_text_vram_table
+    add hl, bc
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    ld (dialogue_vram_ptr_l), a
+    ld (dialogue_row_start_l), a
+    ld a, d
+    ld (dialogue_vram_ptr_h), a
+    ld (dialogue_row_start_h), a
+
+    ld a, 1
+    ld (dialogue_active), a
+    ld (dialogue_text_active), a
+    ret
+
+dialogue_load_line_graphic_config:
+    ld hl, dialogue_line_graphic_enabled_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_graphic_enabled), a
+    ld hl, dialogue_line_graphic_vram_table
+    add hl, bc
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    ld (dialogue_graphic_vram_l), a
+    ld a, d
+    ld (dialogue_graphic_vram_h), a
+    ld hl, dialogue_line_graphic_tile_ptr_table
+    add hl, bc
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    ld (dialogue_graphic_ptr_l), a
+    ld a, d
+    ld (dialogue_graphic_ptr_h), a
+    ld hl, dialogue_line_graphic_width_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_graphic_width), a
+    ld hl, dialogue_line_graphic_height_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_graphic_height), a
+    ret
+
+dialogue_clear_box:
+    ld a, (dialogue_current_box)
+    call dialogue_load_box_config
+    call dialogue_clear_rect
+    xor a
+    ld (dialogue_text_active), a
+    ret
+
+dialogue_close_box:
+    call dialogue_clear_box
+    xor a
+    ld (dialogue_active), a
+    ret
+
+dialogue_load_box_config:
+    ld c, a
+    ld a, (dialogue_box_count)
+    or a
+    ret z
+    ld b, a
+    ld a, c
+    cp b
+    jp c, dialogue_load_box_config_index_ok
+    xor a
+dialogue_load_box_config_index_ok:
+    ld (dialogue_current_box), a
+    ld c, a
+    ld b, 0
+
+    ld hl, dialogue_box_vram_table
+    add hl, bc
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    ld (dialogue_box_vram_l), a
+    ld a, d
+    ld (dialogue_box_vram_h), a
+
+    ld hl, dialogue_box_width_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_width), a
+    ld hl, dialogue_box_height_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_height), a
+    ld hl, dialogue_box_delay_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_char_delay_reload), a
+
+    ld hl, dialogue_box_tl_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_tl_char), a
+    ld hl, dialogue_box_tr_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_tr_char), a
+    ld hl, dialogue_box_bl_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_bl_char), a
+    ld hl, dialogue_box_br_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_br_char), a
+    ld hl, dialogue_box_h_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_h_char), a
+    ld hl, dialogue_box_v_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_box_v_char), a
+
+    ld hl, dialogue_graphic_enabled_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_graphic_enabled), a
+    ld hl, dialogue_graphic_vram_table
+    add hl, bc
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    ld (dialogue_graphic_vram_l), a
+    ld a, d
+    ld (dialogue_graphic_vram_h), a
+    ld hl, dialogue_graphic_tile_ptr_table
+    add hl, bc
+    add hl, bc
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    ld (dialogue_graphic_ptr_l), a
+    ld a, d
+    ld (dialogue_graphic_ptr_h), a
+    ld hl, dialogue_graphic_width_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_graphic_width), a
+    ld hl, dialogue_graphic_height_table
+    add hl, bc
+    ld a, (hl)
+    ld (dialogue_graphic_height), a
+    ret
+
+dialogue_draw_box:
+    ld a, (dialogue_box_vram_l)
+    ld l, a
+    ld a, (dialogue_box_vram_h)
+    ld h, a
+    ld a, (dialogue_box_tl_char)
+    call FAST_WRTVRM
+    inc hl
+    ld a, (dialogue_box_width)
+    sub 2
+    ld c, a
+    ld b, 0
+    ld a, (dialogue_box_h_char)
+    push bc
+    call FAST_FILLVRM
+    pop bc
+    add hl, bc
+    ld a, (dialogue_box_tr_char)
+    call FAST_WRTVRM
+
+    ld a, (dialogue_box_vram_l)
+    ld l, a
+    ld a, (dialogue_box_vram_h)
+    ld h, a
+    ld de, 32
+    ld a, (dialogue_box_height)
+    sub 2
+    ld c, a
+dialogue_draw_middle_row:
+    add hl, de
+dialogue_draw_middle_row_at_hl:
+    push hl
+    ld a, (dialogue_box_v_char)
+    call FAST_WRTVRM
+    inc hl
+    push bc
+    ld a, (dialogue_box_width)
+    sub 2
+    ld c, a
+    ld b, 0
+    ld a, 32
+    push bc
+    call FAST_FILLVRM
+    pop bc
+    add hl, bc
+    pop bc
+    ld a, (dialogue_box_v_char)
+    call FAST_WRTVRM
+    pop hl
+    dec c
+    jp nz, dialogue_draw_middle_row
+
+    add hl, de
+    ld a, (dialogue_box_bl_char)
+    call FAST_WRTVRM
+    inc hl
+    ld a, (dialogue_box_width)
+    sub 2
+    ld c, a
+    ld b, 0
+    ld a, (dialogue_box_h_char)
+    push bc
+    call FAST_FILLVRM
+    pop bc
+    add hl, bc
+    ld a, (dialogue_box_br_char)
+    call FAST_WRTVRM
+    ret
+
+dialogue_clear_rect:
+    ld a, (dialogue_box_vram_l)
+    ld l, a
+    ld a, (dialogue_box_vram_h)
+    ld h, a
+    ld a, (dialogue_box_height)
+    ld c, a
+dialogue_clear_rect_row:
+    push hl
+    push bc
+    ld a, (dialogue_box_width)
+    ld c, a
+    ld b, 0
+    ld a, 32
+    call FAST_FILLVRM
+    pop bc
+    pop hl
+    ld de, 32
+    add hl, de
+    dec c
+    jp nz, dialogue_clear_rect_row
+    ret
+
+dialogue_clear_interior:
+    ld a, (dialogue_box_vram_l)
+    ld l, a
+    ld a, (dialogue_box_vram_h)
+    ld h, a
+    ld de, 33
+    add hl, de
+    ld a, (dialogue_box_height)
+    sub 2
+    ld c, a
+dialogue_clear_interior_row:
+    push hl
+    push bc
+    ld a, (dialogue_box_width)
+    sub 2
+    ld c, a
+    ld b, 0
+    ld a, 32
+    call FAST_FILLVRM
+    pop bc
+    pop hl
+    ld de, 32
+    add hl, de
+    dec c
+    jp nz, dialogue_clear_interior_row
+    ret
+
+dialogue_draw_graphic:
+    ld a, (dialogue_graphic_enabled)
+    or a
+    ret z
+    ld a, (dialogue_graphic_width)
+    or a
+    ret z
+    ld a, (dialogue_graphic_height)
+    or a
+    ret z
+    ld a, (dialogue_graphic_vram_l)
+    ld l, a
+    ld a, (dialogue_graphic_vram_h)
+    ld h, a
+    ld a, (dialogue_graphic_ptr_l)
+    ld e, a
+    ld a, (dialogue_graphic_ptr_h)
+    ld d, a
+    ld a, (dialogue_graphic_height)
+    ld c, a
+dialogue_draw_graphic_row:
+    push hl
+    ld a, (dialogue_graphic_width)
+    ld b, a
+dialogue_draw_graphic_col:
+    ld a, (de)
+    inc de
+    call FAST_WRTVRM
+    inc hl
+    djnz dialogue_draw_graphic_col
+    pop hl
+    push de
+    ld de, 32
+    add hl, de
+    pop de
+    dec c
+    jp nz, dialogue_draw_graphic_row
+    ret
+; @mideas:endblock id=runtime.dialogue.system
+`;
+}
+function generateAutoEventStringSystem(hasEventScripts, hasEventLoopFlags = true, hasEventSpriteOverrides = true) {
+    if (!hasEventScripts) {
+        return `
+update_auto_event_string_component:
+    ret
+`;
+    }
+    return `
+; ==================================================================
+; AUTO EVENT STRING SYSTEM - compact FakePlayer engine
+; ==================================================================
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Execute one frame of the compact FakePlayer event-string script.',
+        inputs: ['current_screen_engine, current_screen_id, active_entity_list/current count, input_btn_curr'],
+        outputs: ['FakePlayer entity position/facing, dialogue, and autoev runtime state updated'],
+        clobbers: ['AF', 'BC', 'DE', 'HL'],
+        preserved: ['None'],
+        usage: ['Only runs while current_screen_engine = 1 (FakePlayer screen engine).'],
+    })}
+update_auto_event_string_component:
+    ld a, (current_screen_engine)
+    cp 1
+    ret nz
+
+    ld a, (current_screen_id)
+    ld b, a
+    ld a, (autoev_screen_id)
+    cp b
+    call nz, autoev_bind_current_screen
+
+    ld a, (autoev_active)
+    or a
+    ret z
+
+    call dialogue_update_typewriter
+
+    ld a, (autoev_wait_mode)
+    cp 1
+    jp z, autoev_wait_spc
+    cp 2
+    jp z, autoev_wait_text
+
+    ld a, (autoev_wait_frames)
+    or a
+    jp z, autoev_check_move
+    dec a
+    ld (autoev_wait_frames), a
+    ret
+
+autoev_check_move:
+    ld a, (autoev_move_remaining)
+    or a
+    jp z, autoev_read_event
+    call autoev_apply_move
+    ret
+
+autoev_wait_spc:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    ld a, (input_btn_curr)
+    and #01
+    ret z
+    xor a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_wait_text:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    xor a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_read_event:
+    ld a, (autoev_script_ptr_l)
+    ld l, a
+    ld a, (autoev_script_ptr_h)
+    ld h, a
+    ld a, h
+    or l
+    ret z
+
+    ld a, (hl)
+    inc hl
+    or a
+    jp z, autoev_command_end
+    ld b, a
+
+    ld a, b
+    cp #78
+    jp z, autoev_command_move_right
+    cp #58
+    jp z, autoev_command_move_left
+    cp #79
+    jp z, autoev_command_move_down
+    cp #59
+    jp z, autoev_command_move_up
+    cp #64
+    jp z, autoev_command_delay
+    cp #6F
+    jp z, autoev_command_open_dialog
+    cp #77
+    jp z, autoev_command_write_line
+    cp #73
+    jp z, autoev_command_wait_spc
+    cp #74
+    jp z, autoev_command_wait_text
+    cp #6B
+    jp z, autoev_command_clear_dialog
+    cp #63
+    jp z, autoev_command_close_dialog
+    jp autoev_store_ptr_and_continue
+
+autoev_command_move_right:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_set_walk_sprite
+    ld a, 1
+    ld (autoev_move_axis), a
+    ld a, 1
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_move_left:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_set_walk_sprite
+    ld a, 1
+    ld (autoev_move_axis), a
+    ld a, #FF
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_move_down:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_set_walk_sprite
+    ld a, 2
+    ld (autoev_move_axis), a
+    ld a, 1
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_move_up:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_set_walk_sprite
+    ld a, 2
+    ld (autoev_move_axis), a
+    ld a, #FF
+    ld (autoev_move_step), a
+    ld a, (autoev_number_l)
+    ld (autoev_move_remaining), a
+    call autoev_apply_move
+    ret
+
+autoev_command_delay:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    call autoev_number_to_frames
+    ld (autoev_wait_frames), a
+    ret
+
+autoev_command_open_dialog:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    xor a
+    call dialogue_open_box
+    ret
+
+autoev_command_write_line:
+    call autoev_parse_number
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, (autoev_number_l)
+    call dialogue_start_line
+    ld a, 2
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_command_wait_spc:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, 1
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_command_wait_text:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, 2
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_command_clear_dialog:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    call dialogue_clear_box
+    ret
+
+autoev_command_close_dialog:
+    call autoev_store_ptr
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    call dialogue_close_box
+    ret
+
+autoev_store_ptr_and_continue:
+    call autoev_store_ptr
+    jp autoev_read_event
+
+autoev_command_end:
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, (autoev_loop_flag)
+    or a
+    jp nz, autoev_restart_script
+    xor a
+    ld (autoev_active), a
+    ld (autoev_move_axis), a
+    ld (autoev_move_remaining), a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_restart_script:
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ld a, (autoev_script_start_l)
+    ld (autoev_script_ptr_l), a
+    ld a, (autoev_script_start_h)
+    ld (autoev_script_ptr_h), a
+    xor a
+    ld (autoev_move_axis), a
+    ld (autoev_move_remaining), a
+    ld (autoev_wait_mode), a
+    ret
+
+autoev_store_ptr:
+    ld a, l
+    ld (autoev_script_ptr_l), a
+    ld a, h
+    ld (autoev_script_ptr_h), a
+    ret
+
+autoev_parse_number:
+    ld de, 0
+autoev_parse_number_loop:
+    ld a, (hl)
+    cp #30
+    jp c, autoev_parse_number_done
+    cp #3A
+    jp nc, autoev_parse_number_done
+    sub #30
+    push hl
+    ld h, d
+    ld l, e
+    add hl, hl
+    ld b, h
+    ld c, l
+    add hl, hl
+    add hl, hl
+    add hl, bc
+    ld c, a
+    ld b, 0
+    add hl, bc
+    ld d, h
+    ld e, l
+    pop hl
+    inc hl
+    jp autoev_parse_number_loop
+autoev_parse_number_done:
+    ld a, e
+    ld (autoev_number_l), a
+    ld a, d
+    ld (autoev_number_h), a
+    ret
+
+autoev_number_to_frames:
+    ld a, (autoev_number_l)
+    ld e, a
+    ld a, (autoev_number_h)
+    ld d, a
+    ld b, 0
+autoev_number_to_frames_loop:
+    ld a, d
+    or e
+    jp z, autoev_number_to_frames_done
+    ld h, d
+    ld l, e
+    ld bc, 20
+    or a
+    sbc hl, bc
+    jp c, autoev_number_to_frames_done
+    ld d, h
+    ld e, l
+    inc b
+    jp nz, autoev_number_to_frames_loop
+    ld b, #FF
+autoev_number_to_frames_done:
+    ld a, b
+    or a
+    ret nz
+    ld a, 1
+    ret
+
+autoev_bind_current_screen:
+    ld a, (current_screen_id)
+    ld (autoev_screen_id), a
+    xor a
+    ld (autoev_active), a
+    ld (autoev_wait_frames), a
+    ld (autoev_move_axis), a
+    ld (autoev_move_step), a
+    ld (autoev_move_remaining), a
+    ld (autoev_loop_flag), a
+    ld (autoev_wait_mode), a
+    ld (autoev_script_ptr_l), a
+    ld (autoev_script_ptr_h), a
+    ld (autoev_script_start_l), a
+    ld (autoev_script_start_h), a
+    ld a, #FF
+    ld (autoev_entity_index), a
+
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+autoev_find_loop:
+    ld c, (hl)
+    inc hl
+    push hl
+    push bc
+
+    ld e, c
+    ld d, 0
+    ld hl, autoev_script_ptr_table
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, d
+    or e
+    jp z, autoev_find_next
+
+    ld a, c
+    ld (autoev_entity_index), a
+    ld a, e
+    ld (autoev_script_ptr_l), a
+    ld (autoev_script_start_l), a
+    ld a, d
+    ld (autoev_script_ptr_h), a
+    ld (autoev_script_start_h), a
+
+${hasEventLoopFlags ? `    ld e, c
+    ld d, 0
+    ld hl, autoev_loop_flag_table
+    add hl, de
+    ld a, (hl)
+    ld (autoev_loop_flag), a
+` : ''}
+    ld a, 1
+    ld (autoev_active), a
+    call autoev_set_idle_sprite
+    pop bc
+    pop hl
+    ret
+
+autoev_find_next:
+    pop bc
+    pop hl
+    djnz autoev_find_loop
+    ret
+
+autoev_apply_move:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld a, (autoev_move_axis)
+    cp 1
+    jp z, autoev_apply_move_x
+    cp 2
+    jp z, autoev_apply_move_y
+    ret
+
+autoev_apply_move_x:
+    ld a, (autoev_move_step)
+    cp #FF
+    jp z, autoev_move_left_pixel
+    call autoev_set_velocity_right
+    ld hl, entity_x_pos
+    add hl, de
+    inc (hl)
+    ld a, 2
+    jp autoev_store_facing_and_dec
+
+autoev_move_left_pixel:
+    call autoev_set_velocity_left
+    ld hl, entity_x_pos
+    add hl, de
+    dec (hl)
+    ld a, 1
+    jp autoev_store_facing_and_dec
+
+autoev_apply_move_y:
+    ld a, (autoev_move_step)
+    cp #FF
+    jp z, autoev_move_up_pixel
+    call autoev_set_velocity_down
+    ld hl, entity_y_pos
+    add hl, de
+    inc (hl)
+    ld a, 4
+    jp autoev_store_facing_and_dec
+
+autoev_move_up_pixel:
+    call autoev_set_velocity_up
+    ld hl, entity_y_pos
+    add hl, de
+    dec (hl)
+    ld a, 3
+
+autoev_store_facing_and_dec:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    ld hl, autoev_move_remaining
+    dec (hl)
+    ld a, (hl)
+    or a
+    ret nz
+    call autoev_clear_velocity
+    call autoev_set_idle_sprite
+    ret
+
+autoev_clear_velocity:
+    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+    ret
+
+autoev_set_velocity_right:
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 1
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_velocity_left:
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), #FF
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_velocity_down:
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 1
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_velocity_up:
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), #FF
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ret
+
+autoev_set_idle_sprite:
+${hasEventSpriteOverrides ? `    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, autoev_idle_sprite_table
+    add hl, de
+    ld a, (hl)
+    jp autoev_apply_sprite_index
+` : `    ret
+`}
+
+autoev_set_walk_sprite:
+${hasEventSpriteOverrides ? `    ld a, (autoev_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, autoev_walk_sprite_table
+    add hl, de
+    ld a, (hl)
+    jp autoev_apply_sprite_index
+` : `    ret
+`}
+
+${hasEventSpriteOverrides ? `autoev_apply_sprite_index:
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld c, a
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    cp (hl)
+    jr z, autoev_refresh_sprite_layers
+    ld (hl), a
+    ld hl, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_anim_tick
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_anim_flags
+    add hl, de
+    ld a, (hl)
+    or ANIM_FLAG_PLAYING
+    or ANIM_FLAG_FORCE_UPLOAD
+    and #F7
+    ld (hl), a
+autoev_refresh_sprite_layers:
+    push bc
+    ld h, 0
+    ld l, e
+    add hl, hl
+    ld de, entity_sprite_config
+    add hl, de
+    ld e, (hl)
+    pop bc
+    ld d, c
+    ld c, e
+    push bc
+    push de
+
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_color_mul_layers:
+    add hl, de
+    djnz autoev_color_mul_layers
+    ld de, SM_SpriteLayerColorTable
+    add hl, de
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_color_update_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_colors
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz autoev_color_update_loop
+
+    pop de
+    pop bc
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_y_offset_mul_layers:
+    add hl, de
+    djnz autoev_y_offset_mul_layers
+    ld de, SM_SpriteLayerYOffsetTable
+    add hl, de
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+autoev_y_offset_update_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_y_offsets
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz autoev_y_offset_update_loop
+    ret
+` : ''}
+`;
+}
+function generateAutoControlScriptSystem(analysis) {
+    const scriptData = buildAutoControlScriptData(analysis);
+    if (!scriptData.hasScripts) {
+        return `
+    ; AutoControlScript system filtered out(no active scripts)
+init_auto_control_script_system:
+    ret
+
+; @mideas:block id=runtime.components.auto_control_script_stubs kind=routine owner=components
+update_auto_control_script_component:
+    ret
+
+update_auto_event_string_component:
+    ret
+; @mideas:endblock id=runtime.components.auto_control_script_stubs
+`;
+    }
+    if (!scriptData.hasCommandScripts) {
+        return `
+; ==================================================================
+; AUTOCONTROL SCRIPT SYSTEM - compact FakePlayer event-string only
+; ==================================================================
+${scriptData.dataAsm}
+${(0, registerContract_1.buildRegisterContractComment)({
+            purpose: 'Reset compact FakePlayer event-string runtime state.',
+            inputs: ['None'],
+            outputs: ['autoev/dialogue runtime variables reset'],
+            clobbers: ['AF'],
+            preserved: ['BC', 'DE', 'HL'],
+        })}
+init_auto_control_script_system:
+    xor a
+    ld (autoev_active), a
+    ld (dialogue_active), a
+    ld (dialogue_text_active), a
+    ld a, #FF
+    ld (autoev_screen_id), a
+    ld (autoev_entity_index), a
+    ret
+
+; @mideas:block id=runtime.components.auto_control_command_stub kind=routine owner=components
+update_auto_control_script_component:
+    ret
+; @mideas:endblock id=runtime.components.auto_control_command_stub
+
+${generateAutoControlDialogueSystem(scriptData.hasDialogue)}
+${generateAutoEventStringSystem(scriptData.hasEventScripts, scriptData.hasEventLoopFlags, scriptData.hasEventSpriteOverrides)}
+`;
+    }
+    return `
+; ==================================================================
+; AUTOCONTROL SCRIPT SYSTEM - FakePlayer engine
+; ==================================================================
+AUTO_CMD_END        EQU ${AUTO_CMD.END}
+AUTO_CMD_MOVE_RIGHT EQU ${AUTO_CMD.MOVE_RIGHT}
+AUTO_CMD_MOVE_LEFT  EQU ${AUTO_CMD.MOVE_LEFT}
+AUTO_CMD_MOVE_UP    EQU ${AUTO_CMD.MOVE_UP}
+AUTO_CMD_MOVE_DOWN  EQU ${AUTO_CMD.MOVE_DOWN}
+AUTO_CMD_DELAY      EQU ${AUTO_CMD.DELAY}
+AUTO_CMD_WAIT_SPC   EQU ${AUTO_CMD.WAIT_SPC}
+AUTO_CMD_NOP        EQU ${AUTO_CMD.NOP}
+AUTO_CMD_OPEN_DIALOG EQU ${AUTO_CMD.OPEN_DIALOG}
+AUTO_CMD_WRITE_LINE  EQU ${AUTO_CMD.WRITE_LINE}
+AUTO_CMD_CLEAR_DIALOG EQU ${AUTO_CMD.CLEAR_DIALOG}
+AUTO_CMD_CLOSE_DIALOG EQU ${AUTO_CMD.CLOSE_DIALOG}
+AUTO_CMD_WAIT_TEXT EQU ${AUTO_CMD.WAIT_TEXT}
+
+${scriptData.dataAsm}
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Reset FakePlayer script runtime state.',
+        inputs: ['None'],
+        outputs: ['autocontrol runtime variables reset'],
+        clobbers: ['AF'],
+        preserved: ['BC', 'DE', 'HL'],
+    })}
+init_auto_control_script_system:
+    xor a
+    ld (autocontrol_script_ptr_l), a
+    ld (autocontrol_script_ptr_h), a
+    ld (autocontrol_script_start_l), a
+    ld (autocontrol_script_start_h), a
+    ld (autocontrol_wait_frames), a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ld (autocontrol_loop_flag), a
+    ld (autocontrol_active), a
+    ld (autoev_script_ptr_l), a
+    ld (autoev_script_ptr_h), a
+    ld (autoev_script_start_l), a
+    ld (autoev_script_start_h), a
+    ld (autoev_wait_frames), a
+    ld (autoev_move_axis), a
+    ld (autoev_move_step), a
+    ld (autoev_move_remaining), a
+    ld (autoev_loop_flag), a
+    ld (autoev_active), a
+    ld (autoev_wait_mode), a
+    ld (autoev_number_l), a
+    ld (autoev_number_h), a
+    ld (dialogue_active), a
+    ld (dialogue_current_box), a
+    ld (dialogue_text_active), a
+    ld (dialogue_text_ptr_l), a
+    ld (dialogue_text_ptr_h), a
+    ld (dialogue_vram_ptr_l), a
+    ld (dialogue_vram_ptr_h), a
+    ld (dialogue_row_start_l), a
+    ld (dialogue_row_start_h), a
+    ld (dialogue_char_delay), a
+    ld (dialogue_char_delay_reload), a
+    ld a, #FF
+    ld (autocontrol_screen_id), a
+    ld (autocontrol_entity_index), a
+    ld (autoev_screen_id), a
+    ld (autoev_entity_index), a
+    ret
+
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Execute one frame of the current screen FakePlayer script.',
+        inputs: ['current_screen_engine, current_screen_id, active_entity_list/current count, input_btn_curr'],
+        outputs: ['FakePlayer entity position/facing and autocontrol runtime state updated'],
+        clobbers: ['AF', 'BC', 'DE', 'HL'],
+        preserved: ['None'],
+    })}
+update_auto_control_script_component:
+    ld a, (current_screen_engine)
+    cp 1
+    ret nz
+
+    ld a, (current_screen_id)
+    ld b, a
+    ld a, (autocontrol_screen_id)
+    cp b
+    call nz, autocontrol_bind_current_screen
+
+    ld a, (autocontrol_active)
+    or a
+    ret z
+
+    call dialogue_update_typewriter
+
+    ld a, (autocontrol_move_opcode)
+    cp AUTO_CMD_WAIT_SPC
+    jp z, autocontrol_wait_spc
+    cp AUTO_CMD_WAIT_TEXT
+    jp z, autocontrol_wait_text
+
+    ld a, (autocontrol_wait_frames)
+    or a
+    jp z, autocontrol_check_move
+    dec a
+    ld (autocontrol_wait_frames), a
+    ret
+
+autocontrol_check_move:
+    ld a, (autocontrol_move_remaining)
+    or a
+    jp z, autocontrol_read_command
+    call autocontrol_apply_move
+    ret
+
+autocontrol_wait_spc:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    ld a, (input_btn_curr)
+    and #01
+    ret z
+    xor a
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_wait_text:
+    ld a, (dialogue_text_active)
+    or a
+    ret nz
+    xor a
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_read_command:
+    ld a, (autocontrol_script_ptr_l)
+    ld l, a
+    ld a, (autocontrol_script_ptr_h)
+    ld h, a
+    ld a, h
+    or l
+    ret z
+
+    ld a, (hl)
+    inc hl
+    ld b, (hl)
+    inc hl
+    push af
+    ld a, l
+    ld (autocontrol_script_ptr_l), a
+    ld a, h
+    ld (autocontrol_script_ptr_h), a
+    pop af
+
+    cp AUTO_CMD_END
+    jp z, autocontrol_command_end
+    cp AUTO_CMD_DELAY
+    jp z, autocontrol_command_delay
+    cp AUTO_CMD_WAIT_SPC
+    jp z, autocontrol_command_wait_spc
+    cp AUTO_CMD_WAIT_TEXT
+    jp z, autocontrol_command_wait_text
+    cp AUTO_CMD_OPEN_DIALOG
+    jp z, autocontrol_command_open_dialog
+    cp AUTO_CMD_WRITE_LINE
+    jp z, autocontrol_command_write_line
+    cp AUTO_CMD_CLEAR_DIALOG
+    jp z, autocontrol_command_clear_dialog
+    cp AUTO_CMD_CLOSE_DIALOG
+    jp z, autocontrol_command_close_dialog
+    cp AUTO_CMD_NOP
+    ret z
+
+    ld (autocontrol_move_opcode), a
+    ld a, b
+    ld (autocontrol_move_remaining), a
+    call autocontrol_apply_move
+    ret
+
+autocontrol_command_delay:
+    ld a, b
+    ld (autocontrol_wait_frames), a
+    ret
+
+autocontrol_command_wait_spc:
+    ld a, AUTO_CMD_WAIT_SPC
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_command_wait_text:
+    ld a, AUTO_CMD_WAIT_TEXT
+    ld (autocontrol_move_opcode), a
+    ret
+
+autocontrol_command_open_dialog:
+    ld a, b
+    call dialogue_open_box
+    ret
+
+autocontrol_command_write_line:
+    ld a, b
+    call dialogue_start_line
+    ret
+
+autocontrol_command_clear_dialog:
+    call dialogue_clear_box
+    ret
+
+autocontrol_command_close_dialog:
+    call dialogue_close_box
+    ret
+
+autocontrol_command_end:
+    ld a, (autocontrol_loop_flag)
+    or a
+    jp nz, autocontrol_restart_script
+    xor a
+    ld (autocontrol_active), a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ret
+
+autocontrol_restart_script:
+    ld a, (autocontrol_script_start_l)
+    ld (autocontrol_script_ptr_l), a
+    ld a, (autocontrol_script_start_h)
+    ld (autocontrol_script_ptr_h), a
+    xor a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ret
+
+autocontrol_bind_current_screen:
+    ld a, (current_screen_id)
+    ld (autocontrol_screen_id), a
+    xor a
+    ld (autocontrol_active), a
+    ld (autocontrol_wait_frames), a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ld (autocontrol_loop_flag), a
+    ld (autocontrol_script_ptr_l), a
+    ld (autocontrol_script_ptr_h), a
+    ld (autocontrol_script_start_l), a
+    ld (autocontrol_script_start_h), a
+    ld a, #FF
+    ld (autocontrol_entity_index), a
+
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+autocontrol_find_loop:
+    ld c, (hl)
+    inc hl
+    push hl
+    push bc
+
+    ld e, c
+    ld d, 0
+    ld hl, autocontrol_script_ptr_table
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, d
+    or e
+    jp z, autocontrol_find_next
+
+    ld a, c
+    ld (autocontrol_entity_index), a
+    ld a, e
+    ld (autocontrol_script_ptr_l), a
+    ld (autocontrol_script_start_l), a
+    ld a, d
+    ld (autocontrol_script_ptr_h), a
+    ld (autocontrol_script_start_h), a
+
+    ld e, c
+    ld d, 0
+    ld hl, autocontrol_loop_flag_table
+    add hl, de
+    ld a, (hl)
+    ld (autocontrol_loop_flag), a
+    ld a, 1
+    ld (autocontrol_active), a
+    pop bc
+    pop hl
+    ret
+
+autocontrol_find_next:
+    pop bc
+    pop hl
+    djnz autocontrol_find_loop
+    ret
+
+autocontrol_apply_move:
+    ld a, (autocontrol_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld a, (autocontrol_move_opcode)
+    cp AUTO_CMD_MOVE_RIGHT
+    jp z, autocontrol_move_right
+    cp AUTO_CMD_MOVE_LEFT
+    jp z, autocontrol_move_left
+    cp AUTO_CMD_MOVE_UP
+    jp z, autocontrol_move_up
+    cp AUTO_CMD_MOVE_DOWN
+    jp z, autocontrol_move_down
+    ret
+
+autocontrol_move_right:
+    ld hl, entity_x_pos
+    add hl, de
+    inc (hl)
+    ld a, 2
+    jp autocontrol_store_facing_and_dec
+
+autocontrol_move_left:
+    ld hl, entity_x_pos
+    add hl, de
+    dec (hl)
+    ld a, 1
+    jp autocontrol_store_facing_and_dec
+
+autocontrol_move_up:
+    ld hl, entity_y_pos
+    add hl, de
+    dec (hl)
+    ld a, 3
+    jp autocontrol_store_facing_and_dec
+
+autocontrol_move_down:
+    ld hl, entity_y_pos
+    add hl, de
+    inc (hl)
+    ld a, 4
+
+autocontrol_store_facing_and_dec:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    ld hl, autocontrol_move_remaining
+    dec (hl)
+    ret
+
+${generateAutoControlDialogueSystem(scriptData.hasDialogue)}
+${generateAutoEventStringSystem(scriptData.hasEventScripts, scriptData.hasEventLoopFlags, scriptData.hasEventSpriteOverrides)}
+`;
+}
 // ============================================================================
 // OPTIMIZED UPDATE_ALL_ENTITIES GENERATOR
 // ============================================================================
@@ -21,7 +2292,7 @@ const romModeUtils_1 = require("./romModeUtils");
  * @param avoidStateMachineDuplication - true when GameFlow already executes execute_all_state_machines
  * @returns ASM code for update_all_entities
  */
-function generateUpdateAllEntities(usedComponents, avoidStateMachineDuplication, hasSecretZones) {
+function generateUpdateAllEntities(usedComponents, avoidStateMachineDuplication, hasSecretZones, hasRuntimeScreenEngine, hasPlatformRiding) {
     let code = `
 ; ==================================================================
 ; UPDATE ALL ENTITIES - Called by GameFlow (OPTIMIZED)
@@ -53,6 +2324,13 @@ update_all_entities:
     call rebuild_used_entity_list
 .update_all_entities_list_ready:
 `;
+    if (hasRuntimeScreenEngine) {
+        code += `    ld a, (current_screen_engine)
+    or a
+    jp nz, .update_all_entities_fake_player
+.update_all_entities_player:
+`;
+    }
     // Define the component systems in execution order
     // Format: [componentName, functionCall, comment]
     const componentSystems = [
@@ -64,17 +2342,17 @@ update_all_entities:
         ['RetractableGate', 'update_retractable_gate_component', '3d. Retractable gate logic'],
         ['Jump', 'update_jump_component', '4. Jump impulse'],
         ['Movement', 'update_movement_component', '5. Movement'],
-        ['Cursors', 'update_cursors_component', '5b. Cursors movement'], // comp_cursors
         ['Gravity', 'update_gravity_component', '6. Gravity'],
         ['WallGrab', 'update_wallgrab_component', '6a. Wall grab'],
         ['WallJump', 'update_walljump_component', '6b. Wall jump / wall slide'],
         ['TileInteraction', 'update_slash_component', '6c. Additive slash velocity'],
         ['Position', 'update_position_component', '7. Apply velocity'], // Always needed
-        ['Collision', 'prepare_platform_detection', '8a. Clear platform refs'],
+        ...(hasPlatformRiding ? [['Collision', 'prepare_platform_detection', '8a. Clear platform refs']] : []),
         ['Collision', 'update_collision_component', '8b. Collision detection'],
-        ['Collision', 'update_platform_riding', '8c. Platform riding'],
+        ...(hasPlatformRiding ? [['Collision', 'update_platform_riding', '8c. Platform riding']] : []),
         ['WallCollision', 'update_wallcollision_component', '8d. Wall collision'],
         ['SecretZones', 'update_secret_zone_component', '8e. Secret zone runtime'],
+        ['InWater', 'update_in_water_component', '8e. Water effect zone detection'],
         ['DeadlyTiles', 'update_deadly_tiles_component', '8e. Deadly tiles'],
         ['TileInteraction', 'check_tile_interaction', '8f. Tile interaction (gems/collectibles)'],
         ['Health', 'update_health_component', '9. Health/Death'],
@@ -83,33 +2361,60 @@ update_all_entities:
         ['AutoDestroy', 'update_auto_destroy_component', '12. Auto-destroy'],
         ['Sprite', 'update_sprite_component', '13. Sprite rendering'],
     ];
-    let callCount = 0;
-    const processedFunctions = new Set(); // Avoid duplicate calls
-    for (const [component, funcCall, comment] of componentSystems) {
-        // Position is always needed (entities always have positions)
-        const isRequired = component === 'Position' || component === 'Sprite';
-        const isEnabled = isRequired || (component === 'SecretZones' ? hasSecretZones : usedComponents.has(component));
-        if (isEnabled) {
-            // GameFlow executes state machines explicitly in execute_all_state_machines.
-            // Avoid running them twice per frame.
-            if (avoidStateMachineDuplication && funcCall === 'update_statemachine_component') {
-                continue;
-            }
-            // Avoid duplicate function calls (e.g., multiple Collision entries)
-            if (!processedFunctions.has(funcCall)) {
-                processedFunctions.add(funcCall);
-                code += `    call ${funcCall.padEnd(30)} ; ${comment}\n`;
-                if (funcCall === 'update_shoot_component') {
-                    code += `    ; Shooting may spawn entities, rebuild only if marked dirty\n`;
-                    code += `    call ensure_used_entity_list_current\n`;
+    const appendSystemCalls = (systems) => {
+        let callCount = 0;
+        const processedFunctions = new Set(); // Avoid duplicate calls
+        for (const [component, funcCall, comment] of systems) {
+            // Position is always needed (entities always have positions)
+            const isRequired = component === 'Position' || component === 'Sprite';
+            const isEnabled = isRequired || (component === 'SecretZones' ? hasSecretZones : usedComponents.has(component));
+            if (isEnabled) {
+                // GameFlow executes state machines explicitly in execute_all_state_machines.
+                // Avoid running them twice per frame.
+                if (avoidStateMachineDuplication && funcCall === 'update_statemachine_component') {
+                    continue;
                 }
-                callCount++;
+                // Avoid duplicate function calls (e.g., multiple Collision entries)
+                if (!processedFunctions.has(funcCall)) {
+                    processedFunctions.add(funcCall);
+                    code += `    call ${funcCall.padEnd(30)} ; ${comment}\n`;
+                    if (funcCall === 'update_shoot_component') {
+                        code += `    ; Shooting may spawn entities, rebuild only if marked dirty\n`;
+                        code += `    call ensure_used_entity_list_current\n`;
+                    }
+                    callCount++;
+                }
             }
         }
-    }
+        return callCount;
+    };
+    const playerCallCount = appendSystemCalls(componentSystems);
     code += `    call sync_player_runtime_from_entity\n`;
     code += `    ret\n`;
-    code += `; Total systems called: ${callCount} (optimized from 16)\n\n`;
+    let fakeCallCount = 0;
+    if (hasRuntimeScreenEngine) {
+        const fakePlayerSystemNames = new Set([
+            'update_position_component',
+            'update_animation_component',
+            'update_auto_destroy_component',
+            'update_sprite_component',
+        ]);
+        const fakePlayerSystems = componentSystems.filter(([, funcCall]) => fakePlayerSystemNames.has(funcCall));
+        code += `.update_all_entities_fake_player:
+`;
+        if (usedComponents.has('AutoControlScript')) {
+            code += `    call update_auto_control_script_component ; FakePlayer script\n`;
+            code += `    call update_auto_event_string_component ; compact FakePlayer event script\n`;
+            fakeCallCount++;
+        }
+        fakeCallCount = appendSystemCalls(fakePlayerSystems);
+        code += `    ret\n`;
+    }
+    code += `; Total player systems called: ${playerCallCount} (optimized from 16)\n`;
+    if (hasRuntimeScreenEngine) {
+        code += `; Total fake-player systems called: ${fakeCallCount} (screen engine optimized)\n`;
+    }
+    code += `\n`;
     code += `
 ; ------------------------------------------------------------------
 ; mark_used_entity_list_dirty
@@ -387,6 +2692,9 @@ ensure_player_fast_runtime_bound:
     ld (player_runtime_enabled), a
     ld (player_vx_runtime), a
     ld (player_vy_runtime), a
+    ld (player_dash_timer), a
+    ld (player_dash_cooldown), a
+    ld (player_dash_dir), a
     ld (player_x), a
     ld (player_x+1), a
     ld (player_y), a
@@ -541,6 +2849,440 @@ update_entity_ladder_state_c:
     ld (hl), a
     pop af
     pop bc
+    ret
+
+; ------------------------------------------------------------------
+; Player dash helpers
+; ------------------------------------------------------------------
+; Register Contract:
+; input: C = player entity index, input_btn_curr/input_btn_prev refreshed
+; output: A = 1 while dash is active this frame, entity_vel_x/y overridden
+; clobbers: AF, BC, DE, HL
+; preserved: None
+player_fast_dash_process_c:
+    ld e, c
+    ld d, 0
+    ld hl, entity_input_disabled
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .pfd_input_ok
+    xor a
+    ld (player_dash_timer), a
+    ret
+.pfd_input_ok:
+    ld hl, entity_dash_cfg_enabled
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .pfd_dash_enabled
+    xor a
+    ld (player_dash_timer), a
+    ld (player_dash_cooldown), a
+    ret
+.pfd_dash_enabled:
+    ld a, (boss_hit_cooldown)
+    or a
+    jp z, .pfd_hit_cooldown_done
+    dec a
+    ld (boss_hit_cooldown), a
+.pfd_hit_cooldown_done:
+    ld a, (player_dash_timer)
+    or a
+    jp nz, .pfd_active
+    ld a, (player_dash_cooldown)
+    or a
+    jp z, .pfd_check_start
+    dec a
+    ld (player_dash_cooldown), a
+.pfd_check_start:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_GRAB
+    jp z, .pfd_inactive
+    ld a, (input_btn_prev)
+    and INPUT_BTN_GRAB
+    jp nz, .pfd_inactive
+    call player_fast_dash_resolve_dir_c
+    ld (player_dash_dir), a
+    ld a, 8
+    ld (player_dash_timer), a
+    ld a, 18
+    ld (player_dash_cooldown), a
+.pfd_active:
+    ld a, (player_dash_timer)
+    dec a
+    ld (player_dash_timer), a
+    ld a, (player_dash_dir)
+    cp 1
+    jp z, .pfd_left
+    cp 3
+    jp z, .pfd_up
+    cp 4
+    jp z, .pfd_down
+.pfd_right:
+    ld b, 8
+    xor a
+    call player_fast_dash_store_velocity_c
+    call player_dash_break_front_tile_c
+    call player_dash_hit_boss_weakpoint
+    ld a, 1
+    ret
+.pfd_left:
+    ld b, #F8
+    xor a
+    call player_fast_dash_store_velocity_c
+    call player_dash_break_front_tile_c
+    call player_dash_hit_boss_weakpoint
+    ld a, 1
+    ret
+.pfd_up:
+    ld b, 0
+    ld a, #F8
+    call player_fast_dash_store_velocity_c
+    call player_dash_break_front_tile_c
+    call player_dash_hit_boss_weakpoint
+    ld a, 1
+    ret
+.pfd_down:
+    ld b, 0
+    ld a, 8
+    call player_fast_dash_store_velocity_c
+    call player_dash_break_front_tile_c
+    call player_dash_hit_boss_weakpoint
+    ld a, 1
+    ret
+.pfd_inactive:
+    xor a
+    ret
+
+; Register Contract:
+; input: C = player entity index, input_state/entity_facing_dir
+; output: A = dash direction (1=left,2=right,3=up,4=down)
+; clobbers: AF, DE, HL
+; preserved: C
+player_fast_dash_resolve_dir_c:
+    ld a, (input_state)
+    cp STICK_RIGHT
+    jp z, .pfdr_right
+    cp STICK_UPRIGHT
+    jp z, .pfdr_right
+    cp STICK_DOWNRIGHT
+    jp z, .pfdr_right
+    cp STICK_LEFT
+    jp z, .pfdr_left
+    cp STICK_UPLEFT
+    jp z, .pfdr_left
+    cp STICK_DOWNLEFT
+    jp z, .pfdr_left
+    cp STICK_UP
+    jp z, .pfdr_up
+    cp STICK_DOWN
+    jp z, .pfdr_down
+    ld e, c
+    ld d, 0
+    ld hl, entity_facing_dir
+    add hl, de
+    ld a, (hl)
+    cp 1
+    ret z
+    cp 2
+    ret z
+    cp 3
+    ret z
+    cp 4
+    ret z
+.pfdr_right:
+    ld a, 2
+    ret
+.pfdr_left:
+    ld a, 1
+    ret
+.pfdr_up:
+    ld a, 3
+    ret
+.pfdr_down:
+    ld a, 4
+    ret
+
+; Register Contract:
+; input: B = signed X velocity, A = signed Y velocity, C = entity index
+; output: entity_vel_x/y updated
+; clobbers: AF, DE, HL
+; preserved: BC
+player_fast_dash_store_velocity_c:
+    push af
+    ld e, c
+    ld d, 0
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), b
+    pop af
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+    ret
+
+; Register Contract:
+; input: C = player entity index, player_dash_dir
+; output: player_dash_tile_x/y updated for the front probe; Breakable tile at that probe cleared from runtime maps and VRAM
+; clobbers: AF, BC, DE, HL
+; preserved: None
+player_dash_break_front_tile_c:
+    ld a, #FF
+    ld (player_dash_tile_x), a
+    ld (player_dash_tile_y), a
+    ld e, c
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld b, (hl)                    ; B = player X pixel
+    ld hl, entity_y_pos
+    add hl, de
+    ld c, (hl)                    ; C = player Y pixel
+
+    ld a, (player_dash_dir)
+    cp 1
+    jp z, .pdb_left
+    cp 3
+    jp z, .pdb_up
+    cp 4
+    jp z, .pdb_down
+
+.pdb_right:
+    ld a, b
+    cp 240
+    ret nc
+    add a, 16
+    ld b, a
+    ld a, c
+    cp 184
+    ret nc
+    add a, 8
+    ld c, a
+    jp .pdb_probe_tile
+
+.pdb_left:
+    ld a, b
+    or a
+    ret z
+    dec a
+    ld b, a
+    ld a, c
+    cp 184
+    ret nc
+    add a, 8
+    ld c, a
+    jp .pdb_probe_tile
+
+.pdb_up:
+    ld a, c
+    or a
+    ret z
+    dec a
+    ld c, a
+    ld a, b
+    cp 248
+    ret nc
+    add a, 8
+    ld b, a
+    jp .pdb_probe_tile
+
+.pdb_down:
+    ld a, c
+    cp 176
+    ret nc
+    add a, 16
+    ld c, a
+    ld a, b
+    cp 248
+    ret nc
+    add a, 8
+    ld b, a
+
+.pdb_probe_tile:
+    ld a, b
+    srl a
+    srl a
+    srl a
+    cp 32
+    ret nc
+    ld (player_dash_tile_x), a
+    ld a, c
+    srl a
+    srl a
+    srl a
+    cp 24
+    ret nc
+    ld (player_dash_tile_y), a
+
+    ld a, (player_dash_tile_y)
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld a, (player_dash_tile_x)
+    ld e, a
+    ld d, 0
+    add hl, de                    ; HL = tile index
+    push hl
+    ld de, runtime_behavior_map
+    add hl, de
+    ld a, (hl)
+    and TILE_BREAKABLE
+    pop hl
+    ret z
+
+    push hl
+    ld de, runtime_behavior_map
+    add hl, de
+    ld (hl), 0
+    pop hl
+
+    push hl
+    ld de, runtime_screen_layout
+    add hl, de
+    ld (hl), 0
+    pop hl
+
+    ld de, NAMETBL
+    add hl, de
+    xor a
+    call FAST_WRTVRM
+    ret
+
+; Register Contract:
+; input: player_dash_tile_x/y = front dash probe tile, active boss runtime RAM
+; output: boss_health_lo/hi decremented by the weak matrix damage byte when hit
+; clobbers: AF, BC, DE, HL
+; preserved: None
+player_dash_hit_boss_weakpoint:
+    ld a, (boss_active)
+    or a
+    ret z
+    ld a, (boss_hit_cooldown)
+    or a
+    ret nz
+    ld a, (player_dash_tile_x)
+    cp #FF
+    ret z
+    ld b, a                       ; B = screen tile X
+    ld a, (player_dash_tile_y)
+    cp #FF
+    ret z
+    ld c, a                       ; C = screen tile Y
+
+    ld a, (boss_x_char)
+    ld d, a
+    ld a, b
+    cp d
+    ret c
+    sub d
+    ld b, a                       ; B = local boss X
+    ld a, (boss_width)
+    cp b
+    ret z
+    ret c
+
+    ld a, (boss_y_char)
+    ld d, a
+    ld a, c
+    cp d
+    ret c
+    sub d
+    ld c, a                       ; C = local boss Y
+    ld a, (boss_height)
+    cp c
+    ret z
+    ret c
+
+    ld hl, 0
+    ld a, c
+    or a
+    jp z, .pdhb_row_done
+    ld e, a
+.pdhb_row_loop:
+    ld a, (boss_width)
+    ld d, 0
+    add a, l
+    ld l, a
+    ld a, h
+    adc a, d
+    ld h, a
+    dec e
+    jp nz, .pdhb_row_loop
+.pdhb_row_done:
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld de, (boss_weak_matrix_ptr)
+    add hl, de
+    ld a, (hl)
+    or a
+    ret z
+    ld e, a                       ; E = weak point damage
+
+    ld a, (boss_health_lo)
+    ld l, a
+    ld a, (boss_health_hi)
+    ld h, a
+    or l
+    ret z
+    ld a, l
+    sub e
+    ld l, a
+    ld a, h
+    sbc a, 0
+    ld h, a
+    jp nc, .pdhb_store_health
+    ld hl, 0
+.pdhb_store_health:
+    ld a, l
+    ld (boss_health_lo), a
+    ld a, h
+    ld (boss_health_hi), a
+
+.pdhb_after_damage:
+    ld a, 12
+    ld (boss_hit_cooldown), a
+    ld a, (boss_health_lo)
+    ld b, a
+    ld a, (boss_health_hi)
+    or b
+    ret nz
+    call restore_active_boss_tiles
+    call player_dash_cleanup_dead_boss_attacks
+    xor a
+    ld (boss_active), a
+    ret
+
+; Register Contract:
+; input: boss projectile/slam/falling block active flags and sprite slots
+; output: active boss attack sprites hidden and boss attack active flags cleared
+; clobbers: AF, BC, DE, HL
+; preserved: None
+player_dash_cleanup_dead_boss_attacks:
+    ld a, (boss_projectile_active)
+    or a
+    jp z, .pdcdba_no_projectile
+    call boss_projectile_hide_all
+.pdcdba_no_projectile:
+    ld a, (boss_slam_rocks_active)
+    or a
+    jp z, .pdcdba_no_slam
+    call boss_slam_rocks_hide_all
+.pdcdba_no_slam:
+    ld a, (boss_falling_blocks_active)
+    or a
+    jp z, .pdcdba_clear_flags
+    call boss_falling_blocks_hide_all
+.pdcdba_clear_flags:
+    xor a
+    ld (boss_projectile_active), a
+    ld (boss_slam_rocks_active), a
+    ld (boss_falling_blocks_active), a
     ret
 
 ; ------------------------------------------------------------------
@@ -848,15 +3590,28 @@ update_player_fastpath:
     ld a, (hl)
     pop de
     pop af
-    jr nz, .player_fast_skip_patrol_facing
+    jp nz, .player_fast_sync_sm_sprite_facing
     push de
     ld e, c
     ld d, 0
-    call update_entity_patrol_facing
+${emitDirectionalFacingSpriteSync('player_fast_directional_sprite')}
+    pop de
+    jp .player_fast_skip_patrol_facing
+.player_fast_sync_sm_sprite_facing:
+    push de
+    ld e, c
+    ld d, 0
+${emitDirectionalFacingSpriteSync('player_fast_sm_directional_sprite', 'current')}
     pop de
 .player_fast_skip_patrol_facing:
 
 .player_fast_after_input:
+    push bc
+    call player_fast_dash_process_c
+    pop bc
+    or a
+    jp nz, .player_fast_after_walljump
+
     ; --------------------------------------------------------------
     ; WALL JUMP PRIORITY
     ; --------------------------------------------------------------
@@ -912,12 +3667,11 @@ update_player_fastpath:
     or a
     jp nz, .player_fast_after_jump
 
-    ld a, (input_btn_curr)
-    and INPUT_BTN_FIRE
+    ld hl, entity_jump_trigger
+    add hl, de
+    ld a, (hl)
+    call component_trigger_edge_pressed_a
     jp z, .player_fast_after_jump
-    ld a, (input_btn_prev)
-    and INPUT_BTN_FIRE
-    jp nz, .player_fast_after_jump
 
     ld hl, entity_jump_max
     add hl, de
@@ -1129,7 +3883,13 @@ update_player_fastpath:
     call sync_player_runtime_from_entity
     ret
 `;
-    return code;
+    return wrapMideasAsmBlock(code, {
+        id: 'runtime.components.scheduler',
+        kind: 'routine',
+        owner: 'components',
+        preserve: false,
+        roots: ['update_all_entities'],
+    });
 }
 // ============================================================================
 // HELPER FUNCTIONS - INDIVIDUAL COMPONENT SYSTEMS
@@ -1138,7 +3898,7 @@ update_player_fastpath:
  * Generate Position Component System
  */
 function generatePositionSystem() {
-    return `
+    return wrapMideasAsmBlock(`
 ; ==================================================================
 ; POSITION COMPONENT SYSTEM (Based on SpriteEditor position handling)
 ; ==================================================================
@@ -1146,17 +3906,12 @@ function generatePositionSystem() {
 init_position_system:
     ; Initialize position component system
     ; Clear all entity positions
+    xor a
     ld hl, entity_x_pos
-    ld de, entity_x_pos+1
-    ld bc, 31
-    ld (hl), 0
-    ldir
+    call component_fill_32_a
 
     ld hl, entity_y_pos
-    ld de, entity_y_pos+1
-    ld bc, 31
-    ld (hl), 0
-    ldir
+    call component_fill_32_a
     ret
 
 update_position_component:
@@ -1249,13 +4004,22 @@ position_next_entity:
     dec b
     jp nz, position_update_loop
     ret
-`;
+`, {
+        id: 'runtime.components.position',
+        kind: 'routine',
+        owner: 'components',
+        preserve: false,
+        roots: ['component-position'],
+    });
 }
 /**
  * Generate Sprite Component System
  */
-function generateSpriteSystem(analysis) {
-    return `
+function generateSpriteSystem(analysis, romMode = 'simple32k') {
+    const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
+    const clearAllSpritesCall = usesMapper ? 'call_clear_all_sprites_resident' : 'clear_all_sprites';
+    const showSpriteCall = usesMapper ? 'call_show_sprite_resident' : 'show_sprite';
+    return wrapMideasAsmBlock(`
 ; ==================================================================
 ; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
 ; ==================================================================
@@ -1263,7 +4027,7 @@ function generateSpriteSystem(analysis) {
 init_sprite_system:
     ; Initialize sprite rendering system
     ; Clear all sprite attributes
-    call clear_all_sprites
+    call ${clearAllSpritesCall}
     ; Copy entity_sprite_asset_index from ROM to RAM (so CHANGE_SPRITE can modify it)
     ld hl, entity_sprite_asset_index_init
     ld de, entity_sprite_asset_index
@@ -1376,10 +4140,25 @@ sprite_layer_loop:
     ld a, (de)                 ; A = Color
     pop de                     ; Restore D (Pattern)
     ld e, a                    ; E = Color
+
+    ; Apply signed per-layer Y offset. B/C is restored after the call
+    ; from the saved entity position pushed at the top of this layer pass.
+    push de                    ; Preserve D=Pattern, E=Color
+    ld de, sprite_layer_y_offsets
+    ld a, l
+    add a, e
+    ld e, a
+    ld a, 0
+    adc a, d
+    ld d, a                    ; DE = &sprite_layer_y_offsets[hwSprite]
+    ld a, (de)                 ; A = signed Y offset (two's complement)
+    pop de
+    add a, c
+    ld c, a                    ; C = Y + layer offset
     
     ; Call show_sprite (A=HW Sprite, B=X, C=Y, D=Pattern, E=Color)
     ld a, l                    ; A = HW Sprite
-    call show_sprite
+    call ${showSpriteCall}
 
     ld a, SPRITE_PATTERN_PRELOAD_MODE
     or a
@@ -1520,10 +4299,25 @@ force_sprite_layer_loop:
     ld a, (de)
     pop de                     ; Restore D
     ld e, a                    ; E = Color
+
+    ; Apply signed per-layer Y offset. B/C is restored after the call
+    ; from the saved entity position pushed at the top of this layer pass.
+    push de
+    ld de, sprite_layer_y_offsets
+    ld a, l
+    add a, e
+    ld e, a
+    ld a, 0
+    adc a, d
+    ld d, a
+    ld a, (de)
+    pop de
+    add a, c
+    ld c, a
     
     ; Call show_sprite
     ld a, l                    ; A = HW Sprite
-    call show_sprite
+    call ${showSpriteCall}
 
     ld a, SPRITE_PATTERN_PRELOAD_MODE
     or a
@@ -1575,15 +4369,18 @@ compute_entity_base_pattern:
     ld a, (hl)                 ; A = base 16x16 pattern slot for this asset
     push af                    ; Save base slot before HL is reused
 
+    ld hl, sprite_asset_layer_count
+    add hl, bc
+    ld b, (hl)                 ; B = current sprite layer count (frame stride)
+    ld a, b
+    or a
+    jr nz, .sprite_stride_ready
+    ld b, 1
+.sprite_stride_ready:
+
     ld hl, entity_anim_frame
     add hl, de
     ld c, (hl)                 ; C = current animation frame
-
-    ld hl, entity_sprite_config
-    add hl, de
-    add hl, de
-    inc hl
-    ld b, (hl)                 ; B = entity layer count (frame stride)
 
     pop af                     ; A = base slot (restored)
     ld l, a                    ; L = base slot (ready for stride loop)
@@ -1616,7 +4413,13 @@ compute_entity_base_pattern:
     add a, a
     add a, a
     ret
-`;
+`, {
+        id: 'runtime.components.sprite',
+        kind: 'routine',
+        owner: 'components',
+        preserve: false,
+        roots: ['component-sprite'],
+    });
 }
 function generateMovementSystem() {
     return `
@@ -1673,7 +4476,7 @@ function generateMovementSystem() {
 /**
  * Generate Collision Component System
  */
-function generateCollisionSystem(analysis) {
+function generateCollisionSystem(analysis, hasPlatformRiding) {
     // MSX Screen 2 ALWAYS uses 8x8 character cells for the Name Table (32x24 grid)
     // The behavior map maps 1:1 to the Name Table, so pixel-to-tile conversion
     // must ALWAYS divide by 8, regardless of the project's visual tile dimensions.
@@ -1686,7 +4489,7 @@ function generateCollisionSystem(analysis) {
     const tileInfo = `; MSX Screen 2: behavior map is 32x24 (one entry per 8x8 character cell)
     ; Always divide by 8 to convert pixels to character column/row
     ; Convert X to tile column (divide by 8)`;
-    return `
+    const asm = `
         ; ==================================================================
 ; COLLISION COMPONENT SYSTEM(Based on ScreenEditor collision detection)
         ; ==================================================================
@@ -1694,50 +4497,33 @@ function generateCollisionSystem(analysis) {
             init_collision_system:
     ; Initialize collision detection system
     ; Clear deadly collision flags
+    xor a
     ld hl, entity_deadly_collision
-    ld de, entity_deadly_collision + 1
-    ld bc, 31                     ; 32 bytes - 1
-    ld (hl), 0
-    ldir
+    call component_fill_32_a
 
     ; Clear entity-entity collision flags
     ld hl, entity_entity_collision_flags
-    ld de, entity_entity_collision_flags + 1
-    ld bc, 31
-    ld (hl), 0
-    ldir
+    call component_fill_32_a
 
     ; Initialize last collided entity to "none"
+    ld a, 255
     ld hl, entity_last_collision_entity
-    ld de, entity_last_collision_entity + 1
-    ld bc, 31
-    ld (hl), 255
-    ldir
+    call component_fill_32_a
 
     ; Default collision hitboxes: 16x16 with no offset
+    ld a, 16
     ld hl, entity_collision_hitbox_w
-    ld de, entity_collision_hitbox_w + 1
-    ld bc, 31
-    ld (hl), 16
-    ldir
+    call component_fill_32_a
 
     ld hl, entity_collision_hitbox_h
-    ld de, entity_collision_hitbox_h + 1
-    ld bc, 31
-    ld (hl), 16
-    ldir
+    call component_fill_32_a
 
+    xor a
     ld hl, entity_collision_offset_x
-    ld de, entity_collision_offset_x + 1
-    ld bc, 31
-    ld (hl), 0
-    ldir
+    call component_fill_32_a
 
     ld hl, entity_collision_offset_y
-    ld de, entity_collision_offset_y + 1
-    ld bc, 31
-    ld (hl), 0
-    ldir
+    call component_fill_32_a
     ret
 
     update_collision_component:
@@ -2360,7 +5146,7 @@ ${yDivisionCode}
     pop de
     ret
 
-    handle_entity_collision:
+${hasPlatformRiding ? `    handle_entity_collision:
     ; Handle collision between entities
     ; At entry:
     ;   C = current entity index
@@ -2428,16 +5214,25 @@ ${yDivisionCode}
     pop de
     pop bc
     ret
+` : `    handle_entity_collision:
+    ; No active entity uses COLLISION_LAYER_PLATFORM in this project.
+    ret
+`}
 
         `;
+    return wrapMideasAsmBlock(asm, {
+        id: 'runtime.components.collision',
+        kind: 'routine',
+        owner: 'components',
+    });
 }
 /**
  * Generate get_behavior_tile function (shared by Collision and WallCollision systems)
  * Returns behavior value for a tile at (B=row, C=column) using current_behavior_map
  */
-function generateGetBehaviorTile(romMode = 'simple32k') {
+function generateGetBehaviorTile(romMode = 'simple32k', targetFormat = 'konami') {
     const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
-    return `
+    const asm = applyMapperDataWindowPage(`
     ; ------------------------------------------------------------------
     ; get_behavior_tile
     ; ------------------------------------------------------------------
@@ -2548,13 +5343,19 @@ ${!usesMapper ? `
 gbt_oob:
     xor a                         ; A = 0 (passable)
     ret
-    `;
+    `, targetFormat);
+    return wrapMideasAsmBlock(asm, {
+        id: 'runtime.components.behavior_tile',
+        kind: 'routine',
+        owner: 'components',
+        roots: ['get_behavior_tile', 'get_behavior_tile_nb', 'gbt_oob'],
+    });
 }
 /**
  * Generate Input Component System with direction restrictions (Cursors component)
  */
 function generateInputSystem() {
-    return `
+    const asm = `
         ; ==================================================================
         ; INPUT COMPONENT SYSTEM (With direction restrictions - Cursors)
         ; ==================================================================
@@ -2922,8 +5723,8 @@ function generateInputSystem() {
             add hl, de              ; DE = (0, entity_index)
             ld a, (hl)
             pop af
-            jr nz, .skip_patrol_facing
-            call update_entity_patrol_facing
+            jp nz, .skip_patrol_facing
+${emitDirectionalFacingSpriteSync('input_directional_sprite')}
 .skip_patrol_facing:
 
             pop hl
@@ -2934,6 +5735,11 @@ function generateInputSystem() {
             jp nz, input_update_loop
             ret
     `;
+    return wrapMideasAsmBlock(asm, {
+        id: 'runtime.components.input',
+        kind: 'routine',
+        owner: 'components',
+    });
 }
 /**
  * Generate Behavior Component System
@@ -2982,7 +5788,7 @@ behavior_next_entity:
  * Generate Gravity Component System
  */
 function generateGravitySystem() {
-    return `
+    const asm = `
     ; ==================================================================
         ; GRAVITY COMPONENT SYSTEM(Constant downward acceleration)
     ; ==================================================================
@@ -3118,12 +5924,18 @@ gravity_next_entity:
             jp nz, gravity_update_loop
     ret
     `;
+    return wrapMideasAsmBlock(asm, {
+        id: 'runtime.components.gravity',
+        kind: 'routine',
+        owner: 'components',
+        roots: ['init_gravity_system', 'update_gravity_component'],
+    });
 }
 /**
  * Generate Health Component System
  */
 function generateHealthSystem() {
-    return `
+    const asm = `
     ; ==================================================================
     ; HEALTH COMPONENT SYSTEM
     ; ==================================================================
@@ -3274,12 +6086,18 @@ increase_entity_lives:
     pop bc
     ret
     `;
+    return wrapMideasAsmBlock(asm, {
+        id: 'runtime.components.health',
+        kind: 'routine',
+        owner: 'components',
+        roots: ['init_health_system', 'update_health_component', 'decrease_entity_lives', 'increase_entity_lives'],
+    });
 }
 /**
  * Generate Damage Component System with Invincibility Frames
  */
 function generateDamageSystem() {
-    return `
+    return wrapMideasAsmBlock(`
     ; ==================================================================
     ; DAMAGE COMPONENT SYSTEM
     ; ==================================================================
@@ -3403,7 +6221,108 @@ check_entity_invincible:
 
     ld a, 1                       ; Return 1 if invincible
     ret
-    `;
+    `, {
+        id: 'runtime.components.damage',
+        kind: 'routine',
+        owner: 'components',
+        roots: ['init_damage_system', 'update_damage_component', 'apply_damage_to_entity', 'check_entity_invincible'],
+    });
+}
+function generateComponentTriggerHelpers() {
+    return `
+; ==================================================================
+; COMPONENT ACTION TRIGGER HELPERS
+; ==================================================================
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Test whether a component-configured input trigger was pressed on this frame.',
+        inputs: ['A = COMP_TRIGGER_* value'],
+        outputs: ['A = 1 and NZ if pressed this frame, A = 0 and Z if not'],
+        clobbers: ['AF'],
+        preserved: ['BC', 'DE', 'HL'],
+        notes: ['Uses edge detection against input_btn_prev or prev_input_state.'],
+    })}
+component_trigger_edge_pressed_a:
+    cp COMP_TRIGGER_UP
+    jp z, .trigger_check_up
+    cp COMP_TRIGGER_ACTION2
+    jp z, .trigger_check_action2
+
+.trigger_check_fire:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    jp z, .trigger_false
+    ld a, (input_btn_prev)
+    and INPUT_BTN_FIRE
+    jp nz, .trigger_false
+    jp .trigger_true
+
+.trigger_check_action2:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_GRAB
+    jp z, .trigger_false
+    ld a, (input_btn_prev)
+    and INPUT_BTN_GRAB
+    jp nz, .trigger_false
+    jp .trigger_true
+
+.trigger_check_up:
+    ld a, (input_state)
+    cp STICK_UP
+    jp nz, .trigger_false
+    ld a, (prev_input_state)
+    cp STICK_UP
+    jp z, .trigger_false
+
+.trigger_true:
+    ld a, 1
+    or a
+    ret
+
+.trigger_false:
+    xor a
+    ret
+
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Test whether a component-configured input trigger is currently held.',
+        inputs: ['A = COMP_TRIGGER_* value'],
+        outputs: ['A = 1 and NZ if held, A = 0 and Z if not'],
+        clobbers: ['AF'],
+        preserved: ['BC', 'DE', 'HL'],
+    })}
+; @mideas:block id=runtime.components.input_trigger_level kind=routine owner=components
+component_trigger_level_pressed_a:
+    cp COMP_TRIGGER_UP
+    jp z, .trigger_level_check_up
+    cp COMP_TRIGGER_ACTION2
+    jp z, .trigger_level_check_action2
+
+.trigger_level_check_fire:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    jp z, .trigger_level_false
+    jp .trigger_level_true
+
+.trigger_level_check_action2:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_GRAB
+    jp z, .trigger_level_false
+    jp .trigger_level_true
+
+.trigger_level_check_up:
+    ld a, (input_state)
+    cp STICK_UP
+    jp nz, .trigger_level_false
+
+.trigger_level_true:
+    ld a, 1
+    or a
+    ret
+
+.trigger_level_false:
+    xor a
+    ret
+; @mideas:endblock id=runtime.components.input_trigger_level
+`;
 }
 /**
  * Generate Shoot Component System
@@ -3442,6 +6361,13 @@ init_shoot_system:
     ld de, entity_shoot_sprite_id + 1
     ld bc, 31
     ld (hl), 0
+    ldir
+
+    ; Initialize shoot trigger to fire for backward compatibility
+    ld hl, entity_shoot_trigger
+    ld de, entity_shoot_trigger + 1
+    ld bc, 31
+    ld (hl), COMP_TRIGGER_FIRE
     ldir
     ret
 
@@ -3485,10 +6411,14 @@ update_shoot_component:
     jp .shoot_done                ; Still cooling down, skip
 
 .usc_check_fire:
-    ; Check if fire button is pressed
-    ld a, (input_fire)
-    or a
-    jp z, .shoot_done             ; Fire not pressed, skip
+    ; Check if configured shoot trigger is held.
+    ld hl, entity_shoot_trigger
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    call component_trigger_level_pressed_a
+    jp z, .shoot_done             ; Shoot trigger not held, skip
 
     ; Fire button pressed - spawn projectile
     call .spawn_projectile
@@ -3711,7 +6641,36 @@ update_shoot_component:
 /**
  * Generate Platform Riding System
  */
-function generatePlatformRidingSystem() {
+function generatePlatformRidingSystem(hasPlatformRiding) {
+    if (!hasPlatformRiding) {
+        return `
+    ; ==================================================================
+    ; PLATFORM RIDING SYSTEM (STUB)
+    ; ==================================================================
+
+init_platform_riding_system:
+    ; Keep jump/ground checks deterministic even when dynamic platforms are absent.
+    ld hl, entity_platform_id
+    ld de, entity_platform_id + 1
+    ld bc, 31
+    ld (hl), 255
+    ldir
+    ld hl, entity_platform_grace
+    ld de, entity_platform_grace + 1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    ret
+
+; @mideas:block id=runtime.components.platform_riding_stub kind=routine owner=components
+prepare_platform_detection:
+    ret
+
+update_platform_riding:
+    ret
+; @mideas:endblock id=runtime.components.platform_riding_stub
+    `;
+    }
     return `
     ; ==================================================================
     ; PLATFORM RIDING SYSTEM
@@ -3831,7 +6790,7 @@ update_platform_riding:
  * Generate Animation Component System
  */
 function generateAnimationSystem() {
-    return `
+    return wrapMideasAsmBlock(`
     ; ==================================================================
         ; ANIMATION COMPONENT SYSTEM
     ; ==================================================================
@@ -4167,16 +7126,21 @@ refresh_player_animation_fastpath:
     ld (anim_entity_list), a
     pop af
     ld (anim_entity_count), a
-    pop af
+    pop af                         ; Saved runtime was nonzero; force it back on.
+    ld a, 1
     ld (player_runtime_enabled), a
     ret
-    `;
+    `, {
+        id: 'runtime.components.animation',
+        kind: 'routine',
+        owner: 'components',
+    });
 }
 /**
  * Generate Jump Component System
  */
 function generateJumpSystem() {
-    return `
+    return wrapMideasAsmBlock(`
     ; ==================================================================
         ; JUMP COMPONENT SYSTEM
     ; ==================================================================
@@ -4211,6 +7175,13 @@ function generateJumpSystem() {
             ld (hl), 1
             ldir
 
+            ; Initialize jump trigger to fire for backward compatibility
+            ld hl, entity_jump_trigger
+            ld de, entity_jump_trigger+1
+            ld bc, 31
+            ld (hl), COMP_TRIGGER_FIRE
+            ldir
+
             ; Clear on-ground flags
             ld hl, entity_on_ground
             ld de, entity_on_ground+1
@@ -4221,9 +7192,9 @@ function generateJumpSystem() {
 
         update_jump_component:
             ; Update jump logic for entities
-            ; Fire button edge triggers jump for entities with Jump+Input
+            ; Configured trigger edge starts jump for entities with Jump+Input
             ; Uses: entity_jump_count, entity_jump_max, entity_jump_bonus, entity_on_ground, entity_gravity_vel
-            ; Uses global input_btn_curr/input_btn_prev edge detection
+            ; Uses global input_btn_curr/input_btn_prev and input_state/prev_input_state edge detection
 
             ld a, (active_entity_count)
             or a
@@ -4291,13 +7262,14 @@ function generateJumpSystem() {
             or a
             jp nz, jump_done_entity
 
-            ; --- Jump trigger edge (fire pressed now, not pressed previous frame) ---
-            ld a, (input_btn_curr)
-            and INPUT_BTN_FIRE
+            ; --- Jump trigger edge (configured trigger pressed now, not previous frame) ---
+            ld hl, entity_jump_trigger
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            call component_trigger_edge_pressed_a
             jp z, jump_done_entity        ; not pressed
-            ld a, (input_btn_prev)
-            and INPUT_BTN_FIRE
-            jp nz, jump_done_entity       ; already held last frame
 
             ; Check jump count < configured max OR grounded
             ld hl, entity_jump_count
@@ -4399,7 +7371,11 @@ jump_done_entity:
             dec b
             jp nz, jump_update_loop
     ret
-    `;
+    `, {
+        id: 'runtime.components.jump',
+        kind: 'routine',
+        owner: 'components',
+    });
 }
 function generateAirControlHelpers() {
     return `
@@ -4498,7 +7474,7 @@ aircontrol_should_lock_horizontal_c:
     ret
     `;
 }
-function generateWallGrabSystem() {
+function generateWallGrabSystem(enableDirectWallProbe = false) {
     return `
     ; ==================================================================
     ; WALL GRAB COMPONENT SYSTEM
@@ -4507,6 +7483,33 @@ function generateWallGrabSystem() {
     ; Runs after Gravity and before WallJump/Position.
 
 init_wallgrab_system:
+    ld hl, entity_wallgrab_active
+    ld de, entity_wallgrab_active+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
+
+    ld hl, entity_wallgrab_grace
+    ld de, entity_wallgrab_grace+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
+
+    ld hl, entity_wallgrab_timer
+    ld de, entity_wallgrab_timer+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
+
+    ld hl, entity_wallgrab_lockout
+    ld de, entity_wallgrab_lockout+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
     ret
 
 update_wallgrab_component:
@@ -4535,6 +7538,18 @@ update_wallgrab_component:
     djnz .wallgrab_loop
     ret
 
+refresh_player_wallgrab_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+
+    call wallgrab_process_entity_c
+    ret
+
 wallgrab_process_entity_c:
     ld e, c
     ld d, 0
@@ -4551,35 +7566,554 @@ wallgrab_process_entity_c:
     and #02                       ; Require Gravity component
     ret z
 
+    ld hl, entity_wallgrab_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .wallgrab_after_ground_check
+
     ld hl, entity_on_ground
     add hl, de
     bit 0, (hl)
-    ret nz
+    jp nz, .grounded_clear_lockout
+
+.wallgrab_after_ground_check:
+
+    ld hl, entity_wallgrab_lockout
+    add hl, de
+    ld a, (hl)
+    or a
+    jp nz, .not_grabbing
 
     ld hl, entity_on_ladder
     add hl, de
     ld a, (hl)
     or a
-    ret nz
+    jp nz, .not_grabbing
 
     ld a, (input_btn_curr)
     and INPUT_BTN_GRAB
-    ret z
+    jp z, .not_grabbing
 
-    ld hl, entity_wall_collision_flags
+    call wallgrab_input_toward_wall_c
+    or a
+    jp z, .maybe_keep_grabbing
+    call wallgrab_set_facing_dir_a
+
+    ; --- Grabbing! ---
+    ld hl, entity_wallgrab_active
     add hl, de
     ld a, (hl)
-    and #0C                       ; LEFT/RIGHT wall flags
-    ret z
+    or a
+    jp nz, .ensure_grab_sprite
 
+    ; Transition to grabbing
+    ld (hl), 1
+    call wallgrab_reset_grace_c
+    call wallgrab_ensure_timer_c
+    call wallgrab_commit_grab_sprite_if_needed_c
+    jp .apply_physics
+
+.ensure_grab_sprite:
+    call wallgrab_reset_grace_c
+    call wallgrab_commit_grab_sprite_if_needed_c
+    jp .apply_physics
+
+.maybe_keep_grabbing:
+    ld hl, entity_wallgrab_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .not_grabbing
+
+    ld hl, entity_wallgrab_grace
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .not_grabbing
+    dec (hl)
+    call wallgrab_commit_grab_sprite_if_needed_c
+    jp .apply_physics
+
+.grounded_clear_lockout:
+    ld hl, entity_wallgrab_lockout
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_wallgrab_timer
+    add hl, de
+    ld (hl), 0
+    jp .not_grabbing
+
+wallgrab_reset_grace_c:
+    ; Input: DE = entity offset
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wallgrab_grace
+    add hl, de
+    ld (hl), 2
+    ret
+
+wallgrab_ensure_timer_c:
+    ; Input: DE = entity offset
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wallgrab_timer
+    add hl, de
+    ld a, (hl)
+    or a
+    ret nz
+    call wallgrab_reset_timer_c
+    ret
+
+wallgrab_reset_timer_c:
+    ; Input: DE = entity offset
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wallgrab_cfg_duration_frames
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_wallgrab_timer
+    add hl, de
+    ld (hl), a
+    ret
+
+wallgrab_input_toward_wall_c:
+    ; Input: DE = entity offset
+    ; Output: A = 0 none, 1 touching left wall, 2 touching right wall
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+${enableDirectWallProbe ? `    ; Prefer a fresh adjacent-wall probe over previous-frame flags.
+    jp .wg_probe_adjacent_wall
+` : ''}
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    ld h, (hl)                     ; H = wall flags (bit2 LEFT, bit3 RIGHT)
+
+    ld a, h
+    and #04
+    jp z, .wg_check_right_wall
+    ld a, 1                        ; facing left
+    ret
+
+.wg_check_right_wall:
+    ld a, h
+    and #08
+    jp z, .wg_probe_adjacent_wall
+    ld a, 2                        ; facing right
+    ret
+
+${enableDirectWallProbe ? `
+.wg_probe_adjacent_wall:
+    ; WallGrab runs before WallCollision, so the directional flags can be
+    ; empty when the player only holds GRAB with no horizontal movement.
+    ; Probe the current hitbox edges directly against the behavior map.
+    push bc
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (wall_temp_x), a
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (wall_temp_y), a
+    call wall_build_hitbox_cache
+
+    ; Left wall: sample one pixel before the hitbox left edge.
+    ld a, (wall_hit_left)
+    or a
+    jr z, .wg_probe_right_wall
+    sub 1
+    srl a
+    srl a
+    srl a
+    ld c, a
+
+    ld a, (wall_probe_top)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jr nz, .wg_touch_left_wall
+
+    ld a, (wall_probe_bottom)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jr nz, .wg_touch_left_wall
+
+.wg_probe_right_wall:
+    ; Right wall: sample one pixel after the hitbox right edge.
+    ld a, (wall_hit_right)
+    inc a
+    jr z, .wg_no_probe_wall
+    srl a
+    srl a
+    srl a
+    ld c, a
+
+    ld a, (wall_probe_top)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jr nz, .wg_touch_right_wall
+
+    ld a, (wall_probe_bottom)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jr nz, .wg_touch_right_wall
+
+.wg_no_probe_wall:
+    pop bc
+    xor a
+    ret
+
+.wg_touch_left_wall:
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 2, (hl)
+    pop bc
+    ld a, 1
+    ret
+
+.wg_touch_right_wall:
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 3, (hl)
+    pop bc
+    ld a, 2
+    ret
+` : `
+.wg_probe_adjacent_wall:
+    xor a
+    ret
+`}
+
+wallgrab_set_facing_dir_a:
+    ; Input: A = 1 left or 2 right, DE = entity offset
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    cp 1
+    jp z, .wg_write_facing
+    cp 2
+    ret nz
+.wg_write_facing:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), a
+    ret
+
+wallgrab_commit_grab_sprite_if_needed_c:
+    ; Input: C = entity index, DE = entity offset
+    ; Clobbers: AF, BC, HL. Preserves: DE.
+    ld hl, entity_wallgrab_cfg_grab_sprite
+    add hl, de
+    ld a, (hl)
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+
+    push de
+    call wallgrab_resolve_directional_sprite_c
+    pop de
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld b, a                       ; B = resolved grab sprite asset index
+
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    ld a, (hl)
+    cp b
+    jr z, .refresh_grab_sprite    ; Keep runtime colors/frame bounds coherent.
+
+    push de
+    ld a, b
+    call wallgrab_resolve_grab_loop_flag_c
+    call wallgrab_commit_sprite_c
+    pop de
+    ret
+
+.refresh_grab_sprite:
+    push de
+    ld a, b
+    call wallgrab_resolve_grab_loop_flag_c
+    call wallgrab_refresh_sprite_c
+    pop de
+    ret
+
+wallgrab_resolve_grab_loop_flag_c:
+    ; Input: A = grab sprite asset index
+    ; Output: E = loop flag (#00/#02). Vertical grab input forces loop.
+    ; Clobbers: F, D, HL. Preserves: A, BC.
+    push af
+    ld e, a
+    ld d, 0
+    ld hl, sprite_loop_flags
+    add hl, de
+    ld e, (hl)                    ; Native loop flag unless climbing.
+    ld a, (input_state)
+    cp STICK_UP
+    jp z, .wg_grab_force_loop
+    cp STICK_UPRIGHT
+    jp z, .wg_grab_force_loop
+    cp STICK_UPLEFT
+    jp z, .wg_grab_force_loop
+    cp STICK_DOWN
+    jp z, .wg_grab_force_loop
+    cp STICK_DOWNRIGHT
+    jp z, .wg_grab_force_loop
+    cp STICK_DOWNLEFT
+    jp z, .wg_grab_force_loop
+    pop af
+    ret
+.wg_grab_force_loop:
+    ld e, ANIM_FLAG_LOOP
+    pop af
+    ret
+
+wallgrab_restore_base_sprite_c:
+    ; Input: C = entity index, DE = entity offset
+    ; Clobbers: AF, BC, HL. Preserves: DE.
+    ld b, 0
+    ld hl, entity_sprite_asset_index_init
+    add hl, bc
+    ld a, (hl)
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+
+    push de
+    call wallgrab_resolve_directional_sprite_c
+    pop de
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+
+    push de
+    push af
+    ld e, a
+    ld d, 0
+    ld hl, sprite_loop_flags
+    add hl, de
+    ld e, (hl)                    ; Native loop flag for restored sprite.
+    pop af
+    call wallgrab_commit_sprite_c
+    pop de
+    ret
+
+wallgrab_resolve_directional_sprite_c:
+    ; Input: C = entity index, A = base sprite asset
+    ; Output: A = direction-resolved sprite asset
+    ; Clobbers: AF, B, DE, HL. Preserves: C.
+    ld b, a
+    ld h, 0
+    ld l, c
+    ld de, entity_facing_dir
+    add hl, de
+    ld a, (hl)
+    cp 1
+    jp z, .wg_resolve_left
+    cp 2
+    jp z, .wg_resolve_right
+    ld a, b
+    ret
+
+.wg_resolve_left:
+    ld hl, sprite_dir_left_table
+    jp .wg_resolve_lookup
+
+.wg_resolve_right:
+    ld hl, sprite_dir_right_table
+
+.wg_resolve_lookup:
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    ret
+
+wallgrab_commit_sprite_c:
+    ; Input: C = entity index, A = sprite asset index, E = loop flag (#00/#02)
+    ; Clobbers: AF, BC, DE, HL
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld d, a                        ; D = sprite asset index
+    ld b, 0
+
+    ld hl, entity_sprite_asset_index
+    add hl, bc
+    ld (hl), d
+
+    ld hl, entity_anim_frame
+    add hl, bc
+    ld (hl), 0
+
+    ld hl, entity_anim_tick
+    add hl, bc
+    ld (hl), 0
+
+    ld hl, entity_anim_flags
+    add hl, bc
+    ld a, ANIM_FLAG_PLAYING | ANIM_FLAG_FORCE_UPLOAD
+    or e
+    ld (hl), a
+
+    ld a, d
+    jp wallgrab_update_sprite_colors_c
+
+wallgrab_refresh_sprite_c:
+    ; Input: C = entity index, A = sprite asset index, E = loop flag (#00/#02)
+    ; Preserves current frame/tick unless the frame is outside this sprite's range.
+    ; Clobbers: AF, BC, DE, HL
+    cp #FF
+    ret z
+    cp SPRITE_ASSET_COUNT
+    ret nc
+    ld d, a                        ; D = sprite asset index
+    ld b, 0
+
+    ld hl, entity_sprite_asset_index
+    add hl, bc
+    ld (hl), d
+
+    push de                         ; Save sprite asset + loop flag.
+    ld e, d
+    ld d, 0
+    ld hl, sprite_asset_frame_count
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .wg_refresh_frame_count_ready
+    ld a, 1
+.wg_refresh_frame_count_ready:
+    ld b, a                         ; B = frame count
+    ld h, 0
+    ld l, c
+    ld de, entity_anim_frame
+    add hl, de
+    ld a, (hl)
+    cp b
+    jr c, .wg_refresh_frame_ok
+    ld (hl), 0
+.wg_refresh_frame_ok:
+    ld b, 0
+    pop de                          ; D = sprite asset index, E = loop flag
+
+    ld hl, entity_anim_flags
+    add hl, bc
+    ld a, ANIM_FLAG_PLAYING
+    or e
+    ld (hl), a
+
+    ld a, d
+    jp wallgrab_update_sprite_colors_c
+
+wallgrab_update_sprite_colors_c:
+    ; Input: C = entity index, A = sprite asset index
+    ; Clobbers: AF, BC, DE, HL
+    ld d, a
+    ; Keep per-layer runtime colors in sync with the temporary grab sprite.
+    push bc
+    push de
+    push de
+    ld h, 0
+    ld l, c
+    add hl, hl
+    ld de, entity_sprite_config
+    add hl, de
+    ld c, (hl)                     ; C = base HW sprite slot
+    pop de                         ; D = sprite asset index
+
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.wg_commit_mul_layers:
+    add hl, de
+    djnz .wg_commit_mul_layers
+    ld de, SM_SpriteLayerColorTable
+    add hl, de
+
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.wg_commit_color_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_colors
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz .wg_commit_color_loop
+
+    pop de                          ; D = sprite asset index
+    pop bc                          ; C = entity index
+
+    ; Keep per-layer Y offsets in sync with the same temporary sprite.
+    push de
+    ld h, 0
+    ld l, c
+    add hl, hl
+    ld de, entity_sprite_config
+    add hl, de
+    ld c, (hl)                     ; C = base HW sprite slot
+    pop de                         ; D = sprite asset index
+
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.wg_commit_y_offset_mul_layers:
+    add hl, de
+    djnz .wg_commit_y_offset_mul_layers
+    ld de, SM_SpriteLayerYOffsetTable
+    add hl, de
+
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.wg_commit_y_offset_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_y_offsets
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz .wg_commit_y_offset_loop
+    ret
+
+.apply_physics:
     ld hl, entity_vel_x
     add hl, de
     ld (hl), 0
 
-    ld hl, entity_wallgrab_cfg_fall_speed
-    add hl, de
-    ld a, (hl)
-    ld b, a
+    call wallgrab_choose_vertical_velocity_c
 
     ld hl, entity_vel_y
     add hl, de
@@ -4591,6 +8125,97 @@ wallgrab_process_entity_c:
     ld (hl), 0
     inc hl
     ld (hl), b
+    call wallgrab_tick_timer_c
+    or a
+    ret nz
+    jp .not_grabbing
+
+wallgrab_tick_timer_c:
+    ; Input: DE = entity offset
+    ; Output: A = 1 if the grab can continue, 0 if the timer expired
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wallgrab_timer
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .wg_timer_expired
+    dec (hl)
+    ld a, 1
+    ret
+
+.wg_timer_expired:
+    ld hl, entity_wallgrab_lockout
+    add hl, de
+    ld (hl), 1
+    xor a
+    ret
+
+wallgrab_choose_vertical_velocity_c:
+    ; Input: DE = entity offset
+    ; Output: B = signed vertical velocity for this grab frame
+    ; Clobbers: AF, HL. Preserves: DE.
+    ld a, (input_state)
+    cp STICK_UP
+    jp z, .wg_climb_up
+    cp STICK_UPRIGHT
+    jp z, .wg_climb_up
+    cp STICK_UPLEFT
+    jp z, .wg_climb_up
+    cp STICK_DOWN
+    jp z, .wg_climb_down
+    cp STICK_DOWNRIGHT
+    jp z, .wg_climb_down
+    cp STICK_DOWNLEFT
+    jp z, .wg_climb_down
+    jp .wg_stop_vertical
+
+.wg_climb_up:
+    ld hl, entity_wallgrab_cfg_climb_speed
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .wg_stop_vertical
+    neg
+    ld b, a
+    ret
+
+.wg_climb_down:
+    ld hl, entity_wallgrab_cfg_climb_speed
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .wg_stop_vertical
+    ld b, a
+    ret
+
+.wg_stop_vertical:
+    ld b, 0
+    ret
+
+.not_grabbing:
+    ld hl, entity_wallgrab_active
+    add hl, de
+    ld a, (hl)
+    or a
+    ret z                         ; was not grabbing
+
+    ; Transition to NOT grabbing
+    ld (hl), 0
+    ld hl, entity_wallgrab_grace
+    add hl, de
+    ld (hl), 0
+
+    ; If a wall-jump one-shot animation has taken ownership, do not restore
+    ; the base sprite here or it will immediately overwrite that animation.
+    ld hl, entity_walljump_anim_active
+    add hl, de
+    ld a, (hl)
+    or a
+    ret nz
+    
+    ; Restore original sprite without sharing WallJump animation helpers.
+    ld c, e
+    call wallgrab_restore_base_sprite_c
     ret
     `;
 }
@@ -4705,6 +8330,17 @@ walljump_process_entity_c:
     ; Keep the horizontal wall-jump impulse alive for the whole ascent.
     ; lock_frames is now only the minimum guaranteed duration.
 .walljump_check_locked_impulse:
+    ; The Jump component can clear entity_on_ground earlier in this same
+    ; frame. If the previous WallCollision pass still says DOWN, this was a
+    ; ground jump beside a wall, not a valid wall jump.
+    ld hl, entity_wall_collision_flags
+    add hl, bc
+    bit 1, (hl)
+    jp z, .walljump_check_locked_vx
+    call walljump_clear_active_state_c
+    ret
+
+.walljump_check_locked_vx:
     ld hl, entity_walljump_locked_vx
     add hl, bc
     ld a, (hl)
@@ -5038,6 +8674,8 @@ walljump_commit_sprite_c:
 
     ; Update runtime layer colors so the temporary animation and restored
     ; sprite render with their own palette immediately.
+    push bc
+    push de
     push de
     ld h, 0
     ld l, c
@@ -5074,6 +8712,47 @@ wj_commit_color_loop:
     pop hl
     inc c
     djnz wj_commit_color_loop
+
+    pop de                         ; D = sprite asset index
+    pop bc                         ; C = entity index
+
+    ; Update runtime layer Y offsets alongside colors.
+    push de
+    ld h, 0
+    ld l, c
+    add hl, hl
+    ld de, entity_sprite_config
+    add hl, de
+    ld c, (hl)                     ; C = base HW sprite slot
+    pop de                         ; D = sprite asset index
+
+    ld l, d
+    ld h, 0
+    ld e, l
+    ld d, h
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+wj_commit_y_offset_mul_layers:
+    add hl, de
+    djnz wj_commit_y_offset_mul_layers
+    ld de, SM_SpriteLayerYOffsetTable
+    add hl, de
+
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+wj_commit_y_offset_loop:
+    ld a, (hl)
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c
+    ld de, sprite_layer_y_offsets
+    add hl, de
+    ld (hl), a
+    pop bc
+    pop hl
+    inc c
+    djnz wj_commit_y_offset_loop
     ret
 
 walljump_clear_active_state_c:
@@ -5246,7 +8925,7 @@ update_cursors_component:
  * For entities that carry other entities (like picking up items)
  */
 function generateCarrySystem() {
-    return `
+    return wrapMideasAsmBlock(`
     ; ==================================================================
     ; CARRY COMPONENT SYSTEM
     ; ==================================================================
@@ -5325,7 +9004,12 @@ update_carry_component:
 .carry_next:
     inc c
     jr .carry_loop
-    `;
+    `, {
+        id: 'runtime.components.carry',
+        kind: 'routine',
+        owner: 'components',
+        roots: ['init_carry_system', 'update_carry_component'],
+    });
 }
 /**
  * Generate WallCollision Component System
@@ -5334,7 +9018,7 @@ update_carry_component:
  * Snaps entity position to wall edge (not just zero velocity)
  */
 function generateWallCollisionSystem(romMode = 'simple32k') {
-    return `
+    return wrapMideasAsmBlock(`
     ; ==================================================================
     ; WALL COLLISION COMPONENT SYSTEM
     ; ==================================================================
@@ -6171,7 +9855,11 @@ wall_sub_signed_offset_clamped:
     xor a
 .wssc_done:
     ret
-    `;
+    `, {
+        id: 'runtime.components.wallcollision',
+        kind: 'routine',
+        owner: 'components',
+    });
 }
 /**
  * Generate Tile Interaction System
@@ -6449,6 +10137,85 @@ function resolveTileCollectorRuntimeConfig(analysis) {
         bonusRespawnSeconds: 0,
     };
 }
+function replaceAsmLabelRange(asm, startLabel, endLabel, replacement) {
+    const startNeedle = `\n${startLabel}:`;
+    const endNeedle = `\n${endLabel}:`;
+    const start = asm.indexOf(startNeedle);
+    if (start === -1)
+        return asm;
+    const end = asm.indexOf(endNeedle, start + startNeedle.length);
+    if (end === -1)
+        return asm;
+    return `${asm.slice(0, start + 1)}${replacement.trimEnd()}\n${asm.slice(end + 1)}`;
+}
+function stripUnusedTileSlashRuntime(asm) {
+    return replaceAsmLabelRange(asm, 'update_slash_component', 'record_bonus_respawn_slot', `; ------------------------------------------------------------------
+; update_slash_component
+; Filtered out: no tile bonus uses grant_extra_jump/slash in this project.
+; Public label is kept because older generated call paths may still reference it.
+; ------------------------------------------------------------------
+update_slash_component:
+    ret
+`);
+}
+function projectHasBossRuntime(analysis) {
+    return Array.isArray(analysis.bosses) && analysis.bosses.length > 0;
+}
+function projectHasBreakableTiles(analysis) {
+    return Array.isArray(analysis.tiles) && analysis.tiles.some((tile) => {
+        const props = tile?.logicalProperties || {};
+        return props.isBreakable === true || props.isBreakable === 'true' || ((props.mapId ?? 0) & 0x01) !== 0;
+    });
+}
+function stripUnusedPlayerDashOptionalRuntime(asm, options) {
+    if (options.hasBosses || options.hasBreakableTiles) {
+        return asm;
+    }
+    let optimizedAsm = asm.replace(/    call player_dash_break_front_tile_c\r?\n    call player_dash_hit_boss_weakpoint\r?\n/g, '');
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'player_dash_break_front_tile_c', 'player_dash_hit_boss_weakpoint', `player_dash_break_front_tile_c:
+    ret
+`);
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'player_dash_hit_boss_weakpoint', 'player_dash_cleanup_dead_boss_attacks', `player_dash_hit_boss_weakpoint:
+    ret
+`);
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'player_dash_cleanup_dead_boss_attacks', 'update_player_fastpath', `player_dash_cleanup_dead_boss_attacks:
+    ret
+`);
+    return optimizedAsm;
+}
+function collectUsedScreenInteractionTypes(analysis) {
+    const usedTypes = new Set();
+    const screens = Array.isArray(analysis.screenMaps) ? analysis.screenMaps : [];
+    const tiles = Array.isArray(analysis.tiles) ? analysis.tiles : [];
+    for (const screen of screens) {
+        const maps = (0, screenUtils_1.buildScreenInteractionMaps)(screen, tiles);
+        for (const value of maps.typeMap) {
+            const typeId = Number(value) & 0xff;
+            if (typeId !== 0) {
+                usedTypes.add(typeId);
+            }
+        }
+    }
+    return usedTypes;
+}
+function stripUnusedTileInteractionDispatchRuntime(asm, usedInteractionTypes) {
+    const onlyCollectibleInteractions = usedInteractionTypes.size > 0 &&
+        Array.from(usedInteractionTypes).every((typeId) => typeId === 1);
+    if (!onlyCollectibleInteractions) {
+        return asm;
+    }
+    let optimizedAsm = asm.replace(/    ld a, \(last_interaction_type\)\r?\n    cp 5\r?\n    jr z, \.ti_dispatch_ready\r?\n    call interaction_clear_button_contact_c\r?\n\.ti_dispatch_ready:\r?\n    ld a, \(last_interaction_type\)\r?\n    cp 1\r?\n    jp z, \.ti_collect_gem\r?\n    cp 2\r?\n    jp z, \.ti_collect_item\r?\n    cp 3\r?\n    jp z, \.ti_add_energy\r?\n    cp 4\r?\n    jp z, \.ti_lever_toggle\r?\n    cp 5\r?\n    jp z, \.ti_button_press\r?\n    cp 6\r?\n    jp z, \.ti_jumper\r?\n    cp 7\r?\n    jp z, \.ti_next\r?\n    jp \.ti_next/, `    ld a, (last_interaction_type)
+    cp 1
+    jp z, .ti_collect_gem
+    jp .ti_next`);
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, 'interaction_set_last_value_default1', 'interaction_clear_behavior_at_de', '');
+    optimizedAsm = replaceAsmLabelRange(optimizedAsm, '.ti_collect_item', '.ti_collect_bonus', '');
+    optimizedAsm = optimizedAsm.replace(/\.ti_no_collect:\r?\n    pop hl                         ; Balance idx push\r?\n    pop de                         ; Balance tileX\/tileY push\r?\n    pop bc                         ; Restore B=count, C=entity\r?\n    push bc\r?\n    call interaction_clear_button_contact_c\r?\n/, `.ti_no_collect:
+    pop hl                         ; Balance idx push
+    pop de                         ; Balance tileX/tileY push
+`);
+    return optimizedAsm;
+}
 function generateWallHitboxHelpers() {
     return `
 ; ------------------------------------------------------------------
@@ -6664,7 +10431,7 @@ wall_sub_signed_offset_clamped:
 `;
 }
 function generateDeadlyTilesSystem() {
-    return `
+    const asm = `
 ; ------------------------------------------------------------------
 ; DEADLY TILES COMPONENT SYSTEM
 ; Purpose:
@@ -6925,8 +10692,164 @@ refresh_player_deadly_fastpath:
     call update_entity_deadly_flag_runtime
     ret
 `;
+    return wrapMideasAsmBlock(asm, {
+        id: 'runtime.components.deadly_tiles',
+        kind: 'routine',
+        owner: 'components',
+        roots: ['init_deadly_tiles_system', 'update_deadly_tiles_component', 'update_entity_deadly_flag_runtime', 'deadly_tiles_runtime_tile_is_deadly_nb', 'refresh_player_deadly_fastpath'],
+    });
 }
-function generateTileInteractionSystem(analysis, tileCollectorConfig, canUseSoundAssetPlayback, _hasWallCollision = false) {
+function generateInWaterSystem() {
+    return `
+; ------------------------------------------------------------------
+; IN WATER COMPONENT SYSTEM
+; Purpose:
+;   Scan active entities marked with comp_in_water and update
+;   entity_flag_in_water bit 0 when the entity center is inside a
+;   runtime Effect Zone whose type is EFFECT_TYPE_WATER.
+; Notes:
+;   - Detection uses effect zones, not behavior-map tile flags.
+;   - The component is stored in entity_in_water_cfg_enabled because
+;     the 16-bit ECS component mask has no free bit left.
+; ------------------------------------------------------------------
+init_in_water_system:
+    ld hl, entity_flag_in_water
+    ld de, entity_flag_in_water + 1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
+    ret
+
+update_entity_in_water_flag_runtime:
+    ; Input: C = entity index
+    ; Output: entity_flag_in_water[C] bit 0 refreshed
+    ; Clobbers: AF, BC, DE, HL, IX
+    ; Preserves: original entity index by stack until writeback
+    push bc
+
+    ld e, c
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    srl a
+    srl a
+    srl a
+    ld (wall_temp_x), a           ; center X in cells
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    srl a
+    srl a
+    srl a
+    ld (wall_temp_y), a           ; center Y in cells
+
+    ld a, (current_effect_zone_count)
+    or a
+    jp z, .in_water_clear
+
+    ld d, a                       ; D = remaining zone count
+    ld ix, runtime_effect_zone_table
+
+.in_water_scan_loop:
+    ld a, d
+    or a
+    jp z, .in_water_clear
+
+    ld a, (ix+4)
+    cp EFFECT_TYPE_WATER
+    jp nz, .in_water_next_entry
+
+    ld a, (wall_temp_x)
+    cp (ix+0)                     ; zone.x
+    jp c, .in_water_next_entry
+    sub (ix+0)
+    ld e, a                       ; E = deltaX
+
+    ld a, (wall_temp_y)
+    cp (ix+1)                     ; zone.y
+    jp c, .in_water_next_entry
+    sub (ix+1)
+    ld h, a                       ; H = deltaY
+
+    ld a, (ix+2)                  ; zone.width
+    cp e                          ; width > deltaX?
+    jp z, .in_water_next_entry
+    jp c, .in_water_next_entry
+
+    ld a, (ix+3)                  ; zone.height
+    cp h                          ; height > deltaY?
+    jp z, .in_water_next_entry
+    jp c, .in_water_next_entry
+
+    jp .in_water_found
+
+.in_water_next_entry:
+    ld bc, EFFECT_ZONE_ENTRY_SIZE
+    add ix, bc
+    dec d
+    jp .in_water_scan_loop
+
+.in_water_found:
+    pop bc
+    ld hl, entity_flag_in_water
+    ld e, c
+    ld d, 0
+    add hl, de
+    set 0, (hl)
+    ret
+
+.in_water_clear:
+    pop bc
+    ld hl, entity_flag_in_water
+    ld e, c
+    ld d, 0
+    add hl, de
+    res 0, (hl)
+    ret
+
+update_in_water_component:
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+.in_water_entity_loop:
+    ld c, (hl)
+    inc hl
+    push hl
+    push bc
+
+    ld e, c
+    ld d, 0
+    ld hl, entity_in_water_cfg_enabled
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .in_water_entity_clear
+
+    call update_entity_in_water_flag_runtime
+    jp .in_water_entity_done
+
+.in_water_entity_clear:
+    ld hl, entity_flag_in_water
+    add hl, de
+    res 0, (hl)
+
+.in_water_entity_done:
+    pop bc
+    pop hl
+    dec b
+    jp nz, .in_water_entity_loop
+    ret
+`;
+}
+function generateTileInteractionSystem(analysis, tileCollectorConfig, canUseSoundAssetPlayback, hasWallCollision = false) {
     const collectionSoundAssetIndex = tileCollectorConfig.soundAssetIndex;
     const interactionTargetVariables = buildOrderedGlobalVariableInfos(analysis);
     const replacementTileChar = tileCollectorConfig.replacementTileChar;
@@ -7268,7 +11191,28 @@ record_bonus_respawn_slot:
 update_bonus_respawns:
     ret
 `;
-    return `
+    const hasBonusSlashEffect = tileCollectorConfig.bonusEntityEffect === 'grant_extra_jump' && tileCollectorConfig.bonusEffectAmount > 0;
+    const wallBehaviorHelperCode = hasWallCollision || !hasBonusSlashEffect
+        ? ``
+        : `
+; ------------------------------------------------------------------
+; wall_behavior_is_full_blocker
+; Input:  A = behavior byte or family bits
+; Output: Z = passable / top-solid platform, NZ = full blocker
+; Clobbers: AF
+; Notes:
+;   - TileInteraction slash movement can exist without WallCollision.
+;     Keep this helper local to that case so Glass always has a target.
+; ------------------------------------------------------------------
+wall_behavior_is_full_blocker:
+    and #F0
+    ret z
+    cp #20
+    ret z
+    or a
+    ret
+`;
+    let asm = `
 ; ==================================================================
 ; TILE INTERACTION SYSTEM
 ; ==================================================================
@@ -7278,6 +11222,7 @@ update_bonus_respawns:
 ; ------------------------------------------------------------------
 ; Called once per frame from update_all_entities.
 ; ------------------------------------------------------------------
+${wallBehaviorHelperCode}
 
 ${interactionTargetPointerTableCode}
 ${interactionTargetWordFlagTableCode}
@@ -8158,10 +12103,25 @@ refresh_player_tile_interaction_fastpath:
     ld (input_entity_list), a
     pop af
     ld (input_entity_count), a
-    pop af
+    pop af                         ; Saved runtime was nonzero; force it back on.
+    ld a, 1
     ld (player_runtime_enabled), a
     ret
 `;
+    if (!hasBonusSlashEffect) {
+        asm = stripUnusedTileSlashRuntime(asm);
+    }
+    return wrapMideasAsmBlock(asm, {
+        id: 'runtime.components.tile_interaction',
+        kind: 'routine',
+        owner: 'components',
+        roots: [
+            'update_slash_component',
+            'check_tile_interaction',
+            'scan_tile_interaction_entities',
+            'refresh_player_tile_interaction_fastpath',
+        ],
+    });
 }
 /**
  * Generate apply_collected_tiles function.
@@ -8169,7 +12129,7 @@ refresh_player_tile_interaction_fastpath:
  * so collected gems/tiles do not respawn when the player re-enters a screen.
  */
 function generateApplyCollectedTiles() {
-    return `
+    return wrapMideasAsmBlock(`
 ; ------------------------------------------------------------------
 ; apply_collected_tiles
 ; Re-clears tiles that were previously collected on the current world/screen.
@@ -8243,7 +12203,12 @@ apply_collected_tiles:
     inc c
     djnz .apply_ct_loop
     ret
-`;
+`, {
+        id: 'runtime.components.collected_tiles',
+        kind: 'routine',
+        owner: 'components',
+        roots: ['apply_collected_tiles'],
+    });
 }
 /**
  * Generate Collectible Component System
@@ -8289,19 +12254,19 @@ update_collectible_component:
     add hl, de
     ld a, (hl)
     or a
-    jr z, .collect_next
+    jp z, .collect_next
 
     ; Skip the hero and any non-collectible entities.
     ld a, (hero_entity_id)
     cp c
-    jr z, .collect_next
+    jp z, .collect_next
     ld hl, entity_collectible_enabled
     ld e, c
     ld d, 0
     add hl, de
     ld a, (hl)
     or a
-    jr z, .collect_next
+    jp z, .collect_next
 
     ; Check collision against resolved hero entity
     ; Get collectible position
@@ -8323,9 +12288,9 @@ update_collectible_component:
     sub b                         ; A = collectible_x - player_x
     ; Check if within range (-16 to +16)
     cp 240                        ; Negative check (< -16)
-    jr c, .collect_next
+    jp c, .collect_next
     cp 16                         ; Positive check (> +16)
-    jr nc, .collect_next
+    jp nc, .collect_next
 
     ; X is close, check Y
     ld hl, entity_y_pos
@@ -8343,9 +12308,9 @@ update_collectible_component:
 
     sub b                         ; A = collectible_y - player_y
     cp 240
-    jr c, .collect_next
+    jp c, .collect_next
     cp 16
-    jr nc, .collect_next
+    jp nc, .collect_next
 
     ; Collision detected - collect item!
     push bc
@@ -8371,11 +12336,11 @@ update_collectible_component:
 
 .collect_next:
     inc c
-    jr .collect_loop
+    jp .collect_loop
     `;
 }
-function generateRetractableGateSystem() {
-    return `
+function generateRetractableGateSystem(targetFormat = 'konami') {
+    return applyMapperDataWindowPage(`
 init_retractable_gate_system:
     ld hl, entity_gate_current_step
     ld de, entity_gate_current_step + 1
@@ -8499,7 +12464,7 @@ update_retractable_gate_component:
     pop de
     pop hl
     dec d
-    jr .rg_loop
+    jp .rg_loop
 
 ; ------------------------------------------------------------------
 ; gate_trigger_condition_true
@@ -9057,7 +13022,7 @@ gate_write_tile_at_xy:
 .rg_write_out:
     pop af
     ret
-`;
+`, targetFormat);
 }
 function generateResolveRuntimeHeroEntityHelper() {
     return `
@@ -9100,10 +13065,10 @@ resolve_runtime_hero_entity:
  * Generate entity management helper functions
  */
 function generateEntityManagement() {
-    return ` 
-    ; ================================================================== 
-        ; ENTITY MANAGEMENT FUNCTIONS(Based on EntityTemplate system) 
-    ; ================================================================== 
+    return wrapMideasAsmBlock(`
+    ; ==================================================================
+        ; ENTITY MANAGEMENT FUNCTIONS(Based on EntityTemplate system)
+    ; ==================================================================
 
         ; Create entity with components(A = entity ID, B = mask low byte, C = mask high byte) 
         create_entity:
@@ -9318,15 +13283,29 @@ entity_job_run_done:
             ld hl, sprite_color
             add hl, de
             ld (hl), 15; White color
-    ret
-    `;
+            ret
+    `, {
+        id: 'runtime.components.entity_management',
+        kind: 'routine',
+        owner: 'components',
+        roots: ['create_entity', 'entity_job_set', 'entity_job_should_run_c', 'force_update_entity_sprite'],
+    });
 }
 /**
  * Generate init_components function with conditional initialization
  */
 function generateInitComponents(usage) {
     const usedComponents = usage.usedComponents;
-    let code = `init_components: 
+    let code = `component_fill_32_a:
+        ld (hl), a
+        ld d, h
+        ld e, l
+        inc de
+        ld bc, 31
+        ldir
+        ret
+
+init_components: 
 ; Initialize component systems(OPTIMIZED - only used components) 
     ; Used: ${Array.from(usedComponents).join(', ')} 
  
@@ -9350,32 +13329,21 @@ function generateInitComponents(usage) {
 
     ; Clear all component masks 
         ld hl, entity_comp_masks 
-        ld de, entity_comp_masks + 1 
-        ld bc, 31 
-        ld (hl), 0 
-        ldir 
+        call component_fill_32_a
 
     ; Clear all component masks (high byte)
         ld hl, entity_comp_masks_hi
-        ld de, entity_comp_masks_hi + 1
-        ld bc, 31
-        ld (hl), 0
-        ldir 
+        call component_fill_32_a
 
     ; Initialize entity job scheduler defaults
     ; period=1 (100%), entry=0 for every entity slot
+        ld a, 1
         ld hl, entity_job_period
-        ld de, entity_job_period + 1
-        ld bc, 31
-        ld (hl), 1
-        ldir
+        call component_fill_32_a
 
-        ld hl, entity_job_entry
-        ld de, entity_job_entry + 1
-        ld bc, 31
-        ld (hl), 0
-        ldir
         xor a
+        ld hl, entity_job_entry
+        call component_fill_32_a
         ld (entity_job_scheduler_active), a
  
     `;
@@ -9442,11 +13410,6 @@ function generateInitComponents(usage) {
     call init_auto_destroy_system
     `;
     }
-    if (usedComponents.has('Cursors')) {
-        code += `    ; Initialize cursors system (stub)
-    call init_cursors_system
-    `;
-    }
     if (usedComponents.has('StateMachine')) {
         code += `    ; Initialize state machine system (stub)
     call init_statemachine_system
@@ -9486,6 +13449,11 @@ function generateInitComponents(usage) {
     call init_deadly_tiles_system
     `;
     }
+    if (usedComponents.has('InWater')) {
+        code += `    ; Initialize water effect zone detection system
+    call init_in_water_system
+    `;
+    }
     if (usedComponents.has('Collectible')) {
         code += `    ; Initialize collectible system (stub)
     call init_collectible_system
@@ -9499,11 +13467,50 @@ function generateInitComponents(usage) {
     code += `
     ret
     `;
-    return code;
+    return wrapMideasAsmBlock(code, {
+        id: 'runtime.components.init',
+        kind: 'routine',
+        owner: 'components',
+        roots: ['init_components', 'component_fill_32_a'],
+    });
 }
 // ============================================================================
 // MAIN GENERATOR FUNCTION
 // ============================================================================
+function hasActivePlatformLayerEntity(analysis, componentUsage) {
+    const templates = Array.isArray(analysis.templates) ? analysis.templates : [];
+    const templateById = new Map(templates.map((template) => [String(template.id), template]));
+    for (const entity of componentUsage.activeEntities) {
+        const template = templateById.get(String(entity?.entityTemplateId || ''));
+        const collisionComponent = template?.components?.find((component) => (component.definitionId || component.componentDefinitionId) === 'comp_collision');
+        const defaults = collisionComponent?.defaultValues || {};
+        const overrides = entity?.componentOverrides?.comp_collision || {};
+        const values = { ...defaults, ...overrides };
+        const layer = Number(values.collisionLayer ?? values.layer ?? 0);
+        if ((layer & 0x08) !== 0) {
+            return true;
+        }
+    }
+    return false;
+}
+function hasRuntimeSecretZone(screen) {
+    if (!Array.isArray(screen?.effectZones))
+        return false;
+    return screen.effectZones.some((zone) => {
+        const rect = zone?.rect || {};
+        const width = Number(rect.width ?? zone?.width ?? 0);
+        const height = Number(rect.height ?? zone?.height ?? 0);
+        if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+            return false;
+        }
+        if (zone?.effectType === 'secretZone')
+            return true;
+        const hasKnownEffectType = typeof zone?.effectType === 'string' && zone.effectType.length > 0;
+        const mask = Number(zone?.mask ?? 0);
+        const hasLegacyNonSecretMask = Number.isFinite(mask) && mask !== 0;
+        return !hasKnownEffectType && !hasLegacyNonSecretMask;
+    });
+}
 /**
  * Generate ECS component systems file (components.asm)
  *
@@ -9513,11 +13520,11 @@ function generateInitComponents(usage) {
  * @param analysis - Project analysis with entities and tiles
  * @returns ASM code string with ECS component systems
  */
-function generateComponentsFile(analysis, romMode = 'simple32k') {
+function generateComponentsFile(analysis, romMode = 'simple32k', targetFormat = 'konami') {
     const usesMapper = (0, romModeUtils_1.usesMapperBanking)(romMode);
     // Skip ECS system if no entities in project
     if (!analysis.entities || analysis.entities.length === 0) {
-        return `; ==================================================================
+        return wrapMideasAsmBlock(`; ==================================================================
 ; GAME COMPONENT SYSTEMS(SKIPPED - NO ENTITIES DETECTED)
     ; File: components.asm
         ; ==================================================================
@@ -9562,6 +13569,10 @@ COMP_MASK_DEADLY_TILES EQU #2000
 COMP_MASK_WALL_JUMP EQU #4000
 COMP_MASK_AIR_CONTROL EQU #8000
 
+COMP_TRIGGER_FIRE    EQU 0
+COMP_TRIGGER_ACTION2 EQU 1
+COMP_TRIGGER_UP      EQU 2
+
     ; Minimal stub functions for compatibility
 init_components:
     ret
@@ -9578,6 +13589,8 @@ refresh_player_deadly_fastpath:
 refresh_player_tile_interaction_fastpath:
     ret
 refresh_player_state_machine_fastpath:
+    ret
+refresh_player_wallgrab_fastpath:
     ret
 refresh_player_animation_fastpath:
     ret
@@ -9616,6 +13629,7 @@ rebuild_used_entity_list:
     ld (hero_entity_id), a
     ret
 
+; @mideas:block id=runtime.components.filtered_update_stubs kind=routine owner=components
 update_input_component:
     ret
 update_position_component:
@@ -9636,6 +13650,8 @@ update_jump_component:
     ret
 update_gravity_component:
     ret
+update_wallgrab_component:
+    ret
 update_slash_component:
     ret
 update_auto_destroy_component:
@@ -9654,12 +13670,15 @@ update_wallcollision_component:
     ret
 update_deadly_tiles_component:
     ret
+update_in_water_component:
+    ret
 update_collectible_component:
     ret
 check_tile_interaction:
     ret
 apply_collected_tiles:
     ret
+; @mideas:endblock id=runtime.components.filtered_update_stubs
 
 init_position_system:
     ret
@@ -9681,6 +13700,8 @@ init_jump_system:
     ret
 init_gravity_system:
     ret
+init_wallgrab_system:
+    ret
 init_auto_destroy_system:
     ret
 init_cursors_system:
@@ -9699,6 +13720,8 @@ init_wallcollision_system:
     ret
 init_deadly_tiles_system:
     ret
+init_in_water_system:
+    ret
 init_collectible_system:
     ret
 init_tile_interaction_system:
@@ -9706,6 +13729,8 @@ init_tile_interaction_system:
 init_entity_position:
     ret
 init_entity_sprite:
+    ret
+wallgrab_process_entity_c:
     ret
 
     ; Component Data Structure EQUs (referenced by state machine actions)
@@ -9715,12 +13740,14 @@ entity_slash_vel_y  EQU temp_byte_28
 entity_jump_count   EQU temp_byte_4
 entity_jump_max     EQU temp_byte_25
 entity_jump_bonus   EQU temp_byte_27
+entity_jump_trigger EQU temp_byte_29
 entity_on_ground    EQU temp_byte_5
 entity_gravity_vel  EQU temp_word_4
 entity_health_current EQU temp_byte_6
 entity_health_max     EQU temp_byte_7
 entity_flag_deadly_tile EQU temp_byte_8
 entity_deadly_collision EQU temp_byte_8
+entity_flag_in_water EQU temp_byte_31
 tileDead EQU tileDead_dbg
 tileDeadLatched EQU tileDead_latched_dbg
 tileDeadX EQU tileDead_x_dbg
@@ -9731,6 +13758,7 @@ entity_damage_amount        EQU temp_byte_10
 entity_shoot_cooldown   EQU temp_byte_11
 entity_shoot_sprite_id  EQU temp_byte_12
 entity_shoot_speed      EQU temp_byte_13
+entity_shoot_trigger    EQU temp_byte_30
 entity_collision_layer  EQU temp_byte_14
 entity_collides_with    EQU temp_byte_15
 entity_platform_id      EQU temp_byte_16
@@ -9746,11 +13774,18 @@ entity_last_collision_entity EQU temp_byte_24
     ; ==================================================================
 ; END OF COMPONENTS(MINIMAL VERSION)
     ; ==================================================================
-        `;
+        `, {
+            id: 'runtime.components.stub',
+            kind: 'routine',
+            owner: 'components',
+            preserve: true,
+            roots: ['compatibility-stubs'],
+        });
     }
     // INTELLIGENT FILTERING: Analyze which components are actually used
     const componentUsage = (0, componentAnalyzer_1.analyzeComponentUsage)(analysis);
     const usedComponents = componentUsage.usedComponents;
+    const hasPlatformRiding = hasActivePlatformLayerEntity(analysis, componentUsage);
     const hasInteractableTiles = Array.isArray(analysis.tiles) &&
         analysis.tiles.some((t) => ((t.logicalProperties?.mapId ?? 0) & 0x08) !== 0);
     const tileCollectorRuntimeConfig = resolveTileCollectorRuntimeConfig(analysis);
@@ -9782,9 +13817,17 @@ entity_last_collision_entity EQU temp_byte_24
         usedComponents.add('Collision');
     }
     console.log('🎯 Generating optimized components.asm...');
+    const generatedComponentNames = [
+        'Position', 'Sprite', 'Movement', 'Collision', 'Input', 'Behavior', 'Health', 'Animation',
+        'Jump', 'Gravity', 'AirControl', 'WallGrab', 'WallJump', 'AutoDestroy', 'Cursors',
+        'StateMachine', 'RetractableGate', 'Carry', 'Damage', 'Shoot', 'WallCollision',
+        'InWater', 'DeadlyTiles', 'Collectible', 'TileInteraction', 'Patrol', 'AutoControlScript'
+    ];
+    const filteredOutComponentCount = generatedComponentNames.filter(component => !usedComponents.has(component)).length;
     console.log(`  - Active entities: ${componentUsage.activeEntities.length} `);
     console.log(`  - Used components: ${Array.from(usedComponents).join(', ')} `);
-    console.log(`  - Filtered out: ${8 - usedComponents.size} unused components`);
+    console.log(`  - Dynamic platform riding: ${hasPlatformRiding ? 'ENABLED' : 'STUB'} `);
+    console.log(`  - Filtered out: ${filteredOutComponentCount} unused components`);
     // Build the complete ASM file
     let code = `; ==================================================================
 ; GAME COMPONENT SYSTEMS - MSX ECS ENGINE
@@ -9796,7 +13839,8 @@ entity_last_collision_entity EQU temp_byte_24
 ; INTELLIGENT FILTERING ACTIVE:
 ;   Active entities: ${componentUsage.activeEntities.length}
 ;   Used components: ${Array.from(usedComponents).join(', ')}
-;   Filtered out: ${8 - usedComponents.size} unused component systems
+;   Dynamic platform riding: ${hasPlatformRiding ? 'ENABLED' : 'STUB'}
+;   Filtered out: ${filteredOutComponentCount} unused component systems
     ;
 ; ==================================================================
 
@@ -9834,6 +13878,10 @@ COMP_MASK_DEADLY_TILES EQU #2000; Binary: 0010000000000000
 COMP_MASK_WALL_JUMP EQU #4000; Binary: 0100000000000000
 COMP_MASK_AIR_CONTROL EQU #8000; Binary: 1000000000000000
 
+COMP_TRIGGER_FIRE    EQU 0 ; input_btn bit 0 / SPACE / joystick A
+COMP_TRIGGER_ACTION2 EQU 1 ; input_btn bit 1 / second action / joystick B
+COMP_TRIGGER_UP      EQU 2 ; direction edge on STICK_UP
+
 ; ==================================================================
 ; ANIMATION FLAGS (entity_anim_flags)
 ; ==================================================================
@@ -9859,6 +13907,7 @@ entity_slash_vel_y  EQU temp_byte_28; Additive vertical slash velocity from bonu
 entity_jump_count   EQU temp_byte_4; Current jump count(0 = grounded, 1 = first jump, etc.)(32 bytes)
 entity_jump_max     EQU temp_byte_25; Configured max jumps for this entity (32 bytes)
 entity_jump_bonus   EQU temp_byte_27; Temporary extra jumps granted by bonus tiles (32 bytes)
+entity_jump_trigger EQU temp_byte_29; Trigger action for jump (32 bytes)
 entity_on_ground    EQU temp_byte_5; Ground contact flag(bit 0 = on ground)(32 bytes)
 
     ; Gravity Component Data
@@ -9871,6 +13920,7 @@ entity_health_max     EQU temp_byte_7 ; Maximum health/lives (32 bytes)
 ; Deadly Tile Collision Data
 entity_flag_deadly_tile EQU temp_byte_8 ; Flag: bit 0 = touching deadly tile (32 bytes)
 entity_deadly_collision EQU temp_byte_8 ; Backward-compatible alias
+entity_flag_in_water EQU temp_byte_31 ; Flag: bit 0 = entity center is inside a Water effect zone (32 bytes)
 tileDead EQU tileDead_dbg ; Debug byte: mirrors hero deadly contact (entity 0)
 tileDeadLatched EQU tileDead_latched_dbg ; Debug byte: latched hero deadly detection
 tileDeadX EQU tileDead_x_dbg ; Debug byte: last sampled tile X
@@ -9885,6 +13935,7 @@ entity_damage_amount        EQU temp_byte_10 ; Damage dealt by this entity (32 b
 entity_shoot_cooldown   EQU temp_byte_11 ; Cooldown frames until can shoot (32 bytes)
 entity_shoot_sprite_id  EQU temp_byte_12 ; Projectile sprite ID (32 bytes)
 entity_shoot_speed      EQU temp_byte_13 ; Projectile velocity (32 bytes)
+entity_shoot_trigger    EQU temp_byte_30 ; Trigger action for shooting (32 bytes)
 
     ; Collision Layer Data (for projectile and advanced collision)
 entity_collision_layer  EQU temp_byte_14 ; Which layer this entity is on (32 bytes)
@@ -9917,7 +13968,7 @@ entity_input_disabled EQU temp_byte_26 ; 0=enabled, 1=disabled (32 bytes)
     // CRITICAL FIX: Always generate when sprites exist, even if component analysis fails
     const hasSprites = analysis.sprites && analysis.sprites.length > 0;
     if (usedComponents.has('Sprite') || hasSprites) {
-        code += generateSpriteSystem(analysis);
+        code += generateSpriteSystem(analysis, romMode);
     }
     else {
         code += `
@@ -9945,13 +13996,15 @@ force_update_entity_sprite:
 init_movement_system:
     ret
 
+; @mideas:block id=runtime.components.movement_stub kind=routine owner=components
 update_movement_component:
     ret
+; @mideas:endblock id=runtime.components.movement_stub
     `;
     }
     // Generate Collision System (if used)
     if (usedComponents.has('Collision')) {
-        code += generateCollisionSystem(analysis);
+        code += generateCollisionSystem(analysis, hasPlatformRiding);
     }
     else {
         code += `
@@ -9963,16 +14016,24 @@ update_collision_component:
     ret
     `;
     }
-    // Generate get_behavior_tile (shared utility for Collision and WallCollision)
-    if (usedComponents.has('Collision') || usedComponents.has('WallCollision')) {
-        code += generateGetBehaviorTile(romMode);
-    }
+    // Generate get_behavior_tile for modern collision systems and legacy helpers.
+    // check_collision_at_point is emitted as a compatibility label even in FakePlayer-only
+    // builds, so this reader must exist without requiring a real Player collision component.
+    code += generateGetBehaviorTile(romMode, targetFormat);
     // Wall hitbox helpers are required by WallCollision itself and are also
     // reused by deadly-tile probes / late-frame tile interaction.
     const needsWallHitboxHelpers = usedComponents.has('DeadlyTiles') ||
         (hasInteractableTiles && usedComponents.has('Input'));
     if (!usedComponents.has('WallCollision') && (usedComponents.has('Collision') || needsWallHitboxHelpers)) {
         code += generateWallHitboxHelpers();
+    }
+    // Sprite fast paths can call directional sync helpers even when the generic
+    // Input component is filtered out.
+    const needsDirectionalFacingSpriteSyncHelpers = usedComponents.has('Input') ||
+        usedComponents.has('Sprite') ||
+        hasSprites;
+    if (needsDirectionalFacingSpriteSyncHelpers) {
+        code += generateDirectionalFacingSpriteSyncHelpers();
     }
     // Generate Input System (if used)
     if (usedComponents.has('Input')) {
@@ -9988,6 +14049,9 @@ update_input_component:
     ret
     `;
     }
+    if (!usesMapper && (usedComponents.has('Jump') || usedComponents.has('Shoot'))) {
+        code += generateComponentTriggerHelpers();
+    }
     // Generate Behavior System (if used)
     if (usedComponents.has('Behavior')) {
         code += generateBehaviorSystem();
@@ -9998,8 +14062,10 @@ update_input_component:
 init_behavior_system:
     ret
 
+; @mideas:block id=runtime.components.behavior_stub kind=routine owner=components
 update_behavior_component:
     ret
+; @mideas:endblock id=runtime.components.behavior_stub
     `;
     }
     // Damage reuses the Health helpers even in Damage-only projectile scenes.
@@ -10072,16 +14138,19 @@ aircontrol_should_lock_horizontal_c:
     ret
     `;
     }
-    if (usedComponents.has('WallGrab')) {
-        code += generateWallGrabSystem();
+    if (usedComponents.has('WallGrab') && usedComponents.has('WallCollision')) {
+        code += generateWallGrabSystem(usedComponents.has('WallCollision'));
     }
     else {
         code += `
-    ; WallGrab system filtered out (not used)
+    ; WallGrab system filtered out (${usedComponents.has('WallGrab') ? 'requires WallCollision' : 'not used'})
 init_wallgrab_system:
     ret
 
 update_wallgrab_component:
+    ret
+
+refresh_player_wallgrab_fastpath:
     ret
 
 wallgrab_process_entity_c:
@@ -10094,6 +14163,7 @@ wallgrab_process_entity_c:
     else {
         code += `
     ; WallJump system filtered out (not used)
+; @mideas:block id=runtime.components.walljump_stub kind=routine owner=components
 init_walljump_system:
     ret
 
@@ -10110,6 +14180,7 @@ walljump_input_is_left:
 walljump_input_is_right:
     xor a
     ret
+; @mideas:endblock id=runtime.components.walljump_stub
     `;
     }
     if (usedComponents.has('AutoDestroy')) {
@@ -10118,11 +14189,13 @@ walljump_input_is_right:
     else {
         code += `
     ; AutoDestroy system filtered out(not used)
+; @mideas:block id=runtime.components.auto_destroy_stub kind=routine owner=components
 init_auto_destroy_system:
     ret
 
 update_auto_destroy_component:
     ret
+; @mideas:endblock id=runtime.components.auto_destroy_stub
     `;
     }
     // Generate Cursors System stub (if used)
@@ -10143,22 +14216,26 @@ update_cursors_component:
     if (!usedComponents.has('StateMachine')) {
         code += `
     ; StateMachine system filtered out(not used)
+; @mideas:block id=runtime.components.state_machine_component_stub kind=routine owner=components
 init_statemachine_system:
     ret
 
 update_statemachine_component:
     ret
+; @mideas:endblock id=runtime.components.state_machine_component_stub
     `;
     }
     else if (!Array.isArray(analysis.stateMachines) || analysis.stateMachines.length === 0) {
         code += `
     ; StateMachine component present but no state machine assets are defined.
     ; Keep the component safe for reusable templates.
+; @mideas:block id=runtime.components.state_machine_component_stub kind=routine owner=components
 init_statemachine_system:
     ret
 
 update_statemachine_component:
     ret
+; @mideas:endblock id=runtime.components.state_machine_component_stub
     `;
     }
     else if (analysis.hasGameFlow) {
@@ -10166,11 +14243,13 @@ update_statemachine_component:
     ; StateMachine per-entity component tick filtered out.
     ; GameFlow calls execute_all_state_machines once per frame, so this
     ; resident component wrapper must stay a no-op to avoid duplicate SM ticks.
+; @mideas:block id=runtime.components.state_machine_component_stub kind=routine owner=components
 init_statemachine_system:
     ret
 
 update_statemachine_component:
     ret
+; @mideas:endblock id=runtime.components.state_machine_component_stub
     `;
     }
     else {
@@ -10244,12 +14323,14 @@ update_statemachine_component:
 init_retractable_gate_system:
     ret
 
+; @mideas:block id=runtime.components.retractable_gate_stub kind=routine owner=components
 update_retractable_gate_component:
     ret
+; @mideas:endblock id=runtime.components.retractable_gate_stub
     `;
     }
     else {
-        code += generateRetractableGateSystem();
+        code += generateRetractableGateSystem(targetFormat);
     }
     // Generate Carry System stub (if used)
     if (!usedComponents.has('Carry')) {
@@ -10258,13 +14339,18 @@ update_retractable_gate_component:
 init_carry_system:
     ret
 
+; @mideas:block id=runtime.components.carry_stub kind=routine owner=components
 update_carry_component:
     ret
+; @mideas:endblock id=runtime.components.carry_stub
     `;
     }
     else {
         code += generateCarrySystem();
     }
+    // Generate AutoControlScript System entry points.
+    // The FakePlayer engine calls this only on tutorial/dialog/cutscene screens.
+    code += generateAutoControlScriptSystem(analysis);
     // Generate Damage System (if used)
     if (!usedComponents.has('Damage')) {
         code += `
@@ -10272,8 +14358,10 @@ update_carry_component:
 init_damage_system:
     ret
 
+; @mideas:block id=runtime.components.damage_stub kind=routine owner=components
 update_damage_component:
     ret
+; @mideas:endblock id=runtime.components.damage_stub
     `;
     }
     else {
@@ -10286,15 +14374,17 @@ update_damage_component:
 init_shoot_system:
     ret
 
+; @mideas:block id=runtime.components.shoot_stub kind=routine owner=components
 update_shoot_component:
     ret
+; @mideas:endblock id=runtime.components.shoot_stub
     `;
     }
     else {
         code += generateShootSystem();
     }
-    // Generate Platform Riding System (always enabled for physics)
-    code += generatePlatformRidingSystem();
+    // Generate Platform Riding System only when active entities can be ridden.
+    code += generatePlatformRidingSystem(hasPlatformRiding);
     // Generate WallCollision System stub (if used)
     if (!usedComponents.has('WallCollision')) {
         code += `
@@ -10325,6 +14415,21 @@ refresh_player_deadly_fastpath:
     else {
         code += generateDeadlyTilesSystem();
     }
+    if (!usedComponents.has('InWater')) {
+        code += `
+    ; InWater system filtered out(not used)
+init_in_water_system:
+    ret
+
+; @mideas:block id=runtime.components.in_water_stub kind=routine owner=components
+update_in_water_component:
+    ret
+; @mideas:endblock id=runtime.components.in_water_stub
+    `;
+    }
+    else {
+        code += generateInWaterSystem();
+    }
     // Generate Collectible System stub (if used)
     if (!usedComponents.has('Collectible')) {
         code += `
@@ -10332,8 +14437,10 @@ refresh_player_deadly_fastpath:
 init_collectible_system:
     ret
 
+; @mideas:block id=runtime.components.collectible_stub kind=routine owner=components
 update_collectible_component:
     ret
+; @mideas:endblock id=runtime.components.collectible_stub
     `;
     }
     else {
@@ -10373,8 +14480,8 @@ apply_collected_tiles:
     // ==================================================================
     // Generate update_all_entities function - OPTIMIZED based on used components
     // Only generates CALLs to systems that are actually used
-    const hasSecretZones = !!analysis.screenMaps?.some((screen) => Array.isArray(screen?.effectZones) && screen.effectZones.some((zone) => String(zone?.effectType || '').length === 0 || zone?.effectType === 'secretZone' || (zone?.mask ?? 0) === 0));
-    code += generateUpdateAllEntities(usedComponents, !!analysis.hasGameFlow, hasSecretZones);
+    const hasSecretZones = !!analysis.screenMaps?.some((screen) => hasRuntimeSecretZone(screen));
+    code += generateUpdateAllEntities(usedComponents, !!analysis.hasGameFlow, hasSecretZones, !!analysis.screenMaps?.length, hasPlatformRiding);
     // Generate execute_all_state_machines function - called by GameFlow game loop
     if (usedComponents.has('StateMachine') && Array.isArray(analysis.stateMachines) && analysis.stateMachines.length > 0) {
         code += `
@@ -10382,6 +14489,7 @@ apply_collected_tiles:
 ; EXECUTE ALL STATE MACHINES - Called by GameFlow
 ; ==================================================================
 ; This function executes the state machine for each entity that has one
+; @mideas:block id=runtime.components.state_machine_executor kind=routine owner=components roots=execute_all_state_machines,refresh_player_state_machine_fastpath
 execute_all_state_machines:
     ld a, (active_entity_count)
     or a
@@ -10454,6 +14562,7 @@ refresh_player_state_machine_fastpath:
     ld a, e
     call SM_Update
     ret
+; @mideas:endblock id=runtime.components.state_machine_executor
 
 `;
     }
@@ -10463,11 +14572,13 @@ refresh_player_state_machine_fastpath:
 ; EXECUTE ALL STATE MACHINES - Called by GameFlow
 ; ==================================================================
 ; No state machines are present in this build.
+; @mideas:block id=runtime.components.state_machine_executor kind=routine owner=components roots=execute_all_state_machines,refresh_player_state_machine_fastpath
 execute_all_state_machines:
     ret
 
 refresh_player_state_machine_fastpath:
     ret
+; @mideas:endblock id=runtime.components.state_machine_executor
 
 `;
     }
@@ -10480,6 +14591,7 @@ refresh_player_state_machine_fastpath:
 ; use get_behavior_tile directly, so keep this path compact in resident ROM.
 ; ==================================================================
 
+; @mideas:block id=runtime.components.legacy_tile_collision kind=routine owner=components
 get_tile_at_position:
     ; Deprecated: callers should use get_behavior_tile with B=row/C=column.
     xor a
@@ -10494,19 +14606,8 @@ tile_behavior_table:
     db TILE_PASSABLE
 
 check_collision_at_point:
-    ; Input: D=x pixels, E=y pixels. Convert to Screen 2 cell coords.
-    ld a, d
-    srl a
-    srl a
-    srl a
-    ld c, a
-    ld a, e
-    srl a
-    srl a
-    srl a
-    ld b, a
-    call get_behavior_tile
-    and #F0                       ; family bits: 0=passable, #10+=solid
+    ; Deprecated legacy helper. WallCollision uses behavior maps directly.
+    xor a
     ret
 
 ; ------------------------------------------------------------------
@@ -10530,20 +14631,15 @@ check_collision_box:
 ; Destroys: B
 ; ------------------------------------------------------------------
 div_a_by_c:
-    ld b, 0                       ; B = quotient
-.tile_div_loop:
-    sub c
-    jr c, .tile_div_done
-    inc b
-    jr .tile_div_loop
-.tile_div_done:
-    ld a, b
+    xor a
     ret
+; @mideas:endblock id=runtime.components.legacy_tile_collision
 
 `;
     code += generateResolveRuntimeHeroEntityHelper();
     if (hasSecretZones) {
         code += `
+; @mideas:block id=runtime.components.secret_zones kind=routine owner=components roots=update_secret_zone_component,secret_zone_apply_current_rect,secret_zone_restore_current_rect,secret_zone_clear_state,secret_zone_compute_offset
 ; ------------------------------------------------------------------
 ; update_secret_zone_component
 ; Hero-only secret zone runtime.
@@ -10797,13 +14893,16 @@ secret_zone_compute_offset:
     ld d, 0
     add hl, de
     ret
+; @mideas:endblock id=runtime.components.secret_zones
 
 `;
     }
     else {
         code += `
+; @mideas:block id=runtime.components.secret_zone_stub kind=routine owner=components
 update_secret_zone_component:
     ret
+; @mideas:endblock id=runtime.components.secret_zone_stub
 
 `;
     }
@@ -10823,6 +14922,11 @@ update_secret_zone_component:
                     code.slice(firstWallHitboxHelper + wallHitboxHelpersBlock.length);
         }
     }
+    code = stripUnusedPlayerDashOptionalRuntime(code, {
+        hasBosses: projectHasBossRuntime(analysis),
+        hasBreakableTiles: projectHasBreakableTiles(analysis),
+    });
+    code = stripUnusedTileInteractionDispatchRuntime(code, collectUsedScreenInteractionTypes(analysis));
     // End of file
     code += `
     ; ==================================================================

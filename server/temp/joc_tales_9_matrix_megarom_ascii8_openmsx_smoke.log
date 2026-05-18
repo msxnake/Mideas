@@ -1,0 +1,13 @@
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/00 flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+space1_before pc=84ED sp=F37C bank=00/01/02/03 flow=01 screen=00 irq=00B2 inirq=00 pos=216,168
+space1_after pc=84ED sp=F37C bank=00/01/02/03 flow=01 screen=00 irq=00C1 inirq=00 pos=216,132
+space2_before pc=84ED sp=F37C bank=00/01/02/03 flow=01 screen=00 irq=012A inirq=00 pos=216,168
+space2_after pc=40E2 sp=F378 bank=00/01/02/03 flow=01 screen=00 irq=0139 inirq=00 pos=216,132
+t12 pc=6CFF sp=F374 bank=00/01/02/03 flow=01 screen=00 irq=01DE inirq=00 pos=216,168
+SHOTOK joc_tales_9_matrix_megarom_ascii8_t12.png
+right_before pc=4811 sp=F374 bank=00/01/02/03 flow=01 screen=00 irq=0238 inirq=00 pos=216,168
+right_after pc=84ED sp=F37C bank=00/01/02/03 flow=01 screen=00 irq=0276 inirq=00 pos=78,168
+t16 pc=84ED sp=F37C bank=00/01/02/03 flow=01 screen=00 irq=02CD inirq=00 pos=78,168
+SHOTOK joc_tales_9_matrix_megarom_ascii8_t16.png
+t22 pc=84ED sp=F37C bank=00/01/02/03 flow=01 screen=00 irq=0435 inirq=00 pos=78,168
+SHOTOK joc_tales_9_matrix_megarom_ascii8_t22.png

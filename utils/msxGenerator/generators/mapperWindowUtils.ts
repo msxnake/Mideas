@@ -3,6 +3,7 @@ import { usesMapperBanking } from './romModeUtils';
 export type MapperTargetFormat = 'konami' | 'ascii8' | 'ascii16';
 
 export interface MapperWindowConfig {
+  targetFormat: MapperTargetFormat;
   bankDivisorExpr: string;
   windowMaskExpr: string;
   windowBaseExpr: string;
@@ -16,6 +17,7 @@ export function getMapperWindowConfig(
 ): MapperWindowConfig {
   if (!usesMapperBanking(romMode)) {
     return {
+      targetFormat,
       bankDivisorExpr: '#2000',
       windowMaskExpr: '#1FFF',
       windowBaseExpr: '#8000',
@@ -26,6 +28,7 @@ export function getMapperWindowConfig(
 
   if (targetFormat === 'ascii16') {
     return {
+      targetFormat,
       bankDivisorExpr: '#4000',
       windowMaskExpr: '#3FFF',
       windowBaseExpr: '#8000',
@@ -34,11 +37,23 @@ export function getMapperWindowConfig(
     };
   }
 
+  if (targetFormat === 'konami') {
+    return {
+      targetFormat,
+      bankDivisorExpr: '#2000',
+      windowMaskExpr: '#1FFF',
+      windowBaseExpr: '#A000',
+      dataWindowPage: 'p3',
+      dataZoneSize: 0x2000,
+    };
+  }
+
   return {
+    targetFormat,
     bankDivisorExpr: '#2000',
     windowMaskExpr: '#1FFF',
     windowBaseExpr: '#8000',
-    dataWindowPage: 'p2',
+    dataWindowPage: 'p3',
     dataZoneSize: 0x2000,
   };
 }
@@ -52,7 +67,7 @@ export function buildMapperWindowedAddress(label: string, config: MapperWindowCo
 }
 
 export function buildMapperDataPushAsm(bankSymbol: string, config: MapperWindowConfig): string {
-  return `    call mapper_push_${config.dataWindowPage}\n    ld a, ${bankSymbol}\n    call mapper_set_bank_${config.dataWindowPage}\n`;
+  return `    call mapper_push_${config.dataWindowPage}\n    ld a, ${bankSymbol} & #FF\n    call mapper_set_bank_${config.dataWindowPage}\n`;
 }
 
 export function buildMapperDataPopAsm(config: MapperWindowConfig): string {

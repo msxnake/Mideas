@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\joc_tales_9_ascii16_hidden_calls_compressed.asm",
+  "metrics": {
+    "original_line_count": 20407,
+    "output_line_count": 20407,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-ftl3unkl\\joc_tales_9_ascii16_hidden_calls_compressed.optimized.optimized.rom",
+        "size_bytes": 131072,
+        "sha256": "065bce4e726a36ef2ecf008c23f7c672394de57df22c2a2394fd068946a93236"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-ftl3unkl\\joc_tales_9_ascii16_hidden_calls_compressed.original.rom",
+        "size_bytes": 131072,
+        "sha256": "065bce4e726a36ef2ecf008c23f7c672394de57df22c2a2394fd068946a93236"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

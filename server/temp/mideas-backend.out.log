@@ -1,0 +1,474 @@
+MSX IDE Compiler Backend listening at http://localhost:3001
+Compilation request received
+  projectName: atenas117_1_recovery_endpoint
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1534728
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_recovery_endpoint.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_recovery_endpoint.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_recovery_endpoint.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_recovery_endpoint.rom"
+Attempt: 1
+Error object: Error: Command failed: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_recovery_endpoint.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_recovery_endpoint.rom"
+Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -120
+	at java.io.ByteArrayOutputStream.<init>(Unknown Source)
+	at nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)
+	at nl.grauw.glass.Line.getBytes(Line.java:119)
+	at nl.grauw.glass.Source.getBytes(Source.java:91)
+	at nl.grauw.glass.Source.assemble(Source.java:53)
+	at nl.grauw.glass.Assembler.writeObject(Assembler.java:72)
+	at nl.grauw.glass.Assembler.main(Assembler.java:59)
+
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at ChildProcess.exithandler (node:child_process:417:12)
+    at ChildProcess.emit (node:events:519:28)
+    at maybeClose (node:internal/child_process:1101:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+  code: 1,
+  killed: false,
+  signal: null,
+  cmd: 'java -jar "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\glass.jar" -I "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\atenas117_1_recovery_endpoint.asm" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\atenas117_1_recovery_endpoint.rom"'
+}
+STDOUT: 
+STDERR: Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -120
+	at java.io.ByteArrayOutputStream.<init>(Unknown Source)
+	at nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)
+	at nl.grauw.glass.Line.getBytes(Line.java:119)
+	at nl.grauw.glass.Source.getBytes(Source.java:91)
+	at nl.grauw.glass.Source.assemble(Source.java:53)
+	at nl.grauw.glass.Assembler.writeObject(Assembler.java:72)
+	at nl.grauw.glass.Assembler.main(Assembler.java:59)
+
+===================================
+Glass compilation failed. Temp file: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_recovery_endpoint.asm
+Compilation request received
+  projectName: atenas117(1)
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1538701
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1__compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27639,
+  compressedBytes: 5886,
+  savedBytes: 21753,
+  netSavedBytes: 21753,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.rom"
+Attempt: 1
+Error object: Error: Command failed: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.rom"
+Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -318
+	at java.io.ByteArrayOutputStream.<init>(Unknown Source)
+	at nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)
+	at nl.grauw.glass.Line.getBytes(Line.java:119)
+	at nl.grauw.glass.Source.getBytes(Source.java:91)
+	at nl.grauw.glass.Source.assemble(Source.java:53)
+	at nl.grauw.glass.Assembler.writeObject(Assembler.java:72)
+	at nl.grauw.glass.Assembler.main(Assembler.java:59)
+
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at ChildProcess.exithandler (node:child_process:417:12)
+    at ChildProcess.emit (node:events:519:28)
+    at maybeClose (node:internal/child_process:1101:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+  code: 1,
+  killed: false,
+  signal: null,
+  cmd: 'java -jar "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\glass.jar" -I "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\atenas117_1_.asm" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\atenas117_1_.rom"'
+}
+STDOUT: 
+STDERR: Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -318
+	at java.io.ByteArrayOutputStream.<init>(Unknown Source)
+	at nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)
+	at nl.grauw.glass.Line.getBytes(Line.java:119)
+	at nl.grauw.glass.Source.getBytes(Source.java:91)
+	at nl.grauw.glass.Source.assemble(Source.java:53)
+	at nl.grauw.glass.Assembler.writeObject(Assembler.java:72)
+	at nl.grauw.glass.Assembler.main(Assembler.java:59)
+
+===================================
+Glass compilation failed. Temp file: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.asm
+Full error response: {
+  success: false,
+  error: 'MegaROM build failed',
+  details: 'The MegaROM build failed before Glass could write a valid ROM by 318 bytes. Check the MegaROM bank layout or generated ASM.',
+  command: 'java -jar "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\glass.jar" -I "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\atenas117_1_.asm" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\atenas117_1_.rom"',
+  sourceFile: 'C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\atenas117_1_.asm',
+  sourceCode: '; ==================================================================\n' +
+    '; ATENAS117(1) - MEGAROM UNIFIED FILE\n' +
+    '; File: unitedFiles.asm\n' +
+    '; ROM Mode: megarom (multi-bank, 8KB banks, ASCII8K/Konami pattern)\n' +
+    '; Mapper: konami\n' +
+    ';\n' +
+    '; Bank 0 [#4000-#5FFFh] : Bootstrap (header, bios, mapper, interrupt, init)\n' +
+    '; Banks 1-2 [#6000-#9FFFh] : Resident engine code\n' +
+    '; Bank 3+ (data) [#A000h+] : DATA TABLES (patterns, colors, screens, font - mapper data-window switch)\n' +
+    '; Banks after data [far]    : Overlay code, constrained to P1 trampolines\n' +
+    '; Generated artifacts: resource_ids.asm, resource_table.asm, resource_manager.asm, packing_manifest.txt, packing_manifest.json, manifest_v2.json, banks.json, project_usage.json, load_plan.json, bank_optimizer.json, tilebank_integrity.json, unused_report.txt, segment_budget.json\n' +
+    ';\n' +
+    '; Tiles: 70\n' +
+    '; Sprites: 7\n' +
+    '; Screens: 4\n' +
+    '; Entities: 2\n' +
+    '; Menus: No\n' +
+    '; HUD: No\n' +
+    '; State Machines: 2\n' +
+    '; Engine Execution Mode: interruptTaskManager\n' +
+    '; IRQ Task: slot 1 -> task_frame_counter (timer, every 1 f',
+  fullStderr: 'Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -318\r\n' +
+    '\tat java.io.ByteArrayOutputStream.<init>(Unknown Source)\r\n' +
+    '\tat nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)\r\n' +
+    '\tat nl.grauw.glass.Line.getBytes(Line.java:119)\r\n' +
+    '\tat nl.grauw.glass.Source.getBytes(Source.java:91)\r\n' +
+    '\tat nl.grauw.glass.Source.assemble(Source.java:53)\r\n' +
+    '\tat nl.grauw.glass.Assembler.writeObject(Assembler.java:72)\r\n' +
+    '\tat nl.grauw.glass.Assembler.main(Assembler.java:59)\r\n',
+  fullStdout: '',
+  errorCode: 1,
+  signal: null,
+  negativeDsOverflowBytes: 318,
+  plain48kPage0Info: null,
+  requestedRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  screenCompressionInfo: {
+    attempted: true,
+    applied: true,
+    method: 'ZX0',
+    candidateScreens: 40,
+    candidateScreenBlockMaps: 0,
+    candidateEffects: 0,
+    candidateBehaviorMaps: 0,
+    candidateTilePatterns: 3,
+    candidateTileColors: 3,
+    candidateFontPatterns: 0,
+    candidateFontColors: 0,
+    candidateSpritePatterns: 48,
+    compressedScreens: 0,
+    compressedScreenBlockMaps: 0,
+    compressedEffects: 0,
+    compressedBehaviorMaps: 0,
+    compressedTilePatterns: 0,
+    compressedTileColors: 0,
+    compressedFontPatterns: 0,
+    compressedFontColors: 0,
+    compressedSpritePatterns: 0,
+    originalBytes: 27639,
+    compressedBytes: 5886,
+    savedBytes: 21753,
+    netSavedBytes: 21753,
+    warning: null,
+    screenBufferSymbol: null,
+    effectsBufferSymbol: 'runtime_effects_layout',
+    behaviorBufferSymbol: null,
+    tilePatternBufferSymbol: null,
+    tileColorBufferSymbol: null,
+    fontPatternBufferSymbol: null,
+    fontColorBufferSymbol: null,
+    spritePatternBufferSymbol: null
+  },
+  compressedAsmFileInfo: {
+    compressedAsmFile: 'atenas117_1__compressed.asm',
+    compressedAsmPath: 'C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\atenas117_1__compressed.asm',
+    compressedAsmDownloadUrl: '/download/atenas117_1__compressed.asm',
+    unitedCompressedAsmFile: 'unitedCompressedFiles.asm',
+    unitedCompressedAsmPath: 'C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\unitedCompressedFiles.asm',
+    unitedCompressedAsmDownloadUrl: '/download/unitedCompressedFiles.asm'
+  },
+  romModeConflictWarning: 'Requested megarom, but Glass could not produce a valid MegaROM image.',
+  resolvedRomConfig: {
+    requestedRomMode: 'megarom',
+    resolvedRomMode: 'megarom_failed',
+    targetFormat: 'konami',
+    mapperTargetFormat: 'konami',
+    mapperActive: true,
+    reason: 'MegaROM build failed before producing a valid ROM.'
+  },
+  postAsmRecovery: {
+    applied: false,
+    error: 'Command failed: java -jar "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\glass.jar" -I "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\atenas117_1_1778703635701_52560.optimized.asm" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\atenas117_1_.postasm.rom"\n' +
+      'Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -85\r\n' +
+      '\tat java.io.ByteArrayOutputStream.<init>(Unknown Source)\r\n' +
+      '\tat nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)\r\n' +
+      '\tat nl.grauw.glass.Line.getBytes(Line.java:119)\r\n' +
+      '\tat nl.grauw.glass.Source.getBytes(Source.java:91)\r\n' +
+      '\tat nl.grauw.glass.Source.assemble(Source.java:53)\r\n' +
+      '\tat nl.grauw.glass.Assembler.writeObject(Assembler.java:72)\r\n' +
+      '\tat nl.grauw.glass.Assembler.main(Assembler.java:59)\r\n'
+  }
+}
+Compilation request received
+  projectName: atenas117(1)
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1542455
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1__compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27639,
+  compressedBytes: 5886,
+  savedBytes: 21753,
+  netSavedBytes: 21753,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 180224 bytes
+   8KB aligned: 180224 bytes (22x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 81920 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas117_1_.rom
+Compilation request received
+  projectName: atenas117(1)
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1543126
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1__compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27639,
+  compressedBytes: 5886,
+  savedBytes: 21753,
+  netSavedBytes: 21753,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 180224 bytes
+   8KB aligned: 180224 bytes (22x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 81920 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: atenas117_1_.rom
+Compilation request received
+  projectName: atenas117(1)1
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1540257
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_1_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 40,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 3,
+  candidateTileColors: 3,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 48,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 27639,
+  compressedBytes: 5886,
+  savedBytes: 21753,
+  netSavedBytes: 21753,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_1.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_1.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_1.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_1.rom"
+Attempt: 1
+Error object: Error: Command failed: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_1.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_1.rom"
+Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -41
+	at java.io.ByteArrayOutputStream.<init>(Unknown Source)
+	at nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)
+	at nl.grauw.glass.Line.getBytes(Line.java:119)
+	at nl.grauw.glass.Source.getBytes(Source.java:91)
+	at nl.grauw.glass.Source.assemble(Source.java:53)
+	at nl.grauw.glass.Assembler.writeObject(Assembler.java:72)
+	at nl.grauw.glass.Assembler.main(Assembler.java:59)
+
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at ChildProcess.exithandler (node:child_process:417:12)
+    at ChildProcess.emit (node:events:519:28)
+    at maybeClose (node:internal/child_process:1101:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+  code: 1,
+  killed: false,
+  signal: null,
+  cmd: 'java -jar "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\glass.jar" -I "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\atenas117_1_1.asm" "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\atenas117_1_1.rom"'
+}
+STDOUT: 
+STDERR: Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -41
+	at java.io.ByteArrayOutputStream.<init>(Unknown Source)
+	at nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)
+	at nl.grauw.glass.Line.getBytes(Line.java:119)
+	at nl.grauw.glass.Source.getBytes(Source.java:91)
+	at nl.grauw.glass.Source.assemble(Source.java:53)
+	at nl.grauw.glass.Assembler.writeObject(Assembler.java:72)
+	at nl.grauw.glass.Assembler.main(Assembler.java:59)
+
+===================================
+Glass compilation failed. Temp file: C:\Users\salam\Documents\Programacion\Mideas\server\temp\atenas117_1_1.asm
+Starting OpenMSX with ROM: atenas117_1_1.rom

@@ -1,0 +1,12 @@
+t4 pc=42C1 sp=F360
+SHOTOK joc_tales_9_char255_t4.png
+space1_before pc=84ED sp=F37C
+space1_after pc=84ED sp=F37C
+t9 pc=84ED sp=F37C
+SHOTOK joc_tales_9_char255_t9.png
+space2_before pc=6D0F sp=F374
+space2_after pc=62B2 sp=F374
+t14 pc=1A04 sp=F368
+SHOTOK joc_tales_9_char255_t14.png
+t18 pc=84ED sp=F37C
+SHOTOK joc_tales_9_char255_t18.png

@@ -2,13 +2,21 @@ import React, { useRef } from 'react';
 import { BossPhase, Tile } from '../../types';
 import { createTileDataURL } from '../utils/screenUtils';
 
-type BossEditMode = 'tiles' | 'collision' | 'weakpoints' | 'neck';
+type BossEditMode = 'tiles' | 'collision' | 'weakpoints' | 'neck' | 'fireorigin';
 
 export interface BossTileSelection {
     x: number;
     y: number;
     width: number;
     height: number;
+}
+
+export interface BossFireOriginMarker {
+    x: number;
+    y: number;
+    label: string;
+    title: string;
+    selected?: boolean;
 }
 
 /**
@@ -19,7 +27,7 @@ interface BossMovementControllerProps {
     phase: BossPhase;
     /** The tileset available for building the boss. */
     tileset: Tile[];
-    /** The current editing mode ('tiles', 'collision', 'weakpoints', or 'neck'). */
+    /** The current editing mode. */
     editMode: BossEditMode;
     /** Callback for when a grid cell is clicked. */
     onGridClick: (x: number, y: number) => void;
@@ -35,6 +43,8 @@ interface BossMovementControllerProps {
     tileSelection?: BossTileSelection | null;
     /** Callback for changing the selected tile rectangle. */
     onTileSelectionChange?: (selection: BossTileSelection | null) => void;
+    /** Attack fire origins to display on top of the boss grid. */
+    fireOriginMarkers?: BossFireOriginMarker[];
 }
 
 /**
@@ -52,6 +62,7 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
     selectionEnabled = false,
     tileSelection = null,
     onTileSelectionChange,
+    fireOriginMarkers = [],
 }) => {
     const dragAnchorRef = useRef<{ x: number; y: number } | null>(null);
     const hasDraggedRef = useRef(false);
@@ -98,8 +109,12 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
         onTileSelectionChange?.(normalizeSelection(anchor.x, anchor.y, x, y));
     };
 
-    const handleCellMouseUp = (x: number, y: number) => {
+    const handleCellMouseUp = (event: React.MouseEvent, x: number, y: number) => {
+        if (event.button !== 0) return;
         if (!selectionEnabled) return;
+
+        const anchor = dragAnchorRef.current;
+        if (!anchor) return;
 
         const wasDrag = hasDraggedRef.current;
         dragAnchorRef.current = null;
@@ -118,9 +133,9 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
                 </p>
             )}
             <div
-                className="aspect-square bg-msx-bgcolor border border-msx-border rounded-md overflow-auto p-1"
+                className="bg-msx-bgcolor border border-msx-border rounded-md p-1"
                 style={{
-                    width: 'min-content',
+                    width: 'max-content',
                     transform: `scale(${zoom})`,
                     transformOrigin: 'top left'
                 }}
@@ -142,16 +157,21 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
                         const isWeakPoint = phase.weakPoints?.find(wp => wp.x === x && wp.y === y);
                         const neckSegmentIndex = phase.neckChain?.segments.findIndex(segment => segment.x === x && segment.y === y) ?? -1;
                         const isNeckSegment = neckSegmentIndex >= 0;
+                        const cellFireOrigins = fireOriginMarkers.filter(marker => marker.x === x && marker.y === y);
+                        const selectedFireOrigin = cellFireOrigins.find(marker => marker.selected);
+                        const fireOriginTitle = cellFireOrigins.length > 0
+                            ? ` - fire ${cellFireOrigins.map(marker => marker.title).join(', ')}`
+                            : '';
 
                         return (
                             <div
                                 key={i}
                                 onMouseDown={(e) => handleCellMouseDown(e, x, y)}
                                 onMouseEnter={() => handleCellMouseEnter(x, y)}
-                                onMouseUp={() => handleCellMouseUp(x, y)}
+                                onMouseUp={(e) => handleCellMouseUp(e, x, y)}
                                 onContextMenu={(e) => onGridContextMenu(e, x, y)}
                                 className="w-8 h-8 border border-msx-border/20 relative cursor-pointer"
-                                title={`x:${x} y:${y}${tile ? ` - ${tile.name}` : ''}${isWeakPoint ? ` - weak dmg ${Math.max(1, isWeakPoint.health || 1)}` : ''}${isNeckSegment ? ` - neck ${neckSegmentIndex + 1}` : ''}`}
+                                title={`x:${x} y:${y}${tile ? ` - ${tile.name}` : ''}${isWeakPoint ? ` - weak dmg ${Math.max(1, isWeakPoint.health || 1)}` : ''}${isNeckSegment ? ` - neck ${neckSegmentIndex + 1}` : ''}${fireOriginTitle}`}
                             >
                                 {tile ? (
                                     <img src={createTileDataURL(tile, 0, 0, 32, 32, tile.width, 'SCREEN 2 (Graphics I)')} alt={tile.name} className="w-full h-full" style={{ imageRendering: 'pixelated' }} />
@@ -178,9 +198,30 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
                                     </div>
                                 )}
 
+                                {editMode === 'fireorigin' && (
+                                    <div className={`absolute inset-0 flex items-center justify-center font-bold transition-colors ${
+                                        selectedFireOrigin
+                                            ? 'border-2 border-orange-400 text-orange-300 bg-orange-400/25'
+                                            : cellFireOrigins.length > 0
+                                                ? 'border-2 border-orange-400/70 text-orange-300 bg-orange-400/15 hover:bg-orange-400/30'
+                                                : 'hover:bg-orange-400/30'
+                                    }`}
+                                    >
+                                        {selectedFireOrigin?.label || cellFireOrigins[0]?.label || ''}
+                                    </div>
+                                )}
+
                                 {editMode !== 'neck' && isNeckSegment && (
                                     <div className="absolute right-0 top-0 min-w-3 h-3 px-0.5 bg-msx-cyan text-msx-bgcolor text-[0.55rem] leading-3 text-center font-bold">
                                         {neckSegmentIndex + 1}
+                                    </div>
+                                )}
+
+                                {editMode !== 'fireorigin' && cellFireOrigins.length > 0 && (
+                                    <div className={`absolute left-0 top-0 min-w-3 h-3 px-0.5 text-[0.55rem] leading-3 text-center font-bold ${
+                                        selectedFireOrigin ? 'bg-orange-400 text-msx-bgcolor' : 'bg-orange-400/80 text-msx-bgcolor'
+                                    }`}>
+                                        {selectedFireOrigin?.label || cellFireOrigins[0].label}
                                     </div>
                                 )}
 
@@ -196,6 +237,7 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
                 {editMode === 'tiles' ? "Drag to select a block. Click to place the selected tile. Right-click to create/edit a tile." : 
                  editMode === 'collision' ? "Click to toggle collision blocks." : 
                  editMode === 'weakpoints' ? "Click an empty tile to add a weak point. Click a selected weak point again to remove it." :
+                 editMode === 'fireorigin' ? "Select an attack in the Attacks panel, then click the boss tile where it fires from." :
                  "Click tiles in order to build the neck movement vector."}
             </p>
         </div>

@@ -1,0 +1,16 @@
+t1 pc=108B exit=FF dialog=FF text=FF screen=FF engine=FF world=FF pxy=65535,65535
+t2 pc=108B exit=FF dialog=FF text=FF screen=FF engine=FF world=FF pxy=65535,65535
+presentation_space_before pc=108B exit=FF dialog=FF text=FF screen=FF engine=FF world=FF pxy=65535,65535
+presentation_space_after pc=0278 exit=FF dialog=FF text=FF screen=FF engine=FF world=FF pxy=65535,65535
+t3 pc=471A exit=00 dialog=FF text=FF screen=00 engine=FF world=00 pxy=56,160
+t4 pc=96C4 exit=00 dialog=FF text=FF screen=00 engine=FF world=00 pxy=56,160
+controls_down_before pc=96C4 exit=00 dialog=FF text=FF screen=00 engine=FF world=00 pxy=56,160
+controls_down_after pc=96C4 exit=00 dialog=FF text=FF screen=00 engine=FF world=00 pxy=56,160
+controls_down_before pc=96C4 exit=00 dialog=FF text=FF screen=00 engine=FF world=00 pxy=56,160
+t5 pc=96C4 exit=00 dialog=FF text=FF screen=00 engine=FF world=00 pxy=56,160
+controls_down_after pc=96C4 exit=00 dialog=FF text=FF screen=00 engine=FF world=00 pxy=56,160
+controls_down_before pc=96C4 exit=00 dialog=FF text=FF screen=00 engine=FF world=00 pxy=56,160
+controls_down_after pc=96C4 exit=00 dialog=FF text=FF screen=00 engine=FF world=00 pxy=56,160
+controls_down_before pc=96C4 exit=00 dialog=FF text=FF screen=00 engine=FF world=00 pxy=56,160
+t6 pc=96C4 exit=00 dialog=FF text=FF screen=00 engine=FF world=00 pxy=56,160
+controls_down_after pc=96C4 exit=00 dialog=FF text=FF screen=00 engine=FF world=00 pxy=56,160

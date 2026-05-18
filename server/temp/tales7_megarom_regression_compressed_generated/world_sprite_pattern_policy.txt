@@ -1,0 +1,14 @@
+WORLD SPRITE PATTERN POLICY
+Source: runtime sprite packs inferred from entities present in each world.
+Pack capacity: 64 slots (including placeholder).
+
+PACKS
+PACK 00 worldmap_1777742060101
+- display: World "New Worldmap"
+- slots: 2/64
+- placeholder_slot: 1
+- sprites:
+  0: New Sprite @ slot 0
+
+WORLD -> PACK
+00 New Worldmap (worldmap_1777742060101) -> worldmap_1777742060101 [id=0]

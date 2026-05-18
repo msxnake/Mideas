@@ -1,0 +1,24 @@
+t13_tables pc=A7D2 sp=F372 bank=01/02/03 flow=01 runtime=01 player=00 pxy=8,80
+t13_tables comp_lo=DB 8F 09 8F 8F DB 00 00
+t13_tables comp_hi=23 00 00 00 00 23 00 00
+t13_tables ex=08 6B A0 40 78 08 00 00
+t13_tables ey=50 A0 90 20 98 90 00 00
+t13_tables sprite_cfg=00 02 02 01 03 02 05 02 07 01 08 02 00 00 00 00
+t13_tables asset=07 09 00 00 01 07 FF FF
+t13_tables anim_frame=01 01 00 00 00 00 00 00
+t13_tables base_slots=00 04 00 06 0A 0C 12 16 1A 1C 1E 22 26 28 2E 32 36 38
+t13_tables sat_ram=50 08 60 06 50 08 64 0F A0 6B 74 0E E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF
+t13_tables sat_vram=50 08 60 06 50 08 64 0F A0 6B 74 0E E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF D1 00 2C 00
+SHOTOK t13_tables.png
+t16_tables pc=A708 sp=F37C bank=01/02/03 flow=01 runtime=01 player=00 pxy=142,81
+t16_tables comp_lo=DB 8F 09 8F 8F DB 00 00
+t16_tables comp_hi=23 00 00 00 00 23 00 00
+t16_tables ex=8E 84 A0 40 78 08 00 00
+t16_tables ey=51 A0 90 20 98 90 00 00
+t16_tables sprite_cfg=00 02 02 01 03 02 05 02 07 01 08 02 00 00 00 00
+t16_tables asset=08 09 00 00 01 07 FF FF
+t16_tables anim_frame=00 00 00 00 00 00 00 00
+t16_tables base_slots=00 04 00 06 0A 0C 12 16 1A 1C 1E 22 26 28 2E 32 36 38
+t16_tables sat_ram=51 8E 68 06 51 8E 6C 0F A0 84 70 0E E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF
+t16_tables sat_vram=51 8E 68 06 51 8E 6C 0F A0 84 70 0E E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF E0 FF FF FF D1 00 2C 00
+SHOTOK t16_tables.png

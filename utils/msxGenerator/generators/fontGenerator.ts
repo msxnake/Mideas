@@ -174,7 +174,10 @@ export function generateFontFile(
     targetFormat: MapperTargetFormat = 'konami'
 ): string {
     // Check if font is needed (menus, text, HUD elements, or dialogue)
-    const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
+    const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu' || node.type === 'Controls');
+    const hasGameFlowText = analysis.gameFlow?.nodes?.some(node =>
+        node.type === 'Text' || node.type === 'TextScroll' || node.type === 'TextScrollColor' || node.type === 'TextScroll2'
+    );
     const hasText = analysis.screenMaps?.some(screen =>
         (screen.layers as any)?.text || (screen as any).textElements?.length > 0
     );
@@ -188,7 +191,7 @@ export function generateFontFile(
     );
 
     // Skip font system if no text/menus/HUD/dialogue in project
-    if (!hasMenus && !hasText && !hasHUD && !hasDialogue) {
+    if (!hasMenus && !hasGameFlowText && !hasText && !hasHUD && !hasDialogue) {
         return `; ==================================================================
 ; MSX FONT DATA (SKIPPED - NO TEXT/MENUS/HUD DETECTED)
 ; File: font.asm
@@ -316,6 +319,7 @@ ${indexAsm}
 ; ==================================================================
 ; FONT LOADING FUNCTIONS
 ; ==================================================================
+; @mideas:block id=runtime.font.loading kind=routine owner=font roots=load_custom_font,load_font_bank0,load_font_bank1,load_font_bank2,load_all_font_banks,load_font_patterns_to_bank,load_font_colors,load_font_colors_all_banks,load_font_colors_to_bank
 
 load_custom_font:
     ; Load custom font patterns to VRAM Pattern Generator Table
@@ -385,7 +389,7 @@ ${useResourceManager ? `    ld a, ${fontPatternResourceId}
     ; Copy 8 bytes
     ld bc, 8
 ${useResourceManager ? `    ld a, (resource_descriptor_bank)
-    call resource_copy_from_bank_to_vram` : `    call FAST_LDIRVM              ; Copy from HL(RAM) to DE(VRAM)`}
+    call resource_copy_from_bank_to_vram` : fontInPage0 ? `    call page0_copy_to_vram       ; Copy from page0 ROM to DE(VRAM)` : `    call FAST_LDIRVM              ; Copy from HL(RAM) to DE(VRAM)`}
 
     ; Advance source pointer
     ld bc, 8
@@ -453,7 +457,7 @@ ${useResourceManager ? `    ld a, ${fontColorResourceId}
     ; Copy 8 bytes
     ld bc, 8
 ${useResourceManager ? `    ld a, (resource_descriptor_bank)
-    call resource_copy_from_bank_to_vram` : `    call FAST_LDIRVM              ; Copy from HL(RAM) to DE(VRAM)`}
+    call resource_copy_from_bank_to_vram` : fontInPage0 ? `    call page0_copy_to_vram       ; Copy from page0 ROM to DE(VRAM)` : `    call FAST_LDIRVM              ; Copy from HL(RAM) to DE(VRAM)`}
 
     ; Advance source pointer
     ld bc, 8
@@ -463,6 +467,7 @@ ${useResourceManager ? `    ld a, (resource_descriptor_bank)
     pop bc                        ; Restore loop counter
     djnz .load_colors_loop
 ${useResourceManager ? `    ret` : `${mapperPop}    ret`}
+; @mideas:endblock id=runtime.font.loading
 
 ; ==================================================================
 ; TEXT RENDERING FUNCTIONS (Based on Mideas renderMSX1TextToDataURL)
@@ -529,7 +534,10 @@ reload_font_system:
  * Used by unifiedGenerator when romMode === 'megarom' to emit data after org #C000.
  */
 export function getFontBank4Data(analysis: ProjectAnalysis): string {
-    const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
+    const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu' || node.type === 'Controls');
+    const hasGameFlowText = analysis.gameFlow?.nodes?.some(node =>
+        node.type === 'Text' || node.type === 'TextScroll' || node.type === 'TextScrollColor' || node.type === 'TextScroll2'
+    );
     const hasText = analysis.screenMaps?.some(screen =>
         (screen.layers as any)?.text || (screen as any).textElements?.length > 0
     );
@@ -539,7 +547,7 @@ export function getFontBank4Data(analysis: ProjectAnalysis): string {
     const hasDialogue = !!analysis.dialogues?.some((dialogue: any) =>
         Array.isArray(dialogue?.lines) && dialogue.lines.some((line: any) => String(line?.text || '').length > 0)
     );
-    if (!hasMenus && !hasText && !hasHUD && !hasDialogue) return '';
+    if (!hasMenus && !hasGameFlowText && !hasText && !hasHUD && !hasDialogue) return '';
 
     const { patternBytes, colorBytes, sortedCodes } = getFontRawData(analysis);
     let patternAsmBlob = `FONT_PATTERN_DATA:\n`;

@@ -1,0 +1,182 @@
+{
+  "version": 1,
+  "scope": "konami8k_tilebank_integrity",
+  "summary": {
+    "screens": 8,
+    "tileBanks": 1,
+    "checkedScreens": 8,
+    "issueScreens": 0,
+    "issueCells": 0,
+    "issueTiles": 0
+  },
+  "screens": [
+    {
+      "index": 0,
+      "id": "screenmap_1770754008863",
+      "name": "pan1",
+      "tileBankAssetId": "tilebank_1770753778086",
+      "tileBankName": "New Tilebank",
+      "activeArea": {
+        "x": 0,
+        "y": 3,
+        "width": 32,
+        "height": 21
+      },
+      "status": "ok",
+      "totals": {
+        "checkedCells": 258,
+        "uniqueTiles": 11,
+        "issueCells": 0,
+        "issueTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 1,
+      "id": "screenmap_1771184738851",
+      "name": "pan2",
+      "tileBankAssetId": "tilebank_1770753778086",
+      "tileBankName": "New Tilebank",
+      "activeArea": {
+        "x": 0,
+        "y": 3,
+        "width": 32,
+        "height": 21
+      },
+      "status": "ok",
+      "totals": {
+        "checkedCells": 229,
+        "uniqueTiles": 6,
+        "issueCells": 0,
+        "issueTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 2,
+      "id": "screenmap_1771482721894",
+      "name": "background1",
+      "tileBankAssetId": "tilebank_1770753778086",
+      "tileBankName": "New Tilebank",
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "ok",
+      "totals": {
+        "checkedCells": 768,
+        "uniqueTiles": 2,
+        "issueCells": 0,
+        "issueTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 3,
+      "id": "screenmap_1771880109228",
+      "name": "pan3",
+      "tileBankAssetId": "tilebank_1770753778086",
+      "tileBankName": "New Tilebank",
+      "activeArea": {
+        "x": 0,
+        "y": 3,
+        "width": 32,
+        "height": 21
+      },
+      "status": "ok",
+      "totals": {
+        "checkedCells": 252,
+        "uniqueTiles": 5,
+        "issueCells": 0,
+        "issueTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 4,
+      "id": "screenmap_1772291683578",
+      "name": "pan4",
+      "tileBankAssetId": "tilebank_1770753778086",
+      "tileBankName": "New Tilebank",
+      "activeArea": {
+        "x": 0,
+        "y": 3,
+        "width": 32,
+        "height": 21
+      },
+      "status": "ok",
+      "totals": {
+        "checkedCells": 183,
+        "uniqueTiles": 7,
+        "issueCells": 0,
+        "issueTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 5,
+      "id": "screenmap_1773321312901",
+      "name": "pan5",
+      "tileBankAssetId": "tilebank_1770753778086",
+      "tileBankName": "New Tilebank",
+      "activeArea": {
+        "x": 0,
+        "y": 3,
+        "width": 32,
+        "height": 21
+      },
+      "status": "ok",
+      "totals": {
+        "checkedCells": 312,
+        "uniqueTiles": 6,
+        "issueCells": 0,
+        "issueTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 6,
+      "id": "screenmap_1773382451315",
+      "name": "pan6",
+      "tileBankAssetId": "tilebank_1770753778086",
+      "tileBankName": "New Tilebank",
+      "activeArea": {
+        "x": 0,
+        "y": 3,
+        "width": 32,
+        "height": 21
+      },
+      "status": "ok",
+      "totals": {
+        "checkedCells": 216,
+        "uniqueTiles": 8,
+        "issueCells": 0,
+        "issueTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 7,
+      "id": "screenmap_1774194791624",
+      "name": "pan1_2",
+      "tileBankAssetId": "tilebank_1770753778086",
+      "tileBankName": "New Tilebank",
+      "activeArea": {
+        "x": 0,
+        "y": 3,
+        "width": 32,
+        "height": 21
+      },
+      "status": "ok",
+      "totals": {
+        "checkedCells": 129,
+        "uniqueTiles": 5,
+        "issueCells": 0,
+        "issueTiles": 0
+      },
+      "issues": []
+    }
+  ]
+}

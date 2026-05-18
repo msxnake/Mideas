@@ -1,0 +1,11 @@
+SCREEN RESOURCE POLICY
+Logical view of resources consumed by screen/world loading paths.
+
+COMMON RESOURCES
+- patterns: RESOURCE_ID_TILE_PATTERN_BANK0 -> load_pattern_bank0/load_pattern_bank1/load_pattern_bank2
+- colors: RESOURCE_ID_TILE_COLOR_BANK0 -> load_color_bank0/load_color_bank1/load_color_bank2
+- font patterns: RESOURCE_ID_FONT_PATTERN_DATA
+- font colors: RESOURCE_ID_FONT_COLOR_DATA
+- presentation: none
+
+No screens detected.

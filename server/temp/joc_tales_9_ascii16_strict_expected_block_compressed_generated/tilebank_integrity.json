@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "scope": "konami8k_tilebank_integrity",
+  "summary": {
+    "screens": 1,
+    "tileBanks": 1,
+    "checkedScreens": 1,
+    "issueScreens": 0,
+    "issueCells": 0,
+    "issueTiles": 0
+  },
+  "screens": [
+    {
+      "index": 0,
+      "id": "screenmap_1777833014252",
+      "name": "New Playable Screen",
+      "tileBankAssetId": "tilebank_1777833005588",
+      "tileBankName": "New Tilebank",
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "ok",
+      "totals": {
+        "checkedCells": 32,
+        "uniqueTiles": 1,
+        "issueCells": 0,
+        "issueTiles": 0
+      },
+      "issues": []
+    }
+  ]
+}

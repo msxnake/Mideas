@@ -27,7 +27,8 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     id: "comp_box", name: "Box",
     description: "Marks this entity as a carriable box that can be picked up and moved.",
     properties: [
-      { name: "isCarriable", type: "boolean", defaultValue: "true", description: "Whether this box can be picked up by entities with comp_carry." }
+      { name: "isCarriable", type: "boolean", defaultValue: "true", description: "Whether this box can be picked up by entities with comp_carry." },
+      { name: "droppedTileAssetId", type: "tile_ref", defaultValue: "", description: "Optional tile/metatile used when the box is dropped back into the map." }
     ],
   },
   {
@@ -58,9 +59,14 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   {
     id: "comp_behavior", name: "Behavior",
     properties: [
-      { name: "scriptAssetId", type: "behavior_script_ref", defaultValue: "", description: "ID of the behavior script to run" }
+      { name: "scriptAssetId", type: "behavior_script_ref", defaultValue: "", description: "ID of the behavior script to run" },
+      { name: "behaviorType", type: "string", defaultValue: "none", description: "Built-in ASM behavior: none, follow_player_x, flee_player_x, face_player_x, or walk_x_wall_turn." },
+      { name: "initialDirection", type: "string", defaultValue: "right", description: "Initial direction for walking behaviors: left or right." },
+      { name: "speed", type: "byte", defaultValue: "1", description: "Horizontal speed for built-in movement behaviors." },
+      { name: "range", type: "byte", defaultValue: "64", description: "Maximum X distance to react to the player. 0 means unlimited." },
+      { name: "stopDistance", type: "byte", defaultValue: "4", description: "X distance at or below which movement behaviors stop." }
     ],
-    description: "Attaches a behavior script to an entity."
+    description: "Attaches a behavior script or a small built-in ASM behavior to an entity."
   },
   {
     id: "comp_auto_control_script", name: "AutoControlScript",
@@ -76,6 +82,14 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "commands", type: "string", defaultValue: "move_right 64\njump\ndash_right\ndelay 1000\nplay_dialog", description: "One command per line: move_right or move right pixels, jump, dash_right or dash right, grab_wall, release_wall, delay ms, wait seconds, play_dialog, open_dialog/open frame_dialog, write_line/write text index, wait_spc/wait SPC, wait_text/wait text, clear_dialog/clean, close_dialog." }
     ],
     description: "Editor-only script data for FakePlayer/tutorial actors. It does not change the real Player control path."
+  },
+  {
+    id: "comp_mirror", name: "Mirror",
+    description: "Inverts horizontal velocity after control/AI/state-machine logic and before position is applied.",
+    properties: [
+      { name: "enabled", type: "boolean", defaultValue: "true", description: "Whether horizontal movement mirroring is active for this entity." },
+      { name: "invertFacing", type: "boolean", defaultValue: "true", description: "If true, also flips the cached facing direction when X velocity is inverted." }
+    ],
   },
   {
     id: "comp_health", name: "Health",
@@ -97,6 +111,7 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: "Manages jumping behavior for an entity.",
     properties: [
       { name: "jumpPower", type: "word", defaultValue: "256", description: "Initial upward velocity or force." },
+      { name: "trigger", type: "string", defaultValue: "fire", description: "Input action that starts a jump: fire, action2, or up." },
       { name: "jumpSprite", type: "sprite_ref", defaultValue: "", description: "Sprite to use while jumping." },
       { name: "maxJumps", type: "byte", defaultValue: "1", description: "Number of jumps allowed before landing." },
       { name: "currentJumpCount", type: "byte", defaultValue: "0", description: "Current jump count." },
@@ -149,6 +164,13 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "stopOnCollision", type: "boolean", defaultValue: "true", description: "Whether to stop entity movement when hitting a wall." }
     ],
     description: "Defines collision detection with solid tiles in the collision layer (walls, obstacles)."
+  },
+  {
+    id: "comp_limit_on", name: "Limit_on",
+    properties: [
+      { name: "isEnabled", type: "boolean", defaultValue: "true", description: "If enabled, prevents the player from leaving a screen edge when the WorldMap has no adjacent screen in that direction." }
+    ],
+    description: "Marker component for player screen limits. Empty WorldMap edges behave like implicit walls."
   },
   {
     id: "comp_wall_jump", name: "Wall Jump",
@@ -218,6 +240,10 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     id: "comp_ai_behavior", name: "AIBehavior",
     properties: [
       { name: "aiState", type: "string", defaultValue: "idle", description: "Current AI state (e.g., 'idle', 'patrol', 'chase')." },
+      { name: "behaviorType", type: "string", defaultValue: "none", description: "Built-in ASM behavior: none, follow_player_x, flee_player_x, face_player_x, or walk_x_wall_turn." },
+      { name: "initialDirection", type: "string", defaultValue: "right", description: "Initial direction for walking behaviors: left or right." },
+      { name: "speed", type: "byte", defaultValue: "1", description: "Horizontal speed for built-in movement behaviors." },
+      { name: "stopDistance", type: "byte", defaultValue: "4", description: "X distance at or below which movement behaviors stop." },
       { name: "stateTimer", type: "word", defaultValue: "0", description: "Timer for current AI state duration or cooldown." },
       { name: "targetEntityTemplateId", type: "entity_template_ref", defaultValue: "", description: "ID of the entity template this AI is targeting (e.g., 'tpl_player')." },
       { name: "patrolRangeX", type: "word", defaultValue: "64", description: "Horizontal patrol range." },
@@ -267,6 +293,11 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: "Marker component. Enables per-entity detection of deadly behavior-map tiles and updates the runtime flag used by the state machine."
   },
   {
+    id: "comp_in_water", name: "In Water",
+    properties: [],
+    description: "Marker component for entities that should react to water effect zones or water-specific runtime rules."
+  },
+  {
     id: "comp_collectible", name: "Collectible",
     properties: [
       { name: "itemType", type: "string", defaultValue: "coin", description: "Type of collectible (e.g., 'coin', 'key', 'powerup_health')." },
@@ -308,7 +339,9 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: "Configures a basic projectile shot for an entity (e.g., player/boss/enemy).",
     properties: [
       { name: "hasAmmo", type: 'boolean', defaultValue: 'true', description: "If false, shooting is disabled (HasAmmo). Manageable from State Machine." },
+      { name: "mode", type: 'string', defaultValue: 'sprite', description: "Shot mode: 'sprite' spawns a projectile entity, 'char' uses one moving 8x8 screen char." },
       { name: "spriteAssetId", type: 'sprite_ref', defaultValue: '', description: "Projectile sprite asset to render (Render)." },
+      { name: "charCode", type: 'byte', defaultValue: '250', description: "Screen 2 character code used when mode is 'char'." },
       { name: "render2", type: 'sprite_ref', defaultValue: '', description: "Explosion sprite asset to render on impact (Render2). Non-looping animation recommended." },
       { name: "offsetX", type: 'word', defaultValue: '0', description: "Horizontal offset from shooter center (Offset X)." },
       { name: "offsetY", type: 'word', defaultValue: '0', description: "Vertical offset from shooter center (Offset Y)." },
@@ -320,6 +353,7 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "range", type: 'word', defaultValue: '128', description: "Max travel distance in pixels (distancia de alcance)." },
       { name: "damage", type: 'word', defaultValue: '1', description: "Damage applied on hit (daño)." },
       { name: "cooldownMs", type: 'word', defaultValue: '250', description: "Time between shots in ms (fire rate)." },
+      { name: "trigger", type: 'string', defaultValue: 'fire', description: "Input action that fires: fire, action2, or up." },
       { name: "fireKey", type: 'string', defaultValue: 'KeyX', description: "Keyboard code to fire (e.code), defaults to KeyX." },
       { name: "expireOnHit", type: 'boolean', defaultValue: 'true', description: "If true, projectile despawns on first hit." },
       { name: "anchor", type: 'string', defaultValue: 'center', description: "Spawn anchor relative to shooter (Parent/anchor). Currently informational." }
@@ -485,6 +519,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_pos", defaultValues: { x: 32, y: 100 } },
       { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player", isVisible: true, layer: 1 } },
       { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
+      { definitionId: "comp_limit_on", defaultValues: { isEnabled: true } },
       { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2, allowUp: true, allowDown: true, allowLeft: true, allowRight: true } }
     ],
     description: "Minimal default player with position, render, health and cursor movement."
@@ -505,7 +540,9 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_carry", defaultValues: { offset: 0 } },
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
       { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", isEnabled: true } },
-      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 } }
+      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 } },
+      { definitionId: "comp_limit_on", defaultValues: { isEnabled: true } },
+      { definitionId: "comp_dash", defaultValues: { dashSpeed: "6", dashDurationFrames: "10", dashCooldownFrames: "12", maxAirDashes: "1", refillOnGround: true, refillOnWallGrab: true, allowEightDirections: true, isEnabled: true } }
     ],
     description: "The main player character."
   },
@@ -574,6 +611,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 14, offsetX: 2, offsetY: 1, collisionLayer: 1, collidesWith: 6 } }, // Collides with enemies (2) and enemy bullets (4)
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
       { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 3 } },
+      { definitionId: "comp_limit_on", defaultValues: { isEnabled: true } },
       { definitionId: "comp_aiming", defaultValues: { targetEntityTemplateId: "tpl_enemy_basic", aimingRange: 200, rotationSpeed: 0, fieldOfView: 255 } },
       { definitionId: "comp_damage", defaultValues: { damageAmount: 1, damageType: "laser", knockbackForce: 2 } }
     ],
@@ -601,6 +639,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 15, offsetX: 2, offsetY: 1, tileSize: 8, stopOnCollision: true } },
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
       { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2, allowUp: false, allowDown: false, allowLeft: true, allowRight: true } },
+      { definitionId: "comp_limit_on", defaultValues: { isEnabled: true } },
       { definitionId: "comp_gravity", defaultValues: { strength: "80", terminalVelocity: "1024" } },
       { definitionId: "comp_jump", defaultValues: { jumpPower: "384", maxJumps: "1", requireKeyRelease: true } },
       { definitionId: "comp_air_control", defaultValues: { airControlMode: "full", isEnabled: true } },
@@ -614,6 +653,29 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
     description: "Minimal MSX Screen 2 platformer player for Mario, Celeste and Metroid-style tests. Uses core movement, tile collision, health and animation components."
   },
   {
+    id: "tpl_player_platform", name: "Player_Platform", icon: "P", isPlayer: true,
+    components: [
+      { definitionId: "comp_pos", defaultValues: { x: 32, y: 120 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player", isVisible: true, layer: 1 } },
+      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: 0, friction: 32, mass: 1 } },
+      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 15, offsetX: 2, offsetY: 1, collisionLayer: 1, collidesWith: 14, isStatic: false, isTrigger: false } },
+      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 15, offsetX: 2, offsetY: 1, tileSize: 8, stopOnCollision: true } },
+      { definitionId: "comp_wall_grab", defaultValues: { grabFallSpeed: "1", climbSpeed: "1", grabDurationFrames: "240", grabSpriteAssetId: "", isEnabled: true } },
+      { definitionId: "comp_dash", defaultValues: { dashSpeed: "6", dashDurationFrames: "10", dashCooldownFrames: "12", maxAirDashes: "1", refillOnGround: true, refillOnWallGrab: true, allowEightDirections: true, isEnabled: true } },
+      { definitionId: "comp_jump", defaultValues: { jumpPower: "384", trigger: "fire", jumpSprite: "", maxJumps: "1", currentJumpCount: "0", isJumping: false, requireKeyRelease: true } },
+      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", currentFrameIndex: "0", animationSpeed: "8", loops: true, isPlaying: true, animateOnlyWhenMoving: true } },
+      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2, allowUp: false, allowDown: false, allowLeft: true, allowRight: true } },
+      { definitionId: "comp_limit_on", defaultValues: { isEnabled: true } },
+      { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", currentStateId: "Idle", isEnabled: true } },
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
+      { definitionId: "comp_gravity", defaultValues: { strength: "80", terminalVelocity: "1024" } },
+      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", targetVariable: "", incrementAmount: 0, flagVariable: "", flagValue: 1, bonusTileId: "", bonusReplacementTileId: "", bonusSoundId: "", bonusIsPersistent: false, bonusEntityEffect: "none", bonusEffectAmount: 1, bonusSlashStrength: 8, bonusRespawnSeconds: 0, isEnabled: true } },
+      { definitionId: "comp_deadly_tiles", defaultValues: {} }
+    ],
+    description: "Platform player template with input, cursors, state machine, tile collision, wall grab, dash, jump, gravity, collection, deadly tiles, health and animation."
+  },
+  {
     id: "tpl_msx_topdown_player", name: "MSX Top-Down Player", icon: "T", isPlayer: true,
     components: [
       { definitionId: "comp_pos", defaultValues: { x: 32, y: 32 } },
@@ -624,6 +686,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, tileSize: 8, stopOnCollision: true } },
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
       { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2, allowUp: true, allowDown: true, allowLeft: true, allowRight: true } },
+      { definitionId: "comp_limit_on", defaultValues: { isEnabled: true } },
       { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", targetVariable: "", incrementAmount: 0, flagVariable: "", flagValue: 1, bonusTileId: "", bonusReplacementTileId: "", bonusSoundId: "", bonusIsPersistent: false, bonusEntityEffect: "none", bonusEffectAmount: 1, bonusSlashStrength: 8, bonusRespawnSeconds: 0, isEnabled: true } },
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "topdown_idle", animationSpeed: "8", animateOnlyWhenMoving: true } },
       { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", currentStateId: "Idle", isEnabled: true } }
@@ -640,6 +703,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 14, offsetX: 2, offsetY: 1, collisionLayer: 1, collidesWith: 6 } },
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
       { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 3, allowUp: true, allowDown: true, allowLeft: true, allowRight: true } },
+      { definitionId: "comp_limit_on", defaultValues: { isEnabled: true } },
       { definitionId: "comp_shoot", defaultValues: { hasAmmo: true, spriteAssetId: "placeholder_sprite_bullet", render2: "", offsetX: 0, offsetY: -8, speed: "4", aimMode: "4dir", allowDiagonals: false, velocityX: "0", velocityY: "-4", range: "128", damage: "1", cooldownMs: "250", fireKey: "Space", expireOnHit: true, anchor: "center" } },
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "ship_idle", animationSpeed: "8", animateOnlyWhenMoving: false } },
       { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", currentStateId: "Idle", isEnabled: true } }
@@ -684,6 +748,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, tileSize: 8, stopOnCollision: true } },
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
       { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 } },
+      { definitionId: "comp_limit_on", defaultValues: { isEnabled: true } },
       { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", targetVariable: "", incrementAmount: 0, flagVariable: "", flagValue: 1, bonusTileId: "", bonusReplacementTileId: "", bonusSoundId: "", bonusIsPersistent: false, bonusEntityEffect: "none", bonusEffectAmount: 1, bonusSlashStrength: 8, bonusRespawnSeconds: 0, isEnabled: true } },
       { definitionId: "comp_inventory", defaultValues: { maxItems: 255, currentItemCount: 0, showCountOnScreen: true, countDisplayX: 1, countDisplayY: 1, scorePerItem: 10, totalScore: 0 } }
     ],
@@ -697,6 +762,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
       { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 16, hitboxHeight: 16, offsetX: 0, offsetY: 0, tileSize: 8, stopOnCollision: true } },
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
+      { definitionId: "comp_limit_on", defaultValues: { isEnabled: true } },
       {
         definitionId: "comp_pacMovement", defaultValues: {
           speed: 1,
@@ -725,6 +791,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
       { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 16, hitboxHeight: 16, offsetX: 0, offsetY: 0, tileSize: 8, stopOnCollision: true } },
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
+      { definitionId: "comp_limit_on", defaultValues: { isEnabled: true } },
       {
         definitionId: "comp_PacmanMovementV2", defaultValues: {
           speed: 1,
@@ -750,7 +817,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
     components: [
       { definitionId: "comp_pos", defaultValues: { x: 64, y: 64 } },
       { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_box", isVisible: true, layer: 1 } },
-      { definitionId: "comp_box", defaultValues: { isCarriable: true } },
+      { definitionId: "comp_box", defaultValues: { isCarriable: true, droppedTileAssetId: "" } },
       {
         definitionId: "comp_collision", defaultValues: {
           hitboxWidth: 16,

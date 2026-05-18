@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\patoantic248_konami_openmsx_compare_compressed.asm",
+  "metrics": {
+    "original_line_count": 46047,
+    "output_line_count": 46047,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-uoerwjp8\\patoantic248_konami_openmsx_compare_compressed.optimized.optimized.rom",
+        "size_bytes": 180224,
+        "sha256": "d649fcfc5254f2cdd51738020f6ee84761bb5ae7441dd94bcfe38cf187dec4a2"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-uoerwjp8\\patoantic248_konami_openmsx_compare_compressed.original.rom",
+        "size_bytes": 180224,
+        "sha256": "d649fcfc5254f2cdd51738020f6ee84761bb5ae7441dd94bcfe38cf187dec4a2"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

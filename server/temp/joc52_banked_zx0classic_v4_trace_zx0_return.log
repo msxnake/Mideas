@@ -1,0 +1,4 @@
+BP_4010 pc=4010 sp=F2EC a=1F hl=4004 de=4010 bc=0101 p3=00 id=BB bank=BA addr=99A9 size=3393 raw=0040 flags=00
+ZX0_ENTER pc=4512 sp=F368 a=10 hl=A1DA de=D45A bc=001D p3=03 id=26 bank=10 addr=A1DA size=001D raw=0060 flags=01
+space_before pc=199D sp=C4F4 a=00 hl=8000 de=516D bc=F4AE p3=FF id=FF bank=FF addr=FFFF size=FFFF raw=FFFF flags=FF
+t9 pc=199D sp=48DC a=1E hl=0000 de=01FF bc=F41E p3=FF id=FF bank=FF addr=FFFF size=FFFF raw=FFFF flags=FF

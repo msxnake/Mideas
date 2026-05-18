@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\joc64_projectile_layers_anim_fixed3_opt_compressed.asm",
+  "metrics": {
+    "original_line_count": 21422,
+    "output_line_count": 21422,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-9g9mhct_\\joc64_projectile_layers_anim_fixed3_opt_compressed.optimized.optimized.rom",
+        "size_bytes": 32896,
+        "sha256": "2c17b30a0975b83cd5a0b944351914e48ea2972100edaff1be95ffc8bf7471ba"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-9g9mhct_\\joc64_projectile_layers_anim_fixed3_opt_compressed.original.rom",
+        "size_bytes": 32896,
+        "sha256": "2c17b30a0975b83cd5a0b944351914e48ea2972100edaff1be95ffc8bf7471ba"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

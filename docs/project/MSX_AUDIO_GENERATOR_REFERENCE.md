@@ -118,7 +118,8 @@ Tras las pruebas reales de marzo de 2026, el tick musical ya no debe depender so
 
 - `header.asm` sigue haciendo `music_init_system` al arrancar.
 - Los tracks internos del tracker de Mideas no auto-registran el task de audio por defecto: `gameflow.asm` llama `music_update` desde los bucles sincronizados con `HALT`.
-- Los tracks `external-pt3` si auto-registran `music_update` en `H.TIMI` por defecto, salvo que `interruptConfig.enableAudioTask` se fuerce explicitamente a `false`.
+- Los tracks `external-pt3` en ROM lineal si auto-registran `music_update` en `H.TIMI` por defecto, salvo que `interruptConfig.enableAudioTask` se fuerce explicitamente a `false`.
+- Los tracks `external-pt3` en MegaROM usan por defecto el tick del bucle `HALT`, porque cambiar bancos para ejecutar el replayer dentro de `H.TIMI` puede desestabilizar MSX2. Se puede forzar el comportamiento antiguo con `interruptConfig.enableAudioTask=true`.
 - Si el proyecto usa state machines con sonido, esos mismos bucles llaman tambien `SM_UpdateSound`.
 
 Motivo:
@@ -131,7 +132,7 @@ Motivo:
 Para el backend `external-pt3` hay dos invariantes que no deben romperse:
 
 - Si `externalPt3HasHeader=false`, la tabla debe apuntar a `track_label - 99`.
-  Motivo: el bloque serializado empieza en el byte original 99 del fichero PT3, y `PT3_INIT` necesita reconstruir `PT3_MODADDR` como base original del modulo.
+  Motivo: el bloque serializado empieza en el byte original 99 del fichero PT3. `PT3_INIT` suma 100 y espera leer la velocidad en el byte original 100, asi que hay que reconstruir la base original del modulo.
 - `music_update` debe envolver `PT3_INIT`, `PT3_PLAY` y `PT3_ROUT` con `DI/EI` cuando se llamen desde el loop principal.
   Motivo: `PT3_ROUT` escribe PSG directamente por puertos y no debe quedar interrumpido a mitad de frame.
 - `init_sound_system` debe inicializarse en el boot global y no dentro de `init_game_systems`.

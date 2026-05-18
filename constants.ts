@@ -132,7 +132,7 @@ export const DEFAULT_SCREEN5_CUSTOM_PALETTE: Screen5PaletteSlot[] = MSX_SCREEN5_
 
 
 /** An array of allowed tile dimensions (width/height) in the tile editor. */
-export const EDITABLE_TILE_DIMENSIONS: number[] = [8, 16, 24, 32];
+export const EDITABLE_TILE_DIMENSIONS: number[] = Array.from({ length: 16 }, (_, index) => (index + 1) * 8);
 /** The default width of a new tile. */
 export const DEFAULT_TILE_WIDTH = 16;
 /** The default height of a new tile. */
@@ -576,9 +576,9 @@ export const DEFAULT_PSG_INSTRUMENTS: PT3Instrument[] = [
 /**
  * The default configuration for tile banks in a new project.
  * Divides the screen into HUD, main game area, and status bar.
- * Character 0 is reserved for empty cells.
- * Bank 0 uses full range (0-255): Characters 0-127 for fonts/text, 128-255 for HUD tiles.
- * Banks 1-2 use range 128-255 for game tiles only.
+ * Characters 254 and 255 are reserved runtime sentinels and are not assignable.
+ * Bank 0 uses range 0-253: Characters 0-127 for fonts/text, 128-253 for HUD tiles.
+ * Banks 1-2 use range 0-253 for game tiles only.
  */
 export const DEFAULT_TILE_BANK_DEFINITIONS: TileBankDefinition[] = [
   {
@@ -588,8 +588,8 @@ export const DEFAULT_TILE_BANK_DEFINITIONS: TileBankDefinition[] = [
     vramPatternStart: 0x0000,
     vramColorStart: 0x2000,
     screenZone: { x: 0, y: 0, width: DEFAULT_SCREEN_WIDTH_TILES, height: 8 },
-    charsetRangeStart: 0,    // Full range for fonts (0-127) and HUD tiles (128-255)
-    charsetRangeEnd: 255,
+    charsetRangeStart: 0,    // Fonts (0-127) and HUD tiles (128-253); 254/255 reserved
+    charsetRangeEnd: 253,
     defaultFgColorIndex: 15,
     defaultBgColorIndex: 4,
     isLocked: false,
@@ -602,8 +602,8 @@ export const DEFAULT_TILE_BANK_DEFINITIONS: TileBankDefinition[] = [
     vramPatternStart: 0x0800,
     vramColorStart: 0x2800,
     screenZone: { x: 0, y: 8, width: DEFAULT_SCREEN_WIDTH_TILES, height: 8 },
-    charsetRangeStart: 0,    // Full range for fonts (0-127) and Game tiles (128-255)
-    charsetRangeEnd: 255,
+    charsetRangeStart: 0,    // Fonts (0-127) and game tiles (128-253); 254/255 reserved
+    charsetRangeEnd: 253,
     defaultFgColorIndex: 2,
     defaultBgColorIndex: 1,
     isLocked: false,
@@ -616,8 +616,8 @@ export const DEFAULT_TILE_BANK_DEFINITIONS: TileBankDefinition[] = [
     vramPatternStart: 0x1000,
     vramColorStart: 0x3000,
     screenZone: { x: 0, y: 16, width: DEFAULT_SCREEN_WIDTH_TILES, height: 8 },
-    charsetRangeStart: 0,    // Full range for fonts (0-127) and Background tiles (128-255)
-    charsetRangeEnd: 255,
+    charsetRangeStart: 0,    // Fonts (0-127) and background tiles (128-253); 254/255 reserved
+    charsetRangeEnd: 253,
     defaultFgColorIndex: 11,
     defaultBgColorIndex: 6,
     isLocked: false,

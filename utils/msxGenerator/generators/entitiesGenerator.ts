@@ -72,8 +72,49 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
     return ((raw % safePeriod) + safePeriod) % safePeriod;
   };
 
+  const resolveBehaviorType = (value: any): number => {
+    const normalized = String(value ?? 'none').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    if (['follow_player_x', 'followx', 'follow_x', 'chase', 'chase_x', 'chase_player_x', 'move_to_player_x'].includes(normalized)) {
+      return 1;
+    }
+    if (['flee_player_x', 'fleex', 'flee_x', 'avoid_player_x', 'run_from_player_x'].includes(normalized)) {
+      return 2;
+    }
+    if (['face_player_x', 'facex', 'face_x', 'look_at_player_x', 'look_player_x'].includes(normalized)) {
+      return 3;
+    }
+    if (['walk_x_wall_turn', 'walk_wall_turn_x', 'walk_x', 'walker_x', 'wall_bounce_x', 'wall_turn_x', 'turn_on_wall_x'].includes(normalized)) {
+      return 4;
+    }
+    return 0;
+  };
+
+  const resolveBehaviorDirection = (value: any): number => {
+    const normalized = String(value ?? 'right').trim().toLowerCase();
+    if (['left', 'l', '-1', 'west', 'w'].includes(normalized)) return 1;
+    return 2;
+  };
+
   const toHexByte = (value: number): string =>
     (value & 0xFF).toString(16).toUpperCase().padStart(2, '0');
+
+  // Numeric values must stay in sync with COMP_TRIGGER_* constants emitted by componentsGenerator.
+  const parseActionTrigger = (value: any, defaultValue: 'fire' | 'action2' | 'up' = 'fire'): number => {
+    const raw = String(value ?? defaultValue).trim().toLowerCase();
+    const normalized = raw.replace(/[\s_-]+/g, '');
+    if (['action2', 'fire2', 'grab', 'button2', 'btn2', 'secondbutton', 'keyn', 'n', 'keym', 'm'].includes(normalized)) {
+      return 1;
+    }
+    if (['up', 'arrowup', 'cursorup'].includes(normalized)) {
+      return 2;
+    }
+    return 0;
+  };
+
+  const isCharShootMode = (value: any): boolean => {
+    const normalized = String(value ?? '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+    return ['char', 'tile', 'screenchar'].includes(normalized);
+  };
 
   const resolveSpriteAssetIndex = (
     spriteRef: any,
@@ -320,8 +361,21 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
     durationFrames: number;
     grabSprite: number;
   }> = [];
+  const dashConfigs: Array<{
+    enabled: number;
+  }> = [];
   const airControlConfigs: Array<{
     mode: number;
+  }> = [];
+  const inWaterConfigs: Array<{
+    enabled: number;
+  }> = [];
+  const behaviorConfigs: Array<{
+    type: number;
+    direction: number;
+    speed: number;
+    range: number;
+    stopDistance: number;
   }> = [];
 
   console.log('🎯 Generating optimized entities.asm...');
@@ -408,6 +462,51 @@ init_entities:
     ld (hl), 0
     ldir
 
+    ; Clear runtime Dash enable flags. Per-entity init fills active slots.
+    ld hl, entity_dash_cfg_enabled
+    ld de, entity_dash_cfg_enabled+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Clear runtime WallGrab config. Per-entity init fills active slots.
+    ld hl, entity_wallgrab_cfg_enabled
+    ld de, entity_wallgrab_cfg_enabled+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_wallgrab_cfg_fall_speed
+    ld de, entity_wallgrab_cfg_fall_speed+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_wallgrab_cfg_climb_speed
+    ld de, entity_wallgrab_cfg_climb_speed+1
+    ld bc, 31
+    ld (hl), 1
+    ldir
+
+    ld hl, entity_wallgrab_cfg_duration_frames
+    ld de, entity_wallgrab_cfg_duration_frames+1
+    ld bc, 31
+    ld (hl), 240
+    ldir
+
+    ld hl, entity_wallgrab_cfg_grab_sprite
+    ld de, entity_wallgrab_cfg_grab_sprite+1
+    ld bc, 31
+    ld (hl), #FF
+    ldir
+
+    ; Clear runtime Mirror flags. Per-entity init fills active slots.
+    ld hl, entity_mirror_flags
+    ld de, entity_mirror_flags+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
     ; Clear entity screen IDs to prevent ghost entities on restart
     ld hl, entity_screen_id
     ld de, entity_screen_id+1
@@ -418,6 +517,13 @@ init_entities:
     ; Clear entity player-role flags
     ld hl, entity_is_player
     ld de, entity_is_player+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Clear Limit_on screen-edge clamp flags
+    ld hl, entity_limit_on
+    ld de, entity_limit_on+1
     ld bc, 31
     ld (hl), 0
     ldir
@@ -433,6 +539,14 @@ init_entities:
     ; redirect through stale RAM garbage from a previous run/screen.
     ld hl, entity_facing_dir
     ld de, entity_facing_dir+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Clear directional wall flags so table-driven walkers do not react to
+    ; stale collision RAM before the first WallCollision pass.
+    ld hl, entity_wall_collision_flags
+    ld de, entity_wall_collision_flags+1
     ld bc, 31
     ld (hl), 0
     ldir
@@ -533,6 +647,13 @@ update_entities:
       const isPlayerTemplate = hasExplicitPlayerTemplate
         ? parseBool(template?.isPlayer, false)
         : hasLegacyPlayerInput;
+      const limitOnTemplateComp = template?.components?.find((component: any) =>
+        component?.definitionId === 'comp_limit_on' || component?.definitionName === 'Limit_on'
+      );
+      const limitOnOverrides = entity.componentOverrides?.['comp_limit_on'];
+      const limitOnEnabled = (limitOnTemplateComp || limitOnOverrides)
+        ? parseBool(limitOnOverrides?.isEnabled ?? limitOnTemplateComp?.defaultValues?.isEnabled, true)
+        : false;
       const jobPeriod = parseJobPeriod((entity as any)?.jobRate ?? (entity as any)?.jobPeriod);
       const jobEntry = parseJobEntry((entity as any)?.jobEntry, jobPeriod);
       if (hasSprite && hasInput) {
@@ -562,6 +683,56 @@ update_entities:
         console.warn(`Entity ${entity.name} position clamped: (${pixelX},${pixelY}) → (${validX},${validY})`);
       }
 
+      const mirrorTemplateComp = template?.components?.find((c: any) =>
+        c.definitionId === 'comp_mirror' || c.definitionName === 'Mirror'
+      );
+      const mirrorOverrides = entity.componentOverrides?.['comp_mirror'];
+      const hasMirrorComponent = Boolean(mirrorTemplateComp || mirrorOverrides);
+      const mirrorDefaults = hasMirrorComponent
+        ? {
+            ...getComponentDefinitionDefaults('comp_mirror'),
+            ...(mirrorTemplateComp?.defaultValues || {}),
+          }
+        : {};
+      const mirrorValues = { ...mirrorDefaults, ...(mirrorOverrides || {}) };
+      const mirrorEnabled = hasMirrorComponent ? parseBool(mirrorValues.enabled, true) : false;
+      const mirrorInvertFacing = parseBool(mirrorValues.invertFacing, true);
+      const mirrorFlags = mirrorEnabled ? (1 | (mirrorInvertFacing ? 2 : 0)) : 0;
+
+      const behaviorTemplateComp = template?.components?.find((c: any) =>
+        c.definitionId === 'comp_behavior' || c.definitionName === 'Behavior'
+      );
+      const aiBehaviorTemplateComp = template?.components?.find((c: any) =>
+        c.definitionId === 'comp_ai_behavior' || c.definitionName === 'AIBehavior'
+      );
+      const behaviorOverrides = entity.componentOverrides?.['comp_behavior'];
+      const aiBehaviorOverrides = entity.componentOverrides?.['comp_ai_behavior'];
+      const hasBehaviorConfig = Boolean(behaviorTemplateComp || behaviorOverrides || aiBehaviorTemplateComp || aiBehaviorOverrides);
+      const behaviorDefaults = hasBehaviorConfig
+        ? {
+            ...getComponentDefinitionDefaults('comp_ai_behavior'),
+            ...(aiBehaviorTemplateComp?.defaultValues || {}),
+            ...getComponentDefinitionDefaults('comp_behavior'),
+            ...(behaviorTemplateComp?.defaultValues || {}),
+          }
+        : {};
+      const behaviorValues = {
+        ...behaviorDefaults,
+        ...(aiBehaviorOverrides || {}),
+        ...(behaviorOverrides || {}),
+      };
+      const behaviorEnabled = hasBehaviorConfig ? parseBool(behaviorValues.isEnabled ?? behaviorValues.enabled, true) : false;
+      const behaviorTypeRaw = behaviorValues.behaviorType ?? behaviorValues.aiState ?? 'none';
+      const behaviorType = behaviorEnabled ? resolveBehaviorType(behaviorTypeRaw) : 0;
+      const behaviorRange = parseByte(behaviorValues.range ?? behaviorValues.aggroRadius, 64);
+      behaviorConfigs.push({
+        type: behaviorType,
+        direction: behaviorType ? resolveBehaviorDirection(behaviorValues.initialDirection ?? behaviorValues.direction) : 2,
+        speed: behaviorType ? Math.max(1, Math.min(16, parseByte(behaviorValues.speed, 1))) : 0,
+        range: behaviorType ? behaviorRange : 0,
+        stopDistance: behaviorType ? parseByte(behaviorValues.stopDistance, 4) : 0,
+      });
+
       // Get component list for documentation
       const usedComponentNames: string[] = [];
       if (componentMask & 0x01) usedComponentNames.push('Position');
@@ -575,6 +746,7 @@ update_entities:
       if (componentMask & 0x0100) usedComponentNames.push('Jump');
       if (componentMask & 0x0200) usedComponentNames.push('Gravity');
       if (componentMask & 0x2000) usedComponentNames.push('DeadlyTiles');
+      if (hasMirrorComponent) usedComponentNames.push('Mirror');
 
       // Check if entity has Input/Cursors component and extract direction restrictions
       let directionMask = 0x0F; // Default: all directions enabled (binary 00001111)
@@ -607,6 +779,7 @@ update_entities:
       }
 
       let jumpMax = 1;
+      let jumpTrigger = 0;
       if (componentMask & 0x0100) {
         const jumpComp = template?.components?.find((c: any) =>
           c.definitionId === 'comp_jump'
@@ -617,6 +790,7 @@ update_entities:
           const jumpOverrides = entity.componentOverrides?.['comp_jump'] || {};
           const jumpValues = { ...jumpDefaults, ...jumpOverrides };
           jumpMax = Math.max(1, parseByte(jumpValues.maxJumps ?? 1, 1));
+          jumpTrigger = parseActionTrigger(jumpValues.trigger ?? jumpValues.jumpTrigger, 'fire');
         }
       }
 
@@ -736,10 +910,21 @@ update_entities:
         const wallCollisionTemplateComp = template?.components?.find((c: any) =>
           c.definitionId === 'comp_wall_collision' || c.definitionName === 'Wall Collision'
         );
-        const collisionDefaults = collisionTemplateComp?.defaultValues || wallCollisionTemplateComp?.defaultValues || {};
+        const wallCollisionOverrides = entity.componentOverrides?.['comp_wall_collision'] || {};
+        const hasWallCollision = !!wallCollisionTemplateComp || !!entity.componentOverrides?.['comp_wall_collision'];
+        const wallCollisionValues = {
+          ...getComponentDefinitionDefaults('comp_wall_collision'),
+          ...(wallCollisionTemplateComp?.defaultValues || {}),
+          ...wallCollisionOverrides,
+        };
+        const wallCollisionStopsOnTiles = hasWallCollision && parseBool(wallCollisionValues.stopOnCollision, true);
+        const collisionDefaults = {
+          ...(collisionTemplateComp?.defaultValues || {}),
+          ...(wallCollisionTemplateComp?.defaultValues || {}),
+        };
         const collisionOverrides = {
           ...(entity.componentOverrides?.['comp_collision'] || {}),
-          ...(collisionTemplateComp ? {} : (entity.componentOverrides?.['comp_wall_collision'] || {})),
+          ...wallCollisionOverrides,
         };
         const collisionValues = { ...collisionDefaults, ...collisionOverrides };
 
@@ -750,7 +935,10 @@ update_entities:
         const offsetXSigned = offsetXByte >= 128 ? offsetXByte - 256 : offsetXByte;
         const offsetYSigned = offsetYByte >= 128 ? offsetYByte - 256 : offsetYByte;
         const collisionLayer = parseByte(collisionValues.collisionLayer, 1);
-        const collidesWith = parseByte(collisionValues.collidesWith, 255);
+        let collidesWith = parseByte(collisionValues.collidesWith, 255);
+        if (wallCollisionStopsOnTiles) {
+          collidesWith |= 0x08; // Platform/tile behavior layer used by WallCollision.
+        }
 
         collisionInitAsm = `
     ; Initialize Collision component (hitbox + layer masks)
@@ -864,12 +1052,24 @@ update_entities:
         };
         const shootOverrides = entity.componentOverrides?.['comp_shoot'] || {};
         const shootValues = { ...shootDefaults, ...shootOverrides };
+        const shootIsCharMode = isCharShootMode(shootValues.mode ?? shootValues.shotMode ?? shootValues.renderMode);
         const shootSpeed = parseByte(shootValues.speed ?? shootValues.velocityX, 3);
+        const hasExplicitTrigger = Object.prototype.hasOwnProperty.call(shootOverrides, 'trigger')
+          || Object.prototype.hasOwnProperty.call(shootOverrides, 'fireTrigger')
+          || Object.prototype.hasOwnProperty.call(shootTemplateComp?.defaultValues || {}, 'trigger')
+          || Object.prototype.hasOwnProperty.call(shootTemplateComp?.defaultValues || {}, 'fireTrigger');
+        const shootTrigger = parseActionTrigger(
+          hasExplicitTrigger ? (shootValues.trigger ?? shootValues.fireTrigger) : undefined,
+          shootIsCharMode ? 'action2' : 'fire'
+        );
         const projectileSprite = resolveSpriteAssetIndex(
           shootValues.spriteAssetId ?? shootValues.spriteId ?? shootValues.sprite,
           spriteNameToIndex,
           spriteCount
         );
+        const shootCharCode = parseByte(shootValues.charCode ?? shootValues.tileChar, 250);
+        const shootRenderByte = shootIsCharMode ? shootCharCode : projectileSprite;
+        const shootTriggerByte = shootIsCharMode ? (shootTrigger | 0x80) : shootTrigger;
 
         shootInitAsm = `
     ; Initialize Shoot component
@@ -883,7 +1083,11 @@ update_entities:
 
     ld hl, entity_shoot_sprite_id
     add hl, de
-    ld (hl), #${toHexByte(projectileSprite)}      ; projectile sprite asset index
+    ld (hl), #${toHexByte(shootRenderByte)}      ; projectile sprite index or char code
+
+    ld hl, entity_shoot_trigger
+    add hl, de
+    ld (hl), #${toHexByte(shootTriggerByte)}      ; shoot trigger action (bit7=char mode)
 `;
       }
 
@@ -920,14 +1124,8 @@ update_entities:
           }
           const safeName = sm.name.replace(/[^a-zA-Z0-9]/g, '_');
           const stateLabel = `SM_${safeName}_${initialState.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
-
-          smInitAsm = `
-    ; Initialize State Machine pointer to initial state (${sm.name})
-    ld hl, ${stateLabel}          ; HL = initial state address
-    ld a, l
-    ld (entity_sm_ptr_l + ${index}), a   ; SM ptr low byte
-    ld a, h
-    ld (entity_sm_ptr_h + ${index}), a   ; SM ptr high byte
+          const initialOnEnterActions = Array.isArray(initialState.onEnter) ? initialState.onEnter : [];
+          const initialOnEnterAsm = initialOnEnterActions.length > 0 ? `
 
     ; Fire OnEnter of initial state immediately.
     ; Normally OnEnter fires via SM_ChangeState, but the first state is set
@@ -937,10 +1135,21 @@ update_entities:
     ld hl, ${stateLabel} + 1      ; HL = &OnEnter Actions Ptr field
     ld e, (hl)
     inc hl
-    ld d, (hl)                    ; DE = OnEnter Actions Ptr (0 if none)
+    ld d, (hl)                    ; DE = OnEnter Actions Ptr
     ld a, ${index}                ; A = entity index
-    call SM_ExecuteActions        ; safe: SM_ExecuteActions returns immediately if DE=0
+    call SM_ExecuteActions
+` : `
+    ; Initial state has no OnEnter actions; avoid a banked SM dispatcher call
+    ; during entity init.
 `;
+          smInitAsm = `
+    ; Initialize State Machine pointer to initial state (${sm.name})
+    ld hl, ${stateLabel}          ; HL = initial state address
+    ld a, l
+    ld (entity_sm_ptr_l + ${index}), a   ; SM ptr low byte
+    ld a, h
+    ld (entity_sm_ptr_h + ${index}), a   ; SM ptr high byte
+${initialOnEnterAsm}`;
         }
       }
 
@@ -1083,6 +1292,28 @@ update_entities:
       }
       wallGrabConfigs.push(wallGrabConfig);
 
+      let dashConfig = {
+        enabled: 0,
+      };
+      const dashTemplateComp = template?.components?.find((c: any) => c.definitionId === 'comp_dash');
+      const dashOverrides = entity.componentOverrides?.['comp_dash'];
+      if (dashTemplateComp || dashOverrides) {
+        const dashDefinitionDefaults = getComponentDefinitionDefaults('comp_dash');
+        const dashDefaults = {
+          ...dashDefinitionDefaults,
+          ...(dashTemplateComp?.defaultValues || {}),
+        };
+        const dashValues = { ...dashDefaults, ...(dashOverrides || {}) };
+        const dashEnabled = parseBool(dashValues.isEnabled, true);
+
+        if (dashEnabled) {
+          dashConfig = {
+            enabled: 1,
+          };
+        }
+      }
+      dashConfigs.push(dashConfig);
+
       let airControlConfig = {
         mode: 0,
       };
@@ -1105,6 +1336,13 @@ update_entities:
         }
       }
       airControlConfigs.push(airControlConfig);
+
+      const inWaterTemplateComp = template?.components?.find((c: any) => c.definitionId === 'comp_in_water');
+      const inWaterOverride = entity.componentOverrides?.['comp_in_water'];
+      const inWaterEnabled = inWaterTemplateComp || inWaterOverride
+        ? parseBool(inWaterOverride?.isEnabled ?? inWaterTemplateComp?.defaultValues?.isEnabled, true)
+        : false;
+      inWaterConfigs.push({ enabled: inWaterEnabled ? 1 : 0 });
 
       // === Generate entity update function (patrol bounce or standard input check) ===
       let updateEntityAsm = '';
@@ -1229,8 +1467,10 @@ update_entities:
 
       const entityScreenId = resolveEntityScreenId(entity);
       const templateToken = templateTokenMap[entity.entityTemplateId] ?? 0;
+      const entityInitBlockId = `data.entities.${entityName.toLowerCase()}.init`;
 
-      code += `init_${entityName.toLowerCase()}:
+      code += `; @mideas:block id=${entityInitBlockId} kind=routine owner=entities roots=init_${entityName.toLowerCase()}
+init_${entityName.toLowerCase()}:
     ; Initialize ${entity.name} at real position from JSON
     ; JSON position: (${realX}, ${realY}) tiles = (${validX}, ${validY}) pixels
     ; Template: ${entity.entityTemplateId}
@@ -1271,6 +1511,10 @@ update_entities:
     add hl, de
     ld (hl), ${isPlayerTemplate ? 1 : 0}                 ; Player/hero marker from template
 
+    ld hl, entity_limit_on
+    add hl, de
+    ld (hl), ${limitOnEnabled ? 1 : 0}                 ; Limit_on implicit wall at missing WorldMap edges
+
     ; Template token for state-machine template-aware actions
     ld hl, entity_template_token
     add hl, de
@@ -1281,6 +1525,37 @@ update_entities:
     ld hl, entity_sm_sprite_control
     add hl, de
     ld (hl), ${smControlsSprite ? 1 : 0}
+
+    ; Runtime Dash flag is read from always-mapped RAM by the player fastpath.
+    ld hl, entity_dash_cfg_enabled
+    add hl, de
+    ld (hl), ${dashConfig.enabled}
+
+    ; Runtime WallGrab config is read from always-mapped RAM by the component system.
+    ld hl, entity_wallgrab_cfg_enabled
+    add hl, de
+    ld (hl), ${wallGrabConfig.enabled}
+
+    ld hl, entity_wallgrab_cfg_fall_speed
+    add hl, de
+    ld (hl), ${wallGrabConfig.fallSpeed}
+
+    ld hl, entity_wallgrab_cfg_climb_speed
+    add hl, de
+    ld (hl), ${wallGrabConfig.climbSpeed}
+
+    ld hl, entity_wallgrab_cfg_duration_frames
+    add hl, de
+    ld (hl), ${wallGrabConfig.durationFrames}
+
+    ld hl, entity_wallgrab_cfg_grab_sprite
+    add hl, de
+    ld (hl), ${wallGrabConfig.grabSprite}
+
+    ; Runtime Mirror flag is read by update_mirror_component before Position.
+    ld hl, entity_mirror_flags
+    add hl, de
+    ld (hl), #${toHexByte(mirrorFlags)}
 
 ${hasSprite && hasInput ? `    ; Deterministic spawn facing: right.
     ; This keeps the first SM ChangeSprite aligned with the same default
@@ -1324,6 +1599,10 @@ ${componentMask & 0x0100 ? `    ; Set Jump component configuration
     add hl, de
     ld (hl), ${jumpMax}            ; Maximum jumps before touching ground
 
+    ld hl, entity_jump_trigger
+    add hl, de
+    ld (hl), #${toHexByte(jumpTrigger)}            ; Jump trigger action
+
 ` : ''}
 ${hasSprite ? `    ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + ${index}
@@ -1340,6 +1619,7 @@ ${hasSprite ? `    ; Force update sprite attributes only if entity is in current
 ` : '    ; No sprite to show for this entity\n'}
 ${smInitAsm}
     ret
+; @mideas:endblock id=${entityInitBlockId}
 
 ${updateEntityAsm}
 `;
@@ -1397,22 +1677,25 @@ entity_walljump_cfg_lock_frames:
     DB ${Array.from({ length: 32 }, (_, i) => wallJumpConfigs[i]?.lockFrames ?? 0).join(', ')}
 entity_walljump_cfg_require_away:
     DB ${Array.from({ length: 32 }, (_, i) => wallJumpConfigs[i]?.requirePressAway ?? 0).join(', ')}
-entity_wallgrab_cfg_enabled:
-    DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.enabled ?? 0).join(', ')}
-entity_wallgrab_cfg_fall_speed:
-    DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.fallSpeed ?? 0).join(', ')}
-entity_wallgrab_cfg_climb_speed:
-    DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.climbSpeed ?? 1).join(', ')}
-entity_wallgrab_cfg_duration_frames:
-    DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.durationFrames ?? 240).join(', ')}
-entity_wallgrab_cfg_grab_sprite:
-    DB ${Array.from({ length: 32 }, (_, i) => wallGrabConfigs[i]?.grabSprite ?? 0xFF).join(', ')}
 entity_aircontrol_cfg_mode:
     DB ${Array.from({ length: 32 }, (_, i) => airControlConfigs[i]?.mode ?? 0).join(', ')}
+entity_in_water_cfg_enabled:
+    DB ${Array.from({ length: 32 }, (_, i) => inWaterConfigs[i]?.enabled ?? 0).join(', ')}
+entity_behavior_cfg_type:
+    DB ${Array.from({ length: 32 }, (_, i) => behaviorConfigs[i]?.type ?? 0).join(', ')}
+entity_behavior_cfg_dir:
+    DB ${Array.from({ length: 32 }, (_, i) => behaviorConfigs[i]?.direction ?? 2).join(', ')}
+entity_behavior_cfg_speed:
+    DB ${Array.from({ length: 32 }, (_, i) => behaviorConfigs[i]?.speed ?? 0).join(', ')}
+entity_behavior_cfg_range:
+    DB ${Array.from({ length: 32 }, (_, i) => behaviorConfigs[i]?.range ?? 0).join(', ')}
+entity_behavior_cfg_stop:
+    DB ${Array.from({ length: 32 }, (_, i) => behaviorConfigs[i]?.stopDistance ?? 0).join(', ')}
 
 `;
 
     code += `
+; @mideas:block id=runtime.entities.patrol_facing kind=routine owner=entities roots=update_entity_patrol_facing
 ; ------------------------------------------------------------------
 ; update_entity_patrol_facing
 ; Input: DE = entity index
@@ -1499,6 +1782,7 @@ update_entity_patrol_facing:
     pop bc
     pop af
     ret
+; @mideas:endblock id=runtime.entities.patrol_facing
 
 `;
 
@@ -1530,7 +1814,27 @@ init_player_fast_runtime:
 init_player_from_hero_entity:
     ld a, (hero_entity_id)
     cp #FF
-    ret z
+    jr nz, .player_seed_has_hero
+
+    ; Entity init calls this before the active-list rebuild has resolved
+    ; hero_entity_id. Fall back to the first generated player marker so the
+    ; fast player runtime starts with valid coordinates on frame 1.
+    ld hl, entity_is_player
+    ld b, MAX_ENTITIES
+    ld c, 0
+.player_seed_scan_loop:
+    ld a, (hl)
+    or a
+    jr nz, .player_seed_found
+    inc hl
+    inc c
+    djnz .player_seed_scan_loop
+    ret
+.player_seed_found:
+    ld a, c
+    ld (hero_entity_id), a
+
+.player_seed_has_hero:
     ld (player_entity_index), a
     ld c, a
     ld a, 1

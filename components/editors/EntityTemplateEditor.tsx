@@ -7,6 +7,14 @@ import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, CaretDownIcon, Ca
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { DEFAULT_ENTITY_TEMPLATES } from '../../data/defaults';
+import { downloadTextFile } from '../../utils/downloadUtils';
+import { BEHAVIOR_DIRECTION_OPTIONS, BEHAVIOR_TYPE_OPTIONS, isBehaviorComponentProperty } from '../../utils/behaviorComponentOptions';
+import {
+  createPlayerKitPackage,
+  parsePlayerKitPackage,
+  remapPlayerKitForImport,
+  sanitizePlayerKitFilename,
+} from '../../utils/playerKitUtils';
 
 /**
  * Props for the EntityTemplateEditor component.
@@ -16,12 +24,18 @@ interface EntityTemplateEditorProps {
   entityTemplates: EntityTemplate[];
   /** Callback to update the list of entity templates. */
   onUpdateEntityTemplates: (updatedTemplates: EntityTemplate[]) => void;
+  /** Callback to update component definitions when a Player Kit brings missing custom components. */
+  onUpdateComponentDefinitions?: (updatedDefinitions: ComponentDefinition[]) => void;
+  /** Callback to create referenced assets when importing a Player Kit. */
+  onCreateAssets?: (assetsToCreate: ProjectAsset[]) => void;
   /** The list of all available component definitions. */
   componentDefinitions: ComponentDefinition[];
   /** Callback to trigger the generation of assembly code for all templates. */
   onGenerateAsm: () => void;
   /** A list of all project assets, used for asset reference picking. */
   allAssets: ProjectAsset[];
+  /** Optional status message sink. */
+  setStatusBarMessage?: (message: string) => void;
 }
 
 /**
@@ -31,9 +45,12 @@ interface EntityTemplateEditorProps {
 export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
   entityTemplates,
   onUpdateEntityTemplates,
+  onUpdateComponentDefinitions,
+  onCreateAssets,
   componentDefinitions,
   onGenerateAsm,
   allAssets,
+  setStatusBarMessage,
 }) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<Partial<EntityTemplate> | null>(null);
@@ -332,6 +349,70 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
     input.click();
   };
 
+  const handleExportPlayerKit = () => {
+    const templateToExport = entityTemplates.find(template => template.id === selectedTemplateId);
+    if (!templateToExport) {
+      alert('Select a saved entity template before exporting a Player Kit.');
+      return;
+    }
+
+    const playerKit = createPlayerKitPackage(templateToExport, entityTemplates, componentDefinitions, allAssets);
+    const filename = `${sanitizePlayerKitFilename(templateToExport.name)}.player-kit.json`;
+    downloadTextFile(filename, JSON.stringify(playerKit, null, 2), 'application/json');
+    setStatusBarMessage?.(`Exported Player Kit "${templateToExport.name}" with ${playerKit.assets.length} asset(s).`);
+  };
+
+  const handleImportPlayerKit = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const packageData = parsePlayerKitPackage(String(event.target?.result || ''));
+          const remapped = remapPlayerKitForImport(
+            packageData,
+            entityTemplates,
+            componentDefinitions,
+            allAssets
+          );
+
+          if (remapped.componentDefinitionsToImport.length > 0) {
+            onUpdateComponentDefinitions?.([
+              ...componentDefinitions,
+              ...remapped.componentDefinitionsToImport,
+            ]);
+          }
+
+          if (remapped.assetsToCreate.length > 0) {
+            onCreateAssets?.(remapped.assetsToCreate);
+          }
+
+          onUpdateEntityTemplates([
+            ...entityTemplates,
+            ...remapped.templatesToImport,
+          ]);
+          setSelectedTemplateId(remapped.rootTemplateId);
+          setStatusBarMessage?.(
+            `Imported Player Kit with ${remapped.templatesToImport.length} template(s), ${remapped.assetsToCreate.length} asset(s).`
+          );
+        } catch (error) {
+          console.error('Error importing Player Kit:', error);
+          alert('Error reading Player Kit file. Please ensure it is a valid .player-kit.json file.');
+        }
+      };
+      reader.onerror = () => {
+        alert('Could not read the selected Player Kit file.');
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
   const handleLoadDefaults = () => {
     setIsConfirmLoadDefaultsModalOpen(true);
   };
@@ -394,6 +475,14 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
             </Button>
             <Button onClick={handleImportEntityTemplates} variant="ghost" size="sm" icon={<LoadIcon />} className="flex-1" title="Import entity templates">
               Import
+            </Button>
+          </div>
+          <div className="flex space-x-1 mb-2">
+            <Button onClick={handleExportPlayerKit} variant="ghost" size="sm" icon={<SaveIcon />} className="flex-1" title="Export selected template with referenced assets and State Machines" disabled={!selectedTemplateId || !entityTemplates.some(template => template.id === selectedTemplateId)}>
+              Export Kit
+            </Button>
+            <Button onClick={handleImportPlayerKit} variant="ghost" size="sm" icon={<LoadIcon />} className="flex-1" title="Import a Player Kit with templates, components and assets">
+              Import Kit
             </Button>
           </div>
           <div className="mb-2">
@@ -468,6 +557,8 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
                                     const definitionDefaultValue = propDef.defaultValue;
                                     const currentValue = overrideValue !== undefined ? overrideValue : definitionDefaultValue;
                                     const isRefType = propDef.type.endsWith('_ref');
+                                    const isBehaviorType = isBehaviorComponentProperty(compDef.id, propDef.name, 'behaviorType');
+                                    const isBehaviorInitialDirection = isBehaviorComponentProperty(compDef.id, propDef.name, 'initialDirection');
 
                                     return (
                                         <div key={propDef.name} className="text-xs">
@@ -475,7 +566,27 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
                                                 {propDef.name} <span className="text-msx-textprimary/70">({propDef.type})</span>
                                                 <span className="italic text-msx-textsecondary/70 ml-1">(Def: {getComponentPropertyOriginalDefault(compDef.id, propDef.name)})</span>
                                             </label>
-                                            {isRefType ? (
+                                            {isBehaviorType ? (
+                                                <select
+                                                    value={String(currentValue ?? 'none')}
+                                                    onChange={e => handleComponentDefaultValueChange(compDef.id, propDef.name, e.target.value)}
+                                                    className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                                                >
+                                                    {BEHAVIOR_TYPE_OPTIONS.map(option => (
+                                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                                    ))}
+                                                </select>
+                                            ) : isBehaviorInitialDirection ? (
+                                                <select
+                                                    value={String(currentValue ?? 'right')}
+                                                    onChange={e => handleComponentDefaultValueChange(compDef.id, propDef.name, e.target.value)}
+                                                    className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                                                >
+                                                    {BEHAVIOR_DIRECTION_OPTIONS.map(option => (
+                                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                                    ))}
+                                                </select>
+                                            ) : isRefType ? (
                                                 <div className="flex items-center space-x-1">
                                                     <span className="p-1 bg-msx-bgcolor border border-msx-border/30 rounded text-msx-textsecondary flex-grow truncate" title={currentValue || "None"}>
                                                         {assetsWithEntityTemplates.find(a => a.id === currentValue)?.name || "None"}

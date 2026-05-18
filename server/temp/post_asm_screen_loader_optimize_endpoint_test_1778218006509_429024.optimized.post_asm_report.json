@@ -1,0 +1,262 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\post_asm_screen_loader_optimize_endpoint_test_1778218006509_429024.post_asm_input.asm",
+  "metrics": {
+    "original_line_count": 18,
+    "output_line_count": 11,
+    "net_line_delta": -7,
+    "applied_patches": 2,
+    "by_rule": {
+      "unused-screen-loaders": {
+        "findings": 2,
+        "patchable": 2,
+        "routines": [
+          "load_screen_dead_screen_234567890123_far",
+          "runtime.screens.load_screen_dead_screen_234567890123.loader"
+        ],
+        "removed_lines": 7,
+        "removed_source_bytes": 373
+      }
+    },
+    "inactive_feature_runtime": {
+      "total_findings": 0,
+      "by_feature": {}
+    },
+    "block_inventory": {
+      "count": 1,
+      "preserved": 0,
+      "removable": 1,
+      "dead_block_candidates": 0,
+      "total_lines": 4,
+      "total_source_bytes": 277,
+      "dead_candidate_lines": 0,
+      "dead_candidate_source_bytes": 0,
+      "by_kind": {
+        "routine": 1
+      },
+      "by_owner": {
+        "screens": 1
+      },
+      "by_status": {
+        "rooted": 1
+      },
+      "largest_blocks": [
+        {
+          "id": "runtime.screens.load_screen_dead_screen_234567890123.loader",
+          "kind": "routine",
+          "owner": "screens",
+          "status": "rooted",
+          "line_count": 4,
+          "source_bytes": 277
+        }
+      ],
+      "errors": []
+    },
+    "routine_inventory": {
+      "count": 3,
+      "unannotated_count": 2,
+      "by_category": {
+        "boot_or_init": {
+          "count": 1,
+          "line_count": 3,
+          "source_bytes": 21,
+          "unannotated_count": 1,
+          "unannotated_line_count": 3,
+          "unannotated_source_bytes": 21
+        },
+        "screen_loader": {
+          "count": 2,
+          "line_count": 8,
+          "source_bytes": 374,
+          "unannotated_count": 1,
+          "unannotated_line_count": 5,
+          "unannotated_source_bytes": 246
+        }
+      },
+      "largest_routines": [
+        {
+          "name": "load_screen_dead_screen_234567890123_far",
+          "line_count": 5,
+          "source_bytes": 246,
+          "block_id": null,
+          "category": "screen_loader",
+          "category_reason": "Generated screen loader routine"
+        },
+        {
+          "name": "load_screen_dead_screen_234567890123",
+          "line_count": 3,
+          "source_bytes": 128,
+          "block_id": "runtime.screens.load_screen_dead_screen_234567890123.loader",
+          "category": "screen_loader",
+          "category_reason": "Generated screen loader routine"
+        },
+        {
+          "name": "boot_entry",
+          "line_count": 3,
+          "source_bytes": 21,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        }
+      ],
+      "largest_unannotated_labels": [
+        {
+          "name": "load_screen_dead_screen_234567890123_far",
+          "line_count": 5,
+          "source_bytes": 246,
+          "block_id": null,
+          "category": "screen_loader",
+          "category_reason": "Generated screen loader routine"
+        },
+        {
+          "name": "boot_entry",
+          "line_count": 3,
+          "source_bytes": 21,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        }
+      ],
+      "largest_unannotated_by_category": {
+        "boot_or_init": [
+          {
+            "name": "boot_entry",
+            "line_count": 3,
+            "source_bytes": 21,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          }
+        ],
+        "screen_loader": [
+          {
+            "name": "load_screen_dead_screen_234567890123_far",
+            "line_count": 5,
+            "source_bytes": 246,
+            "block_id": null,
+            "category": "screen_loader",
+            "category_reason": "Generated screen loader routine"
+          }
+        ]
+      }
+    },
+    "optimization_passes": [
+      {
+        "pass": 1,
+        "findings": 2,
+        "patchable": 2,
+        "removed_lines": 7,
+        "removed_source_bytes": 373,
+        "removed_labels": [
+          "load_screen_dead_screen_234567890123",
+          "load_screen_dead_screen_234567890123_far"
+        ],
+        "input_line_count": 18,
+        "output_line_count": 11
+      },
+      {
+        "pass": 2,
+        "findings": 0,
+        "patchable": 0,
+        "removed_lines": 0,
+        "removed_source_bytes": 0,
+        "removed_labels": [],
+        "input_line_count": 11,
+        "output_line_count": 11
+      }
+    ],
+    "optimization_summary": {
+      "passes_run": 2,
+      "removed_lines": 7,
+      "removed_source_bytes": 373,
+      "removed_labels": [
+        "load_screen_dead_screen_234567890123",
+        "load_screen_dead_screen_234567890123_far"
+      ]
+    },
+    "removed_labels": [
+      "load_screen_dead_screen_234567890123",
+      "load_screen_dead_screen_234567890123_far"
+    ]
+  },
+  "blocks": [
+    {
+      "id": "runtime.screens.load_screen_dead_screen_234567890123.loader",
+      "kind": "routine",
+      "owner": "screens",
+      "preserve": false,
+      "start_line": 15,
+      "end_line": 18,
+      "line_count": 4,
+      "labels": [
+        "load_screen_dead_screen_234567890123"
+      ],
+      "deps": [],
+      "roots": [
+        "load_screen_dead_screen_234567890123"
+      ],
+      "attrs": {
+        "id": "runtime.screens.load_screen_dead_screen_234567890123.loader",
+        "kind": "routine",
+        "owner": "screens",
+        "roots": "load_screen_dead_screen_234567890123"
+      }
+    }
+  ],
+  "block_analysis": [
+    {
+      "block_id": "runtime.screens.load_screen_dead_screen_234567890123.loader",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: load_screen_dead_screen_234567890123.",
+      "external_reference_count": 1,
+      "line_count": 4,
+      "source_bytes": 277,
+      "incoming_references": [
+        {
+          "label": "load_screen_dead_screen_234567890123",
+          "line": 12,
+          "source_block_id": null,
+          "source_label": "load_screen_dead_screen_234567890123_far",
+          "raw": "call load_screen_dead_screen_234567890123"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    }
+  ],
+  "block_errors": [],
+  "findings": [
+    {
+      "rule_id": "unused-screen-loaders",
+      "title": "Generated screen loader has no proven references",
+      "routine": "load_screen_dead_screen_234567890123_far",
+      "line_start": 11,
+      "line_end": 15,
+      "summary": "`load_screen_dead_screen_234567890123_far` is a generated screen loader (5 lines, 246 source bytes) with no external label references. Category reason: Generated screen loader routine. Project metadata maps it to scene `Dead Screen` (index=0, resources=1). GameFlow reachability marks this scene unreachable. Related annotated loader block `runtime.screens.load_screen_dead_screen_234567890123.loader` is currently rooted by `load_screen_dead_screen_234567890123`. Deletion is patchable only when GameFlow reachability proves the scene is unreachable.",
+      "patchable": true,
+      "patch": {
+        "start_index": 10,
+        "end_index": 13,
+        "replacement_lines": [],
+        "reason": "Remove unreferenced generated screen loader wrapper for a GameFlow-unreachable scene.",
+        "group_id": null
+      }
+    },
+    {
+      "rule_id": "unused-screen-loaders",
+      "title": "Generated screen loader body is only used by an unreachable wrapper",
+      "routine": "runtime.screens.load_screen_dead_screen_234567890123.loader",
+      "line_start": 15,
+      "line_end": 18,
+      "summary": "Annotated loader block `runtime.screens.load_screen_dead_screen_234567890123.loader` only feeds `load_screen_dead_screen_234567890123_far`, and GameFlow reachability marks the owning scene unreachable.",
+      "patchable": true,
+      "patch": {
+        "start_index": 14,
+        "end_index": 18,
+        "replacement_lines": [],
+        "reason": "Remove generated screen loader body for a GameFlow-unreachable scene.",
+        "group_id": null
+      }
+    }
+  ],
+  "applied_patches": 2
+}

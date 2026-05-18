@@ -1,0 +1,2398 @@
+{
+  "format": "msx1-screen2-chars",
+  "mideasFormat": "mideas-msx1-screen2-char-image",
+  "width": 32,
+  "height": 32,
+  "cols": 4,
+  "rows": 4,
+  "tileSize": {
+    "width": 8,
+    "height": 8
+  },
+  "palette": [
+    {
+      "index": 0,
+      "name": "Transparente",
+      "hex": "#000000",
+      "rgb": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "index": 1,
+      "name": "Negro",
+      "hex": "#000000",
+      "rgb": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "index": 2,
+      "name": "Verde medio",
+      "hex": "#3EB847",
+      "rgb": [
+        62,
+        184,
+        71
+      ]
+    },
+    {
+      "index": 3,
+      "name": "Verde claro",
+      "hex": "#74D07D",
+      "rgb": [
+        116,
+        208,
+        125
+      ]
+    },
+    {
+      "index": 4,
+      "name": "Azul oscuro",
+      "hex": "#2F2FC1",
+      "rgb": [
+        47,
+        47,
+        193
+      ]
+    },
+    {
+      "index": 5,
+      "name": "Azul claro",
+      "hex": "#5858FC",
+      "rgb": [
+        88,
+        88,
+        252
+      ]
+    },
+    {
+      "index": 6,
+      "name": "Rojo oscuro",
+      "hex": "#B63125",
+      "rgb": [
+        182,
+        49,
+        37
+      ]
+    },
+    {
+      "index": 7,
+      "name": "Cian",
+      "hex": "#68D2DA",
+      "rgb": [
+        104,
+        210,
+        218
+      ]
+    },
+    {
+      "index": 8,
+      "name": "Rojo medio",
+      "hex": "#FC584A",
+      "rgb": [
+        252,
+        88,
+        74
+      ]
+    },
+    {
+      "index": 9,
+      "name": "Rojo claro",
+      "hex": "#FF8E81",
+      "rgb": [
+        255,
+        142,
+        129
+      ]
+    },
+    {
+      "index": 10,
+      "name": "Amarillo oscuro",
+      "hex": "#C0BF3B",
+      "rgb": [
+        192,
+        191,
+        59
+      ]
+    },
+    {
+      "index": 11,
+      "name": "Amarillo claro",
+      "hex": "#E7E474",
+      "rgb": [
+        231,
+        228,
+        116
+      ]
+    },
+    {
+      "index": 12,
+      "name": "Verde oscuro",
+      "hex": "#309337",
+      "rgb": [
+        48,
+        147,
+        55
+      ]
+    },
+    {
+      "index": 13,
+      "name": "Magenta",
+      "hex": "#B640C8",
+      "rgb": [
+        182,
+        64,
+        200
+      ]
+    },
+    {
+      "index": 14,
+      "name": "Gris",
+      "hex": "#999999",
+      "rgb": [
+        153,
+        153,
+        153
+      ]
+    },
+    {
+      "index": 15,
+      "name": "Blanco",
+      "hex": "#FFFFFF",
+      "rgb": [
+        255,
+        255,
+        255
+      ]
+    }
+  ],
+  "nameTable": [
+    0,
+    1,
+    2,
+    3,
+    32,
+    33,
+    34,
+    35,
+    64,
+    65,
+    66,
+    67,
+    96,
+    97,
+    98,
+    99
+  ],
+  "patternTable": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    3,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    16,
+    56,
+    112,
+    248,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    3,
+    3,
+    3,
+    3,
+    248,
+    240,
+    192,
+    192,
+    224,
+    240,
+    240,
+    224,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    3,
+    11,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    224,
+    240,
+    240,
+    240,
+    240,
+    240,
+    240,
+    240,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    3,
+    3,
+    3,
+    7,
+    7,
+    3,
+    1,
+    0,
+    240,
+    240,
+    240,
+    240,
+    240,
+    224,
+    64,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "colorTable": [
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    65,
+    65,
+    33,
+    33,
+    97,
+    33,
+    33,
+    33,
+    33,
+    97,
+    97,
+    97,
+    97,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    97,
+    97,
+    97,
+    97,
+    97,
+    129,
+    97,
+    129,
+    129,
+    97,
+    97,
+    97,
+    97,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    129,
+    97,
+    129,
+    97,
+    97,
+    97,
+    97,
+    97,
+    97,
+    97,
+    97,
+    97,
+    97,
+    97,
+    97,
+    97,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    97,
+    97,
+    97,
+    97,
+    129,
+    97,
+    97,
+    33,
+    97,
+    97,
+    97,
+    97,
+    97,
+    97,
+    97,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33
+  ],
+  "compactBanks": [
+    {
+      "bank": 0,
+      "cols": 4,
+      "rows": 4,
+      "uniqueTiles": [
+        {
+          "index": 0,
+          "pattern": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "colors": [
+            33,
+            33,
+            33,
+            33,
+            33,
+            33,
+            33,
+            33
+          ],
+          "uses": 8
+        },
+        {
+          "index": 1,
+          "pattern": [
+            0,
+            0,
+            0,
+            3,
+            1,
+            0,
+            0,
+            1
+          ],
+          "colors": [
+            33,
+            33,
+            33,
+            65,
+            65,
+            33,
+            33,
+            97
+          ],
+          "uses": 1
+        },
+        {
+          "index": 2,
+          "pattern": [
+            0,
+            0,
+            0,
+            0,
+            16,
+            56,
+            112,
+            248
+          ],
+          "colors": [
+            33,
+            33,
+            33,
+            33,
+            97,
+            97,
+            97,
+            97
+          ],
+          "uses": 1
+        },
+        {
+          "index": 3,
+          "pattern": [
+            0,
+            0,
+            0,
+            1,
+            3,
+            3,
+            3,
+            3
+          ],
+          "colors": [
+            33,
+            33,
+            33,
+            97,
+            97,
+            97,
+            97,
+            97
+          ],
+          "uses": 1
+        },
+        {
+          "index": 4,
+          "pattern": [
+            248,
+            240,
+            192,
+            192,
+            224,
+            240,
+            240,
+            224
+          ],
+          "colors": [
+            129,
+            97,
+            129,
+            129,
+            97,
+            97,
+            97,
+            97
+          ],
+          "uses": 1
+        },
+        {
+          "index": 5,
+          "pattern": [
+            3,
+            11,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3
+          ],
+          "colors": [
+            129,
+            97,
+            129,
+            97,
+            97,
+            97,
+            97,
+            97
+          ],
+          "uses": 1
+        },
+        {
+          "index": 6,
+          "pattern": [
+            224,
+            240,
+            240,
+            240,
+            240,
+            240,
+            240,
+            240
+          ],
+          "colors": [
+            97,
+            97,
+            97,
+            97,
+            97,
+            97,
+            97,
+            97
+          ],
+          "uses": 1
+        },
+        {
+          "index": 7,
+          "pattern": [
+            3,
+            3,
+            3,
+            7,
+            7,
+            3,
+            1,
+            0
+          ],
+          "colors": [
+            97,
+            97,
+            97,
+            97,
+            129,
+            97,
+            97,
+            33
+          ],
+          "uses": 1
+        },
+        {
+          "index": 8,
+          "pattern": [
+            240,
+            240,
+            240,
+            240,
+            240,
+            224,
+            64,
+            0
+          ],
+          "colors": [
+            97,
+            97,
+            97,
+            97,
+            97,
+            97,
+            97,
+            33
+          ],
+          "uses": 1
+        }
+      ],
+      "nameTable": [
+        0,
+        1,
+        2,
+        0,
+        0,
+        3,
+        4,
+        0,
+        0,
+        5,
+        6,
+        0,
+        0,
+        7,
+        8,
+        0
+      ],
+      "overflow": false
+    }
+  ],
+  "mideas": {
+    "assetType": "screen2CharImage",
+    "screenMode": "SCREEN 2",
+    "widthPixels": 32,
+    "heightPixels": 32,
+    "widthChars": 4,
+    "heightChars": 4,
+    "palette": "MSX1",
+    "colorRemaps": [],
+    "hardwareLimits": {
+      "colorsPerEightPixelLine": 2,
+      "maxCharsPerBank": 256,
+      "bankHeightChars": 8
+    },
+    "banks": [
+      {
+        "bank": 0,
+        "widthChars": 4,
+        "heightChars": 4,
+        "map": [
+          0,
+          1,
+          2,
+          0,
+          0,
+          3,
+          4,
+          0,
+          0,
+          5,
+          6,
+          0,
+          0,
+          7,
+          8,
+          0
+        ],
+        "tiles": [
+          {
+            "id": 0,
+            "pattern": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "colors": [
+              33,
+              33,
+              33,
+              33,
+              33,
+              33,
+              33,
+              33
+            ],
+            "uses": 8
+          },
+          {
+            "id": 1,
+            "pattern": [
+              0,
+              0,
+              0,
+              3,
+              1,
+              0,
+              0,
+              1
+            ],
+            "colors": [
+              33,
+              33,
+              33,
+              65,
+              65,
+              33,
+              33,
+              97
+            ],
+            "uses": 1
+          },
+          {
+            "id": 2,
+            "pattern": [
+              0,
+              0,
+              0,
+              0,
+              16,
+              56,
+              112,
+              248
+            ],
+            "colors": [
+              33,
+              33,
+              33,
+              33,
+              97,
+              97,
+              97,
+              97
+            ],
+            "uses": 1
+          },
+          {
+            "id": 3,
+            "pattern": [
+              0,
+              0,
+              0,
+              1,
+              3,
+              3,
+              3,
+              3
+            ],
+            "colors": [
+              33,
+              33,
+              33,
+              97,
+              97,
+              97,
+              97,
+              97
+            ],
+            "uses": 1
+          },
+          {
+            "id": 4,
+            "pattern": [
+              248,
+              240,
+              192,
+              192,
+              224,
+              240,
+              240,
+              224
+            ],
+            "colors": [
+              129,
+              97,
+              129,
+              129,
+              97,
+              97,
+              97,
+              97
+            ],
+            "uses": 1
+          },
+          {
+            "id": 5,
+            "pattern": [
+              3,
+              11,
+              3,
+              3,
+              3,
+              3,
+              3,
+              3
+            ],
+            "colors": [
+              129,
+              97,
+              129,
+              97,
+              97,
+              97,
+              97,
+              97
+            ],
+            "uses": 1
+          },
+          {
+            "id": 6,
+            "pattern": [
+              224,
+              240,
+              240,
+              240,
+              240,
+              240,
+              240,
+              240
+            ],
+            "colors": [
+              97,
+              97,
+              97,
+              97,
+              97,
+              97,
+              97,
+              97
+            ],
+            "uses": 1
+          },
+          {
+            "id": 7,
+            "pattern": [
+              3,
+              3,
+              3,
+              7,
+              7,
+              3,
+              1,
+              0
+            ],
+            "colors": [
+              97,
+              97,
+              97,
+              97,
+              129,
+              97,
+              97,
+              33
+            ],
+            "uses": 1
+          },
+          {
+            "id": 8,
+            "pattern": [
+              240,
+              240,
+              240,
+              240,
+              240,
+              224,
+              64,
+              0
+            ],
+            "colors": [
+              97,
+              97,
+              97,
+              97,
+              97,
+              97,
+              97,
+              33
+            ],
+            "uses": 1
+          }
+        ],
+        "fitsScreen2Bank": true
+      }
+    ]
+  },
+  "tiles": [
+    {
+      "x": 0,
+      "y": 0,
+      "bank": 0,
+      "charCode": 0,
+      "patternOffset": 0,
+      "colorOffset": 0,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 1,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 4,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 5,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        }
+      ]
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "bank": 0,
+      "charCode": 1,
+      "patternOffset": 8,
+      "colorOffset": 8,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 1,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 4,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 65,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 4,
+          "ink": 4,
+          "paper": 1,
+          "patternByte": 1,
+          "colorByte": 65,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 5,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 1,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        }
+      ]
+    },
+    {
+      "x": 2,
+      "y": 0,
+      "bank": 0,
+      "charCode": 2,
+      "patternOffset": 16,
+      "colorOffset": 16,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 1,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 4,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 16,
+          "colorByte": 97,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        },
+        {
+          "line": 5,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 56,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 112,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 248,
+          "colorByte": 97,
+          "originalColorCount": 4,
+          "correctedPixels": 2
+        }
+      ]
+    },
+    {
+      "x": 3,
+      "y": 0,
+      "bank": 0,
+      "charCode": 3,
+      "patternOffset": 24,
+      "colorOffset": 24,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 1,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 4,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 5,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 1,
+      "bank": 0,
+      "charCode": 32,
+      "patternOffset": 256,
+      "colorOffset": 256,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 1,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 4,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 5,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        }
+      ]
+    },
+    {
+      "x": 1,
+      "y": 1,
+      "bank": 0,
+      "charCode": 33,
+      "patternOffset": 264,
+      "colorOffset": 264,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 1,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 1,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 4,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 5,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 97,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        }
+      ]
+    },
+    {
+      "x": 2,
+      "y": 1,
+      "bank": 0,
+      "charCode": 34,
+      "patternOffset": 272,
+      "colorOffset": 272,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 8,
+          "paper": 1,
+          "patternByte": 248,
+          "colorByte": 129,
+          "originalColorCount": 5,
+          "correctedPixels": 3
+        },
+        {
+          "line": 1,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        },
+        {
+          "line": 2,
+          "ink": 8,
+          "paper": 1,
+          "patternByte": 192,
+          "colorByte": 129,
+          "originalColorCount": 3,
+          "correctedPixels": 2
+        },
+        {
+          "line": 3,
+          "ink": 8,
+          "paper": 1,
+          "patternByte": 192,
+          "colorByte": 129,
+          "originalColorCount": 3,
+          "correctedPixels": 2
+        },
+        {
+          "line": 4,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 224,
+          "colorByte": 97,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        },
+        {
+          "line": 5,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 224,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        }
+      ]
+    },
+    {
+      "x": 3,
+      "y": 1,
+      "bank": 0,
+      "charCode": 35,
+      "patternOffset": 280,
+      "colorOffset": 280,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 1,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 4,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 5,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 2,
+      "bank": 0,
+      "charCode": 64,
+      "patternOffset": 512,
+      "colorOffset": 512,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 1,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 4,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 5,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        }
+      ]
+    },
+    {
+      "x": 1,
+      "y": 2,
+      "bank": 0,
+      "charCode": 65,
+      "patternOffset": 520,
+      "colorOffset": 520,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 8,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 129,
+          "originalColorCount": 3,
+          "correctedPixels": 2
+        },
+        {
+          "line": 1,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 11,
+          "colorByte": 97,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        },
+        {
+          "line": 2,
+          "ink": 8,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 129,
+          "originalColorCount": 3,
+          "correctedPixels": 2
+        },
+        {
+          "line": 3,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 97,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        },
+        {
+          "line": 4,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 97,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        },
+        {
+          "line": 5,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 97,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        }
+      ]
+    },
+    {
+      "x": 2,
+      "y": 2,
+      "bank": 0,
+      "charCode": 66,
+      "patternOffset": 528,
+      "colorOffset": 528,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 224,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 1,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        },
+        {
+          "line": 4,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 5,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        },
+        {
+          "line": 6,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        },
+        {
+          "line": 7,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        }
+      ]
+    },
+    {
+      "x": 3,
+      "y": 2,
+      "bank": 0,
+      "charCode": 67,
+      "patternOffset": 536,
+      "colorOffset": 536,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 1,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 4,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 5,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 3,
+      "bank": 0,
+      "charCode": 96,
+      "patternOffset": 768,
+      "colorOffset": 768,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 1,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 4,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 5,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        }
+      ]
+    },
+    {
+      "x": 1,
+      "y": 3,
+      "bank": 0,
+      "charCode": 97,
+      "patternOffset": 776,
+      "colorOffset": 776,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 97,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        },
+        {
+          "line": 1,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 7,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 4,
+          "ink": 8,
+          "paper": 1,
+          "patternByte": 7,
+          "colorByte": 129,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        },
+        {
+          "line": 5,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 3,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 1,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        }
+      ]
+    },
+    {
+      "x": 2,
+      "y": 3,
+      "bank": 0,
+      "charCode": 98,
+      "patternOffset": 784,
+      "colorOffset": 784,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 1,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 4,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 240,
+          "colorByte": 97,
+          "originalColorCount": 3,
+          "correctedPixels": 1
+        },
+        {
+          "line": 5,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 224,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 6,
+          "paper": 1,
+          "patternByte": 64,
+          "colorByte": 97,
+          "originalColorCount": 2,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        }
+      ]
+    },
+    {
+      "x": 3,
+      "y": 3,
+      "bank": 0,
+      "charCode": 99,
+      "patternOffset": 792,
+      "colorOffset": 792,
+      "rows": [
+        {
+          "line": 0,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 1,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 2,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 3,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 4,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 5,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 6,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        },
+        {
+          "line": 7,
+          "ink": 2,
+          "paper": 1,
+          "patternByte": 0,
+          "colorByte": 33,
+          "originalColorCount": 1,
+          "correctedPixels": 0
+        }
+      ]
+    }
+  ],
+  "correctedPixels": 27,
+  "remappedPixels": 0,
+  "conflictLines": 20,
+  "strictFailed": false,
+  "strictViolations": [
+    {
+      "tileX": 2,
+      "tileY": 0,
+      "line": 4,
+      "colorCount": 3
+    },
+    {
+      "tileX": 2,
+      "tileY": 0,
+      "line": 7,
+      "colorCount": 4
+    },
+    {
+      "tileX": 1,
+      "tileY": 1,
+      "line": 7,
+      "colorCount": 3
+    },
+    {
+      "tileX": 2,
+      "tileY": 1,
+      "line": 0,
+      "colorCount": 5
+    },
+    {
+      "tileX": 2,
+      "tileY": 1,
+      "line": 1,
+      "colorCount": 3
+    },
+    {
+      "tileX": 2,
+      "tileY": 1,
+      "line": 2,
+      "colorCount": 3
+    },
+    {
+      "tileX": 2,
+      "tileY": 1,
+      "line": 3,
+      "colorCount": 3
+    },
+    {
+      "tileX": 2,
+      "tileY": 1,
+      "line": 4,
+      "colorCount": 3
+    },
+    {
+      "tileX": 1,
+      "tileY": 2,
+      "line": 0,
+      "colorCount": 3
+    },
+    {
+      "tileX": 1,
+      "tileY": 2,
+      "line": 1,
+      "colorCount": 3
+    },
+    {
+      "tileX": 1,
+      "tileY": 2,
+      "line": 2,
+      "colorCount": 3
+    },
+    {
+      "tileX": 1,
+      "tileY": 2,
+      "line": 3,
+      "colorCount": 3
+    },
+    {
+      "tileX": 1,
+      "tileY": 2,
+      "line": 4,
+      "colorCount": 3
+    },
+    {
+      "tileX": 1,
+      "tileY": 2,
+      "line": 7,
+      "colorCount": 3
+    },
+    {
+      "tileX": 2,
+      "tileY": 2,
+      "line": 3,
+      "colorCount": 3
+    },
+    {
+      "tileX": 2,
+      "tileY": 2,
+      "line": 5,
+      "colorCount": 3
+    },
+    {
+      "tileX": 2,
+      "tileY": 2,
+      "line": 6,
+      "colorCount": 3
+    },
+    {
+      "tileX": 1,
+      "tileY": 3,
+      "line": 0,
+      "colorCount": 3
+    },
+    {
+      "tileX": 1,
+      "tileY": 3,
+      "line": 4,
+      "colorCount": 3
+    },
+    {
+      "tileX": 2,
+      "tileY": 3,
+      "line": 4,
+      "colorCount": 3
+    }
+  ],
+  "conversionMode": "auto",
+  "pairStrategy": "bestPalette",
+  "colorRemaps": []
+}

@@ -1,0 +1,11 @@
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/00 flow=00 screen=33 irq=2222 inirq=22 pos=13107,13107
+space1_before pc=7A79 sp=F37C bank=00/01/02/03 flow=01 screen=00 irq=00BA inirq=00 pos=104,96
+space1_after pc=7A79 sp=F37C bank=00/01/02/03 flow=01 screen=00 irq=00C9 inirq=00 pos=104,96
+t10 pc=7A79 sp=F37C bank=00/01/02/03 flow=01 screen=00 irq=016E inirq=00 pos=104,96
+SHOTOK tales7_simple32k_debug_t10.png
+right_before pc=725F sp=F378 bank=00/01/02/03 flow=01 screen=00 irq=01E6 inirq=00 pos=104,96
+right_after pc=6FE5 sp=F37A bank=00/01/02/03 flow=01 screen=00 irq=0225 inirq=00 pos=104,96
+t14 pc=1A04 sp=F368 bank=00/01/02/03 flow=01 screen=00 irq=025E inirq=00 pos=104,96
+SHOTOK tales7_simple32k_debug_t14.png
+t20 pc=7A79 sp=F37C bank=00/01/02/03 flow=01 screen=00 irq=03C5 inirq=00 pos=104,96
+SHOTOK tales7_simple32k_debug_t20.png

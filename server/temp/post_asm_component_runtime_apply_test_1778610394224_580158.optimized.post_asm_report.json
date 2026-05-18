@@ -1,0 +1,214 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\post_asm_component_runtime_apply_test_1778610394224_580158.post_asm_input.asm",
+  "metrics": {
+    "original_line_count": 20,
+    "output_line_count": 17,
+    "net_line_delta": -3,
+    "applied_patches": 1,
+    "selected_rules": [
+      "unused-component-runtime"
+    ],
+    "by_rule": {
+      "unused-component-runtime": {
+        "findings": 2,
+        "patchable": 1,
+        "routines": [
+          "runtime.components.system.input",
+          "runtime.components.system.input:update_input_component"
+        ],
+        "removed_lines": 3,
+        "removed_source_bytes": 44
+      }
+    },
+    "inactive_feature_runtime": {
+      "total_findings": 0,
+      "by_feature": {}
+    },
+    "block_inventory": {
+      "count": 0,
+      "preserved": 0,
+      "removable": 0,
+      "dead_block_candidates": 0,
+      "total_lines": 0,
+      "total_source_bytes": 0,
+      "dead_candidate_lines": 0,
+      "dead_candidate_source_bytes": 0,
+      "by_kind": {},
+      "by_owner": {},
+      "by_status": {},
+      "largest_blocks": [],
+      "errors": []
+    },
+    "routine_inventory": {
+      "count": 3,
+      "unannotated_count": 3,
+      "by_category": {
+        "boot_or_init": {
+          "count": 1,
+          "line_count": 3,
+          "source_bytes": 21,
+          "unannotated_count": 1,
+          "unannotated_line_count": 3,
+          "unannotated_source_bytes": 21
+        },
+        "runtime_code": {
+          "count": 2,
+          "line_count": 6,
+          "source_bytes": 80,
+          "unannotated_count": 2,
+          "unannotated_line_count": 6,
+          "unannotated_source_bytes": 80
+        }
+      },
+      "largest_routines": [
+        {
+          "name": "update_input_component",
+          "line_count": 4,
+          "source_bytes": 45,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_position_component",
+          "line_count": 2,
+          "source_bytes": 35,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "boot_entry",
+          "line_count": 3,
+          "source_bytes": 21,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        }
+      ],
+      "largest_unannotated_labels": [
+        {
+          "name": "update_input_component",
+          "line_count": 4,
+          "source_bytes": 45,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "update_position_component",
+          "line_count": 2,
+          "source_bytes": 35,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "boot_entry",
+          "line_count": 3,
+          "source_bytes": 21,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        }
+      ],
+      "largest_unannotated_by_category": {
+        "boot_or_init": [
+          {
+            "name": "boot_entry",
+            "line_count": 3,
+            "source_bytes": 21,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          }
+        ],
+        "runtime_code": [
+          {
+            "name": "update_input_component",
+            "line_count": 4,
+            "source_bytes": 45,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          },
+          {
+            "name": "update_position_component",
+            "line_count": 2,
+            "source_bytes": 35,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          }
+        ]
+      }
+    },
+    "optimization_passes": [
+      {
+        "pass": 1,
+        "findings": 2,
+        "patchable": 1,
+        "removed_lines": 3,
+        "removed_source_bytes": 44,
+        "removed_labels": [
+          "update_input_component"
+        ],
+        "input_line_count": 20,
+        "output_line_count": 17
+      },
+      {
+        "pass": 2,
+        "findings": 0,
+        "patchable": 0,
+        "removed_lines": 0,
+        "removed_source_bytes": 0,
+        "removed_labels": [],
+        "input_line_count": 17,
+        "output_line_count": 17
+      }
+    ],
+    "optimization_summary": {
+      "passes_run": 2,
+      "removed_lines": 3,
+      "removed_source_bytes": 44,
+      "removed_labels": [
+        "update_input_component"
+      ]
+    },
+    "removed_labels": [
+      "update_input_component"
+    ]
+  },
+  "blocks": [],
+  "block_analysis": [],
+  "block_errors": [],
+  "findings": [
+    {
+      "rule_id": "unused-component-runtime",
+      "title": "Component runtime type is unused",
+      "routine": "runtime.components.system.input",
+      "line_start": 15,
+      "line_end": 18,
+      "summary": "`runtime.components.system.input` covers unused input component labels: update_input_component. `project_usage.componentRuntime.usedComponents` is Position, so component type `Input` is not used by active entities. `componentCounts.Input` is 0. No external references outside this component group were found. This is a candidate for a future atomic component-system patch. Atomic patch enabled as `runtime.components.system.input` with 1 window(s).",
+      "patchable": false,
+      "patch": null
+    },
+    {
+      "rule_id": "unused-component-runtime",
+      "title": "Unused component runtime group window is atomically patchable",
+      "routine": "runtime.components.system.input:update_input_component",
+      "line_start": 15,
+      "line_end": 17,
+      "summary": "`update_input_component` is part of unused component runtime group `runtime.components.system.input`. The group has no external references, so this window is removed only together with the other group windows.",
+      "patchable": true,
+      "patch": {
+        "start_index": 14,
+        "end_index": 17,
+        "replacement_lines": [],
+        "reason": "Remove unused component runtime group window `update_input_component` from `runtime.components.system.input`.",
+        "group_id": "runtime.components.system.input"
+      }
+    }
+  ],
+  "applied_patches": 1
+}

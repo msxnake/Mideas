@@ -1,0 +1,13 @@
+BP_4010 pc=4010 sp=F2EC bank=00/04/33/3A flow=00 screen=33 irq=0000 inirq=00 pos=13107,13107
+space1_before pc=65AF sp=F37C bank=06/06/01/01 flow=00 screen=33 irq=00B6 inirq=00 pos=13107,13107
+space1_after pc=40D5 sp=F362 bank=00/00/01/01 flow=00 screen=00 irq=00C5 inirq=00 pos=13107,13107
+space2_before pc=6140 sp=F376 bank=06/06/01/01 flow=00 screen=00 irq=012E inirq=00 pos=0,0
+space2_after pc=C1FE sp=F356 bank=08/08/01/01 flow=00 screen=00 irq=013D inirq=00 pos=0,0
+t12 pc=1A56 sp=F364 bank=06/06/01/01 flow=01 screen=00 irq=01E2 inirq=00 pos=8,80
+SHOTOK patoantic248_matrix_megarom_ascii16_t12.png
+right_before pc=6636 sp=E97F bank=0A/0A/01/01 flow=01 screen=00 irq=023C inirq=01 pos=8,80
+right_after pc=6738 sp=F37C bank=06/06/01/01 flow=01 screen=00 irq=027A inirq=00 pos=40,80
+t16 pc=40DA sp=F372 bank=00/00/01/01 flow=01 screen=00 irq=02D1 inirq=00 pos=40,80
+SHOTOK patoantic248_matrix_megarom_ascii16_t16.png
+t22 pc=77F2 sp=F36A bank=00/00/01/01 flow=01 screen=00 irq=0439 inirq=00 pos=40,80
+SHOTOK patoantic248_matrix_megarom_ascii16_t22.png

@@ -10,6 +10,8 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import type { ExecutionPlan } from '../types/executionTypes';
 
+type HeaderMapperFormat = 'konami' | 'ascii8' | 'ascii16';
+
 /**
  * Generate task registration code for interrupt system
  */
@@ -17,7 +19,7 @@ function generateTaskRegistration(analysis?: ProjectAnalysis, executionPlan?: Ex
   if (!analysis) return '';
 
   let code = '';
-  const hasAudioTick = !!((analysis.tracks && analysis.tracks.length > 0) || (analysis.stateMachines && analysis.stateMachines.length > 0));
+  const hasAudioTick = !!((analysis.tracks && analysis.tracks.length > 0) || (analysis.sounds && analysis.sounds.length > 0));
   const usesInterruptTaskManager = executionPlan?.mode === 'interruptTaskManager';
 
   if (hasAudioTick) {
@@ -35,6 +37,143 @@ function generateTaskRegistration(analysis?: ProjectAnalysis, executionPlan?: Ex
   return code;
 }
 
+function generateMegaRomStaticBankSetup(targetFormat: HeaderMapperFormat): string {
+  if (targetFormat === 'ascii8') {
+    return `    ; MEGAROM ASCII8 static bank setup.
+    ; P1=#4000 keeps bank 0 resident; P2=#6000 and P3=#8000 hold
+    ; resident code; P4=#A000 starts as bank 3 until data loaders remap.
+    xor a
+    call mapper_set_bank_p1
+    ld a, 1
+    call mapper_set_bank_p2
+    ld a, 2
+    call mapper_set_bank_p3
+    ld a, 3
+    call mapper_set_bank_p4
+`;
+  }
+
+  if (targetFormat === 'ascii16') {
+    return `    ; MEGAROM ASCII16 static bank setup.
+    ; P1/P2 share the lower 16 KB register and P3/P4 share the upper one,
+    ; so only write one register per 16 KB page during boot.
+    xor a
+    call mapper_set_bank_p1
+    ld a, 1
+    call mapper_set_bank_p3
+`;
+  }
+
+  return `    ; MEGAROM Konami static bank setup.
+    ; Bank 0 (#4000-#5FFF): fixed. Banks 1-3 map to P1/P2/P3.
+    ld a, 1
+    call mapper_set_bank_p1
+    ld a, 2
+    call mapper_set_bank_p2
+    ld a, 3
+    call mapper_set_bank_p3
+`;
+}
+
+function buildPreservedHeaderAudioTickAsm(audioTickAsm: string): string {
+  if (!audioTickAsm.trim()) {
+    return '';
+  }
+  return `    push bc
+    push de
+    push hl
+${audioTickAsm}    pop hl
+    pop de
+    pop bc
+`;
+}
+
+/**
+ * Emit the wait calls used after an optional boot PresentationScreen image load.
+ */
+function buildPresentationBootWaitAsm(analysis: ProjectAnalysis | undefined): string {
+  const runtime = analysis?.presentationScreen?.runtime;
+  if (!runtime) {
+    return '';
+  }
+
+  let code = '';
+  const waitFrames = Math.max(0, Math.min(255, Math.floor(Number(runtime.waitForFrames) || 0)));
+  if (waitFrames > 0) {
+    code += `    ld b, ${waitFrames}
+    call boot_presentation_wait_frames
+`;
+  }
+  if (runtime.waitForKey) {
+    code += `    call boot_presentation_wait_for_fire
+`;
+  }
+  return code;
+}
+
+/**
+ * Keep boot PresentationScreen waits in header/bank-0 code after MegaROM image
+ * loading has restored the mapper window.
+ */
+function generatePresentationBootWaitHelpers(analysis: ProjectAnalysis | undefined, audioTickAsm: string): string {
+  const waitAsm = buildPresentationBootWaitAsm(analysis);
+  if (!waitAsm) {
+    return '';
+  }
+
+  const preservedAudioTickAsm = buildPreservedHeaderAudioTickAsm(audioTickAsm);
+  return `; ------------------------------------------------------------------
+; Optional boot PresentationScreen wait helpers.
+; MegaROM boot calls show_presentation_screen_image_far first, so the mapper
+; window is restored before these HALT/input loops run.
+; ------------------------------------------------------------------
+boot_presentation_wait_frames:
+    push bc
+    ld a, b
+    or a
+    jr z, .bpwf_done
+.bpwf_loop:
+    halt
+${preservedAudioTickAsm}    djnz .bpwf_loop
+.bpwf_done:
+    pop bc
+    ret
+
+boot_presentation_wait_for_fire:
+.bpwff_wait_press:
+    halt
+${preservedAudioTickAsm}    call boot_presentation_read_fire_direct
+    or a
+    jr z, .bpwff_wait_press
+.bpwff_wait_release:
+    halt
+${preservedAudioTickAsm}    call boot_presentation_read_fire_direct
+    or a
+    jr nz, .bpwff_wait_release
+    ret
+
+boot_presentation_read_fire_direct:
+    ; Boot presentation waits are not timing-critical; use BIOS SNSMAT for
+    ; consistent OpenMSX keymatrix and real keyboard behavior.
+    push bc
+    push de
+    push hl
+    ld a, 8
+    call SNSMAT
+    pop hl
+    pop de
+    pop bc
+    bit 0, a
+    jr z, .bprd_pressed
+    xor a
+    ret
+.bprd_pressed:
+    ld a, 1
+    ret
+
+`;
+}
+
 /**
  * Generate ROM header with "AB" signature (header.asm)
  * Generates basic MSX ROM initialization, then jumps to GameFlow
@@ -47,11 +186,12 @@ export function generateHeaderFile(
   projectName: string,
   analysis?: ProjectAnalysis,
   executionPlan?: ExecutionPlan,
-  romMode: string = 'simple32k'
+  romMode: string = 'simple32k',
+  targetFormat: HeaderMapperFormat = 'konami'
 ): string {
   const hasAudioTick = !!(
     (analysis?.tracks && analysis.tracks.length > 0) ||
-    (analysis?.stateMachines && analysis.stateMachines.length > 0)
+    (analysis?.sounds && analysis.sounds.length > 0)
   );
   const hasInterruptAudioTask = !!executionPlan?.tasks.some((task) => task.responsibility === 'audio');
   const mainLoopAudioTickAsm = hasAudioTick && !hasInterruptAudioTask
@@ -92,10 +232,15 @@ export function generateHeaderFile(
     Array.isArray(analysis.presentationScreen.data?.nameTable) &&
     analysis.presentationScreen.data.nameTable.length === (32 * 24)
   );
+  const presentationBootWaitAsm = shouldShowPresentationAtBoot ? buildPresentationBootWaitAsm(analysis) : '';
+  const presentationBootWaitHelpers = shouldShowPresentationAtBoot
+    ? generatePresentationBootWaitHelpers(analysis, mainLoopAudioTickAsm)
+    : '';
   const presentationBootAsm = shouldShowPresentationAtBoot
     ? `    ; Optional Presentation Screen configured in project data
 ${romMode === 'megarom'
-      ? `    call show_presentation_screen_far`
+      ? `    call show_presentation_screen_image_far
+${presentationBootWaitAsm}`
       : `    call show_presentation_screen`}
 
 `
@@ -159,19 +304,7 @@ restart_rom_continue:
 ${romMode === 'megarom' ? `
     ; Initialize cached resource descriptor mirrors used by banked resources.
     call resource_manager_init
-    ; MEGAROM: Static bank setup — map physical banks 1-3 to their pages.
-    ; Konami4 register layout: write to 6000h→6000-7FFFh, 8000h→8000-9FFFh, A000h→A000-BFFFh
-    ; p1 writes to reg #6000, p2 to #8000, p3 to #A000.
-    ; Bank 0 (4000h-5FFFh): fixed (Konami4 cannot change this page)
-    ; Bank 1 (6000h-7FFFh): set via p1 (reg #6000)
-    ; Bank 2 (8000h-9FFFh): set via p2 (reg #8000)
-    ; Bank 3 (A000h-BFFFh): set via p3 (reg #A000)
-    ld a, 1
-    call mapper_set_bank_p1
-    ld a, 2
-    call mapper_set_bank_p2
-    ld a, 3
-    call mapper_set_bank_p3
+${generateMegaRomStaticBankSetup(targetFormat)}
 ` : ''}
     ; Reset some interrupts to ensure compatibility
     ; with MSX computers with disk controllers
@@ -245,6 +378,7 @@ ${mainLoopAudioTickAsm}    ; Update gameplay state
     call update_all_entities
     jp main_loop
 
+${presentationBootWaitHelpers}
 ; ==================================================================
 ; AUXILIARY FUNCTIONS
 ; ==================================================================

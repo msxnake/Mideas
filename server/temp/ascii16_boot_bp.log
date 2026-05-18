@@ -1,0 +1,5 @@
+tick025 pc=8318 sp=F2F2 bank=00/04/33/3A flow=00 screen=FF irq=FFFF inirq=FF
+tick050 pc=811D sp=F2F6 bank=00/04/33/3A flow=00 screen=33 irq=0000 inirq=00
+tick100 pc=811D sp=F2F6 bank=00/04/33/3A flow=00 screen=33 irq=0000 inirq=00
+tick150 pc=1130 sp=F2FE bank=00/04/33/3A flow=00 screen=33 irq=0000 inirq=00
+tick200 pc=1130 sp=F2FE bank=00/04/33/3A flow=00 screen=33 irq=0000 inirq=00

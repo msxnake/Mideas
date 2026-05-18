@@ -16,48 +16,47 @@
 ; Mapper Target: konami
 ; Auto MegaROM: No
 ; Engine Execution Mode: interruptTaskManager
-; IRQ Task: slot 0 -> task_audio_tick (audio, every 1 frame)
 ; IRQ Task: slot 1 -> task_frame_counter (timer, every 1 frame)
 ; Mainline: postHalt -> update_sprites_to_vram (sprites)
 ; Mainline: preUpdate -> check_world_screen_transition (screenFlow)
 ; Mainline: postUpdate -> update_all_entities (entities)
 ; Mainline: postUpdate -> execute_all_state_machines (stateMachines)
 ; Mainline: postUpdate -> update_animated_tiles (animation)
-; Mainline: postUpdate -> sfx_update (sfx)
 ; Mainline: render -> render_hud (hud)
 ; Warning: none
 ; ==================================================================
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 80321
+; Estimated payload bytes: 75328
 ; Estimated banks used: 10
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : page0.asm (96 bytes)
-; BANK 00 @#0060 : patterns.asm (2171 bytes)
-; BANK 00 @#08DB : colors.asm (1875 bytes)
-; BANK 00 @#102E : components.asm (22 bytes)
-; BANK 00 @#1044 : entities.asm (4028 bytes)
-; BANK 01 @#0000 : entities.asm (703 bytes)
-; BANK 01 @#02BF : worlds.asm (1802 bytes)
-; BANK 01 @#09C9 : screens.asm part 1/2 (5687 bytes)
-; BANK 02 @#0000 : screens.asm part 2/2 (3647 bytes)
-; BANK 02 @#0E3F : sprites.asm part 1/2 (4545 bytes)
-; BANK 03 @#0000 : sprites.asm part 2/2 (3835 bytes)
-; BANK 03 @#0EFB : font.asm (3456 bytes)
-; BANK 03 @#1C7B : hud.asm (901 bytes)
-; BANK 04 @#0000 : hud.asm (3046 bytes)
-; BANK 04 @#0BE6 : menus.asm (168 bytes)
-; BANK 04 @#0C8E : sound.asm part 1/2 (4978 bytes)
-; BANK 05 @#0000 : sound.asm part 2/2 (4570 bytes)
-; BANK 05 @#11DA : scroll.asm (2353 bytes)
-; BANK 05 @#1B0B : animtiles.asm (1269 bytes)
-; BANK 06 @#0000 : animtiles.asm (4124 bytes)
-; BANK 06 @#101C : statemachine.asm part 1/3 (4068 bytes)
-; BANK 07 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 08 @#0000 : statemachine.asm part 3/3 (7651 bytes)
-; BANK 08 @#1DE3 : gameflow.asm (541 bytes)
-; BANK 09 @#0000 : gameflow.asm (6593 bytes)
+; BANK 00 @#0060 : patterns.asm (2166 bytes)
+; BANK 00 @#08D6 : colors.asm (1873 bytes)
+; BANK 00 @#1027 : components.asm (22 bytes)
+; BANK 00 @#103D : entities.asm (4035 bytes)
+; BANK 01 @#0000 : entities.asm (961 bytes)
+; BANK 01 @#03C1 : worlds.asm (1566 bytes)
+; BANK 01 @#09DF : screens.asm part 1/2 (5665 bytes)
+; BANK 02 @#0000 : screens.asm part 2/2 (4236 bytes)
+; BANK 02 @#108C : sprites.asm part 1/2 (3956 bytes)
+; BANK 03 @#0000 : sprites.asm part 2/2 (4692 bytes)
+; BANK 03 @#1254 : font.asm (3500 bytes)
+; BANK 04 @#0000 : font.asm (50 bytes)
+; BANK 04 @#0032 : hud.asm (3995 bytes)
+; BANK 04 @#0FCD : menus.asm (219 bytes)
+; BANK 04 @#10A8 : sound.asm (3928 bytes)
+; BANK 05 @#0000 : sound.asm (841 bytes)
+; BANK 05 @#0349 : scroll.asm (2418 bytes)
+; BANK 05 @#0CBB : animtiles.asm (3365 bytes)
+; BANK 05 @#19E0 : bosses.asm (331 bytes)
+; BANK 05 @#1B2B : statemachine.asm part 1/3 (1237 bytes)
+; BANK 06 @#0000 : statemachine.asm part 2/3 (8192 bytes)
+; BANK 07 @#0000 : statemachine.asm part 3/3 (8192 bytes)
+; BANK 08 @#0000 : statemachine.asm part 4/3 (2855 bytes)
+; BANK 08 @#0B27 : gameflow.asm (5337 bytes)
+; BANK 09 @#0000 : gameflow.asm (1600 bytes)
 
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
@@ -158,10 +157,7 @@ restart_rom_continue:
     di
 
     ; Register default tasks based on project needs
-        ; Initialize PSG/audio once at boot. WorldLink must not reset music after a Music node.
-    call init_sound_system
-
-    ; Register boot-time IRQ tasks defined by the engine execution plan.
+        ; Register boot-time IRQ tasks defined by the engine execution plan.
     call init_default_tasks_from_plan
 
 
@@ -180,8 +176,10 @@ restart_rom_continue:
 
 main_loop:
     halt
+    ; Update gameplay state
     call update_all_entities
     jp main_loop
+
 
 ; ==================================================================
 ; AUXILIARY FUNCTIONS
@@ -468,6 +466,82 @@ FAST_LDIRVM:
 
 
 ; ==================================================================
+; FAST_FILLVRM - Fast Repeated Byte Fill to VRAM
+; ==================================================================
+; Register Contract:
+;   Purpose: Fill a sequential VRAM range with one repeated byte using VDP data port auto-increment.
+;   Inputs:
+;     - A = byte to write
+;     - HL = destination address (VRAM)
+;     - BC = byte count
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;     - BC
+;   Preserved:
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = VDP address bytes, loop zero-test, and data byte
+;     - BC = countdown loop counter
+;     - E = cached fill byte while DE is saved on stack
+;     - HL = only used to program initial VRAM address
+;   Notes:
+;     - Returns without touching VRAM when BC = 0.
+;     - Caller must preserve AF/BC if needed after call.
+
+; Replaces small loops that call FAST_WRTVRM for repeated values
+;
+; Input:
+;   A  = Data byte to write
+;   HL = Destination address (VRAM)
+;   BC = Byte count
+;
+; Output:
+;   None
+;
+; Destroys:
+;   AF, BC
+;
+; Performance:
+;   Avoids reprogramming the VDP address for every byte.
+; ==================================================================
+FAST_FILLVRM:
+    push de
+    ld e, a                ; Cache fill byte while AF is free for address setup/checks
+    ld a, b
+    or c
+    jr z, .fill_done
+
+    ; Disable interrupts during VDP port sequence (see FAST_LDIRVM note).
+    di
+
+    ; Set VRAM write address once; the VDP auto-increments after each data write.
+    ld a, l
+    out (#99), a
+    nop
+    ld a, h
+    or #40
+    out (#99), a
+    nop
+
+    ld a, e
+.fill_loop:
+    out (#98), a
+    dec bc
+    ld a, b
+    or c
+    ld a, e
+    jr nz, .fill_loop
+
+    ei
+.fill_done:
+    pop de
+    ret
+
+
+; ==================================================================
 ; FAST_WRTVRM - Write Single Byte to VRAM
 ; ==================================================================
 ; Register Contract:
@@ -523,9 +597,9 @@ FAST_WRTVRM:
     out (#99), a           ; Address high + command (11 cycles)
     ld a, c
     out (#98), a           ; Write to VRAM (11 cycles)
-    ei
     pop af                 ; Restore caller AF
     pop bc
+    ei
     ret
 
 
@@ -1069,416 +1143,676 @@ prev_input_state    EQU #C001   ; Previous direction state (0-8)
 input_btn_curr      EQU #C002   ; Current input buttons bitmask (bit0=fire, bit1=grab)
 input_btn_prev      EQU #C003   ; Previous input buttons bitmask (bit0=fire, bit1=grab)
 input_fire          EQU #C004   ; Fire button state (0=released, 1=pressed)
-current_flow_state  EQU #C005   ; Current game flow state
-prev_flow_state     EQU #C006   ; Previous game flow state
-gameflow_exit_requested EQU #C007   ; Exit flag for WorldLink loop
-gameflow_menu_selection EQU #C008   ; Current/last submenu selection
-gameflow_submenu_data_ptr EQU #C009   ; Pointer to active submenu data (16-bit)
-gameflow_submenu_option_count EQU #C00B   ; Cached submenu option count
-gameflow_submenu_cursor_enabled EQU #C00C   ; 1 when submenu uses sprite cursor
-gameflow_submenu_cursor_layer_count EQU #C00D   ; Cursor sprite layer count (1..4)
-gameflow_condition_result EQU #C00E   ; Result of last condition evaluation
-transition_delay_var    EQU #C00F   ; Frames per step for active transition effect
+boss_runtime_tick   EQU #C005   ; Boss runtime frame counter
+current_screen_boss_count EQU #C006   ; Boss placements assigned to current screen
+current_screen_boss_table EQU #C007   ; Pointer to current screen boss placement table (16-bit)
+current_screen_boss_table_bank EQU #C009   ; Mapper bank for current screen boss placement table
+current_screen_boss_entry EQU #C00A   ; First current-screen boss placement copied to RAM (13 bytes)
+boss_active         EQU #C017   ; 1 when a screen boss is active
+boss_health_lo      EQU #C018   ; Active boss health low byte
+boss_health_hi      EQU #C019   ; Active boss health high byte
+boss_hit_cooldown   EQU #C01A   ; Frames until boss can receive dash damage again
+boss_phase_table_ptr EQU #C01B   ; Active boss phase table pointer (16-bit)
+boss_attack_table_ptr EQU #C01D   ; Active boss attack table pointer (16-bit)
+boss_data_bank      EQU #C01F   ; Active boss data mapper bank (#FF for resident/simple)
+boss_phase_ptr      EQU #C020   ; Active boss phase record pointer (16-bit)
+boss_tile_matrix_ptr EQU #C022   ; Active boss tile matrix pointer (16-bit)
+boss_x_char         EQU #C024   ; Active boss X in screen chars
+boss_y_char         EQU #C025   ; Active boss Y in screen chars
+boss_prev_x_char    EQU #C026   ; Previous boss X in screen chars for redraw restore
+boss_prev_y_char    EQU #C027   ; Previous boss Y in screen chars for redraw restore
+boss_initial_phase_index EQU #C028   ; Active boss initial phase index
+boss_width          EQU #C029   ; Active boss width in chars
+boss_height         EQU #C02A   ; Active boss height in chars
+boss_behavior_table_ptr EQU #C02B   ; Active boss behavior table pointer (16-bit)
+boss_form_table_ptr EQU #C02D   ; Active boss visual form table pointer (16-bit)
+boss_weak_matrix_ptr EQU #C02F   ; Active boss weak-point matrix pointer (16-bit)
+boss_behavior_action_ptr EQU #C031   ; Current boss behavior action pointer (16-bit)
+boss_behavior_count EQU #C033   ; Active boss behavior action count
+boss_behavior_index EQU #C034   ; Current boss behavior action index
+boss_behavior_timer EQU #C035   ; Frames remaining in current boss behavior action
+boss_behavior_duration EQU #C036   ; Current boss behavior action duration
+boss_behavior_step_interval EQU #C037   ; Frames between tile movement steps
+boss_behavior_step_timer EQU #C038   ; Countdown until next tile movement step
+boss_update_interval EQU #C039   ; Frames between ASM boss updates (1=every frame)
+boss_update_timer EQU #C03A   ; Countdown until next ASM boss update
+boss_behavior_action_type EQU #C03B   ; Current boss behavior action type
+boss_behavior_target_type EQU #C03C   ; Current boss behavior target type
+boss_behavior_target_x EQU #C03D   ; Current boss behavior target X char
+boss_behavior_target_y EQU #C03E   ; Current boss behavior target Y char
+boss_behavior_aux0 EQU #C03F   ; Current boss behavior auxiliary byte 0
+boss_behavior_aux1 EQU #C040   ; Current boss behavior auxiliary byte 1
+boss_behavior_aux2 EQU #C041   ; Current boss behavior auxiliary byte 2
+boss_visual_dirty   EQU #C042   ; Non-zero when boss tile matrix/form changed and needs redraw
+boss_draw_row       EQU #C043   ; Boss tile draw row scratch
+boss_draw_col       EQU #C044   ; Boss tile draw column scratch
+boss_restore_row    EQU #C045   ; Boss previous footprint restore row scratch
+boss_restore_col    EQU #C046   ; Boss previous footprint restore column scratch
+boss_draw_char      EQU #C047   ; Boss tile draw char scratch
+boss_draw_screen_x  EQU #C048   ; Boss tile draw screen X scratch
+boss_draw_screen_y  EQU #C049   ; Boss tile draw screen Y scratch
+boss_projectile_active EQU #C04A   ; 1 when the simple boss projectile is active
+boss_projectile_x   EQU #C04B   ; Simple boss projectile X in pixels
+boss_projectile_y   EQU #C04C   ; Simple boss projectile Y in pixels
+boss_projectile_sprite_slot EQU #C04D   ; HW sprite slot for simple boss projectile
+boss_projectile_color EQU #C04E   ; Simple boss projectile sprite color
+boss_projectile_color2 EQU #C04F   ; Simple boss projectile second layer color
+boss_projectile_pattern EQU #C050   ; Simple boss projectile base pattern
+boss_projectile_speed EQU #C051   ; Simple boss projectile speed
+boss_projectile_range EQU #C052   ; Simple boss projectile max travel distance
+boss_projectile_distance EQU #C053   ; Simple boss projectile current travelled distance
+boss_projectile_vel_x EQU #C054   ; Signed boss projectile X velocity
+boss_projectile_vel_y EQU #C055   ; Signed boss projectile Y velocity
+boss_projectile_abs_x EQU #C056   ; Absolute X delta toward player
+boss_projectile_abs_y EQU #C057   ; Absolute Y delta toward player
+boss_projectile_sign_x EQU #C058   ; 1 when player is left of projectile origin
+boss_projectile_sign_y EQU #C059   ; 1 when player is above projectile origin
+boss_projectile_frame_count EQU #C05A   ; Animation frame count for simple boss projectile
+boss_projectile_layer_count EQU #C05B   ; HW sprite layer count for simple boss projectile
+boss_slam_rocks_active EQU #C05C   ; 1 while SlamRocks sequence is active
+boss_slam_rocks_age EQU #C05D   ; SlamRocks local frame age
+boss_slam_rocks_origin_y EQU #C05E   ; Boss Y before SlamRocks starts
+boss_slam_rocks_rise_chars EQU #C05F   ; Chars boss rises before impact
+boss_slam_rocks_windup EQU #C060   ; Raised frames before impact
+boss_slam_rocks_slam EQU #C061   ; Drop frames before rocks begin
+boss_slam_rocks_hold EQU #C062   ; Ground hold frames before rocks begin
+boss_slam_rocks_duration EQU #C063   ; Total SlamRocks active frames
+boss_slam_rocks_count EQU #C064   ; Falling rock count
+boss_slam_rocks_index EQU #C065   ; Current falling rock lane index
+boss_slam_rocks_rng  EQU #C066   ; Local SlamRocks random seed
+boss_slam_rocks_sprite_slot EQU #C067   ; First HW sprite slot for SlamRocks rocks
+boss_slam_rocks_color EQU #C068   ; SlamRocks rock sprite color
+boss_slam_rocks_pattern EQU #C069   ; SlamRocks rock base pattern
+boss_slam_rocks_speed EQU #C06A   ; SlamRocks rock fall speed
+boss_slam_rocks_range EQU #C06B   ; SlamRocks rock fall range
+boss_slam_rock_x0    EQU #C06C   ; SlamRocks lane 0 X
+boss_slam_rock_x1    EQU #C06D   ; SlamRocks lane 1 X
+boss_slam_rock_x2    EQU #C06E   ; SlamRocks lane 2 X
+boss_slam_rock_x3    EQU #C06F   ; SlamRocks lane 3 X
+boss_falling_blocks_active EQU #C070   ; 1 while FallingBlocks sequence is active
+boss_falling_blocks_age EQU #C071   ; FallingBlocks local frame age
+boss_falling_blocks_count EQU #C072   ; Falling block count
+boss_falling_blocks_index EQU #C073   ; Current falling block lane index
+boss_falling_blocks_landed_flags EQU #C074   ; Bitmask of lanes already converted to chars
+boss_falling_blocks_rng EQU #C075   ; Local FallingBlocks random seed
+boss_falling_blocks_sprite_slot EQU #C076   ; First HW sprite slot for falling blocks
+boss_falling_blocks_color EQU #C077   ; Falling block sprite color
+boss_falling_blocks_pattern EQU #C078   ; Falling block base pattern
+boss_falling_blocks_speed EQU #C079   ; Falling block speed
+boss_falling_blocks_duration EQU #C07A   ; FallingBlocks max active frames
+boss_falling_blocks_tile_char EQU #C07B   ; Char written when a falling block lands
+boss_falling_blocks_landing_y EQU #C07C   ; Landing row in chars
+boss_falling_blocks_behavior EQU #C07D   ; Behavior byte written when a block lands
+boss_falling_blocks_tile_x EQU #C07E   ; Landing X char scratch
+boss_falling_blocks_x0 EQU #C07F   ; FallingBlocks lane 0 X
+boss_falling_blocks_x1 EQU #C080   ; FallingBlocks lane 1 X
+boss_falling_blocks_x2 EQU #C081   ; FallingBlocks lane 2 X
+boss_falling_blocks_x3 EQU #C082   ; FallingBlocks lane 3 X
+boss_meteor_age     EQU #C083   ; Boss meteor cycle age
+boss_meteor_count   EQU #C084   ; Active meteor lanes
+boss_meteor_index   EQU #C085   ; Current meteor lane index
+boss_meteor_base_x  EQU #C086   ; First meteor lane X
+boss_meteor_base_y  EQU #C087   ; Meteor spawn Y
+boss_meteor_sprite_slot EQU #C088   ; First HW sprite slot for meteors
+boss_meteor_color   EQU #C089   ; Meteor sprite color
+boss_meteor_pattern EQU #C08A   ; Meteor base pattern
+boss_meteor_speed   EQU #C08B   ; Meteor fall speed
+boss_meteor_range   EQU #C08C   ; Meteor fall range
+boss_meteor_spread  EQU #C08D   ; Meteor lane spacing
+boss_meteor_warn    EQU #C08E   ; Meteor warning frames
+boss_bomb_age       EQU #C08F   ; Boss bomb cycle age
+boss_bomb_count     EQU #C090   ; Active bomb lanes
+boss_bomb_index     EQU #C091   ; Current bomb lane index
+boss_bomb_base_x    EQU #C092   ; First bomb lane X
+boss_bomb_base_y    EQU #C093   ; Bomb spawn Y
+boss_bomb_sprite_slot EQU #C094   ; First HW sprite slot for bombs
+boss_bomb_color     EQU #C095   ; Bomb sprite color
+boss_bomb_pattern   EQU #C096   ; Bomb base pattern
+boss_bomb_explosion_pattern EQU #C097   ; Bomb explosion pattern
+boss_bomb_spread    EQU #C098   ; Bomb lane spacing
+boss_bomb_fuse      EQU #C099   ; Bomb fuse frames
+boss_bomb_radius    EQU #C09A   ; Bomb explosion radius
+boss_bomb_duration  EQU #C09B   ; Bomb explosion active frames
+boss_boomerang_age  EQU #C09C   ; Boss boomerang cycle age
+boss_boomerang_base_x EQU #C09D   ; Boomerang origin X
+boss_boomerang_base_y EQU #C09E   ; Boomerang origin Y
+boss_boomerang_sprite_slot EQU #C09F   ; HW sprite slot for boomerang
+boss_boomerang_color EQU #C0A0   ; Boomerang sprite color
+boss_boomerang_pattern EQU #C0A1   ; Boomerang base pattern
+boss_boomerang_speed EQU #C0A2   ; Boomerang speed
+boss_boomerang_range EQU #C0A3   ; Boomerang max distance
+boss_boomerang_distance EQU #C0A4   ; Current boomerang distance from origin
+boss_boomerang_direction EQU #C0A5   ; Boomerang direction
+boss_rock_age       EQU #C0A6   ; Boss rock cycle age
+boss_rock_base_x    EQU #C0A7   ; Rock origin X
+boss_rock_base_y    EQU #C0A8   ; Rock origin Y
+boss_rock_sprite_slot EQU #C0A9   ; HW sprite slot for rock
+boss_rock_color     EQU #C0AA   ; Rock sprite color
+boss_rock_pattern   EQU #C0AB   ; Rock base pattern
+boss_rock_speed     EQU #C0AC   ; Rock speed
+boss_rock_range     EQU #C0AD   ; Rock max travel distance
+boss_rock_distance  EQU #C0AE   ; Current rock distance from origin
+boss_rock_direction EQU #C0AF   ; Rock direction
+boss_rock_arc_height EQU #C0B0   ; Rock parabolic arc height
+boss_rock_arc_offset EQU #C0B1   ; Current rock arc offset
+boss_laser_age      EQU #C0B2   ; Boss laser cycle age
+boss_laser_base_x   EQU #C0B3   ; Laser origin X in pixels
+boss_laser_base_y   EQU #C0B4   ; Laser origin Y in pixels
+boss_laser_tile_char EQU #C0B5   ; Laser beam char code
+boss_laser_length   EQU #C0B6   ; Laser length in chars
+boss_laser_duration EQU #C0B7   ; Laser active frames
+boss_laser_direction EQU #C0B8   ; Laser direction
+boss_laser_index    EQU #C0B9   ; Current laser char index
+boss_laser_origin_tile_x EQU #C0BA   ; Laser origin tile X
+boss_laser_origin_tile_y EQU #C0BB   ; Laser origin tile Y
+boss_laser_tile_x   EQU #C0BC   ; Current laser tile X
+boss_laser_tile_y   EQU #C0BD   ; Current laser tile Y
+boss_laser_write_mode EQU #C0BE   ; 0=draw laser, 1=restore map
+boss_wave_age       EQU #C0BF   ; Boss sine-wave projectile cycle age
+boss_wave_base_x    EQU #C0C0   ; Sine-wave projectile origin X
+boss_wave_base_y    EQU #C0C1   ; Sine-wave projectile origin Y
+boss_wave_sprite_slot EQU #C0C2   ; HW sprite slot for sine-wave projectile
+boss_wave_color     EQU #C0C3   ; Sine-wave projectile sprite color
+boss_wave_pattern   EQU #C0C4   ; Sine-wave projectile base pattern
+boss_wave_speed     EQU #C0C5   ; Sine-wave projectile speed
+boss_wave_range     EQU #C0C6   ; Sine-wave projectile max travel distance
+boss_wave_distance  EQU #C0C7   ; Current sine-wave projectile distance
+boss_wave_direction EQU #C0C8   ; Sine-wave projectile direction
+boss_wave_amplitude EQU #C0C9   ; Sine-wave perpendicular amplitude
+boss_wave_frequency EQU #C0CA   ; Frames per sine-wave phase step
+boss_wave_phase     EQU #C0CB   ; Current sine-wave phase index
+boss_wave_offset    EQU #C0CC   ; Signed sine-wave perpendicular offset
+boss_homing_age     EQU #C0CD   ; Boss homing missile cycle age
+boss_homing_base_x  EQU #C0CE   ; Homing missile origin X
+boss_homing_base_y  EQU #C0CF   ; Homing missile origin Y
+boss_homing_sprite_slot EQU #C0D0   ; HW sprite slot for homing missile
+boss_homing_color   EQU #C0D1   ; Homing missile sprite color
+boss_homing_pattern EQU #C0D2   ; Homing missile base pattern
+boss_homing_speed   EQU #C0D3   ; Homing missile speed
+boss_homing_range   EQU #C0D4   ; Homing missile max travel distance
+boss_homing_distance EQU #C0D5   ; Current homing missile distance
+boss_homing_direction EQU #C0D6   ; Homing missile launch direction
+boss_homing_turn_step EQU #C0D7   ; Homing missile steering strength
+boss_homing_turn_distance EQU #C0D8   ; Homing missile steering distance
+autocontrol_screen_id EQU #C0D9   ; Screen id bound to current FakePlayer script
+autocontrol_entity_index EQU #C0DA   ; Active FakePlayer entity index (#FF=none)
+autocontrol_script_ptr_l EQU #C0DB   ; Current FakePlayer script pointer low byte
+autocontrol_script_ptr_h EQU #C0DC   ; Current FakePlayer script pointer high byte
+autocontrol_script_start_l EQU #C0DD   ; FakePlayer script start pointer low byte
+autocontrol_script_start_h EQU #C0DE   ; FakePlayer script start pointer high byte
+autocontrol_wait_frames EQU #C0DF   ; FakePlayer wait countdown in frames
+autocontrol_move_opcode EQU #C0E0   ; Active FakePlayer movement opcode
+autocontrol_move_remaining EQU #C0E1   ; Remaining FakePlayer movement pixels
+autocontrol_loop_flag EQU #C0E2   ; 1=loop FakePlayer script on END
+autocontrol_active EQU #C0E3   ; 1=FakePlayer script active
+autoev_screen_id EQU #C0E4   ; Screen id bound to compact FakePlayer event script
+autoev_entity_index EQU #C0E5   ; Active compact FakePlayer entity index (#FF=none)
+autoev_script_ptr_l EQU #C0E6   ; Compact FakePlayer event pointer low byte
+autoev_script_ptr_h EQU #C0E7   ; Compact FakePlayer event pointer high byte
+autoev_script_start_l EQU #C0E8   ; Compact FakePlayer event start pointer low byte
+autoev_script_start_h EQU #C0E9   ; Compact FakePlayer event start pointer high byte
+autoev_wait_frames EQU #C0EA   ; Compact FakePlayer wait countdown in frames
+autoev_move_axis EQU #C0EB   ; Compact move axis (1=x,2=y)
+autoev_move_step EQU #C0EC   ; Compact move step (1 or #FF)
+autoev_move_remaining EQU #C0ED   ; Remaining compact FakePlayer movement pixels
+autoev_loop_flag EQU #C0EE   ; 1=loop compact FakePlayer event script
+autoev_active EQU #C0EF   ; 1=compact FakePlayer event script active
+autoev_wait_mode EQU #C0F0   ; 1=wait SPC, 2=wait typewriter
+autoev_number_l EQU #C0F1   ; Parsed compact event number low byte
+autoev_number_h EQU #C0F2   ; Parsed compact event number high byte
+dialogue_active    EQU #C0F3   ; 1=dialogue box is open
+dialogue_current_box EQU #C0F4   ; Current dialogue box config index
+dialogue_text_active EQU #C0F5   ; 1=typewriter is writing text
+dialogue_text_ptr_l EQU #C0F6   ; Dialogue typewriter text pointer low byte
+dialogue_text_ptr_h EQU #C0F7   ; Dialogue typewriter text pointer high byte
+dialogue_vram_ptr_l EQU #C0F8   ; Dialogue typewriter VRAM pointer low byte
+dialogue_vram_ptr_h EQU #C0F9   ; Dialogue typewriter VRAM pointer high byte
+dialogue_row_start_l EQU #C0FA   ; Current dialogue row start VRAM low byte
+dialogue_row_start_h EQU #C0FB   ; Current dialogue row start VRAM high byte
+dialogue_char_delay EQU #C0FC   ; Dialogue character delay countdown
+dialogue_char_delay_reload EQU #C0FD   ; Dialogue character delay reload value
+dialogue_box_vram_l EQU #C0FE   ; Dialogue box VRAM start low byte
+dialogue_box_vram_h EQU #C0FF   ; Dialogue box VRAM start high byte
+dialogue_box_width EQU #C100   ; Dialogue box width in chars
+dialogue_box_height EQU #C101   ; Dialogue box height in chars
+dialogue_box_tl_char EQU #C102   ; Dialogue top-left border char
+dialogue_box_tr_char EQU #C103   ; Dialogue top-right border char
+dialogue_box_bl_char EQU #C104   ; Dialogue bottom-left border char
+dialogue_box_br_char EQU #C105   ; Dialogue bottom-right border char
+dialogue_box_h_char EQU #C106   ; Dialogue horizontal border char
+dialogue_box_v_char EQU #C107   ; Dialogue vertical border char
+dialogue_graphic_enabled EQU #C108   ; 1=dialogue tile graphic is visible
+dialogue_graphic_vram_l EQU #C109   ; Dialogue graphic VRAM start low byte
+dialogue_graphic_vram_h EQU #C10A   ; Dialogue graphic VRAM start high byte
+dialogue_graphic_ptr_l EQU #C10B   ; Dialogue graphic tile data pointer low byte
+dialogue_graphic_ptr_h EQU #C10C   ; Dialogue graphic tile data pointer high byte
+dialogue_graphic_width EQU #C10D   ; Dialogue graphic width in chars
+dialogue_graphic_height EQU #C10E   ; Dialogue graphic height in chars
+current_flow_state  EQU #C10F   ; Current game flow state
+prev_flow_state     EQU #C110   ; Previous game flow state
+gameflow_exit_requested EQU #C111   ; Exit flag for WorldLink loop
+gameflow_menu_selection EQU #C112   ; Current/last submenu selection
+gameflow_submenu_data_ptr EQU #C113   ; Pointer to active submenu data (16-bit)
+gameflow_submenu_option_count EQU #C115   ; Cached submenu option count
+gameflow_submenu_cursor_enabled EQU #C116   ; 1 when submenu uses sprite cursor
+gameflow_submenu_cursor_layer_count EQU #C117   ; Cursor sprite layer count (1..4)
+gameflow_condition_result EQU #C118   ; Result of last condition evaluation
+transition_delay_var    EQU #C119   ; Frames per step for active transition effect
 
 ; ==================================================================
 ; MIDEAS GLOBAL VARIABLES (DEFAULTS + CUSTOM)
 ; ==================================================================
-global_var_score     EQU #C010   ; Current player score (0-65535) (16-bit)
-global_var_time_remaining EQU #C012   ; Time remaining in seconds (0-65535) (16-bit)
-global_var_buttons_activated EQU #C014   ; Number of floor buttons already activated. (8-bit)
-global_var_buttons_reward_granted EQU #C015   ; Latch to grant the button score bonus only once. (8-bit)
+global_var_score     EQU #C11A   ; Current player score (0-65535) (16-bit)
+global_var_time_remaining EQU #C11C   ; Time remaining in seconds (0-65535) (16-bit)
+global_var_buttons_activated EQU #C11E   ; Number of floor buttons already activated. (8-bit)
+global_var_buttons_reward_granted EQU #C11F   ; Latch to grant the button score bonus only once. (8-bit)
 
 ; ==================================================================
 ; SYSTEM VARIABLES
 ; ==================================================================
-ROM_slot            EQU #C016   ; Expanded slot for normal page 1 ROM access
-slot_primary_normal EQU #C017   ; Primary slot register snapshot for BIOS-ROM-ROM-RAM layout
-page0_bios_slot     EQU #C018   ; Expanded slot for normal BIOS page 0
-page2_normal_slot   EQU #C019   ; Expanded slot for normal page 2 layout
-page3_normal_slot   EQU #C01A   ; Expanded slot for normal RAM page 3
-mapper_bank_p1_current EQU #C01B   ; Mapper current bank for page/window 1
-mapper_bank_p2_current EQU #C01C   ; Mapper current bank for page/window 2
-mapper_bank_p3_current EQU #C01D   ; Mapper current bank for page/window 3
-mapper_bank_p4_current EQU #C01E   ; Mapper current bank for page/window 4
-mapper_saved_bank    EQU #C01F   ; Saved mapper bank for push/pop helpers
-mapper_saved_bank_p1 EQU #C020   ; Saved mapper bank for page/window 1 helpers
-mapper_saved_bank_p3 EQU #C021   ; Saved mapper bank for page/window 3 helpers
-mapper_saved_bank_p4 EQU #C022   ; Saved mapper bank for page/window 4 helpers
-resource_descriptor_ptr EQU #C023   ; Pointer to cached resource descriptor entry (16-bit)
-resource_descriptor_id EQU #C025   ; Cached resource id
-resource_descriptor_type EQU #C026   ; Cached resource type
-resource_descriptor_group EQU #C027   ; Cached resource group
-resource_descriptor_bank EQU #C028   ; Cached resource bank
-resource_descriptor_addr EQU #C029   ; Cached resource visible address (16-bit)
-resource_descriptor_size EQU #C02B   ; Cached resource size (16-bit)
-vram_cache_tile_patterns_ready EQU #C02D   ; 1 when shared gameplay tile patterns are already resident in VRAM
-vram_cache_tile_colors_ready EQU #C02E   ; 1 when shared gameplay tile colors are already resident in VRAM
-vram_cache_font_ready EQU #C02F   ; 1 when shared font patterns/colors are already resident in VRAM
-resource_ram_cache_screen_layout_id EQU #C030   ; Cached resource id for runtime_background_layout source
-resource_ram_cache_effects_layout_id EQU #C031   ; Cached resource id for runtime_effects_layout source
-resource_ram_cache_behavior_map_id EQU #C032   ; Cached resource id for pristine behavior-map RAM copy
-resource_ram_cache_effect_zone_table_id EQU #C033   ; Cached resource id for runtime_effect_zone_table source
-current_screen2_tilebank_id EQU #C034   ; Current SCREEN 2 shared tilebank loaded in VRAM (#FF=none/unknown)
-frame_counter       EQU #C035   ; Frame counter (16-bit)
+ROM_slot            EQU #C120   ; Expanded slot for normal page 1 ROM access
+slot_primary_normal EQU #C121   ; Primary slot register snapshot for BIOS-ROM-ROM-RAM layout
+page0_bios_slot     EQU #C122   ; Expanded slot for normal BIOS page 0
+page2_normal_slot   EQU #C123   ; Expanded slot for normal page 2 layout
+page3_normal_slot   EQU #C124   ; Expanded slot for normal RAM page 3
+slot_subslot_normal EQU #C125   ; Raw subslot register snapshot for normal page 3 expanded slot
+mapper_bank_p1_current EQU #C126   ; Mapper current bank for page/window 1
+mapper_bank_p2_current EQU #C127   ; Mapper current bank for page/window 2
+mapper_bank_p3_current EQU #C128   ; Mapper current bank for page/window 3
+mapper_bank_p4_current EQU #C129   ; Mapper current bank for page/window 4
+mapper_saved_bank    EQU #C12A   ; Saved mapper bank for push/pop helpers
+mapper_saved_bank_p1 EQU #C12B   ; Saved mapper bank for page/window 1 helpers
+mapper_saved_bank_p3 EQU #C12C   ; Saved mapper bank for page/window 3 helpers
+mapper_saved_bank_p4 EQU #C12D   ; Saved mapper bank for page/window 4 helpers
+resource_descriptor_ptr EQU #C12E   ; Pointer to cached resource descriptor entry (16-bit)
+resource_descriptor_id EQU #C130   ; Cached resource id
+resource_descriptor_type EQU #C131   ; Cached resource type
+resource_descriptor_group EQU #C132   ; Cached resource group
+resource_descriptor_bank EQU #C133   ; Cached resource bank
+resource_descriptor_addr EQU #C134   ; Cached resource visible address (16-bit)
+resource_descriptor_size EQU #C136   ; Cached resource size (16-bit)
+resource_descriptor_uncompressed_size EQU #C138   ; Cached resource uncompressed size (16-bit)
+resource_descriptor_flags EQU #C13A   ; Cached resource flags
+vram_cache_tile_patterns_ready EQU #C13B   ; 1 when shared gameplay tile patterns are already resident in VRAM
+vram_cache_tile_colors_ready EQU #C13C   ; 1 when shared gameplay tile colors are already resident in VRAM
+vram_cache_font_ready EQU #C13D   ; 1 when shared font patterns/colors are already resident in VRAM
+current_screen2_tilebank_id EQU #C13E   ; Current SCREEN 2 shared tilebank loaded in VRAM (#FF=none/unknown)
+frame_counter       EQU #C13F   ; Frame counter (16-bit)
 
 ; Profiling counters (16-bit, cumulative)
-prof_update_all_entities_calls EQU #C037   ; Calls to update_all_entities
-prof_execute_sm_calls EQU #C039   ; Calls to execute_all_state_machines
-prof_sm_update_calls  EQU #C03B   ; Calls to SM_Update
-prof_collision_calls  EQU #C03D   ; Calls to update_collision_component
-prof_wall_calls       EQU #C03F   ; Calls to update_wallcollision_component
-prof_deadly_calls     EQU #C041   ; Calls to update_deadly_tiles_component
-prof_tile_interaction_calls EQU #C043   ; Calls to check_tile_interaction
-prof_animation_calls  EQU #C045   ; Calls to update_animation_component
-prof_sprite_calls     EQU #C047   ; Calls to update_sprite_component
-prof_music_task_calls EQU #C049   ; Calls to task_update_music
-prof_deadly_behavior_reads EQU #C04B   ; Deadly helper behavior-map reads
-page0_transfer_buffer EQU #C04D   ; Temporary RAM buffer for page0 -> VRAM copies
+prof_update_all_entities_calls EQU #C141   ; Calls to update_all_entities
+prof_execute_sm_calls EQU #C143   ; Calls to execute_all_state_machines
+prof_sm_update_calls  EQU #C145   ; Calls to SM_Update
+prof_collision_calls  EQU #C147   ; Calls to update_collision_component
+prof_wall_calls       EQU #C149   ; Calls to update_wallcollision_component
+prof_deadly_calls     EQU #C14B   ; Calls to update_deadly_tiles_component
+prof_tile_interaction_calls EQU #C14D   ; Calls to check_tile_interaction
+prof_animation_calls  EQU #C14F   ; Calls to update_animation_component
+prof_sprite_calls     EQU #C151   ; Calls to update_sprite_component
+prof_music_task_calls EQU #C153   ; Calls to task_update_music
+prof_deadly_behavior_reads EQU #C155   ; Deadly helper behavior-map reads
+; page0_transfer_buffer shares the ZX0 scratch area declared near RAM_USAGE_END.
 
 ; ==================================================================
 ; SCREEN MAP POINTERS (Current active screen)
 ; ==================================================================
-current_screen_layout   EQU #C14D   ; Pointer to current screen layout data (16-bit)
-current_screen_layout_bank EQU #C14F   ; Mapper bank for current screen layout data
-current_behavior_map    EQU #C150   ; Pointer to current behavior map data (16-bit)
-current_behavior_map_bank EQU #C152   ; Mapper bank for current behavior map data
-behavior_cache_row     EQU #C153   ; Cached behavior row (255=invalid)
-behavior_cache_map_l   EQU #C154   ; Cached behavior map pointer low byte
-behavior_cache_map_h   EQU #C155   ; Cached behavior map pointer high byte
-behavior_cache_row_base EQU #C156   ; Cached row base address in behavior map (16-bit)
+current_screen_layout   EQU #C157   ; Pointer to current screen layout data (16-bit)
+current_screen_layout_bank EQU #C159   ; Mapper bank for current screen layout data
+current_behavior_map    EQU #C15A   ; Pointer to current behavior map data (16-bit)
+current_behavior_map_bank EQU #C15C   ; Mapper bank for current behavior map data
+behavior_cache_row     EQU #C15D   ; Cached behavior row (255=invalid)
+behavior_cache_map_l   EQU #C15E   ; Cached behavior map pointer low byte
+behavior_cache_map_h   EQU #C15F   ; Cached behavior map pointer high byte
+behavior_cache_row_base EQU #C160   ; Cached row base address in behavior map (16-bit)
 RUNTIME_SCREEN_MAP_SIZE EQU 768
-MAX_RUNTIME_EFFECT_ZONES EQU 64
-runtime_background_layout EQU #C158   ; Immutable copy of current background layout (32x24)
-runtime_screen_layout  EQU #C458   ; Mutable copy of current screen layout (32x24)
-resource_ram_cache_behavior_map EQU #C758   ; Pristine behavior map cache for current banked resource (32x24)
-runtime_behavior_map   EQU #CA58   ; Mutable copy of current behavior map (32x24)
-runtime_interaction_type_map EQU #CD58   ; Mutable copy of current interaction type map (32x24)
-runtime_interaction_value_map EQU #D058   ; Mutable copy of current interaction value map (32x24)
-runtime_interaction_target_map EQU #D358   ; Mutable copy of current interaction target map (32x24)
-runtime_char_behavior_table EQU #D658   ; Current screen char -> behavior lookup table (256 bytes)
-runtime_effects_layout EQU #D758   ; Alternate effects layout copy for secret zones (32x24)
-screen_block_catalog_ptr EQU #DA58   ; Scratch pointer to current screen block catalog during layout expansion
-screen_block_map_ptr EQU #DA5A   ; Scratch pointer to current screen block index map during layout expansion
-runtime_effect_zone_table EQU #DA5C   ; Current screen effect zone table (MAX_RUNTIME_EFFECT_ZONES * 8 bytes)
-current_effect_zone_count EQU #DC5C   ; Number of effect zones copied into runtime_effect_zone_table
-secret_zone_active EQU #DC5D   ; 1 if hero is currently inside an active secret zone
-secret_zone_rect_x EQU #DC5E   ; Active secret zone rect X in cells
-secret_zone_rect_y EQU #DC5F   ; Active secret zone rect Y in cells
-secret_zone_rect_w EQU #DC60   ; Active secret zone rect width in cells
-secret_zone_rect_h EQU #DC61   ; Active secret zone rect height in cells
+MAX_RUNTIME_EFFECT_ZONES EQU 0
+runtime_background_layout EQU #C162   ; Immutable copy of current background layout (32x24)
+runtime_screen_layout  EQU #C462   ; Mutable copy of current screen layout (32x24)
+runtime_behavior_map   EQU #C762   ; Mutable copy of current behavior map (32x24)
+runtime_interaction_type_map EQU #CA62   ; Mutable copy of current interaction type map (32x24)
+runtime_interaction_value_map EQU #CD62   ; Mutable copy of current interaction value map (32x24)
+runtime_interaction_target_map EQU #D062   ; Mutable copy of current interaction target map (32x24)
+runtime_char_behavior_table EQU #D362   ; Current screen char -> behavior lookup table (256 bytes)
+runtime_effects_layout EQU #D462   ; Alternate effects layout copy for secret zones (32x24)
+screen_block_catalog_ptr EQU #D762   ; Scratch pointer to current screen block catalog during layout expansion
+screen_block_map_ptr EQU #D764   ; Scratch pointer to current screen block index map during layout expansion
+runtime_effect_zone_table EQU #D766   ; Current screen effect zone table (0 bytes)
+current_effect_zone_count EQU #D766   ; Number of effect zones copied into runtime_effect_zone_table
+secret_zone_active EQU #D767   ; 1 if hero is currently inside an active secret zone
+secret_zone_rect_x EQU #D768   ; Active secret zone rect X in cells
+secret_zone_rect_y EQU #D769   ; Active secret zone rect Y in cells
+secret_zone_rect_w EQU #D76A   ; Active secret zone rect width in cells
+secret_zone_rect_h EQU #D76B   ; Active secret zone rect height in cells
 
 ; ==================================================================
 ; VIEWPORT/CAMERA VARIABLES (for scroll system)
 ; ==================================================================
-camera_x            EQU #DC62   ; Camera X position in pixels (16-bit)
-camera_y            EQU #DC64   ; Camera Y position in pixels (16-bit)
-camera_tile_x       EQU #DC66   ; Camera tile X (column)
-camera_tile_y       EQU #DC67   ; Camera tile Y (row)
-world_width_tiles   EQU #DC68   ; World width in tiles
-world_height_tiles  EQU #DC69   ; World height in tiles
-scroll_dirty_flag   EQU #DC6A   ; 1=viewport changed, needs redraw
-hud_dirty_flag      EQU #DC6B   ; 1=HUD needs redraw, 0=clean
-time_second_frame_counter EQU #DC6C   ; VBlank frames remaining until the next TimeRemaining decrement
-time_last_interrupt_counter EQU #DC6D   ; Last interrupt_counter snapshot used by TimeRemaining sync (16-bit)
+camera_x            EQU #D76C   ; Camera X position in pixels (16-bit)
+camera_y            EQU #D76E   ; Camera Y position in pixels (16-bit)
+camera_tile_x       EQU #D770   ; Camera tile X (column)
+camera_tile_y       EQU #D771   ; Camera tile Y (row)
+world_width_tiles   EQU #D772   ; World width in tiles
+world_height_tiles  EQU #D773   ; World height in tiles
+scroll_dirty_flag   EQU #D774   ; 1=viewport changed, needs redraw
+hud_dirty_flag      EQU #D775   ; 1=HUD needs redraw, 0=clean
+time_second_frame_counter EQU #D776   ; VBlank frames remaining until the next TimeRemaining decrement
+time_last_interrupt_counter EQU #D777   ; Last interrupt_counter snapshot used by TimeRemaining sync (16-bit)
 
 ; ==================================================================
 ; ANIMATED TILES VARIABLES
 ; ==================================================================
-anim_tile_timer     EQU #DC6F   ; Animation frame timer
-anim_tile_frame     EQU #DC70   ; Current animation frame (0-3)
-anim_tile_speed     EQU #DC71   ; Frames between animation updates
-anim_tile_transform_flags EQU #DC72   ; Runtime flags for transform-mode tile animation (byte0=flags, byte1=opcode scratch)
-anim_tile_row_buffer EQU #DC74   ; Temp buffer (8 bytes) for row transforms
+anim_tile_timer     EQU #D779   ; Animation frame timer
+anim_tile_frame     EQU #D77A   ; Current animation frame (0-3)
+anim_tile_speed     EQU #D77B   ; Frames between animation updates
 
 ; ==================================================================
 ; ENTITY SYSTEM VARIABLES (Fixed 32 entities)
 ; ==================================================================
 MAX_ENTITIES        EQU 32
-entity_active       EQU #DC7C   ; Entity active flags (32 bytes, 0=inactive, 1=active)
-entity_is_player    EQU #DC9C   ; Entity hero/player flag (32 bytes, 0=no, 1=yes)
-entity_button_contact_active EQU #DCBC   ; 1 while entity stays on the same button tile (32 bytes)
-entity_button_contact_x EQU #DCDC   ; Button tile X currently latched per entity (32 bytes)
-entity_button_contact_y EQU #DCFC   ; Button tile Y currently latched per entity (32 bytes)
-entity_on_ladder   EQU #DD1C   ; 1 while entity is centered on a ladder tile (32 bytes)
-entity_gate_current_step EQU #DD3C   ; Current applied retract step (32 bytes)
-entity_gate_step_timer EQU #DD5C   ; Countdown until next retract step (32 bytes)
-entity_walljump_lock EQU #DD7C   ; Remaining horizontal lock frames after wall jump (32 bytes)
-entity_walljump_locked_vx EQU #DD9C   ; Horizontal velocity preserved while wall jump lock is active (32 bytes)
-entity_wallgrab_active EQU #DDBC   ; 1 if entity is currently grabbing a wall (32 bytes)
-entity_wallgrab_grace EQU #DDDC   ; Frames to keep wall grab during transient wall flag gaps (32 bytes)
-entity_walljump_anim_active EQU #DDFC   ; Wall jump one-shot animation is waiting to restore base sprite (32 bytes)
-entity_x_pos        EQU #DE1C   ; Entity X positions (32 bytes)
-entity_y_pos        EQU #DE3C   ; Entity Y positions (32 bytes)
-entity_vel_x        EQU #DE5C   ; Entity X velocity (32 bytes)
-entity_vel_y        EQU #DE7C   ; Entity Y velocity (32 bytes)
-entity_comp_masks   EQU #DE9C   ; Entity component masks (32 bytes)
-entity_comp_masks_hi EQU #DEBC   ; Entity component masks high byte (32 bytes)
-entity_screen_id    EQU #DEDC   ; Entity screen ID (32 bytes)
-entity_job_period   EQU #DEFC   ; Entity job period in frames (32 bytes, 1=100%,2=50%,3=33%,4=25%)
-entity_job_entry    EQU #DF1C   ; Entity job entry slot within period window (32 bytes)
-entity_job_scheduler_active EQU #DF3C   ; 1 when any entity uses non-default job cadence
-entity_dir_mask     EQU #DF3D   ; Entity direction mask (32 bytes)
-entity_input_speed  EQU #DF5D   ; Entity input/cursor speed (32 bytes)
-entity_health       EQU #DF7D   ; Entity health (32 bytes)
-entity_anim_frame   EQU #DF9D   ; Entity animation frame (32 bytes)
-entity_anim_tick    EQU #DFBD   ; Entity animation tick counter (32 bytes)
-entity_anim_speed   EQU #DFDD   ; Entity animation speed (ticks per frame) (32 bytes)
-entity_anim_flags   EQU #DFFD   ; Entity animation flags (32 bytes)
-entity_sm_ptr_l     EQU #E01D   ; Entity State Pointer Low (32 bytes)
-entity_sm_ptr_h     EQU #E03D   ; Entity State Pointer High (32 bytes)
-entity_sm_timer_l   EQU #E05D   ; Entity State Timer Low (32 bytes)
-entity_sm_timer_h   EQU #E07D   ; Entity State Timer High (32 bytes)
-entity_sm_wait_timer EQU #E09D   ; Entity State Wait Timer (32 bytes)
-entity_sm_sprite_control EQU #E0BD   ; 1 when the assigned state machine explicitly drives sprite changes (32 bytes)
-entity_lifetime     EQU #E0DD   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
-entity_collectible_enabled EQU #E0FD   ; 1 when entity has Collectible component (32 bytes)
-entity_carried_by   EQU #E11D   ; Entity carrier ID (32 bytes, 255=not carried)
-entity_template_token EQU #E13D   ; Entity template token (32 bytes, 0=unknown)
-entity_facing_dir   EQU #E15D   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
-entity_sm_var_0     EQU #E17D   ; Entity Variable 0 (32 bytes)
-entity_sm_var_1     EQU #E19D   ; Entity Variable 1 (32 bytes)
-entity_sm_var_2     EQU #E1BD   ; Entity Variable 2 (32 bytes)
-entity_sm_var_3     EQU #E1DD   ; Entity Variable 3 (32 bytes)
-entity_sm_var_4     EQU #E1FD   ; Entity Variable 4 (32 bytes)
-entity_sm_var_5     EQU #E21D   ; Entity Variable 5 (32 bytes)
-entity_sm_var_6     EQU #E23D   ; Entity Variable 6 (32 bytes)
-entity_sm_var_7     EQU #E25D   ; Entity Variable 7 (32 bytes)
+entity_active       EQU #D77C   ; Entity active flags (32 bytes, 0=inactive, 1=active)
+entity_is_player    EQU #D79C   ; Entity hero/player flag (32 bytes, 0=no, 1=yes)
+entity_button_contact_active EQU #D7BC   ; 1 while entity stays on the same button tile (32 bytes)
+entity_button_contact_x EQU #D7DC   ; Button tile X currently latched per entity (32 bytes)
+entity_button_contact_y EQU #D7FC   ; Button tile Y currently latched per entity (32 bytes)
+entity_on_ladder   EQU #D81C   ; 1 while entity is centered on a ladder tile (32 bytes)
+entity_gate_current_step EQU #D83C   ; Current applied retract step (32 bytes)
+entity_gate_step_timer EQU #D85C   ; Countdown until next retract step (32 bytes)
+entity_walljump_lock EQU #D87C   ; Remaining horizontal lock frames after wall jump (32 bytes)
+entity_walljump_locked_vx EQU #D89C   ; Horizontal velocity preserved while wall jump lock is active (32 bytes)
+entity_wallgrab_active EQU #D8BC   ; 1 if entity is currently grabbing a wall (32 bytes)
+entity_wallgrab_grace EQU #D8DC   ; Frames to keep wall grab during transient wall flag gaps (32 bytes)
+entity_wallgrab_timer EQU #D8FC   ; Remaining wall-grab frames until grounded reset (32 bytes)
+entity_wallgrab_lockout EQU #D91C   ; Wall grab disabled until grounded after timer is spent (32 bytes)
+entity_walljump_anim_active EQU #D93C   ; Wall jump one-shot animation is waiting to restore base sprite (32 bytes)
+entity_x_pos        EQU #D95C   ; Entity X positions (32 bytes)
+entity_y_pos        EQU #D97C   ; Entity Y positions (32 bytes)
+entity_vel_x        EQU #D99C   ; Entity X velocity (32 bytes)
+entity_vel_y        EQU #D9BC   ; Entity Y velocity (32 bytes)
+entity_comp_masks   EQU #D9DC   ; Entity component masks (32 bytes)
+entity_comp_masks_hi EQU #D9FC   ; Entity component masks high byte (32 bytes)
+entity_screen_id    EQU #DA1C   ; Entity screen ID (32 bytes)
+entity_job_period   EQU #DA3C   ; Entity job period in frames (32 bytes, 1=100%,2=50%,3=33%,4=25%)
+entity_job_entry    EQU #DA5C   ; Entity job entry slot within period window (32 bytes)
+entity_job_scheduler_active EQU #DA7C   ; 1 when any entity uses non-default job cadence
+entity_dir_mask     EQU #DA7D   ; Entity direction mask (32 bytes)
+entity_input_speed  EQU #DA9D   ; Entity input/cursor speed (32 bytes)
+entity_health       EQU #DABD   ; Entity health (32 bytes)
+entity_anim_frame   EQU #DADD   ; Entity animation frame (32 bytes)
+entity_anim_tick    EQU #DAFD   ; Entity animation tick counter (32 bytes)
+entity_anim_speed   EQU #DB1D   ; Entity animation speed (ticks per frame) (32 bytes)
+entity_anim_flags   EQU #DB3D   ; Entity animation flags (32 bytes)
+entity_sm_ptr_l     EQU #DB5D   ; Entity State Pointer Low (32 bytes)
+entity_sm_ptr_h     EQU #DB7D   ; Entity State Pointer High (32 bytes)
+entity_sm_timer_l   EQU #DB9D   ; Entity State Timer Low (32 bytes)
+entity_sm_timer_h   EQU #DBBD   ; Entity State Timer High (32 bytes)
+entity_sm_wait_timer EQU #DBDD   ; Entity State Wait Timer (32 bytes)
+entity_sm_sprite_control EQU #DBFD   ; 1 when the assigned state machine explicitly drives sprite changes (32 bytes)
+entity_lifetime     EQU #DC1D   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
+entity_collectible_enabled EQU #DC3D   ; 1 when entity has Collectible component (32 bytes)
+entity_carried_by   EQU #DC5D   ; Entity carrier ID (32 bytes, 255=not carried)
+entity_template_token EQU #DC7D   ; Entity template token (32 bytes, 0=unknown)
+entity_facing_dir   EQU #DC9D   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
+entity_sm_var_0     EQU #DCBD   ; Entity Variable 0 (32 bytes)
+entity_sm_var_1     EQU #DCDD   ; Entity Variable 1 (32 bytes)
+entity_sm_var_2     EQU #DCFD   ; Entity Variable 2 (32 bytes)
+entity_sm_var_3     EQU #DD1D   ; Entity Variable 3 (32 bytes)
+entity_sm_var_4     EQU #DD3D   ; Entity Variable 4 (32 bytes)
+entity_sm_var_5     EQU #DD5D   ; Entity Variable 5 (32 bytes)
+entity_sm_var_6     EQU #DD7D   ; Entity Variable 6 (32 bytes)
+entity_sm_var_7     EQU #DD9D   ; Entity Variable 7 (32 bytes)
 
 ; ==================================================================
 ; SPRITE SYSTEM VARIABLES
 ; ==================================================================
-entity_sprite_asset_index EQU #E27D   ; Entity sprite asset index - RAM copy (32 bytes)
-active_sprite_count EQU #E29D   ; Number of sprites currently active
-sprites_dirty      EQU #E29E   ; 1=sprite_attributes changed, needs VRAM sync
-sprite_pattern      EQU #E29F   ; Sprite pattern IDs (32 bytes)
-sprite_color        EQU #E2BF   ; Sprite colors (32 bytes)
-sprite_layer_colors EQU #E2DF   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
-sprite_layer_y_offsets EQU #E2FF   ; HW sprite layer signed Y offsets - RAM copy (32 bytes, indexed by HW sprite index)
-sprite_asset_base_pattern_slot_runtime EQU #E31F   ; Runtime base 16x16 slot per sprite asset (11 bytes)
-sprite_placeholder_base_pattern_num EQU #E32A   ; Runtime placeholder pattern number (base slot * 4)
-current_sprite_pattern_pack_id EQU #E32B   ; Active runtime sprite pattern pack id (#FF=none loaded)
-sprite_attributes   EQU #E32C   ; Interleaved sprite attributes (32 * 4 bytes)
+entity_sprite_asset_index EQU #DDBD   ; Entity sprite asset index - RAM copy (32 bytes)
+active_sprite_count EQU #DDDD   ; Number of sprites currently active
+sprites_dirty      EQU #DDDE   ; 1=sprite_attributes changed, needs VRAM sync
+sprite_pattern      EQU #DDDF   ; Sprite pattern IDs (32 bytes)
+sprite_color        EQU #DDFF   ; Sprite colors (32 bytes)
+sprite_layer_colors EQU #DE1F   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
+sprite_layer_y_offsets EQU #DE3F   ; HW sprite layer signed Y offsets - RAM copy (32 bytes, indexed by HW sprite index)
+sprite_asset_base_pattern_slot_runtime EQU #DE5F   ; Runtime base 16x16 slot per sprite asset (11 bytes)
+sprite_placeholder_base_pattern_num EQU #DE6A   ; Runtime placeholder pattern number (base slot * 4)
+current_sprite_pattern_pack_id EQU #DE6B   ; Active runtime sprite pattern pack id (#FF=none loaded)
+sprite_attributes   EQU #DE6C   ; Interleaved sprite attributes (32 * 4 bytes)
 
 ; ==================================================================
 ; SCREEN SYSTEM VARIABLES (1 screens detected)
 ; ==================================================================
-current_screen_id   EQU #E3AC   ; Currently displayed screen ID
-screen_dirty_flag   EQU #E3AD   ; Screen needs redraw flag
-screen_transition_cooldown EQU #E3AE   ; Cooldown frames after screen transition
-current_world_id    EQU #E3AF   ; Current world ID (for multi-world support)
-current_screen_index EQU #E3B0   ; Current screen index within world
-current_screen_anim_group_count EQU #E3B1   ; Animated tile groups visible in current screen
-current_screen_entity_count EQU #E3B2   ; Entity instances assigned to current screen
-current_screen_sprite_pattern_slots EQU #E3B3   ; Sprite pattern slots needed by current screen
-current_screen_summary_flags EQU #E3B4   ; Runtime screen summary flags (music/hud/effects/anim)
+current_screen_id   EQU #DEEC   ; Currently displayed screen ID
+current_screen_engine EQU #DEED   ; Runtime engine: 0=Player, 1=FakePlayer
+screen_dirty_flag   EQU #DEEE   ; Screen needs redraw flag
+screen_transition_cooldown EQU #DEEF   ; Cooldown frames after screen transition
+current_world_id    EQU #DEF0   ; Current world ID (for multi-world support)
+current_screen_index EQU #DEF1   ; Current screen index within world
+current_screen_anim_group_count EQU #DEF2   ; Animated tile groups visible in current screen
+current_screen_entity_count EQU #DEF3   ; Entity instances assigned to current screen
+current_screen_sprite_pattern_slots EQU #DEF4   ; Sprite pattern slots needed by current screen
+current_screen_summary_flags EQU #DEF5   ; Runtime screen summary flags (music/hud/effects/anim)
 
 ; ==================================================================
 ; PLAYER SYSTEM VARIABLES (player entity detected)
 ; ==================================================================
-player_x            EQU #E3B5   ; Player X position (16-bit)
-player_y            EQU #E3B7   ; Player Y position (16-bit)
-player_runtime_enabled EQU #E3B9   ; 1=player fast runtime bound to hero entity
-player_entity_index EQU #E3BA   ; Entity index used by player fast runtime (#FF=none)
-player_vx_runtime   EQU #E3BB   ; Cached player X velocity (signed 8-bit)
-player_vy_runtime   EQU #E3BC   ; Cached player Y velocity (signed 8-bit)
-player_health       EQU #E3BD   ; Player health points
-player_score        EQU #E3BE   ; Player score (16-bit)
-gem_count           EQU #E3C0   ; Collectible tile counter (8-bit)
-last_interaction_char EQU #E3C1   ; Char code of last interacted tile (for SM VARIABLE_COMPARE)
+player_x            EQU #DEF6   ; Player X position (16-bit)
+player_y            EQU #DEF8   ; Player Y position (16-bit)
+player_runtime_enabled EQU #DEFA   ; 1=player fast runtime bound to hero entity
+player_entity_index EQU #DEFB   ; Entity index used by player fast runtime (#FF=none)
+player_vx_runtime   EQU #DEFC   ; Cached player X velocity (signed 8-bit)
+player_vy_runtime   EQU #DEFD   ; Cached player Y velocity (signed 8-bit)
+player_dash_timer   EQU #DEFE   ; Frames remaining in current Player dash
+player_dash_cooldown EQU #DEFF   ; Frames until Player can dash again
+player_dash_dir     EQU #DF00   ; Player dash direction (1=left,2=right,3=up,4=down)
+player_dash_tile_x  EQU #DF01   ; Dash front probe tile X scratch
+player_dash_tile_y  EQU #DF02   ; Dash front probe tile Y scratch
+player_health       EQU #DF03   ; Player health points
+player_score        EQU #DF04   ; Player score (16-bit)
+gem_count           EQU #DF06   ; Collectible tile counter (8-bit)
+last_interaction_char EQU #DF07   ; Char code of last interacted tile (for SM VARIABLE_COMPARE)
 last_gem_char       EQU last_interaction_char   ; Backwards-compatible alias for collectible SM checks
-last_interaction_pending EQU #E3C2   ; 1 when a new tile interaction is pending for State Machine logic
-last_interaction_type EQU #E3C3   ; Interaction type id of last interacted tile
-last_interaction_value EQU #E3C4   ; Interaction value byte of last interacted tile
-last_interaction_target EQU #E3C5   ; Interaction target id of last interacted tile
-last_interaction_x  EQU #E3C6   ; Tile X coordinate of last interaction
-last_interaction_y  EQU #E3C7   ; Tile Y coordinate of last interaction
-last_interaction_entity EQU #E3C8   ; Entity index that triggered the last interaction
+last_interaction_pending EQU #DF08   ; 1 when a new tile interaction is pending for State Machine logic
+last_interaction_type EQU #DF09   ; Interaction type id of last interacted tile
+last_interaction_value EQU #DF0A   ; Interaction value byte of last interacted tile
+last_interaction_target EQU #DF0B   ; Interaction target id of last interacted tile
+last_interaction_x  EQU #DF0C   ; Tile X coordinate of last interaction
+last_interaction_y  EQU #DF0D   ; Tile Y coordinate of last interaction
+last_interaction_entity EQU #DF0E   ; Entity index that triggered the last interaction
 
 ; Persistent collectibles list (survives screen re-entry)
 MAX_COLLECTIBLES     EQU 64              ; Max persistent collectible records
-collected_count      EQU #E3C9   ; Number of collected tiles recorded (8-bit)
-collected_world      EQU #E3CA   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
-collected_screen     EQU #E40A   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
-collected_idx_l      EQU #E44A   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
-collected_idx_h      EQU #E48A   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
+collected_count      EQU #DF0F   ; Number of collected tiles recorded (8-bit)
+collected_world      EQU #DF10   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_screen     EQU #DF50   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_idx_l      EQU #DF90   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
+collected_idx_h      EQU #DFD0   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
 
 ; Timed bonus tile respawn slots (bonus gem regeneration)
 MAX_BONUS_RESPAWNS   EQU 16              ; Max timed bonus tiles waiting to respawn
-bonus_respawn_world  EQU #E4CA   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_screen EQU #E4DA   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_idx_l  EQU #E4EA   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_idx_h  EQU #E4FA   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_secs   EQU #E50A   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
-bonus_respawn_frames EQU #E51A   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_world  EQU #E010   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_screen EQU #E020   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_l  EQU #E030   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_h  EQU #E040   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_secs   EQU #E050   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_frames EQU #E060   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
 
 ; ==================================================================
 ; AUXILIARY VARIABLES 
 ; ==================================================================
-deterministic        EQU #E52A   ; Deterministic mode flag
+deterministic        EQU #E070   ; Deterministic mode flag
 
 ; ==================================================================
 ; TEMPORARY VARIABLES (ALWAYS NEEDED)
 ; ==================================================================
-temp_word_1         EQU #E52B   ; Temporary 16-bit storage
-temp_word_2         EQU #E52D   ; Temporary 16-bit storage
-temp_byte_1         EQU #E52F   ; Temporary 8-bit storage
-temp_byte_2         EQU #E530   ; Temporary 8-bit storage
-temp_byte_3         EQU #E531   ; Temporary 8-bit storage (32 bytes)
-temp_byte_4         EQU #E551   ; Temporary 8-bit storage (32 bytes)
-temp_byte_5         EQU #E571   ; Temporary 8-bit storage (32 bytes)
-temp_byte_6         EQU #E591   ; Temporary 8-bit storage (32 bytes)
+temp_word_1         EQU #E071   ; Temporary 16-bit storage
+temp_word_2         EQU #E073   ; Temporary 16-bit storage
+temp_byte_1         EQU #E075   ; Temporary 8-bit storage
+temp_byte_2         EQU #E076   ; Temporary 8-bit storage
+temp_byte_3         EQU #E077   ; Temporary 8-bit storage (32 bytes)
+temp_byte_4         EQU #E097   ; Temporary 8-bit storage (32 bytes)
+temp_byte_5         EQU #E0B7   ; Temporary 8-bit storage (32 bytes)
+temp_byte_6         EQU #E0D7   ; Temporary 8-bit storage (32 bytes)
 
 ; ==================================================================
 ; SOUND SYSTEM VARIABLES
 ; ==================================================================
-sfx_active          EQU #E5B1   ; 0=no SFX active, 1=playing
-sfx_timer           EQU #E5B2   ; Frames remaining for current SFX
-sfx_fadeout         EQU #E5B3   ; Reserved fadeout flag/state
-temp_byte_7         EQU #E5B4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_8         EQU #E5D4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_9         EQU #E5F4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_10        EQU #E614   ; Temporary 8-bit storage (32 bytes)
-temp_byte_11        EQU #E634   ; Temporary 8-bit storage (32 bytes)
-temp_byte_12        EQU #E654   ; Temporary 8-bit storage (32 bytes)
-temp_byte_13        EQU #E674   ; Temporary 8-bit storage (32 bytes)
-temp_byte_14        EQU #E694   ; Temporary 8-bit storage (32 bytes)
-temp_byte_15        EQU #E6B4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_16        EQU #E6D4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_17        EQU #E6F4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_18        EQU #E714   ; Temporary 8-bit storage (32 bytes)
-temp_byte_19        EQU #E734   ; Temporary 8-bit storage (32 bytes)
-temp_byte_20        EQU #E754   ; Temporary 8-bit storage (32 bytes)
-temp_byte_21        EQU #E774   ; Temporary 8-bit storage (32 bytes)
-temp_byte_22        EQU #E794   ; Temporary 8-bit storage (32 bytes)
-temp_byte_23        EQU #E7B4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_24        EQU #E7D4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_25        EQU #E7F4   ; Temporary 8-bit storage (32 bytes)
-temp_word_3         EQU #E814   ; Temporary 16-bit storage (64 bytes)
-temp_word_4         EQU #E854   ; Temporary 16-bit storage (64 bytes)
-temp_byte_26        EQU #E894   ; Temporary 8-bit storage (32 bytes)
-temp_byte_27        EQU #E8B4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_28        EQU #E8D4   ; Temporary 8-bit storage (32 bytes)
-tileDead_dbg        EQU #E8F4   ; Debug byte: current hero deadly contact
-tileDead_latched_dbg EQU #E8F5   ; Debug byte: latched hero deadly contact
-tileDead_x_dbg      EQU #E8F6   ; Debug byte: last sampled deadly tile X
-tileDead_y_dbg      EQU #E8F7   ; Debug byte: last sampled deadly tile Y
-tileDead_value_dbg  EQU #E8F8   ; Debug byte: last raw deadly behavior value
+sfx_active          EQU #E0F7   ; 0=no SFX active, 1=playing
+sfx_timer           EQU #E0F8   ; Frames remaining for current SFX
+sfx_fadeout         EQU #E0F9   ; Reserved fadeout flag/state
+temp_byte_7         EQU #E0FA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_8         EQU #E11A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_9         EQU #E13A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_10        EQU #E15A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_11        EQU #E17A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_12        EQU #E19A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_13        EQU #E1BA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_14        EQU #E1DA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_15        EQU #E1FA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_16        EQU #E21A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_17        EQU #E23A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_18        EQU #E25A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_19        EQU #E27A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_20        EQU #E29A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_21        EQU #E2BA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_22        EQU #E2DA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_23        EQU #E2FA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_24        EQU #E31A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_25        EQU #E33A   ; Temporary 8-bit storage (32 bytes)
+temp_word_3         EQU #E35A   ; Temporary 16-bit storage (64 bytes)
+temp_word_4         EQU #E39A   ; Temporary 16-bit storage (64 bytes)
+temp_byte_26        EQU #E3DA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_27        EQU #E3FA   ; Temporary 8-bit storage (32 bytes)
+temp_byte_28        EQU #E41A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_29        EQU #E43A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_30        EQU #E45A   ; Temporary 8-bit storage (32 bytes)
+temp_byte_31        EQU #E47A   ; Temporary 8-bit storage (32 bytes)
+tileDead_dbg        EQU #E49A   ; Debug byte: current hero deadly contact
+tileDead_latched_dbg EQU #E49B   ; Debug byte: latched hero deadly contact
+tileDead_x_dbg      EQU #E49C   ; Debug byte: last sampled deadly tile X
+tileDead_y_dbg      EQU #E49D   ; Debug byte: last sampled deadly tile Y
+tileDead_value_dbg  EQU #E49E   ; Debug byte: last raw deadly behavior value
 
 ; Wall collision temporary variables
-wall_temp_x         EQU #E8F9   ; Cached entity X for wall checks
-wall_temp_y         EQU #E8FA   ; Cached entity Y for wall checks
-wall_hit_left       EQU #E8FB   ; Hitbox left edge cache
-wall_hit_top        EQU #E8FC   ; Hitbox top edge cache
-wall_hit_right      EQU #E8FD   ; Hitbox right edge cache
-wall_hit_bottom     EQU #E8FE   ; Hitbox bottom edge cache
-wall_hit_w          EQU #E8FF   ; Hitbox width cache (min 1)
-wall_hit_h          EQU #E900   ; Hitbox height cache (min 1)
-wall_probe_left     EQU #E901   ; X probe near hitbox left (adaptive inset)
-wall_probe_right    EQU #E902   ; X probe near hitbox right (adaptive inset)
-wall_probe_top      EQU #E903   ; Y probe near hitbox top (adaptive inset)
-wall_probe_bottom   EQU #E904   ; Y probe near hitbox bottom (adaptive inset)
+wall_temp_x         EQU #E49F   ; Cached entity X for wall checks
+wall_temp_y         EQU #E4A0   ; Cached entity Y for wall checks
+wall_hit_left       EQU #E4A1   ; Hitbox left edge cache
+wall_hit_top        EQU #E4A2   ; Hitbox top edge cache
+wall_hit_right      EQU #E4A3   ; Hitbox right edge cache
+wall_hit_bottom     EQU #E4A4   ; Hitbox bottom edge cache
+wall_hit_w          EQU #E4A5   ; Hitbox width cache (min 1)
+wall_hit_h          EQU #E4A6   ; Hitbox height cache (min 1)
+wall_probe_left     EQU #E4A7   ; X probe near hitbox left (adaptive inset)
+wall_probe_right    EQU #E4A8   ; X probe near hitbox right (adaptive inset)
+wall_probe_top      EQU #E4A9   ; Y probe near hitbox top (adaptive inset)
+wall_probe_bottom   EQU #E4AA   ; Y probe near hitbox bottom (adaptive inset)
 
 ; Unified update helpers
-active_entity_list  EQU #E905   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
-active_entity_count EQU #E925   ; Number of entries in active_entity_list
-hero_entity_id      EQU #E926   ; First current-screen entity flagged as player (#FF = none)
-active_entity_list_dirty EQU #E927   ; 1=rebuild active_entity_list required
-input_entity_list   EQU #E928   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)
-input_entity_count  EQU #E948   ; Number of entries in input_entity_list
-render_entity_list  EQU #E949   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)
-render_entity_count EQU #E969   ; Number of entries in render_entity_list
-collision_entity_list EQU #E96A   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)
-collision_entity_count EQU #E98A   ; Number of entries in collision_entity_list
-ground_entity_list  EQU #E98B   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)
-ground_entity_count EQU #E9AB   ; Number of entries in ground_entity_list
-anim_entity_list    EQU #E9AC   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)
-anim_entity_count   EQU #E9CC   ; Number of entries in anim_entity_list
+active_entity_list  EQU #E4AB   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
+active_entity_count EQU #E4CB   ; Number of entries in active_entity_list
+hero_entity_id      EQU #E4CC   ; First current-screen entity flagged as player (#FF = none)
+active_entity_list_dirty EQU #E4CD   ; 1=rebuild active_entity_list required
+input_entity_list   EQU #E4CE   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)
+input_entity_count  EQU #E4EE   ; Number of entries in input_entity_list
+render_entity_list  EQU #E4EF   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)
+render_entity_count EQU #E50F   ; Number of entries in render_entity_list
+collision_entity_list EQU #E510   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)
+collision_entity_count EQU #E530   ; Number of entries in collision_entity_list
+ground_entity_list  EQU #E531   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)
+ground_entity_count EQU #E551   ; Number of entries in ground_entity_list
+anim_entity_list    EQU #E552   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)
+anim_entity_count   EQU #E572   ; Number of entries in anim_entity_list
 
 ; Entity-entity collision optimized variables
-coll_list           EQU #E9CD   ; Active collidable entity indices (MAX_ENTITIES bytes)
-coll_list_count     EQU #E9ED   ; Number of entities in coll_list
-coll_src_left       EQU #E9EE   ; Source AABB left edge (scratch)
-coll_src_right      EQU #E9EF   ; Source AABB right edge (scratch)
-coll_src_top        EQU #E9F0   ; Source AABB top edge (scratch)
-coll_src_bottom     EQU #E9F1   ; Source AABB bottom edge (scratch)
+coll_list           EQU #E573   ; Active collidable entity indices (MAX_ENTITIES bytes)
+coll_list_count     EQU #E593   ; Number of entities in coll_list
+coll_src_left       EQU #E594   ; Source AABB left edge (scratch)
+coll_src_right      EQU #E595   ; Source AABB right edge (scratch)
+coll_src_top        EQU #E596   ; Source AABB top edge (scratch)
+coll_src_bottom     EQU #E597   ; Source AABB bottom edge (scratch)
 
 ; ==================================================================
 ; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
 ; ==================================================================
-task_table              EQU #E9F2   ; Task table base (8 slots x 2 bytes = 16 bytes)
-task_0_ptr              EQU #E9F2   ; Slot 0 pointer (2 bytes)
-task_1_ptr              EQU #E9F4   ; Slot 1 pointer (2 bytes)
-task_2_ptr              EQU #E9F6   ; Slot 2 pointer (2 bytes)
-task_3_ptr              EQU #E9F8   ; Slot 3 pointer (2 bytes)
-task_4_ptr              EQU #E9FA   ; Slot 4 pointer (2 bytes)
-task_5_ptr              EQU #E9FC   ; Slot 5 pointer (2 bytes)
-task_6_ptr              EQU #E9FE   ; Slot 6 pointer (2 bytes)
-task_7_ptr              EQU #EA00   ; Slot 7 pointer (2 bytes)
-interrupt_system_enabled EQU #EA02   ; 0=disabled, 1=enabled (1 byte)
-old_htimi_hook          EQU #EA03   ; Original H.TIMI hook (5 bytes)
-interrupt_counter       EQU #EA08   ; Frame counter (16-bit)
-task_exec_time          EQU #EA0A   ; Cycles used by tasks (16-bit, debug)
-vblank_flag             EQU #EA0C   ; Set to 1 on each VBlank (1 byte)
-RAM_INTERRUPT_END       EQU #EA0D   ; End of interrupt system
+task_table              EQU #E598   ; Task table base (8 slots x 2 bytes = 16 bytes)
+task_0_ptr              EQU #E598   ; Slot 0 pointer (2 bytes)
+task_1_ptr              EQU #E59A   ; Slot 1 pointer (2 bytes)
+task_2_ptr              EQU #E59C   ; Slot 2 pointer (2 bytes)
+task_3_ptr              EQU #E59E   ; Slot 3 pointer (2 bytes)
+task_4_ptr              EQU #E5A0   ; Slot 4 pointer (2 bytes)
+task_5_ptr              EQU #E5A2   ; Slot 5 pointer (2 bytes)
+task_6_ptr              EQU #E5A4   ; Slot 6 pointer (2 bytes)
+task_7_ptr              EQU #E5A6   ; Slot 7 pointer (2 bytes)
+interrupt_system_enabled EQU #E5A8   ; 0=disabled, 1=enabled (1 byte)
+old_htimi_hook          EQU #E5A9   ; Original H.TIMI hook (5 bytes)
+interrupt_counter       EQU #E5AE   ; Frame counter (16-bit)
+task_exec_time          EQU #E5B0   ; Cycles used by tasks (16-bit, debug)
+vblank_flag             EQU #E5B2   ; Set to 1 on each VBlank (1 byte)
+interrupt_in_progress   EQU #E5B3   ; 1 while the H.TIMI dispatcher is running
+RAM_INTERRUPT_END       EQU #E5B4   ; End of interrupt system
 
 ; ==================================================================
 ; STATE MACHINE SOUND RUNTIME (one active sound asset)
 ; ==================================================================
-sm_sound_active       EQU #EA0D   ; 0=idle, 1=playing state-machine sound asset
-sm_sound_frames_left  EQU #EA0E   ; Frames left for current state-machine sound asset
-sm_sound_ptr_l        EQU #EA0F   ; Next sound frame pointer low byte
-sm_sound_ptr_h        EQU #EA10   ; Next sound frame pointer high byte
+sm_sound_active       EQU #E5B4   ; 0=idle, 1=playing state-machine sound asset
+sm_sound_frames_left  EQU #E5B5   ; Frames left for current state-machine sound asset
+sm_sound_ptr_l        EQU #E5B6   ; Next sound frame pointer low byte
+sm_sound_ptr_h        EQU #E5B7   ; Next sound frame pointer high byte
 
 ; ==================================================================
 ; TRACKER MUSIC RUNTIME
 ; ==================================================================
-music_active         EQU #EA11   ; 0=stopped, 1=track active
-music_muted          EQU #EA12   ; 0=audible, 1=muted/pause
-music_loop           EQU #EA13   ; 0=no loop, 1=loop enabled
-music_track_index    EQU #EA14   ; Current ROM track index
-music_row_frames     EQU #EA15   ; Frames per tracker row
-music_row_countdown  EQU #EA16   ; Countdown to next row
-music_order_pos      EQU #EA17   ; Current order position
-music_pattern_index  EQU #EA18   ; Current pattern index
-music_pattern_row    EQU #EA19   ; Current row inside pattern
-music_pattern_rows   EQU #EA1A   ; Cached rows in current pattern
-music_track_ptr_l    EQU #EA1B   ; Current track pointer low byte
-music_track_ptr_h    EQU #EA1C   ; Current track pointer high byte
-music_pattern_ptr_l  EQU #EA1D   ; Current pattern rows pointer low byte
-music_pattern_ptr_h  EQU #EA1E   ; Current pattern rows pointer high byte
-music_mixer_shadow   EQU #EA1F   ; PSG mixer shadow for music runtime
-music_ch_note_base EQU #EA20   ; Current note index (255=silent) (3 bytes)
-music_ch_a_note EQU #EA20   ; Channel A
-music_ch_b_note EQU #EA21   ; Channel B
-music_ch_c_note EQU #EA22   ; Channel C
-music_ch_instrument_base EQU #EA23   ; Current instrument id (0=none) (3 bytes)
-music_ch_a_instrument EQU #EA23   ; Channel A
-music_ch_b_instrument EQU #EA24   ; Channel B
-music_ch_c_instrument EQU #EA25   ; Channel C
-music_ch_ornament_base EQU #EA26   ; Current ornament id (0=none) (3 bytes)
-music_ch_a_ornament EQU #EA26   ; Channel A
-music_ch_b_ornament EQU #EA27   ; Channel B
-music_ch_c_ornament EQU #EA28   ; Channel C
-music_ch_volume_base EQU #EA29   ; Current base volume (0-15) (3 bytes)
-music_ch_a_volume EQU #EA29   ; Channel A
-music_ch_b_volume EQU #EA2A   ; Channel B
-music_ch_c_volume EQU #EA2B   ; Channel C
-music_ch_vol_step_base EQU #EA2C   ; Reserved software volume envelope step (3 bytes)
-music_ch_a_vol_step EQU #EA2C   ; Channel A
-music_ch_b_vol_step EQU #EA2D   ; Channel B
-music_ch_c_vol_step EQU #EA2E   ; Channel C
-music_ch_tone_step_base EQU #EA2F   ; Reserved software tone envelope step (3 bytes)
-music_ch_a_tone_step EQU #EA2F   ; Channel A
-music_ch_b_tone_step EQU #EA30   ; Channel B
-music_ch_c_tone_step EQU #EA31   ; Channel C
-music_ch_noise_step_base EQU #EA32   ; Reserved software noise envelope step (3 bytes)
-music_ch_a_noise_step EQU #EA32   ; Channel A
-music_ch_b_noise_step EQU #EA33   ; Channel B
-music_ch_c_noise_step EQU #EA34   ; Channel C
-music_ch_orn_step_base EQU #EA35   ; Reserved ornament step (3 bytes)
-music_ch_a_orn_step EQU #EA35   ; Channel A
-music_ch_b_orn_step EQU #EA36   ; Channel B
-music_ch_c_orn_step EQU #EA37   ; Channel C
+music_active         EQU #E5B8   ; 0=stopped, 1=track active
+music_muted          EQU #E5B9   ; 0=audible, 1=muted/pause
+music_loop           EQU #E5BA   ; 0=no loop, 1=loop enabled
+music_track_index    EQU #E5BB   ; Current ROM track index
+music_row_frames     EQU #E5BC   ; Frames per tracker row
+music_row_countdown  EQU #E5BD   ; Countdown to next row
+music_order_pos      EQU #E5BE   ; Current order position
+music_pattern_index  EQU #E5BF   ; Current pattern index
+music_pattern_row    EQU #E5C0   ; Current row inside pattern
+music_pattern_rows   EQU #E5C1   ; Cached rows in current pattern
+music_track_ptr_l    EQU #E5C2   ; Current track pointer low byte
+music_track_ptr_h    EQU #E5C3   ; Current track pointer high byte
+music_pattern_ptr_l  EQU #E5C4   ; Current pattern rows pointer low byte
+music_pattern_ptr_h  EQU #E5C5   ; Current pattern rows pointer high byte
+music_mixer_shadow   EQU #E5C6   ; PSG mixer shadow for music runtime
+music_pitch_note_work EQU #E5C7   ; Scratch note index while resolving tone/ornament macros
+music_pitch_step_work EQU #E5C8   ; Scratch macro step while resolving tone/ornament macros
+music_pitch_len_work  EQU #E5C9   ; Scratch macro length while resolving tone/ornament macros
+music_ch_note_base EQU #E5CA   ; Current note index (255=silent) (3 bytes)
+music_ch_a_note EQU #E5CA   ; Channel A
+music_ch_b_note EQU #E5CB   ; Channel B
+music_ch_c_note EQU #E5CC   ; Channel C
+music_ch_instrument_base EQU #E5CD   ; Current instrument id (0=none) (3 bytes)
+music_ch_a_instrument EQU #E5CD   ; Channel A
+music_ch_b_instrument EQU #E5CE   ; Channel B
+music_ch_c_instrument EQU #E5CF   ; Channel C
+music_ch_ornament_base EQU #E5D0   ; Current ornament id (0=none) (3 bytes)
+music_ch_a_ornament EQU #E5D0   ; Channel A
+music_ch_b_ornament EQU #E5D1   ; Channel B
+music_ch_c_ornament EQU #E5D2   ; Channel C
+music_ch_volume_base EQU #E5D3   ; Current base volume (0-15) (3 bytes)
+music_ch_a_volume EQU #E5D3   ; Channel A
+music_ch_b_volume EQU #E5D4   ; Channel B
+music_ch_c_volume EQU #E5D5   ; Channel C
+music_ch_vol_step_base EQU #E5D6   ; Reserved software volume envelope step (3 bytes)
+music_ch_a_vol_step EQU #E5D6   ; Channel A
+music_ch_b_vol_step EQU #E5D7   ; Channel B
+music_ch_c_vol_step EQU #E5D8   ; Channel C
+music_ch_tone_step_base EQU #E5D9   ; Reserved software tone envelope step (3 bytes)
+music_ch_a_tone_step EQU #E5D9   ; Channel A
+music_ch_b_tone_step EQU #E5DA   ; Channel B
+music_ch_c_tone_step EQU #E5DB   ; Channel C
+music_ch_noise_step_base EQU #E5DC   ; Reserved software noise envelope step (3 bytes)
+music_ch_a_noise_step EQU #E5DC   ; Channel A
+music_ch_b_noise_step EQU #E5DD   ; Channel B
+music_ch_c_noise_step EQU #E5DE   ; Channel C
+music_ch_orn_step_base EQU #E5DF   ; Reserved ornament step (3 bytes)
+music_ch_a_orn_step EQU #E5DF   ; Channel A
+music_ch_b_orn_step EQU #E5E0   ; Channel B
+music_ch_c_orn_step EQU #E5E1   ; Channel C
+music_ch_hw_env_step_base EQU #E5E2   ; Software hardware-envelope divider step (3 bytes)
+music_ch_a_hw_env_step EQU #E5E2   ; Channel A
+music_ch_b_hw_env_step EQU #E5E3   ; Channel B
+music_ch_c_hw_env_step EQU #E5E4   ; Channel C
 
 ; ==================================================================
 ; ZX0 TEMPORARY RAM BUFFERS
@@ -1488,22 +1822,30 @@ music_ch_c_orn_step EQU #EA37   ; Channel C
 ; are decompressed and consumed sequentially, never concurrently.
 ; Font and sprite frame buffers are injected later by the ZX0 post-processor
 ; only when compression selects those blocks; they share scratch there too.
-ZX0_SCREEN_BUFFER       EQU #EB00   ; Screen/layout scratch (768 bytes, shared area)
-ZX0_BEHAVIOR_BUFFER     EQU #EB00   ; Behavior map scratch (768 bytes, shared area)
-ZX0_TILE_PATTERN_BUFFER EQU #EB00   ; Tile pattern scratch (1488 bytes, shared area)
-ZX0_TILE_COLOR_BUFFER   EQU #EB00   ; Tile color scratch (1488 bytes, shared area)
+ZX0_SCREEN_BUFFER       EQU #E600   ; Screen/layout scratch (shares 1488-byte area)
+ZX0_BEHAVIOR_BUFFER     EQU #E600   ; Behavior map scratch (shares 1488-byte area)
+ZX0_TILE_PATTERN_BUFFER EQU #E600   ; Tile pattern scratch (shares 1488-byte area)
+ZX0_TILE_COLOR_BUFFER   EQU #E600   ; Tile color scratch (shares 1488-byte area)
+ZX0_VRAM_TRANSFER_BUFFER EQU #E600  ; Fast ROM-to-VRAM staging for compressed resources that fit the shared scratch
+ZX0_VRAM_TRANSFER_BUFFER_SIZE EQU 1488   ; Staging threshold; larger MegaROM resources decode direct to VRAM
+ZX0_VRAM_TRANSFER_BUFFER_LIMIT_HIGH EQU #05   ; High byte for BC <= staging threshold
+ZX0_VRAM_TRANSFER_BUFFER_LIMIT_NEXT_LOW EQU #D1   ; Low byte one past threshold when high bytes match
+page0_transfer_buffer   EQU #E600   ; Page-0 copy staging buffer (shares scratch area)
+ZX0_SCRATCH_END         EQU #EBD0   ; First byte after shared ZX0 scratch area
 
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #EA38   ; End of project variables (10808 bytes used)
+RAM_USAGE_END       EQU #E5E5   ; End of project variables (9701 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#EA38: Project variables (10808 bytes)
-;   #EA38-#F37F: Free RAM (~2376 bytes available)
+;   #C000-#E5E5: Project variables (9701 bytes)
+;   #E5E5-#E600: Alignment padding/free RAM (27 bytes)
+;   #E600-#EBCF: Shared ZX0 scratch (1488 bytes, do not use for persistent vars)
+;   #EBD0-#F37F: Free RAM after scratch (~1968 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
@@ -1601,12 +1943,16 @@ mapper_pop_p4:
 
 ; ------------------------------------------------------------------
 ; Far call helpers (simple32k no-op bank switch).
+; Preserve DE across the trampoline so simple and MegaROM calls share
+; the same caller-visible register behavior.
 ; ------------------------------------------------------------------
 mapper_call_hl_p1:
+    push de
     ld de, .return_p1
     push de
     jp (hl)
 .return_p1:
+    pop de
     ret
 
 mapper_call_hl_p2:
@@ -1699,6 +2045,7 @@ init_interrupt_system:
     ei                          ; Re-enable interrupts
     ret
 
+; @mideas:block id=runtime.interrupt.stop kind=routine owner=interrupt roots=stop_interrupt_system
 ; ==================================================================
 ; STOP_INTERRUPT_SYSTEM - Restore original H.TIMI hook
 ; ==================================================================
@@ -1740,7 +2087,9 @@ stop_interrupt_system:
 
     ei                          ; Re-enable interrupts
     ret
+; @mideas:endblock id=runtime.interrupt.stop
 
+; @mideas:block id=runtime.interrupt.dispatcher kind=routine owner=interrupt preserve=true roots=interrupt_dispatcher
 ; ==================================================================
 ; INTERRUPT_DISPATCHER - Main ISR (60Hz/50Hz)
 ; ==================================================================
@@ -1783,6 +2132,9 @@ interrupt_dispatcher:
     push ix                     ; 15 cycles
     push iy                     ; 15 cycles
     ; Total: 74 cycles fixed prologue overhead
+
+    ld a, 1
+    ld (interrupt_in_progress), a
 
     ; --- STEP 2: Check if system is enabled ---
     ld a, (interrupt_system_enabled)
@@ -1840,6 +2192,9 @@ interrupt_dispatcher:
     djnz .task_loop             ; Loop 8 times
 
 .exit:
+    xor a
+    ld (interrupt_in_progress), a
+
     ; --- STEP 5: Restore registers ---
     pop iy                      ; 14 cycles
     pop ix                      ; 14 cycles
@@ -1857,6 +2212,7 @@ interrupt_dispatcher:
 .call_task:
     jp (hl)                     ; Jump to task (task will RET back here)
 
+; @mideas:endblock id=runtime.interrupt.dispatcher
 ; ==================================================================
 ; TASK MANAGEMENT FUNCTIONS
 ; ==================================================================
@@ -1869,6 +2225,7 @@ interrupt_dispatcher:
 ; ==================================================================
 ; UPDATE_VBLANK_FLAG - For interrupt dispatcher use only
 ; ==================================================================
+; @mideas:block id=runtime.interrupt.vblank_flag kind=routine owner=interrupt roots=update_vblank_flag
 ; Register Contract:
 ;   Purpose: Read VDP status register and latch VBlank state in RAM flag.
 ;   Inputs:
@@ -1902,10 +2259,12 @@ update_vblank_flag:
 .uvf_done:
     pop af
     ret
+; @mideas:endblock id=runtime.interrupt.vblank_flag
 
 ; ==================================================================
 ; ENABLE_TASK - Activate a task in the system
 ; ==================================================================
+; @mideas:block id=runtime.interrupt.task_api kind=routine owner=interrupt roots=enable_task,disable_task,get_frame_count
 ; Register Contract:
 ;   Purpose: Store routine pointer into task_table slot.
 ;   Inputs:
@@ -2025,9 +2384,11 @@ disable_task:
 get_frame_count:
     ld hl, (interrupt_counter)
     ret
+; @mideas:endblock id=runtime.interrupt.task_api
 
 ; ==================================================================
 ; INIT_DEFAULT_TASKS_FROM_PLAN - Register engine-selected IRQ tasks
+; @mideas:block id=runtime.interrupt.task_input kind=routine owner=interrupt roots=task_update_input
 ; ==================================================================
 ; Register Contract:
 ;   Purpose: Enable the IRQ task set selected by the engine execution plan.
@@ -2047,9 +2408,6 @@ get_frame_count:
 ;   Notes:
 ;     - Calls enable_task once per enabled task.
 init_default_tasks_from_plan:
-    ld a, 0
-    ld hl, task_audio_tick
-    call enable_task
     ld a, 1
     ld hl, task_frame_counter
     call enable_task
@@ -2103,7 +2461,7 @@ task_update_input:
     call FAST_GTSTCK            ; Direct hardware read
     ld b, a                     ; B = joystick direction
     or a
-    jr nz, .dir_ready
+    jp nz, .dir_ready
 
     ; Fallback to keyboard cursor keys (row 8, direct matrix read)
     ld a, 8
@@ -2127,6 +2485,21 @@ task_update_input:
     jr nz, .kbd_no_right
     set 3, d
 .kbd_no_right:
+    ; Cancel impossible opposite cursor pairs before mapping to STICK_*
+    bit 0, d                    ; Up pressed?
+    jr z, .kbd_vertical_ok
+    bit 1, d                    ; Down also pressed?
+    jr z, .kbd_vertical_ok
+    res 0, d
+    res 1, d
+.kbd_vertical_ok:
+    bit 2, d                    ; Left pressed?
+    jr z, .kbd_opposites_done
+    bit 3, d                    ; Right also pressed?
+    jr z, .kbd_opposites_done
+    res 2, d
+    res 3, d
+.kbd_opposites_done:
     xor a
     bit 0, d
     jr z, .kbd_check_down
@@ -2242,11 +2615,12 @@ task_update_input:
     pop af
     ret
 
+; @mideas:endblock id=runtime.interrupt.task_input
+
 ; ==================================================================
 ; ENGINE EXECUTION PLAN TASKS
 ; ==================================================================
 
-; Slot 0: audio_tick -> task_audio_tick (period=1)
 ; Slot 1: frame_counter -> task_frame_counter (period=1)
 
 ; ==================================================================
@@ -2301,7 +2675,8 @@ task_frame_counter:
 ; INTELLIGENT FILTERING ACTIVE:
 ;   Active entities: 1
 ;   Used components: Position, Sprite, Health, DeadlyTiles, Jump, Gravity, Animation, Collision, Input, Cursors, WallCollision, WallJump, WallGrab, AirControl, StateMachine, RetractableGate, TileInteraction
-;   Filtered out: -9 unused component systems
+;   Dynamic platform riding: STUB
+;   Filtered out: 10 unused component systems
     ;
 ; ==================================================================
 
@@ -2339,6 +2714,10 @@ COMP_MASK_DEADLY_TILES EQU #2000; Binary: 0010000000000000
 COMP_MASK_WALL_JUMP EQU #4000; Binary: 0100000000000000
 COMP_MASK_AIR_CONTROL EQU #8000; Binary: 1000000000000000
 
+COMP_TRIGGER_FIRE    EQU 0 ; input_btn bit 0 / SPACE / joystick A
+COMP_TRIGGER_ACTION2 EQU 1 ; input_btn bit 1 / second action / joystick B
+COMP_TRIGGER_UP      EQU 2 ; direction edge on STICK_UP
+
 ; ==================================================================
 ; ANIMATION FLAGS (entity_anim_flags)
 ; ==================================================================
@@ -2364,6 +2743,7 @@ entity_slash_vel_y  EQU temp_byte_28; Additive vertical slash velocity from bonu
 entity_jump_count   EQU temp_byte_4; Current jump count(0 = grounded, 1 = first jump, etc.)(32 bytes)
 entity_jump_max     EQU temp_byte_25; Configured max jumps for this entity (32 bytes)
 entity_jump_bonus   EQU temp_byte_27; Temporary extra jumps granted by bonus tiles (32 bytes)
+entity_jump_trigger EQU temp_byte_29; Trigger action for jump (32 bytes)
 entity_on_ground    EQU temp_byte_5; Ground contact flag(bit 0 = on ground)(32 bytes)
 
     ; Gravity Component Data
@@ -2376,6 +2756,7 @@ entity_health_max     EQU temp_byte_7 ; Maximum health/lives (32 bytes)
 ; Deadly Tile Collision Data
 entity_flag_deadly_tile EQU temp_byte_8 ; Flag: bit 0 = touching deadly tile (32 bytes)
 entity_deadly_collision EQU temp_byte_8 ; Backward-compatible alias
+entity_flag_in_water EQU temp_byte_31 ; Flag: bit 0 = entity center is inside a Water effect zone (32 bytes)
 tileDead EQU tileDead_dbg ; Debug byte: mirrors hero deadly contact (entity 0)
 tileDeadLatched EQU tileDead_latched_dbg ; Debug byte: latched hero deadly detection
 tileDeadX EQU tileDead_x_dbg ; Debug byte: last sampled tile X
@@ -2390,6 +2771,7 @@ entity_damage_amount        EQU temp_byte_10 ; Damage dealt by this entity (32 b
 entity_shoot_cooldown   EQU temp_byte_11 ; Cooldown frames until can shoot (32 bytes)
 entity_shoot_sprite_id  EQU temp_byte_12 ; Projectile sprite ID (32 bytes)
 entity_shoot_speed      EQU temp_byte_13 ; Projectile velocity (32 bytes)
+entity_shoot_trigger    EQU temp_byte_30 ; Trigger action for shooting (32 bytes)
 
     ; Collision Layer Data (for projectile and advanced collision)
 entity_collision_layer  EQU temp_byte_14 ; Which layer this entity is on (32 bytes)
@@ -2414,7 +2796,17 @@ entity_input_disabled EQU temp_byte_26 ; 0=enabled, 1=disabled (32 bytes)
 ; CORE ECS SYSTEM FUNCTIONS
     ; ==================================================================
 
-        init_components: 
+        ; @mideas:block id=runtime.components.init kind=routine owner=components preserve=false roots=init_components,component_fill_32_a
+component_fill_32_a:
+        ld (hl), a
+        ld d, h
+        ld e, l
+        inc de
+        ld bc, 31
+        ldir
+        ret
+
+init_components: 
 ; Initialize component systems(OPTIMIZED - only used components) 
     ; Used: Position, Sprite, Health, DeadlyTiles, Jump, Gravity, Animation, Collision, Input, Cursors, WallCollision, WallJump, WallGrab, AirControl, StateMachine, RetractableGate, TileInteraction 
  
@@ -2438,32 +2830,21 @@ entity_input_disabled EQU temp_byte_26 ; 0=enabled, 1=disabled (32 bytes)
 
     ; Clear all component masks 
         ld hl, entity_comp_masks 
-        ld de, entity_comp_masks + 1 
-        ld bc, 31 
-        ld (hl), 0 
-        ldir 
+        call component_fill_32_a
 
     ; Clear all component masks (high byte)
         ld hl, entity_comp_masks_hi
-        ld de, entity_comp_masks_hi + 1
-        ld bc, 31
-        ld (hl), 0
-        ldir 
+        call component_fill_32_a
 
     ; Initialize entity job scheduler defaults
     ; period=1 (100%), entry=0 for every entity slot
+        ld a, 1
         ld hl, entity_job_period
-        ld de, entity_job_period + 1
-        ld bc, 31
-        ld (hl), 1
-        ldir
+        call component_fill_32_a
 
-        ld hl, entity_job_entry
-        ld de, entity_job_entry + 1
-        ld bc, 31
-        ld (hl), 0
-        ldir
         xor a
+        ld hl, entity_job_entry
+        call component_fill_32_a
         ld (entity_job_scheduler_active), a
  
         ; Initialize position system (always)
@@ -2502,7 +2883,9 @@ entity_input_disabled EQU temp_byte_26 ; 0=enabled, 1=disabled (32 bytes)
     call init_tile_interaction_system
     
     ret
-    
+; @mideas:endblock id=runtime.components.init
+
+; @mideas:block id=runtime.components.position kind=routine owner=components preserve=false roots=component-position
 
 ; ==================================================================
 ; POSITION COMPONENT SYSTEM (Based on SpriteEditor position handling)
@@ -2511,17 +2894,12 @@ entity_input_disabled EQU temp_byte_26 ; 0=enabled, 1=disabled (32 bytes)
 init_position_system:
     ; Initialize position component system
     ; Clear all entity positions
+    xor a
     ld hl, entity_x_pos
-    ld de, entity_x_pos+1
-    ld bc, 31
-    ld (hl), 0
-    ldir
+    call component_fill_32_a
 
     ld hl, entity_y_pos
-    ld de, entity_y_pos+1
-    ld bc, 31
-    ld (hl), 0
-    ldir
+    call component_fill_32_a
     ret
 
 update_position_component:
@@ -2614,6 +2992,8 @@ position_next_entity:
     dec b
     jp nz, position_update_loop
     ret
+; @mideas:endblock id=runtime.components.position
+; @mideas:block id=runtime.components.sprite kind=routine owner=components preserve=false roots=component-sprite
 
 ; ==================================================================
 ; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
@@ -3008,14 +3388,18 @@ compute_entity_base_pattern:
     add a, a
     add a, a
     ret
+; @mideas:endblock id=runtime.components.sprite
 
     ; Movement system filtered out(not used)
 init_movement_system:
     ret
 
+; @mideas:block id=runtime.components.movement_stub kind=routine owner=components
 update_movement_component:
     ret
-    
+; @mideas:endblock id=runtime.components.movement_stub
+    ; @mideas:block id=runtime.components.collision kind=routine owner=components preserve=false
+
         ; ==================================================================
 ; COLLISION COMPONENT SYSTEM(Based on ScreenEditor collision detection)
         ; ==================================================================
@@ -3023,50 +3407,33 @@ update_movement_component:
             init_collision_system:
     ; Initialize collision detection system
     ; Clear deadly collision flags
+    xor a
     ld hl, entity_deadly_collision
-    ld de, entity_deadly_collision + 1
-    ld bc, 31                     ; 32 bytes - 1
-    ld (hl), 0
-    ldir
+    call component_fill_32_a
 
     ; Clear entity-entity collision flags
     ld hl, entity_entity_collision_flags
-    ld de, entity_entity_collision_flags + 1
-    ld bc, 31
-    ld (hl), 0
-    ldir
+    call component_fill_32_a
 
     ; Initialize last collided entity to "none"
+    ld a, 255
     ld hl, entity_last_collision_entity
-    ld de, entity_last_collision_entity + 1
-    ld bc, 31
-    ld (hl), 255
-    ldir
+    call component_fill_32_a
 
     ; Default collision hitboxes: 16x16 with no offset
+    ld a, 16
     ld hl, entity_collision_hitbox_w
-    ld de, entity_collision_hitbox_w + 1
-    ld bc, 31
-    ld (hl), 16
-    ldir
+    call component_fill_32_a
 
     ld hl, entity_collision_hitbox_h
-    ld de, entity_collision_hitbox_h + 1
-    ld bc, 31
-    ld (hl), 16
-    ldir
+    call component_fill_32_a
 
+    xor a
     ld hl, entity_collision_offset_x
-    ld de, entity_collision_offset_x + 1
-    ld bc, 31
-    ld (hl), 0
-    ldir
+    call component_fill_32_a
 
     ld hl, entity_collision_offset_y
-    ld de, entity_collision_offset_y + 1
-    ld bc, 31
-    ld (hl), 0
-    ldir
+    call component_fill_32_a
     ret
 
     update_collision_component:
@@ -3696,75 +4063,11 @@ coll_flags_from_layer:
     ret
 
     handle_entity_collision:
-    ; Handle collision between entities
-    ; At entry:
-    ;   C = current entity index
-    ;   Stack top: DE (E = other entity index), HL, AF, BC
-    ; Check for platform riding: if current entity is above other entity and
-    ; other entity is a platform (collision_layer & 8), set platform reference
-
-    push bc
-    push de
-    push hl
-
-    ; Get other entity index from stack (it's at SP+6)
-    ld hl, 6
-    add hl, sp
-    ld a, (hl)              ; A = other entity index (E from pushed DE)
-    ld e, a                 ; E = other entity index
-
-    ; Get current entity Y position
-    ld hl, entity_y_pos
-    ld d, 0
-    ld b, c                 ; B = current entity index
-    add hl, bc              ; HL = &entity_y_pos[current]
-    ld b, (hl)              ; B = current Y
-
-    ; Get other entity Y position
-    ld hl, entity_y_pos
-    ld d, 0
-    add hl, de              ; HL = &entity_y_pos[other]
-    ld d, (hl)              ; D = other Y
-
-    ; Check if current entity is above other entity
-    ; Current is above if: current_Y + 16 is near other_Y (within 4 pixels)
-    ld a, b                 ; A = current Y
-    add a, 16               ; A = current Y + height
-    sub d                   ; A = (current Y + 16) - other Y
-    ; If result is 0-4, current is standing on other
-    cp 5
-    jr nc, .not_on_platform ; Not standing on platform
-
-    ; Current entity is above other entity
-    ; Check if other entity is a platform (collision_layer & COLLISION_LAYER_PLATFORM)
-    ld hl, entity_collision_layer
-    ld d, 0
-    add hl, de              ; HL = &entity_collision_layer[other]
-    ld a, (hl)              ; A = other entity collision layer
-    and COLLISION_LAYER_PLATFORM
-    jr z, .not_on_platform  ; Not a platform
-
-    ; Other entity IS a platform - set platform reference
-    ld a, e                 ; A = other entity index
-    ld hl, entity_platform_id
-    ld d, 0
-    ld e, c                 ; E = current entity index
-    add hl, de              ; HL = &entity_platform_id[current]
-    ld (hl), a              ; Set platform reference
-
-    ; Reset grace frames to 0 (we're on a platform now)
-    ld hl, entity_platform_grace
-    ld e, c
-    add hl, de
-    ld (hl), 0
-
-.not_on_platform:
-    pop hl
-    pop de
-    pop bc
+    ; No active entity uses COLLISION_LAYER_PLATFORM in this project.
     ret
+; @mideas:endblock id=runtime.components.collision
+; @mideas:block id=runtime.components.behavior_tile kind=routine owner=components preserve=false roots=get_behavior_tile,get_behavior_tile_nb,gbt_oob
 
-        
     ; ------------------------------------------------------------------
     ; get_behavior_tile
     ; ------------------------------------------------------------------
@@ -3788,7 +4091,7 @@ coll_flags_from_layer:
 ;   Notes:
 ;     - Maintains a single-row cache (behavior_cache_row / behavior_cache_row_base)
 ;     - so consecutive calls for the same row skip the row*32 multiply.
-;     - Mapper push/pop protects P2 bank around the map read (no-op in simple32k mode).
+;     - Mapper push/pop protects data-window bank around the map read (no-op in simple32k mode).
 ;     - MUST be called with DE = entity index already set (DE is preserved, not used).
 
 get_behavior_tile:
@@ -3867,7 +4170,96 @@ get_behavior_tile_nb:
 gbt_oob:
     xor a                         ; A = 0 (passable)
     ret
-    
+; @mideas:endblock id=runtime.components.behavior_tile
+; @mideas:block id=runtime.components.directional_sprite_sync kind=routine owner=components preserve=false roots=component_sync_directional_sprite_from_initial,component_sync_directional_sprite_from_current,component_sync_directional_sprite_common
+
+; ------------------------------------------------------------------
+; component_sync_directional_sprite_from_initial/current
+; Shared resident helper for local directional sprite variant sync.
+; Input: DE = active entity index.
+; Output: entity_sprite_asset_index may be replaced and animation reset.
+; Clobbers internally: AF, BC, HL. Preserves: AF, BC, DE, HL.
+; ------------------------------------------------------------------
+component_sync_directional_sprite_from_initial:
+    push af
+    push bc
+    push de
+    push hl
+    ld bc, entity_sprite_asset_index_init
+    jp component_sync_directional_sprite_common
+
+component_sync_directional_sprite_from_current:
+    push af
+    push bc
+    push de
+    push hl
+    ld bc, entity_sprite_asset_index
+
+component_sync_directional_sprite_common:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .csds_done
+    cp 1
+    jp z, .csds_left
+    cp 2
+    jp z, .csds_right
+    cp 3
+    jp z, .csds_up
+    cp 4
+    jp z, .csds_down
+    jp .csds_done
+
+.csds_left:
+    ld hl, sprite_dir_left_table
+    jp .csds_lookup
+.csds_right:
+    ld hl, sprite_dir_right_table
+    jp .csds_lookup
+.csds_up:
+    ld hl, sprite_dir_up_table
+    jp .csds_lookup
+.csds_down:
+    ld hl, sprite_dir_down_table
+
+.csds_lookup:
+    push hl
+    ld h, b
+    ld l, c
+    add hl, de
+    ld a, (hl)
+    pop hl
+    cp #FF
+    jp z, .csds_done
+    cp SPRITE_ASSET_COUNT
+    jp nc, .csds_done
+    ld c, a
+    ld b, 0
+    add hl, bc
+    ld a, (hl)
+
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    cp (hl)
+    jp z, .csds_done
+    ld (hl), a
+    ld hl, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_anim_tick
+    add hl, de
+    ld (hl), 0
+
+.csds_done:
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+; @mideas:endblock id=runtime.components.directional_sprite_sync
+; @mideas:block id=runtime.components.input kind=routine owner=components preserve=false
+
         ; ==================================================================
         ; INPUT COMPONENT SYSTEM (With direction restrictions - Cursors)
         ; ==================================================================
@@ -4235,8 +4627,15 @@ gbt_oob:
             add hl, de              ; DE = (0, entity_index)
             ld a, (hl)
             pop af
-            jr nz, .skip_patrol_facing
-            call update_entity_patrol_facing
+            jp nz, .skip_patrol_facing
+
+            ; Apply directional sprite variants from entity_facing_dir locally.
+            ; Register contract: input DE = active entity index; preserves AF, BC, DE, HL.
+            ; This must not call update_entity_patrol_facing because MegaROM lower
+            ; page segments cannot safely call each other by raw address in ASCII16.
+            ; Use the spawn sprite so plain auto-facing matches patrol/entity defaults.
+            call component_sync_directional_sprite_from_initial
+    
 .skip_patrol_facing:
 
             pop hl
@@ -4246,14 +4645,124 @@ gbt_oob:
             dec b
             jp nz, input_update_loop
             ret
-    
+; @mideas:endblock id=runtime.components.input
+
+; ==================================================================
+; COMPONENT ACTION TRIGGER HELPERS
+; ==================================================================
+; Register Contract:
+;   Purpose: Test whether a component-configured input trigger was pressed on this frame.
+;   Inputs:
+;     - A = COMP_TRIGGER_* value
+;   Outputs:
+;     - A = 1 and NZ if pressed this frame, A = 0 and Z if not
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;   Notes:
+;     - Uses edge detection against input_btn_prev or prev_input_state.
+
+component_trigger_edge_pressed_a:
+    cp COMP_TRIGGER_UP
+    jp z, .trigger_check_up
+    cp COMP_TRIGGER_ACTION2
+    jp z, .trigger_check_action2
+
+.trigger_check_fire:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    jp z, .trigger_false
+    ld a, (input_btn_prev)
+    and INPUT_BTN_FIRE
+    jp nz, .trigger_false
+    jp .trigger_true
+
+.trigger_check_action2:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_GRAB
+    jp z, .trigger_false
+    ld a, (input_btn_prev)
+    and INPUT_BTN_GRAB
+    jp nz, .trigger_false
+    jp .trigger_true
+
+.trigger_check_up:
+    ld a, (input_state)
+    cp STICK_UP
+    jp nz, .trigger_false
+    ld a, (prev_input_state)
+    cp STICK_UP
+    jp z, .trigger_false
+
+.trigger_true:
+    ld a, 1
+    or a
+    ret
+
+.trigger_false:
+    xor a
+    ret
+
+; Register Contract:
+;   Purpose: Test whether a component-configured input trigger is currently held.
+;   Inputs:
+;     - A = COMP_TRIGGER_* value
+;   Outputs:
+;     - A = 1 and NZ if held, A = 0 and Z if not
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+
+; @mideas:block id=runtime.components.input_trigger_level kind=routine owner=components
+component_trigger_level_pressed_a:
+    cp COMP_TRIGGER_UP
+    jp z, .trigger_level_check_up
+    cp COMP_TRIGGER_ACTION2
+    jp z, .trigger_level_check_action2
+
+.trigger_level_check_fire:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    jp z, .trigger_level_false
+    jp .trigger_level_true
+
+.trigger_level_check_action2:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_GRAB
+    jp z, .trigger_level_false
+    jp .trigger_level_true
+
+.trigger_level_check_up:
+    ld a, (input_state)
+    cp STICK_UP
+    jp nz, .trigger_level_false
+
+.trigger_level_true:
+    ld a, 1
+    or a
+    ret
+
+.trigger_level_false:
+    xor a
+    ret
+; @mideas:endblock id=runtime.components.input_trigger_level
+
     ; Behavior system filtered out(not used)
 init_behavior_system:
     ret
 
+; @mideas:block id=runtime.components.behavior_stub kind=routine owner=components
 update_behavior_component:
     ret
-    
+; @mideas:endblock id=runtime.components.behavior_stub
+    ; @mideas:block id=runtime.components.health kind=routine owner=components preserve=false roots=init_health_system,update_health_component,decrease_entity_lives,increase_entity_lives
+
     ; ==================================================================
     ; HEALTH COMPONENT SYSTEM
     ; ==================================================================
@@ -4403,7 +4912,9 @@ increase_entity_lives:
     ld (hl), b                    ; Store clamped health
     pop bc
     ret
-    
+; @mideas:endblock id=runtime.components.health
+; @mideas:block id=runtime.components.animation kind=routine owner=components preserve=false
+
     ; ==================================================================
         ; ANIMATION COMPONENT SYSTEM
     ; ==================================================================
@@ -4739,10 +5250,13 @@ refresh_player_animation_fastpath:
     ld (anim_entity_list), a
     pop af
     ld (anim_entity_count), a
-    pop af
+    pop af                         ; Saved runtime was nonzero; force it back on.
+    ld a, 1
     ld (player_runtime_enabled), a
     ret
-    
+; @mideas:endblock id=runtime.components.animation
+; @mideas:block id=runtime.components.jump kind=routine owner=components preserve=false
+
     ; ==================================================================
         ; JUMP COMPONENT SYSTEM
     ; ==================================================================
@@ -4777,6 +5291,13 @@ refresh_player_animation_fastpath:
             ld (hl), 1
             ldir
 
+            ; Initialize jump trigger to fire for backward compatibility
+            ld hl, entity_jump_trigger
+            ld de, entity_jump_trigger+1
+            ld bc, 31
+            ld (hl), COMP_TRIGGER_FIRE
+            ldir
+
             ; Clear on-ground flags
             ld hl, entity_on_ground
             ld de, entity_on_ground+1
@@ -4787,9 +5308,9 @@ refresh_player_animation_fastpath:
 
         update_jump_component:
             ; Update jump logic for entities
-            ; Fire button edge triggers jump for entities with Jump+Input
+            ; Configured trigger edge starts jump for entities with Jump+Input
             ; Uses: entity_jump_count, entity_jump_max, entity_jump_bonus, entity_on_ground, entity_gravity_vel
-            ; Uses global input_btn_curr/input_btn_prev edge detection
+            ; Uses global input_btn_curr/input_btn_prev and input_state/prev_input_state edge detection
 
             ld a, (active_entity_count)
             or a
@@ -4857,13 +5378,14 @@ refresh_player_animation_fastpath:
             or a
             jp nz, jump_done_entity
 
-            ; --- Jump trigger edge (fire pressed now, not pressed previous frame) ---
-            ld a, (input_btn_curr)
-            and INPUT_BTN_FIRE
+            ; --- Jump trigger edge (configured trigger pressed now, not previous frame) ---
+            ld hl, entity_jump_trigger
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            call component_trigger_edge_pressed_a
             jp z, jump_done_entity        ; not pressed
-            ld a, (input_btn_prev)
-            and INPUT_BTN_FIRE
-            jp nz, jump_done_entity       ; already held last frame
 
             ; Check jump count < configured max OR grounded
             ld hl, entity_jump_count
@@ -4965,7 +5487,9 @@ jump_done_entity:
             dec b
             jp nz, jump_update_loop
     ret
-    
+; @mideas:endblock id=runtime.components.jump
+; @mideas:block id=runtime.components.gravity kind=routine owner=components preserve=false roots=init_gravity_system,update_gravity_component
+
     ; ==================================================================
         ; GRAVITY COMPONENT SYSTEM(Constant downward acceleration)
     ; ==================================================================
@@ -5100,7 +5624,8 @@ gravity_next_entity:
             dec b
             jp nz, gravity_update_loop
     ret
-    
+; @mideas:endblock id=runtime.components.gravity
+
     ; ==================================================================
     ; AIR CONTROL HELPERS
     ; ==================================================================
@@ -5215,6 +5740,20 @@ init_wallgrab_system:
     xor a
     ld (hl), a
     ldir
+
+    ld hl, entity_wallgrab_timer
+    ld de, entity_wallgrab_timer+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
+
+    ld hl, entity_wallgrab_lockout
+    ld de, entity_wallgrab_lockout+1
+    ld bc, 31
+    xor a
+    ld (hl), a
+    ldir
     ret
 
 update_wallgrab_component:
@@ -5274,6 +5813,12 @@ wallgrab_process_entity_c:
     ld hl, entity_on_ground
     add hl, de
     bit 0, (hl)
+    jp nz, .grounded_clear_lockout
+
+    ld hl, entity_wallgrab_lockout
+    add hl, de
+    ld a, (hl)
+    or a
     jp nz, .not_grabbing
 
     ld hl, entity_on_ladder
@@ -5301,6 +5846,7 @@ wallgrab_process_entity_c:
     ; Transition to grabbing
     ld (hl), 1
     call wallgrab_reset_grace_c
+    call wallgrab_ensure_timer_c
     call wallgrab_commit_grab_sprite_if_needed_c
     jp .apply_physics
 
@@ -5325,12 +5871,43 @@ wallgrab_process_entity_c:
     call wallgrab_commit_grab_sprite_if_needed_c
     jp .apply_physics
 
+.grounded_clear_lockout:
+    ld hl, entity_wallgrab_lockout
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_wallgrab_timer
+    add hl, de
+    ld (hl), 0
+    jp .not_grabbing
+
 wallgrab_reset_grace_c:
     ; Input: DE = entity offset
     ; Clobbers: AF, HL. Preserves: BC, DE.
     ld hl, entity_wallgrab_grace
     add hl, de
     ld (hl), 2
+    ret
+
+wallgrab_ensure_timer_c:
+    ; Input: DE = entity offset
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wallgrab_timer
+    add hl, de
+    ld a, (hl)
+    or a
+    ret nz
+    call wallgrab_reset_timer_c
+    ret
+
+wallgrab_reset_timer_c:
+    ; Input: DE = entity offset
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wallgrab_cfg_duration_frames
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_wallgrab_timer
+    add hl, de
+    ld (hl), a
     ret
 
 wallgrab_input_toward_wall_c:
@@ -5350,13 +5927,104 @@ wallgrab_input_toward_wall_c:
 .wg_check_right_wall:
     ld a, h
     and #08
-    jp z, .wg_no_toward_wall
+    jp z, .wg_probe_adjacent_wall
     ld a, 2                        ; facing right
     ret
 
-.wg_no_toward_wall:
+
+.wg_probe_adjacent_wall:
+    ; WallGrab runs before WallCollision, so the directional flags can be
+    ; empty when the player only holds GRAB with no horizontal movement.
+    ; Probe the current hitbox edges directly against the behavior map.
+    push bc
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (wall_temp_x), a
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (wall_temp_y), a
+    call wall_build_hitbox_cache
+
+    ; Left wall: sample one pixel before the hitbox left edge.
+    ld a, (wall_hit_left)
+    or a
+    jr z, .wg_probe_right_wall
+    sub 1
+    srl a
+    srl a
+    srl a
+    ld c, a
+
+    ld a, (wall_probe_top)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jr nz, .wg_touch_left_wall
+
+    ld a, (wall_probe_bottom)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jr nz, .wg_touch_left_wall
+
+.wg_probe_right_wall:
+    ; Right wall: sample one pixel after the hitbox right edge.
+    ld a, (wall_hit_right)
+    inc a
+    jr z, .wg_no_probe_wall
+    srl a
+    srl a
+    srl a
+    ld c, a
+
+    ld a, (wall_probe_top)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jr nz, .wg_touch_right_wall
+
+    ld a, (wall_probe_bottom)
+    srl a
+    srl a
+    srl a
+    ld b, a
+    call get_behavior_tile
+    call wall_behavior_is_full_blocker
+    jr nz, .wg_touch_right_wall
+
+.wg_no_probe_wall:
+    pop bc
     xor a
     ret
+
+.wg_touch_left_wall:
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 2, (hl)
+    pop bc
+    ld a, 1
+    ret
+
+.wg_touch_right_wall:
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 3, (hl)
+    pop bc
+    ld a, 2
+    ret
+
 
 wallgrab_set_facing_dir_a:
     ; Input: A = 1 left or 2 right, DE = entity offset
@@ -5656,10 +6324,7 @@ wallgrab_update_sprite_colors_c:
     add hl, de
     ld (hl), 0
 
-    ld hl, entity_wallgrab_cfg_fall_speed
-    add hl, de
-    ld a, (hl)
-    ld b, a
+    call wallgrab_choose_vertical_velocity_c
 
     ld hl, entity_vel_y
     add hl, de
@@ -5671,6 +6336,76 @@ wallgrab_update_sprite_colors_c:
     ld (hl), 0
     inc hl
     ld (hl), b
+    call wallgrab_tick_timer_c
+    or a
+    ret nz
+    jp .not_grabbing
+
+wallgrab_tick_timer_c:
+    ; Input: DE = entity offset
+    ; Output: A = 1 if the grab can continue, 0 if the timer expired
+    ; Clobbers: AF, HL. Preserves: BC, DE.
+    ld hl, entity_wallgrab_timer
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .wg_timer_expired
+    dec (hl)
+    ld a, (hl)
+    or a
+    jp z, .wg_timer_expired
+    ld a, 1
+    ret
+
+.wg_timer_expired:
+    ld hl, entity_wallgrab_lockout
+    add hl, de
+    ld (hl), 1
+    xor a
+    ret
+
+wallgrab_choose_vertical_velocity_c:
+    ; Input: DE = entity offset
+    ; Output: B = signed vertical velocity for this grab frame
+    ; Clobbers: AF, HL. Preserves: DE.
+    ld a, (input_state)
+    cp STICK_UP
+    jp z, .wg_climb_up
+    cp STICK_UPRIGHT
+    jp z, .wg_climb_up
+    cp STICK_UPLEFT
+    jp z, .wg_climb_up
+    cp STICK_DOWN
+    jp z, .wg_climb_down
+    cp STICK_DOWNRIGHT
+    jp z, .wg_climb_down
+    cp STICK_DOWNLEFT
+    jp z, .wg_climb_down
+    jp .wg_use_fall_speed
+
+.wg_climb_up:
+    ld hl, entity_wallgrab_cfg_climb_speed
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .wg_use_fall_speed
+    neg
+    ld b, a
+    ret
+
+.wg_climb_down:
+    ld hl, entity_wallgrab_cfg_climb_speed
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .wg_use_fall_speed
+    ld b, a
+    ret
+
+.wg_use_fall_speed:
+    ld hl, entity_wallgrab_cfg_fall_speed
+    add hl, de
+    ld b, (hl)
     ret
 
 .not_grabbing:
@@ -6263,11 +6998,13 @@ walljump_input_is_right:
     ret
     
     ; AutoDestroy system filtered out(not used)
+; @mideas:block id=runtime.components.auto_destroy_stub kind=routine owner=components
 init_auto_destroy_system:
     ret
 
 update_auto_destroy_component:
     ret
+; @mideas:endblock id=runtime.components.auto_destroy_stub
     
     ; ==================================================================
     ; CURSORS COMPONENT SYSTEM
@@ -6291,11 +7028,13 @@ update_cursors_component:
     ; StateMachine per-entity component tick filtered out.
     ; GameFlow calls execute_all_state_machines once per frame, so this
     ; resident component wrapper must stay a no-op to avoid duplicate SM ticks.
+; @mideas:block id=runtime.components.state_machine_component_stub kind=routine owner=components
 init_statemachine_system:
     ret
 
 update_statemachine_component:
     ret
+; @mideas:endblock id=runtime.components.state_machine_component_stub
     
 init_retractable_gate_system:
     ld hl, entity_gate_current_step
@@ -6420,7 +7159,7 @@ update_retractable_gate_component:
     pop de
     pop hl
     dec d
-    jr .rg_loop
+    jp .rg_loop
 
 ; ------------------------------------------------------------------
 ; gate_trigger_condition_true
@@ -6904,12 +7643,12 @@ gate_read_tile_at_xy:
     push hl
     ld de, (current_screen_layout)
     add hl, de
-    call mapper_push_p2
+    call mapper_push_p3
     ld a, (current_screen_layout_bank)
-    call mapper_set_bank_p2
+    call mapper_set_bank_p3
     ld a, (hl)
     ld b, a
-    call mapper_pop_p2
+    call mapper_pop_p3
     pop hl
     ld a, b
     ret
@@ -6943,27 +7682,27 @@ gate_write_tile_at_xy:
     push hl
     ld de, (current_screen_layout)
     add hl, de
-    call mapper_push_p2
+    call mapper_push_p3
     ld a, (current_screen_layout_bank)
-    call mapper_set_bank_p2
+    call mapper_set_bank_p3
     ld a, b
     ld (hl), a
-    call mapper_pop_p2
+    call mapper_pop_p3
     pop hl
 
     push hl
     ld de, (current_behavior_map)
     add hl, de
-    call mapper_push_p2
+    call mapper_push_p3
     ld a, (current_behavior_map_bank)
-    call mapper_set_bank_p2
+    call mapper_set_bank_p3
     ld a, b
     or a
     jr z, .rg_write_store_passable
     ld a, 1
 .rg_write_store_passable:
     ld (hl), a
-    call mapper_pop_p2
+    call mapper_pop_p3
     pop hl
 
     ld a, #FF
@@ -6983,44 +7722,52 @@ gate_write_tile_at_xy:
 init_carry_system:
     ret
 
+; @mideas:block id=runtime.components.carry_stub kind=routine owner=components
 update_carry_component:
     ret
+; @mideas:endblock id=runtime.components.carry_stub
     
+    ; AutoControlScript system filtered out(no active scripts)
+init_auto_control_script_system:
+    ret
+
+; @mideas:block id=runtime.components.auto_control_script_stubs kind=routine owner=components
+update_auto_control_script_component:
+    ret
+
+update_auto_event_string_component:
+    ret
+; @mideas:endblock id=runtime.components.auto_control_script_stubs
+
     ; Damage system filtered out(not used)
 init_damage_system:
     ret
 
+; @mideas:block id=runtime.components.damage_stub kind=routine owner=components
 update_damage_component:
     ret
+; @mideas:endblock id=runtime.components.damage_stub
     
     ; Shoot system filtered out(not used)
 init_shoot_system:
     ret
 
+; @mideas:block id=runtime.components.shoot_stub kind=routine owner=components
 update_shoot_component:
     ret
+; @mideas:endblock id=runtime.components.shoot_stub
     
     ; ==================================================================
-    ; PLATFORM RIDING SYSTEM
+    ; PLATFORM RIDING SYSTEM (STUB)
     ; ==================================================================
-    ; Detects when entities are standing on platforms and transfers velocity
-    ;
-    ; Platform detection: Entity A is on platform B if:
-    ; - A's bottom edge is at or near B's top edge
-    ; - A has horizontal overlap with B
-    ; - B has collision_layer bit 3 set (platform layer = 8)
-    ;
-    ; Grace frames: 6 frames tolerance when leaving platform
 
 init_platform_riding_system:
-    ; Initialize platform IDs to 255 (no platform)
+    ; Keep jump/ground checks deterministic even when dynamic platforms are absent.
     ld hl, entity_platform_id
     ld de, entity_platform_id + 1
     ld bc, 31
     ld (hl), 255
     ldir
-
-    ; Initialize grace frames to 0
     ld hl, entity_platform_grace
     ld de, entity_platform_grace + 1
     ld bc, 31
@@ -7028,91 +7775,15 @@ init_platform_riding_system:
     ldir
     ret
 
+; @mideas:block id=runtime.components.platform_riding_stub kind=routine owner=components
 prepare_platform_detection:
-    ; PHASE 1 - Called BEFORE collision detection
-    ; Clear platform references from previous frame
-    ; Entities that were on platforms get grace frames
-    ; Collision detection will reset platform_id if still in contact
-
-    ld a, (active_entity_count)
-    or a
-    ret z
-    ld b, a
-
-    ld hl, active_entity_list
-.platform_clear_loop:
-    ld e, (hl)              ; E = entity index
-    ld d, 0                 ; DE = entity index (16-bit offset)
-    inc hl
-    push hl
-    push bc
-
-    ; Check entity_platform_id[entity]
-    ld hl, entity_platform_id
-    add hl, de
-    ld a, (hl)              ; A = platform_id
-    cp 255                  ; Check if on a platform
-    jr z, .platform_skip_clear ; Already no platform, skip
-
-    ; Entity was on a platform last frame
-    ; Set grace frames to 6 (coyote time for leaving platform)
-    push hl                 ; Save entity_platform_id pointer
-    ld hl, entity_platform_grace
-    add hl, de
-    ld a, 6
-    ld (hl), a              ; Set grace frames
-    pop hl                  ; Restore entity_platform_id pointer
-
-    ; Clear platform reference (collision will reset if still touching)
-    ld (hl), 255
-
-.platform_skip_clear:
-    pop bc
-    pop hl
-    djnz .platform_clear_loop
     ret
 
 update_platform_riding:
-    ; PHASE 2 - Called AFTER collision detection
-    ; Decrement grace frames for entities not on platforms
-    ; (Entities on platforms have grace=0, set by handle_entity_collision)
-
-    ld a, (active_entity_count)
-    or a
-    ret z
-    ld b, a
-
-    ld hl, active_entity_list
-.grace_loop:
-    ld e, (hl)              ; E = entity index
-    ld d, 0                 ; DE = entity index (16-bit offset)
-    inc hl
-    push hl
-    push bc
-
-    ; Check if entity has platform reference
-    ld hl, entity_platform_id
-    add hl, de
-    ld a, (hl)              ; A = platform_id
-    cp 255
-    jr nz, .grace_skip      ; Has platform, skip grace decrement
-
-    ; No platform - decrement grace frames if > 0
-    ld hl, entity_platform_grace
-    add hl, de
-    ld a, (hl)              ; A = grace frames
-    or a
-    jr z, .grace_skip       ; Already 0, skip
-
-    dec a                   ; Decrement grace
-    ld (hl), a
-
-.grace_skip:
-    pop bc
-    pop hl
-    djnz .grace_loop
     ret
-    
+; @mideas:endblock id=runtime.components.platform_riding_stub
+    ; @mideas:block id=runtime.components.wallcollision kind=routine owner=components preserve=false
+
     ; ==================================================================
     ; WALL COLLISION COMPONENT SYSTEM
     ; ==================================================================
@@ -7949,7 +8620,9 @@ wall_sub_signed_offset_clamped:
     xor a
 .wssc_done:
     ret
-    
+; @mideas:endblock id=runtime.components.wallcollision
+; @mideas:block id=runtime.components.deadly_tiles kind=routine owner=components preserve=false roots=init_deadly_tiles_system,update_deadly_tiles_component,update_entity_deadly_flag_runtime,deadly_tiles_runtime_tile_is_deadly_nb,refresh_player_deadly_fastpath
+
 ; ------------------------------------------------------------------
 ; DEADLY TILES COMPONENT SYSTEM
 ; Purpose:
@@ -8209,14 +8882,27 @@ refresh_player_deadly_fastpath:
 .player_deadly_update:
     call update_entity_deadly_flag_runtime
     ret
+; @mideas:endblock id=runtime.components.deadly_tiles
 
+    ; InWater system filtered out(not used)
+init_in_water_system:
+    ret
+
+; @mideas:block id=runtime.components.in_water_stub kind=routine owner=components
+update_in_water_component:
+    ret
+; @mideas:endblock id=runtime.components.in_water_stub
+    
     ; Collectible system filtered out(not used)
 init_collectible_system:
     ret
 
+; @mideas:block id=runtime.components.collectible_stub kind=routine owner=components
 update_collectible_component:
     ret
-    
+; @mideas:endblock id=runtime.components.collectible_stub
+    ; @mideas:block id=runtime.components.tile_interaction kind=routine owner=components preserve=false roots=update_slash_component,check_tile_interaction,scan_tile_interaction_entities,refresh_player_tile_interaction_fastpath
+
 ; ==================================================================
 ; TILE INTERACTION SYSTEM
 ; ==================================================================
@@ -8226,6 +8912,7 @@ update_collectible_component:
 ; ------------------------------------------------------------------
 ; Called once per frame from update_all_entities.
 ; ------------------------------------------------------------------
+
 
 interaction_target_variable_ptr_table:
     dw 0
@@ -8278,307 +8965,13 @@ init_tile_interaction_system:
 ; for solid tiles before each step.  Covers the remaining distance
 ; stored in entity_slash_vel_x/y (decayed by 8 each frame).
 ; ------------------------------------------------------------------
+; ------------------------------------------------------------------
+; update_slash_component
+; Filtered out: no tile bonus uses grant_extra_jump/slash in this project.
+; Public label is kept because older generated call paths may still reference it.
+; ------------------------------------------------------------------
 update_slash_component:
-    ld a, (active_entity_count)
-    or a
-    ret z
-    ld b, a
-    ld hl, active_entity_list
-
-.slash_loop:
-    ld c, (hl)
-    inc hl
-    push hl                    ; Save list pointer
-    ld e, c
-    ld d, 0
-
-    ; Check if entity has any slash velocity (X or Y)
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld a, (hl)
-    ld hl, entity_slash_vel_y
-    add hl, de
-    or (hl)
-    jp z, .slash_next          ; both zero → skip
-
-    push bc
-
-    ; --- Build hitbox for tile checks (reuse wall_hit_* scratch) ---
-    ; hitbox_left = entity_x + collision_offset_x
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    ld hl, entity_collision_offset_x
-    add hl, de
-    add a, (hl)
-    ld (wall_hit_left), a
-
-    ; hitbox_right = left + w - 1
-    ld hl, entity_collision_hitbox_w
-    add hl, de
-    ld a, (hl)
-    or a
-    jp nz, .sl_w_ok
-    ld a, 1
-.sl_w_ok:
-    ld c, a
-    ld a, (wall_hit_left)
-    add a, c
-    dec a
-    ld (wall_hit_right), a
-
-    ; hitbox_top = entity_y + collision_offset_y
-    ld hl, entity_y_pos
-    add hl, de
-    ld a, (hl)
-    ld hl, entity_collision_offset_y
-    add hl, de
-    add a, (hl)
-    ld (wall_hit_top), a
-
-    ; hitbox_bottom = top + h - 1
-    ld hl, entity_collision_hitbox_h
-    add hl, de
-    ld a, (hl)
-    or a
-    jp nz, .sl_h_ok
-    ld a, 1
-.sl_h_ok:
-    ld c, a
-    ld a, (wall_hit_top)
-    add a, c
-    dec a
-    ld (wall_hit_bottom), a
-
-    ; ============ PROCESS X SLASH ============
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, .slash_x_done
-    bit 7, a
-    jp nz, .slash_x_left
-
-.slash_x_right:
-    ; Check tile at column (hitbox_right + 8) / 8
-    ld a, (wall_hit_right)
-    add a, 8
-    jp c, .slash_x_stop        ; overflow → screen edge
-    srl a
-    srl a
-    srl a
-    ld c, a                    ; C = probe column
-    ; Probe top row
-    ld a, (wall_hit_top)
-    srl a
-    srl a
-    srl a
-    ld b, a
-    push bc
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    pop bc
-    jp nz, .slash_x_stop
-    ; Probe bottom row
-    ld a, (wall_hit_bottom)
-    srl a
-    srl a
-    srl a
-    ld b, a
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    jp nz, .slash_x_stop
-
-    ; Passable → override vel_x = +8, decay slash_vel_x by 8
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), 8
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld a, (hl)
-    sub 8
-    jp nc, .slash_x_store
-    xor a
-.slash_x_store:
-    ld (hl), a
-    jp .slash_x_done
-
-.slash_x_left:
-    ; Check tile at column (hitbox_left - 8) / 8
-    ld a, (wall_hit_left)
-    cp 8
-    jp c, .slash_x_stop        ; < 8 → screen edge
-    sub 8
-    srl a
-    srl a
-    srl a
-    ld c, a                    ; C = probe column
-    ; Probe top row
-    ld a, (wall_hit_top)
-    srl a
-    srl a
-    srl a
-    ld b, a
-    push bc
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    pop bc
-    jp nz, .slash_x_stop
-    ; Probe bottom row
-    ld a, (wall_hit_bottom)
-    srl a
-    srl a
-    srl a
-    ld b, a
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    jp nz, .slash_x_stop
-
-    ; Passable → override vel_x = -8, decay slash_vel_x by 8 toward 0
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), #F8               ; -8
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld a, (hl)
-    add a, 8                   ; negative + 8 → toward zero
-    bit 7, a
-    jp nz, .slash_x_store_l
-    xor a                      ; crossed zero → clamp
-.slash_x_store_l:
-    ld (hl), a
-    jp .slash_x_done
-
-.slash_x_stop:
-    ; Hit solid tile or screen edge → kill X slash and X velocity
-    ld hl, entity_slash_vel_x
-    add hl, de
-    ld (hl), 0
-    ld hl, entity_vel_x
-    add hl, de
-    ld (hl), 0
-
-.slash_x_done:
-
-    ; ============ PROCESS Y SLASH ============
-    ld hl, entity_slash_vel_y
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, .slash_y_done
-    bit 7, a
-    jp nz, .slash_y_up
-
-.slash_y_down:
-    ; Check tile at row (hitbox_bottom + 8) / 8
-    ld a, (wall_hit_bottom)
-    add a, 8
-    cp 192
-    jp nc, .slash_y_stop       ; off-screen bottom
-    srl a
-    srl a
-    srl a
-    ld b, a                    ; B = probe row
-    ; Probe left column
-    ld a, (wall_hit_left)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    push bc
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    pop bc
-    jp nz, .slash_y_stop
-    ; Probe right column
-    ld a, (wall_hit_right)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    jp nz, .slash_y_stop
-
-    ; Passable → override vel_y = +8, decay slash_vel_y by 8
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), 8
-    ld hl, entity_slash_vel_y
-    add hl, de
-    ld a, (hl)
-    sub 8
-    jp nc, .slash_y_store
-    xor a
-.slash_y_store:
-    ld (hl), a
-    jp .slash_y_done
-
-.slash_y_up:
-    ; Check tile at row (hitbox_top - 8) / 8
-    ld a, (wall_hit_top)
-    cp 8
-    jp c, .slash_y_stop        ; < 8 → screen edge
-    sub 8
-    srl a
-    srl a
-    srl a
-    ld b, a                    ; B = probe row
-    ; Probe left column
-    ld a, (wall_hit_left)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    push bc
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    pop bc
-    jp nz, .slash_y_stop
-    ; Probe right column
-    ld a, (wall_hit_right)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call get_behavior_tile
-    call wall_behavior_is_full_blocker
-    jp nz, .slash_y_stop
-
-    ; Passable → override vel_y = -8, decay slash_vel_y by 8 toward 0
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), #F8               ; -8
-    ld hl, entity_slash_vel_y
-    add hl, de
-    ld a, (hl)
-    add a, 8                   ; negative + 8 → toward zero
-    bit 7, a
-    jp nz, .slash_y_store_u
-    xor a
-.slash_y_store_u:
-    ld (hl), a
-    jp .slash_y_done
-
-.slash_y_stop:
-    ; Hit solid tile or screen edge → kill Y slash and Y velocity
-    ld hl, entity_slash_vel_y
-    add hl, de
-    ld (hl), 0
-    ld hl, entity_vel_y
-    add hl, de
-    ld (hl), 0
-
-.slash_y_done:
-    pop bc
-
-.slash_next:
-    pop hl
-    dec b
-    jp nz, .slash_loop
     ret
-
-
 record_bonus_respawn_slot:
     ret
 
@@ -9144,9 +9537,12 @@ refresh_player_tile_interaction_fastpath:
     ld (input_entity_list), a
     pop af
     ld (input_entity_count), a
-    pop af
+    pop af                         ; Saved runtime was nonzero; force it back on.
+    ld a, 1
     ld (player_runtime_enabled), a
     ret
+; @mideas:endblock id=runtime.components.tile_interaction
+; @mideas:block id=runtime.components.collected_tiles kind=routine owner=components preserve=false roots=apply_collected_tiles
 
 ; ------------------------------------------------------------------
 ; apply_collected_tiles
@@ -9221,10 +9617,12 @@ apply_collected_tiles:
     inc c
     djnz .apply_ct_loop
     ret
- 
-    ; ================================================================== 
-        ; ENTITY MANAGEMENT FUNCTIONS(Based on EntityTemplate system) 
-    ; ================================================================== 
+; @mideas:endblock id=runtime.components.collected_tiles
+; @mideas:block id=runtime.components.entity_management kind=routine owner=components preserve=false roots=create_entity,entity_job_set,entity_job_should_run_c,force_update_entity_sprite
+
+    ; ==================================================================
+        ; ENTITY MANAGEMENT FUNCTIONS(Based on EntityTemplate system)
+    ; ==================================================================
 
         ; Create entity with components(A = entity ID, B = mask low byte, C = mask high byte) 
         create_entity:
@@ -9439,8 +9837,10 @@ entity_job_run_done:
             ld hl, sprite_color
             add hl, de
             ld (hl), 15; White color
-    ret
-    
+            ret
+; @mideas:endblock id=runtime.components.entity_management
+; @mideas:block id=runtime.components.scheduler kind=routine owner=components preserve=false roots=update_all_entities
+
 ; ==================================================================
 ; UPDATE ALL ENTITIES - Called by GameFlow (OPTIMIZED)
 ; ==================================================================
@@ -9477,6 +9877,10 @@ update_all_entities:
     ; Scheduler active: cadence depends on interrupt_counter, so rebuild every frame.
     call rebuild_used_entity_list
 .update_all_entities_list_ready:
+    ld a, (current_screen_engine)
+    or a
+    jp nz, .update_all_entities_fake_player
+.update_all_entities_player:
     call update_input_component         ; 1. Input (player control)
     call update_retractable_gate_component ; 3d. Retractable gate logic
     call update_jump_component          ; 4. Jump impulse
@@ -9486,9 +9890,7 @@ update_all_entities:
     call update_walljump_component      ; 6b. Wall jump / wall slide
     call update_slash_component         ; 6c. Additive slash velocity
     call update_position_component      ; 7. Apply velocity
-    call prepare_platform_detection     ; 8a. Clear platform refs
     call update_collision_component     ; 8b. Collision detection
-    call update_platform_riding         ; 8c. Platform riding
     call update_wallcollision_component ; 8d. Wall collision
     call update_deadly_tiles_component  ; 8e. Deadly tiles
     call check_tile_interaction         ; 8f. Tile interaction (gems/collectibles)
@@ -9497,7 +9899,13 @@ update_all_entities:
     call update_sprite_component        ; 13. Sprite rendering
     call sync_player_runtime_from_entity
     ret
-; Total systems called: 18 (optimized from 16)
+.update_all_entities_fake_player:
+    call update_position_component      ; 7. Apply velocity
+    call update_animation_component     ; 11. Animation
+    call update_sprite_component        ; 13. Sprite rendering
+    ret
+; Total player systems called: 16 (optimized from 16)
+; Total fake-player systems called: 3 (screen engine optimized)
 
 
 ; ------------------------------------------------------------------
@@ -9803,6 +10211,9 @@ ensure_player_fast_runtime_bound:
     ld (player_runtime_enabled), a
     ld (player_vx_runtime), a
     ld (player_vy_runtime), a
+    ld (player_dash_timer), a
+    ld (player_dash_cooldown), a
+    ld (player_dash_dir), a
     ld (player_x), a
     ld (player_x+1), a
     ld (player_y), a
@@ -9967,27 +10378,169 @@ update_entity_ladder_state_c:
     ret
 
 ; ------------------------------------------------------------------
-; update_player_fastpath
-; Dedicated hero update path executed before the generic ECS sweeps.
-; Mirrors the critical input->jump->gravity->position chain for the
-; current player entity without iterating over every active entity.
+; Player dash helpers
 ; ------------------------------------------------------------------
 ; Register Contract:
-;   Purpose: Run the critical per-frame player update without ECS list iteration.
-;   Inputs:
-;     - task_update_input already refreshed input_state/input_btn_*
-;   Outputs:
-;     - Hero input/jump/gravity/position resolved into entity tables and player_* mirror
-;   Clobbers:
-;     - AF
-;     - BC
-;     - DE
-;     - HL
-;   Preserved:
-;     - None
-;   Notes:
-;     - Global collision/wall/sprite systems still run later in the frame and may refine the final result.
+; input: C = player entity index, input_btn_curr/input_btn_prev refreshed
+; output: A = 1 while dash is active this frame, entity_vel_x/y overridden
+; clobbers: AF, BC, DE, HL
+; preserved: None
+player_fast_dash_process_c:
+    ld e, c
+    ld d, 0
+    ld hl, entity_input_disabled
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .pfd_input_ok
+    xor a
+    ld (player_dash_timer), a
+    ret
+.pfd_input_ok:
+    ld a, (boss_hit_cooldown)
+    or a
+    jp z, .pfd_hit_cooldown_done
+    dec a
+    ld (boss_hit_cooldown), a
+.pfd_hit_cooldown_done:
+    ld a, (player_dash_timer)
+    or a
+    jp nz, .pfd_active
+    ld a, (player_dash_cooldown)
+    or a
+    jp z, .pfd_check_start
+    dec a
+    ld (player_dash_cooldown), a
+.pfd_check_start:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_GRAB
+    jp z, .pfd_inactive
+    ld a, (input_btn_prev)
+    and INPUT_BTN_GRAB
+    jp nz, .pfd_inactive
+    call player_fast_dash_resolve_dir_c
+    ld (player_dash_dir), a
+    ld a, 8
+    ld (player_dash_timer), a
+    ld a, 18
+    ld (player_dash_cooldown), a
+.pfd_active:
+    ld a, (player_dash_timer)
+    dec a
+    ld (player_dash_timer), a
+    ld a, (player_dash_dir)
+    cp 1
+    jp z, .pfd_left
+    cp 3
+    jp z, .pfd_up
+    cp 4
+    jp z, .pfd_down
+.pfd_right:
+    ld b, 8
+    xor a
+    call player_fast_dash_store_velocity_c
+    ld a, 1
+    ret
+.pfd_left:
+    ld b, #F8
+    xor a
+    call player_fast_dash_store_velocity_c
+    ld a, 1
+    ret
+.pfd_up:
+    ld b, 0
+    ld a, #F8
+    call player_fast_dash_store_velocity_c
+    ld a, 1
+    ret
+.pfd_down:
+    ld b, 0
+    ld a, 8
+    call player_fast_dash_store_velocity_c
+    ld a, 1
+    ret
+.pfd_inactive:
+    xor a
+    ret
 
+; Register Contract:
+; input: C = player entity index, input_state/entity_facing_dir
+; output: A = dash direction (1=left,2=right,3=up,4=down)
+; clobbers: AF, DE, HL
+; preserved: C
+player_fast_dash_resolve_dir_c:
+    ld a, (input_state)
+    cp STICK_RIGHT
+    jp z, .pfdr_right
+    cp STICK_UPRIGHT
+    jp z, .pfdr_right
+    cp STICK_DOWNRIGHT
+    jp z, .pfdr_right
+    cp STICK_LEFT
+    jp z, .pfdr_left
+    cp STICK_UPLEFT
+    jp z, .pfdr_left
+    cp STICK_DOWNLEFT
+    jp z, .pfdr_left
+    cp STICK_UP
+    jp z, .pfdr_up
+    cp STICK_DOWN
+    jp z, .pfdr_down
+    ld e, c
+    ld d, 0
+    ld hl, entity_facing_dir
+    add hl, de
+    ld a, (hl)
+    cp 1
+    ret z
+    cp 2
+    ret z
+    cp 3
+    ret z
+    cp 4
+    ret z
+.pfdr_right:
+    ld a, 2
+    ret
+.pfdr_left:
+    ld a, 1
+    ret
+.pfdr_up:
+    ld a, 3
+    ret
+.pfdr_down:
+    ld a, 4
+    ret
+
+; Register Contract:
+; input: B = signed X velocity, A = signed Y velocity, C = entity index
+; output: entity_vel_x/y updated
+; clobbers: AF, DE, HL
+; preserved: BC
+player_fast_dash_store_velocity_c:
+    push af
+    ld e, c
+    ld d, 0
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), b
+    pop af
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+    ret
+
+; Register Contract:
+; input: C = player entity index, player_dash_dir
+; output: player_dash_tile_x/y updated for the front probe; Breakable tile at that probe cleared from runtime maps and VRAM
+; clobbers: AF, BC, DE, HL
+; preserved: None
+player_dash_break_front_tile_c:
+    ret
+player_dash_hit_boss_weakpoint:
+    ret
+player_dash_cleanup_dead_boss_attacks:
+    ret
 update_player_fastpath:
     call ensure_player_fast_runtime_bound
     ld a, (player_runtime_enabled)
@@ -10279,15 +10832,42 @@ update_player_fastpath:
     ld a, (hl)
     pop de
     pop af
-    jr nz, .player_fast_skip_patrol_facing
+    jp nz, .player_fast_sync_sm_sprite_facing
     push de
     ld e, c
     ld d, 0
-    call update_entity_patrol_facing
+
+            ; Apply directional sprite variants from entity_facing_dir locally.
+            ; Register contract: input DE = active entity index; preserves AF, BC, DE, HL.
+            ; This must not call update_entity_patrol_facing because MegaROM lower
+            ; page segments cannot safely call each other by raw address in ASCII16.
+            ; Use the spawn sprite so plain auto-facing matches patrol/entity defaults.
+            call component_sync_directional_sprite_from_initial
+    
+    pop de
+    jp .player_fast_skip_patrol_facing
+.player_fast_sync_sm_sprite_facing:
+    push de
+    ld e, c
+    ld d, 0
+
+            ; Apply directional sprite variants from entity_facing_dir locally.
+            ; Register contract: input DE = active entity index; preserves AF, BC, DE, HL.
+            ; This must not call update_entity_patrol_facing because MegaROM lower
+            ; page segments cannot safely call each other by raw address in ASCII16.
+            ; Use the active sprite so StateMachine-owned animations keep their state.
+            call component_sync_directional_sprite_from_current
+    
     pop de
 .player_fast_skip_patrol_facing:
 
 .player_fast_after_input:
+    push bc
+    call player_fast_dash_process_c
+    pop bc
+    or a
+    jp nz, .player_fast_after_walljump
+
     ; --------------------------------------------------------------
     ; WALL JUMP PRIORITY
     ; --------------------------------------------------------------
@@ -10343,12 +10923,11 @@ update_player_fastpath:
     or a
     jp nz, .player_fast_after_jump
 
-    ld a, (input_btn_curr)
-    and INPUT_BTN_FIRE
+    ld hl, entity_jump_trigger
+    add hl, de
+    ld a, (hl)
+    call component_trigger_edge_pressed_a
     jp z, .player_fast_after_jump
-    ld a, (input_btn_prev)
-    and INPUT_BTN_FIRE
-    jp nz, .player_fast_after_jump
 
     ld hl, entity_jump_max
     add hl, de
@@ -10559,11 +11138,13 @@ update_player_fastpath:
 .player_fast_sync:
     call sync_player_runtime_from_entity
     ret
+; @mideas:endblock id=runtime.components.scheduler
 
 ; ==================================================================
 ; EXECUTE ALL STATE MACHINES - Called by GameFlow
 ; ==================================================================
 ; This function executes the state machine for each entity that has one
+; @mideas:block id=runtime.components.state_machine_executor kind=routine owner=components roots=execute_all_state_machines,refresh_player_state_machine_fastpath
 execute_all_state_machines:
     ld a, (active_entity_count)
     or a
@@ -10636,6 +11217,7 @@ refresh_player_state_machine_fastpath:
     ld a, e
     call SM_Update
     ret
+; @mideas:endblock id=runtime.components.state_machine_executor
 
 
 ; ==================================================================
@@ -10645,6 +11227,7 @@ refresh_player_state_machine_fastpath:
 ; use get_behavior_tile directly, so keep this path compact in resident ROM.
 ; ==================================================================
 
+; @mideas:block id=runtime.components.legacy_tile_collision kind=routine owner=components
 get_tile_at_position:
     ; Deprecated: callers should use get_behavior_tile with B=row/C=column.
     xor a
@@ -10659,19 +11242,8 @@ tile_behavior_table:
     db TILE_PASSABLE
 
 check_collision_at_point:
-    ; Input: D=x pixels, E=y pixels. Convert to Screen 2 cell coords.
-    ld a, d
-    srl a
-    srl a
-    srl a
-    ld c, a
-    ld a, e
-    srl a
-    srl a
-    srl a
-    ld b, a
-    call get_behavior_tile
-    and #F0                       ; family bits: 0=passable, #10+=solid
+    ; Deprecated legacy helper. WallCollision uses behavior maps directly.
+    xor a
     ret
 
 ; ------------------------------------------------------------------
@@ -10695,15 +11267,9 @@ check_collision_box:
 ; Destroys: B
 ; ------------------------------------------------------------------
 div_a_by_c:
-    ld b, 0                       ; B = quotient
-.tile_div_loop:
-    sub c
-    jr c, .tile_div_done
-    inc b
-    jr .tile_div_loop
-.tile_div_done:
-    ld a, b
+    xor a
     ret
+; @mideas:endblock id=runtime.components.legacy_tile_collision
 
 
 ; ------------------------------------------------------------------
@@ -10740,8 +11306,10 @@ resolve_runtime_hero_entity:
     ret
 
 
+; @mideas:block id=runtime.components.secret_zone_stub kind=routine owner=components
 update_secret_zone_component:
     ret
+; @mideas:endblock id=runtime.components.secret_zone_stub
 
 
     ; ==================================================================
@@ -10800,7 +11368,7 @@ load_pattern_bank0:
     ei
     ld hl, ZX0_TILE_PATTERN_BUFFER
     ld de, CHRTBL2 + (128 * 8)    ; VRAM pattern table bank 0 (start at char 128)
-    ld bc, 304    ; Total bytes for all tile characters (16x16 tiles = 4 chars each)
+    ld bc, 304    ; Base tile bytes capped to chars 128-254
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
@@ -10815,7 +11383,7 @@ load_pattern_bank1:
     ei
     ld hl, ZX0_TILE_PATTERN_BUFFER
     ld de, CHRTBL2 + #800 + (128 * 8) ; VRAM pattern table bank 1 (+#800 offset + char 128)
-    ld bc, 304    ; Total bytes for all tile characters
+    ld bc, 304    ; Base tile bytes capped to chars 128-254
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
@@ -10830,7 +11398,7 @@ load_pattern_bank2:
     ei
     ld hl, ZX0_TILE_PATTERN_BUFFER
     ld de, CHRTBL2 + #1000 + (128 * 8) ; VRAM pattern table bank 2 (+#1000 offset + char 128)
-    ld bc, 304    ; Total bytes for all tile characters
+    ld bc, 304    ; Base tile bytes capped to chars 128-254
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
@@ -10926,7 +11494,7 @@ load_color_bank0:
     ei
     ld hl, ZX0_TILE_COLOR_BUFFER
     ld de, CLRTBL2 + (128 * 8)    ; VRAM color table bank 0 (start at char 128)
-    ld bc, 304     ; Total color bytes for all tile characters
+    ld bc, 304     ; Base tile bytes capped to chars 128-254
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
@@ -10941,7 +11509,7 @@ load_color_bank1:
     ei
     ld hl, ZX0_TILE_COLOR_BUFFER
     ld de, CLRTBL2 + #800 + (128 * 8) ; VRAM color table bank 1 (+#800 offset + char 128)
-    ld bc, 304     ; Total color bytes for all tile characters
+    ld bc, 304     ; Base tile bytes capped to chars 128-254
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
@@ -10956,7 +11524,7 @@ load_color_bank2:
     ei
     ld hl, ZX0_TILE_COLOR_BUFFER
     ld de, CLRTBL2 + #1000 + (128 * 8) ; VRAM color table bank 2 (+#1000 offset + char 128)
-    ld bc, 304     ; Total color bytes for all tile characters
+    ld bc, 304     ; Base tile bytes capped to chars 128-254
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
@@ -11046,6 +11614,8 @@ SPRITE_NINA_WALK_RIGHT_0_WIDTH     EQU 16
 SPRITE_NINA_WALK_RIGHT_0_HEIGHT    EQU 16
 SPRITE_NINA_WALK_RIGHT_0_FRAMES    EQU 2
 
+;; MSX1 HW Layer Order (front to back): C0=#D4524D, C1=#FFFFFF
+
 ;; ---- Sprite Frame: nina_walk_right_0_F0 ----
 ;; Size: 16x16
     ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_RIGHT_0_F0_DATA (32 bytes)
@@ -11055,6 +11625,8 @@ SPRITE_NINA_WALK_RIGHT_0_FRAMES    EQU 2
 SPRITE_NINA_GRUB_RIGHT_1_WIDTH     EQU 16
 SPRITE_NINA_GRUB_RIGHT_1_HEIGHT    EQU 16
 SPRITE_NINA_GRUB_RIGHT_1_FRAMES    EQU 2
+
+;; MSX1 HW Layer Order (front to back): C1=#FFFFFF, C2=#D4524D
 
 ;; ---- Sprite Frame: nina_grub_right_1_F0 ----
 ;; Size: 16x16
@@ -11075,6 +11647,8 @@ SPRITE_NINA_JUMP_RIGHT_3_WIDTH     EQU 16
 SPRITE_NINA_JUMP_RIGHT_3_HEIGHT    EQU 16
 SPRITE_NINA_JUMP_RIGHT_3_FRAMES    EQU 1
 
+;; MSX1 HW Layer Order (front to back): C0=#D4524D, C1=#FFFFFF
+
 ;; ---- Sprite Frame: nina_jump_right_3_F0 ----
 ;; Size: 16x16
     ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_RIGHT_3_F0_DATA (32 bytes)
@@ -11082,6 +11656,8 @@ SPRITE_NINA_JUMP_RIGHT_3_FRAMES    EQU 1
 SPRITE_NINA_IDLE_RIGHT_4_WIDTH     EQU 16
 SPRITE_NINA_IDLE_RIGHT_4_HEIGHT    EQU 16
 SPRITE_NINA_IDLE_RIGHT_4_FRAMES    EQU 1
+
+;; MSX1 HW Layer Order (front to back): C1=#FFFFFF, C2=#D4524D
 
 ;; ---- Sprite Frame: nina_idle_right_4_F0 ----
 ;; Size: 16x16
@@ -11091,6 +11667,9 @@ SPRITE_NEW_SPRITE_RIGHT_5_WIDTH     EQU 16
 SPRITE_NEW_SPRITE_RIGHT_5_HEIGHT    EQU 16
 SPRITE_NEW_SPRITE_RIGHT_5_FRAMES    EQU 1
 
+;; MSX1 HW Layer Order (front to back): C1=#FFFFFF, C2=#5455ED
+;; MSX1 HW Layer Y Offsets: C1=0, C2=9
+
 ;; ---- Sprite Frame: New Sprite_right_5_F0 ----
 ;; Size: 16x16
     ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_RIGHT_5_F0_DATA (32 bytes)
@@ -11098,6 +11677,8 @@ SPRITE_NEW_SPRITE_RIGHT_5_FRAMES    EQU 1
 SPRITE_NINA_WALK_LEFT_6_WIDTH     EQU 16
 SPRITE_NINA_WALK_LEFT_6_HEIGHT    EQU 16
 SPRITE_NINA_WALK_LEFT_6_FRAMES    EQU 2
+
+;; MSX1 HW Layer Order (front to back): C0=#D4524D, C1=#FFFFFF
 
 ;; ---- Sprite Frame: nina_walk_left_6_F0 ----
 ;; Size: 16x16
@@ -11109,6 +11690,8 @@ SPRITE_NINA_GRUB_LEFT_7_WIDTH     EQU 16
 SPRITE_NINA_GRUB_LEFT_7_HEIGHT    EQU 16
 SPRITE_NINA_GRUB_LEFT_7_FRAMES    EQU 2
 
+;; MSX1 HW Layer Order (front to back): C1=#FFFFFF, C2=#D4524D
+
 ;; ---- Sprite Frame: nina_grub_left_7_F0 ----
 ;; Size: 16x16
     ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_GRUB_LEFT_7_F0_DATA (32 bytes)
@@ -11119,6 +11702,8 @@ SPRITE_NINA_JUMP_LEFT_8_WIDTH     EQU 16
 SPRITE_NINA_JUMP_LEFT_8_HEIGHT    EQU 16
 SPRITE_NINA_JUMP_LEFT_8_FRAMES    EQU 1
 
+;; MSX1 HW Layer Order (front to back): C0=#D4524D, C1=#FFFFFF
+
 ;; ---- Sprite Frame: nina_jump_left_8_F0 ----
 ;; Size: 16x16
     ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_8_F0_DATA (32 bytes)
@@ -11127,6 +11712,8 @@ SPRITE_NINA_IDLE_LEFT_9_WIDTH     EQU 16
 SPRITE_NINA_IDLE_LEFT_9_HEIGHT    EQU 16
 SPRITE_NINA_IDLE_LEFT_9_FRAMES    EQU 1
 
+;; MSX1 HW Layer Order (front to back): C1=#FFFFFF, C2=#D4524D
+
 ;; ---- Sprite Frame: nina_idle_left_9_F0 ----
 ;; Size: 16x16
     ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_9_F0_DATA (32 bytes)
@@ -11134,6 +11721,9 @@ SPRITE_NINA_IDLE_LEFT_9_FRAMES    EQU 1
 SPRITE_NEW_SPRITE_LEFT_10_WIDTH     EQU 16
 SPRITE_NEW_SPRITE_LEFT_10_HEIGHT    EQU 16
 SPRITE_NEW_SPRITE_LEFT_10_FRAMES    EQU 1
+
+;; MSX1 HW Layer Order (front to back): C1=#FFFFFF, C2=#5455ED
+;; MSX1 HW Layer Y Offsets: C1=0, C2=9
 
 ;; ---- Sprite Frame: New Sprite_left_10_F0 ----
 ;; Size: 16x16
@@ -11335,7 +11925,7 @@ sprite_dir_down_table:
 
 ; Table: Entity Sprite Configuration 
 ; Format: db base_hw_sprite_index, layer_count 
-entity_sprite_config: 
+entity_sprite_config:
     db 0, 2 ; Entity 0 (nina_walk_right)
     ds 62, 0 ; Padding
 
@@ -11400,6 +11990,10 @@ SM_SpriteLayerYOffsetTable:
 ; ==================================================================
 
 init_sprites:
+    ld hl, entity_sprite_asset_index_init
+    ld de, entity_sprite_asset_index
+    ld bc, 32
+    ldir
     ; Copy sprite_layer_colors_init (ROM) -> sprite_layer_colors (RAM)
     ld hl, sprite_layer_colors_init
     ld de, sprite_layer_colors
@@ -11576,6 +12170,7 @@ ensure_sprite_patterns_for_world_id:
 ; ==================================================================
 
 ; A = hardware sprite index, B = X, C = Y, D = pattern, E = color
+; @mideas:block id=runtime.sprites.show_sprite_legacy kind=routine owner=sprites
 show_sprite:
     ; Safety check: Ensure sprite index < 32
     cp 32
@@ -11617,6 +12212,7 @@ show_sprite:
     ld a, 1
     ld (sprites_dirty), a
     ret
+; @mideas:endblock id=runtime.sprites.show_sprite_legacy
 
 ; Clear all sprites (set Y = SPRITE_INVISIBLE)
 ; OPTIMIZED: Uses faster increment method instead of ADD HL,DE
@@ -11707,6 +12303,8 @@ SCREEN_RUNTIME_SUMMARY_FLAG_MUSIC_IN_GAME EQU #01
 SCREEN_RUNTIME_SUMMARY_FLAG_HAS_HUD EQU #02
 SCREEN_RUNTIME_SUMMARY_FLAG_HAS_EFFECTS EQU #04
 SCREEN_RUNTIME_SUMMARY_FLAG_HAS_ANIM_TILES EQU #08
+BOSS_PLACEMENT_ENTRY_SIZE EQU 13
+BOSS_PLACEMENT_FLAG_ENABLED EQU #01
 
 SCREEN_PAN1_0_ID EQU 0
 SCREEN_PAN1_0_LAYOUT_BANK EQU 0
@@ -11723,6 +12321,9 @@ SCREEN_PAN1_0_EFFECTS_LAYOUT_SIZE EQU 768
 SCREEN_PAN1_0_EFFECT_ZONE_TABLE_BANK EQU ((SCREEN_PAN1_0_EFFECT_ZONE_TABLE - #4000) / #2000)
 SCREEN_PAN1_0_EFFECT_ZONE_COUNT EQU 0
 SCREEN_PAN1_0_EFFECT_ZONE_TABLE_SIZE EQU 0
+SCREEN_PAN1_0_BOSS_TABLE_BANK EQU ((SCREEN_PAN1_0_BOSS_TABLE - #4000) / #2000)
+SCREEN_PAN1_0_BOSS_COUNT EQU 0
+SCREEN_PAN1_0_BOSS_TABLE_SIZE EQU 0
 SCREEN_PAN1_0_BLOCK_LAYOUT_PRESENT EQU 1
 SCREEN_PAN1_0_BLOCK_LAYOUT_MODE EQU 4
 SCREEN_PAN1_0_BLOCK_CATALOG_BANK EQU ((SCREEN_PAN1_0_BLOCK_CATALOG - #4000) / #2000)
@@ -11769,6 +12370,9 @@ SCREEN_PAN1_0_EFFECTS_LAYOUT:
 SCREEN_PAN1_0_EFFECT_ZONE_TABLE:
     ; No effect zones exported for pan1
     DB #00
+
+SCREEN_PAN1_0_BOSS_TABLE:
+    db 0    ; No boss placements
 
 
 SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE:
@@ -11943,6 +12547,9 @@ SCREEN_PAN1_0_INTERACTION_TARGET_MAP:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
+show_presentation_screen_image:
+    ret
+
 show_presentation_screen:
     ret
 
@@ -11950,6 +12557,7 @@ show_presentation_screen:
 ; SCREEN LOADING FUNCTIONS
 ; ==================================================================
 
+; @mideas:block id=runtime.screens.colors kind=routine owner=screens roots=set_screen_colors
 ; Color shift lookup table (0-15 shifted to high nibble)
 ; OPTIMIZED: Table lookup is faster than 4× RLCA (11 cycles vs 16 cycles)
 color_shift_table:
@@ -11992,10 +12600,11 @@ set_screen_colors:
     pop bc
     pop af
     ret
+; @mideas:endblock id=runtime.screens.colors
 
-; Helper function to initialize character 0 (empty cell) with background color
+; Helper function to initialize blank sentinel characters with background color
 ; Input: A = background color (0-15)
-; This ensures empty cells show the correct background color instead of BIOS default (blue)
+; This ensures empty cells show the correct background color instead of stale VRAM.
 init_char0_color:
     push af
     push bc
@@ -12015,65 +12624,69 @@ init_char0_color:
     
     ; Write color to character 0 in all 3 banks (8 bytes each)
     ; Bank 0: CLRTBL2 + (0 * 8)
+    ld a, b                    ; Fill byte = background color in both nibbles
     ld hl, CLRTBL2
-    ld c, 8                    ; 8 bytes per character
-init_char0_bank0_loop:
-    ld a, b                    ; Get color byte
-    call FAST_WRTVRM                ; Write to VRAM
-    inc hl
-    dec c
-    jr nz, init_char0_bank0_loop
+    ld bc, 8                   ; 8 bytes per character
+    call FAST_FILLVRM
     
     ; Bank 1: CLRTBL2 + #800 + (0 * 8)
-    ld hl, CLRTBL2 + #800
-    ld c, 8
-init_char0_bank1_loop:
     ld a, b
-    call FAST_WRTVRM
-    inc hl
-    dec c
-    jr nz, init_char0_bank1_loop
+    ld hl, CLRTBL2 + #800
+    ld bc, 8
+    call FAST_FILLVRM
     
     ; Bank 2: CLRTBL2 + #1000 + (0 * 8)
-    ld hl, CLRTBL2 + #1000
-    ld c, 8
-init_char0_bank2_loop:
     ld a, b
-    call FAST_WRTVRM
-    inc hl
-    dec c
-    jr nz, init_char0_bank2_loop
+    ld hl, CLRTBL2 + #1000
+    ld bc, 8
+    call FAST_FILLVRM
+
+    ; Character 255 is also used as an empty/SPC sentinel by boss and layout data.
+    ld a, b
+    ld hl, CLRTBL2 + (255 * 8)
+    ld bc, 8
+    call FAST_FILLVRM
+    ld a, b
+    ld hl, CLRTBL2 + #800 + (255 * 8)
+    ld bc, 8
+    call FAST_FILLVRM
+    ld a, b
+    ld hl, CLRTBL2 + #1000 + (255 * 8)
+    ld bc, 8
+    call FAST_FILLVRM
     
     ; Also clear pattern for character 0 (all zeros = blank)
     ; Bank 0: CHRTBL2 + (0 * 8)
-    ld hl, CHRTBL2
-    ld c, 8
     xor a                      ; A = 0 (blank pattern)
-init_char0_pattern_bank0_loop:
-    call FAST_WRTVRM
-    inc hl
-    dec c
-    jr nz, init_char0_pattern_bank0_loop
+    ld hl, CHRTBL2
+    ld bc, 8
+    call FAST_FILLVRM
     
     ; Bank 1: CHRTBL2 + #800 + (0 * 8)
-    ld hl, CHRTBL2 + #800
-    ld c, 8
     xor a
-init_char0_pattern_bank1_loop:
-    call FAST_WRTVRM
-    inc hl
-    dec c
-    jr nz, init_char0_pattern_bank1_loop
+    ld hl, CHRTBL2 + #800
+    ld bc, 8
+    call FAST_FILLVRM
     
     ; Bank 2: CHRTBL2 + #1000 + (0 * 8)
-    ld hl, CHRTBL2 + #1000
-    ld c, 8
     xor a
-init_char0_pattern_bank2_loop:
-    call FAST_WRTVRM
-    inc hl
-    dec c
-    jr nz, init_char0_pattern_bank2_loop
+    ld hl, CHRTBL2 + #1000
+    ld bc, 8
+    call FAST_FILLVRM
+
+    ; Keep character 255 visually blank even when layouts use #FF for absence.
+    xor a
+    ld hl, CHRTBL2 + (255 * 8)
+    ld bc, 8
+    call FAST_FILLVRM
+    xor a
+    ld hl, CHRTBL2 + #800 + (255 * 8)
+    ld bc, 8
+    call FAST_FILLVRM
+    xor a
+    ld hl, CHRTBL2 + #1000 + (255 * 8)
+    ld bc, 8
+    call FAST_FILLVRM
     
     pop hl
     pop de
@@ -12081,6 +12694,7 @@ init_char0_pattern_bank2_loop:
     pop af
     ret
 
+; @mideas:block id=runtime.screens.copy_rect kind=routine owner=screens roots=copy_layout_rect_to_vram,copy_layout_rect_ram_to_ram
 ; Helper: Copy rectangular area from screen layout (RAM) to Name Table (VRAM)
 ; Input: HL = source in RAM
 ;        DE = destination in VRAM
@@ -12156,7 +12770,9 @@ copy_layout_rect_ram_to_ram:
     ex de, hl
     pop bc
     jr .copy_rect_ram_row_loop
+; @mideas:endblock id=runtime.screens.copy_rect
 
+; @mideas:block id=runtime.screens.block_layout_expander kind=routine owner=screens roots=expand_screen_block_layout_to_background,expand_screen_block_layout_2x2,expand_screen_block_layout_4x4
 ; Register Contract:
 ;   Purpose: Expand a block-optimized screen background into the linear 32x24 runtime layout buffer.
 ;   Inputs:
@@ -12349,6 +12965,7 @@ expand_screen_block_layout_4x4:
     pop iy
     pop ix
     ret
+; @mideas:endblock id=runtime.screens.block_layout_expander
 
 ; Register Contract:
 ;   Purpose: Rebuild runtime_behavior_map from the current runtime_screen_layout using the per-screen char behavior table.
@@ -12366,6 +12983,7 @@ expand_screen_block_layout_4x4:
 ;     - IY
 ;   Notes:
 ;     - Uses screen_block_catalog_ptr and screen_block_map_ptr as generic scratch pointers during the rebuild.
+; @mideas:block id=runtime.screens.behavior_map_rebuild kind=routine owner=screens
 build_runtime_behavior_map_from_screen_layout:
     ld (screen_block_map_ptr), hl
     ld hl, runtime_behavior_map
@@ -12390,15 +13008,21 @@ build_runtime_behavior_map_from_screen_layout:
     ld (screen_block_catalog_ptr), hl
     dec bc
     jr .build_behavior_loop
-
+; @mideas:endblock id=runtime.screens.behavior_map_rebuild
+; @mideas:block id=runtime.screens.load_screen_stub kind=routine owner=screens
 load_screen:
-
     ; Load screen (A = screen ID)
     ; TODO: Implement screen loading logic
     ret
+; @mideas:endblock id=runtime.screens.load_screen_stub
 
+; @mideas:block id=runtime.screens.load_screen_pan1_776511902784.loader kind=routine owner=screens roots=load_screen_pan1_776511902784
 load_screen_pan1_776511902784:
     ; Load pan1 screen (fast direct port access)
+    ld a, 0
+    ld (current_screen_engine), a
+    ld a, #FF
+    ld (autocontrol_screen_id), a
     ; Set VDP colors FIRST (before loading screen data)
     ld a, 1           ; Background color
     ld b, 1       ; Border color
@@ -12505,7 +13129,22 @@ load_screen_pan1_776511902784:
     ld (current_screen_sprite_pattern_slots), a
     ld a, SCREEN_PAN1_0_SUMMARY_FLAGS
     ld (current_screen_summary_flags), a
+    ld a, SCREEN_PAN1_0_BOSS_COUNT
+    ld (current_screen_boss_count), a
+    or a
+    jp z, load_pan1_776511902784_boss_done
+    ld hl, SCREEN_PAN1_0_BOSS_TABLE
+    ld de, current_screen_boss_entry
+    ld bc, BOSS_PLACEMENT_ENTRY_SIZE
+    ldir
+    ld hl, current_screen_boss_entry
+    ld (current_screen_boss_table), hl
+    ld a, #FF
+    ld (current_screen_boss_table_bank), a
+load_pan1_776511902784_boss_done:
+
     call update_animated_tiles_vram
+
     ; Initialize collision system pointers for this screen
     ld hl, runtime_screen_layout
     ld (current_screen_layout), hl
@@ -12533,6 +13172,7 @@ load_screen_pan1_776511902784:
     ld (hl), a
     ldir
     ret
+; @mideas:endblock id=runtime.screens.load_screen_pan1_776511902784.loader
 
 
 ; ==================================================================
@@ -12552,6 +13192,7 @@ load_screen_pan1_776511902784:
 ; INTELLIGENT FILTERING ACTIVE:
 ;   Entity templates in project: 11
 ;   Actually instantiated: 1
+;   Used entity templates: 1
 ;   Filtered out: 10 unused templates
 ;
 ; ==================================================================
@@ -12675,6 +13316,7 @@ update_entities:
 .skip_update_0:
     ret
 
+; @mideas:block id=data.entities.player_1.init kind=routine owner=entities roots=init_player_1
 init_player_1:
     ; Initialize Player 1 at real position from JSON
     ; JSON position: (2, 20) tiles = (16, 160) pixels
@@ -12820,6 +13462,10 @@ init_player_1:
     add hl, de
     ld (hl), 1            ; Maximum jumps before touching ground
 
+    ld hl, entity_jump_trigger
+    add hl, de
+    ld (hl), #00            ; Jump trigger action
+
 
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 0
@@ -12842,19 +13488,11 @@ init_player_1:
     ld a, h
     ld (entity_sm_ptr_h + 0), a   ; SM ptr high byte
 
-    ; Fire OnEnter of initial state immediately.
-    ; Normally OnEnter fires via SM_ChangeState, but the first state is set
-    ; directly (no transition). Without this call, ChangeSprite / other
-    ; OnEnter actions never run and entity_sprite_asset_index stays at 0.
-    ; State data layout: [ID:1][OnEnter ptr:2][OnExit ptr:2][Transitions ptr:2]
-    ld hl, SM_New_Statemachine_state_1776707744092 + 1      ; HL = &OnEnter Actions Ptr field
-    ld e, (hl)
-    inc hl
-    ld d, (hl)                    ; DE = OnEnter Actions Ptr (0 if none)
-    ld a, 0                ; A = entity index
-    call SM_ExecuteActions        ; safe: SM_ExecuteActions returns immediately if DE=0
+    ; Initial state has no OnEnter actions; avoid a banked SM dispatcher call
+    ; during entity init.
 
     ret
+; @mideas:endblock id=data.entities.player_1.init
 
 update_player_1:
     ; Update Player 1 logic with real behavior
@@ -13019,12 +13657,19 @@ entity_wallgrab_cfg_enabled:
     DB 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 entity_wallgrab_cfg_fall_speed:
     DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_wallgrab_cfg_climb_speed:
+    DB 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+entity_wallgrab_cfg_duration_frames:
+    DB 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240
 entity_wallgrab_cfg_grab_sprite:
     DB 1, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255
 entity_aircontrol_cfg_mode:
     DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_in_water_cfg_enabled:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 
 
+; @mideas:block id=runtime.entities.patrol_facing kind=routine owner=entities roots=update_entity_patrol_facing
 ; ------------------------------------------------------------------
 ; update_entity_patrol_facing
 ; Input: DE = entity index
@@ -13111,6 +13756,7 @@ update_entity_patrol_facing:
     pop bc
     pop af
     ret
+; @mideas:endblock id=runtime.entities.patrol_facing
 
 ; ------------------------------------------------------------------
 ; init_player_fast_runtime
@@ -13121,6 +13767,9 @@ init_player_fast_runtime:
     ld (player_runtime_enabled), a
     ld (player_vx_runtime), a
     ld (player_vy_runtime), a
+    ld (player_dash_timer), a
+    ld (player_dash_cooldown), a
+    ld (player_dash_dir), a
     ld (player_x), a
     ld (player_x+1), a
     ld (player_y), a
@@ -13137,7 +13786,27 @@ init_player_fast_runtime:
 init_player_from_hero_entity:
     ld a, (hero_entity_id)
     cp #FF
-    ret z
+    jr nz, .player_seed_has_hero
+
+    ; Entity init calls this before the active-list rebuild has resolved
+    ; hero_entity_id. Fall back to the first generated player marker so the
+    ; fast player runtime starts with valid coordinates on frame 1.
+    ld hl, entity_is_player
+    ld b, MAX_ENTITIES
+    ld c, 0
+.player_seed_scan_loop:
+    ld a, (hl)
+    or a
+    jr nz, .player_seed_found
+    inc hl
+    inc c
+    djnz .player_seed_scan_loop
+    ret
+.player_seed_found:
+    ld a, c
+    ld (hero_entity_id), a
+
+.player_seed_has_hero:
     ld (player_entity_index), a
     ld c, a
     ld a, 1
@@ -13215,6 +13884,7 @@ FONT_CHAR_COUNT EQU 43
 ; ==================================================================
 ; FONT LOADING FUNCTIONS
 ; ==================================================================
+; @mideas:block id=runtime.font.loading kind=routine owner=font roots=load_custom_font,load_font_bank0,load_font_bank1,load_font_bank2,load_all_font_banks,load_font_patterns_to_bank,load_font_colors,load_font_colors_all_banks,load_font_colors_to_bank
 
 load_custom_font:
     ; Load custom font patterns to VRAM Pattern Generator Table
@@ -13351,6 +14021,7 @@ load_font_colors_to_bank:
     pop bc                        ; Restore loop counter
     djnz .load_colors_loop
     ret
+; @mideas:endblock id=runtime.font.loading
 
 ; ==================================================================
 ; TEXT RENDERING FUNCTIONS (Based on Mideas renderMSX1TextToDataURL)
@@ -13413,11 +14084,17 @@ init_font_system:
     ld (vram_cache_font_ready), a
     ret
 
+reload_font_system:
+    xor a
+    ld (vram_cache_font_ready), a
+    jp init_font_system
+
 ; ==================================================================
 ; END OF FONT DATA
 ; ==================================================================
 
 
+; @mideas:block id=runtime.hud.core kind=routine owner=hud roots=init_hud,render_hud,force_render_hud,imprimir_marco,hud_draw_frame
 ; ==================================================================
 ; HUD SYSTEM - Screen 2 Text Rendering
 ; ==================================================================
@@ -13576,7 +14253,7 @@ render_hud:
     ; Check visible flag first (offset 8)
     ld a, (ix+8)                ; A = Visible
     or a
-    jr z, .skip_element         ; Skip if not visible
+    jp z, .skip_element         ; Skip if not visible
 
     ; Read element fields
     ld d, (ix+1)                ; D = X position (pixels)
@@ -14018,13 +14695,14 @@ update_hud_dynamic_1:
     pop af
     ret
 
+; @mideas:endblock id=runtime.hud.core
 
 
 ; ==================================================================
 ; PSG SOUND SYSTEM
 ; File: sound.asm
 ; Description: AY-3-8910 PSG control and sound effects
-; Engine Audio Tick: IRQ task_manager
+; Engine Audio Tick: GameFlow/game loop
 ; ==================================================================
 
 ; ==================================================================
@@ -14094,9 +14772,10 @@ SFX_LONG            EQU 30       ; ~500ms
 ; SOUND SYSTEM INITIALIZATION
 ; ==================================================================
 
+; @mideas:block id=runtime.sound.init kind=routine owner=sound roots=init_sound_system
 init_sound_system:
-    ; Initialize PSG via BIOS
-    call GICINI
+    ; Avoid BIOS PSG init from banked overlays; direct PSG writes below leave
+    ; the chip in a deterministic silent state without crossing ROM slots.
 
     ; Clear runtime sound state so power-on RAM garbage cannot make
     ; sfx_update / SM_UpdateSound drive the PSG for a few random frames.
@@ -14114,12 +14793,14 @@ init_sound_system:
     call sfx_silence_all
 
     ret
+; @mideas:endblock id=runtime.sound.init
 
 ; ------------------------------------------------------------------
 ; task_audio_tick
 ; Shared audio tick wrapper for IRQ task_manager or HALT game loops.
 ; Preserves caller-visible registers on every exit path.
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.sound.tick kind=routine owner=sound roots=task_audio_tick
 task_audio_tick:
     push af
     push bc
@@ -14135,10 +14816,12 @@ task_audio_tick:
     pop bc
     pop af
     ret
+; @mideas:endblock id=runtime.sound.tick
 
 ; ==================================================================
 ; PSG LOW-LEVEL CONTROL FUNCTIONS
 ; ==================================================================
+; @mideas:block id=runtime.sound.psg_lowlevel kind=routine owner=sound roots=psg_write,psg_set_tone,psg_set_volume,psg_set_noise,psg_set_mixer,psg_set_envelope
 
 ; ------------------------------------------------------------------
 ; psg_write
@@ -14148,17 +14831,31 @@ task_audio_tick:
 ; Destroys: AF, E
 ; ------------------------------------------------------------------
 psg_write:
-    call WRTPSG
+    out (#A0), a
+    ld a, e
+    out (#A1), a
     ret
 
 ; ------------------------------------------------------------------
 ; psg_set_tone
 ; Set tone period for a channel
 ; Input:  A = Channel (0=A, 1=B, 2=C)
-;         HL = Tone period (12-bit value)
+;         HL = Tone period (clamped to PSG 12-bit range 1..#0FFF)
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
 psg_set_tone:
+    ld b, a                      ; Preserve channel while clamping period
+    ld a, h
+    and #F0
+    jr z, .tone_period_in_range
+    ld hl, #0FFF                 ; AY tone period is 12-bit; saturate overflow
+.tone_period_in_range:
+    ld a, h
+    or l
+    jr nz, .tone_period_nonzero
+    inc l                        ; Avoid period 0, which is unstable on PSG
+.tone_period_nonzero:
+    ld a, b
     ; Calculate register numbers (A*2 for low, A*2+1 for high)
     add a, a                     ; A = channel * 2
     ld c, a                      ; C = low register number
@@ -14168,7 +14865,7 @@ psg_set_tone:
     ; Write low byte
     ld a, c
     ld e, l
-    call WRTPSG
+    call psg_write
 
     ; Write high byte (only lower 4 bits)
     ld a, b
@@ -14177,7 +14874,7 @@ psg_set_tone:
     and #0F
     ld e, a
     ld a, b
-    call WRTPSG
+    call psg_write
 
     ret
 
@@ -14191,7 +14888,7 @@ psg_set_tone:
 psg_set_volume:
     add a, PSG_VOL_A             ; A = PSG_VOL_x register
     ld e, b                      ; E = volume value
-    call WRTPSG
+    call psg_write
     ret
 
 ; ------------------------------------------------------------------
@@ -14203,7 +14900,7 @@ psg_set_volume:
 psg_set_noise:
     ld e, a
     ld a, PSG_NOISE_PERIOD
-    call WRTPSG
+    call psg_write
     ret
 
 ; ------------------------------------------------------------------
@@ -14217,7 +14914,7 @@ psg_set_noise:
 psg_set_mixer:
     ld e, a
     ld a, PSG_MIXER
-    call WRTPSG
+    call psg_write
     ret
 
 ; ------------------------------------------------------------------
@@ -14230,16 +14927,17 @@ psg_set_mixer:
 psg_set_envelope:
     ld a, PSG_ENV_LO
     ld e, l
-    call WRTPSG
+    call psg_write
     ld a, PSG_ENV_HI
     ld e, h
-    call WRTPSG
+    call psg_write
     ld a, b
     and #0F
     ld e, a
     ld a, PSG_ENV_SHAPE
-    call WRTPSG
+    call psg_write
     ret
+; @mideas:endblock id=runtime.sound.psg_lowlevel
 
 ; ==================================================================
 ; HIGH-LEVEL SOUND EFFECTS
@@ -14249,6 +14947,7 @@ psg_set_envelope:
 ; sfx_silence_all
 ; Silence all PSG channels
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.sound.sfx_silence kind=routine owner=sound
 sfx_silence_all:
     ; Set all volumes to 0
     xor a                        ; A = channel A
@@ -14268,11 +14967,13 @@ sfx_silence_all:
     call psg_set_mixer
 
     ret
+; @mideas:endblock id=runtime.sound.sfx_silence
 
 ; ------------------------------------------------------------------
 ; sfx_beep
 ; Simple beep sound
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.sound.sfx_builtin_effects kind=routine owner=sound
 sfx_beep:
     ; Channel A: 440Hz (A4)
     xor a                        ; A = channel A
@@ -14398,6 +15099,7 @@ sfx_damage:
     call psg_set_mixer
 
     ret
+; @mideas:endblock id=runtime.sound.sfx_builtin_effects
 
 ; ==================================================================
 ; SOUND EFFECT PLAYBACK SYSTEM
@@ -14415,10 +15117,13 @@ sfx_damage:
 ;         0=beep, 1=jump, 2=shoot, 3=explosion, 4=coin, 5=damage
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.sound.sfx_playback kind=routine owner=sound
 play_sound_effect:
+    ld b, a
     ld a, (music_active)
     or a
     ret nz
+    ld a, b
     cp 1
     jp z, play_sound_effect_jump
     cp 2
@@ -14530,25 +15235,16 @@ sfx_update:
     xor a
     ld (sfx_active), a
     ret
+; @mideas:endblock id=runtime.sound.sfx_playback
 
 ; ==================================================================
-; TRACKER MUSIC RUNTIME (Phase 1)
-; Phase 1 plays row data and loop state in ROM; descriptor tables are
-; serialized now for compatibility and future expansion.
+; TRACKER MUSIC RUNTIME
+; No exportable music tracks are referenced by this project.
+; Public labels are kept as no-op stubs so GameFlow/audio wrappers
+; remain link-compatible without carrying the tracker interpreter.
 ; ==================================================================
 
-MUSIC_TRACK_ORDER_TABLE     EQU 5
-MUSIC_TRACK_PATTERN_TABLE   EQU 7
-MUSIC_TRACK_INSTRUMENT_TABLE EQU 9
-MUSIC_TRACK_NOISE_DEFAULT   EQU 15
-
-; ------------------------------------------------------------------
-; music_init_system
-; Reset tracker runtime RAM and default PSG mixer shadow.
-; Input:  None
-; Output: music_active=0, music_muted=0, music_mixer_shadow=#3F
-; Destroys: AF
-; ------------------------------------------------------------------
+; @mideas:block id=runtime.sound.music_noop_runtime kind=routine owner=sound
 music_init_system:
     xor a
     ld (music_active), a
@@ -14567,38 +15263,12 @@ music_init_system:
     ld (music_pattern_ptr_h), a
     ld a, #3F
     ld (music_mixer_shadow), a
-    call music_reset_channel_state
     ret
 
+; @mideas:block id=runtime.sound.music_reset_noop kind=routine owner=sound
 music_reset_channel_state:
-    ld a, #FF
-    ld (music_ch_a_note), a
-    ld (music_ch_b_note), a
-    ld (music_ch_c_note), a
-    xor a
-    ld (music_ch_a_instrument), a
-    ld (music_ch_b_instrument), a
-    ld (music_ch_c_instrument), a
-    ld (music_ch_a_ornament), a
-    ld (music_ch_b_ornament), a
-    ld (music_ch_c_ornament), a
-    ld (music_ch_a_vol_step), a
-    ld (music_ch_b_vol_step), a
-    ld (music_ch_c_vol_step), a
-    ld (music_ch_a_tone_step), a
-    ld (music_ch_b_tone_step), a
-    ld (music_ch_c_tone_step), a
-    ld (music_ch_a_noise_step), a
-    ld (music_ch_b_noise_step), a
-    ld (music_ch_c_noise_step), a
-    ld (music_ch_a_orn_step), a
-    ld (music_ch_b_orn_step), a
-    ld (music_ch_c_orn_step), a
-    ld a, #0F
-    ld (music_ch_a_volume), a
-    ld (music_ch_b_volume), a
-    ld (music_ch_c_volume), a
     ret
+; @mideas:endblock id=runtime.sound.music_reset_noop
 
 music_silence_channels:
     xor a
@@ -14615,845 +15285,38 @@ music_silence_channels:
     ret
 
 music_stop:
-    push af
     call music_init_system
     call music_silence_channels
-    pop af
     ret
 
 music_mute:
-    ld a, (music_active)
-    or a
-    ret z
-    ld a, 1
-    ld (music_muted), a
-    call music_silence_channels
-    ret
-
 music_resume:
-    ld a, (music_active)
-    or a
-    ret z
-    xor a
-    ld (music_muted), a
-    call music_update_channel_effects
+music_update:
+music_update_channel_effects:
+music_play_track:
     ret
 
-; ------------------------------------------------------------------
-; music_execute_command
-; Dispatch a compact music command stream used by Game Flow nodes.
-; Input:  DE -> [command, trackIndex, loopFlag]
-;         command: 0=stop, 1=play, 2=mute, 3=resume, #FF=no-op
-; Output: Selected command executed, DE may advance while parsing
-; Destroys: AF, BC (play path), DE (play path), HL (via callees)
-; ------------------------------------------------------------------
 music_execute_command:
     ld a, (de)
     cp #FF
     ret z
     or a
     jp z, music_stop
-    cp 1
-    jp z, .play_track
-    cp 2
-    jp z, music_mute
-    cp 3
-    jp z, music_resume
     ret
-.play_track:
-    inc de
-    ld a, (de)
-    ld c, a
-    inc de
-    ld a, (de)
-    ld b, a
-    ld a, c
-    call music_play_track
-    ret
-
-music_load_track_pointer_from_index:
-    add a, a
-    ld e, a
-    ld d, 0
-    ld hl, music_track_ptr_table
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld a, e
-    ld (music_track_ptr_l), a
-    ld a, d
-    ld (music_track_ptr_h), a
-    or a
-    ret
-
-music_get_track_ptr:
-    ld a, (music_track_ptr_l)
-    ld l, a
-    ld a, (music_track_ptr_h)
-    ld h, a
-    ret
-
-music_get_track_header_ptr:
-    ld e, a
-    ld d, 0
-    call music_get_track_ptr
-    add hl, de
-    ret
-
-music_read_track_byte:
-    call music_get_track_header_ptr
-    ld a, (hl)
-    ret
-
-music_read_track_word:
-    call music_get_track_header_ptr
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld h, d
-    ld l, e
-    ret
-
-music_get_instrument_ptr:
-    or a
-    jr z, .no_instrument
-    add a, a
-    ld e, a
-    ld d, 0
-    ld a, MUSIC_TRACK_INSTRUMENT_TABLE
-    call music_read_track_word
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld h, d
-    ld l, e
-    ret
-.no_instrument:
-    ld hl, 0
-    ret
-
-; ------------------------------------------------------------------
-; music_get_channel_instrument_ptr
-; Resolve current channel instrument pointer from the cached channel id.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: HL = instrument descriptor or 0 when none is active
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_get_channel_instrument_ptr:
-    ld hl, music_ch_instrument_base
-    call music_load_channel_byte
-    call music_get_instrument_ptr
-    ret
-
-; ------------------------------------------------------------------
-; music_channel_uses_hardware_env
-; Check if the active instrument routes channel volume through PSG ENV.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: A = 1 when PSG hardware envelope is enabled, else 0
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_channel_uses_hardware_env:
-    push hl
-    call music_get_channel_instrument_ptr
-    ld a, h
-    or l
-    jr z, music_channel_uses_hardware_env_no_hw_env
-    ld a, (hl)
-    and #04
-    jr z, music_channel_uses_hardware_env_no_hw_env
-    ld a, 1
-    pop hl
-    ret
-music_channel_uses_hardware_env_no_hw_env:
-    xor a
-    pop hl
-    ret
-
-; ------------------------------------------------------------------
-; music_trigger_channel_attack
-; Hook kept for compatibility. The preview-style hardware envelope is
-; emulated in software per channel, so new-note state is already reset
-; by music_apply_channel_cell before this helper is called.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: None
-; Destroys: None
-; ------------------------------------------------------------------
-music_trigger_channel_attack:
-    ret
-
-; ------------------------------------------------------------------
-; music_resolve_channel_volume
-; Resolve per-frame channel volume.
-; Current Phase 1 behavior:
-; - emulates AY hardware envelope shapes in software when ayEnvelopeShape is set
-; - falls back to music_ch_volume_base when no envelope data exists
-; - applies a simple software volumeEnvelope when present
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: B = PSG volume 0-15
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-music_resolve_channel_volume:
-    push af
-    push de
-    push hl
-    ld hl, music_ch_instrument_base
-    call music_load_channel_byte
-    or a
-    jp z, .fallback_base
-    call music_get_instrument_ptr
-    ld a, h
-    or l
-    jp z, .fallback_base
-    ld a, (hl)
-    and #04
-    jp nz, .hardware_env
-.check_software_env:
-    push hl
-    ld de, 8
-    add hl, de
-    ld b, (hl)
-    pop hl
-    ld a, b
-    or a
-    jp z, .fallback_base
-    push hl
-    ld de, 6
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    pop hl
-    push hl
-    ld hl, music_ch_vol_step_base
-    call music_load_channel_byte
-    cp b
-    jr c, .step_ok_restore
-    pop hl
-    push de
-    push hl
-    ld de, 9
-    add hl, de
-    ld a, (hl)
-    pop hl
-    pop de
-    cp b
-    jr c, .step_ok
-    ld a, b
-    push af
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    pop af
-    ld hl, music_ch_note_base
-    ld a, #FF
-    call music_store_channel_byte
-    xor a
-    ld b, a
-    jp .mrcv_done
-.step_ok_restore:
-    pop hl
-.step_ok:
-    push af
-    inc a
-    cp b
-    jr c, .next_step_ok
-    push de
-    push hl
-    ld de, 9
-    add hl, de
-    ld a, (hl)
-    pop hl
-    pop de
-    cp b
-    jr c, .next_step_ok
-    ld a, b
-.next_step_ok:
-    push de
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    pop de
-    pop af
-    ld l, a
-    ld h, 0
-    add hl, de
-    ld a, (hl)
-    cp 16
-    jr c, .env_volume_ok
-    ld a, 15
-.env_volume_ok:
-    ld b, a
-    jp .mrcv_done
-.hardware_env:
-    ld hl, music_ch_tone_step_base
-    call music_load_channel_byte
-    inc a
-    cp 2
-    jr c, .hw_store_counter
-    xor a
-    push af
-    ld hl, music_ch_tone_step_base
-    call music_store_channel_byte
-    pop af
-    ld hl, music_ch_vol_step_base
-    call music_load_channel_byte
-    cp 15
-    jr nc, .hw_phase_ready
-    inc a
-    push af
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    pop af
-    jr .hw_phase_ready
-.hw_store_counter:
-    push af
-    ld hl, music_ch_tone_step_base
-    call music_store_channel_byte
-    pop af
-    ld hl, music_ch_vol_step_base
-    call music_load_channel_byte
-.hw_phase_ready:
-    push af
-    call music_get_channel_instrument_ptr
-    ld a, h
-    or l
-    pop af
-    jr z, .hw_decay
-    push af
-    inc hl
-    inc hl
-    ld a, (hl)
-    and #04
-    pop af
-    jr z, .hw_decay
-    ld b, a
-    jp .mrcv_done
-.hw_decay:
-    ld e, a
-    ld a, 15
-    sub e
-    ld b, a
-    jp .mrcv_done
-.fallback_base:
-    ld hl, music_ch_volume_base
-    call music_load_channel_byte
-    ld b, a
-.mrcv_done:
-    pop hl
-    pop de
-    pop af
-    ret
-
-; ------------------------------------------------------------------
-; music_resolve_channel_noise
-; Resolve per-frame channel noise period, including the PT3-inspired
-; software noise macro appended to the instrument descriptor.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: A = PSG noise period 0-31
-; Destroys: AF, DE, HL
-; Preserves: Stack balance restored before return
-; ------------------------------------------------------------------
-music_resolve_channel_noise:
-    push de
-    push hl
-    ld hl, music_ch_instrument_base
-    call music_load_channel_byte
-    or a
-    jp z, .mrcn_track_default
-    call music_get_instrument_ptr
-    ld a, h
-    or l
-    jp z, .mrcn_track_default
-    push hl
-    ld de, 16
-    add hl, de
-    ld b, (hl)
-    pop hl
-    ld a, b
-    or a
-    jp z, .mrcn_static_noise
-    push hl
-    ld hl, music_ch_noise_step_base
-    call music_load_channel_byte
-    cp b
-    jr c, .mrcn_step_ok
-    ld a, b
-    dec a
-.mrcn_step_ok:
-    push af
-    pop af
-    pop hl
-    push af
-    inc a
-    cp b
-    jr c, .mrcn_store_next
-    push de
-    ld de, 17
-    add hl, de
-    ld a, (hl)
-    pop de
-    cp b
-    jr c, .mrcn_store_next
-    ld a, b
-    dec a
-.mrcn_store_next:
-    push hl
-    push af
-    ld hl, music_ch_noise_step_base
-    call music_store_channel_byte
-    pop af
-    pop hl
-    ld de, 14
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    pop af
-    ld l, a
-    ld h, 0
-    add hl, de
-    ld a, (hl)
-    and #1F
-    jp .mrcn_done
-.mrcn_static_noise:
-    push de
-    ld de, 3
-    add hl, de
-    ld a, (hl)
-    pop de
-    and #1F
-    jp .mrcn_done
-.mrcn_track_default:
-    ld a, MUSIC_TRACK_NOISE_DEFAULT
-    call music_read_track_byte
-    and #1F
-.mrcn_done:
-    pop hl
-    pop de
-    ret
-
-; ------------------------------------------------------------------
-; music_play_track
-; Start a serialized PSG tracker song from ROM.
-; Input:  A = track index in music_track_ptr_table
-;         B bit 0 = loop enabled flag
-; Output: music_active=1 and first row applied immediately
-; Destroys: AF, BC, DE, HL
-; Preserves: Stack balance restored on all exits
-; ------------------------------------------------------------------
-music_play_track:
-    push bc
-    push de
-    push hl
-    ld hl, music_track_count
-    cp (hl)
-    jp nc, .mpt_done
-    ld (music_track_index), a
-    call music_load_track_pointer_from_index
-    jp c, .mpt_done
-    ld a, b
-    and 1
-    ld (music_loop), a
-    xor a
-    ld (music_muted), a
-    ld (music_order_pos), a
-    ld (music_pattern_index), a
-    ld (music_pattern_row), a
-    ld a, 1
-    ld (music_active), a
-    call music_reset_channel_state
-    call music_apply_row
-.mpt_done:
-    pop hl
-    pop de
-    pop bc
-    ret
-
-music_store_channel_byte:
-    push de
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld (hl), a
-    pop de
-    ret
-
-music_load_channel_byte:
-    push de
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    pop de
-    ret
-
-music_apply_channel_cell:
-    ld c, a
-    ld d, 0
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jp z, .note_done
-    cp #FE
-    jp nz, .store_note
-    ld a, #FF
-    jr .store_note
-.store_note:
-    cp #FF
-    jr z, .store_note_value
-    ld d, 1
-.store_note_value:
-    push hl
-    ld hl, music_ch_note_base
-    call music_store_channel_byte
-    xor a
-    ld hl, music_ch_vol_step_base
-    call music_store_channel_byte
-    ld hl, music_ch_tone_step_base
-    call music_store_channel_byte
-    ld hl, music_ch_noise_step_base
-    call music_store_channel_byte
-    ld hl, music_ch_orn_step_base
-    call music_store_channel_byte
-    pop hl
-.note_done:
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jp z, .instrument_done
-    push hl
-    ld hl, music_ch_instrument_base
-    call music_store_channel_byte
-    pop hl
-.instrument_done:
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jp z, .ornament_done
-    push hl
-    ld hl, music_ch_ornament_base
-    call music_store_channel_byte
-    pop hl
-.ornament_done:
-    ld a, (hl)
-    inc hl
-    cp #FF
-    jr z, .maybe_trigger_attack
-    push hl
-    ld hl, music_ch_volume_base
-    call music_store_channel_byte
-    pop hl
-.maybe_trigger_attack:
-    ld a, d
-    or a
-    ret z
-    push hl
-    call music_trigger_channel_attack
-    pop hl
-    ret
-
-; ------------------------------------------------------------------
-; music_apply_row
-; Decode current order/pattern row and cache channel state for A/B/C.
-; Input:  Runtime variables select track/order/pattern position
-; Output: Channel note/instrument/volume caches updated
-;         Row countdown reloaded and PSG refreshed once
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-music_apply_row:
-    ld a, MUSIC_TRACK_ORDER_TABLE
-    call music_read_track_word
-    ld a, (music_order_pos)
-    ld e, a
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    ld (music_pattern_index), a
-    ld a, MUSIC_TRACK_PATTERN_TABLE
-    call music_read_track_word
-    ld a, (music_pattern_index)
-    ld e, a
-    ld d, 0
-    add hl, de
-    add hl, de
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    inc hl
-    ld a, (hl)
-    ld (music_pattern_rows), a
-    ld a, e
-    ld (music_pattern_ptr_l), a
-    ld a, d
-    ld (music_pattern_ptr_h), a
-    ld h, d
-    ld l, e
-    ld a, (music_pattern_row)
-    or a
-    jp z, .row_ptr_ready
-    ld b, a
-.row_offset_loop:
-    ld de, 12
-    add hl, de
-    djnz .row_offset_loop
-.row_ptr_ready:
-    xor a
-    call music_apply_channel_cell
-    ld a, 1
-    call music_apply_channel_cell
-    ld a, 2
-    call music_apply_channel_cell
-    ld a, (music_pattern_row)
-    inc a
-    ld d, a
-    ld a, (music_pattern_rows)
-    cp d
-    jp z, .advance_order
-    jp c, .advance_order
-    ld a, d
-    ld (music_pattern_row), a
-    jp .row_done
-.advance_order:
-    xor a
-    ld (music_pattern_row), a
-    ld a, (music_order_pos)
-    inc a
-    ld d, a
-    ld a, 1
-    call music_read_track_byte
-    cp d
-    jp z, .end_of_order
-    jp c, .end_of_order
-    ld a, d
-    ld (music_order_pos), a
-    jp .row_done
-.end_of_order:
-    ld a, (music_loop)
-    or a
-    jp z, music_stop
-    ld a, 2
-    call music_read_track_byte
-    ld (music_order_pos), a
-.row_done:
-    xor a
-    call music_read_track_byte
-    ld (music_row_frames), a
-    ld (music_row_countdown), a
-    call music_update_channel_effects
-    ret
-
-; ------------------------------------------------------------------
-; music_update
-; Advance the tracker once per game frame.
-; Input:  None
-; Output: Current channel PSG state refreshed; next row applied when due
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-music_update:
-    ld a, (music_active)
-    or a
-    ret z
-    ld a, (music_muted)
-    or a
-    ret nz
-    call music_update_channel_effects
-    ld a, (music_row_countdown)
-    or a
-    jp z, music_apply_row
-    dec a
-    ld (music_row_countdown), a
-    ret nz
-    call music_apply_row
-    ret
-
-; ------------------------------------------------------------------
-; music_update_channel_effects
-; Rebuild mixer bits and push current cached channel state to PSG.
-; Input:  music_ch_* caches already populated
-; Output: PSG tone/volume registers updated for channels A/B/C
-;         music_mixer_shadow rewritten with current enable bits
-; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
-music_update_channel_effects:
-    ld a, #3F
-    ld (music_mixer_shadow), a
-    ld c, 0
-    call music_update_one_channel
-    ld c, 1
-    call music_update_one_channel
-    ld c, 2
-    call music_update_one_channel
-    ld a, (music_mixer_shadow)
-    call psg_set_mixer
-    ret
-
-; ------------------------------------------------------------------
-; music_update_one_channel
-; Apply one cached channel to PSG and update the mixer shadow bits.
-; Input:  C = channel index (0=A, 1=B, 2=C)
-; Output: Channel PSG tone/volume updated or silenced
-;         music_mixer_shadow updated for that channel
-; Destroys: AF, BC, DE, HL
-; Preserves: Stack balance restored before return
-; ------------------------------------------------------------------
-music_update_one_channel:
-    push bc
-    push de
-    push hl
-    ld hl, music_ch_note_base
-    call music_load_channel_byte
-    cp #FF
-    jp z, .silent_channel
-    add a, a
-    ld e, a
-    ld d, 0
-    ld hl, music_note_period_table
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld h, d
-    ld l, e
-    ld a, c
-    push bc
-    call psg_set_tone
-    pop bc
-    call music_resolve_channel_volume
-    ld a, c
-    push bc
-    call psg_set_volume
-    pop bc
-    ld d, 1
-    ld e, 0
-    call music_get_channel_instrument_ptr
-    ld a, h
-    or l
-    jr z, .apply_mixer_bits
-    ld a, (hl)
-    and #01
-    ld d, a
-    ld a, (hl)
-    and #02
-    srl a
-    ld e, a
-    ld a, e
-    or a
-    jr z, .apply_mixer_bits
-    push de
-    call music_resolve_channel_noise
-    call psg_set_noise
-    pop de
-.apply_mixer_bits:
-    ld a, (music_mixer_shadow)
-    ld b, a
-    ld a, c
-    cp 1
-    jp z, .enable_b
-    cp 2
-    jp z, .enable_c
-    ld a, b
-    bit 0, d
-    jr z, .a_tone_off
-    and #3E
-    jr .a_noise_gate
-.a_tone_off:
-    or #01
-.a_noise_gate:
-    bit 0, e
-    jr z, .a_noise_off
-    and #37
-    jp .store_mixer
-.a_noise_off:
-    or #08
-    jp .store_mixer
-.enable_b:
-    ld a, b
-    bit 0, d
-    jr z, .b_tone_off
-    and #3D
-    jr .b_noise_gate
-.b_tone_off:
-    or #02
-.b_noise_gate:
-    bit 0, e
-    jr z, .b_noise_off
-    and #2F
-    jp .store_mixer
-.b_noise_off:
-    or #10
-    jp .store_mixer
-.enable_c:
-    ld a, b
-    bit 0, d
-    jr z, .c_tone_off
-    and #3B
-    jr .c_noise_gate
-.c_tone_off:
-    or #04
-.c_noise_gate:
-    bit 0, e
-    jr z, .c_noise_off
-    and #1F
-    jp .store_mixer
-.c_noise_off:
-    or #20
-    jp .store_mixer
-.silent_channel:
-    ld b, 0
-    ld a, c
-    push bc
-    call psg_set_volume
-    pop bc
-    ld a, (music_mixer_shadow)
-    ld b, a
-    ld a, c
-    cp 1
-    jp z, .disable_b
-    cp 2
-    jp z, .disable_c
-    ld a, b
-    or #09
-    jp .store_mixer
-.disable_b:
-    ld a, b
-    or #12
-    jp .store_mixer
-.disable_c:
-    ld a, b
-    or #24
-.store_mixer:
-    ld (music_mixer_shadow), a
-    pop hl
-    pop de
-    pop bc
-    ret
-
-music_note_period_table:
-    DW #1AB9,#1939,#17CF,#1679,#1536,#1405,#12E5,#11D6
-    DW #10D6,#0FE4,#0EFF,#0E28,#0D5C,#0C9D,#0BE7,#0B3C
-    DW #0A9B,#0A02,#0973,#08EB,#086B,#07F2,#0780,#0714
-    DW #06AE,#064E,#05F4,#059E,#054D,#0501,#04B9,#0475
-    DW #0435,#03F9,#03C0,#038A,#0357,#0327,#02FA,#02CF
-    DW #02A7,#0281,#025D,#023B,#021B,#01FC,#01E0,#01C5
-    DW #01AC,#0194,#017D,#0168,#0153,#0140,#012E,#011D
-    DW #010D,#00FE,#00F0,#00E2,#00D6,#00CA,#00BE,#00B4
-    DW #00AA,#00A0,#0097,#008F,#0087,#007F,#0078,#0071
-    DW #006B,#0065,#005F,#005A,#0055,#0050,#004C,#0047
-    DW #0043,#0040,#003C,#0039,#0035,#0032,#0030,#002D
-    DW #002A,#0028,#0026,#0024,#0022,#0020,#001E,#001C
 
 music_track_count:
     DB #00
 
 music_track_ptr_table:
     DW 0
+; @mideas:endblock id=runtime.sound.music_noop_runtime
 
 ; ==================================================================
 ; END OF PSG SOUND SYSTEM
 ; ==================================================================
 
 
+; @mideas:block id=runtime.scroll.core kind=routine owner=scroll roots=init_scroll_system,set_camera_position,move_camera,center_camera_on_entity,update_scroll,redraw_viewport,multiply_a_by_b
 ; ==================================================================
 ; SCROLL SYSTEM
 ; File: scroll.asm
@@ -15796,8 +15659,10 @@ multiply_a_by_b:
 ; ==================================================================
 ; END OF SCROLL SYSTEM
 ; ==================================================================
+; @mideas:endblock id=runtime.scroll.core
 
 
+; @mideas:block id=runtime.animtiles.core kind=routine owner=animtiles roots=init_animated_tiles,update_animated_tiles,update_animated_tiles_vram,anim_upload_char_frame,set_animation_speed,register_animated_tile,get_tile_animation_frame
 ; ==================================================================
 ; ANIMATED TILES SYSTEM
 ; File: animtiles.asm
@@ -15821,7 +15686,7 @@ ANIM_SPEED_FAST         EQU 4       ; ~66ms (fire)
 MAX_ANIM_TILES          EQU 2
 ANIM_TILE_ENTRY_SIZE    EQU 7       ; char, chars, frames, speed, bytesPerFrame, ptr(2)
 ANIM_TRANS_ENTRY_SIZE   EQU 4       ; char, chars, opCode, flags
-ANIM_TILE_DATA_BANK     EQU ((anim_tile_table - #4000) / #2000)
+ANIM_TILE_DATA_BANK     EQU 0       ; Deprecated: anim data is local to animtiles code bank
 
 ; ==================================================================
 ; ANIMATED TILES INITIALIZATION
@@ -15897,13 +15762,12 @@ update_animated_tiles_vram:
     ; Protect VDP port sequence from ISR VRAM writes.
     ; Always re-enables on exit (see FAST_LDIRVM note on LD A,I bug).
     di
-
     ld hl, anim_tile_table
 
 .anim_vram_loop:
     ld a, (hl)                      ; A = target char code
     cp 255
-    jr z, .anim_vram_done
+    jp z, .anim_vram_done
 
     push af                         ; Save target char code
     inc hl
@@ -15988,7 +15852,7 @@ update_animated_tiles_vram:
 .anim_char_done:
     pop de
     ex de, hl                       ; HL = next table entry
-    jr .anim_vram_loop
+    jp .anim_vram_loop
 
 .anim_vram_done:
 
@@ -16015,14 +15879,14 @@ set_animation_speed:
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
 anim_copy_8_bytes:
-    ld b, 8
-.anim_copy_loop:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_copy_loop
-
+    push de                         ; Save source pointer
+    push hl                         ; Save VRAM destination
+    pop de                          ; DE = VRAM destination for FAST_LDIRVM
+    pop hl                          ; HL = source pointer for FAST_LDIRVM
+    ld bc, 8
+    call FAST_LDIRVM
+    push hl
+    pop de                          ; Preserve legacy postcondition: DE = source + 8
     ret
 
 ; ==================================================================
@@ -16107,385 +15971,18 @@ anim_upload_char_frame:
     ret
 
 ; ==================================================================
-; TRANSFORM MODE ROUTINES (Z80 runtime bit/row transforms)
+; TRANSFORM MODE COMPATIBILITY STUBS
 ; ==================================================================
+; Transform-mode tiles are precomputed into normal frame data by the
+; generator. Runtime VRAM read/modify/write is intentionally disabled.
 
-; ------------------------------------------------------------------
-; Routine: update_animated_transform_tiles_vram
-; Purpose:
-;   Applies Z80 transform operations directly on tile bytes in VRAM.
-; Input:
-;   None
-; Output:
-;   None
-; Modifies:
-;   AF, BC, DE, HL
-; Preserves:
-;   IX, IY, SP
-; Flags:
-;   Not preserved
-; Stack:
-;   Uses PUSH/POP HL, BC and DE internally
-; ------------------------------------------------------------------
 update_animated_transform_tiles_vram:
     ret
 
-; ------------------------------------------------------------------
-; Routine: anim_transform_char_frame
-; Purpose:
-;   Transform one character pattern in all SCREEN 2 banks.
-; Input:
-;   A = character code
-;   D = transform operation code
-;   (anim_tile_transform_flags).bit0 = transform color rows too
-; Output:
-;   None
-; Modifies:
-;   AF, BC, DE, HL
-; Preserves:
-;   IX, IY, SP
-; Flags:
-;   Not preserved
-; Stack:
-;   Pushes/pops BC, DE and HL
-; ------------------------------------------------------------------
 anim_transform_char_frame:
-    push bc
-    push de
-    push hl
-
-    ; BC = charCode * 8 (row offset in pattern/color tables)
-    ld l, a
-    ld h, 0
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    ld b, h
-    ld c, l
-
-    ; Save opcode D to scratch RAM so anim_transform_vram_block can reload it
-    ; after DE is reused internally as a pointer.
-    ld a, d
-    ld (anim_tile_transform_flags + 1), a
-
-    ; Pattern banks: read bank 0 once and mirror the transformed result to all 3
-    ; SCREEN 2 banks to keep animation phase identical across thirds.
-    ld hl, CHRTBL2
-    add hl, bc
-    call anim_transform_vram_block
-
-    ; anim_transform_vram_block reuses DE internally, so reload the opcode
-    ; from scratch RAM before deciding whether color rows also need a transform.
-    ld a, (anim_tile_transform_flags + 1)
-    cp 5
-    jr c, .anim_transform_char_done
-
-    ld a, (anim_tile_transform_flags)
-    and 1
-    jr z, .anim_transform_char_done
-
-    ; Color banks: same approach, read bank 0 and mirror to all 3 banks.
-    ld a, (anim_tile_transform_flags + 1)
-    ld d, a
-    ld hl, CLRTBL2
-    add hl, bc
-    call anim_transform_vram_block
-
-.anim_transform_char_done:
-    pop hl
-    pop de
-    pop bc
     ret
 
-; ------------------------------------------------------------------
-; Routine: anim_transform_vram_block
-; Purpose:
-;   Apply transform to one 8-byte VRAM block (one char rows table).
-; Input:
-;   HL = VRAM base address for row 0 (8 consecutive bytes)
-;   D  = operation code:
-;        1 rotate_left  (RLCA)
-;        2 rotate_right (RRCA)
-;        3 shift_left   (SLA)
-;        4 shift_right  (SRL)
-;        5 shift_up rows
-;        6 shift_down rows
-;        7 swap top/bottom row
-; Output:
-;   None
-; Modifies:
-;   AF, BC, DE, HL
-; Preserves:
-;   IX, IY, SP
-; Flags:
-;   Not preserved
-; Stack:
-;   Uses stack while reading row bytes
-; ------------------------------------------------------------------
 anim_transform_vram_block:
-    ; HL = VRAM base address for bank 0. The routine captures the source rows
-    ; from bank 0, transforms them in RAM, then writes the same result to the
-    ; three SCREEN 2 banks. This prevents per-bank phase drift.
-    ld a, d
-    cp 5
-    jr nc, .anim_transform_vertical
-
-    ; Step 1: Read bank 0 into the RAM buffer.
-    push hl
-    ld de, anim_tile_row_buffer
-    ld b, 8
-.anim_read_horiz_loop:
-    push hl
-    call FAST_RDVRM                 ; A = row byte from VRAM[HL]
-    pop hl
-    ld (de), a
-    inc de
-    inc hl
-    djnz .anim_read_horiz_loop
-    pop hl
-
-    ; Step 2: Transform the buffered bytes in RAM.
-    ld de, anim_tile_row_buffer
-    ld b, 8
-    ld a, (anim_tile_transform_flags + 1)
-    ld c, a
-.anim_apply_horiz_loop:
-    ld a, (de)
-    push de
-    push bc
-    ld b, a
-    ld a, c
-    cp 1
-    jr nz, .anim_not_rl3
-    ld a, b
-    rlca
-    jr .anim_store_h
-.anim_not_rl3:
-    cp 2
-    jr nz, .anim_not_rr3
-    ld a, b
-    rrca
-    jr .anim_store_h
-.anim_not_rr3:
-    cp 3
-    jr nz, .anim_not_sla3
-    ld a, b
-    sla a
-    jr .anim_store_h
-.anim_not_sla3:
-    ld a, b
-    srl a
-.anim_store_h:
-    pop bc
-    pop de
-    ld (de), a
-    inc de
-    djnz .anim_apply_horiz_loop
-
-    ; Step 3: Mirror the transformed buffer to the 3 pattern/color banks.
-    push hl
-    ld de, anim_tile_row_buffer
-    ld b, 8
-.anim_write_bank0_loop:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_bank0_loop
-    pop hl
-
-    push hl
-    ld de, #0800
-    add hl, de
-    ld de, anim_tile_row_buffer
-    ld b, 8
-.anim_write_bank1_loop:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_bank1_loop
-    pop hl
-
-    ld de, #1000
-    add hl, de
-    ld de, anim_tile_row_buffer
-    ld b, 8
-.anim_write_bank2_loop:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_bank2_loop
-    ret
-
-.anim_transform_vertical:
-    ; Step 1: Read bank 0 into the RAM buffer.
-    push de
-    ld de, anim_tile_row_buffer
-    ld b, 8
-.anim_read_rows_loop:
-    push hl
-    call FAST_RDVRM                 ; A = row byte
-    pop hl
-    ld (de), a
-    inc de
-    inc hl
-    djnz .anim_read_rows_loop
-    pop de
-
-    ; Restore HL to the start of bank 0 and reload the opcode scratch byte.
-    ld de, #FFF8
-    add hl, de
-
-    ld a, (anim_tile_transform_flags + 1)
-    cp 5
-    jr nz, .anim_not_shift_up
-
-    ; shift_up: row0<-row1 ... row6<-row7 row7<-row0(original)
-    push hl
-    ld de, anim_tile_row_buffer + 1
-    ld b, 7
-.anim_write_up_b0:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_up_b0
-    ld a, (anim_tile_row_buffer)
-    call FAST_WRTVRM
-    pop hl
-
-    push hl
-    ld de, #0800
-    add hl, de
-    ld de, anim_tile_row_buffer + 1
-    ld b, 7
-.anim_write_up_b1:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_up_b1
-    ld a, (anim_tile_row_buffer)
-    call FAST_WRTVRM
-    pop hl
-
-    ld de, #1000
-    add hl, de
-    ld de, anim_tile_row_buffer + 1
-    ld b, 7
-.anim_write_up_b2:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_up_b2
-    ld a, (anim_tile_row_buffer)
-    call FAST_WRTVRM
-    ret
-
-.anim_not_shift_up:
-    cp 6
-    jr nz, .anim_not_shift_down
-
-    ; shift_down: row0<-row7(original) row1<-row0 ... row7<-row6
-    push hl
-    ld a, (anim_tile_row_buffer + 7)
-    call FAST_WRTVRM
-    inc hl
-    ld de, anim_tile_row_buffer
-    ld b, 7
-.anim_write_dn_b0:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_dn_b0
-    pop hl
-
-    push hl
-    ld de, #0800
-    add hl, de
-    ld a, (anim_tile_row_buffer + 7)
-    call FAST_WRTVRM
-    inc hl
-    ld de, anim_tile_row_buffer
-    ld b, 7
-.anim_write_dn_b1:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_dn_b1
-    pop hl
-
-    ld de, #1000
-    add hl, de
-    ld a, (anim_tile_row_buffer + 7)
-    call FAST_WRTVRM
-    inc hl
-    ld de, anim_tile_row_buffer
-    ld b, 7
-.anim_write_dn_b2:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_dn_b2
-    ret
-
-.anim_not_shift_down:
-    ; swap_top_bottom: row0<->row7, middle rows unchanged
-    push hl
-    ld a, (anim_tile_row_buffer + 7)
-    call FAST_WRTVRM
-    inc hl
-    ld de, anim_tile_row_buffer + 1
-    ld b, 6
-.anim_write_sw_mid_b0:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_sw_mid_b0
-    ld a, (anim_tile_row_buffer)
-    call FAST_WRTVRM
-    pop hl
-
-    push hl
-    ld de, #0800
-    add hl, de
-    ld a, (anim_tile_row_buffer + 7)
-    call FAST_WRTVRM
-    inc hl
-    ld de, anim_tile_row_buffer + 1
-    ld b, 6
-.anim_write_sw_mid_b1:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_sw_mid_b1
-    ld a, (anim_tile_row_buffer)
-    call FAST_WRTVRM
-    pop hl
-
-    ld de, #1000
-    add hl, de
-    ld a, (anim_tile_row_buffer + 7)
-    call FAST_WRTVRM
-    inc hl
-    ld de, anim_tile_row_buffer + 1
-    ld b, 6
-.anim_write_sw_mid_b2:
-    ld a, (de)
-    call FAST_WRTVRM
-    inc de
-    inc hl
-    djnz .anim_write_sw_mid_b2
-    ld a, (anim_tile_row_buffer)
-    call FAST_WRTVRM
     ret
 
 ; ==================================================================
@@ -16589,8 +16086,58 @@ get_tile_animation_frame:
 ; ==================================================================
 ; END OF ANIMATED TILES SYSTEM
 ; ==================================================================
+; @mideas:endblock id=runtime.animtiles.core
 
 
+; ==================================================================
+; BOSSES
+; No boss assets in this project.
+; ==================================================================
+
+BOSS_COUNT EQU 0
+BOSS_DIR_LEFT EQU 0
+BOSS_DIR_RIGHT EQU 1
+BOSS_DIR_UP EQU 2
+BOSS_DIR_DOWN EQU 3
+BOSS_ATTACK_PROJECTILE EQU 0
+BOSS_ATTACK_MELEE EQU 1
+BOSS_ATTACK_SPECIAL EQU 2
+BOSS_ATTACK_PATTERN EQU 3
+BOSS_ATTACK_METEOR EQU 4
+BOSS_ATTACK_BOMB EQU 5
+BOSS_ATTACK_BOOMERANG EQU 6
+BOSS_ATTACK_ROCK EQU 7
+BOSS_ATTACK_LASER EQU 8
+BOSS_ATTACK_SINE_WAVE EQU 9
+BOSS_ATTACK_HOMING_MISSILE EQU 10
+BOSS_ATTACK_SLAM_ROCKS EQU 11
+BOSS_ATTACK_FALLING_BLOCKS EQU 12
+
+; @mideas:block id=runtime.boss.entry kind=routine owner=bosses roots=init_boss_system,update_boss_system
+init_boss_system:
+    xor a
+    ld (boss_runtime_tick), a
+    ld (boss_active), a
+    ld (boss_health_lo), a
+    ld (boss_health_hi), a
+    ld (boss_hit_cooldown), a
+    ld (boss_update_timer), a
+    ld (boss_falling_blocks_active), a
+    ld a, #FF
+    ld (boss_data_bank), a
+    ld a, 1
+    ld (boss_update_interval), a
+    ret
+
+update_boss_system:
+    ret
+
+init_screen_boss_from_current_screen:
+    ret
+; @mideas:endblock id=runtime.boss.entry
+
+
+; @mideas:block id=runtime.statemachine.core kind=routine owner=stateMachine preserve=false roots=state-machine-runtime
 
     ; ------------------------------------------------------------------
     ; SM_Update
@@ -17132,8 +16679,8 @@ Action_ChangeSprite:
     ld c, b                 ; C = entity index
     ld b, 0                 ; B = 0  →  BC = (0, entity_index)
 
-    ; WallGrab owns the visible sprite while active. Consume the
-    ; CHANGE_SPRITE parameter but do not reset animation state or palette.
+    ; WallGrab ownership is tracked in RAM. Do not read the WallGrab config
+    ; table here: in MegaROM builds it can live in an unmapped data bank.
     ld hl, entity_wallgrab_active
     add hl, bc
     ld a, (hl)
@@ -17151,6 +16698,8 @@ Action_ChangeSprite:
     add hl, bc              ; HL = &entity_sprite_asset_index[entity]
 
     pop af                  ; A = Sprite Asset ID (recuperado del stack)
+    push hl                 ; [stack] guarda &entity_sprite_asset_index[entity]
+    push af                 ; [stack] guarda Sprite Asset ID durante refresh facing
 
     ; ------------------------------------------------------------------
     ; BLOQUE 1: Redirect direccional
@@ -17169,6 +16718,41 @@ Action_ChangeSprite:
     ; IMPORTANTE: este bloque usa B como temporal para guardar el sprite ID.
     ; Al salir, B queda con el sprite ID (no con 0). Se corrige después.
     ; ------------------------------------------------------------------
+    ; StateMachine runs before the Cursors/Input movement systems in the
+    ; frame update. For input-driven entities, refresh facing from the
+    ; current input_state now so KEY_PRESSED -> CHANGE_SPRITE resolves the
+    ; left/right mirror on the same frame as the transition.
+    ld hl, entity_comp_masks
+    add hl, bc
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    jr z, .acs_input_facing_done
+    ld a, (input_state)
+    or a
+    jr z, .acs_input_facing_done
+    cp 2
+    jr c, .acs_input_facing_up
+    cp 5
+    jr c, .acs_input_facing_right
+    jr z, .acs_input_facing_down
+    ld a, 1                     ; FACING_LEFT
+    jr .acs_input_facing_write
+.acs_input_facing_right:
+    ld a, 2                     ; FACING_RIGHT
+    jr .acs_input_facing_write
+.acs_input_facing_up:
+    ld a, 3                     ; FACING_UP
+    jr .acs_input_facing_write
+.acs_input_facing_down:
+    ld a, 4                     ; FACING_DOWN
+.acs_input_facing_write:
+    ld hl, entity_facing_dir
+    add hl, bc
+    ld (hl), a
+.acs_input_facing_done:
+
+    pop af                  ; A = Sprite Asset ID original
+    pop hl                  ; HL = &entity_sprite_asset_index[entity]
     push hl                 ; [stack] guarda &entity_sprite_asset_index[entity]
 
     ld h, 0
@@ -17825,6 +17409,15 @@ SM_UpdateSound:
     ; Advances one frame of the active PLAY_SOUND asset.
     ; The current frame is emitted immediately on SM_PlaySoundAsset, so
     ; frames_left includes the frame already sounding.
+    ld a, (music_active)
+    or a
+    jr z, .update_music_inactive
+    xor a
+    ld (sm_sound_active), a
+    ld (sm_sound_frames_left), a
+    ret
+
+.update_music_inactive:
     ld a, (sm_sound_active)
     or a
     ret z
@@ -17897,7 +17490,7 @@ SM_WriteTileRelativeToEntity:
 
     ; Apply direction offset with bounds checks
     or a
-    jr z, .swt_apply
+    jp z, .swt_apply
     cp 1
     jr z, .swt_up
     cp 2
@@ -17921,28 +17514,28 @@ SM_WriteTileRelativeToEntity:
     cp 23
     jp nc, .swt_out
     inc c
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_up:
     ld a, c
     or a
     jp z, .swt_out
     dec c
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_left:
     ld a, b
     or a
     jp z, .swt_out
     dec b
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_right:
     ld a, b
     cp 31
     jp nc, .swt_out
     inc b
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_up_right:
     ld a, c
@@ -17953,7 +17546,7 @@ SM_WriteTileRelativeToEntity:
     jp nc, .swt_out
     dec c
     inc b
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_up_left:
     ld a, c
@@ -17964,7 +17557,7 @@ SM_WriteTileRelativeToEntity:
     jp z, .swt_out
     dec c
     dec b
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_down_right:
     ld a, c
@@ -17975,7 +17568,7 @@ SM_WriteTileRelativeToEntity:
     jp nc, .swt_out
     inc c
     inc b
-    jr .swt_apply
+    jp .swt_apply
 
 .swt_down_left:
     ld a, c
@@ -18337,10 +17930,11 @@ SM_ConditionTable:
     DW Condition_Nop ; 9 [Condition_PathClear stripped]
     DW Condition_Nop ; 10 [Condition_OnWallCollision stripped]
     DW Condition_Nop ; 11 [Condition_DeadlyTile stripped]
-    DW Condition_Nop ; 12 [Condition_AnimComplete stripped]
+    DW Condition_AnimComplete   ; 12
     DW Condition_Nop ; 13 [Condition_KeyAndMove stripped]
     DW Condition_VariableCompare; 14
     DW Condition_Nop ; 15 [Condition_Xor stripped]
+    DW Condition_Nop ; 16 [Condition_InWater stripped]
 
     ; ------------------------------------------------------------------
     ; CONDITION HANDLERS IMPLEMENTATION
@@ -18514,7 +18108,7 @@ Condition_KeyPressed:
     inc hl              ; Skip keyId param
     ret
 .sm_input_enabled:
-    ; Edge keydown: active now and inactive previous frame
+    ; Level keydown: active in the current input sample
     ; Params: Key ID (1=Up, 5=Down, 7=Left, 3=Right, 9=Fire)
     ld d, (hl)
     inc hl
@@ -18523,17 +18117,11 @@ Condition_KeyPressed:
     cp 9
     jr z, .ckp_fire
 
-    ; Directional edge: current active, previous inactive
+    ; Directional level: current active
     ld a, (input_state)
     call SM_MatchDirection
     or a
     jr z, .ckp_not_pressed
-
-    ld a, (prev_input_state)
-    call SM_MatchDirection
-    or a
-    jr nz, .ckp_not_pressed
-
     ld a, 1
     ret
 
@@ -18541,9 +18129,6 @@ Condition_KeyPressed:
     ld a, (input_btn_curr)
     and INPUT_BTN_FIRE
     jr z, .ckp_not_pressed
-    ld a, (input_btn_prev)
-    and INPUT_BTN_FIRE
-    jr nz, .ckp_not_pressed
     ld a, 1
     ret
 
@@ -18552,7 +18137,7 @@ Condition_KeyPressed:
     ret
 
 Condition_KeyReleased:
-    ; Edge keyup: inactive now and active previous frame
+    ; Level keyup: inactive in the current input sample
     ; Params: Key ID (1=Up, 5=Down, 7=Left, 3=Right, 9=Fire)
     ld d, (hl)
     inc hl
@@ -18561,17 +18146,11 @@ Condition_KeyReleased:
     cp 9
     jr z, .ckr_fire
 
-    ; Directional edge: current inactive, previous active
+    ; Directional level: current inactive
     ld a, (input_state)
     call SM_MatchDirection
     or a
     jr nz, .ckr_not_released
-
-    ld a, (prev_input_state)
-    call SM_MatchDirection
-    or a
-    jr z, .ckr_not_released
-
     ld a, 1
     ret
 
@@ -18579,9 +18158,6 @@ Condition_KeyReleased:
     ld a, (input_btn_curr)
     and INPUT_BTN_FIRE
     jr nz, .ckr_not_released
-    ld a, (input_btn_prev)
-    and INPUT_BTN_FIRE
-    jr z, .ckr_not_released
     ld a, 1
     ret
 
@@ -18601,7 +18177,28 @@ Condition_KeyReleased:
 
 ; [Condition_DeadlyTile stripped - not used]
 
-; [Condition_AnimComplete stripped - not used]
+; [Condition_InWater stripped - not used]
+
+Condition_AnimComplete:
+    ; One-shot event latched by update_animation_component when
+    ; a non-loop animation reaches its final frame.
+    ; Consume-on-read semantics prevents repeated transitions.
+    push hl
+    ld hl, entity_anim_flags
+    ld e, b
+    ld d, 0
+    add hl, de
+    bit 3, (hl)                    ; ANIM_FLAG_COMPLETED
+    jr z, .anim_complete_false
+    res 3, (hl)                    ; consume event
+    ld a, 1
+    pop hl
+    ret
+
+.anim_complete_false:
+    xor a
+    pop hl
+    ret
 
 ; [Condition_KeyAndMove stripped - not used]
 
@@ -18668,40 +18265,40 @@ Condition_VariableCompare:
 .op_equals:
     ld a, d
     cp e
-    jr z, .return_true
-    jr .return_false
+    jp z, .return_true
+    jp .return_false
 
 .op_not_equals:
     ld a, d
     cp e
-    jr nz, .return_true
-    jr .return_false
+    jp nz, .return_true
+    jp .return_false
 
 .op_greater:
     ld a, d
     cp e
-    jr z, .return_false
-    jr nc, .return_true
-    jr .return_false
+    jp z, .return_false
+    jp nc, .return_true
+    jp .return_false
 
 .op_less:
     ld a, d
     cp e
-    jr c, .return_true
-    jr .return_false
+    jp c, .return_true
+    jp .return_false
 
 .op_greater_equal:
     ld a, d
     cp e
-    jr nc, .return_true
-    jr .return_false
+    jp nc, .return_true
+    jp .return_false
 
 .op_less_equal:
     ld a, d
     cp e
-    jr z, .return_true
-    jr c, .return_true
-    jr .return_false
+    jp z, .return_true
+    jp c, .return_true
+    jp .return_false
 
 .load_variable_value:
     push bc
@@ -18785,8 +18382,7 @@ Condition_VariableCompare:
 .return_false:
     ld a, 0
     ret
-    
-
+; @mideas:endblock id=runtime.statemachine.core
 ; ==================================================================
 ; GLOBAL VARIABLES TABLE
 ; ==================================================================
@@ -18870,6 +18466,7 @@ SM_SoundAssetCount EQU 0
 SM_SoundPtrTable:
     DW 0
 
+; @mideas:block id=data.statemachine.statemachine_1776707734563 kind=data owner=stateMachine preserve=false roots=state-machine-data
 ; State Machine: New Statemachine (statemachine_1776707734563) 
 SM_New_Statemachine_state_1776707744092: 
     DB 0; ID(unused) 
@@ -19142,7 +18739,7 @@ SM_New_Statemachine_state_1776790060726_Transitions_Actions_1:
     DB 18, 1, 0        ; buttons_reward_granted (ID 18) = 1
     DB 23; REGENERATE_HUD 
     DB 0xFF; END
-
+; @mideas:endblock id=data.statemachine.statemachine_1776707734563
 
 
 ; ==================================================================
@@ -19264,6 +18861,7 @@ gameflow_handle_start:
     ret z           ; No connection
     jp gameflow_execute_node
 
+; @mideas:block id=runtime.gameflow.worldlink kind=routine owner=gameflow roots=gameflow_handle_worldlink
 gameflow_handle_worldlink:
     ; WorldLink node - load world and enter game loop
     ; DE = world data pointer:
@@ -19347,7 +18945,9 @@ gameflow_handle_worldlink:
     or l
     ret z
     jp gameflow_execute_node
+; @mideas:endblock id=runtime.gameflow.worldlink
 
+; @mideas:block id=runtime.gameflow.end_screen kind=routine owner=gameflow roots=gameflow_handle_end,display_end_screen,print_string_vram
 gameflow_handle_end:
     ; End node - stop execution and show end screen
     ; DE = end screen data pointer (screen type, message pointer)
@@ -19491,6 +19091,7 @@ str_game_over:
 
 str_credits:
     db "CREDITS", 0
+; @mideas:endblock id=runtime.gameflow.end_screen
 
 ; ==================================================================
 ; CONNECTION UTILITIES
@@ -19525,7 +19126,12 @@ gameflow_get_default_connection:
 ; Get connection by type
 ; Input: BC = connection table pointer, A = connection type to find
 ; Output: HL = next node address (or 0 if not found)
+; Preserves: BC, DE
+; Clobbers: AF, HL
+; @mideas:block id=runtime.gameflow.connection_by_type kind=routine owner=gameflow
 gameflow_get_connection_by_type:
+    push bc
+    push de
     ld d, a         ; Save connection type
     ld h, b
     ld l, c
@@ -19549,11 +19155,16 @@ gameflow_get_connection_by_type:
     inc hl
     ld h, (hl)
     ld l, a
+    pop de
+    pop bc
     ret
 
 .not_found:
     ld hl, 0
+    pop de
+    pop bc
     ret
+; @mideas:endblock id=runtime.gameflow.connection_by_type
 
 ; Connection type constants
 CONNECTION_DEFAULT      EQU 0
@@ -19571,12 +19182,33 @@ CONNECTION_END          EQU 255
 gameflow_no_data:
     db #C9                        ; RET instruction - returns immediately
 
+; ------------------------------------------------------------------
+; gameflow_read_confirm_direct
+; Read submenu/text confirm input directly from keyboard matrix.
+; Output: A = 1 when SPACE is pressed, A = 0 otherwise
+; Clobbers: AF
+; Preserves: BC, DE, HL, IX, IY
+; ------------------------------------------------------------------
+; @mideas:block id=runtime.gameflow.confirm_input_direct kind=routine owner=gameflow
+gameflow_read_confirm_direct:
+    ld a, 8
+    call FAST_SNSMAT
+    bit 0, a
+    jr z, .grcd_pressed
+    xor a
+    ret
+.grcd_pressed:
+    ld a, 1
+    ret
+; @mideas:endblock id=runtime.gameflow.confirm_input_direct
+
 ; ==================================================================
 ; GAME LOOP (WorldLink nodes only)
 ; ==================================================================
 
 ; Main game loop - executed by WorldLink nodes
 ; This loop runs while a world/level is active
+; @mideas:block id=runtime.gameflow.world_loop kind=routine owner=gameflow roots=gameflow_world_game_loop
 gameflow_world_game_loop:
     ; Check exit flag
     ld a, (gameflow_exit_requested)
@@ -19618,14 +19250,12 @@ gameflow_world_game_loop:
     call refresh_player_wallgrab_fastpath
     call update_wallgrab_component
 
-    ; Update timed PSG sound effects
-    call sfx_update
-
     ; Refresh player animation with the final state of this frame.
     call refresh_player_animation_fastpath
 
     ; Refresh player sprite once with the final state of this frame.
     call refresh_player_sprite_fastpath
+
 
     ; Upload sprites after gameplay so the hero position computed this frame
     ; is what gets shown on screen, instead of the previous frame's SAT.
@@ -19648,12 +19278,14 @@ gameflow_world_game_loop:
 
     ; Loop
     jp gameflow_world_game_loop
+; @mideas:endblock id=runtime.gameflow.world_loop
 
 ; ==================================================================
 ; SCREEN TIMER SUPPORT
 ; Resets TimeRemaining to 60 on every screen load/transition and
 ; decrements it once per real second using interrupt_counter deltas.
 ; ==================================================================
+; @mideas:block id=runtime.gameflow.screen_timer kind=routine owner=gameflow roots=get_world_screen_timer_frames_per_second,reload_world_screen_timer_frames,snapshot_world_screen_timer_interrupt_counter,reset_world_screen_timer,update_world_screen_timer
 
 get_world_screen_timer_frames_per_second:
     ld a, (isComputer50HzOr60Hz)
@@ -19677,6 +19309,9 @@ snapshot_world_screen_timer_interrupt_counter:
 
 reset_world_screen_timer:
     push af
+    ld a, (current_screen_engine)
+    or a
+    jr nz, .world_timer_reset_done
     ld a, 60
     ld (global_var_time_remaining), a
     xor a
@@ -19685,6 +19320,7 @@ reset_world_screen_timer:
     call snapshot_world_screen_timer_interrupt_counter
     ld a, 1
     ld (hud_dirty_flag), a
+.world_timer_reset_done:
     pop af
     ret
 
@@ -19694,17 +19330,21 @@ update_world_screen_timer:
     push de
     push hl
 
+    ld a, (current_screen_engine)
+    or a
+    jp nz, .world_timer_done
+
     ld a, (global_var_time_remaining)
     ld b, a
     ld a, (global_var_time_remaining+1)
     or b
-    jr z, .world_timer_done
+    jp z, .world_timer_done
 
     ld hl, (interrupt_counter)
     ld de, (time_last_interrupt_counter)
     or a
     sbc hl, de
-    jr z, .world_timer_done
+    jp z, .world_timer_done
 
     call snapshot_world_screen_timer_interrupt_counter
 
@@ -19788,6 +19428,7 @@ update_world_screen_timer:
     pop bc
     pop af
     ret
+; @mideas:endblock id=runtime.gameflow.screen_timer
 
 ; ==================================================================
 ; NODE DATA STRUCTURES
@@ -19871,137 +19512,14 @@ gameflow_node_gfn_1776512119008_conn:
 ; init_psg_silence
 ; Silence all PSG channels
 ; ------------------------------------------------------------------
-init_psg_silence:
-    push af
-    push bc
 
-    ; Silence channel A
-    ld a, #08    ; Volume register channel A
-    out (#A0), a
-    ld a, 0      ; Volume = 0
-    out (#A1), a
 
-    ; Silence channel B
-    ld a, #09    ; Volume register channel B
-    out (#A0), a
-    ld a, 0
-    out (#A1), a
 
-    ; Silence channel C
-    ld a, #0A    ; Volume register channel C
-    out (#A0), a
-    ld a, 0
-    out (#A1), a
 
-    pop bc
-    pop af
-    ret
 
-; ------------------------------------------------------------------
-; clear_sprite_table
-; Clear sprite attribute table in VRAM
-; ------------------------------------------------------------------
-clear_sprite_table:
-    push af
-    push bc
-    push de
-    push hl
 
-    ; Clear sprite attribute table (#1B00-#1B7F, 128 bytes)
-    ld hl, #1B00         ; Sprite attribute table base
-    ld bc, 128           ; 128 bytes (32 sprites × 4 bytes)
-    ld a, #D1            ; Y=209 (off-screen)
-.cst_loop:
-    push af
-    push bc
-    push hl
-    call WRTVRM          ; Write to VRAM
-    pop hl
-    pop bc
-    pop af
-    inc hl
-    dec bc
-    ld a, b
-    or c
-    jr nz, .cst_loop
 
-    pop hl
-    pop de
-    pop bc
-    pop af
-    ret
 
-; ------------------------------------------------------------------
-; clear_vram_areas
-; Clear VRAM pattern and color tables
-; ------------------------------------------------------------------
-clear_vram_areas:
-    push af
-    push bc
-    push de
-    push hl
-
-    ; Clear pattern table (#0000-#17FF, 6144 bytes)
-    ld hl, #0000
-    ld bc, 6144
-    ld a, 0
-.clear_patterns:
-    push af
-    push bc
-    push hl
-    call WRTVRM
-    pop hl
-    pop bc
-    pop af
-    inc hl
-    dec bc
-    ld a, b
-    or c
-    jr nz, .clear_patterns
-
-    ; Clear color table (#2000-#37FF, 6144 bytes)
-    ld hl, #2000
-    ld bc, 6144
-    ld a, #F0            ; White on black
-.clear_colors:
-    push af
-    push bc
-    push hl
-    call WRTVRM
-    pop hl
-    pop bc
-    pop af
-    inc hl
-    dec bc
-    ld a, b
-    or c
-    jr nz, .clear_colors
-
-    pop hl
-    pop de
-    pop bc
-    pop af
-    ret
-
-; ------------------------------------------------------------------
-; reset_vdp_registers
-; Reset VDP registers to Screen 2 defaults
-; ------------------------------------------------------------------
-reset_vdp_registers:
-    push af
-    push bc
-
-    ; Already configured in init_rom, this is a no-op for now
-    ; Could be extended to reset specific registers if needed
-
-    pop bc
-    pop af
-    ret
-
-; ------------------------------------------------------------------
-; init_all_global_variables
-; Initialize all global variables to their default values
-; ------------------------------------------------------------------
 init_all_global_variables:
     ; Initialize global variables
     ld a, 0
@@ -20035,6 +19553,7 @@ init_all_global_variables:
 ; ------------------------------------------------------------------
 ; Helper: Clear screen area for menus/end screens
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.gameflow.clear_screen_area_helpers kind=routine owner=gameflow
 clear_screen_area:
     ; Clear center area of screen
     ld b, 8                       ; 8 rows
@@ -20093,6 +19612,7 @@ empty_row_data:
     db 0, 0, 0, 0, 0, 0, 0, 0
     db 0, 0, 0, 0, 0, 0, 0, 0
     db 0, 0, 0, 0, 0, 0, 0, 0
+; @mideas:endblock id=runtime.gameflow.clear_screen_area_helpers
 
 ; ==================================================================
 ; END OF GAMEFLOW
@@ -20115,59 +19635,12 @@ WORLD_NEW_WORLDMAP_ID EQU 0
 WORLD_NEW_WORLDMAP_SCREEN_COUNT EQU 1
 WORLD_NEW_WORLDMAP_SCREEN_PAN1_ID EQU 0
 
-; ==================================================================
-; WORLD MUSIC POLICY
-; preserve (#FE): do not touch current music when Game Flow can reach the
-; world with multiple different music states.
-; stop     (#FF): stop music on world enter.
-; play     (0-254): ensure this track index is active on world enter.
-; ==================================================================
-
-world_music_policy_track_table:
-    db #FF    ; WORLD_NEW_WORLDMAP_ID -> stop
-
-world_music_policy_loop_table:
-    db 0    ; WORLD_NEW_WORLDMAP_ID loop
-
 ; ------------------------------------------------------------------
 ; ensure_music_for_world_id
-; Input:  A = WORLD_*_ID
-; Output: Starts/stops music only when the world policy is unambiguous.
-;         #FE preserve entries leave current music untouched.
-; Destroys: AF, BC, DE, HL
+; No music tracks are present, so world loading does not touch PSG music.
 ; ------------------------------------------------------------------
 ensure_music_for_world_id:
-    ld e, a
-    ld d, 0
-    ld hl, world_music_policy_track_table
-    add hl, de
-    ld a, (hl)
-    cp #FE
-    ret z
-    cp #FF
-    jr nz, ensure_music_for_world_id_play_or_keep
-    ld a, (music_active)
-    or a
-    ret z
-    jp music_stop
-ensure_music_for_world_id_play_or_keep:
-    ld c, a
-    ld hl, world_music_policy_loop_table
-    add hl, de
-    ld b, (hl)
-    ld a, (music_active)
-    or a
-    jr z, ensure_music_for_world_id_play_track
-    ld a, (music_track_index)
-    cp c
-    jr nz, ensure_music_for_world_id_play_track
-    ld a, (music_loop)
-    and 1
-    cp b
-    ret z
-ensure_music_for_world_id_play_track:
-    ld a, c
-    jp music_play_track
+    ret
 
 ; ==================================================================
 ; WORLD LOADING FUNCTIONS
@@ -20179,6 +19652,7 @@ ensure_music_for_world_id_play_track:
 ; Screens: 1
 ; Start Screen Node: wmnode_1776512081420
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.worlds.worldmap_1776512078647.loader kind=routine owner=worlds roots=load_world_worldmap_1776512078647
 load_world_worldmap_1776512078647:
     ; Ensure default music policy for this world when unambiguous
     ld a, WORLD_NEW_WORLDMAP_ID
@@ -20191,6 +19665,9 @@ load_world_worldmap_1776512078647:
     ld hl, load_screen_pan1_776511902784
     call mapper_call_hl_auto
 
+    ; Screen loaders mark the screen-engine path; WorldLink must run gameplay.
+    xor a
+    ld (current_screen_engine), a
     ; Draw HUD frame once at world start
     call imprimir_marco
 
@@ -20212,6 +19689,7 @@ load_world_worldmap_1776512078647:
     call rebuild_used_entity_list  ; Precompute room entity buckets before gameplay resumes
     call apply_collected_tiles     ; Re-apply persistent collection state for this screen
     ret
+; @mideas:endblock id=runtime.worlds.worldmap_1776512078647.loader
 
 ; ==================================================================
 ; SCREEN TRANSITION FUNCTIONS
@@ -20284,6 +19762,7 @@ check_transition_world_worldmap_1776512078647:
 ; WORLD HELPER FUNCTIONS
 ; ==================================================================
 
+; @mideas:block id=runtime.worlds.current_screen_helpers kind=routine owner=worlds
 ; Get current world ID
 ; Output: A = current world ID
 get_current_world_id:
@@ -20305,6 +19784,7 @@ set_current_screen:
     ld (hl), 1
     call rebuild_used_entity_list
     ret
+; @mideas:endblock id=runtime.worlds.current_screen_helpers
 
 ; ==================================================================
 ; END OF WORLDS
@@ -20325,6 +19805,8 @@ init_page0_runtime_state:
     in a, (#A8)
     ld (slot_primary_normal), a
     ld e, a
+    ld a, (#FFFF)
+    ld (slot_subslot_normal), a
     ld a, e
     and #03
     call GETSLOT
@@ -20361,6 +19843,18 @@ init_page0_runtime_state:
 ;   interrupts remain disabled on return
 page0_map_expanded_slot:
     ld c, a
+
+    ; Keep the raw expanded-slot register value captured while page 3 RAM was visible.
+    ; Recomputing it is unsafe because MSX stores the hardware value as-is.
+    ld d, 0
+    ld a, (page3_normal_slot)
+    and #80
+    jr z, .page0_subslot_ready
+    inc d
+.page0_subslot_ready:
+    ld a, (slot_subslot_normal)
+    ld e, a
+
     ld a, (slot_primary_normal)
     ; Keep pages 1-3 exactly as they were; only replace page 0 primary slot bits.
     and #FC
@@ -20371,31 +19865,12 @@ page0_map_expanded_slot:
     di
     out (#A8), a
 
-    ld a, c
-    and #80
+    ld a, d
+    or a
     ret z
-    ld a, c
-    and #0C
-    rrca
-    rrca
-    ld b, a
-    ld a, (ROM_slot)
-    and #0C
-    or b
-    ld b, a
-    ld a, (page2_normal_slot)
-    and #0C
-    rlca
-    rlca
-    or b
-    ld b, a
-    ld a, (page3_normal_slot)
-    and #0C
-    rlca
-    rlca
-    rlca
-    rlca
-    or b
+.page0_write_subslots:
+    ld a, e
+    cpl
     ld (#FFFF), a
     ret
 
@@ -20424,7 +19899,9 @@ page0_restore_bios_rom:
 ; output:
 ;   hl: source advanced by chunk size
 page0_copy_chunk_to_buffer:
+    push bc
     call page0_map_game_rom
+    pop bc
     ld de, page0_transfer_buffer
     ldir
     jp page0_restore_bios_rom
@@ -20484,6 +19961,48 @@ page0_copy_to_vram:
 .page0_copy_done:
     ret
 
+;-----------------------------------------------
+; Copy cold data from page 0 ROM to RAM using a RAM buffer.
+; input:
+;   hl: source in page 0
+;   de: destination RAM
+;   bc: byte count
+; output:
+;   de advanced by byte count
+page0_copy_to_ram:
+    ld a, b
+    or c
+    ret z
+.page0_ram_copy_loop:
+    push bc
+    ld a, b
+    or a
+    jr z, .page0_ram_copy_final_chunk
+    ld bc, #0100
+    jr .page0_ram_copy_chunk_ready
+.page0_ram_copy_final_chunk:
+    ; Final chunk keeps the original BC (1..255 bytes).
+.page0_ram_copy_chunk_ready:
+    push bc
+    push de
+    call page0_copy_chunk_to_buffer
+    pop de
+    pop bc
+    push hl
+    ld hl, page0_transfer_buffer
+    ldir
+    pop hl
+    pop bc
+    ld a, b
+    or a
+    jr z, .page0_ram_copy_done
+    dec b
+    ld a, b
+    or c
+    jp nz, .page0_ram_copy_loop
+.page0_ram_copy_done:
+    ret
+
 init_game_systems:
     call DISSCR               ; Disable screen while loading VRAM assets
     ; Cold boot / restart must not trust cached VRAM state from RAM contents.
@@ -20508,6 +20027,8 @@ init_game_systems:
 
     ; Initialize animated tile runtime (safe no-op if no animated groups)
     call init_animated_tiles
+    ; No boss runtime - skip boss initialization
+
 
     ; Initialize game entities with real positions from JSON
     call init_entities
@@ -20625,19 +20146,19 @@ ZX0_SPRITE_FRAME_DATA_END_LABEL:
 ; ZX0 FONT PATTERN BUFFER (AUTO-INJECTED)
 ; Shared scratch buffer for font pattern data decompression (344 bytes, scratch slot 344 bytes)
 ; ==================================================================
-ZX0_FONT_PATTERN_BUFFER EQU #EB00
+ZX0_FONT_PATTERN_BUFFER EQU #E600
 
 ; ==================================================================
 ; ZX0 SPRITE FRAME BUFFER (AUTO-INJECTED)
 ; Shared scratch buffer for per-frame sprite decompression before VRAM upload (96 bytes, scratch slot 344 bytes)
 ; ==================================================================
-ZX0_SPRITE_FRAME_BUFFER EQU #EB00
+ZX0_SPRITE_FRAME_BUFFER EQU #E600
 
 ; ==================================================================
 ; ZX0 FONT COLOR BUFFER (AUTO-INJECTED)
 ; Second scratch buffer for font color data while font pattern data is still live (344 bytes, scratch slot 344 bytes)
 ; ==================================================================
-ZX0_FONT_COLOR_BUFFER EQU #ED00
+ZX0_FONT_COLOR_BUFFER EQU #E800
 
 ; ==================================================================
 ; ZX0 SPRITE LABEL REMAP (AUTO-INJECTED)

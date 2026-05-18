@@ -305,8 +305,8 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
               title="Background export optimization mode"
             >
               <option value="raw">Raw tiles</option>
-              <option value="blocks2x2">Blocks 2x2</option>
-              <option value="blocks4x4">Blocks 4x4</option>
+              <option value="blocks2x2">Shared 2x2</option>
+              <option value="blocks4x4">Shared 4x4</option>
             </select>
             {backgroundBlockPreview && (
               <span

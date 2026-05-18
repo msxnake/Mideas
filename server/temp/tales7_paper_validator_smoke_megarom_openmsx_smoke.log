@@ -1,0 +1,11 @@
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/00 flow=00 screen=33 irq=0000 inirq=00 pos=13107,13107
+space1_before pc=A14F sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=00B8 inirq=00 pos=104,96
+space1_after pc=A14F sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=00C7 inirq=00 pos=104,96
+t10 pc=A14F sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=016C inirq=00 pos=104,96
+SHOTOK tales7_paper_validator_smoke_megarom_t10.png
+right_before pc=4C9D sp=F37A bank=01/02/03/03 flow=01 screen=00 irq=01E4 inirq=00 pos=104,96
+right_after pc=667D sp=F378 bank=01/02/03/03 flow=01 screen=00 irq=0223 inirq=00 pos=104,96
+t14 pc=1A04 sp=F368 bank=01/02/03/03 flow=01 screen=00 irq=025C inirq=00 pos=104,96
+SHOTOK tales7_paper_validator_smoke_megarom_t14.png
+t20 pc=A14F sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=03C3 inirq=00 pos=104,96
+SHOTOK tales7_paper_validator_smoke_megarom_t20.png

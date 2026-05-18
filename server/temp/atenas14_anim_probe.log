@@ -1,0 +1,17 @@
+boot_3s input=00 prev=00 xy=51,0 v=EE/46 anim=51 tick=0 sprite=33 sm=3333
+space1_before input=00 prev=00 xy=24,144 v=00/00 anim=1 tick=0 sprite=05 sm=00E3
+space1_after input=00 prev=00 xy=24,108 v=00/FF anim=1 tick=0 sprite=05 sm=00E3
+space2_before input=00 prev=00 xy=24,144 v=00/00 anim=1 tick=0 sprite=05 sm=00E3
+space2_after input=00 prev=00 xy=24,109 v=00/FF anim=1 tick=0 sprite=05 sm=00E3
+start input=00 prev=00 xy=24,144 v=00/00 anim=1 tick=0 sprite=05 sm=00E3
+right_before input=00 prev=00 xy=24,144 v=00/00 anim=1 tick=0 sprite=05 sm=00E3
+right_held_035 input=03 prev=03 xy=34,144 v=00/00 anim=0 tick=4 sprite=01 sm=00FA
+right_held_075 input=03 prev=03 xy=34,144 v=00/00 anim=1 tick=4 sprite=01 sm=00FA
+right_held_115 input=03 prev=03 xy=34,144 v=00/00 anim=0 tick=4 sprite=01 sm=00FA
+right_released input=00 prev=00 xy=34,144 v=00/00 anim=1 tick=0 sprite=05 sm=00E3
+left_before input=00 prev=00 xy=34,144 v=00/00 anim=1 tick=0 sprite=05 sm=00E3
+left_held_035 input=07 prev=07 xy=6,144 v=00/00 anim=0 tick=4 sprite=07 sm=00FA
+left_held_075 input=07 prev=07 xy=6,144 v=00/00 anim=1 tick=4 sprite=07 sm=00FA
+left_held_115 input=07 prev=07 xy=6,144 v=00/00 anim=0 tick=4 sprite=07 sm=00FA
+left_released input=00 prev=00 xy=6,144 v=00/00 anim=1 tick=0 sprite=0A sm=00E3
+final input=00 prev=00 xy=6,144 v=00/00 anim=1 tick=0 sprite=0A sm=00E3

@@ -1,0 +1,31 @@
+WORLD SPRITE PATTERN POLICY
+Source: runtime sprite packs inferred from entities present in each world.
+Pack capacity: 64 slots (including placeholder).
+
+PACKS
+PACK 00 worldmap_1754825914797
+- display: World "Mon Inicial"
+- slots: 64/64
+- placeholder_slot: 63
+- sprites:
+  0: hero1_right @ slot 0
+  1: bird1 @ slot 12
+  2: ball1 @ slot 27
+  3: bird2 @ slot 39
+  4: minipotato_right @ slot 43
+  6: hero1_left @ slot 47
+  7: minipotato_left @ slot 59
+
+PACK 01 worldmap_1755255512987
+- display: World "Mon autogenerat1"
+- slots: 17/64
+- placeholder_slot: 16
+- sprites:
+  4: minipotato_right @ slot 0
+  5: blackDuck_left @ slot 4
+  7: minipotato_left @ slot 8
+  8: blackDuck_right @ slot 12
+
+WORLD -> PACK
+00 Mon Inicial (worldmap_1754825914797) -> worldmap_1754825914797 [id=0]
+01 Mon autogenerat1 (worldmap_1755255512987) -> worldmap_1755255512987 [id=1]

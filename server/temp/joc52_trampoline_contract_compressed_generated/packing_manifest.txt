@@ -1,0 +1,65 @@
+MEGAROM PACKING MANIFEST
+Zone size: 8192
+Data start address: #A000
+Total resource blocks: 55
+
+BANK 03 used 1897 / 8192
+- SCREEN_PAN1_0_EFFECTS_LAYOUT         6 stored /   768 raw bytes @ #A000 (rom #A000, offset +#0000) [SCREENS/SCREEN_EFFECTS_LAYOUT] flags=1
+- SCREEN_PAN1_0_INTERACTION_TYPE_MAP     6 stored /   768 raw bytes @ #A006 (rom #A006, offset +#0006) [SCREENS/SCREEN_DATA] flags=1
+- SCREEN_PAN1_0_INTERACTION_VALUE_MAP    13 stored /   768 raw bytes @ #A00C (rom #A00C, offset +#000C) [SCREENS/SCREEN_DATA] flags=1
+- SCREEN_PAN1_0_INTERACTION_TARGET_MAP     6 stored /   768 raw bytes @ #A019 (rom #A019, offset +#0019) [SCREENS/SCREEN_DATA] flags=1
+- SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT    21 stored /   768 raw bytes @ #A01F (rom #A01F, offset +#001F) [SCREENS/SCREEN_LAYOUT] flags=1
+- SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT     6 stored /   768 raw bytes @ #A034 (rom #A034, offset +#0034) [SCREENS/SCREEN_EFFECTS_LAYOUT] flags=1
+- BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA     6 stored /   768 raw bytes @ #A03A (rom #A03A, offset +#003A) [SCREENS/SCREEN_BEHAVIOR_MAP] flags=1
+- SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP     6 stored /   768 raw bytes @ #A040 (rom #A040, offset +#0040) [SCREENS/SCREEN_DATA] flags=1
+- SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP     6 stored /   768 raw bytes @ #A046 (rom #A046, offset +#0046) [SCREENS/SCREEN_DATA] flags=1
+- SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP     6 stored /   768 raw bytes @ #A04C (rom #A04C, offset +#004C) [SCREENS/SCREEN_DATA] flags=1
+- tile_pattern_bank0                 327 stored /   392 raw bytes @ #A052 (rom #A052, offset +#0052) [PATTERNS/TILE_PATTERNS] flags=1
+- SCREEN_PAN1_0_BLOCK_CATALOG         29 stored /    96 raw bytes @ #A199 (rom #A199, offset +#0199) [SCREENS/SCREEN_BLOCK_CATALOG] flags=1
+- SCREEN_PAN1_0_BOSS_TABLE            11 stored /    11 raw bytes @ #A1B6 (rom #A1B6, offset +#01B6) [SCREENS/SCREEN_DATA] flags=0
+- SCREEN_PAN1_0_EFFECT_ZONE_TABLE      1 stored /     1 raw bytes @ #A1C1 (rom #A1C1, offset +#01C1) [SCREENS/SCREEN_EFFECT_ZONE_TABLE] flags=0
+- SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE     1 stored /     1 raw bytes @ #A1C2 (rom #A1C2, offset +#01C2) [SCREENS/SCREEN_EFFECT_ZONE_TABLE] flags=0
+- SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE     1 stored /     1 raw bytes @ #A1C3 (rom #A1C3, offset +#01C3) [SCREENS/SCREEN_DATA] flags=0
+- tile_color_bank0                   121 stored /   392 raw bytes @ #A1C4 (rom #A1C4, offset +#01C4) [COLORS/TILE_COLORS] flags=1
+- SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE    15 stored /   256 raw bytes @ #A23D (rom #A23D, offset +#023D) [SCREENS/SCREEN_DATA] flags=1
+- tilebank_pattern_data_0            201 stored /   232 raw bytes @ #A24C (rom #A24C, offset +#024C) [PATTERNS/TILE_PATTERNS] flags=1
+- tilebank_pattern_data_1            200 stored /   232 raw bytes @ #A315 (rom #A315, offset +#0315) [PATTERNS/TILE_PATTERNS] flags=1
+- tilebank_color_data_0               60 stored /   232 raw bytes @ #A3DD (rom #A3DD, offset +#03DD) [COLORS/TILE_COLORS] flags=1
+- tilebank_color_data_1               60 stored /   232 raw bytes @ #A419 (rom #A419, offset +#0419) [COLORS/TILE_COLORS] flags=1
+- SCREEN_PAN1_0_BLOCK_MAP             16 stored /    48 raw bytes @ #A455 (rom #A455, offset +#0455) [SCREENS/SCREEN_BLOCK_MAP] flags=1
+- NINA_WALK_RIGHT_0_F0_LAYER0         30 stored /    32 raw bytes @ #A465 (rom #A465, offset +#0465) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_WALK_RIGHT_0_F0_LAYER1         25 stored /    32 raw bytes @ #A483 (rom #A483, offset +#0483) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_WALK_RIGHT_0_F1_LAYER0         31 stored /    32 raw bytes @ #A49C (rom #A49C, offset +#049C) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_WALK_RIGHT_0_F1_LAYER1         27 stored /    32 raw bytes @ #A4BB (rom #A4BB, offset +#04BB) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_GRUB_RIGHT_1_F0_LAYER1         18 stored /    32 raw bytes @ #A4D6 (rom #A4D6, offset +#04D6) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_GRUB_RIGHT_1_F0_LAYER2         28 stored /    32 raw bytes @ #A4E8 (rom #A4E8, offset +#04E8) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_GRUB_RIGHT_1_F1_LAYER1         23 stored /    32 raw bytes @ #A504 (rom #A504, offset +#0504) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_GRUB_RIGHT_1_F1_LAYER2         29 stored /    32 raw bytes @ #A51B (rom #A51B, offset +#051B) [SPRITES/SPRITE_PATTERNS] flags=1
+- NEW_SPRITE_2_F0_LAYER1               5 stored /    32 raw bytes @ #A538 (rom #A538, offset +#0538) [SPRITES/SPRITE_PATTERNS] flags=1
+- NEW_SPRITE_2_F0_LAYER2               5 stored /    32 raw bytes @ #A53D (rom #A53D, offset +#053D) [SPRITES/SPRITE_PATTERNS] flags=1
+- NEW_SPRITE_2_F0_LAYER3               5 stored /    32 raw bytes @ #A542 (rom #A542, offset +#0542) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_JUMP_RIGHT_3_F0_LAYER0         27 stored /    32 raw bytes @ #A547 (rom #A547, offset +#0547) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_JUMP_RIGHT_3_F0_LAYER1         24 stored /    32 raw bytes @ #A562 (rom #A562, offset +#0562) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_IDLE_RIGHT_4_F0_LAYER1         23 stored /    32 raw bytes @ #A57A (rom #A57A, offset +#057A) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_IDLE_RIGHT_4_F0_LAYER2         28 stored /    32 raw bytes @ #A591 (rom #A591, offset +#0591) [SPRITES/SPRITE_PATTERNS] flags=1
+- NEW_SPRITE_RIGHT_5_F0_LAYER1        31 stored /    32 raw bytes @ #A5AD (rom #A5AD, offset +#05AD) [SPRITES/SPRITE_PATTERNS] flags=1
+- NEW_SPRITE_RIGHT_5_F0_LAYER2        30 stored /    32 raw bytes @ #A5CC (rom #A5CC, offset +#05CC) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_WALK_LEFT_6_F0_LAYER0          28 stored /    32 raw bytes @ #A5EA (rom #A5EA, offset +#05EA) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_WALK_LEFT_6_F0_LAYER1          25 stored /    32 raw bytes @ #A606 (rom #A606, offset +#0606) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_WALK_LEFT_6_F1_LAYER0          30 stored /    32 raw bytes @ #A61F (rom #A61F, offset +#061F) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_WALK_LEFT_6_F1_LAYER1          30 stored /    32 raw bytes @ #A63D (rom #A63D, offset +#063D) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_GRUB_LEFT_7_F0_LAYER1          20 stored /    32 raw bytes @ #A65B (rom #A65B, offset +#065B) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_GRUB_LEFT_7_F0_LAYER2          29 stored /    32 raw bytes @ #A66F (rom #A66F, offset +#066F) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_GRUB_LEFT_7_F1_LAYER1          24 stored /    32 raw bytes @ #A68C (rom #A68C, offset +#068C) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_GRUB_LEFT_7_F1_LAYER2          28 stored /    32 raw bytes @ #A6A4 (rom #A6A4, offset +#06A4) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_JUMP_LEFT_8_F0_LAYER0          27 stored /    32 raw bytes @ #A6C0 (rom #A6C0, offset +#06C0) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_JUMP_LEFT_8_F0_LAYER1          24 stored /    32 raw bytes @ #A6DB (rom #A6DB, offset +#06DB) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_IDLE_LEFT_9_F0_LAYER1          24 stored /    32 raw bytes @ #A6F3 (rom #A6F3, offset +#06F3) [SPRITES/SPRITE_PATTERNS] flags=1
+- NINA_IDLE_LEFT_9_F0_LAYER2          29 stored /    32 raw bytes @ #A70B (rom #A70B, offset +#070B) [SPRITES/SPRITE_PATTERNS] flags=1
+- NEW_SPRITE_LEFT_10_F0_LAYER1        31 stored /    32 raw bytes @ #A728 (rom #A728, offset +#0728) [SPRITES/SPRITE_PATTERNS] flags=1
+- NEW_SPRITE_LEFT_10_F0_LAYER2        29 stored /    32 raw bytes @ #A747 (rom #A747, offset +#0747) [SPRITES/SPRITE_PATTERNS] flags=1
+- SPRITE_PLACEHOLDER_PATTERN           5 stored /    32 raw bytes @ #A764 (rom #A764, offset +#0764) [SPRITES/SPRITE_PATTERNS] flags=1
+FREE 6295
+
+BANK 04 used 0 / 8192
+FREE 8192

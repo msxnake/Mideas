@@ -1,0 +1,4071 @@
+{
+  "name": "empty_throne_room_dry_piano",
+  "currentProjectName": "empty_throne_room_dry_piano",
+  "currentScreenMode": "SCREEN 2 (Graphics I)",
+  "selectedAssetId": "track_empty_throne_room_dry_piano",
+  "currentEditor": "Track",
+  "ideConfiguration": {
+    "dataOutputFormat": "decimal",
+    "autosaveEnabled": false,
+    "snippetsEnabled": true,
+    "syntaxHighlightingEnabled": true
+  },
+  "assets": [
+    {
+      "id": "track_empty_throne_room_dry_piano",
+      "name": "The Empty Throne Room Dry Piano",
+      "type": "track",
+      "data": {
+        "id": "track_empty_throne_room_dry_piano",
+        "name": "The Empty Throne Room Dry Piano",
+        "playbackBackend": "native",
+        "soundChip": "PSG",
+        "title": "The Empty Throne Room Dry Piano",
+        "author": "Codex after dry piano request",
+        "bpm": 88,
+        "speed": 6,
+        "globalVolume": 15,
+        "order": [
+          0,
+          1,
+          2
+        ],
+        "lengthInPatterns": 3,
+        "restartPosition": 0,
+        "ayHardwareEnvelopePeriod": 1,
+        "ayNoisePeriod": 16,
+        "currentPatternIndexInOrder": 0,
+        "currentPatternId": "pattern_dry_piano_a",
+        "currentSongLengthTicks": 1920,
+        "instruments": [
+          {
+            "id": 1,
+            "name": "Dry PSG Piano",
+            "volumeEnvelope": [
+              15,
+              8,
+              3,
+              0
+            ],
+            "toneEnvelope": [
+              0
+            ],
+            "noiseEnvelope": [],
+            "volumeLoop": 255,
+            "toneLoop": 255,
+            "noiseLoop": 255,
+            "ayToneEnabled": true,
+            "ayNoiseEnabled": false,
+            "ayEnvelopeShape": 0
+          }
+        ],
+        "ornaments": [],
+        "patterns": [
+          {
+            "id": "pattern_dry_piano_a",
+            "name": "Dry Lament",
+            "numRows": 64,
+            "rows": [
+              {
+                "A": {
+                  "note": "A-4",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 15
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": 0
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "E-4",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 12
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": 0
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "F-4",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 13
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": 0
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "E-4",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 11
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": 0
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "C-4",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 10
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": 0
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              }
+            ]
+          },
+          {
+            "id": "pattern_dry_piano_b",
+            "name": "Dry Tension",
+            "numRows": 64,
+            "rows": [
+              {
+                "A": {
+                  "note": "D-4",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 12
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": 0
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "F-4",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 13
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": 0
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "G#4",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 15
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": 0
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "E-4",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 11
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": 0
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              }
+            ]
+          },
+          {
+            "id": "pattern_dry_piano_c",
+            "name": "Dry Resolution",
+            "numRows": 64,
+            "rows": [
+              {
+                "A": {
+                  "note": "C-4",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 11
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": 0
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "B-3",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 10
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": 0
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "A-3",
+                  "instrument": 1,
+                  "ornament": null,
+                  "volume": 14
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "===",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": 0
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              },
+              {
+                "A": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "B": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                },
+                "C": {
+                  "note": "---",
+                  "instrument": null,
+                  "ornament": null,
+                  "volume": null
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "gameflow_empty_throne_room_dry_piano_main",
+      "name": "Main",
+      "type": "gameflow",
+      "data": {
+        "id": "gameflow_empty_throne_room_dry_piano_main",
+        "name": "Main",
+        "startNodeId": "gf_dry_piano_start",
+        "panOffset": {
+          "x": 0,
+          "y": 0
+        },
+        "zoomLevel": 1,
+        "nodes": [
+          {
+            "id": "gf_dry_piano_start",
+            "type": "Start",
+            "position": {
+              "x": 80,
+              "y": 160
+            }
+          },
+          {
+            "id": "gf_dry_piano_music",
+            "type": "Music",
+            "position": {
+              "x": 340,
+              "y": 160
+            },
+            "stop": false,
+            "trackAssetId": "track_empty_throne_room_dry_piano",
+            "loop": true,
+            "autoPlay": true
+          },
+          {
+            "id": "gf_dry_piano_end",
+            "type": "End",
+            "position": {
+              "x": 600,
+              "y": 160
+            },
+            "endType": "Victory",
+            "message": "The Empty Throne Room Dry Piano"
+          }
+        ],
+        "connections": [
+          {
+            "id": "gfc_dry_piano_start_music",
+            "from": {
+              "nodeId": "gf_dry_piano_start",
+              "sourceId": "out"
+            },
+            "to": {
+              "nodeId": "gf_dry_piano_music"
+            }
+          },
+          {
+            "id": "gfc_dry_piano_music_end",
+            "from": {
+              "nodeId": "gf_dry_piano_music",
+              "sourceId": "out"
+            },
+            "to": {
+              "nodeId": "gf_dry_piano_end"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tileBanks": [],
+  "componentDefinitions": [],
+  "entityTemplates": [],
+  "mainMenuConfig": null,
+  "presentationScreen": null,
+  "selectedEntityInstanceId": null,
+  "selectedEffectZoneId": null,
+  "execution": {
+    "mainGameFlow": {
+      "id": "gameflow_empty_throne_room_dry_piano_main",
+      "name": "Main",
+      "startNodeId": "gf_dry_piano_start",
+      "panOffset": {
+        "x": 0,
+        "y": 0
+      },
+      "zoomLevel": 1,
+      "nodes": [
+        {
+          "id": "gf_dry_piano_start",
+          "type": "Start",
+          "position": {
+            "x": 80,
+            "y": 160
+          }
+        },
+        {
+          "id": "gf_dry_piano_music",
+          "type": "Music",
+          "position": {
+            "x": 340,
+            "y": 160
+          },
+          "stop": false,
+          "trackAssetId": "track_empty_throne_room_dry_piano",
+          "loop": true,
+          "autoPlay": true
+        },
+        {
+          "id": "gf_dry_piano_end",
+          "type": "End",
+          "position": {
+            "x": 600,
+            "y": 160
+          },
+          "endType": "Victory",
+          "message": "The Empty Throne Room Dry Piano"
+        }
+      ],
+      "connections": [
+        {
+          "id": "gfc_dry_piano_start_music",
+          "from": {
+            "nodeId": "gf_dry_piano_start",
+            "sourceId": "out"
+          },
+          "to": {
+            "nodeId": "gf_dry_piano_music"
+          }
+        },
+        {
+          "id": "gfc_dry_piano_music_end",
+          "from": {
+            "nodeId": "gf_dry_piano_music",
+            "sourceId": "out"
+          },
+          "to": {
+            "nodeId": "gf_dry_piano_end"
+          }
+        }
+      ]
+    }
+  }
+}

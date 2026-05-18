@@ -1,0 +1,1 @@
+Single 2D pixel art sprite asset: full-body whimsical monkey wearing a black top hat with a red band, brown fur, cream muzzle and belly, 3/4 view, neutral pose, crisp dark outline, centered, solid #FF00FF magenta background, no text, no UI, no border.

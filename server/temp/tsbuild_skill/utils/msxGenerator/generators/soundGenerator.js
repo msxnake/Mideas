@@ -44,10 +44,10 @@ function countAsmDataBytes(asm) {
  * @param analysis - Project analysis (future: could include sound effect definitions)
  * @returns ASM code string with PSG sound system
  */
-function generateSoundFile(analysis, executionPlan, romMode = 'simple32k') {
+function generateSoundFile(analysis, executionPlan, _romMode = 'simple32k') {
     const pt3Tracks = collectPT3Tracks(analysis);
     const tracks = pt3Tracks.length > 0 ? [] : collectPsgTracks(analysis);
-    const bankedTrackData = romMode === 'megarom' && pt3Tracks.length === 0 && tracks.length > 0;
+    const bankedTrackData = false;
     const musicBlock = pt3Tracks.length > 0
         ? buildPT3MusicBlock(pt3Tracks)
         : tracks.length > 0
@@ -128,9 +128,10 @@ SFX_LONG            EQU 30       ; ~500ms
 ; SOUND SYSTEM INITIALIZATION
 ; ==================================================================
 
+; @mideas:block id=runtime.sound.init kind=routine owner=sound roots=init_sound_system
 init_sound_system:
-    ; Initialize PSG via BIOS
-    call GICINI
+    ; Avoid BIOS PSG init from banked overlays; direct PSG writes below leave
+    ; the chip in a deterministic silent state without crossing ROM slots.
 
     ; Clear runtime sound state so power-on RAM garbage cannot make
     ; sfx_update / SM_UpdateSound drive the PSG for a few random frames.
@@ -148,12 +149,14 @@ init_sound_system:
     call sfx_silence_all
 
     ret
+; @mideas:endblock id=runtime.sound.init
 
 ; ------------------------------------------------------------------
 ; task_audio_tick
 ; Shared audio tick wrapper for IRQ task_manager or HALT game loops.
 ; Preserves caller-visible registers on every exit path.
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.sound.tick kind=routine owner=sound roots=task_audio_tick
 task_audio_tick:
     push af
     push bc
@@ -169,10 +172,12 @@ ${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    call SM_Upd
     pop bc
     pop af
     ret
+; @mideas:endblock id=runtime.sound.tick
 
 ; ==================================================================
 ; PSG LOW-LEVEL CONTROL FUNCTIONS
 ; ==================================================================
+; @mideas:block id=runtime.sound.psg_lowlevel kind=routine owner=sound roots=psg_write,psg_set_tone,psg_set_volume,psg_set_noise,psg_set_mixer,psg_set_envelope
 
 ; ------------------------------------------------------------------
 ; psg_write
@@ -182,7 +187,9 @@ ${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    call SM_Upd
 ; Destroys: AF, E
 ; ------------------------------------------------------------------
 psg_write:
-    call WRTPSG
+    out (#A0), a
+    ld a, e
+    out (#A1), a
     ret
 
 ; ------------------------------------------------------------------
@@ -214,7 +221,7 @@ psg_set_tone:
     ; Write low byte
     ld a, c
     ld e, l
-    call WRTPSG
+    call psg_write
 
     ; Write high byte (only lower 4 bits)
     ld a, b
@@ -223,7 +230,7 @@ psg_set_tone:
     and #0F
     ld e, a
     ld a, b
-    call WRTPSG
+    call psg_write
 
     ret
 
@@ -237,7 +244,7 @@ psg_set_tone:
 psg_set_volume:
     add a, PSG_VOL_A             ; A = PSG_VOL_x register
     ld e, b                      ; E = volume value
-    call WRTPSG
+    call psg_write
     ret
 
 ; ------------------------------------------------------------------
@@ -249,7 +256,7 @@ psg_set_volume:
 psg_set_noise:
     ld e, a
     ld a, PSG_NOISE_PERIOD
-    call WRTPSG
+    call psg_write
     ret
 
 ; ------------------------------------------------------------------
@@ -263,7 +270,7 @@ psg_set_noise:
 psg_set_mixer:
     ld e, a
     ld a, PSG_MIXER
-    call WRTPSG
+    call psg_write
     ret
 
 ; ------------------------------------------------------------------
@@ -276,16 +283,17 @@ psg_set_mixer:
 psg_set_envelope:
     ld a, PSG_ENV_LO
     ld e, l
-    call WRTPSG
+    call psg_write
     ld a, PSG_ENV_HI
     ld e, h
-    call WRTPSG
+    call psg_write
     ld a, b
     and #0F
     ld e, a
     ld a, PSG_ENV_SHAPE
-    call WRTPSG
+    call psg_write
     ret
+; @mideas:endblock id=runtime.sound.psg_lowlevel
 
 ; ==================================================================
 ; HIGH-LEVEL SOUND EFFECTS
@@ -295,6 +303,7 @@ psg_set_envelope:
 ; sfx_silence_all
 ; Silence all PSG channels
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.sound.sfx_silence kind=routine owner=sound
 sfx_silence_all:
     ; Set all volumes to 0
     xor a                        ; A = channel A
@@ -314,11 +323,13 @@ sfx_silence_all:
     call psg_set_mixer
 
     ret
+; @mideas:endblock id=runtime.sound.sfx_silence
 
 ; ------------------------------------------------------------------
 ; sfx_beep
 ; Simple beep sound
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.sound.sfx_builtin_effects kind=routine owner=sound
 sfx_beep:
     ; Channel A: 440Hz (A4)
     xor a                        ; A = channel A
@@ -444,6 +455,7 @@ sfx_damage:
     call psg_set_mixer
 
     ret
+; @mideas:endblock id=runtime.sound.sfx_builtin_effects
 
 ; ==================================================================
 ; SOUND EFFECT PLAYBACK SYSTEM
@@ -461,6 +473,7 @@ sfx_damage:
 ;         0=beep, 1=jump, 2=shoot, 3=explosion, 4=coin, 5=damage
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
+; @mideas:block id=runtime.sound.sfx_playback kind=routine owner=sound
 play_sound_effect:
     ld b, a
     ld a, (music_active)
@@ -578,6 +591,7 @@ sfx_update:
     xor a
     ld (sfx_active), a
     ret
+; @mideas:endblock id=runtime.sound.sfx_playback
 
 ${musicBlock}
 
@@ -621,10 +635,10 @@ function getNoteIndex(note) {
         return ASM_NOTE_KEEP;
     if (note === '===')
         return ASM_NOTE_CUT;
-    const match = note.toUpperCase().match(/^([A-G](?:#|-))([0-7])$/);
+    const match = note.toUpperCase().match(/^([A-G](?:#|-)?)([0-7])$/);
     if (!match)
         return ASM_NOTE_KEEP;
-    const noteName = match[1];
+    const noteName = match[1].length === 1 ? `${match[1]}-` : match[1];
     const octave = parseInt(match[2], 10);
     const noteOffsets = {
         'C-': 0, 'C#': 1, 'D-': 2, 'D#': 3, 'E-': 4, 'F-': 5,
@@ -651,40 +665,15 @@ function collectPT3Tracks(analysis) {
     const projectTracks = Array.isArray(analysis.tracks) ? analysis.tracks : [];
     return projectTracks.filter((track) => track?.playbackBackend === 'external-pt3');
 }
-function collectSerializedTrackerTracks(analysis) {
-    const pt3Tracks = collectPT3Tracks(analysis);
-    return pt3Tracks.length > 0 ? [] : collectPsgTracks(analysis);
+function getSerializedTrackerMusicBufferSize(_analysis) {
+    // Serialized tracker songs are emitted in ROM with the sound runtime, so the
+    // player does not need a full-song RAM cache.
+    return 0;
 }
-function getSerializedTrackerMusicBufferSize(analysis) {
-    const tracks = collectSerializedTrackerTracks(analysis);
-    let maxSize = 0;
-    tracks.forEach((track, index) => {
-        const serialized = buildTrackData(track, index, { relativePointers: true });
-        if (serialized.byteSize > maxSize) {
-            maxSize = serialized.byteSize;
-        }
-    });
-    return maxSize;
-}
-function getSoundBank4Data(analysis) {
-    const tracks = collectSerializedTrackerTracks(analysis);
-    if (tracks.length === 0) {
-        return '';
-    }
-    const serializedTracks = tracks.map((track, index) => buildTrackData(track, index, { relativePointers: true }));
-    const lines = [
-        '; ==================================================================',
-        '; TRACKER MUSIC DATA (MEGAROM BANKED RESOURCES)',
-        '; Runtime stays resident in sound.asm; serialized tracks are copied',
-        '; to RAM on demand through resource_manager.',
-        '; ==================================================================',
-        '',
-    ];
-    serializedTracks.forEach((track) => {
-        lines.push(track.asm);
-        lines.push('');
-    });
-    return lines.join('\n').trimEnd();
+function getSoundBank4Data(_analysis) {
+    // Tracker music data is kept inline in sound.asm. Keeping this empty avoids
+    // duplicate MegaROM resources and the old music_track_buffer RAM copy path.
+    return '';
 }
 function getInstrumentMap(song) {
     const instrumentMap = new Map();
@@ -983,7 +972,7 @@ function buildPT3MusicBlock(tracks) {
         '',
         '; ------------------------------------------------------------------',
         '; music_silence_channels',
-        '; Silence all AY channels via BIOS WRTPSG.',
+        '; Silence all AY channels via direct PSG port writes.',
         '; Destroys: AF, E',
         '; ------------------------------------------------------------------',
         'music_silence_channels:',
@@ -998,7 +987,7 @@ function buildPT3MusicBlock(tracks) {
         '    call psg_set_volume     ; Channel C vol=0',
         '    ld a, PSG_MIXER',
         '    ld e, #3F',
-        '    call WRTPSG             ; All tones+noise off',
+        '    call psg_write          ; All tones+noise off',
         '    ret',
         '',
         '; ------------------------------------------------------------------',
@@ -1189,8 +1178,8 @@ function buildPT3MusicBlock(tracks) {
                 lines.push(`    DW ${label}         ; ${name} (full file)`);
             }
             else {
-                // 99 bytes stripped: data[0] = original byte 99, data[1] = speed byte.
-                // PT3_MODADDR must still point to original byte 0, so use data_label - 99.
+                // 99 bytes stripped: data[0] = original byte 99, data[1] = PT3 speed.
+                // PT3_INIT adds 100, so this reconstructs the original module base.
                 lines.push(`    DW ${label} - 99    ; ${name} (.99 stripped)`);
             }
         });
@@ -2519,6 +2508,7 @@ function buildNoMusicBlock() {
         '; remain link-compatible without carrying the tracker interpreter.',
         '; ==================================================================',
         '',
+        '; @mideas:block id=runtime.sound.music_noop_runtime kind=routine owner=sound',
         'music_init_system:',
         '    xor a',
         '    ld (music_active), a',
@@ -2539,8 +2529,10 @@ function buildNoMusicBlock() {
         '    ld (music_mixer_shadow), a',
         '    ret',
         '',
+        '; @mideas:block id=runtime.sound.music_reset_noop kind=routine owner=sound',
         'music_reset_channel_state:',
         '    ret',
+        '; @mideas:endblock id=runtime.sound.music_reset_noop',
         '',
         'music_silence_channels:',
         '    xor a',
@@ -2581,5 +2573,6 @@ function buildNoMusicBlock() {
         '',
         'music_track_ptr_table:',
         '    DW 0',
+        '; @mideas:endblock id=runtime.sound.music_noop_runtime',
     ].join('\n');
 }

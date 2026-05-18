@@ -7,6 +7,7 @@ import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { buildMSXDirectionalSpriteCatalog } from '../../../components/utils/spriteUtils';
 import { getSerializedTrackerMusicBufferSize } from './soundGenerator';
 import { usesMapperBanking } from './romModeUtils';
+import { getRuntimeSecretRestoreBufferSize, shouldKeepRuntimeBackgroundLayout } from './runtimeLayoutPolicy';
 
 const RAM_BASE = 0xC000;
 const MSX_SYSTEM_RAM_START = 0xF380;
@@ -114,6 +115,8 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   const expandedSpriteCount = Math.max(1, expandedSprites.length);
   const maxSpriteLayerCount = Math.max(1, ...expandedSprites.map(countDrawableSpriteLayers));
   const maxRuntimeEffectZones = getMaxRuntimeEffectZones(analysis);
+  const keepRuntimeBackgroundLayout = shouldKeepRuntimeBackgroundLayout(analysis);
+  const runtimeSecretRestoreBufferSize = getRuntimeSecretRestoreBufferSize(analysis);
   const runtimeEffectZoneTableBytes = maxRuntimeEffectZones * EFFECT_ZONE_ENTRY_SIZE;
   const serializedTrackerMusicBufferSize = useResourceManager
     ? getSerializedTrackerMusicBufferSize(analysis)
@@ -148,6 +151,18 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   code += `input_fire          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Fire button state (0=released, 1=pressed)\n`;
   currentAddress++;
 
+  code += `input_key_button1_mode EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Keyboard binding for physical button 1 (0=SPC, 1=CTRL)\n`;
+  currentAddress++;
+
+  code += `input_key_button2_mode EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Keyboard binding for physical button 2 (0=N, 1=CTRL)\n`;
+  currentAddress++;
+
+  code += `control_jump_button EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Physical button assigned to jump/fire action (0=button1, 1=button2)\n`;
+  currentAddress++;
+
+  code += `control_action_button EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Physical button assigned to action/grab action (0=button1, 1=button2)\n`;
+  currentAddress++;
+
   code += `boss_runtime_tick   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Boss runtime frame counter\n`;
   currentAddress++;
   code += `current_screen_boss_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Boss placements assigned to current screen\n`;
@@ -156,8 +171,8 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress += 2;
   code += `current_screen_boss_table_bank EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mapper bank for current screen boss placement table\n`;
   currentAddress++;
-  code += `current_screen_boss_entry EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; First current-screen boss placement copied to RAM (11 bytes)\n`;
-  currentAddress += 11;
+  code += `current_screen_boss_entry EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; First current-screen boss placement copied to RAM (13 bytes)\n`;
+  currentAddress += 13;
   code += `boss_active         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when a screen boss is active\n`;
   currentAddress++;
   code += `boss_health_lo      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active boss health low byte\n`;
@@ -170,6 +185,8 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress += 2;
   code += `boss_attack_table_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active boss attack table pointer (16-bit)\n`;
   currentAddress += 2;
+  code += `boss_data_bank      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active boss data mapper bank (#FF for resident/simple)\n`;
+  currentAddress++;
   code += `boss_phase_ptr      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active boss phase record pointer (16-bit)\n`;
   currentAddress += 2;
   code += `boss_tile_matrix_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active boss tile matrix pointer (16-bit)\n`;
@@ -252,6 +269,8 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress++;
   code += `boss_projectile_color EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Simple boss projectile sprite color\n`;
   currentAddress++;
+  code += `boss_projectile_color2 EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Simple boss projectile second layer color\n`;
+  currentAddress++;
   code += `boss_projectile_pattern EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Simple boss projectile base pattern\n`;
   currentAddress++;
   code += `boss_projectile_speed EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Simple boss projectile speed\n`;
@@ -260,7 +279,21 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress++;
   code += `boss_projectile_distance EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Simple boss projectile current travelled distance\n`;
   currentAddress++;
-  code += `boss_projectile_direction EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Simple boss projectile direction\n`;
+  code += `boss_projectile_vel_x EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Signed boss projectile X velocity\n`;
+  currentAddress++;
+  code += `boss_projectile_vel_y EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Signed boss projectile Y velocity\n`;
+  currentAddress++;
+  code += `boss_projectile_abs_x EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Absolute X delta toward player\n`;
+  currentAddress++;
+  code += `boss_projectile_abs_y EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Absolute Y delta toward player\n`;
+  currentAddress++;
+  code += `boss_projectile_sign_x EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when player is left of projectile origin\n`;
+  currentAddress++;
+  code += `boss_projectile_sign_y EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when player is above projectile origin\n`;
+  currentAddress++;
+  code += `boss_projectile_frame_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Animation frame count for simple boss projectile\n`;
+  currentAddress++;
+  code += `boss_projectile_layer_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; HW sprite layer count for simple boss projectile\n`;
   currentAddress++;
   code += `boss_slam_rocks_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 while SlamRocks sequence is active\n`;
   currentAddress++;
@@ -623,6 +656,24 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress++;
   code += `dialogue_graphic_height EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue graphic height in chars\n`;
   currentAddress++;
+  code += `dialogue_graphic_tilebank_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; SCREEN2 tilebank id required by dialogue graphic (#FF=none)\n`;
+  currentAddress++;
+  code += `dialogue_mouth_enabled EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=dialogue portrait mouth animation enabled\n`;
+  currentAddress++;
+  code += `dialogue_mouth_vram_l EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue mouth VRAM low byte\n`;
+  currentAddress++;
+  code += `dialogue_mouth_vram_h EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue mouth VRAM high byte\n`;
+  currentAddress++;
+  code += `dialogue_mouth_closed_char EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue closed mouth char code\n`;
+  currentAddress++;
+  code += `dialogue_mouth_open_char EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dialogue open mouth char code\n`;
+  currentAddress++;
+  code += `dialogue_mouth_interval EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Chars between mouth toggles\n`;
+  currentAddress++;
+  code += `dialogue_mouth_counter EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current mouth animation char counter\n`;
+  currentAddress++;
+  code += `dialogue_mouth_state EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 0=closed, 1=open\n`;
+  currentAddress++;
 
   code += `current_flow_state  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current game flow state\n`;
   currentAddress++;
@@ -645,8 +696,72 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress++;
   code += `gameflow_condition_result EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Result of last condition evaluation\n`;
   currentAddress++;
+  code += `gameflow_deferred_game_init EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when PresentationScreen deferred init_game_systems until after Transition\n`;
+  currentAddress++;
+  code += `gameflow_reveal_world_after_load EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when a Transition reveals the prepared target screen by raster\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_line_table_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll line table pointer (16-bit)\n`;
+  currentAddress += 2;
+  code += `gameflow_textscroll_line_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll active string pointer (16-bit)\n`;
+  currentAddress += 2;
+  code += `gameflow_textscroll_line_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll line count\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_speed EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll frames per pixel step\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_bg_color EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll screen background color\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_stripe_color EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll stripe/background color\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_text_color EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll foreground text color\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_skip_enabled EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when TextScrollColor can be skipped by fire input\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_skip_armed EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 after fire input is released inside TextScrollColor\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_step EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll coarse row step\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_fine EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll fine pixel offset\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_row EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll current screen row\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_line_col EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll active line column\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_base_line EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll signed source line for current row\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_col EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll current screen column\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_scan EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll destination tile scanline\n`;
+  currentAddress++;
+  code += `gameflow_textscroll_tile_base EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll active dynamic tile base (0 or 128)\n`;
+  currentAddress++;
+  code += `gameflow_textscroll2_text_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll2 active fixed-width line pointer (16-bit)\n`;
+  currentAddress += 2;
+  code += `gameflow_textscroll2_text_pix EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll2 active font scanline 0..7\n`;
+  currentAddress++;
+  code += `gameflow_textscroll2_line_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll2 generated text line count\n`;
+  currentAddress++;
+  code += `gameflow_textscroll2_speed EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll2 frames per pixel step\n`;
+  currentAddress++;
+  code += `gameflow_textscroll2_bg_color EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll2 screen background color\n`;
+  currentAddress++;
+  code += `gameflow_textscroll2_stripe_color EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll2 pattern background color\n`;
+  currentAddress++;
+  code += `gameflow_textscroll2_steps_left EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; TextScroll2 remaining pixel scroll steps (16-bit)\n`;
+  currentAddress += 2;
   code += `transition_delay_var    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames per step for active transition effect\n`;
   currentAddress++;
+  code += `transition_effect_id    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Last Transition effect id for target reveal\n`;
+  currentAddress++;
+  code += `transition_fill_char    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Name Table char for active transition wipe (#FE/#FF)\n`;
+  currentAddress++;
+  code += `transition_diag_index   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Diagonal clear current diagonal (0..54)\n`;
+  currentAddress++;
+  code += `transition_diag_len     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Diagonal clear remaining cells in current diagonal\n`;
+  currentAddress++;
+  code += `transition_diag_done    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when diagonal clear is complete\n`;
+  currentAddress++;
+  code += `transition_diag_addr    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Diagonal clear current VRAM address\n`;
+  currentAddress += 2;
 
   // Mideas Global Variables Dictionary (from project + defaults)
   code += `
@@ -689,6 +804,8 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress++;
   code += `page3_normal_slot   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Expanded slot for normal RAM page 3\n`;
   currentAddress++;
+  code += `slot_subslot_normal EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Raw subslot register snapshot for normal page 3 expanded slot\n`;
+  currentAddress++;
 
   code += `mapper_bank_p1_current EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mapper current bank for page/window 1\n`;
   currentAddress++;
@@ -720,6 +837,10 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress += 2;
   code += `resource_descriptor_size EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource size (16-bit)\n`;
   currentAddress += 2;
+  code += `resource_descriptor_uncompressed_size EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource uncompressed size (16-bit)\n`;
+  currentAddress += 2;
+  code += `resource_descriptor_flags EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource flags\n`;
+  currentAddress++;
   code += `vram_cache_tile_patterns_ready EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when shared gameplay tile patterns are already resident in VRAM\n`;
   currentAddress++;
   code += `vram_cache_tile_colors_ready EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when shared gameplay tile colors are already resident in VRAM\n`;
@@ -727,8 +848,10 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   code += `vram_cache_font_ready EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when shared font patterns/colors are already resident in VRAM\n`;
   currentAddress++;
   if (useResourceManager) {
-    code += `resource_ram_cache_screen_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_background_layout source\n`;
-    currentAddress++;
+    if (keepRuntimeBackgroundLayout) {
+      code += `resource_ram_cache_screen_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_background_layout source\n`;
+      currentAddress++;
+    }
     code += `resource_ram_cache_effects_layout_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effects_layout source\n`;
     currentAddress++;
     code += `resource_ram_cache_effect_zone_table_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached resource id for runtime_effect_zone_table source\n`;
@@ -736,6 +859,40 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   }
   code += `current_screen2_tilebank_id EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current SCREEN 2 shared tilebank loaded in VRAM (#FF=none/unknown)\n`;
   currentAddress++;
+
+  if (usesMapperBanking(romMode)) {
+    code += `\n; ASCII16 lower-window far-call bridge copied to RAM at boot\n`;
+    code += `ASCII16_FAR_CALL_P1_RAM EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; RAM routine: map ASCII16 lower 16KB page, call target, restore page\n`;
+    currentAddress += 96;
+    code += `ASCII16_FAR_CALL_P1_PRESERVE_A_RAM EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; RAM routine variant preserving caller/result A through AF'\n`;
+    currentAddress += 96;
+    code += `ASCII16_RESIDENT_CALL_P1_RAM EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; RAM routine: call resident lower-page routine from ASCII16 P1 far code\n`;
+    currentAddress += 96;
+    code += `ASCII16_TAIL_JUMP_P1_RAM EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; RAM routine: map ASCII16 lower page and JP without restoring\n`;
+    currentAddress += 32;
+    code += `ASCII16_IRQ_ENTRY_RAM EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; RAM H.TIMI entry: map ASCII16 bank0 before interrupt_dispatcher\n`;
+    currentAddress += 64;
+    code += `ASCII16_IRQ_EXIT_RAM EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; RAM H.TIMI exit: restore interrupted ASCII16 lower-page bank\n`;
+    currentAddress += 64;
+    code += `ascii16_far_target_bank EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Target ASCII16 bank for RAM far-call bridge\n`;
+    currentAddress++;
+    code += `ascii16_far_old_bank EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous ASCII16 lower-page bank for RAM far-call restore\n`;
+    currentAddress++;
+    code += `ascii16_far_call_depth EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Non-zero while executing inside ASCII16 RAM far-call target\n`;
+    currentAddress++;
+    code += `ascii16_far_target_addr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Target entry address for RAM far-call bridge (16-bit)\n`;
+    currentAddress += 2;
+    code += `ascii16_resident_call_target_addr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Resident target address for RAM bridge (16-bit)\n`;
+    currentAddress += 2;
+    code += `ascii16_resident_call_saved_hl EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Saved HL input while RAM resident-call bridge stages target address\n`;
+    currentAddress += 2;
+    code += `ascii16_resident_call_saved_de EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Saved DE input while RAM resident-call bridge stages return address\n`;
+    currentAddress += 2;
+    code += `ascii16_resident_call_old_bank EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous far lower-page bank for RAM resident-call restore\n`;
+    currentAddress++;
+    code += `ascii16_irq_saved_bank EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Interrupted lower-page bank restored after ASCII16 RAM ISR\n`;
+    currentAddress++;
+  }
 
   code += `frame_counter       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame counter (16-bit)\n`;
   currentAddress += 2;
@@ -789,8 +946,11 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress += 2;
   code += `RUNTIME_SCREEN_MAP_SIZE EQU 768\n`;
   code += `MAX_RUNTIME_EFFECT_ZONES EQU ${maxRuntimeEffectZones}\n`;
-  code += `runtime_background_layout EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Immutable copy of current background layout (32x24)\n`;
-  currentAddress += 768;
+  code += `RUNTIME_KEEP_BACKGROUND_LAYOUT EQU ${keepRuntimeBackgroundLayout ? 1 : 0}\n`;
+  if (keepRuntimeBackgroundLayout) {
+    code += `runtime_background_layout EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Immutable copy of current background layout (32x24)\n`;
+    currentAddress += 768;
+  }
   code += `runtime_screen_layout  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current screen layout (32x24)\n`;
   currentAddress += 768;
   code += `runtime_behavior_map   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current behavior map (32x24)\n`;
@@ -811,6 +971,11 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress += 2;
   code += `runtime_effect_zone_table EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current screen effect zone table (${runtimeEffectZoneTableBytes} bytes)\n`;
   currentAddress += runtimeEffectZoneTableBytes;
+  code += `RUNTIME_SECRET_RESTORE_BUFFER_SIZE EQU ${runtimeSecretRestoreBufferSize}\n`;
+  if (runtimeSecretRestoreBufferSize > 0) {
+    code += `secret_zone_restore_buffer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Compact restore buffer for one active secret-zone rect (${runtimeSecretRestoreBufferSize} bytes)\n`;
+    currentAddress += runtimeSecretRestoreBufferSize;
+  }
   code += `current_effect_zone_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of effect zones copied into runtime_effect_zone_table\n`;
   currentAddress++;
   code += `secret_zone_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 if hero is currently inside an active secret zone\n`;
@@ -864,10 +1029,6 @@ export function generateVariablesFile(analysis: ProjectAnalysis, romMode: string
   currentAddress++;
   code += `anim_tile_speed     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames between animation updates\n`;
   currentAddress++;
-  code += `anim_tile_transform_flags EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime flags for transform-mode tile animation (byte0=flags, byte1=opcode scratch)\r\n`;
-  currentAddress += 2;
-  code += `anim_tile_row_buffer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temp buffer (8 bytes) for row transforms\n`;
-  currentAddress += 8;
 
   // Entity system variables (MAX_ENTITIES = 32)
   code += `
@@ -881,6 +1042,9 @@ MAX_ENTITIES        EQU 32
   currentAddress += 32;
 
   code += `entity_is_player    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity hero/player flag (32 bytes, 0=no, 1=yes)\n`;
+  currentAddress += 32;
+
+  code += `entity_limit_on     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Limit_on screen-edge clamp flag (32 bytes, 0=no, 1=yes)\n`;
   currentAddress += 32;
 
   code += `entity_button_contact_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 while entity stays on the same button tile (32 bytes)\n`;
@@ -911,7 +1075,20 @@ MAX_ENTITIES        EQU 32
   currentAddress += 32;
   code += `entity_wallgrab_lockout EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Wall grab disabled until grounded after timer is spent (32 bytes)\n`;
   currentAddress += 32;
+  code += `entity_wallgrab_cfg_enabled EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime WallGrab enabled flag per entity (32 bytes)\n`;
+  currentAddress += 32;
+  code += `entity_wallgrab_cfg_fall_speed EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime WallGrab fall speed per entity (32 bytes)\n`;
+  currentAddress += 32;
+  code += `entity_wallgrab_cfg_climb_speed EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime WallGrab climb speed per entity (32 bytes)\n`;
+  currentAddress += 32;
+  code += `entity_wallgrab_cfg_duration_frames EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime WallGrab duration per entity (32 bytes)\n`;
+  currentAddress += 32;
+  code += `entity_wallgrab_cfg_grab_sprite EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime WallGrab sprite index per entity (32 bytes)\n`;
+  currentAddress += 32;
   code += `entity_walljump_anim_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Wall jump one-shot animation is waiting to restore base sprite (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_dash_cfg_enabled EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime Dash enabled flag per entity (32 bytes)\n`;
   currentAddress += 32;
 
   code += `entity_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity X positions (32 bytes)\n`;
@@ -992,6 +1169,27 @@ MAX_ENTITIES        EQU 32
 
   code += `entity_carried_by   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity carrier ID (32 bytes, 255=not carried)\n`;
   currentAddress += 32;
+
+  code += `entity_carry_held   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity carried by this carrier (32 bytes, 255=none)\n`;
+  currentAddress += 32;
+
+  code += `entity_carry_base_sprite EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite asset to restore after carrying (32 bytes, 255=none)\n`;
+  currentAddress += 32;
+
+  code += `entity_box_state    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Box runtime state (0=sprite,1=carried,2=dropped tiles) (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_box_tile_x   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dropped box tile X (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_box_tile_y   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Dropped box tile Y (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_box_restore_valid EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when dropped box restore buffer is valid (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_box_restore_chars EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Underlying tile chars for dropped boxes (32*16 bytes)\n`;
+  currentAddress += 32 * 16;
 
   code += `entity_template_token EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity template token (32 bytes, 0=unknown)\n`;
   currentAddress += 32;
@@ -1245,6 +1443,17 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   code += `temp_byte_2         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage\n`;
   currentAddress++;
 
+  code += `carry_tmp_word_1    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Carry/box private 16-bit scratch\n`;
+  currentAddress += 2;
+
+  code += `carry_tmp_word_2    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Carry/box private 16-bit scratch\n`;
+  currentAddress += 2;
+
+  for (let i = 1; i <= 15; i++) {
+    code += `carry_tmp_byte_${i.toString().padEnd(2, ' ')} EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Carry/box private 8-bit scratch\n`;
+    currentAddress++;
+  }
+
   code += `temp_byte_3         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
   currentAddress += 32;
 
@@ -1341,6 +1550,31 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
 
   code += `temp_byte_28        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
   currentAddress += 32;
+
+  code += `temp_byte_29        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_30        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_31        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_32        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `shoot_char_active   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when the single char projectile is active\n`;
+  currentAddress++;
+  code += `shoot_char_x        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Char projectile X tile (0-31)\n`;
+  currentAddress++;
+  code += `shoot_char_y        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Char projectile Y tile (0-23)\n`;
+  currentAddress++;
+  code += `shoot_char_dir      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Char projectile direction (1=left,2=right)\n`;
+  currentAddress++;
+  code += `shoot_char_code     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen char used by char projectile\n`;
+  currentAddress++;
+  code += `shoot_char_restore  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Background char under current projectile cell\n`;
+  currentAddress++;
 
   code += `tileDead_dbg        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Debug byte: current hero deadly contact\n`;
   currentAddress++;
@@ -1455,6 +1689,9 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   currentAddress++;
 
   code += `interrupt_in_progress   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 while the H.TIMI dispatcher is running\n`;
+  currentAddress++;
+
+  code += `far_call_irq_lock_depth EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Nonzero while far trampolines own an IRQ-masked mapper window\n`;
   currentAddress++;
 
   code += `RAM_INTERRUPT_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; End of interrupt system\n`;
@@ -1637,6 +1874,10 @@ ZX0_SCREEN_BUFFER       EQU #${zx0LargeScratchBase.toString(16).toUpperCase().pa
 ZX0_BEHAVIOR_BUFFER     EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Behavior map scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
 ZX0_TILE_PATTERN_BUFFER EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile pattern scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
 ZX0_TILE_COLOR_BUFFER   EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Tile color scratch (shares ${ZX0_SHARED_SCRATCH_SIZE}-byte area)
+ZX0_VRAM_TRANSFER_BUFFER EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}  ; Fast ROM-to-VRAM staging for compressed resources that fit the shared scratch
+ZX0_VRAM_TRANSFER_BUFFER_SIZE EQU ${ZX0_SHARED_SCRATCH_SIZE}   ; Staging threshold; larger MegaROM resources decode direct to VRAM
+ZX0_VRAM_TRANSFER_BUFFER_LIMIT_HIGH EQU #${(ZX0_SHARED_SCRATCH_SIZE >> 8).toString(16).toUpperCase().padStart(2, '0')}   ; High byte for BC <= staging threshold
+ZX0_VRAM_TRANSFER_BUFFER_LIMIT_NEXT_LOW EQU #${((ZX0_SHARED_SCRATCH_SIZE + 1) & 0xFF).toString(16).toUpperCase().padStart(2, '0')}   ; Low byte one past threshold when high bytes match
 page0_transfer_buffer   EQU #${zx0LargeScratchBase.toString(16).toUpperCase().padStart(4, '0')}   ; Page-0 copy staging buffer (shares scratch area)
 ZX0_SCRATCH_END         EQU #${zx0ScratchEnd.toString(16).toUpperCase().padStart(4, '0')}   ; First byte after shared ZX0 scratch area
 `;

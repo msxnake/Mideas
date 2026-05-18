@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\patoantic248_ascii16_openmsx_after_bridge_boot_compressed.asm",
+  "metrics": {
+    "original_line_count": 45725,
+    "output_line_count": 45725,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-gm_8712c\\patoantic248_ascii16_openmsx_after_bridge_boot_compressed.optimized.optimized.rom",
+        "size_bytes": 188416,
+        "sha256": "658e38372f3c1e940328046ac7dcc6dd5c275b51de3d07aef84f8da75d886abc"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-gm_8712c\\patoantic248_ascii16_openmsx_after_bridge_boot_compressed.original.rom",
+        "size_bytes": 188416,
+        "sha256": "658e38372f3c1e940328046ac7dcc6dd5c275b51de3d07aef84f8da75d886abc"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

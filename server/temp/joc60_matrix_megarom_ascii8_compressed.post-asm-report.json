@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\joc60_matrix_megarom_ascii8_compressed.asm",
+  "metrics": {
+    "original_line_count": 30377,
+    "output_line_count": 30377,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-1kr_ypyh\\joc60_matrix_megarom_ascii8_compressed.optimized.optimized.rom",
+        "size_bytes": 139264,
+        "sha256": "367cce6a80477872e38c4389eec610873a92b4003851cbeecb6c03baa70a5309"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-1kr_ypyh\\joc60_matrix_megarom_ascii8_compressed.original.rom",
+        "size_bytes": 139264,
+        "sha256": "367cce6a80477872e38c4389eec610873a92b4003851cbeecb6c03baa70a5309"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

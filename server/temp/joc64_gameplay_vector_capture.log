@@ -1,0 +1,16 @@
+right_down tick=255 player=65535,65535 projectileActive=255 projectile=255,255 vel=-1,-1 target=255
+jump1_before tick=255 player=65535,65535 projectileActive=255 projectile=255,255 vel=-1,-1 target=255
+jump1_after tick=255 player=65535,65535 projectileActive=255 projectile=255,255 vel=-1,-1 target=255
+frame1 tick=255 player=65535,65535 projectileActive=255 projectile=255,255 vel=-1,-1 target=255
+SHOTOK joc64_gameplay_frame1.png
+jump2_before tick=000 player=16,144 projectileActive=0 projectile=255,255 vel=-1,-1 target=255
+jump2_after tick=000 player=16,144 projectileActive=0 projectile=255,255 vel=-1,-1 target=255
+frame2 tick=064 player=144,144 projectileActive=0 projectile=255,255 vel=-1,-1 target=0
+SHOTOK joc64_gameplay_frame2.png
+jump3_before tick=085 player=186,147 projectileActive=0 projectile=255,255 vel=-1,-1 target=0
+jump3_after tick=093 player=202,121 projectileActive=0 projectile=255,255 vel=-1,-1 target=0
+jump4_before tick=150 player=60,144 projectileActive=0 projectile=161,209 vel=3,3 target=0
+jump4_after tick=158 player=76,118 projectileActive=0 projectile=161,209 vel=3,3 target=0
+frame3 tick=202 player=164,144 projectileActive=0 projectile=161,209 vel=3,3 target=0
+SHOTOK joc64_gameplay_frame3.png
+right_up tick=215 player=190,150 projectileActive=0 projectile=161,209 vel=3,3 target=0

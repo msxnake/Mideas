@@ -1,0 +1,13 @@
+MEGAROM PACKING MANIFEST
+Zone size: 8192
+Data start address: #A000
+Total resource blocks: 3
+
+BANK 03 used 1546 / 8192
+- tile_pattern_bank0                 982 stored /  1008 raw bytes @ #8000 (rom #A000, offset +#0000) [PATTERNS/TILE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single patterns resource; ZX0 982/1008 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 6646 bytes
+- tile_color_bank0                   559 stored /  1008 raw bytes @ #83D6 (rom #A3D6, offset +#03D6) [COLORS/TILE_COLORS] flags=1
+  reason: post-ZX0 first-fit single colors resource; ZX0 559/1008 bytes; bank 3 zone 0 offset +#03D6; zone slack after pack 6646 bytes
+- SPRITE_PLACEHOLDER_PATTERN           5 stored /    32 raw bytes @ #8605 (rom #A605, offset +#0605) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0605; zone slack after pack 6646 bytes
+FREE 6646

@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\patoantic248_ascii16_no_upper_resident_compressed.asm",
+  "metrics": {
+    "original_line_count": 45723,
+    "output_line_count": 45723,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-bm2msbjq\\patoantic248_ascii16_no_upper_resident_compressed.optimized.optimized.rom",
+        "size_bytes": 188416,
+        "sha256": "e25b7f6a82e4842cf07b3436462bc7af711a4f17bd0cce98831a94244d82a115"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-bm2msbjq\\patoantic248_ascii16_no_upper_resident_compressed.original.rom",
+        "size_bytes": 188416,
+        "sha256": "e25b7f6a82e4842cf07b3436462bc7af711a4f17bd0cce98831a94244d82a115"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

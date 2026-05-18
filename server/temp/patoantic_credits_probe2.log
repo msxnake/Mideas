@@ -1,0 +1,16 @@
+RUN t75
+SHOTOK 01_title.png
+RUN sp1
+RUN t88
+SHOTOK 02_submenu.png
+RUN down
+RUN t100
+SHOTOK 03_credits_selected.png
+RUN sp2
+RUN t115
+SHOTOK 04_credits_screen.png
+RUN sp3
+RUN t140
+SHOTOK 05_after_exit.png
+RUN t170
+SHOTOK 06_after_wait.png

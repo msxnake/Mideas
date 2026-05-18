@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\patoantic248_ascii16_openmsx_emit_stubs_compressed.asm",
+  "metrics": {
+    "original_line_count": 46256,
+    "output_line_count": 46256,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-rizadwfs\\patoantic248_ascii16_openmsx_emit_stubs_compressed.optimized.optimized.rom",
+        "size_bytes": 188416,
+        "sha256": "0b3b38dbb66861e9c94fbdde2af0c9eb559872d65c1f14d4de9e1ed6500c9e89"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-rizadwfs\\patoantic248_ascii16_openmsx_emit_stubs_compressed.original.rom",
+        "size_bytes": 188416,
+        "sha256": "0b3b38dbb66861e9c94fbdde2af0c9eb559872d65c1f14d4de9e1ed6500c9e89"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

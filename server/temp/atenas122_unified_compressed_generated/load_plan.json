@@ -1,0 +1,415 @@
+{
+  "version": 1,
+  "scope": "konami8k_scene_load_plan",
+  "strategy": "group current banked resources by scene and physical bank; optimizer consumes this before repacking",
+  "mapper": {
+    "format": "konami",
+    "segmentSize": 8192,
+    "dataWindowPage": "p3",
+    "windowBase": "#A000",
+    "windowMask": "#1FFF",
+    "bankDivisor": "#2000"
+  },
+  "summary": {
+    "sceneCount": 4,
+    "resourceCount": 101,
+    "uniqueDataBanks": 3,
+    "totalSceneBankTouches": 10,
+    "maxSceneBankTouches": 3,
+    "totalStoredBytes": 17488,
+    "totalRawBytes": 41304,
+    "compressedResources": 85
+  },
+  "scenes": [
+    {
+      "index": 0,
+      "id": "screenmap_1778062394614",
+      "name": "pantalla1",
+      "tileBankAssetId": "tilebank_1778059819923",
+      "resourceCount": 10,
+      "totalStoredBytes": 574,
+      "totalRawBytes": 4722,
+      "compressedResources": 7,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 1,
+          "storedBytes": 48,
+          "rawBytes": 48,
+          "resourceIds": [
+            55
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_BLOCK_MAP"
+          ]
+        },
+        {
+          "bank": 4,
+          "count": 8,
+          "storedBytes": 487,
+          "rawBytes": 4418,
+          "resourceIds": [
+            56,
+            59,
+            61,
+            62,
+            54,
+            57,
+            58,
+            63
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA1_0_DATA",
+            "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+            "SCREEN_PANTALLA1_0_BLOCK_CATALOG",
+            "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA1_0_BOSS_TABLE",
+            "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP"
+          ]
+        },
+        {
+          "bank": 5,
+          "count": 1,
+          "storedBytes": 39,
+          "rawBytes": 256,
+          "resourceIds": [
+            60
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_CHAR_BEHAVIOR_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            55
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_BLOCK_MAP"
+          ]
+        },
+        {
+          "bank": 4,
+          "resourceIds": [
+            56,
+            59,
+            61,
+            62,
+            54,
+            57,
+            58,
+            63
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA1_0_DATA",
+            "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+            "SCREEN_PANTALLA1_0_BLOCK_CATALOG",
+            "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA1_0_BOSS_TABLE",
+            "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP"
+          ]
+        },
+        {
+          "bank": 5,
+          "resourceIds": [
+            60
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_CHAR_BEHAVIOR_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 1,
+      "id": "screenmap_1778230236021",
+      "name": "pantalla2",
+      "tileBankAssetId": "tilebank_1778059819923",
+      "resourceCount": 10,
+      "totalStoredBytes": 332,
+      "totalRawBytes": 4434,
+      "compressedResources": 8,
+      "banks": [
+        {
+          "bank": 3,
+          "count": 1,
+          "storedBytes": 31,
+          "rawBytes": 48,
+          "resourceIds": [
+            65
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA2_1_BLOCK_MAP"
+          ]
+        },
+        {
+          "bank": 4,
+          "count": 7,
+          "storedBytes": 97,
+          "rawBytes": 3842,
+          "resourceIds": [
+            67,
+            68,
+            66,
+            69,
+            71,
+            72,
+            73
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA2_1_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA2_1_BOSS_TABLE",
+            "SCREEN_PANTALLA2_1_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA2_1_DATA",
+            "SCREEN_PANTALLA2_1_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA2_1_INTERACTION_VALUE_MAP",
+            "SCREEN_PANTALLA2_1_INTERACTION_TARGET_MAP"
+          ]
+        },
+        {
+          "bank": 5,
+          "count": 2,
+          "storedBytes": 204,
+          "rawBytes": 544,
+          "resourceIds": [
+            64,
+            70
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA2_1_BLOCK_CATALOG",
+            "SCREEN_PANTALLA2_1_CHAR_BEHAVIOR_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            65
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA2_1_BLOCK_MAP"
+          ]
+        },
+        {
+          "bank": 4,
+          "resourceIds": [
+            67,
+            68,
+            66,
+            69,
+            71,
+            72,
+            73
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA2_1_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA2_1_BOSS_TABLE",
+            "SCREEN_PANTALLA2_1_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA2_1_DATA",
+            "SCREEN_PANTALLA2_1_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA2_1_INTERACTION_VALUE_MAP",
+            "SCREEN_PANTALLA2_1_INTERACTION_TARGET_MAP"
+          ]
+        },
+        {
+          "bank": 5,
+          "resourceIds": [
+            64,
+            70
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA2_1_BLOCK_CATALOG",
+            "SCREEN_PANTALLA2_1_CHAR_BEHAVIOR_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 2,
+      "id": "screenmap_1778230684484",
+      "name": "pantalla3",
+      "tileBankAssetId": "tilebank_1778059819923",
+      "resourceCount": 10,
+      "totalStoredBytes": 532,
+      "totalRawBytes": 4706,
+      "compressedResources": 8,
+      "banks": [
+        {
+          "bank": 4,
+          "count": 7,
+          "storedBytes": 148,
+          "rawBytes": 3122,
+          "resourceIds": [
+            75,
+            77,
+            78,
+            76,
+            79,
+            81,
+            82
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA3_2_BLOCK_MAP",
+            "SCREEN_PANTALLA3_2_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA3_2_BOSS_TABLE",
+            "SCREEN_PANTALLA3_2_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA3_2_DATA",
+            "SCREEN_PANTALLA3_2_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA3_2_INTERACTION_VALUE_MAP"
+          ]
+        },
+        {
+          "bank": 5,
+          "count": 3,
+          "storedBytes": 384,
+          "rawBytes": 1584,
+          "resourceIds": [
+            83,
+            74,
+            80
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA3_2_INTERACTION_TARGET_MAP",
+            "SCREEN_PANTALLA3_2_BLOCK_CATALOG",
+            "SCREEN_PANTALLA3_2_CHAR_BEHAVIOR_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 4,
+          "resourceIds": [
+            75,
+            77,
+            78,
+            76,
+            79,
+            81,
+            82
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA3_2_BLOCK_MAP",
+            "SCREEN_PANTALLA3_2_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA3_2_BOSS_TABLE",
+            "SCREEN_PANTALLA3_2_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA3_2_DATA",
+            "SCREEN_PANTALLA3_2_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA3_2_INTERACTION_VALUE_MAP"
+          ]
+        },
+        {
+          "bank": 5,
+          "resourceIds": [
+            83,
+            74,
+            80
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA3_2_INTERACTION_TARGET_MAP",
+            "SCREEN_PANTALLA3_2_BLOCK_CATALOG",
+            "SCREEN_PANTALLA3_2_CHAR_BEHAVIOR_TABLE"
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "index": 3,
+      "id": "screenmap_1778241953722",
+      "name": "d_pantalla1",
+      "tileBankAssetId": "tilebank_1778059819923",
+      "resourceCount": 10,
+      "totalStoredBytes": 255,
+      "totalRawBytes": 4370,
+      "compressedResources": 8,
+      "banks": [
+        {
+          "bank": 4,
+          "count": 2,
+          "storedBytes": 2,
+          "rawBytes": 2,
+          "resourceIds": [
+            87,
+            88
+          ],
+          "resourceLabels": [
+            "SCREEN_D_PANTALLA1_3_EFFECT_ZONE_TABLE",
+            "SCREEN_D_PANTALLA1_3_BOSS_TABLE"
+          ]
+        },
+        {
+          "bank": 5,
+          "count": 8,
+          "storedBytes": 253,
+          "rawBytes": 4368,
+          "resourceIds": [
+            84,
+            86,
+            89,
+            91,
+            92,
+            93,
+            90,
+            85
+          ],
+          "resourceLabels": [
+            "SCREEN_D_PANTALLA1_3_BLOCK_CATALOG",
+            "SCREEN_D_PANTALLA1_3_EFFECTS_LAYOUT",
+            "BEHAVIOR_D_PANTALLA1_3_DATA",
+            "SCREEN_D_PANTALLA1_3_INTERACTION_TYPE_MAP",
+            "SCREEN_D_PANTALLA1_3_INTERACTION_VALUE_MAP",
+            "SCREEN_D_PANTALLA1_3_INTERACTION_TARGET_MAP",
+            "SCREEN_D_PANTALLA1_3_CHAR_BEHAVIOR_TABLE",
+            "SCREEN_D_PANTALLA1_3_BLOCK_MAP"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 4,
+          "resourceIds": [
+            87,
+            88
+          ],
+          "resourceLabels": [
+            "SCREEN_D_PANTALLA1_3_EFFECT_ZONE_TABLE",
+            "SCREEN_D_PANTALLA1_3_BOSS_TABLE"
+          ]
+        },
+        {
+          "bank": 5,
+          "resourceIds": [
+            84,
+            86,
+            89,
+            91,
+            92,
+            93,
+            90,
+            85
+          ],
+          "resourceLabels": [
+            "SCREEN_D_PANTALLA1_3_BLOCK_CATALOG",
+            "SCREEN_D_PANTALLA1_3_EFFECTS_LAYOUT",
+            "BEHAVIOR_D_PANTALLA1_3_DATA",
+            "SCREEN_D_PANTALLA1_3_INTERACTION_TYPE_MAP",
+            "SCREEN_D_PANTALLA1_3_INTERACTION_VALUE_MAP",
+            "SCREEN_D_PANTALLA1_3_INTERACTION_TARGET_MAP",
+            "SCREEN_D_PANTALLA1_3_CHAR_BEHAVIOR_TABLE",
+            "SCREEN_D_PANTALLA1_3_BLOCK_MAP"
+          ]
+        }
+      ],
+      "warnings": []
+    }
+  ]
+}

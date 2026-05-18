@@ -44,7 +44,9 @@ function calculateGameFlowHash(gameFlow: GameFlowGraph): string {
       id: n.id,
       type: n.type,
       worldAssetId: (n as any).worldAssetId,
-      title: (n as any).title
+      title: (n as any).title,
+      text: (n as any).text,
+      speedFrames: (n as any).speedFrames
     })),
     connections: gameFlow.connections.map(c => ({
       from: c.from,
@@ -104,6 +106,8 @@ export function validateGameFlow(
   gameFlow.connections.forEach(conn => {
     const fromId = (conn.from as any)?.nodeId || conn.from;
     const toId = (conn.to as any)?.nodeId || conn.to;
+    const fromNode = fromId ? gameFlow.nodes.find(n => n.id === fromId) : undefined;
+    const toNode = toId ? gameFlow.nodes.find(n => n.id === toId) : undefined;
 
     // Check for connections with missing to/from
     if (!fromId) {
@@ -134,6 +138,14 @@ export function validateGameFlow(
         type: 'ERROR',
         message: `Connection references non-existent destination node: ${toId}`,
         nodeId: toId as string
+      });
+    }
+
+    if (toNode?.type === 'Controls' && fromNode?.type !== 'Transition') {
+      issues.push({
+        type: 'ERROR',
+        message: 'Controls node must be preceded by a Transition node',
+        nodeId: toNode.id
       });
     }
   });
@@ -272,6 +284,25 @@ export function validateGameFlow(
         issues.push({
           type: 'WARNING',
           message: 'Text node has no content',
+          nodeId: node.id
+        });
+      }
+    }
+
+    if (node.type === 'TextScroll' || node.type === 'TextScrollColor' || node.type === 'TextScroll2') {
+      const text = (node as any).text;
+      if (!text || String(text).trim() === '') {
+        issues.push({
+          type: 'WARNING',
+          message: `${node.type} node has no text`,
+          nodeId: node.id
+        });
+      }
+      const speedFrames = Number((node as any).speedFrames);
+      if (!Number.isFinite(speedFrames) || speedFrames < 1 || speedFrames > 8) {
+        issues.push({
+          type: 'WARNING',
+          message: `${node.type} speed should be between 1 and 8 frames per pixel`,
           nodeId: node.id
         });
       }

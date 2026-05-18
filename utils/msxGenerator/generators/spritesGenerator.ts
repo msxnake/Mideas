@@ -21,6 +21,8 @@ import { buildResourceIdLabelFromAsmLabel } from '../utils/megaromResourceArtifa
 const SPRITE_INVISIBLE_VALUE = 224; // MSX: Y >= 209 hides sprite, but 224 is safer off-screen
 const DEFAULT_DATA_FORMAT = 'hex';
 const SPRITE_PATTERN_SLOT_CAPACITY = 64; // MSX1 SPRPAT = 2048 bytes = 64 patterns of 16x16
+const BOSS_ATTACK_SPRITE_BASE_SLOT = 24;
+const BOSS_ATTACK_SPRITE_SLOT_COUNT = 8;
 
 /**
  * Analyze drawable palette layers for a sprite across ALL frames.
@@ -38,6 +40,41 @@ const clampLayerYOffset = (value: unknown): number => {
   const numeric = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(numeric)) return 0;
   return Math.max(-16, Math.min(16, Math.trunc(numeric)));
+};
+
+const hasBossAttackSpriteSlots = (analysis: ProjectAnalysis): boolean => {
+  const bosses = analysis.bosses || [];
+  return bosses.some((boss: any) => {
+    const attacks = boss?.attacks || [];
+    if (attacks.length === 0) return false;
+
+    const attackIds = new Set(attacks.map((attack: any) => attack?.id).filter(Boolean));
+    return (boss?.phases || []).some((phase: any) => {
+      const behaviorLoop = phase?.behaviorLoop || [];
+      return behaviorLoop.some((action: any) => (
+        action?.type === 'attack' && attackIds.has(action?.attackId)
+      ));
+    });
+  });
+};
+
+const collectBossAttackSpriteRefs = (analysis: ProjectAnalysis): unknown[] => {
+  const refs: unknown[] = [];
+  const bosses = analysis.bosses || [];
+
+  bosses.forEach((boss: any) => {
+    const attacks = boss?.attacks || [];
+    attacks.forEach((attack: any) => {
+      if (attack?.spriteAssetId) {
+        refs.push(attack.spriteAssetId);
+      }
+      if (attack?.explosionSpriteAssetId) {
+        refs.push(attack.explosionSpriteAssetId);
+      }
+    });
+  });
+
+  return refs;
 };
 
 const getSpritePaletteLayerYOffset = (sprite: any, paletteLayerIndex: number): number => {
@@ -407,6 +444,8 @@ const createRuntimeSpritePatternPackBuilder = (analysis: ProjectAnalysis) => {
       processStateMachine(resolveEntityStateMachineAssetId(entity, analysis));
       queueTemplate(entity?.entityTemplateId);
     }
+
+    collectBossAttackSpriteRefs(analysis).forEach(addSpriteReference);
 
     while (queuedTemplateIds.size > 0) {
       const templateId = queuedTemplateIds.values().next().value as string;
@@ -871,15 +910,22 @@ export function generateSpritesFile(
   // Always reserve full hardware sprite table (32) in RAM.
   // VRAM upload can be smaller: active range + one SAT end marker sprite.
   // However, if any SubMenu node uses a sprite cursor (slots 28-31),
-  // we must upload the full SAT so those slots reach VRAM.
+  // or any boss uses attack sprites (slots 24-31), we must upload the
+  // full SAT so those high slots reach VRAM.
   const totalHardwareSprites = 32;
   const SUBMENU_CURSOR_BASE = 28;
   const SUBMENU_CURSOR_MAX = 4;
   const hasSubmenuCursorSprite = (analysis.gameFlow?.nodes || []).some(
     (n: any) => n.type === 'SubMenu' && n.appearance?.cursorSpriteAssetId
   );
-  const maxUsedSlot = hasSubmenuCursorSprite
-    ? SUBMENU_CURSOR_BASE + SUBMENU_CURSOR_MAX
+  const highReservedSlot = Math.max(
+    hasSubmenuCursorSprite ? SUBMENU_CURSOR_BASE + SUBMENU_CURSOR_MAX : 0,
+    hasBossAttackSpriteSlots(analysis)
+      ? BOSS_ATTACK_SPRITE_BASE_SLOT + BOSS_ATTACK_SPRITE_SLOT_COUNT - 1
+      : 0
+  );
+  const maxUsedSlot = highReservedSlot > 0
+    ? highReservedSlot
     : Math.max(1, Math.min(currentHwSpriteIndex, totalHardwareSprites));
   const uploadHardwareSprites = Math.min(
     maxUsedSlot < totalHardwareSprites ? maxUsedSlot + 1 : totalHardwareSprites,
@@ -1013,7 +1059,9 @@ sprite_asset_frame_ptr_table:
 SPRITE_${index}_FRAME_PTRS:
 `;
     for (let f = 0; f < frames; f++) {
-      if (firstDrawableLayerIndex >= 0) {
+      if (useResourceManager) {
+        code += `    dw 0\n`;
+      } else if (firstDrawableLayerIndex >= 0) {
         code += `    dw ${safeSpriteName}_F${f}_LAYER${firstDrawableLayerIndex}\n`;
       } else {
         code += `    dw SPRITE_PLACEHOLDER_PATTERN\n`;
@@ -1023,7 +1071,7 @@ SPRITE_${index}_FRAME_PTRS:
   if (sprites.length === 0) {
     code += `
 SPRITE_0_FRAME_PTRS:
-    dw SPRITE_PLACEHOLDER_PATTERN
+    dw ${useResourceManager ? '0' : 'SPRITE_PLACEHOLDER_PATTERN'}
 `;
   }
 
@@ -1076,8 +1124,14 @@ entity_sprite_asset_index_init:
     code += `    ds ${32 - entityAllocations.length}, #FF ; Padding\n`;
   }
 
-  // Compute max layer count across all entity allocations (used by SM color update)
-  const maxEntityLayers = Math.max(1, ...entityAllocations.map(a => a.layerCount));
+  // Compute max layer count across runtime sprites. Boss attacks can reference
+  // sprite assets that are not assigned to any entity, but still need the same
+  // per-layer color/y-offset tables as entity sprites.
+  const maxEntityLayers = Math.max(
+    1,
+    ...entityAllocations.map(a => a.layerCount),
+    ...sprites.map(sprite => getSpriteLayerColors(sprite).length)
+  );
 
   code += `SPRITE_MAX_ENTITY_LAYERS EQU ${maxEntityLayers}  ; Max HW sprite layers per entity\n`;
 
@@ -1305,7 +1359,7 @@ ${usesMapper && !useResourceManager ? `    call mapper_push_${mapperWindow.dataW
 ${useResourceManager ? `    ld a, ${buildResourceIdLabelFromAsmLabel('SPRITE_PLACEHOLDER_PATTERN')}
     ld de, SPRPAT + (${frameBaseSlot} * 32)
     call resource_load_to_vram_by_id
-` : `${usesMapper ? `    ld a, SPRITE_PLACEHOLDER_PATTERN_BANK\n    call mapper_set_bank_${mapperWindow.dataWindowPage}\n` : ''}    ld hl, ${usesMapper ? buildMapperWindowedAddress('SPRITE_PLACEHOLDER_PATTERN', mapperWindow) : 'SPRITE_PLACEHOLDER_PATTERN'}
+` : `${usesMapper ? `    ld a, SPRITE_PLACEHOLDER_PATTERN_BANK & #FF\n    call mapper_set_bank_${mapperWindow.dataWindowPage}\n` : ''}    ld hl, ${usesMapper ? buildMapperWindowedAddress('SPRITE_PLACEHOLDER_PATTERN', mapperWindow) : 'SPRITE_PLACEHOLDER_PATTERN'}
     ld de, SPRPAT + (${frameBaseSlot} * 32)
     ld bc, 32
     call FAST_LDIRVM
@@ -1321,7 +1375,7 @@ ${useResourceManager ? `    ld a, ${buildResourceIdLabelFromAsmLabel('SPRITE_PLA
             });
           } else {
             code += `    ; Sprite Asset ${spriteIndex}: ${sprite.name} frame ${frameIndex} (${usage.layerCount} layers)
-${usesMapper ? `    ld a, SPRITE_${spriteIndex}_PATTERN_BANK\n    call mapper_set_bank_${mapperWindow.dataWindowPage}\n` : ''}    ld hl, ${usesMapper ? buildMapperWindowedAddress(`${safeSpriteName}_F${frameIndex}_LAYER${firstDrawableLayerIndex}`, mapperWindow) : `${safeSpriteName}_F${frameIndex}_LAYER${firstDrawableLayerIndex}`}
+${usesMapper ? `    ld a, SPRITE_${spriteIndex}_PATTERN_BANK & #FF\n    call mapper_set_bank_${mapperWindow.dataWindowPage}\n` : ''}    ld hl, ${usesMapper ? buildMapperWindowedAddress(`${safeSpriteName}_F${frameIndex}_LAYER${firstDrawableLayerIndex}`, mapperWindow) : `${safeSpriteName}_F${frameIndex}_LAYER${firstDrawableLayerIndex}`}
     ld de, SPRPAT + (${frameBaseSlot} * 32)
     ld bc, ${usage.layerCount * 32}
     call FAST_LDIRVM
@@ -1338,7 +1392,7 @@ ${useResourceManager ? `    ld a, ${buildResourceIdLabelFromAsmLabel('SPRITE_PLA
     ld a, SPRITE_PATTERN_PACK_${pack.label.toUpperCase()}_ID
     ld (current_sprite_pattern_pack_id), a
     ret
-` : `${usesMapper ? `    ld a, SPRITE_PLACEHOLDER_PATTERN_BANK\n    call mapper_set_bank_${mapperWindow.dataWindowPage}\n` : ''}    ld hl, ${usesMapper ? buildMapperWindowedAddress('SPRITE_PLACEHOLDER_PATTERN', mapperWindow) : 'SPRITE_PLACEHOLDER_PATTERN'}
+` : `${usesMapper ? `    ld a, SPRITE_PLACEHOLDER_PATTERN_BANK & #FF\n    call mapper_set_bank_${mapperWindow.dataWindowPage}\n` : ''}    ld hl, ${usesMapper ? buildMapperWindowedAddress('SPRITE_PLACEHOLDER_PATTERN', mapperWindow) : 'SPRITE_PLACEHOLDER_PATTERN'}
     ld de, SPRPAT + (${pack.placeholderSlot} * 32)
     ld bc, 32
     call FAST_LDIRVM
@@ -1423,6 +1477,7 @@ ensure_sprite_patterns_for_world_id:
 ; ==================================================================
 
 ; A = hardware sprite index, B = X, C = Y, D = pattern, E = color
+; @mideas:block id=runtime.sprites.show_sprite_legacy kind=routine owner=sprites
 show_sprite:
     ; Safety check: Ensure sprite index < 32
     cp 32
@@ -1464,6 +1519,7 @@ show_sprite:
     ld a, 1
     ld (sprites_dirty), a
     ret
+; @mideas:endblock id=runtime.sprites.show_sprite_legacy
 
 ; Clear all sprites (set Y = SPRITE_INVISIBLE)
 ; OPTIMIZED: Uses faster increment method instead of ADD HL,DE

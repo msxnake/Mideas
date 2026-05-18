@@ -1,0 +1,6 @@
+[31merror when starting dev server:
+Error: Port 5173 is already in use
+    at Server.onError (file:///C:/Users/salam/Documents/Programacion/Mideas/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:25023:18)
+    at Server.emit (node:events:519:28)
+    at emitErrorNT (node:net:1976:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)[39m

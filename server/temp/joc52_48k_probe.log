@@ -1,0 +1,7 @@
+start
+t1 pc=33053 sp=62198 p1=0 p2=0 p3=0 p4=0 flow=0 exit=0 screen=34
+t4 pc=16657 sp=62316 p1=0 p2=0 p3=0 p4=0 flow=0 exit=0 screen=34
+shot_t4 OK
+space1 pc=12 sp=65534 p1=255 p2=255 p3=255 p4=255 flow=255 exit=255 screen=255
+space2 pc=709 sp=65512 p1=255 p2=255 p3=255 p4=255 flow=255 exit=255 screen=255
+done pc=65535 sp=65530 p1=255 p2=255 p3=255 p4=255 flow=255 exit=255 screen=255

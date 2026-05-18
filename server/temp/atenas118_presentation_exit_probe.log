@@ -1,0 +1,11 @@
+present_5_8 pc=8CDE sp=F37C p=01/02/03 flow=00 input=00 prev=00 btn=00 fire=00
+SHOTOK atenas118_exit_probe_01_present.png
+space_down_6_5 pc=8CDE sp=F37C p=01/02/03 flow=00 input=00 prev=00 btn=00 fire=00
+space_held_6_7 pc=8CEE sp=F37C p=01/02/03 flow=00 input=00 prev=00 btn=00 fire=00
+space_up_6_9 pc=8CEE sp=F37C p=01/02/03 flow=00 input=00 prev=00 btn=00 fire=00
+after_space_7_6 pc=943D sp=F378 p=01/02/03 flow=00 input=00 prev=00 btn=00 fire=00
+SHOTOK atenas118_exit_probe_02_after_space.png
+later_9_5 pc=40DE sp=F374 p=0D/02/03 flow=00 input=00 prev=00 btn=00 fire=00
+SHOTOK atenas118_exit_probe_03_later.png
+final_12_0 pc=6360 sp=F372 p=0D/02/03 flow=00 input=00 prev=00 btn=00 fire=00
+SHOTOK atenas118_exit_probe_04_final.png

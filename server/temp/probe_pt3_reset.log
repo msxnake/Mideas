@@ -1,0 +1,15 @@
+t_0_5 pc=108B sp=F2FE banks=FF/FF/FF music=FF muted=FF loop=FF track=FF setup=FF pt3mod=FFFF delay=FF cnt=FF
+t_1_0 pc=108B sp=F2FE banks=FF/FF/FF music=FF muted=FF loop=FF track=FF setup=FF pt3mod=FFFF delay=FF cnt=FF
+t_2_0 pc=108B sp=F2FE banks=FF/FF/FF music=FF muted=FF loop=FF track=FF setup=FF pt3mod=FFFF delay=FF cnt=FF
+BP_4010_RESET_1 pc=4010 sp=F2EC banks=FF/FF/FF music=FF muted=FF loop=FF track=FF setup=FF pt3mod=FFFF delay=FF cnt=FF
+t_3_0 pc=40E0 sp=F36A banks=13/02/03 music=00 muted=00 loop=00 track=00 setup=00 pt3mod=FFFF delay=FF cnt=FF
+t_4_0 pc=8CE5 sp=F37C banks=01/02/03 music=01 muted=00 loop=01 track=00 setup=00 pt3mod=685A delay=21 cnt=0C
+t_5_0 pc=8CE5 sp=F37C banks=01/02/03 music=01 muted=00 loop=01 track=00 setup=00 pt3mod=685A delay=21 cnt=02
+t_6_0 pc=8CE5 sp=F37C banks=01/02/03 music=01 muted=00 loop=01 track=00 setup=00 pt3mod=685A delay=21 cnt=11
+t_8_0 pc=8CE5 sp=F37C banks=01/02/03 music=01 muted=00 loop=01 track=00 setup=00 pt3mod=685A delay=21 cnt=10
+t_10_0 pc=8CE5 sp=F37C banks=01/02/03 music=01 muted=00 loop=01 track=00 setup=00 pt3mod=685A delay=21 cnt=0F
+t_12_0 pc=41C2 sp=F34E banks=01/02/03 music=01 muted=00 loop=01 track=00 setup=00 pt3mod=685A delay=21 cnt=0D
+t_15_0 pc=8CE5 sp=F37C banks=01/02/03 music=01 muted=00 loop=01 track=00 setup=00 pt3mod=685A delay=21 cnt=1C
+t_20_0 pc=8CE5 sp=F37C banks=01/02/03 music=01 muted=00 loop=01 track=00 setup=00 pt3mod=685A delay=21 cnt=08
+t_25_0 pc=1997 sp=F364 banks=01/02/03 music=01 muted=00 loop=01 track=00 setup=00 pt3mod=685A delay=21 cnt=15
+t_30_0 pc=94FC sp=F376 banks=01/02/03 music=01 muted=00 loop=01 track=00 setup=00 pt3mod=685A delay=21 cnt=02

@@ -1,0 +1,283 @@
+{
+  "version": 1,
+  "scope": "konami8k_segment_budget",
+  "segmentSize": 8192,
+  "codeBanks": [
+    {
+      "bank": 1,
+      "role": "resident_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 55656,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "components",
+          "estimatedBytes": 55656
+        }
+      ]
+    },
+    {
+      "bank": 2,
+      "role": "resident_code",
+      "page": 2,
+      "orgAddress": 32768,
+      "endAddress": 40960,
+      "estimatedUsedBytes": 24393,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "statemachine",
+          "estimatedBytes": 24393
+        }
+      ]
+    },
+    {
+      "bank": 3,
+      "role": "resident_code",
+      "page": 3,
+      "orgAddress": 40960,
+      "endAddress": 49152,
+      "estimatedUsedBytes": 17281,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "gameflow",
+          "estimatedBytes": 17281
+        }
+      ]
+    },
+    {
+      "bank": 4,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 21873,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "screens_code",
+          "estimatedBytes": 21873
+        }
+      ]
+    },
+    {
+      "bank": 5,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 12589,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "entities",
+          "estimatedBytes": 12589
+        }
+      ]
+    },
+    {
+      "bank": 6,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 10445,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "sprites",
+          "estimatedBytes": 10445
+        }
+      ]
+    },
+    {
+      "bank": 7,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 9171,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "worlds",
+          "estimatedBytes": 9171
+        }
+      ]
+    },
+    {
+      "bank": 8,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 7403,
+      "estimatedFreeBytes": 789,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "sound",
+          "estimatedBytes": 7403
+        }
+      ]
+    },
+    {
+      "bank": 9,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 5666,
+      "estimatedFreeBytes": 2526,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "bosses",
+          "estimatedBytes": 5666
+        }
+      ]
+    },
+    {
+      "bank": 10,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 4290,
+      "estimatedFreeBytes": 3902,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "hud",
+          "estimatedBytes": 4290
+        }
+      ]
+    },
+    {
+      "bank": 11,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 3914,
+      "estimatedFreeBytes": 4278,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "animtiles",
+          "estimatedBytes": 3914
+        }
+      ]
+    },
+    {
+      "bank": 12,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 3576,
+      "estimatedFreeBytes": 4616,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "font",
+          "estimatedBytes": 3576
+        }
+      ]
+    },
+    {
+      "bank": 13,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 2353,
+      "estimatedFreeBytes": 5839,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "scroll",
+          "estimatedBytes": 2353
+        }
+      ]
+    },
+    {
+      "bank": 14,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 894,
+      "estimatedFreeBytes": 7298,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "patterns_code",
+          "estimatedBytes": 894
+        }
+      ]
+    },
+    {
+      "bank": 15,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 846,
+      "estimatedFreeBytes": 7346,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "colors_code",
+          "estimatedBytes": 846
+        }
+      ]
+    },
+    {
+      "bank": 16,
+      "role": "far_code",
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "estimatedUsedBytes": 454,
+      "estimatedFreeBytes": 7738,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "menus",
+          "estimatedBytes": 454
+        }
+      ]
+    }
+  ],
+  "dataBanks": [
+    {
+      "bank": 17,
+      "role": "asset_data",
+      "orgAddress": 155648,
+      "endAddress": 163840,
+      "usedBytes": 8022,
+      "freeBytes": 170,
+      "resources": 93
+    },
+    {
+      "bank": 18,
+      "role": "asset_data",
+      "orgAddress": 163840,
+      "endAddress": 172032,
+      "usedBytes": 2537,
+      "freeBytes": 5655,
+      "resources": 42
+    }
+  ]
+}

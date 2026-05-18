@@ -1,0 +1,224 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\post_asm_endpoint_test_1778141511533_749809.post_asm_input.asm",
+  "metrics": {
+    "original_line_count": 13,
+    "output_line_count": 13,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {
+      "dead-blocks": {
+        "findings": 1,
+        "patchable": 0,
+        "routines": [
+          "dead_block"
+        ],
+        "removed_lines": 0,
+        "removed_source_bytes": 0
+      }
+    },
+    "block_inventory": {
+      "count": 2,
+      "preserved": 0,
+      "removable": 2,
+      "dead_block_candidates": 1,
+      "total_lines": 8,
+      "total_source_bytes": 243,
+      "dead_candidate_lines": 4,
+      "dead_candidate_source_bytes": 123,
+      "by_kind": {
+        "component": 2
+      },
+      "by_owner": {
+        "test": 2
+      },
+      "by_status": {
+        "candidate_unreferenced": 1,
+        "rooted": 1
+      },
+      "largest_blocks": [
+        {
+          "id": "dead_block",
+          "kind": "component",
+          "owner": "test",
+          "status": "candidate_unreferenced",
+          "line_count": 4,
+          "source_bytes": 123
+        },
+        {
+          "id": "live_block",
+          "kind": "component",
+          "owner": "test",
+          "status": "rooted",
+          "line_count": 4,
+          "source_bytes": 120
+        }
+      ],
+      "errors": []
+    },
+    "routine_inventory": {
+      "count": 3,
+      "unannotated_count": 1,
+      "by_category": {
+        "boot_or_init": {
+          "count": 2,
+          "line_count": 8,
+          "source_bytes": 175,
+          "unannotated_count": 1,
+          "unannotated_line_count": 5,
+          "unannotated_source_bytes": 108
+        },
+        "runtime_code": {
+          "count": 1,
+          "line_count": 5,
+          "source_bytes": 110,
+          "unannotated_count": 0,
+          "unannotated_line_count": 0,
+          "unannotated_source_bytes": 0
+        }
+      },
+      "largest_routines": [
+        {
+          "name": "live_label",
+          "line_count": 5,
+          "source_bytes": 110,
+          "block_id": "live_block",
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "boot_entry",
+          "line_count": 5,
+          "source_bytes": 108,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        },
+        {
+          "name": "init_auto_destroy_system",
+          "line_count": 3,
+          "source_bytes": 67,
+          "block_id": "dead_block",
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        }
+      ],
+      "largest_unannotated_labels": [
+        {
+          "name": "boot_entry",
+          "line_count": 5,
+          "source_bytes": 108,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        }
+      ],
+      "largest_unannotated_by_category": {
+        "boot_or_init": [
+          {
+            "name": "boot_entry",
+            "line_count": 5,
+            "source_bytes": 108,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          }
+        ]
+      }
+    },
+    "optimization_passes": [],
+    "optimization_summary": {
+      "passes_run": 0,
+      "removed_lines": 0,
+      "removed_source_bytes": 0
+    }
+  },
+  "blocks": [
+    {
+      "id": "live_block",
+      "kind": "component",
+      "owner": "test",
+      "preserve": false,
+      "start_line": 5,
+      "end_line": 8,
+      "line_count": 4,
+      "labels": [
+        "live_label"
+      ],
+      "deps": [],
+      "roots": [
+        "boot"
+      ],
+      "attrs": {
+        "id": "live_block",
+        "kind": "component",
+        "owner": "test",
+        "roots": "boot"
+      }
+    },
+    {
+      "id": "dead_block",
+      "kind": "component",
+      "owner": "test",
+      "preserve": false,
+      "start_line": 10,
+      "end_line": 13,
+      "line_count": 4,
+      "labels": [
+        "init_auto_destroy_system"
+      ],
+      "deps": [],
+      "roots": [],
+      "attrs": {
+        "id": "dead_block",
+        "kind": "component",
+        "owner": "test"
+      }
+    }
+  ],
+  "block_analysis": [
+    {
+      "block_id": "live_block",
+      "status": "rooted",
+      "candidate": false,
+      "reason": "Block declares root tags: boot.",
+      "external_reference_count": 1,
+      "line_count": 4,
+      "source_bytes": 120,
+      "incoming_references": [
+        {
+          "label": "live_label",
+          "line": 2,
+          "source_block_id": null,
+          "source_label": "boot_entry",
+          "raw": "call live_label"
+        }
+      ],
+      "incoming_reference_truncated": 0
+    },
+    {
+      "block_id": "dead_block",
+      "status": "candidate_unreferenced",
+      "candidate": true,
+      "reason": "No external references found for any global label in this block.",
+      "external_reference_count": 0,
+      "line_count": 4,
+      "source_bytes": 123,
+      "incoming_references": [],
+      "incoming_reference_truncated": 0
+    }
+  ],
+  "block_errors": [],
+  "findings": [
+    {
+      "rule_id": "dead-blocks",
+      "title": "Annotated ASM block has no proven external references",
+      "routine": "dead_block",
+      "line_start": 10,
+      "line_end": 13,
+      "summary": "Block `dead_block` (component/test) is a dead-code candidate. No external references found for any global label in this block. Labels: init_auto_destroy_system.",
+      "patchable": false,
+      "patch": null
+    }
+  ],
+  "applied_patches": 0
+}

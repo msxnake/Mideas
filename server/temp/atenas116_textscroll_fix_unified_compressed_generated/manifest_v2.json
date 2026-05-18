@@ -1,0 +1,2901 @@
+{
+  "schema": "mideas.manifest/2",
+  "build_id": "mideas-v2:22495c04",
+  "entry_point": "0x4000",
+  "boot_reserved_size": 0,
+  "cartridge": {
+    "mapper": "KONAMI8K",
+    "bank_size": 8192,
+    "banks": 6,
+    "data_window": {
+      "page": "p3",
+      "base": "#A000",
+      "mask": "#1FFF",
+      "bank_divisor": "#2000"
+    }
+  },
+  "layout": {
+    "policy": "post_zx0_deterministic_first_fit_decreasing",
+    "file_offset_rule": "file_offset = rom_bank_index * bank_size + bank_offset",
+    "data_start_address": 40960,
+    "total_source_bytes": 39224
+  },
+  "groups": [
+    {
+      "name": "boot",
+      "fixed_bank": 0,
+      "lifetime": "persistent"
+    },
+    {
+      "name": "colors",
+      "lifetime": "stream"
+    },
+    {
+      "name": "patterns",
+      "lifetime": "stream"
+    },
+    {
+      "name": "presentation",
+      "lifetime": "stream"
+    },
+    {
+      "name": "screens",
+      "lifetime": "stream"
+    },
+    {
+      "name": "sprites",
+      "lifetime": "persistent"
+    }
+  ],
+  "resources": [
+    {
+      "id": 0,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_WALK_RIGHT_0_F0_LAYER0.asm",
+      "symbol": "NINA_WALK_RIGHT_0_F0_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46577,
+        "bank_offset": 5617,
+        "file_offset": 38385,
+        "physical_address": 54769,
+        "align": 1
+      },
+      "size": {
+        "stored": 30,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 1,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_WALK_RIGHT_0_F0_LAYER1.asm",
+      "symbol": "NINA_WALK_RIGHT_0_F0_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48450,
+        "bank_offset": 7490,
+        "file_offset": 40258,
+        "physical_address": 56642,
+        "align": 1
+      },
+      "size": {
+        "stored": 25,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 2,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_WALK_RIGHT_0_F1_LAYER0.asm",
+      "symbol": "NINA_WALK_RIGHT_0_F1_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48475,
+        "bank_offset": 7515,
+        "file_offset": 40283,
+        "physical_address": 56667,
+        "align": 1
+      },
+      "size": {
+        "stored": 31,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 3,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_WALK_RIGHT_0_F1_LAYER1.asm",
+      "symbol": "NINA_WALK_RIGHT_0_F1_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48506,
+        "bank_offset": 7546,
+        "file_offset": 40314,
+        "physical_address": 56698,
+        "align": 1
+      },
+      "size": {
+        "stored": 27,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 4,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_JUMP_RIGHT_1_F0_LAYER0.asm",
+      "symbol": "NINA_JUMP_RIGHT_1_F0_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_JUMP_RIGHT_1_F0_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48533,
+        "bank_offset": 7573,
+        "file_offset": 40341,
+        "physical_address": 56725,
+        "align": 1
+      },
+      "size": {
+        "stored": 27,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 5,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_JUMP_RIGHT_1_F0_LAYER1.asm",
+      "symbol": "NINA_JUMP_RIGHT_1_F0_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_JUMP_RIGHT_1_F0_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48560,
+        "bank_offset": 7600,
+        "file_offset": 40368,
+        "physical_address": 56752,
+        "align": 1
+      },
+      "size": {
+        "stored": 24,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 6,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_LAND_RIGHT_2_F0_LAYER0.asm",
+      "symbol": "NINA_LAND_RIGHT_2_F0_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_LAND_RIGHT_2_F0_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42273,
+        "bank_offset": 1313,
+        "file_offset": 42273,
+        "physical_address": 58657,
+        "align": 1
+      },
+      "size": {
+        "stored": 30,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 7,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_LAND_RIGHT_2_F0_LAYER1.asm",
+      "symbol": "NINA_LAND_RIGHT_2_F0_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_LAND_RIGHT_2_F0_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42303,
+        "bank_offset": 1343,
+        "file_offset": 42303,
+        "physical_address": 58687,
+        "align": 1
+      },
+      "size": {
+        "stored": 23,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 8,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_LAND_RIGHT_2_F1_LAYER0.asm",
+      "symbol": "NINA_LAND_RIGHT_2_F1_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_LAND_RIGHT_2_F1_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42326,
+        "bank_offset": 1366,
+        "file_offset": 42326,
+        "physical_address": 58710,
+        "align": 1
+      },
+      "size": {
+        "stored": 28,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 9,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_LAND_RIGHT_2_F1_LAYER1.asm",
+      "symbol": "NINA_LAND_RIGHT_2_F1_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_LAND_RIGHT_2_F1_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42354,
+        "bank_offset": 1394,
+        "file_offset": 42354,
+        "physical_address": 58738,
+        "align": 1
+      },
+      "size": {
+        "stored": 27,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 10,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_LAND_RIGHT_2_F2_LAYER0.asm",
+      "symbol": "NINA_LAND_RIGHT_2_F2_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_LAND_RIGHT_2_F2_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42381,
+        "bank_offset": 1421,
+        "file_offset": 42381,
+        "physical_address": 58765,
+        "align": 1
+      },
+      "size": {
+        "stored": 30,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 11,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_LAND_RIGHT_2_F2_LAYER1.asm",
+      "symbol": "NINA_LAND_RIGHT_2_F2_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_LAND_RIGHT_2_F2_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42411,
+        "bank_offset": 1451,
+        "file_offset": 42411,
+        "physical_address": 58795,
+        "align": 1
+      },
+      "size": {
+        "stored": 26,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 12,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_DEAD_3_F0_LAYER0.asm",
+      "symbol": "NINA_DEAD_3_F0_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_DEAD_3_F0_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42437,
+        "bank_offset": 1477,
+        "file_offset": 42437,
+        "physical_address": 58821,
+        "align": 1
+      },
+      "size": {
+        "stored": 14,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 13,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_DEAD_3_F1_LAYER0.asm",
+      "symbol": "NINA_DEAD_3_F1_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_DEAD_3_F1_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42451,
+        "bank_offset": 1491,
+        "file_offset": 42451,
+        "physical_address": 58835,
+        "align": 1
+      },
+      "size": {
+        "stored": 27,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 14,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_DEAD_3_F2_LAYER0.asm",
+      "symbol": "NINA_DEAD_3_F2_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_DEAD_3_F2_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42478,
+        "bank_offset": 1518,
+        "file_offset": 42478,
+        "physical_address": 58862,
+        "align": 1
+      },
+      "size": {
+        "stored": 24,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 15,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_IDLE_RIGHT_4_F0_LAYER0.asm",
+      "symbol": "NINA_IDLE_RIGHT_4_F0_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_IDLE_RIGHT_4_F0_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42502,
+        "bank_offset": 1542,
+        "file_offset": 42502,
+        "physical_address": 58886,
+        "align": 1
+      },
+      "size": {
+        "stored": 30,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 16,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_IDLE_RIGHT_4_F0_LAYER1.asm",
+      "symbol": "NINA_IDLE_RIGHT_4_F0_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_IDLE_RIGHT_4_F0_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42532,
+        "bank_offset": 1572,
+        "file_offset": 42532,
+        "physical_address": 58916,
+        "align": 1
+      },
+      "size": {
+        "stored": 24,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 17,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_IDLE_RIGHT_4_F1_LAYER0.asm",
+      "symbol": "NINA_IDLE_RIGHT_4_F1_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_IDLE_RIGHT_4_F1_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42556,
+        "bank_offset": 1596,
+        "file_offset": 42556,
+        "physical_address": 58940,
+        "align": 1
+      },
+      "size": {
+        "stored": 30,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 18,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_IDLE_RIGHT_4_F1_LAYER1.asm",
+      "symbol": "NINA_IDLE_RIGHT_4_F1_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_IDLE_RIGHT_4_F1_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42586,
+        "bank_offset": 1626,
+        "file_offset": 42586,
+        "physical_address": 58970,
+        "align": 1
+      },
+      "size": {
+        "stored": 24,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 19,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_FALL_RIGHT_5_F0_LAYER0.asm",
+      "symbol": "NINA_FALL_RIGHT_5_F0_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_FALL_RIGHT_5_F0_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42610,
+        "bank_offset": 1650,
+        "file_offset": 42610,
+        "physical_address": 58994,
+        "align": 1
+      },
+      "size": {
+        "stored": 29,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 20,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_FALL_RIGHT_5_F0_LAYER1.asm",
+      "symbol": "NINA_FALL_RIGHT_5_F0_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_FALL_RIGHT_5_F0_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42639,
+        "bank_offset": 1679,
+        "file_offset": 42639,
+        "physical_address": 59023,
+        "align": 1
+      },
+      "size": {
+        "stored": 24,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 21,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_GRUB_RIGHT_6_F0_LAYER1.asm",
+      "symbol": "NINA_GRUB_RIGHT_6_F0_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_GRUB_RIGHT_6_F0_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42663,
+        "bank_offset": 1703,
+        "file_offset": 42663,
+        "physical_address": 59047,
+        "align": 1
+      },
+      "size": {
+        "stored": 18,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 22,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_GRUB_RIGHT_6_F0_LAYER2.asm",
+      "symbol": "NINA_GRUB_RIGHT_6_F0_LAYER2",
+      "resource_id_symbol": "RESOURCE_ID_NINA_GRUB_RIGHT_6_F0_LAYER2",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42681,
+        "bank_offset": 1721,
+        "file_offset": 42681,
+        "physical_address": 59065,
+        "align": 1
+      },
+      "size": {
+        "stored": 28,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 23,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_GRUB_RIGHT_6_F1_LAYER1.asm",
+      "symbol": "NINA_GRUB_RIGHT_6_F1_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_GRUB_RIGHT_6_F1_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42709,
+        "bank_offset": 1749,
+        "file_offset": 42709,
+        "physical_address": 59093,
+        "align": 1
+      },
+      "size": {
+        "stored": 23,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 24,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_GRUB_RIGHT_6_F1_LAYER2.asm",
+      "symbol": "NINA_GRUB_RIGHT_6_F1_LAYER2",
+      "resource_id_symbol": "RESOURCE_ID_NINA_GRUB_RIGHT_6_F1_LAYER2",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42732,
+        "bank_offset": 1772,
+        "file_offset": 42732,
+        "physical_address": 59116,
+        "align": 1
+      },
+      "size": {
+        "stored": 29,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 25,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_WALK_LEFT_7_F0_LAYER0.asm",
+      "symbol": "NINA_WALK_LEFT_7_F0_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_WALK_LEFT_7_F0_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42761,
+        "bank_offset": 1801,
+        "file_offset": 42761,
+        "physical_address": 59145,
+        "align": 1
+      },
+      "size": {
+        "stored": 28,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 26,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_WALK_LEFT_7_F0_LAYER1.asm",
+      "symbol": "NINA_WALK_LEFT_7_F0_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_WALK_LEFT_7_F0_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42789,
+        "bank_offset": 1829,
+        "file_offset": 42789,
+        "physical_address": 59173,
+        "align": 1
+      },
+      "size": {
+        "stored": 25,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 27,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_WALK_LEFT_7_F1_LAYER0.asm",
+      "symbol": "NINA_WALK_LEFT_7_F1_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_WALK_LEFT_7_F1_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42814,
+        "bank_offset": 1854,
+        "file_offset": 42814,
+        "physical_address": 59198,
+        "align": 1
+      },
+      "size": {
+        "stored": 30,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 28,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_WALK_LEFT_7_F1_LAYER1.asm",
+      "symbol": "NINA_WALK_LEFT_7_F1_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_WALK_LEFT_7_F1_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42844,
+        "bank_offset": 1884,
+        "file_offset": 42844,
+        "physical_address": 59228,
+        "align": 1
+      },
+      "size": {
+        "stored": 30,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 29,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_JUMP_LEFT_8_F0_LAYER0.asm",
+      "symbol": "NINA_JUMP_LEFT_8_F0_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_JUMP_LEFT_8_F0_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42874,
+        "bank_offset": 1914,
+        "file_offset": 42874,
+        "physical_address": 59258,
+        "align": 1
+      },
+      "size": {
+        "stored": 27,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 30,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_JUMP_LEFT_8_F0_LAYER1.asm",
+      "symbol": "NINA_JUMP_LEFT_8_F0_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_JUMP_LEFT_8_F0_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42901,
+        "bank_offset": 1941,
+        "file_offset": 42901,
+        "physical_address": 59285,
+        "align": 1
+      },
+      "size": {
+        "stored": 24,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 31,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_LAND_LEFT_9_F0_LAYER0.asm",
+      "symbol": "NINA_LAND_LEFT_9_F0_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_LAND_LEFT_9_F0_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42925,
+        "bank_offset": 1965,
+        "file_offset": 42925,
+        "physical_address": 59309,
+        "align": 1
+      },
+      "size": {
+        "stored": 29,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 32,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_LAND_LEFT_9_F0_LAYER1.asm",
+      "symbol": "NINA_LAND_LEFT_9_F0_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_LAND_LEFT_9_F0_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42954,
+        "bank_offset": 1994,
+        "file_offset": 42954,
+        "physical_address": 59338,
+        "align": 1
+      },
+      "size": {
+        "stored": 24,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 33,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_LAND_LEFT_9_F1_LAYER0.asm",
+      "symbol": "NINA_LAND_LEFT_9_F1_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_LAND_LEFT_9_F1_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42978,
+        "bank_offset": 2018,
+        "file_offset": 42978,
+        "physical_address": 59362,
+        "align": 1
+      },
+      "size": {
+        "stored": 28,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 34,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_LAND_LEFT_9_F1_LAYER1.asm",
+      "symbol": "NINA_LAND_LEFT_9_F1_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_LAND_LEFT_9_F1_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43006,
+        "bank_offset": 2046,
+        "file_offset": 43006,
+        "physical_address": 59390,
+        "align": 1
+      },
+      "size": {
+        "stored": 28,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 35,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_LAND_LEFT_9_F2_LAYER0.asm",
+      "symbol": "NINA_LAND_LEFT_9_F2_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_LAND_LEFT_9_F2_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43034,
+        "bank_offset": 2074,
+        "file_offset": 43034,
+        "physical_address": 59418,
+        "align": 1
+      },
+      "size": {
+        "stored": 29,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 36,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_LAND_LEFT_9_F2_LAYER1.asm",
+      "symbol": "NINA_LAND_LEFT_9_F2_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_LAND_LEFT_9_F2_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43063,
+        "bank_offset": 2103,
+        "file_offset": 43063,
+        "physical_address": 59447,
+        "align": 1
+      },
+      "size": {
+        "stored": 27,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 37,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_IDLE_LEFT_10_F0_LAYER0.asm",
+      "symbol": "NINA_IDLE_LEFT_10_F0_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_IDLE_LEFT_10_F0_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43090,
+        "bank_offset": 2130,
+        "file_offset": 43090,
+        "physical_address": 59474,
+        "align": 1
+      },
+      "size": {
+        "stored": 30,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 38,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_IDLE_LEFT_10_F0_LAYER1.asm",
+      "symbol": "NINA_IDLE_LEFT_10_F0_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_IDLE_LEFT_10_F0_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43120,
+        "bank_offset": 2160,
+        "file_offset": 43120,
+        "physical_address": 59504,
+        "align": 1
+      },
+      "size": {
+        "stored": 24,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 39,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_IDLE_LEFT_10_F1_LAYER0.asm",
+      "symbol": "NINA_IDLE_LEFT_10_F1_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_IDLE_LEFT_10_F1_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43144,
+        "bank_offset": 2184,
+        "file_offset": 43144,
+        "physical_address": 59528,
+        "align": 1
+      },
+      "size": {
+        "stored": 30,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 40,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_IDLE_LEFT_10_F1_LAYER1.asm",
+      "symbol": "NINA_IDLE_LEFT_10_F1_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_IDLE_LEFT_10_F1_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43174,
+        "bank_offset": 2214,
+        "file_offset": 43174,
+        "physical_address": 59558,
+        "align": 1
+      },
+      "size": {
+        "stored": 24,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 41,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_FALL_LEFT_11_F0_LAYER0.asm",
+      "symbol": "NINA_FALL_LEFT_11_F0_LAYER0",
+      "resource_id_symbol": "RESOURCE_ID_NINA_FALL_LEFT_11_F0_LAYER0",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43198,
+        "bank_offset": 2238,
+        "file_offset": 43198,
+        "physical_address": 59582,
+        "align": 1
+      },
+      "size": {
+        "stored": 29,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 42,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_FALL_LEFT_11_F0_LAYER1.asm",
+      "symbol": "NINA_FALL_LEFT_11_F0_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_FALL_LEFT_11_F0_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43227,
+        "bank_offset": 2267,
+        "file_offset": 43227,
+        "physical_address": 59611,
+        "align": 1
+      },
+      "size": {
+        "stored": 24,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 43,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_GRUB_LEFT_12_F0_LAYER1.asm",
+      "symbol": "NINA_GRUB_LEFT_12_F0_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_GRUB_LEFT_12_F0_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43251,
+        "bank_offset": 2291,
+        "file_offset": 43251,
+        "physical_address": 59635,
+        "align": 1
+      },
+      "size": {
+        "stored": 20,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 44,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_GRUB_LEFT_12_F0_LAYER2.asm",
+      "symbol": "NINA_GRUB_LEFT_12_F0_LAYER2",
+      "resource_id_symbol": "RESOURCE_ID_NINA_GRUB_LEFT_12_F0_LAYER2",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43271,
+        "bank_offset": 2311,
+        "file_offset": 43271,
+        "physical_address": 59655,
+        "align": 1
+      },
+      "size": {
+        "stored": 29,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 45,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_GRUB_LEFT_12_F1_LAYER1.asm",
+      "symbol": "NINA_GRUB_LEFT_12_F1_LAYER1",
+      "resource_id_symbol": "RESOURCE_ID_NINA_GRUB_LEFT_12_F1_LAYER1",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43300,
+        "bank_offset": 2340,
+        "file_offset": 43300,
+        "physical_address": 59684,
+        "align": 1
+      },
+      "size": {
+        "stored": 24,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 46,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/NINA_GRUB_LEFT_12_F1_LAYER2.asm",
+      "symbol": "NINA_GRUB_LEFT_12_F1_LAYER2",
+      "resource_id_symbol": "RESOURCE_ID_NINA_GRUB_LEFT_12_F1_LAYER2",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43324,
+        "bank_offset": 2364,
+        "file_offset": 43324,
+        "physical_address": 59708,
+        "align": 1
+      },
+      "size": {
+        "stored": 28,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 47,
+      "type": "sprite_patterns",
+      "group": "sprites",
+      "file": "generated/sprites/SPRITE_PLACEHOLDER_PATTERN.asm",
+      "symbol": "SPRITE_PLACEHOLDER_PATTERN",
+      "resource_id_symbol": "RESOURCE_ID_SPRITE_PLACEHOLDER_PATTERN",
+      "lifetime": "persistent",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 43352,
+        "bank_offset": 2392,
+        "file_offset": 43352,
+        "physical_address": 59736,
+        "align": 1
+      },
+      "size": {
+        "stored": 5,
+        "uncompressed": 32
+      },
+      "flags": 1
+    },
+    {
+      "id": 48,
+      "type": "tile_patterns",
+      "group": "patterns",
+      "file": "generated/patterns/tile_pattern_bank0.asm",
+      "symbol": "tile_pattern_bank0",
+      "resource_id_symbol": "RESOURCE_ID_TILE_PATTERN_BANK0",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 45952,
+        "bank_offset": 4992,
+        "file_offset": 37760,
+        "physical_address": 54144,
+        "align": 1
+      },
+      "size": {
+        "stored": 377,
+        "uncompressed": 1008
+      },
+      "flags": 1
+    },
+    {
+      "id": 49,
+      "type": "tile_patterns",
+      "group": "patterns",
+      "file": "generated/patterns/tilebank_pattern_data_0.asm",
+      "symbol": "tilebank_pattern_data_0",
+      "resource_id_symbol": "RESOURCE_ID_TILEBANK_PATTERN_DATA_0",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46838,
+        "bank_offset": 5878,
+        "file_offset": 38646,
+        "physical_address": 55030,
+        "align": 1
+      },
+      "size": {
+        "stored": 714,
+        "uncompressed": 920
+      },
+      "flags": 1
+    },
+    {
+      "id": 50,
+      "type": "tile_patterns",
+      "group": "patterns",
+      "file": "generated/patterns/tilebank_pattern_data_1.asm",
+      "symbol": "tilebank_pattern_data_1",
+      "resource_id_symbol": "RESOURCE_ID_TILEBANK_PATTERN_DATA_1",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 3,
+        "rom_bank_index": 3,
+        "window": "#A000",
+        "window_address": 45024,
+        "bank_offset": 4064,
+        "file_offset": 28640,
+        "physical_address": 45024,
+        "align": 1
+      },
+      "size": {
+        "stored": 748,
+        "uncompressed": 2016
+      },
+      "flags": 1
+    },
+    {
+      "id": 51,
+      "type": "tile_colors",
+      "group": "colors",
+      "file": "generated/colors/tile_color_bank0.asm",
+      "symbol": "tile_color_bank0",
+      "resource_id_symbol": "RESOURCE_ID_TILE_COLOR_BANK0",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46615,
+        "bank_offset": 5655,
+        "file_offset": 38423,
+        "physical_address": 54807,
+        "align": 1
+      },
+      "size": {
+        "stored": 223,
+        "uncompressed": 1008
+      },
+      "flags": 1
+    },
+    {
+      "id": 52,
+      "type": "tile_colors",
+      "group": "colors",
+      "file": "generated/colors/tilebank_color_data_0.asm",
+      "symbol": "tilebank_color_data_0",
+      "resource_id_symbol": "RESOURCE_ID_TILEBANK_COLOR_DATA_0",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 47552,
+        "bank_offset": 6592,
+        "file_offset": 39360,
+        "physical_address": 55744,
+        "align": 1
+      },
+      "size": {
+        "stored": 407,
+        "uncompressed": 920
+      },
+      "flags": 1
+    },
+    {
+      "id": 53,
+      "type": "tile_colors",
+      "group": "colors",
+      "file": "generated/colors/tilebank_color_data_1.asm",
+      "symbol": "tilebank_color_data_1",
+      "resource_id_symbol": "RESOURCE_ID_TILEBANK_COLOR_DATA_1",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 3,
+        "rom_bank_index": 3,
+        "window": "#A000",
+        "window_address": 45772,
+        "bank_offset": 4812,
+        "file_offset": 29388,
+        "physical_address": 45772,
+        "align": 1
+      },
+      "size": {
+        "stored": 471,
+        "uncompressed": 2016
+      },
+      "flags": 1
+    },
+    {
+      "id": 54,
+      "type": "screen_block_catalog",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA1_0_BLOCK_CATALOG.asm",
+      "symbol": "SCREEN_PANTALLA1_0_BLOCK_CATALOG",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA1_0_BLOCK_CATALOG",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48107,
+        "bank_offset": 7147,
+        "file_offset": 39915,
+        "physical_address": 56299,
+        "align": 1
+      },
+      "size": {
+        "stored": 343,
+        "uncompressed": 560
+      },
+      "flags": 1
+    },
+    {
+      "id": 55,
+      "type": "screen_block_map",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA1_0_BLOCK_MAP.asm",
+      "symbol": "SCREEN_PANTALLA1_0_BLOCK_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA1_0_BLOCK_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 3,
+        "rom_bank_index": 3,
+        "window": "#A000",
+        "window_address": 46243,
+        "bank_offset": 5283,
+        "file_offset": 29859,
+        "physical_address": 46243,
+        "align": 1
+      },
+      "size": {
+        "stored": 47,
+        "uncompressed": 48
+      },
+      "flags": 1
+    },
+    {
+      "id": 56,
+      "type": "screen_effects_layout",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA1_0_EFFECTS_LAYOUT.asm",
+      "symbol": "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 47959,
+        "bank_offset": 6999,
+        "file_offset": 39767,
+        "physical_address": 56151,
+        "align": 1
+      },
+      "size": {
+        "stored": 6,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 57,
+      "type": "screen_effect_zone_table",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE.asm",
+      "symbol": "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "RAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46607,
+        "bank_offset": 5647,
+        "file_offset": 38415,
+        "physical_address": 54799,
+        "align": 1
+      },
+      "size": {
+        "stored": 1,
+        "uncompressed": 1
+      },
+      "flags": 0
+    },
+    {
+      "id": 58,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA1_0_BOSS_TABLE.asm",
+      "symbol": "SCREEN_PANTALLA1_0_BOSS_TABLE",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA1_0_BOSS_TABLE",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46608,
+        "bank_offset": 5648,
+        "file_offset": 38416,
+        "physical_address": 54800,
+        "align": 1
+      },
+      "size": {
+        "stored": 1,
+        "uncompressed": 1
+      },
+      "flags": 0
+    },
+    {
+      "id": 59,
+      "type": "screen_behavior_map",
+      "group": "screens",
+      "file": "generated/screens/BEHAVIOR_PANTALLA1_0_DATA.asm",
+      "symbol": "BEHAVIOR_PANTALLA1_0_DATA",
+      "resource_id_symbol": "RESOURCE_ID_BEHAVIOR_PANTALLA1_0_DATA",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 47965,
+        "bank_offset": 7005,
+        "file_offset": 39773,
+        "physical_address": 56157,
+        "align": 1
+      },
+      "size": {
+        "stored": 64,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 60,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA1_0_CHAR_BEHAVIOR_TABLE.asm",
+      "symbol": "SCREEN_PANTALLA1_0_CHAR_BEHAVIOR_TABLE",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA1_0_CHAR_BEHAVIOR_TABLE",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48786,
+        "bank_offset": 7826,
+        "file_offset": 40594,
+        "physical_address": 56978,
+        "align": 1
+      },
+      "size": {
+        "stored": 41,
+        "uncompressed": 256
+      },
+      "flags": 1
+    },
+    {
+      "id": 61,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP.asm",
+      "symbol": "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48029,
+        "bank_offset": 7069,
+        "file_offset": 39837,
+        "physical_address": 56221,
+        "align": 1
+      },
+      "size": {
+        "stored": 13,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 62,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP.asm",
+      "symbol": "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48042,
+        "bank_offset": 7082,
+        "file_offset": 39850,
+        "physical_address": 56234,
+        "align": 1
+      },
+      "size": {
+        "stored": 53,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 63,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP.asm",
+      "symbol": "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48095,
+        "bank_offset": 7135,
+        "file_offset": 39903,
+        "physical_address": 56287,
+        "align": 1
+      },
+      "size": {
+        "stored": 6,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 64,
+      "type": "screen_block_catalog",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA2_1_BLOCK_CATALOG.asm",
+      "symbol": "SCREEN_PANTALLA2_1_BLOCK_CATALOG",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA2_1_BLOCK_CATALOG",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46329,
+        "bank_offset": 5369,
+        "file_offset": 38137,
+        "physical_address": 54521,
+        "align": 1
+      },
+      "size": {
+        "stored": 177,
+        "uncompressed": 288
+      },
+      "flags": 1
+    },
+    {
+      "id": 65,
+      "type": "screen_block_map",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA2_1_BLOCK_MAP.asm",
+      "symbol": "SCREEN_PANTALLA2_1_BLOCK_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA2_1_BLOCK_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 3,
+        "rom_bank_index": 3,
+        "window": "#A000",
+        "window_address": 46290,
+        "bank_offset": 5330,
+        "file_offset": 29906,
+        "physical_address": 46290,
+        "align": 1
+      },
+      "size": {
+        "stored": 31,
+        "uncompressed": 48
+      },
+      "flags": 1
+    },
+    {
+      "id": 66,
+      "type": "screen_effects_layout",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA2_1_EFFECTS_LAYOUT.asm",
+      "symbol": "SCREEN_PANTALLA2_1_EFFECTS_LAYOUT",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA2_1_EFFECTS_LAYOUT",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48101,
+        "bank_offset": 7141,
+        "file_offset": 39909,
+        "physical_address": 56293,
+        "align": 1
+      },
+      "size": {
+        "stored": 6,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 67,
+      "type": "screen_effect_zone_table",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA2_1_EFFECT_ZONE_TABLE.asm",
+      "symbol": "SCREEN_PANTALLA2_1_EFFECT_ZONE_TABLE",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA2_1_EFFECT_ZONE_TABLE",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "RAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46609,
+        "bank_offset": 5649,
+        "file_offset": 38417,
+        "physical_address": 54801,
+        "align": 1
+      },
+      "size": {
+        "stored": 1,
+        "uncompressed": 1
+      },
+      "flags": 0
+    },
+    {
+      "id": 68,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA2_1_BOSS_TABLE.asm",
+      "symbol": "SCREEN_PANTALLA2_1_BOSS_TABLE",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA2_1_BOSS_TABLE",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46610,
+        "bank_offset": 5650,
+        "file_offset": 38418,
+        "physical_address": 54802,
+        "align": 1
+      },
+      "size": {
+        "stored": 1,
+        "uncompressed": 1
+      },
+      "flags": 0
+    },
+    {
+      "id": 69,
+      "type": "screen_behavior_map",
+      "group": "screens",
+      "file": "generated/screens/BEHAVIOR_PANTALLA2_1_DATA.asm",
+      "symbol": "BEHAVIOR_PANTALLA2_1_DATA",
+      "resource_id_symbol": "RESOURCE_ID_BEHAVIOR_PANTALLA2_1_DATA",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48584,
+        "bank_offset": 7624,
+        "file_offset": 40392,
+        "physical_address": 56776,
+        "align": 1
+      },
+      "size": {
+        "stored": 33,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 70,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA2_1_CHAR_BEHAVIOR_TABLE.asm",
+      "symbol": "SCREEN_PANTALLA2_1_CHAR_BEHAVIOR_TABLE",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA2_1_CHAR_BEHAVIOR_TABLE",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48827,
+        "bank_offset": 7867,
+        "file_offset": 40635,
+        "physical_address": 57019,
+        "align": 1
+      },
+      "size": {
+        "stored": 29,
+        "uncompressed": 256
+      },
+      "flags": 1
+    },
+    {
+      "id": 71,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA2_1_INTERACTION_TYPE_MAP.asm",
+      "symbol": "SCREEN_PANTALLA2_1_INTERACTION_TYPE_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA2_1_INTERACTION_TYPE_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48617,
+        "bank_offset": 7657,
+        "file_offset": 40425,
+        "physical_address": 56809,
+        "align": 1
+      },
+      "size": {
+        "stored": 14,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 72,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA2_1_INTERACTION_VALUE_MAP.asm",
+      "symbol": "SCREEN_PANTALLA2_1_INTERACTION_VALUE_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA2_1_INTERACTION_VALUE_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48631,
+        "bank_offset": 7671,
+        "file_offset": 40439,
+        "physical_address": 56823,
+        "align": 1
+      },
+      "size": {
+        "stored": 38,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 73,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA2_1_INTERACTION_TARGET_MAP.asm",
+      "symbol": "SCREEN_PANTALLA2_1_INTERACTION_TARGET_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA2_1_INTERACTION_TARGET_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48669,
+        "bank_offset": 7709,
+        "file_offset": 40477,
+        "physical_address": 56861,
+        "align": 1
+      },
+      "size": {
+        "stored": 6,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 74,
+      "type": "screen_block_catalog",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA3_2_BLOCK_CATALOG.asm",
+      "symbol": "SCREEN_PANTALLA3_2_BLOCK_CATALOG",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA3_2_BLOCK_CATALOG",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 41728,
+        "bank_offset": 768,
+        "file_offset": 41728,
+        "physical_address": 58112,
+        "align": 1
+      },
+      "size": {
+        "stored": 343,
+        "uncompressed": 560
+      },
+      "flags": 1
+    },
+    {
+      "id": 75,
+      "type": "screen_block_map",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA3_2_BLOCK_MAP.asm",
+      "symbol": "SCREEN_PANTALLA3_2_BLOCK_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA3_2_BLOCK_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46506,
+        "bank_offset": 5546,
+        "file_offset": 38314,
+        "physical_address": 54698,
+        "align": 1
+      },
+      "size": {
+        "stored": 47,
+        "uncompressed": 48
+      },
+      "flags": 1
+    },
+    {
+      "id": 76,
+      "type": "screen_effects_layout",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA3_2_EFFECTS_LAYOUT.asm",
+      "symbol": "SCREEN_PANTALLA3_2_EFFECTS_LAYOUT",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA3_2_EFFECTS_LAYOUT",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48675,
+        "bank_offset": 7715,
+        "file_offset": 40483,
+        "physical_address": 56867,
+        "align": 1
+      },
+      "size": {
+        "stored": 6,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 77,
+      "type": "screen_effect_zone_table",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA3_2_EFFECT_ZONE_TABLE.asm",
+      "symbol": "SCREEN_PANTALLA3_2_EFFECT_ZONE_TABLE",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA3_2_EFFECT_ZONE_TABLE",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "RAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46611,
+        "bank_offset": 5651,
+        "file_offset": 38419,
+        "physical_address": 54803,
+        "align": 1
+      },
+      "size": {
+        "stored": 1,
+        "uncompressed": 1
+      },
+      "flags": 0
+    },
+    {
+      "id": 78,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA3_2_BOSS_TABLE.asm",
+      "symbol": "SCREEN_PANTALLA3_2_BOSS_TABLE",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA3_2_BOSS_TABLE",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46612,
+        "bank_offset": 5652,
+        "file_offset": 38420,
+        "physical_address": 54804,
+        "align": 1
+      },
+      "size": {
+        "stored": 1,
+        "uncompressed": 1
+      },
+      "flags": 0
+    },
+    {
+      "id": 79,
+      "type": "screen_behavior_map",
+      "group": "screens",
+      "file": "generated/screens/BEHAVIOR_PANTALLA3_2_DATA.asm",
+      "symbol": "BEHAVIOR_PANTALLA3_2_DATA",
+      "resource_id_symbol": "RESOURCE_ID_BEHAVIOR_PANTALLA3_2_DATA",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48681,
+        "bank_offset": 7721,
+        "file_offset": 40489,
+        "physical_address": 56873,
+        "align": 1
+      },
+      "size": {
+        "stored": 44,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 80,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA3_2_CHAR_BEHAVIOR_TABLE.asm",
+      "symbol": "SCREEN_PANTALLA3_2_CHAR_BEHAVIOR_TABLE",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA3_2_CHAR_BEHAVIOR_TABLE",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42071,
+        "bank_offset": 1111,
+        "file_offset": 42071,
+        "physical_address": 58455,
+        "align": 1
+      },
+      "size": {
+        "stored": 35,
+        "uncompressed": 256
+      },
+      "flags": 1
+    },
+    {
+      "id": 81,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA3_2_INTERACTION_TYPE_MAP.asm",
+      "symbol": "SCREEN_PANTALLA3_2_INTERACTION_TYPE_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA3_2_INTERACTION_TYPE_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48725,
+        "bank_offset": 7765,
+        "file_offset": 40533,
+        "physical_address": 56917,
+        "align": 1
+      },
+      "size": {
+        "stored": 6,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 82,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA3_2_INTERACTION_VALUE_MAP.asm",
+      "symbol": "SCREEN_PANTALLA3_2_INTERACTION_VALUE_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA3_2_INTERACTION_VALUE_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48731,
+        "bank_offset": 7771,
+        "file_offset": 40539,
+        "physical_address": 56923,
+        "align": 1
+      },
+      "size": {
+        "stored": 43,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 83,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_PANTALLA3_2_INTERACTION_TARGET_MAP.asm",
+      "symbol": "SCREEN_PANTALLA3_2_INTERACTION_TARGET_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_PANTALLA3_2_INTERACTION_TARGET_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48774,
+        "bank_offset": 7814,
+        "file_offset": 40582,
+        "physical_address": 56966,
+        "align": 1
+      },
+      "size": {
+        "stored": 6,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 84,
+      "type": "screen_block_catalog",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_D_PANTALLA1_3_BLOCK_CATALOG.asm",
+      "symbol": "SCREEN_D_PANTALLA1_3_BLOCK_CATALOG",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_D_PANTALLA1_3_BLOCK_CATALOG",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42130,
+        "bank_offset": 1170,
+        "file_offset": 42130,
+        "physical_address": 58514,
+        "align": 1
+      },
+      "size": {
+        "stored": 143,
+        "uncompressed": 224
+      },
+      "flags": 1
+    },
+    {
+      "id": 85,
+      "type": "screen_block_map",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_D_PANTALLA1_3_BLOCK_MAP.asm",
+      "symbol": "SCREEN_D_PANTALLA1_3_BLOCK_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_D_PANTALLA1_3_BLOCK_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46553,
+        "bank_offset": 5593,
+        "file_offset": 38361,
+        "physical_address": 54745,
+        "align": 1
+      },
+      "size": {
+        "stored": 24,
+        "uncompressed": 48
+      },
+      "flags": 1
+    },
+    {
+      "id": 86,
+      "type": "screen_effects_layout",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_D_PANTALLA1_3_EFFECTS_LAYOUT.asm",
+      "symbol": "SCREEN_D_PANTALLA1_3_EFFECTS_LAYOUT",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_D_PANTALLA1_3_EFFECTS_LAYOUT",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48780,
+        "bank_offset": 7820,
+        "file_offset": 40588,
+        "physical_address": 56972,
+        "align": 1
+      },
+      "size": {
+        "stored": 6,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 87,
+      "type": "screen_effect_zone_table",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_D_PANTALLA1_3_EFFECT_ZONE_TABLE.asm",
+      "symbol": "SCREEN_D_PANTALLA1_3_EFFECT_ZONE_TABLE",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_D_PANTALLA1_3_EFFECT_ZONE_TABLE",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "RAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46613,
+        "bank_offset": 5653,
+        "file_offset": 38421,
+        "physical_address": 54805,
+        "align": 1
+      },
+      "size": {
+        "stored": 1,
+        "uncompressed": 1
+      },
+      "flags": 0
+    },
+    {
+      "id": 88,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_D_PANTALLA1_3_BOSS_TABLE.asm",
+      "symbol": "SCREEN_D_PANTALLA1_3_BOSS_TABLE",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_D_PANTALLA1_3_BOSS_TABLE",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 46614,
+        "bank_offset": 5654,
+        "file_offset": 38422,
+        "physical_address": 54806,
+        "align": 1
+      },
+      "size": {
+        "stored": 1,
+        "uncompressed": 1
+      },
+      "flags": 0
+    },
+    {
+      "id": 89,
+      "type": "screen_behavior_map",
+      "group": "screens",
+      "file": "generated/screens/BEHAVIOR_D_PANTALLA1_3_DATA.asm",
+      "symbol": "BEHAVIOR_D_PANTALLA1_3_DATA",
+      "resource_id_symbol": "RESOURCE_ID_BEHAVIOR_D_PANTALLA1_3_DATA",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48856,
+        "bank_offset": 7896,
+        "file_offset": 40664,
+        "physical_address": 57048,
+        "align": 1
+      },
+      "size": {
+        "stored": 21,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 90,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_D_PANTALLA1_3_CHAR_BEHAVIOR_TABLE.asm",
+      "symbol": "SCREEN_D_PANTALLA1_3_CHAR_BEHAVIOR_TABLE",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_D_PANTALLA1_3_CHAR_BEHAVIOR_TABLE",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 42106,
+        "bank_offset": 1146,
+        "file_offset": 42106,
+        "physical_address": 58490,
+        "align": 1
+      },
+      "size": {
+        "stored": 24,
+        "uncompressed": 256
+      },
+      "flags": 1
+    },
+    {
+      "id": 91,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_D_PANTALLA1_3_INTERACTION_TYPE_MAP.asm",
+      "symbol": "SCREEN_D_PANTALLA1_3_INTERACTION_TYPE_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_D_PANTALLA1_3_INTERACTION_TYPE_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48877,
+        "bank_offset": 7917,
+        "file_offset": 40685,
+        "physical_address": 57069,
+        "align": 1
+      },
+      "size": {
+        "stored": 6,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 92,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_D_PANTALLA1_3_INTERACTION_VALUE_MAP.asm",
+      "symbol": "SCREEN_D_PANTALLA1_3_INTERACTION_VALUE_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_D_PANTALLA1_3_INTERACTION_VALUE_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48883,
+        "bank_offset": 7923,
+        "file_offset": 40691,
+        "physical_address": 57075,
+        "align": 1
+      },
+      "size": {
+        "stored": 23,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 93,
+      "type": "screen_data",
+      "group": "screens",
+      "file": "generated/screens/SCREEN_D_PANTALLA1_3_INTERACTION_TARGET_MAP.asm",
+      "symbol": "SCREEN_D_PANTALLA1_3_INTERACTION_TARGET_MAP",
+      "resource_id_symbol": "RESOURCE_ID_SCREEN_D_PANTALLA1_3_INTERACTION_TARGET_MAP",
+      "lifetime": "stream",
+      "compress": "zx0",
+      "decompressor": "zx0",
+      "decompress_target": "VRAM",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 48906,
+        "bank_offset": 7946,
+        "file_offset": 40714,
+        "physical_address": 57098,
+        "align": 1
+      },
+      "size": {
+        "stored": 6,
+        "uncompressed": 768
+      },
+      "flags": 1
+    },
+    {
+      "id": 94,
+      "type": "screen_name_table",
+      "group": "presentation",
+      "file": "generated/presentation/PRESENTATION_SCREEN_NAMETBL.asm",
+      "symbol": "PRESENTATION_SCREEN_NAMETBL",
+      "resource_id_symbol": "RESOURCE_ID_PRESENTATION_SCREEN_NAMETBL",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 5,
+        "rom_bank_index": 5,
+        "window": "#A000",
+        "window_address": 40960,
+        "bank_offset": 0,
+        "file_offset": 40960,
+        "physical_address": 57344,
+        "align": 1
+      },
+      "size": {
+        "stored": 768,
+        "uncompressed": 768
+      },
+      "flags": 0
+    },
+    {
+      "id": 95,
+      "type": "screen_patterns",
+      "group": "presentation",
+      "file": "generated/presentation/PRESENTATION_SCREEN_PATTERNS_B0.asm",
+      "symbol": "PRESENTATION_SCREEN_PATTERNS_B0",
+      "resource_id_symbol": "RESOURCE_ID_PRESENTATION_SCREEN_PATTERNS_B0",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 42720,
+        "bank_offset": 1760,
+        "file_offset": 34528,
+        "physical_address": 50912,
+        "align": 1
+      },
+      "size": {
+        "stored": 1616,
+        "uncompressed": 1616
+      },
+      "flags": 0
+    },
+    {
+      "id": 96,
+      "type": "screen_patterns",
+      "group": "presentation",
+      "file": "generated/presentation/PRESENTATION_SCREEN_PATTERNS_B1.asm",
+      "symbol": "PRESENTATION_SCREEN_PATTERNS_B1",
+      "resource_id_symbol": "RESOURCE_ID_PRESENTATION_SCREEN_PATTERNS_B1",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 3,
+        "rom_bank_index": 3,
+        "window": "#A000",
+        "window_address": 46321,
+        "bank_offset": 5361,
+        "file_offset": 29937,
+        "physical_address": 46321,
+        "align": 1
+      },
+      "size": {
+        "stored": 1760,
+        "uncompressed": 1760
+      },
+      "flags": 0
+    },
+    {
+      "id": 97,
+      "type": "screen_patterns",
+      "group": "presentation",
+      "file": "generated/presentation/PRESENTATION_SCREEN_PATTERNS_B2.asm",
+      "symbol": "PRESENTATION_SCREEN_PATTERNS_B2",
+      "resource_id_symbol": "RESOURCE_ID_PRESENTATION_SCREEN_PATTERNS_B2",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 3,
+        "rom_bank_index": 3,
+        "window": "#A000",
+        "window_address": 40960,
+        "bank_offset": 0,
+        "file_offset": 24576,
+        "physical_address": 40960,
+        "align": 1
+      },
+      "size": {
+        "stored": 2032,
+        "uncompressed": 2032
+      },
+      "flags": 0
+    },
+    {
+      "id": 98,
+      "type": "screen_colors",
+      "group": "presentation",
+      "file": "generated/presentation/PRESENTATION_SCREEN_COLORS_B0.asm",
+      "symbol": "PRESENTATION_SCREEN_COLORS_B0",
+      "resource_id_symbol": "RESOURCE_ID_PRESENTATION_SCREEN_COLORS_B0",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 44336,
+        "bank_offset": 3376,
+        "file_offset": 36144,
+        "physical_address": 52528,
+        "align": 1
+      },
+      "size": {
+        "stored": 1616,
+        "uncompressed": 1616
+      },
+      "flags": 0
+    },
+    {
+      "id": 99,
+      "type": "screen_colors",
+      "group": "presentation",
+      "file": "generated/presentation/PRESENTATION_SCREEN_COLORS_B1.asm",
+      "symbol": "PRESENTATION_SCREEN_COLORS_B1",
+      "resource_id_symbol": "RESOURCE_ID_PRESENTATION_SCREEN_COLORS_B1",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 4,
+        "rom_bank_index": 4,
+        "window": "#A000",
+        "window_address": 40960,
+        "bank_offset": 0,
+        "file_offset": 32768,
+        "physical_address": 49152,
+        "align": 1
+      },
+      "size": {
+        "stored": 1760,
+        "uncompressed": 1760
+      },
+      "flags": 0
+    },
+    {
+      "id": 100,
+      "type": "screen_colors",
+      "group": "presentation",
+      "file": "generated/presentation/PRESENTATION_SCREEN_COLORS_B2.asm",
+      "symbol": "PRESENTATION_SCREEN_COLORS_B2",
+      "resource_id_symbol": "RESOURCE_ID_PRESENTATION_SCREEN_COLORS_B2",
+      "lifetime": "stream",
+      "compress": "none",
+      "runtime_target": "VRAM",
+      "placement": {
+        "bank_index": 3,
+        "rom_bank_index": 3,
+        "window": "#A000",
+        "window_address": 42992,
+        "bank_offset": 2032,
+        "file_offset": 26608,
+        "physical_address": 42992,
+        "align": 1
+      },
+      "size": {
+        "stored": 2032,
+        "uncompressed": 2032
+      },
+      "flags": 0
+    }
+  ],
+  "verification": {
+    "algorithm": "fnv1a32-resource-metadata",
+    "banks": [
+      {
+        "bank": 3,
+        "verification": {
+          "algorithm": "fnv1a32-resource-metadata",
+          "metadataChecksum": "fnv1a32:B3B6D538",
+          "resourceCount": 7,
+          "storedBytes": 7121
+        }
+      },
+      {
+        "bank": 4,
+        "verification": {
+          "algorithm": "fnv1a32-resource-metadata",
+          "metadataChecksum": "fnv1a32:F796048F",
+          "resourceCount": 47,
+          "storedBytes": 7952
+        }
+      },
+      {
+        "bank": 5,
+        "verification": {
+          "algorithm": "fnv1a32-resource-metadata",
+          "metadataChecksum": "fnv1a32:086377A4",
+          "resourceCount": 47,
+          "storedBytes": 2397
+        }
+      },
+      {
+        "bank": 6,
+        "verification": {
+          "algorithm": "fnv1a32-resource-metadata",
+          "metadataChecksum": "fnv1a32:9130BA4D",
+          "resourceCount": 0,
+          "storedBytes": 0
+        }
+      },
+      {
+        "bank": 7,
+        "verification": {
+          "algorithm": "fnv1a32-resource-metadata",
+          "metadataChecksum": "fnv1a32:20328C0A",
+          "resourceCount": 0,
+          "storedBytes": 0
+        }
+      }
+    ],
+    "expected_ram_dumps": []
+  }
+}

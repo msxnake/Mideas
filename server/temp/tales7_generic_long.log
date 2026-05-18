@@ -1,0 +1,15 @@
+t01 pc=811D sp=F2F6 bank=00/00/00/00 flow=00 screen=22 irq=0000 pos=8738,8738
+SHOTOK tales7_generic_t01.png
+t03 pc=1130 sp=F2FE bank=00/00/00/00 flow=00 screen=22 irq=0000 pos=8738,8738
+SHOTOK tales7_generic_t03.png
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/00 flow=00 screen=22 irq=0000 pos=8738,8738
+t06 pc=A14F sp=F37C bank=00/00/00/00 flow=00 screen=22 irq=0000 pos=8738,8738
+SHOTOK tales7_generic_t06.png
+t10 pc=A14F sp=F37C bank=00/00/00/00 flow=00 screen=22 irq=0000 pos=8738,8738
+SHOTOK tales7_generic_t10.png
+t20 pc=A14F sp=F37C bank=00/00/00/00 flow=00 screen=22 irq=0000 pos=8738,8738
+SHOTOK tales7_generic_t20.png
+t40 pc=4632 sp=F358 bank=00/00/00/00 flow=00 screen=22 irq=0000 pos=8738,8738
+SHOTOK tales7_generic_t40.png
+t60 pc=A14F sp=F37C bank=00/00/00/00 flow=00 screen=22 irq=0000 pos=8738,8738
+SHOTOK tales7_generic_t60.png

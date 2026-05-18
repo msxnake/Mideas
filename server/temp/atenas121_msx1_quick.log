@@ -1,0 +1,18 @@
+presentation_space_before pc=1130 exit=04 screen=00 engine=00 world=00
+presentation_space_after pc=1130 exit=04 screen=00 engine=00 world=00
+controls_down_before pc=40E2 exit=00 screen=00 engine=00 world=00
+controls_down_after pc=4718 exit=00 screen=00 engine=00 world=00
+controls_down_before pc=96C4 exit=00 screen=00 engine=00 world=00
+controls_down_after pc=96C4 exit=00 screen=00 engine=00 world=00
+controls_down_before pc=96C4 exit=00 screen=00 engine=00 world=00
+controls_down_after pc=96C4 exit=00 screen=00 engine=00 world=00
+controls_down_before pc=96C4 exit=00 screen=00 engine=00 world=00
+controls_down_after pc=96C4 exit=00 screen=00 engine=00 world=00
+controls_done_before pc=96C4 exit=00 screen=00 engine=00 world=00
+controls_done_after pc=459E exit=00 screen=00 engine=00 world=00
+shot_t10 pc=9E5D exit=00 screen=00 engine=00 world=00
+SHOTOK t10.png
+shot_t12_5 pc=9E5D exit=00 screen=00 engine=00 world=00
+SHOTOK t12_5.png
+shot_t14 pc=1A04 exit=00 screen=00 engine=00 world=00
+SHOTOK t14.png

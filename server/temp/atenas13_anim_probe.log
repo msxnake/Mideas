@@ -1,0 +1,13 @@
+boot_3s pc=1130 input=00 prev=00 player=00 xy=51,0 v=EE/46 anim=51 tick=0 sprite=33 sm=3333
+space1_before pc=A4EB input=00 prev=00 player=00 xy=24,144 v=00/00 anim=1 tick=0 sprite=05 sm=002C
+space1_after pc=A4EB input=00 prev=00 player=00 xy=24,108 v=00/FF anim=1 tick=0 sprite=05 sm=002C
+space2_before pc=5BB4 input=00 prev=00 player=00 xy=24,144 v=00/00 anim=1 tick=0 sprite=05 sm=002C
+space2_after pc=439D input=00 prev=00 player=00 xy=24,109 v=00/FF anim=1 tick=0 sprite=05 sm=002C
+before_move pc=1A40 input=00 prev=00 player=00 xy=24,144 v=00/00 anim=1 tick=0 sprite=05 sm=002C
+right_before pc=19D0 input=00 prev=00 player=00 xy=24,144 v=00/00 anim=1 tick=0 sprite=05 sm=002C
+right_held_040 pc=A4EB input=03 prev=03 player=00 xy=34,144 v=00/00 anim=0 tick=7 sprite=01 sm=0041
+right_held_080 pc=A4EB input=03 prev=03 player=00 xy=34,144 v=00/00 anim=1 tick=7 sprite=01 sm=0041
+right_held_120 pc=A4EB input=03 prev=03 player=00 xy=34,144 v=00/00 anim=0 tick=7 sprite=01 sm=0041
+right_held_160 pc=A4EB input=03 prev=03 player=00 xy=34,144 v=00/00 anim=1 tick=7 sprite=01 sm=0041
+right_released pc=A4EB input=00 prev=00 player=00 xy=34,144 v=00/00 anim=1 tick=3 sprite=05 sm=002C
+after_shot pc=A4EB input=00 prev=00 player=00 xy=34,144 v=00/00 anim=1 tick=0 sprite=05 sm=002C

@@ -368,12 +368,15 @@ Start → (siguiente nodo)
 **Descripción**: Aplica un efecto visual de transición.
 
 **Propiedades**:
-- `effectType`: Tipo de efecto (0-4)
-  - `0`: Fade Out (desvanecimiento a negro)
-  - `1`: Fade In (desvanecimiento desde negro)
-  - `2`: Flash (parpadeos blanco/negro)
-  - `3`: Wipe Down (limpieza de arriba a abajo)
-  - `4`: Wipe Up (limpieza de abajo a arriba)
+- `effect`: Tipo de efecto visual
+  - `cls`: Clear Screen
+  - `dissolve_pixels`: Disolver pixeles
+  - `dissolve_chars`: Disolver chars
+  - `vertical_lines`: Lineas verticales
+  - `horizontal_lines`: Lineas horizontales
+  - `spiral`: Espiral
+  - `fill_white_squares`: Cuadrados blancos
+  - `diagonal_clear`: Borrado diagonal/raster
 - Conexión DEFAULT (siguiente nodo)
 
 **Uso**:
@@ -386,7 +389,7 @@ Start → (siguiente nodo)
 {
   "type": "Transition",
   "data": {
-    "effectType": 0
+    "effect": "diagonal_clear"
   },
   "connections": [
     {"type": "DEFAULT", "target": "next_level"}
@@ -395,9 +398,7 @@ Start → (siguiente nodo)
 ```
 
 **Duraciones**:
-- Fade Out/In: ~1.3 segundos
-- Flash: ~0.5 segundos
-- Wipe Down/Up: ~0.8 segundos
+- Configurables con `duration` en milisegundos.
 
 **Comportamiento**:
 - Ejecuta el efecto visual
@@ -1160,7 +1161,7 @@ Flow → Group → Group → Group → Group → Group (stack overflow risk)
 **Síntomas**: Los efectos de transición no aparecen
 
 **Causas posibles**:
-- EffectType incorrecto (fuera del rango 0-4)
+- `effect` incorrecto o no soportado por el generador
 - Código ASM no compilado correctamente
 
 **Solución**:

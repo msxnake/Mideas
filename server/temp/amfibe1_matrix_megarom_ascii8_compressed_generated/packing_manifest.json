@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "mapper": {
+    "format": "ascii8",
+    "dataWindowPage": "p3",
+    "windowBase": "#8000",
+    "windowMask": "#1FFF",
+    "bankDivisor": "#2000",
+    "zoneSize": 8192
+  },
+  "summary": {
+    "dataStartAddress": 40960,
+    "totalSourceBytes": 2048,
+    "resourceCount": 3,
+    "zoneCount": 1,
+    "overflowCount": 0,
+    "totalStoredBytes": 1546,
+    "compressedResourceCount": 3
+  },
+  "banks": [
+    {
+      "bank": 3,
+      "zoneIndex": 0,
+      "orgAddress": 40960,
+      "endAddress": 49152,
+      "usedBytes": 1546,
+      "freeBytes": 6646,
+      "verification": {
+        "algorithm": "fnv1a32-resource-metadata",
+        "metadataChecksum": "fnv1a32:42AE5CAB",
+        "resourceCount": 3,
+        "storedBytes": 1546
+      },
+      "resources": [
+        {
+          "id": 1,
+          "label": "tile_pattern_bank0",
+          "resourceIdLabel": "RESOURCE_ID_TILE_PATTERN_BANK0",
+          "group": "PATTERNS",
+          "type": "TILE_PATTERNS",
+          "bank": 3,
+          "zoneOffset": 0,
+          "physicalAddress": 40960,
+          "windowAddress": 32768,
+          "size": 982,
+          "storedSize": 982,
+          "uncompressedSize": 1008,
+          "flags": 1,
+          "sourceIndex": 1,
+          "placementReason": "post-ZX0 first-fit single patterns resource; ZX0 982/1008 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 6646 bytes"
+        },
+        {
+          "id": 2,
+          "label": "tile_color_bank0",
+          "resourceIdLabel": "RESOURCE_ID_TILE_COLOR_BANK0",
+          "group": "COLORS",
+          "type": "TILE_COLORS",
+          "bank": 3,
+          "zoneOffset": 982,
+          "physicalAddress": 41942,
+          "windowAddress": 33750,
+          "size": 559,
+          "storedSize": 559,
+          "uncompressedSize": 1008,
+          "flags": 1,
+          "sourceIndex": 2,
+          "placementReason": "post-ZX0 first-fit single colors resource; ZX0 559/1008 bytes; bank 3 zone 0 offset +#03D6; zone slack after pack 6646 bytes"
+        },
+        {
+          "id": 0,
+          "label": "SPRITE_PLACEHOLDER_PATTERN",
+          "resourceIdLabel": "RESOURCE_ID_SPRITE_PLACEHOLDER_PATTERN",
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS",
+          "bank": 3,
+          "zoneOffset": 1541,
+          "physicalAddress": 42501,
+          "windowAddress": 34309,
+          "size": 5,
+          "storedSize": 5,
+          "uncompressedSize": 32,
+          "flags": 1,
+          "sourceIndex": 0,
+          "placementReason": "post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0605; zone slack after pack 6646 bytes"
+        }
+      ]
+    }
+  ],
+  "overflow": []
+}

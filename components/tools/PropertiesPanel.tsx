@@ -3,16 +3,22 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute,
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
-    ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType, DialogueAsset
+    ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowControlsNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType, DialogueAsset, ScreenBlockExportMode, ScreenTile, TileStamp
 } from '../../types';
 import { Panel } from '../common/Panel';
 import { SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MAP, EDITOR_BASE_TILE_DIM_S2 } from '../../constants';
 import { Button } from '../common/Button';
-import { TrashIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
+import { CaretDownIcon, CaretRightIcon, CollapseAllIcon, TrashIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { StartNodeEditor } from '../editors/StartNodeEditor';
 import { GameFlowGlobalInitializationEditor } from '../editors/GameFlowGlobalInitializationEditor';
 import { autoEventStringUsesDialogue, parseAutoEventString } from '../../utils/autoEventString';
+import { resolveTileAssignmentCharCode } from '../../utils/tileBankOptimization';
+import { BEHAVIOR_DIRECTION_OPTIONS, BEHAVIOR_TYPE_OPTIONS, isBehaviorComponentProperty } from '../../utils/behaviorComponentOptions';
+import { generateScreenMapLayoutBytes } from '../utils/screenUtils';
+import { buildScreenBlockMapFromBytes, buildSharedScreenBlockMaps } from '../../utils/screenOptimization/blockMapBuilder';
+import { getScreenModeMetrics } from '../../utils/screenModeConfig';
+import { ScreenBlockCatalogPanel } from '../screen_editor/ScreenBlockCatalogPanel';
 
 const CHILD_LINK_COMPONENT_ID = 'comp_child_link';
 const ENTITY_JOB_RATE_OPTIONS = [100, 50, 33, 25] as const;
@@ -119,6 +125,50 @@ const normalizeEntityJobEntry = (value: any, period: number): number => {
   const wrapped = ((entry % safePeriod) + safePeriod) % safePeriod;
   return wrapped;
 };
+
+const TILEBANK_MARK_COLORS = [
+  '#00dcb4',
+  '#ffcc33',
+  '#5b6cff',
+  '#ff5f7a',
+  '#7bd857',
+  '#c56cff',
+  '#29b6f6',
+  '#ff8f3d',
+] as const;
+
+function getTileBankMarkColor(tileBankAssetId: string): string {
+  if (!tileBankAssetId) return '#7f8a99';
+  let hash = 0;
+  for (let i = 0; i < tileBankAssetId.length; i++) {
+    hash = ((hash * 31) + tileBankAssetId.charCodeAt(i)) >>> 0;
+  }
+  return TILEBANK_MARK_COLORS[hash % TILEBANK_MARK_COLORS.length];
+}
+
+function resolveScreenTileBankDefinitions(
+  screenMap: ScreenMap,
+  allAssets: ProjectAsset[],
+  fallbackTileBanks?: TileBank[]
+): TileBank['banks'] | undefined {
+  const tileBankAssetId = screenMap.tileBankAssetId || '';
+  if (tileBankAssetId) {
+    const asset = allAssets.find(candidate =>
+      candidate.type === 'tilebank' &&
+      (candidate.id === tileBankAssetId || (candidate.data as TileBank | undefined)?.id === tileBankAssetId)
+    );
+    const tileBank = asset?.data as TileBank | undefined;
+    if (tileBank?.banks?.length) {
+      return tileBank.banks;
+    }
+  }
+
+  if (fallbackTileBanks?.length === 1) {
+    return fallbackTileBanks[0].banks;
+  }
+
+  return undefined;
+}
 
 
 /**
@@ -250,6 +300,10 @@ interface PropertiesPanelProps {
   onUpdateAsset?: (assetId: string, data: any) => void;
   /** Callback to create a project asset without leaving the current editor. */
   onCreateAsset?: (type: ProjectAsset['type'], options?: { select?: boolean }) => ProjectAsset | void;
+  /** Callback to select a Screen Editor catalog block as a temporary stamp. */
+  onSelectScreenCatalogBlock?: (stamp: TileStamp) => void;
+  /** ID of the currently selected catalog block stamp. */
+  selectedScreenCatalogBlockId?: string | null;
 }
 
 /**
@@ -271,7 +325,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   screenEditorSelectedTileId, tilesetForScreenEditor, tileBanksForScreenEditor,
   waypointPickerState, onSetWaypointPickerState,
   onUpdateAsset,
-  onCreateAsset
+  onCreateAsset,
+  onSelectScreenCatalogBlock,
+  selectedScreenCatalogBlockId
 }) => {
   const [currentFrame, setCurrentFrame] = useState(0); 
   const [animationSpeedMs, setAnimationSpeedMs] = useState<number>(asset?.type === 'sprite' ? ((asset.data as Sprite).animationSpeedMs ?? 200) : 200); 
@@ -288,6 +344,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     const rate = normalizeEntityJobRate(entityInstance?.jobRate);
     return String(normalizeEntityJobEntry(entityInstance?.jobEntry, getJobPeriodFromRate(rate)));
   });
+  const [collapsedEntityComponentIds, setCollapsedEntityComponentIds] = useState<Record<string, boolean>>({});
 
   const [localEffectZoneName, setLocalEffectZoneName] = useState(effectZone?.name || "");
   const [localEffectZoneRect, setLocalEffectZoneRect] = useState(effectZone?.rect || { x: 0, y: 0, width: 4, height: 4 });
@@ -296,6 +353,209 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     effectZone ? normalizeEffectZoneParams(resolveEffectZoneType(effectZone), effectZone.params) : {}
   );
   const [localEffectZoneDesc, setLocalEffectZoneDesc] = useState(effectZone?.description || "");
+
+  const screenBlockCatalogAnalysis = useMemo(() => {
+    if (activeEditorType !== EditorType.Screen || asset?.type !== 'screenmap' || !tilesetForScreenEditor) {
+      return null;
+    }
+
+    const screenMap = asset.data as ScreenMap;
+    const currentScreenAssetId = asset.id;
+    const activeAreaX = screenMap.activeAreaX ?? 0;
+    const activeAreaY = screenMap.activeAreaY ?? 0;
+    const activeAreaWidth = screenMap.activeAreaWidth ?? screenMap.width;
+    const activeAreaHeight = screenMap.activeAreaHeight ?? screenMap.height;
+    const tileBankDefinitions = resolveScreenTileBankDefinitions(screenMap, allAssets, tileBanksForScreenEditor);
+    const layoutBytes = generateScreenMapLayoutBytes(screenMap, tilesetForScreenEditor, tileBankDefinitions, currentScreenMode);
+    const currentMode = screenMap.blockOptimization?.backgroundMode || 'raw';
+    const currentTileBankId = screenMap.tileBankAssetId || '';
+
+    const screenAssets = allAssets
+      .filter(candidate => candidate.type === 'screenmap')
+      .map(candidate => ({ asset: candidate, screen: candidate.data as ScreenMap }));
+    const catalogScreens = screenAssets
+      .map(({ asset: screenAsset, screen }) => {
+        const tileBankAssetId = screen.tileBankAssetId || '';
+        const tileBankAsset = tileBankAssetId
+          ? allAssets.find(candidate => candidate.id === tileBankAssetId && candidate.type === 'tilebank')
+          : null;
+        return {
+          assetId: screenAsset.id,
+          screenId: screen.id,
+          name: screen.name,
+          mode: screen.blockOptimization?.backgroundMode || 'raw',
+          tileBankAssetId,
+          tileBankName: tileBankAsset?.name || (tileBankAssetId ? tileBankAssetId : 'No TileBank'),
+          tileBankColor: getTileBankMarkColor(tileBankAssetId),
+          enabled: screen.blockOptimization?.sharedCatalogEnabled === true,
+          compatible:
+            (screen.blockOptimization?.backgroundMode || 'raw') === currentMode &&
+            tileBankAssetId === currentTileBankId &&
+            currentMode !== 'raw',
+        };
+      });
+
+    const buildCatalogPreview = (mode: Extract<ScreenBlockExportMode, 'blocks2x2' | 'blocks4x4'>) => {
+      const groupScreens = screenAssets.filter(({ screen }) =>
+        screen.blockOptimization?.sharedCatalogEnabled === true &&
+        screen.blockOptimization?.backgroundMode === mode &&
+        (screen.tileBankAssetId || '') === currentTileBankId
+      );
+      const useGlobalCatalog = screenMap.blockOptimization?.sharedCatalogEnabled === true && currentMode === mode && groupScreens.length > 0;
+
+      if (useGlobalCatalog) {
+        const groupInputs = groupScreens.map(({ asset: screenAsset, screen }, index) => {
+          const width = screen.activeAreaWidth ?? screen.width;
+          const height = screen.activeAreaHeight ?? screen.height;
+          const definitions = resolveScreenTileBankDefinitions(screen, allAssets, tileBanksForScreenEditor);
+          return {
+            sourceIndex: index,
+            assetId: screenAsset.id,
+            screen,
+            bytes: generateScreenMapLayoutBytes(screen, tilesetForScreenEditor, definitions, currentScreenMode),
+            width,
+            height,
+            mode,
+          };
+        });
+        const built = buildSharedScreenBlockMaps({
+          screens: groupInputs.map(input => ({
+            index: input.sourceIndex,
+            bytes: input.bytes,
+            width: input.width,
+            height: input.height,
+            mode,
+          })),
+        });
+        const currentInput = groupInputs.find(input => input.assetId === currentScreenAssetId);
+        const blockMap = currentInput ? built.blockMapsByScreenIndex.get(currentInput.sourceIndex) : null;
+        if (!blockMap) return null;
+
+        const usageCountByCatalogIndex = Array.from({ length: blockMap.sharedCatalog.catalog.length }, () => 0);
+        built.blockMapsByScreenIndex.forEach(sharedMap => {
+          sharedMap.mapIndices.forEach(catalogIndex => {
+            usageCountByCatalogIndex[catalogIndex] = (usageCountByCatalogIndex[catalogIndex] ?? 0) + 1;
+          });
+        });
+        const currentUsageCountByCatalogIndex = blockMap.mapIndices.reduce<number[]>(
+          (counts, catalogIndex) => {
+            counts[catalogIndex] = (counts[catalogIndex] ?? 0) + 1;
+            return counts;
+          },
+          Array.from({ length: blockMap.sharedCatalog.catalog.length }, () => 0)
+        );
+        const localBlockMaps = groupInputs.map(input => ({
+          input,
+          blockMap: buildScreenBlockMapFromBytes({
+            bytes: input.bytes,
+            width: input.width,
+            height: input.height,
+            mode,
+          }),
+        }));
+
+        const catalogEntries = blockMap.sharedCatalog.catalog.map((entry) => {
+          const signature = entry.bytes.join(',');
+          const source = localBlockMaps.find(candidate =>
+            candidate.blockMap?.catalog.some(localEntry => localEntry.bytes.join(',') === signature)
+          );
+          const localEntry = source?.blockMap?.catalog.find(candidate => candidate.bytes.join(',') === signature);
+          const firstMapIndex = source && localEntry
+            ? source.blockMap!.mapIndices.findIndex(catalogIndex => catalogIndex === localEntry.index)
+            : -1;
+          const sourceScreen = source?.input.screen || screenMap;
+          const sourceActiveX = sourceScreen.activeAreaX ?? 0;
+          const sourceActiveY = sourceScreen.activeAreaY ?? 0;
+          const sourceMap = source?.blockMap || blockMap;
+          const safeMapIndex = firstMapIndex >= 0 ? firstMapIndex : 0;
+          const originX = sourceActiveX + ((safeMapIndex % sourceMap.mapWidth) * sourceMap.blockWidth);
+          const originY = sourceActiveY + (Math.floor(safeMapIndex / sourceMap.mapWidth) * sourceMap.blockHeight);
+          const cells: ScreenTile[] = [];
+          for (let localY = 0; localY < blockMap.blockHeight; localY++) {
+            for (let localX = 0; localX < blockMap.blockWidth; localX++) {
+              const sourceCell = sourceScreen.layers.background[originY + localY]?.[originX + localX];
+              cells.push(sourceCell ? { ...sourceCell } : { tileId: null });
+            }
+          }
+          return {
+            index: entry.index,
+            usageCount: currentUsageCountByCatalogIndex[entry.index] ?? 0,
+            globalUsageCount: usageCountByCatalogIndex[entry.index] ?? 0,
+            cells,
+          };
+        });
+
+        return {
+          blockWidth: blockMap.blockWidth,
+          blockHeight: blockMap.blockHeight,
+          uniqueBlockCount: blockMap.sharedCatalog.catalog.length,
+          catalogEntries,
+        };
+      }
+
+      const blockMap = buildScreenBlockMapFromBytes({
+        bytes: layoutBytes,
+        width: activeAreaWidth,
+        height: activeAreaHeight,
+        mode,
+      });
+
+      if (!blockMap) {
+        return null;
+      }
+
+      const usageCountByCatalogIndex = blockMap.mapIndices.reduce<number[]>(
+        (counts, catalogIndex) => {
+          counts[catalogIndex] = (counts[catalogIndex] ?? 0) + 1;
+          return counts;
+        },
+        Array.from({ length: blockMap.catalog.length }, () => 0)
+      );
+      const firstMapIndexByCatalogIndex = blockMap.mapIndices.reduce<number[]>(
+        (firstIndexes, catalogIndex, mapIndex) => {
+          if (firstIndexes[catalogIndex] === undefined) {
+            firstIndexes[catalogIndex] = mapIndex;
+          }
+          return firstIndexes;
+        },
+        []
+      );
+
+      const catalogEntries = blockMap.catalog.map((entry) => {
+        const firstMapIndex = firstMapIndexByCatalogIndex[entry.index] ?? 0;
+        const originX = activeAreaX + ((firstMapIndex % blockMap.mapWidth) * blockMap.blockWidth);
+        const originY = activeAreaY + (Math.floor(firstMapIndex / blockMap.mapWidth) * blockMap.blockHeight);
+        const cells: ScreenTile[] = [];
+        for (let localY = 0; localY < blockMap.blockHeight; localY++) {
+          for (let localX = 0; localX < blockMap.blockWidth; localX++) {
+            const sourceCell = screenMap.layers.background[originY + localY]?.[originX + localX];
+            cells.push(sourceCell ? { ...sourceCell } : { tileId: null });
+          }
+        }
+        return {
+          index: entry.index,
+          usageCount: usageCountByCatalogIndex[entry.index] ?? 0,
+          cells,
+        };
+      });
+
+      return {
+        blockWidth: blockMap.blockWidth,
+        blockHeight: blockMap.blockHeight,
+        uniqueBlockCount: blockMap.catalog.length,
+        catalogEntries,
+      };
+    };
+
+    return {
+      currentMode,
+      editorBaseTileDim: getScreenModeMetrics(currentScreenMode).baseTileSize,
+      sharedCatalogEnabled: screenMap.blockOptimization?.sharedCatalogEnabled === true,
+      catalogScreens,
+      blocks2x2: buildCatalogPreview('blocks2x2'),
+      blocks4x4: buildCatalogPreview('blocks4x4'),
+    };
+  }, [activeEditorType, allAssets, asset, currentScreenMode, tileBanksForScreenEditor, tilesetForScreenEditor]);
   
   useEffect(() => {
     if (gameFlowNode) {
@@ -309,6 +569,45 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     onSelect: ((assetId: string) => void) | null;
     currentValue: string | null;
   }>({ isOpen: false, assetTypeToPick: null, onSelect: null, currentValue: null });
+
+  const handleSharedCatalogToggle = (screenAssetId: string, enabled: boolean) => {
+    const targetAsset = allAssets.find(candidate => candidate.id === screenAssetId && candidate.type === 'screenmap');
+    const targetScreen = targetAsset?.data as ScreenMap | undefined;
+    if (!targetScreen || !onUpdateAsset) return;
+    onUpdateAsset(screenAssetId, {
+      blockOptimization: {
+        ...(targetScreen.blockOptimization || {}),
+        sharedCatalogEnabled: enabled,
+      },
+    });
+  };
+
+  const handleSelectScreenCatalogBlock = (
+    entry: { index: number; cells: ScreenTile[] },
+    blockWidth: number,
+    blockHeight: number
+  ) => {
+    if (!onSelectScreenCatalogBlock || !screenBlockCatalogAnalysis) return;
+
+    const rows: ScreenTile[][] = [];
+    for (let y = 0; y < blockHeight; y++) {
+      const row: ScreenTile[] = [];
+      for (let x = 0; x < blockWidth; x++) {
+        const cell = entry.cells[y * blockWidth + x];
+        row.push(cell ? { ...cell } : { tileId: null });
+      }
+      rows.push(row);
+    }
+
+    const mode = blockWidth === 4 && blockHeight === 4 ? 'blocks4x4' : 'blocks2x2';
+    onSelectScreenCatalogBlock({
+      id: `catalog:${mode}:${entry.index}`,
+      name: `Catalog #${entry.index} (${blockWidth}x${blockHeight})`,
+      width: blockWidth,
+      height: blockHeight,
+      tiles: rows,
+    });
+  };
 
   const assetsWithEntityTemplates = useMemo(() => {
     if (!entityTemplates || entityTemplates.length === 0) {
@@ -525,6 +824,54 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
   const handleDeleteEntityClick = () => { if (entityInstance && onDeleteEntityInstance) { onDeleteEntityInstance(entityInstance.id); }};
 
+  const getEntityComponentCollapseKey = (componentDefId: string) =>
+    entityInstance ? `${entityInstance.id}:${componentDefId}` : componentDefId;
+
+  const isEntityComponentCollapsed = (componentDefId: string) =>
+    !!collapsedEntityComponentIds[getEntityComponentCollapseKey(componentDefId)];
+
+  const setEntityComponentCollapsed = (componentDefId: string, isCollapsed: boolean) => {
+    const collapseKey = getEntityComponentCollapseKey(componentDefId);
+    setCollapsedEntityComponentIds(prev => ({ ...prev, [collapseKey]: isCollapsed }));
+  };
+
+  const collapseEntityComponents = (componentDefIds: string[]) => {
+    setCollapsedEntityComponentIds(prev => {
+      const next = { ...prev };
+      componentDefIds.forEach(componentDefId => {
+        next[getEntityComponentCollapseKey(componentDefId)] = true;
+      });
+      return next;
+    });
+  };
+
+  const renderEntityComponentPanel = (componentDef: ComponentDefinition, children: React.ReactNode): React.ReactNode => {
+    const isCollapsed = isEntityComponentCollapsed(componentDef.id);
+
+    return (
+      <div key={componentDef.id} className="p-1.5 border border-msx-border/50 rounded bg-msx-bgcolor/30">
+        <div className="flex items-center justify-between gap-2">
+          <h5 className="min-w-0 truncate text-xs text-msx-highlight" title={componentDef.name}>
+            {componentDef.name}
+          </h5>
+          <button
+            type="button"
+            onClick={() => setEntityComponentCollapsed(componentDef.id, !isCollapsed)}
+            className="shrink-0 p-0.5 text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-border rounded"
+            title={isCollapsed ? 'Expand component' : 'Collapse component'}
+            aria-expanded={!isCollapsed}
+            aria-label={isCollapsed ? `Expand ${componentDef.name}` : `Collapse ${componentDef.name}`}
+          >
+            {isCollapsed ? <CaretRightIcon className="w-3.5 h-3.5" /> : <CaretDownIcon className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+        <div className={isCollapsed ? 'hidden' : 'mt-1'}>
+          {children}
+        </div>
+      </div>
+    );
+  };
+
   const handleEffectZoneNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!effectZone || !onUpdateEffectZone) return;
     setLocalEffectZoneName(e.target.value);
@@ -580,13 +927,13 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             const allBankDefinitions = tileBanksForScreenEditor.flatMap(tb => tb.banks || []);
             const bank = allBankDefinitions.find(b => (b.enabled ?? true) && b.assignedTiles[selectedTileAsset.id]);
             if (bank) {
-                const baseCharCode = bank.assignedTiles[selectedTileAsset.id].charCode;
+                const assignment = bank.assignedTiles[selectedTileAsset.id] as any;
                 const numCharsX = Math.ceil(selectedTileAsset.width / EDITOR_BASE_TILE_DIM_S2);
                 const numCharsY = Math.ceil(selectedTileAsset.height / EDITOR_BASE_TILE_DIM_S2);
                 const codes = [];
                 for (let y = 0; y < numCharsY; y++) {
                     for (let x = 0; x < numCharsX; x++) {
-                        codes.push(baseCharCode + (y * numCharsX) + x);
+                        codes.push(resolveTileAssignmentCharCode(assignment, selectedTileAsset, x, y) ?? 0);
                     }
                 }
                 charCodesForDrawingTile = codes.join(', ');
@@ -741,6 +1088,11 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     const currentJobPeriod = getJobPeriodFromRate(currentJobRate);
     const currentJobEntry = normalizeEntityJobEntry(localEntityJobEntry, currentJobPeriod);
     const jobEntryOptions = Array.from({ length: currentJobPeriod }, (_, index) => index);
+    const renderedComponentDefIds = template.components
+      .map(templateComponent => templateComponent.definitionId)
+      .filter(definitionId => componentDefinitions.some(componentDef => componentDef.id === definitionId));
+    const areAllEntityComponentsCollapsed = renderedComponentDefIds.length > 0
+      && renderedComponentDefIds.every(componentDefId => isEntityComponentCollapsed(componentDefId));
   
     return (
       <div className="space-y-3">
@@ -795,8 +1147,25 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           </div>
         </div>
         <p className="text-xs text-msx-textsecondary">Based on Template: <strong className="text-msx-cyan">{template.name}</strong></p>
+
+        <div className="flex items-center justify-between gap-2 border-t border-msx-border/30 pt-2 mt-2">
+          <span className="text-xs text-msx-textsecondary">
+            Components: <strong className="text-msx-textprimary">{renderedComponentDefIds.length}</strong>
+          </span>
+          <Button
+            onClick={() => collapseEntityComponents(renderedComponentDefIds)}
+            variant="ghost"
+            size="sm"
+            icon={<CollapseAllIcon className="w-3.5 h-3.5" />}
+            className="px-2 py-0.5"
+            title="Collapse all components"
+            disabled={renderedComponentDefIds.length === 0 || areAllEntityComponentsCollapsed}
+          >
+            Collapse all
+          </Button>
+        </div>
         
-        <div className="max-h-72 overflow-y-auto pr-1 space-y-2 border-t border-msx-border/30 pt-2 mt-2">
+        <div className="max-h-72 overflow-y-auto pr-1 space-y-2">
             {template.components.map(templateComponent => {
             const componentDef = componentDefinitions.find(cd => cd.id === templateComponent.definitionId);
             if (!componentDef) return <div key={templateComponent.definitionId} className="text-xs text-red-500">Comp Def {templateComponent.definitionId} missing!</div>;
@@ -811,8 +1180,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               };
 
               return (
-                <div key={componentDef.id} className="p-1.5 border border-msx-border/50 rounded bg-msx-bgcolor/30">
-                  <h5 className="text-xs text-msx-highlight mb-1">{componentDef.name}</h5>
+                renderEntityComponentPanel(componentDef, (
+                  <>
                    {/* Render other patrol props normally if needed */}
                    <div className="mt-1 p-1.5 border border-dashed border-msx-border/50 rounded text-[0.65rem]">
                       <label className="block text-msx-textsecondary mb-1">Waypoint 1 (X, Y in pixels)</label>
@@ -834,7 +1203,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                           </Button>
                       </div>
                   </div>
-                </div>
+                  </>
+                ))
               );
             }
 
@@ -1003,8 +1373,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               }
 
               return (
-                <div key={componentDef.id} className="p-1.5 border border-msx-border/50 rounded bg-msx-bgcolor/30">
-                  <h5 className="text-xs text-msx-highlight mb-1">{componentDef.name}</h5>
+                renderEntityComponentPanel(componentDef, (
                   <div className="grid grid-cols-1 gap-2">
                     <p className="text-[0.65rem] text-msx-textsecondary">
                       Controls the scripted FakePlayer for tutorial/dialog/cutscene screens. Real Player input and movement are unchanged.
@@ -1229,7 +1598,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     </div>
                     )}
                   </div>
-                </div>
+                ))
               );
             }
 
@@ -1249,8 +1618,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               : false;
 
             return (
-                <div key={componentDef.id} className="p-1.5 border border-msx-border/50 rounded bg-msx-bgcolor/30">
-                <h5 className="text-xs text-msx-highlight mb-1">{componentDef.name}</h5>
+              renderEntityComponentPanel(componentDef, (
+                <>
                 {isChildLinkComponent && (
                     <div className="mb-2 p-2 bg-msx-bgcolor/40 border border-dashed border-msx-border/60 rounded">
                         <label className="block text-[0.7rem] text-msx-textsecondary mb-1">
@@ -1305,6 +1674,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     
                     const inputId = `override-${entityInstance.id}-${componentDef.id}-${propDef.name}`;
                     const isRefType = propDef.type.endsWith('_ref');
+                    const isBehaviorType = isBehaviorComponentProperty(componentDef.id, propDef.name, 'behaviorType');
+                    const isBehaviorInitialDirection = isBehaviorComponentProperty(componentDef.id, propDef.name, 'initialDirection');
 
                     // Special handling for StateMachine currentStateId property
                     const isStateMachineCurrentStateProperty = (componentDef.name === 'StateMachineComponent' || componentDef.name === 'StateMachine') 
@@ -1366,6 +1737,28 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                                         </option>
                                     ))}
                                 </select>
+                            ) : isBehaviorType ? (
+                                <select
+                                    id={inputId}
+                                    value={String(currentValue ?? 'none')}
+                                    onChange={e => handleComponentOverrideChange(componentDef.id, propDef.name, e.target.value, propDef.type)}
+                                    className="w-full p-0.5 text-xs bg-msx-bgcolor border-msx-border rounded"
+                                >
+                                    {BEHAVIOR_TYPE_OPTIONS.map(option => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                </select>
+                            ) : isBehaviorInitialDirection ? (
+                                <select
+                                    id={inputId}
+                                    value={String(currentValue ?? 'right')}
+                                    onChange={e => handleComponentOverrideChange(componentDef.id, propDef.name, e.target.value, propDef.type)}
+                                    className="w-full p-0.5 text-xs bg-msx-bgcolor border-msx-border rounded"
+                                >
+                                    {BEHAVIOR_DIRECTION_OPTIONS.map(option => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                </select>
                             ) : (componentDef.id === 'comp_shoot' && propDef.name === 'aimMode') ? (
                                 <select
                                     id={inputId}
@@ -1393,7 +1786,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                         </div>
                     );
                 })}
-                </div>
+                </>
+              ))
             );
             })}
         </div>
@@ -1611,6 +2005,89 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         </div>
       );
     }
+    if (gameFlowNode.type === 'Controls') {
+      const node = gameFlowNode as GameFlowControlsNode;
+      const updateControlsNode = (changes: Partial<GameFlowControlsNode>) => {
+        onUpdateGameFlowNode(node.id, changes as Partial<GameFlowNode>);
+      };
+      return (
+        <div className="space-y-2">
+          <div>
+            <label className="block text-xs text-msx-textsecondary mb-0.5">Title:</label>
+            <input
+              type="text"
+              value={node.title}
+              onChange={(e) => updateControlsNode({ title: e.target.value })}
+              className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-msx-textsecondary mb-0.5">Button 1 key:</label>
+            <select
+              value={node.keyboardButton1 || 'SPC'}
+              onChange={(e) => updateControlsNode({ keyboardButton1: e.target.value as GameFlowControlsNode['keyboardButton1'] })}
+              className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+            >
+              <option value="SPC">SPC</option>
+              <option value="CTRL">CTRL</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-msx-textsecondary mb-0.5">Button 2 key:</label>
+            <select
+              value={node.keyboardButton2 || 'N'}
+              onChange={(e) => updateControlsNode({ keyboardButton2: e.target.value as GameFlowControlsNode['keyboardButton2'] })}
+              className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+            >
+              <option value="N">N</option>
+              <option value="CTRL">CTRL</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-msx-textsecondary mb-0.5">Jump/Fire text:</label>
+            <input
+              type="text"
+              value={node.jumpActionLabel || 'Salto'}
+              maxLength={10}
+              onChange={(e) => updateControlsNode({ jumpActionLabel: e.target.value })}
+              className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-msx-textsecondary mb-0.5">Jump uses:</label>
+            <select
+              value={node.jumpActionButton || 'button1'}
+              onChange={(e) => updateControlsNode({ jumpActionButton: e.target.value as GameFlowControlsNode['jumpActionButton'] })}
+              className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+            >
+              <option value="button1">Button 1</option>
+              <option value="button2">Button 2</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-msx-textsecondary mb-0.5">Action text:</label>
+            <input
+              type="text"
+              value={node.actionLabel || 'Accion'}
+              maxLength={10}
+              onChange={(e) => updateControlsNode({ actionLabel: e.target.value })}
+              className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-msx-textsecondary mb-0.5">Action uses:</label>
+            <select
+              value={node.actionButton || 'button2'}
+              onChange={(e) => updateControlsNode({ actionButton: e.target.value as GameFlowControlsNode['actionButton'] })}
+              className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+            >
+              <option value="button1">Button 1</option>
+              <option value="button2">Button 2</option>
+            </select>
+          </div>
+        </div>
+      );
+    }
     if (gameFlowNode.type === 'Group') {
         const node = gameFlowNode as any; // GameFlowGroupNode
         const gameFlowAssets = assetsWithEntityTemplates.filter(a => a.type === 'gameflow');
@@ -1762,6 +2239,62 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       bodyClassName="flex-1 flex flex-col min-h-0"
     >
       <div className="space-y-1 p-2 flex-1 overflow-y-auto min-h-0">
+          {activeEditorType === EditorType.Screen && screenBlockCatalogAnalysis && tilesetForScreenEditor && (
+            <div className="mb-2 space-y-2">
+              <div className="rounded border border-msx-border/60 bg-msx-bgcolor/40 p-2 text-xs">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-msx-textprimary">Global catalog screens</div>
+                    <div className="text-msx-textsecondary">
+                      Same export mode; colors show TileBank groups.
+                    </div>
+                  </div>
+                  <span className={screenBlockCatalogAnalysis.sharedCatalogEnabled ? 'text-msx-cyan' : 'text-msx-textsecondary'}>
+                    {screenBlockCatalogAnalysis.sharedCatalogEnabled ? 'On' : 'Off'}
+                  </span>
+                </div>
+                <div className="max-h-36 space-y-1 overflow-auto pr-1">
+                  {screenBlockCatalogAnalysis.catalogScreens.map(screenOption => (
+                    <label
+                      key={screenOption.assetId}
+                      className={`flex items-center justify-between gap-2 rounded border px-2 py-1 ${
+                        screenOption.compatible
+                          ? 'border-msx-border/50 bg-msx-bgcolor-darker/50 text-msx-textprimary'
+                          : 'border-msx-border/30 bg-msx-bgcolor/20 text-msx-textsecondary/60'
+                      }`}
+                      title={`${screenOption.tileBankName} | ${screenOption.compatible ? 'Include in this global catalog group' : 'Different export mode or TileBank'}`}
+                    >
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span
+                          className="h-3 w-3 flex-shrink-0 rounded-sm border border-white/30"
+                          style={{ backgroundColor: screenOption.tileBankColor }}
+                          aria-hidden="true"
+                        />
+                        <span className="min-w-0 truncate">{screenOption.name}</span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-msx-accent"
+                        checked={screenOption.enabled}
+                        disabled={!screenOption.compatible || !onUpdateAsset}
+                        onChange={event => handleSharedCatalogToggle(screenOption.assetId, event.target.checked)}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <ScreenBlockCatalogPanel
+                currentMode={screenBlockCatalogAnalysis.currentMode}
+                blocks2x2={screenBlockCatalogAnalysis.blocks2x2}
+                blocks4x4={screenBlockCatalogAnalysis.blocks4x4}
+                tileset={tilesetForScreenEditor}
+                currentScreenMode={currentScreenMode}
+                editorBaseTileDim={screenBlockCatalogAnalysis.editorBaseTileDim}
+                selectedEntryId={selectedScreenCatalogBlockId?.replace(/^catalog:/, '') ?? null}
+                onSelectEntry={handleSelectScreenCatalogBlock}
+              />
+            </div>
+          )}
           {gameFlowNode && activeEditorType === EditorType.GameFlow
             ? renderGameFlowNodeProperties()
             : entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities'

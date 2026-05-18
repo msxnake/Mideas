@@ -553,6 +553,13 @@ function referencedAssetIdsFromNode(node: GameFlowNode): string[] {
       if (font) ids.push(font);
       break;
     }
+    case 'TextScroll':
+    case 'TextScrollColor':
+    case 'TextScroll2': {
+      const font = node.fontAssetId;
+      if (font) ids.push(font);
+      break;
+    }
     default:
       break;
   }

@@ -1,0 +1,23 @@
+BP_4010_RESET_OR_INIT pc=4010 sp=F2EC banks=00/00/00 flow=00 irq=0000 time=00 player=33 pxy=13107,13107 v=33/33 hp=33 boss=05 bossxy=00,04 stack=F392
+intro_space_before pc=62D9 sp=F36A banks=04/02/03 flow=01 irq=00B9 time=3A player=01 pxy=16,144 v=00/00 hp=33 boss=01 bossxy=11,0A stack=61A6
+intro_space_after pc=625E sp=F36A banks=01/02/03 flow=01 irq=00C8 time=39 player=01 pxy=16,112 v=00/FE hp=33 boss=01 bossxy=0F,0A stack=61D7
+start_space_before pc=62D9 sp=F368 banks=04/02/03 flow=01 irq=01E5 time=35 player=01 pxy=16,144 v=00/00 hp=33 boss=01 bossxy=11,0A stack=62B1
+start_space_after pc=1810 sp=F36A banks=01/02/03 flow=01 irq=01F4 time=34 player=01 pxy=16,120 v=00/FD hp=33 boss=01 bossxy=14,0A stack=18EF
+t13_right_start pc=1A4B sp=F364 banks=01/02/03 flow=01 irq=0221 time=34 player=01 pxy=16,144 v=00/00 hp=33 boss=01 bossxy=18,0A stack=19DD
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_hold_right_shots/t13_right_start.png
+t15 pc=A165 sp=F37C banks=01/02/03 flow=01 irq=0298 time=32 player=01 pxy=193,152 v=00/00 hp=33 boss=01 bossxy=11,0A stack=A08A
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_hold_right_shots/t15.png
+t20 pc=40E7 sp=F366 banks=04/02/03 flow=01 irq=03C4 time=2D player=01 pxy=193,152 v=00/00 hp=33 boss=01 bossxy=12,0A stack=000A
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_hold_right_shots/t20.png
+t25 pc=62E1 sp=F374 banks=01/02/03 flow=01 irq=04F0 time=28 player=01 pxy=195,152 v=02/00 hp=33 boss=01 bossxy=04,0A stack=0100
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_hold_right_shots/t25_time40.png
+t30 pc=A165 sp=F37C banks=01/02/03 flow=01 irq=061B time=23 player=01 pxy=193,152 v=00/00 hp=33 boss=01 bossxy=18,0A stack=A08A
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_hold_right_shots/t30.png
+t35 pc=87D7 sp=F360 banks=01/02/03 flow=01 irq=0747 time=1E player=01 pxy=193,152 v=00/00 hp=33 boss=01 bossxy=04,0A stack=0002
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_hold_right_shots/t35.png
+t40 pc=453C sp=F358 banks=01/02/03 flow=01 irq=0873 time=19 player=01 pxy=193,152 v=00/00 hp=33 boss=01 bossxy=05,0A stack=632D
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_hold_right_shots/t40.png
+t45_release pc=40E2 sp=F378 banks=01/02/03 flow=01 irq=099E time=14 player=01 pxy=193,152 v=00/00 hp=33 boss=01 bossxy=18,0A stack=4D31
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_hold_right_shots/t45_release.png
+t50 pc=416B sp=F374 banks=0D/02/03 flow=01 irq=0ACA time=0F player=01 pxy=193,152 v=00/00 hp=33 boss=01 bossxy=04,0A stack=4B33
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_hold_right_shots/t50.png

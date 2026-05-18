@@ -19,6 +19,12 @@ interface ConfirmationModalProps {
   confirmText?: string;
   /** Optional text for the cancel button. */
   cancelText?: string;
+  /** Optional text for a secondary action button. */
+  secondaryText?: string;
+  /** Optional callback for a secondary action button. */
+  onSecondaryAction?: () => void;
+  /** The visual style of the secondary action button. */
+  secondaryButtonVariant?: 'primary' | 'danger' | 'secondary' | 'ghost';
   /** The visual style of the confirm button. */
   confirmButtonVariant?: 'primary' | 'danger' | 'secondary' | 'ghost';
 }
@@ -34,6 +40,9 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   onCancel,
   confirmText = "Confirm",
   cancelText = "Cancel",
+  secondaryText,
+  onSecondaryAction,
+  secondaryButtonVariant = 'secondary',
   confirmButtonVariant = 'danger',
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -89,6 +98,11 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
           <Button onClick={onCancel} variant="ghost" size="md">
             {cancelText}
           </Button>
+          {secondaryText && onSecondaryAction && (
+            <Button onClick={onSecondaryAction} variant={secondaryButtonVariant} size="md">
+              {secondaryText}
+            </Button>
+          )}
           <Button ref={confirmButtonRef} onClick={onConfirm} variant={confirmButtonVariant} size="md">
             {confirmText}
           </Button>

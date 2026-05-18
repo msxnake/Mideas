@@ -118,6 +118,19 @@ function buildWorldMusicPolicyMap(analysis) {
     }
     return policies;
 }
+function usesLimitOnComponent(analysis) {
+    const entities = Array.isArray(analysis.entities) ? analysis.entities : [];
+    const templates = Array.isArray(analysis.templates) ? analysis.templates : [];
+    return entities.some((entity) => {
+        const template = templates.find((candidate) => candidate?.id === entity?.entityTemplateId);
+        const templateComp = template?.components?.find((component) => component?.definitionId === 'comp_limit_on' || component?.definitionName === 'Limit_on');
+        const overrides = entity?.componentOverrides?.['comp_limit_on'];
+        if (!templateComp && !overrides)
+            return false;
+        const enabled = overrides?.isEnabled ?? templateComp?.defaultValues?.isEnabled;
+        return enabled !== false && enabled !== 'false';
+    });
+}
 function buildWorldMusicPolicyManifest(analysis) {
     const worldMaps = analysis.worldmaps || [];
     const policies = buildWorldMusicPolicyMap(analysis);
@@ -413,6 +426,124 @@ ${skipLabel}:
 `;
 }
 /**
+ * Emit clamp runtime snippet for one missing exit direction.
+ * DE must contain the controllable entity index.
+ */
+function emitDirectionalLimitClampCode(worldLabel, screenIndex, direction, currentBounds) {
+    const skipLabel = `clamp_limit_${worldLabel}_s${screenIndex}_skip_${direction}`;
+    const applyLabel = `clamp_limit_${worldLabel}_s${screenIndex}_apply_${direction}`;
+    const clampByte = (value) => Math.max(0, Math.min(255, Math.round(value)));
+    if (direction === 'east') {
+        const maxX = clampByte(Math.max(currentBounds.leftPx, currentBounds.rightPx - 16));
+        return `    ; Limit_on east: implicit wall when no screen exists to the right
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    cp ${Math.min(255, maxX + 1)}
+    jp c, ${skipLabel}
+${applyLabel}:
+    ld (hl), ${maxX}
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ret
+
+${skipLabel}:
+`;
+    }
+    if (direction === 'west') {
+        const minX = clampByte(currentBounds.leftPx);
+        const maxX = clampByte(Math.max(currentBounds.leftPx, currentBounds.rightPx - 16));
+        return `    ; Limit_on west: implicit wall when no screen exists to the left
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    cp ${minX}
+    jp c, ${applyLabel}
+    ld hl, entity_vel_x
+    add hl, de
+    bit 7, (hl)
+    jp z, ${skipLabel}
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    cp ${Math.min(255, maxX + 1)}
+    jp c, ${skipLabel}
+${applyLabel}:
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), ${minX}
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), 0
+    ret
+
+${skipLabel}:
+`;
+    }
+    if (direction === 'south') {
+        const maxY = clampByte(Math.max(currentBounds.topPx, currentBounds.bottomPx - 16));
+        return `    ; Limit_on south: implicit floor when no screen exists below
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    cp ${Math.min(255, maxY + 1)}
+    jp c, ${skipLabel}
+${applyLabel}:
+    ld (hl), ${maxY}
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), 0
+    ld hl, entity_on_ground
+    add hl, de
+    set 0, (hl)
+    ret
+
+${skipLabel}:
+`;
+    }
+    const minY = clampByte(currentBounds.topPx);
+    const maxY = clampByte(Math.max(currentBounds.topPx, currentBounds.bottomPx - 16));
+    return `    ; Limit_on north: implicit ceiling when no screen exists above
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    cp ${minY}
+    jp c, ${applyLabel}
+    ld hl, entity_vel_y
+    add hl, de
+    bit 7, (hl)
+    jp z, ${skipLabel}
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    cp ${Math.min(255, maxY + 1)}
+    jp c, ${skipLabel}
+${applyLabel}:
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), ${minY}
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), 0
+    ret
+
+${skipLabel}:
+`;
+}
+/**
  * Generate worlds file with world map data and loading functions (worlds.asm)
  *
  * WorldMap structure:
@@ -428,8 +559,17 @@ function generateWorldsFile(analysis, romMode = 'simple32k') {
     // Check if we have world maps in the analysis
     const worldMaps = analysis.worldmaps || [];
     const worldMusicPolicies = buildWorldMusicPolicyMap(analysis);
+    const hasMusicTracks = (analysis.tracks?.length || 0) > 0;
     const hasHudElements = !!analysis.screenMaps?.some((screen) => Array.isArray(screen?.hudConfiguration?.elements) && screen.hudConfiguration.elements.length > 0);
+    const hasLimitOn = usesLimitOnComponent(analysis);
     const hasScreenTimer = hasGlobalVariableAsmName(analysis, 'global_var_time_remaining');
+    const resetScreenTimerCall = hasScreenTimer
+        ? (useFarCall ? 'world_reset_screen_timer' : 'reset_world_screen_timer')
+        : '';
+    const hudFrameCall = (routine) => useFarCall ? `${routine}_far` : routine;
+    const drawHudFrameCall = useFarCall ? 'imprimir_marco_far' : 'imprimir_marco';
+    const musicStopCall = useFarCall ? 'call_music_stop_resident' : 'music_stop';
+    const musicPlayTrackCall = useFarCall ? 'call_music_play_track_resident' : 'music_play_track';
     // Skip world system if no worlds in project
     if (worldMaps.length === 0) {
         return `; ==================================================================
@@ -444,6 +584,9 @@ load_world_default:
     ret
 
 check_world_screen_transition:
+    ret
+
+clamp_world_screen_limits:
     ret
 
 ensure_music_for_world_id:
@@ -489,7 +632,8 @@ WORLD_${worldName}_SCREEN_COUNT EQU ${world.nodes?.length || 0}
         }
         code += `\n`;
     });
-    code += `; ==================================================================
+    if (hasMusicTracks) {
+        code += `; ==================================================================
 ; WORLD MUSIC POLICY
 ; preserve (#FE): do not touch current music when Game Flow can reach the
 ; world with multiple different music states.
@@ -499,29 +643,29 @@ WORLD_${worldName}_SCREEN_COUNT EQU ${world.nodes?.length || 0}
 
 world_music_policy_track_table:
 `;
-    worldMaps.forEach((world, index) => {
-        const worldName = toConstantName(world.name || `world_${index}`);
-        const policy = worldMusicPolicies.get(String(world.id || '').trim()) || { mode: 'preserve' };
-        if (policy.mode === 'play') {
-            code += `    db ${policy.trackIndex}    ; WORLD_${worldName}_ID -> track ${policy.trackIndex}\n`;
-        }
-        else if (policy.mode === 'stop') {
-            code += `    db #FF    ; WORLD_${worldName}_ID -> stop\n`;
-        }
-        else {
-            code += `    db #FE    ; WORLD_${worldName}_ID -> preserve\n`;
-        }
-    });
-    code += `
+        worldMaps.forEach((world, index) => {
+            const worldName = toConstantName(world.name || `world_${index}`);
+            const policy = worldMusicPolicies.get(String(world.id || '').trim()) || { mode: 'preserve' };
+            if (policy.mode === 'play') {
+                code += `    db ${policy.trackIndex}    ; WORLD_${worldName}_ID -> track ${policy.trackIndex}\n`;
+            }
+            else if (policy.mode === 'stop') {
+                code += `    db #FF    ; WORLD_${worldName}_ID -> stop\n`;
+            }
+            else {
+                code += `    db #FE    ; WORLD_${worldName}_ID -> preserve\n`;
+            }
+        });
+        code += `
 world_music_policy_loop_table:
 `;
-    worldMaps.forEach((world, index) => {
-        const worldName = toConstantName(world.name || `world_${index}`);
-        const policy = worldMusicPolicies.get(String(world.id || '').trim()) || { mode: 'preserve' };
-        const loopFlag = policy.mode === 'play' ? policy.loopFlag : 0;
-        code += `    db ${loopFlag}    ; WORLD_${worldName}_ID loop\n`;
-    });
-    code += `
+        worldMaps.forEach((world, index) => {
+            const worldName = toConstantName(world.name || `world_${index}`);
+            const policy = worldMusicPolicies.get(String(world.id || '').trim()) || { mode: 'preserve' };
+            const loopFlag = policy.mode === 'play' ? policy.loopFlag : 0;
+            code += `    db ${loopFlag}    ; WORLD_${worldName}_ID loop\n`;
+        });
+        code += `
 ; ------------------------------------------------------------------
 ; ensure_music_for_world_id
 ; Input:  A = WORLD_*_ID
@@ -542,7 +686,7 @@ ensure_music_for_world_id:
     ld a, (music_active)
     or a
     ret z
-    jp music_stop
+    jp ${musicStopCall}
 ensure_music_for_world_id_play_or_keep:
     ld c, a
     ld hl, world_music_policy_loop_table
@@ -560,18 +704,66 @@ ensure_music_for_world_id_play_or_keep:
     ret z
 ensure_music_for_world_id_play_track:
     ld a, c
-    jp music_play_track
+    jp ${musicPlayTrackCall}
 
 `;
+    }
+    else {
+        code += `; ------------------------------------------------------------------
+; ensure_music_for_world_id
+; No music tracks are present, so world loading does not touch PSG music.
+; ------------------------------------------------------------------
+ensure_music_for_world_id:
+    ret
+
+`;
+    }
     // Generate load_world_X functions for each world
     code += `; ==================================================================
 ; WORLD LOADING FUNCTIONS
 ; ==================================================================
 
 `;
+    if (hasScreenTimer && useFarCall) {
+        code += `; ------------------------------------------------------------------
+; world_reset_screen_timer
+; Local copy used while executing inside the worlds far bank. The
+; GameFlow timer routine lives in the primary P3 bank, which is hidden
+; while this bank is mapped.
+; ------------------------------------------------------------------
+world_reset_screen_timer:
+    push af
+    ld a, (current_screen_engine)
+    or a
+    jr nz, world_local_timer_reset_done
+    ld a, 60
+    ld (global_var_time_remaining), a
+    xor a
+    ld (global_var_time_remaining+1), a
+    ld a, (isComputer50HzOr60Hz)
+    or a
+    ld a, 50
+    jr z, world_local_timer_frames_ready
+    ld a, 60
+world_local_timer_frames_ready:
+    ld (time_second_frame_counter), a
+    ld a, (interrupt_counter)
+    ld (time_last_interrupt_counter), a
+    ld a, (interrupt_counter+1)
+    ld (time_last_interrupt_counter+1), a
+    ld a, 1
+    ld (hud_dirty_flag), a
+world_local_timer_reset_done:
+    pop af
+    ret
+
+`;
+    }
     let worldGlobalOffset = 0;
     worldMaps.forEach((world) => {
         const worldId = world.id || 'unknown';
+        const worldLabel = toRoutineLabel(worldId);
+        const worldBlockId = `runtime.worlds.${worldLabel}.loader`;
         const startScreenNodeId = world.startScreenNodeId;
         const nodes = world.nodes || [];
         const currentWorldGlobalOffset = worldGlobalOffset;
@@ -582,11 +774,13 @@ ensure_music_for_world_id_play_track:
 ; Screens: ${nodes.length}
 ; Start Screen Node: ${startScreenNodeId || 'none'}
 ; ------------------------------------------------------------------
-load_world_${toRoutineLabel(worldId)}:
+; @mideas:block id=${worldBlockId} kind=routine owner=worlds roots=load_world_${worldLabel}
+load_world_${worldLabel}:
 `;
         if (nodes.length === 0) {
             code += `    ; No screens in this world
     ret
+; @mideas:endblock id=${worldBlockId}
 
 `;
             return;
@@ -598,6 +792,7 @@ load_world_${toRoutineLabel(worldId)}:
         if (!startScreenAssetId) {
             code += `    ; No valid start screen found
     ret
+; @mideas:endblock id=${worldBlockId}
 
 `;
             return;
@@ -615,16 +810,19 @@ load_world_${toRoutineLabel(worldId)}:
     call ensure_sprite_patterns_for_world_id
     ; Load start screen: ${startNode.name || 'unknown'} (${startScreenAssetId})
 ${startScreenCallCode}
+    ; Screen loaders mark the screen-engine path; WorldLink must run gameplay.
+    xor a
+    ld (current_screen_engine), a
 `;
         if (worldImportedHudFrameDrawRoutine) {
             code += `    ; Draw imported HUD frame once at world start
-    call ${worldImportedHudFrameDrawRoutine}
+    call ${hudFrameCall(worldImportedHudFrameDrawRoutine)}
 
 `;
         }
         if (hasHudElements) {
             code += `    ; Draw HUD frame once at world start
-    call imprimir_marco
+    call ${drawHudFrameCall}
 
 `;
         }
@@ -642,10 +840,11 @@ ${startScreenCallCode}
     xor a
     ld (screen_transition_cooldown), a
 
-${hasScreenTimer ? `    call reset_world_screen_timer
+${hasScreenTimer ? `    call ${resetScreenTimerCall}
 ` : ``}    call rebuild_used_entity_list  ; Precompute room entity buckets before gameplay resumes
     call apply_collected_tiles     ; Re-apply persistent collection state for this screen
     ret
+; @mideas:endblock id=${worldBlockId}
 
 `;
     });
@@ -701,13 +900,16 @@ ${hasScreenTimer ? `    call reset_world_screen_timer
             code += `; Transition: ${fromNode.name || 'screen'} -> ${toNode.name || 'screen'}
 transition_${toRoutineLabel(worldId)}_${connIndex}:
 ${transitionScreenCallCode}
+    ; Screen loaders mark the screen-engine path; WorldLink must run gameplay.
+    xor a
+    ld (current_screen_engine), a
     ld a, ${toScreenIndex}
     ld (current_screen_index), a
     ld a, ${toGlobalScreenId}
     ld (current_screen_id), a
     ld hl, active_entity_list_dirty
     ld (hl), 1
-${hasScreenTimer ? `    call reset_world_screen_timer
+${hasScreenTimer ? `    call ${resetScreenTimerCall}
 ` : ``}    call rebuild_used_entity_list  ; Precompute room entity buckets during transition
     call apply_collected_tiles     ; Re-apply persistent collection state
     ret
@@ -878,11 +1080,152 @@ check_world_screen_transition:
             }
         });
     });
+    if (hasLimitOn) {
+        // Generate runtime edge limiter for controllable entities with Limit_on.
+        code += `; ==================================================================
+; SCREEN EDGE LIMIT RUNTIME
+; ==================================================================
+; Limit_on turns missing WorldMap neighbors into implicit screen-edge walls.
+; Runs after entity movement so Preview and ROM stay aligned.
+; ==================================================================
+
+clamp_world_screen_limits:
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+.limit_find_player_loop:
+    ld e, (hl)
+    inc hl
+    ld d, 0
+
+    push hl
+    ld hl, entity_limit_on
+    add hl, de
+    ld a, (hl)
+    or a
+    pop hl
+    jr z, .limit_next_player
+
+    push hl
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    pop hl
+    jr nz, .limit_player_found
+
+.limit_next_player:
+    djnz .limit_find_player_loop
+    ret
+
+.limit_player_found:
+    ld a, (current_world_id)
+`;
+        worldMaps.forEach((world, worldIndex) => {
+            const worldName = toConstantName(world.name || `world_${worldIndex}`);
+            const worldId = world.id || `world_${worldIndex}`;
+            const worldRoutine = `clamp_limit_world_${toRoutineLabel(worldId)}`;
+            code += `    cp WORLD_${worldName}_ID
+    jp z, ${worldRoutine}
+`;
+        });
+        code += `    ret
+
+`;
+        worldMaps.forEach((world, worldIndex) => {
+            const worldId = world.id || `world_${worldIndex}`;
+            const worldLabel = toRoutineLabel(worldId);
+            const nodes = world.nodes || [];
+            const connections = world.connections || [];
+            code += `clamp_limit_world_${worldLabel}:
+`;
+            if (nodes.length === 0) {
+                code += `    ret
+
+`;
+                return;
+            }
+            const nodeIndexById = new Map();
+            nodes.forEach((node, idx) => nodeIndexById.set(node.id, idx));
+            const transitionMap = new Map();
+            nodes.forEach((_, idx) => transitionMap.set(idx, {}));
+            connections.forEach((conn) => {
+                const fromNodeId = extractConnectionNodeId(conn, 'from');
+                const toNodeId = extractConnectionNodeId(conn, 'to');
+                const fromDir = extractConnectionDirection(conn, 'from');
+                const toDir = extractConnectionDirection(conn, 'to');
+                if (!fromNodeId || !toNodeId)
+                    return;
+                const fromIndex = nodeIndexById.get(fromNodeId);
+                const toIndex = nodeIndexById.get(toNodeId);
+                if (fromIndex === undefined || toIndex === undefined)
+                    return;
+                if (fromDir) {
+                    const mapEntry = transitionMap.get(fromIndex);
+                    if (mapEntry && mapEntry[fromDir] === undefined) {
+                        mapEntry[fromDir] = toIndex;
+                    }
+                }
+                if (toDir) {
+                    const mapEntry = transitionMap.get(toIndex);
+                    if (mapEntry && mapEntry[toDir] === undefined) {
+                        mapEntry[toDir] = fromIndex;
+                    }
+                }
+            });
+            code += `    ld a, (current_screen_index)
+`;
+            nodes.forEach((_, idx) => {
+                const screenLabel = `clamp_limit_${worldLabel}_screen_${idx}`;
+                code += `    cp ${idx}
+    jp z, ${screenLabel}
+`;
+            });
+            code += `    ret
+
+`;
+            nodes.forEach((node, idx) => {
+                const transitions = transitionMap.get(idx) || {};
+                const screenLabel = `clamp_limit_${worldLabel}_screen_${idx}`;
+                const currentBounds = getScreenActiveAreaBounds(node.screenAssetId, analysis);
+                const directions = ['east', 'west', 'south', 'north'];
+                const missingDirections = directions.filter((direction) => transitions[direction] === undefined);
+                code += `${screenLabel}:
+`;
+                if (missingDirections.length === 0) {
+                    code += `    ret
+
+`;
+                }
+                else {
+                    missingDirections.forEach((direction) => {
+                        code += emitDirectionalLimitClampCode(worldLabel, idx, direction, currentBounds);
+                    });
+                    code += `    ret
+
+`;
+                }
+            });
+        });
+    }
+    else {
+        code += `; ==================================================================
+; SCREEN EDGE LIMIT RUNTIME (SKIPPED - NO LIMIT_ON ENTITIES)
+; ==================================================================
+
+clamp_world_screen_limits:
+    ret
+
+`;
+    }
     // Generate helper functions
     code += `; ==================================================================
 ; WORLD HELPER FUNCTIONS
 ; ==================================================================
 
+; @mideas:block id=runtime.worlds.current_screen_helpers kind=routine owner=worlds
 ; Get current world ID
 ; Output: A = current world ID
 get_current_world_id:
@@ -904,6 +1247,7 @@ set_current_screen:
     ld (hl), 1
     call rebuild_used_entity_list
     ret
+; @mideas:endblock id=runtime.worlds.current_screen_helpers
 
 ; ==================================================================
 ; END OF WORLDS

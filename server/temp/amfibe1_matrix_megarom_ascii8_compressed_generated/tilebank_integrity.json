@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "scope": "konami8k_tilebank_integrity",
+  "summary": {
+    "screens": 0,
+    "tileBanks": 0,
+    "checkedScreens": 0,
+    "issueScreens": 0,
+    "issueCells": 0,
+    "issueTiles": 0,
+    "missingAssetCells": 0,
+    "missingAssetTiles": 0,
+    "unassignedCells": 0,
+    "unassignedTiles": 0
+  },
+  "screens": []
+}

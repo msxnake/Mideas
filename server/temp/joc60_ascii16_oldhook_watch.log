@@ -1,0 +1,18 @@
+before_watch pc=046F sp=F35E bank=00/00/01/01 flow=00 screen=FF irq=0000 inirq=00 old=0000000000 px=13107
+watch installed
+WP_OLDHOOK addr=E7C6 val=C9 pc=4755 sp=F37E bank=00/00/01/01 flow=00 screen=FF irq=0000 inirq=00 old=C900000000 px=13107
+WP_OLDHOOK addr=E7C7 val=C9 pc=4755 sp=F37E bank=00/00/01/01 flow=00 screen=FF irq=0000 inirq=00 old=C9C9000000 px=13107
+WP_OLDHOOK addr=E7C8 val=C9 pc=4755 sp=F37E bank=00/00/01/01 flow=00 screen=FF irq=0000 inirq=00 old=C9C9C90000 px=13107
+WP_OLDHOOK addr=E7C9 val=C9 pc=4755 sp=F37E bank=00/00/01/01 flow=00 screen=FF irq=0000 inirq=00 old=C9C9C9C900 px=13107
+WP_OLDHOOK addr=E7CA val=C9 pc=4755 sp=F37E bank=00/00/01/01 flow=00 screen=FF irq=0000 inirq=00 old=C9C9C9C9C9 px=13107
+WP_OLDHOOK addr=E7CA val=F3 pc=4793 sp=E7CA bank=00/00/01/01 flow=00 screen=00 irq=7A04 inirq=B7 old=C9C9C9C9F3 px=0
+WP_OLDHOOK addr=E7C9 val=01 pc=4794 sp=E7C8 bank=00/00/01/01 flow=00 screen=00 irq=7A04 inirq=B7 old=C9C9C901F3 px=0
+WP_OLDHOOK addr=E7C8 val=FF pc=4794 sp=E7C8 bank=00/00/01/01 flow=00 screen=00 irq=7A04 inirq=B7 old=C9C9FF01F3 px=0
+WP_OLDHOOK addr=E7C7 val=40 pc=4796 sp=E7C6 bank=00/00/01/01 flow=00 screen=00 irq=7A04 inirq=B7 old=C940FF01F3 px=0
+WP_OLDHOOK addr=E7C6 val=10 pc=4796 sp=E7C6 bank=00/00/01/01 flow=00 screen=00 irq=7A04 inirq=B7 old=1040FF01F3 px=0
+space1_before pc=CA29 sp=E98B bank=00/00/01/01 flow=00 screen=00 irq=7A05 inirq=01 old=1040FF01F3 px=0
+space1_after pc=CA29 sp=E98B bank=00/00/01/01 flow=00 screen=00 irq=7A05 inirq=01 old=1040FF01F3 px=0
+space2_before pc=CA29 sp=E98B bank=00/00/01/01 flow=00 screen=00 irq=7A05 inirq=01 old=1040FF01F3 px=0
+space2_after pc=CA29 sp=E98B bank=00/00/01/01 flow=00 screen=00 irq=7A05 inirq=01 old=1040FF01F3 px=0
+t12 pc=CA29 sp=E98B bank=00/00/01/01 flow=00 screen=00 irq=7A05 inirq=01 old=1040FF01F3 px=0
+oldhook_writes=10

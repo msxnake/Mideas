@@ -3,8 +3,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../common/Button';
-import { ProjectAsset, DataFormat, EditorType, ScreenKind } from '../../types';
-import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon, SparklesIcon, ClockIcon, TrashIcon } from '../icons/MsxIcons';
+import { ProjectAsset, DataFormat, EditorType, ScreenKind, ExportRomMode } from '../../types';
+import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon, SparklesIcon, ClockIcon, TrashIcon, ImageIcon } from '../icons/MsxIcons';
 import { APP_VERSION } from '../../constants';
 import { getRecentProjects, removeRecentProject, clearRecentProjects, formatRecentDate, RecentProject } from '../../utils/recentProjects';
 
@@ -49,6 +49,10 @@ interface ToolbarProps {
   autosaveEnabled: boolean;
   /** Callback to enable or disable autosave. */
   setAutosaveEnabled: (enabled: boolean) => void;
+  /** The default ROM mode used when opening the Z80 export modal. */
+  defaultExportRomMode: ExportRomMode;
+  /** Callback to set the default Z80 export ROM mode. */
+  setDefaultExportRomMode: (mode: ExportRomMode) => void;
   /** Whether the Boss Editor zoom level is saved/restored across sessions. */
   saveBossZoom: boolean;
   /** Callback to enable or disable Boss Editor zoom persistence. */
@@ -91,6 +95,8 @@ interface ToolbarProps {
   onOpenEntityTemplateEditor: () => void;
   /** Callback to open the world view editor. */
   onOpenWorldView: () => void;
+  /** Callback to open the PNG to MSX conversion tool. */
+  onOpenPngMsxTool: () => void;
   /** @deprecated OBSOLETO - Callback to open the data compression modal. */
   onCompressAllDataFiles?: () => void;
   /** @deprecated OBSOLETO - Callback for the "Compile and Run" action. */
@@ -208,6 +214,29 @@ const DropdownToggleItem: React.FC<{
   )
 };
 
+const DropdownSelectItem: React.FC<{
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}> = ({ label, value, options, onChange }) => {
+  return (
+    <label className="w-full px-3 py-1.5 text-xs text-msx-textsecondary flex items-center justify-between gap-2">
+      <span>{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onClick={(event) => event.stopPropagation()}
+        className="bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5 text-msx-textprimary text-xs w-24"
+      >
+        {options.map(option => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+};
+
 
 /**
  * The main toolbar component for the application.
@@ -218,9 +247,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onImportBossPackage,
   onExportAllCodeFiles, onExportZ80Code, onExportGameStructureJson, onCompile, onDebug, onRun, onOpenHelpDocs,
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
-  autosaveEnabled, setAutosaveEnabled, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, saveSectorLines, setSaveSectorLines, onSaveConfig, onResetConfig, isAutosaving,
+  autosaveEnabled, setAutosaveEnabled, defaultExportRomMode, setDefaultExportRomMode, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, saveSectorLines, setSaveSectorLines, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
-  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenWorldView, onCompressAllDataFiles,
+  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenWorldView, onOpenPngMsxTool, onCompressAllDataFiles,
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
   onToggleEditor, isToggleEditorDisabled,
   currentScreenMode,
@@ -278,6 +307,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         if (config.ide) {
           if (config.ide.dataOutputFormat) setDataOutputFormat(config.ide.dataOutputFormat);
           if (typeof config.ide.autosaveEnabled === 'boolean') setAutosaveEnabled(config.ide.autosaveEnabled);
+          if (['auto', 'simple32k', 'plain48k', 'megarom'].includes(config.ide.defaultExportRomMode)) {
+            setDefaultExportRomMode(config.ide.defaultExportRomMode);
+          }
         }
         if (config.theme) {
           loadThemeConfig(config.theme);
@@ -412,6 +444,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <Button onClick={onOpenWorldView} variant="ghost" size="sm" icon={<WorldViewIcon />} title="World View">
         World View
       </Button>
+      <Button onClick={onOpenPngMsxTool} variant="ghost" size="sm" icon={<ImageIcon />} title="PNG a MSX Screen 2 Chars">
+        PNG a MSX
+      </Button>
       <Button onClick={onOpenComponentDefEditor} variant="ghost" size="sm" icon={<PuzzlePieceIcon />} title="Component Definitions">
         Components
       </Button>
@@ -431,6 +466,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={onConfigureEmulator}>Configure MSX Emulator...</DropdownItem>
         <DropdownSeparator />
         <DropdownToggleItem label="Data Format (Hex/Dec)" isChecked={dataOutputFormat === 'hex'} onToggle={() => setDataOutputFormat(dataOutputFormat === 'hex' ? 'decimal' : 'hex')} onText="Hex" offText="Dec" />
+        <DropdownSelectItem
+          label="ROM Mode"
+          value={defaultExportRomMode}
+          onChange={(value) => setDefaultExportRomMode(value as ExportRomMode)}
+          options={[
+            { value: 'auto', label: 'Auto' },
+            { value: 'simple32k', label: '32K' },
+            { value: 'plain48k', label: '48K' },
+            { value: 'megarom', label: 'MegaROM' },
+          ]}
+        />
         <DropdownToggleItem label="Autosave" isChecked={autosaveEnabled} onToggle={() => setAutosaveEnabled(!autosaveEnabled)} />
         <DropdownToggleItem label="Save Boss Zoom" isChecked={saveBossZoom} onToggle={() => setSaveBossZoom(!saveBossZoom)} />
         <DropdownToggleItem label="Save Sprite Zoom" isChecked={saveSpriteZoom} onToggle={() => setSaveSpriteZoom(!saveSpriteZoom)} />

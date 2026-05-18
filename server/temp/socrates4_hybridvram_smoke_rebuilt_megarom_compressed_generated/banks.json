@@ -1,0 +1,178 @@
+{
+  "version": 1,
+  "segmentSize": 8192,
+  "dataWindow": {
+    "page": "p3",
+    "base": "#A000",
+    "mask": "#1FFF",
+    "bankDivisor": "#2000"
+  },
+  "banks": [
+    {
+      "bank": 15,
+      "origin": 139264,
+      "end": 147456,
+      "usedBytes": 2598,
+      "freeBytes": 5594,
+      "resources": [
+        {
+          "id": 2,
+          "label": "tile_pattern_bank0",
+          "bank": 15,
+          "offset": 0,
+          "address": 40960,
+          "size": 1697,
+          "storedSize": 1697,
+          "uncompressedSize": 1880,
+          "flags": 1,
+          "group": "PATTERNS",
+          "type": "TILE_PATTERNS"
+        },
+        {
+          "id": 3,
+          "label": "tile_color_bank0",
+          "bank": 15,
+          "offset": 1697,
+          "address": 42657,
+          "size": 825,
+          "storedSize": 825,
+          "uncompressedSize": 1880,
+          "flags": 1,
+          "group": "COLORS",
+          "type": "TILE_COLORS"
+        },
+        {
+          "id": 4,
+          "label": "SCREEN_PAN1_0_LAYOUT",
+          "bank": 15,
+          "offset": 2522,
+          "address": 43482,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "group": "SCREENS",
+          "type": "SCREEN_LAYOUT"
+        },
+        {
+          "id": 5,
+          "label": "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+          "bank": 15,
+          "offset": 2528,
+          "address": 43488,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECTS_LAYOUT"
+        },
+        {
+          "id": 8,
+          "label": "BEHAVIOR_PAN1_0_DATA",
+          "bank": 15,
+          "offset": 2534,
+          "address": 43494,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "group": "SCREENS",
+          "type": "SCREEN_BEHAVIOR_MAP"
+        },
+        {
+          "id": 9,
+          "label": "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+          "bank": 15,
+          "offset": 2540,
+          "address": 43500,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "group": "SCREENS",
+          "type": "SCREEN_DATA"
+        },
+        {
+          "id": 10,
+          "label": "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+          "bank": 15,
+          "offset": 2546,
+          "address": 43506,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "group": "SCREENS",
+          "type": "SCREEN_DATA"
+        },
+        {
+          "id": 0,
+          "label": "NEW_SPRITE_0_F0_LAYER1",
+          "bank": 15,
+          "offset": 2552,
+          "address": 43512,
+          "size": 23,
+          "storedSize": 23,
+          "uncompressedSize": 32,
+          "flags": 1,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 1,
+          "label": "SPRITE_PLACEHOLDER_PATTERN",
+          "bank": 15,
+          "offset": 2575,
+          "address": 43535,
+          "size": 5,
+          "storedSize": 5,
+          "uncompressedSize": 32,
+          "flags": 1,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS"
+        },
+        {
+          "id": 7,
+          "label": "SCREEN_PAN1_0_BOSS_TABLE",
+          "bank": 15,
+          "offset": 2580,
+          "address": 43540,
+          "size": 11,
+          "storedSize": 11,
+          "uncompressedSize": 11,
+          "flags": 0,
+          "group": "SCREENS",
+          "type": "SCREEN_DATA"
+        },
+        {
+          "id": 6,
+          "label": "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+          "bank": 15,
+          "offset": 2591,
+          "address": 43551,
+          "size": 1,
+          "storedSize": 1,
+          "uncompressedSize": 1,
+          "flags": 0,
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECT_ZONE_TABLE"
+        },
+        {
+          "id": 11,
+          "label": "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+          "bank": 15,
+          "offset": 2592,
+          "address": 43552,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "group": "SCREENS",
+          "type": "SCREEN_DATA"
+        }
+      ]
+    }
+  ],
+  "overflow": []
+}

@@ -1,0 +1,21419 @@
+; ==================================================================
+; JOC64 - MEGAROM UNIFIED FILE
+; File: unitedFiles.asm
+; ROM Mode: megarom (multi-bank, 8KB banks, ASCII8K/Konami pattern)
+; Mapper: konami
+;
+; Bank 0 [#4000-#5FFFh] : Bootstrap (header, bios, mapper, interrupt, init)
+; Banks 1-2 [#6000-#9FFFh] : Resident engine code
+; Bank 3+ (data) [#A000h+] : DATA TABLES (patterns, colors, screens, font - mapper data-window switch)
+; Banks after data [far]    : Overlay code, constrained to P1 trampolines
+; Generated artifacts: resource_ids.asm, resource_table.asm, resource_manager.asm, packing_manifest.txt, packing_manifest.json, banks.json, project_usage.json, load_plan.json, bank_optimizer.json, tilebank_integrity.json, unused_report.txt, segment_budget.json
+;
+; Tiles: 156
+; Sprites: 7
+; Screens: 2
+; Entities: 2
+; Menus: No
+; HUD: Yes
+; State Machines: 1
+; Engine Execution Mode: interruptTaskManager
+; IRQ Task: slot 1 -> task_frame_counter (timer, every 1 frame)
+; Mainline: postHalt -> task_audio_tick (audio)
+; Mainline: postHalt -> update_sprites_to_vram (sprites)
+; Mainline: preUpdate -> check_world_screen_transition (screenFlow)
+; Mainline: postUpdate -> update_all_entities (entities)
+; Mainline: postUpdate -> execute_all_state_machines (stateMachines)
+; Mainline: postUpdate -> update_animated_tiles (animation)
+; Mainline: postUpdate -> sfx_update (sfx)
+; Mainline: render -> render_hud (hud)
+; Warning: none
+; ------------------------------------------------------------------
+; DYNAMIC BANK PACKER (FFD) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Estimated layout for code banks
+; ------------------------------------------------------------------
+; Bank 1 [#6000-#8000]: components (58707/8192 bytes est.)
+; Bank 2 [#8000-#A000]: statemachine, gameflow (28557/8192 bytes est.)
+; Bank 5 [#6000-#8000]: bosses (11107/8192 bytes est.) [FAR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â accessed via trampoline]
+; Bank 6 [#6000-#8000]: screens_code (7509/8192 bytes est.) [FAR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â accessed via trampoline]
+; Bank 7 [#6000-#8000]: entities (6179/8192 bytes est.) [FAR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â accessed via trampoline]
+; Bank 8 [#6000-#8000]: sprites (5523/8192 bytes est.) [FAR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â accessed via trampoline]
+; Bank 9 [#6000-#8000]: sound (4521/8192 bytes est.) [FAR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â accessed via trampoline]
+; Bank 10 [#6000-#8000]: hud (3995/8192 bytes est.) [FAR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â accessed via trampoline]
+; Bank 11 [#6000-#8000]: font (3585/8192 bytes est.) [FAR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â accessed via trampoline]
+; Bank 12 [#6000-#8000]: animtiles (3489/8192 bytes est.) [FAR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â accessed via trampoline]
+; Bank 13 [#6000-#8000]: scroll (2418/8192 bytes est.) [FAR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â accessed via trampoline]
+; Bank 14 [#6000-#8000]: worlds (2147/8192 bytes est.) [FAR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â accessed via trampoline]
+; Bank 15 [#6000-#8000]: patterns_code (894/8192 bytes est.) [FAR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â accessed via trampoline]
+; Bank 16 [#6000-#8000]: colors_code (846/8192 bytes est.) [FAR ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â accessed via trampoline]
+; Bank 3+ (data) [#A000+]: DATA mapped through P3/A000 before far code banks
+; ------------------------------------------------------------------
+; Far code banks: bank5(bosses) bank6(screens_code) bank7(entities) bank8(sprites) bank9(sound) bank10(hud) bank11(font) bank12(animtiles) bank13(scroll) bank14(worlds) bank15(patterns_code) bank16(colors_code)
+; ------------------------------------------------------------------
+; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
+; Runtime bank constants are derived from label addresses at assemble time.
+; Estimated payload bytes: 139787
+; Estimated banks used: 18
+; ------------------------------------------------------------------
+; BANK 00 @#0000 : page0.asm (96 bytes)
+; BANK 00 @#0060 : patterns.asm (894 bytes)
+; BANK 00 @#03DE : colors.asm (846 bytes)
+; BANK 00 @#072C : components.asm part 1/8 (6356 bytes)
+; BANK 01 @#0000 : components.asm part 2/8 (8192 bytes)
+; BANK 02 @#0000 : components.asm part 3/8 (8192 bytes)
+; BANK 03 @#0000 : components.asm part 4/8 (8192 bytes)
+; BANK 04 @#0000 : components.asm part 5/8 (8192 bytes)
+; BANK 05 @#0000 : components.asm part 6/8 (8192 bytes)
+; BANK 06 @#0000 : components.asm part 7/8 (8192 bytes)
+; BANK 07 @#0000 : components.asm part 8/8 (3207 bytes)
+; BANK 07 @#0C87 : entities.asm (4985 bytes)
+; BANK 08 @#0000 : entities.asm (1194 bytes)
+; BANK 08 @#04AA : worlds.asm (2147 bytes)
+; BANK 08 @#0D0D : screens.asm (4851 bytes)
+; BANK 09 @#0000 : screens.asm (2658 bytes)
+; BANK 09 @#0A62 : sprites.asm (5523 bytes)
+; BANK 09 @#1FF5 : font.asm (11 bytes)
+; BANK 10 @#0000 : font.asm (3574 bytes)
+; BANK 10 @#0DF6 : hud.asm (3995 bytes)
+; BANK 10 @#1D91 : menus.asm (168 bytes)
+; BANK 10 @#1E39 : sound.asm (455 bytes)
+; BANK 11 @#0000 : sound.asm (4066 bytes)
+; BANK 11 @#0FE2 : scroll.asm (2418 bytes)
+; BANK 11 @#1954 : animtiles.asm (1708 bytes)
+; BANK 12 @#0000 : animtiles.asm (1781 bytes)
+; BANK 12 @#06F5 : bosses.asm part 1/2 (6411 bytes)
+; BANK 13 @#0000 : bosses.asm part 2/2 (4696 bytes)
+; BANK 13 @#1258 : statemachine.asm part 1/3 (3496 bytes)
+; BANK 14 @#0000 : statemachine.asm part 2/3 (8192 bytes)
+; BANK 15 @#0000 : statemachine.asm part 3/3 (8192 bytes)
+; BANK 16 @#0000 : statemachine.asm part 4/3 (1878 bytes)
+; BANK 16 @#0756 : gameflow.asm (6314 bytes)
+; BANK 17 @#0000 : gameflow.asm (523 bytes); ==================================================================
+
+; [[[MIDEAS_ARTIFACT:resource_ids.asm:BEGIN]]]
+; ; ==================================================================
+; ; GENERATED RESOURCE IDS
+; ; Generated by MegaROM export backend.
+; ; ==================================================================
+; RESOURCE_ID_INVALID EQU #FF
+;
+; RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER0  EQU 0
+; RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER1  EQU 1
+; RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER0  EQU 2
+; RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER1  EQU 3
+; RESOURCE_ID_NINA_GRUB_RIGHT_1_F0_LAYER1  EQU 4
+; RESOURCE_ID_NINA_GRUB_RIGHT_1_F0_LAYER2  EQU 5
+; RESOURCE_ID_NINA_GRUB_RIGHT_1_F1_LAYER1  EQU 6
+; RESOURCE_ID_NINA_GRUB_RIGHT_1_F1_LAYER2  EQU 7
+; RESOURCE_ID_NEW_SPRITE_2_F0_LAYER1       EQU 8
+; RESOURCE_ID_NEW_SPRITE_2_F0_LAYER2       EQU 9
+; RESOURCE_ID_NEW_SPRITE_2_F0_LAYER3       EQU 10
+; RESOURCE_ID_NINA_JUMP_RIGHT_3_F0_LAYER0  EQU 11
+; RESOURCE_ID_NINA_JUMP_RIGHT_3_F0_LAYER1  EQU 12
+; RESOURCE_ID_NINA_IDLE_RIGHT_4_F0_LAYER1  EQU 13
+; RESOURCE_ID_NINA_IDLE_RIGHT_4_F0_LAYER2  EQU 14
+; RESOURCE_ID_NEW_SPRITE_RIGHT_5_F0_LAYER1 EQU 15
+; RESOURCE_ID_NEW_SPRITE_RIGHT_5_F0_LAYER2 EQU 16
+; RESOURCE_ID_PROJECTIL1_6_F0_LAYER1       EQU 17
+; RESOURCE_ID_PROJECTIL1_6_F0_LAYER2       EQU 18
+; RESOURCE_ID_PROJECTIL1_6_F1_LAYER1       EQU 19
+; RESOURCE_ID_PROJECTIL1_6_F1_LAYER2       EQU 20
+; RESOURCE_ID_NINA_WALK_LEFT_7_F0_LAYER0   EQU 21
+; RESOURCE_ID_NINA_WALK_LEFT_7_F0_LAYER1   EQU 22
+; RESOURCE_ID_NINA_WALK_LEFT_7_F1_LAYER0   EQU 23
+; RESOURCE_ID_NINA_WALK_LEFT_7_F1_LAYER1   EQU 24
+; RESOURCE_ID_NINA_GRUB_LEFT_8_F0_LAYER1   EQU 25
+; RESOURCE_ID_NINA_GRUB_LEFT_8_F0_LAYER2   EQU 26
+; RESOURCE_ID_NINA_GRUB_LEFT_8_F1_LAYER1   EQU 27
+; RESOURCE_ID_NINA_GRUB_LEFT_8_F1_LAYER2   EQU 28
+; RESOURCE_ID_NINA_JUMP_LEFT_9_F0_LAYER0   EQU 29
+; RESOURCE_ID_NINA_JUMP_LEFT_9_F0_LAYER1   EQU 30
+; RESOURCE_ID_NINA_IDLE_LEFT_10_F0_LAYER1  EQU 31
+; RESOURCE_ID_NINA_IDLE_LEFT_10_F0_LAYER2  EQU 32
+; RESOURCE_ID_NEW_SPRITE_LEFT_11_F0_LAYER1 EQU 33
+; RESOURCE_ID_NEW_SPRITE_LEFT_11_F0_LAYER2 EQU 34
+; RESOURCE_ID_SPRITE_PLACEHOLDER_PATTERN   EQU 35
+; RESOURCE_ID_TILE_PATTERN_BANK0           EQU 36
+; RESOURCE_ID_TILEBANK_PATTERN_DATA_0      EQU 37
+; RESOURCE_ID_TILEBANK_PATTERN_DATA_1      EQU 38
+; RESOURCE_ID_TILE_COLOR_BANK0             EQU 39
+; RESOURCE_ID_TILEBANK_COLOR_DATA_0        EQU 40
+; RESOURCE_ID_TILEBANK_COLOR_DATA_1        EQU 41
+; RESOURCE_ID_SCREEN_PAN1_0_BLOCK_CATALOG  EQU 42
+; RESOURCE_ID_SCREEN_PAN1_0_BLOCK_MAP      EQU 43
+; RESOURCE_ID_SCREEN_PAN1_0_EFFECTS_LAYOUT EQU 44
+; RESOURCE_ID_SCREEN_PAN1_0_EFFECT_ZONE_TABLE EQU 45
+; RESOURCE_ID_SCREEN_PAN1_0_BOSS_TABLE     EQU 46
+; RESOURCE_ID_SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE EQU 47
+; RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_TYPE_MAP EQU 48
+; RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_VALUE_MAP EQU 49
+; RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_TARGET_MAP EQU 50
+; RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT EQU 51
+; RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT EQU 52
+; RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE EQU 53
+; RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE EQU 54
+; RESOURCE_ID_BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA EQU 55
+; RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP EQU 56
+; RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP EQU 57
+; RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP EQU 58
+; [[[MIDEAS_ARTIFACT:resource_ids.asm:END]]]
+
+; [[[MIDEAS_ARTIFACT:resource_table.asm:BEGIN]]]
+; ; ==================================================================
+; ; GENERATED RESOURCE TABLE
+; ; Descriptor format: db bank / dw address / dw stored_size / dw raw_size / db flags
+; ; Resource id is the zero-based descriptor index.
+; ; Address is the mapper-window address visible after selecting bank.
+; ; RESOURCE_FLAG_COMPRESSED_ZX0 means stored_size is compressed and raw_size is output size.
+; ; ==================================================================
+; RESOURCE_TABLE_ENTRY_SIZE EQU 8
+; RESOURCE_FLAG_COMPRESSED_ZX0 EQU #01
+; RESOURCE_TABLE_COUNT EQU 59
+;
+; resource_table:
+;     ; NINA_WALK_RIGHT_0_F0_LAYER0
+;     db 3
+;     dw #AA3B
+;     dw 30
+;     dw 32
+;     db 1
+;     ; NINA_WALK_RIGHT_0_F0_LAYER1
+;     db 3
+;     dw #AA59
+;     dw 25
+;     dw 32
+;     db 1
+;     ; NINA_WALK_RIGHT_0_F1_LAYER0
+;     db 3
+;     dw #AA72
+;     dw 31
+;     dw 32
+;     db 1
+;     ; NINA_WALK_RIGHT_0_F1_LAYER1
+;     db 3
+;     dw #AA91
+;     dw 27
+;     dw 32
+;     db 1
+;     ; NINA_GRUB_RIGHT_1_F0_LAYER1
+;     db 3
+;     dw #AAAC
+;     dw 18
+;     dw 32
+;     db 1
+;     ; NINA_GRUB_RIGHT_1_F0_LAYER2
+;     db 3
+;     dw #AABE
+;     dw 28
+;     dw 32
+;     db 1
+;     ; NINA_GRUB_RIGHT_1_F1_LAYER1
+;     db 3
+;     dw #AADA
+;     dw 23
+;     dw 32
+;     db 1
+;     ; NINA_GRUB_RIGHT_1_F1_LAYER2
+;     db 3
+;     dw #AAF1
+;     dw 29
+;     dw 32
+;     db 1
+;     ; NEW_SPRITE_2_F0_LAYER1
+;     db 3
+;     dw #AB0E
+;     dw 5
+;     dw 32
+;     db 1
+;     ; NEW_SPRITE_2_F0_LAYER2
+;     db 3
+;     dw #AB13
+;     dw 5
+;     dw 32
+;     db 1
+;     ; NEW_SPRITE_2_F0_LAYER3
+;     db 3
+;     dw #AB18
+;     dw 5
+;     dw 32
+;     db 1
+;     ; NINA_JUMP_RIGHT_3_F0_LAYER0
+;     db 3
+;     dw #AB1D
+;     dw 27
+;     dw 32
+;     db 1
+;     ; NINA_JUMP_RIGHT_3_F0_LAYER1
+;     db 3
+;     dw #AB38
+;     dw 24
+;     dw 32
+;     db 1
+;     ; NINA_IDLE_RIGHT_4_F0_LAYER1
+;     db 3
+;     dw #AB50
+;     dw 23
+;     dw 32
+;     db 1
+;     ; NINA_IDLE_RIGHT_4_F0_LAYER2
+;     db 3
+;     dw #AB67
+;     dw 28
+;     dw 32
+;     db 1
+;     ; NEW_SPRITE_RIGHT_5_F0_LAYER1
+;     db 3
+;     dw #AB83
+;     dw 31
+;     dw 32
+;     db 1
+;     ; NEW_SPRITE_RIGHT_5_F0_LAYER2
+;     db 3
+;     dw #ABA2
+;     dw 30
+;     dw 32
+;     db 1
+;     ; PROJECTIL1_6_F0_LAYER1
+;     db 3
+;     dw #ABC0
+;     dw 17
+;     dw 32
+;     db 1
+;     ; PROJECTIL1_6_F0_LAYER2
+;     db 3
+;     dw #ABD1
+;     dw 12
+;     dw 32
+;     db 1
+;     ; PROJECTIL1_6_F1_LAYER1
+;     db 3
+;     dw #ABDD
+;     dw 14
+;     dw 32
+;     db 1
+;     ; PROJECTIL1_6_F1_LAYER2
+;     db 3
+;     dw #ABEB
+;     dw 13
+;     dw 32
+;     db 1
+;     ; NINA_WALK_LEFT_7_F0_LAYER0
+;     db 3
+;     dw #ABF8
+;     dw 28
+;     dw 32
+;     db 1
+;     ; NINA_WALK_LEFT_7_F0_LAYER1
+;     db 3
+;     dw #AC14
+;     dw 25
+;     dw 32
+;     db 1
+;     ; NINA_WALK_LEFT_7_F1_LAYER0
+;     db 3
+;     dw #AC2D
+;     dw 30
+;     dw 32
+;     db 1
+;     ; NINA_WALK_LEFT_7_F1_LAYER1
+;     db 3
+;     dw #AC4B
+;     dw 30
+;     dw 32
+;     db 1
+;     ; NINA_GRUB_LEFT_8_F0_LAYER1
+;     db 3
+;     dw #AC69
+;     dw 20
+;     dw 32
+;     db 1
+;     ; NINA_GRUB_LEFT_8_F0_LAYER2
+;     db 3
+;     dw #AC7D
+;     dw 29
+;     dw 32
+;     db 1
+;     ; NINA_GRUB_LEFT_8_F1_LAYER1
+;     db 3
+;     dw #AC9A
+;     dw 24
+;     dw 32
+;     db 1
+;     ; NINA_GRUB_LEFT_8_F1_LAYER2
+;     db 3
+;     dw #ACB2
+;     dw 28
+;     dw 32
+;     db 1
+;     ; NINA_JUMP_LEFT_9_F0_LAYER0
+;     db 3
+;     dw #ACCE
+;     dw 27
+;     dw 32
+;     db 1
+;     ; NINA_JUMP_LEFT_9_F0_LAYER1
+;     db 3
+;     dw #ACE9
+;     dw 24
+;     dw 32
+;     db 1
+;     ; NINA_IDLE_LEFT_10_F0_LAYER1
+;     db 3
+;     dw #AD01
+;     dw 24
+;     dw 32
+;     db 1
+;     ; NINA_IDLE_LEFT_10_F0_LAYER2
+;     db 3
+;     dw #AD19
+;     dw 29
+;     dw 32
+;     db 1
+;     ; NEW_SPRITE_LEFT_11_F0_LAYER1
+;     db 3
+;     dw #AD36
+;     dw 31
+;     dw 32
+;     db 1
+;     ; NEW_SPRITE_LEFT_11_F0_LAYER2
+;     db 3
+;     dw #AD55
+;     dw 29
+;     dw 32
+;     db 1
+;     ; SPRITE_PLACEHOLDER_PATTERN
+;     db 3
+;     dw #AD72
+;     dw 5
+;     dw 32
+;     db 1
+;     ; tile_pattern_bank0
+;     db 3
+;     dw #A000
+;     dw 747
+;     dw 1016
+;     db 1
+;     ; tilebank_pattern_data_0
+;     db 3
+;     dw #A178
+;     dw 691
+;     dw 896
+;     db 1
+;     ; tilebank_pattern_data_1
+;     db 3
+;     dw #A42B
+;     dw 689
+;     dw 896
+;     db 1
+;     ; tile_color_bank0
+;     db 3
+;     dw #A000
+;     dw 376
+;     dw 1016
+;     db 1
+;     ; tilebank_color_data_0
+;     db 3
+;     dw #A6DC
+;     dw 354
+;     dw 896
+;     db 1
+;     ; tilebank_color_data_1
+;     db 3
+;     dw #A83E
+;     dw 353
+;     dw 896
+;     db 1
+;     ; SCREEN_PAN1_0_BLOCK_CATALOG
+;     db 3
+;     dw #AA0E
+;     dw 29
+;     dw 96
+;     db 1
+;     ; SCREEN_PAN1_0_BLOCK_MAP
+;     db 3
+;     dw #AA2B
+;     dw 16
+;     dw 48
+;     db 1
+;     ; SCREEN_PAN1_0_EFFECTS_LAYOUT
+;     db 3
+;     dw #A99F
+;     dw 6
+;     dw 768
+;     db 1
+;     ; SCREEN_PAN1_0_EFFECT_ZONE_TABLE
+;     db 3
+;     dw #A9D2
+;     dw 1
+;     dw 1
+;     db 0
+;     ; SCREEN_PAN1_0_BOSS_TABLE
+;     db 3
+;     dw #A9C7
+;     dw 11
+;     dw 11
+;     db 0
+;     ; SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE
+;     db 3
+;     dw #A9B8
+;     dw 15
+;     dw 256
+;     db 1
+;     ; SCREEN_PAN1_0_INTERACTION_TYPE_MAP
+;     db 3
+;     dw #A9A5
+;     dw 6
+;     dw 768
+;     db 1
+;     ; SCREEN_PAN1_0_INTERACTION_VALUE_MAP
+;     db 3
+;     dw #A9AB
+;     dw 13
+;     dw 768
+;     db 1
+;     ; SCREEN_PAN1_0_INTERACTION_TARGET_MAP
+;     db 3
+;     dw #A9D5
+;     dw 6
+;     dw 768
+;     db 1
+;     ; SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT
+;     db 3
+;     dw #A9DB
+;     dw 21
+;     dw 768
+;     db 1
+;     ; SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT
+;     db 3
+;     dw #A9F0
+;     dw 6
+;     dw 768
+;     db 1
+;     ; SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE
+;     db 3
+;     dw #A9D3
+;     dw 1
+;     dw 1
+;     db 0
+;     ; SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE
+;     db 3
+;     dw #A9D4
+;     dw 1
+;     dw 1
+;     db 0
+;     ; BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA
+;     db 3
+;     dw #A9F6
+;     dw 6
+;     dw 768
+;     db 1
+;     ; SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP
+;     db 3
+;     dw #A9FC
+;     dw 6
+;     dw 768
+;     db 1
+;     ; SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP
+;     db 3
+;     dw #AA02
+;     dw 6
+;     dw 768
+;     db 1
+;     ; SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP
+;     db 3
+;     dw #AA08
+;     dw 6
+;     dw 768
+;     db 1
+; [[[MIDEAS_ARTIFACT:resource_table.asm:END]]]
+
+; [[[MIDEAS_ARTIFACT:packing_manifest.txt:BEGIN]]]
+; MEGAROM PACKING MANIFEST
+; Zone size: 8192
+; Data start address: #A000
+; Total resource blocks: 59
+;
+; BANK 03 used 3447 / 8192
+; - tile_color_bank0                   376 stored /  1016 raw bytes @ #A000 (rom #A000, offset +#0000) [COLORS/TILE_COLORS] flags=1
+;   reason: post-ZX0 first-fit single colors resource; ZX0 376/1016 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 4745 bytes
+; - tilebank_pattern_data_0            691 stored /   896 raw bytes @ #A178 (rom #A178, offset +#0178) [PATTERNS/TILE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit merged patterns unit (2 labels); ZX0 691/896 bytes; bank 3 zone 0 offset +#0178; zone slack after pack 4745 bytes
+; - tilebank_pattern_data_1            689 stored /   896 raw bytes @ #A42B (rom #A42B, offset +#042B) [PATTERNS/TILE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit merged patterns unit (2 labels); ZX0 689/896 bytes; bank 3 zone 0 offset +#042B; zone slack after pack 4745 bytes
+; - tilebank_color_data_0              354 stored /   896 raw bytes @ #A6DC (rom #A6DC, offset +#06DC) [COLORS/TILE_COLORS] flags=1
+;   reason: post-ZX0 first-fit merged colors unit (2 labels); ZX0 354/896 bytes; bank 3 zone 0 offset +#06DC; zone slack after pack 4745 bytes
+; - tilebank_color_data_1              353 stored /   896 raw bytes @ #A83E (rom #A83E, offset +#083E) [COLORS/TILE_COLORS] flags=1
+;   reason: post-ZX0 first-fit merged colors unit (2 labels); ZX0 353/896 bytes; bank 3 zone 0 offset +#083E; zone slack after pack 4745 bytes
+; - SCREEN_PAN1_0_EFFECTS_LAYOUT         6 stored /   768 raw bytes @ #A99F (rom #A99F, offset +#099F) [SCREENS/SCREEN_EFFECTS_LAYOUT] flags=1
+;   reason: post-ZX0 first-fit single SCREEN_PAN1_0_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#099F; zone slack after pack 4745 bytes
+; - SCREEN_PAN1_0_INTERACTION_TYPE_MAP     6 stored /   768 raw bytes @ #A9A5 (rom #A9A5, offset +#09A5) [SCREENS/SCREEN_DATA] flags=1
+;   reason: post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09A5; zone slack after pack 4745 bytes
+; - SCREEN_PAN1_0_INTERACTION_VALUE_MAP    13 stored /   768 raw bytes @ #A9AB (rom #A9AB, offset +#09AB) [SCREENS/SCREEN_DATA] flags=1
+;   reason: post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_VALUE_MAP resource; ZX0 13/768 bytes; bank 3 zone 0 offset +#09AB; zone slack after pack 4745 bytes
+; - SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE    15 stored /   256 raw bytes @ #A9B8 (rom #A9B8, offset +#09B8) [SCREENS/SCREEN_DATA] flags=1
+;   reason: post-ZX0 first-fit single SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE resource; ZX0 15/256 bytes; bank 3 zone 0 offset +#09B8; zone slack after pack 4745 bytes
+; - SCREEN_PAN1_0_BOSS_TABLE            11 stored /    11 raw bytes @ #A9C7 (rom #A9C7, offset +#09C7) [SCREENS/SCREEN_DATA] flags=0
+;   reason: post-ZX0 first-fit single SCREEN_PAN1_0_BOSS_TABLE resource; raw 11 bytes; bank 3 zone 0 offset +#09C7; zone slack after pack 4745 bytes
+; - SCREEN_PAN1_0_EFFECT_ZONE_TABLE      1 stored /     1 raw bytes @ #A9D2 (rom #A9D2, offset +#09D2) [SCREENS/SCREEN_EFFECT_ZONE_TABLE] flags=0
+;   reason: post-ZX0 first-fit single SCREEN_PAN1_0_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D2; zone slack after pack 4745 bytes
+; - SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE     1 stored /     1 raw bytes @ #A9D3 (rom #A9D3, offset +#09D3) [SCREENS/SCREEN_EFFECT_ZONE_TABLE] flags=0
+;   reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D3; zone slack after pack 4745 bytes
+; - SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE     1 stored /     1 raw bytes @ #A9D4 (rom #A9D4, offset +#09D4) [SCREENS/SCREEN_DATA] flags=0
+;   reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D4; zone slack after pack 4745 bytes
+; - SCREEN_PAN1_0_INTERACTION_TARGET_MAP     6 stored /   768 raw bytes @ #A9D5 (rom #A9D5, offset +#09D5) [SCREENS/SCREEN_DATA] flags=1
+;   reason: post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09D5; zone slack after pack 4745 bytes
+; - SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT    21 stored /   768 raw bytes @ #A9DB (rom #A9DB, offset +#09DB) [SCREENS/SCREEN_LAYOUT] flags=1
+;   reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT resource; ZX0 21/768 bytes; bank 3 zone 0 offset +#09DB; zone slack after pack 4745 bytes
+; - SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT     6 stored /   768 raw bytes @ #A9F0 (rom #A9F0, offset +#09F0) [SCREENS/SCREEN_EFFECTS_LAYOUT] flags=1
+;   reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09F0; zone slack after pack 4745 bytes
+; - BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA     6 stored /   768 raw bytes @ #A9F6 (rom #A9F6, offset +#09F6) [SCREENS/SCREEN_BEHAVIOR_MAP] flags=1
+;   reason: post-ZX0 first-fit single BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09F6; zone slack after pack 4745 bytes
+; - SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP     6 stored /   768 raw bytes @ #A9FC (rom #A9FC, offset +#09FC) [SCREENS/SCREEN_DATA] flags=1
+;   reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09FC; zone slack after pack 4745 bytes
+; - SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP     6 stored /   768 raw bytes @ #AA02 (rom #AA02, offset +#0A02) [SCREENS/SCREEN_DATA] flags=1
+;   reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0A02; zone slack after pack 4745 bytes
+; - SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP     6 stored /   768 raw bytes @ #AA08 (rom #AA08, offset +#0A08) [SCREENS/SCREEN_DATA] flags=1
+;   reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0A08; zone slack after pack 4745 bytes
+; - SCREEN_PAN1_0_BLOCK_CATALOG         29 stored /    96 raw bytes @ #AA0E (rom #AA0E, offset +#0A0E) [SCREENS/SCREEN_BLOCK_CATALOG] flags=1
+;   reason: post-ZX0 first-fit single SCREEN_PAN1_0_BLOCK_CATALOG resource; ZX0 29/96 bytes; bank 3 zone 0 offset +#0A0E; zone slack after pack 4745 bytes
+; - SCREEN_PAN1_0_BLOCK_MAP             16 stored /    48 raw bytes @ #AA2B (rom #AA2B, offset +#0A2B) [SCREENS/SCREEN_BLOCK_MAP] flags=1
+;   reason: post-ZX0 first-fit single SCREEN_PAN1_0_BLOCK_MAP resource; ZX0 16/48 bytes; bank 3 zone 0 offset +#0A2B; zone slack after pack 4745 bytes
+; - NINA_WALK_RIGHT_0_F0_LAYER0         30 stored /    32 raw bytes @ #AA3B (rom #AA3B, offset +#0A3B) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0A3B; zone slack after pack 4745 bytes
+; - NINA_WALK_RIGHT_0_F0_LAYER1         25 stored /    32 raw bytes @ #AA59 (rom #AA59, offset +#0A59) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0A59; zone slack after pack 4745 bytes
+; - NINA_WALK_RIGHT_0_F1_LAYER0         31 stored /    32 raw bytes @ #AA72 (rom #AA72, offset +#0A72) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER0 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0A72; zone slack after pack 4745 bytes
+; - NINA_WALK_RIGHT_0_F1_LAYER1         27 stored /    32 raw bytes @ #AA91 (rom #AA91, offset +#0A91) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER1 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0A91; zone slack after pack 4745 bytes
+; - NINA_GRUB_RIGHT_1_F0_LAYER1         18 stored /    32 raw bytes @ #AAAC (rom #AAAC, offset +#0AAC) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F0_LAYER1 resource; ZX0 18/32 bytes; bank 3 zone 0 offset +#0AAC; zone slack after pack 4745 bytes
+; - NINA_GRUB_RIGHT_1_F0_LAYER2         28 stored /    32 raw bytes @ #AABE (rom #AABE, offset +#0ABE) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F0_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0ABE; zone slack after pack 4745 bytes
+; - NINA_GRUB_RIGHT_1_F1_LAYER1         23 stored /    32 raw bytes @ #AADA (rom #AADA, offset +#0ADA) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F1_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#0ADA; zone slack after pack 4745 bytes
+; - NINA_GRUB_RIGHT_1_F1_LAYER2         29 stored /    32 raw bytes @ #AAF1 (rom #AAF1, offset +#0AF1) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F1_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0AF1; zone slack after pack 4745 bytes
+; - NEW_SPRITE_2_F0_LAYER1               5 stored /    32 raw bytes @ #AB0E (rom #AB0E, offset +#0B0E) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER1 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B0E; zone slack after pack 4745 bytes
+; - NEW_SPRITE_2_F0_LAYER2               5 stored /    32 raw bytes @ #AB13 (rom #AB13, offset +#0B13) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER2 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B13; zone slack after pack 4745 bytes
+; - NEW_SPRITE_2_F0_LAYER3               5 stored /    32 raw bytes @ #AB18 (rom #AB18, offset +#0B18) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER3 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B18; zone slack after pack 4745 bytes
+; - NINA_JUMP_RIGHT_3_F0_LAYER0         27 stored /    32 raw bytes @ #AB1D (rom #AB1D, offset +#0B1D) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_JUMP_RIGHT_3_F0_LAYER0 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0B1D; zone slack after pack 4745 bytes
+; - NINA_JUMP_RIGHT_3_F0_LAYER1         24 stored /    32 raw bytes @ #AB38 (rom #AB38, offset +#0B38) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_JUMP_RIGHT_3_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0B38; zone slack after pack 4745 bytes
+; - NINA_IDLE_RIGHT_4_F0_LAYER1         23 stored /    32 raw bytes @ #AB50 (rom #AB50, offset +#0B50) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#0B50; zone slack after pack 4745 bytes
+; - NINA_IDLE_RIGHT_4_F0_LAYER2         28 stored /    32 raw bytes @ #AB67 (rom #AB67, offset +#0B67) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0B67; zone slack after pack 4745 bytes
+; - NEW_SPRITE_RIGHT_5_F0_LAYER1        31 stored /    32 raw bytes @ #AB83 (rom #AB83, offset +#0B83) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NEW_SPRITE_RIGHT_5_F0_LAYER1 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0B83; zone slack after pack 4745 bytes
+; - NEW_SPRITE_RIGHT_5_F0_LAYER2        30 stored /    32 raw bytes @ #ABA2 (rom #ABA2, offset +#0BA2) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NEW_SPRITE_RIGHT_5_F0_LAYER2 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0BA2; zone slack after pack 4745 bytes
+; - PROJECTIL1_6_F0_LAYER1              17 stored /    32 raw bytes @ #ABC0 (rom #ABC0, offset +#0BC0) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single PROJECTIL1_6_F0_LAYER1 resource; ZX0 17/32 bytes; bank 3 zone 0 offset +#0BC0; zone slack after pack 4745 bytes
+; - PROJECTIL1_6_F0_LAYER2              12 stored /    32 raw bytes @ #ABD1 (rom #ABD1, offset +#0BD1) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single PROJECTIL1_6_F0_LAYER2 resource; ZX0 12/32 bytes; bank 3 zone 0 offset +#0BD1; zone slack after pack 4745 bytes
+; - PROJECTIL1_6_F1_LAYER1              14 stored /    32 raw bytes @ #ABDD (rom #ABDD, offset +#0BDD) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single PROJECTIL1_6_F1_LAYER1 resource; ZX0 14/32 bytes; bank 3 zone 0 offset +#0BDD; zone slack after pack 4745 bytes
+; - PROJECTIL1_6_F1_LAYER2              13 stored /    32 raw bytes @ #ABEB (rom #ABEB, offset +#0BEB) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single PROJECTIL1_6_F1_LAYER2 resource; ZX0 13/32 bytes; bank 3 zone 0 offset +#0BEB; zone slack after pack 4745 bytes
+; - NINA_WALK_LEFT_7_F0_LAYER0          28 stored /    32 raw bytes @ #ABF8 (rom #ABF8, offset +#0BF8) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER0 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0BF8; zone slack after pack 4745 bytes
+; - NINA_WALK_LEFT_7_F0_LAYER1          25 stored /    32 raw bytes @ #AC14 (rom #AC14, offset +#0C14) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0C14; zone slack after pack 4745 bytes
+; - NINA_WALK_LEFT_7_F1_LAYER0          30 stored /    32 raw bytes @ #AC2D (rom #AC2D, offset +#0C2D) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0C2D; zone slack after pack 4745 bytes
+; - NINA_WALK_LEFT_7_F1_LAYER1          30 stored /    32 raw bytes @ #AC4B (rom #AC4B, offset +#0C4B) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER1 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0C4B; zone slack after pack 4745 bytes
+; - NINA_GRUB_LEFT_8_F0_LAYER1          20 stored /    32 raw bytes @ #AC69 (rom #AC69, offset +#0C69) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_GRUB_LEFT_8_F0_LAYER1 resource; ZX0 20/32 bytes; bank 3 zone 0 offset +#0C69; zone slack after pack 4745 bytes
+; - NINA_GRUB_LEFT_8_F0_LAYER2          29 stored /    32 raw bytes @ #AC7D (rom #AC7D, offset +#0C7D) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_GRUB_LEFT_8_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0C7D; zone slack after pack 4745 bytes
+; - NINA_GRUB_LEFT_8_F1_LAYER1          24 stored /    32 raw bytes @ #AC9A (rom #AC9A, offset +#0C9A) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_GRUB_LEFT_8_F1_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0C9A; zone slack after pack 4745 bytes
+; - NINA_GRUB_LEFT_8_F1_LAYER2          28 stored /    32 raw bytes @ #ACB2 (rom #ACB2, offset +#0CB2) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_GRUB_LEFT_8_F1_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0CB2; zone slack after pack 4745 bytes
+; - NINA_JUMP_LEFT_9_F0_LAYER0          27 stored /    32 raw bytes @ #ACCE (rom #ACCE, offset +#0CCE) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_JUMP_LEFT_9_F0_LAYER0 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0CCE; zone slack after pack 4745 bytes
+; - NINA_JUMP_LEFT_9_F0_LAYER1          24 stored /    32 raw bytes @ #ACE9 (rom #ACE9, offset +#0CE9) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_JUMP_LEFT_9_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0CE9; zone slack after pack 4745 bytes
+; - NINA_IDLE_LEFT_10_F0_LAYER1         24 stored /    32 raw bytes @ #AD01 (rom #AD01, offset +#0D01) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0D01; zone slack after pack 4745 bytes
+; - NINA_IDLE_LEFT_10_F0_LAYER2         29 stored /    32 raw bytes @ #AD19 (rom #AD19, offset +#0D19) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0D19; zone slack after pack 4745 bytes
+; - NEW_SPRITE_LEFT_11_F0_LAYER1        31 stored /    32 raw bytes @ #AD36 (rom #AD36, offset +#0D36) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NEW_SPRITE_LEFT_11_F0_LAYER1 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0D36; zone slack after pack 4745 bytes
+; - NEW_SPRITE_LEFT_11_F0_LAYER2        29 stored /    32 raw bytes @ #AD55 (rom #AD55, offset +#0D55) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single NEW_SPRITE_LEFT_11_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0D55; zone slack after pack 4745 bytes
+; - SPRITE_PLACEHOLDER_PATTERN           5 stored /    32 raw bytes @ #AD72 (rom #AD72, offset +#0D72) [SPRITES/SPRITE_PATTERNS] flags=1
+;   reason: post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0D72; zone slack after pack 4745 bytes
+; FREE 4745
+;
+; BANK 04 used 0 / 8192
+; FREE 8192
+;
+; [[[MIDEAS_ARTIFACT:packing_manifest.txt:END]]]
+
+; [[[MIDEAS_ARTIFACT:packing_manifest.json:BEGIN]]]
+; {
+;   "version": 1,
+;   "mapper": {
+;     "format": "konami",
+;     "dataWindowPage": "p3",
+;     "windowBase": "#A000",
+;     "windowMask": "#1FFF",
+;     "bankDivisor": "#2000",
+;     "zoneSize": 8192
+;   },
+;   "summary": {
+;     "dataStartAddress": 40960,
+;     "totalSourceBytes": 14862,
+;     "resourceCount": 59,
+;     "zoneCount": 2,
+;     "overflowCount": 0,
+;     "totalStoredBytes": 4194,
+;     "compressedResourceCount": 55
+;   },
+;   "banks": [
+;     {
+;       "bank": 3,
+;       "zoneIndex": 0,
+;       "orgAddress": 40960,
+;       "endAddress": 49152,
+;       "usedBytes": 3447,
+;       "freeBytes": 4745,
+;       "verification": {
+;         "algorithm": "fnv1a32-resource-metadata",
+;         "metadataChecksum": "fnv1a32:50739336",
+;         "resourceCount": 58,
+;         "storedBytes": 3447
+;       },
+;       "resources": [
+;         {
+;           "id": 39,
+;           "label": "tile_color_bank0",
+;           "resourceIdLabel": "RESOURCE_ID_TILE_COLOR_BANK0",
+;           "group": "COLORS",
+;           "type": "TILE_COLORS",
+;           "bank": 3,
+;           "zoneOffset": 0,
+;           "physicalAddress": 40960,
+;           "windowAddress": 40960,
+;           "size": 376,
+;           "storedSize": 376,
+;           "uncompressedSize": 1016,
+;           "flags": 1,
+;           "sourceIndex": 39,
+;           "placementReason": "post-ZX0 first-fit single colors resource; ZX0 376/1016 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 37,
+;           "label": "tilebank_pattern_data_0",
+;           "resourceIdLabel": "RESOURCE_ID_TILEBANK_PATTERN_DATA_0",
+;           "group": "PATTERNS",
+;           "type": "TILE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 376,
+;           "physicalAddress": 41336,
+;           "windowAddress": 41336,
+;           "size": 691,
+;           "storedSize": 691,
+;           "uncompressedSize": 896,
+;           "flags": 1,
+;           "sourceIndex": 37,
+;           "placementReason": "post-ZX0 first-fit merged patterns unit (2 labels); ZX0 691/896 bytes; bank 3 zone 0 offset +#0178; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 38,
+;           "label": "tilebank_pattern_data_1",
+;           "resourceIdLabel": "RESOURCE_ID_TILEBANK_PATTERN_DATA_1",
+;           "group": "PATTERNS",
+;           "type": "TILE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 1067,
+;           "physicalAddress": 42027,
+;           "windowAddress": 42027,
+;           "size": 689,
+;           "storedSize": 689,
+;           "uncompressedSize": 896,
+;           "flags": 1,
+;           "sourceIndex": 38,
+;           "placementReason": "post-ZX0 first-fit merged patterns unit (2 labels); ZX0 689/896 bytes; bank 3 zone 0 offset +#042B; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 40,
+;           "label": "tilebank_color_data_0",
+;           "resourceIdLabel": "RESOURCE_ID_TILEBANK_COLOR_DATA_0",
+;           "group": "COLORS",
+;           "type": "TILE_COLORS",
+;           "bank": 3,
+;           "zoneOffset": 1756,
+;           "physicalAddress": 42716,
+;           "windowAddress": 42716,
+;           "size": 354,
+;           "storedSize": 354,
+;           "uncompressedSize": 896,
+;           "flags": 1,
+;           "sourceIndex": 40,
+;           "placementReason": "post-ZX0 first-fit merged colors unit (2 labels); ZX0 354/896 bytes; bank 3 zone 0 offset +#06DC; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 41,
+;           "label": "tilebank_color_data_1",
+;           "resourceIdLabel": "RESOURCE_ID_TILEBANK_COLOR_DATA_1",
+;           "group": "COLORS",
+;           "type": "TILE_COLORS",
+;           "bank": 3,
+;           "zoneOffset": 2110,
+;           "physicalAddress": 43070,
+;           "windowAddress": 43070,
+;           "size": 353,
+;           "storedSize": 353,
+;           "uncompressedSize": 896,
+;           "flags": 1,
+;           "sourceIndex": 41,
+;           "placementReason": "post-ZX0 first-fit merged colors unit (2 labels); ZX0 353/896 bytes; bank 3 zone 0 offset +#083E; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 44,
+;           "label": "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_PAN1_0_EFFECTS_LAYOUT",
+;           "group": "SCREENS",
+;           "type": "SCREEN_EFFECTS_LAYOUT",
+;           "bank": 3,
+;           "zoneOffset": 2463,
+;           "physicalAddress": 43423,
+;           "windowAddress": 43423,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "sourceIndex": 44,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#099F; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 48,
+;           "label": "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "zoneOffset": 2469,
+;           "physicalAddress": 43429,
+;           "windowAddress": 43429,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "sourceIndex": 48,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09A5; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 49,
+;           "label": "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "zoneOffset": 2475,
+;           "physicalAddress": 43435,
+;           "windowAddress": 43435,
+;           "size": 13,
+;           "storedSize": 13,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "sourceIndex": 49,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_VALUE_MAP resource; ZX0 13/768 bytes; bank 3 zone 0 offset +#09AB; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 47,
+;           "label": "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "zoneOffset": 2488,
+;           "physicalAddress": 43448,
+;           "windowAddress": 43448,
+;           "size": 15,
+;           "storedSize": 15,
+;           "uncompressedSize": 256,
+;           "flags": 1,
+;           "sourceIndex": 47,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE resource; ZX0 15/256 bytes; bank 3 zone 0 offset +#09B8; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 46,
+;           "label": "SCREEN_PAN1_0_BOSS_TABLE",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_PAN1_0_BOSS_TABLE",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "zoneOffset": 2503,
+;           "physicalAddress": 43463,
+;           "windowAddress": 43463,
+;           "size": 11,
+;           "storedSize": 11,
+;           "uncompressedSize": 11,
+;           "flags": 0,
+;           "sourceIndex": 46,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_BOSS_TABLE resource; raw 11 bytes; bank 3 zone 0 offset +#09C7; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 45,
+;           "label": "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+;           "group": "SCREENS",
+;           "type": "SCREEN_EFFECT_ZONE_TABLE",
+;           "bank": 3,
+;           "zoneOffset": 2514,
+;           "physicalAddress": 43474,
+;           "windowAddress": 43474,
+;           "size": 1,
+;           "storedSize": 1,
+;           "uncompressedSize": 1,
+;           "flags": 0,
+;           "sourceIndex": 45,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D2; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 53,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+;           "group": "SCREENS",
+;           "type": "SCREEN_EFFECT_ZONE_TABLE",
+;           "bank": 3,
+;           "zoneOffset": 2515,
+;           "physicalAddress": 43475,
+;           "windowAddress": 43475,
+;           "size": 1,
+;           "storedSize": 1,
+;           "uncompressedSize": 1,
+;           "flags": 0,
+;           "sourceIndex": 53,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D3; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 54,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "zoneOffset": 2516,
+;           "physicalAddress": 43476,
+;           "windowAddress": 43476,
+;           "size": 1,
+;           "storedSize": 1,
+;           "uncompressedSize": 1,
+;           "flags": 0,
+;           "sourceIndex": 54,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D4; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 50,
+;           "label": "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "zoneOffset": 2517,
+;           "physicalAddress": 43477,
+;           "windowAddress": 43477,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "sourceIndex": 50,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09D5; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 51,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+;           "group": "SCREENS",
+;           "type": "SCREEN_LAYOUT",
+;           "bank": 3,
+;           "zoneOffset": 2523,
+;           "physicalAddress": 43483,
+;           "windowAddress": 43483,
+;           "size": 21,
+;           "storedSize": 21,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "sourceIndex": 51,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT resource; ZX0 21/768 bytes; bank 3 zone 0 offset +#09DB; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 52,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+;           "group": "SCREENS",
+;           "type": "SCREEN_EFFECTS_LAYOUT",
+;           "bank": 3,
+;           "zoneOffset": 2544,
+;           "physicalAddress": 43504,
+;           "windowAddress": 43504,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "sourceIndex": 52,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09F0; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 55,
+;           "label": "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+;           "resourceIdLabel": "RESOURCE_ID_BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+;           "group": "SCREENS",
+;           "type": "SCREEN_BEHAVIOR_MAP",
+;           "bank": 3,
+;           "zoneOffset": 2550,
+;           "physicalAddress": 43510,
+;           "windowAddress": 43510,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "sourceIndex": 55,
+;           "placementReason": "post-ZX0 first-fit single BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09F6; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 56,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "zoneOffset": 2556,
+;           "physicalAddress": 43516,
+;           "windowAddress": 43516,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "sourceIndex": 56,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09FC; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 57,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "zoneOffset": 2562,
+;           "physicalAddress": 43522,
+;           "windowAddress": 43522,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "sourceIndex": 57,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0A02; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 58,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "zoneOffset": 2568,
+;           "physicalAddress": 43528,
+;           "windowAddress": 43528,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "sourceIndex": 58,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0A08; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 42,
+;           "label": "SCREEN_PAN1_0_BLOCK_CATALOG",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_PAN1_0_BLOCK_CATALOG",
+;           "group": "SCREENS",
+;           "type": "SCREEN_BLOCK_CATALOG",
+;           "bank": 3,
+;           "zoneOffset": 2574,
+;           "physicalAddress": 43534,
+;           "windowAddress": 43534,
+;           "size": 29,
+;           "storedSize": 29,
+;           "uncompressedSize": 96,
+;           "flags": 1,
+;           "sourceIndex": 42,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_BLOCK_CATALOG resource; ZX0 29/96 bytes; bank 3 zone 0 offset +#0A0E; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 43,
+;           "label": "SCREEN_PAN1_0_BLOCK_MAP",
+;           "resourceIdLabel": "RESOURCE_ID_SCREEN_PAN1_0_BLOCK_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_BLOCK_MAP",
+;           "bank": 3,
+;           "zoneOffset": 2603,
+;           "physicalAddress": 43563,
+;           "windowAddress": 43563,
+;           "size": 16,
+;           "storedSize": 16,
+;           "uncompressedSize": 48,
+;           "flags": 1,
+;           "sourceIndex": 43,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_BLOCK_MAP resource; ZX0 16/48 bytes; bank 3 zone 0 offset +#0A2B; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 0,
+;           "label": "NINA_WALK_RIGHT_0_F0_LAYER0",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER0",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2619,
+;           "physicalAddress": 43579,
+;           "windowAddress": 43579,
+;           "size": 30,
+;           "storedSize": 30,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 0,
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0A3B; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 1,
+;           "label": "NINA_WALK_RIGHT_0_F0_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2649,
+;           "physicalAddress": 43609,
+;           "windowAddress": 43609,
+;           "size": 25,
+;           "storedSize": 25,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 1,
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0A59; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 2,
+;           "label": "NINA_WALK_RIGHT_0_F1_LAYER0",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER0",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2674,
+;           "physicalAddress": 43634,
+;           "windowAddress": 43634,
+;           "size": 31,
+;           "storedSize": 31,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 2,
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER0 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0A72; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 3,
+;           "label": "NINA_WALK_RIGHT_0_F1_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2705,
+;           "physicalAddress": 43665,
+;           "windowAddress": 43665,
+;           "size": 27,
+;           "storedSize": 27,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 3,
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER1 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0A91; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 4,
+;           "label": "NINA_GRUB_RIGHT_1_F0_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_GRUB_RIGHT_1_F0_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2732,
+;           "physicalAddress": 43692,
+;           "windowAddress": 43692,
+;           "size": 18,
+;           "storedSize": 18,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 4,
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F0_LAYER1 resource; ZX0 18/32 bytes; bank 3 zone 0 offset +#0AAC; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 5,
+;           "label": "NINA_GRUB_RIGHT_1_F0_LAYER2",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_GRUB_RIGHT_1_F0_LAYER2",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2750,
+;           "physicalAddress": 43710,
+;           "windowAddress": 43710,
+;           "size": 28,
+;           "storedSize": 28,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 5,
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F0_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0ABE; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 6,
+;           "label": "NINA_GRUB_RIGHT_1_F1_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_GRUB_RIGHT_1_F1_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2778,
+;           "physicalAddress": 43738,
+;           "windowAddress": 43738,
+;           "size": 23,
+;           "storedSize": 23,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 6,
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F1_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#0ADA; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 7,
+;           "label": "NINA_GRUB_RIGHT_1_F1_LAYER2",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_GRUB_RIGHT_1_F1_LAYER2",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2801,
+;           "physicalAddress": 43761,
+;           "windowAddress": 43761,
+;           "size": 29,
+;           "storedSize": 29,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 7,
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F1_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0AF1; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 8,
+;           "label": "NEW_SPRITE_2_F0_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NEW_SPRITE_2_F0_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2830,
+;           "physicalAddress": 43790,
+;           "windowAddress": 43790,
+;           "size": 5,
+;           "storedSize": 5,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 8,
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER1 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B0E; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 9,
+;           "label": "NEW_SPRITE_2_F0_LAYER2",
+;           "resourceIdLabel": "RESOURCE_ID_NEW_SPRITE_2_F0_LAYER2",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2835,
+;           "physicalAddress": 43795,
+;           "windowAddress": 43795,
+;           "size": 5,
+;           "storedSize": 5,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 9,
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER2 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B13; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 10,
+;           "label": "NEW_SPRITE_2_F0_LAYER3",
+;           "resourceIdLabel": "RESOURCE_ID_NEW_SPRITE_2_F0_LAYER3",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2840,
+;           "physicalAddress": 43800,
+;           "windowAddress": 43800,
+;           "size": 5,
+;           "storedSize": 5,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 10,
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER3 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B18; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 11,
+;           "label": "NINA_JUMP_RIGHT_3_F0_LAYER0",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_JUMP_RIGHT_3_F0_LAYER0",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2845,
+;           "physicalAddress": 43805,
+;           "windowAddress": 43805,
+;           "size": 27,
+;           "storedSize": 27,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 11,
+;           "placementReason": "post-ZX0 first-fit single NINA_JUMP_RIGHT_3_F0_LAYER0 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0B1D; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 12,
+;           "label": "NINA_JUMP_RIGHT_3_F0_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_JUMP_RIGHT_3_F0_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2872,
+;           "physicalAddress": 43832,
+;           "windowAddress": 43832,
+;           "size": 24,
+;           "storedSize": 24,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 12,
+;           "placementReason": "post-ZX0 first-fit single NINA_JUMP_RIGHT_3_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0B38; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 13,
+;           "label": "NINA_IDLE_RIGHT_4_F0_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_IDLE_RIGHT_4_F0_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2896,
+;           "physicalAddress": 43856,
+;           "windowAddress": 43856,
+;           "size": 23,
+;           "storedSize": 23,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 13,
+;           "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#0B50; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 14,
+;           "label": "NINA_IDLE_RIGHT_4_F0_LAYER2",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_IDLE_RIGHT_4_F0_LAYER2",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2919,
+;           "physicalAddress": 43879,
+;           "windowAddress": 43879,
+;           "size": 28,
+;           "storedSize": 28,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 14,
+;           "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0B67; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 15,
+;           "label": "NEW_SPRITE_RIGHT_5_F0_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NEW_SPRITE_RIGHT_5_F0_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2947,
+;           "physicalAddress": 43907,
+;           "windowAddress": 43907,
+;           "size": 31,
+;           "storedSize": 31,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 15,
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_RIGHT_5_F0_LAYER1 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0B83; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 16,
+;           "label": "NEW_SPRITE_RIGHT_5_F0_LAYER2",
+;           "resourceIdLabel": "RESOURCE_ID_NEW_SPRITE_RIGHT_5_F0_LAYER2",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 2978,
+;           "physicalAddress": 43938,
+;           "windowAddress": 43938,
+;           "size": 30,
+;           "storedSize": 30,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 16,
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_RIGHT_5_F0_LAYER2 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0BA2; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 17,
+;           "label": "PROJECTIL1_6_F0_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_PROJECTIL1_6_F0_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3008,
+;           "physicalAddress": 43968,
+;           "windowAddress": 43968,
+;           "size": 17,
+;           "storedSize": 17,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 17,
+;           "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F0_LAYER1 resource; ZX0 17/32 bytes; bank 3 zone 0 offset +#0BC0; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 18,
+;           "label": "PROJECTIL1_6_F0_LAYER2",
+;           "resourceIdLabel": "RESOURCE_ID_PROJECTIL1_6_F0_LAYER2",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3025,
+;           "physicalAddress": 43985,
+;           "windowAddress": 43985,
+;           "size": 12,
+;           "storedSize": 12,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 18,
+;           "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F0_LAYER2 resource; ZX0 12/32 bytes; bank 3 zone 0 offset +#0BD1; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 19,
+;           "label": "PROJECTIL1_6_F1_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_PROJECTIL1_6_F1_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3037,
+;           "physicalAddress": 43997,
+;           "windowAddress": 43997,
+;           "size": 14,
+;           "storedSize": 14,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 19,
+;           "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F1_LAYER1 resource; ZX0 14/32 bytes; bank 3 zone 0 offset +#0BDD; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 20,
+;           "label": "PROJECTIL1_6_F1_LAYER2",
+;           "resourceIdLabel": "RESOURCE_ID_PROJECTIL1_6_F1_LAYER2",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3051,
+;           "physicalAddress": 44011,
+;           "windowAddress": 44011,
+;           "size": 13,
+;           "storedSize": 13,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 20,
+;           "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F1_LAYER2 resource; ZX0 13/32 bytes; bank 3 zone 0 offset +#0BEB; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 21,
+;           "label": "NINA_WALK_LEFT_7_F0_LAYER0",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_WALK_LEFT_7_F0_LAYER0",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3064,
+;           "physicalAddress": 44024,
+;           "windowAddress": 44024,
+;           "size": 28,
+;           "storedSize": 28,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 21,
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER0 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0BF8; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 22,
+;           "label": "NINA_WALK_LEFT_7_F0_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_WALK_LEFT_7_F0_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3092,
+;           "physicalAddress": 44052,
+;           "windowAddress": 44052,
+;           "size": 25,
+;           "storedSize": 25,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 22,
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0C14; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 23,
+;           "label": "NINA_WALK_LEFT_7_F1_LAYER0",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_WALK_LEFT_7_F1_LAYER0",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3117,
+;           "physicalAddress": 44077,
+;           "windowAddress": 44077,
+;           "size": 30,
+;           "storedSize": 30,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 23,
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0C2D; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 24,
+;           "label": "NINA_WALK_LEFT_7_F1_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_WALK_LEFT_7_F1_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3147,
+;           "physicalAddress": 44107,
+;           "windowAddress": 44107,
+;           "size": 30,
+;           "storedSize": 30,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 24,
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER1 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0C4B; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 25,
+;           "label": "NINA_GRUB_LEFT_8_F0_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_GRUB_LEFT_8_F0_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3177,
+;           "physicalAddress": 44137,
+;           "windowAddress": 44137,
+;           "size": 20,
+;           "storedSize": 20,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 25,
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F0_LAYER1 resource; ZX0 20/32 bytes; bank 3 zone 0 offset +#0C69; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 26,
+;           "label": "NINA_GRUB_LEFT_8_F0_LAYER2",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_GRUB_LEFT_8_F0_LAYER2",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3197,
+;           "physicalAddress": 44157,
+;           "windowAddress": 44157,
+;           "size": 29,
+;           "storedSize": 29,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 26,
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0C7D; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 27,
+;           "label": "NINA_GRUB_LEFT_8_F1_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_GRUB_LEFT_8_F1_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3226,
+;           "physicalAddress": 44186,
+;           "windowAddress": 44186,
+;           "size": 24,
+;           "storedSize": 24,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 27,
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F1_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0C9A; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 28,
+;           "label": "NINA_GRUB_LEFT_8_F1_LAYER2",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_GRUB_LEFT_8_F1_LAYER2",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3250,
+;           "physicalAddress": 44210,
+;           "windowAddress": 44210,
+;           "size": 28,
+;           "storedSize": 28,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 28,
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F1_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0CB2; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 29,
+;           "label": "NINA_JUMP_LEFT_9_F0_LAYER0",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_JUMP_LEFT_9_F0_LAYER0",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3278,
+;           "physicalAddress": 44238,
+;           "windowAddress": 44238,
+;           "size": 27,
+;           "storedSize": 27,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 29,
+;           "placementReason": "post-ZX0 first-fit single NINA_JUMP_LEFT_9_F0_LAYER0 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0CCE; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 30,
+;           "label": "NINA_JUMP_LEFT_9_F0_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_JUMP_LEFT_9_F0_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3305,
+;           "physicalAddress": 44265,
+;           "windowAddress": 44265,
+;           "size": 24,
+;           "storedSize": 24,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 30,
+;           "placementReason": "post-ZX0 first-fit single NINA_JUMP_LEFT_9_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0CE9; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 31,
+;           "label": "NINA_IDLE_LEFT_10_F0_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_IDLE_LEFT_10_F0_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3329,
+;           "physicalAddress": 44289,
+;           "windowAddress": 44289,
+;           "size": 24,
+;           "storedSize": 24,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 31,
+;           "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0D01; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 32,
+;           "label": "NINA_IDLE_LEFT_10_F0_LAYER2",
+;           "resourceIdLabel": "RESOURCE_ID_NINA_IDLE_LEFT_10_F0_LAYER2",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3353,
+;           "physicalAddress": 44313,
+;           "windowAddress": 44313,
+;           "size": 29,
+;           "storedSize": 29,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 32,
+;           "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0D19; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 33,
+;           "label": "NEW_SPRITE_LEFT_11_F0_LAYER1",
+;           "resourceIdLabel": "RESOURCE_ID_NEW_SPRITE_LEFT_11_F0_LAYER1",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3382,
+;           "physicalAddress": 44342,
+;           "windowAddress": 44342,
+;           "size": 31,
+;           "storedSize": 31,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 33,
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_LEFT_11_F0_LAYER1 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0D36; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 34,
+;           "label": "NEW_SPRITE_LEFT_11_F0_LAYER2",
+;           "resourceIdLabel": "RESOURCE_ID_NEW_SPRITE_LEFT_11_F0_LAYER2",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3413,
+;           "physicalAddress": 44373,
+;           "windowAddress": 44373,
+;           "size": 29,
+;           "storedSize": 29,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 34,
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_LEFT_11_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0D55; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 35,
+;           "label": "SPRITE_PLACEHOLDER_PATTERN",
+;           "resourceIdLabel": "RESOURCE_ID_SPRITE_PLACEHOLDER_PATTERN",
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "bank": 3,
+;           "zoneOffset": 3442,
+;           "physicalAddress": 44402,
+;           "windowAddress": 44402,
+;           "size": 5,
+;           "storedSize": 5,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "sourceIndex": 35,
+;           "placementReason": "post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0D72; zone slack after pack 4745 bytes"
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 4,
+;       "zoneIndex": 1,
+;       "orgAddress": 49152,
+;       "endAddress": 57344,
+;       "usedBytes": 0,
+;       "freeBytes": 8192,
+;       "verification": {
+;         "algorithm": "fnv1a32-resource-metadata",
+;         "metadataChecksum": "fnv1a32:31AF9047",
+;         "resourceCount": 0,
+;         "storedBytes": 0
+;       },
+;       "resources": []
+;     }
+;   ],
+;   "overflow": []
+; }
+;
+; [[[MIDEAS_ARTIFACT:packing_manifest.json:END]]]
+
+; [[[MIDEAS_ARTIFACT:banks.json:BEGIN]]]
+; {
+;   "version": 1,
+;   "mapperFormat": "konami",
+;   "segmentSize": 8192,
+;   "dataWindow": {
+;     "page": "p3",
+;     "base": "#A000",
+;     "mask": "#1FFF",
+;     "bankDivisor": "#2000"
+;   },
+;   "banks": [
+;     {
+;       "bank": 3,
+;       "origin": 40960,
+;       "end": 49152,
+;       "usedBytes": 3447,
+;       "freeBytes": 4745,
+;       "verification": {
+;         "algorithm": "fnv1a32-resource-metadata",
+;         "metadataChecksum": "fnv1a32:50739336",
+;         "resourceCount": 58,
+;         "storedBytes": 3447
+;       },
+;       "resources": [
+;         {
+;           "id": 39,
+;           "label": "tile_color_bank0",
+;           "bank": 3,
+;           "offset": 0,
+;           "address": 40960,
+;           "size": 376,
+;           "storedSize": 376,
+;           "uncompressedSize": 1016,
+;           "flags": 1,
+;           "group": "COLORS",
+;           "type": "TILE_COLORS",
+;           "placementReason": "post-ZX0 first-fit single colors resource; ZX0 376/1016 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 37,
+;           "label": "tilebank_pattern_data_0",
+;           "bank": 3,
+;           "offset": 376,
+;           "address": 41336,
+;           "size": 691,
+;           "storedSize": 691,
+;           "uncompressedSize": 896,
+;           "flags": 1,
+;           "group": "PATTERNS",
+;           "type": "TILE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit merged patterns unit (2 labels); ZX0 691/896 bytes; bank 3 zone 0 offset +#0178; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 38,
+;           "label": "tilebank_pattern_data_1",
+;           "bank": 3,
+;           "offset": 1067,
+;           "address": 42027,
+;           "size": 689,
+;           "storedSize": 689,
+;           "uncompressedSize": 896,
+;           "flags": 1,
+;           "group": "PATTERNS",
+;           "type": "TILE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit merged patterns unit (2 labels); ZX0 689/896 bytes; bank 3 zone 0 offset +#042B; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 40,
+;           "label": "tilebank_color_data_0",
+;           "bank": 3,
+;           "offset": 1756,
+;           "address": 42716,
+;           "size": 354,
+;           "storedSize": 354,
+;           "uncompressedSize": 896,
+;           "flags": 1,
+;           "group": "COLORS",
+;           "type": "TILE_COLORS",
+;           "placementReason": "post-ZX0 first-fit merged colors unit (2 labels); ZX0 354/896 bytes; bank 3 zone 0 offset +#06DC; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 41,
+;           "label": "tilebank_color_data_1",
+;           "bank": 3,
+;           "offset": 2110,
+;           "address": 43070,
+;           "size": 353,
+;           "storedSize": 353,
+;           "uncompressedSize": 896,
+;           "flags": 1,
+;           "group": "COLORS",
+;           "type": "TILE_COLORS",
+;           "placementReason": "post-ZX0 first-fit merged colors unit (2 labels); ZX0 353/896 bytes; bank 3 zone 0 offset +#083E; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 44,
+;           "label": "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+;           "bank": 3,
+;           "offset": 2463,
+;           "address": 43423,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "group": "SCREENS",
+;           "type": "SCREEN_EFFECTS_LAYOUT",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#099F; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 48,
+;           "label": "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+;           "bank": 3,
+;           "offset": 2469,
+;           "address": 43429,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09A5; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 49,
+;           "label": "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+;           "bank": 3,
+;           "offset": 2475,
+;           "address": 43435,
+;           "size": 13,
+;           "storedSize": 13,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_VALUE_MAP resource; ZX0 13/768 bytes; bank 3 zone 0 offset +#09AB; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 47,
+;           "label": "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+;           "bank": 3,
+;           "offset": 2488,
+;           "address": 43448,
+;           "size": 15,
+;           "storedSize": 15,
+;           "uncompressedSize": 256,
+;           "flags": 1,
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE resource; ZX0 15/256 bytes; bank 3 zone 0 offset +#09B8; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 46,
+;           "label": "SCREEN_PAN1_0_BOSS_TABLE",
+;           "bank": 3,
+;           "offset": 2503,
+;           "address": 43463,
+;           "size": 11,
+;           "storedSize": 11,
+;           "uncompressedSize": 11,
+;           "flags": 0,
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_BOSS_TABLE resource; raw 11 bytes; bank 3 zone 0 offset +#09C7; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 45,
+;           "label": "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+;           "bank": 3,
+;           "offset": 2514,
+;           "address": 43474,
+;           "size": 1,
+;           "storedSize": 1,
+;           "uncompressedSize": 1,
+;           "flags": 0,
+;           "group": "SCREENS",
+;           "type": "SCREEN_EFFECT_ZONE_TABLE",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D2; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 53,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+;           "bank": 3,
+;           "offset": 2515,
+;           "address": 43475,
+;           "size": 1,
+;           "storedSize": 1,
+;           "uncompressedSize": 1,
+;           "flags": 0,
+;           "group": "SCREENS",
+;           "type": "SCREEN_EFFECT_ZONE_TABLE",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D3; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 54,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+;           "bank": 3,
+;           "offset": 2516,
+;           "address": 43476,
+;           "size": 1,
+;           "storedSize": 1,
+;           "uncompressedSize": 1,
+;           "flags": 0,
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D4; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 50,
+;           "label": "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+;           "bank": 3,
+;           "offset": 2517,
+;           "address": 43477,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09D5; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 51,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+;           "bank": 3,
+;           "offset": 2523,
+;           "address": 43483,
+;           "size": 21,
+;           "storedSize": 21,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "group": "SCREENS",
+;           "type": "SCREEN_LAYOUT",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT resource; ZX0 21/768 bytes; bank 3 zone 0 offset +#09DB; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 52,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+;           "bank": 3,
+;           "offset": 2544,
+;           "address": 43504,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "group": "SCREENS",
+;           "type": "SCREEN_EFFECTS_LAYOUT",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09F0; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 55,
+;           "label": "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+;           "bank": 3,
+;           "offset": 2550,
+;           "address": 43510,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "group": "SCREENS",
+;           "type": "SCREEN_BEHAVIOR_MAP",
+;           "placementReason": "post-ZX0 first-fit single BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09F6; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 56,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+;           "bank": 3,
+;           "offset": 2556,
+;           "address": 43516,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09FC; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 57,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+;           "bank": 3,
+;           "offset": 2562,
+;           "address": 43522,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0A02; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 58,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP",
+;           "bank": 3,
+;           "offset": 2568,
+;           "address": 43528,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0A08; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 42,
+;           "label": "SCREEN_PAN1_0_BLOCK_CATALOG",
+;           "bank": 3,
+;           "offset": 2574,
+;           "address": 43534,
+;           "size": 29,
+;           "storedSize": 29,
+;           "uncompressedSize": 96,
+;           "flags": 1,
+;           "group": "SCREENS",
+;           "type": "SCREEN_BLOCK_CATALOG",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_BLOCK_CATALOG resource; ZX0 29/96 bytes; bank 3 zone 0 offset +#0A0E; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 43,
+;           "label": "SCREEN_PAN1_0_BLOCK_MAP",
+;           "bank": 3,
+;           "offset": 2603,
+;           "address": 43563,
+;           "size": 16,
+;           "storedSize": 16,
+;           "uncompressedSize": 48,
+;           "flags": 1,
+;           "group": "SCREENS",
+;           "type": "SCREEN_BLOCK_MAP",
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_BLOCK_MAP resource; ZX0 16/48 bytes; bank 3 zone 0 offset +#0A2B; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 0,
+;           "label": "NINA_WALK_RIGHT_0_F0_LAYER0",
+;           "bank": 3,
+;           "offset": 2619,
+;           "address": 43579,
+;           "size": 30,
+;           "storedSize": 30,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0A3B; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 1,
+;           "label": "NINA_WALK_RIGHT_0_F0_LAYER1",
+;           "bank": 3,
+;           "offset": 2649,
+;           "address": 43609,
+;           "size": 25,
+;           "storedSize": 25,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0A59; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 2,
+;           "label": "NINA_WALK_RIGHT_0_F1_LAYER0",
+;           "bank": 3,
+;           "offset": 2674,
+;           "address": 43634,
+;           "size": 31,
+;           "storedSize": 31,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER0 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0A72; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 3,
+;           "label": "NINA_WALK_RIGHT_0_F1_LAYER1",
+;           "bank": 3,
+;           "offset": 2705,
+;           "address": 43665,
+;           "size": 27,
+;           "storedSize": 27,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER1 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0A91; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 4,
+;           "label": "NINA_GRUB_RIGHT_1_F0_LAYER1",
+;           "bank": 3,
+;           "offset": 2732,
+;           "address": 43692,
+;           "size": 18,
+;           "storedSize": 18,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F0_LAYER1 resource; ZX0 18/32 bytes; bank 3 zone 0 offset +#0AAC; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 5,
+;           "label": "NINA_GRUB_RIGHT_1_F0_LAYER2",
+;           "bank": 3,
+;           "offset": 2750,
+;           "address": 43710,
+;           "size": 28,
+;           "storedSize": 28,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F0_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0ABE; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 6,
+;           "label": "NINA_GRUB_RIGHT_1_F1_LAYER1",
+;           "bank": 3,
+;           "offset": 2778,
+;           "address": 43738,
+;           "size": 23,
+;           "storedSize": 23,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F1_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#0ADA; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 7,
+;           "label": "NINA_GRUB_RIGHT_1_F1_LAYER2",
+;           "bank": 3,
+;           "offset": 2801,
+;           "address": 43761,
+;           "size": 29,
+;           "storedSize": 29,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F1_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0AF1; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 8,
+;           "label": "NEW_SPRITE_2_F0_LAYER1",
+;           "bank": 3,
+;           "offset": 2830,
+;           "address": 43790,
+;           "size": 5,
+;           "storedSize": 5,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER1 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B0E; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 9,
+;           "label": "NEW_SPRITE_2_F0_LAYER2",
+;           "bank": 3,
+;           "offset": 2835,
+;           "address": 43795,
+;           "size": 5,
+;           "storedSize": 5,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER2 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B13; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 10,
+;           "label": "NEW_SPRITE_2_F0_LAYER3",
+;           "bank": 3,
+;           "offset": 2840,
+;           "address": 43800,
+;           "size": 5,
+;           "storedSize": 5,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER3 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B18; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 11,
+;           "label": "NINA_JUMP_RIGHT_3_F0_LAYER0",
+;           "bank": 3,
+;           "offset": 2845,
+;           "address": 43805,
+;           "size": 27,
+;           "storedSize": 27,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_JUMP_RIGHT_3_F0_LAYER0 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0B1D; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 12,
+;           "label": "NINA_JUMP_RIGHT_3_F0_LAYER1",
+;           "bank": 3,
+;           "offset": 2872,
+;           "address": 43832,
+;           "size": 24,
+;           "storedSize": 24,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_JUMP_RIGHT_3_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0B38; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 13,
+;           "label": "NINA_IDLE_RIGHT_4_F0_LAYER1",
+;           "bank": 3,
+;           "offset": 2896,
+;           "address": 43856,
+;           "size": 23,
+;           "storedSize": 23,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#0B50; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 14,
+;           "label": "NINA_IDLE_RIGHT_4_F0_LAYER2",
+;           "bank": 3,
+;           "offset": 2919,
+;           "address": 43879,
+;           "size": 28,
+;           "storedSize": 28,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0B67; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 15,
+;           "label": "NEW_SPRITE_RIGHT_5_F0_LAYER1",
+;           "bank": 3,
+;           "offset": 2947,
+;           "address": 43907,
+;           "size": 31,
+;           "storedSize": 31,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_RIGHT_5_F0_LAYER1 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0B83; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 16,
+;           "label": "NEW_SPRITE_RIGHT_5_F0_LAYER2",
+;           "bank": 3,
+;           "offset": 2978,
+;           "address": 43938,
+;           "size": 30,
+;           "storedSize": 30,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_RIGHT_5_F0_LAYER2 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0BA2; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 17,
+;           "label": "PROJECTIL1_6_F0_LAYER1",
+;           "bank": 3,
+;           "offset": 3008,
+;           "address": 43968,
+;           "size": 17,
+;           "storedSize": 17,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F0_LAYER1 resource; ZX0 17/32 bytes; bank 3 zone 0 offset +#0BC0; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 18,
+;           "label": "PROJECTIL1_6_F0_LAYER2",
+;           "bank": 3,
+;           "offset": 3025,
+;           "address": 43985,
+;           "size": 12,
+;           "storedSize": 12,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F0_LAYER2 resource; ZX0 12/32 bytes; bank 3 zone 0 offset +#0BD1; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 19,
+;           "label": "PROJECTIL1_6_F1_LAYER1",
+;           "bank": 3,
+;           "offset": 3037,
+;           "address": 43997,
+;           "size": 14,
+;           "storedSize": 14,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F1_LAYER1 resource; ZX0 14/32 bytes; bank 3 zone 0 offset +#0BDD; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 20,
+;           "label": "PROJECTIL1_6_F1_LAYER2",
+;           "bank": 3,
+;           "offset": 3051,
+;           "address": 44011,
+;           "size": 13,
+;           "storedSize": 13,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F1_LAYER2 resource; ZX0 13/32 bytes; bank 3 zone 0 offset +#0BEB; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 21,
+;           "label": "NINA_WALK_LEFT_7_F0_LAYER0",
+;           "bank": 3,
+;           "offset": 3064,
+;           "address": 44024,
+;           "size": 28,
+;           "storedSize": 28,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER0 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0BF8; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 22,
+;           "label": "NINA_WALK_LEFT_7_F0_LAYER1",
+;           "bank": 3,
+;           "offset": 3092,
+;           "address": 44052,
+;           "size": 25,
+;           "storedSize": 25,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0C14; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 23,
+;           "label": "NINA_WALK_LEFT_7_F1_LAYER0",
+;           "bank": 3,
+;           "offset": 3117,
+;           "address": 44077,
+;           "size": 30,
+;           "storedSize": 30,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0C2D; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 24,
+;           "label": "NINA_WALK_LEFT_7_F1_LAYER1",
+;           "bank": 3,
+;           "offset": 3147,
+;           "address": 44107,
+;           "size": 30,
+;           "storedSize": 30,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER1 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0C4B; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 25,
+;           "label": "NINA_GRUB_LEFT_8_F0_LAYER1",
+;           "bank": 3,
+;           "offset": 3177,
+;           "address": 44137,
+;           "size": 20,
+;           "storedSize": 20,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F0_LAYER1 resource; ZX0 20/32 bytes; bank 3 zone 0 offset +#0C69; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 26,
+;           "label": "NINA_GRUB_LEFT_8_F0_LAYER2",
+;           "bank": 3,
+;           "offset": 3197,
+;           "address": 44157,
+;           "size": 29,
+;           "storedSize": 29,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0C7D; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 27,
+;           "label": "NINA_GRUB_LEFT_8_F1_LAYER1",
+;           "bank": 3,
+;           "offset": 3226,
+;           "address": 44186,
+;           "size": 24,
+;           "storedSize": 24,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F1_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0C9A; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 28,
+;           "label": "NINA_GRUB_LEFT_8_F1_LAYER2",
+;           "bank": 3,
+;           "offset": 3250,
+;           "address": 44210,
+;           "size": 28,
+;           "storedSize": 28,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F1_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0CB2; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 29,
+;           "label": "NINA_JUMP_LEFT_9_F0_LAYER0",
+;           "bank": 3,
+;           "offset": 3278,
+;           "address": 44238,
+;           "size": 27,
+;           "storedSize": 27,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_JUMP_LEFT_9_F0_LAYER0 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0CCE; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 30,
+;           "label": "NINA_JUMP_LEFT_9_F0_LAYER1",
+;           "bank": 3,
+;           "offset": 3305,
+;           "address": 44265,
+;           "size": 24,
+;           "storedSize": 24,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_JUMP_LEFT_9_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0CE9; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 31,
+;           "label": "NINA_IDLE_LEFT_10_F0_LAYER1",
+;           "bank": 3,
+;           "offset": 3329,
+;           "address": 44289,
+;           "size": 24,
+;           "storedSize": 24,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0D01; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 32,
+;           "label": "NINA_IDLE_LEFT_10_F0_LAYER2",
+;           "bank": 3,
+;           "offset": 3353,
+;           "address": 44313,
+;           "size": 29,
+;           "storedSize": 29,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0D19; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 33,
+;           "label": "NEW_SPRITE_LEFT_11_F0_LAYER1",
+;           "bank": 3,
+;           "offset": 3382,
+;           "address": 44342,
+;           "size": 31,
+;           "storedSize": 31,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_LEFT_11_F0_LAYER1 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0D36; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 34,
+;           "label": "NEW_SPRITE_LEFT_11_F0_LAYER2",
+;           "bank": 3,
+;           "offset": 3413,
+;           "address": 44373,
+;           "size": 29,
+;           "storedSize": 29,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single NEW_SPRITE_LEFT_11_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0D55; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 35,
+;           "label": "SPRITE_PLACEHOLDER_PATTERN",
+;           "bank": 3,
+;           "offset": 3442,
+;           "address": 44402,
+;           "size": 5,
+;           "storedSize": 5,
+;           "uncompressedSize": 32,
+;           "flags": 1,
+;           "group": "SPRITES",
+;           "type": "SPRITE_PATTERNS",
+;           "placementReason": "post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0D72; zone slack after pack 4745 bytes"
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 4,
+;       "origin": 49152,
+;       "end": 57344,
+;       "usedBytes": 0,
+;       "freeBytes": 8192,
+;       "verification": {
+;         "algorithm": "fnv1a32-resource-metadata",
+;         "metadataChecksum": "fnv1a32:31AF9047",
+;         "resourceCount": 0,
+;         "storedBytes": 0
+;       },
+;       "resources": []
+;     }
+;   ],
+;   "overflow": []
+; }
+;
+; [[[MIDEAS_ARTIFACT:banks.json:END]]]
+
+; [[[MIDEAS_ARTIFACT:project_usage.json:BEGIN]]]
+; {
+;   "version": 1,
+;   "scope": "konami8k_megarom_data",
+;   "mapper": {
+;     "format": "konami",
+;     "segmentSize": 8192,
+;     "dataWindowPage": "p3",
+;     "windowBase": "#A000",
+;     "windowMask": "#1FFF",
+;     "bankDivisor": "#2000"
+;   },
+;   "features": {
+;     "sprites": true,
+;     "tiles": true,
+;     "screens": true,
+;     "entities": true,
+;     "components": true,
+;     "gameFlow": true,
+;     "menus": false,
+;     "fonts": true,
+;     "animations": true,
+;     "collisions": true,
+;     "sounds": false,
+;     "stateMachines": true
+;   },
+;   "counts": {
+;     "components": 41,
+;     "templates": 18,
+;     "sprites": 7,
+;     "tiles": 156,
+;     "tileBanks": 2,
+;     "screens": 2,
+;     "entities": 2,
+;     "sounds": 0,
+;     "tracks": 0,
+;     "stateMachines": 1,
+;     "bankedResources": 59
+;   },
+;   "resourceGroups": [
+;     {
+;       "key": "COLORS",
+;       "count": 3
+;     },
+;     {
+;       "key": "PATTERNS",
+;       "count": 3
+;     },
+;     {
+;       "key": "SCREENS",
+;       "count": 17
+;     },
+;     {
+;       "key": "SPRITES",
+;       "count": 36
+;     }
+;   ],
+;   "resourceTypes": [
+;     {
+;       "key": "SCREEN_BEHAVIOR_MAP",
+;       "count": 1
+;     },
+;     {
+;       "key": "SCREEN_BLOCK_CATALOG",
+;       "count": 1
+;     },
+;     {
+;       "key": "SCREEN_BLOCK_MAP",
+;       "count": 1
+;     },
+;     {
+;       "key": "SCREEN_DATA",
+;       "count": 9
+;     },
+;     {
+;       "key": "SCREEN_EFFECT_ZONE_TABLE",
+;       "count": 2
+;     },
+;     {
+;       "key": "SCREEN_EFFECTS_LAYOUT",
+;       "count": 2
+;     },
+;     {
+;       "key": "SCREEN_LAYOUT",
+;       "count": 1
+;     },
+;     {
+;       "key": "SPRITE_PATTERNS",
+;       "count": 36
+;     },
+;     {
+;       "key": "TILE_COLORS",
+;       "count": 3
+;     },
+;     {
+;       "key": "TILE_PATTERNS",
+;       "count": 3
+;     }
+;   ],
+;   "scenes": [
+;     {
+;       "index": 0,
+;       "id": "screenmap_1776511902784",
+;       "name": "pan1",
+;       "size": {
+;         "width": 32,
+;         "height": 24
+;       },
+;       "screenKind": "playable",
+;       "screenEngine": "player",
+;       "tileBankAssetId": "tilebank_1776511918552",
+;       "tileUsage": {
+;         "backgroundTileIds": [
+;           "tile_1770753922382",
+;           "tile_1772141640113",
+;           "tile_1772960221849",
+;           "tile_1776511854312",
+;           "tile_1776514675238",
+;           "tile_1776777705689",
+;           "tile_1776787618678",
+;           "tile_1776878493940",
+;           "tile_1777378210884",
+;           "tile_split_tile_1776511854312_0_0_1776878629578",
+;           "tile_split_tile_1776511854312_1_1_1776878629578"
+;         ],
+;         "collisionTileIds": [
+;           "tile_1776511854312"
+;         ],
+;         "effectsTileIds": [],
+;         "uniqueTileIds": [
+;           "tile_1770753922382",
+;           "tile_1772141640113",
+;           "tile_1772960221849",
+;           "tile_1776511854312",
+;           "tile_1776514675238",
+;           "tile_1776777705689",
+;           "tile_1776787618678",
+;           "tile_1776878493940",
+;           "tile_1777378210884",
+;           "tile_split_tile_1776511854312_0_0_1776878629578",
+;           "tile_split_tile_1776511854312_1_1_1776878629578"
+;         ]
+;       },
+;       "entities": {
+;         "count": 1,
+;         "templateIds": [
+;           "tpl_player"
+;         ],
+;         "names": [
+;           "Player 1"
+;         ]
+;       },
+;       "effectZones": {
+;         "count": 0
+;       },
+;       "bosses": {
+;         "count": 1,
+;         "bossIds": [
+;           "bossinst_1777673024815_wokl4"
+;         ]
+;       },
+;       "resourceIds": [
+;         44,
+;         48,
+;         49,
+;         47,
+;         46,
+;         45,
+;         50,
+;         42,
+;         43
+;       ],
+;       "resources": [
+;         {
+;           "id": 44,
+;           "label": "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+;           "group": "SCREENS",
+;           "type": "SCREEN_EFFECTS_LAYOUT",
+;           "bank": 3,
+;           "windowAddress": 43423,
+;           "zoneOffset": 2463,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#099F; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 48,
+;           "label": "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "windowAddress": 43429,
+;           "zoneOffset": 2469,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09A5; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 49,
+;           "label": "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "windowAddress": 43435,
+;           "zoneOffset": 2475,
+;           "size": 13,
+;           "storedSize": 13,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_VALUE_MAP resource; ZX0 13/768 bytes; bank 3 zone 0 offset +#09AB; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 47,
+;           "label": "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "windowAddress": 43448,
+;           "zoneOffset": 2488,
+;           "size": 15,
+;           "storedSize": 15,
+;           "uncompressedSize": 256,
+;           "flags": 1,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE resource; ZX0 15/256 bytes; bank 3 zone 0 offset +#09B8; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 46,
+;           "label": "SCREEN_PAN1_0_BOSS_TABLE",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "windowAddress": 43463,
+;           "zoneOffset": 2503,
+;           "size": 11,
+;           "storedSize": 11,
+;           "uncompressedSize": 11,
+;           "flags": 0,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_BOSS_TABLE resource; raw 11 bytes; bank 3 zone 0 offset +#09C7; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 45,
+;           "label": "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+;           "group": "SCREENS",
+;           "type": "SCREEN_EFFECT_ZONE_TABLE",
+;           "bank": 3,
+;           "windowAddress": 43474,
+;           "zoneOffset": 2514,
+;           "size": 1,
+;           "storedSize": 1,
+;           "uncompressedSize": 1,
+;           "flags": 0,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D2; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 50,
+;           "label": "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "windowAddress": 43477,
+;           "zoneOffset": 2517,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09D5; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 42,
+;           "label": "SCREEN_PAN1_0_BLOCK_CATALOG",
+;           "group": "SCREENS",
+;           "type": "SCREEN_BLOCK_CATALOG",
+;           "bank": 3,
+;           "windowAddress": 43534,
+;           "zoneOffset": 2574,
+;           "size": 29,
+;           "storedSize": 29,
+;           "uncompressedSize": 96,
+;           "flags": 1,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_BLOCK_CATALOG resource; ZX0 29/96 bytes; bank 3 zone 0 offset +#0A0E; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 43,
+;           "label": "SCREEN_PAN1_0_BLOCK_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_BLOCK_MAP",
+;           "bank": 3,
+;           "windowAddress": 43563,
+;           "zoneOffset": 2603,
+;           "size": 16,
+;           "storedSize": 16,
+;           "uncompressedSize": 48,
+;           "flags": 1,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_BLOCK_MAP resource; ZX0 16/48 bytes; bank 3 zone 0 offset +#0A2B; zone slack after pack 4745 bytes"
+;         }
+;       ],
+;       "banks": [
+;         {
+;           "bank": 3,
+;           "count": 9,
+;           "storedBytes": 103,
+;           "rawBytes": 3484,
+;           "resourceIds": [
+;             44,
+;             48,
+;             49,
+;             47,
+;             46,
+;             45,
+;             50,
+;             42,
+;             43
+;           ],
+;           "resourceLabels": [
+;             "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+;             "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+;             "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+;             "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+;             "SCREEN_PAN1_0_BOSS_TABLE",
+;             "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+;             "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+;             "SCREEN_PAN1_0_BLOCK_CATALOG",
+;             "SCREEN_PAN1_0_BLOCK_MAP"
+;           ]
+;         }
+;       ],
+;       "loadOrder": [
+;         {
+;           "bank": 3,
+;           "resourceIds": [
+;             44,
+;             48,
+;             49,
+;             47,
+;             46,
+;             45,
+;             50,
+;             42,
+;             43
+;           ],
+;           "resourceLabels": [
+;             "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+;             "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+;             "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+;             "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+;             "SCREEN_PAN1_0_BOSS_TABLE",
+;             "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+;             "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+;             "SCREEN_PAN1_0_BLOCK_CATALOG",
+;             "SCREEN_PAN1_0_BLOCK_MAP"
+;           ]
+;         }
+;       ],
+;       "totals": {
+;         "resourceCount": 9,
+;         "storedBytes": 103,
+;         "rawBytes": 3484,
+;         "compressedResources": 7
+;       }
+;     },
+;     {
+;       "index": 1,
+;       "id": "screenmap_1777377884059",
+;       "name": "New Dialog Screen",
+;       "size": {
+;         "width": 32,
+;         "height": 24
+;       },
+;       "screenKind": "dialog",
+;       "screenEngine": "fakePlayer",
+;       "tileBankAssetId": "tilebank_1776511918552",
+;       "tileUsage": {
+;         "backgroundTileIds": [
+;           "tile_1770753922382"
+;         ],
+;         "collisionTileIds": [],
+;         "effectsTileIds": [],
+;         "uniqueTileIds": [
+;           "tile_1770753922382"
+;         ]
+;       },
+;       "entities": {
+;         "count": 1,
+;         "templateIds": [
+;           "tpl_fake_player"
+;         ],
+;         "names": [
+;           "FakePlayer 1"
+;         ]
+;       },
+;       "effectZones": {
+;         "count": 0
+;       },
+;       "bosses": {
+;         "count": 0,
+;         "bossIds": []
+;       },
+;       "resourceIds": [
+;         53,
+;         54,
+;         51,
+;         52,
+;         55,
+;         56,
+;         57,
+;         58
+;       ],
+;       "resources": [
+;         {
+;           "id": 53,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+;           "group": "SCREENS",
+;           "type": "SCREEN_EFFECT_ZONE_TABLE",
+;           "bank": 3,
+;           "windowAddress": 43475,
+;           "zoneOffset": 2515,
+;           "size": 1,
+;           "storedSize": 1,
+;           "uncompressedSize": 1,
+;           "flags": 0,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D3; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 54,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "windowAddress": 43476,
+;           "zoneOffset": 2516,
+;           "size": 1,
+;           "storedSize": 1,
+;           "uncompressedSize": 1,
+;           "flags": 0,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D4; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 51,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+;           "group": "SCREENS",
+;           "type": "SCREEN_LAYOUT",
+;           "bank": 3,
+;           "windowAddress": 43483,
+;           "zoneOffset": 2523,
+;           "size": 21,
+;           "storedSize": 21,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT resource; ZX0 21/768 bytes; bank 3 zone 0 offset +#09DB; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 52,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+;           "group": "SCREENS",
+;           "type": "SCREEN_EFFECTS_LAYOUT",
+;           "bank": 3,
+;           "windowAddress": 43504,
+;           "zoneOffset": 2544,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09F0; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 55,
+;           "label": "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+;           "group": "SCREENS",
+;           "type": "SCREEN_BEHAVIOR_MAP",
+;           "bank": 3,
+;           "windowAddress": 43510,
+;           "zoneOffset": 2550,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "placementReason": "post-ZX0 first-fit single BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09F6; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 56,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "windowAddress": 43516,
+;           "zoneOffset": 2556,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09FC; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 57,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "windowAddress": 43522,
+;           "zoneOffset": 2562,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0A02; zone slack after pack 4745 bytes"
+;         },
+;         {
+;           "id": 58,
+;           "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP",
+;           "group": "SCREENS",
+;           "type": "SCREEN_DATA",
+;           "bank": 3,
+;           "windowAddress": 43528,
+;           "zoneOffset": 2568,
+;           "size": 6,
+;           "storedSize": 6,
+;           "uncompressedSize": 768,
+;           "flags": 1,
+;           "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0A08; zone slack after pack 4745 bytes"
+;         }
+;       ],
+;       "banks": [
+;         {
+;           "bank": 3,
+;           "count": 8,
+;           "storedBytes": 53,
+;           "rawBytes": 4610,
+;           "resourceIds": [
+;             53,
+;             54,
+;             51,
+;             52,
+;             55,
+;             56,
+;             57,
+;             58
+;           ],
+;           "resourceLabels": [
+;             "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+;             "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP"
+;           ]
+;         }
+;       ],
+;       "loadOrder": [
+;         {
+;           "bank": 3,
+;           "resourceIds": [
+;             53,
+;             54,
+;             51,
+;             52,
+;             55,
+;             56,
+;             57,
+;             58
+;           ],
+;           "resourceLabels": [
+;             "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+;             "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP"
+;           ]
+;         }
+;       ],
+;       "totals": {
+;         "resourceCount": 8,
+;         "storedBytes": 53,
+;         "rawBytes": 4610,
+;         "compressedResources": 6
+;       }
+;     }
+;   ],
+;   "bankedResources": [
+;     {
+;       "id": 0,
+;       "label": "NINA_WALK_RIGHT_0_F0_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43579,
+;       "size": 30,
+;       "storedSize": 30,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0A3B; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 1,
+;       "label": "NINA_WALK_RIGHT_0_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43609,
+;       "size": 25,
+;       "storedSize": 25,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0A59; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 2,
+;       "label": "NINA_WALK_RIGHT_0_F1_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43634,
+;       "size": 31,
+;       "storedSize": 31,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER0 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0A72; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 3,
+;       "label": "NINA_WALK_RIGHT_0_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43665,
+;       "size": 27,
+;       "storedSize": 27,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER1 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0A91; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 4,
+;       "label": "NINA_GRUB_RIGHT_1_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43692,
+;       "size": 18,
+;       "storedSize": 18,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F0_LAYER1 resource; ZX0 18/32 bytes; bank 3 zone 0 offset +#0AAC; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 5,
+;       "label": "NINA_GRUB_RIGHT_1_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43710,
+;       "size": 28,
+;       "storedSize": 28,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F0_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0ABE; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 6,
+;       "label": "NINA_GRUB_RIGHT_1_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43738,
+;       "size": 23,
+;       "storedSize": 23,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F1_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#0ADA; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 7,
+;       "label": "NINA_GRUB_RIGHT_1_F1_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43761,
+;       "size": 29,
+;       "storedSize": 29,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F1_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0AF1; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 8,
+;       "label": "NEW_SPRITE_2_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43790,
+;       "size": 5,
+;       "storedSize": 5,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER1 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B0E; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 9,
+;       "label": "NEW_SPRITE_2_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43795,
+;       "size": 5,
+;       "storedSize": 5,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER2 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B13; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 10,
+;       "label": "NEW_SPRITE_2_F0_LAYER3",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43800,
+;       "size": 5,
+;       "storedSize": 5,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER3 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B18; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 11,
+;       "label": "NINA_JUMP_RIGHT_3_F0_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43805,
+;       "size": 27,
+;       "storedSize": 27,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_JUMP_RIGHT_3_F0_LAYER0 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0B1D; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 12,
+;       "label": "NINA_JUMP_RIGHT_3_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43832,
+;       "size": 24,
+;       "storedSize": 24,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_JUMP_RIGHT_3_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0B38; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 13,
+;       "label": "NINA_IDLE_RIGHT_4_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43856,
+;       "size": 23,
+;       "storedSize": 23,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#0B50; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 14,
+;       "label": "NINA_IDLE_RIGHT_4_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43879,
+;       "size": 28,
+;       "storedSize": 28,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0B67; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 15,
+;       "label": "NEW_SPRITE_RIGHT_5_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43907,
+;       "size": 31,
+;       "storedSize": 31,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_RIGHT_5_F0_LAYER1 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0B83; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 16,
+;       "label": "NEW_SPRITE_RIGHT_5_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43938,
+;       "size": 30,
+;       "storedSize": 30,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_RIGHT_5_F0_LAYER2 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0BA2; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 17,
+;       "label": "PROJECTIL1_6_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43968,
+;       "size": 17,
+;       "storedSize": 17,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F0_LAYER1 resource; ZX0 17/32 bytes; bank 3 zone 0 offset +#0BC0; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 18,
+;       "label": "PROJECTIL1_6_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43985,
+;       "size": 12,
+;       "storedSize": 12,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F0_LAYER2 resource; ZX0 12/32 bytes; bank 3 zone 0 offset +#0BD1; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 19,
+;       "label": "PROJECTIL1_6_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43997,
+;       "size": 14,
+;       "storedSize": 14,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F1_LAYER1 resource; ZX0 14/32 bytes; bank 3 zone 0 offset +#0BDD; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 20,
+;       "label": "PROJECTIL1_6_F1_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44011,
+;       "size": 13,
+;       "storedSize": 13,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F1_LAYER2 resource; ZX0 13/32 bytes; bank 3 zone 0 offset +#0BEB; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 21,
+;       "label": "NINA_WALK_LEFT_7_F0_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44024,
+;       "size": 28,
+;       "storedSize": 28,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER0 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0BF8; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 22,
+;       "label": "NINA_WALK_LEFT_7_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44052,
+;       "size": 25,
+;       "storedSize": 25,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0C14; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 23,
+;       "label": "NINA_WALK_LEFT_7_F1_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44077,
+;       "size": 30,
+;       "storedSize": 30,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0C2D; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 24,
+;       "label": "NINA_WALK_LEFT_7_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44107,
+;       "size": 30,
+;       "storedSize": 30,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER1 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0C4B; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 25,
+;       "label": "NINA_GRUB_LEFT_8_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44137,
+;       "size": 20,
+;       "storedSize": 20,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F0_LAYER1 resource; ZX0 20/32 bytes; bank 3 zone 0 offset +#0C69; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 26,
+;       "label": "NINA_GRUB_LEFT_8_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44157,
+;       "size": 29,
+;       "storedSize": 29,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0C7D; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 27,
+;       "label": "NINA_GRUB_LEFT_8_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44186,
+;       "size": 24,
+;       "storedSize": 24,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F1_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0C9A; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 28,
+;       "label": "NINA_GRUB_LEFT_8_F1_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44210,
+;       "size": 28,
+;       "storedSize": 28,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F1_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0CB2; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 29,
+;       "label": "NINA_JUMP_LEFT_9_F0_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44238,
+;       "size": 27,
+;       "storedSize": 27,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_JUMP_LEFT_9_F0_LAYER0 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0CCE; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 30,
+;       "label": "NINA_JUMP_LEFT_9_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44265,
+;       "size": 24,
+;       "storedSize": 24,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_JUMP_LEFT_9_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0CE9; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 31,
+;       "label": "NINA_IDLE_LEFT_10_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44289,
+;       "size": 24,
+;       "storedSize": 24,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0D01; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 32,
+;       "label": "NINA_IDLE_LEFT_10_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44313,
+;       "size": 29,
+;       "storedSize": 29,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0D19; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 33,
+;       "label": "NEW_SPRITE_LEFT_11_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44342,
+;       "size": 31,
+;       "storedSize": 31,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_LEFT_11_F0_LAYER1 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0D36; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 34,
+;       "label": "NEW_SPRITE_LEFT_11_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44373,
+;       "size": 29,
+;       "storedSize": 29,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_LEFT_11_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0D55; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 35,
+;       "label": "SPRITE_PLACEHOLDER_PATTERN",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44402,
+;       "size": 5,
+;       "storedSize": 5,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0D72; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 36,
+;       "label": "tile_pattern_bank0",
+;       "group": "PATTERNS",
+;       "type": "TILE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 40960,
+;       "size": 747,
+;       "storedSize": 747,
+;       "uncompressedSize": 1016,
+;       "flags": 1
+;     },
+;     {
+;       "id": 37,
+;       "label": "tilebank_pattern_data_0",
+;       "group": "PATTERNS",
+;       "type": "TILE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 41336,
+;       "size": 691,
+;       "storedSize": 691,
+;       "uncompressedSize": 896,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit merged patterns unit (2 labels); ZX0 691/896 bytes; bank 3 zone 0 offset +#0178; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 38,
+;       "label": "tilebank_pattern_data_1",
+;       "group": "PATTERNS",
+;       "type": "TILE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 42027,
+;       "size": 689,
+;       "storedSize": 689,
+;       "uncompressedSize": 896,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit merged patterns unit (2 labels); ZX0 689/896 bytes; bank 3 zone 0 offset +#042B; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 39,
+;       "label": "tile_color_bank0",
+;       "group": "COLORS",
+;       "type": "TILE_COLORS",
+;       "bank": 3,
+;       "windowAddress": 40960,
+;       "size": 376,
+;       "storedSize": 376,
+;       "uncompressedSize": 1016,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single colors resource; ZX0 376/1016 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 40,
+;       "label": "tilebank_color_data_0",
+;       "group": "COLORS",
+;       "type": "TILE_COLORS",
+;       "bank": 3,
+;       "windowAddress": 42716,
+;       "size": 354,
+;       "storedSize": 354,
+;       "uncompressedSize": 896,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit merged colors unit (2 labels); ZX0 354/896 bytes; bank 3 zone 0 offset +#06DC; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 41,
+;       "label": "tilebank_color_data_1",
+;       "group": "COLORS",
+;       "type": "TILE_COLORS",
+;       "bank": 3,
+;       "windowAddress": 43070,
+;       "size": 353,
+;       "storedSize": 353,
+;       "uncompressedSize": 896,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit merged colors unit (2 labels); ZX0 353/896 bytes; bank 3 zone 0 offset +#083E; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 42,
+;       "label": "SCREEN_PAN1_0_BLOCK_CATALOG",
+;       "group": "SCREENS",
+;       "type": "SCREEN_BLOCK_CATALOG",
+;       "bank": 3,
+;       "windowAddress": 43534,
+;       "size": 29,
+;       "storedSize": 29,
+;       "uncompressedSize": 96,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_BLOCK_CATALOG resource; ZX0 29/96 bytes; bank 3 zone 0 offset +#0A0E; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 43,
+;       "label": "SCREEN_PAN1_0_BLOCK_MAP",
+;       "group": "SCREENS",
+;       "type": "SCREEN_BLOCK_MAP",
+;       "bank": 3,
+;       "windowAddress": 43563,
+;       "size": 16,
+;       "storedSize": 16,
+;       "uncompressedSize": 48,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_BLOCK_MAP resource; ZX0 16/48 bytes; bank 3 zone 0 offset +#0A2B; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 44,
+;       "label": "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+;       "group": "SCREENS",
+;       "type": "SCREEN_EFFECTS_LAYOUT",
+;       "bank": 3,
+;       "windowAddress": 43423,
+;       "size": 6,
+;       "storedSize": 6,
+;       "uncompressedSize": 768,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#099F; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 45,
+;       "label": "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+;       "group": "SCREENS",
+;       "type": "SCREEN_EFFECT_ZONE_TABLE",
+;       "bank": 3,
+;       "windowAddress": 43474,
+;       "size": 1,
+;       "storedSize": 1,
+;       "uncompressedSize": 1,
+;       "flags": 0,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D2; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 46,
+;       "label": "SCREEN_PAN1_0_BOSS_TABLE",
+;       "group": "SCREENS",
+;       "type": "SCREEN_DATA",
+;       "bank": 3,
+;       "windowAddress": 43463,
+;       "size": 11,
+;       "storedSize": 11,
+;       "uncompressedSize": 11,
+;       "flags": 0,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_BOSS_TABLE resource; raw 11 bytes; bank 3 zone 0 offset +#09C7; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 47,
+;       "label": "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+;       "group": "SCREENS",
+;       "type": "SCREEN_DATA",
+;       "bank": 3,
+;       "windowAddress": 43448,
+;       "size": 15,
+;       "storedSize": 15,
+;       "uncompressedSize": 256,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE resource; ZX0 15/256 bytes; bank 3 zone 0 offset +#09B8; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 48,
+;       "label": "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+;       "group": "SCREENS",
+;       "type": "SCREEN_DATA",
+;       "bank": 3,
+;       "windowAddress": 43429,
+;       "size": 6,
+;       "storedSize": 6,
+;       "uncompressedSize": 768,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09A5; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 49,
+;       "label": "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+;       "group": "SCREENS",
+;       "type": "SCREEN_DATA",
+;       "bank": 3,
+;       "windowAddress": 43435,
+;       "size": 13,
+;       "storedSize": 13,
+;       "uncompressedSize": 768,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_VALUE_MAP resource; ZX0 13/768 bytes; bank 3 zone 0 offset +#09AB; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 50,
+;       "label": "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+;       "group": "SCREENS",
+;       "type": "SCREEN_DATA",
+;       "bank": 3,
+;       "windowAddress": 43477,
+;       "size": 6,
+;       "storedSize": 6,
+;       "uncompressedSize": 768,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09D5; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 51,
+;       "label": "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+;       "group": "SCREENS",
+;       "type": "SCREEN_LAYOUT",
+;       "bank": 3,
+;       "windowAddress": 43483,
+;       "size": 21,
+;       "storedSize": 21,
+;       "uncompressedSize": 768,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT resource; ZX0 21/768 bytes; bank 3 zone 0 offset +#09DB; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 52,
+;       "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+;       "group": "SCREENS",
+;       "type": "SCREEN_EFFECTS_LAYOUT",
+;       "bank": 3,
+;       "windowAddress": 43504,
+;       "size": 6,
+;       "storedSize": 6,
+;       "uncompressedSize": 768,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09F0; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 53,
+;       "label": "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+;       "group": "SCREENS",
+;       "type": "SCREEN_EFFECT_ZONE_TABLE",
+;       "bank": 3,
+;       "windowAddress": 43475,
+;       "size": 1,
+;       "storedSize": 1,
+;       "uncompressedSize": 1,
+;       "flags": 0,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D3; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 54,
+;       "label": "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+;       "group": "SCREENS",
+;       "type": "SCREEN_DATA",
+;       "bank": 3,
+;       "windowAddress": 43476,
+;       "size": 1,
+;       "storedSize": 1,
+;       "uncompressedSize": 1,
+;       "flags": 0,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#09D4; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 55,
+;       "label": "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+;       "group": "SCREENS",
+;       "type": "SCREEN_BEHAVIOR_MAP",
+;       "bank": 3,
+;       "windowAddress": 43510,
+;       "size": 6,
+;       "storedSize": 6,
+;       "uncompressedSize": 768,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09F6; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 56,
+;       "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+;       "group": "SCREENS",
+;       "type": "SCREEN_DATA",
+;       "bank": 3,
+;       "windowAddress": 43516,
+;       "size": 6,
+;       "storedSize": 6,
+;       "uncompressedSize": 768,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#09FC; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 57,
+;       "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+;       "group": "SCREENS",
+;       "type": "SCREEN_DATA",
+;       "bank": 3,
+;       "windowAddress": 43522,
+;       "size": 6,
+;       "storedSize": 6,
+;       "uncompressedSize": 768,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0A02; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 58,
+;       "label": "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP",
+;       "group": "SCREENS",
+;       "type": "SCREEN_DATA",
+;       "bank": 3,
+;       "windowAddress": 43528,
+;       "size": 6,
+;       "storedSize": 6,
+;       "uncompressedSize": 768,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0A08; zone slack after pack 4745 bytes"
+;     }
+;   ]
+; }
+;
+; [[[MIDEAS_ARTIFACT:project_usage.json:END]]]
+
+; [[[MIDEAS_ARTIFACT:load_plan.json:BEGIN]]]
+; {
+;   "version": 1,
+;   "scope": "konami8k_scene_load_plan",
+;   "strategy": "group current banked resources by scene and physical bank; optimizer consumes this before repacking",
+;   "mapper": {
+;     "format": "konami",
+;     "segmentSize": 8192,
+;     "dataWindowPage": "p3",
+;     "windowBase": "#A000",
+;     "windowMask": "#1FFF",
+;     "bankDivisor": "#2000"
+;   },
+;   "summary": {
+;     "sceneCount": 2,
+;     "resourceCount": 59,
+;     "uniqueDataBanks": 1,
+;     "totalSceneBankTouches": 2,
+;     "maxSceneBankTouches": 1,
+;     "totalStoredBytes": 4194,
+;     "totalRawBytes": 14862,
+;     "compressedResources": 55
+;   },
+;   "scenes": [
+;     {
+;       "index": 0,
+;       "id": "screenmap_1776511902784",
+;       "name": "pan1",
+;       "tileBankAssetId": "tilebank_1776511918552",
+;       "resourceCount": 9,
+;       "totalStoredBytes": 103,
+;       "totalRawBytes": 3484,
+;       "compressedResources": 7,
+;       "banks": [
+;         {
+;           "bank": 3,
+;           "count": 9,
+;           "storedBytes": 103,
+;           "rawBytes": 3484,
+;           "resourceIds": [
+;             44,
+;             48,
+;             49,
+;             47,
+;             46,
+;             45,
+;             50,
+;             42,
+;             43
+;           ],
+;           "resourceLabels": [
+;             "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+;             "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+;             "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+;             "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+;             "SCREEN_PAN1_0_BOSS_TABLE",
+;             "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+;             "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+;             "SCREEN_PAN1_0_BLOCK_CATALOG",
+;             "SCREEN_PAN1_0_BLOCK_MAP"
+;           ]
+;         }
+;       ],
+;       "loadOrder": [
+;         {
+;           "bank": 3,
+;           "resourceIds": [
+;             44,
+;             48,
+;             49,
+;             47,
+;             46,
+;             45,
+;             50,
+;             42,
+;             43
+;           ],
+;           "resourceLabels": [
+;             "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+;             "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+;             "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+;             "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+;             "SCREEN_PAN1_0_BOSS_TABLE",
+;             "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+;             "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+;             "SCREEN_PAN1_0_BLOCK_CATALOG",
+;             "SCREEN_PAN1_0_BLOCK_MAP"
+;           ]
+;         }
+;       ],
+;       "warnings": []
+;     },
+;     {
+;       "index": 1,
+;       "id": "screenmap_1777377884059",
+;       "name": "New Dialog Screen",
+;       "tileBankAssetId": "tilebank_1776511918552",
+;       "resourceCount": 8,
+;       "totalStoredBytes": 53,
+;       "totalRawBytes": 4610,
+;       "compressedResources": 6,
+;       "banks": [
+;         {
+;           "bank": 3,
+;           "count": 8,
+;           "storedBytes": 53,
+;           "rawBytes": 4610,
+;           "resourceIds": [
+;             53,
+;             54,
+;             51,
+;             52,
+;             55,
+;             56,
+;             57,
+;             58
+;           ],
+;           "resourceLabels": [
+;             "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+;             "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP"
+;           ]
+;         }
+;       ],
+;       "loadOrder": [
+;         {
+;           "bank": 3,
+;           "resourceIds": [
+;             53,
+;             54,
+;             51,
+;             52,
+;             55,
+;             56,
+;             57,
+;             58
+;           ],
+;           "resourceLabels": [
+;             "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+;             "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+;             "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP"
+;           ]
+;         }
+;       ],
+;       "warnings": []
+;     }
+;   ]
+; }
+;
+; [[[MIDEAS_ARTIFACT:load_plan.json:END]]]
+
+; [[[MIDEAS_ARTIFACT:bank_optimizer.json:BEGIN]]]
+; {
+;   "version": 1,
+;   "scope": "konami8k_bank_optimizer",
+;   "strategy": "analysis-only scene-aware first-fit input; later pass may repack or duplicate resources",
+;   "constraints": {
+;     "mapperFormat": "konami",
+;     "segmentSize": 8192,
+;     "dynamicWindows": 1,
+;     "dataWindow": {
+;       "page": "p3",
+;       "base": "#A000",
+;       "mask": "#1FFF",
+;       "bankDivisor": "#2000"
+;     },
+;     "maxRecommendedSceneBanks": 3
+;   },
+;   "currentPlacement": {
+;     "bankCount": 2,
+;     "resourceCount": 59,
+;     "totalStoredBytes": 4194,
+;     "totalRawBytes": 14862,
+;     "compressedResources": 55,
+;     "banks": [
+;       {
+;         "bank": 3,
+;         "count": 59,
+;         "storedBytes": 4194,
+;         "rawBytes": 14862,
+;         "resourceIds": [
+;           36,
+;           39,
+;           37,
+;           38,
+;           40,
+;           41,
+;           44,
+;           48,
+;           49,
+;           47,
+;           46,
+;           45,
+;           53,
+;           54,
+;           50,
+;           51,
+;           52,
+;           55,
+;           56,
+;           57,
+;           58,
+;           42,
+;           43,
+;           0,
+;           1,
+;           2,
+;           3,
+;           4,
+;           5,
+;           6,
+;           7,
+;           8,
+;           9,
+;           10,
+;           11,
+;           12,
+;           13,
+;           14,
+;           15,
+;           16,
+;           17,
+;           18,
+;           19,
+;           20,
+;           21,
+;           22,
+;           23,
+;           24,
+;           25,
+;           26,
+;           27,
+;           28,
+;           29,
+;           30,
+;           31,
+;           32,
+;           33,
+;           34,
+;           35
+;         ],
+;         "resourceLabels": [
+;           "tile_pattern_bank0",
+;           "tile_color_bank0",
+;           "tilebank_pattern_data_0",
+;           "tilebank_pattern_data_1",
+;           "tilebank_color_data_0",
+;           "tilebank_color_data_1",
+;           "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+;           "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+;           "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+;           "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+;           "SCREEN_PAN1_0_BOSS_TABLE",
+;           "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+;           "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+;           "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP",
+;           "SCREEN_PAN1_0_BLOCK_CATALOG",
+;           "SCREEN_PAN1_0_BLOCK_MAP",
+;           "NINA_WALK_RIGHT_0_F0_LAYER0",
+;           "NINA_WALK_RIGHT_0_F0_LAYER1",
+;           "NINA_WALK_RIGHT_0_F1_LAYER0",
+;           "NINA_WALK_RIGHT_0_F1_LAYER1",
+;           "NINA_GRUB_RIGHT_1_F0_LAYER1",
+;           "NINA_GRUB_RIGHT_1_F0_LAYER2",
+;           "NINA_GRUB_RIGHT_1_F1_LAYER1",
+;           "NINA_GRUB_RIGHT_1_F1_LAYER2",
+;           "NEW_SPRITE_2_F0_LAYER1",
+;           "NEW_SPRITE_2_F0_LAYER2",
+;           "NEW_SPRITE_2_F0_LAYER3",
+;           "NINA_JUMP_RIGHT_3_F0_LAYER0",
+;           "NINA_JUMP_RIGHT_3_F0_LAYER1",
+;           "NINA_IDLE_RIGHT_4_F0_LAYER1",
+;           "NINA_IDLE_RIGHT_4_F0_LAYER2",
+;           "NEW_SPRITE_RIGHT_5_F0_LAYER1",
+;           "NEW_SPRITE_RIGHT_5_F0_LAYER2",
+;           "PROJECTIL1_6_F0_LAYER1",
+;           "PROJECTIL1_6_F0_LAYER2",
+;           "PROJECTIL1_6_F1_LAYER1",
+;           "PROJECTIL1_6_F1_LAYER2",
+;           "NINA_WALK_LEFT_7_F0_LAYER0",
+;           "NINA_WALK_LEFT_7_F0_LAYER1",
+;           "NINA_WALK_LEFT_7_F1_LAYER0",
+;           "NINA_WALK_LEFT_7_F1_LAYER1",
+;           "NINA_GRUB_LEFT_8_F0_LAYER1",
+;           "NINA_GRUB_LEFT_8_F0_LAYER2",
+;           "NINA_GRUB_LEFT_8_F1_LAYER1",
+;           "NINA_GRUB_LEFT_8_F1_LAYER2",
+;           "NINA_JUMP_LEFT_9_F0_LAYER0",
+;           "NINA_JUMP_LEFT_9_F0_LAYER1",
+;           "NINA_IDLE_LEFT_10_F0_LAYER1",
+;           "NINA_IDLE_LEFT_10_F0_LAYER2",
+;           "NEW_SPRITE_LEFT_11_F0_LAYER1",
+;           "NEW_SPRITE_LEFT_11_F0_LAYER2",
+;           "SPRITE_PLACEHOLDER_PATTERN"
+;         ]
+;       },
+;       {
+;         "bank": 4,
+;         "count": 0,
+;         "storedBytes": 0,
+;         "rawBytes": 0,
+;         "resourceIds": [],
+;         "resourceLabels": []
+;       }
+;     ]
+;   },
+;   "proposedPlacement": {
+;     "strategy": "dry-run scene bundles first-fit decreasing with mapper data-zone capacity; current ROM placement is unchanged",
+;     "zoneSize": 8192,
+;     "bankCount": 1,
+;     "resourceCount": 59,
+;     "totalStoredBytes": 4194,
+;     "banks": [
+;       {
+;         "bank": 3,
+;         "usedBytes": 4194,
+;         "freeBytes": 3998,
+;         "units": [
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               36
+;             ],
+;             "resourceLabels": [
+;               "tile_pattern_bank0"
+;             ],
+;             "storedBytes": 747,
+;             "rawBytes": 1016
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               37
+;             ],
+;             "resourceLabels": [
+;               "tilebank_pattern_data_0"
+;             ],
+;             "storedBytes": 691,
+;             "rawBytes": 896
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               38
+;             ],
+;             "resourceLabels": [
+;               "tilebank_pattern_data_1"
+;             ],
+;             "storedBytes": 689,
+;             "rawBytes": 896
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               39
+;             ],
+;             "resourceLabels": [
+;               "tile_color_bank0"
+;             ],
+;             "storedBytes": 376,
+;             "rawBytes": 1016
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               40
+;             ],
+;             "resourceLabels": [
+;               "tilebank_color_data_0"
+;             ],
+;             "storedBytes": 354,
+;             "rawBytes": 896
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               41
+;             ],
+;             "resourceLabels": [
+;               "tilebank_color_data_1"
+;             ],
+;             "storedBytes": 353,
+;             "rawBytes": 896
+;           },
+;           {
+;             "kind": "scene",
+;             "sceneIndex": 0,
+;             "sceneId": "screenmap_1776511902784",
+;             "sceneName": "pan1",
+;             "resourceIds": [
+;               44,
+;               48,
+;               49,
+;               47,
+;               46,
+;               45,
+;               50,
+;               42,
+;               43
+;             ],
+;             "resourceLabels": [
+;               "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+;               "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+;               "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+;               "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+;               "SCREEN_PAN1_0_BOSS_TABLE",
+;               "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+;               "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+;               "SCREEN_PAN1_0_BLOCK_CATALOG",
+;               "SCREEN_PAN1_0_BLOCK_MAP"
+;             ],
+;             "storedBytes": 103,
+;             "rawBytes": 3484
+;           },
+;           {
+;             "kind": "scene",
+;             "sceneIndex": 1,
+;             "sceneId": "screenmap_1777377884059",
+;             "sceneName": "New Dialog Screen",
+;             "resourceIds": [
+;               53,
+;               54,
+;               51,
+;               52,
+;               55,
+;               56,
+;               57,
+;               58
+;             ],
+;             "resourceLabels": [
+;               "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+;               "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+;               "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+;               "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+;               "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+;               "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+;               "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+;               "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP"
+;             ],
+;             "storedBytes": 53,
+;             "rawBytes": 4610
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               2
+;             ],
+;             "resourceLabels": [
+;               "NINA_WALK_RIGHT_0_F1_LAYER0"
+;             ],
+;             "storedBytes": 31,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               15
+;             ],
+;             "resourceLabels": [
+;               "NEW_SPRITE_RIGHT_5_F0_LAYER1"
+;             ],
+;             "storedBytes": 31,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               33
+;             ],
+;             "resourceLabels": [
+;               "NEW_SPRITE_LEFT_11_F0_LAYER1"
+;             ],
+;             "storedBytes": 31,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               0
+;             ],
+;             "resourceLabels": [
+;               "NINA_WALK_RIGHT_0_F0_LAYER0"
+;             ],
+;             "storedBytes": 30,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               16
+;             ],
+;             "resourceLabels": [
+;               "NEW_SPRITE_RIGHT_5_F0_LAYER2"
+;             ],
+;             "storedBytes": 30,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               23
+;             ],
+;             "resourceLabels": [
+;               "NINA_WALK_LEFT_7_F1_LAYER0"
+;             ],
+;             "storedBytes": 30,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               24
+;             ],
+;             "resourceLabels": [
+;               "NINA_WALK_LEFT_7_F1_LAYER1"
+;             ],
+;             "storedBytes": 30,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               7
+;             ],
+;             "resourceLabels": [
+;               "NINA_GRUB_RIGHT_1_F1_LAYER2"
+;             ],
+;             "storedBytes": 29,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               26
+;             ],
+;             "resourceLabels": [
+;               "NINA_GRUB_LEFT_8_F0_LAYER2"
+;             ],
+;             "storedBytes": 29,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               32
+;             ],
+;             "resourceLabels": [
+;               "NINA_IDLE_LEFT_10_F0_LAYER2"
+;             ],
+;             "storedBytes": 29,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               34
+;             ],
+;             "resourceLabels": [
+;               "NEW_SPRITE_LEFT_11_F0_LAYER2"
+;             ],
+;             "storedBytes": 29,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               5
+;             ],
+;             "resourceLabels": [
+;               "NINA_GRUB_RIGHT_1_F0_LAYER2"
+;             ],
+;             "storedBytes": 28,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               14
+;             ],
+;             "resourceLabels": [
+;               "NINA_IDLE_RIGHT_4_F0_LAYER2"
+;             ],
+;             "storedBytes": 28,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               21
+;             ],
+;             "resourceLabels": [
+;               "NINA_WALK_LEFT_7_F0_LAYER0"
+;             ],
+;             "storedBytes": 28,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               28
+;             ],
+;             "resourceLabels": [
+;               "NINA_GRUB_LEFT_8_F1_LAYER2"
+;             ],
+;             "storedBytes": 28,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               3
+;             ],
+;             "resourceLabels": [
+;               "NINA_WALK_RIGHT_0_F1_LAYER1"
+;             ],
+;             "storedBytes": 27,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               11
+;             ],
+;             "resourceLabels": [
+;               "NINA_JUMP_RIGHT_3_F0_LAYER0"
+;             ],
+;             "storedBytes": 27,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               29
+;             ],
+;             "resourceLabels": [
+;               "NINA_JUMP_LEFT_9_F0_LAYER0"
+;             ],
+;             "storedBytes": 27,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               1
+;             ],
+;             "resourceLabels": [
+;               "NINA_WALK_RIGHT_0_F0_LAYER1"
+;             ],
+;             "storedBytes": 25,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               22
+;             ],
+;             "resourceLabels": [
+;               "NINA_WALK_LEFT_7_F0_LAYER1"
+;             ],
+;             "storedBytes": 25,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               12
+;             ],
+;             "resourceLabels": [
+;               "NINA_JUMP_RIGHT_3_F0_LAYER1"
+;             ],
+;             "storedBytes": 24,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               27
+;             ],
+;             "resourceLabels": [
+;               "NINA_GRUB_LEFT_8_F1_LAYER1"
+;             ],
+;             "storedBytes": 24,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               30
+;             ],
+;             "resourceLabels": [
+;               "NINA_JUMP_LEFT_9_F0_LAYER1"
+;             ],
+;             "storedBytes": 24,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               31
+;             ],
+;             "resourceLabels": [
+;               "NINA_IDLE_LEFT_10_F0_LAYER1"
+;             ],
+;             "storedBytes": 24,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               6
+;             ],
+;             "resourceLabels": [
+;               "NINA_GRUB_RIGHT_1_F1_LAYER1"
+;             ],
+;             "storedBytes": 23,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               13
+;             ],
+;             "resourceLabels": [
+;               "NINA_IDLE_RIGHT_4_F0_LAYER1"
+;             ],
+;             "storedBytes": 23,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               25
+;             ],
+;             "resourceLabels": [
+;               "NINA_GRUB_LEFT_8_F0_LAYER1"
+;             ],
+;             "storedBytes": 20,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               4
+;             ],
+;             "resourceLabels": [
+;               "NINA_GRUB_RIGHT_1_F0_LAYER1"
+;             ],
+;             "storedBytes": 18,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               17
+;             ],
+;             "resourceLabels": [
+;               "PROJECTIL1_6_F0_LAYER1"
+;             ],
+;             "storedBytes": 17,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               19
+;             ],
+;             "resourceLabels": [
+;               "PROJECTIL1_6_F1_LAYER1"
+;             ],
+;             "storedBytes": 14,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               20
+;             ],
+;             "resourceLabels": [
+;               "PROJECTIL1_6_F1_LAYER2"
+;             ],
+;             "storedBytes": 13,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               18
+;             ],
+;             "resourceLabels": [
+;               "PROJECTIL1_6_F0_LAYER2"
+;             ],
+;             "storedBytes": 12,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               8
+;             ],
+;             "resourceLabels": [
+;               "NEW_SPRITE_2_F0_LAYER1"
+;             ],
+;             "storedBytes": 5,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               9
+;             ],
+;             "resourceLabels": [
+;               "NEW_SPRITE_2_F0_LAYER2"
+;             ],
+;             "storedBytes": 5,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               10
+;             ],
+;             "resourceLabels": [
+;               "NEW_SPRITE_2_F0_LAYER3"
+;             ],
+;             "storedBytes": 5,
+;             "rawBytes": 32
+;           },
+;           {
+;             "kind": "shared",
+;             "sceneIndex": null,
+;             "sceneId": null,
+;             "sceneName": null,
+;             "resourceIds": [
+;               35
+;             ],
+;             "resourceLabels": [
+;               "SPRITE_PLACEHOLDER_PATTERN"
+;             ],
+;             "storedBytes": 5,
+;             "rawBytes": 32
+;           }
+;         ],
+;         "resourceIds": [
+;           36,
+;           37,
+;           38,
+;           39,
+;           40,
+;           41,
+;           44,
+;           48,
+;           49,
+;           47,
+;           46,
+;           45,
+;           50,
+;           42,
+;           43,
+;           53,
+;           54,
+;           51,
+;           52,
+;           55,
+;           56,
+;           57,
+;           58,
+;           2,
+;           15,
+;           33,
+;           0,
+;           16,
+;           23,
+;           24,
+;           7,
+;           26,
+;           32,
+;           34,
+;           5,
+;           14,
+;           21,
+;           28,
+;           3,
+;           11,
+;           29,
+;           1,
+;           22,
+;           12,
+;           27,
+;           30,
+;           31,
+;           6,
+;           13,
+;           25,
+;           4,
+;           17,
+;           19,
+;           20,
+;           18,
+;           8,
+;           9,
+;           10,
+;           35
+;         ],
+;         "resourceLabels": [
+;           "tile_pattern_bank0",
+;           "tilebank_pattern_data_0",
+;           "tilebank_pattern_data_1",
+;           "tile_color_bank0",
+;           "tilebank_color_data_0",
+;           "tilebank_color_data_1",
+;           "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+;           "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+;           "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+;           "SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE",
+;           "SCREEN_PAN1_0_BOSS_TABLE",
+;           "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+;           "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+;           "SCREEN_PAN1_0_BLOCK_CATALOG",
+;           "SCREEN_PAN1_0_BLOCK_MAP",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT",
+;           "BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP",
+;           "SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP",
+;           "NINA_WALK_RIGHT_0_F1_LAYER0",
+;           "NEW_SPRITE_RIGHT_5_F0_LAYER1",
+;           "NEW_SPRITE_LEFT_11_F0_LAYER1",
+;           "NINA_WALK_RIGHT_0_F0_LAYER0",
+;           "NEW_SPRITE_RIGHT_5_F0_LAYER2",
+;           "NINA_WALK_LEFT_7_F1_LAYER0",
+;           "NINA_WALK_LEFT_7_F1_LAYER1",
+;           "NINA_GRUB_RIGHT_1_F1_LAYER2",
+;           "NINA_GRUB_LEFT_8_F0_LAYER2",
+;           "NINA_IDLE_LEFT_10_F0_LAYER2",
+;           "NEW_SPRITE_LEFT_11_F0_LAYER2",
+;           "NINA_GRUB_RIGHT_1_F0_LAYER2",
+;           "NINA_IDLE_RIGHT_4_F0_LAYER2",
+;           "NINA_WALK_LEFT_7_F0_LAYER0",
+;           "NINA_GRUB_LEFT_8_F1_LAYER2",
+;           "NINA_WALK_RIGHT_0_F1_LAYER1",
+;           "NINA_JUMP_RIGHT_3_F0_LAYER0",
+;           "NINA_JUMP_LEFT_9_F0_LAYER0",
+;           "NINA_WALK_RIGHT_0_F0_LAYER1",
+;           "NINA_WALK_LEFT_7_F0_LAYER1",
+;           "NINA_JUMP_RIGHT_3_F0_LAYER1",
+;           "NINA_GRUB_LEFT_8_F1_LAYER1",
+;           "NINA_JUMP_LEFT_9_F0_LAYER1",
+;           "NINA_IDLE_LEFT_10_F0_LAYER1",
+;           "NINA_GRUB_RIGHT_1_F1_LAYER1",
+;           "NINA_IDLE_RIGHT_4_F0_LAYER1",
+;           "NINA_GRUB_LEFT_8_F0_LAYER1",
+;           "NINA_GRUB_RIGHT_1_F0_LAYER1",
+;           "PROJECTIL1_6_F0_LAYER1",
+;           "PROJECTIL1_6_F1_LAYER1",
+;           "PROJECTIL1_6_F1_LAYER2",
+;           "PROJECTIL1_6_F0_LAYER2",
+;           "NEW_SPRITE_2_F0_LAYER1",
+;           "NEW_SPRITE_2_F0_LAYER2",
+;           "NEW_SPRITE_2_F0_LAYER3",
+;           "SPRITE_PLACEHOLDER_PATTERN"
+;         ]
+;       }
+;     ],
+;     "sceneBankPlan": [
+;       {
+;         "index": 0,
+;         "id": "screenmap_1776511902784",
+;         "name": "pan1",
+;         "currentBanks": [
+;           3
+;         ],
+;         "proposedBanks": [
+;           3
+;         ]
+;       },
+;       {
+;         "index": 1,
+;         "id": "screenmap_1777377884059",
+;         "name": "New Dialog Screen",
+;         "currentBanks": [
+;           3
+;         ],
+;         "proposedBanks": [
+;           3
+;         ]
+;       }
+;     ],
+;     "delta": {
+;       "currentBankCount": 1,
+;       "proposedBankCount": 1,
+;       "currentSceneBankTouches": 2,
+;       "proposedSceneBankTouches": 2
+;     }
+;   },
+;   "sceneClusters": [
+;     {
+;       "index": 0,
+;       "id": "screenmap_1776511902784",
+;       "name": "pan1",
+;       "resourceIds": [
+;         44,
+;         48,
+;         49,
+;         47,
+;         46,
+;         45,
+;         50,
+;         42,
+;         43
+;       ],
+;       "banks": [
+;         3
+;       ],
+;       "bankCount": 1,
+;       "storedBytes": 103,
+;       "rawBytes": 3484,
+;       "coLocated": true,
+;       "preferredBank": 3
+;     },
+;     {
+;       "index": 1,
+;       "id": "screenmap_1777377884059",
+;       "name": "New Dialog Screen",
+;       "resourceIds": [
+;         53,
+;         54,
+;         51,
+;         52,
+;         55,
+;         56,
+;         57,
+;         58
+;       ],
+;       "banks": [
+;         3
+;       ],
+;       "bankCount": 1,
+;       "storedBytes": 53,
+;       "rawBytes": 4610,
+;       "coLocated": true,
+;       "preferredBank": 3
+;     }
+;   ],
+;   "pressureWarnings": [],
+;   "sharedOrGlobalResources": [
+;     {
+;       "id": 36,
+;       "label": "tile_pattern_bank0",
+;       "group": "PATTERNS",
+;       "type": "TILE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 40960,
+;       "zoneOffset": 0,
+;       "size": 747,
+;       "storedSize": 747,
+;       "uncompressedSize": 1016,
+;       "flags": 1
+;     },
+;     {
+;       "id": 39,
+;       "label": "tile_color_bank0",
+;       "group": "COLORS",
+;       "type": "TILE_COLORS",
+;       "bank": 3,
+;       "windowAddress": 40960,
+;       "zoneOffset": 0,
+;       "size": 376,
+;       "storedSize": 376,
+;       "uncompressedSize": 1016,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single colors resource; ZX0 376/1016 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 37,
+;       "label": "tilebank_pattern_data_0",
+;       "group": "PATTERNS",
+;       "type": "TILE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 41336,
+;       "zoneOffset": 376,
+;       "size": 691,
+;       "storedSize": 691,
+;       "uncompressedSize": 896,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit merged patterns unit (2 labels); ZX0 691/896 bytes; bank 3 zone 0 offset +#0178; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 38,
+;       "label": "tilebank_pattern_data_1",
+;       "group": "PATTERNS",
+;       "type": "TILE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 42027,
+;       "zoneOffset": 1067,
+;       "size": 689,
+;       "storedSize": 689,
+;       "uncompressedSize": 896,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit merged patterns unit (2 labels); ZX0 689/896 bytes; bank 3 zone 0 offset +#042B; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 40,
+;       "label": "tilebank_color_data_0",
+;       "group": "COLORS",
+;       "type": "TILE_COLORS",
+;       "bank": 3,
+;       "windowAddress": 42716,
+;       "zoneOffset": 1756,
+;       "size": 354,
+;       "storedSize": 354,
+;       "uncompressedSize": 896,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit merged colors unit (2 labels); ZX0 354/896 bytes; bank 3 zone 0 offset +#06DC; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 41,
+;       "label": "tilebank_color_data_1",
+;       "group": "COLORS",
+;       "type": "TILE_COLORS",
+;       "bank": 3,
+;       "windowAddress": 43070,
+;       "zoneOffset": 2110,
+;       "size": 353,
+;       "storedSize": 353,
+;       "uncompressedSize": 896,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit merged colors unit (2 labels); ZX0 353/896 bytes; bank 3 zone 0 offset +#083E; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 0,
+;       "label": "NINA_WALK_RIGHT_0_F0_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43579,
+;       "zoneOffset": 2619,
+;       "size": 30,
+;       "storedSize": 30,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0A3B; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 1,
+;       "label": "NINA_WALK_RIGHT_0_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43609,
+;       "zoneOffset": 2649,
+;       "size": 25,
+;       "storedSize": 25,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0A59; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 2,
+;       "label": "NINA_WALK_RIGHT_0_F1_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43634,
+;       "zoneOffset": 2674,
+;       "size": 31,
+;       "storedSize": 31,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER0 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0A72; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 3,
+;       "label": "NINA_WALK_RIGHT_0_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43665,
+;       "zoneOffset": 2705,
+;       "size": 27,
+;       "storedSize": 27,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER1 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0A91; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 4,
+;       "label": "NINA_GRUB_RIGHT_1_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43692,
+;       "zoneOffset": 2732,
+;       "size": 18,
+;       "storedSize": 18,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F0_LAYER1 resource; ZX0 18/32 bytes; bank 3 zone 0 offset +#0AAC; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 5,
+;       "label": "NINA_GRUB_RIGHT_1_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43710,
+;       "zoneOffset": 2750,
+;       "size": 28,
+;       "storedSize": 28,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F0_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0ABE; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 6,
+;       "label": "NINA_GRUB_RIGHT_1_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43738,
+;       "zoneOffset": 2778,
+;       "size": 23,
+;       "storedSize": 23,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F1_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#0ADA; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 7,
+;       "label": "NINA_GRUB_RIGHT_1_F1_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43761,
+;       "zoneOffset": 2801,
+;       "size": 29,
+;       "storedSize": 29,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F1_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0AF1; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 8,
+;       "label": "NEW_SPRITE_2_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43790,
+;       "zoneOffset": 2830,
+;       "size": 5,
+;       "storedSize": 5,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER1 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B0E; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 9,
+;       "label": "NEW_SPRITE_2_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43795,
+;       "zoneOffset": 2835,
+;       "size": 5,
+;       "storedSize": 5,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER2 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B13; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 10,
+;       "label": "NEW_SPRITE_2_F0_LAYER3",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43800,
+;       "zoneOffset": 2840,
+;       "size": 5,
+;       "storedSize": 5,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER3 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0B18; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 11,
+;       "label": "NINA_JUMP_RIGHT_3_F0_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43805,
+;       "zoneOffset": 2845,
+;       "size": 27,
+;       "storedSize": 27,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_JUMP_RIGHT_3_F0_LAYER0 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0B1D; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 12,
+;       "label": "NINA_JUMP_RIGHT_3_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43832,
+;       "zoneOffset": 2872,
+;       "size": 24,
+;       "storedSize": 24,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_JUMP_RIGHT_3_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0B38; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 13,
+;       "label": "NINA_IDLE_RIGHT_4_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43856,
+;       "zoneOffset": 2896,
+;       "size": 23,
+;       "storedSize": 23,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#0B50; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 14,
+;       "label": "NINA_IDLE_RIGHT_4_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43879,
+;       "zoneOffset": 2919,
+;       "size": 28,
+;       "storedSize": 28,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0B67; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 15,
+;       "label": "NEW_SPRITE_RIGHT_5_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43907,
+;       "zoneOffset": 2947,
+;       "size": 31,
+;       "storedSize": 31,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_RIGHT_5_F0_LAYER1 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0B83; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 16,
+;       "label": "NEW_SPRITE_RIGHT_5_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43938,
+;       "zoneOffset": 2978,
+;       "size": 30,
+;       "storedSize": 30,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_RIGHT_5_F0_LAYER2 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0BA2; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 17,
+;       "label": "PROJECTIL1_6_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43968,
+;       "zoneOffset": 3008,
+;       "size": 17,
+;       "storedSize": 17,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F0_LAYER1 resource; ZX0 17/32 bytes; bank 3 zone 0 offset +#0BC0; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 18,
+;       "label": "PROJECTIL1_6_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43985,
+;       "zoneOffset": 3025,
+;       "size": 12,
+;       "storedSize": 12,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F0_LAYER2 resource; ZX0 12/32 bytes; bank 3 zone 0 offset +#0BD1; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 19,
+;       "label": "PROJECTIL1_6_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 43997,
+;       "zoneOffset": 3037,
+;       "size": 14,
+;       "storedSize": 14,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F1_LAYER1 resource; ZX0 14/32 bytes; bank 3 zone 0 offset +#0BDD; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 20,
+;       "label": "PROJECTIL1_6_F1_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44011,
+;       "zoneOffset": 3051,
+;       "size": 13,
+;       "storedSize": 13,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single PROJECTIL1_6_F1_LAYER2 resource; ZX0 13/32 bytes; bank 3 zone 0 offset +#0BEB; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 21,
+;       "label": "NINA_WALK_LEFT_7_F0_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44024,
+;       "zoneOffset": 3064,
+;       "size": 28,
+;       "storedSize": 28,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER0 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0BF8; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 22,
+;       "label": "NINA_WALK_LEFT_7_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44052,
+;       "zoneOffset": 3092,
+;       "size": 25,
+;       "storedSize": 25,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0C14; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 23,
+;       "label": "NINA_WALK_LEFT_7_F1_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44077,
+;       "zoneOffset": 3117,
+;       "size": 30,
+;       "storedSize": 30,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0C2D; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 24,
+;       "label": "NINA_WALK_LEFT_7_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44107,
+;       "zoneOffset": 3147,
+;       "size": 30,
+;       "storedSize": 30,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER1 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0C4B; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 25,
+;       "label": "NINA_GRUB_LEFT_8_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44137,
+;       "zoneOffset": 3177,
+;       "size": 20,
+;       "storedSize": 20,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F0_LAYER1 resource; ZX0 20/32 bytes; bank 3 zone 0 offset +#0C69; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 26,
+;       "label": "NINA_GRUB_LEFT_8_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44157,
+;       "zoneOffset": 3197,
+;       "size": 29,
+;       "storedSize": 29,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0C7D; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 27,
+;       "label": "NINA_GRUB_LEFT_8_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44186,
+;       "zoneOffset": 3226,
+;       "size": 24,
+;       "storedSize": 24,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F1_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0C9A; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 28,
+;       "label": "NINA_GRUB_LEFT_8_F1_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44210,
+;       "zoneOffset": 3250,
+;       "size": 28,
+;       "storedSize": 28,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_8_F1_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0CB2; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 29,
+;       "label": "NINA_JUMP_LEFT_9_F0_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44238,
+;       "zoneOffset": 3278,
+;       "size": 27,
+;       "storedSize": 27,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_JUMP_LEFT_9_F0_LAYER0 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0CCE; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 30,
+;       "label": "NINA_JUMP_LEFT_9_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44265,
+;       "zoneOffset": 3305,
+;       "size": 24,
+;       "storedSize": 24,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_JUMP_LEFT_9_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0CE9; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 31,
+;       "label": "NINA_IDLE_LEFT_10_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44289,
+;       "zoneOffset": 3329,
+;       "size": 24,
+;       "storedSize": 24,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0D01; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 32,
+;       "label": "NINA_IDLE_LEFT_10_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44313,
+;       "zoneOffset": 3353,
+;       "size": 29,
+;       "storedSize": 29,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0D19; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 33,
+;       "label": "NEW_SPRITE_LEFT_11_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44342,
+;       "zoneOffset": 3382,
+;       "size": 31,
+;       "storedSize": 31,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_LEFT_11_F0_LAYER1 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0D36; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 34,
+;       "label": "NEW_SPRITE_LEFT_11_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44373,
+;       "zoneOffset": 3413,
+;       "size": 29,
+;       "storedSize": 29,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single NEW_SPRITE_LEFT_11_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0D55; zone slack after pack 4745 bytes"
+;     },
+;     {
+;       "id": 35,
+;       "label": "SPRITE_PLACEHOLDER_PATTERN",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "windowAddress": 44402,
+;       "zoneOffset": 3442,
+;       "size": 5,
+;       "storedSize": 5,
+;       "uncompressedSize": 32,
+;       "flags": 1,
+;       "placementReason": "post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0D72; zone slack after pack 4745 bytes"
+;     }
+;   ],
+;   "duplicationCandidates": [
+;     {
+;       "id": 0,
+;       "label": "NINA_WALK_RIGHT_0_F0_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 30,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 1,
+;       "label": "NINA_WALK_RIGHT_0_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 25,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 2,
+;       "label": "NINA_WALK_RIGHT_0_F1_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 31,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 3,
+;       "label": "NINA_WALK_RIGHT_0_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 27,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 4,
+;       "label": "NINA_GRUB_RIGHT_1_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 18,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 5,
+;       "label": "NINA_GRUB_RIGHT_1_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 28,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 6,
+;       "label": "NINA_GRUB_RIGHT_1_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 23,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 7,
+;       "label": "NINA_GRUB_RIGHT_1_F1_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 29,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 8,
+;       "label": "NEW_SPRITE_2_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 5,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 9,
+;       "label": "NEW_SPRITE_2_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 5,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 10,
+;       "label": "NEW_SPRITE_2_F0_LAYER3",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 5,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 11,
+;       "label": "NINA_JUMP_RIGHT_3_F0_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 27,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 12,
+;       "label": "NINA_JUMP_RIGHT_3_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 24,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 13,
+;       "label": "NINA_IDLE_RIGHT_4_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 23,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 14,
+;       "label": "NINA_IDLE_RIGHT_4_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 28,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 15,
+;       "label": "NEW_SPRITE_RIGHT_5_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 31,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 16,
+;       "label": "NEW_SPRITE_RIGHT_5_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 30,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 17,
+;       "label": "PROJECTIL1_6_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 17,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 18,
+;       "label": "PROJECTIL1_6_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 12,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 19,
+;       "label": "PROJECTIL1_6_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 14,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 20,
+;       "label": "PROJECTIL1_6_F1_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 13,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 21,
+;       "label": "NINA_WALK_LEFT_7_F0_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 28,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 22,
+;       "label": "NINA_WALK_LEFT_7_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 25,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 23,
+;       "label": "NINA_WALK_LEFT_7_F1_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 30,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 24,
+;       "label": "NINA_WALK_LEFT_7_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 30,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 25,
+;       "label": "NINA_GRUB_LEFT_8_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 20,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 26,
+;       "label": "NINA_GRUB_LEFT_8_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 29,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 27,
+;       "label": "NINA_GRUB_LEFT_8_F1_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 24,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 28,
+;       "label": "NINA_GRUB_LEFT_8_F1_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 28,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 29,
+;       "label": "NINA_JUMP_LEFT_9_F0_LAYER0",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 27,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 30,
+;       "label": "NINA_JUMP_LEFT_9_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 24,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 31,
+;       "label": "NINA_IDLE_LEFT_10_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 24,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 32,
+;       "label": "NINA_IDLE_LEFT_10_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 29,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 33,
+;       "label": "NEW_SPRITE_LEFT_11_F0_LAYER1",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 31,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 34,
+;       "label": "NEW_SPRITE_LEFT_11_F0_LAYER2",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 29,
+;       "uncompressedSize": 32
+;     },
+;     {
+;       "id": 35,
+;       "label": "SPRITE_PLACEHOLDER_PATTERN",
+;       "group": "SPRITES",
+;       "type": "SPRITE_PATTERNS",
+;       "bank": 3,
+;       "storedSize": 5,
+;       "uncompressedSize": 32
+;     }
+;   ]
+; }
+;
+; [[[MIDEAS_ARTIFACT:bank_optimizer.json:END]]]
+
+; [[[MIDEAS_ARTIFACT:tilebank_integrity.json:BEGIN]]]
+; {
+;   "version": 1,
+;   "scope": "konami8k_tilebank_integrity",
+;   "summary": {
+;     "screens": 2,
+;     "tileBanks": 2,
+;     "checkedScreens": 2,
+;     "issueScreens": 1,
+;     "issueCells": 96,
+;     "issueTiles": 7,
+;     "missingAssetCells": 96,
+;     "missingAssetTiles": 7,
+;     "unassignedCells": 0,
+;     "unassignedTiles": 0
+;   },
+;   "screens": [
+;     {
+;       "index": 0,
+;       "id": "screenmap_1776511902784",
+;       "name": "pan1",
+;       "tileBankAssetId": "tilebank_1776511918552",
+;       "tileBankName": "New Tilebank",
+;       "activeArea": {
+;         "x": 0,
+;         "y": 4,
+;         "width": 32,
+;         "height": 20
+;       },
+;       "status": "issues",
+;       "totals": {
+;         "checkedCells": 240,
+;         "uniqueTiles": 11,
+;         "issueCells": 96,
+;         "issueTiles": 7,
+;         "missingAssetCells": 96,
+;         "missingAssetTiles": 7,
+;         "unassignedCells": 0,
+;         "unassignedTiles": 0
+;       },
+;       "issues": [
+;         {
+;           "tileId": "tile_1776511854312",
+;           "tileName": null,
+;           "reason": "tile asset not found",
+;           "cells": [
+;             {
+;               "x": 4,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 5,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 6,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 7,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 8,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 9,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 10,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 11,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 12,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 13,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 14,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 15,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 16,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 17,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 18,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 19,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 20,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 21,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 22,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 23,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 24,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 25,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 26,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 27,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 28,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 29,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 30,
+;               "y": 4,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 31,
+;               "y": 4,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 31,
+;               "y": 5,
+;               "subTileX": 1,
+;               "subTileY": 1
+;             },
+;             {
+;               "x": 31,
+;               "y": 6,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 26,
+;               "y": 9,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 27,
+;               "y": 9,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 28,
+;               "y": 9,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 29,
+;               "y": 9,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 31,
+;               "y": 9,
+;               "subTileX": 1,
+;               "subTileY": 1
+;             },
+;             {
+;               "x": 31,
+;               "y": 10,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 9,
+;               "y": 11,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 10,
+;               "y": 11,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 18,
+;               "y": 11,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 19,
+;               "y": 11,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 31,
+;               "y": 11,
+;               "subTileX": 1,
+;               "subTileY": 1
+;             },
+;             {
+;               "x": 9,
+;               "y": 12,
+;               "subTileX": 0,
+;               "subTileY": 1
+;             },
+;             {
+;               "x": 10,
+;               "y": 12,
+;               "subTileX": 1,
+;               "subTileY": 1
+;             },
+;             {
+;               "x": 31,
+;               "y": 12,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 14,
+;               "y": 13,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 15,
+;               "y": 13,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 31,
+;               "y": 13,
+;               "subTileX": 1,
+;               "subTileY": 1
+;             },
+;             {
+;               "x": 31,
+;               "y": 14,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 31,
+;               "y": 15,
+;               "subTileX": 1,
+;               "subTileY": 1
+;             },
+;             {
+;               "x": 31,
+;               "y": 16,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 19,
+;               "y": 17,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 31,
+;               "y": 17,
+;               "subTileX": 1,
+;               "subTileY": 1
+;             },
+;             {
+;               "x": 9,
+;               "y": 18,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 10,
+;               "y": 18,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 19,
+;               "y": 18,
+;               "subTileX": 0,
+;               "subTileY": 1
+;             },
+;             {
+;               "x": 31,
+;               "y": 18,
+;               "subTileX": 1,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 9,
+;               "y": 19,
+;               "subTileX": 0,
+;               "subTileY": 1
+;             },
+;             {
+;               "x": 10,
+;               "y": 19,
+;               "subTileX": 1,
+;               "subTileY": 1
+;             },
+;             {
+;               "x": 31,
+;               "y": 19,
+;               "subTileX": 1,
+;               "subTileY": 1
+;             }
+;           ],
+;           "attempts": [
+;             {
+;               "bankId": "bank_0",
+;               "bankName": "Bank 0 - HUD/Fonts",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_1",
+;               "bankName": "Bank 1 - Game Tileset",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_2",
+;               "bankName": "Bank 2 - Background/Status",
+;               "reason": "tile not assigned to this bank"
+;             }
+;           ]
+;         },
+;         {
+;           "tileId": "tile_1776514675238",
+;           "tileName": null,
+;           "reason": "tile asset not found",
+;           "cells": [
+;             {
+;               "x": 8,
+;               "y": 10,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 8,
+;               "y": 11,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 8,
+;               "y": 12,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 13,
+;               "y": 12,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 8,
+;               "y": 13,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 13,
+;               "y": 13,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 8,
+;               "y": 14,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 13,
+;               "y": 14,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 8,
+;               "y": 15,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 13,
+;               "y": 15,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 8,
+;               "y": 16,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 13,
+;               "y": 16,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 8,
+;               "y": 17,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 13,
+;               "y": 17,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 8,
+;               "y": 18,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 13,
+;               "y": 18,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 8,
+;               "y": 19,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 13,
+;               "y": 19,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             }
+;           ],
+;           "attempts": [
+;             {
+;               "bankId": "bank_0",
+;               "bankName": "Bank 0 - HUD/Fonts",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_1",
+;               "bankName": "Bank 1 - Game Tileset",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_2",
+;               "bankName": "Bank 2 - Background/Status",
+;               "reason": "tile not assigned to this bank"
+;             }
+;           ]
+;         },
+;         {
+;           "tileId": "tile_1776777705689",
+;           "tileName": null,
+;           "reason": "tile asset not found",
+;           "cells": [
+;             {
+;               "x": 2,
+;               "y": 6,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 27,
+;               "y": 8,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 18,
+;               "y": 10,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             }
+;           ],
+;           "attempts": [
+;             {
+;               "bankId": "bank_0",
+;               "bankName": "Bank 0 - HUD/Fonts",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_1",
+;               "bankName": "Bank 1 - Game Tileset",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_2",
+;               "bankName": "Bank 2 - Background/Status",
+;               "reason": "tile not assigned to this bank"
+;             }
+;           ]
+;         },
+;         {
+;           "tileId": "tile_1776787618678",
+;           "tileName": null,
+;           "reason": "tile asset not found",
+;           "cells": [
+;             {
+;               "x": 10,
+;               "y": 10,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 3,
+;               "y": 12,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 15,
+;               "y": 12,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             }
+;           ],
+;           "attempts": [
+;             {
+;               "bankId": "bank_0",
+;               "bankName": "Bank 0 - HUD/Fonts",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_1",
+;               "bankName": "Bank 1 - Game Tileset",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_2",
+;               "bankName": "Bank 2 - Background/Status",
+;               "reason": "tile not assigned to this bank"
+;             }
+;           ]
+;         },
+;         {
+;           "tileId": "tile_1776878493940",
+;           "tileName": null,
+;           "reason": "tile asset not found",
+;           "cells": [
+;             {
+;               "x": 31,
+;               "y": 7,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 31,
+;               "y": 8,
+;               "subTileX": 0,
+;               "subTileY": 1
+;             }
+;           ],
+;           "attempts": [
+;             {
+;               "bankId": "bank_0",
+;               "bankName": "Bank 0 - HUD/Fonts",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_1",
+;               "bankName": "Bank 1 - Game Tileset",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_2",
+;               "bankName": "Bank 2 - Background/Status",
+;               "reason": "tile not assigned to this bank"
+;             }
+;           ]
+;         },
+;         {
+;           "tileId": "tile_split_tile_1776511854312_0_0_1776878629578",
+;           "tileName": null,
+;           "reason": "tile asset not found",
+;           "cells": [
+;             {
+;               "x": 30,
+;               "y": 9,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 1,
+;               "y": 13,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 4,
+;               "y": 14,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 5,
+;               "y": 14,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             }
+;           ],
+;           "attempts": [
+;             {
+;               "bankId": "bank_0",
+;               "bankName": "Bank 0 - HUD/Fonts",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_1",
+;               "bankName": "Bank 1 - Game Tileset",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_2",
+;               "bankName": "Bank 2 - Background/Status",
+;               "reason": "tile not assigned to this bank"
+;             }
+;           ]
+;         },
+;         {
+;           "tileId": "tile_split_tile_1776511854312_1_1_1776878629578",
+;           "tileName": null,
+;           "reason": "tile asset not found",
+;           "cells": [
+;             {
+;               "x": 1,
+;               "y": 7,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 2,
+;               "y": 7,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 3,
+;               "y": 7,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 2,
+;               "y": 13,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 3,
+;               "y": 13,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 3,
+;               "y": 14,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             },
+;             {
+;               "x": 6,
+;               "y": 14,
+;               "subTileX": 0,
+;               "subTileY": 0
+;             }
+;           ],
+;           "attempts": [
+;             {
+;               "bankId": "bank_0",
+;               "bankName": "Bank 0 - HUD/Fonts",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_1",
+;               "bankName": "Bank 1 - Game Tileset",
+;               "reason": "tile not assigned to this bank"
+;             },
+;             {
+;               "bankId": "bank_2",
+;               "bankName": "Bank 2 - Background/Status",
+;               "reason": "tile not assigned to this bank"
+;             }
+;           ]
+;         }
+;       ]
+;     },
+;     {
+;       "index": 1,
+;       "id": "screenmap_1777377884059",
+;       "name": "New Dialog Screen",
+;       "tileBankAssetId": "tilebank_1776511918552",
+;       "tileBankName": "New Tilebank",
+;       "activeArea": {
+;         "x": 0,
+;         "y": 0,
+;         "width": 32,
+;         "height": 24
+;       },
+;       "status": "ok",
+;       "totals": {
+;         "checkedCells": 128,
+;         "uniqueTiles": 1,
+;         "issueCells": 0,
+;         "issueTiles": 0,
+;         "missingAssetCells": 0,
+;         "missingAssetTiles": 0,
+;         "unassignedCells": 0,
+;         "unassignedTiles": 0
+;       },
+;       "issues": []
+;     }
+;   ]
+; }
+;
+; [[[MIDEAS_ARTIFACT:tilebank_integrity.json:END]]]
+
+; [[[MIDEAS_ARTIFACT:resource_manager.asm:BEGIN]]]
+; ; @mideas:block id=runtime.resources.manager kind=routine owner=resources roots=resource_manager_init,resource_find_by_id,resource_copy_from_bank_to_ram,resource_decompress_from_bank_to_ram,resource_copy_from_bank_to_vram,resource_decompress_from_bank_to_vram,resource_dzx0_to_vram,resource_load_to_ram_by_id,resource_load_to_vram_by_id,resource_read_byte_from_bank
+; ; ==================================================================
+; ; RESOURCE MANAGER
+; ; File: resource_manager.asm
+; ; Description: Centralized banked resource lookup and copy helpers
+; ; Descriptor format: db bank / dw address / dw stored_size / dw raw_size / db flags
+; ; Resource id is the zero-based descriptor index.
+; ; ==================================================================
+;
+; resource_manager_init:
+;     xor a
+;     ld (resource_descriptor_bank), a
+;     ld (resource_descriptor_ptr), a
+;     ld (resource_descriptor_ptr + 1), a
+;     ld (resource_descriptor_addr), a
+;     ld (resource_descriptor_addr + 1), a
+;     ld (resource_descriptor_size), a
+;     ld (resource_descriptor_size + 1), a
+;     ld (resource_descriptor_uncompressed_size), a
+;     ld (resource_descriptor_uncompressed_size + 1), a
+;     ld (resource_descriptor_flags), a
+;     ld (vram_cache_tile_patterns_ready), a
+;     ld (vram_cache_tile_colors_ready), a
+;     ld (vram_cache_font_ready), a
+;     ld a, #FF
+;     ld (resource_descriptor_id), a
+;     ld (resource_ram_cache_screen_layout_id), a
+;     ld (resource_ram_cache_effects_layout_id), a
+;     ld (resource_ram_cache_effect_zone_table_id), a
+;     ld (current_screen2_tilebank_id), a
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_invalidate_pattern_vram_cache
+; ; Outputs:
+; ;   none
+; ; Clobbers:
+; ;   AF
+; ; ------------------------------------------------------------------
+; resource_invalidate_pattern_vram_cache:
+;     xor a
+;     ld (vram_cache_tile_patterns_ready), a
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_invalidate_color_vram_cache
+; ; Outputs:
+; ;   none
+; ; Clobbers:
+; ;   AF
+; ; ------------------------------------------------------------------
+; resource_invalidate_color_vram_cache:
+;     xor a
+;     ld (vram_cache_tile_colors_ready), a
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_invalidate_font_vram_cache
+; ; Outputs:
+; ;   none
+; ; Clobbers:
+; ;   AF
+; ; ------------------------------------------------------------------
+; resource_invalidate_font_vram_cache:
+;     xor a
+;     ld (vram_cache_font_ready), a
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_invalidate_gameplay_vram_cache
+; ; Outputs:
+; ;   none
+; ; Clobbers:
+; ;   AF
+; ; Notes:
+; ;   Use this when a fullscreen effect or presentation screen overwrites
+; ;   shared gameplay/font VRAM tables outside the normal loaders.
+; ; ------------------------------------------------------------------
+; resource_invalidate_gameplay_vram_cache:
+;     call resource_invalidate_pattern_vram_cache
+;     call resource_invalidate_color_vram_cache
+;     call resource_invalidate_font_vram_cache
+;     ld a, #FF
+;     ld (current_screen2_tilebank_id), a
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_invalidate_screen_ram_cache
+; ; Outputs:
+; ;   none
+; ; Clobbers:
+; ;   AF
+; ; Notes:
+; ;   Invalidates the clean RAM copies used to rebuild runtime screen data
+; ;   without re-reading the same banked resource on repeated screen loads.
+; ; ------------------------------------------------------------------
+; resource_invalidate_screen_ram_cache:
+;     ld a, #FF
+;     ld (resource_ram_cache_screen_layout_id), a
+;     ld (resource_ram_cache_effects_layout_id), a
+;     ld (resource_ram_cache_effect_zone_table_id), a
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_find_by_id
+; ; Inputs:
+; ;   A = resource id
+; ; Outputs on success (carry clear):
+; ;   HL = pointer to descriptor entry
+; ;   A  = bank number
+; ;   DE = visible window address
+; ;   BC = stored size in bytes
+; ; Outputs on failure (carry set):
+; ;   HL = resource_table
+; ; Clobbers:
+; ;   AF, BC, DE, HL
+; ; Notes:
+; ;   Mirrors the descriptor into RAM so callers can inspect fields later
+; ;   without re-scanning the table.
+; ; ------------------------------------------------------------------
+; resource_find_by_id:
+;     ld c, a
+;     ld a, (resource_descriptor_id)
+;     cp c
+;     jr nz, .resource_find_lookup
+;     ld a, (resource_descriptor_bank)
+;     ld de, (resource_descriptor_addr)
+;     ld bc, (resource_descriptor_size)
+;     or a
+;     ret
+; .resource_find_lookup:
+;     ld a, c
+;     cp RESOURCE_TABLE_COUNT
+;     jp nc, .resource_find_not_found
+;     ld l, a
+;     ld h, 0
+;     add hl, hl
+;     add hl, hl
+;     add hl, hl
+;     ld de, resource_table
+;     add hl, de
+;     ld a, c
+;     ld (resource_descriptor_id), a
+;     ld (resource_descriptor_ptr), hl
+;     push hl
+;     ld a, (hl)
+;     ld (resource_descriptor_bank), a
+;     inc hl
+;     ld e, (hl)
+;     inc hl
+;     ld d, (hl)
+;     ld (resource_descriptor_addr), de
+;     inc hl
+;     ld c, (hl)
+;     inc hl
+;     ld b, (hl)
+;     ld (resource_descriptor_size), bc
+;     inc hl
+;     ld e, (hl)
+;     inc hl
+;     ld d, (hl)
+;     ld (resource_descriptor_uncompressed_size), de
+;     inc hl
+;     ld a, (hl)
+;     ld (resource_descriptor_flags), a
+;     ld de, (resource_descriptor_addr)
+;     ld bc, (resource_descriptor_size)
+;     pop hl
+;     ld a, (resource_descriptor_bank)
+;     or a
+;     ret
+;
+; .resource_find_not_found:
+;     xor a
+;     ld (resource_descriptor_bank), a
+;     ld (resource_descriptor_ptr), a
+;     ld (resource_descriptor_ptr + 1), a
+;     ld (resource_descriptor_addr), a
+;     ld (resource_descriptor_addr + 1), a
+;     ld (resource_descriptor_size), a
+;     ld (resource_descriptor_size + 1), a
+;     ld (resource_descriptor_uncompressed_size), a
+;     ld (resource_descriptor_uncompressed_size + 1), a
+;     ld (resource_descriptor_flags), a
+;     ld a, #FF
+;     ld (resource_descriptor_id), a
+;     scf
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_copy_from_bank_to_ram
+; ; Inputs:
+; ;   A  = bank number
+; ;   HL = source visible in mapper data window
+; ;   DE = destination in RAM
+; ;   BC = size in bytes
+; ; Outputs:
+; ;   carry clear
+; ; Clobbers:
+; ;   AF, BC, DE, HL
+; ; ------------------------------------------------------------------
+; resource_copy_from_bank_to_ram:
+;     push af
+;     ld a, b
+;     or c
+;     jr nz, .resource_copy_ram_has_size
+;     pop af
+;     or a
+;     ret
+; .resource_copy_ram_has_size:
+;     pop af
+;     di
+;     push af
+;     call mapper_push_p3
+;     pop af
+;     call mapper_set_bank_p3
+;     ldir
+;     call mapper_pop_p3
+;     ld a, (interrupt_in_progress)
+;     or a
+;     jp nz, .resource_copy_ram_irq_done
+;     ei
+; .resource_copy_ram_irq_done:
+;     or a
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_decompress_from_bank_to_ram
+; ; Inputs:
+; ;   A  = bank number
+; ;   HL = ZX0 source visible in mapper data window
+; ;   DE = destination in RAM
+; ; Outputs:
+; ;   carry clear
+; ; Clobbers:
+; ;   AF, BC, DE, HL
+; ; ------------------------------------------------------------------
+; resource_decompress_from_bank_to_ram:
+;     di
+;     push af
+;     call mapper_push_p3
+;     pop af
+;     call mapper_set_bank_p3
+;     call dzx0_standard
+;     call mapper_pop_p3
+;     ld a, (interrupt_in_progress)
+;     or a
+;     jp nz, .resource_decompress_ram_irq_done
+;     ei
+; .resource_decompress_ram_irq_done:
+;     or a
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_copy_from_bank_to_vram
+; ; Inputs:
+; ;   A  = bank number
+; ;   HL = source visible in mapper data window
+; ;   DE = destination in VRAM
+; ;   BC = size in bytes
+; ; Outputs:
+; ;   carry clear
+; ; Clobbers:
+; ;   AF, BC, DE, HL
+; ; ------------------------------------------------------------------
+; resource_copy_from_bank_to_vram:
+;     push af
+;     ld a, b
+;     or c
+;     jr nz, .resource_copy_vram_has_size
+;     pop af
+;     or a
+;     ret
+; .resource_copy_vram_has_size:
+;     pop af
+;     di
+;     push af
+;     call mapper_push_p3
+;     pop af
+;     call mapper_set_bank_p3
+;     ; Banked VRAM copy keeps IRQs masked until P2 is restored.
+;     ; FAST_LDIRVM re-enables IRQs internally, so inline the same port loop here.
+;     ; Restore IRQs only if they were enabled on entry.
+;     ld a, e
+;     out (#99), a
+;     nop
+;     ld a, d
+;     or #40
+;     out (#99), a
+;     nop
+; .resource_copy_vram_loop:
+;     ld a, (hl)
+;     out (#98), a
+;     inc hl
+;     dec bc
+;     ld a, b
+;     or c
+;     jr nz, .resource_copy_vram_loop
+;     call mapper_pop_p3
+;     ld a, (interrupt_in_progress)
+;     or a
+;     jp nz, .resource_copy_vram_irq_done
+;     ei
+; .resource_copy_vram_irq_done:
+;     or a
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_decompress_from_bank_to_vram
+; ; Inputs:
+; ;   A  = bank number
+; ;   HL = ZX0 source visible in mapper data window
+; ;   DE = destination in VRAM
+; ;   BC = uncompressed size in bytes
+; ; Outputs:
+; ;   carry clear
+; ; Clobbers:
+; ;   AF, BC, DE, HL
+; ; Notes:
+; ;   Uses fast RAM staging when the uncompressed output fits the shared scratch
+; ;   buffer. Larger resources fall back to direct-to-VRAM ZX0 decode.
+; ; ------------------------------------------------------------------
+; resource_decompress_from_bank_to_vram:
+;     push af
+;     ld a, b
+;     or c
+;     jp nz, .resource_decompress_vram_has_size
+;     pop af
+;     or a
+;     ret
+; .resource_decompress_vram_has_size:
+;     ld a, b
+;     cp ZX0_VRAM_TRANSFER_BUFFER_LIMIT_HIGH
+;     jp c, .resource_decompress_vram_staged
+;     jp nz, .resource_decompress_vram_direct
+;     ld a, c
+;     cp ZX0_VRAM_TRANSFER_BUFFER_LIMIT_NEXT_LOW
+;     jp c, .resource_decompress_vram_staged
+; .resource_decompress_vram_direct:
+;     pop af
+;     di
+;     push af
+;     call mapper_push_p3
+;     pop af
+;     call mapper_set_bank_p3
+;     call resource_dzx0_to_vram
+;     call mapper_pop_p3
+;     ld a, (interrupt_in_progress)
+;     or a
+;     jp nz, .resource_decompress_vram_irq_done
+;     ei
+; .resource_decompress_vram_irq_done:
+;     or a
+;     ret
+; .resource_decompress_vram_staged:
+;     pop af
+;     push de
+;     push bc
+;     ld de, ZX0_VRAM_TRANSFER_BUFFER
+;     call resource_decompress_from_bank_to_ram
+;     pop bc
+;     pop de
+;     ld hl, ZX0_VRAM_TRANSFER_BUFFER
+;     jp FAST_LDIRVM
+;
+; ; ------------------------------------------------------------------
+; ; resource_dzx0_to_vram
+; ; Inputs:
+; ;   HL = ZX0 source visible in mapper data window
+; ;   DE = destination in VRAM
+; ; Outputs:
+; ;   DE advanced past decompressed stream
+; ; Clobbers:
+; ;   AF, BC, DE, HL
+; ; Notes:
+; ;   Adapted from the standard ZX0 decoder structure. Literal bytes are read
+; ;   from mapper-visible ROM and written to VRAM; match bytes are read from
+; ;   already decompressed VRAM and written to the current VRAM destination.
+; ;   IRQs and mapper bank lifetime are managed by the caller.
+; ; ------------------------------------------------------------------
+; resource_dzx0_to_vram:
+;     ld bc, #FFFF
+;     push bc
+;     inc bc
+;     ld a, #80
+; .resource_dzx0_vram_literals:
+;     call .resource_dzx0_vram_elias
+;     push af
+; .resource_dzx0_vram_literal_loop:
+;     ld a, e
+;     out (#99), a
+;     nop
+;     ld a, d
+;     or #40
+;     out (#99), a
+;     nop
+;     ld a, (hl)
+;     out (#98), a
+;     inc hl
+;     inc de
+;     dec bc
+;     ld a, b
+;     or c
+;     jp nz, .resource_dzx0_vram_literal_loop
+;     pop af
+;     add a, a
+;     jp c, .resource_dzx0_vram_new_offset
+;     call .resource_dzx0_vram_elias
+; .resource_dzx0_vram_copy:
+;     ex (sp), hl
+;     push hl
+;     add hl, de
+;     push af
+; .resource_dzx0_vram_copy_loop:
+;     push bc
+;     ld a, l
+;     out (#99), a
+;     nop
+;     ld a, h
+;     and #3F
+;     out (#99), a
+;     nop
+;     nop
+;     in a, (#98)
+;     ld b, a
+;     ld a, e
+;     out (#99), a
+;     nop
+;     ld a, d
+;     or #40
+;     out (#99), a
+;     nop
+;     ld a, b
+;     out (#98), a
+;     pop bc
+;     inc hl
+;     inc de
+;     dec bc
+;     ld a, b
+;     or c
+;     jp nz, .resource_dzx0_vram_copy_loop
+;     pop af
+;     pop hl
+;     ex (sp), hl
+;     add a, a
+;     jp nc, .resource_dzx0_vram_literals
+; .resource_dzx0_vram_new_offset:
+;     pop bc
+;     ld c, #FE
+;     call .resource_dzx0_vram_elias_loop
+;     inc c
+;     ret z
+;     ld b, c
+;     ld c, (hl)
+;     inc hl
+;     rr b
+;     rr c
+;     push bc
+;     ld bc, 1
+;     call nc, .resource_dzx0_vram_elias_backtrack
+;     inc bc
+;     jp .resource_dzx0_vram_copy
+; .resource_dzx0_vram_elias:
+;     inc c
+; .resource_dzx0_vram_elias_loop:
+;     add a, a
+;     jp nz, .resource_dzx0_vram_elias_skip
+;     ld a, (hl)
+;     inc hl
+;     rla
+; .resource_dzx0_vram_elias_skip:
+;     ret c
+; .resource_dzx0_vram_elias_backtrack:
+;     add a, a
+;     rl c
+;     rl b
+;     jp .resource_dzx0_vram_elias_loop
+;
+; ; ------------------------------------------------------------------
+; ; resource_load_to_ram_by_id
+; ; Inputs:
+; ;   A  = resource id
+; ;   DE = destination in RAM
+; ; Outputs:
+; ;   carry clear on success
+; ;   carry set if resource id is missing
+; ; Clobbers:
+; ;   AF, BC, DE, HL
+; ; ------------------------------------------------------------------
+; resource_load_to_ram_by_id:
+;     push de
+;     call resource_find_by_id
+;     jp c, .resource_load_to_ram_fail
+;     push de
+;     pop hl
+;     pop de
+;     ld a, (resource_descriptor_flags)
+;     and RESOURCE_FLAG_COMPRESSED_ZX0
+;     jr z, .resource_load_to_ram_raw
+;     ld a, (resource_descriptor_bank)
+;     jp resource_decompress_from_bank_to_ram
+; .resource_load_to_ram_raw:
+;     ld a, (resource_descriptor_bank)
+;     jp resource_copy_from_bank_to_ram
+;
+; .resource_load_to_ram_fail:
+;     pop de
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_load_to_vram_by_id
+; ; Inputs:
+; ;   A  = resource id
+; ;   DE = destination in VRAM
+; ; Outputs:
+; ;   carry clear on success
+; ;   carry set if resource id is missing
+; ; Clobbers:
+; ;   AF, BC, DE, HL
+; ; ------------------------------------------------------------------
+; resource_load_to_vram_by_id:
+;     push de
+;     call resource_find_by_id
+;     jp c, .resource_load_to_vram_fail
+;     ld a, (resource_descriptor_flags)
+;     and RESOURCE_FLAG_COMPRESSED_ZX0
+;     jp nz, .resource_load_to_vram_compressed
+;     push de
+;     pop hl
+;     pop de
+;     ld a, (resource_descriptor_bank)
+;     jp resource_copy_from_bank_to_vram
+;
+; .resource_load_to_vram_compressed:
+;     push de
+;     pop hl
+;     ld bc, (resource_descriptor_uncompressed_size)
+;     pop de
+;     ld a, (resource_descriptor_bank)
+;     jp resource_decompress_from_bank_to_vram
+;
+; .resource_load_to_vram_fail:
+;     pop de
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_load_screen_layout_cached
+; ; Inputs:
+; ;   A = screen layout resource id
+; ; Outputs:
+; ;   carry clear on success
+; ;   carry set if resource id is missing
+; ; Notes:
+; ;   Keeps the immutable layout in runtime_background_layout and rebuilds
+; ;   runtime_screen_layout from that clean RAM copy on every screen load.
+; ; Clobbers:
+; ;   AF, BC, DE, HL
+; ; ------------------------------------------------------------------
+; resource_load_screen_layout_cached:
+;     ld c, a
+;     ld a, (resource_ram_cache_screen_layout_id)
+;     cp c
+;     jr z, .resource_layout_cache_hit
+;     push bc
+;     ld a, c
+;     ld de, runtime_background_layout
+;     call resource_load_to_ram_by_id
+;     pop bc
+;     ret c
+;     ld a, c
+;     ld (resource_ram_cache_screen_layout_id), a
+; .resource_layout_cache_hit:
+;     ld hl, runtime_background_layout
+;     ld de, runtime_screen_layout
+;     ld bc, RUNTIME_SCREEN_MAP_SIZE
+;     ldir
+;     xor a
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_load_effects_layout_cached
+; ; Inputs:
+; ;   A = effects layout resource id
+; ; Outputs:
+; ;   carry clear on success
+; ;   carry set if resource id is missing
+; ; Notes:
+; ;   Keeps the immutable effects layer in runtime_effects_layout.
+; ; Clobbers:
+; ;   AF, BC, DE, HL
+; ; ------------------------------------------------------------------
+; resource_load_effects_layout_cached:
+;     ld c, a
+;     ld a, (resource_ram_cache_effects_layout_id)
+;     cp c
+;     jr z, .resource_effects_cache_hit
+;     push bc
+;     ld a, c
+;     ld de, runtime_effects_layout
+;     call resource_load_to_ram_by_id
+;     pop bc
+;     ret c
+;     ld a, c
+;     ld (resource_ram_cache_effects_layout_id), a
+; .resource_effects_cache_hit:
+;     xor a
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_load_behavior_map_cached
+; ; Inputs:
+; ;   A = behavior map resource id
+; ; Outputs:
+; ;   carry clear on success
+; ;   carry set if resource id is missing
+; ; Notes:
+; ;   Reloads the mutable runtime_behavior_map directly from the banked
+; ;   resource. This avoids a second resident 32x24 behavior-map copy in RAM.
+; ; Clobbers:
+; ;   AF, BC, DE, HL
+; ; ------------------------------------------------------------------
+; resource_load_behavior_map_cached:
+;     ld de, runtime_behavior_map
+;     call resource_load_to_ram_by_id
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_load_effect_zone_table_cached
+; ; Inputs:
+; ;   A = effect zone table resource id
+; ; Outputs:
+; ;   carry clear on success
+; ;   carry set if resource id is missing
+; ; Notes:
+; ;   Keeps the current screen's immutable effect zone table resident in RAM.
+; ; Clobbers:
+; ;   AF, BC, DE, HL
+; ; ------------------------------------------------------------------
+; resource_load_effect_zone_table_cached:
+;     ld c, a
+;     ld a, (resource_ram_cache_effect_zone_table_id)
+;     cp c
+;     jr z, .resource_effect_zone_cache_hit
+;     push bc
+;     ld a, c
+;     ld de, runtime_effect_zone_table
+;     call resource_load_to_ram_by_id
+;     pop bc
+;     ret c
+;     ld a, c
+;     ld (resource_ram_cache_effect_zone_table_id), a
+; .resource_effect_zone_cache_hit:
+;     xor a
+;     ret
+;
+; ; ------------------------------------------------------------------
+; ; resource_read_byte_from_bank
+; ; Inputs:
+; ;   A  = bank number
+; ;   HL = source visible in mapper data window
+; ; Outputs:
+; ;   A = byte read
+; ; Clobbers:
+; ;   AF, BC, HL
+; ; Preserves:
+; ;   DE
+; ; ------------------------------------------------------------------
+; resource_read_byte_from_bank:
+;     ld b, a
+;     ld a, b
+;     push af
+;     call mapper_push_p3
+;     pop af
+;     call mapper_set_bank_p3
+;     ld a, (hl)
+;     ld b, a
+;     call mapper_pop_p3
+;     ld a, b
+;     ret
+; ; @mideas:endblock id=runtime.resources.manager
+;
+; [[[MIDEAS_ARTIFACT:resource_manager.asm:END]]]
+
+; [[[MIDEAS_ARTIFACT:world_music_policy.txt:BEGIN]]]
+; WORLD MUSIC POLICY
+; Source: inferred from Game Flow paths reaching each WorldLink.
+; Mode preserve: multiple different music states can reach the same world.
+;
+; WORLD 00 New Worldmap (worldmap_1776512078647)
+; - policy: stop
+; [[[MIDEAS_ARTIFACT:world_music_policy.txt:END]]]
+
+; [[[MIDEAS_ARTIFACT:world_sprite_pattern_policy.txt:BEGIN]]]
+; WORLD SPRITE PATTERN POLICY
+; Source: runtime sprite packs inferred from entities present in each world.
+; Pack capacity: 64 slots (including placeholder).
+;
+; PACKS
+; PACK 00 worldmap_1776512078647
+; - display: World "New Worldmap"
+; - slots: 22/64
+; - placeholder_slot: 21
+; - sprites:
+;   0: nina_walk_right @ slot 0
+;   2: New Sprite @ slot 4
+;   4: nina_idle_right @ slot 5
+;   5: New Sprite_right @ slot 7
+;   6: projectil1 @ slot 9
+;   7: nina_walk_left @ slot 13
+;   10: nina_idle_left @ slot 17
+;   11: New Sprite_left @ slot 19
+;
+; WORLD -> PACK
+; 00 New Worldmap (worldmap_1776512078647) -> worldmap_1776512078647 [id=0]
+; [[[MIDEAS_ARTIFACT:world_sprite_pattern_policy.txt:END]]]
+
+; [[[MIDEAS_ARTIFACT:screen_resource_policy.txt:BEGIN]]]
+; SCREEN RESOURCE POLICY
+; Logical view of resources consumed by screen/world loading paths.
+;
+; COMMON RESOURCES
+; - patterns: RESOURCE_ID_TILE_PATTERN_BANK0 -> load_pattern_bank0/load_pattern_bank1/load_pattern_bank2
+; - colors: RESOURCE_ID_TILE_COLOR_BANK0 -> load_color_bank0/load_color_bank1/load_color_bank2
+; - font patterns: RESOURCE_ID_FONT_PATTERN_DATA
+; - font colors: RESOURCE_ID_FONT_COLOR_DATA
+; - presentation: none
+; - tilebank loaders:
+;   tilebank_1776511918552: load_tilebank_tilebank_1776511918552_patterns_to_vram / load_tilebank_tilebank_1776511918552_colors_to_vram
+;
+; SCREEN 00 pan1 (screenmap_1776511902784)
+; - worlds: worldmap_1776512078647
+; - tile_bank: tilebank_1776511918552
+; - sprite_pattern_slots: 22
+; - music_in_game: 0
+; - background_block_catalog: RESOURCE_ID_SCREEN_PAN1_0_BLOCK_CATALOG
+; - background_block_map: RESOURCE_ID_SCREEN_PAN1_0_BLOCK_MAP
+; - effects_layout: RESOURCE_ID_SCREEN_PAN1_0_EFFECTS_LAYOUT
+; - effect_zone_table: RESOURCE_ID_SCREEN_PAN1_0_EFFECT_ZONE_TABLE
+; - interaction_type_map: RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_TYPE_MAP
+; - interaction_value_map: RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_VALUE_MAP
+; - interaction_target_map: RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_TARGET_MAP
+; - char_behavior_table: RESOURCE_ID_SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE
+; - behavior: runtime rebuilt from screen layout + char table
+;
+; SCREEN 01 New Dialog Screen (screenmap_1777377884059)
+; - worlds: none
+; - tile_bank: tilebank_1776511918552
+; - sprite_pattern_slots: 13
+; - music_in_game: 0
+; - layout: RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT
+; - effects_layout: RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT
+; - effect_zone_table: RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE
+; - interaction_type_map: RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP
+; - interaction_value_map: RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP
+; - interaction_target_map: RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP
+; - behavior: RESOURCE_ID_BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA
+; [[[MIDEAS_ARTIFACT:screen_resource_policy.txt:END]]]
+
+; [[[MIDEAS_ARTIFACT:unused_report.txt:BEGIN]]]
+; MIDEAS UNUSED MODULE REPORT
+; Scope: konami8k_megarom_resident_modules
+; Candidate unused modules: 2
+; Estimated removable bytes: 6939
+;
+; Candidates:
+; - sound: 4521 estimated bytes
+; - scroll: 2418 estimated bytes
+;
+; Retained modules:
+; - animtiles: 3489 estimated bytes
+; - bosses: 11107 estimated bytes
+; - colors_code: 846 estimated bytes
+; - components: 58707 estimated bytes
+; - entities: 6179 estimated bytes
+; - font: 3585 estimated bytes
+; - gameflow: 6836 estimated bytes
+; - hud: 3995 estimated bytes
+; - patterns_code: 894 estimated bytes
+; - screens_code: 7509 estimated bytes
+; - sprites: 5523 estimated bytes
+; - statemachine: 21721 estimated bytes
+; - worlds: 2147 estimated bytes
+;
+; Note: report-only; module removal is a later pipeline step.
+;
+; [[[MIDEAS_ARTIFACT:unused_report.txt:END]]]
+
+; [[[MIDEAS_ARTIFACT:segment_budget.json:BEGIN]]]
+; {
+;   "version": 1,
+;   "scope": "konami8k_segment_budget",
+;   "mapperFormat": "konami",
+;   "mapper": {
+;     "format": "konami",
+;     "dataWindowPage": "p3",
+;     "windowBase": "#A000",
+;     "windowMask": "#1FFF",
+;     "bankDivisor": "#2000",
+;     "codeSegmentSize": 8192,
+;     "dataSegmentSize": 8192
+;   },
+;   "segmentSize": 8192,
+;   "segmentSizeMeaning": "code overlay bank size",
+;   "codeSegmentSize": 8192,
+;   "dataSegmentSize": 8192,
+;   "runtimeLayout": {
+;     "mapperFormat": "konami",
+;     "codeWindowGranularity": 8192,
+;     "status": "smoke-candidate",
+;     "smokeBlocked": false,
+;     "lowerPageResidentBanks": [],
+;     "lowerPageFarBanks": [],
+;     "upperPageResidentBanks": [],
+;     "lowerPageHazardBankCount": 0,
+;     "dataWindowResidentConflict": false,
+;     "ramTrampolineRequired": false,
+;     "ramTrampolineInstalled": false,
+;     "residentEstimatedWindowOverflowCount": 0,
+;     "residentEstimatedWindowOverflowSamples": [],
+;     "residentEstimatedOutOfWindowLabelCount": 0,
+;     "residentEstimatedOutOfWindowLabelSamples": [],
+;     "residentEstimatedOutOfWindowCallCount": 0,
+;     "residentEstimatedOutOfWindowCallSamples": [],
+;     "farToFarDirectCallCount": 0,
+;     "farToFarDirectCallSamples": [],
+;     "lowerPageHiddenResidentCallCount": 0,
+;     "lowerPageHiddenResidentCallSamples": [],
+;     "reason": "No ASCII16 lower-page code-window hazard detected."
+;   },
+;   "codeBanks": [
+;     {
+;       "bank": 1,
+;       "role": "resident_code",
+;       "segmentSize": 8192,
+;       "page": 1,
+;       "orgAddress": 24576,
+;       "endAddress": 32768,
+;       "placementReason": "resident kernel slot 1; fixed P1 window #6000-#8000; stays always mapped so runtime flow does not depend on P3 data-window state",
+;       "estimatedUsedBytes": 58707,
+;       "estimatedFreeBytes": 0,
+;       "estimatedOverBudget": true,
+;       "modules": [
+;         {
+;           "key": "components",
+;           "placementReason": "resident kernel slot 1; fixed P1 window #6000-#8000; stays always mapped so runtime flow does not depend on P3 data-window state; module components is part of the resident execution kernel",
+;           "estimatedBytes": 58707
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 2,
+;       "role": "resident_code",
+;       "segmentSize": 8192,
+;       "page": 2,
+;       "orgAddress": 32768,
+;       "endAddress": 40960,
+;       "placementReason": "resident kernel slot 2; fixed P2 window #8000-#A000; stays always mapped so runtime flow does not depend on P3 data-window state",
+;       "estimatedUsedBytes": 28557,
+;       "estimatedFreeBytes": 0,
+;       "estimatedOverBudget": true,
+;       "modules": [
+;         {
+;           "key": "statemachine",
+;           "placementReason": "resident kernel slot 2; fixed P2 window #8000-#A000; stays always mapped so runtime flow does not depend on P3 data-window state; module statemachine is part of the resident execution kernel",
+;           "estimatedBytes": 21721
+;         },
+;         {
+;           "key": "gameflow",
+;           "placementReason": "resident kernel slot 2; fixed P2 window #8000-#A000; stays always mapped so runtime flow does not depend on P3 data-window state; module gameflow is part of the resident execution kernel",
+;           "estimatedBytes": 6836
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 5,
+;       "role": "far_code",
+;       "segmentSize": 8192,
+;       "page": 1,
+;       "orgAddress": 24576,
+;       "endAddress": 32768,
+;       "placementReason": "far-call module; sorted by estimated size at overlay index 1; physical bank 5; executes through P1/#6000 after reserved asset-data banks",
+;       "estimatedUsedBytes": 11107,
+;       "estimatedFreeBytes": 0,
+;       "estimatedOverBudget": true,
+;       "modules": [
+;         {
+;           "key": "bosses",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 1; physical bank 5; executes through P1/#6000 after reserved asset-data banks; module bosses is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 11107
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 6,
+;       "role": "far_code",
+;       "segmentSize": 8192,
+;       "page": 1,
+;       "orgAddress": 24576,
+;       "endAddress": 32768,
+;       "placementReason": "far-call module; sorted by estimated size at overlay index 2; physical bank 6; executes through P1/#6000 after reserved asset-data banks",
+;       "estimatedUsedBytes": 7509,
+;       "estimatedFreeBytes": 683,
+;       "estimatedOverBudget": false,
+;       "modules": [
+;         {
+;           "key": "screens_code",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 2; physical bank 6; executes through P1/#6000 after reserved asset-data banks; module screens_code is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 7509
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 7,
+;       "role": "far_code",
+;       "segmentSize": 8192,
+;       "page": 1,
+;       "orgAddress": 24576,
+;       "endAddress": 32768,
+;       "placementReason": "far-call module; sorted by estimated size at overlay index 3; physical bank 7; executes through P1/#6000 after reserved asset-data banks",
+;       "estimatedUsedBytes": 6179,
+;       "estimatedFreeBytes": 2013,
+;       "estimatedOverBudget": false,
+;       "modules": [
+;         {
+;           "key": "entities",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 3; physical bank 7; executes through P1/#6000 after reserved asset-data banks; module entities is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 6179
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 8,
+;       "role": "far_code",
+;       "segmentSize": 8192,
+;       "page": 1,
+;       "orgAddress": 24576,
+;       "endAddress": 32768,
+;       "placementReason": "far-call module; sorted by estimated size at overlay index 4; physical bank 8; executes through P1/#6000 after reserved asset-data banks",
+;       "estimatedUsedBytes": 5523,
+;       "estimatedFreeBytes": 2669,
+;       "estimatedOverBudget": false,
+;       "modules": [
+;         {
+;           "key": "sprites",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 4; physical bank 8; executes through P1/#6000 after reserved asset-data banks; module sprites is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 5523
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 9,
+;       "role": "far_code",
+;       "segmentSize": 8192,
+;       "page": 1,
+;       "orgAddress": 24576,
+;       "endAddress": 32768,
+;       "placementReason": "far-call module; sorted by estimated size at overlay index 5; physical bank 9; executes through P1/#6000 after reserved asset-data banks",
+;       "estimatedUsedBytes": 4521,
+;       "estimatedFreeBytes": 3671,
+;       "estimatedOverBudget": false,
+;       "modules": [
+;         {
+;           "key": "sound",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 5; physical bank 9; executes through P1/#6000 after reserved asset-data banks; module sound is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 4521
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 10,
+;       "role": "far_code",
+;       "segmentSize": 8192,
+;       "page": 1,
+;       "orgAddress": 24576,
+;       "endAddress": 32768,
+;       "placementReason": "far-call module; sorted by estimated size at overlay index 6; physical bank 10; executes through P1/#6000 after reserved asset-data banks",
+;       "estimatedUsedBytes": 3995,
+;       "estimatedFreeBytes": 4197,
+;       "estimatedOverBudget": false,
+;       "modules": [
+;         {
+;           "key": "hud",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 6; physical bank 10; executes through P1/#6000 after reserved asset-data banks; module hud is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 3995
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 11,
+;       "role": "far_code",
+;       "segmentSize": 8192,
+;       "page": 1,
+;       "orgAddress": 24576,
+;       "endAddress": 32768,
+;       "placementReason": "far-call module; sorted by estimated size at overlay index 7; physical bank 11; executes through P1/#6000 after reserved asset-data banks",
+;       "estimatedUsedBytes": 3585,
+;       "estimatedFreeBytes": 4607,
+;       "estimatedOverBudget": false,
+;       "modules": [
+;         {
+;           "key": "font",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 7; physical bank 11; executes through P1/#6000 after reserved asset-data banks; module font is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 3585
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 12,
+;       "role": "far_code",
+;       "segmentSize": 8192,
+;       "page": 1,
+;       "orgAddress": 24576,
+;       "endAddress": 32768,
+;       "placementReason": "far-call module; sorted by estimated size at overlay index 8; physical bank 12; executes through P1/#6000 after reserved asset-data banks",
+;       "estimatedUsedBytes": 3489,
+;       "estimatedFreeBytes": 4703,
+;       "estimatedOverBudget": false,
+;       "modules": [
+;         {
+;           "key": "animtiles",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 8; physical bank 12; executes through P1/#6000 after reserved asset-data banks; module animtiles is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 3489
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 13,
+;       "role": "far_code",
+;       "segmentSize": 8192,
+;       "page": 1,
+;       "orgAddress": 24576,
+;       "endAddress": 32768,
+;       "placementReason": "far-call module; sorted by estimated size at overlay index 9; physical bank 13; executes through P1/#6000 after reserved asset-data banks",
+;       "estimatedUsedBytes": 2418,
+;       "estimatedFreeBytes": 5774,
+;       "estimatedOverBudget": false,
+;       "modules": [
+;         {
+;           "key": "scroll",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 9; physical bank 13; executes through P1/#6000 after reserved asset-data banks; module scroll is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 2418
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 14,
+;       "role": "far_code",
+;       "segmentSize": 8192,
+;       "page": 1,
+;       "orgAddress": 24576,
+;       "endAddress": 32768,
+;       "placementReason": "far-call module; sorted by estimated size at overlay index 10; physical bank 14; executes through P1/#6000 after reserved asset-data banks",
+;       "estimatedUsedBytes": 2147,
+;       "estimatedFreeBytes": 6045,
+;       "estimatedOverBudget": false,
+;       "modules": [
+;         {
+;           "key": "worlds",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 10; physical bank 14; executes through P1/#6000 after reserved asset-data banks; module worlds is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 2147
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 15,
+;       "role": "far_code",
+;       "segmentSize": 8192,
+;       "page": 1,
+;       "orgAddress": 24576,
+;       "endAddress": 32768,
+;       "placementReason": "far-call module; sorted by estimated size at overlay index 11; physical bank 15; executes through P1/#6000 after reserved asset-data banks",
+;       "estimatedUsedBytes": 894,
+;       "estimatedFreeBytes": 7298,
+;       "estimatedOverBudget": false,
+;       "modules": [
+;         {
+;           "key": "patterns_code",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 11; physical bank 15; executes through P1/#6000 after reserved asset-data banks; module patterns_code is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 894
+;         }
+;       ]
+;     },
+;     {
+;       "bank": 16,
+;       "role": "far_code",
+;       "segmentSize": 8192,
+;       "page": 1,
+;       "orgAddress": 24576,
+;       "endAddress": 32768,
+;       "placementReason": "far-call module; sorted by estimated size at overlay index 12; physical bank 16; executes through P1/#6000 after reserved asset-data banks",
+;       "estimatedUsedBytes": 846,
+;       "estimatedFreeBytes": 7346,
+;       "estimatedOverBudget": false,
+;       "modules": [
+;         {
+;           "key": "colors_code",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 12; physical bank 16; executes through P1/#6000 after reserved asset-data banks; module colors_code is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 846
+;         }
+;       ]
+;     }
+;   ],
+;   "dataBanks": [
+;     {
+;       "bank": 3,
+;       "role": "asset_data",
+;       "orgAddress": 40960,
+;       "endAddress": 49152,
+;       "usedBytes": 3447,
+;       "freeBytes": 4745,
+;       "resources": 58
+;     },
+;     {
+;       "bank": 4,
+;       "role": "asset_data",
+;       "orgAddress": 49152,
+;       "endAddress": 57344,
+;       "usedBytes": 0,
+;       "freeBytes": 8192,
+;       "resources": 0
+;     }
+;   ]
+; }
+;
+; [[[MIDEAS_ARTIFACT:segment_budget.json:END]]]
+
+; ##################################################################
+; BANK 0 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Bootstrap (#4000h-#5FFFh, FIXED window in Konami mapper)
+; Contains: header, bios, constants, variables, mapper, interrupt,
+;           page-0 stubs, far-call trampolines, init_game_systems.
+; All mapper_set_bank calls are here so they execute from this fixed bank.
+; ##################################################################
+
+; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
+; ==================================================================
+; MSX CARTRIDGE ROM HEADER
+; File: header.asm
+; Description: Standard MSX cartridge initialization
+; GameFlow Integration: Using "Main" as execution orchestrator
+; Flow: Start ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ WorldLink (gfn_1776512097888)
+; ==================================================================
+
+    org #4000           ; MSX cartridge start address
+
+; ==================================================================
+; CARTRIDGE HEADER
+; ==================================================================
+    db "AB"             ; MSX cartridge signature
+    dw init_rom         ; Initialization address
+    dw 0                ; Statement handler (not used)
+    dw 0                ; Device handler (not used)
+    dw 0                ; Text handler (not used)
+    dw 0                ; Reserved
+    dw 0                ; Reserved
+    dw 0                ; Reserved
+
+; ==================================================================
+; ROM INITIALIZATION ENTRY POINT
+; ==================================================================
+init_rom:
+    di
+    im 1
+    
+    ; Initialize stack
+    ld sp, #F380
+
+    ; MegaROM cold boot: page 2 (#8000-#BFFF) must be mapped to the
+    ; cartridge slot before writes to Konami registers at #8000/#A000 can work.
+    call SETPAGES32K
+    jp restart_rom_continue
+
+; Restart entry point for GameFlow Restart node.
+; Reinitializes runtime safely without remapping cartridge pages.
+restart_rom:
+    di
+    im 1
+    ld sp, #F380
+
+restart_rom_continue:
+    ; Capture the normal slot state for optional linear 48K page-0 helpers.
+    call init_page0_runtime_state
+
+    ; Initialize mapper runtime state (safe no-op in simple32k mode)
+    call mapper_runtime_init
+
+    ; Initialize cached resource descriptor mirrors used by banked resources.
+    call resource_manager_init
+    ; MEGAROM Konami static bank setup.
+    ; Bank 0 (#4000-#5FFF): fixed. Banks 1-3 map to P1/P2/P3.
+    ld a, 1
+    call mapper_set_bank_p1
+    ld a, 2
+    call mapper_set_bank_p2
+    ld a, 3
+    call mapper_set_bank_p3
+
+
+    ; Reset some interrupts to ensure compatibility
+    ; with MSX computers with disk controllers
+    ld a, #C9
+    ld (HKEY), a
+    ; NOTE: TIMI (H.TIMI) is now managed by init_interrupt_system
+
+    ; Silence click, init keyboard, clear config
+    xor a
+    ld (CLIKSW), a
+    ld (deterministic), a
+    
+    ; Change background colors
+    ld (BAKCLR), a
+    ld (BDRCLR), a
+    call CHGCLR
+
+    ; Disable screen while switching modes / initializing VDP
+    call DISSCR
+
+    ; Change screen mode to SCREEN 2
+    ld a, 2
+    call CHGMOD
+
+    ; Configure 16x16 sprites
+    ; VDP Register #01: activate sprites, generate interrupts, 16x16 sprites
+    ld bc, #E201
+    call FAST_WRTVDP
+    ; CRITICAL: Update BIOS system variable RG1SAV to match
+    ; Without this, DISSCR/ENASCR will overwrite VDP R1 losing 16x16 sprite config
+    ld a, #E2
+    ld (#F3E0), a       ; RG1SAV = #E2 (preserves 16x16 sprite bit)
+
+    ; Detect 50Hz/60Hz
+    call CheckIf60Hz
+    ld (isComputer50HzOr60Hz), a ; 0: 50Hz, 1: 60Hz
+
+    ; ====================================================
+    ; INTERRUPT SYSTEM INITIALIZATION (Konami-style)
+    ; ====================================================
+    ; Initialize interrupt task system (hooks H.TIMI)
+    call init_interrupt_system
+    di
+
+    ; Register default tasks based on project needs
+        ; Initialize PSG/audio once at boot. WorldLink must not reset music after a Music node.
+    call call_init_sound_system_resident
+
+    ; Register boot-time IRQ tasks defined by the engine execution plan.
+    call init_default_tasks_from_plan
+
+
+    ei
+
+    ; ====================================================
+    ; GAMEFLOW INITIALIZATION
+    ; ====================================================
+    ; Initialize GameFlow system
+    call gameflow_init
+
+    ; Start execution from GameFlow Start node
+    ; GameFlow is now the sole orchestrator
+    call ENASCR
+    jp gameflow_start
+
+main_loop:
+    halt
+    call call_task_audio_tick_resident
+    ; Update gameplay state
+    call update_all_entities
+    jp main_loop
+
+
+; ==================================================================
+; AUXILIARY FUNCTIONS
+; ==================================================================
+
+; Helper: Get expanded slot value for ENASLT/CALSLT usage
+; Input:  A = slot number (0-3) in lower bits
+; Output: A = expanded slot value if needed
+GETSLOT:
+    and #03             ; Proteccion, nos aseguramos de que el valor esta en 0-3
+    ld  c,a             ; c = slot de la pagina
+    ld  b,0             ; bc = slot de la pagina
+    ld  hl,#fcc1        ; Tabla de slots expandidos
+    add hl,bc           ; hl -> variable que indica si este slot esta expandido
+    ld  a,(hl)          ; Tomamos el valor
+    and #80             ; Si el bit mas alto es cero...
+    jr  z,GETSLOT_EXIT  ; ...nos vamos a @@EXIT
+    ; --- El slot esta expandido ---
+    or  c               ; Slot basico en el lugar adecuado
+    ld  c,a             ; Guardamos el valor en c
+    inc hl              ; Incrementamos hl una...
+    inc hl              ; ...dos...
+    inc hl              ; ...tres...
+    inc hl              ; ...cuatro veces
+    ld  a,(hl)          ; a = valor del registro de subslot del slot donde estamos
+    and #0C             ; Nos quedamos con el valor donde esta nuestro cartucho
+GETSLOT_EXIT:
+    or  c
+    ret
+
+; From: http://www.z80st.es/downloads/code/
+; SETPAGES32K:  BIOS-ROM-YY-ZZ   -> BIOS-ROM-ROM-ZZ (SITUA PAGINA 2)
+SETPAGES32K:    ; --- Posiciona las paginas de un megarom o un 32K ---
+    ld  a, #C9              ; Codigo de RET
+    ld  (SETPAGES32K_NOPRET), a   ; Modificamos la siguiente instruccion si estamos en RAM
+SETPAGES32K_NOPRET:
+    nop                     ; No hacemos nada si no estamos en RAM
+    ; --- Si llegamos aqui no estamos en RAM, hay que posicionar la pagina ---
+    call RSLREG             ; Leemos el contenido del registro de seleccion de slots
+    rrca                    ; Rotamos a la derecha...
+    rrca                    ; ...dos veces
+    call GETSLOT            ; Obtenemos el slot de la pagina 1 ($4000-$BFFF)
+    ld (ROM_slot), a        ; Save slot for later use
+    ld  h, #80              ; Seleccionamos pagina 2 ($8000-$BFFF)
+    jp  ENASLT              ; Posicionamos la pagina 2 y volvemos
+
+; Source: https://www.msx.org/forum/development/msx-development/how-0?page=0
+; Returns 1 in a and clears z flag if vdp is 60Hz
+CheckIf60Hz:
+    di
+    in      a, (#99)
+    nop
+    nop
+    nop
+vdpSync:
+    in      a, (#99)
+    and     #80
+    jr      z, vdpSync
+
+    ld      hl, #900
+vdpLoop:
+    dec     hl
+    ld      a, h
+    or      l
+    jr      nz, vdpLoop
+
+    in      a, (#99)
+    rlca
+    and     1
+    ei
+    ret
+
+; ==================================================================
+; END OF HEADER
+; ==================================================================
+
+
+; ==================================================================
+; MSX BIOS FUNCTIONS AND ADDRESSES
+; File: bios.asm
+; Description: Standard MSX BIOS function definitions
+; ==================================================================
+
+; ==================================================================
+; MAIN BIOS FUNCTIONS
+; ==================================================================
+
+; Screen and Display
+CHGMOD  EQU #005F        ; Change screen mode (A=mode)
+CHGCLR  EQU #0062        ; Change colors
+CLS     EQU #00C3        ; Clear screen
+POSIT   EQU #00C6        ; Position cursor (H=X, L=Y)
+ERAFNK  EQU #00CC        ; Erase function keys
+DSPFNK  EQU #00CF        ; Display function keys
+DISSCR  EQU #0041        ; Disable screen (prevent flicker)
+ENASCR  EQU #0044        ; Enable screen
+INITXT  EQU #006C        ; Initialize text mode
+INIT32  EQU #006F        ; Initialize screen mode
+INIGRP  EQU #0072        ; Initialize graphics routines
+
+; Character I/O
+CHPUT   EQU #00A2        ; Character output (A=char)
+CHGET   EQU #009F        ; Character input
+CHSNS   EQU #009C        ; Character sense (check key)
+BREAKX  EQU #00B7        ; Check CTRL+STOP
+ISCNTC  EQU #00BA        ; Check CTRL+C
+
+; String I/O
+OUTDO   EQU #005A        ; String output (HL=string)
+
+; Input Devices
+GTSTCK  EQU #00D5        ; Get joystick status (A=port)
+GTTRIG  EQU #00D8        ; Get trigger status (A=port)
+GTPAD   EQU #00DB        ; Get paddle (A=port)
+GTPDL   EQU #00DE        ; Get paddle value
+SNSMAT  EQU #0141        ; Sense matrix (A=row)
+KILBUF  EQU #0156        ; Kill keyboard buffer
+
+; Slot Management
+RSLREG  EQU #0138        ; Read slot register
+WSLREG  EQU #013B        ; Write slot register
+ENASLT  EQU #0024        ; Enable slot (H=page, A=slot)
+CALSLT  EQU #001C        ; Call routine in another slot
+
+; Sound
+GICINI  EQU #0090        ; Initialize PSG
+WRTPSG  EQU #0093        ; Write PSG register (A=reg, E=value)
+RDPSG   EQU #0096        ; Read PSG register (A=reg)
+
+; Graphics VDP
+GRPPRT  EQU #0089        ; Print in graphic mode
+SETGRP  EQU #007E        ; Set graphic mode
+
+; Memory Transfer
+LDIRVM  EQU #005C        ; Block transfer from CPU to VRAM
+LDIRMV  EQU #0059        ; Block transfer from VRAM to CPU
+WRTVDP  EQU #0047        ; Write to VDP register
+WRTVRM  EQU #004D        ; Write data to VRAM (A=data, HL=address)
+
+; File I/O (Disk BIOS) - Not used in cartridge ROMs
+; DSKIO   EQU #004A      ; Disk I/O (conflicts with WRTVRM, not available in cartridge)
+; DSKCHF  EQU #004D      ; Disk change flag (same address as WRTVRM, not used)
+
+; Math
+GETYPR  EQU #0053        ; Get type of variable
+
+; ==================================================================
+; VDP PORTS AND REGISTERS
+; ==================================================================
+
+; VDP Data/Status Ports
+VDPDR   EQU #0098        ; VDP Data Register (Port 0)
+VDPSR   EQU #0099        ; VDP Status Register (Port 1)
+
+; VDP Registers (use with VDPSR)
+VDP_R0  EQU 0            ; Mode register 0
+VDP_R1  EQU 1            ; Mode register 1
+VDP_R2  EQU 2            ; Name table base address
+VDP_R3  EQU 3            ; Color table base address
+VDP_R4  EQU 4            ; Pattern table base address
+VDP_R5  EQU 5            ; Sprite attribute table
+VDP_R6  EQU 6            ; Sprite pattern table
+VDP_R7  EQU 7            ; Text/border color
+
+; System Variables
+HKEY    EQU #F3DB        ; Hook function key (system variable)
+CLIKSW  EQU #F3DC        ; Key click switch
+FORCLR  EQU #F3E8        ; Foreground color
+BAKCLR  EQU #F3E9        ; Background color
+BDRCLR  EQU #F3EA        ; Border color
+isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
+
+; ==================================================================
+; NOTE: Fast hardware access routines (FAST_LDIRVM, FAST_WRTVRM, etc.)
+;       are provided by directHardwareGenerator.ts when hybrid/direct mode
+;       is enabled. See directHardwareGenerator.ts for implementations.
+; ==================================================================
+
+; ==================================================================
+; END OF BIOS DEFINITIONS
+; ==================================================================
+
+; ==================================================================
+; DIRECT HARDWARE ACCESS ROUTINES
+; ==================================================================
+; Mode: HYBRID
+; Optimize Level: safe
+; Debug: DISABLED
+;
+; These routines provide direct hardware access for maximum performance.
+; They replace BIOS calls in performance-critical sections.
+;
+; Performance Gains vs BIOS:
+;   FAST_LDIRVM:  ~40% faster (12,288 vs 20,480 cycles for 256 bytes)
+;   FAST_WRTVRM:  ~43% faster (40 vs 70 cycles)
+;   FAST_WRTVDP:  ~55% faster (25 vs 55 cycles)
+;   FAST_GTSTCK:  ~58% faster (50 vs 120 cycles)
+;   FAST_GTTRIG:  direct trigger read (joystick button)
+;   FAST_SNSMAT:  direct keyboard matrix row read
+;
+; Compatibility: MSX1, MSX2, MSX2+
+; ==================================================================
+
+
+; ==================================================================
+; FAST_LDIRVM - Fast Block Transfer to VRAM
+; ==================================================================
+; Register Contract:
+;   Purpose: Block copy from RAM to VRAM using VDP data port auto-increment.
+;   Inputs:
+;     - HL = source address (RAM)
+;     - DE = destination address (VRAM)
+;     - BC = byte count
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;     - BC
+;     - HL
+;   Preserved:
+;     - DE
+;   Register roles:
+;     - A = VDP address bytes and data byte being transferred
+;     - HL = RAM read pointer (increments each byte)
+;     - DE = only used to program initial VRAM address
+;     - BC = countdown loop counter
+;   Notes:
+;     - Caller must preserve AF/BC/HL if needed after call.
+
+; Replaces BIOS LDIRVM with direct hardware access
+;
+; Input:
+;   HL = Source address (RAM)
+;   DE = Destination address (VRAM)
+;   BC = Byte count
+;
+; Output:
+;   None
+;
+; Destroys:
+;   AF, BC, HL
+;
+; Performance:
+;   ~48 cycles/byte vs BIOS ~80+ cycles/byte
+;   For 256 bytes: 12,288 cycles vs 20,480+ (40% faster)
+;
+; Notes:
+;   - Auto-increments VRAM address (VDP feature)
+;   - Keeps IRQs masked for the whole transfer to avoid VDP port races
+;   - Restores previous IRQ enable state on return
+;   - Works on all MSX models (TMS9918, V9938, V9958)
+; ==================================================================
+FAST_LDIRVM:
+    ; Disable interrupts during VDP port sequence to prevent ISR races.
+    ; Always re-enables on exit (called from main loop where EI is guaranteed).
+    ; NOTE: The old LD A,I / PUSH AF / RET PO pattern is unreliable on Z80 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
+    ; an interrupt between LD A,I and PUSH AF clears P/V, skipping EI and
+    ; leaving interrupts permanently disabled (next HALT locks the system).
+    di
+
+    ; Set VRAM write address
+    ld a, e
+    out (#99), a           ; Write address low byte to VDP
+    nop                    ; Real VDPs need a short settle time between control writes
+    ld a, d
+    or #40                 ; Set bit 6 for write mode
+    out (#99), a           ; Write address high byte + write command
+    nop                    ; Let the VDP latch the address before the first data write
+
+    ; Copy loop
+.ldirvm_loop:
+    ld a, (hl)             ; Read byte from RAM (7 cycles)
+    out (#98), a           ; Write to VRAM data port (11 cycles)
+    inc hl                 ; Next source address (6 cycles)
+    dec bc                 ; Decrement counter (6 cycles)
+    ld a, b                ; Check if BC = 0 (4 cycles)
+    or c                   ; (4 cycles)
+    jr nz, .ldirvm_loop    ; Loop if not zero (12/7 cycles)
+
+    ei
+    ret
+
+
+; ==================================================================
+; FAST_FILLVRM - Fast Repeated Byte Fill to VRAM
+; ==================================================================
+; Register Contract:
+;   Purpose: Fill a sequential VRAM range with one repeated byte using VDP data port auto-increment.
+;   Inputs:
+;     - A = byte to write
+;     - HL = destination address (VRAM)
+;     - BC = byte count
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;     - BC
+;   Preserved:
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = VDP address bytes, loop zero-test, and data byte
+;     - BC = countdown loop counter
+;     - E = cached fill byte while DE is saved on stack
+;     - HL = only used to program initial VRAM address
+;   Notes:
+;     - Returns without touching VRAM when BC = 0.
+;     - Caller must preserve AF/BC if needed after call.
+
+; Replaces small loops that call FAST_WRTVRM for repeated values
+;
+; Input:
+;   A  = Data byte to write
+;   HL = Destination address (VRAM)
+;   BC = Byte count
+;
+; Output:
+;   None
+;
+; Destroys:
+;   AF, BC
+;
+; Performance:
+;   Avoids reprogramming the VDP address for every byte.
+; ==================================================================
+FAST_FILLVRM:
+    push de
+    ld e, a                ; Cache fill byte while AF is free for address setup/checks
+    ld a, b
+    or c
+    jr z, .fill_done
+
+    ; Disable interrupts during VDP port sequence (see FAST_LDIRVM note).
+    di
+
+    ; Set VRAM write address once; the VDP auto-increments after each data write.
+    ld a, l
+    out (#99), a
+    nop
+    ld a, h
+    or #40
+    out (#99), a
+    nop
+
+    ld a, e
+.fill_loop:
+    out (#98), a
+    dec bc
+    ld a, b
+    or c
+    ld a, e
+    jr nz, .fill_loop
+
+    ei
+.fill_done:
+    pop de
+    ret
+
+
+; ==================================================================
+; FAST_WRTVRM - Write Single Byte to VRAM
+; ==================================================================
+; Register Contract:
+;   Purpose: Write one byte into VRAM while preserving caller-visible state.
+;   Inputs:
+;     - A = byte to write
+;     - HL = VRAM destination address
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - None (all registers preserved)
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = temporarily saved/restored around VDP address programming
+;     - HL = VRAM address source (not modified)
+;   Notes:
+;     - Safe helper when the caller cannot tolerate register changes.
+
+; Replaces BIOS WRTVRM
+;
+; Input:
+;   A = Data byte to write
+;   HL = VRAM destination address
+;
+; Output:
+;   None
+;
+; Destroys:
+;   None (all registers preserved)
+;
+; Performance:
+;   ~40 cycles vs BIOS ~70 cycles (43% faster)
+;
+; Notes:
+;   - Preserves all registers including AF
+;   - VDP write sequence is atomic against ISR VRAM writes
+; ==================================================================
+FAST_WRTVRM:
+    ; Preserve caller-visible state. Disable interrupts during VDP write
+    ; (see FAST_LDIRVM note on why LD A,I / RET PO is unsafe).
+    push bc
+    ld c, a                ; C = input data byte
+    push af                ; Save caller AF
+    di
+    ld a, l
+    out (#99), a           ; Address low (11 cycles)
+    ld a, h
+    or #40                 ; Write mode (7 cycles)
+    out (#99), a           ; Address high + command (11 cycles)
+    ld a, c
+    out (#98), a           ; Write to VRAM (11 cycles)
+    pop af                 ; Restore caller AF
+    pop bc
+    ei
+    ret
+
+
+; ==================================================================
+; FAST_RDVRM - Read Single Byte from VRAM
+; ==================================================================
+; Register Contract:
+;   Purpose: Read one byte from VRAM data port.
+;   Inputs:
+;     - HL = VRAM source address
+;   Outputs:
+;     - A = byte read from VRAM
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = VDP addressing command then read result
+;     - HL = address source only (unchanged)
+;   Notes:
+;     - Callers relying on flags must account for AF clobber.
+
+; Replaces BIOS RDVRM
+;
+; Input:
+;   HL = VRAM source address
+;
+; Output:
+;   A = Byte read from VRAM
+;
+; Destroys:
+;   AF
+;
+; Performance:
+;   Slower than a naive single IN, but correct on TMS9918/MSX1 because
+;   VRAM reads require one dummy fetch after setting the address.
+;
+; Notes:
+;   - Useful for collision detection, tile reading
+;   - First IN primes the VDP read-ahead buffer; second IN returns the byte
+; ==================================================================
+FAST_RDVRM:
+    ld a, l
+    out (#99), a           ; Address low
+    ld a, h
+    and #3F                ; Clear bit 6 for read mode (bit 7 must be 0)
+    out (#99), a           ; Address high + read command
+    nop                    ; Let the VDP latch the read address
+    in a, (#98)            ; Dummy read: primes the TMS9918 prefetch buffer
+    in a, (#98)            ; Actual byte from VRAM[HL]
+    ret
+
+
+; ==================================================================
+; FAST_WRTVDP - Write VDP Register
+; ==================================================================
+; Register Contract:
+;   Purpose: Write one VDP register value (value first, then register index).
+;   Inputs:
+;     - B = register value
+;     - C = register number
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = output staging register for both OUT operations
+;     - B/C = preserved input pair for value and register id
+;   Notes:
+;     - Order of writes is mandatory for VDP register writes.
+
+; Replaces BIOS WRTVDP
+;
+; Input:
+;   B = Register value
+;   C = Register number (0-7 for MSX1, 0-23 for MSX2, 0-46 for MSX2+)
+;
+; Output:
+;   None
+;
+; Destroys:
+;   AF
+;
+; Performance:
+;   ~25 cycles vs BIOS ~55 cycles (55% faster)
+;
+; Notes:
+;   - Used for mode changes, colors, scroll, etc.
+;   - Register write order matters: value first, then register number
+; ==================================================================
+FAST_WRTVDP:
+    ld a, b                ; Get register value (4 cycles)
+    out (#99), a           ; Write value first (11 cycles)
+    ld a, c                ; Get register number (4 cycles)
+    or #80                 ; Set bit 7 for register write (7 cycles)
+    out (#99), a           ; Write register select (11 cycles)
+    ret                    ; (10 cycles)
+                           ; Total: ~25 cycles
+
+
+; ==================================================================
+; FAST_GTSTCK - Read Joystick Direction
+; ==================================================================
+; Register Contract:
+;   Purpose: Read joystick direction and map PSG bits to MSX GTSTCK direction code.
+;   Inputs:
+;     - A = joystick port (0 or 1)
+;   Outputs:
+;     - A = direction code (0-8)
+;   Clobbers:
+;     - AF
+;     - HL
+;   Preserved:
+;     - BC
+;     - DE
+;   Register roles:
+;     - A = PSG register selection, raw read, and final direction code
+;     - HL = lookup table pointer into joystick_direction_table
+;   Notes:
+;     - Bits are active-low; routine inverts and masks input nibble.
+
+; Replaces BIOS GTSTCK (which is notoriously slow)
+;
+; Input:
+;   A = Joystick port (0 = port 1, 1 = port 2)
+;
+; Output:
+;   A = Direction code (0-8)
+;       0 = Center (no direction)
+;       1 = Up
+;       2 = Up + Right
+;       3 = Right
+;       4 = Down + Right
+;       5 = Down
+;       6 = Down + Left
+;       7 = Left
+;       8 = Up + Left
+;
+; Destroys:
+;   AF, HL
+;
+; Performance:
+;   ~50 cycles vs BIOS ~120+ cycles (58% faster)
+;
+; Notes:
+;   - Reads from PSG register 14 (port 1) or 15 (port 2)
+;   - Joystick bits are active-low (inverted)
+;   - Uses lookup table for direction decoding
+; ==================================================================
+FAST_GTSTCK:
+    ; Calculate PSG register: 14 (port 1) or 15 (port 2)
+    rrca                   ; A = A / 2 (joystick port becomes 0 or 8)
+    and #0F                ; Mask to valid range
+    or #0E                 ; Add 14 (base register for joystick)
+
+    ; Make PSG select+read atomic so VBlank music writes cannot
+    ; corrupt the selected register mid-access.
+    di
+    out (#A0), a           ; Write register number to PSG address port
+    in a, (#A2)            ; Read value from PSG data port
+    ei
+
+    ; Process joystick data
+    cpl                    ; Invert bits (joystick is active-low)
+    and #0F                ; Mask to 4 direction bits (Up, Down, Left, Right)
+
+    ; Lookup direction code from table
+    ld hl, joystick_direction_table
+    add a, l               ; Add offset to table base
+    ld l, a
+    adc a, h               ; Handle carry if table crosses page boundary
+    sub l
+    ld h, a
+    ld a, (hl)             ; Get direction code (0-8)
+    ret
+
+; Direction lookup table (16 entries for all 4-bit combinations)
+; MSX PSG register 14 joystick bit order:
+;   Bit 0 = Up    (0001)
+;   Bit 1 = Down  (0010)
+;   Bit 2 = Left  (0100)
+;   Bit 3 = Right (1000)
+; Value: GTSTCK-compatible direction code (0-8)
+joystick_direction_table:
+    db 0  ; 0000 = Center
+    db 1  ; 0001 = Up
+    db 5  ; 0010 = Down
+    db 0  ; 0011 = Up+Down (invalid)
+    db 7  ; 0100 = Left
+    db 8  ; 0101 = Up+Left
+    db 6  ; 0110 = Down+Left
+    db 0  ; 0111 = Invalid
+    db 3  ; 1000 = Right
+    db 2  ; 1001 = Up+Right
+    db 4  ; 1010 = Down+Right
+    db 0  ; 1011 = Invalid
+    db 0  ; 1100 = Left+Right (invalid)
+    db 0  ; 1101 = Invalid
+    db 0  ; 1110 = Invalid
+    db 0  ; 1111 = All directions (invalid)
+
+
+; ==================================================================
+; FAST_GTTRIG - Read Joystick Trigger
+; ==================================================================
+; Register Contract:
+;   Purpose: Read joystick trigger bit directly from PSG register.
+;   Inputs:
+;     - A = joystick port (0 or 1)
+;   Outputs:
+;     - A = #FF if pressed, #00 if released
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = register select, raw PSG read, and normalized return value
+;   Notes:
+;     - Trigger is active-low in PSG bit 4.
+
+; Direct hardware replacement for BIOS GTTRIG
+;
+; Input:
+;   A = Joystick port (0 = port 1, 1 = port 2)
+;
+; Output:
+;   A = #FF if pressed, 0 if released
+;
+; Destroys:
+;   AF
+;
+; Notes:
+;   - Reads PSG register 14/15 directly
+;   - Trigger bit is active-low
+; ==================================================================
+FAST_GTTRIG:
+    ; Calculate PSG register: 14 (port 1) or 15 (port 2)
+    rrca
+    and #0F
+    or #0E
+
+    ; Make PSG select+read atomic so VBlank music writes cannot
+    ; corrupt the selected register mid-access.
+    di
+    out (#A0), a
+    in a, (#A2)
+    ei
+
+    ; Trigger bit (bit 4): 0 when pressed, 1 when released
+    and #10
+    ld a, #00
+    ret nz
+    ld a, #FF
+    ret
+
+
+; ==================================================================
+; FAST_SNSMAT - Sense Keyboard Matrix Row
+; ==================================================================
+; Register Contract:
+;   Purpose: Select keyboard matrix row via PPI and return row state.
+;   Inputs:
+;     - A = matrix row (0-11)
+;   Outputs:
+;     - A = row bits (active-low)
+;   Clobbers:
+;     - AF
+;     - C
+;   Preserved:
+;     - B
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = row selector composition and final row read
+;     - C = cached low nibble used to build PPI port C output
+;   Notes:
+;     - Upper nibble of current PPI port C is preserved.
+
+; Direct hardware replacement for BIOS SNSMAT
+;
+; Input:
+;   A = row (0-11)
+;
+; Output:
+;   A = row bits (active-low, 0=pressed)
+;
+; Destroys:
+;   AF, C
+; ==================================================================
+FAST_SNSMAT:
+    and #0F                 ; Keep valid row bits
+    ld c, a
+    in a, (#AA)             ; Read current PPI port C
+    and #F0                 ; Preserve upper nibble
+    or c                    ; Set keyboard row in lower nibble
+    out (#AA), a            ; Select row
+    in a, (#A9)             ; Read keyboard matrix row
+    ret
+
+
+; ==================================================================
+; END OF DIRECT HARDWARE ROUTINES
+; ==================================================================
+
+
+; ==================================================================
+; MSX SYSTEM CONSTANTS
+; File: constants.asm
+; Description: MSX hardware constants and project-specific definitions
+; ==================================================================
+
+; ==================================================================
+; VRAM LAYOUT - SCREEN 2 MODE
+; ==================================================================
+
+; Pattern Generator Table (PGT) - 3 Banks
+CHRTBL  EQU #0000        ; Pattern table base address (alias)
+CHRTBL2 EQU #0000        ; Pattern table base address (Bank 0)
+; Bank 1: CHRTBL2 + #800   (#0800)
+; Bank 2: CHRTBL2 + #1000  (#1000)
+
+; Color Attribute Table (CAT) - 3 Banks
+CLRTBL  EQU #2000        ; Color table base address (alias)
+CLRTBL2 EQU #2000        ; Color table base address (Bank 0)
+; Bank 1: CLRTBL2 + #800   (#2800)
+; Bank 2: CLRTBL2 + #1000  (#3000)
+
+; Other VRAM Areas
+NAMETBL EQU #1800        ; Name table base address
+SPRATR  EQU #1B00        ; Sprite attribute table
+SPRPAT  EQU #3800        ; Sprite pattern table
+
+; ==================================================================
+; SCREEN MODES
+; ==================================================================
+SCREEN0     EQU 0        ; 40x24 text
+SCREEN1     EQU 1        ; 32x24 text/graphics
+SCREEN2     EQU 2        ; 256x192 graphics
+SCREEN3     EQU 3        ; 64x48 multicolor
+
+; ==================================================================
+; SCREEN DIMENSIONS (DYNAMIC BASED ON PROJECT TILES)
+; ==================================================================
+
+; Project-specific tile dimensions detected:
+; Tile 0: rajol1 = 16x16px (2x2 MSX chars)
+; Tile 1: senefa1 = 8x8px (1x1 MSX chars)
+; Tile 2: corda = 8x8px (1x1 MSX chars)
+; Tile 3: gema = 8x8px (1x1 MSX chars)
+; Tile 4: gema_f0 = 8x8px (1x1 MSX chars)
+; Tile 5: rajola = 8x8px (1x1 MSX chars)
+; Tile 6: rajol_terra5 = 16x16px (2x2 MSX chars)
+; Tile 7: gem_extra_jump = 8x8px (1x1 MSX chars)
+; Tile 8: rajol_vermell = 8x8px (1x1 MSX chars)
+; Tile 9: gem_extra_jump_f0 = 8x8px (1x1 MSX chars)
+; Tile 10: rajola2 = 8x8px (1x1 MSX chars)
+; Tile 11: punxa1 = 8x8px (1x1 MSX chars)
+; Tile 12: cor = 16x16px (2x2 MSX chars)
+; Tile 13: Goal = 24x8px (3x1 MSX chars)
+; Tile 14: finish = 8x8px (1x1 MSX chars)
+; Tile 15: line = 8x8px (1x1 MSX chars)
+; Tile 16: HEART1 = 8x8px (1x1 MSX chars)
+; Tile 17: clock = 8x8px (1x1 MSX chars)
+; Tile 18: tile_hud = 8x8px (1x1 MSX chars)
+; Tile 19: rajol2 = 16x16px (2x2 MSX chars)
+; Tile 20: rajol3 = 16x16px (2x2 MSX chars)
+; Tile 21: punxes1 = 8x8px (1x1 MSX chars)
+; Tile 22: New Boss_part_4_5 = 8x8px (1x1 MSX chars)
+; Tile 23: New Boss_part_4_4 = 8x8px (1x1 MSX chars)
+; Tile 24: New Boss_part_4_4 = 8x8px (1x1 MSX chars)
+; Tile 25: New Boss_part_2_2 = 8x8px (1x1 MSX chars)
+; Tile 26: New Boss_part_3_5 = 8x8px (1x1 MSX chars)
+; Tile 27: New Boss_part_4_2 = 8x8px (1x1 MSX chars)
+; Tile 28: New Boss_part_4_2_mirror_h = 8x8px (1x1 MSX chars)
+; Tile 29: New Boss_part_4_5_mirror_h = 8x8px (1x1 MSX chars)
+; Tile 30: New Boss_part_4_4_mirror_h = 8x8px (1x1 MSX chars)
+; Tile 31: New Boss_part_1_3 = 8x8px (1x1 MSX chars)
+; Tile 32: monster_felino_msx_B0_000 = 8x8px (1x1 MSX chars)
+; Tile 33: monster_felino_msx_B0_001 = 8x8px (1x1 MSX chars)
+; Tile 34: monster_felino_msx_B0_002 = 8x8px (1x1 MSX chars)
+; Tile 35: monster_felino_msx_B0_003 = 8x8px (1x1 MSX chars)
+; Tile 36: monster_felino_msx_B0_004 = 8x8px (1x1 MSX chars)
+; Tile 37: monster_felino_msx_B0_005 = 8x8px (1x1 MSX chars)
+; Tile 38: monster_felino_msx_B0_006 = 8x8px (1x1 MSX chars)
+; Tile 39: monster_felino_msx_B0_007 = 8x8px (1x1 MSX chars)
+; Tile 40: monster_felino_msx_B0_008 = 8x8px (1x1 MSX chars)
+; Tile 41: monster_felino_msx_B0_009 = 8x8px (1x1 MSX chars)
+; Tile 42: monster_felino_msx_B0_010 = 8x8px (1x1 MSX chars)
+; Tile 43: monster_felino_msx_B0_011 = 8x8px (1x1 MSX chars)
+; Tile 44: monster_felino_msx_B0_012 = 8x8px (1x1 MSX chars)
+; Tile 45: monster_felino_msx_B0_013 = 8x8px (1x1 MSX chars)
+; Tile 46: monster_felino_msx_B0_014 = 8x8px (1x1 MSX chars)
+; Tile 47: monster_felino_msx_B0_015 = 8x8px (1x1 MSX chars)
+; Tile 48: monster_felino_msx_B0_016 = 8x8px (1x1 MSX chars)
+; Tile 49: monster_felino_msx_B0_017 = 8x8px (1x1 MSX chars)
+; Tile 50: monster_felino_msx_B0_018 = 8x8px (1x1 MSX chars)
+; Tile 51: monster_felino_msx_B0_019 = 8x8px (1x1 MSX chars)
+; Tile 52: monster_felino_msx_B0_020 = 8x8px (1x1 MSX chars)
+; Tile 53: monster_felino_msx_B0_021 = 8x8px (1x1 MSX chars)
+; Tile 54: monster_felino_msx_B0_022 = 8x8px (1x1 MSX chars)
+; Tile 55: monster_felino_msx_B0_023 = 8x8px (1x1 MSX chars)
+; Tile 56: monster_felino_msx_B0_024 = 8x8px (1x1 MSX chars)
+; Tile 57: monster_felino_msx_B0_025 = 8x8px (1x1 MSX chars)
+; Tile 58: monster_felino_msx_B0_026 = 8x8px (1x1 MSX chars)
+; Tile 59: monster_felino_msx_B0_027 = 8x8px (1x1 MSX chars)
+; Tile 60: monster_felino_msx_B0_028 = 8x8px (1x1 MSX chars)
+; Tile 61: monster_felino_msx_B0_029 = 8x8px (1x1 MSX chars)
+; Tile 62: monster_felino_msx_B0_030 = 8x8px (1x1 MSX chars)
+; Tile 63: monster_felino_msx_B0_031 = 8x8px (1x1 MSX chars)
+; Tile 64: monster_felino_msx_B0_032 = 8x8px (1x1 MSX chars)
+; Tile 65: monster_felino_msx_B0_033 = 8x8px (1x1 MSX chars)
+; Tile 66: monster_felino_msx_B0_034 = 8x8px (1x1 MSX chars)
+; Tile 67: monster_felino_msx_B0_035 = 8x8px (1x1 MSX chars)
+; Tile 68: monster_felino_msx_B0_036 = 8x8px (1x1 MSX chars)
+; Tile 69: monster_felino_msx_B0_037 = 8x8px (1x1 MSX chars)
+; Tile 70: monster_felino_msx_B0_038 = 8x8px (1x1 MSX chars)
+; Tile 71: monster_felino_msx_B0_039 = 8x8px (1x1 MSX chars)
+; Tile 72: monster_felino_msx_B0_040 = 8x8px (1x1 MSX chars)
+; Tile 73: single_1_B0_000 = 8x8px (1x1 MSX chars)
+; Tile 74: single_1_B0_001 = 8x8px (1x1 MSX chars)
+; Tile 75: single_1_B0_002 = 8x8px (1x1 MSX chars)
+; Tile 76: single_1_B0_003 = 8x8px (1x1 MSX chars)
+; Tile 77: single_1_B0_004 = 8x8px (1x1 MSX chars)
+; Tile 78: single_1_B0_005 = 8x8px (1x1 MSX chars)
+; Tile 79: single_1_B0_006 = 8x8px (1x1 MSX chars)
+; Tile 80: single_1_B0_007 = 8x8px (1x1 MSX chars)
+; Tile 81: single_1_B0_008 = 8x8px (1x1 MSX chars)
+; Tile 82: single_1_B0_009 = 8x8px (1x1 MSX chars)
+; Tile 83: single_1_B0_010 = 8x8px (1x1 MSX chars)
+; Tile 84: single_1_B0_011 = 8x8px (1x1 MSX chars)
+; Tile 85: single_1_B0_012 = 8x8px (1x1 MSX chars)
+; Tile 86: single_1_B0_013 = 8x8px (1x1 MSX chars)
+; Tile 87: single_1_B0_014 = 8x8px (1x1 MSX chars)
+; Tile 88: single_1_B0_015 = 8x8px (1x1 MSX chars)
+; Tile 89: single_1_B0_016 = 8x8px (1x1 MSX chars)
+; Tile 90: single_1_B0_017 = 8x8px (1x1 MSX chars)
+; Tile 91: single_1_B0_018 = 8x8px (1x1 MSX chars)
+; Tile 92: single_1_B0_019 = 8x8px (1x1 MSX chars)
+; Tile 93: single_1_B0_020 = 8x8px (1x1 MSX chars)
+; Tile 94: single_1_B0_021 = 8x8px (1x1 MSX chars)
+; Tile 95: single_1_B0_022 = 8x8px (1x1 MSX chars)
+; Tile 96: single_1_B0_023 = 8x8px (1x1 MSX chars)
+; Tile 97: single_1_B0_024 = 8x8px (1x1 MSX chars)
+; Tile 98: single_1_B0_025 = 8x8px (1x1 MSX chars)
+; Tile 99: single_1_B0_026 = 8x8px (1x1 MSX chars)
+; Tile 100: single_1_B0_027 = 8x8px (1x1 MSX chars)
+; Tile 101: single_1_B0_028 = 8x8px (1x1 MSX chars)
+; Tile 102: single_1_B0_029 = 8x8px (1x1 MSX chars)
+; Tile 103: single_1_B0_030 = 8x8px (1x1 MSX chars)
+; Tile 104: single_1_B0_031 = 8x8px (1x1 MSX chars)
+; Tile 105: single_1_B0_032 = 8x8px (1x1 MSX chars)
+; Tile 106: single_1_B0_033 = 8x8px (1x1 MSX chars)
+; Tile 107: single_1_B0_034 = 8x8px (1x1 MSX chars)
+; Tile 108: single_1_B0_035 = 8x8px (1x1 MSX chars)
+; Tile 109: single_1_B0_036 = 8x8px (1x1 MSX chars)
+; Tile 110: single_1_B1_000 = 8x8px (1x1 MSX chars)
+; Tile 111: single_1_B1_001 = 8x8px (1x1 MSX chars)
+; Tile 112: single_1_B1_002 = 8x8px (1x1 MSX chars)
+; Tile 113: single_1_B1_003 = 8x8px (1x1 MSX chars)
+; Tile 114: single_1_B1_004 = 8x8px (1x1 MSX chars)
+; Tile 115: single_1_B1_005 = 8x8px (1x1 MSX chars)
+; Tile 116: single_1_B1_006 = 8x8px (1x1 MSX chars)
+; Tile 117: single_1_B1_007 = 8x8px (1x1 MSX chars)
+; Tile 118: single_1_B1_008 = 8x8px (1x1 MSX chars)
+; Tile 119: single_1_B1_009 = 8x8px (1x1 MSX chars)
+; Tile 120: single_1_B1_010 = 8x8px (1x1 MSX chars)
+; Tile 121: single_1_B1_011 = 8x8px (1x1 MSX chars)
+; Tile 122: single_1_B1_012 = 8x8px (1x1 MSX chars)
+; Tile 123: single_1_B1_013 = 8x8px (1x1 MSX chars)
+; Tile 124: single_1_B1_014 = 8x8px (1x1 MSX chars)
+; Tile 125: single_1_B1_015 = 8x8px (1x1 MSX chars)
+; Tile 126: single_1_B1_016 = 8x8px (1x1 MSX chars)
+; Tile 127: single_1_B1_017 = 8x8px (1x1 MSX chars)
+; Tile 128: single_1_B1_018 = 8x8px (1x1 MSX chars)
+; Tile 129: single_1_B1_019 = 8x8px (1x1 MSX chars)
+; Tile 130: single_1_B1_020 = 8x8px (1x1 MSX chars)
+; Tile 131: single_1_B1_021 = 8x8px (1x1 MSX chars)
+; Tile 132: single_1_B1_022 = 8x8px (1x1 MSX chars)
+; Tile 133: single_1_B1_023 = 8x8px (1x1 MSX chars)
+; Tile 134: single_1_B1_024 = 8x8px (1x1 MSX chars)
+; Tile 135: single_1_B1_025 = 8x8px (1x1 MSX chars)
+; Tile 136: single_1_B1_026 = 8x8px (1x1 MSX chars)
+; Tile 137: single_1_B1_027 = 8x8px (1x1 MSX chars)
+; Tile 138: single_1_B1_028 = 8x8px (1x1 MSX chars)
+; Tile 139: single_1_B1_029 = 8x8px (1x1 MSX chars)
+; Tile 140: single_1_B1_030 = 8x8px (1x1 MSX chars)
+; Tile 141: single_1_B1_031 = 8x8px (1x1 MSX chars)
+; Tile 142: single_1_B1_032 = 8x8px (1x1 MSX chars)
+; Tile 143: single_1_B1_033 = 8x8px (1x1 MSX chars)
+; Tile 144: single_1_B1_034 = 8x8px (1x1 MSX chars)
+; Tile 145: single_1_B1_035 = 8x8px (1x1 MSX chars)
+; Tile 146: single_1_B1_036 = 8x8px (1x1 MSX chars)
+; Tile 147: single_1_B1_037 = 8x8px (1x1 MSX chars)
+; Tile 148: single_1_B1_038 = 8x8px (1x1 MSX chars)
+; Tile 149: single_1_B1_039 = 8x8px (1x1 MSX chars)
+; Tile 150: single_1_B1_040 = 8x8px (1x1 MSX chars)
+; Tile 151: single_1_B1_041 = 8x8px (1x1 MSX chars)
+; Tile 152: single_1_B1_042 = 8x8px (1x1 MSX chars)
+; Tile 153: single_1_B1_043 = 8x8px (1x1 MSX chars)
+; Tile 154: single_1_B1_044 = 8x8px (1x1 MSX chars)
+; Tile 155: single_1_B1_045 = 8x8px (1x1 MSX chars)
+
+; Using primary tile size: 16x16px
+TILE_WIDTH      EQU 16    ; Primary tile width in pixels
+TILE_HEIGHT     EQU 16   ; Primary tile height in pixels
+SCREEN_TILES_X  EQU 16    ; Horizontal tiles (256px ÃƒÆ’Ã‚Â· 16px)
+SCREEN_TILES_Y  EQU 12   ; Vertical tiles (192px ÃƒÆ’Ã‚Â· 16px)
+MSX_CHARS_PER_TILE_X EQU 2  ; MSX characters wide per tile
+MSX_CHARS_PER_TILE_Y EQU 2 ; MSX characters high per tile
+
+
+
+; ==================================================================
+; MSX COLORS
+; ==================================================================
+TRANSPARENT EQU 0
+BLACK       EQU 1
+MEDIUM_GREEN EQU 2
+LIGHT_GREEN EQU 3
+DARK_BLUE   EQU 4
+LIGHT_BLUE  EQU 5
+DARK_RED    EQU 6
+CYAN        EQU 7
+MEDIUM_RED  EQU 8
+LIGHT_RED   EQU 9
+DARK_YELLOW EQU 10
+LIGHT_YELLOW EQU 11
+DARK_GREEN  EQU 12
+MAGENTA     EQU 13
+GRAY        EQU 14
+WHITE       EQU 15
+
+; ==================================================================
+; INPUT CONSTANTS
+; ==================================================================
+
+; Joystick Directions
+STICK_UP    EQU 1
+STICK_UPRIGHT EQU 2
+STICK_RIGHT EQU 3
+STICK_DOWNRIGHT EQU 4
+STICK_DOWN  EQU 5
+STICK_DOWNLEFT EQU 6
+STICK_LEFT  EQU 7
+STICK_UPLEFT EQU 8
+STICK_CENTER EQU 0
+
+; Trigger Constants
+TRIG_A      EQU #10      ; Trigger A (Fire)
+TRIG_B      EQU #20      ; Trigger B (MSX2+)
+
+; Input Button Bitmask
+INPUT_BTN_FIRE EQU #01   ; Fire/Space button bit in input_btn_curr/input_btn_prev
+INPUT_BTN_GRAB EQU #02   ; Grab button bit in input_btn_curr/input_btn_prev
+
+; Direction flags shared by input/state machine helpers
+DIR_ALLOW_UP     EQU #01 ; Bit 0: Allow UP movement
+DIR_ALLOW_DOWN   EQU #02 ; Bit 1: Allow DOWN movement
+DIR_ALLOW_LEFT   EQU #04 ; Bit 2: Allow LEFT movement
+DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
+
+; ==================================================================
+; TILE BEHAVIOR CONSTANTS (for collision detection)
+; ==================================================================
+
+; Tile Behavior encoding matches TileEditor logicalProperties.mapId:
+;   bits 7-4 = solidity family
+;   bits 3-0 = property flags
+TILE_PASSABLE       EQU #00    ; Family 0: passable / no-solid
+TILE_SOLID          EQU #10    ; Family 1: solid wall/floor
+TILE_PLATFORM       EQU #20    ; Family 2: top-solid platform
+TILE_SLOPE          EQU #30    ; Family 3: slope / custom solid family
+TILE_BREAKABLE      EQU #01    ; Flag bit 0
+TILE_MOVABLE        EQU #02    ; Flag bit 1
+TILE_DEADLY         EQU #04    ; Flag bit 2: causesDamage
+TILE_INTERACTABLE   EQU #08    ; Flag bit 3: isInteractiveSwitch
+
+; Collision Directions (for platform logic)
+COLL_FROM_ABOVE     EQU #01    ; Entity approaching from above
+COLL_FROM_BELOW     EQU #02    ; Entity approaching from below
+COLL_FROM_LEFT      EQU #04    ; Entity approaching from left
+COLL_FROM_RIGHT     EQU #08    ; Entity approaching from right
+
+; Entity Collision Layer Presets (entity_collision_layer / entity_collides_with)
+COLLISION_LAYER_PLAYER      EQU #01
+COLLISION_LAYER_ENEMY       EQU #02
+COLLISION_LAYER_PROJECTILE  EQU #04
+COLLISION_LAYER_PLATFORM    EQU #08
+COLLISION_LAYER_ITEM        EQU #10
+
+; Entity-Entity Collision Event Flags (entity_entity_collision_flags)
+COLLISION_EVENT_ENTITY      EQU #01
+COLLISION_EVENT_ENEMY       EQU #02
+COLLISION_EVENT_ITEM        EQU #04
+
+; ==================================================================
+; MIDEAS GLOBAL VARIABLES - CONSTANTS FOR VALUES
+; ==================================================================
+
+
+; Score - Current player score (0-65535)
+UNKNOWN                 EQU 0    ; Score = "Custom Value"
+
+; TimeRemaining - Time remaining in seconds (0-65535)
+
+
+; ==================================================================
+; GAME FLOW STATES (PROJECT-SPECIFIC)
+; ==================================================================
+
+; Basic Game Flow States (always available)
+FLOW_STATE_MAIN_MENU    EQU 0
+FLOW_STATE_GAME         EQU 1
+FLOW_STATE_PAUSE        EQU 2
+FLOW_STATE_GAME_OVER    EQU 3
+FLOW_STATE_CREDITS      EQU 4
+
+; GameFlow Node Types
+NODE_TYPE_START         EQU 0    ; Start node (initial entry point)
+NODE_TYPE_WORLDLINK     EQU 1    ; World link node (loads world map)
+NODE_TYPE_WORLD_LINK    EQU 1    ; Alias with underscore (for compatibility)
+NODE_TYPE_SCREEN        EQU 2    ; Screen node (loads specific screen)
+NODE_TYPE_MENU          EQU 3    ; Menu node (shows menu interface)
+NODE_TYPE_SUBMENU       EQU 3    ; Alias for menu node
+NODE_TYPE_SUB_MENU      EQU 3    ; Alias with underscore (for compatibility)
+NODE_TYPE_TEXT          EQU 4    ; Text node (displays text)
+NODE_TYPE_TRANSITION    EQU 5    ; Transition node
+NODE_TYPE_RESTART       EQU 6    ; Restart node (restart game/level)
+NODE_TYPE_END           EQU 7    ; End node (game over, victory, credits)
+NODE_TYPE_IF_THEN_ELSE  EQU 8    ; IfThenElse node (conditional branch)
+NODE_TYPE_GLOBALS       EQU 9    ; Globals node (global variable ops)
+NODE_TYPE_WAYPOINT      EQU 10   ; Waypoint node (routing marker)
+NODE_TYPE_GROUP         EQU 11   ; Group node (nested flow)
+NODE_TYPE_MUSIC         EQU 12   ; Music node (audio command)
+NODE_TYPE_PRESENTATION_SCREEN EQU 13 ; Presentation Screen node (static tile screen)
+NODE_TYPE_UNKNOWN       EQU 255  ; Unknown/unsupported node type
+
+; Additional Game Flow States detected in project
+; (Custom states would be added here if needed)
+
+
+; ==================================================================
+; PROJECT-SPECIFIC CONSTANTS
+; ==================================================================
+
+; Detected Assets
+TOTAL_SPRITES           EQU 12
+TOTAL_TILES             EQU 156
+TOTAL_SCREENS           EQU 2
+
+; ==================================================================
+; END OF CONSTANTS
+; ==================================================================
+
+
+; ==================================================================
+; RAM VARIABLES DEFINITIONS
+; File: variables.asm
+; Description: Dynamic variable allocation using EQU addresses
+; Generated based on project analysis
+; ==================================================================
+
+; ==================================================================
+; CORE SYSTEM VARIABLES (ALWAYS PRESENT)
+; ==================================================================
+input_state         EQU #C000   ; Current direction state (0-8)
+prev_input_state    EQU #C001   ; Previous direction state (0-8)
+input_btn_curr      EQU #C002   ; Current input buttons bitmask (bit0=fire, bit1=grab)
+input_btn_prev      EQU #C003   ; Previous input buttons bitmask (bit0=fire, bit1=grab)
+input_fire          EQU #C004   ; Fire button state (0=released, 1=pressed)
+boss_runtime_tick   EQU #C005   ; Boss runtime frame counter
+current_screen_boss_count EQU #C006   ; Boss placements assigned to current screen
+current_screen_boss_table EQU #C007   ; Pointer to current screen boss placement table (16-bit)
+current_screen_boss_table_bank EQU #C009   ; Mapper bank for current screen boss placement table
+current_screen_boss_entry EQU #C00A   ; First current-screen boss placement copied to RAM (11 bytes)
+boss_active         EQU #C015   ; 1 when a screen boss is active
+boss_health_lo      EQU #C016   ; Active boss health low byte
+boss_health_hi      EQU #C017   ; Active boss health high byte
+boss_hit_cooldown   EQU #C018   ; Frames until boss can receive dash damage again
+boss_phase_table_ptr EQU #C019   ; Active boss phase table pointer (16-bit)
+boss_attack_table_ptr EQU #C01B   ; Active boss attack table pointer (16-bit)
+boss_phase_ptr      EQU #C01D   ; Active boss phase record pointer (16-bit)
+boss_tile_matrix_ptr EQU #C01F   ; Active boss tile matrix pointer (16-bit)
+boss_x_char         EQU #C021   ; Active boss X in screen chars
+boss_y_char         EQU #C022   ; Active boss Y in screen chars
+boss_prev_x_char    EQU #C023   ; Previous boss X in screen chars for redraw restore
+boss_prev_y_char    EQU #C024   ; Previous boss Y in screen chars for redraw restore
+boss_initial_phase_index EQU #C025   ; Active boss initial phase index
+boss_width          EQU #C026   ; Active boss width in chars
+boss_height         EQU #C027   ; Active boss height in chars
+boss_behavior_table_ptr EQU #C028   ; Active boss behavior table pointer (16-bit)
+boss_form_table_ptr EQU #C02A   ; Active boss visual form table pointer (16-bit)
+boss_weak_matrix_ptr EQU #C02C   ; Active boss weak-point matrix pointer (16-bit)
+boss_behavior_action_ptr EQU #C02E   ; Current boss behavior action pointer (16-bit)
+boss_behavior_count EQU #C030   ; Active boss behavior action count
+boss_behavior_index EQU #C031   ; Current boss behavior action index
+boss_behavior_timer EQU #C032   ; Frames remaining in current boss behavior action
+boss_behavior_duration EQU #C033   ; Current boss behavior action duration
+boss_behavior_step_interval EQU #C034   ; Frames between tile movement steps
+boss_behavior_step_timer EQU #C035   ; Countdown until next tile movement step
+boss_update_interval EQU #C036   ; Frames between ASM boss updates (1=every frame)
+boss_update_timer EQU #C037   ; Countdown until next ASM boss update
+boss_behavior_action_type EQU #C038   ; Current boss behavior action type
+boss_behavior_target_type EQU #C039   ; Current boss behavior target type
+boss_behavior_target_x EQU #C03A   ; Current boss behavior target X char
+boss_behavior_target_y EQU #C03B   ; Current boss behavior target Y char
+boss_behavior_aux0 EQU #C03C   ; Current boss behavior auxiliary byte 0
+boss_behavior_aux1 EQU #C03D   ; Current boss behavior auxiliary byte 1
+boss_behavior_aux2 EQU #C03E   ; Current boss behavior auxiliary byte 2
+boss_visual_dirty   EQU #C03F   ; Non-zero when boss tile matrix/form changed and needs redraw
+boss_draw_row       EQU #C040   ; Boss tile draw row scratch
+boss_draw_col       EQU #C041   ; Boss tile draw column scratch
+boss_restore_row    EQU #C042   ; Boss previous footprint restore row scratch
+boss_restore_col    EQU #C043   ; Boss previous footprint restore column scratch
+boss_draw_char      EQU #C044   ; Boss tile draw char scratch
+boss_draw_screen_x  EQU #C045   ; Boss tile draw screen X scratch
+boss_draw_screen_y  EQU #C046   ; Boss tile draw screen Y scratch
+boss_projectile_active EQU #C047   ; 1 when the simple boss projectile is active
+boss_projectile_x   EQU #C048   ; Simple boss projectile X in pixels
+boss_projectile_y   EQU #C049   ; Simple boss projectile Y in pixels
+boss_projectile_sprite_slot EQU #C04A   ; HW sprite slot for simple boss projectile
+boss_projectile_color EQU #C04B   ; Simple boss projectile sprite color
+boss_projectile_color2 EQU #C04C   ; Simple boss projectile second layer color
+boss_projectile_pattern EQU #C04D   ; Simple boss projectile base pattern
+boss_projectile_speed EQU #C04E   ; Simple boss projectile speed
+boss_projectile_range EQU #C04F   ; Simple boss projectile max travel distance
+boss_projectile_distance EQU #C050   ; Simple boss projectile current travelled distance
+boss_projectile_vel_x EQU #C051   ; Signed boss projectile X velocity
+boss_projectile_vel_y EQU #C052   ; Signed boss projectile Y velocity
+boss_projectile_abs_x EQU #C053   ; Absolute X delta toward player
+boss_projectile_abs_y EQU #C054   ; Absolute Y delta toward player
+boss_projectile_sign_x EQU #C055   ; 1 when player is left of projectile origin
+boss_projectile_sign_y EQU #C056   ; 1 when player is above projectile origin
+boss_projectile_frame_count EQU #C057   ; Animation frame count for simple boss projectile
+boss_projectile_layer_count EQU #C058   ; HW sprite layer count for simple boss projectile
+boss_slam_rocks_active EQU #C059   ; 1 while SlamRocks sequence is active
+boss_slam_rocks_age EQU #C05A   ; SlamRocks local frame age
+boss_slam_rocks_origin_y EQU #C05B   ; Boss Y before SlamRocks starts
+boss_slam_rocks_rise_chars EQU #C05C   ; Chars boss rises before impact
+boss_slam_rocks_windup EQU #C05D   ; Raised frames before impact
+boss_slam_rocks_slam EQU #C05E   ; Drop frames before rocks begin
+boss_slam_rocks_hold EQU #C05F   ; Ground hold frames before rocks begin
+boss_slam_rocks_duration EQU #C060   ; Total SlamRocks active frames
+boss_slam_rocks_count EQU #C061   ; Falling rock count
+boss_slam_rocks_index EQU #C062   ; Current falling rock lane index
+boss_slam_rocks_rng  EQU #C063   ; Local SlamRocks random seed
+boss_slam_rocks_sprite_slot EQU #C064   ; First HW sprite slot for SlamRocks rocks
+boss_slam_rocks_color EQU #C065   ; SlamRocks rock sprite color
+boss_slam_rocks_pattern EQU #C066   ; SlamRocks rock base pattern
+boss_slam_rocks_speed EQU #C067   ; SlamRocks rock fall speed
+boss_slam_rocks_range EQU #C068   ; SlamRocks rock fall range
+boss_slam_rock_x0    EQU #C069   ; SlamRocks lane 0 X
+boss_slam_rock_x1    EQU #C06A   ; SlamRocks lane 1 X
+boss_slam_rock_x2    EQU #C06B   ; SlamRocks lane 2 X
+boss_slam_rock_x3    EQU #C06C   ; SlamRocks lane 3 X
+boss_falling_blocks_active EQU #C06D   ; 1 while FallingBlocks sequence is active
+boss_falling_blocks_age EQU #C06E   ; FallingBlocks local frame age
+boss_falling_blocks_count EQU #C06F   ; Falling block count
+boss_falling_blocks_index EQU #C070   ; Current falling block lane index
+boss_falling_blocks_landed_flags EQU #C071   ; Bitmask of lanes already converted to chars
+boss_falling_blocks_rng EQU #C072   ; Local FallingBlocks random seed
+boss_falling_blocks_sprite_slot EQU #C073   ; First HW sprite slot for falling blocks
+boss_falling_blocks_color EQU #C074   ; Falling block sprite color
+boss_falling_blocks_pattern EQU #C075   ; Falling block base pattern
+boss_falling_blocks_speed EQU #C076   ; Falling block speed
+boss_falling_blocks_duration EQU #C077   ; FallingBlocks max active frames
+boss_falling_blocks_tile_char EQU #C078   ; Char written when a falling block lands
+boss_falling_blocks_landing_y EQU #C079   ; Landing row in chars
+boss_falling_blocks_behavior EQU #C07A   ; Behavior byte written when a block lands
+boss_falling_blocks_tile_x EQU #C07B   ; Landing X char scratch
+boss_falling_blocks_x0 EQU #C07C   ; FallingBlocks lane 0 X
+boss_falling_blocks_x1 EQU #C07D   ; FallingBlocks lane 1 X
+boss_falling_blocks_x2 EQU #C07E   ; FallingBlocks lane 2 X
+boss_falling_blocks_x3 EQU #C07F   ; FallingBlocks lane 3 X
+boss_meteor_age     EQU #C080   ; Boss meteor cycle age
+boss_meteor_count   EQU #C081   ; Active meteor lanes
+boss_meteor_index   EQU #C082   ; Current meteor lane index
+boss_meteor_base_x  EQU #C083   ; First meteor lane X
+boss_meteor_base_y  EQU #C084   ; Meteor spawn Y
+boss_meteor_sprite_slot EQU #C085   ; First HW sprite slot for meteors
+boss_meteor_color   EQU #C086   ; Meteor sprite color
+boss_meteor_pattern EQU #C087   ; Meteor base pattern
+boss_meteor_speed   EQU #C088   ; Meteor fall speed
+boss_meteor_range   EQU #C089   ; Meteor fall range
+boss_meteor_spread  EQU #C08A   ; Meteor lane spacing
+boss_meteor_warn    EQU #C08B   ; Meteor warning frames
+boss_bomb_age       EQU #C08C   ; Boss bomb cycle age
+boss_bomb_count     EQU #C08D   ; Active bomb lanes
+boss_bomb_index     EQU #C08E   ; Current bomb lane index
+boss_bomb_base_x    EQU #C08F   ; First bomb lane X
+boss_bomb_base_y    EQU #C090   ; Bomb spawn Y
+boss_bomb_sprite_slot EQU #C091   ; First HW sprite slot for bombs
+boss_bomb_color     EQU #C092   ; Bomb sprite color
+boss_bomb_pattern   EQU #C093   ; Bomb base pattern
+boss_bomb_explosion_pattern EQU #C094   ; Bomb explosion pattern
+boss_bomb_spread    EQU #C095   ; Bomb lane spacing
+boss_bomb_fuse      EQU #C096   ; Bomb fuse frames
+boss_bomb_radius    EQU #C097   ; Bomb explosion radius
+boss_bomb_duration  EQU #C098   ; Bomb explosion active frames
+boss_boomerang_age  EQU #C099   ; Boss boomerang cycle age
+boss_boomerang_base_x EQU #C09A   ; Boomerang origin X
+boss_boomerang_base_y EQU #C09B   ; Boomerang origin Y
+boss_boomerang_sprite_slot EQU #C09C   ; HW sprite slot for boomerang
+boss_boomerang_color EQU #C09D   ; Boomerang sprite color
+boss_boomerang_pattern EQU #C09E   ; Boomerang base pattern
+boss_boomerang_speed EQU #C09F   ; Boomerang speed
+boss_boomerang_range EQU #C0A0   ; Boomerang max distance
+boss_boomerang_distance EQU #C0A1   ; Current boomerang distance from origin
+boss_boomerang_direction EQU #C0A2   ; Boomerang direction
+boss_rock_age       EQU #C0A3   ; Boss rock cycle age
+boss_rock_base_x    EQU #C0A4   ; Rock origin X
+boss_rock_base_y    EQU #C0A5   ; Rock origin Y
+boss_rock_sprite_slot EQU #C0A6   ; HW sprite slot for rock
+boss_rock_color     EQU #C0A7   ; Rock sprite color
+boss_rock_pattern   EQU #C0A8   ; Rock base pattern
+boss_rock_speed     EQU #C0A9   ; Rock speed
+boss_rock_range     EQU #C0AA   ; Rock max travel distance
+boss_rock_distance  EQU #C0AB   ; Current rock distance from origin
+boss_rock_direction EQU #C0AC   ; Rock direction
+boss_rock_arc_height EQU #C0AD   ; Rock parabolic arc height
+boss_rock_arc_offset EQU #C0AE   ; Current rock arc offset
+boss_laser_age      EQU #C0AF   ; Boss laser cycle age
+boss_laser_base_x   EQU #C0B0   ; Laser origin X in pixels
+boss_laser_base_y   EQU #C0B1   ; Laser origin Y in pixels
+boss_laser_tile_char EQU #C0B2   ; Laser beam char code
+boss_laser_length   EQU #C0B3   ; Laser length in chars
+boss_laser_duration EQU #C0B4   ; Laser active frames
+boss_laser_direction EQU #C0B5   ; Laser direction
+boss_laser_index    EQU #C0B6   ; Current laser char index
+boss_laser_origin_tile_x EQU #C0B7   ; Laser origin tile X
+boss_laser_origin_tile_y EQU #C0B8   ; Laser origin tile Y
+boss_laser_tile_x   EQU #C0B9   ; Current laser tile X
+boss_laser_tile_y   EQU #C0BA   ; Current laser tile Y
+boss_laser_write_mode EQU #C0BB   ; 0=draw laser, 1=restore map
+boss_wave_age       EQU #C0BC   ; Boss sine-wave projectile cycle age
+boss_wave_base_x    EQU #C0BD   ; Sine-wave projectile origin X
+boss_wave_base_y    EQU #C0BE   ; Sine-wave projectile origin Y
+boss_wave_sprite_slot EQU #C0BF   ; HW sprite slot for sine-wave projectile
+boss_wave_color     EQU #C0C0   ; Sine-wave projectile sprite color
+boss_wave_pattern   EQU #C0C1   ; Sine-wave projectile base pattern
+boss_wave_speed     EQU #C0C2   ; Sine-wave projectile speed
+boss_wave_range     EQU #C0C3   ; Sine-wave projectile max travel distance
+boss_wave_distance  EQU #C0C4   ; Current sine-wave projectile distance
+boss_wave_direction EQU #C0C5   ; Sine-wave projectile direction
+boss_wave_amplitude EQU #C0C6   ; Sine-wave perpendicular amplitude
+boss_wave_frequency EQU #C0C7   ; Frames per sine-wave phase step
+boss_wave_phase     EQU #C0C8   ; Current sine-wave phase index
+boss_wave_offset    EQU #C0C9   ; Signed sine-wave perpendicular offset
+boss_homing_age     EQU #C0CA   ; Boss homing missile cycle age
+boss_homing_base_x  EQU #C0CB   ; Homing missile origin X
+boss_homing_base_y  EQU #C0CC   ; Homing missile origin Y
+boss_homing_sprite_slot EQU #C0CD   ; HW sprite slot for homing missile
+boss_homing_color   EQU #C0CE   ; Homing missile sprite color
+boss_homing_pattern EQU #C0CF   ; Homing missile base pattern
+boss_homing_speed   EQU #C0D0   ; Homing missile speed
+boss_homing_range   EQU #C0D1   ; Homing missile max travel distance
+boss_homing_distance EQU #C0D2   ; Current homing missile distance
+boss_homing_direction EQU #C0D3   ; Homing missile launch direction
+boss_homing_turn_step EQU #C0D4   ; Homing missile steering strength
+boss_homing_turn_distance EQU #C0D5   ; Homing missile steering distance
+autocontrol_screen_id EQU #C0D6   ; Screen id bound to current FakePlayer script
+autocontrol_entity_index EQU #C0D7   ; Active FakePlayer entity index (#FF=none)
+autocontrol_script_ptr_l EQU #C0D8   ; Current FakePlayer script pointer low byte
+autocontrol_script_ptr_h EQU #C0D9   ; Current FakePlayer script pointer high byte
+autocontrol_script_start_l EQU #C0DA   ; FakePlayer script start pointer low byte
+autocontrol_script_start_h EQU #C0DB   ; FakePlayer script start pointer high byte
+autocontrol_wait_frames EQU #C0DC   ; FakePlayer wait countdown in frames
+autocontrol_move_opcode EQU #C0DD   ; Active FakePlayer movement opcode
+autocontrol_move_remaining EQU #C0DE   ; Remaining FakePlayer movement pixels
+autocontrol_loop_flag EQU #C0DF   ; 1=loop FakePlayer script on END
+autocontrol_active EQU #C0E0   ; 1=FakePlayer script active
+autoev_screen_id EQU #C0E1   ; Screen id bound to compact FakePlayer event script
+autoev_entity_index EQU #C0E2   ; Active compact FakePlayer entity index (#FF=none)
+autoev_script_ptr_l EQU #C0E3   ; Compact FakePlayer event pointer low byte
+autoev_script_ptr_h EQU #C0E4   ; Compact FakePlayer event pointer high byte
+autoev_script_start_l EQU #C0E5   ; Compact FakePlayer event start pointer low byte
+autoev_script_start_h EQU #C0E6   ; Compact FakePlayer event start pointer high byte
+autoev_wait_frames EQU #C0E7   ; Compact FakePlayer wait countdown in frames
+autoev_move_axis EQU #C0E8   ; Compact move axis (1=x,2=y)
+autoev_move_step EQU #C0E9   ; Compact move step (1 or #FF)
+autoev_move_remaining EQU #C0EA   ; Remaining compact FakePlayer movement pixels
+autoev_loop_flag EQU #C0EB   ; 1=loop compact FakePlayer event script
+autoev_active EQU #C0EC   ; 1=compact FakePlayer event script active
+autoev_wait_mode EQU #C0ED   ; 1=wait SPC, 2=wait typewriter
+autoev_number_l EQU #C0EE   ; Parsed compact event number low byte
+autoev_number_h EQU #C0EF   ; Parsed compact event number high byte
+dialogue_active    EQU #C0F0   ; 1=dialogue box is open
+dialogue_current_box EQU #C0F1   ; Current dialogue box config index
+dialogue_text_active EQU #C0F2   ; 1=typewriter is writing text
+dialogue_text_ptr_l EQU #C0F3   ; Dialogue typewriter text pointer low byte
+dialogue_text_ptr_h EQU #C0F4   ; Dialogue typewriter text pointer high byte
+dialogue_vram_ptr_l EQU #C0F5   ; Dialogue typewriter VRAM pointer low byte
+dialogue_vram_ptr_h EQU #C0F6   ; Dialogue typewriter VRAM pointer high byte
+dialogue_row_start_l EQU #C0F7   ; Current dialogue row start VRAM low byte
+dialogue_row_start_h EQU #C0F8   ; Current dialogue row start VRAM high byte
+dialogue_char_delay EQU #C0F9   ; Dialogue character delay countdown
+dialogue_char_delay_reload EQU #C0FA   ; Dialogue character delay reload value
+dialogue_box_vram_l EQU #C0FB   ; Dialogue box VRAM start low byte
+dialogue_box_vram_h EQU #C0FC   ; Dialogue box VRAM start high byte
+dialogue_box_width EQU #C0FD   ; Dialogue box width in chars
+dialogue_box_height EQU #C0FE   ; Dialogue box height in chars
+dialogue_box_tl_char EQU #C0FF   ; Dialogue top-left border char
+dialogue_box_tr_char EQU #C100   ; Dialogue top-right border char
+dialogue_box_bl_char EQU #C101   ; Dialogue bottom-left border char
+dialogue_box_br_char EQU #C102   ; Dialogue bottom-right border char
+dialogue_box_h_char EQU #C103   ; Dialogue horizontal border char
+dialogue_box_v_char EQU #C104   ; Dialogue vertical border char
+dialogue_graphic_enabled EQU #C105   ; 1=dialogue tile graphic is visible
+dialogue_graphic_vram_l EQU #C106   ; Dialogue graphic VRAM start low byte
+dialogue_graphic_vram_h EQU #C107   ; Dialogue graphic VRAM start high byte
+dialogue_graphic_ptr_l EQU #C108   ; Dialogue graphic tile data pointer low byte
+dialogue_graphic_ptr_h EQU #C109   ; Dialogue graphic tile data pointer high byte
+dialogue_graphic_width EQU #C10A   ; Dialogue graphic width in chars
+dialogue_graphic_height EQU #C10B   ; Dialogue graphic height in chars
+current_flow_state  EQU #C10C   ; Current game flow state
+prev_flow_state     EQU #C10D   ; Previous game flow state
+gameflow_exit_requested EQU #C10E   ; Exit flag for WorldLink loop
+gameflow_menu_selection EQU #C10F   ; Current/last submenu selection
+gameflow_submenu_data_ptr EQU #C110   ; Pointer to active submenu data (16-bit)
+gameflow_submenu_option_count EQU #C112   ; Cached submenu option count
+gameflow_submenu_cursor_enabled EQU #C113   ; 1 when submenu uses sprite cursor
+gameflow_submenu_cursor_layer_count EQU #C114   ; Cursor sprite layer count (1..4)
+gameflow_condition_result EQU #C115   ; Result of last condition evaluation
+transition_delay_var    EQU #C116   ; Frames per step for active transition effect
+
+; ==================================================================
+; MIDEAS GLOBAL VARIABLES (DEFAULTS + CUSTOM)
+; ==================================================================
+global_var_score     EQU #C117   ; Current player score (0-65535) (16-bit)
+global_var_time_remaining EQU #C119   ; Time remaining in seconds (0-65535) (16-bit)
+global_var_buttons_activated EQU #C11B   ; Number of floor buttons already activated. (8-bit)
+global_var_buttons_reward_granted EQU #C11C   ; Latch to grant the button score bonus only once. (8-bit)
+
+; ==================================================================
+; SYSTEM VARIABLES
+; ==================================================================
+ROM_slot            EQU #C11D   ; Expanded slot for normal page 1 ROM access
+slot_primary_normal EQU #C11E   ; Primary slot register snapshot for BIOS-ROM-ROM-RAM layout
+page0_bios_slot     EQU #C11F   ; Expanded slot for normal BIOS page 0
+page2_normal_slot   EQU #C120   ; Expanded slot for normal page 2 layout
+page3_normal_slot   EQU #C121   ; Expanded slot for normal RAM page 3
+slot_subslot_normal EQU #C122   ; Raw subslot register snapshot for normal page 3 expanded slot
+mapper_bank_p1_current EQU #C123   ; Mapper current bank for page/window 1
+mapper_bank_p2_current EQU #C124   ; Mapper current bank for page/window 2
+mapper_bank_p3_current EQU #C125   ; Mapper current bank for page/window 3
+mapper_bank_p4_current EQU #C126   ; Mapper current bank for page/window 4
+mapper_saved_bank    EQU #C127   ; Saved mapper bank for push/pop helpers
+mapper_saved_bank_p1 EQU #C128   ; Saved mapper bank for page/window 1 helpers
+mapper_saved_bank_p3 EQU #C129   ; Saved mapper bank for page/window 3 helpers
+mapper_saved_bank_p4 EQU #C12A   ; Saved mapper bank for page/window 4 helpers
+resource_descriptor_ptr EQU #C12B   ; Pointer to cached resource descriptor entry (16-bit)
+resource_descriptor_id EQU #C12D   ; Cached resource id
+resource_descriptor_type EQU #C12E   ; Cached resource type
+resource_descriptor_group EQU #C12F   ; Cached resource group
+resource_descriptor_bank EQU #C130   ; Cached resource bank
+resource_descriptor_addr EQU #C131   ; Cached resource visible address (16-bit)
+resource_descriptor_size EQU #C133   ; Cached resource size (16-bit)
+resource_descriptor_uncompressed_size EQU #C135   ; Cached resource uncompressed size (16-bit)
+resource_descriptor_flags EQU #C137   ; Cached resource flags
+vram_cache_tile_patterns_ready EQU #C138   ; 1 when shared gameplay tile patterns are already resident in VRAM
+vram_cache_tile_colors_ready EQU #C139   ; 1 when shared gameplay tile colors are already resident in VRAM
+vram_cache_font_ready EQU #C13A   ; 1 when shared font patterns/colors are already resident in VRAM
+resource_ram_cache_screen_layout_id EQU #C13B   ; Cached resource id for runtime_background_layout source
+resource_ram_cache_effects_layout_id EQU #C13C   ; Cached resource id for runtime_effects_layout source
+resource_ram_cache_effect_zone_table_id EQU #C13D   ; Cached resource id for runtime_effect_zone_table source
+current_screen2_tilebank_id EQU #C13E   ; Current SCREEN 2 shared tilebank loaded in VRAM (#FF=none/unknown)
+
+; ASCII16 lower-window far-call bridge copied to RAM at boot
+ASCII16_FAR_CALL_P1_RAM EQU #C13F   ; RAM routine: map ASCII16 lower 16KB page, call target, restore page
+ASCII16_FAR_CALL_P1_PRESERVE_A_RAM EQU #C19F   ; RAM routine variant preserving caller/result A through AF'
+ASCII16_RESIDENT_CALL_P1_RAM EQU #C1FF   ; RAM routine: call resident lower-page routine from ASCII16 P1 far code
+ASCII16_TAIL_JUMP_P1_RAM EQU #C25F   ; RAM routine: map ASCII16 lower page and JP without restoring
+ASCII16_IRQ_ENTRY_RAM EQU #C27F   ; RAM H.TIMI entry: map ASCII16 bank0 before interrupt_dispatcher
+ASCII16_IRQ_EXIT_RAM EQU #C2BF   ; RAM H.TIMI exit: restore interrupted ASCII16 lower-page bank
+ascii16_far_target_bank EQU #C2FF   ; Target ASCII16 bank for RAM far-call bridge
+ascii16_far_old_bank EQU #C300   ; Previous ASCII16 lower-page bank for RAM far-call restore
+ascii16_far_call_depth EQU #C301   ; Non-zero while executing inside ASCII16 RAM far-call target
+ascii16_far_target_addr EQU #C302   ; Target entry address for RAM far-call bridge (16-bit)
+ascii16_resident_call_target_addr EQU #C304   ; Resident target address for RAM bridge (16-bit)
+ascii16_resident_call_saved_hl EQU #C306   ; Saved HL input while RAM resident-call bridge stages target address
+ascii16_resident_call_saved_de EQU #C308   ; Saved DE input while RAM resident-call bridge stages return address
+ascii16_resident_call_old_bank EQU #C30A   ; Previous far lower-page bank for RAM resident-call restore
+ascii16_irq_saved_bank EQU #C30B   ; Interrupted lower-page bank restored after ASCII16 RAM ISR
+frame_counter       EQU #C30C   ; Frame counter (16-bit)
+
+; Profiling counters (16-bit, cumulative)
+prof_update_all_entities_calls EQU #C30E   ; Calls to update_all_entities
+prof_execute_sm_calls EQU #C310   ; Calls to execute_all_state_machines
+prof_sm_update_calls  EQU #C312   ; Calls to SM_Update
+prof_collision_calls  EQU #C314   ; Calls to update_collision_component
+prof_wall_calls       EQU #C316   ; Calls to update_wallcollision_component
+prof_deadly_calls     EQU #C318   ; Calls to update_deadly_tiles_component
+prof_tile_interaction_calls EQU #C31A   ; Calls to check_tile_interaction
+prof_animation_calls  EQU #C31C   ; Calls to update_animation_component
+prof_sprite_calls     EQU #C31E   ; Calls to update_sprite_component
+prof_music_task_calls EQU #C320   ; Calls to task_update_music
+prof_deadly_behavior_reads EQU #C322   ; Deadly helper behavior-map reads
+; page0_transfer_buffer shares the ZX0 scratch area declared near RAM_USAGE_END.
+
+; ==================================================================
+; SCREEN MAP POINTERS (Current active screen)
+; ==================================================================
+current_screen_layout   EQU #C324   ; Pointer to current screen layout data (16-bit)
+current_screen_layout_bank EQU #C326   ; Mapper bank for current screen layout data
+current_behavior_map    EQU #C327   ; Pointer to current behavior map data (16-bit)
+current_behavior_map_bank EQU #C329   ; Mapper bank for current behavior map data
+behavior_cache_row     EQU #C32A   ; Cached behavior row (255=invalid)
+behavior_cache_map_l   EQU #C32B   ; Cached behavior map pointer low byte
+behavior_cache_map_h   EQU #C32C   ; Cached behavior map pointer high byte
+behavior_cache_row_base EQU #C32D   ; Cached row base address in behavior map (16-bit)
+RUNTIME_SCREEN_MAP_SIZE EQU 768
+MAX_RUNTIME_EFFECT_ZONES EQU 0
+runtime_background_layout EQU #C32F   ; Immutable copy of current background layout (32x24)
+runtime_screen_layout  EQU #C62F   ; Mutable copy of current screen layout (32x24)
+runtime_behavior_map   EQU #C92F   ; Mutable copy of current behavior map (32x24)
+runtime_interaction_type_map EQU #CC2F   ; Mutable copy of current interaction type map (32x24)
+runtime_interaction_value_map EQU #CF2F   ; Mutable copy of current interaction value map (32x24)
+runtime_interaction_target_map EQU #D22F   ; Mutable copy of current interaction target map (32x24)
+runtime_char_behavior_table EQU #D52F   ; Current screen char -> behavior lookup table (256 bytes)
+runtime_effects_layout EQU #D62F   ; Alternate effects layout copy for secret zones (32x24)
+screen_block_catalog_ptr EQU #D92F   ; Scratch pointer to current screen block catalog during layout expansion
+screen_block_map_ptr EQU #D931   ; Scratch pointer to current screen block index map during layout expansion
+runtime_effect_zone_table EQU #D933   ; Current screen effect zone table (0 bytes)
+current_effect_zone_count EQU #D933   ; Number of effect zones copied into runtime_effect_zone_table
+secret_zone_active EQU #D934   ; 1 if hero is currently inside an active secret zone
+secret_zone_rect_x EQU #D935   ; Active secret zone rect X in cells
+secret_zone_rect_y EQU #D936   ; Active secret zone rect Y in cells
+secret_zone_rect_w EQU #D937   ; Active secret zone rect width in cells
+secret_zone_rect_h EQU #D938   ; Active secret zone rect height in cells
+
+; ==================================================================
+; VIEWPORT/CAMERA VARIABLES (for scroll system)
+; ==================================================================
+camera_x            EQU #D939   ; Camera X position in pixels (16-bit)
+camera_y            EQU #D93B   ; Camera Y position in pixels (16-bit)
+camera_tile_x       EQU #D93D   ; Camera tile X (column)
+camera_tile_y       EQU #D93E   ; Camera tile Y (row)
+world_width_tiles   EQU #D93F   ; World width in tiles
+world_height_tiles  EQU #D940   ; World height in tiles
+scroll_dirty_flag   EQU #D941   ; 1=viewport changed, needs redraw
+hud_dirty_flag      EQU #D942   ; 1=HUD needs redraw, 0=clean
+time_second_frame_counter EQU #D943   ; VBlank frames remaining until the next TimeRemaining decrement
+time_last_interrupt_counter EQU #D944   ; Last interrupt_counter snapshot used by TimeRemaining sync (16-bit)
+
+; ==================================================================
+; ANIMATED TILES VARIABLES
+; ==================================================================
+anim_tile_timer     EQU #D946   ; Animation frame timer
+anim_tile_frame     EQU #D947   ; Current animation frame (0-3)
+anim_tile_speed     EQU #D948   ; Frames between animation updates
+
+; ==================================================================
+; ENTITY SYSTEM VARIABLES (Fixed 32 entities)
+; ==================================================================
+MAX_ENTITIES        EQU 32
+entity_active       EQU #D949   ; Entity active flags (32 bytes, 0=inactive, 1=active)
+entity_is_player    EQU #D969   ; Entity hero/player flag (32 bytes, 0=no, 1=yes)
+entity_button_contact_active EQU #D989   ; 1 while entity stays on the same button tile (32 bytes)
+entity_button_contact_x EQU #D9A9   ; Button tile X currently latched per entity (32 bytes)
+entity_button_contact_y EQU #D9C9   ; Button tile Y currently latched per entity (32 bytes)
+entity_on_ladder   EQU #D9E9   ; 1 while entity is centered on a ladder tile (32 bytes)
+entity_gate_current_step EQU #DA09   ; Current applied retract step (32 bytes)
+entity_gate_step_timer EQU #DA29   ; Countdown until next retract step (32 bytes)
+entity_walljump_lock EQU #DA49   ; Remaining horizontal lock frames after wall jump (32 bytes)
+entity_walljump_locked_vx EQU #DA69   ; Horizontal velocity preserved while wall jump lock is active (32 bytes)
+entity_wallgrab_active EQU #DA89   ; 1 if entity is currently grabbing a wall (32 bytes)
+entity_wallgrab_grace EQU #DAA9   ; Frames to keep wall grab during transient wall flag gaps (32 bytes)
+entity_wallgrab_timer EQU #DAC9   ; Remaining wall-grab frames until grounded reset (32 bytes)
+entity_wallgrab_lockout EQU #DAE9   ; Wall grab disabled until grounded after timer is spent (32 bytes)
+entity_walljump_anim_active EQU #DB09   ; Wall jump one-shot animation is waiting to restore base sprite (32 bytes)
+entity_x_pos        EQU #DB29   ; Entity X positions (32 bytes)
+entity_y_pos        EQU #DB49   ; Entity Y positions (32 bytes)
+entity_vel_x        EQU #DB69   ; Entity X velocity (32 bytes)
+entity_vel_y        EQU #DB89   ; Entity Y velocity (32 bytes)
+entity_comp_masks   EQU #DBA9   ; Entity component masks (32 bytes)
+entity_comp_masks_hi EQU #DBC9   ; Entity component masks high byte (32 bytes)
+entity_screen_id    EQU #DBE9   ; Entity screen ID (32 bytes)
+entity_job_period   EQU #DC09   ; Entity job period in frames (32 bytes, 1=100%,2=50%,3=33%,4=25%)
+entity_job_entry    EQU #DC29   ; Entity job entry slot within period window (32 bytes)
+entity_job_scheduler_active EQU #DC49   ; 1 when any entity uses non-default job cadence
+entity_dir_mask     EQU #DC4A   ; Entity direction mask (32 bytes)
+entity_input_speed  EQU #DC6A   ; Entity input/cursor speed (32 bytes)
+entity_health       EQU #DC8A   ; Entity health (32 bytes)
+entity_anim_frame   EQU #DCAA   ; Entity animation frame (32 bytes)
+entity_anim_tick    EQU #DCCA   ; Entity animation tick counter (32 bytes)
+entity_anim_speed   EQU #DCEA   ; Entity animation speed (ticks per frame) (32 bytes)
+entity_anim_flags   EQU #DD0A   ; Entity animation flags (32 bytes)
+entity_sm_ptr_l     EQU #DD2A   ; Entity State Pointer Low (32 bytes)
+entity_sm_ptr_h     EQU #DD4A   ; Entity State Pointer High (32 bytes)
+entity_sm_timer_l   EQU #DD6A   ; Entity State Timer Low (32 bytes)
+entity_sm_timer_h   EQU #DD8A   ; Entity State Timer High (32 bytes)
+entity_sm_wait_timer EQU #DDAA   ; Entity State Wait Timer (32 bytes)
+entity_sm_sprite_control EQU #DDCA   ; 1 when the assigned state machine explicitly drives sprite changes (32 bytes)
+entity_lifetime     EQU #DDEA   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
+entity_collectible_enabled EQU #DE0A   ; 1 when entity has Collectible component (32 bytes)
+entity_carried_by   EQU #DE2A   ; Entity carrier ID (32 bytes, 255=not carried)
+entity_template_token EQU #DE4A   ; Entity template token (32 bytes, 0=unknown)
+entity_facing_dir   EQU #DE6A   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
+entity_sm_var_0     EQU #DE8A   ; Entity Variable 0 (32 bytes)
+entity_sm_var_1     EQU #DEAA   ; Entity Variable 1 (32 bytes)
+entity_sm_var_2     EQU #DECA   ; Entity Variable 2 (32 bytes)
+entity_sm_var_3     EQU #DEEA   ; Entity Variable 3 (32 bytes)
+entity_sm_var_4     EQU #DF0A   ; Entity Variable 4 (32 bytes)
+entity_sm_var_5     EQU #DF2A   ; Entity Variable 5 (32 bytes)
+entity_sm_var_6     EQU #DF4A   ; Entity Variable 6 (32 bytes)
+entity_sm_var_7     EQU #DF6A   ; Entity Variable 7 (32 bytes)
+
+; ==================================================================
+; SPRITE SYSTEM VARIABLES
+; ==================================================================
+entity_sprite_asset_index EQU #DF8A   ; Entity sprite asset index - RAM copy (32 bytes)
+entity_sprite_config EQU #DFAA   ; Entity sprite config RAM copy (base HW sprite + layer count, 64 bytes)
+sprite_asset_frame_count EQU #DFEA   ; Sprite asset frame counts RAM copy (12 bytes)
+sprite_asset_layer_count EQU #DFF6   ; Sprite asset layer counts RAM copy (12 bytes)
+sprite_loop_flags EQU #E002   ; Sprite loop flags RAM copy (12 bytes)
+sprite_dir_left_table EQU #E00E   ; Directional sprite lookup RAM copy (12 bytes)
+sprite_dir_right_table EQU #E01A   ; Directional sprite lookup RAM copy (12 bytes)
+sprite_dir_up_table EQU #E026   ; Directional sprite lookup RAM copy (12 bytes)
+sprite_dir_down_table EQU #E032   ; Directional sprite lookup RAM copy (12 bytes)
+SM_SpriteLayerColorTable EQU #E03E   ; Runtime SM sprite layer colors (12*2 bytes)
+SM_SpriteLayerYOffsetTable EQU #E056   ; Runtime SM sprite layer Y offsets (12*2 bytes)
+active_sprite_count EQU #E06E   ; Number of sprites currently active
+sprites_dirty      EQU #E06F   ; 1=sprite_attributes changed, needs VRAM sync
+sprite_pattern      EQU #E070   ; Sprite pattern IDs (32 bytes)
+sprite_color        EQU #E090   ; Sprite colors (32 bytes)
+sprite_layer_colors EQU #E0B0   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
+sprite_layer_y_offsets EQU #E0D0   ; HW sprite layer signed Y offsets - RAM copy (32 bytes, indexed by HW sprite index)
+sprite_asset_base_pattern_slot_runtime EQU #E0F0   ; Runtime base 16x16 slot per sprite asset (12 bytes)
+sprite_placeholder_base_pattern_num EQU #E0FC   ; Runtime placeholder pattern number (base slot * 4)
+current_sprite_pattern_pack_id EQU #E0FD   ; Active runtime sprite pattern pack id (#FF=none loaded)
+sprite_attributes   EQU #E0FE   ; Interleaved sprite attributes (32 * 4 bytes)
+
+; ==================================================================
+; SCREEN SYSTEM VARIABLES (2 screens detected)
+; ==================================================================
+current_screen_id   EQU #E17E   ; Currently displayed screen ID
+current_screen_engine EQU #E17F   ; Runtime engine: 0=Player, 1=FakePlayer
+screen_dirty_flag   EQU #E180   ; Screen needs redraw flag
+screen_transition_cooldown EQU #E181   ; Cooldown frames after screen transition
+current_world_id    EQU #E182   ; Current world ID (for multi-world support)
+current_screen_index EQU #E183   ; Current screen index within world
+current_screen_anim_group_count EQU #E184   ; Animated tile groups visible in current screen
+current_screen_entity_count EQU #E185   ; Entity instances assigned to current screen
+current_screen_sprite_pattern_slots EQU #E186   ; Sprite pattern slots needed by current screen
+current_screen_summary_flags EQU #E187   ; Runtime screen summary flags (music/hud/effects/anim)
+
+; ==================================================================
+; PLAYER SYSTEM VARIABLES (player entity detected)
+; ==================================================================
+player_x            EQU #E188   ; Player X position (16-bit)
+player_y            EQU #E18A   ; Player Y position (16-bit)
+player_runtime_enabled EQU #E18C   ; 1=player fast runtime bound to hero entity
+player_entity_index EQU #E18D   ; Entity index used by player fast runtime (#FF=none)
+player_vx_runtime   EQU #E18E   ; Cached player X velocity (signed 8-bit)
+player_vy_runtime   EQU #E18F   ; Cached player Y velocity (signed 8-bit)
+player_dash_timer   EQU #E190   ; Frames remaining in current Player dash
+player_dash_cooldown EQU #E191   ; Frames until Player can dash again
+player_dash_dir     EQU #E192   ; Player dash direction (1=left,2=right,3=up,4=down)
+player_dash_tile_x  EQU #E193   ; Dash front probe tile X scratch
+player_dash_tile_y  EQU #E194   ; Dash front probe tile Y scratch
+player_health       EQU #E195   ; Player health points
+player_score        EQU #E196   ; Player score (16-bit)
+gem_count           EQU #E198   ; Collectible tile counter (8-bit)
+last_interaction_char EQU #E199   ; Char code of last interacted tile (for SM VARIABLE_COMPARE)
+last_gem_char       EQU last_interaction_char   ; Backwards-compatible alias for collectible SM checks
+last_interaction_pending EQU #E19A   ; 1 when a new tile interaction is pending for State Machine logic
+last_interaction_type EQU #E19B   ; Interaction type id of last interacted tile
+last_interaction_value EQU #E19C   ; Interaction value byte of last interacted tile
+last_interaction_target EQU #E19D   ; Interaction target id of last interacted tile
+last_interaction_x  EQU #E19E   ; Tile X coordinate of last interaction
+last_interaction_y  EQU #E19F   ; Tile Y coordinate of last interaction
+last_interaction_entity EQU #E1A0   ; Entity index that triggered the last interaction
+
+; Persistent collectibles list (survives screen re-entry)
+MAX_COLLECTIBLES     EQU 64              ; Max persistent collectible records
+collected_count      EQU #E1A1   ; Number of collected tiles recorded (8-bit)
+collected_world      EQU #E1A2   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_screen     EQU #E1E2   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_idx_l      EQU #E222   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
+collected_idx_h      EQU #E262   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
+
+; Timed bonus tile respawn slots (bonus gem regeneration)
+MAX_BONUS_RESPAWNS   EQU 16              ; Max timed bonus tiles waiting to respawn
+bonus_respawn_world  EQU #E2A2   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_screen EQU #E2B2   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_l  EQU #E2C2   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_h  EQU #E2D2   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_secs   EQU #E2E2   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_frames EQU #E2F2   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+
+; ==================================================================
+; AUXILIARY VARIABLES 
+; ==================================================================
+deterministic        EQU #E302   ; Deterministic mode flag
+
+; ==================================================================
+; TEMPORARY VARIABLES (ALWAYS NEEDED)
+; ==================================================================
+temp_word_1         EQU #E303   ; Temporary 16-bit storage
+temp_word_2         EQU #E305   ; Temporary 16-bit storage
+temp_byte_1         EQU #E307   ; Temporary 8-bit storage
+temp_byte_2         EQU #E308   ; Temporary 8-bit storage
+temp_byte_3         EQU #E309   ; Temporary 8-bit storage (32 bytes)
+temp_byte_4         EQU #E329   ; Temporary 8-bit storage (32 bytes)
+temp_byte_5         EQU #E349   ; Temporary 8-bit storage (32 bytes)
+temp_byte_6         EQU #E369   ; Temporary 8-bit storage (32 bytes)
+
+; ==================================================================
+; SOUND SYSTEM VARIABLES
+; ==================================================================
+sfx_active          EQU #E389   ; 0=no SFX active, 1=playing
+sfx_timer           EQU #E38A   ; Frames remaining for current SFX
+sfx_fadeout         EQU #E38B   ; Reserved fadeout flag/state
+temp_byte_7         EQU #E38C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_8         EQU #E3AC   ; Temporary 8-bit storage (32 bytes)
+temp_byte_9         EQU #E3CC   ; Temporary 8-bit storage (32 bytes)
+temp_byte_10        EQU #E3EC   ; Temporary 8-bit storage (32 bytes)
+temp_byte_11        EQU #E40C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_12        EQU #E42C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_13        EQU #E44C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_14        EQU #E46C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_15        EQU #E48C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_16        EQU #E4AC   ; Temporary 8-bit storage (32 bytes)
+temp_byte_17        EQU #E4CC   ; Temporary 8-bit storage (32 bytes)
+temp_byte_18        EQU #E4EC   ; Temporary 8-bit storage (32 bytes)
+temp_byte_19        EQU #E50C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_20        EQU #E52C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_21        EQU #E54C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_22        EQU #E56C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_23        EQU #E58C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_24        EQU #E5AC   ; Temporary 8-bit storage (32 bytes)
+temp_byte_25        EQU #E5CC   ; Temporary 8-bit storage (32 bytes)
+temp_word_3         EQU #E5EC   ; Temporary 16-bit storage (64 bytes)
+temp_word_4         EQU #E62C   ; Temporary 16-bit storage (64 bytes)
+temp_byte_26        EQU #E66C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_27        EQU #E68C   ; Temporary 8-bit storage (32 bytes)
+temp_byte_28        EQU #E6AC   ; Temporary 8-bit storage (32 bytes)
+temp_byte_29        EQU #E6CC   ; Temporary 8-bit storage (32 bytes)
+temp_byte_30        EQU #E6EC   ; Temporary 8-bit storage (32 bytes)
+temp_byte_31        EQU #E70C   ; Temporary 8-bit storage (32 bytes)
+tileDead_dbg        EQU #E72C   ; Debug byte: current hero deadly contact
+tileDead_latched_dbg EQU #E72D   ; Debug byte: latched hero deadly contact
+tileDead_x_dbg      EQU #E72E   ; Debug byte: last sampled deadly tile X
+tileDead_y_dbg      EQU #E72F   ; Debug byte: last sampled deadly tile Y
+tileDead_value_dbg  EQU #E730   ; Debug byte: last raw deadly behavior value
+
+; Wall collision temporary variables
+wall_temp_x         EQU #E731   ; Cached entity X for wall checks
+wall_temp_y         EQU #E732   ; Cached entity Y for wall checks
+wall_hit_left       EQU #E733   ; Hitbox left edge cache
+wall_hit_top        EQU #E734   ; Hitbox top edge cache
+wall_hit_right      EQU #E735   ; Hitbox right edge cache
+wall_hit_bottom     EQU #E736   ; Hitbox bottom edge cache
+wall_hit_w          EQU #E737   ; Hitbox width cache (min 1)
+wall_hit_h          EQU #E738   ; Hitbox height cache (min 1)
+wall_probe_left     EQU #E739   ; X probe near hitbox left (adaptive inset)
+wall_probe_right    EQU #E73A   ; X probe near hitbox right (adaptive inset)
+wall_probe_top      EQU #E73B   ; Y probe near hitbox top (adaptive inset)
+wall_probe_bottom   EQU #E73C   ; Y probe near hitbox bottom (adaptive inset)
+
+; Unified update helpers
+active_entity_list  EQU #E73D   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
+active_entity_count EQU #E75D   ; Number of entries in active_entity_list
+hero_entity_id      EQU #E75E   ; First current-screen entity flagged as player (#FF = none)
+active_entity_list_dirty EQU #E75F   ; 1=rebuild active_entity_list required
+input_entity_list   EQU #E760   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)
+input_entity_count  EQU #E780   ; Number of entries in input_entity_list
+render_entity_list  EQU #E781   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)
+render_entity_count EQU #E7A1   ; Number of entries in render_entity_list
+collision_entity_list EQU #E7A2   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)
+collision_entity_count EQU #E7C2   ; Number of entries in collision_entity_list
+ground_entity_list  EQU #E7C3   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)
+ground_entity_count EQU #E7E3   ; Number of entries in ground_entity_list
+anim_entity_list    EQU #E7E4   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)
+anim_entity_count   EQU #E804   ; Number of entries in anim_entity_list
+
+; Entity-entity collision optimized variables
+coll_list           EQU #E805   ; Active collidable entity indices (MAX_ENTITIES bytes)
+coll_list_count     EQU #E825   ; Number of entities in coll_list
+coll_src_left       EQU #E826   ; Source AABB left edge (scratch)
+coll_src_right      EQU #E827   ; Source AABB right edge (scratch)
+coll_src_top        EQU #E828   ; Source AABB top edge (scratch)
+coll_src_bottom     EQU #E829   ; Source AABB bottom edge (scratch)
+
+; ==================================================================
+; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
+; ==================================================================
+task_table              EQU #E82A   ; Task table base (8 slots x 2 bytes = 16 bytes)
+task_0_ptr              EQU #E82A   ; Slot 0 pointer (2 bytes)
+task_1_ptr              EQU #E82C   ; Slot 1 pointer (2 bytes)
+task_2_ptr              EQU #E82E   ; Slot 2 pointer (2 bytes)
+task_3_ptr              EQU #E830   ; Slot 3 pointer (2 bytes)
+task_4_ptr              EQU #E832   ; Slot 4 pointer (2 bytes)
+task_5_ptr              EQU #E834   ; Slot 5 pointer (2 bytes)
+task_6_ptr              EQU #E836   ; Slot 6 pointer (2 bytes)
+task_7_ptr              EQU #E838   ; Slot 7 pointer (2 bytes)
+interrupt_system_enabled EQU #E83A   ; 0=disabled, 1=enabled (1 byte)
+old_htimi_hook          EQU #E83B   ; Original H.TIMI hook (5 bytes)
+interrupt_counter       EQU #E840   ; Frame counter (16-bit)
+task_exec_time          EQU #E842   ; Cycles used by tasks (16-bit, debug)
+vblank_flag             EQU #E844   ; Set to 1 on each VBlank (1 byte)
+interrupt_in_progress   EQU #E845   ; 1 while the H.TIMI dispatcher is running
+RAM_INTERRUPT_END       EQU #E846   ; End of interrupt system
+
+; ==================================================================
+; STATE MACHINE SOUND RUNTIME (one active sound asset)
+; ==================================================================
+sm_sound_active       EQU #E846   ; 0=idle, 1=playing state-machine sound asset
+sm_sound_frames_left  EQU #E847   ; Frames left for current state-machine sound asset
+sm_sound_ptr_l        EQU #E848   ; Next sound frame pointer low byte
+sm_sound_ptr_h        EQU #E849   ; Next sound frame pointer high byte
+
+; ==================================================================
+; TRACKER MUSIC RUNTIME
+; ==================================================================
+music_active         EQU #E84A   ; 0=stopped, 1=track active
+music_muted          EQU #E84B   ; 0=audible, 1=muted/pause
+music_loop           EQU #E84C   ; 0=no loop, 1=loop enabled
+music_track_index    EQU #E84D   ; Current ROM track index
+music_row_frames     EQU #E84E   ; Frames per tracker row
+music_row_countdown  EQU #E84F   ; Countdown to next row
+music_order_pos      EQU #E850   ; Current order position
+music_pattern_index  EQU #E851   ; Current pattern index
+music_pattern_row    EQU #E852   ; Current row inside pattern
+music_pattern_rows   EQU #E853   ; Cached rows in current pattern
+music_track_ptr_l    EQU #E854   ; Current track pointer low byte
+music_track_ptr_h    EQU #E855   ; Current track pointer high byte
+music_pattern_ptr_l  EQU #E856   ; Current pattern rows pointer low byte
+music_pattern_ptr_h  EQU #E857   ; Current pattern rows pointer high byte
+music_mixer_shadow   EQU #E858   ; PSG mixer shadow for music runtime
+music_pitch_note_work EQU #E859   ; Scratch note index while resolving tone/ornament macros
+music_pitch_step_work EQU #E85A   ; Scratch macro step while resolving tone/ornament macros
+music_pitch_len_work  EQU #E85B   ; Scratch macro length while resolving tone/ornament macros
+music_ch_note_base EQU #E85C   ; Current note index (255=silent) (3 bytes)
+music_ch_a_note EQU #E85C   ; Channel A
+music_ch_b_note EQU #E85D   ; Channel B
+music_ch_c_note EQU #E85E   ; Channel C
+music_ch_instrument_base EQU #E85F   ; Current instrument id (0=none) (3 bytes)
+music_ch_a_instrument EQU #E85F   ; Channel A
+music_ch_b_instrument EQU #E860   ; Channel B
+music_ch_c_instrument EQU #E861   ; Channel C
+music_ch_ornament_base EQU #E862   ; Current ornament id (0=none) (3 bytes)
+music_ch_a_ornament EQU #E862   ; Channel A
+music_ch_b_ornament EQU #E863   ; Channel B
+music_ch_c_ornament EQU #E864   ; Channel C
+music_ch_volume_base EQU #E865   ; Current base volume (0-15) (3 bytes)
+music_ch_a_volume EQU #E865   ; Channel A
+music_ch_b_volume EQU #E866   ; Channel B
+music_ch_c_volume EQU #E867   ; Channel C
+music_ch_vol_step_base EQU #E868   ; Reserved software volume envelope step (3 bytes)
+music_ch_a_vol_step EQU #E868   ; Channel A
+music_ch_b_vol_step EQU #E869   ; Channel B
+music_ch_c_vol_step EQU #E86A   ; Channel C
+music_ch_tone_step_base EQU #E86B   ; Reserved software tone envelope step (3 bytes)
+music_ch_a_tone_step EQU #E86B   ; Channel A
+music_ch_b_tone_step EQU #E86C   ; Channel B
+music_ch_c_tone_step EQU #E86D   ; Channel C
+music_ch_noise_step_base EQU #E86E   ; Reserved software noise envelope step (3 bytes)
+music_ch_a_noise_step EQU #E86E   ; Channel A
+music_ch_b_noise_step EQU #E86F   ; Channel B
+music_ch_c_noise_step EQU #E870   ; Channel C
+music_ch_orn_step_base EQU #E871   ; Reserved ornament step (3 bytes)
+music_ch_a_orn_step EQU #E871   ; Channel A
+music_ch_b_orn_step EQU #E872   ; Channel B
+music_ch_c_orn_step EQU #E873   ; Channel C
+music_ch_hw_env_step_base EQU #E874   ; Software hardware-envelope divider step (3 bytes)
+music_ch_a_hw_env_step EQU #E874   ; Channel A
+music_ch_b_hw_env_step EQU #E875   ; Channel B
+music_ch_c_hw_env_step EQU #E876   ; Channel C
+
+; ==================================================================
+; ZX0 TEMPORARY RAM BUFFERS
+; ==================================================================
+; Compact scratch layout placed strictly after RAM_USAGE_END.
+; Screen/behavior/tile buffers share the same large work area because they
+; are decompressed and consumed sequentially, never concurrently.
+; Font and sprite frame buffers are injected later by the ZX0 post-processor
+; only when compression selects those blocks; they share scratch there too.
+ZX0_SCREEN_BUFFER       EQU #E900   ; Screen/layout scratch (shares 1488-byte area)
+ZX0_BEHAVIOR_BUFFER     EQU #E900   ; Behavior map scratch (shares 1488-byte area)
+ZX0_TILE_PATTERN_BUFFER EQU #E900   ; Tile pattern scratch (shares 1488-byte area)
+ZX0_TILE_COLOR_BUFFER   EQU #E900   ; Tile color scratch (shares 1488-byte area)
+ZX0_VRAM_TRANSFER_BUFFER EQU #E900  ; Fast ROM-to-VRAM staging for compressed resources that fit the shared scratch
+ZX0_VRAM_TRANSFER_BUFFER_SIZE EQU 1488   ; Staging threshold; larger MegaROM resources decode direct to VRAM
+ZX0_VRAM_TRANSFER_BUFFER_LIMIT_HIGH EQU #05   ; High byte for BC <= staging threshold
+ZX0_VRAM_TRANSFER_BUFFER_LIMIT_NEXT_LOW EQU #D1   ; Low byte one past threshold when high bytes match
+page0_transfer_buffer   EQU #E900   ; Page-0 copy staging buffer (shares scratch area)
+ZX0_SCRATCH_END         EQU #EED0   ; First byte after shared ZX0 scratch area
+
+; ==================================================================
+; END OF VARIABLES
+; ==================================================================
+RAM_USAGE_END       EQU #E877   ; End of project variables (10359 bytes used)
+
+; ==================================================================
+; MEMORY LAYOUT INFO (Reference only - no code generated)
+; ==================================================================
+; RAM Layout:
+;   #C000-#E877: Project variables (10359 bytes)
+;   #E877-#E900: Alignment padding/free RAM (137 bytes)
+;   #E900-#EECF: Shared ZX0 scratch (1488 bytes, do not use for persistent vars)
+;   #EED0-#F37F: Free RAM after scratch (~1200 bytes available)
+;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
+;
+; NOTE: Variables are defined using EQU (address labels only).
+;       RAM space is used at runtime, NOT reserved in ROM.
+;       Do NOT use ORG #C000 in cartridge ROMs!
+; ==================================================================
+
+
+; @mideas:block id=runtime.mapper.core kind=routine owner=mapper roots=mapper_runtime_init,mapper_set_bank_p1,mapper_set_bank_p2,mapper_set_bank_p3,mapper_set_bank_p4,mapper_push_p1,mapper_pop_p1,mapper_push_p2,mapper_pop_p2,mapper_push_p3,mapper_pop_p3,mapper_push_p4,mapper_pop_p4,mapper_call_hl_p1,mapper_call_hl_p2,mapper_call_hl_p3,mapper_call_hl_p4,mapper_call_hl_auto
+; ==================================================================
+; MAPPER RUNTIME API
+; File: mapper.asm
+; Description: Centralized mapper register writes (no scattered inline writes)
+; Target mapper: konami
+; ROM mode: megarom (autoMegaROM=false)
+; ==================================================================
+
+; Konami (without SCC) write window references:
+;   6000h-7FFFh, 8000h-9FFFh, A000h-BFFFh are switch registers.
+; Note: in original Konami cartridges 4000h-5FFFh is typically fixed.
+; Mapper register writes are enabled for this build configuration.
+
+; Mapper registers for active target format
+MAPPER_REG_P1       EQU #6000
+MAPPER_REG_P2       EQU #8000
+MAPPER_REG_P3       EQU #A000
+MAPPER_REG_P4       EQU #A000
+
+; ------------------------------------------------------------------
+; mapper_runtime_init
+; Initializes mapper state variables with deterministic defaults.
+; ------------------------------------------------------------------
+mapper_runtime_init:
+    ; Konami4 / Konami 8K without SCC:
+    ;   bank 0 is fixed at #4000-#5FFF.
+    ;   p1/p2/p3 are the selectable #6000/#8000/#A000 windows.
+    ld a, 1
+    call mapper_set_bank_p1
+    ld a, 2
+    call mapper_set_bank_p2
+    ld a, 3
+    call mapper_set_bank_p3
+    ld (mapper_bank_p4_current), a
+    ret
+
+; ------------------------------------------------------------------
+; API: mapper_set_bank_pX
+; Input: A = bank number
+; ------------------------------------------------------------------
+mapper_set_bank_p1:
+    ld (mapper_bank_p1_current), a
+    ld (MAPPER_REG_P1), a
+    ret
+
+mapper_set_bank_p2:
+    ld (mapper_bank_p2_current), a
+    ld (MAPPER_REG_P2), a
+    ret
+
+mapper_set_bank_p3:
+    ld (mapper_bank_p3_current), a
+    ld (MAPPER_REG_P3), a
+    ret
+
+mapper_set_bank_p4:
+    jp mapper_set_bank_p3
+
+
+; ------------------------------------------------------------------
+; Helpers for deterministic save/restore around far calls.
+; ------------------------------------------------------------------
+mapper_push_p1:
+    ld a, (mapper_bank_p1_current)
+    ld (mapper_saved_bank_p1), a
+    ret
+
+mapper_pop_p1:
+    ld a, (mapper_saved_bank_p1)
+    jp mapper_set_bank_p1
+
+mapper_push_p2:
+    ld a, (mapper_bank_p2_current)
+    ld (mapper_saved_bank), a
+    ret
+
+mapper_pop_p2:
+    ld a, (mapper_saved_bank)
+    jp mapper_set_bank_p2
+
+mapper_push_p3:
+    ld a, (mapper_bank_p3_current)
+    ld (mapper_saved_bank_p3), a
+    ret
+
+mapper_pop_p3:
+    ld a, (mapper_saved_bank_p3)
+    jp mapper_set_bank_p3
+
+mapper_push_p4:
+    jp mapper_push_p3
+
+mapper_pop_p4:
+    jp mapper_pop_p3
+
+
+; ------------------------------------------------------------------
+; Far call helpers (dynamic target address in HL)
+; Input:
+;   A = target bank number
+;   HL = target routine address in selected page window
+; Output:
+;   Returns after restoring previous bank.
+; Preserves:
+;   DE across mapper trampoline code. The target routine may still define
+;   its own clobbers; callers must save any live registers required by GameFlow.
+; ------------------------------------------------------------------
+mapper_call_hl_p1:
+    push hl
+    push af
+    call mapper_push_p1
+    pop af
+    call mapper_set_bank_p1
+    pop hl
+    push de
+    ld de, .return_p1
+    push de
+    jp (hl)
+.return_p1:
+    call mapper_pop_p1
+    pop de
+    ret
+
+mapper_call_hl_p2:
+    push hl
+    push af
+    call mapper_push_p2
+    pop af
+    call mapper_set_bank_p2
+    pop hl
+    push de
+    ld de, .return_p2
+    push de
+    jp (hl)
+.return_p2:
+    call mapper_pop_p2
+    pop de
+    ret
+
+mapper_call_hl_p3:
+    push hl
+    push af
+    call mapper_push_p3
+    pop af
+    call mapper_set_bank_p3
+    pop hl
+    push de
+    ld de, .return_p3
+    push de
+    jp (hl)
+.return_p3:
+    call mapper_pop_p3
+    pop de
+    ret
+
+mapper_call_hl_p4:
+    jp mapper_call_hl_p3
+
+
+; ------------------------------------------------------------------
+; ------------------------------------------------------------------
+; mapper_call_hl_fixed
+; Direct call helper for Konami fixed window (#4000-#5FFF).
+; Input:
+;   HL = target routine address in fixed window
+; Preserves: DE across mapper trampoline code
+; ------------------------------------------------------------------
+mapper_call_hl_fixed:
+    push de
+    ld de, .return_fixed
+    push de
+    jp (hl)
+.return_fixed:
+    pop de
+    ret
+
+; ------------------------------------------------------------------
+; mapper_call_hl_auto
+; Auto-select mapper window from HL target address range:
+;   4000-5FFF -> fixed
+;   6000-7FFF -> p1
+;   8000-9FFF -> p2
+;   A000-BFFF -> p3
+; Input:
+;   A = target bank
+;   HL = target routine address
+; ------------------------------------------------------------------
+mapper_call_hl_auto:
+    push af
+    ld a, h
+    cp #60
+    jr c, .use_fixed
+    cp #80
+    jr c, .use_p1
+    cp #A0
+    jr c, .use_p2
+    pop af
+    jp mapper_call_hl_p3
+
+.use_fixed:
+    pop af
+    jp mapper_call_hl_fixed
+
+.use_p1:
+    pop af
+    jp mapper_call_hl_p1
+
+.use_p2:
+    pop af
+    jp mapper_call_hl_p2
+
+; @mideas:endblock id=runtime.mapper.core
+
+
+; ==================================================================
+; GENERATED RESOURCE IDS
+; Generated by MegaROM export backend.
+; ==================================================================
+RESOURCE_ID_INVALID EQU #FF
+
+RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER0  EQU 0
+RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER1  EQU 1
+RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER0  EQU 2
+RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER1  EQU 3
+RESOURCE_ID_NINA_GRUB_RIGHT_1_F0_LAYER1  EQU 4
+RESOURCE_ID_NINA_GRUB_RIGHT_1_F0_LAYER2  EQU 5
+RESOURCE_ID_NINA_GRUB_RIGHT_1_F1_LAYER1  EQU 6
+RESOURCE_ID_NINA_GRUB_RIGHT_1_F1_LAYER2  EQU 7
+RESOURCE_ID_NEW_SPRITE_2_F0_LAYER1       EQU 8
+RESOURCE_ID_NEW_SPRITE_2_F0_LAYER2       EQU 9
+RESOURCE_ID_NEW_SPRITE_2_F0_LAYER3       EQU 10
+RESOURCE_ID_NINA_JUMP_RIGHT_3_F0_LAYER0  EQU 11
+RESOURCE_ID_NINA_JUMP_RIGHT_3_F0_LAYER1  EQU 12
+RESOURCE_ID_NINA_IDLE_RIGHT_4_F0_LAYER1  EQU 13
+RESOURCE_ID_NINA_IDLE_RIGHT_4_F0_LAYER2  EQU 14
+RESOURCE_ID_NEW_SPRITE_RIGHT_5_F0_LAYER1 EQU 15
+RESOURCE_ID_NEW_SPRITE_RIGHT_5_F0_LAYER2 EQU 16
+RESOURCE_ID_PROJECTIL1_6_F0_LAYER1       EQU 17
+RESOURCE_ID_PROJECTIL1_6_F0_LAYER2       EQU 18
+RESOURCE_ID_PROJECTIL1_6_F1_LAYER1       EQU 19
+RESOURCE_ID_PROJECTIL1_6_F1_LAYER2       EQU 20
+RESOURCE_ID_NINA_WALK_LEFT_7_F0_LAYER0   EQU 21
+RESOURCE_ID_NINA_WALK_LEFT_7_F0_LAYER1   EQU 22
+RESOURCE_ID_NINA_WALK_LEFT_7_F1_LAYER0   EQU 23
+RESOURCE_ID_NINA_WALK_LEFT_7_F1_LAYER1   EQU 24
+RESOURCE_ID_NINA_GRUB_LEFT_8_F0_LAYER1   EQU 25
+RESOURCE_ID_NINA_GRUB_LEFT_8_F0_LAYER2   EQU 26
+RESOURCE_ID_NINA_GRUB_LEFT_8_F1_LAYER1   EQU 27
+RESOURCE_ID_NINA_GRUB_LEFT_8_F1_LAYER2   EQU 28
+RESOURCE_ID_NINA_JUMP_LEFT_9_F0_LAYER0   EQU 29
+RESOURCE_ID_NINA_JUMP_LEFT_9_F0_LAYER1   EQU 30
+RESOURCE_ID_NINA_IDLE_LEFT_10_F0_LAYER1  EQU 31
+RESOURCE_ID_NINA_IDLE_LEFT_10_F0_LAYER2  EQU 32
+RESOURCE_ID_NEW_SPRITE_LEFT_11_F0_LAYER1 EQU 33
+RESOURCE_ID_NEW_SPRITE_LEFT_11_F0_LAYER2 EQU 34
+RESOURCE_ID_SPRITE_PLACEHOLDER_PATTERN   EQU 35
+RESOURCE_ID_TILE_PATTERN_BANK0           EQU 36
+RESOURCE_ID_TILEBANK_PATTERN_DATA_0      EQU 37
+RESOURCE_ID_TILEBANK_PATTERN_DATA_1      EQU 38
+RESOURCE_ID_TILE_COLOR_BANK0             EQU 39
+RESOURCE_ID_TILEBANK_COLOR_DATA_0        EQU 40
+RESOURCE_ID_TILEBANK_COLOR_DATA_1        EQU 41
+RESOURCE_ID_SCREEN_PAN1_0_BLOCK_CATALOG  EQU 42
+RESOURCE_ID_SCREEN_PAN1_0_BLOCK_MAP      EQU 43
+RESOURCE_ID_SCREEN_PAN1_0_EFFECTS_LAYOUT EQU 44
+RESOURCE_ID_SCREEN_PAN1_0_EFFECT_ZONE_TABLE EQU 45
+RESOURCE_ID_SCREEN_PAN1_0_BOSS_TABLE     EQU 46
+RESOURCE_ID_SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE EQU 47
+RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_TYPE_MAP EQU 48
+RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_VALUE_MAP EQU 49
+RESOURCE_ID_SCREEN_PAN1_0_INTERACTION_TARGET_MAP EQU 50
+RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT EQU 51
+RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT EQU 52
+RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE EQU 53
+RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE EQU 54
+RESOURCE_ID_BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA EQU 55
+RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP EQU 56
+RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP EQU 57
+RESOURCE_ID_SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP EQU 58
+
+; ==================================================================
+; GENERATED RESOURCE TABLE
+; Descriptor format: db bank / dw address / dw stored_size / dw raw_size / db flags
+; Resource id is the zero-based descriptor index.
+; Address is the mapper-window address visible after selecting bank.
+; RESOURCE_FLAG_COMPRESSED_ZX0 means stored_size is compressed and raw_size is output size.
+; ==================================================================
+RESOURCE_TABLE_ENTRY_SIZE EQU 8
+RESOURCE_FLAG_COMPRESSED_ZX0 EQU #01
+RESOURCE_TABLE_COUNT EQU 59
+
+resource_table:
+    ; NINA_WALK_RIGHT_0_F0_LAYER0
+    db 3
+    dw #AA3B
+    dw 30
+    dw 32
+    db 1
+    ; NINA_WALK_RIGHT_0_F0_LAYER1
+    db 3
+    dw #AA59
+    dw 25
+    dw 32
+    db 1
+    ; NINA_WALK_RIGHT_0_F1_LAYER0
+    db 3
+    dw #AA72
+    dw 31
+    dw 32
+    db 1
+    ; NINA_WALK_RIGHT_0_F1_LAYER1
+    db 3
+    dw #AA91
+    dw 27
+    dw 32
+    db 1
+    ; NINA_GRUB_RIGHT_1_F0_LAYER1
+    db 3
+    dw #AAAC
+    dw 18
+    dw 32
+    db 1
+    ; NINA_GRUB_RIGHT_1_F0_LAYER2
+    db 3
+    dw #AABE
+    dw 28
+    dw 32
+    db 1
+    ; NINA_GRUB_RIGHT_1_F1_LAYER1
+    db 3
+    dw #AADA
+    dw 23
+    dw 32
+    db 1
+    ; NINA_GRUB_RIGHT_1_F1_LAYER2
+    db 3
+    dw #AAF1
+    dw 29
+    dw 32
+    db 1
+    ; NEW_SPRITE_2_F0_LAYER1
+    db 3
+    dw #AB0E
+    dw 5
+    dw 32
+    db 1
+    ; NEW_SPRITE_2_F0_LAYER2
+    db 3
+    dw #AB13
+    dw 5
+    dw 32
+    db 1
+    ; NEW_SPRITE_2_F0_LAYER3
+    db 3
+    dw #AB18
+    dw 5
+    dw 32
+    db 1
+    ; NINA_JUMP_RIGHT_3_F0_LAYER0
+    db 3
+    dw #AB1D
+    dw 27
+    dw 32
+    db 1
+    ; NINA_JUMP_RIGHT_3_F0_LAYER1
+    db 3
+    dw #AB38
+    dw 24
+    dw 32
+    db 1
+    ; NINA_IDLE_RIGHT_4_F0_LAYER1
+    db 3
+    dw #AB50
+    dw 23
+    dw 32
+    db 1
+    ; NINA_IDLE_RIGHT_4_F0_LAYER2
+    db 3
+    dw #AB67
+    dw 28
+    dw 32
+    db 1
+    ; NEW_SPRITE_RIGHT_5_F0_LAYER1
+    db 3
+    dw #AB83
+    dw 31
+    dw 32
+    db 1
+    ; NEW_SPRITE_RIGHT_5_F0_LAYER2
+    db 3
+    dw #ABA2
+    dw 30
+    dw 32
+    db 1
+    ; PROJECTIL1_6_F0_LAYER1
+    db 3
+    dw #ABC0
+    dw 17
+    dw 32
+    db 1
+    ; PROJECTIL1_6_F0_LAYER2
+    db 3
+    dw #ABD1
+    dw 12
+    dw 32
+    db 1
+    ; PROJECTIL1_6_F1_LAYER1
+    db 3
+    dw #ABDD
+    dw 14
+    dw 32
+    db 1
+    ; PROJECTIL1_6_F1_LAYER2
+    db 3
+    dw #ABEB
+    dw 13
+    dw 32
+    db 1
+    ; NINA_WALK_LEFT_7_F0_LAYER0
+    db 3
+    dw #ABF8
+    dw 28
+    dw 32
+    db 1
+    ; NINA_WALK_LEFT_7_F0_LAYER1
+    db 3
+    dw #AC14
+    dw 25
+    dw 32
+    db 1
+    ; NINA_WALK_LEFT_7_F1_LAYER0
+    db 3
+    dw #AC2D
+    dw 30
+    dw 32
+    db 1
+    ; NINA_WALK_LEFT_7_F1_LAYER1
+    db 3
+    dw #AC4B
+    dw 30
+    dw 32
+    db 1
+    ; NINA_GRUB_LEFT_8_F0_LAYER1
+    db 3
+    dw #AC69
+    dw 20
+    dw 32
+    db 1
+    ; NINA_GRUB_LEFT_8_F0_LAYER2
+    db 3
+    dw #AC7D
+    dw 29
+    dw 32
+    db 1
+    ; NINA_GRUB_LEFT_8_F1_LAYER1
+    db 3
+    dw #AC9A
+    dw 24
+    dw 32
+    db 1
+    ; NINA_GRUB_LEFT_8_F1_LAYER2
+    db 3
+    dw #ACB2
+    dw 28
+    dw 32
+    db 1
+    ; NINA_JUMP_LEFT_9_F0_LAYER0
+    db 3
+    dw #ACCE
+    dw 27
+    dw 32
+    db 1
+    ; NINA_JUMP_LEFT_9_F0_LAYER1
+    db 3
+    dw #ACE9
+    dw 24
+    dw 32
+    db 1
+    ; NINA_IDLE_LEFT_10_F0_LAYER1
+    db 3
+    dw #AD01
+    dw 24
+    dw 32
+    db 1
+    ; NINA_IDLE_LEFT_10_F0_LAYER2
+    db 3
+    dw #AD19
+    dw 29
+    dw 32
+    db 1
+    ; NEW_SPRITE_LEFT_11_F0_LAYER1
+    db 3
+    dw #AD36
+    dw 31
+    dw 32
+    db 1
+    ; NEW_SPRITE_LEFT_11_F0_LAYER2
+    db 3
+    dw #AD55
+    dw 29
+    dw 32
+    db 1
+    ; SPRITE_PLACEHOLDER_PATTERN
+    db 3
+    dw #AD72
+    dw 5
+    dw 32
+    db 1
+    ; tile_pattern_bank0
+    db 3
+    dw #A000
+    dw 747
+    dw 1016
+    db 1
+    ; tilebank_pattern_data_0
+    db 3
+    dw #A178
+    dw 691
+    dw 896
+    db 1
+    ; tilebank_pattern_data_1
+    db 3
+    dw #A42B
+    dw 689
+    dw 896
+    db 1
+    ; tile_color_bank0
+    db 3
+    dw #A000
+    dw 376
+    dw 1016
+    db 1
+    ; tilebank_color_data_0
+    db 3
+    dw #A6DC
+    dw 354
+    dw 896
+    db 1
+    ; tilebank_color_data_1
+    db 3
+    dw #A83E
+    dw 353
+    dw 896
+    db 1
+    ; SCREEN_PAN1_0_BLOCK_CATALOG
+    db 3
+    dw #AA0E
+    dw 29
+    dw 96
+    db 1
+    ; SCREEN_PAN1_0_BLOCK_MAP
+    db 3
+    dw #AA2B
+    dw 16
+    dw 48
+    db 1
+    ; SCREEN_PAN1_0_EFFECTS_LAYOUT
+    db 3
+    dw #A99F
+    dw 6
+    dw 768
+    db 1
+    ; SCREEN_PAN1_0_EFFECT_ZONE_TABLE
+    db 3
+    dw #A9D2
+    dw 1
+    dw 1
+    db 0
+    ; SCREEN_PAN1_0_BOSS_TABLE
+    db 3
+    dw #A9C7
+    dw 11
+    dw 11
+    db 0
+    ; SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE
+    db 3
+    dw #A9B8
+    dw 15
+    dw 256
+    db 1
+    ; SCREEN_PAN1_0_INTERACTION_TYPE_MAP
+    db 3
+    dw #A9A5
+    dw 6
+    dw 768
+    db 1
+    ; SCREEN_PAN1_0_INTERACTION_VALUE_MAP
+    db 3
+    dw #A9AB
+    dw 13
+    dw 768
+    db 1
+    ; SCREEN_PAN1_0_INTERACTION_TARGET_MAP
+    db 3
+    dw #A9D5
+    dw 6
+    dw 768
+    db 1
+    ; SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT
+    db 3
+    dw #A9DB
+    dw 21
+    dw 768
+    db 1
+    ; SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT
+    db 3
+    dw #A9F0
+    dw 6
+    dw 768
+    db 1
+    ; SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE
+    db 3
+    dw #A9D3
+    dw 1
+    dw 1
+    db 0
+    ; SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE
+    db 3
+    dw #A9D4
+    dw 1
+    dw 1
+    db 0
+    ; BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA
+    db 3
+    dw #A9F6
+    dw 6
+    dw 768
+    db 1
+    ; SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP
+    db 3
+    dw #A9FC
+    dw 6
+    dw 768
+    db 1
+    ; SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP
+    db 3
+    dw #AA02
+    dw 6
+    dw 768
+    db 1
+    ; SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP
+    db 3
+    dw #AA08
+    dw 6
+    dw 768
+    db 1
+
+; ZX0 decoder is resident in bank 0 so banked resource loads can
+; decompress data while the P3 mapper window exposes the source bank.
+; -----------------------------------------------------------------------------
+; ZX0 decoder by Einar Saukas & Urusergi
+; "Standard" version (68 bytes only)
+; -----------------------------------------------------------------------------
+; Parameters:
+;   HL: source address (compressed data)
+;   DE: destination address (decompressing)
+; -----------------------------------------------------------------------------
+
+dzx0_standard:
+        ld      bc, $ffff               ; preserve default offset 1
+        push    bc
+        inc     bc
+        ld      a, $80
+dzx0s_literals:
+        call    dzx0s_elias             ; obtain length
+        ldir                            ; copy literals
+        add     a, a                    ; copy from last offset or new offset?
+        jr      c, dzx0s_new_offset
+        call    dzx0s_elias             ; obtain length
+dzx0s_copy:
+        ex      (sp), hl                ; preserve source, restore offset
+        push    hl                      ; preserve offset
+        add     hl, de                  ; calculate destination - offset
+        ldir                            ; copy from offset
+        pop     hl                      ; restore offset
+        ex      (sp), hl                ; preserve offset, restore source
+        add     a, a                    ; copy from literals or new offset?
+        jr      nc, dzx0s_literals
+dzx0s_new_offset:
+        pop     bc                      ; discard last offset
+        ld      c, $fe                  ; prepare negative offset
+        call    dzx0s_elias_loop        ; obtain offset MSB
+        inc     c
+        ret     z                       ; check end marker
+        ld      b, c
+        ld      c, (hl)                 ; obtain offset LSB
+        inc     hl
+        rr      b                       ; last offset bit becomes first length bit
+        rr      c
+        push    bc                      ; preserve new offset
+        ld      bc, 1                   ; obtain length
+        call    nc, dzx0s_elias_backtrack
+        inc     bc
+        jr      dzx0s_copy
+dzx0s_elias:
+        inc     c                       ; interlaced Elias gamma coding
+dzx0s_elias_loop:
+        add     a, a
+        jr      nz, dzx0s_elias_skip
+        ld      a, (hl)                 ; load another group of 8 bits
+        inc     hl
+        rla
+dzx0s_elias_skip:
+        ret     c
+dzx0s_elias_backtrack:
+        add     a, a
+        rl      c
+        rl      b
+        jr      dzx0s_elias_loop
+; -----------------------------------------------------------------------------
+
+; @mideas:block id=runtime.resources.manager kind=routine owner=resources roots=resource_manager_init,resource_find_by_id,resource_copy_from_bank_to_ram,resource_decompress_from_bank_to_ram,resource_copy_from_bank_to_vram,resource_decompress_from_bank_to_vram,resource_dzx0_to_vram,resource_load_to_ram_by_id,resource_load_to_vram_by_id,resource_read_byte_from_bank
+; ==================================================================
+; RESOURCE MANAGER
+; File: resource_manager.asm
+; Description: Centralized banked resource lookup and copy helpers
+; Descriptor format: db bank / dw address / dw stored_size / dw raw_size / db flags
+; Resource id is the zero-based descriptor index.
+; ==================================================================
+
+resource_manager_init:
+    xor a
+    ld (resource_descriptor_bank), a
+    ld (resource_descriptor_ptr), a
+    ld (resource_descriptor_ptr + 1), a
+    ld (resource_descriptor_addr), a
+    ld (resource_descriptor_addr + 1), a
+    ld (resource_descriptor_size), a
+    ld (resource_descriptor_size + 1), a
+    ld (resource_descriptor_uncompressed_size), a
+    ld (resource_descriptor_uncompressed_size + 1), a
+    ld (resource_descriptor_flags), a
+    ld (vram_cache_tile_patterns_ready), a
+    ld (vram_cache_tile_colors_ready), a
+    ld (vram_cache_font_ready), a
+    ld a, #FF
+    ld (resource_descriptor_id), a
+    ld (resource_ram_cache_screen_layout_id), a
+    ld (resource_ram_cache_effects_layout_id), a
+    ld (resource_ram_cache_effect_zone_table_id), a
+    ld (current_screen2_tilebank_id), a
+    ret
+
+; ------------------------------------------------------------------
+; resource_invalidate_pattern_vram_cache
+; Outputs:
+;   none
+; Clobbers:
+;   AF
+; ------------------------------------------------------------------
+resource_invalidate_pattern_vram_cache:
+    xor a
+    ld (vram_cache_tile_patterns_ready), a
+    ret
+
+; ------------------------------------------------------------------
+; resource_invalidate_color_vram_cache
+; Outputs:
+;   none
+; Clobbers:
+;   AF
+; ------------------------------------------------------------------
+resource_invalidate_color_vram_cache:
+    xor a
+    ld (vram_cache_tile_colors_ready), a
+    ret
+
+; ------------------------------------------------------------------
+; resource_invalidate_font_vram_cache
+; Outputs:
+;   none
+; Clobbers:
+;   AF
+; ------------------------------------------------------------------
+resource_invalidate_font_vram_cache:
+    xor a
+    ld (vram_cache_font_ready), a
+    ret
+
+; ------------------------------------------------------------------
+; resource_invalidate_gameplay_vram_cache
+; Outputs:
+;   none
+; Clobbers:
+;   AF
+; Notes:
+;   Use this when a fullscreen effect or presentation screen overwrites
+;   shared gameplay/font VRAM tables outside the normal loaders.
+; ------------------------------------------------------------------
+resource_invalidate_gameplay_vram_cache:
+    call resource_invalidate_pattern_vram_cache
+    call resource_invalidate_color_vram_cache
+    call resource_invalidate_font_vram_cache
+    ld a, #FF
+    ld (current_screen2_tilebank_id), a
+    ret
+
+; ------------------------------------------------------------------
+; resource_invalidate_screen_ram_cache
+; Outputs:
+;   none
+; Clobbers:
+;   AF
+; Notes:
+;   Invalidates the clean RAM copies used to rebuild runtime screen data
+;   without re-reading the same banked resource on repeated screen loads.
+; ------------------------------------------------------------------
+resource_invalidate_screen_ram_cache:
+    ld a, #FF
+    ld (resource_ram_cache_screen_layout_id), a
+    ld (resource_ram_cache_effects_layout_id), a
+    ld (resource_ram_cache_effect_zone_table_id), a
+    ret
+
+; ------------------------------------------------------------------
+; resource_find_by_id
+; Inputs:
+;   A = resource id
+; Outputs on success (carry clear):
+;   HL = pointer to descriptor entry
+;   A  = bank number
+;   DE = visible window address
+;   BC = stored size in bytes
+; Outputs on failure (carry set):
+;   HL = resource_table
+; Clobbers:
+;   AF, BC, DE, HL
+; Notes:
+;   Mirrors the descriptor into RAM so callers can inspect fields later
+;   without re-scanning the table.
+; ------------------------------------------------------------------
+resource_find_by_id:
+    ld c, a
+    ld a, (resource_descriptor_id)
+    cp c
+    jr nz, .resource_find_lookup
+    ld a, (resource_descriptor_bank)
+    ld de, (resource_descriptor_addr)
+    ld bc, (resource_descriptor_size)
+    or a
+    ret
+.resource_find_lookup:
+    ld a, c
+    cp RESOURCE_TABLE_COUNT
+    jp nc, .resource_find_not_found
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld de, resource_table
+    add hl, de
+    ld a, c
+    ld (resource_descriptor_id), a
+    ld (resource_descriptor_ptr), hl
+    push hl
+    ld a, (hl)
+    ld (resource_descriptor_bank), a
+    inc hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld (resource_descriptor_addr), de
+    inc hl
+    ld c, (hl)
+    inc hl
+    ld b, (hl)
+    ld (resource_descriptor_size), bc
+    inc hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld (resource_descriptor_uncompressed_size), de
+    inc hl
+    ld a, (hl)
+    ld (resource_descriptor_flags), a
+    ld de, (resource_descriptor_addr)
+    ld bc, (resource_descriptor_size)
+    pop hl
+    ld a, (resource_descriptor_bank)
+    or a
+    ret
+
+.resource_find_not_found:
+    xor a
+    ld (resource_descriptor_bank), a
+    ld (resource_descriptor_ptr), a
+    ld (resource_descriptor_ptr + 1), a
+    ld (resource_descriptor_addr), a
+    ld (resource_descriptor_addr + 1), a
+    ld (resource_descriptor_size), a
+    ld (resource_descriptor_size + 1), a
+    ld (resource_descriptor_uncompressed_size), a
+    ld (resource_descriptor_uncompressed_size + 1), a
+    ld (resource_descriptor_flags), a
+    ld a, #FF
+    ld (resource_descriptor_id), a
+    scf
+    ret
+
+; ------------------------------------------------------------------
+; resource_copy_from_bank_to_ram
+; Inputs:
+;   A  = bank number
+;   HL = source visible in mapper data window
+;   DE = destination in RAM
+;   BC = size in bytes
+; Outputs:
+;   carry clear
+; Clobbers:
+;   AF, BC, DE, HL
+; ------------------------------------------------------------------
+resource_copy_from_bank_to_ram:
+    push af
+    ld a, b
+    or c
+    jr nz, .resource_copy_ram_has_size
+    pop af
+    or a
+    ret
+.resource_copy_ram_has_size:
+    pop af
+    di
+    push af
+    call mapper_push_p3
+    pop af
+    call mapper_set_bank_p3
+    ldir
+    call mapper_pop_p3
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .resource_copy_ram_irq_done
+    ei
+.resource_copy_ram_irq_done:
+    or a
+    ret
+
+; ------------------------------------------------------------------
+; resource_decompress_from_bank_to_ram
+; Inputs:
+;   A  = bank number
+;   HL = ZX0 source visible in mapper data window
+;   DE = destination in RAM
+; Outputs:
+;   carry clear
+; Clobbers:
+;   AF, BC, DE, HL
+; ------------------------------------------------------------------
+resource_decompress_from_bank_to_ram:
+    di
+    push af
+    call mapper_push_p3
+    pop af
+    call mapper_set_bank_p3
+    call dzx0_standard
+    call mapper_pop_p3
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .resource_decompress_ram_irq_done
+    ei
+.resource_decompress_ram_irq_done:
+    or a
+    ret
+
+; ------------------------------------------------------------------
+; resource_copy_from_bank_to_vram
+; Inputs:
+;   A  = bank number
+;   HL = source visible in mapper data window
+;   DE = destination in VRAM
+;   BC = size in bytes
+; Outputs:
+;   carry clear
+; Clobbers:
+;   AF, BC, DE, HL
+; ------------------------------------------------------------------
+resource_copy_from_bank_to_vram:
+    push af
+    ld a, b
+    or c
+    jr nz, .resource_copy_vram_has_size
+    pop af
+    or a
+    ret
+.resource_copy_vram_has_size:
+    pop af
+    di
+    push af
+    call mapper_push_p3
+    pop af
+    call mapper_set_bank_p3
+    ; Banked VRAM copy keeps IRQs masked until P2 is restored.
+    ; FAST_LDIRVM re-enables IRQs internally, so inline the same port loop here.
+    ; Restore IRQs only if they were enabled on entry.
+    ld a, e
+    out (#99), a
+    nop
+    ld a, d
+    or #40
+    out (#99), a
+    nop
+.resource_copy_vram_loop:
+    ld a, (hl)
+    out (#98), a
+    inc hl
+    dec bc
+    ld a, b
+    or c
+    jr nz, .resource_copy_vram_loop
+    call mapper_pop_p3
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .resource_copy_vram_irq_done
+    ei
+.resource_copy_vram_irq_done:
+    or a
+    ret
+
+; ------------------------------------------------------------------
+; resource_decompress_from_bank_to_vram
+; Inputs:
+;   A  = bank number
+;   HL = ZX0 source visible in mapper data window
+;   DE = destination in VRAM
+;   BC = uncompressed size in bytes
+; Outputs:
+;   carry clear
+; Clobbers:
+;   AF, BC, DE, HL
+; Notes:
+;   Uses fast RAM staging when the uncompressed output fits the shared scratch
+;   buffer. Larger resources fall back to direct-to-VRAM ZX0 decode.
+; ------------------------------------------------------------------
+resource_decompress_from_bank_to_vram:
+    push af
+    ld a, b
+    or c
+    jp nz, .resource_decompress_vram_has_size
+    pop af
+    or a
+    ret
+.resource_decompress_vram_has_size:
+    ld a, b
+    cp ZX0_VRAM_TRANSFER_BUFFER_LIMIT_HIGH
+    jp c, .resource_decompress_vram_staged
+    jp nz, .resource_decompress_vram_direct
+    ld a, c
+    cp ZX0_VRAM_TRANSFER_BUFFER_LIMIT_NEXT_LOW
+    jp c, .resource_decompress_vram_staged
+.resource_decompress_vram_direct:
+    pop af
+    di
+    push af
+    call mapper_push_p3
+    pop af
+    call mapper_set_bank_p3
+    call resource_dzx0_to_vram
+    call mapper_pop_p3
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .resource_decompress_vram_irq_done
+    ei
+.resource_decompress_vram_irq_done:
+    or a
+    ret
+.resource_decompress_vram_staged:
+    pop af
+    push de
+    push bc
+    ld de, ZX0_VRAM_TRANSFER_BUFFER
+    call resource_decompress_from_bank_to_ram
+    pop bc
+    pop de
+    ld hl, ZX0_VRAM_TRANSFER_BUFFER
+    jp FAST_LDIRVM
+
+; ------------------------------------------------------------------
+; resource_dzx0_to_vram
+; Inputs:
+;   HL = ZX0 source visible in mapper data window
+;   DE = destination in VRAM
+; Outputs:
+;   DE advanced past decompressed stream
+; Clobbers:
+;   AF, BC, DE, HL
+; Notes:
+;   Adapted from the standard ZX0 decoder structure. Literal bytes are read
+;   from mapper-visible ROM and written to VRAM; match bytes are read from
+;   already decompressed VRAM and written to the current VRAM destination.
+;   IRQs and mapper bank lifetime are managed by the caller.
+; ------------------------------------------------------------------
+resource_dzx0_to_vram:
+    ld bc, #FFFF
+    push bc
+    inc bc
+    ld a, #80
+.resource_dzx0_vram_literals:
+    call .resource_dzx0_vram_elias
+    push af
+.resource_dzx0_vram_literal_loop:
+    ld a, e
+    out (#99), a
+    nop
+    ld a, d
+    or #40
+    out (#99), a
+    nop
+    ld a, (hl)
+    out (#98), a
+    inc hl
+    inc de
+    dec bc
+    ld a, b
+    or c
+    jp nz, .resource_dzx0_vram_literal_loop
+    pop af
+    add a, a
+    jp c, .resource_dzx0_vram_new_offset
+    call .resource_dzx0_vram_elias
+.resource_dzx0_vram_copy:
+    ex (sp), hl
+    push hl
+    add hl, de
+    push af
+.resource_dzx0_vram_copy_loop:
+    push bc
+    ld a, l
+    out (#99), a
+    nop
+    ld a, h
+    and #3F
+    out (#99), a
+    nop
+    nop
+    in a, (#98)
+    ld b, a
+    ld a, e
+    out (#99), a
+    nop
+    ld a, d
+    or #40
+    out (#99), a
+    nop
+    ld a, b
+    out (#98), a
+    pop bc
+    inc hl
+    inc de
+    dec bc
+    ld a, b
+    or c
+    jp nz, .resource_dzx0_vram_copy_loop
+    pop af
+    pop hl
+    ex (sp), hl
+    add a, a
+    jp nc, .resource_dzx0_vram_literals
+.resource_dzx0_vram_new_offset:
+    pop bc
+    ld c, #FE
+    call .resource_dzx0_vram_elias_loop
+    inc c
+    ret z
+    ld b, c
+    ld c, (hl)
+    inc hl
+    rr b
+    rr c
+    push bc
+    ld bc, 1
+    call nc, .resource_dzx0_vram_elias_backtrack
+    inc bc
+    jp .resource_dzx0_vram_copy
+.resource_dzx0_vram_elias:
+    inc c
+.resource_dzx0_vram_elias_loop:
+    add a, a
+    jp nz, .resource_dzx0_vram_elias_skip
+    ld a, (hl)
+    inc hl
+    rla
+.resource_dzx0_vram_elias_skip:
+    ret c
+.resource_dzx0_vram_elias_backtrack:
+    add a, a
+    rl c
+    rl b
+    jp .resource_dzx0_vram_elias_loop
+
+; ------------------------------------------------------------------
+; resource_load_to_ram_by_id
+; Inputs:
+;   A  = resource id
+;   DE = destination in RAM
+; Outputs:
+;   carry clear on success
+;   carry set if resource id is missing
+; Clobbers:
+;   AF, BC, DE, HL
+; ------------------------------------------------------------------
+resource_load_to_ram_by_id:
+    push de
+    call resource_find_by_id
+    jp c, .resource_load_to_ram_fail
+    push de
+    pop hl
+    pop de
+    ld a, (resource_descriptor_flags)
+    and RESOURCE_FLAG_COMPRESSED_ZX0
+    jr z, .resource_load_to_ram_raw
+    ld a, (resource_descriptor_bank)
+    jp resource_decompress_from_bank_to_ram
+.resource_load_to_ram_raw:
+    ld a, (resource_descriptor_bank)
+    jp resource_copy_from_bank_to_ram
+
+.resource_load_to_ram_fail:
+    pop de
+    ret
+
+; ------------------------------------------------------------------
+; resource_load_to_vram_by_id
+; Inputs:
+;   A  = resource id
+;   DE = destination in VRAM
+; Outputs:
+;   carry clear on success
+;   carry set if resource id is missing
+; Clobbers:
+;   AF, BC, DE, HL
+; ------------------------------------------------------------------
+resource_load_to_vram_by_id:
+    push de
+    call resource_find_by_id
+    jp c, .resource_load_to_vram_fail
+    ld a, (resource_descriptor_flags)
+    and RESOURCE_FLAG_COMPRESSED_ZX0
+    jp nz, .resource_load_to_vram_compressed
+    push de
+    pop hl
+    pop de
+    ld a, (resource_descriptor_bank)
+    jp resource_copy_from_bank_to_vram
+
+.resource_load_to_vram_compressed:
+    push de
+    pop hl
+    ld bc, (resource_descriptor_uncompressed_size)
+    pop de
+    ld a, (resource_descriptor_bank)
+    jp resource_decompress_from_bank_to_vram
+
+.resource_load_to_vram_fail:
+    pop de
+    ret
+
+; ------------------------------------------------------------------
+; resource_load_screen_layout_cached
+; Inputs:
+;   A = screen layout resource id
+; Outputs:
+;   carry clear on success
+;   carry set if resource id is missing
+; Notes:
+;   Keeps the immutable layout in runtime_background_layout and rebuilds
+;   runtime_screen_layout from that clean RAM copy on every screen load.
+; Clobbers:
+;   AF, BC, DE, HL
+; ------------------------------------------------------------------
+resource_load_screen_layout_cached:
+    ld c, a
+    ld a, (resource_ram_cache_screen_layout_id)
+    cp c
+    jr z, .resource_layout_cache_hit
+    push bc
+    ld a, c
+    ld de, runtime_background_layout
+    call resource_load_to_ram_by_id
+    pop bc
+    ret c
+    ld a, c
+    ld (resource_ram_cache_screen_layout_id), a
+.resource_layout_cache_hit:
+    ld hl, runtime_background_layout
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    xor a
+    ret
+
+; ------------------------------------------------------------------
+; resource_load_effects_layout_cached
+; Inputs:
+;   A = effects layout resource id
+; Outputs:
+;   carry clear on success
+;   carry set if resource id is missing
+; Notes:
+;   Keeps the immutable effects layer in runtime_effects_layout.
+; Clobbers:
+;   AF, BC, DE, HL
+; ------------------------------------------------------------------
+resource_load_effects_layout_cached:
+    ld c, a
+    ld a, (resource_ram_cache_effects_layout_id)
+    cp c
+    jr z, .resource_effects_cache_hit
+    push bc
+    ld a, c
+    ld de, runtime_effects_layout
+    call resource_load_to_ram_by_id
+    pop bc
+    ret c
+    ld a, c
+    ld (resource_ram_cache_effects_layout_id), a
+.resource_effects_cache_hit:
+    xor a
+    ret
+
+; ------------------------------------------------------------------
+; resource_load_behavior_map_cached
+; Inputs:
+;   A = behavior map resource id
+; Outputs:
+;   carry clear on success
+;   carry set if resource id is missing
+; Notes:
+;   Reloads the mutable runtime_behavior_map directly from the banked
+;   resource. This avoids a second resident 32x24 behavior-map copy in RAM.
+; Clobbers:
+;   AF, BC, DE, HL
+; ------------------------------------------------------------------
+resource_load_behavior_map_cached:
+    ld de, runtime_behavior_map
+    call resource_load_to_ram_by_id
+    ret
+
+; ------------------------------------------------------------------
+; resource_load_effect_zone_table_cached
+; Inputs:
+;   A = effect zone table resource id
+; Outputs:
+;   carry clear on success
+;   carry set if resource id is missing
+; Notes:
+;   Keeps the current screen's immutable effect zone table resident in RAM.
+; Clobbers:
+;   AF, BC, DE, HL
+; ------------------------------------------------------------------
+resource_load_effect_zone_table_cached:
+    ld c, a
+    ld a, (resource_ram_cache_effect_zone_table_id)
+    cp c
+    jr z, .resource_effect_zone_cache_hit
+    push bc
+    ld a, c
+    ld de, runtime_effect_zone_table
+    call resource_load_to_ram_by_id
+    pop bc
+    ret c
+    ld a, c
+    ld (resource_ram_cache_effect_zone_table_id), a
+.resource_effect_zone_cache_hit:
+    xor a
+    ret
+
+; ------------------------------------------------------------------
+; resource_read_byte_from_bank
+; Inputs:
+;   A  = bank number
+;   HL = source visible in mapper data window
+; Outputs:
+;   A = byte read
+; Clobbers:
+;   AF, BC, HL
+; Preserves:
+;   DE
+; ------------------------------------------------------------------
+resource_read_byte_from_bank:
+    ld b, a
+    ld a, b
+    push af
+    call mapper_push_p3
+    pop af
+    call mapper_set_bank_p3
+    ld a, (hl)
+    ld b, a
+    call mapper_pop_p3
+    ld a, b
+    ret
+; @mideas:endblock id=runtime.resources.manager
+
+
+; ==================================================================
+; COMPONENT TRIGGER HELPERS - bank 0 resident copy
+; Components call these routines directly. In MegaROM they must not live in a
+; lower-page overlay such as GameFlow, because ASCII16 maps #4000-#7FFF as one
+; 16 KB segment and the same CPU address can mean a different ROM page.
+; ==================================================================
+
+; ==================================================================
+; COMPONENT ACTION TRIGGER HELPERS
+; ==================================================================
+; Register Contract:
+;   Purpose: Test whether a component-configured input trigger was pressed on this frame.
+;   Inputs:
+;     - A = COMP_TRIGGER_* value
+;   Outputs:
+;     - A = 1 and NZ if pressed this frame, A = 0 and Z if not
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;   Notes:
+;     - Uses edge detection against input_btn_prev or prev_input_state.
+
+component_trigger_edge_pressed_a:
+    cp COMP_TRIGGER_UP
+    jp z, .trigger_check_up
+    cp COMP_TRIGGER_ACTION2
+    jp z, .trigger_check_action2
+
+.trigger_check_fire:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    jp z, .trigger_false
+    ld a, (input_btn_prev)
+    and INPUT_BTN_FIRE
+    jp nz, .trigger_false
+    jp .trigger_true
+
+.trigger_check_action2:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_GRAB
+    jp z, .trigger_false
+    ld a, (input_btn_prev)
+    and INPUT_BTN_GRAB
+    jp nz, .trigger_false
+    jp .trigger_true
+
+.trigger_check_up:
+    ld a, (input_state)
+    cp STICK_UP
+    jp nz, .trigger_false
+    ld a, (prev_input_state)
+    cp STICK_UP
+    jp z, .trigger_false
+
+.trigger_true:
+    ld a, 1
+    or a
+    ret
+
+.trigger_false:
+    xor a
+    ret
+
+; Register Contract:
+;   Purpose: Test whether a component-configured input trigger is currently held.
+;   Inputs:
+;     - A = COMP_TRIGGER_* value
+;   Outputs:
+;     - A = 1 and NZ if held, A = 0 and Z if not
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+
+component_trigger_level_pressed_a:
+    cp COMP_TRIGGER_UP
+    jp z, .trigger_level_check_up
+    cp COMP_TRIGGER_ACTION2
+    jp z, .trigger_level_check_action2
+
+.trigger_level_check_fire:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    jp z, .trigger_level_false
+    jp .trigger_level_true
+
+.trigger_level_check_action2:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_GRAB
+    jp z, .trigger_level_false
+    jp .trigger_level_true
+
+.trigger_level_check_up:
+    ld a, (input_state)
+    cp STICK_UP
+    jp nz, .trigger_level_false
+
+.trigger_level_true:
+    ld a, 1
+    or a
+    ret
+
+.trigger_level_false:
+    xor a
+    ret
+
+
+
+; ==================================================================
+; PAGE-0 STUBS ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â labels required by header.asm, no-ops in megarom
+; ==================================================================
+; @mideas:block id=runtime.page0.stubs kind=routine owner=unified roots=init_page0_runtime_state,page0_map_expanded_slot,page0_map_game_rom,page0_restore_bios_rom,page0_copy_chunk_to_buffer,page0_decompress_to_ram,page0_copy_to_vram
+init_page0_runtime_state:
+    ret
+
+page0_map_expanded_slot:
+    ret
+
+page0_map_game_rom:
+    ret
+
+page0_restore_bios_rom:
+    ret
+
+page0_copy_chunk_to_buffer:
+    ret
+
+page0_decompress_to_ram:
+    ret
+
+page0_copy_to_vram:
+    ret
+; @mideas:endblock id=runtime.page0.stubs
+
+; ==================================================================
+; INTERRUPT TASK SYSTEM - File: interrupt.asm
+; Konami-style technique: Hook H.TIMI for 50/60Hz task execution
+; ==================================================================
+
+; ==================================================================
+; INTERRUPT SYSTEM MEMORY LAYOUT
+; Variables are defined in variables.asm (dynamically allocated)
+; This avoids RAM overlap with entity system arrays
+; ==================================================================
+; Slots: task_table (8 slots x 2 bytes), task_0_ptr..task_7_ptr
+; State: interrupt_system_enabled, old_htimi_hook, interrupt_counter,
+;        task_exec_time, vblank_flag
+; ==================================================================
+
+; ==================================================================
+; INIT_INTERRUPT_SYSTEM - Install H.TIMI hook
+; ==================================================================
+; Register Contract:
+;   Purpose: Install JP hook on H.TIMI and initialize interrupt task state.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Register roles:
+;     - HL/DE/BC = block copy parameters for hook backup and task table clear
+;     - A = enable flag and zeroing value
+;   Notes:
+;     - Runs with DI/EI, so caller must not assume interrupt state is unchanged.
+
+; Inputs: None
+; Outputs: None
+; Modifies: AF, BC, DE, HL
+; ==================================================================
+init_interrupt_system:
+    di                          ; Disable interrupts during hook install
+
+    ; --- STEP 1: Save original hook ---
+    ld hl, #FD9F                ; H.TIMI address
+    ld de, old_htimi_hook       ; Our backup location
+    ld bc, 5                    ; Save 5 bytes (JP nnnn + padding)
+    ldir                        ; Copy original hook to RAM
+
+    ; --- STEP 2: Install our hook ---
+    ; Write "JP interrupt_dispatcher" at FD9F
+    ld a, #C3                   ; Opcode for JP
+    ld (#FD9F), a               ; Write JP opcode
+    ld hl, interrupt_dispatcher ; Address of our ISR
+    ld (#FDA0), hl              ; Write address (little-endian)
+
+    ; --- STEP 3: Initialize task table to 0 (all disabled) ---
+    ld hl, task_table
+    ld de, task_table+1
+    ld bc, 15                   ; 8 slots ÃƒÆ’Ã¢â‚¬Â¡- 2 bytes = 16 bytes - 1
+    ld (hl), 0
+    ldir                        ; Clear all task pointers
+
+    ; --- STEP 4: Initialize counters ---
+    xor a
+    ld (interrupt_counter), a
+    ld (interrupt_counter+1), a
+    ld (vblank_flag), a
+
+    ; --- STEP 5: Mark system as enabled ---
+    ld a, 1
+    ld (interrupt_system_enabled), a
+
+    ei                          ; Re-enable interrupts
+    ret
+
+; @mideas:block id=runtime.interrupt.stop kind=routine owner=interrupt roots=stop_interrupt_system
+; ==================================================================
+; STOP_INTERRUPT_SYSTEM - Restore original H.TIMI hook
+; ==================================================================
+; Register Contract:
+;   Purpose: Restore original H.TIMI bytes and mark system disabled.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Register roles:
+;     - HL/DE/BC = LDIR source/destination/count for hook restore
+;     - A = zero flag write to interrupt_system_enabled
+;   Notes:
+;     - Runs with DI/EI for atomic hook restoration.
+
+; Inputs: None
+; Outputs: None
+; Modifies: AF, BC, DE, HL
+; ==================================================================
+stop_interrupt_system:
+    di                          ; Disable interrupts
+
+    ; Restore original hook
+    ld hl, old_htimi_hook       ; Our backup
+    ld de, #FD9F                ; H.TIMI location
+    ld bc, 5                    ; Restore 5 bytes
+    ldir
+
+    ; Mark system as disabled
+    xor a
+    ld (interrupt_system_enabled), a
+
+    ei                          ; Re-enable interrupts
+    ret
+; @mideas:endblock id=runtime.interrupt.stop
+
+; @mideas:block id=runtime.interrupt.dispatcher kind=routine owner=interrupt preserve=true roots=interrupt_dispatcher
+; ==================================================================
+; INTERRUPT_DISPATCHER - Main ISR (60Hz/50Hz)
+; ==================================================================
+; Register Contract:
+;   Purpose: Dispatch enabled interrupt tasks each VBlank and chain BIOS hook.
+;   Inputs:
+;     - Triggered by H.TIMI hook
+;   Outputs:
+;     - interrupt_counter incremented
+;     - vblank_flag refreshed
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;     - IX
+;     - IY (all restored before exit)
+;   Preserved:
+;     - DE
+;     - IX
+;     - IY
+;   Register roles:
+;     - HL = walks task_table and holds task pointer
+;     - B = task slot loop counter
+;     - C = temporary low byte for pointer reconstruction
+;     - A = enabled checks and pointer validation
+;   Notes:
+;     - Dispatcher saves/restores DE/IX/IY defensively, reducing coupling with task internals.
+
+; This routine executes on each V-Blank
+; CRITICAL: Minimal CPU cycles, maximum efficiency
+; Overhead: ~80 cycles base + ~40 cycles per active task
+; ==================================================================
+interrupt_dispatcher:
+    ; --- STEP 1: Save caller-visible registers used by BIOS/user code ---
+    push af                     ; 11 cycles
+    push hl                     ; 11 cycles
+    push bc                     ; 11 cycles
+    push de                     ; 11 cycles
+    push ix                     ; 15 cycles
+    push iy                     ; 15 cycles
+    ; Total: 74 cycles fixed prologue overhead
+
+    ld a, 1
+    ld (interrupt_in_progress), a
+
+    ; --- STEP 2: Check if system is enabled ---
+    ld a, (interrupt_system_enabled)
+    or a
+    jr z, .exit                 ; If disabled, exit quickly
+
+    ; --- STEP 3: Increment frame counter ---
+    ld hl, (interrupt_counter)
+    inc hl
+    ld (interrupt_counter), hl
+
+    ; --- STEP 3.5: Update VBlank flag (reads VDP status) ---
+    call update_vblank_flag
+
+    ; --- STEP 4: Walk through task table (DI ensures no nested interrupts) ---
+    di                          ; Disable interrupts for task execution
+    ld hl, task_table           ; HL = pointer to task table
+    ld b, 8                     ; 8 slots
+
+.task_loop:
+    ; Read task pointer (16-bit address)
+    ld a, (hl)                  ; Low byte
+    inc hl
+    ld c, a
+    ld a, (hl)                  ; High byte
+    inc hl
+    or c                        ; Check if pointer == 0
+    jr z, .next_task            ; Skip if disabled (pointer == 0)
+
+    ; Valid pointer: execute task
+    dec hl
+    dec hl                      ; Back to low byte
+    push bc                     ; Save loop counter
+    push hl                     ; Save table position
+
+    ; Load task address into HL
+    ld c, (hl)                  ; Low byte
+    inc hl
+    ld h, (hl)                  ; High byte
+    ld l, c                     ; HL = task address
+
+    ; Call task using JP (HL) pattern (faster than indirect CALL)
+    call .call_task             ; Call the task
+
+    pop hl                      ; Restore table position
+    pop bc                      ; Restore loop counter
+    inc hl
+    inc hl                      ; Advance to next slot
+    jr .continue_loop
+
+.next_task:
+    ; Nothing to do, HL already points to next slot
+
+.continue_loop:
+    djnz .task_loop             ; Loop 8 times
+
+.exit:
+    xor a
+    ld (interrupt_in_progress), a
+
+    ; --- STEP 5: Restore registers ---
+    pop iy                      ; 14 cycles
+    pop ix                      ; 14 cycles
+    pop de                      ; 10 cycles
+    pop bc                      ; 10 cycles
+    pop hl                      ; 10 cycles
+    pop af                      ; 10 cycles
+
+    ; --- STEP 6: Return from interrupt ---
+    ; For H.TIMI we should chain to the original hook (best compatibility)
+    ; and let the BIOS interrupt handler manage EI/RETI.
+    jp old_htimi_hook
+
+; Helper for indirect call
+.call_task:
+    jp (hl)                     ; Jump to task (task will RET back here)
+
+; @mideas:endblock id=runtime.interrupt.dispatcher
+; ==================================================================
+; TASK MANAGEMENT FUNCTIONS
+; ==================================================================
+
+; ==================================================================
+; NOTE: wait_vblank function removed - use HALT directly in game loop
+; HALT is more efficient (no call/ret overhead)
+; ==================================================================
+
+; ==================================================================
+; UPDATE_VBLANK_FLAG - For interrupt dispatcher use only
+; ==================================================================
+; @mideas:block id=runtime.interrupt.vblank_flag kind=routine owner=interrupt roots=update_vblank_flag
+; Register Contract:
+;   Purpose: Read VDP status register and latch VBlank state in RAM flag.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - vblank_flag = 0/1
+;   Clobbers:
+;     - AF (internally saved/restored)
+;   Preserved:
+;     - AF, BC, DE, HL
+;   Register roles:
+;     - A = VDP status read and boolean conversion
+
+; Updates vblank_flag only if we're actually in VBlank
+; Called from interrupt_dispatcher
+; Inputs: None
+; Outputs: None
+; Modifies: AF
+; ==================================================================
+update_vblank_flag:
+    push af
+    in a, (#99)                 ; Read VDP status register
+    bit 7, a                    ; Are we in VBlank?
+    jr z, .not_in_vblank
+    ld a, 1
+    ld (vblank_flag), a
+    jr .uvf_done
+.not_in_vblank:
+    xor a
+    ld (vblank_flag), a
+.uvf_done:
+    pop af
+    ret
+; @mideas:endblock id=runtime.interrupt.vblank_flag
+
+; ==================================================================
+; ENABLE_TASK - Activate a task in the system
+; ==================================================================
+; @mideas:block id=runtime.interrupt.task_api kind=routine owner=interrupt roots=enable_task,disable_task,get_frame_count
+; Register Contract:
+;   Purpose: Store routine pointer into task_table slot.
+;   Inputs:
+;     - A = task slot (0-7)
+;     - HL = task routine address
+;   Outputs:
+;     - task_table[slot] = HL
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Register roles:
+;     - A = slot validation and offset math
+;     - DE = holds routine address while HL is repurposed as slot pointer
+;     - BC = task_table base address
+;     - HL = slot address calculation / pointer write
+
+; Inputs:
+;   A = task slot (0-7)
+;   HL = address of task routine
+; Outputs: None
+; Modifies: AF, BC, DE, HL
+; ==================================================================
+enable_task:
+    ; Validate slot (0-7)
+    cp 8
+    ret nc                      ; Return if slot >= 8
+
+    ; Calculate offset in table: slot * 2
+    add a, a                    ; A = slot * 2
+    ld e, a
+    ld d, 0
+    ld bc, task_table
+    ex de, hl                   ; HL = offset, DE = task address
+    add hl, bc                  ; HL = task_table + offset
+
+    ; Write task address
+    ex de, hl                   ; HL = task address, DE = slot location
+    ld a, l
+    ld (de), a                  ; Write low byte
+    inc de
+    ld a, h
+    ld (de), a                  ; Write high byte
+
+    ret
+
+; ==================================================================
+; DISABLE_TASK - Deactivate a task
+; ==================================================================
+; Register Contract:
+;   Purpose: Clear routine pointer in selected task slot.
+;   Inputs:
+;     - A = task slot (0-7)
+;   Outputs:
+;     - task_table[slot] = 0
+;   Clobbers:
+;     - AF
+;     - DE
+;     - HL
+;   Preserved:
+;     - BC
+;   Register roles:
+;     - A = slot validation and zero value for clearing
+;     - HL = destination slot pointer
+;     - DE = computed slot offset
+
+; Inputs:
+;   A = task slot (0-7)
+; Outputs: None
+; Modifies: AF, DE, HL
+; ==================================================================
+disable_task:
+    ; Validate slot
+    cp 8
+    ret nc
+
+    ; Calculate offset
+    add a, a                    ; A = slot * 2
+    ld e, a
+    ld d, 0
+    ld hl, task_table
+    add hl, de                  ; HL = task_table + offset
+
+    ; Write 0 (disable)
+    xor a
+    ld (hl), a                  ; Low byte = 0
+    inc hl
+    ld (hl), a                  ; High byte = 0
+
+    ret
+
+; ==================================================================
+; GET_FRAME_COUNT - Get frame counter value
+; ==================================================================
+; Register Contract:
+;   Purpose: Expose current 16-bit interrupt frame counter.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - HL = interrupt_counter
+;   Clobbers:
+;     - HL
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE
+;   Register roles:
+;     - HL = loaded return value
+
+; Inputs: None
+; Outputs: HL = frame count (16-bit)
+; Modifies: HL
+; ==================================================================
+get_frame_count:
+    ld hl, (interrupt_counter)
+    ret
+; @mideas:endblock id=runtime.interrupt.task_api
+
+; ==================================================================
+; INIT_DEFAULT_TASKS_FROM_PLAN - Register engine-selected IRQ tasks
+; @mideas:block id=runtime.interrupt.task_input kind=routine owner=interrupt roots=task_update_input
+; ==================================================================
+; Register Contract:
+;   Purpose: Enable the IRQ task set selected by the engine execution plan.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - task_table updated for all enabled-at-boot tasks
+;   Clobbers:
+;     - AF
+;     - HL
+;   Preserved:
+;     - BC
+;     - DE
+;   Register roles:
+;     - A = task slot
+;     - HL = task routine address
+;   Notes:
+;     - Calls enable_task once per enabled task.
+init_default_tasks_from_plan:
+    ld a, 1
+    ld hl, task_frame_counter
+    call enable_task
+    ret
+
+; ==================================================================
+; SHARED MAINLINE TASK WRAPPERS
+; ==================================================================
+; These wrappers stay available in interruptTaskManager mode because
+; the HALT-driven GameFlow loops still call them directly.
+; ==================================================================
+
+; ==================================================================
+; TASK_UPDATE_INPUT - Joystick/Cursor polling wrapper
+; ==================================================================
+; Register Contract:
+;   Purpose: Poll joystick + keyboard fallback and update input state buffers.
+;   Inputs:
+;     - Reads hardware via FAST_GTSTCK / FAST_GTTRIG / FAST_SNSMAT
+;   Outputs:
+;     - input_state, prev_input_state, input_btn_curr, input_btn_prev, input_fire
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE (by push/pop wrapper)
+;     - HL
+;   Register roles:
+;     - A = hardware reads and final scalar writes
+;     - B = direction accumulator
+;     - D = button bitmask and keyboard direction flags
+;     - E = temporary keyboard row bits
+;   Notes:
+;     - Wrapper preserves caller-visible regs despite internal mutation.
+task_update_input:
+    push af
+    push bc
+    push de
+
+    ; Save previous state
+    ld a, (input_state)
+    ld (prev_input_state), a
+    ld a, (input_btn_curr)
+    ld (input_btn_prev), a
+
+    ; Read joystick direction first (priority source, direct hardware)
+    xor a                       ; Joystick 0
+    call FAST_GTSTCK            ; Direct hardware read
+    ld b, a                     ; B = joystick direction
+    or a
+    jp nz, .dir_ready
+
+    ; Fallback to keyboard cursor keys (row 8, direct matrix read)
+    ld a, 8
+    call FAST_SNSMAT            ; Active low bits
+    ld e, a
+    xor a
+    ld d, a                     ; D = direction flags: 0=none
+    bit 5, e                    ; Up
+    jr nz, .kbd_no_up
+    set 0, d
+.kbd_no_up:
+    bit 6, e                    ; Down
+    jr nz, .kbd_no_down
+    set 1, d
+.kbd_no_down:
+    bit 4, e                    ; Left
+    jr nz, .kbd_no_left
+    set 2, d
+.kbd_no_left:
+    bit 7, e                    ; Right
+    jr nz, .kbd_no_right
+    set 3, d
+.kbd_no_right:
+    ; Cancel impossible opposite cursor pairs before mapping to STICK_*
+    bit 0, d                    ; Up pressed?
+    jr z, .kbd_vertical_ok
+    bit 1, d                    ; Down also pressed?
+    jr z, .kbd_vertical_ok
+    res 0, d
+    res 1, d
+.kbd_vertical_ok:
+    bit 2, d                    ; Left pressed?
+    jr z, .kbd_opposites_done
+    bit 3, d                    ; Right also pressed?
+    jr z, .kbd_opposites_done
+    res 2, d
+    res 3, d
+.kbd_opposites_done:
+    xor a
+    bit 0, d
+    jr z, .kbd_check_down
+    bit 3, d
+    jr nz, .kbd_upright
+    bit 2, d
+    jr nz, .kbd_upleft
+    ld a, STICK_UP
+    jr .kbd_done
+.kbd_upright:
+    ld a, STICK_UPRIGHT
+    jr .kbd_done
+.kbd_upleft:
+    ld a, STICK_UPLEFT
+    jr .kbd_done
+.kbd_check_down:
+    bit 1, d
+    jr z, .kbd_check_lr
+    bit 3, d
+    jr nz, .kbd_downright
+    bit 2, d
+    jr nz, .kbd_downleft
+    ld a, STICK_DOWN
+    jr .kbd_done
+.kbd_downright:
+    ld a, STICK_DOWNRIGHT
+    jr .kbd_done
+.kbd_downleft:
+    ld a, STICK_DOWNLEFT
+    jr .kbd_done
+.kbd_check_lr:
+    bit 2, d
+    jr z, .kbd_check_right
+    ld a, STICK_LEFT
+    jr .kbd_done
+.kbd_check_right:
+    bit 3, d
+    jr z, .kbd_done
+    ld a, STICK_RIGHT
+.kbd_done:
+    ld b, a
+.dir_ready:
+    ; Normalize diagonals to cardinal directions for runtime stability
+    ; UP+RIGHT/DOWN+RIGHT -> RIGHT, UP+LEFT/DOWN+LEFT -> LEFT
+    ld a, b
+    cp STICK_UPRIGHT
+    jr z, .dir_norm_right
+    cp STICK_DOWNRIGHT
+    jr z, .dir_norm_right
+    cp STICK_UPLEFT
+    jr z, .dir_norm_left
+    cp STICK_DOWNLEFT
+    jr z, .dir_norm_left
+    jr .dir_norm_done
+.dir_norm_right:
+    ld a, STICK_RIGHT
+    jr .dir_norm_store
+.dir_norm_left:
+    ld a, STICK_LEFT
+.dir_norm_store:
+    ld b, a
+.dir_norm_done:
+    xor a                       ; Joystick 0
+    call FAST_GTTRIG            ; A = #FF if pressed, 0 if not
+    ld d, 0                     ; D = button bitmask
+    or a
+    jr z, .no_fire              ; Jump if NOT pressed (A=0)
+    ld d, INPUT_BTN_FIRE
+    ld a, 1                     ; Fire pressed
+    ld (input_fire), a
+    jr .fire_done
+.no_fire:
+    ; Keyboard fallback for fire (SPACE, row 8 bit 0, active low)
+    ld a, 8
+    call FAST_SNSMAT
+    bit 0, a
+    jr nz, .fire_released
+    ld d, INPUT_BTN_FIRE
+    ld a, 1
+    ld (input_fire), a
+    jr .fire_done
+.fire_released:
+    xor a                       ; Fire not pressed
+    ld (input_fire), a
+.fire_done:
+    ; Second action button: joystick button B or keyboard N
+    push bc
+    push hl
+    ld a, 3                    ; GTTRIG(3) = joystick 1 button B
+    call GTTRIG
+    ld e, a
+    pop hl
+    pop bc
+    ld a, e
+    or a
+    jr nz, .grab_pressed
+    ld a, 4                    ; Keyboard row containing N
+    call FAST_SNSMAT
+    bit 3, a                   ; N key (active low)
+    jr nz, .grab_done
+.grab_pressed:
+    ld a, d
+    or INPUT_BTN_GRAB
+    ld d, a
+.grab_done:
+    ld a, b
+    ld (input_state), a
+    ld a, d
+    ld (input_btn_curr), a
+
+    pop de
+    pop bc
+    pop af
+    ret
+
+; @mideas:endblock id=runtime.interrupt.task_input
+
+; ==================================================================
+; ENGINE EXECUTION PLAN TASKS
+; ==================================================================
+
+; Slot 1: frame_counter -> task_frame_counter (period=1)
+
+; ==================================================================
+; TASK_FRAME_COUNTER - Custom timing/animations
+; ==================================================================
+; Placeholder for user-defined frame-based timing
+; interrupt_counter is already incremented in dispatcher
+; ==================================================================
+; Register Contract:
+;   Purpose: Optional per-frame timing hook for lightweight counters/animations.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - None
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - No registers modified in the default implementation
+task_frame_counter:
+    ; Placeholder - counter is already incremented in dispatcher
+    ; Add custom timing logic here if needed
+    ret
+
+; ==================================================================
+; USER CUSTOM TASK SLOTS (5-7)
+; ==================================================================
+; These slots are reserved for user-defined tasks
+; Enable them dynamically using:
+;   LD A, 5                    ; Slot 5
+;   LD HL, my_custom_task
+;   CALL enable_task
+; ==================================================================
+
+
+
+; ==================================================================
+; FAR-CALL TRAMPOLINES ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â bank 0 (always accessible at #4000-#5FFF)
+; Far banks are mapped to their window temporarily, routine is called,
+; then the original bank is restored. Window used matches the bank ORG.
+; ==================================================================
+
+; --- Far bank 5 [#6000, window P1] trampolines ---
+FAR_BANK_5 EQU 5
+
+init_boss_system_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_5
+    call mapper_set_bank_p1
+    call init_boss_system
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .init_boss_system_far_irq_done
+    ei
+.init_boss_system_far_irq_done:
+    pop af
+    ret
+
+init_screen_boss_from_current_screen_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_5
+    call mapper_set_bank_p1
+    call init_screen_boss_from_current_screen
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .init_screen_boss_from_current_screen_far_irq_done
+    ei
+.init_screen_boss_from_current_screen_far_irq_done:
+    pop af
+    ret
+
+update_boss_system_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_5
+    call mapper_set_bank_p1
+    call update_boss_system
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .update_boss_system_far_irq_done
+    ei
+.update_boss_system_far_irq_done:
+    pop af
+    ret
+
+draw_boss_attack_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_5
+    call mapper_set_bank_p1
+    call draw_boss_attack
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .draw_boss_attack_far_irq_done
+    ei
+.draw_boss_attack_far_irq_done:
+    pop af
+    ret
+
+draw_boss_meteor_attack_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_5
+    call mapper_set_bank_p1
+    call draw_boss_meteor_attack
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .draw_boss_meteor_attack_far_irq_done
+    ei
+.draw_boss_meteor_attack_far_irq_done:
+    pop af
+    ret
+
+draw_boss_bomb_attack_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_5
+    call mapper_set_bank_p1
+    call draw_boss_bomb_attack
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .draw_boss_bomb_attack_far_irq_done
+    ei
+.draw_boss_bomb_attack_far_irq_done:
+    pop af
+    ret
+
+draw_boss_boomerang_attack_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_5
+    call mapper_set_bank_p1
+    call draw_boss_boomerang_attack
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .draw_boss_boomerang_attack_far_irq_done
+    ei
+.draw_boss_boomerang_attack_far_irq_done:
+    pop af
+    ret
+
+draw_boss_rock_attack_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_5
+    call mapper_set_bank_p1
+    call draw_boss_rock_attack
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .draw_boss_rock_attack_far_irq_done
+    ei
+.draw_boss_rock_attack_far_irq_done:
+    pop af
+    ret
+
+draw_boss_laser_attack_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_5
+    call mapper_set_bank_p1
+    call draw_boss_laser_attack
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .draw_boss_laser_attack_far_irq_done
+    ei
+.draw_boss_laser_attack_far_irq_done:
+    pop af
+    ret
+
+draw_boss_sine_wave_attack_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_5
+    call mapper_set_bank_p1
+    call draw_boss_sine_wave_attack
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .draw_boss_sine_wave_attack_far_irq_done
+    ei
+.draw_boss_sine_wave_attack_far_irq_done:
+    pop af
+    ret
+
+draw_boss_homing_missile_attack_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_5
+    call mapper_set_bank_p1
+    call draw_boss_homing_missile_attack
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .draw_boss_homing_missile_attack_far_irq_done
+    ei
+.draw_boss_homing_missile_attack_far_irq_done:
+    pop af
+    ret
+
+; --- Far bank 6 [#6000, window P1] trampolines ---
+FAR_BANK_6 EQU 6
+
+load_screen_pan1_776511902784_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_6
+    call mapper_set_bank_p1
+    call load_screen_pan1_776511902784
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_screen_pan1_776511902784_far_irq_done
+    ei
+.load_screen_pan1_776511902784_far_irq_done:
+    pop af
+    ret
+
+load_screen_new_dialog_screen_777377884059_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_6
+    call mapper_set_bank_p1
+    call load_screen_new_dialog_screen_777377884059
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_screen_new_dialog_screen_777377884059_far_irq_done
+    ei
+.load_screen_new_dialog_screen_777377884059_far_irq_done:
+    pop af
+    ret
+
+show_presentation_screen_image_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_6
+    call mapper_set_bank_p1
+    call show_presentation_screen_image
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .show_presentation_screen_image_far_irq_done
+    ei
+.show_presentation_screen_image_far_irq_done:
+    pop af
+    ret
+
+show_presentation_screen_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_6
+    call mapper_set_bank_p1
+    call show_presentation_screen
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .show_presentation_screen_far_irq_done
+    ei
+.show_presentation_screen_far_irq_done:
+    pop af
+    ret
+
+set_screen_colors_far:
+    ex af, af'
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_6
+    call mapper_set_bank_p1
+    ex af, af'
+    call set_screen_colors
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .set_screen_colors_far_irq_done
+    ei
+.set_screen_colors_far_irq_done:
+    ex af, af'
+    ret
+
+init_char0_color_far:
+    ex af, af'
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_6
+    call mapper_set_bank_p1
+    ex af, af'
+    call init_char0_color
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .init_char0_color_far_irq_done
+    ei
+.init_char0_color_far_irq_done:
+    ex af, af'
+    ret
+
+; --- Far bank 7 [#6000, window P1] trampolines ---
+FAR_BANK_7 EQU 7
+
+init_entities_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_7
+    call mapper_set_bank_p1
+    call init_entities
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .init_entities_far_irq_done
+    ei
+.init_entities_far_irq_done:
+    pop af
+    ret
+
+update_entities_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_7
+    call mapper_set_bank_p1
+    call update_entities
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .update_entities_far_irq_done
+    ei
+.update_entities_far_irq_done:
+    pop af
+    ret
+
+; --- Far bank 8 [#6000, window P1] trampolines ---
+FAR_BANK_8 EQU 8
+
+init_sprites_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_8
+    call mapper_set_bank_p1
+    call init_sprites
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .init_sprites_far_irq_done
+    ei
+.init_sprites_far_irq_done:
+    pop af
+    ret
+
+update_sprites_to_vram_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_8
+    call mapper_set_bank_p1
+    call update_sprites_to_vram
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .update_sprites_to_vram_far_irq_done
+    ei
+.update_sprites_to_vram_far_irq_done:
+    pop af
+    ret
+
+clear_all_sprites_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_8
+    call mapper_set_bank_p1
+    call clear_all_sprites
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .clear_all_sprites_far_irq_done
+    ei
+.clear_all_sprites_far_irq_done:
+    pop af
+    ret
+
+hide_sprite_far:
+    ex af, af'
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_8
+    call mapper_set_bank_p1
+    ex af, af'
+    call hide_sprite
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .hide_sprite_far_irq_done
+    ei
+.hide_sprite_far_irq_done:
+    ex af, af'
+    ret
+
+load_sprite_patterns_by_pack_id_far:
+    ex af, af'
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_8
+    call mapper_set_bank_p1
+    ex af, af'
+    call load_sprite_patterns_by_pack_id
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_sprite_patterns_by_pack_id_far_irq_done
+    ei
+.load_sprite_patterns_by_pack_id_far_irq_done:
+    ex af, af'
+    ret
+
+ensure_sprite_patterns_by_pack_id_far:
+    ex af, af'
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_8
+    call mapper_set_bank_p1
+    ex af, af'
+    call ensure_sprite_patterns_by_pack_id
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .ensure_sprite_patterns_by_pack_id_far_irq_done
+    ei
+.ensure_sprite_patterns_by_pack_id_far_irq_done:
+    ex af, af'
+    ret
+
+ensure_sprite_patterns_for_world_id_far:
+    ex af, af'
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_8
+    call mapper_set_bank_p1
+    ex af, af'
+    call ensure_sprite_patterns_for_world_id
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .ensure_sprite_patterns_for_world_id_far_irq_done
+    ei
+.ensure_sprite_patterns_for_world_id_far_irq_done:
+    ex af, af'
+    ret
+
+; --- Far bank 9 [#6000, window P1] trampolines ---
+FAR_BANK_9 EQU 9
+
+init_sound_system_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_9
+    call mapper_set_bank_p1
+    call init_sound_system
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .init_sound_system_far_irq_done
+    ei
+.init_sound_system_far_irq_done:
+    pop af
+    ret
+
+task_audio_tick_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_9
+    call mapper_set_bank_p1
+    call task_audio_tick
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .task_audio_tick_far_irq_done
+    ei
+.task_audio_tick_far_irq_done:
+    pop af
+    ret
+
+sfx_update_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_9
+    call mapper_set_bank_p1
+    call sfx_update
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .sfx_update_far_irq_done
+    ei
+.sfx_update_far_irq_done:
+    pop af
+    ret
+
+music_update_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_9
+    call mapper_set_bank_p1
+    call music_update
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .music_update_far_irq_done
+    ei
+.music_update_far_irq_done:
+    pop af
+    ret
+
+music_stop_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_9
+    call mapper_set_bank_p1
+    call music_stop
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .music_stop_far_irq_done
+    ei
+.music_stop_far_irq_done:
+    pop af
+    ret
+
+music_play_track_far:
+    ex af, af'
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_9
+    call mapper_set_bank_p1
+    ex af, af'
+    call music_play_track
+    ex af, af'
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .music_play_track_far_irq_done
+    ei
+.music_play_track_far_irq_done:
+    ex af, af'
+    ret
+
+music_execute_command_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_9
+    call mapper_set_bank_p1
+    call music_execute_command
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .music_execute_command_far_irq_done
+    ei
+.music_execute_command_far_irq_done:
+    pop af
+    ret
+
+; --- Far bank 10 [#6000, window P1] trampolines ---
+FAR_BANK_10 EQU 10
+
+render_hud_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_10
+    call mapper_set_bank_p1
+    call render_hud
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .render_hud_far_irq_done
+    ei
+.render_hud_far_irq_done:
+    pop af
+    ret
+
+force_render_hud_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_10
+    call mapper_set_bank_p1
+    call force_render_hud
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .force_render_hud_far_irq_done
+    ei
+.force_render_hud_far_irq_done:
+    pop af
+    ret
+
+imprimir_marco_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_10
+    call mapper_set_bank_p1
+    call imprimir_marco
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .imprimir_marco_far_irq_done
+    ei
+.imprimir_marco_far_irq_done:
+    pop af
+    ret
+
+; --- Far bank 11 [#6000, window P1] trampolines ---
+FAR_BANK_11 EQU 11
+
+init_font_system_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_11
+    call mapper_set_bank_p1
+    call init_font_system
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .init_font_system_far_irq_done
+    ei
+.init_font_system_far_irq_done:
+    pop af
+    ret
+
+reload_font_system_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_11
+    call mapper_set_bank_p1
+    call reload_font_system
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .reload_font_system_far_irq_done
+    ei
+.reload_font_system_far_irq_done:
+    pop af
+    ret
+
+print_string_screen2_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_11
+    call mapper_set_bank_p1
+    call print_string_screen2
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .print_string_screen2_far_irq_done
+    ei
+.print_string_screen2_far_irq_done:
+    pop af
+    ret
+
+; --- Far bank 12 [#6000, window P1] trampolines ---
+FAR_BANK_12 EQU 12
+
+init_animated_tiles_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call init_animated_tiles
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .init_animated_tiles_far_irq_done
+    ei
+.init_animated_tiles_far_irq_done:
+    pop af
+    ret
+
+update_animated_tiles_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call update_animated_tiles
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .update_animated_tiles_far_irq_done
+    ei
+.update_animated_tiles_far_irq_done:
+    pop af
+    ret
+
+update_animated_tiles_vram_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call update_animated_tiles_vram
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .update_animated_tiles_vram_far_irq_done
+    ei
+.update_animated_tiles_vram_far_irq_done:
+    pop af
+    ret
+
+; --- Far bank 13 [#6000, window P1] trampolines ---
+FAR_BANK_13 EQU 13
+
+; --- Far bank 14 [#6000, window P1] trampolines ---
+FAR_BANK_14 EQU 14
+
+load_world_default_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    call load_world_default
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_world_default_far_irq_done
+    ei
+.load_world_default_far_irq_done:
+    pop af
+    ret
+
+check_world_screen_transition_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    call check_world_screen_transition
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .check_world_screen_transition_far_irq_done
+    ei
+.check_world_screen_transition_far_irq_done:
+    pop af
+    ret
+
+load_world_worldmap_1776512078647_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_14
+    call mapper_set_bank_p1
+    call load_world_worldmap_1776512078647
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_world_worldmap_1776512078647_far_irq_done
+    ei
+.load_world_worldmap_1776512078647_far_irq_done:
+    pop af
+    ret
+
+; --- Far bank 15 [#6000, window P1] trampolines ---
+FAR_BANK_15 EQU 15
+
+load_pattern_bank0_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_15
+    call mapper_set_bank_p1
+    call load_pattern_bank0
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_pattern_bank0_far_irq_done
+    ei
+.load_pattern_bank0_far_irq_done:
+    pop af
+    ret
+
+load_pattern_bank1_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_15
+    call mapper_set_bank_p1
+    call load_pattern_bank1
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_pattern_bank1_far_irq_done
+    ei
+.load_pattern_bank1_far_irq_done:
+    pop af
+    ret
+
+load_pattern_bank2_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_15
+    call mapper_set_bank_p1
+    call load_pattern_bank2
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_pattern_bank2_far_irq_done
+    ei
+.load_pattern_bank2_far_irq_done:
+    pop af
+    ret
+
+load_patterns_to_vram_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_15
+    call mapper_set_bank_p1
+    call load_patterns_to_vram
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_patterns_to_vram_far_irq_done
+    ei
+.load_patterns_to_vram_far_irq_done:
+    pop af
+    ret
+
+load_tilebank_tilebank_1776511918552_patterns_to_vram_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_15
+    call mapper_set_bank_p1
+    call load_tilebank_tilebank_1776511918552_patterns_to_vram
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_tilebank_tilebank_1776511918552_patterns_to_vram_far_irq_done
+    ei
+.load_tilebank_tilebank_1776511918552_patterns_to_vram_far_irq_done:
+    pop af
+    ret
+
+; --- Far bank 16 [#6000, window P1] trampolines ---
+FAR_BANK_16 EQU 16
+
+load_color_bank0_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_16
+    call mapper_set_bank_p1
+    call load_color_bank0
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_color_bank0_far_irq_done
+    ei
+.load_color_bank0_far_irq_done:
+    pop af
+    ret
+
+load_color_bank1_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_16
+    call mapper_set_bank_p1
+    call load_color_bank1
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_color_bank1_far_irq_done
+    ei
+.load_color_bank1_far_irq_done:
+    pop af
+    ret
+
+load_color_bank2_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_16
+    call mapper_set_bank_p1
+    call load_color_bank2
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_color_bank2_far_irq_done
+    ei
+.load_color_bank2_far_irq_done:
+    pop af
+    ret
+
+load_colors_to_vram_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_16
+    call mapper_set_bank_p1
+    call load_colors_to_vram
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_colors_to_vram_far_irq_done
+    ei
+.load_colors_to_vram_far_irq_done:
+    pop af
+    ret
+
+load_tilebank_tilebank_1776511918552_colors_to_vram_far:
+    push af
+    di
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_16
+    call mapper_set_bank_p1
+    call load_tilebank_tilebank_1776511918552_colors_to_vram
+    pop af
+    call mapper_set_bank_p1
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .load_tilebank_tilebank_1776511918552_colors_to_vram_far_irq_done
+    ei
+.load_tilebank_tilebank_1776511918552_colors_to_vram_far_irq_done:
+    pop af
+    ret
+
+; ==================================================================
+; RESIDENT CALL WRAPPERS ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â bank 0 stable entrypoints
+; Mainline code calls these labels instead of calling banked modules directly.
+; Each wrapper dispatches to the local label or its _far trampoline.
+; ==================================================================
+call_check_world_screen_transition_resident:
+    jp check_world_screen_transition_far
+
+call_init_font_system_resident:
+    jp init_font_system_far
+
+call_reload_font_system_resident:
+    jp reload_font_system_far
+
+call_print_string_screen2_resident:
+    jp print_string_screen2_far
+
+call_render_hud_resident:
+    jp render_hud_far
+
+call_force_render_hud_resident:
+    jp force_render_hud_far
+
+call_init_sound_system_resident:
+    jp init_sound_system_far
+
+call_task_audio_tick_resident:
+    ; Keep IRQ audio dispatch resident: music_update may live in a far
+    ; sound bank, while SM_UpdateSound lives in the primary statemachine
+    ; window. Running the original task_audio_tick inside the sound bank
+    ; would hide SM_UpdateSound and jump into the wrong bank.
+    push af
+    push bc
+    push de
+    push hl
+    call call_music_update_resident
+    call call_SM_UpdateSound_resident
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+call_music_update_resident:
+    jp music_update_far
+
+call_sfx_update_resident:
+    jp sfx_update_far
+
+call_music_stop_resident:
+    jp music_stop_far
+
+call_music_play_track_resident:
+    jp music_play_track_far
+
+call_music_execute_command_resident:
+    jp music_execute_command_far
+
+call_init_sprites_resident:
+    jp init_sprites_far
+
+call_load_sprite_patterns_by_pack_id_resident:
+    jp load_sprite_patterns_by_pack_id_far
+
+call_ensure_sprite_patterns_by_pack_id_resident:
+    jp ensure_sprite_patterns_by_pack_id_far
+
+call_ensure_sprite_patterns_for_world_id_resident:
+    jp ensure_sprite_patterns_for_world_id_far
+
+call_set_screen_colors_resident:
+    jp set_screen_colors_far
+
+call_init_char0_color_resident:
+    jp init_char0_color_far
+
+call_init_statemachine_system_resident:
+    jp init_statemachine_system
+
+call_update_statemachine_system_resident:
+    jp resident_noop
+
+call_execute_all_state_machines_resident:
+    jp execute_all_state_machines
+
+call_SM_ExecuteActions_resident:
+    jp SM_ExecuteActions
+
+call_SM_UpdateSound_resident:
+    jp SM_UpdateSound
+
+call_show_sprite_resident:
+    cp 32
+    ret nc
+    push af
+    ld a, c
+    cp 208
+    jr c, .cssr_y_ok
+    ld c, SPRITE_INVISIBLE
+.cssr_y_ok:
+    pop af
+    push de
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    ld de, sprite_attributes
+    add hl, de
+    pop de
+    ld (hl), c
+    inc hl
+    ld (hl), b
+    inc hl
+    ld (hl), d
+    inc hl
+    ld (hl), e
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
+
+call_update_sprites_to_vram_resident:
+    ld a, (sprites_dirty)
+    or a
+    ret z
+    xor a
+    ld (sprites_dirty), a
+    ld hl, sprite_attributes
+    ld de, SPRATR
+    ld bc, 128
+    call FAST_LDIRVM
+    ret
+
+call_clear_all_sprites_resident:
+    ld hl, sprite_attributes
+    ld b, 32
+    ld a, 224
+.casr_loop:
+    ld (hl), a
+    inc hl
+    inc hl
+    inc hl
+    inc hl
+    djnz .casr_loop
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
+
+call_hide_sprite_resident:
+    cp 32
+    ret nc
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    ld de, sprite_attributes
+    add hl, de
+    ld (hl), 224
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
+
+call_init_animated_tiles_resident:
+    jp init_animated_tiles_far
+
+call_update_animated_tiles_resident:
+    jp update_animated_tiles_far
+
+call_update_animated_tiles_vram_resident:
+    jp update_animated_tiles_vram_far
+
+call_init_boss_system_resident:
+    jp init_boss_system_far
+
+call_init_screen_boss_from_current_screen_resident:
+    jp init_screen_boss_from_current_screen_far
+
+call_update_boss_system_resident:
+    jp update_boss_system_far
+
+call_draw_boss_attack_resident:
+    jp draw_boss_attack_far
+
+call_draw_boss_meteor_attack_resident:
+    jp draw_boss_meteor_attack_far
+
+call_draw_boss_bomb_attack_resident:
+    jp draw_boss_bomb_attack_far
+
+call_draw_boss_boomerang_attack_resident:
+    jp draw_boss_boomerang_attack_far
+
+call_draw_boss_rock_attack_resident:
+    jp draw_boss_rock_attack_far
+
+call_draw_boss_laser_attack_resident:
+    jp draw_boss_laser_attack_far
+
+call_draw_boss_sine_wave_attack_resident:
+    jp draw_boss_sine_wave_attack_far
+
+call_draw_boss_homing_missile_attack_resident:
+    jp draw_boss_homing_missile_attack_far
+
+call_load_colors_to_vram_resident:
+    jp load_colors_to_vram_far
+
+call_update_entities_resident:
+    jp update_entities_far
+
+call_init_components_resident:
+    call init_components
+    ret
+
+
+call_create_entity_resident:
+    push af
+    call mapper_push_p1
+    ld a, 1
+    call mapper_set_bank_p1
+    pop af
+    call create_entity
+    push af
+    call mapper_pop_p1
+    pop af
+    ret
+
+call_entity_job_set_resident:
+    push af
+    call mapper_push_p1
+    ld a, 1
+    call mapper_set_bank_p1
+    pop af
+    call entity_job_set
+    push af
+    call mapper_pop_p1
+    pop af
+    ret
+
+call_force_update_entity_sprite_resident:
+    call mapper_push_p1
+    ld a, 1
+    call mapper_set_bank_p1
+    call force_update_entity_sprite
+    call mapper_pop_p1
+    ret
+
+
+call_rebuild_used_entity_list_resident:
+    call mapper_push_p1
+    ld a, 1
+    call mapper_set_bank_p1
+    call rebuild_used_entity_list
+    call mapper_pop_p1
+    ret
+
+
+call_sync_player_runtime_from_entity_resident:
+    call mapper_push_p1
+    ld a, 1
+    call mapper_set_bank_p1
+    call sync_player_runtime_from_entity
+    call mapper_pop_p1
+    ret
+
+
+call_apply_collected_tiles_resident:
+    call mapper_push_p1
+    ld a, 1
+    call mapper_set_bank_p1
+    call apply_collected_tiles
+    call mapper_pop_p1
+    ret
+
+resident_noop:
+    ret
+
+; ==================================================================
+; INIT_GAME_SYSTEMS ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â in bank 0 so it is reachable from any bank
+; Calls routines in statically-mapped primary banks (1-2) via CALL.
+; Routines in far banks are called via _far trampolines above.
+; ==================================================================
+init_game_systems:
+    call DISSCR               ; Disable screen while loading VRAM assets
+    ; Cold boot / restart must not trust cached VRAM state from RAM contents.
+    xor a
+    ld (vram_cache_tile_patterns_ready), a
+    ld (vram_cache_tile_colors_ready), a
+    ld (vram_cache_font_ready), a
+    ld a, #FF
+    ld (current_screen2_tilebank_id), a
+    ; Initialize component systems (entities detected)
+    call init_components
+
+    ; Load shared gameplay pattern/color data once unless VRAM was invalidated.
+    call load_patterns_to_vram_far
+    call load_colors_to_vram_far
+
+    ; Initialize animated tile runtime (safe no-op if no animated groups)
+    call init_animated_tiles_far
+    ; Initialize boss runtime (safe no-op if no boss assets)
+    call init_boss_system_far
+
+    ; Initialize game entities with real positions from JSON
+    call init_entities_far
+
+    ; Load the first game screen
+    call load_game_screen
+    call rebuild_used_entity_list
+
+    ; Initialize font system
+    call init_font_system_far
+    ; HUD dirty flag - will be rendered after screen loading (by GameFlow WorldLink)
+    ld a, 1
+    ld (hud_dirty_flag), a
+    call ENASCR               ; Re-enable screen after VRAM updates
+    ret
+
+load_game_screen:
+    ret
+
+; --- End of Bank 0 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pad to 8KB boundary ---
+BANK_0_USED_END:
+    ds #6000 - $, #FF
+
+; ##################################################################
+; BANK 1 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â [#6000h-#8000h] PRIMARY: components
+; (Always mapped at boot: bank1ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢P1, bank2ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢P2)
+; ##################################################################
+    org #6000
+
+; ==================================================================
+; GAME COMPONENT SYSTEMS - MSX ECS ENGINE
+    ; File: components.asm
+        ; Description: Component systems based on Mideas React.js architecture
+    ; Implements Position, Sprite, Movement, Collision, Input, and Behavior systems
+    ; ==================================================================
+;
+; INTELLIGENT FILTERING ACTIVE:
+;   Active entities: 2
+;   Used components: Position, Sprite, Behavior, Health, DeadlyTiles, TileInteraction, Jump, Gravity, Animation, Collision, Carry, Input, StateMachine, Cursors, WallGrab, AutoControlScript
+;   Dynamic platform riding: STUB
+;   Filtered out: 11 unused component systems
+    ;
+; ==================================================================
+
+; ==================================================================
+; COMPONENT TYPE CONSTANTS(Based on ComponentDefinition analysis)
+    ; ==================================================================
+
+; Core Components(always present)
+COMP_POSITION   EQU 0; Position component(x, y coordinates)
+COMP_SPRITE     EQU 1; Sprite rendering component
+COMP_MOVEMENT   EQU 2; Movement / velocity component
+COMP_COLLISION  EQU 3; Collision detection component
+COMP_INPUT      EQU 4; Input handling component
+COMP_BEHAVIOR   EQU 5; AI / Logic behavior component
+COMP_HEALTH     EQU 6; Health / damage component
+COMP_ANIMATION  EQU 7; Animation state component
+COMP_JUMP       EQU 8; Jump behavior component(platformer physics)
+COMP_GRAVITY    EQU 9; Gravity physics component
+COMP_DEADLY_TILES EQU 13; Deadly behavior-map tile detection marker
+COMP_AIR_CONTROL EQU 15; Air control restrictions while airborne
+
+    ; Component flags for entity filtering(16 - bit masks for 10 + components)
+COMP_MASK_POSITION   EQU #0001; Binary: 0000000000000001
+COMP_MASK_SPRITE     EQU #0002; Binary: 0000000000000010
+COMP_MASK_MOVEMENT   EQU #0004; Binary: 0000000000000100
+COMP_MASK_COLLISION  EQU #0008; Binary: 0000000000001000
+COMP_MASK_INPUT      EQU #0010; Binary: 0000000000010000
+COMP_MASK_BEHAVIOR   EQU #0020; Binary: 0000000000100000
+COMP_MASK_HEALTH     EQU #0040; Binary: 0000000001000000
+COMP_MASK_ANIMATION  EQU #0080; Binary: 0000000010000000
+COMP_MASK_JUMP       EQU #0100; Binary: 0000000100000000
+COMP_MASK_GRAVITY    EQU #0200; Binary: 0000001000000000
+COMP_MASK_AUTO_DESTROY EQU #0400; Binary: 0000010000000000
+COMP_MASK_DEADLY_TILES EQU #2000; Binary: 0010000000000000
+COMP_MASK_WALL_JUMP EQU #4000; Binary: 0100000000000000
+COMP_MASK_AIR_CONTROL EQU #8000; Binary: 1000000000000000
+
+COMP_TRIGGER_FIRE    EQU 0 ; input_btn bit 0 / SPACE / joystick A
+COMP_TRIGGER_ACTION2 EQU 1 ; input_btn bit 1 / second action / joystick B
+COMP_TRIGGER_UP      EQU 2 ; direction edge on STICK_UP
+
+; ==================================================================
+; ANIMATION FLAGS (entity_anim_flags)
+; ==================================================================
+ANIM_FLAG_PLAYING            EQU #01
+ANIM_FLAG_LOOP               EQU #02
+ANIM_FLAG_ONLY_WHEN_MOVING   EQU #04
+ANIM_FLAG_COMPLETED          EQU #08
+ANIM_FLAG_FORCE_UPLOAD       EQU #10
+ANIM_DEFAULT_SPEED           EQU 8
+
+    ; ==================================================================
+; COMPONENT DATA STRUCTURES(Entity - Component arrays)
+    ; ==================================================================
+
+; NOTE: Core entity variables are now defined in variables.asm
+    ; (entity_x_pos, entity_y_pos, entity_vel_x, entity_vel_y, entity_comp_masks, etc.)
+
+    ; Jump Component Data(Fixed - Point 8.8 for smooth physics)
+    ; Using temporary storage for optional components to save RAM
+entity_jump_vel_y   EQU temp_word_3; Y velocity for jumping(signed word, 32 words = 64 bytes)
+entity_slash_vel_x  EQU temp_byte_3; Additive horizontal slash velocity from bonus tiles (32 bytes)
+entity_slash_vel_y  EQU temp_byte_28; Additive vertical slash velocity from bonus tiles (32 bytes)
+entity_jump_count   EQU temp_byte_4; Current jump count(0 = grounded, 1 = first jump, etc.)(32 bytes)
+entity_jump_max     EQU temp_byte_25; Configured max jumps for this entity (32 bytes)
+entity_jump_bonus   EQU temp_byte_27; Temporary extra jumps granted by bonus tiles (32 bytes)
+entity_jump_trigger EQU temp_byte_29; Trigger action for jump (32 bytes)
+entity_on_ground    EQU temp_byte_5; Ground contact flag(bit 0 = on ground)(32 bytes)
+
+    ; Gravity Component Data
+entity_gravity_vel  EQU temp_word_4; Accumulated gravity velocity(signed word, 64 bytes)
+
+    ; Health Component Data
+entity_health_current EQU temp_byte_6 ; Current health/lives (32 bytes)
+entity_health_max     EQU temp_byte_7 ; Maximum health/lives (32 bytes)
+
+; Deadly Tile Collision Data
+entity_flag_deadly_tile EQU temp_byte_8 ; Flag: bit 0 = touching deadly tile (32 bytes)
+entity_deadly_collision EQU temp_byte_8 ; Backward-compatible alias
+entity_flag_in_water EQU temp_byte_31 ; Flag: bit 0 = entity center is inside a Water effect zone (32 bytes)
+tileDead EQU tileDead_dbg ; Debug byte: mirrors hero deadly contact (entity 0)
+tileDeadLatched EQU tileDead_latched_dbg ; Debug byte: latched hero deadly detection
+tileDeadX EQU tileDead_x_dbg ; Debug byte: last sampled tile X
+tileDeadY EQU tileDead_y_dbg ; Debug byte: last sampled tile Y
+tileDeadValue EQU tileDead_value_dbg ; Debug byte: raw behavior byte read
+
+    ; Damage Component Data
+entity_invincibility_frames EQU temp_byte_9  ; Countdown timer for invulnerability (32 bytes)
+entity_damage_amount        EQU temp_byte_10 ; Damage dealt by this entity (32 bytes)
+
+    ; Shoot Component Data
+entity_shoot_cooldown   EQU temp_byte_11 ; Cooldown frames until can shoot (32 bytes)
+entity_shoot_sprite_id  EQU temp_byte_12 ; Projectile sprite ID (32 bytes)
+entity_shoot_speed      EQU temp_byte_13 ; Projectile velocity (32 bytes)
+entity_shoot_trigger    EQU temp_byte_30 ; Trigger action for shooting (32 bytes)
+
+    ; Collision Layer Data (for projectile and advanced collision)
+entity_collision_layer  EQU temp_byte_14 ; Which layer this entity is on (32 bytes)
+entity_collides_with    EQU temp_byte_15 ; Bitmask of layers this entity collides with (32 bytes)
+
+    ; Platform Riding Data
+entity_platform_id      EQU temp_byte_16 ; ID of platform underneath (255 = none) (32 bytes)
+entity_platform_grace   EQU temp_byte_17 ; Grace frames for platform (32 bytes)
+entity_wall_collision_flags EQU temp_byte_18 ; Directional wall collision bits (32 bytes)
+entity_collision_hitbox_w EQU temp_byte_19 ; Entity collision hitbox width (32 bytes)
+entity_collision_hitbox_h EQU temp_byte_20 ; Entity collision hitbox height (32 bytes)
+entity_collision_offset_x EQU temp_byte_21 ; Entity collision hitbox X offset (32 bytes)
+entity_collision_offset_y EQU temp_byte_22 ; Entity collision hitbox Y offset (32 bytes)
+entity_entity_collision_flags EQU temp_byte_23 ; bit0 entity(any), bit1 enemy, bit2 item (32 bytes)
+entity_last_collision_entity EQU temp_byte_24 ; Last collided entity index (255=none) (32 bytes)
+
+    ; Input Disable Flag
+entity_input_disabled EQU temp_byte_26 ; 0=enabled, 1=disabled (32 bytes)
+
+
+    ; ==================================================================
+; CORE ECS SYSTEM FUNCTIONS
+    ; ==================================================================
+
+        ; @mideas:block id=runtime.components.init kind=routine owner=components preserve=false roots=init_components,component_fill_32_a
+component_fill_32_a:
+        ld (hl), a
+        ld d, h
+        ld e, l
+        inc de
+        ld bc, 31
+        ldir
+        ret
+
+init_components: 
+; Initialize component systems(OPTIMIZED - only used components) 
+    ; Used: Position, Sprite, Behavior, Health, DeadlyTiles, TileInteraction, Jump, Gravity, Animation, Collision, Carry, Input, StateMachine, Cursors, WallGrab, AutoControlScript 
+ 
+; Initialize current screen ID(multi - screen support) 
+        ld a, 0; Start at screen 0 
+        ld (current_screen_id), a 
+        ld (current_world_id), a
+        ld (current_screen_index), a
+        ld (screen_transition_cooldown), a
+        ld hl, active_entity_list_dirty
+        ld (hl), 1
+
+    ; Reset collectible persistence state on new game / restart.
+    ; Cartridge RAM is not guaranteed to be zeroed.
+        ld hl, gem_count
+        ld de, gem_count + 1
+        ld bc, 361                 ; bytes to clear - 1 (gem_count..bonus_respawn_frames, including last_interaction_*)
+        xor a
+        ld (hl), a
+        ldir
+
+    ; Clear all component masks 
+        ld hl, entity_comp_masks 
+        call component_fill_32_a
+
+    ; Clear all component masks (high byte)
+        ld hl, entity_comp_masks_hi
+        call component_fill_32_a
+
+    ; Initialize entity job scheduler defaults
+    ; period=1 (100%), entry=0 for every entity slot
+        ld a, 1
+        ld hl, entity_job_period
+        call component_fill_32_a
+
+        xor a
+        ld hl, entity_job_entry
+        call component_fill_32_a
+        ld (entity_job_scheduler_active), a
+ 
+        ; Initialize position system (always)
+    call init_position_system
+        ; Initialize sprite system
+    call init_sprite_system
+        ; Initialize collision system
+    call init_collision_system
+        ; Initialize input system
+    call init_input_system
+        ; Initialize behavior system
+    call init_behavior_system
+        ; Initialize health system
+    call init_health_system
+        ; Initialize animation state defaults (also needed by sprite rendering frame selection)
+    call init_animation_system
+        ; Initialize jump system
+    call init_jump_system
+        ; Initialize gravity system
+    call init_gravity_system
+        ; Initialize wall grab system
+    call init_wallgrab_system
+        ; Initialize cursors system (stub)
+    call init_cursors_system
+        ; Initialize state machine system (stub)
+    call call_init_statemachine_system_resident
+        ; Initialize carry system (stub)
+    call init_carry_system
+        ; Initialize platform riding system
+    call init_platform_riding_system
+        ; Initialize deadly tile detection system
+    call init_deadly_tiles_system
+        ; Initialize tile interaction system
+    call init_tile_interaction_system
+    
+    ret
+; @mideas:endblock id=runtime.components.init
+
+; @mideas:block id=runtime.components.position kind=routine owner=components preserve=false roots=component-position
+
+; ==================================================================
+; POSITION COMPONENT SYSTEM (Based on SpriteEditor position handling)
+; ==================================================================
+
+init_position_system:
+    ; Initialize position component system
+    ; Clear all entity positions
+    xor a
+    ld hl, entity_x_pos
+    call component_fill_32_a
+
+    ld hl, entity_y_pos
+    call component_fill_32_a
+    ret
+
+update_position_component:
+    ; Update positions based on velocities (Movement -> Position)
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a                    ; Loop through used entities only
+    ld hl, active_entity_list
+
+position_update_loop:
+    ld c, (hl)                 ; C = entity index
+    inc hl                     ; Advance list pointer
+    push hl                    ; Save list pointer
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .position_check_mask
+    ld a, (player_entity_index)
+    cp c
+    jp z, .position_skip_fast_player
+.position_check_mask:
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)                 ; Get entity component mask
+    ld d, a                    ; OPTIMIZED: Save mask in D to avoid redundant memory read
+    pop hl                     ; Restore list pointer
+    and COMP_MASK_POSITION     ; Check if has position component
+    jr z, position_next_entity ; Skip if no position component
+
+    ; Apply velocity to position (if has movement OR input component)
+    ld a, d                    ; OPTIMIZED: Reuse saved mask (saves 1 memory read)
+    and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
+    jr z, position_next_entity ; Skip velocity if no movement/input source
+
+    ; active_entity_list already guarantees current_screen_id membership
+
+    push bc
+    push hl
+
+    ; Update X Position
+    ; X = X + VelX
+    ld hl, entity_vel_x
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                 ; A = VelX
+    ld b, a                    ; B = VelX
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)                 ; A = X
+    add a, b                   ; A = X + VelX
+    ld (hl), a                 ; Store new X
+
+    ; Update Y Position
+    ; Y = Y + VelY (defensive clamp to avoid byte-wrap teleports)
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)                 ; A = VelY (signed)
+    ; Clamp vertical delta to [-16..+16] to avoid single-frame wrap jumps
+    bit 7, a
+    jr z, .pos_vy_positive
+    cp #F0                     ; -16
+    jr nc, .pos_vy_ready       ; already in [-16..-1]
+    ld a, #F0
+    jr .pos_vy_ready
+.pos_vy_positive:
+    cp #11                     ; 17
+    jr c, .pos_vy_ready        ; already in [0..16]
+    ld a, #10                  ; +16
+.pos_vy_ready:
+    ld b, a                    ; B = VelY
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)                 ; A = Y
+    add a, b                   ; A = Y + VelY
+    ld (hl), a                 ; Store new Y
+
+    pop hl
+    pop bc
+    jp position_next_entity
+
+.position_skip_fast_player:
+    pop hl
+
+position_next_entity:
+    dec b
+    jp nz, position_update_loop
+    ret
+; @mideas:endblock id=runtime.components.position
+; @mideas:block id=runtime.components.sprite kind=routine owner=components preserve=false roots=component-sprite
+
+; ==================================================================
+; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
+; ==================================================================
+
+init_sprite_system:
+    ; Initialize sprite rendering system
+    ; Clear all sprite attributes
+    call call_clear_all_sprites_resident
+    ; Copy entity_sprite_asset_index from ROM to RAM (so CHANGE_SPRITE can modify it)
+    ld hl, entity_sprite_asset_index_init
+    ld de, entity_sprite_asset_index
+    ld bc, 32
+    ldir
+    ret
+
+update_sprite_component:
+    ; Update sprite rendering based on entity positions
+    ld a, (render_entity_count)
+    or a
+    ret z
+    ld b, a                    ; Loop through renderable entities only
+    ld hl, render_entity_list
+
+sprite_update_loop:
+    ld c, (hl)                 ; C = entity index
+    inc hl                     ; Advance list pointer
+    ld e, c
+    ld d, 0
+    ld a, (player_runtime_enabled)
+    or a
+    jp z, .sprite_not_fast_player
+    ld a, (player_entity_index)
+    cp c
+    jp z, sprite_next_entity
+.sprite_not_fast_player:
+
+    ; render_entity_list already guarantees active + current_screen_id + sprite
+    push bc
+    push hl
+
+    ; E already contains entity index (from line 129)
+    ; D = 0 (from line 130)
+    
+    ; Get entity position (X, Y)
+    ld hl, entity_x_pos
+    add hl, de                 ; HL points to entity X
+    ld b, (hl)                 ; B = X position
+
+    ld hl, entity_y_pos
+    add hl, de                 ; HL points to entity Y
+    ld c, (hl)                 ; C = Y position
+
+    ; Get sprite configuration (Base HW Sprite + Layer Count)
+    ; E still contains entity index, D = 0
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de                 ; Index * 2 (2 bytes per entry)
+    
+    ld a, (hl)                 ; Base HW Sprite
+    inc hl
+    ld h, (hl)                 ; Layer Count
+    ld l, a                    ; L = Base HW Sprite (Current HW Sprite)
+    ld a, h
+    or a
+    jp z, sprite_continue      ; No layers -> skip rendering
+
+.sprite_layers_ready:
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .sprite_layers_legacy
+    push bc
+    push hl
+    call compute_entity_base_pattern
+    ld d, a                    ; D = current pattern number for layer 0
+    pop hl
+    pop bc
+    jr .sprite_layers_mode_ready
+
+.sprite_layers_legacy:
+    ld d, 0                    ; Legacy path recomputes pattern from HW slot each layer
+
+.sprite_layers_mode_ready:
+    
+    ; Loop through layers
+    ; H = Remaining Layers
+    ; L = Current HW Sprite
+    ; B = X Position
+    ; C = Y Position
+    
+sprite_layer_loop:
+    push hl                    ; Save counters
+    push bc                    ; Save Position
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .sprite_layer_pattern_legacy
+    push de                    ; Preserve current pattern number across lookup/call
+    jr .sprite_layer_have_pattern
+
+.sprite_layer_pattern_legacy:
+    ld a, l
+    sla a
+    sla a
+    ld d, a                    ; D = Pattern (HW index * 4 for 16x16)
+    jr .sprite_layer_have_pattern
+
+.sprite_layer_have_pattern:
+
+    ; Get Color from sprite_layer_colors table
+    ; Table is indexed by HW Sprite Index (L)
+    push de
+    ld de, sprite_layer_colors
+    ld a, l
+    add a, e
+    ld e, a
+    ld a, 0
+    adc a, d
+    ld d, a                    ; DE = &sprite_layer_colors[hwSprite]
+    ld a, (de)                 ; A = Color
+    pop de                     ; Restore D (Pattern)
+    ld e, a                    ; E = Color
+
+    ; Apply signed per-layer Y offset. B/C is restored after the call
+    ; from the saved entity position pushed at the top of this layer pass.
+    push de                    ; Preserve D=Pattern, E=Color
+    ld de, sprite_layer_y_offsets
+    ld a, l
+    add a, e
+    ld e, a
+    ld a, 0
+    adc a, d
+    ld d, a                    ; DE = &sprite_layer_y_offsets[hwSprite]
+    ld a, (de)                 ; A = signed Y offset (two's complement)
+    pop de
+    add a, c
+    ld c, a                    ; C = Y + layer offset
+    
+    ; Call show_sprite (A=HW Sprite, B=X, C=Y, D=Pattern, E=Color)
+    ld a, l                    ; A = HW Sprite
+    call call_show_sprite_resident
+
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .sprite_layer_after_pattern_restore
+    pop de                     ; Restore current pattern number
+
+.sprite_layer_after_pattern_restore:
+    pop bc                     ; Restore Position
+    pop hl                     ; Restore counters
+    
+    inc l                      ; Next HW Sprite
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .sprite_layer_next
+    ld a, d
+    add a, 4                   ; Next 16x16 pattern
+    ld d, a
+
+.sprite_layer_next:
+    dec h                      ; Decrement Layer Count
+    jr nz, sprite_layer_loop
+    
+sprite_continue:
+    pop hl
+    pop bc
+
+sprite_next_entity:
+    dec b
+    jp nz, sprite_update_loop
+
+    ret
+
+; ==================================================================
+; PLAYER SPRITE FASTPATH
+; ==================================================================
+refresh_player_sprite_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_SPRITE
+    ret z
+    call call_force_update_entity_sprite_resident
+    ret
+
+; ==================================================================
+; HELPER: Force update a single entity's sprite (used by init_entities)
+; Input: C = Entity Index
+; ==================================================================
+force_update_entity_sprite:
+    push bc
+    push de
+    push hl
+    
+    ; Get X/Y from memory
+    ld hl, entity_x_pos
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld b, (hl)                 ; B = X
+    
+    ld hl, entity_y_pos
+    add hl, de
+    ld c, (hl)                 ; C = Y
+
+    ; E still has Entity Index, D = 0
+    ; B = X, C = Y
+    
+    ; Get Config
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de                 ; Index * 2
+    
+    ld a, (hl)                 ; Base HW Sprite
+    inc hl
+    ld h, (hl)                 ; Layer Count
+    ld l, a                    ; L = Base HW Sprite
+    ld a, h
+    or a
+    jr z, force_sprite_done    ; Skip if no layers for this entity
+
+.force_sprite_layers_ready:
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .force_sprite_layers_legacy
+    push bc
+    push hl
+    call compute_entity_base_pattern
+    ld d, a                    ; D = current pattern number for layer 0
+    pop hl
+    pop bc
+    jr .force_sprite_layers_mode_ready
+
+.force_sprite_layers_legacy:
+    ld d, 0                    ; Legacy path recomputes pattern from HW slot each layer
+
+.force_sprite_layers_mode_ready:
+
+    ; Loop through layers
+    ; H = Layer Count
+    ; L = HW Sprite Index
+    ; B = X, C = Y
+force_sprite_layer_loop:
+    push hl                    ; Save counters
+    push bc                    ; Save Position
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .force_sprite_pattern_legacy
+    push de                    ; Preserve current pattern number across lookup/call
+    jr .force_sprite_have_pattern
+
+.force_sprite_pattern_legacy:
+    ld a, l
+    sla a
+    sla a
+    ld d, a                    ; D = Pattern (HW index * 4 for 16x16)
+    jr .force_sprite_have_pattern
+
+.force_sprite_have_pattern:
+
+    ; Get Color
+    push de
+    ld de, sprite_layer_colors
+    ld a, l
+    add a, e
+    ld e, a
+    ld a, 0
+    adc a, d
+    ld d, a
+    ld a, (de)
+    pop de                     ; Restore D
+    ld e, a                    ; E = Color
+
+    ; Apply signed per-layer Y offset. B/C is restored after the call
+    ; from the saved entity position pushed at the top of this layer pass.
+    push de
+    ld de, sprite_layer_y_offsets
+    ld a, l
+    add a, e
+    ld e, a
+    ld a, 0
+    adc a, d
+    ld d, a
+    ld a, (de)
+    pop de
+    add a, c
+    ld c, a
+    
+    ; Call show_sprite
+    ld a, l                    ; A = HW Sprite
+    call call_show_sprite_resident
+
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .force_sprite_after_pattern_restore
+    pop de                     ; Restore current pattern number
+
+.force_sprite_after_pattern_restore:
+    pop bc                     ; Restore Position
+    pop hl                     ; Restore counters
+    
+    inc l
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .force_sprite_next
+    ld a, d
+    add a, 4
+    ld d, a
+
+.force_sprite_next:
+    dec h
+    jr nz, force_sprite_layer_loop
+
+force_sprite_done:
+    pop hl
+    pop de
+    pop bc
+    ret
+
+compute_entity_base_pattern:
+    ; Input: DE = entity index
+    ; Output: A = base pattern number for this entity's current frame
+    ; Clobbers: AF, BC, HL
+    ld a, SPRITE_PATTERN_PRELOAD_MODE
+    or a
+    jr z, .legacy_hw_pattern
+
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    ld a, (hl)
+    cp #FF
+    jr z, .placeholder_pattern
+    cp SPRITE_ASSET_COUNT
+    jr nc, .placeholder_pattern
+
+    ld c, a
+    ld b, 0
+    ld hl, sprite_asset_base_pattern_slot_runtime
+    add hl, bc
+    ld a, (hl)                 ; A = base 16x16 pattern slot for this asset
+    push af                    ; Save base slot before HL is reused
+
+    ld hl, sprite_asset_layer_count
+    add hl, bc
+    ld b, (hl)                 ; B = current sprite layer count (frame stride)
+    ld a, b
+    or a
+    jr nz, .sprite_stride_ready
+    ld b, 1
+.sprite_stride_ready:
+
+    ld hl, entity_anim_frame
+    add hl, de
+    ld c, (hl)                 ; C = current animation frame
+
+    pop af                     ; A = base slot (restored)
+    ld l, a                    ; L = base slot (ready for stride loop)
+    ld a, c
+    or a
+    jr z, .slot_to_pattern
+
+.frame_stride_loop:
+    ld a, l
+    add a, b
+    ld l, a
+    dec c
+    jr nz, .frame_stride_loop
+
+.slot_to_pattern:
+    ld a, l
+    add a, a
+    add a, a
+    ret
+
+.placeholder_pattern:
+    ld a, (sprite_placeholder_base_pattern_num)
+    ret
+
+.legacy_hw_pattern:
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    add a, a
+    add a, a
+    ret
+; @mideas:endblock id=runtime.components.sprite
+
+    ; Movement system filtered out(not used)
+init_movement_system:
+    ret
+
+update_movement_component:
+    ret
+    ; @mideas:block id=runtime.components.collision kind=routine owner=components preserve=false
+
+        ; ==================================================================
+; COLLISION COMPONENT SYSTEM(Based on ScreenEditor collision detection)
+        ; ==================================================================
+
+            init_collision_system:
+    ; Initialize collision detection system
+    ; Clear deadly collision flags
+    xor a
+    ld hl, entity_deadly_collision
+    call component_fill_32_a
+
+    ; Clear entity-entity collision flags
+    ld hl, entity_entity_collision_flags
+    call component_fill_32_a
+
+    ; Initialize last collided entity to "none"
+    ld a, 255
+    ld hl, entity_last_collision_entity
+    call component_fill_32_a
+
+    ; Default collision hitboxes: 16x16 with no offset
+    ld a, 16
+    ld hl, entity_collision_hitbox_w
+    call component_fill_32_a
+
+    ld hl, entity_collision_hitbox_h
+    call component_fill_32_a
+
+    xor a
+    ld hl, entity_collision_offset_x
+    call component_fill_32_a
+
+    ld hl, entity_collision_offset_y
+    call component_fill_32_a
+    ret
+
+    update_collision_component:
+    ; Ground detection for entities with Collision or Gravity components
+    ; Sets entity_on_ground flag based on Y position
+    ld a, (ground_entity_count)
+    or a
+    ret z
+    ld b, a                       ; Loop through ground-probe entities only
+    ld hl, ground_entity_list
+
+    collision_update_loop:
+    ld c, (hl)                    ; C = entity index
+    inc hl                        ; Advance list pointer
+    push hl                       ; Save list pointer
+
+    ; Get entity Y position
+    push bc
+    push hl
+    push de
+
+    ; Ground detection is handled exclusively by update_wallcollision_component (tile-based)
+    ; Check only platform_id and grace frames for platform-riding entities
+    ; Entity is grounded if: on tiles OR on platform OR has grace frames
+
+    ; Check if entity has platform reference
+    push hl
+    ld hl, entity_platform_id
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = platform_id
+    cp 255
+    jr nz, .grounded_by_platform  ; Has platform, mark grounded
+
+    ; No platform, check grace frames
+    ld hl, entity_platform_grace
+    add hl, de
+    ld a, (hl)                    ; A = grace frames
+    or a
+    jr nz, .grounded_by_platform  ; Has grace, mark grounded
+
+    ; No tiles, no platform, no grace - entity is in air
+    pop hl
+    ld hl, entity_on_ground
+    ld e, c
+    ld d, 0
+    add hl, de
+    res 0, (hl)                   ; Mark as in air
+    jr .ground_check_done
+
+.grounded_by_platform:
+    ; Entity is grounded by platform or grace frames
+    pop hl
+    ld hl, entity_on_ground
+    ld e, c
+    ld d, 0
+    add hl, de
+    set 0, (hl)                   ; Mark as grounded
+
+.ground_check_done:
+    ; Deadly contact is updated later by update_deadly_tiles_component.
+    ; Keep collision focused on ground/platform state so we do not resample
+    ; the behavior map twice per frame for the same entity.
+    pop de
+    pop hl
+    pop bc
+
+    collision_next_entity:
+    pop hl                        ; Restore list pointer
+    dec b
+    jp nz, collision_update_loop
+
+    ; Run lightweight entity-entity collision pass for all collidable entities
+    call update_entity_collision_fast
+    ret
+
+update_entity_collision_fast:
+    ; =============================================================
+    ; Optimized entity-entity collision: 2-phase active-list system
+    ; Phase 1: Build list of active collidable entities on screen
+    ; Phase 2: Check only valid pairs (i < j) with clamped AABB
+    ; Runs every 2 frames (latches previous result on skip frames)
+    ; =============================================================
+
+    ; Frame skip - every 2 frames
+    ld hl, interrupt_counter
+    ld a, (hl)
+    and 1
+    ret nz
+
+    ; === PHASE 1: Build active list from prefiltered collision bucket ===
+    ld hl, coll_list              ; HL = write pointer into coll_list
+    xor a
+    ld (coll_list_count), a       ; count = 0
+    ld a, (collision_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld de, collision_entity_list
+
+.build_loop:
+    ld a, (de)
+    ld c, a
+    inc de
+
+    ; Clear collision flags for ALL entities with collision component
+    push hl                       ; Save list write pointer
+    push de
+    ld e, c
+    ld d, 0
+
+    ; Clear collision flags for this entity (even if wrong screen)
+    ld hl, entity_entity_collision_flags
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_last_collision_entity
+    add hl, de
+    ld (hl), 255
+
+    ; Entity qualifies - add to list (max MAX_ENTITIES)
+    ld a, (coll_list_count)
+    cp MAX_ENTITIES
+    jp nc, .build_skip            ; List full
+
+    ; Restore pointers in reverse push order: DE read cursor first, then HL write cursor.
+    ; The previous order wrote into collision_entity_list instead of coll_list.
+    pop de
+    pop hl
+    ld (hl), c                    ; coll_list[count] = entity index
+    inc hl                        ; Advance write pointer
+    push hl                       ; Save updated write pointer
+    push de
+
+    ld a, (coll_list_count)
+    inc a
+    ld (coll_list_count), a
+
+.build_skip:
+    pop de
+    pop hl                        ; Restore list write pointer
+    djnz .build_loop
+
+.build_done:
+    ; === PHASE 2: Check pairs ===
+    ; Need at least 2 entities for any pair
+    ld a, (coll_list_count)
+    cp 2
+    ret c                         ; 0 or 1 entities, nothing to check
+
+    ; Outer loop: i = 0 .. count-2
+    ld b, 0                       ; B = outer index i
+
+.outer_loop:
+    ld a, (coll_list_count)
+    dec a                         ; A = count - 1
+    cp b
+    jp z, .coll_done              ; i == count-1, done
+    jp c, .coll_done              ; safety
+
+    ; Get source entity index from coll_list[i]
+    push bc                       ; Save B=i
+    ld hl, coll_list
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld c, (hl)                    ; C = source entity index
+
+    ; Cache source AABB with clamping
+    ld e, c
+    ld d, 0
+
+    ; source left = x + offset_x
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_x
+    add hl, de
+    call coll_add_signed_offset_clamped
+    ld (coll_src_left), a
+
+    ; source right = left + hitbox_w (clamped)
+    ld hl, entity_collision_hitbox_w
+    add hl, de
+    add a, (hl)
+    jp nc, .src_right_ok
+    ld a, 255                     ; Clamp on overflow
+.src_right_ok:
+    ld (coll_src_right), a
+
+    ; source top = y + offset_y
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_y
+    add hl, de
+    call coll_add_signed_offset_clamped
+    ld (coll_src_top), a
+
+    ; source bottom = top + hitbox_h (clamped)
+    ld hl, entity_collision_hitbox_h
+    add hl, de
+    add a, (hl)
+    jp nc, .src_bot_ok
+    ld a, 255
+.src_bot_ok:
+    ld (coll_src_bottom), a
+
+    ; Inner loop: j = i+1 .. count-1
+    ; Preserve C=source entity index while restoring outer index i.
+    pop de                        ; D = outer index i, E = saved scratch
+    ld b, d
+    push de                       ; Save i again for .inner_done
+    ld a, b
+    inc a                         ; A = i+1
+    ld b, a                       ; B = inner index j (reusing B temporarily)
+    push bc                       ; Save B=j, (stack: j, i)
+
+.inner_loop:
+    pop bc                        ; Restore B=j
+    ld a, (coll_list_count)
+    cp b
+    jp z, .inner_done             ; j == count, done with inner
+    jp c, .inner_done
+
+    ; Get target entity index from coll_list[j]
+    push bc                       ; Save B=j
+    ld hl, coll_list
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld b, (hl)                    ; B = target entity index
+
+    ; --- Mutual layer mask check ---
+    ; source.collidesWith & target.layer
+    ld e, c
+    ld d, 0
+    ld hl, entity_collides_with
+    add hl, de
+    ld a, (hl)                    ; A = source.collidesWith
+    ld e, b
+    ld hl, entity_collision_layer
+    add hl, de
+    and (hl)                      ; A = source.collidesWith & target.layer
+    jp z, .next_inner
+
+    ; target.collidesWith & source.layer
+    ld e, b
+    ld d, 0
+    ld hl, entity_collides_with
+    add hl, de
+    ld a, (hl)                    ; A = target.collidesWith
+    ld e, c
+    ld hl, entity_collision_layer
+    add hl, de
+    and (hl)                      ; A = target.collidesWith & source.layer
+    jp z, .next_inner
+
+    ; --- AABB overlap test (source cached, compute target with clamp) ---
+    ; target left = x + offset_x
+    ld e, b
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_x
+    add hl, de
+    push bc
+    call coll_add_signed_offset_clamped
+    pop bc
+    ld e, a                       ; E = target_left
+
+    ; source.right < target.left => no overlap
+    ; (edge-touch counts as collision contact)
+    ld a, (coll_src_right)
+    cp e
+    jp c, .next_inner
+
+    ; target right = target_left + hitbox_w (clamped)
+    push de                       ; Save E=target_left, D free
+    ld e, b
+    ld d, 0
+    ld hl, entity_collision_hitbox_w
+    add hl, de
+    pop de                        ; Restore E=target_left
+    ld a, e                       ; A = target_left
+    add a, (hl)                   ; A = target_left + width
+    jp nc, .tgt_right_ok
+    ld a, 255
+.tgt_right_ok:
+    ; source.left > target.right => no overlap
+    ; (edge-touch counts as collision contact)
+    ld d, a                       ; D = target_right
+    ld a, (coll_src_left)
+    cp d
+    jp c, .x_overlap_ok
+    jp z, .x_overlap_ok
+    jp .next_inner
+.x_overlap_ok:
+
+    ; target top = y + offset_y
+    ld e, b
+    ld d, 0
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_y
+    add hl, de
+    push bc
+    call coll_add_signed_offset_clamped
+    pop bc
+    ld e, a                       ; E = target_top
+
+    ; source.bottom < target.top => no overlap
+    ; (edge-touch counts as collision contact)
+    ld a, (coll_src_bottom)
+    cp e
+    jp c, .next_inner
+
+    ; target bottom = target_top + hitbox_h (clamped)
+    push de                       ; Save E=target_top
+    ld e, b
+    ld d, 0
+    ld hl, entity_collision_hitbox_h
+    add hl, de
+    pop de                        ; Restore E=target_top
+    ld a, e                       ; A = target_top
+    add a, (hl)                   ; A = target_top + height
+    jp nc, .tgt_bot_ok
+    ld a, 255
+.tgt_bot_ok:
+    ; source.top > target.bottom => no overlap
+    ; (edge-touch counts as collision contact)
+    ld d, a                       ; D = target_bottom
+    ld a, (coll_src_top)
+    cp d
+    jp c, .y_overlap_ok
+    jp z, .y_overlap_ok
+    jp .next_inner
+.y_overlap_ok:
+
+    ; ==========  COLLISION DETECTED between source(C) and target(B) ==========
+
+    ; --- Set flags for SOURCE entity (C) ---
+    push bc                       ; Save B=target, C=source
+    ld e, c
+    ld d, 0
+
+    ; Store target index in source's last_collision_entity
+    ld hl, entity_last_collision_entity
+    add hl, de
+    ld (hl), b
+
+    ; Classify target layer into collision event flags
+    push de
+    ld e, b
+    ld d, 0
+    ld hl, entity_collision_layer
+    add hl, de
+    ld a, (hl)                    ; A = target layer bitmask
+    pop de
+    call coll_flags_from_layer
+    ld hl, entity_entity_collision_flags
+    add hl, de
+    or (hl)                       ; OR with existing flags (multiple hits)
+    ld (hl), a
+
+    ; --- Set flags for TARGET entity (B) --- (bidirectional)
+    pop bc                        ; Restore B=target, C=source
+    push bc
+
+    ld e, b
+    ld d, 0
+
+    ; Store source index in target's last_collision_entity
+    ld hl, entity_last_collision_entity
+    add hl, de
+    ld (hl), c
+
+    ; Classify source layer into collision event flags
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_collision_layer
+    add hl, de
+    ld a, (hl)                    ; A = source layer bitmask
+    pop de
+    call coll_flags_from_layer
+    ld hl, entity_entity_collision_flags
+    add hl, de
+    or (hl)                       ; OR with existing flags
+    ld (hl), a
+
+    pop bc                        ; Restore B=target, C=source
+
+.next_inner:
+    ; Advance j
+    pop bc                        ; Restore B=j (inner index)
+    inc b
+    push bc                       ; Save updated j
+    jp .inner_loop
+
+.inner_done:
+    pop de                        ; Restore D=i (keep C=source untouched)
+    ld b, d
+    inc b                         ; i++
+    jp .outer_loop
+
+.coll_done:
+    ret
+
+        ; ==================================================================
+; COLLISION HELPER FUNCTIONS(Critical for Gameplay Parity)
+        ; ==================================================================
+
+; ------------------------------------------------------------------
+; coll_add_signed_offset_clamped
+; Input:  A = base coordinate (0..255)
+;         HL = pointer to signed offset byte (-128..127, two's complement)
+; Output: A = clamped (base + offset), saturated to 0..255
+; Clobbers: B
+; ------------------------------------------------------------------
+coll_add_signed_offset_clamped:
+    ld b, (hl)                    ; B = signed offset byte
+    add a, b                      ; A = base + offset (wrapped)
+    bit 7, b
+    jr z, .casc_positive
+    ; Negative offset: carry=0 means underflow (wrapped below 0)
+    jr c, .casc_done
+    xor a                         ; Clamp to 0
+    ret
+.casc_positive:
+    ; Positive offset: carry=1 means overflow (wrapped above 255)
+    jr nc, .casc_done
+    ld a, 255                     ; Clamp to 255
+.casc_done:
+    ret
+
+; ------------------------------------------------------------------
+; coll_flags_from_layer
+; Input:  A = collision layer bitmask of the other entity
+; Output: A = collision event flags (entity/enemy/item)
+; Clobbers: B, C
+; ------------------------------------------------------------------
+coll_flags_from_layer:
+    ld b, a
+    ld c, COLLISION_EVENT_ENTITY
+
+    ld a, b
+    and COLLISION_LAYER_ENEMY
+    jr z, .cffl_no_enemy
+    ld a, c
+    or COLLISION_EVENT_ENEMY
+    ld c, a
+.cffl_no_enemy:
+    ld a, b
+    and COLLISION_LAYER_ITEM
+    jr z, .cffl_done
+    ld a, c
+    or COLLISION_EVENT_ITEM
+    ld c, a
+.cffl_done:
+    ld a, c
+    ret
+
+            check_tile_collision:
+    ; Check collision with background tiles
+        ; A = X position, B = Y position
+        ; Convert pixel position to tile coordinates
+    push af
+    push bc
+
+        ; DYNAMIC TILE SIZE CONVERSION
+        ; TODO: This should be calculated from actual screen map tile sizes
+        ; For now, detect most common tile size in project
+; MSX Screen 2: behavior map is 32x24 (one entry per 8x8 character cell)
+    ; Always divide by 8 to convert pixels to character column/row
+    ; Convert X to tile column (divide by 8)
+
+    srl a                      ; A = X / 2
+    srl a                      ; A = X / 4
+    srl a                      ; A = X / 8
+    ld c, a; C = tile column
+
+        ; Convert Y to tile row (divide by 8)
+    ld a, b
+    srl a                      ; A = Y / 2
+    srl a                      ; A = Y / 4
+    srl a                      ; A = Y / 8
+    ld b, a; B = tile row
+
+        ; Check if position is within valid tile map
+    ld a, c
+    cp 32; Screen width in tiles
+    jr nc, no_tile_collision
+    ld a, b
+    cp 24; Screen height in tiles
+    jr nc, no_tile_collision
+
+        ; Get tile at position(simplified - would read from behavior map)
+        ; For now, assume all non - zero tiles are solid
+        ; This would read from the behavior map generated from screen data
+    call get_behavior_tile; Returns A = behavior value
+    and #F0               ; Family bits only (0=NoSolid, #10+=Solid)
+    jr z, no_tile_collision; 0 = passable (NoSolid family)
+
+        ; Collision detected - handle it
+    call handle_tile_collision
+
+    no_tile_collision:
+    pop bc
+    pop af
+    ret
+
+    check_entity_collision:
+    ; Check collision with other entities
+        ; A = current entity X, B = current entity Y, C = current entity index
+    push bc
+    push af
+
+        ; Loop through all other entities
+    ld hl, entity_comp_masks
+    ld e, 0; Other entity index
+
+    entity_collision_loop:
+    ld a, e
+    cp c; Skip self
+    jr z, next_entity_collision
+
+        ; Check if other entity has collision component
+    ld a, (hl)
+    and COMP_MASK_COLLISION
+    jr z, next_entity_collision
+
+        ; Get other entity position
+    push hl
+    push de
+
+    ld hl, entity_x_pos
+    ld d, 0
+    add hl, de; HL points to other entity X
+    ld d, (hl); D = other X
+
+    push de; Save D=otherX, E=otherIndex
+    ld d, 0; Reset D for correct address calculation
+    ld hl, entity_y_pos
+    add hl, de; HL points to other entity Y
+    ld a, (hl); A = other Y
+    pop de; Restore D=otherX, E=otherIndex
+    ld e, a; E = other Y
+
+        ; Check if entities overlap(16x16 sprites)
+            ; Current entity: A = X, B = Y
+                ; Other entity: D = X, E = Y
+
+                    ; X overlap check: | X1 - X2 | <16
+    ld h, a; H = current X
+    ld a, d; A = other X
+    sub h; A = other X - current X
+    jr nc, x_diff_positive; Jump if positive
+    neg; Make positive
+    x_diff_positive:
+    cp 16; Check if <16
+    jr nc, no_entity_collision; No X overlap
+
+        ; Y overlap check: | Y1 - Y2 | <16
+    ld a, e; A = other Y
+    sub b; A = other Y - current Y
+    jr nc, y_diff_positive; Jump if positive
+    neg; Make positive
+    y_diff_positive:
+    cp 16; Check if <16
+    jr nc, no_entity_collision; No Y overlap
+
+        ; Collision detected!
+    call handle_entity_collision
+
+    no_entity_collision:
+    pop de
+    pop hl
+
+    next_entity_collision:
+    inc hl; Next entity mask
+    inc e; Next entity index
+    ld a, e
+    cp 32; Check all 32 entities
+    jr nz, entity_collision_loop
+
+    pop af
+    pop bc
+    ret
+
+    handle_boundary_collision:
+    ; Handle collision with screen boundaries
+    ; C = entity index (from collision loop)
+    push de
+    push hl
+    ld e, c
+    ld d, 0
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a              ; Stop X movement for this entity
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a              ; Stop Y movement for this entity
+    pop hl
+    pop de
+    ret
+
+    handle_tile_collision:
+    ; Handle collision with solid tiles
+    ; C = entity index (from collision loop)
+    push de
+    push hl
+    ld e, c
+    ld d, 0
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a              ; Stop X movement for this entity
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a              ; Stop Y movement for this entity
+    pop hl
+    pop de
+    ret
+
+    handle_entity_collision:
+    ; No active entity uses COLLISION_LAYER_PLATFORM in this project.
+    ret
+; @mideas:endblock id=runtime.components.collision
+; @mideas:block id=runtime.components.behavior_tile kind=routine owner=components preserve=false roots=get_behavior_tile,get_behavior_tile_nb,gbt_oob
+
+    ; ------------------------------------------------------------------
+    ; get_behavior_tile
+    ; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Read behavior byte for tile at (B=row, C=column) from the runtime behavior map.
+;   Inputs:
+;     - B = tile row    (0..23, out-of-range ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ A=0, passable)
+;     - C = tile column (0..31, out-of-range ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ A=0, passable)
+;     - current_behavior_map = 16-bit pointer to active screen behavior map
+;     - current_behavior_map_bank = memory bank number (mapper context)
+;   Outputs:
+;     - A = behavior byte:
+;     -   bits 7-4 (A & #F0): family / solidity class (0x00 = NoSolid, 0x10+ = Solid)
+;     -   bits 3-0 (A & #0F): flag bits (e.g. 0x08 = Interactable)
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;   Notes:
+;     - Maintains a single-row cache (behavior_cache_row / behavior_cache_row_base)
+;     - so consecutive calls for the same row skip the row*32 multiply.
+;     - Mapper push/pop protects data-window bank around the map read (no-op in simple32k mode).
+;     - MUST be called with DE = entity index already set (DE is preserved, not used).
+
+get_behavior_tile:
+    ; Bounds check: row must be 0-23, column must be 0-31
+    ; NOTE: jp nc (not jr nc) to gbt_oob ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â gbt_oob is a global label defined after
+    ; get_behavior_tile_nb. Using jr would create a local-label scoping conflict in
+    ; glass.jar (get_behavior_tile_nb: starts a new scope, so .bt_out_of_bounds would
+    ; belong to that scope, not get_behavior_tile's scope).
+    ld a, b
+    cp 24
+    jp nc, gbt_oob                ; Row >= 24: treat as passable
+    ld a, c
+    cp 32
+    jp nc, gbt_oob                ; Column >= 32: treat as passable
+get_behavior_tile_nb:
+    ; Entry point for callers that guarantee B ÃƒÂ¢Ã‹â€ Ã‹â€  0..23 and C ÃƒÂ¢Ã‹â€ Ã‹â€  0..31.
+    ; Saves 36 cycles (4+7+7+4+7+7) by skipping bounds validation.
+    ; DO NOT call this unless the probe coordinates are provably in-bounds.
+    push hl
+    push de
+
+    ; Load cached behavior map pointer (fallback to current_behavior_map)
+    ld hl, behavior_cache_map_l
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, d
+    or e
+    jr nz, .map_ptr_ready
+
+    ld de, (current_behavior_map)
+    ld a, e
+    ld (behavior_cache_map_l), a
+    ld a, d
+    ld (behavior_cache_map_h), a
+    ld a, #FF
+    ld (behavior_cache_row), a
+
+.map_ptr_ready:
+    ; Reuse previous row base when checking multiple points on same row
+    ld a, b
+    ld hl, behavior_cache_row
+    cp (hl)
+    jr z, .use_cached_row_base
+
+    ; Cache miss: row base = behavior_map + row*32
+    ld a, b
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; HL = row * 2
+    add hl, hl                    ; HL = row * 4
+    add hl, hl                    ; HL = row * 8
+    add hl, hl                    ; HL = row * 16
+    add hl, hl                    ; HL = row * 32
+    add hl, de                    ; HL = row base address
+
+    ld a, b
+    ld (behavior_cache_row), a
+    ld (behavior_cache_row_base), hl
+    jr .row_base_ready
+
+.use_cached_row_base:
+    ld hl, (behavior_cache_row_base)
+
+.row_base_ready:
+    ld e, c
+    ld d, 0
+    add hl, de                    ; HL = row base + column
+
+    ; Banked ROM build: protect data-window bank around the read in case behavior map is in ROM bank.
+    call mapper_push_p3
+    ld a, (current_behavior_map_bank)
+    call mapper_set_bank_p3
+    ld a, (hl)                    ; A = behavior value
+    push af
+    call mapper_pop_p3
+    pop af
+    pop de
+    pop hl
+    ret
+gbt_oob:
+    xor a                         ; A = 0 (passable)
+    ret
+; @mideas:endblock id=runtime.components.behavior_tile
+
+; ------------------------------------------------------------------
+; wall_build_hitbox_cache
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Compute and cache hitbox AABB and adaptive probe coordinates
+;            from entity position (wall_temp_x/y) plus collision offsets/sizes.
+;   Inputs:
+;     - DE                        = entity index (used to index per-entity arrays)
+;     - wall_temp_x               = cached entity X origin (set before calling)
+;     - wall_temp_y               = cached entity Y origin (set before calling)
+;     - entity_collision_hitbox_w[DE]: hitbox width  (0 treated as 1)
+;     - entity_collision_hitbox_h[DE]: hitbox height (0 treated as 1)
+;     - entity_collision_offset_x[DE]: signed X offset from entity origin to hitbox left
+;     - entity_collision_offset_y[DE]: signed Y offset from entity origin to hitbox top
+;   Outputs:
+;     - wall_hit_left   = hitbox left  pixel (entity_x + offset_x, clamped 0..255)
+;     - wall_hit_top    = hitbox top   pixel (entity_y + offset_y, clamped 0..255)
+;     - wall_hit_right  = left + (w-1), clamped 0..255
+;     - wall_hit_bottom = top  + (h-1), clamped 0..255
+;     - wall_hit_w      = effective width  (>= 1)
+;     - wall_hit_h      = effective height (>= 1)
+;     - wall_probe_left / wall_probe_right : X probes (inset up to 2px from sides)
+;     - wall_probe_top  / wall_probe_bottom: Y probes (inset up to 2px from top/bottom)
+;   Clobbers: AF, BC, HL
+;   Preserved: DE (entity index is never modified)
+;   Notes:
+;     - Adaptive inset: min(2, floor((right-left)/2)) and min(2, floor((bottom-top)/2)).
+;       Prevents corner-only probes for entities smaller than 4 pixels on an axis.
+;     - Call wall_add_signed_offset_clamped for offset application.
+;     - Called once at entity loop entry; called again after every position snap.
+; ------------------------------------------------------------------
+wall_build_hitbox_cache:
+    ; Width (minimum 1)
+    ld hl, entity_collision_hitbox_w
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .wbhc_w_ok
+    ld a, 1
+.wbhc_w_ok:
+    ld (wall_hit_w), a
+
+    ; Height (minimum 1)
+    ld hl, entity_collision_hitbox_h
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .wbhc_h_ok
+    ld a, 1
+.wbhc_h_ok:
+    ld (wall_hit_h), a
+
+    ; left = entity_x + offset_x (signed, clamped)
+    ld a, (wall_temp_x)
+    ld hl, entity_collision_offset_x
+    add hl, de
+    call wall_add_signed_offset_clamped
+    ld (wall_hit_left), a
+
+    ; top = entity_y + offset_y (signed, clamped)
+    ld a, (wall_temp_y)
+    ld hl, entity_collision_offset_y
+    add hl, de
+    call wall_add_signed_offset_clamped
+    ld (wall_hit_top), a
+
+    ; right = left + (w-1), clamped
+    ld a, (wall_hit_w)
+    dec a
+    ld b, a
+    ld a, (wall_hit_left)
+    add a, b
+    jr nc, .wbhc_right_ok
+    ld a, 255
+.wbhc_right_ok:
+    ld (wall_hit_right), a
+
+    ; bottom = top + (h-1), clamped
+    ld a, (wall_hit_h)
+    dec a
+    ld b, a
+    ld a, (wall_hit_top)
+    add a, b
+    jr nc, .wbhc_bottom_ok
+    ld a, 255
+.wbhc_bottom_ok:
+    ld (wall_hit_bottom), a
+
+    ; ---- Adaptive X probes: inset = min(2, floor((right-left)/2)) ----
+    ; Purpose: avoid probing the exact corner pixels for small sprites.
+    ; For a 16px-wide entity: inset = min(2, 8) = 2.
+    ;   probe_left  = left  + 2  (2px inside left edge)
+    ;   probe_right = right - 2  (2px inside right edge)
+    ; For a 4px-wide entity: inset = min(2, 2) = 2 (probes overlap at center).
+    ; For a 2px-wide entity: inset = min(2, 1) = 1.
+    ld a, (wall_hit_left)
+    ld c, a                       ; C = left pixel
+    ld a, (wall_hit_right)
+    sub c                         ; A = width span (right - left)
+    srl a                         ; A = span / 2
+    cp 3                          ; is span/2 < 3 (i.e. inset < 2)?
+    jr c, .wbhc_inset_x_ready     ; yes: use as-is
+    ld a, 2                       ; no: cap inset at 2
+.wbhc_inset_x_ready:
+    ld b, a                       ; B = inset value
+    ld a, c
+    add a, b
+    ld (wall_probe_left), a       ; probe_left  = left  + inset
+    ld a, (wall_hit_right)
+    sub b
+    ld (wall_probe_right), a      ; probe_right = right - inset
+
+    ; ---- Adaptive Y probes: inset = min(2, floor((bottom-top)/2)) ----
+    ; Same logic on Y axis.
+    ;   probe_top    = top    + inset
+    ;   probe_bottom = bottom - inset
+    ld a, (wall_hit_top)
+    ld c, a                       ; C = top pixel
+    ld a, (wall_hit_bottom)
+    sub c                         ; A = height span (bottom - top)
+    srl a                         ; A = span / 2
+    cp 3
+    jr c, .wbhc_inset_y_ready
+    ld a, 2
+.wbhc_inset_y_ready:
+    ld b, a                       ; B = inset value
+    ld a, c
+    add a, b
+    ld (wall_probe_top), a        ; probe_top    = top    + inset
+    ld a, (wall_hit_bottom)
+    sub b
+    ld (wall_probe_bottom), a     ; probe_bottom = bottom - inset
+    ret
+
+; ------------------------------------------------------------------
+; wall_add_signed_offset_clamped
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Add a signed 8-bit offset to a pixel coordinate, clamping result to 0..255.
+;            Used to apply entity_collision_offset_x/y to entity origin (entityÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢hitbox).
+;   Inputs:
+;     - A  = base pixel coordinate (unsigned, 0..255)
+;     - HL = pointer to signed offset byte (-128..127)
+;   Outputs:
+;     - A  = clamp(base + offset, 0, 255)
+;   Clobbers: AF, B
+;   Preserved: C, DE, HL
+;   Notes:
+;     - Negative offset: carry=0 after add ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ underflow ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ A clamped to 0.
+;     - Positive offset: carry=1 after add ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ overflow ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ A clamped to 255.
+;     - B is used to hold the offset byte; caller must save B if needed.
+; ------------------------------------------------------------------
+wall_add_signed_offset_clamped:
+    ld b, (hl)                    ; B = signed offset
+    add a, b
+    bit 7, b
+    jr z, .wasc_positive
+    ; Negative offset: carry=0 means underflow
+    jr c, .wasc_done
+    xor a
+    ret
+.wasc_positive:
+    ; Positive offset: carry=1 means overflow
+    jr nc, .wasc_done
+    ld a, 255
+.wasc_done:
+    ret
+
+; ------------------------------------------------------------------
+; wall_sub_signed_offset_clamped
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Subtract a signed 8-bit offset from a hitbox coordinate, clamping to 0..255.
+;            Used to convert hitbox left/top back to entity origin after a snap.
+;            Inverse of wall_add_signed_offset_clamped.
+;   Inputs:
+;     - A  = hitbox pixel coordinate (left or top, unsigned 0..255)
+;     - HL = pointer to signed collision offset byte (-128..127)
+;            (same pointer passed to wall_add_signed_offset_clamped when building)
+;   Outputs:
+;     - A  = clamp(hitbox - offset, 0, 255)
+;            i.e. the entity origin coordinate that produces the snapped hitbox edge
+;   Clobbers: AF, B, C
+;   Preserved: DE, HL
+;   Notes:
+;     - If offset is negative: hitbox - offset = hitbox + abs(offset).
+;       Overflow (carry clear after add) ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ A clamped to 255.
+;     - If offset is positive: hitbox - offset computed directly.
+;       Underflow (carry clear after sub) ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ A clamped to 0.
+;     - B holds the raw offset byte; C holds the original hitbox coordinate.
+; ------------------------------------------------------------------
+wall_sub_signed_offset_clamped:
+    ld c, a
+    ld b, (hl)                    ; B = signed offset
+    bit 7, b
+    jr z, .wssc_positive
+    ; offset < 0 -> hitbox - offset = hitbox + abs(offset)
+    ld a, b
+    neg
+    add a, c
+    jr nc, .wssc_done
+    ld a, 255
+    ret
+.wssc_positive:
+    ld a, c
+    sub b
+    jr nc, .wssc_done
+    xor a
+.wssc_done:
+    ret
+; @mideas:block id=runtime.components.directional_sprite_sync kind=routine owner=components preserve=false roots=component_sync_directional_sprite_from_initial,component_sync_directional_sprite_from_current,component_sync_directional_sprite_common
+
+; ------------------------------------------------------------------
+; component_sync_directional_sprite_from_initial/current
+; Shared resident helper for local directional sprite variant sync.
+; Input: DE = active entity index.
+; Output: entity_sprite_asset_index may be replaced and animation reset.
+; Clobbers internally: AF, BC, HL. Preserves: AF, BC, DE, HL.
+; ------------------------------------------------------------------
+component_sync_directional_sprite_from_initial:
+    push af
+    push bc
+    push de
+    push hl
+    ld bc, entity_sprite_asset_index_init
+    jp component_sync_directional_sprite_common
+
+component_sync_directional_sprite_from_current:
+    push af
+    push bc
+    push de
+    push hl
+    ld bc, entity_sprite_asset_index
+
+component_sync_directional_sprite_common:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .csds_done
+    cp 1
+    jp z, .csds_left
+    cp 2
+    jp z, .csds_right
+    cp 3
+    jp z, .csds_up
+    cp 4
+    jp z, .csds_down
+    jp .csds_done
+
+.csds_left:
+    ld hl, sprite_dir_left_table
+    jp .csds_lookup
+.csds_right:
+    ld hl, sprite_dir_right_table
+    jp .csds_lookup
+.csds_up:
+    ld hl, sprite_dir_up_table
+    jp .csds_lookup
+.csds_down:
+    ld hl, sprite_dir_down_table
+
+.csds_lookup:
+    push hl
+    ld h, b
+    ld l, c
+    add hl, de
+    ld a, (hl)
+    pop hl
+    cp #FF
+    jp z, .csds_done
+    cp SPRITE_ASSET_COUNT
+    jp nc, .csds_done
+    ld c, a
+    ld b, 0
+    add hl, bc
+    ld a, (hl)
+
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    cp (hl)
+    jp z, .csds_done
+    ld (hl), a
+    ld hl, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_anim_tick
+    add hl, de
+    ld (hl), 0
+
+.csds_done:
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+; @mideas:endblock id=runtime.components.directional_sprite_sync
+; @mideas:block id=runtime.components.input kind=routine owner=components preserve=false
+
+        ; ==================================================================
+        ; INPUT COMPONENT SYSTEM (With direction restrictions - Cursors)
+        ; ==================================================================
+
+        init_input_system:
+            ; Initialize input handling system
+            xor a
+            ld (input_state), a
+            ld (prev_input_state), a
+            ld (input_btn_curr), a
+            ld (input_btn_prev), a
+            ld (input_fire), a
+
+            ; Initialize direction masks for all entities (default: all directions allowed)
+            ld hl, entity_dir_mask
+            ld de, entity_dir_mask + 1
+            ld bc, 31
+            ld (hl), #0F               ; Default: 00001111 = all directions enabled
+            ldir
+
+            ; Initialize cursor speed for all entities (default: 2 px/frame)
+            ld hl, entity_input_speed
+            ld de, entity_input_speed + 1
+            ld bc, 31
+            ld (hl), 2
+            ldir
+
+            ; Initialize input disabled flags to 0 (all entities start with input ENABLED)
+            ld hl, entity_input_disabled
+            ld de, entity_input_disabled + 1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+
+            ; Initialize ladder state flags to 0
+            ld hl, entity_on_ladder
+            ld de, entity_on_ladder + 1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+            ret
+
+        update_input_component:
+            ; Update input handling for player entities
+            ; NOTE: input_state/prev_input_state are polled by interrupt task_update_input
+
+            ; Process input for entities with input component
+            ld a, (input_entity_count)
+            or a
+            ret z
+            ld b, a                    ; Loop through input-enabled entities only
+            ld hl, input_entity_list
+
+        input_update_loop:
+            ld c, (hl)                 ; C = entity index
+            inc hl                     ; Advance list pointer
+            push hl                    ; Save list pointer
+            pop hl                     ; Restore list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .input_not_fast_player
+            ld a, (player_entity_index)
+            cp c
+            jp z, input_next_entity
+        .input_not_fast_player:
+
+            push hl
+            call update_entity_ladder_state_c
+            pop hl
+
+            ; input_entity_list already guarantees active + current_screen_id + input
+
+            ; Check if input is disabled for this entity (DISABLE_INPUT action)
+            push hl
+            ld e, c
+            ld d, 0
+            ld hl, entity_input_disabled
+            add hl, de
+            ld a, (hl)
+            pop hl
+            or a
+            jp z, .input_enabled
+            ; Input disabled: zero velocity and skip
+            push hl
+            ld e, c
+            ld d, 0
+            ld hl, entity_vel_x
+            add hl, de
+            ld (hl), 0
+            ld hl, entity_vel_y
+            add hl, de
+            ld (hl), 0
+            pop hl
+            jp input_next_entity
+        .input_enabled:
+
+            ; Apply input to entity movement (real implementation)
+            push bc
+            push hl
+
+            call aircontrol_should_lock_horizontal_c
+            jp z, .input_aircontrol_continue
+            pop hl
+            pop bc
+            jp input_next_entity
+.input_aircontrol_continue:
+
+            ; Get direction mask for this entity
+            ld hl, entity_dir_mask
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld d, (hl)                 ; D = direction mask (allowUp / Down / Left / Right)
+
+            ; Convert joystick input to velocity
+            ld a, (input_state)
+            ld b, 0                    ; Default X velocity
+            ld c, 0                    ; Default Y velocity
+
+            ; Resolve per-entity input speed once per update.
+            ; H = cardinal speed, L = diagonal speed (max(1, speed/2)).
+            push af
+            ld a, d
+            push af
+            ld d, 0
+            ld hl, entity_input_speed
+            add hl, de
+            ld a, (hl)
+            or a
+            jr nz, .input_speed_ok
+            ld a, 1
+        .input_speed_ok:
+            ld h, a
+            srl a
+            jr nz, .input_diag_speed_ok
+            ld a, 1
+        .input_diag_speed_ok:
+            ld l, a
+            pop af
+            ld d, a
+            pop af
+
+            ; Check directional input with direction restrictions
+            cp STICK_UP
+            jp z, input_move_up
+            cp STICK_DOWN
+            jp z, input_move_down
+            cp STICK_LEFT
+            jp z, input_move_left
+            cp STICK_RIGHT
+            jp z, input_move_right
+            cp STICK_UPRIGHT
+            jp z, input_move_upright
+            cp STICK_UPLEFT
+            jp z, input_move_upleft
+            cp STICK_DOWNRIGHT
+            jp z, input_move_downright
+            cp STICK_DOWNLEFT
+            jp z, input_move_downleft
+            jp input_apply_velocity
+
+        input_move_up:
+            ; Check if UP is allowed (bit 0)
+            ld a, d
+            and DIR_ALLOW_UP
+            jp z, input_apply_velocity ; Not allowed, skip
+            ld a, h
+            neg
+            ld c, a                    ; Negative Y velocity (up)
+            jp input_apply_velocity
+
+        input_move_down:
+            ; Check if DOWN is allowed (bit 1)
+            ld a, d
+            and DIR_ALLOW_DOWN
+            jp z, input_apply_velocity ; Not allowed, skip
+            ld a, h
+            ld c, a                    ; Positive Y velocity (down)
+            jp input_apply_velocity
+
+        input_move_left:
+            ; Check if LEFT is allowed (bit 2)
+            ld a, d
+            and DIR_ALLOW_LEFT
+            jp z, input_apply_velocity ; Not allowed, skip
+            ld a, h
+            neg
+            ld b, a                    ; Negative X velocity (left)
+            jp input_apply_velocity
+
+        input_move_right:
+            ; Check if RIGHT is allowed (bit 3)
+            ld a, d
+            and DIR_ALLOW_RIGHT
+            jp z, input_apply_velocity ; Not allowed, skip
+            ld a, h
+            ld b, a                    ; Positive X velocity (right)
+            jp input_apply_velocity
+
+        input_move_upright:
+            ; Check if both UP and RIGHT are allowed
+            ld a, d
+            and DIR_ALLOW_UP
+            jp z, input_check_right_only ; UP not allowed
+            ld a, d
+            and DIR_ALLOW_RIGHT
+            jp z, input_check_up_only  ; RIGHT not allowed
+            ; Both allowed - diagonal
+            ld a, l                    ; Diagonal movement (slower)
+            ld b, a
+            neg
+            ld c, a
+            jp input_apply_velocity
+        input_check_right_only:
+            ; Only RIGHT allowed
+            ld a, d
+            and DIR_ALLOW_RIGHT
+            jp z, input_apply_velocity
+            ld a, h
+            ld b, a
+            jp input_apply_velocity
+        input_check_up_only:
+            ; Only UP allowed
+            ld a, h
+            neg
+            ld c, a
+            jp input_apply_velocity
+
+        input_move_upleft:
+            ; Check if both UP and LEFT are allowed
+            ld a, d
+            and DIR_ALLOW_UP
+            jp z, input_check_left_only1 ; UP not allowed
+            ld a, d
+            and DIR_ALLOW_LEFT
+            jp z, input_check_up_only1 ; LEFT not allowed
+            ; Both allowed - diagonal
+            ld a, l
+            neg
+            ld b, a
+            ld c, a
+            jp input_apply_velocity
+        input_check_left_only1:
+            ; Only LEFT allowed
+            ld a, d
+            and DIR_ALLOW_LEFT
+            jp z, input_apply_velocity
+            ld a, h
+            neg
+            ld b, a
+            jp input_apply_velocity
+        input_check_up_only1:
+            ; Only UP allowed
+            ld a, h
+            neg
+            ld c, a
+            jp input_apply_velocity
+
+        input_move_downright:
+            ; Check if both DOWN and RIGHT are allowed
+            ld a, d
+            and DIR_ALLOW_DOWN
+            jp z, input_check_right_only2 ; DOWN not allowed
+            ld a, d
+            and DIR_ALLOW_RIGHT
+            jp z, input_check_down_only2 ; RIGHT not allowed
+            ; Both allowed - diagonal
+            ld a, l
+            ld b, a
+            ld c, a
+            jp input_apply_velocity
+        input_check_right_only2:
+            ; Only RIGHT allowed
+            ld a, d
+            and DIR_ALLOW_RIGHT
+            jp z, input_apply_velocity
+            ld a, h
+            ld b, a
+            jp input_apply_velocity
+        input_check_down_only2:
+            ; Only DOWN allowed
+            ld a, h
+            ld c, a
+            jp input_apply_velocity
+
+        input_move_downleft:
+            ; Check if both DOWN and LEFT are allowed
+            ld a, d
+            and DIR_ALLOW_DOWN
+            jp z, input_check_left_only3 ; DOWN not allowed
+            ld a, d
+            and DIR_ALLOW_LEFT
+            jp z, input_check_down_only3 ; LEFT not allowed
+            ; Both allowed - diagonal
+            ld a, l
+            ld c, a
+            neg
+            ld b, a
+            jp input_apply_velocity
+        input_check_left_only3:
+            ; Only LEFT allowed
+            ld a, d
+            and DIR_ALLOW_LEFT
+            jp z, input_apply_velocity
+            ld a, h
+            neg
+            ld b, a
+            jp input_apply_velocity
+        input_check_down_only3:
+            ; Only DOWN allowed
+            ld a, h
+            ld c, a
+
+        input_apply_velocity:
+            ; Apply calculated velocity to entity
+            ; B = X velocity, C = Y velocity, E = entity index (preserved from earlier)
+            ld d, 0
+            ld hl, entity_vel_x
+            add hl, de
+            ld (hl), b                 ; entity_vel_x[entity_index] = X velocity
+
+            ld hl, entity_vel_y
+            add hl, de
+            ld (hl), c                 ; entity_vel_y[entity_index] = Y velocity
+
+            ; Update entity_facing_dir based on input_state
+            ; Only updates for directional inputs (0 = no change, keeps last facing)
+            push af
+            ld a, (input_state)
+            or a
+            jr z, .input_facing_done    ; 0 = no direction pressed, keep last facing
+            cp 2
+            jr c, .input_facing_up      ; 1 = UP only
+            cp 5
+            jr c, .input_facing_right   ; 2,3,4 = UP+RIGHT, RIGHT, DOWN+RIGHT
+            jr z, .input_facing_down    ; 5 = DOWN only
+            ; 6,7,8 = DOWN+LEFT, LEFT, UP+LEFT
+            ld a, 1                     ; FACING_LEFT = 1
+            jr .input_facing_write
+.input_facing_right:
+            ld a, 2                     ; FACING_RIGHT = 2
+            jr .input_facing_write
+.input_facing_up:
+            ld a, 3                     ; FACING_UP = 3
+            jr .input_facing_write
+.input_facing_down:
+            ld a, 4                     ; FACING_DOWN = 4
+.input_facing_write:
+            push hl
+            push de
+            ld hl, entity_facing_dir
+            add hl, de                  ; DE = (0, entity_index)
+            ld (hl), a
+            pop de
+            pop hl
+.input_facing_done:
+            pop af
+
+            ; Sync directional sprite facing for input-driven entities.
+            ; Uses sprite_dir_* lookup tables (left/right/up/down variants).
+            ; Skip only when the assigned state machine explicitly uses ChangeSprite.
+            ; Plain state machines without sprite actions must keep auto-facing active.
+            push af
+            ld hl, entity_sm_sprite_control
+            add hl, de              ; DE = (0, entity_index)
+            ld a, (hl)
+            pop af
+            jp nz, .skip_patrol_facing
+
+            ; Apply directional sprite variants from entity_facing_dir locally.
+            ; Register contract: input DE = active entity index; preserves AF, BC, DE, HL.
+            ; This must not call update_entity_patrol_facing because MegaROM lower
+            ; page segments cannot safely call each other by raw address in ASCII16.
+            ; Use the spawn sprite so plain auto-facing matches patrol/entity defaults.
+            call component_sync_directional_sprite_from_initial
+    
+.skip_patrol_facing:
+
+            pop hl
+            pop bc
+
+        input_next_entity:
+            dec b
+            jp nz, input_update_loop
+            ret
+; @mideas:endblock id=runtime.components.input
+
+    ; ==================================================================
+        ; BEHAVIOR COMPONENT SYSTEM(Based on BehaviorEditor logic)
+    ; ==================================================================
+
+        init_behavior_system:
+; Initialize AI / behavior system
+            ret
+
+update_behavior_component:
+; Update AI / behavior logic for entities
+            ld a, (active_entity_count)
+            or a
+            ret z
+            ld b, a                    ; Loop through used entities only
+            ld hl, active_entity_list
+
+behavior_update_loop:
+            ld c, (hl)                 ; C = entity index
+            inc hl                     ; Advance list pointer
+            push hl                    ; Save list pointer
+            ld e, c
+            ld d, 0
+            ld hl, entity_comp_masks
+            add hl, de
+            ld a, (hl)                 ; Get entity component mask
+            pop hl                     ; Restore list pointer
+            and COMP_MASK_BEHAVIOR; Check if has behavior component
+            jr z, behavior_next_entity; Skip if no behavior component
+
+    ; Execute behavior scripts / AI logic
+    ; TODO: State machines, pathfinding, decision trees
+
+behavior_next_entity:
+            dec b
+            jp nz, behavior_update_loop
+            ret
+    ; @mideas:block id=runtime.components.health kind=routine owner=components preserve=false roots=init_health_system,update_health_component,decrease_entity_lives,increase_entity_lives
+
+    ; ==================================================================
+    ; HEALTH COMPONENT SYSTEM
+    ; ==================================================================
+    ; Manages entity health/lives (current, max)
+    ; Detects death when current <= 0
+    ; Provides DECREASE_LIVES and INCREASE_LIVES functionality
+    ; ==================================================================
+
+init_health_system:
+    ; Initialize health for all entities with Health component
+    ; Default: current = 3, max = 3 (configurable per entity)
+    ld b, 32                      ; Loop all entities
+    ld hl, entity_comp_masks      ; Check low byte for Health bit
+    ld c, 0                       ; Entity index
+
+.init_loop:
+    ld a, (hl)
+    and COMP_MASK_HEALTH          ; COMP_MASK_HEALTH (#0040, low byte bit 6)
+    jr z, .init_next_entity       ; Skip if no health component
+
+    ; Initialize current health (default: 3)
+    push bc
+    push hl
+    ld hl, entity_health_current
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld (hl), 3                    ; Default current = 3
+
+    ; Initialize max health (default: 3)
+    ld hl, entity_health_max
+    add hl, de
+    ld (hl), 3                    ; Default max = 3
+    pop hl
+    pop bc
+
+.init_next_entity:
+    inc hl
+    inc c
+    djnz .init_loop
+    ret
+
+update_health_component:
+    ; Check for death (current <= 0) and mark entities as dead
+    ; Entity death is detected by state machine via HEALTH_LESS_THAN condition
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a                       ; Loop used entities only
+    ld hl, active_entity_list
+
+.health_update_loop:
+    ld c, (hl)                    ; C = entity index
+    inc hl                        ; Advance list pointer
+    push hl                       ; Save list pointer
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    pop hl                        ; Restore list pointer
+    and COMP_MASK_HEALTH
+    jr z, .health_next_entity
+
+    ; Check current health
+    push bc
+    push hl
+    ld hl, entity_health_current
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = current health
+
+    ; Check if dead (current <= 0)
+    or a                          ; Set flags
+    jr nz, .health_alive          ; If != 0, entity is alive
+
+    ; Entity is dead (current = 0)
+    ; Could trigger death state here, but state machine handles it
+    ; via HEALTH_LESS_THAN or HEALTH_EQUALS conditions
+
+.health_alive:
+    pop hl
+    pop bc
+
+.health_next_entity:
+    dec b
+    jp nz, .health_update_loop
+    ret
+
+; ==================================================================
+; HEALTH HELPER FUNCTIONS (called by State Machine actions)
+; ==================================================================
+
+decrease_entity_lives:
+    ; Decrease lives for entity in register C by amount in register A
+    ; Input: C = entity index, A = amount to decrease
+    ; Output: Updated entity_health_current
+    ; Destroys: AF, DE, HL
+    push bc
+    ld b, a                       ; Save amount in B
+    ld hl, entity_health_current
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = current health
+    sub b                         ; Subtract amount
+    jr nc, .store_health          ; If no carry (result >= 0), store
+    xor a                         ; Clamp to 0 if negative
+.store_health:
+    ld (hl), a                    ; Store new health
+    pop bc
+    ret
+
+increase_entity_lives:
+    ; Increase lives for entity in register C by amount in register A
+    ; Input: C = entity index, A = amount to increase
+    ; Output: Updated entity_health_current (clamped to max)
+    ; Destroys: AF, DE, HL
+    push bc
+    ld b, a                       ; Save amount in B
+
+    ; Get current health
+    ld hl, entity_health_current
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = current health
+
+    ; Add amount
+    add a, b
+    ld b, a                       ; Save result in B
+
+    ; Get max health
+    ld hl, entity_health_max
+    add hl, de
+    ld a, (hl)                    ; A = max health
+
+    ; Clamp to max
+    cp b                          ; Compare max with result
+    jr nc, .store_result          ; If max >= result, use result
+    ld b, a                       ; Otherwise clamp to max
+
+.store_result:
+    ld hl, entity_health_current
+    add hl, de
+    ld (hl), b                    ; Store clamped health
+    pop bc
+    ret
+; @mideas:endblock id=runtime.components.health
+; @mideas:block id=runtime.components.animation kind=routine owner=components preserve=false
+
+    ; ==================================================================
+        ; ANIMATION COMPONENT SYSTEM
+    ; ==================================================================
+
+        init_animation_system:
+            ; Initialize animation component data
+            ; Clear frames
+            ld hl, entity_anim_frame
+            ld de, entity_anim_frame+1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+
+            ; Clear ticks
+            ld hl, entity_anim_tick
+            ld de, entity_anim_tick+1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+
+            ; Default speed = ANIM_DEFAULT_SPEED
+            ld hl, entity_anim_speed
+            ld de, entity_anim_speed+1
+            ld bc, 31
+            ld (hl), ANIM_DEFAULT_SPEED
+            ldir
+
+            ; Default flags = playing + loop (loop cleared/set per-sprite by Action_ChangeSprite)
+            ld hl, entity_anim_flags
+            ld de, entity_anim_flags+1
+            ld bc, 31
+            ld (hl), ANIM_FLAG_PLAYING | ANIM_FLAG_LOOP
+            ldir
+            ret
+
+        update_animation_component:
+            ; Update animations for entities
+            ; - Advances entity_anim_frame using entity_anim_tick/entity_anim_speed
+            ; - In preload mode, sprite rendering picks the frame directly from SAT pattern indices
+            ; - In fallback mode, copies the selected frame's patterns to VRAM for this entity
+            ld a, (anim_entity_count)
+            or a
+            ret z
+            ld b, a                    ; Loop animated render entities only
+            ld hl, anim_entity_list
+
+        .anim_loop:
+            ld c, (hl)                 ; C = entity index
+            inc hl                     ; Advance list pointer
+            push hl                    ; Save list pointer
+            ld e, c
+            ld d, 0
+            pop hl                     ; Restore list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .anim_not_fast_player
+            ld a, (player_entity_index)
+            cp c
+            jp z, .anim_next_entity
+        .anim_not_fast_player:
+
+            ; anim_entity_list already guarantees active + current_screen_id + animation + sprite
+
+            push bc
+            push hl
+
+            ; Check flags (playing?)
+            ld e, c
+            ld d, 0
+            ld hl, entity_anim_flags
+            add hl, de
+            ld a, (hl)
+            bit 0, a
+            jp z, anim_done_entity
+
+            ; Only animate when moving?
+            bit 2, a
+            jr z, .tick
+
+            ; vel_x != 0 || vel_y != 0
+            ld hl, entity_vel_x
+            add hl, de
+            ld a, (hl)
+            ld hl, entity_vel_y
+            add hl, de
+            or (hl)
+            jp z, anim_done_entity
+
+        .tick:
+            ; ChangeSprite defers the frame sync to the next animation pass
+            ; so sprite changes happen from the regular frame pipeline instead
+            ; of mid-frame inside the state-machine action path.
+            ld hl, entity_anim_flags
+            add hl, de
+            bit 4, (hl)
+            jr z, .anim_tick_advance
+            res 4, (hl)
+            ld hl, entity_sprite_asset_index
+            add hl, de
+            ld a, (hl)
+            cp #FF
+            jp z, anim_done_entity
+            cp SPRITE_ASSET_COUNT
+            jp nc, anim_done_entity
+            ld b, a                    ; B = sprite asset index for forced upload
+            ld hl, entity_anim_frame
+            add hl, de
+            ld a, (hl)
+            jp .anim_upload_frame
+
+        .anim_tick_advance:
+            ; tick++
+            ld hl, entity_anim_tick
+            add hl, de
+            inc (hl)
+
+            ; if tick < speed -> done
+            ld a, (hl)
+            ld hl, entity_anim_speed
+            add hl, de
+            cp (hl)
+            jp c, anim_done_entity
+
+            ; tick = 0
+            ld hl, entity_anim_tick
+            add hl, de
+            ld (hl), 0
+
+            ; Sprite asset index for this entity (#FF = none)
+            ld hl, entity_sprite_asset_index
+            add hl, de
+            ld a, (hl)
+            cp #FF
+            jp z, anim_done_entity
+            cp SPRITE_ASSET_COUNT
+            jp nc, anim_done_entity
+            ld b, a                    ; B = sprite asset index
+
+            ; frameCount = sprite_asset_frame_count[B]
+            ld hl, sprite_asset_frame_count
+            ld e, b
+            ld d, 0
+            add hl, de
+            ld a, (hl)                 ; A = frameCount
+            cp 2
+            jp nc, .anim_has_multiple_frames
+
+            ; 0/1-frame one-shots must still complete. This lets temporary
+            ; sprites such as wall-jump poses restore automatically.
+            ld e, c
+            ld d, 0
+            ld hl, entity_anim_flags
+            add hl, de
+            bit 1, (hl)                ; loop flag
+            jp nz, anim_done_entity
+            set 3, (hl)                ; ANIM_FLAG_COMPLETED
+            res 0, (hl)                ; clear ANIM_FLAG_PLAYING
+            jp anim_done_entity
+
+.anim_has_multiple_frames:
+            push af                    ; Save frameCount on stack
+
+            ; Advance frame (entity_anim_frame++)
+            ld e, c
+            ld d, 0
+            ld hl, entity_anim_frame
+            add hl, de
+            ld a, (hl)                 ; A = current frame
+            inc a                      ; A = next frame
+            pop de                     ; D = frameCount (was pushed as A)
+            push de                    ; Keep frameCount on stack for .clamp_last
+            cp d                       ; Compare frame with frameCount
+            jr c, .store_frame
+
+            ; Overflow: loop?
+            ld e, c
+            ld d, 0
+            ld hl, entity_anim_flags
+            add hl, de
+            bit 1, (hl)                ; loop flag
+            jr z, .clamp_last
+            xor a                      ; frame = 0
+            jr .store_frame
+
+        .clamp_last:
+            pop de                     ; D = frameCount
+            push de                    ; Keep balanced
+            ld a, d
+            dec a                      ; frame = frameCount-1
+            push af                    ; Preserve clamped frame index
+
+            ; Mark one-shot completion and stop playback for non-loop anim.
+            ; State machine condition ANIMATION_COMPLETE consumes this flag.
+            ld e, c
+            ld d, 0
+            ld hl, entity_anim_flags
+            add hl, de
+            set 3, (hl)                ; ANIM_FLAG_COMPLETED
+            res 0, (hl)                ; clear ANIM_FLAG_PLAYING
+            pop af
+
+        .store_frame:
+            pop de                     ; Clean stack (discard frameCount)
+            ld e, c
+            ld d, 0
+            ld hl, entity_anim_frame
+            add hl, de
+            ld (hl), a                 ; store new frame index
+
+        .anim_upload_frame:
+            push af                    ; Preserve frame index
+            ld a, SPRITE_PATTERN_PRELOAD_MODE
+            or a
+            jr z, .anim_upload_frame_fallback
+            pop af
+            jp anim_done_entity
+
+        .anim_upload_frame_fallback:
+            pop af
+
+            ; Get pointer to this sprite asset's frame pointer list
+            ld l, b
+            ld h, 0
+            add hl, hl                 ; index * 2
+            ld de, sprite_asset_frame_ptr_table
+            add hl, de
+            ld e, (hl)
+            inc hl
+            ld d, (hl)
+            ex de, hl                  ; HL = frame pointer list base
+
+            ; HL = &frame_ptrs[frame]
+            ld e, a
+            ld d, 0
+            add hl, de
+            add hl, de                 ; + frame*2
+            ld e, (hl)
+            inc hl
+            ld d, (hl)
+            ex de, hl                  ; HL = source pattern data
+
+            ; Get entity sprite config (base HW sprite + layer count)
+            push hl                    ; save source
+            ld e, c
+            ld d, 0
+            ld hl, entity_sprite_config
+            add hl, de
+            add hl, de                 ; entityIndex * 2
+            ld a, (hl)                 ; base HW sprite
+            inc hl
+            ld c, (hl)                 ; layer count
+            ld d, a                    ; D = base HW sprite (save)
+            pop hl                     ; restore source
+
+            ld a, c
+            or a
+            jp z, anim_done_entity     ; no layers for this entity
+
+            ; BC = layerCount * 32
+            ld a, c
+            ld b, 0
+            ld c, a
+            sla c
+            rl b
+            sla c
+            rl b
+            sla c
+            rl b
+            sla c
+            rl b
+            sla c
+            rl b
+
+            ; DE = SPRPAT + baseHwSprite*32
+            push hl                    ; save source
+            ld a, d
+            ld l, a
+            ld h, 0
+            add hl, hl
+            add hl, hl
+            add hl, hl
+            add hl, hl
+            add hl, hl                 ; HL = base * 32
+            ld de, SPRPAT
+            add hl, de
+            ex de, hl                  ; DE = VRAM destination
+            pop hl                     ; restore source
+
+            call FAST_LDIRVM           ; copy pattern data to VRAM
+
+anim_done_entity:
+            pop hl
+            pop bc
+
+        .anim_next_entity:
+            dec b
+            jp nz, .anim_loop
+    ret
+
+refresh_player_animation_fastpath:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld c, a
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+    cp COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+    ret nz
+
+    ld a, (player_runtime_enabled)
+    push af
+    ld a, (anim_entity_count)
+    push af
+    ld a, (anim_entity_list)
+    push af
+
+    xor a
+    ld (player_runtime_enabled), a
+    ld a, c
+    ld (anim_entity_list), a
+    ld a, 1
+    ld (anim_entity_count), a
+    call update_animation_component
+
+    pop af
+    ld (anim_entity_list), a
+    pop af
+    ld (anim_entity_count), a
+    pop af                         ; Saved runtime was nonzero; force it back on.
+    ld a, 1
+    ld (player_runtime_enabled), a
+    ret
+; @mideas:endblock id=runtime.components.animation
+; @mideas:block id=runtime.components.jump kind=routine owner=components preserve=false
+
+    ; ==================================================================
+        ; JUMP COMPONENT SYSTEM
+    ; ==================================================================
+
+        init_jump_system:
+            ; Initialize jump system
+            ; Clear jump velocities (32 words = 64 bytes)
+            ld hl, entity_jump_vel_y
+            ld de, entity_jump_vel_y+1
+            ld bc, 63
+            ld (hl), 0
+            ldir
+
+            ; Clear jump counters
+            ld hl, entity_jump_count
+            ld de, entity_jump_count+1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+
+            ; Clear temporary extra-jump charges granted by bonus pickups
+            ld hl, entity_jump_bonus
+            ld de, entity_jump_bonus+1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+
+            ; Initialize configured max jumps (default: single jump)
+            ld hl, entity_jump_max
+            ld de, entity_jump_max+1
+            ld bc, 31
+            ld (hl), 1
+            ldir
+
+            ; Initialize jump trigger to fire for backward compatibility
+            ld hl, entity_jump_trigger
+            ld de, entity_jump_trigger+1
+            ld bc, 31
+            ld (hl), COMP_TRIGGER_FIRE
+            ldir
+
+            ; Clear on-ground flags
+            ld hl, entity_on_ground
+            ld de, entity_on_ground+1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+            ret
+
+        update_jump_component:
+            ; Update jump logic for entities
+            ; Configured trigger edge starts jump for entities with Jump+Input
+            ; Uses: entity_jump_count, entity_jump_max, entity_jump_bonus, entity_on_ground, entity_gravity_vel
+            ; Uses global input_btn_curr/input_btn_prev and input_state/prev_input_state edge detection
+
+            ld a, (active_entity_count)
+            or a
+            ret z
+            ld b, a                       ; Loop used entities only
+            ld hl, active_entity_list
+
+        jump_update_loop:
+            ld c, (hl)                    ; C = entity index
+            inc hl                        ; Advance list pointer
+            push hl                       ; Save list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .jump_check_mask
+            ld a, (player_entity_index)
+            cp c
+            jp z, .jump_skip_fast_player
+        .jump_check_mask:
+            ld e, c
+            ld d, 0
+            ld hl, entity_comp_masks_hi
+            add hl, de
+            ld a, (hl)
+            pop hl                        ; Restore list pointer
+            and #01                       ; Jump bit (COMP_MASK_JUMP=#0100 -> high byte bit0)
+            jp z, jump_next_entity
+
+            ; Require Input component
+            push hl
+            ld hl, entity_comp_masks
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            and COMP_MASK_INPUT
+            pop hl
+            jp z, jump_next_entity
+
+            push bc
+            push hl
+
+            ; Ground detection is now handled by update_collision_component
+            ; Just reset jump count if grounded
+            ld e, c
+            ld d, 0
+            ld hl, entity_on_ground
+            add hl, de
+            bit 0, (hl)                   ; Check if on ground
+            jr z, .jump_check             ; Not grounded, skip reset
+
+            ; Entity is grounded - reset jump count
+            ld hl, entity_jump_count
+            add hl, de
+            ld (hl), 0
+
+            ; Landing also clears any unused extra-jump bonus.
+            ld hl, entity_jump_bonus
+            add hl, de
+            ld (hl), 0
+
+        .jump_check:
+            ld hl, entity_on_ladder
+            add hl, de
+            ld a, (hl)
+            or a
+            jp nz, jump_done_entity
+
+            ; --- Jump trigger edge (configured trigger pressed now, not previous frame) ---
+            ld hl, entity_jump_trigger
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            call component_trigger_edge_pressed_a
+            jp z, jump_done_entity        ; not pressed
+
+            ; Check jump count < configured max OR grounded
+            ld hl, entity_jump_count
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            ld hl, entity_jump_max
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld b, (hl)
+            ld hl, entity_jump_bonus
+            add hl, de
+            ld d, (hl)
+            ld a, b
+            add a, d
+            ld b, a
+            ld hl, entity_jump_count
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            cp b
+            jr c, .do_jump
+
+            ld hl, entity_on_ground
+            add hl, de
+            bit 0, (hl)
+            jp z, jump_done_entity
+
+        .do_jump:
+            ; Consume one bonus jump only when performing an airborne jump
+            ; beyond the entity's base maxJumps.
+            ld hl, entity_on_ground
+            add hl, de
+            bit 0, (hl)
+            jr nz, .skip_bonus_consume
+
+            ld hl, entity_jump_count
+            add hl, de
+            ld a, (hl)
+            ld hl, entity_jump_max
+            add hl, de
+            cp (hl)
+            jr c, .skip_bonus_consume
+
+            ld hl, entity_jump_bonus
+            add hl, de
+            ld a, (hl)
+            or a
+            jr z, .skip_bonus_consume
+            dec (hl)
+
+        .skip_bonus_consume:
+            ; jump_count++
+            ld hl, entity_jump_count
+            add hl, de
+            inc (hl)
+
+            ; clear grounded
+            ld hl, entity_on_ground
+            add hl, de
+            res 0, (hl)
+
+            ; clear platform reference (prevent infinite jumps)
+            ld hl, entity_platform_id
+            add hl, de
+            ld (hl), 255
+
+            ; If entity has Gravity, set gravity velocity to negative jump impulse
+            ; Jump impulse: -1024 (8.8 fixed) => #FC00 (~4 tiles height with gravity #40)
+            ld hl, entity_comp_masks_hi
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            and #02                       ; Gravity bit (COMP_MASK_GRAVITY=#0200 -> high byte bit1)
+            jp z, jump_done_entity
+
+            ld hl, entity_gravity_vel
+            ld e, c
+            ld d, 0
+            add hl, de
+            add hl, de                    ; word index
+            ld (hl), #00                  ; low byte
+            inc hl
+            ld (hl), #FC                  ; high byte (negative)
+
+jump_done_entity:
+            pop hl
+            pop bc
+            jp jump_next_entity
+
+        .jump_skip_fast_player:
+            pop hl
+
+        jump_next_entity:
+            dec b
+            jp nz, jump_update_loop
+    ret
+; @mideas:endblock id=runtime.components.jump
+; @mideas:block id=runtime.components.gravity kind=routine owner=components preserve=false roots=init_gravity_system,update_gravity_component
+
+    ; ==================================================================
+        ; GRAVITY COMPONENT SYSTEM(Constant downward acceleration)
+    ; ==================================================================
+
+        init_gravity_system:
+; Initialize gravity system
+    ; Clear gravity velocities
+            ld hl, entity_gravity_vel
+            ld de, entity_gravity_vel + 1
+            ld bc, 63; 64 bytes - 1(32 words)
+            ld (hl), 0
+            ldir
+            ret
+
+update_gravity_component:
+; Apply gravity acceleration to entities
+            ld a, (active_entity_count)
+            or a
+            ret z
+            ld b, a                    ; Loop through used entities only
+            ld hl, active_entity_list
+
+gravity_update_loop:
+            ld c, (hl)                 ; C = entity index
+            inc hl                     ; Advance list pointer
+            push hl                    ; Save list pointer
+            ld a, (player_runtime_enabled)
+            or a
+            jp z, .gravity_check_mask
+            ld a, (player_entity_index)
+            cp c
+            jp z, .gravity_skip_fast_player
+        .gravity_check_mask:
+            ld e, c
+            ld d, 0
+            ld hl, entity_comp_masks_hi
+            add hl, de
+            ld a, (hl)                 ; Get entity component mask high byte
+            pop hl                     ; Restore list pointer
+            and #02; Check COMP_MASK_GRAVITY(#0200) => bit 1 in high byte
+            jr z, gravity_next_entity; Skip if no gravity component
+
+    ; active_entity_list already guarantees current_screen_id membership
+
+    ; Entity has gravity - apply acceleration
+            push bc
+            push hl
+
+    ; Check if entity is grounded
+            ld hl, entity_on_ground
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            bit 0, a; Check ground flag
+            jr nz, gravity_grounded; Skip gravity if on ground
+
+            ld hl, entity_on_ladder
+            add hl, de
+            ld a, (hl)
+            or a
+            jr nz, gravity_grounded
+
+    ; Apply gravity acceleration
+            ld hl, entity_gravity_vel
+            ld e, c
+            ld d, 0
+            add hl, de
+            add hl, de; HL points to gravity velocity(word)
+
+            ld e, (hl); Load current gravity velocity
+            inc hl
+            ld d, (hl)
+
+    ; Add gravity strength(64 in fixed - point = ~0.25 pixels / frame acceleration)
+            ld a, e
+            add a, #40; Add 64 to low byte
+            ld e, a
+            ld a, d
+            adc a, #00; Add carry to high byte
+            ld d, a
+
+    ; Check terminal velocity(1024 = max fall speed)
+    ; Skip cap if velocity is negative (entity is moving UP / jumping)
+            ld a, d
+            bit 7, a; Check sign bit - negative means going up
+            jr nz, gravity_store_vel; Skip cap for upward velocity
+            cp #04; Check if >= 1024 (unsigned, only for positive/downward)
+            jr c, gravity_store_vel; If < 1024, continue
+            ld de, #0400; Cap at terminal velocity
+
+gravity_store_vel:
+; Store updated gravity velocity
+            dec hl
+            ld (hl), e
+            inc hl
+            ld (hl), d
+
+    ; Set entity_vel_y to gravity integer part
+    ; Position component will apply vel_y to Y position
+    ; Wall collision can then detect vertical movement and snap back
+            push de                ; Save gravity velocity (D=integer part)
+            ld hl, entity_vel_y
+            ld e, c                ; E = entity index
+            ld d, 0
+            add hl, de             ; HL = &entity_vel_y[entity]
+            pop de                 ; Restore gravity velocity
+            ld (hl), d             ; vel_y = gravity velocity integer part
+
+            jr gravity_done
+
+gravity_grounded:
+; Entity is grounded - reset gravity velocity
+            ld hl, entity_gravity_vel
+            ld e, c
+            ld d, 0
+            add hl, de
+            add hl, de
+            ld (hl), 0; Clear velocity low
+            inc hl
+            ld (hl), 0; Clear velocity high
+
+gravity_done:
+            pop hl
+            pop bc
+            jp gravity_next_entity
+
+        .gravity_skip_fast_player:
+            pop hl
+
+gravity_next_entity:
+            dec b
+            jp nz, gravity_update_loop
+    ret
+; @mideas:endblock id=runtime.components.gravity
+
+    ; AirControl helpers filtered out (not used)
+aircontrol_should_lock_horizontal_c:
+    xor a
+    ret
+    
+    ; ==================================================================
+    ; WALL GRAB COMPONENT SYSTEM
+    ; ==================================================================
+    ; Holds the entity against a wall while INPUT_BTN_GRAB is held.
+    ; Runs after Gravity and before WallJump/Position.
+
+init_wallgrab_system:
+    ret
+
+update_wallgrab_component:
+    ret
+
+refresh_player_wallgrab_fastpath:
+    ret
+
+wallgrab_process_entity_c:
+    ret
+
+
+    
+    ; WallJump system filtered out (not used)
+init_walljump_system:
+    ret
+
+update_walljump_component:
+    ret
+
+walljump_process_entity_c:
+    ret
+
+walljump_input_is_left:
+    xor a
+    ret
+
+walljump_input_is_right:
+    xor a
+    ret
+    
+    ; AutoDestroy system filtered out(not used)
+init_auto_destroy_system:
+    ret
+
+update_auto_destroy_component:
+    ret
+    
+    ; ==================================================================
+    ; CURSORS COMPONENT SYSTEM
+    ; ==================================================================
+    ; NOTE:
+    ; This system is intentionally disabled in runtime gameplay.
+    ; Directional movement is already handled by update_input_component.
+    ; Keeping cursor movement here causes double movement/jitter.
+
+init_cursors_system:
+    ; No initialization needed
+    ret
+
+; ------------------------------------------------------------------
+; update_cursors_component
+; Disabled no-op (reserved for future menu-only cursor implementation)
+; ------------------------------------------------------------------
+update_cursors_component:
+    ret
+    
+    ; StateMachine per-entity component tick filtered out.
+    ; GameFlow calls execute_all_state_machines once per frame, so this
+    ; resident component wrapper must stay a no-op to avoid duplicate SM ticks.
+init_statemachine_system:
+    ret
+
+update_statemachine_component:
+    ret
+    
+    ; RetractableGate system filtered out(not used)
+init_retractable_gate_system:
+    ret
+
+update_retractable_gate_component:
+    ret
+    ; @mideas:block id=runtime.components.carry kind=routine owner=components preserve=false roots=init_carry_system,update_carry_component
+
+    ; ==================================================================
+    ; CARRY COMPONENT SYSTEM
+    ; ==================================================================
+    ; Allows entities to "carry" other entities
+    ; Carried entities follow the carrier's position with offset
+    ; Variables: entity_carried_by (ID of carrier, 255=none)
+
+init_carry_system:
+    ; Initialize all entities as not carried
+    ld hl, entity_carried_by
+    ld de, entity_carried_by+1
+    ld bc, 31
+    ld (hl), 255                  ; 255 = not carried
+    ldir
+    ret
+
+; ------------------------------------------------------------------
+; update_carry_component
+; Update positions of carried entities to follow carrier
+; ------------------------------------------------------------------
+update_carry_component:
+    ld c, 0                       ; Entity index
+
+.carry_loop:
+    ld a, c
+    cp MAX_ENTITIES
+    ret z
+
+    ; Check if this entity is being carried
+    ld hl, entity_carried_by
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = carrier ID
+    cp 255
+    jr z, .carry_next             ; Not being carried
+
+    ; Entity is being carried - get carrier position
+    ld b, a                       ; B = carrier ID
+    push bc
+
+    ; Get carrier X position
+    ld e, b
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)                    ; A = carrier X
+
+    ; Set carried entity X position (same as carrier)
+    pop bc
+    push bc
+    ld e, c
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), a
+
+    ; Get carrier Y position
+    pop bc
+    push bc
+    ld e, b
+    ld d, 0
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)                    ; A = carrier Y
+    sub 16                        ; Offset: carried item above carrier
+
+    ; Set carried entity Y position
+    pop bc
+    ld e, c
+    ld d, 0
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), a
+
+.carry_next:
+    inc c
+    jr .carry_loop
+; @mideas:endblock id=runtime.components.carry
+
+; ==================================================================
+; AUTOCONTROL SCRIPT SYSTEM - FakePlayer engine
+; ==================================================================
+AUTO_CMD_END        EQU 0
+AUTO_CMD_MOVE_RIGHT EQU 1
+AUTO_CMD_MOVE_LEFT  EQU 2
+AUTO_CMD_MOVE_UP    EQU 3
+AUTO_CMD_MOVE_DOWN  EQU 4
+AUTO_CMD_DELAY      EQU 5
+AUTO_CMD_WAIT_SPC   EQU 6
+AUTO_CMD_NOP        EQU 7
+AUTO_CMD_OPEN_DIALOG EQU 8
+AUTO_CMD_WRITE_LINE  EQU 9
+AUTO_CMD_CLEAR_DIALOG EQU 10
+AUTO_CMD_CLOSE_DIALOG EQU 11
+AUTO_CMD_WAIT_TEXT EQU 12
+
+dialogue_box_count:
+    DB 0
+dialogue_box_vram_table:
+    DW 0
+dialogue_text_vram_table:
+    DW 0
+dialogue_box_width_table:
+    DB 32
+dialogue_box_height_table:
+    DB 4
+dialogue_box_delay_table:
+    DB 2
+dialogue_box_tl_table:
+    DB 43
+dialogue_box_tr_table:
+    DB 43
+dialogue_box_bl_table:
+    DB 43
+dialogue_box_br_table:
+    DB 43
+dialogue_box_h_table:
+    DB 45
+dialogue_box_v_table:
+    DB 124
+dialogue_graphic_enabled_table:
+    DB 0
+dialogue_graphic_vram_table:
+    DW 0
+dialogue_graphic_width_table:
+    DB 0
+dialogue_graphic_height_table:
+    DB 0
+dialogue_graphic_tile_ptr_table:
+    DW 0
+dialogue_line_text_vram_table:
+    DW 0
+dialogue_line_graphic_enabled_table:
+    DB 0
+dialogue_line_graphic_vram_table:
+    DW 0
+dialogue_line_graphic_width_table:
+    DB 0
+dialogue_line_graphic_height_table:
+    DB 0
+dialogue_line_graphic_tile_ptr_table:
+    DW 0
+dialogue_line_ptr_table:
+    DW 0
+dialogue_line_delay_table:
+    DB 2
+autoev_script_1:
+    DB #78,#36,#34,#64,#31,#30,#30,#30,#6F,#77,#30,#73,#63,#00
+autocontrol_script_ptr_table:
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+autocontrol_loop_flag_table:
+    DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+autoev_script_ptr_table:
+    DW 0
+    DW autoev_script_1
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+autoev_loop_flag_table:
+    DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+autoev_idle_sprite_table:
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+autoev_walk_sprite_table:
+    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
+
+; Register Contract:
+;   Purpose: Reset FakePlayer script runtime state.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - autocontrol runtime variables reset
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+
+init_auto_control_script_system:
+    xor a
+    ld (autocontrol_script_ptr_l), a
+    ld (autocontrol_script_ptr_h), a
+    ld (autocontrol_script_start_l), a
+    ld (autocontrol_script_start_h), a
+    ld (autocontrol_wait_frames), a
+    ld (autocontrol_move_opcode), a
+    ld (autocontrol_move_remaining), a
+    ld (autocontrol_loop_flag), a
+    ld (autocontrol_active), a
+    ld (autoev_script_ptr_l), a
+    ld (autoev_script_ptr_h), a
+    ld (autoev_script_start_l), a
+    ld (autoev_script_start_h), a
+    ld (autoev_wait_frames), a
+    ld (autoev_move_axis), a
+    ld (autoev_move_step), a
+    ld (autoev_move_remaining), a
+    ld (autoev_loop_flag), a
+    ld (autoev_active), a
+    ld (autoev_wait_mode), a
+    ld (autoev_number_l), a
+    ld (autoev_number_h), a
+    ld (dialogue_active), a
+    ld (dialogue_current_box), a
+    ld (dialogue_text_active), a
+    ld (dialogue_text_ptr_l), a
+    ld (dialogue_text_ptr_h), a
+    ld (dialogue_vram_ptr_l), a
+    ld (dialogue_vram_ptr_h), a
+    ld (dialogue_row_start_l), a
+    ld (dialogue_row_start_h), a
+    ld (dialogue_char_delay), a
+    ld (dialogue_char_delay_reload), a
+    ld a, #FF
+    ld (autocontrol_screen_id), a
+    ld (autocontrol_entity_index), a
+    ld (autoev_screen_id), a
+    ld (autoev_entity_index), a
+    ret
+
+; Register Contract:
+;   Purpose: Execute one frame of the current screen FakePlayer script.
+;   Inputs:
+;     - current_screen_engine, current_screen_id, active_entity_list/current count, input_btn_curr
+;   Outputs:
+;     - FakePlayer entity position/facing and autocontrol runtime state updated
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+
+update_auto_control_script_component:
+    ret
+
+dialogue_update_typewriter:
+    ret
+
+dialogue_open_box:
+    ret
+
+dialogue_start_line:
+    ret
+
+dialogue_clear_box:
+    ret
+
+dialogue_close_box:
+    ret
+
+
+update_auto_event_string_component:
+    ret
+
+; ==================================================================
+; ENTITY MANAGEMENT FUNCTIONS
+; ==================================================================
+
+init_entities:
+    ; Initialize all active game entities (2 entities)
+
+    ; Ensure sprite system is reset whenever entities are initialized
+    call call_init_sprites_resident
+    call init_player_fast_runtime
+
+    ; CRITICAL: Clear ALL entity component masks to prevent ghost entities
+    ; RAM may contain random data - entities 0..N will be set by create_entity
+    ld hl, entity_comp_masks
+    ld de, entity_comp_masks+1
+    ld bc, 31                  ; Clear 32 bytes (32-1 for LDIR)
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_comp_masks_hi
+    ld de, entity_comp_masks_hi+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Clear entity screen IDs to prevent ghost entities on restart
+    ld hl, entity_screen_id
+    ld de, entity_screen_id+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Clear entity player-role flags
+    ld hl, entity_is_player
+    ld de, entity_is_player+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Clear entity template tokens
+    ld hl, entity_template_token
+    ld de, entity_template_token+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Clear facing-direction cache so first-frame ChangeSprite does not
+    ; redirect through stale RAM garbage from a previous run/screen.
+    ld hl, entity_facing_dir
+    ld de, entity_facing_dir+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    
+    ; Initialize State Machine variables (Clear to 0)
+    ld hl, entity_sm_ptr_l
+    ld de, entity_sm_ptr_l+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_sm_ptr_h
+    ld de, entity_sm_ptr_h+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_sm_timer_l
+    ld de, entity_sm_timer_l+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_sm_timer_h
+    ld de, entity_sm_timer_h+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_sm_wait_timer
+    ld de, entity_sm_wait_timer+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_sm_sprite_control
+    ld de, entity_sm_sprite_control+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    
+    call init_player_1
+    call init_fakeplayer_1
+    call init_player_from_hero_entity
+    ret
+
+update_entities:
+    ; Update all active entities (2 entities)
+    ; Skip entity update if entity belongs to another screen
+    ld hl, entity_screen_id + 0
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jr nz, .skip_update_0
+    ; Run per-entity update
+    call update_player_1
+.skip_update_0:
+    ; Skip entity update if entity belongs to another screen
+    ld hl, entity_screen_id + 1
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jr nz, .skip_update_1
+    ; Run per-entity update
+    call update_fakeplayer_1
+.skip_update_1:
+    ret
+
+; @mideas:block id=data.entities.player_1.init kind=routine owner=entities roots=init_player_1
+init_player_1:
+    ; Initialize Player 1 at real position from JSON
+    ; JSON position: (2, 18) tiles = (16, 144) pixels
+    ; Template: tpl_player
+    ; Components: Position, Sprite, Collision, Input, Behavior, Health, Animation, Jump, Gravity, DeadlyTiles
+    ; Direction mask: #0F (1111b) = All directions
+
+    ; Set entity ID and component mask (DYNAMIC - based on template)
+    ; Mask is 16-bit: B=low byte, C=high byte
+    ld a, 0             ; Entity ID
+    ld b, #FB              ; Mask low byte
+    ld c, #23              ; Mask high byte
+    call call_create_entity_resident         ; Create with actual components from template
+
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 0
+    ld b, 1
+    ld c, 0
+    call call_entity_job_set_resident
+
+    ; Set real position from JSON data
+    ld hl, entity_x_pos
+    ld e, 0             ; Entity index
+    ld d, 0
+    add hl, de
+    ld (hl), 16         ; Set real X position from JSON
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), 144         ; Set real Y position from JSON
+
+    ; Set entity screen ID (for multi-screen support)
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), 0                 ; Screen ID (world node index / fallback screen index)
+
+    ld hl, entity_is_player
+    add hl, de
+    ld (hl), 1                 ; Player/hero marker from template
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 2
+
+    ; Mark whether this entity's state machine actually owns sprite changes.
+    ; Plain state machines without ChangeSprite should keep auto-facing active.
+    ld hl, entity_sm_sprite_control
+    add hl, de
+    ld (hl), 1
+
+    ; Deterministic spawn facing: right.
+    ; This keeps the first SM ChangeSprite aligned with the same default
+    ; world-facing direction used by Preview/runtime web.
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), 2
+
+
+
+    ; Initialize Animation component
+    ld hl, entity_anim_frame
+    add hl, de
+    ld (hl), #00           ; currentFrameIndex
+
+    ld hl, entity_anim_tick
+    add hl, de
+    ld (hl), 0                ; tick counter
+
+    ld hl, entity_anim_speed
+    add hl, de
+    ld (hl), #08           ; animationSpeed
+
+    ld hl, entity_anim_flags
+    add hl, de
+    ld (hl), #07           ; flags (playing/loop/onlyWhenMoving)
+
+
+
+    ; Initialize Collision component (hitbox + layer masks)
+    ld hl, entity_collision_hitbox_w
+    add hl, de
+    ld (hl), #0E      ; hitboxWidth
+
+    ld hl, entity_collision_hitbox_h
+    add hl, de
+    ld (hl), #0F      ; hitboxHeight
+
+    ld hl, entity_collision_offset_x
+    add hl, de
+    ld (hl), #01      ; offsetX (1)
+
+    ld hl, entity_collision_offset_y
+    add hl, de
+    ld (hl), #01      ; offsetY (1)
+
+    ld hl, entity_collision_layer
+    add hl, de
+    ld (hl), #01      ; collisionLayer
+
+    ld hl, entity_collides_with
+    add hl, de
+    ld (hl), #0A      ; collidesWith
+
+
+    ; Initialize Health component
+    ld hl, entity_health_current
+    add hl, de
+    ld (hl), #03      ; current health
+
+    ld hl, entity_health_max
+    add hl, de
+    ld (hl), #03      ; max health
+
+
+
+
+
+
+    ; Set sprite pattern and color (renderable entity)
+    ld hl, sprite_pattern
+    add hl, de
+    ld (hl), 0          ; Use entity index * 4 for 16x16 sprites
+
+    ld hl, sprite_color
+    add hl, de
+    ld (hl), 2                ; Distinct color for debugging
+
+
+    ; Set direction mask for Cursors component (if entity has Input component)
+    ld hl, entity_dir_mask
+    add hl, de
+    ld (hl), #0F            ; Direction restrictions: All directions
+
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
+    ; Set Jump component configuration
+    ld hl, entity_jump_max
+    add hl, de
+    ld (hl), 1            ; Maximum jumps before touching ground
+
+    ld hl, entity_jump_trigger
+    add hl, de
+    ld (hl), #00            ; Jump trigger action
+
+
+    ; Force update sprite attributes only if entity is in current screen
+    ld hl, entity_screen_id + 0
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jr nz, .skip_force_show_0
+
+    ; Force update sprite attributes (using correct multi-layer config)
+    ld c, 0             ; Entity Index
+    call call_force_update_entity_sprite_resident
+.skip_force_show_0:
+
+
+
+    ; Initialize State Machine pointer to initial state (New Statemachine)
+    ld hl, SM_New_Statemachine_state_1776707744092          ; HL = initial state address
+    ld a, l
+    ld (entity_sm_ptr_l + 0), a   ; SM ptr low byte
+    ld a, h
+    ld (entity_sm_ptr_h + 0), a   ; SM ptr high byte
+
+    ; Initial state has no OnEnter actions; avoid a banked SM dispatcher call
+    ; during entity init.
+
+    ret
+; @mideas:endblock id=data.entities.player_1.init
+
+update_player_1:
+    ; Update Player 1 logic with real behavior
+    ; Check if entity has input component (player entities)
+    ld a, 0
+    ld hl, entity_comp_masks
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    ret z                      ; Skip if no input component
+
+    ; This is a player entity - update based on input
+    ; Input velocity is already calculated in UPDATE_INPUT_COMPONENT
+    ; Position update happens in UPDATE_POSITION_COMPONENT
+    ret
+
+; @mideas:block id=data.entities.fakeplayer_1.init kind=routine owner=entities roots=init_fakeplayer_1
+init_fakeplayer_1:
+    ; Initialize FakePlayer 1 at real position from JSON
+    ; JSON position: (100, 18) tiles = (240, 144) pixels
+    ; Template: tpl_fake_player
+    ; Components: Position, Sprite, Animation
+    ; Direction mask: #0F (1111b) = All directions
+
+    ; Set entity ID and component mask (DYNAMIC - based on template)
+    ; Mask is 16-bit: B=low byte, C=high byte
+    ld a, 1             ; Entity ID
+    ld b, #83              ; Mask low byte
+    ld c, #00              ; Mask high byte
+    call call_create_entity_resident         ; Create with actual components from template
+
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 1
+    ld b, 1
+    ld c, 0
+    call call_entity_job_set_resident
+
+    ; Set real position from JSON data
+    ld hl, entity_x_pos
+    ld e, 1             ; Entity index
+    ld d, 0
+    add hl, de
+    ld (hl), 240         ; Set real X position from JSON
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), 144         ; Set real Y position from JSON
+
+    ; Set entity screen ID (for multi-screen support)
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), 1                 ; Screen ID (world node index / fallback screen index)
+
+    ld hl, entity_is_player
+    add hl, de
+    ld (hl), 0                 ; Player/hero marker from template
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
+
+    ; Mark whether this entity's state machine actually owns sprite changes.
+    ; Plain state machines without ChangeSprite should keep auto-facing active.
+    ld hl, entity_sm_sprite_control
+    add hl, de
+    ld (hl), 0
+
+
+
+    ; Initialize Animation component
+    ld hl, entity_anim_frame
+    add hl, de
+    ld (hl), #00           ; currentFrameIndex
+
+    ld hl, entity_anim_tick
+    add hl, de
+    ld (hl), 0                ; tick counter
+
+    ld hl, entity_anim_speed
+    add hl, de
+    ld (hl), #08           ; animationSpeed
+
+    ld hl, entity_anim_flags
+    add hl, de
+    ld (hl), #07           ; flags (playing/loop/onlyWhenMoving)
+
+
+
+
+
+
+
+
+
+    ; Set sprite pattern and color (renderable entity)
+    ld hl, sprite_pattern
+    add hl, de
+    ld (hl), 4          ; Use entity index * 4 for 16x16 sprites
+
+    ld hl, sprite_color
+    add hl, de
+    ld (hl), 3                ; Distinct color for debugging
+
+
+    ; Set direction mask for Cursors component (if entity has Input component)
+    ld hl, entity_dir_mask
+    add hl, de
+    ld (hl), #0F            ; Direction restrictions: All directions
+
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
+
+    ; Force update sprite attributes only if entity is in current screen
+    ld hl, entity_screen_id + 1
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jr nz, .skip_force_show_1
+
+    ; Force update sprite attributes (using correct multi-layer config)
+    ld c, 1             ; Entity Index
+    call call_force_update_entity_sprite_resident
+.skip_force_show_1:
+
+
+
+    ret
+; @mideas:endblock id=data.entities.fakeplayer_1.init
+
+update_fakeplayer_1:
+    ; Update FakePlayer 1 logic with real behavior
+    ; Check if entity has input component (player entities)
+    ld a, 1
+    ld hl, entity_comp_masks
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    ret z                      ; Skip if no input component
+
+    ; This is a player entity - update based on input
+    ; Input velocity is already calculated in UPDATE_INPUT_COMPONENT
+    ; Position update happens in UPDATE_POSITION_COMPONENT
+    ret
+
+; ------------------------------------------------------------------
+; RETRACTABLE GATE STATIC CONFIG TABLES (ROM)
+; Indexed by entity slot (0..31)
+; ------------------------------------------------------------------
+entity_gate_cfg_enabled:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_gate_cfg_x:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_gate_cfg_y:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_gate_cfg_width:
+    DB 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_gate_cfg_height:
+    DB 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_gate_cfg_direction:
+    DB 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_gate_cfg_fill_char:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_gate_cfg_total_steps:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_gate_cfg_step_delay:
+    DB 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_gate_cfg_trigger_ptr:
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+entity_gate_cfg_trigger_is_word:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_gate_cfg_trigger_operator:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_gate_cfg_trigger_value:
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+
+; ------------------------------------------------------------------
+; WALL JUMP STATIC CONFIG TABLES (ROM)
+; Indexed by entity slot (0..31)
+; ------------------------------------------------------------------
+entity_walljump_cfg_enabled:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_walljump_cfg_horizontal_push:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_walljump_cfg_vertical_impulse:
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+    DW 0
+entity_walljump_cfg_animation_sprite:
+    DB 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255
+entity_walljump_cfg_slide_fall_speed:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_walljump_cfg_lock_frames:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_walljump_cfg_require_away:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_wallgrab_cfg_enabled:
+    DB 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_wallgrab_cfg_fall_speed:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_wallgrab_cfg_climb_speed:
+    DB 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+entity_wallgrab_cfg_duration_frames:
+    DB 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240, 240
+entity_wallgrab_cfg_grab_sprite:
+    DB 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255
+entity_aircontrol_cfg_mode:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+entity_in_water_cfg_enabled:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+
+
+; @mideas:block id=runtime.entities.patrol_facing kind=routine owner=entities roots=update_entity_patrol_facing
+; ------------------------------------------------------------------
+; update_entity_patrol_facing
+; Input: DE = entity index
+; Updates entity_sprite_asset_index using directional lookup tables.
+; ------------------------------------------------------------------
+update_entity_patrol_facing:
+    push af
+    push bc
+    push hl
+
+    ; Guard invalid DE index coming from callers.
+    ld a, d
+    or a
+    jp nz, .patrol_facing_done
+    ld a, e
+    cp MAX_ENTITIES
+    jp nc, .patrol_facing_done
+
+    ; Read base sprite asset index from ROM init table.
+    ; This keeps patrol facing within the entity's directional family
+    ; and avoids getting stuck in an unrelated 1-layer sprite asset.
+    ld hl, entity_sprite_asset_index_init
+    add hl, de
+    ld a, (hl)
+    cp #FF
+    jp z, .patrol_facing_done
+    cp SPRITE_ASSET_COUNT
+    jp nc, .patrol_facing_done
+    ld c, a
+    ld b, 0
+
+    ; Prefer horizontal facing when vel_x != 0
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .check_vertical
+    bit 7, a
+    jr nz, .use_left
+    ld hl, sprite_dir_right_table
+    jr .apply_lookup
+
+.use_left:
+    ld hl, sprite_dir_left_table
+    jr .apply_lookup
+
+.check_vertical:
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .patrol_facing_done
+    bit 7, a
+    jr nz, .use_up
+    ld hl, sprite_dir_down_table
+    jr .apply_lookup
+
+.use_up:
+    ld hl, sprite_dir_up_table
+
+.apply_lookup:
+    add hl, bc
+    ld a, (hl)
+
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    cp (hl)
+    jr z, .patrol_facing_done
+    ld (hl), a
+
+    ; Reset animation progression when directional variant changes.
+    ; Without this, switching to a variant with fewer frames can leave
+    ; entity_anim_frame out of range until the next animation wrap.
+    ld hl, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+
+    ld hl, entity_anim_tick
+    add hl, de
+    ld (hl), 0
+
+.patrol_facing_done:
+    pop hl
+    pop bc
+    pop af
+    ret
+; @mideas:endblock id=runtime.entities.patrol_facing
+
+; ------------------------------------------------------------------
+; init_player_fast_runtime
+; Reset the dedicated player fast-path runtime mirror.
+; ------------------------------------------------------------------
+init_player_fast_runtime:
+    xor a
+    ld (player_runtime_enabled), a
+    ld (player_vx_runtime), a
+    ld (player_vy_runtime), a
+    ld (player_dash_timer), a
+    ld (player_dash_cooldown), a
+    ld (player_dash_dir), a
+    ld (player_x), a
+    ld (player_x+1), a
+    ld (player_y), a
+    ld (player_y+1), a
+    ld a, #FF
+    ld (player_entity_index), a
+    ret
+
+; ------------------------------------------------------------------
+; init_player_from_hero_entity
+; Seed player fast-path runtime from current hero_entity_id when available.
+; Safe to call before hero_entity_id has been resolved.
+; ------------------------------------------------------------------
+init_player_from_hero_entity:
+    ld a, (hero_entity_id)
+    cp #FF
+    jr nz, .player_seed_has_hero
+
+    ; Entity init calls this before the active-list rebuild has resolved
+    ; hero_entity_id. Fall back to the first generated player marker so the
+    ; fast player runtime starts with valid coordinates on frame 1.
+    ld hl, entity_is_player
+    ld b, MAX_ENTITIES
+    ld c, 0
+.player_seed_scan_loop:
+    ld a, (hl)
+    or a
+    jr nz, .player_seed_found
+    inc hl
+    inc c
+    djnz .player_seed_scan_loop
+    ret
+.player_seed_found:
+    ld a, c
+    ld (hero_entity_id), a
+
+.player_seed_has_hero:
+    ld (player_entity_index), a
+    ld c, a
+    ld a, 1
+    ld (player_runtime_enabled), a
+
+    ld e, c
+    ld d, 0
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_x), a
+    xor a
+    ld (player_x+1), a
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (player_y), a
+    xor a
+    ld (player_y+1), a
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    ld (player_vx_runtime), a
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    ld (player_vy_runtime), a
+    ret
+; ==================================================================
+; END OF ENTITIES
+; ==================================================================
+
+
+; --- End of Far Bank 7 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pad to 8KB boundary ---
+BANK_7_USED_END:
+    ds #8000 - $, #FF
+    org FAR_BANK_7_ROM_START + #2000
+
+; ##################################################################
+; FAR BANK 8 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â [#6000h-#8000h] FAR CODE: sprites
+; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
+; At runtime: bank0 saves P1, maps bank8 to P1,
+; calls routine, then restores P1.
+; NOTE: routines in this bank MUST only call code in bank 0 or
+;       primary banks (1-2). No far-to-far calls allowed.
+; ##################################################################
+FAR_BANK_8_ROM_START:
+
+    org #6000
+
+; ==================================================================
+; SPRITE DATA
+; File: sprites.asm
+; Description: Sprite pattern and animation data
+; Entities: 2
+; Total Hardware Sprites (Layers): 32
+; SAT Upload Sprites per frame: 32
+; Sprite Pattern Preload Mode: STATIC_ALL_FRAMES
+; Runtime Sprite Pattern Packs: 1
+; ==================================================================
+; SPRITE_DATA_ROM_DATA_GROUP: bank4
+; (sprite pattern blobs are emitted in bank4 data zones for megarom builds)
+
+; Unified pattern label for sprite 0
+SPRITE_0_PATTERN EQU NINA_WALK_RIGHT_0_F0_LAYER0
+SPRITE_0_PATTERN_BANK EQU ((SPRITE_0_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 1
+SPRITE_1_PATTERN EQU NINA_GRUB_RIGHT_1_F0_LAYER1
+SPRITE_1_PATTERN_BANK EQU ((SPRITE_1_PATTERN - #4000) / #2000)
+
+; WARNING: No valid pattern layers found for sprite 2
+SPRITE_2_PATTERN:
+    db 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
+SPRITE_2_PATTERN_BANK EQU ((SPRITE_2_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 3
+SPRITE_3_PATTERN EQU NINA_JUMP_RIGHT_3_F0_LAYER0
+SPRITE_3_PATTERN_BANK EQU ((SPRITE_3_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 4
+SPRITE_4_PATTERN EQU NINA_IDLE_RIGHT_4_F0_LAYER1
+SPRITE_4_PATTERN_BANK EQU ((SPRITE_4_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 5
+SPRITE_5_PATTERN EQU NEW_SPRITE_RIGHT_5_F0_LAYER1
+SPRITE_5_PATTERN_BANK EQU ((SPRITE_5_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 6
+SPRITE_6_PATTERN EQU PROJECTIL1_6_F0_LAYER1
+SPRITE_6_PATTERN_BANK EQU ((SPRITE_6_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 7
+SPRITE_7_PATTERN EQU NINA_WALK_LEFT_7_F0_LAYER0
+SPRITE_7_PATTERN_BANK EQU ((SPRITE_7_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 8
+SPRITE_8_PATTERN EQU NINA_GRUB_LEFT_8_F0_LAYER1
+SPRITE_8_PATTERN_BANK EQU ((SPRITE_8_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 9
+SPRITE_9_PATTERN EQU NINA_JUMP_LEFT_9_F0_LAYER0
+SPRITE_9_PATTERN_BANK EQU ((SPRITE_9_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 10
+SPRITE_10_PATTERN EQU NINA_IDLE_LEFT_10_F0_LAYER1
+SPRITE_10_PATTERN_BANK EQU ((SPRITE_10_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 11
+SPRITE_11_PATTERN EQU NEW_SPRITE_LEFT_11_F0_LAYER1
+SPRITE_11_PATTERN_BANK EQU ((SPRITE_11_PATTERN - #4000) / #2000)
+
+SPRITE_PLACEHOLDER_PATTERN_BANK EQU ((SPRITE_PLACEHOLDER_PATTERN - #4000) / #2000)
+
+
+; ==================================================================
+; SPRITE ANIMATION METADATA TABLES
+; ==================================================================
+
+; Table: Sprite Asset Frame Counts
+; Format: db frame_count
+sprite_asset_frame_count_init:
+    db 2 ; Sprite 0: nina_walk_right
+    db 2 ; Sprite 1: nina_grub_right
+    db 1 ; Sprite 2: New Sprite
+    db 1 ; Sprite 3: nina_jump_right
+    db 1 ; Sprite 4: nina_idle_right
+    db 1 ; Sprite 5: New Sprite_right
+    db 2 ; Sprite 6: projectil1
+    db 2 ; Sprite 7: nina_walk_left
+    db 2 ; Sprite 8: nina_grub_left
+    db 1 ; Sprite 9: nina_jump_left
+    db 1 ; Sprite 10: nina_idle_left
+    db 1 ; Sprite 11: New Sprite_left
+
+; Table: Sprite Asset Drawable Layer Counts
+; Format: db compact drawable layer count (minimum 1)
+sprite_asset_layer_count_init:
+    db 2 ; Sprite 0: nina_walk_right
+    db 2 ; Sprite 1: nina_grub_right
+    db 1 ; Sprite 2: New Sprite
+    db 2 ; Sprite 3: nina_jump_right
+    db 2 ; Sprite 4: nina_idle_right
+    db 2 ; Sprite 5: New Sprite_right
+    db 2 ; Sprite 6: projectil1
+    db 2 ; Sprite 7: nina_walk_left
+    db 2 ; Sprite 8: nina_grub_left
+    db 2 ; Sprite 9: nina_jump_left
+    db 2 ; Sprite 10: nina_idle_left
+    db 2 ; Sprite 11: New Sprite_left
+SPRITE_ASSET_COUNT EQU 12
+SPRITE_PATTERN_PRELOAD_MODE EQU 1
+
+; Table: Sprite Asset Loop Flags
+; Format: db flags (bit 1: 1=loop, 0=once)
+sprite_loop_flags_init:
+    db 2 ; Sprite 0: nina_walk_right
+    db 2 ; Sprite 1: nina_grub_right
+    db 2 ; Sprite 2: New Sprite
+    db 2 ; Sprite 3: nina_jump_right
+    db 2 ; Sprite 4: nina_idle_right
+    db 2 ; Sprite 5: New Sprite_right
+    db 2 ; Sprite 6: projectil1
+    db 2 ; Sprite 7: nina_walk_left
+    db 2 ; Sprite 8: nina_grub_left
+    db 2 ; Sprite 9: nina_jump_left
+    db 2 ; Sprite 10: nina_idle_left
+    db 2 ; Sprite 11: New Sprite_left
+
+; Table: Sprite Asset Frame Pointer List Table
+; Format: dw SPRITE_<id>_FRAME_PTRS
+sprite_asset_frame_ptr_table:
+    dw SPRITE_0_FRAME_PTRS
+    dw SPRITE_1_FRAME_PTRS
+    dw SPRITE_2_FRAME_PTRS
+    dw SPRITE_3_FRAME_PTRS
+    dw SPRITE_4_FRAME_PTRS
+    dw SPRITE_5_FRAME_PTRS
+    dw SPRITE_6_FRAME_PTRS
+    dw SPRITE_7_FRAME_PTRS
+    dw SPRITE_8_FRAME_PTRS
+    dw SPRITE_9_FRAME_PTRS
+    dw SPRITE_10_FRAME_PTRS
+    dw SPRITE_11_FRAME_PTRS
+
+; Sprite 0: nina_walk_right frame pointers
+SPRITE_0_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 1: nina_grub_right frame pointers
+SPRITE_1_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 2: New Sprite frame pointers
+SPRITE_2_FRAME_PTRS:
+    dw 0
+
+; Sprite 3: nina_jump_right frame pointers
+SPRITE_3_FRAME_PTRS:
+    dw 0
+
+; Sprite 4: nina_idle_right frame pointers
+SPRITE_4_FRAME_PTRS:
+    dw 0
+
+; Sprite 5: New Sprite_right frame pointers
+SPRITE_5_FRAME_PTRS:
+    dw 0
+
+; Sprite 6: projectil1 frame pointers
+SPRITE_6_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 7: nina_walk_left frame pointers
+SPRITE_7_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 8: nina_grub_left frame pointers
+SPRITE_8_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 9: nina_jump_left frame pointers
+SPRITE_9_FRAME_PTRS:
+    dw 0
+
+; Sprite 10: nina_idle_left frame pointers
+SPRITE_10_FRAME_PTRS:
+    dw 0
+
+; Sprite 11: New Sprite_left frame pointers
+SPRITE_11_FRAME_PTRS:
+    dw 0
+
+; ==================================================================
+; DIRECTIONAL SPRITE LOOKUP TABLES
+; Maps any sprite asset index to its directional variant index.
+; If no directional variant exists, table points back to same index.
+; ==================================================================
+sprite_dir_left_table_init:
+    db 7, 8, 11, 9, 10, 11, 6, 7, 8, 9, 10, 11
+
+sprite_dir_right_table_init:
+    db 0, 1, 5, 3, 4, 5, 6, 0, 1, 3, 4, 5
+
+sprite_dir_up_table_init:
+    db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+
+sprite_dir_down_table_init:
+    db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+
+ 
+; ================================================================== 
+; SPRITE CONFIGURATION TABLES 
+; ================================================================== 
+
+; Table: Entity Sprite Configuration 
+; Format: db base_hw_sprite_index, layer_count 
+entity_sprite_config_init:
+    db 0, 2 ; Entity 0 (nina_walk_right)
+    db 2, 2 ; Entity 1 (nina_walk_right)
+    ds 60, 0 ; Padding
+
+; Table: Entity -> Sprite Asset Index (ROM initial values)
+; Copied to RAM entity_sprite_asset_index at init
+; Format: db sprite_asset_index (#FF = none)
+entity_sprite_asset_index_init:
+    db #00 ; Entity 0 (nina_walk_right)
+    db #00 ; Entity 1 (nina_walk_right)
+    ds 30, #FF ; Padding
+SPRITE_MAX_ENTITY_LAYERS EQU 2  ; Max HW sprite layers per entity
+
+; Table: Hardware Sprite Layer Colors (ROM initial values - copied to RAM at init)
+; Format: db color_index
+sprite_layer_colors_init:
+    ; Entity 0 (nina_walk_right) layers:
+    db 6 ; Layer 0
+    db 15 ; Layer 1
+    ; Entity 1 (nina_walk_right) layers:
+    db 6 ; Layer 0
+    db 15 ; Layer 1
+    ds 28, 0 ; Padding
+
+; Table: Hardware Sprite Layer Y Offsets (ROM initial values - copied to RAM at init)
+; Format: db signed_offset_y
+sprite_layer_y_offsets_init:
+    ; Entity 0 (nina_walk_right) layers:
+    db 0 ; Layer 0
+    db 0 ; Layer 1
+    ; Entity 1 (nina_walk_right) layers:
+    db 0 ; Layer 0
+    db 0 ; Layer 1
+    ds 28, 0 ; Padding
+
+; Table: SM Sprite Layer Colors (for Action_ChangeSprite runtime color update)
+; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
+; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = color for HW sprite slot j of sprite i
+SM_SpriteLayerColorTable_init:
+    db 6, 15 ; Sprite 0: nina_walk_right
+    db 15, 6 ; Sprite 1: nina_grub_right
+    db 15, 0 ; Sprite 2: New Sprite
+    db 6, 15 ; Sprite 3: nina_jump_right
+    db 15, 6 ; Sprite 4: nina_idle_right
+    db 15, 4 ; Sprite 5: New Sprite_right
+    db 15, 8 ; Sprite 6: projectil1
+    db 6, 15 ; Sprite 7: nina_walk_left
+    db 15, 6 ; Sprite 8: nina_grub_left
+    db 6, 15 ; Sprite 9: nina_jump_left
+    db 15, 6 ; Sprite 10: nina_idle_left
+    db 15, 4 ; Sprite 11: New Sprite_left
+
+; Table: SM Sprite Layer Y Offsets (for Action_ChangeSprite runtime layer alignment)
+; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
+; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = signed Y offset for HW sprite slot j of sprite i
+SM_SpriteLayerYOffsetTable_init:
+    db 0, 0 ; Sprite 0: nina_walk_right
+    db 0, 0 ; Sprite 1: nina_grub_right
+    db 0, 0 ; Sprite 2: New Sprite
+    db 0, 0 ; Sprite 3: nina_jump_right
+    db 0, 0 ; Sprite 4: nina_idle_right
+    db 0, 9 ; Sprite 5: New Sprite_right
+    db 0, 0 ; Sprite 6: projectil1
+    db 0, 0 ; Sprite 7: nina_walk_left
+    db 0, 0 ; Sprite 8: nina_grub_left
+    db 0, 0 ; Sprite 9: nina_jump_left
+    db 0, 0 ; Sprite 10: nina_idle_left
+    db 0, 9 ; Sprite 11: New Sprite_left
+
+; ==================================================================
+; SPRITE INITIALIZATION FUNCTIONS
+; ==================================================================
+
+init_sprites:
+    ; Copy ROM sprite metadata tables into RAM so gameplay code can read them
+    ; without depending on which MegaROM bank is currently mapped.
+    ld hl, entity_sprite_config_init
+    ld de, entity_sprite_config
+    ld bc, 64
+    ldir
+    ld hl, sprite_asset_frame_count_init
+    ld de, sprite_asset_frame_count
+    ld bc, 12
+    ldir
+    ld hl, sprite_asset_layer_count_init
+    ld de, sprite_asset_layer_count
+    ld bc, 12
+    ldir
+    ld hl, sprite_loop_flags_init
+    ld de, sprite_loop_flags
+    ld bc, 12
+    ldir
+    ld hl, sprite_dir_left_table_init
+    ld de, sprite_dir_left_table
+    ld bc, 12
+    ldir
+    ld hl, sprite_dir_right_table_init
+    ld de, sprite_dir_right_table
+    ld bc, 12
+    ldir
+    ld hl, sprite_dir_up_table_init
+    ld de, sprite_dir_up_table
+    ld bc, 12
+    ldir
+    ld hl, sprite_dir_down_table_init
+    ld de, sprite_dir_down_table
+    ld bc, 12
+    ldir
+    ld hl, SM_SpriteLayerColorTable_init
+    ld de, SM_SpriteLayerColorTable
+    ld bc, 24
+    ldir
+    ld hl, SM_SpriteLayerYOffsetTable_init
+    ld de, SM_SpriteLayerYOffsetTable
+    ld bc, 24
+    ldir
+    ld hl, entity_sprite_asset_index_init
+    ld de, entity_sprite_asset_index
+    ld bc, 32
+    ldir
+    ; Copy sprite_layer_colors_init (ROM) -> sprite_layer_colors (RAM)
+    ld hl, sprite_layer_colors_init
+    ld de, sprite_layer_colors
+    ld bc, 32
+    ldir
+    ; Copy sprite_layer_y_offsets_init (ROM) -> sprite_layer_y_offsets (RAM)
+    ld hl, sprite_layer_y_offsets_init
+    ld de, sprite_layer_y_offsets
+    ld bc, 32
+    ldir
+    call call_clear_all_sprites_resident
+    ld hl, sprite_asset_base_pattern_slot_runtime
+    ld (hl), 0
+    ld de, sprite_asset_base_pattern_slot_runtime+1
+    ld bc, 11
+    ldir
+    xor a
+    ld (sprite_placeholder_base_pattern_num), a
+    ld a, #FF
+    ld (current_sprite_pattern_pack_id), a
+    xor a
+    ld (active_sprite_count), a
+    ret
+
+load_sprite_patterns:
+    call load_sprite_patterns_worldmap_1776512078647
+    ret
+
+
+SPRITE_PATTERN_PACK_INVALID EQU #FF
+SPRITE_PATTERN_PACK_COUNT EQU 1
+
+; World index -> runtime sprite pattern pack id
+world_sprite_pattern_pack_table:
+    db SPRITE_PATTERN_PACK_WORLDMAP_1776512078647_ID ; World 0: New Worldmap
+
+; ------------------------------------------------------------------
+; Runtime Sprite Pattern Pack: World "New Worldmap"
+; Slots required: 22/64
+; ------------------------------------------------------------------
+SPRITE_PATTERN_PACK_WORLDMAP_1776512078647_ID EQU 0
+
+sprite_asset_base_pattern_slot_worldmap_1776512078647:
+    db 0 ; Sprite 0: nina_walk_right
+    db 0 ; Sprite 1: nina_grub_right
+    db 4 ; Sprite 2: New Sprite
+    db 0 ; Sprite 3: nina_jump_right
+    db 5 ; Sprite 4: nina_idle_right
+    db 7 ; Sprite 5: New Sprite_right
+    db 9 ; Sprite 6: projectil1
+    db 13 ; Sprite 7: nina_walk_left
+    db 0 ; Sprite 8: nina_grub_left
+    db 0 ; Sprite 9: nina_jump_left
+    db 17 ; Sprite 10: nina_idle_left
+    db 19 ; Sprite 11: New Sprite_left
+
+load_sprite_patterns_worldmap_1776512078647:
+    ld hl, sprite_asset_base_pattern_slot_worldmap_1776512078647
+    ld de, sprite_asset_base_pattern_slot_runtime
+    ld bc, SPRITE_ASSET_COUNT
+    ldir
+    ld a, 84
+    ld (sprite_placeholder_base_pattern_num), a
+    ; Sprite Asset 0: nina_walk_right frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER0
+    ld de, SPRPAT + (0 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER1
+    ld de, SPRPAT + (1 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 0: nina_walk_right frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER0
+    ld de, SPRPAT + (2 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER1
+    ld de, SPRPAT + (3 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 2: New Sprite frame 0 has no drawable layers - use placeholder
+    ld a, RESOURCE_ID_SPRITE_PLACEHOLDER_PATTERN
+    ld de, SPRPAT + (4 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 4: nina_idle_right frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_4_F0_LAYER1
+    ld de, SPRPAT + (5 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_4_F0_LAYER2
+    ld de, SPRPAT + (6 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 5: New Sprite_right frame 0 (2 layers)
+    ld a, RESOURCE_ID_NEW_SPRITE_RIGHT_5_F0_LAYER1
+    ld de, SPRPAT + (7 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NEW_SPRITE_RIGHT_5_F0_LAYER2
+    ld de, SPRPAT + (8 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 6: projectil1 frame 0 (2 layers)
+    ld a, RESOURCE_ID_PROJECTIL1_6_F0_LAYER1
+    ld de, SPRPAT + (9 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_PROJECTIL1_6_F0_LAYER2
+    ld de, SPRPAT + (10 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 6: projectil1 frame 1 (2 layers)
+    ld a, RESOURCE_ID_PROJECTIL1_6_F1_LAYER1
+    ld de, SPRPAT + (11 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_PROJECTIL1_6_F1_LAYER2
+    ld de, SPRPAT + (12 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 7: nina_walk_left frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_WALK_LEFT_7_F0_LAYER0
+    ld de, SPRPAT + (13 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_WALK_LEFT_7_F0_LAYER1
+    ld de, SPRPAT + (14 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 7: nina_walk_left frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_WALK_LEFT_7_F1_LAYER0
+    ld de, SPRPAT + (15 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_WALK_LEFT_7_F1_LAYER1
+    ld de, SPRPAT + (16 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 10: nina_idle_left frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_IDLE_LEFT_10_F0_LAYER1
+    ld de, SPRPAT + (17 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_IDLE_LEFT_10_F0_LAYER2
+    ld de, SPRPAT + (18 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 11: New Sprite_left frame 0 (2 layers)
+    ld a, RESOURCE_ID_NEW_SPRITE_LEFT_11_F0_LAYER1
+    ld de, SPRPAT + (19 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NEW_SPRITE_LEFT_11_F0_LAYER2
+    ld de, SPRPAT + (20 * 32)
+    call resource_load_to_vram_by_id
+    ; Placeholder sprite used by missing sprite refs
+    ld a, RESOURCE_ID_SPRITE_PLACEHOLDER_PATTERN
+    ld de, SPRPAT + (21 * 32)
+    call resource_load_to_vram_by_id
+    ld a, SPRITE_PATTERN_PACK_WORLDMAP_1776512078647_ID
+    ld (current_sprite_pattern_pack_id), a
+    ret
+
+
+ensure_sprite_patterns_worldmap_1776512078647:
+    ld a, (current_sprite_pattern_pack_id)
+    cp SPRITE_PATTERN_PACK_WORLDMAP_1776512078647_ID
+    ret z
+    jp load_sprite_patterns_worldmap_1776512078647
+
+; ------------------------------------------------------------------
+; Generic sprite pattern dispatchers
+; ------------------------------------------------------------------
+load_sprite_patterns_by_pack_id:
+    cp SPRITE_PATTERN_PACK_INVALID
+    ret z
+    cp SPRITE_PATTERN_PACK_WORLDMAP_1776512078647_ID
+    jp z, load_sprite_patterns_worldmap_1776512078647
+    ret
+
+ensure_sprite_patterns_by_pack_id:
+    cp SPRITE_PATTERN_PACK_INVALID
+    ret z
+    cp SPRITE_PATTERN_PACK_WORLDMAP_1776512078647_ID
+    jp z, ensure_sprite_patterns_worldmap_1776512078647
+    ret
+
+; ------------------------------------------------------------------
+; ensure_sprite_patterns_for_world_id
+; Input:  A = world id
+; Output: matching sprite pack ensured when world id is valid
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+ensure_sprite_patterns_for_world_id:
+    cp 1
+    ret nc
+    ld e, a
+    ld d, 0
+    ld hl, world_sprite_pattern_pack_table
+    add hl, de
+    ld a, (hl)
+    jp ensure_sprite_patterns_by_pack_id
+
+; ==================================================================
+; SPRITE MANAGEMENT FUNCTIONS
+; ==================================================================
+
+; A = hardware sprite index, B = X, C = Y, D = pattern, E = color
+show_sprite:
+    ; Safety check: Ensure sprite index < 32
+    cp 32
+    ret nc
+
+    ; Safety check: Never write Y >= 208 (208 is SAT end marker on MSX)
+    push af
+    ld a, c
+    cp 208
+    jr c, .y_ok
+    ld c, SPRITE_INVISIBLE
+.y_ok:
+    pop af
+
+    ; Save pattern (D) and color (E) before calculating address
+    push de
+
+    ; Calculate base address for sprite: index * 4
+    ld l, a
+    ld h, 0
+    add hl, hl      ; index * 2
+    add hl, hl      ; index * 4
+    ; Add base of the attribute table
+    ld de, sprite_attributes
+    add hl, de      ; HL = &sprite_attributes[index * 4]
+
+    ; Restore pattern and color
+    pop de
+
+    ; Write attributes
+    ld (hl), c      ; Y
+    inc hl
+    ld (hl), b      ; X
+    inc hl
+    ld (hl), d      ; Pattern
+    inc hl
+    ld (hl), e      ; Color
+
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
+
+; Clear all sprites (set Y = SPRITE_INVISIBLE)
+; OPTIMIZED: Uses faster increment method instead of ADD HL,DE
+clear_all_sprites:
+    ld hl, sprite_attributes
+    ld b, 32
+    ld a, SPRITE_INVISIBLE
+.sprite_clear_loop:
+    ld (hl), a      ; Set Y = SPRITE_INVISIBLE
+    inc hl          ; Skip to X
+    inc hl          ; Skip to Pattern
+    inc hl          ; Skip to Color
+    inc hl          ; Next sprite (4ÃƒÆ’Ã¢â‚¬â€ INC HL = 24 cycles vs ADD HL,DE = 35 cycles)
+    djnz .sprite_clear_loop
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
+
+; Hide specific sprite (A = hardware sprite index)
+hide_sprite:
+    cp 32
+    ret nc
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    ld de, sprite_attributes
+    add hl, de
+    ld (hl), SPRITE_INVISIBLE
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
+
+; Copy sprite attributes from RAM to VRAM
+update_sprites_to_vram:
+    ld a, (sprites_dirty)
+    or a
+    ret z
+    xor a
+    ld (sprites_dirty), a
+    ld hl, sprite_attributes
+    ld de, SPRATR
+    ld bc, 128  ; Upload active sprite range + SAT end marker
+    call FAST_LDIRVM
+    ret
+
+; ==================================================================
+; SPRITE CONSTANTS
+; ==================================================================
+SPRITE_INVISIBLE    EQU 224
+
+; ==================================================================
+; RAM REQUIREMENTS
+; ==================================================================
+; sprite_attributes: ds 128
+; active_sprite_count: db 0
+; sprites_dirty: db 0
+; sprite_layer_y_offsets: ds 32
+
+
+; --- End of Far Bank 8 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pad to 8KB boundary ---
+BANK_8_USED_END:
+    ds #8000 - $, #FF
+    org FAR_BANK_8_ROM_START + #2000
+
+; ##################################################################
+; FAR BANK 9 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â [#6000h-#8000h] FAR CODE: sound
+; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
+; At runtime: bank0 saves P1, maps bank9 to P1,
+; calls routine, then restores P1.
+; NOTE: routines in this bank MUST only call code in bank 0 or
+;       primary banks (1-2). No far-to-far calls allowed.
+; ##################################################################
+FAR_BANK_9_ROM_START:
+
+    org #6000
+
+; ==================================================================
+; PSG SOUND SYSTEM
+; File: sound.asm
+; Description: AY-3-8910 PSG control and sound effects
+; Engine Audio Tick: GameFlow/game loop
+; ==================================================================
+
+; ==================================================================
+; PSG REGISTER ADDRESSES
+; ==================================================================
+
+; Tone Generators (Channels A, B, C)
+PSG_TONE_A_LO       EQU 0        ; Channel A period low byte
+PSG_TONE_A_HI       EQU 1        ; Channel A period high byte (4 bits)
+PSG_TONE_B_LO       EQU 2        ; Channel B period low byte
+PSG_TONE_B_HI       EQU 3        ; Channel B period high byte (4 bits)
+PSG_TONE_C_LO       EQU 4        ; Channel C period low byte
+PSG_TONE_C_HI       EQU 5        ; Channel C period high byte (4 bits)
+
+; Noise Generator
+PSG_NOISE_PERIOD    EQU 6        ; Noise period (5 bits)
+
+; Mixer Control
+PSG_MIXER           EQU 7        ; Mixer/Enable register
+; Bit 0: Channel A tone enable (0=on, 1=off)
+; Bit 1: Channel B tone enable
+; Bit 2: Channel C tone enable
+; Bit 3: Channel A noise enable (0=on, 1=off)
+; Bit 4: Channel B noise enable
+; Bit 5: Channel C noise enable
+
+; Volume Control
+PSG_VOL_A           EQU 8        ; Channel A volume (4 bits) + envelope flag (bit 4)
+PSG_VOL_B           EQU 9        ; Channel B volume
+PSG_VOL_C           EQU 10       ; Channel C volume
+
+; Envelope Generator
+PSG_ENV_LO          EQU 11       ; Envelope period low byte
+PSG_ENV_HI          EQU 12       ; Envelope period high byte
+PSG_ENV_SHAPE       EQU 13       ; Envelope shape (4 bits)
+
+; ==================================================================
+; PSG TONE PERIODS (Musical notes, octave 4, 3.579545 MHz clock)
+; ==================================================================
+
+; Note frequencies for octave 4 (middle C = C4)
+NOTE_C4         EQU 477      ; C  - 261.63 Hz
+NOTE_CS4        EQU 450      ; C# - 277.18 Hz
+NOTE_D4         EQU 425      ; D  - 293.66 Hz
+NOTE_DS4        EQU 401      ; D# - 311.13 Hz
+NOTE_E4         EQU 379      ; E  - 329.63 Hz
+NOTE_F4         EQU 357      ; F  - 349.23 Hz
+NOTE_FS4        EQU 337      ; F# - 369.99 Hz
+NOTE_G4         EQU 318      ; G  - 392.00 Hz
+NOTE_GS4        EQU 300      ; G# - 415.30 Hz
+NOTE_A4         EQU 284      ; A  - 440.00 Hz
+NOTE_AS4        EQU 268      ; A# - 466.16 Hz
+NOTE_B4         EQU 253      ; B  - 493.88 Hz
+NOTE_C5         EQU 238      ; C5 - 523.25 Hz
+
+; Octave multipliers: Divide period by 2 for +1 octave, multiply by 2 for -1 octave
+
+; ==================================================================
+; SOUND EFFECT DURATIONS (in frames, 60Hz)
+; ==================================================================
+
+SFX_SHORT           EQU 5        ; ~83ms
+SFX_MEDIUM          EQU 15       ; ~250ms
+SFX_LONG            EQU 30       ; ~500ms
+
+; ==================================================================
+; SOUND SYSTEM INITIALIZATION
+; ==================================================================
+
+init_sound_system:
+    ; Avoid BIOS PSG init from banked overlays; direct PSG writes below leave
+    ; the chip in a deterministic silent state without crossing ROM slots.
+
+    ; Clear runtime sound state so power-on RAM garbage cannot make
+    ; sfx_update / SM_UpdateSound drive the PSG for a few random frames.
+    xor a
+    ld (sfx_active), a
+    ld (sfx_timer), a
+    ld (sfx_fadeout), a
+    ld (sm_sound_active), a
+    ld (sm_sound_frames_left), a
+    ld (sm_sound_ptr_l), a
+    ld (sm_sound_ptr_h), a
+    call music_init_system
+
+    ; Silence all channels
+    call sfx_silence_all
+
+    ret
+
+; ------------------------------------------------------------------
+; task_audio_tick
+; Shared audio tick wrapper for IRQ task_manager or HALT game loops.
+; Preserves caller-visible registers on every exit path.
+; ------------------------------------------------------------------
+task_audio_tick:
+    push af
+    push bc
+    push de
+    push hl
+
+    call call_music_update_resident
+    call call_SM_UpdateSound_resident
+
+
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+; ==================================================================
+; PSG LOW-LEVEL CONTROL FUNCTIONS
+; ==================================================================
+; @mideas:block id=runtime.sound.psg_lowlevel kind=routine owner=sound roots=psg_write,psg_set_tone,psg_set_volume,psg_set_noise,psg_set_mixer,psg_set_envelope
+
+; ------------------------------------------------------------------
+; psg_write
+; Write to PSG register via BIOS
+; Input:  A = Register number (0-13)
+;         E = Value to write
+; Destroys: AF, E
+; ------------------------------------------------------------------
+psg_write:
+    out (#A0), a
+    ld a, e
+    out (#A1), a
+    ret
+
+; ------------------------------------------------------------------
+; psg_set_tone
+; Set tone period for a channel
+; Input:  A = Channel (0=A, 1=B, 2=C)
+;         HL = Tone period (clamped to PSG 12-bit range 1..#0FFF)
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+psg_set_tone:
+    ld b, a                      ; Preserve channel while clamping period
+    ld a, h
+    and #F0
+    jr z, .tone_period_in_range
+    ld hl, #0FFF                 ; AY tone period is 12-bit; saturate overflow
+.tone_period_in_range:
+    ld a, h
+    or l
+    jr nz, .tone_period_nonzero
+    inc l                        ; Avoid period 0, which is unstable on PSG
+.tone_period_nonzero:
+    ld a, b
+    ; Calculate register numbers (A*2 for low, A*2+1 for high)
+    add a, a                     ; A = channel * 2
+    ld c, a                      ; C = low register number
+    inc a
+    ld b, a                      ; B = high register number
+
+    ; Write low byte
+    ld a, c
+    ld e, l
+    call psg_write
+
+    ; Write high byte (only lower 4 bits)
+    ld a, b
+    ld e, h
+    ld a, e
+    and #0F
+    ld e, a
+    ld a, b
+    call psg_write
+
+    ret
+
+; ------------------------------------------------------------------
+; psg_set_volume
+; Set volume for a channel
+; Input:  A = Channel (0=A, 1=B, 2=C)
+;         B = Volume (0-15) or #10 to enable PSG hardware envelope
+; Destroys: AF, E
+; ------------------------------------------------------------------
+psg_set_volume:
+    add a, PSG_VOL_A             ; A = PSG_VOL_x register
+    ld e, b                      ; E = volume value
+    call psg_write
+    ret
+
+; ------------------------------------------------------------------
+; psg_set_noise
+; Set noise generator period
+; Input:  A = Noise period (0-31)
+; Destroys: AF, E
+; ------------------------------------------------------------------
+psg_set_noise:
+    ld e, a
+    ld a, PSG_NOISE_PERIOD
+    call psg_write
+    ret
+
+; ------------------------------------------------------------------
+; psg_set_mixer
+; Set mixer control (enable/disable tone and noise)
+; Input:  A = Mixer value
+;         Bits 0-2: Tone off (0=on, 1=off) for channels A,B,C
+;         Bits 3-5: Noise off (0=on, 1=off) for channels A,B,C
+; Destroys: AF, E
+; ------------------------------------------------------------------
+psg_set_mixer:
+    ld e, a
+    ld a, PSG_MIXER
+    call psg_write
+    ret
+
+; ------------------------------------------------------------------
+; psg_set_envelope
+; Program the global PSG hardware envelope generator
+; Input:  HL = Envelope period
+;         B = Envelope shape (0-15)
+; Destroys: AF, E
+; ------------------------------------------------------------------
+psg_set_envelope:
+    ld a, PSG_ENV_LO
+    ld e, l
+    call psg_write
+    ld a, PSG_ENV_HI
+    ld e, h
+    call psg_write
+    ld a, b
+    and #0F
+    ld e, a
+    ld a, PSG_ENV_SHAPE
+    call psg_write
+    ret
+; @mideas:endblock id=runtime.sound.psg_lowlevel
+
+; ==================================================================
+; HIGH-LEVEL SOUND EFFECTS
+; ==================================================================
+
+; ------------------------------------------------------------------
+; sfx_silence_all
+; Silence all PSG channels
+; ------------------------------------------------------------------
+sfx_silence_all:
+    ; Set all volumes to 0
+    xor a                        ; A = channel A
+    ld b, 0                      ; B = volume 0
+    call psg_set_volume
+
+    ld a, 1                      ; A = channel B
+    ld b, 0
+    call psg_set_volume
+
+    ld a, 2                      ; A = channel C
+    ld b, 0
+    call psg_set_volume
+
+    ; Disable all tone and noise
+    ld a, #3F                    ; All tone and noise off
+    call psg_set_mixer
+
+    ret
+
+; ------------------------------------------------------------------
+; sfx_beep
+; Simple beep sound
+; ------------------------------------------------------------------
+sfx_beep:
+    ; Channel A: 440Hz (A4)
+    xor a                        ; A = channel A
+    ld hl, NOTE_A4
+    call psg_set_tone
+
+    ; Volume 12
+    xor a
+    ld b, 12
+    call psg_set_volume
+
+    ; Enable tone A only
+    ld a, #3E                    ; Tone A on, others off
+    call psg_set_mixer
+
+    ret
+
+; ------------------------------------------------------------------
+; sfx_jump
+; Jump sound effect (rising pitch)
+; ------------------------------------------------------------------
+sfx_jump:
+    ; Channel A: Start at C4, quick rise
+    xor a
+    ld hl, NOTE_C4
+    call psg_set_tone
+
+    ; Volume 10
+    xor a
+    ld b, 10
+    call psg_set_volume
+
+    ; Enable tone A
+    ld a, #3E
+    call psg_set_mixer
+
+    ; TODO: Add pitch sweep for realistic jump sound
+    ret
+
+; ------------------------------------------------------------------
+; sfx_shoot
+; Shooting sound (noise + low tone)
+; ------------------------------------------------------------------
+sfx_shoot:
+    ; Channel A: Low tone
+    xor a
+    ld hl, 100                   ; Low period = high pitch
+    call psg_set_tone
+
+    ; Volume 8
+    xor a
+    ld b, 8
+    call psg_set_volume
+
+    ; Noise generator at period 5
+    ld a, 5
+    call psg_set_noise
+
+    ; Enable tone A + noise A
+    ld a, #36                    ; Tone A + Noise A on
+    call psg_set_mixer
+
+    ret
+
+; ------------------------------------------------------------------
+; sfx_explosion
+; Explosion sound (noise-heavy)
+; ------------------------------------------------------------------
+sfx_explosion:
+    ; Noise generator at period 10
+    ld a, 10
+    call psg_set_noise
+
+    ; Channel A: Volume 15 (max) with noise
+    xor a
+    ld b, 15
+    call psg_set_volume
+
+    ; Enable noise A only (no tone)
+    ld a, #39                    ; Noise A on, tone off
+    call psg_set_mixer
+
+    ret
+
+; ------------------------------------------------------------------
+; sfx_coin
+; Coin/pickup sound (quick ascending notes)
+; ------------------------------------------------------------------
+sfx_coin:
+    ; Channel B: E4 note
+    ld a, 1                      ; Channel B
+    ld hl, NOTE_E4
+    call psg_set_tone
+
+    ; Volume 10
+    ld a, 1
+    ld b, 10
+    call psg_set_volume
+
+    ; Enable tone B
+    ld a, #3D                    ; Tone B on, others off
+    call psg_set_mixer
+
+    ; TODO: Quick ascend to G4 for classic coin sound
+    ret
+
+; ------------------------------------------------------------------
+; sfx_damage
+; Damage/hit sound (harsh noise)
+; ------------------------------------------------------------------
+sfx_damage:
+    ; Short noise burst
+    ld a, 3                      ; Harsh noise period
+    call psg_set_noise
+
+    ; Channel C: Volume 12
+    ld a, 2                      ; Channel C
+    ld b, 12
+    call psg_set_volume
+
+    ; Enable noise C only
+    ld a, #1F                    ; Noise C on
+    call psg_set_mixer
+
+    ret
+
+; ==================================================================
+; SOUND EFFECT PLAYBACK SYSTEM
+; ==================================================================
+; This section provides a simple sound effect manager that can
+; play effects with automatic duration and fadeout
+
+; Runtime state lives in variables.asm:
+;   sfx_active, sfx_timer, sfx_fadeout
+
+; ------------------------------------------------------------------
+; play_sound_effect
+; Play one of the built-in sound effects by ID
+; Input:  A = sound ID
+;         0=beep, 1=jump, 2=shoot, 3=explosion, 4=coin, 5=damage
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+play_sound_effect:
+    ld b, a
+    ld a, (music_active)
+    or a
+    ret nz
+    ld a, b
+    cp 1
+    jp z, play_sound_effect_jump
+    cp 2
+    jp z, play_sound_effect_shoot
+    cp 3
+    jp z, play_sound_effect_explosion
+    cp 4
+    jp z, play_sound_effect_coin
+    cp 5
+    jp z, play_sound_effect_damage
+
+play_sound_effect_beep:
+    ld hl, sfx_beep
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_jump:
+    ld hl, sfx_jump
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_shoot:
+    ld hl, sfx_shoot
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_explosion:
+    ld hl, sfx_explosion
+    ld b, SFX_MEDIUM
+    call sfx_play
+    ret
+
+play_sound_effect_coin:
+    ld hl, sfx_coin
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_damage:
+    ld hl, sfx_damage
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+; ------------------------------------------------------------------
+; sfx_play
+; Play a sound effect with duration
+; Input:  HL = Sound effect function address
+;         B = Duration in frames
+; ------------------------------------------------------------------
+sfx_play:
+    ld a, (music_active)
+    or a
+    ret nz
+    ; Call the sound effect function
+    push bc
+    push hl
+    ld de, .return_address
+    push de
+    jp (hl)                      ; Indirect call
+.return_address:
+    pop hl
+    pop bc
+
+    ; Set timer
+    ld a, b
+    ld (sfx_timer), a
+
+    ; Mark as active
+    ld a, 1
+    ld (sfx_active), a
+
+    ret
+
+; ------------------------------------------------------------------
+; sfx_update
+; Update sound effect system (call every frame)
+; Handles automatic fadeout and silence
+; ------------------------------------------------------------------
+sfx_update:
+    ld a, (music_active)
+    or a
+    ret nz
+    ; Check if sound is active
+    ld a, (sfx_active)
+    or a
+    ret z                        ; No active sound
+
+    ; Decrement timer
+    ld a, (sfx_timer)
+    or a
+    jr z, .silence_now
+
+    dec a
+    ld (sfx_timer), a
+
+    ; Check if entering fadeout zone (last 5 frames)
+    cp 5
+    ret nc                       ; Still in main sound
+
+    ; TODO: Implement volume fadeout here
+    ret
+
+.silence_now:
+    call sfx_silence_all
+    xor a
+    ld (sfx_active), a
+    ret
+
+; ==================================================================
+; TRACKER MUSIC RUNTIME
+; No exportable music tracks are referenced by this project.
+; Public labels are kept as no-op stubs so GameFlow/audio wrappers
+; remain link-compatible without carrying the tracker interpreter.
+; ==================================================================
+
+music_init_system:
+    xor a
+    ld (music_active), a
+    ld (music_muted), a
+    ld (music_loop), a
+    ld (music_track_index), a
+    ld (music_row_frames), a
+    ld (music_row_countdown), a
+    ld (music_order_pos), a
+    ld (music_pattern_index), a
+    ld (music_pattern_row), a
+    ld (music_pattern_rows), a
+    ld (music_track_ptr_l), a
+    ld (music_track_ptr_h), a
+    ld (music_pattern_ptr_l), a
+    ld (music_pattern_ptr_h), a
+    ld a, #3F
+    ld (music_mixer_shadow), a
+    ret
+
+music_reset_channel_state:
+    ret
+
+music_silence_channels:
+    xor a
+    ld b, 0
+    call psg_set_volume
+    ld a, 1
+    ld b, 0
+    call psg_set_volume
+    ld a, 2
+    ld b, 0
+    call psg_set_volume
+    ld a, #3F
+    call psg_set_mixer
+    ret
+
+music_stop:
+    call music_init_system
+    call music_silence_channels
+    ret
+
+music_mute:
+music_resume:
+music_update:
+music_update_channel_effects:
+music_play_track:
+    ret
+
+music_execute_command:
+    ld a, (de)
+    cp #FF
+    ret z
+    or a
+    jp z, music_stop
+    ret
+
+music_track_count:
+    DB #00
+
+music_track_ptr_table:
+    DW 0
+
+; ==================================================================
+; END OF PSG SOUND SYSTEM
+; ==================================================================
+
+
+; --- End of Far Bank 9 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pad to 8KB boundary ---
+BANK_9_USED_END:
+    ds #8000 - $, #FF
+    org FAR_BANK_9_ROM_START + #2000
+
+; ##################################################################
+; FAR BANK 10 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â [#6000h-#8000h] FAR CODE: hud
+; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
+; At runtime: bank0 saves P1, maps bank10 to P1,
+; calls routine, then restores P1.
+; NOTE: routines in this bank MUST only call code in bank 0 or
+;       primary banks (1-2). No far-to-far calls allowed.
+; ##################################################################
+FAR_BANK_10_ROM_START:
+
+    org #6000
+
+; @mideas:block id=runtime.hud.core kind=routine owner=hud roots=init_hud,render_hud,force_render_hud,imprimir_marco,hud_draw_frame
+; ==================================================================
+; HUD SYSTEM - Screen 2 Text Rendering
+; ==================================================================
+; Total HUD Elements: 4
+; Screens with HUD: 1
+;
+; HUD Elements use TileBank fonts to render text in Screen 2 mode
+; Each element can be positioned anywhere on screen (256x192 pixels)
+; ==================================================================
+
+; ------------------------------------------------------------------
+; HUD DATA STRUCTURES
+; ------------------------------------------------------------------
+
+HUD_ELEMENT_COUNT   EQU 4
+
+; HUD Element Data Table
+; Format: [Type:1][X:1][Y:1][Width:1][Height:1][Flags:1][TextPtr:2][Visible:1]
+hud_element_data:
+    DB 1, 0, 0    ; Element 0: Score at (0,0)
+    DB 13, 1, 0 ; W, H, Flags
+    DW hud_text_0             ; Text pointer
+    DB 1                ; Visible
+    DB 13, 112, 0    ; Element 1: NumericField at (112,0)
+    DB 8, 1, 0 ; W, H, Flags
+    DW hud_text_1             ; Text pointer
+    DB 1                ; Visible
+    DB 6, 0, 8    ; Element 2: SceneName at (0,8)
+    DB 9, 1, 0 ; W, H, Flags
+    DW hud_text_2             ; Text pointer
+    DB 1                ; Visible
+    DB 13, 184, 0    ; Element 3: NumericField at (184,0)
+    DB 9, 1, 0 ; W, H, Flags
+    DW hud_text_3             ; Text pointer
+    DB 1                ; Visible
+
+; HUD Text Strings
+hud_text_0:
+    DB "SCORE: 000000", 0
+hud_text_1:
+    DB "TIME: 00", 0
+hud_text_2:
+    DB "STAGE: 00", 0
+hud_text_3:
+    DB "REST: 000", 0
+
+; ------------------------------------------------------------------
+; imprimir_marco
+; Draw HUD frame borders (called once per screen load)
+; ------------------------------------------------------------------
+imprimir_marco:
+    push af
+    push bc
+    push de
+    push hl
+    push ix
+
+    ld b, HUD_ELEMENT_COUNT
+    ld ix, hud_element_data
+
+.marco_loop:
+    push bc                     ; Save counter
+
+    ; Check visible flag first (offset 8)
+    ld a, (ix+8)                ; A = Visible
+    or a
+    jr z, .skip_marco           ; Skip if not visible
+
+    ; Read element fields
+    ld d, (ix+1)                ; D = X position (pixels)
+    ld e, (ix+2)                ; E = Y position (pixels)
+    ld b, (ix+3)                ; B = Width (tiles)
+    ld c, (ix+4)                ; C = Height (tiles)
+    ld a, (ix+5)                ; A = Flags
+
+    ; Check if border flag is set (bit 0)
+    bit 0, a
+    jr z, .skip_marco           ; Skip if no border
+
+    ; Convert X,Y pixels to Tile coordinates
+    ; TileX = X/8, TileY = Y/8
+    ld a, d
+    srl a
+    srl a
+    srl a
+    ld d, a                     ; D = Tile X
+
+    ld a, e
+    srl a
+    srl a
+    srl a
+    ld e, a                     ; E = Tile Y
+
+    ; Adjust for padding: Frame is 1 tile larger on all sides
+    dec d                       ; Frame X = Content X - 1
+    dec e                       ; Frame Y = Content Y - 1
+
+    ; Frame Width = Content Width + 2
+    inc b
+    inc b                       ; Width += 2
+
+    inc c
+    inc c                       ; Height += 2
+
+    call hud_draw_frame
+
+.skip_marco:
+    ; Move to next element
+    ld bc, 9                    ; Size of each element entry
+    add ix, bc                  ; IX points to next element
+
+    pop bc                      ; Restore counter
+    djnz .marco_loop
+
+    pop ix
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; render_hud
+; Main HUD rendering function
+; Only redraws when hud_dirty_flag is set
+; Input:
+;   None
+; Output:
+;   None
+; Clobbers:
+;   None visible to caller
+; Preserves:
+;   AF, BC, DE, HL, IX
+; Notes:
+;   - Returns immediately if hud_dirty_flag = 0
+;   - Re-applies dynamic numeric fields (Score/Lives/custom bindings) after redrawing static text
+; ------------------------------------------------------------------
+render_hud:
+    ld a, (hud_dirty_flag)
+    or a
+    ret z                       ; Skip if HUD hasn't changed
+    xor a
+    ld (hud_dirty_flag), a      ; Clear flag after rendering
+    push af
+    push bc
+    push de
+    push hl
+    push ix
+
+    ld b, HUD_ELEMENT_COUNT
+    ld ix, hud_element_data
+
+.render_loop:
+    push bc                     ; Save counter
+
+    ; Check visible flag first (offset 8)
+    ld a, (ix+8)                ; A = Visible
+    or a
+    jp z, .skip_element         ; Skip if not visible
+
+    ; Read element fields
+    ld d, (ix+1)                ; D = X position (pixels)
+    ld e, (ix+2)                ; E = Y position (pixels)
+    ld b, (ix+3)                ; B = Width (tiles)
+    ld c, (ix+4)                ; C = Height (tiles)
+    ld a, (ix+5)                ; A = Flags
+
+    ; Save values we'll need later
+    push bc                     ; Save Width, Height
+    push de                     ; Save X, Y
+
+    ; ---------------------------------------------------------
+    ; 1. Draw Frame (if enabled)
+    ; ---------------------------------------------------------
+    bit 0, a                    ; Check Bit 0 (Border)
+    jr z, .no_border
+
+    ; Convert X,Y pixels to Tile coordinates
+    ; TileX = X/8, TileY = Y/8
+    ld a, d
+    srl a
+    srl a
+    srl a
+    ld d, a                     ; D = Tile X
+    
+    ld a, e
+    srl a
+    srl a
+    srl a
+    ld e, a                     ; E = Tile Y
+    
+    ; Adjust for padding: Frame is 1 tile larger on all sides
+    dec d                       ; Frame X = Content X - 1
+    dec e                       ; Frame Y = Content Y - 1
+    
+    ; Frame Width = Content Width + 2
+    inc b
+    inc b                       ; Width += 2
+    
+    inc c
+    inc c                       ; Height += 2
+    
+    call hud_draw_frame
+    
+    ; Restore original X, Y, Width, Height for text rendering
+    pop de                      ; DE = X, Y (pixels)
+    pop bc                      ; BC = Width, Height (tiles)
+    ; Re-push in same order as original (BC bottom, DE top)
+    push bc                     ; Save Width, Height (bottom)
+    push de                     ; Save X, Y (top)
+
+.no_border:
+    ; ---------------------------------------------------------
+    ; 2. Draw Text
+    ; ---------------------------------------------------------
+    pop de                      ; DE = X, Y (pixels)
+    pop bc                      ; BC = Width, Height (discard, not needed)
+
+    ; Calculate VRAM address from X,Y pixel coordinates
+    ; Screen 2 Name Table = #1800 + (Y/8)*32 + (X/8)
+    
+    ; Y/8 = row
+    ld a, e                     ; A = Y
+    srl a
+    srl a
+    srl a                       ; A = Y/8 (row)
+
+    ; row * 32
+    ld l, a
+    ld h, 0
+    add hl, hl                  ; * 2
+    add hl, hl                  ; * 4
+    add hl, hl                  ; * 8
+    add hl, hl                  ; * 16
+    add hl, hl                  ; * 32
+
+    ; Add X/8
+    ld a, d                     ; A = X
+    srl a
+    srl a
+    srl a                       ; A = X/8 (column)
+    ld e, a
+    ld d, 0
+    add hl, de
+
+    ; Add Name Table base
+    ld de, #1800
+    add hl, de                  ; HL = VRAM address
+
+    ; Get Text Pointer
+    ld e, (ix+6)                ; TextPtr Low
+    ld d, (ix+7)                ; TextPtr High
+    ; DE = Text Pointer
+
+    ; Render text string at HL (VRAM) from DE (string)
+    call hud_print_string
+
+.skip_element:
+    ; Move to next element
+    ld bc, 9                    ; Size of each element entry
+    add ix, bc                  ; IX points to next element
+
+    pop bc                      ; Restore counter
+    djnz .render_loop
+
+    ; Re-apply dynamic Score digits after redrawing static HUD text.
+    ld a, (global_var_score)
+    ld l, a
+    ld a, (global_var_score+1)
+    ld h, a
+    call update_hud_score
+
+    ; Re-apply HUD-bound numeric field 1 from global_var_time_remaining.
+    ld a, (global_var_time_remaining)
+    ld l, a
+    ld a, (global_var_time_remaining+1)
+    ld h, a
+    call update_hud_dynamic_1
+
+
+    pop ix
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; force_render_hud
+; Force a HUD redraw on this frame, preserving caller-visible registers
+; Input:
+;   None
+; Output:
+;   None
+; Clobbers:
+;   None visible to caller
+; Preserves:
+;   AF, BC, DE, HL, IX
+; Notes:
+;   - Sets hud_dirty_flag = 1 and then calls render_hud
+; ------------------------------------------------------------------
+force_render_hud:
+    push af
+    ld a, 1
+    ld (hud_dirty_flag), a
+    call call_render_hud_resident
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; hud_print_string
+; Print a null-terminated string to Screen 2 Name Table
+; Input: HL = VRAM address, DE = String pointer (RAM)
+; ------------------------------------------------------------------
+hud_print_string:
+    push af
+    push bc
+    push de
+    push hl
+
+.print_loop:
+    ld a, (de)                  ; Get character from string
+    or a                        ; Check for null terminator
+    jr z, .print_done
+
+    cp 32                       ; Check if >= 32 (printable ASCII)
+    jr nc, .valid_char
+    ld a, 32                    ; Replace control chars with space
+.valid_char:
+    push de
+    call FAST_WRTVRM
+    pop de
+    inc de
+    inc hl
+    jr .print_loop
+
+.print_done:
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; hud_ascii_to_tile
+; Convert ASCII character to tile index for font rendering
+; Input: A = ASCII character
+; Output: A = Tile index (ASCII code for direct mapping)
+; ------------------------------------------------------------------
+hud_ascii_to_tile:
+    cp 32
+    ret nc
+    ld a, 32
+    ret
+
+; ------------------------------------------------------------------
+; hud_draw_frame
+; Draw a rectangular frame using font characters
+; Input: D = Tile X, E = Tile Y, B = Width (tiles), C = Height (tiles)
+; Uses characters: 43 (+), 45 (-), 124 (|)
+; ------------------------------------------------------------------
+hud_draw_frame:
+    push af
+    push bc
+    push de
+    push hl
+    ld l, e
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld e, d
+    ld d, 0
+    add hl, de
+    ld de, #1800
+    add hl, de
+    push hl
+    push bc
+    ld a, 43
+    call FAST_WRTVRM
+    inc hl
+    ld a, b
+    sub 2
+    jr z, .skip_top_edge
+    jr c, .skip_top_edge
+    ld b, a
+.top_edge_loop:
+    ld a, 45
+    call FAST_WRTVRM
+    inc hl
+    djnz .top_edge_loop
+.skip_top_edge:
+    ld a, 43
+    call FAST_WRTVRM
+    pop bc
+    pop hl
+    ld de, 32
+    add hl, de
+    ld a, c
+    sub 2
+    jr z, .bottom_row
+    jr c, .bottom_row
+    ld c, a
+.middle_row_loop:
+    push hl
+    push bc
+    ld a, 124
+    call FAST_WRTVRM
+    ld a, b
+    dec a
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld a, 124
+    call FAST_WRTVRM
+    pop bc
+    pop hl
+    ld de, 32
+    add hl, de
+    dec c
+    jr nz, .middle_row_loop
+.bottom_row:
+    ld a, 43
+    call FAST_WRTVRM
+    inc hl
+    ld a, b
+    sub 2
+    jr z, .skip_bottom_edge
+    jr c, .skip_bottom_edge
+    ld b, a
+.bottom_edge_loop:
+    ld a, 45
+    call FAST_WRTVRM
+    inc hl
+    djnz .bottom_edge_loop
+.skip_bottom_edge:
+    ld a, 43
+    call FAST_WRTVRM
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; update_hud_score
+; Update score HUD element with current score value
+; Input: HL = Score value (16-bit binary, 0-65535)
+; Output:
+;   None
+; Clobbers:
+;   None visible to caller
+; Preserves:
+;   AF, BC, DE, HL
+; ------------------------------------------------------------------
+update_hud_score:
+    push af
+    push bc
+    push de
+    push hl
+
+    ld de, #1807
+
+    ; Leading digit 0: forced zero (Score max 65535)
+    ld a, '0'
+    push hl
+    ld h, d
+    ld l, e
+    call FAST_WRTVRM
+    pop hl
+    inc de
+    ; Runtime digit 0: / 10000
+    ld bc, 10000
+    call hud_div16
+    add a, '0'
+    push hl
+    ld h, d
+    ld l, e
+    call FAST_WRTVRM
+    pop hl
+    inc de
+    ; Runtime digit 1: / 1000
+    ld bc, 1000
+    call hud_div16
+    add a, '0'
+    push hl
+    ld h, d
+    ld l, e
+    call FAST_WRTVRM
+    pop hl
+    inc de
+    ; Runtime digit 2: / 100
+    ld bc, 100
+    call hud_div16
+    add a, '0'
+    push hl
+    ld h, d
+    ld l, e
+    call FAST_WRTVRM
+    pop hl
+    inc de
+    ; Runtime digit 3: / 10
+    ld bc, 10
+    call hud_div16
+    add a, '0'
+    push hl
+    ld h, d
+    ld l, e
+    call FAST_WRTVRM
+    pop hl
+    inc de
+    ; Final digit: ones (remainder)
+    ld a, l
+    add a, '0'
+    push hl
+    ld h, d
+    ld l, e
+    call FAST_WRTVRM
+    pop hl
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+; Helper: HL = HL / BC, A = quotient, HL = remainder
+hud_div16:
+    xor a
+.hud_div16_loop:
+    or a
+    sbc hl, bc
+    jr c, .hud_div16_done
+    inc a
+    jr .hud_div16_loop
+.hud_div16_done:
+    add hl, bc
+    ret
+
+; ------------------------------------------------------------------
+; update_hud_lives
+; Update lives HUD element
+; Input: A = Number of lives (0-9)
+; Output:
+;   None
+; Clobbers:
+;   None visible to caller
+; Preserves:
+;   AF, HL
+; ------------------------------------------------------------------
+update_hud_lives:
+    ; No Lives element defined in HUD
+    ret
+
+; ------------------------------------------------------------------
+; update_hud_dynamic_1
+; Update HUD-bound numeric field 1 from HL value
+; Input: HL = Current value (16-bit binary, 0-65535)
+; Output:
+;   None
+; Clobbers:
+;   None visible to caller
+; Preserves:
+;   AF, BC, DE, HL
+; Notes:
+;   - Writes only the numeric digits in VRAM; the static label is not touched
+; ------------------------------------------------------------------
+update_hud_dynamic_1:
+    push af
+    push bc
+    push de
+    push hl
+
+    ld de, #1814
+
+    ; Runtime digit 0: / 10
+    ld bc, 10
+    call hud_div16
+    add a, '0'
+    push hl
+    ld h, d
+    ld l, e
+    call FAST_WRTVRM
+    pop hl
+    inc de
+    ; Final digit: ones (remainder)
+    ld a, l
+    add a, '0'
+    push hl
+    ld h, d
+    ld l, e
+    call FAST_WRTVRM
+    pop hl
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+; @mideas:endblock id=runtime.hud.core
+
+
+; --- End of Far Bank 10 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pad to 8KB boundary ---
+BANK_10_USED_END:
+    ds #8000 - $, #FF
+    org FAR_BANK_10_ROM_START + #2000
+
+; ##################################################################
+; FAR BANK 11 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â [#6000h-#8000h] FAR CODE: font
+; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
+; At runtime: bank0 saves P1, maps bank11 to P1,
+; calls routine, then restores P1.
+; NOTE: routines in this bank MUST only call code in bank 0 or
+;       primary banks (1-2). No far-to-far calls allowed.
+; ##################################################################
+FAR_BANK_11_ROM_START:
+
+    org #6000
+
+; ==================================================================
+; MSX FONT DATA FOR SCREEN 2 TEXT
+; File: font.asm
+; Description: Font pattern data generated from project assets
+; ==================================================================
+
+; FONT_DATA_ROM_DATA_GROUP: bank4
+; (FONT_PATTERN_DATA and FONT_COLOR_DATA are in bank4 section, org #C000, for megarom builds)
+FONT_PATTERN_DATA_BANK EQU ((FONT_PATTERN_DATA - #4000) / #2000)
+FONT_COLOR_DATA_BANK   EQU ((FONT_COLOR_DATA - #4000) / #2000)
+
+; ==================================================================
+; FONT PATTERN DATA
+; ==================================================================
+
+FONT_PATTERN_DATA:
+    ; Char 32 (' ')
+    DB #00, #00, #00, #00, #00, #00, #00, #00
+    ; Char 43 ('+')
+    DB #00, #10, #10, #7C, #10, #10, #00, #00
+    ; Char 45 ('-')
+    DB #00, #00, #00, #7E, #00, #00, #00, #00
+    ; Char 48 ('0')
+    DB #3E, #7F, #73, #73, #73, #7F, #3E, #00
+    ; Char 49 ('1')
+    DB #18, #38, #18, #18, #18, #18, #7E, #00
+    ; Char 50 ('2')
+    DB #3E, #7F, #03, #3E, #60, #7F, #3E, #00
+    ; Char 51 ('3')
+    DB #3E, #7F, #03, #3E, #03, #7F, #3E, #00
+    ; Char 52 ('4')
+    DB #06, #0E, #1E, #36, #7F, #06, #06, #00
+    ; Char 53 ('5')
+    DB #7F, #7F, #60, #7E, #03, #7F, #3E, #00
+    ; Char 54 ('6')
+    DB #3E, #7F, #60, #7E, #63, #7F, #3E, #00
+    ; Char 55 ('7')
+    DB #7F, #7F, #03, #06, #0C, #18, #18, #00
+    ; Char 56 ('8')
+    DB #3E, #7F, #63, #3E, #63, #7F, #3E, #00
+    ; Char 57 ('9')
+    DB #3E, #7F, #63, #3F, #03, #7F, #3E, #00
+    ; Char 58 (':')
+    DB #00, #36, #36, #00, #36, #36, #00, #00
+    ; Char 62 ('>')
+    DB #00, #30, #18, #0C, #18, #30, #00, #00
+    ; Char 63 ('?')
+    DB #3E, #7F, #63, #18, #18, #00, #18, #00
+    ; Char 65 ('A')
+    DB #3E, #7F, #63, #7F, #7F, #63, #63, #00
+    ; Char 66 ('B')
+    DB #7E, #7F, #63, #7E, #63, #7F, #7E, #00
+    ; Char 67 ('C')
+    DB #3C, #7E, #60, #60, #60, #7E, #3C, #00
+    ; Char 68 ('D')
+    DB #7C, #7E, #66, #66, #66, #7E, #7C, #00
+    ; Char 69 ('E')
+    DB #7F, #7F, #60, #7C, #60, #7F, #7F, #00
+    ; Char 70 ('F')
+    DB #7F, #7F, #60, #7C, #60, #60, #60, #00
+    ; Char 71 ('G')
+    DB #3E, #7F, #63, #60, #67, #7F, #3E, #00
+    ; Char 72 ('H')
+    DB #63, #63, #63, #7F, #63, #63, #63, #00
+    ; Char 73 ('I')
+    DB #3E, #3E, #1C, #1C, #1C, #3E, #3E, #00
+    ; Char 74 ('J')
+    DB #1F, #1F, #06, #06, #66, #7E, #3C, #00
+    ; Char 75 ('K')
+    DB #63, #66, #6C, #78, #6C, #66, #63, #00
+    ; Char 76 ('L')
+    DB #60, #60, #60, #60, #60, #7F, #7F, #00
+    ; Char 77 ('M')
+    DB #63, #77, #7F, #6B, #63, #63, #63, #00
+    ; Char 78 ('N')
+    DB #63, #73, #7B, #6F, #67, #63, #63, #00
+    ; Char 79 ('O')
+    DB #3E, #7F, #63, #63, #63, #7F, #3E, #00
+    ; Char 80 ('P')
+    DB #7E, #7F, #63, #7E, #60, #60, #60, #00
+    ; Char 81 ('Q')
+    DB #3E, #7F, #63, #6B, #67, #7F, #3E, #00
+    ; Char 82 ('R')
+    DB #7E, #7F, #63, #7E, #7B, #6F, #63, #00
+    ; Char 83 ('S')
+    DB #3E, #7F, #60, #3E, #0F, #7F, #3E, #00
+    ; Char 84 ('T')
+    DB #7F, #7F, #18, #18, #18, #18, #18, #00
+    ; Char 85 ('U')
+    DB #63, #63, #63, #63, #63, #7F, #3E, #00
+    ; Char 86 ('V')
+    DB #63, #63, #63, #63, #36, #1C, #08, #00
+    ; Char 87 ('W')
+    DB #63, #63, #63, #6B, #7F, #77, #63, #00
+    ; Char 88 ('X')
+    DB #63, #63, #36, #1C, #36, #63, #63, #00
+    ; Char 89 ('Y')
+    DB #63, #63, #36, #1C, #18, #18, #18, #00
+    ; Char 90 ('Z')
+    DB #7F, #7F, #06, #0C, #30, #7F, #7F, #00
+    ; Char 124 ('|')
+    DB #18, #18, #18, #18, #18, #18, #18, #18
+
+
+; Character index table (for quick lookup)
+FONT_CHAR_INDEX:
+    DB 32, 43, 45, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 62, 63, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 124
+FONT_CHAR_COUNT EQU 43
+
+
+; ==================================================================
+; FONT LOADING FUNCTIONS
+; ==================================================================
+; @mideas:block id=runtime.font.loading kind=routine owner=font roots=load_custom_font,load_font_bank0,load_font_bank1,load_font_bank2,load_all_font_banks,load_font_patterns_to_bank,load_font_colors,load_font_colors_all_banks,load_font_colors_to_bank
+
+load_custom_font:
+    ; Load custom font patterns to VRAM Pattern Generator Table
+    ; Uses FONT_CHAR_INDEX to map specific characters to their correct VRAM addresses
+    ld de, CHRTBL2                ; Bank 0 Base
+    call load_font_patterns_to_bank
+    ret
+
+load_font_bank0:
+    ld de, CHRTBL2                ; Bank 0 Base
+    call load_font_patterns_to_bank
+    ret
+
+load_font_bank1:
+    ld de, CHRTBL2 + #800         ; Bank 1 Base
+    call load_font_patterns_to_bank
+    ret
+
+load_font_bank2:
+    ld de, CHRTBL2 + #1000        ; Bank 2 Base
+    call load_font_patterns_to_bank
+    ret
+
+load_all_font_banks:
+    call load_font_bank0
+    call load_font_bank1
+    call load_font_bank2
+    ret
+
+; Helper: Load font patterns to a specific bank
+; Input: DE = Bank Base Address
+load_font_patterns_to_bank:
+    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
+    ld iy, FONT_PATTERN_DATA      ; Pointer to pattern data
+    ld b, FONT_CHAR_COUNT         ; Number of characters to load
+
+
+.load_loop:
+    push bc                       ; Save loop counter
+    push de                       ; Save bank base address
+
+    ; Get ASCII code
+    ld a, (ix)                    ; A = ASCII code
+    inc ix                        ; Next index
+
+    ; Calculate VRAM offset: Base + (ASCII * 8)
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; * 2
+    add hl, hl                    ; * 4
+    add hl, hl                    ; * 8
+    add hl, de                    ; Add Base Address
+    ex de, hl                     ; DE = VRAM Destination
+
+    ; Prepare source pointer (IY is in RAM, so use HL)
+    push iy
+    pop hl                        ; HL = Source Pattern (IY)
+
+    ; Copy 8 bytes
+    ld bc, 8
+    call FAST_LDIRVM              ; Copy from HL(RAM) to DE(VRAM)
+
+    ; Advance source pointer
+    ld bc, 8
+    add iy, bc                    ; IY += 8
+
+    pop de                        ; Restore bank base
+    pop bc                        ; Restore loop counter
+    djnz .load_loop
+    ret
+
+; ==================================================================
+; FONT COLOR ATTRIBUTES
+; ==================================================================
+
+FONT_COLOR_DATA:
+    ; Char 32
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 43
+    DB #F0, #F0, #F0, #F0, #F0, #F0, #F0, #F0
+    ; Char 45
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 48
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 49
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 50
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 51
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 52
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 53
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 54
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 55
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 56
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 57
+    DB #A1, #A1, #A1, #A1, #A1, #F1, #F1, #F1
+    ; Char 58
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 62
+    DB #F0, #F0, #F0, #F0, #F0, #F0, #F0, #F0
+    ; Char 63
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 65
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 66
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 67
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 68
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 69
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 70
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 71
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 72
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 73
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 74
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 75
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 76
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 77
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 78
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 79
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 80
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 81
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 82
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 83
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 84
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 85
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 86
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 87
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 88
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 89
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 90
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 124
+    DB #F0, #F0, #F0, #F0, #F0, #F0, #F0, #F0
+
+
+load_font_colors:
+    ld de, CLRTBL2                ; Bank 0 Base
+    call load_font_colors_to_bank
+    ret
+
+load_font_colors_all_banks:
+    ld de, CLRTBL2                ; Bank 0 Base
+    call load_font_colors_to_bank
+
+    ld de, CLRTBL2 + #800         ; Bank 1 Base
+    call load_font_colors_to_bank
+
+    ld de, CLRTBL2 + #1000        ; Bank 2 Base
+    call load_font_colors_to_bank
+    ret
+
+; Helper: Load font colors to a specific bank
+; Input: DE = Bank Base Address
+load_font_colors_to_bank:
+    ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
+    ld iy, FONT_COLOR_DATA        ; Pointer to color data
+    ld b, FONT_CHAR_COUNT         ; Number of characters to load
+
+
+.load_colors_loop:
+    push bc                       ; Save loop counter
+    push de                       ; Save bank base address
+
+    ; Get ASCII code
+    ld a, (ix)                    ; A = ASCII code
+    inc ix                        ; Next index
+
+    ; Calculate VRAM offset: Base + (ASCII * 8)
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; * 2
+    add hl, hl                    ; * 4
+    add hl, hl                    ; * 8
+    add hl, de                    ; Add Base Address
+    ex de, hl                     ; DE = VRAM Destination
+
+    ; Prepare source pointer
+    push iy
+    pop hl                        ; HL = Source Color (IY)
+
+    ; Copy 8 bytes
+    ld bc, 8
+    call FAST_LDIRVM              ; Copy from HL(RAM) to DE(VRAM)
+
+    ; Advance source pointer
+    ld bc, 8
+    add iy, bc                    ; IY += 8
+
+    pop de                        ; Restore bank base
+    pop bc                        ; Restore loop counter
+    djnz .load_colors_loop
+    ret
+; @mideas:endblock id=runtime.font.loading
+
+; ==================================================================
+; TEXT RENDERING FUNCTIONS (Based on Mideas renderMSX1TextToDataURL)
+; ==================================================================
+
+; Print string to Screen 2 name table (text mode compatible)
+; HL = string pointer (null-terminated), DE = VRAM position
+print_string_screen2:
+    push bc
+    ld b, 0                        ; Character counter
+
+print_string_loop:
+    ld a, (hl)                     ; Get character
+    or a                           ; Check for null terminator
+    jr z, print_string_end         ; End if null
+
+    ; Write character to VRAM Name Table
+    ; FAST_WRTVRM signature: A = data, HL = VRAM address
+    ; A already has character, HL already has VRAM address
+    push hl                        ; Save string pointer
+    push de                        ; Save VRAM position
+    ex de, hl                      ; Swap: DE = string ptr, HL = VRAM address for FAST_WRTVRM
+    call FAST_WRTVRM               ; Write character to VRAM (fast)
+    pop de                         ; Restore VRAM position
+    pop hl                         ; Restore string pointer
+
+    ; Move to next character
+    inc hl                         ; Next character in string
+    inc de                         ; Next position in VRAM
+    inc b                          ; Count characters
+    ld a, b
+    cp 32                          ; Limit to screen width
+    jr nz, print_string_loop       ; Continue if not at edge
+
+print_string_end:
+    pop bc
+    ret
+
+; Initialize font system for Screen 2 text rendering
+init_font_system:
+    ld a, (vram_cache_font_ready)
+    or a
+    ret nz
+    ; Load custom font patterns and colors
+    call load_all_font_banks       ; Load patterns to all banks
+    call load_font_colors_all_banks ; Load colors to all banks
+    ld a, 1
+    ld (vram_cache_font_ready), a
+    ret
+
+reload_font_system:
+    xor a
+    ld (vram_cache_font_ready), a
+    jp init_font_system
+
+; ==================================================================
+; END OF FONT DATA
+; ==================================================================
+
+
+; --- End of Far Bank 11 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pad to 8KB boundary ---
+BANK_11_USED_END:
+    ds #8000 - $, #FF
+    org FAR_BANK_11_ROM_START + #2000
+
+; ##################################################################
+; FAR BANK 12 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â [#6000h-#8000h] FAR CODE: animtiles
+; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
+; At runtime: bank0 saves P1, maps bank12 to P1,
+; calls routine, then restores P1.
+; NOTE: routines in this bank MUST only call code in bank 0 or
+;       primary banks (1-2). No far-to-far calls allowed.
+; ##################################################################
+FAR_BANK_12_ROM_START:
+
+    org #6000
+
+; @mideas:block id=runtime.animtiles.core kind=routine owner=animtiles roots=init_animated_tiles,update_animated_tiles,update_animated_tiles_vram,anim_upload_char_frame,set_animation_speed,register_animated_tile,get_tile_animation_frame
+; ==================================================================
+; ANIMATED TILES SYSTEM
+; File: animtiles.asm
+; Description: Background tile animation for water, lava, fire, etc.
+; ==================================================================
+
+; Auto-detected animated groups:
+;   frame groups: 3
+;   transform groups: 0
+
+; ==================================================================
+; ANIMATED TILES CONSTANTS
+; ==================================================================
+
+; Animation speeds (in frames)
+ANIM_SPEED_SLOW         EQU 15      ; ~250ms (water)
+ANIM_SPEED_MEDIUM       EQU 8       ; ~133ms (lava)
+ANIM_SPEED_FAST         EQU 4       ; ~66ms (fire)
+
+; Maximum animated tiles
+MAX_ANIM_TILES          EQU 3
+ANIM_TILE_ENTRY_SIZE    EQU 7       ; char, chars, frames, speed, bytesPerFrame, ptr(2)
+ANIM_TRANS_ENTRY_SIZE   EQU 4       ; char, chars, opCode, flags
+ANIM_TILE_DATA_BANK     EQU 0       ; Deprecated: anim data is local to animtiles code bank
+
+; ==================================================================
+; ANIMATED TILES INITIALIZATION
+; ==================================================================
+
+init_animated_tiles:
+    ; Initialize animation variables
+    xor a
+    ld (anim_tile_timer), a
+    ld (anim_tile_frame), a
+
+    ; Set default global animation speed
+    ld a, 1
+    ld (anim_tile_speed), a
+
+    ; Upload initial animation frame state immediately
+    call call_update_animated_tiles_vram_resident
+
+    ret
+
+; ==================================================================
+; ANIMATED TILES UPDATE FUNCTIONS
+; ==================================================================
+
+; ------------------------------------------------------------------
+; update_animated_tiles
+; Update animation frame and redraw animated tiles if needed
+; Call this every frame from main loop
+; ------------------------------------------------------------------
+update_animated_tiles:
+    ; Skip animation work on screens with no animated tile groups
+    ld a, (current_screen_anim_group_count)
+    or a
+    ret z
+
+    ; Increment timer
+    ld a, (anim_tile_timer)
+    inc a
+    ld (anim_tile_timer), a
+
+    ; Check if it's time to advance frame
+    ld b, a
+    ld a, (anim_tile_speed)
+    or a
+    jr nz, .anim_speed_ok
+    ld a, 1
+    ld (anim_tile_speed), a
+.anim_speed_ok:
+    cp b
+    ret nc                          ; Not yet time to update (timer < speed)
+
+    ; Reset timer
+    xor a
+    ld (anim_tile_timer), a
+
+    ; Advance global animation counter
+    ld a, (anim_tile_frame)
+    inc a
+    ld (anim_tile_frame), a
+
+    ; Update all animated tiles in VRAM
+    call call_update_animated_tiles_vram_resident
+
+    ret
+
+; ------------------------------------------------------------------
+; update_animated_tiles_vram
+; Update pattern data in VRAM for all animated tiles
+; This updates the actual tile patterns based on current frame
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+update_animated_tiles_vram:
+    ; Protect VDP port sequence from ISR VRAM writes.
+    ; Always re-enables on exit (see FAST_LDIRVM note on LD A,I bug).
+    di
+    ld hl, anim_tile_table
+
+.anim_vram_loop:
+    ld a, (hl)                      ; A = target char code
+    cp 255
+    jp z, .anim_vram_done
+
+    push af                         ; Save target char code
+    inc hl
+    ld a, (hl)                      ; A = chars per tile
+    push af
+    inc hl
+    ld b, (hl)                      ; B = frame count
+    inc hl
+    inc hl                          ; Skip speed byte (reserved)
+    ld c, (hl)                      ; C = bytes per frame
+    inc hl
+    ld e, (hl)                      ; DE = data pointer
+    inc hl
+    ld d, (hl)
+    inc hl                          ; HL = next table entry
+    push hl
+    ex de, hl                       ; HL = data pointer
+
+    ; frame = global_frame % frame_count
+    ; Fast path for power-of-two frame counts: frame & (count-1)
+    ld a, b
+    dec a
+    ld d, a
+    and b
+    jr nz, .anim_mod_slow
+    ld a, (anim_tile_frame)
+    and d
+    jr .anim_mod_done
+.anim_mod_slow:
+    ld a, (anim_tile_frame)
+.anim_mod_loop:
+    cp b
+    jr c, .anim_mod_done
+    sub b
+    jr .anim_mod_loop
+.anim_mod_done:
+
+    ; DE = frame offset (frame * bytes_per_frame)
+    ld b, a
+    ld d, 0
+    ld e, 0
+.anim_mul_loop:
+    ld a, b
+    or a
+    jr z, .anim_mul_done
+    ld a, e
+    add a, c
+    ld e, a
+    ld a, d
+    adc a, 0
+    ld d, a
+    dec b
+    jr .anim_mul_loop
+.anim_mul_done:
+    add hl, de                      ; HL = frame data pointer
+
+    pop de                          ; DE = next table entry pointer
+    pop af
+    ld b, a                         ; B = chars per tile
+    pop af
+    ld c, a                         ; C = target char code
+    push de
+
+.anim_char_loop:
+    ld a, b
+    or a
+    jr z, .anim_char_done
+
+    push bc
+    push hl
+    ld a, c
+    call anim_upload_char_frame
+    pop hl
+    pop bc
+
+    ld de, 16
+    add hl, de                      ; Next char frame chunk
+    inc c                           ; Next target char code
+    dec b
+    jr .anim_char_loop
+
+.anim_char_done:
+    pop de
+    ex de, hl                       ; HL = next table entry
+    jp .anim_vram_loop
+
+.anim_vram_done:
+
+    ei
+    ret
+
+; ------------------------------------------------------------------
+; set_animation_speed
+; Set global animation speed for all animated tiles
+; Input:  A = Speed (frames between updates)
+; ------------------------------------------------------------------
+set_animation_speed:
+    or a
+    jr nz, .anim_speed_store
+    ld a, 1
+.anim_speed_store:
+    ld (anim_tile_speed), a
+    ret
+
+; ------------------------------------------------------------------
+; anim_copy_8_bytes
+; Copy 8 bytes from CPU memory to VRAM
+; Input: DE = source pointer, HL = VRAM destination
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+anim_copy_8_bytes:
+    push de                         ; Save source pointer
+    push hl                         ; Save VRAM destination
+    pop de                          ; DE = VRAM destination for FAST_LDIRVM
+    pop hl                          ; HL = source pointer for FAST_LDIRVM
+    ld bc, 8
+    call FAST_LDIRVM
+    push hl
+    pop de                          ; Preserve legacy postcondition: DE = source + 8
+    ret
+
+; ==================================================================
+; anim_upload_char_frame
+; Upload one animated char (pattern + color) to all 3 Screen 2 banks
+; Input: A = target char code, HL = source frame chunk (16 bytes)
+; Source layout: 8 pattern bytes + 8 color bytes
+; Destroys: AF, BC, DE, HL
+; ==================================================================
+anim_upload_char_frame:
+    push af
+    push bc
+    push de
+    push hl
+
+    ; BC = target char offset (charCode * 8)
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld b, h
+    ld c, l
+
+    pop hl
+    ex de, hl                      ; DE = source pattern pointer
+
+    ; Pattern bank 0
+    push de
+    ld hl, CHRTBL2
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
+
+    ; Pattern bank 1
+    push de
+    ld hl, CHRTBL2 + #800
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
+
+    ; Pattern bank 2
+    ld hl, CHRTBL2 + #1000
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+
+    ; DE now points to color bytes (source + 8)
+    ; Color bank 0
+    push de
+    ld hl, CLRTBL2
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
+
+    ; Color bank 1
+    push de
+    ld hl, CLRTBL2 + #800
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
+
+    ; Color bank 2
+    ld hl, CLRTBL2 + #1000
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+
+    pop de
+    pop bc
+    pop af
+    ret
+
+; ==================================================================
+; TRANSFORM MODE COMPATIBILITY STUBS
+; ==================================================================
+; Transform-mode tiles are precomputed into normal frame data by the
+; generator. Runtime VRAM read/modify/write is intentionally disabled.
+
+update_animated_transform_tiles_vram:
+    ret
+
+anim_transform_char_frame:
+    ret
+
+anim_transform_vram_block:
+    ret
+
+; ==================================================================
+; ANIMATED TILE DEFINITIONS (AUTO-GENERATED)
+; ==================================================================
+
+; ------------------------------------------------------------------
+; Animated tile mapping table
+; Format:
+;   db targetCharCode, charsPerTile, numFrames, speed, bytesPerFrame
+;   dw frameDataPointer
+; ------------------------------------------------------------------
+anim_tile_table:
+    db 134, 1, 2, 1, 16    ; gema -> tile tile_1772126067456
+    dw anim_group_0_gema
+    db 141, 1, 2, 1, 16    ; gem_extra_jump -> tile tile_1772380335352
+    dw anim_group_1_gem_extra_jump
+    db 168, 1, 2, 1, 16    ; New Boss_part_4_4 -> tile tile_boss_1777550194409
+    dw anim_group_2_new_boss_part_4_4
+    db 255                          ; End marker
+
+; ------------------------------------------------------------------
+; Transform tile mapping table
+; Format:
+;   db targetCharCode, charsPerTile, opCode, flags
+; flags:
+;   bit0 = apply vertical transform on color rows
+; ------------------------------------------------------------------
+anim_transform_table:
+    ; Transform groups are precomputed as frame data in anim_tile_table
+    db 255                          ; End marker
+
+; ==================================================================
+; ANIMATION FRAME DATA
+; ==================================================================
+anim_group_0_gema:
+    ; Group "gema" targetChar=134 chars=1
+    ; Frame 0: gema
+    db #80, #18, #3C, #7E, #7E, #34, #18, #01, #A1, #A1, #A1, #A1, #A1, #A1, #A1, #A1
+    ; Frame 1: gema_f0
+    db #01, #18, #3C, #7E, #7E, #34, #18, #80, #A1, #A1, #A1, #A1, #A1, #A1, #A1, #A1
+
+anim_group_1_gem_extra_jump:
+    ; Group "gem_extra_jump" targetChar=141 chars=1
+    ; Frame 0: gem_extra_jump
+    db #00, #00, #38, #38, #38, #00, #00, #00, #F1, #F1, #71, #E1, #E1, #F1, #F1, #F1
+    ; Frame 1: gem_extra_jump_f0
+    db #00, #10, #38, #7C, #38, #10, #00, #00, #F1, #F1, #F1, #71, #E1, #F1, #F1, #F1
+
+anim_group_2_new_boss_part_4_4:
+    ; Group "New Boss_part_4_4" targetChar=168 chars=1
+    ; Frame 0: New Boss_part_4_4
+    db #7E, #FF, #FF, #FF, #FF, #FF, #FF, #7E, #E1, #E1, #E1, #E1, #F1, #F1, #F1, #F1
+    ; Frame 1: New Boss_part_4_4
+    db #FF, #BF, #FC, #F8, #F8, #FC, #BF, #FE, #E1, #E1, #E1, #E1, #E1, #E1, #E1, #E1
+
+
+; ------------------------------------------------------------------
+; register_animated_tile
+; Runtime registration is not supported in this generator version.
+; Input:  A = Tile ID to animate
+;         B = Number of frames (2-4)
+;         C = Animation speed
+; Output: A = 0 if failed (table full), 1 if success
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+register_animated_tile:
+    xor a                           ; Not supported (static generated table)
+    ret
+
+; ------------------------------------------------------------------
+; get_tile_animation_frame
+; Get current animation frame for a tile
+; Input:  A = target char code
+; Output: A = Current frame index (mod numFrames), or 0 if not animated
+; Destroys: BC, DE, HL
+; ------------------------------------------------------------------
+get_tile_animation_frame:
+    ld c, a                         ; C = char code to search
+    ld hl, anim_tile_table
+
+.anim_search_loop:
+    ld a, (hl)
+    cp 255
+    jr z, .anim_not_found
+    cp c
+    jr z, .anim_found_tile
+
+    ld de, ANIM_TILE_ENTRY_SIZE
+    add hl, de
+    jr .anim_search_loop
+
+.anim_found_tile:
+    inc hl
+    inc hl
+    ld b, (hl)                      ; B = numFrames
+    ld a, (anim_tile_frame)
+.anim_found_mod:
+    cp b
+    jr c, .anim_found_done
+    sub b
+    jr .anim_found_mod
+.anim_found_done:
+    ret
+
+.anim_not_found:
+    xor a
+    ret
+
+; ==================================================================
+; END OF ANIMATED TILES SYSTEM
+; ==================================================================
+; @mideas:endblock id=runtime.animtiles.core
+
+
+; --- End of Far Bank 12 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pad to 8KB boundary ---
+BANK_12_USED_END:
+    ds #8000 - $, #FF
+    org FAR_BANK_12_ROM_START + #2000
+
+; ##################################################################
+; FAR BANK 13 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â [#6000h-#8000h] FAR CODE: scroll
+; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
+; At runtime: bank0 saves P1, maps bank13 to P1,
+; calls routine, then restores P1.
+; NOTE: routines in this bank MUST only call code in bank 0 or
+;       primary banks (1-2). No far-to-far calls allowed.
+; ##################################################################
+FAR_BANK_13_ROM_START:
+
+    org #6000
+
+; @mideas:block id=runtime.scroll.core kind=routine owner=scroll roots=init_scroll_system,set_camera_position,move_camera,center_camera_on_entity,update_scroll,redraw_viewport,multiply_a_by_b
+; ==================================================================
+; SCROLL SYSTEM
+; File: scroll.asm
+; Description: Viewport management and screen scrolling for large worlds
+; ==================================================================
+
+; ==================================================================
+; SCROLL SYSTEM CONSTANTS
+; ==================================================================
+
+SCREEN_WIDTH_TILES      EQU 32      ; MSX Screen 2 width in tiles
+SCREEN_HEIGHT_TILES     EQU 24      ; MSX Screen 2 height in tiles
+SCREEN_WIDTH_PIXELS     EQU 256     ; MSX Screen 2 width in pixels
+SCREEN_HEIGHT_PIXELS    EQU 192     ; MSX Screen 2 height in pixels
+
+; Note: NAMETBL (#1800) is already defined in constants.asm
+
+; ==================================================================
+; SCROLL SYSTEM INITIALIZATION
+; ==================================================================
+
+init_scroll_system:
+    ; Initialize camera to (0, 0)
+    xor a
+    ld (camera_x), a
+    ld (camera_x + 1), a
+    ld (camera_y), a
+    ld (camera_y + 1), a
+    ld (camera_tile_x), a
+    ld (camera_tile_y), a
+
+    ; Set world dimensions (will be updated by level loader)
+    ld a, SCREEN_WIDTH_TILES
+    ld (world_width_tiles), a
+    ld a, SCREEN_HEIGHT_TILES
+    ld (world_height_tiles), a
+
+    ; Clear dirty flag
+    xor a
+    ld (scroll_dirty_flag), a
+
+    ret
+
+; ==================================================================
+; CAMERA CONTROL FUNCTIONS
+; ==================================================================
+
+; ------------------------------------------------------------------
+; set_camera_position
+; Set camera position in pixels (with bounds checking)
+; Input:  HL = X position (pixels), DE = Y position (pixels)
+; Destroys: AF, BC
+; ------------------------------------------------------------------
+set_camera_position:
+    ; Bounds check X
+    push hl
+    push de
+
+    ; Calculate max X = (world_width_tiles - SCREEN_WIDTH_TILES) * TILE_WIDTH
+    ld a, (world_width_tiles)
+    sub SCREEN_WIDTH_TILES
+    jr c, .scroll_x_in_bounds   ; World smaller than screen
+
+    ; A = tiles to scroll, multiply by tile width
+    ld b, a
+    ld a, 16
+    call multiply_a_by_b        ; HL = max X
+
+    ; Compare camera X with max X
+    pop de
+    pop bc                      ; BC = requested X
+    push bc
+    push de
+
+    ; If requested X > max X, clamp to max X
+    ld a, b
+    cp h
+    jr c, .scroll_x_clamped
+    jr nz, .scroll_x_in_bounds
+    ld a, c
+    cp l
+    jr c, .scroll_x_clamped
+    jr .scroll_x_in_bounds
+
+.scroll_x_clamped:
+    ld b, h
+    ld c, l
+    jr .scroll_x_done
+
+.scroll_x_in_bounds:
+    pop de
+    pop bc
+    push bc
+    push de
+
+.scroll_x_done:
+    ; Store camera X
+    ld a, c
+    ld (camera_x), a
+    ld a, b
+    ld (camera_x + 1), a
+
+    ; Calculate camera_tile_x = camera_x / TILE_WIDTH
+    
+    ; Tile width is 16, shift right 4 times
+    ld a, c
+    srl b
+    rra
+    srl b
+    rra
+    srl b
+    rra
+    srl b
+    rra
+    ld (camera_tile_x), a
+
+    ; Bounds check Y
+    pop de                      ; DE = requested Y
+    pop bc
+
+    ; Calculate max Y = (world_height_tiles - SCREEN_HEIGHT_TILES) * TILE_HEIGHT
+    ld a, (world_height_tiles)
+    sub SCREEN_HEIGHT_TILES
+    jr c, .scroll_y_in_bounds   ; World smaller than screen
+
+    ld b, a
+    ld a, 16
+    call multiply_a_by_b        ; HL = max Y
+
+    ; If requested Y > max Y, clamp to max Y
+    ld a, d
+    cp h
+    jr c, .scroll_y_clamped
+    jr nz, .scroll_y_in_bounds
+    ld a, e
+    cp l
+    jr c, .scroll_y_clamped
+    jr .scroll_y_in_bounds
+
+.scroll_y_clamped:
+    ld d, h
+    ld e, l
+
+.scroll_y_in_bounds:
+    ; Store camera Y
+    ld a, e
+    ld (camera_y), a
+    ld a, d
+    ld (camera_y + 1), a
+
+    ; Calculate camera_tile_y = camera_y / TILE_HEIGHT
+    
+    ; Tile height is 16, shift right 4 times
+    ld a, e
+    srl d
+    rra
+    srl d
+    rra
+    srl d
+    rra
+    srl d
+    rra
+    ld (camera_tile_y), a
+
+    ; Mark viewport as dirty (needs redraw)
+    ld a, 1
+    ld (scroll_dirty_flag), a
+
+    ret
+
+; ------------------------------------------------------------------
+; move_camera
+; Move camera by delta (relative movement)
+; Input:  B = delta X (signed), C = delta Y (signed)
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+move_camera:
+    ; Get current camera position
+    ld a, (camera_x)
+    ld l, a
+    ld a, (camera_x + 1)
+    ld h, a                     ; HL = camera X
+
+    ld a, (camera_y)
+    ld e, a
+    ld a, (camera_y + 1)
+    ld d, a                     ; DE = camera Y
+
+    ; Add delta X (signed 8-bit)
+    ld a, b
+    or a
+    jp p, .move_positive_x      ; Positive delta
+
+    ; Negative delta
+    cpl
+    inc a                       ; A = abs(delta)
+    ld b, a
+    ld a, l
+    sub b
+    ld l, a
+    ld a, h
+    sbc a, 0
+    ld h, a
+    jr .move_x_done
+
+.move_positive_x:
+    ld a, l
+    add a, b
+    ld l, a
+    ld a, h
+    adc a, 0
+    ld h, a
+
+.move_x_done:
+    ; Add delta Y (signed 8-bit)
+    ld a, c
+    or a
+    jp p, .move_positive_y
+
+    ; Negative delta
+    cpl
+    inc a
+    ld c, a
+    ld a, e
+    sub c
+    ld e, a
+    ld a, d
+    sbc a, 0
+    ld d, a
+    jr .move_y_done
+
+.move_positive_y:
+    ld a, e
+    add a, c
+    ld e, a
+    ld a, d
+    adc a, 0
+    ld d, a
+
+.move_y_done:
+    ; Set new camera position (with bounds checking)
+    call set_camera_position
+    ret
+
+; ------------------------------------------------------------------
+; center_camera_on_entity
+; Center viewport on an entity (e.g. player)
+; Input:  A = Entity index
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+center_camera_on_entity:
+    ; Get entity position
+    ld c, a
+    ld b, 0
+    ld hl, entity_x_pos
+    add hl, bc
+    ld a, (hl)                  ; A = entity X
+
+    ld hl, entity_y_pos
+    add hl, bc
+    ld e, (hl)                  ; E = entity Y
+
+    ; Calculate camera position to center entity
+    ; camera_x = entity_x - (SCREEN_WIDTH / 2)
+    sub 128                     ; Center horizontally
+    ld l, a
+    ld h, 0                     ; HL = camera X
+
+    ; camera_y = entity_y - (SCREEN_HEIGHT / 2)
+    ld a, e
+    sub 96                      ; Center vertically
+    ld e, a
+    ld d, 0                     ; DE = camera Y
+
+    ; Set camera position
+    call set_camera_position
+    ret
+
+; ==================================================================
+; VIEWPORT RENDERING
+; ==================================================================
+
+; ------------------------------------------------------------------
+; update_scroll
+; Update viewport if dirty flag is set
+; Redraws visible tiles based on camera position
+; ------------------------------------------------------------------
+update_scroll:
+    ; Check if viewport changed
+    ld a, (scroll_dirty_flag)
+    or a
+    ret z                       ; Not dirty, nothing to do
+
+    ; TODO: Implement efficient partial screen redraw
+    ; For now: redraw entire visible area (simple but slow)
+    call redraw_viewport
+
+    ; Clear dirty flag
+    xor a
+    ld (scroll_dirty_flag), a
+    ret
+
+; ------------------------------------------------------------------
+; redraw_viewport
+; Redraw all visible tiles based on camera position
+; This is the simple (slow) version that redraws everything
+; ------------------------------------------------------------------
+redraw_viewport:
+    ; TODO: Implement full viewport redraw
+    ; For each visible tile (32x24):
+    ;   1. Calculate world tile coords (camera_tile + screen offset)
+    ;   2. Read tile ID from world map
+    ;   3. Write tile ID to Name Table
+
+    ; Placeholder: Just return for now
+    ret
+
+; ==================================================================
+; UTILITY FUNCTIONS
+; ==================================================================
+
+; ------------------------------------------------------------------
+; multiply_a_by_b
+; Multiply A by B (unsigned 8-bit)
+; Input:  A = multiplicand, B = multiplier
+; Output: HL = result (16-bit)
+; Destroys: AF, BC
+; ------------------------------------------------------------------
+multiply_a_by_b:
+    ld hl, 0
+    ld c, a
+.scroll_mul_loop:
+    ld a, b
+    or a
+    ret z
+    add hl, bc
+    dec b
+    jr .scroll_mul_loop
+
+; ==================================================================
+; END OF SCROLL SYSTEM
+; ==================================================================
+; @mideas:endblock id=runtime.scroll.core
+
+
+; --- End of Far Bank 13 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pad to 8KB boundary ---
+BANK_13_USED_END:
+    ds #8000 - $, #FF
+    org FAR_BANK_13_ROM_START + #2000
+
+; ##################################################################
+; FAR BANK 14 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â [#6000h-#8000h] FAR CODE: worlds
+; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
+; At runtime: bank0 saves P1, maps bank14 to P1,
+; calls routine, then restores P1.
+; NOTE: routines in this bank MUST only call code in bank 0 or
+;       primary banks (1-2). No far-to-far calls allowed.
+; ##################################################################
+FAR_BANK_14_ROM_START:
+
+    org #6000
+
+; ==================================================================
+; WORLD MAPS
+; File: worlds.asm
+; Description: World map structures and screen loading functions
+; Generated by Mideas MSX Generator
+; ==================================================================
+
+; ==================================================================
+; WORLD MAP CONSTANTS
+; ==================================================================
+
+; World: New Worldmap (worldmap_1776512078647)
+WORLD_NEW_WORLDMAP_ID EQU 0
+WORLD_NEW_WORLDMAP_SCREEN_COUNT EQU 1
+WORLD_NEW_WORLDMAP_SCREEN_PAN1_ID EQU 0
+
+; ==================================================================
+; WORLD MUSIC POLICY
+; preserve (#FE): do not touch current music when Game Flow can reach the
+; world with multiple different music states.
+; stop     (#FF): stop music on world enter.
+; play     (0-254): ensure this track index is active on world enter.
+; ==================================================================
+
+world_music_policy_track_table:
+    db #FF    ; WORLD_NEW_WORLDMAP_ID -> stop
+
+world_music_policy_loop_table:
+    db 0    ; WORLD_NEW_WORLDMAP_ID loop
+
+; ------------------------------------------------------------------
+; ensure_music_for_world_id
+; Input:  A = WORLD_*_ID
+; Output: Starts/stops music only when the world policy is unambiguous.
+;         #FE preserve entries leave current music untouched.
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+ensure_music_for_world_id:
+    ld e, a
+    ld d, 0
+    ld hl, world_music_policy_track_table
+    add hl, de
+    ld a, (hl)
+    cp #FE
+    ret z
+    cp #FF
+    jr nz, ensure_music_for_world_id_play_or_keep
+    ld a, (music_active)
+    or a
+    ret z
+    jp call_music_stop_resident
+ensure_music_for_world_id_play_or_keep:
+    ld c, a
+    ld hl, world_music_policy_loop_table
+    add hl, de
+    ld b, (hl)
+    ld a, (music_active)
+    or a
+    jr z, ensure_music_for_world_id_play_track
+    ld a, (music_track_index)
+    cp c
+    jr nz, ensure_music_for_world_id_play_track
+    ld a, (music_loop)
+    and 1
+    cp b
+    ret z
+ensure_music_for_world_id_play_track:
+    ld a, c
+    jp call_music_play_track_resident
+
+; ==================================================================
+; WORLD LOADING FUNCTIONS
+; ==================================================================
+
+; ------------------------------------------------------------------
+; world_reset_screen_timer
+; Local copy used while executing inside the worlds far bank. The
+; GameFlow timer routine lives in the primary P3 bank, which is hidden
+; while this bank is mapped.
+; ------------------------------------------------------------------
+world_reset_screen_timer:
+    push af
+    ld a, (current_screen_engine)
+    or a
+    jr nz, world_local_timer_reset_done
+    ld a, 60
+    ld (global_var_time_remaining), a
+    xor a
+    ld (global_var_time_remaining+1), a
+    ld a, (isComputer50HzOr60Hz)
+    or a
+    ld a, 50
+    jr z, world_local_timer_frames_ready
+    ld a, 60
+world_local_timer_frames_ready:
+    ld (time_second_frame_counter), a
+    ld a, (interrupt_counter)
+    ld (time_last_interrupt_counter), a
+    ld a, (interrupt_counter+1)
+    ld (time_last_interrupt_counter+1), a
+    ld a, 1
+    ld (hud_dirty_flag), a
+world_local_timer_reset_done:
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; Load World: New Worldmap
+; World ID: worldmap_1776512078647
+; Screens: 1
+; Start Screen Node: wmnode_1776512081420
+; ------------------------------------------------------------------
+; @mideas:block id=runtime.worlds.worldmap_1776512078647.loader kind=routine owner=worlds roots=load_world_worldmap_1776512078647
+load_world_worldmap_1776512078647:
+    ; Ensure default music policy for this world when unambiguous
+    ld a, WORLD_NEW_WORLDMAP_ID
+    call ensure_music_for_world_id
+    ; Load runtime sprite patterns for this world
+    ld a, WORLD_NEW_WORLDMAP_ID
+    call call_ensure_sprite_patterns_for_world_id_resident
+    ; Load start screen: pan1 (screenmap_1776511902784)
+    call load_screen_pan1_776511902784_far
+
+    ; Screen loaders mark the screen-engine path; WorldLink must run gameplay.
+    xor a
+    ld (current_screen_engine), a
+    ; Draw HUD frame once at world start
+    call imprimir_marco_far
+
+    ; Initialize world state
+    ld a, WORLD_NEW_WORLDMAP_ID
+    ld (current_world_id), a
+
+    ld a, 0
+    ld (current_screen_index), a
+    ld a, 0
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+
+    xor a
+    ld (screen_transition_cooldown), a
+
+    call world_reset_screen_timer
+    call call_rebuild_used_entity_list_resident  ; Precompute room entity buckets before gameplay resumes
+    call call_apply_collected_tiles_resident     ; Re-apply persistent collection state for this screen
+    ret
+; @mideas:endblock id=runtime.worlds.worldmap_1776512078647.loader
+
+; ==================================================================
+; SCREEN TRANSITION FUNCTIONS
+; ==================================================================
+
+; World New Worldmap has no screen connections
+
+; ------------------------------------------------------------------
+; load_world_default: alias for the first world (required by megarom trampolines)
+; ------------------------------------------------------------------
+load_world_default:
+    jp load_world_worldmap_1776512078647
+
+; ==================================================================
+; SCREEN EDGE TRANSITION RUNTIME
+; ==================================================================
+; Checks controllable entity exits and transitions world screen.
+; Prevents X/Y byte wrap from keeping player in same screen.
+; ==================================================================
+
+check_world_screen_transition:
+    ; Debounce to prevent immediate re-trigger after crossing
+    ld a, (screen_transition_cooldown)
+    or a
+    jr z, .find_player_start
+    dec a
+    ld (screen_transition_cooldown), a
+    ret
+
+    ; Find first controllable entity from active list (already filtered by screen)
+    ; This avoids scanning all 32 entity slots every frame.
+.find_player_start:
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+.find_player_loop:
+    ; E = entity index from compact active list
+    ld e, (hl)
+    inc hl
+    ld d, 0
+
+    ; Check Input component mask
+    push hl
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    pop hl
+    jr nz, .player_found
+
+.find_player_next:
+    djnz .find_player_loop
+    ret                        ; No controllable entity found
+
+.player_found:
+    ld d, 0                    ; DE = player entity index
+
+.dispatch_world:
+    ld a, (current_world_id)
+    cp WORLD_NEW_WORLDMAP_ID
+    jp z, check_transition_world_worldmap_1776512078647
+    ret
+
+check_transition_world_worldmap_1776512078647:
+    ret
+
+; ==================================================================
+; WORLD HELPER FUNCTIONS
+; ==================================================================
+
+; Get current world ID
+; Output: A = current world ID
+get_current_world_id:
+    ld a, (current_world_id)
+    ret
+
+; Get current screen index
+; Output: A = current screen index in world
+get_current_screen_index:
+    ld a, (current_screen_index)
+    ret
+
+; Set current screen
+; Input: A = screen index
+set_current_screen:
+    ld (current_screen_index), a
+    ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call call_rebuild_used_entity_list_resident
+    ret
+
+; ==================================================================
+; END OF WORLDS
+; ==================================================================
+
+
+; --- End of Far Bank 14 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pad to 8KB boundary ---
+BANK_14_USED_END:
+    ds #8000 - $, #FF
+    org FAR_BANK_14_ROM_START + #2000
+
+; ##################################################################
+; FAR BANK 15 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â [#6000h-#8000h] FAR CODE: patterns_code
+; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
+; At runtime: bank0 saves P1, maps bank15 to P1,
+; calls routine, then restores P1.
+; NOTE: routines in this bank MUST only call code in bank 0 or
+;       primary banks (1-2). No far-to-far calls allowed.
+; ##################################################################
+FAR_BANK_15_ROM_START:
+
+    org #6000
+
+; ==================================================================
+; TILE PATTERN DATA
+; File: patterns.asm
+; Description: Tile pattern definitions for MSX Screen 2
+; 156 tiles detected
+; ==================================================================
+
+PATTERN_DATA_BANK EQU ((tile_pattern_bank0 - #4000) / #2000)
+SCREEN2_TILEBANK_INVALID EQU #FF
+SCREEN2_TILEBANK_TILEBANK_1776511918552_ID EQU 0
+
+
+
+; PATTERN_DATA_ROM_DATA_GROUP: bank4
+; (tile_pattern_bank0 and tilebank data are emitted in bank4 section, org #C000+)
+
+; ==================================================================
+; PATTERN LOADING FUNCTIONS
+; ==================================================================
+load_pattern_bank0:
+    ; Load pattern bank 0 to VRAM (base patterns)
+    ; Fast direct port access (no BIOS overhead)
+    ld a, RESOURCE_ID_TILE_PATTERN_BANK0
+    ld de, CHRTBL2 + (128 * 8)    ; VRAM pattern table bank 0 (start at char 128)
+    call resource_load_to_vram_by_id
+    ret
+
+load_pattern_bank1:
+    ; Load pattern bank 1: same patterns as bank 0 (MSX Screen 2 standard)
+    ; Fast direct port access (no BIOS overhead)
+    ld a, RESOURCE_ID_TILE_PATTERN_BANK0
+    ld de, CHRTBL2 + #800 + (128 * 8) ; VRAM pattern table bank 1 (+#800 offset + char 128)
+    call resource_load_to_vram_by_id
+    ret
+
+load_pattern_bank2:
+    ; Load pattern bank 2: same patterns as bank 0 (MSX Screen 2 standard)
+    ; Fast direct port access (no BIOS overhead)
+    ld a, RESOURCE_ID_TILE_PATTERN_BANK0
+    ld de, CHRTBL2 + #1000 + (128 * 8) ; VRAM pattern table bank 2 (+#1000 offset + char 128)
+    call resource_load_to_vram_by_id
+    ret
+
+load_patterns_to_vram:
+    ; Load all pattern banks to VRAM (required for SCREEN 2)
+    ; This loads the same patterns to all 3 banks (standard MSX Screen 2 setup)
+    ld a, (vram_cache_tile_patterns_ready)
+    or a
+    ret nz
+    call load_pattern_bank0
+    call load_pattern_bank1
+    call load_pattern_bank2
+    ld a, 1
+    ld (vram_cache_tile_patterns_ready), a
+    ret
+
+; ==================================================================
+; SCREEN 2 TILEBANK PATTERN DATA (tilebank_1776511918552)
+; ==================================================================
+
+tilebank_tilebank_1776511918552_load_pattern_bank0:
+    ld a, RESOURCE_ID_TILEBANK_PATTERN_DATA_0
+    ld de, CHRTBL2 + (128 * 8)
+    call resource_load_to_vram_by_id
+    ret
+
+tilebank_tilebank_1776511918552_load_pattern_bank1:
+    ld a, RESOURCE_ID_TILEBANK_PATTERN_DATA_1
+    ld de, CHRTBL2 + #800 + (128 * 8)
+    call resource_load_to_vram_by_id
+    ret
+
+tilebank_tilebank_1776511918552_load_pattern_bank2:
+    ld a, RESOURCE_ID_TILEBANK_PATTERN_DATA_1
+    ld de, CHRTBL2 + #1000 + (128 * 8)
+    call resource_load_to_vram_by_id
+    ret
+
+load_tilebank_tilebank_1776511918552_patterns_to_vram:
+    call tilebank_tilebank_1776511918552_load_pattern_bank0
+    call tilebank_tilebank_1776511918552_load_pattern_bank1
+    call tilebank_tilebank_1776511918552_load_pattern_bank2
+    ret
+
+; [tilebank_pattern_data_* emitted in bank4 section]
+
+; ==================================================================
+; END OF PATTERN DATA
+; ==================================================================
+
+
+; --- End of Far Bank 15 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pad to 8KB boundary ---
+BANK_15_USED_END:
+    ds #8000 - $, #FF
+    org FAR_BANK_15_ROM_START + #2000
+
+; ##################################################################
+; FAR BANK 16 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â [#6000h-#8000h] FAR CODE: colors_code
+; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
+; At runtime: bank0 saves P1, maps bank16 to P1,
+; calls routine, then restores P1.
+; NOTE: routines in this bank MUST only call code in bank 0 or
+;       primary banks (1-2). No far-to-far calls allowed.
+; ##################################################################
+FAR_BANK_16_ROM_START:
+
+    org #6000
+
+; ==================================================================
+; TILE COLOR DATA
+; File: colors.asm
+; Description: Tile color definitions for MSX Screen 2
+; 156 tiles detected
+; ==================================================================
+
+COLOR_DATA_BANK EQU ((tile_color_bank0 - #4000) / #2000)
+
+; COLOR_DATA_ROM_DATA_GROUP: bank4
+; (tile_color_bank0 and tilebank data are emitted in bank4 section, org #C000+)
+
+; ==================================================================
+; COLOR LOADING FUNCTIONS
+; ==================================================================
+load_color_bank0:
+    ; Load color bank 0 to VRAM (base colors)
+    ; Fast direct port access (no BIOS overhead)
+    ld a, RESOURCE_ID_TILE_COLOR_BANK0
+    ld de, CLRTBL2 + (128 * 8)    ; VRAM color table bank 0 (start at char 128)
+    call resource_load_to_vram_by_id
+    ret
+
+load_color_bank1:
+    ; Load color bank 1: same colors as bank 0 (MSX Screen 2 standard)
+    ; Fast direct port access (no BIOS overhead)
+    ld a, RESOURCE_ID_TILE_COLOR_BANK0
+    ld de, CLRTBL2 + #800 + (128 * 8) ; VRAM color table bank 1 (+#800 offset + char 128)
+    call resource_load_to_vram_by_id
+    ret
+
+load_color_bank2:
+    ; Load color bank 2: same colors as bank 0 (MSX Screen 2 standard)
+    ; Fast direct port access (no BIOS overhead)
+    ld a, RESOURCE_ID_TILE_COLOR_BANK0
+    ld de, CLRTBL2 + #1000 + (128 * 8) ; VRAM color table bank 2 (+#1000 offset + char 128)
+    call resource_load_to_vram_by_id
+    ret
+
+load_colors_to_vram:
+    ; Load all color banks to VRAM (required for SCREEN 2)
+    ; This loads the same colors to all 3 banks (standard MSX Screen 2 setup)
+    ld a, (vram_cache_tile_colors_ready)
+    or a
+    ret nz
+    call load_color_bank0
+    call load_color_bank1
+    call load_color_bank2
+    ld a, 1
+    ld (vram_cache_tile_colors_ready), a
+    ret
+
+; ==================================================================
+; SCREEN 2 TILEBANK COLOR DATA (tilebank_1776511918552)
+; ==================================================================
+
+tilebank_tilebank_1776511918552_load_color_bank0:
+    ld a, RESOURCE_ID_TILEBANK_COLOR_DATA_0
+    ld de, CLRTBL2 + (128 * 8)
+    call resource_load_to_vram_by_id
+    ret
+
+tilebank_tilebank_1776511918552_load_color_bank1:
+    ld a, RESOURCE_ID_TILEBANK_COLOR_DATA_1
+    ld de, CLRTBL2 + #800 + (128 * 8)
+    call resource_load_to_vram_by_id
+    ret
+
+tilebank_tilebank_1776511918552_load_color_bank2:
+    ld a, RESOURCE_ID_TILEBANK_COLOR_DATA_1
+    ld de, CLRTBL2 + #1000 + (128 * 8)
+    call resource_load_to_vram_by_id
+    ret
+
+load_tilebank_tilebank_1776511918552_colors_to_vram:
+    call tilebank_tilebank_1776511918552_load_color_bank0
+    call tilebank_tilebank_1776511918552_load_color_bank1
+    call tilebank_tilebank_1776511918552_load_color_bank2
+    ret
+
+; [tilebank_color_data_* emitted in bank4 section]
+
+; ==================================================================
+; END OF COLOR DATA
+; ==================================================================
+
+
+; --- End of Far Bank 16 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pad to 8KB boundary ---
+BANK_16_USED_END:
+    ds #8000 - $, #FF
+    org FAR_BANK_16_ROM_START + #2000
+    end                 ; End of assembly

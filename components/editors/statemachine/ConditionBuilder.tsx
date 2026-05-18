@@ -379,6 +379,22 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             </div>
           </div>
         );
+      case ConditionTypes.IN_WATER:
+        return (
+          <div className="space-y-2">
+            <div className="text-xs text-msx-textsecondary">
+              True while this entity has In Water and its center is inside a Water effect zone.
+            </div>
+          </div>
+        );
+      case ConditionTypes.IS_WALL_GRABBING:
+        return (
+          <div className="space-y-2">
+            <div className="text-xs text-msx-textsecondary">
+              True while this entity is actively grabbing a wall.
+            </div>
+          </div>
+        );
       case ConditionTypes.VARIABLE_COMPARE: {
         const selectedVarName = condition.params?.variable || (allVariables[0]?.name || 'x');
         const selectedVar = allVariables.find(v => v.name === selectedVarName);

@@ -1,0 +1,11 @@
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/04 flow=00 screen=33 irq=0000 inirq=00 pos=13107,0
+space1_before pc=62D9 sp=F36C bank=04/02/03/03 flow=01 screen=00 irq=00BA inirq=00 pos=61456,37008
+space1_after pc=A165 sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=00C9 inirq=00 pos=61456,36976
+t10 pc=80F1 sp=F362 bank=01/02/03/03 flow=01 screen=00 irq=016E inirq=00 pos=61456,37008
+SHOTOK joc52_banked_zx0v2_v6_t10.png
+right_before pc=6282 sp=F36C bank=04/02/03/03 flow=01 screen=00 irq=01E6 inirq=00 pos=61456,37008
+right_after pc=7BFE sp=F378 bank=01/02/03/03 flow=01 screen=00 irq=0225 inirq=00 pos=61540,37008
+t14 pc=1A04 sp=F368 bank=01/02/03/03 flow=01 screen=00 irq=025E inirq=00 pos=61540,37008
+SHOTOK joc52_banked_zx0v2_v6_t14.png
+t20 pc=6326 sp=F36E bank=04/02/03/03 flow=01 screen=00 irq=03C5 inirq=00 pos=61540,37008
+SHOTOK joc52_banked_zx0v2_v6_t20.png

@@ -22,6 +22,16 @@ const SIMPLE_ROM_LIMIT_BYTES = 32 * 1024;
 const PLAIN48_ROM_LIMIT_BYTES = 48 * 1024;
 const ROM_MODE_VALUES = ['auto', 'simple32k', 'plain48k', 'megarom'];
 const zx0CompressionJobs = new Map();
+const POST_ASM_ANALYSIS_RULES = ['dead-blocks', 'unused-runtime-labels', 'inactive-feature-runtime', 'unused-screen-loaders', 'unused-boss-attack-runtime', 'unused-component-runtime', 'state-machine-dispatch-handlers'];
+const POST_ASM_APPLY_RULES = new Set(['dead-blocks', 'unused-screen-loaders', 'inactive-feature-runtime', 'unused-boss-attack-runtime', 'unused-component-runtime', 'state-machine-dispatch-handlers']);
+const POST_ASM_ALLOWED_RULES = new Set([
+  'active-list-redundant-screen-check',
+  'active-list-redundant-active-check',
+  'hud-double-work',
+  'deadly-recompute-in-tile-interaction',
+  ...POST_ASM_ANALYSIS_RULES,
+  'unused-screen-loaders',
+]);
 
 function isRomFileLockError(text) {
   const value = String(text || '').toLowerCase();
@@ -84,6 +94,26 @@ function parseDbLineBytes(line) {
   return bytes;
 }
 
+function countAsmDataBytesInLine(line) {
+  const noComment = String(line || '').split(';')[0];
+  const dbMatch = noComment.match(/^\s*db\s+(.+)$/i);
+  if (dbMatch) {
+    const parsed = parseDbLineBytes(line);
+    return parsed ? parsed.length : 0;
+  }
+
+  const dwMatch = noComment.match(/^\s*dw\s+(.+)$/i);
+  if (dwMatch) {
+    const operands = dwMatch[1]
+      .split(',')
+      .map((token) => token.trim())
+      .filter(Boolean);
+    return operands.length * 2;
+  }
+
+  return 0;
+}
+
 function formatAsmDbLines(bytes, bytesPerLine = 16) {
   const lines = [];
   for (let i = 0; i < bytes.length; i += bytesPerLine) {
@@ -92,6 +122,549 @@ function formatAsmDbLines(bytes, bytesPerLine = 16) {
     lines.push(`    DB ${parts.join(',')}`);
   }
   return lines;
+}
+
+function sanitizePostAsmProjectName(projectName) {
+  const raw = String(projectName || 'source').trim().toLowerCase();
+  return raw.replace(/[^a-z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '') || 'source';
+}
+
+function normalizePostAsmRuleIds(rules) {
+  const rawRules = Array.isArray(rules)
+    ? rules
+    : typeof rules === 'string'
+      ? rules.split(',')
+      : POST_ASM_ANALYSIS_RULES;
+
+  const normalized = rawRules
+    .map((rule) => String(rule || '').trim())
+    .filter(Boolean);
+
+  if (!normalized.length) {
+    return [...POST_ASM_ANALYSIS_RULES];
+  }
+
+  const unknown = normalized.filter((rule) => !POST_ASM_ALLOWED_RULES.has(rule));
+  if (unknown.length) {
+    throw new Error(`Unknown post-ASM rule id(s): ${unknown.join(', ')}`);
+  }
+
+  return [...new Set(normalized)];
+}
+
+function buildPostAsmAnalysisSummary(report, rules) {
+  const metrics = report?.metrics || {};
+  const blockInventory = metrics.block_inventory || {};
+  const byRule = metrics.by_rule || {};
+  const optimizationSummary = metrics.optimization_summary || {};
+  const selectedRules = Array.isArray(metrics.selected_rules) ? metrics.selected_rules : rules;
+  const ruleMetrics = Object.fromEntries(
+    Object.entries(byRule).map(([ruleId, item]) => [
+      ruleId,
+      {
+        findings: Number(item?.findings || 0),
+        patchable: Number(item?.patchable || 0),
+        removedLines: Number(item?.removed_lines || 0),
+        removedSourceBytes: Number(item?.removed_source_bytes || 0),
+      },
+    ])
+  );
+
+  return {
+    mode: 'analysis-only',
+    rules,
+    selectedRules,
+    findings: Array.isArray(report?.findings) ? report.findings.length : 0,
+    appliedPatches: Number(metrics.applied_patches || report?.applied_patches || 0),
+    originalLineCount: Number(metrics.original_line_count || 0),
+    outputLineCount: Number(metrics.output_line_count || 0),
+    blockCount: Array.isArray(report?.blocks) ? report.blocks.length : 0,
+    deadBlockCandidates: Number(blockInventory.dead_block_candidates || 0),
+    deadCandidateLines: Number(blockInventory.dead_candidate_lines || 0),
+    deadCandidateSourceBytes: Number(blockInventory.dead_candidate_source_bytes || 0),
+    unusedRuntimeLabels: Number(byRule['unused-runtime-labels']?.findings || 0),
+    inactiveFeatureRuntime: Number(byRule['inactive-feature-runtime']?.findings || 0),
+    unusedScreenLoaders: Number(byRule['unused-screen-loaders']?.findings || 0),
+    unusedBossAttackRuntime: Number(byRule['unused-boss-attack-runtime']?.findings || 0),
+    unusedComponentRuntime: Number(byRule['unused-component-runtime']?.findings || 0),
+    stateMachineDispatchHandlers: Number(byRule['state-machine-dispatch-handlers']?.findings || 0),
+    removedLines: Number(optimizationSummary.removed_lines || 0),
+    removedSourceBytes: Number(optimizationSummary.removed_source_bytes || 0),
+    ruleMetrics,
+  };
+}
+
+async function analyzePostAsmCode(code, options = {}) {
+  if (typeof code !== 'string' || !code.trim()) {
+    throw new Error('No ASM code provided');
+  }
+
+  const rules = normalizePostAsmRuleIds(options.rules);
+  const tempDir = path.join(__dirname, 'temp');
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir);
+  }
+
+  const projectRoot = path.join(__dirname, '..');
+  const stamp = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+  const baseName = `${sanitizePostAsmProjectName(options.projectName)}_${stamp}`;
+  const inputPath = path.join(tempDir, `${baseName}.post_asm_input.asm`);
+  const reportJsonPath = path.join(tempDir, `${baseName}.post_asm_report.json`);
+  const reportMdPath = path.join(tempDir, `${baseName}.post_asm_report.md`);
+  const optimizerScript = path.join(projectRoot, 'scripts', 'post_asm_optimize.py');
+  const pythonExe = process.env.PYTHON || 'python';
+
+  fs.writeFileSync(inputPath, code, 'utf8');
+
+  const args = [
+    optimizerScript,
+    '--input', inputPath,
+    '--rules', rules.join(','),
+    '--report-json', reportJsonPath,
+    '--report-md', reportMdPath,
+  ];
+
+  const { stdout, stderr } = await execFileAsync(pythonExe, args, {
+    cwd: projectRoot,
+    maxBuffer: 32 * 1024 * 1024,
+  });
+
+  const report = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
+  const summary = buildPostAsmAnalysisSummary(report, rules);
+
+  return {
+    rules,
+    inputPath,
+    reportJsonPath,
+    reportMdPath,
+    report,
+    summary,
+    stdout,
+    stderr,
+  };
+}
+
+function normalizePostAsmPasses(passes) {
+  const value = Number.parseInt(String(passes ?? 3), 10);
+  if (!Number.isFinite(value) || value < 1) {
+    return 1;
+  }
+  return Math.min(value, 7);
+}
+
+function collectGlobalAsmLabels(sourceCode) {
+  const labels = new Set();
+  for (const line of String(sourceCode || '').split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Za-z_.$][A-Za-z0-9_.$]*):\s*(?:;.*)?$/);
+    if (!match) continue;
+    const label = match[1];
+    if (label.startsWith('.')) continue;
+    labels.add(label);
+  }
+  return labels;
+}
+
+function collectPatchRemovedGlobalLabels(sourceCode, report) {
+  const labels = new Set();
+  const lines = String(sourceCode || '').split(/\r?\n/);
+  const findings = Array.isArray(report?.findings) ? report.findings : [];
+  for (const finding of findings) {
+    const patch = finding?.patch;
+    if (!patch || !Number.isInteger(patch.start_index) || !Number.isInteger(patch.end_index)) continue;
+    const start = Math.max(0, patch.start_index);
+    const end = Math.min(lines.length, patch.end_index);
+    for (let index = start; index < end; index += 1) {
+      const match = lines[index].match(/^\s*([A-Za-z_.$][A-Za-z0-9_.$]*):\s*(?:;.*)?$/);
+      if (!match || match[1].startsWith('.')) continue;
+      labels.add(match[1]);
+    }
+  }
+  return labels;
+}
+
+function collectReportedRemovedLabels(report) {
+  const labels = new Set();
+  const addLabels = (items) => {
+    if (!Array.isArray(items)) return;
+    for (const item of items) {
+      if (typeof item === 'string' && item && !item.startsWith('.')) {
+        labels.add(item);
+      }
+    }
+  };
+
+  addLabels(report?.metrics?.removed_labels);
+  addLabels(report?.metrics?.optimization_summary?.removed_labels);
+  if (Array.isArray(report?.metrics?.optimization_passes)) {
+    for (const passInfo of report.metrics.optimization_passes) {
+      addLabels(passInfo?.removed_labels);
+    }
+  }
+  return labels;
+}
+
+function extractPostAsmEntryTarget(sourceCode) {
+  const lines = String(sourceCode || '').split(/\r?\n/);
+  for (let index = 0; index < Math.min(lines.length, 80); index += 1) {
+    const line = lines[index];
+    if (!/^\s*dw\s+/i.test(line)) continue;
+    const noComment = line.split(';')[0];
+    const operands = noComment
+      .replace(/^\s*dw\s+/i, '')
+      .split(',')
+      .map((operand) => operand.trim())
+      .filter(Boolean);
+    const target = operands.find((operand) => /^[A-Za-z_.$][A-Za-z0-9_.$]*$/.test(operand));
+    if (target) return target;
+  }
+  return null;
+}
+
+function collectPostAsmRequiredLabels(sourceCode, report) {
+  const labels = new Set();
+  const allLabels = collectGlobalAsmLabels(sourceCode);
+  const patchRemovedLabels = collectPatchRemovedGlobalLabels(sourceCode, report);
+  for (const label of collectReportedRemovedLabels(report)) {
+    patchRemovedLabels.add(label);
+  }
+  const candidateBlocks = new Set(
+    Array.isArray(report?.block_analysis)
+      ? report.block_analysis
+          .filter((analysis) => analysis && analysis.candidate === true)
+          .map((analysis) => String(analysis.block_id || ''))
+      : []
+  );
+  const candidateLabels = new Set();
+  if (Array.isArray(report?.blocks)) {
+    for (const block of report.blocks) {
+      if (!block || !candidateBlocks.has(String(block.id || ''))) continue;
+      const blockLabels = Array.isArray(block.labels) ? block.labels : [];
+      for (const label of blockLabels) {
+        if (label && !String(label).startsWith('.')) {
+          candidateLabels.add(String(label));
+        }
+      }
+    }
+  }
+  const criticalPatterns = [
+    /^INIT/i,
+    /^MAIN_GAME_START$/i,
+    /^START$/i,
+    /^BOOT/i,
+    /^RESOURCE_TABLE$/i,
+    /^RESOURCE_IDS/i,
+    /^MAPPER/i,
+    /^SET_.*BANK/i,
+    /^SWITCH_.*BANK/i,
+    /^ISR/i,
+    /^INTERRUPT/i,
+  ];
+
+  for (const label of allLabels) {
+    if (
+      !candidateLabels.has(label) &&
+      !patchRemovedLabels.has(label) &&
+      criticalPatterns.some((pattern) => pattern.test(label))
+    ) {
+      labels.add(label);
+    }
+  }
+
+  const entryTarget = extractPostAsmEntryTarget(sourceCode);
+  if (entryTarget && !patchRemovedLabels.has(entryTarget)) {
+    labels.add(entryTarget);
+  }
+
+  if (Array.isArray(report?.blocks)) {
+    for (const block of report.blocks) {
+      if (!block || candidateBlocks.has(String(block.id || ''))) continue;
+      const blockLabels = Array.isArray(block.labels) ? block.labels : [];
+      for (const label of blockLabels) {
+        if (label && !String(label).startsWith('.') && !patchRemovedLabels.has(String(label))) {
+          labels.add(String(label));
+        }
+      }
+    }
+  }
+
+  return [...labels].sort((left, right) => left.localeCompare(right));
+}
+
+function comparePostAsmConfigInvariant(originalCode, optimizedCode) {
+  const originalConfig = parseSourceRomConfig(originalCode);
+  const optimizedConfig = parseSourceRomConfig(optimizedCode);
+  if (!originalConfig && !optimizedConfig) return null;
+  const normalize = (config) => ({
+    romMode: config?.romMode || null,
+    targetFormat: config?.targetFormat || null,
+    autoMegaROM: config?.autoMegaROM ?? null,
+  });
+  const left = normalize(originalConfig);
+  const right = normalize(optimizedConfig);
+  if (JSON.stringify(left) === JSON.stringify(right)) return null;
+  return {
+    id: 'rom-config',
+    message: `ROM config changed during post-ASM optimization: original=${JSON.stringify(left)}, optimized=${JSON.stringify(right)}`,
+  };
+}
+
+function comparePostAsmResourceInvariant(originalCode, optimizedCode) {
+  const labelsToKeep = [
+    'resource_table',
+    'resource_ids',
+    'resource_bank_table',
+    'resource_address_table',
+    'resource_size_table',
+  ];
+  const originalLabels = collectGlobalAsmLabels(originalCode);
+  const optimizedLabels = collectGlobalAsmLabels(optimizedCode);
+  const missing = labelsToKeep.filter((label) => originalLabels.has(label) && !optimizedLabels.has(label));
+  if (!missing.length) return null;
+  return {
+    id: 'resource-labels',
+    message: `Resource table labels disappeared during post-ASM optimization: ${missing.join(', ')}`,
+  };
+}
+
+function normalizePostAsmFingerprintLine(line) {
+  return String(line || '')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function extractGlobalAsmLabel(line) {
+  const match = String(line || '').match(/^\s*([A-Za-z_.$][A-Za-z0-9_.$]*):\s*(?:;.*)?$/);
+  if (!match || match[1].startsWith('.')) return null;
+  return match[1];
+}
+
+function collectPostAsmLabelBlockFingerprint(sourceCode, targetLabel) {
+  const lines = String(sourceCode || '').split(/\r?\n/);
+  const target = String(targetLabel || '').toLowerCase();
+  let startIndex = -1;
+  for (let index = 0; index < lines.length; index += 1) {
+    const label = extractGlobalAsmLabel(lines[index]);
+    if (label && label.toLowerCase() === target) {
+      startIndex = index;
+      break;
+    }
+  }
+  if (startIndex < 0) return null;
+
+  const blockLines = [];
+  for (let index = startIndex; index < lines.length; index += 1) {
+    if (index > startIndex && extractGlobalAsmLabel(lines[index])) {
+      break;
+    }
+    blockLines.push(lines[index]);
+  }
+
+  const normalizedLines = blockLines
+    .map((line) => normalizePostAsmFingerprintLine(line))
+    .filter(Boolean);
+  const dataByteCount = blockLines.reduce((total, line) => total + countAsmDataBytesInLine(line), 0);
+  return {
+    label: targetLabel,
+    lineCount: normalizedLines.length,
+    dataByteCount,
+    checksum: buildBankMetadataChecksum(normalizedLines),
+  };
+}
+
+function collectPostAsmResourceMetadataFingerprint(sourceCode) {
+  const labelsToFingerprint = [
+    'resource_table',
+    'resource_ids',
+    'resource_bank_table',
+    'resource_address_table',
+    'resource_size_table',
+  ];
+  const labels = {};
+  for (const label of labelsToFingerprint) {
+    const fingerprint = collectPostAsmLabelBlockFingerprint(sourceCode, label);
+    if (fingerprint) {
+      labels[label] = fingerprint;
+    }
+  }
+  return { labels };
+}
+
+function comparePostAsmResourceMetadataInvariant(originalCode, optimizedCode) {
+  const original = collectPostAsmResourceMetadataFingerprint(originalCode);
+  const optimized = collectPostAsmResourceMetadataFingerprint(optimizedCode);
+  const changes = [];
+  for (const [label, originalFingerprint] of Object.entries(original.labels)) {
+    const optimizedFingerprint = optimized.labels[label];
+    if (!optimizedFingerprint) {
+      changes.push({ label, reason: 'missing' });
+      continue;
+    }
+    if (
+      originalFingerprint.checksum !== optimizedFingerprint.checksum ||
+      originalFingerprint.lineCount !== optimizedFingerprint.lineCount ||
+      originalFingerprint.dataByteCount !== optimizedFingerprint.dataByteCount
+    ) {
+      changes.push({
+        label,
+        reason: 'changed',
+        original: originalFingerprint,
+        optimized: optimizedFingerprint,
+      });
+    }
+  }
+
+  return {
+    original,
+    optimized,
+    error: changes.length
+      ? {
+          id: 'resource-metadata',
+          message: `Resource table metadata changed during post-ASM optimization: ${changes.map((change) => change.label).join(', ')}`,
+          changes,
+        }
+      : null,
+  };
+}
+
+function comparePostAsmInvariants(originalCode, optimizedCode, report) {
+  const errors = [];
+  const warnings = [];
+  const requiredLabels = collectPostAsmRequiredLabels(originalCode, report);
+  const optimizedLabels = collectGlobalAsmLabels(optimizedCode);
+  const missingLabels = requiredLabels.filter((label) => !optimizedLabels.has(label));
+  if (missingLabels.length) {
+    errors.push({
+      id: 'required-labels',
+      message: `Required labels disappeared during post-ASM optimization: ${missingLabels.slice(0, 20).join(', ')}${missingLabels.length > 20 ? ` (+${missingLabels.length - 20} more)` : ''}`,
+      missingLabels,
+    });
+  }
+
+  const configError = comparePostAsmConfigInvariant(originalCode, optimizedCode);
+  if (configError) errors.push(configError);
+
+  const resourceError = comparePostAsmResourceInvariant(originalCode, optimizedCode);
+  if (resourceError) errors.push(resourceError);
+
+  const resourceMetadata = comparePostAsmResourceMetadataInvariant(originalCode, optimizedCode);
+  if (resourceMetadata.error) errors.push(resourceMetadata.error);
+
+  const originalEntry = extractPostAsmEntryTarget(originalCode);
+  const optimizedEntry = extractPostAsmEntryTarget(optimizedCode);
+  if (originalEntry && optimizedEntry && originalEntry !== optimizedEntry) {
+    errors.push({
+      id: 'rom-entry',
+      message: `ROM entry target changed during post-ASM optimization: ${originalEntry} -> ${optimizedEntry}`,
+    });
+  } else if (originalEntry && !optimizedEntry) {
+    errors.push({
+      id: 'rom-entry',
+      message: `ROM entry target disappeared during post-ASM optimization: ${originalEntry}`,
+    });
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+    warnings,
+    requiredLabels,
+    originalEntry,
+    optimizedEntry,
+    resourceMetadata: {
+      original: resourceMetadata.original,
+      optimized: resourceMetadata.optimized,
+    },
+  };
+}
+
+async function optimizePostAsmCode(code, options = {}) {
+  if (typeof code !== 'string' || !code.trim()) {
+    throw new Error('No ASM code provided');
+  }
+
+  const rules = normalizePostAsmRuleIds(options.rules || ['dead-blocks']);
+  const unsafeApplyRules = rules.filter((rule) => !POST_ASM_APPLY_RULES.has(rule));
+  if (unsafeApplyRules.length) {
+    throw new Error(`Post-ASM apply is not enabled for rule id(s): ${unsafeApplyRules.join(', ')}`);
+  }
+  const passes = normalizePostAsmPasses(options.passes);
+  const validateGlass = options.validateGlass !== false;
+  const tempDir = path.join(__dirname, 'temp');
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir);
+  }
+
+  const projectRoot = path.join(__dirname, '..');
+  const stamp = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+  const baseName = `${sanitizePostAsmProjectName(options.projectName)}_${stamp}`;
+  const inputPath = path.join(tempDir, `${baseName}.post_asm_input.asm`);
+  const outputPath = path.join(tempDir, `${baseName}.optimized.asm`);
+  const optimizedRomPath = path.join(tempDir, `${baseName}.optimized.rom`);
+  const reportJsonPath = path.join(tempDir, `${baseName}.optimized.post_asm_report.json`);
+  const reportMdPath = path.join(tempDir, `${baseName}.optimized.post_asm_report.md`);
+  const optimizerScript = path.join(projectRoot, 'scripts', 'post_asm_optimize.py');
+  const glassJarPath = path.join(__dirname, 'glass.jar');
+  const pythonExe = process.env.PYTHON || 'python';
+
+  fs.writeFileSync(inputPath, code, 'utf8');
+
+  const args = [
+    optimizerScript,
+    '--input', inputPath,
+    '--rules', rules.join(','),
+    '--passes', String(passes),
+    '--apply',
+    '--output', outputPath,
+    '--report-json', reportJsonPath,
+    '--report-md', reportMdPath,
+  ];
+
+  if (validateGlass) {
+    args.push('--validate-glass', glassJarPath, '--validate-rom-output', optimizedRomPath);
+  }
+
+  const { stdout, stderr } = await execFileAsync(pythonExe, args, {
+    cwd: projectRoot,
+    maxBuffer: 32 * 1024 * 1024,
+  });
+
+  const report = JSON.parse(fs.readFileSync(reportJsonPath, 'utf8'));
+  const optimizedCode = fs.readFileSync(outputPath, 'utf8');
+  const invariantCheck = comparePostAsmInvariants(code, optimizedCode, report);
+  if (!invariantCheck.ok) {
+    const details = invariantCheck.errors.map((error) => error.message).join(' ');
+    const invariantError = new Error(`Post-ASM invariant validation failed. ${details}`);
+    invariantError.invariantCheck = invariantCheck;
+    invariantError.outputPath = outputPath;
+    invariantError.reportJsonPath = reportJsonPath;
+    invariantError.reportMdPath = reportMdPath;
+    throw invariantError;
+  }
+  const summary = {
+    ...buildPostAsmAnalysisSummary(report, rules),
+    mode: validateGlass ? 'apply-validated' : 'apply-unvalidated',
+    passes,
+    validateGlass,
+    optimizedLineCount: optimizedCode.split(/\r?\n/).filter((_, index, lines) => index < lines.length - 1 || lines[index] !== '').length,
+    invariantCheck,
+  };
+
+  return {
+    rules,
+    passes,
+    validateGlass,
+    inputPath,
+    outputPath,
+    optimizedRomPath: fs.existsSync(optimizedRomPath) ? optimizedRomPath : null,
+    reportJsonPath,
+    reportMdPath,
+    optimizedCode,
+    report,
+    invariantCheck,
+    summary,
+    stdout,
+    stderr,
+  };
 }
 
 function runZx0Compression(inputBytes, tempDir) {
@@ -437,8 +1010,7 @@ function formatAsmAddress(value) {
 function countAsmBytesInLines(lines) {
   let total = 0;
   for (const line of lines) {
-    const parsed = parseDbLineBytes(line);
-    if (parsed) total += parsed.length;
+    total += countAsmDataBytesInLine(line);
   }
   return total;
 }
@@ -487,6 +1059,34 @@ function matchAsmLabelLoad(line, registerName, labelPattern) {
   return null;
 }
 
+function findMegaromDataSectionEnd(lines, sectionStart) {
+  const bossDataSectionStart = lines.findIndex((line, idx) =>
+    idx > sectionStart &&
+    /^\s*;\s*BOSS DATA BANKS\b/i.test(line)
+  );
+  if (bossDataSectionStart !== -1) {
+    const previousSeparator = bossDataSectionStart > 0 && /^\s*;\s*=+\s*$/.test(lines[bossDataSectionStart - 1])
+      ? bossDataSectionStart - 1
+      : bossDataSectionStart;
+    return previousSeparator;
+  }
+
+  const farSectionStart = lines.findIndex((line, idx) =>
+    idx > sectionStart &&
+    /^\s*;\s*#{10,}\s*$/.test(line) &&
+    /^\s*;\s*FAR BANK\b/i.test(lines[idx + 1] || '')
+  );
+  if (farSectionStart !== -1) return farSectionStart;
+
+  const farMarker = lines.findIndex((line, idx) =>
+    idx > sectionStart &&
+    (/^\s*;\s*FAR BANK\b/i.test(line) || /^\s*FAR_BANK_\d+_ROM_START:/i.test(line))
+  );
+  if (farMarker !== -1) return farMarker;
+
+  return lines.findIndex((line, idx) => idx > sectionStart && /^\s*end\b/i.test(line));
+}
+
 function repackMegaromZonedDataSection(sourceCode) {
   const lines = String(sourceCode || '').split(/\r?\n/);
   let sectionStart = lines.findIndex((line) => /;\s*DATA BANKS .+Zone-packed data/i.test(line));
@@ -495,7 +1095,7 @@ function repackMegaromZonedDataSection(sourceCode) {
     sectionStart -= 1;
   }
 
-  const sectionEnd = lines.findIndex((line, idx) => idx > sectionStart && /^\s*end\b/i.test(line));
+  const sectionEnd = findMegaromDataSectionEnd(lines, sectionStart);
   if (sectionEnd === -1) return sourceCode;
 
   const sectionLines = lines.slice(sectionStart, sectionEnd);
@@ -504,6 +1104,8 @@ function repackMegaromZonedDataSection(sourceCode) {
   if (!zoneSizeMatch) return sourceCode;
   const zoneSize = parseInt(zoneSizeMatch[1], 10);
   if (!Number.isFinite(zoneSize) || zoneSize <= 0) return sourceCode;
+  const originalZoneCountMatch = sectionText.match(/Zones used:\s*(\d+)/i);
+  const minimumZoneCount = originalZoneCountMatch ? parseInt(originalZoneCountMatch[1], 10) : 0;
 
   let dataStartAddress = null;
   const dataStartMatch = sectionText.match(/Data start address:\s*#([0-9A-F]+)/i);
@@ -649,6 +1251,20 @@ function repackMegaromZonedDataSection(sourceCode) {
     currentZoneUsed += unit.byteSize;
   }
   flushZone();
+  while (Number.isFinite(minimumZoneCount) && zones.length < minimumZoneCount) {
+    const orgAddress = dataStartAddress + (zoneIndex * zoneSize);
+    const endAddress = orgAddress + zoneSize;
+    zones.push({
+      zoneIndex,
+      orgAddress,
+      endAddress,
+      physicalBank: (orgAddress - 0x4000) / zoneSize,
+      usedBytes: 0,
+      remainingBytes: zoneSize,
+      units: [],
+    });
+    zoneIndex += 1;
+  }
 
   const diagnosticsLines = [
     '; ------------------------------------------------------------------',
@@ -702,6 +1318,1535 @@ function repackMegaromZonedDataSection(sourceCode) {
     ...rebuiltSection,
     ...lines.slice(sectionEnd),
   ].join('\n');
+}
+
+function renderMideasArtifactCommentBlock(fileName, content) {
+  const commented = String(content || '')
+    .split(/\r?\n/)
+    .map((line) => (line.length > 0 ? `; ${line}` : ';'))
+    .join('\n');
+  return `; [[[MIDEAS_ARTIFACT:${fileName}:BEGIN]]]\n${commented}\n; [[[MIDEAS_ARTIFACT:${fileName}:END]]]`;
+}
+
+function extractMideasArtifactCommentBlock(sourceCode, fileName) {
+  const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = String(sourceCode || '').match(
+    new RegExp(
+      `; \\[\\[\\[MIDEAS_ARTIFACT:${escaped}:BEGIN\\]\\]\\]\\n([\\s\\S]*?)\\n; \\[\\[\\[MIDEAS_ARTIFACT:${escaped}:END\\]\\]\\]`,
+      'i'
+    )
+  );
+  if (!match) return null;
+  return match[1]
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*;\s?/, ''))
+    .join('\n');
+}
+
+function replaceMideasArtifactCommentBlock(sourceCode, fileName, content) {
+  const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const artifactRegex = new RegExp(
+    `; \\[\\[\\[MIDEAS_ARTIFACT:${escaped}:BEGIN\\]\\]\\]\\n[\\s\\S]*?\\n; \\[\\[\\[MIDEAS_ARTIFACT:${escaped}:END\\]\\]\\]`,
+    'i'
+  );
+  const rendered = renderMideasArtifactCommentBlock(fileName, content);
+  if (!artifactRegex.test(sourceCode)) return sourceCode;
+  return sourceCode.replace(artifactRegex, rendered);
+}
+
+function parseMideasJsonArtifact(sourceCode, fileName) {
+  const content = extractMideasArtifactCommentBlock(sourceCode, fileName);
+  if (!content) return null;
+  try {
+    return JSON.parse(content);
+  } catch (_) {
+    return null;
+  }
+}
+
+function isResourceTableRamZx0Candidate(resource) {
+  const type = String(resource?.type || '').toUpperCase();
+  const label = String(resource?.label || '').toUpperCase();
+  if (!label || label.startsWith('PRESENTATION_SCREEN_')) return false;
+  if (isDirectRomScreenBlockCatalog(label)) return false;
+
+  if (
+    type === 'SCREEN_LAYOUT' ||
+    type === 'SCREEN_EFFECTS_LAYOUT' ||
+    type === 'SCREEN_BEHAVIOR_MAP' ||
+    type === 'SCREEN_BLOCK_CATALOG' ||
+    type === 'SCREEN_BLOCK_MAP' ||
+    type === 'SCREEN_EFFECT_ZONE_TABLE' ||
+    type === 'MUSIC_TRACK' ||
+    type === 'SOUND_DATA'
+  ) {
+    return true;
+  }
+
+  if (type === 'SCREEN_DATA') {
+    return (
+      label.includes('INTERACTION_') ||
+      label.includes('CHAR_BEHAVIOR_TABLE') ||
+      label.includes('BOSS_TABLE')
+    );
+  }
+
+  return false;
+}
+
+function isResourceTableVramZx0Candidate(resource) {
+  const type = String(resource?.type || '').toUpperCase();
+  const label = String(resource?.label || '').toUpperCase();
+  if (!label || label.startsWith('PRESENTATION_SCREEN_')) return false;
+
+  return (
+    type === 'TILE_PATTERNS' ||
+    type === 'TILE_COLORS' ||
+    type === 'FONT_PATTERNS' ||
+    type === 'FONT_COLORS' ||
+    type === 'SPRITE_PATTERNS'
+  );
+}
+
+function isResourceTableZx0Candidate(resource) {
+  return isResourceTableRamZx0Candidate(resource) || isResourceTableVramZx0Candidate(resource);
+}
+
+function isDirectRomScreenBlockCatalog(label) {
+  return /^SCREEN_BLOCK_CATALOG_4X4_\d+$/.test(String(label || '').toUpperCase());
+}
+
+function createDirectRomCatalogCompressedError(label) {
+  const error = new Error(
+    `${label} is already ZX0-compressed, but shared 4x4 screen block catalogs are read directly from a fixed ROM bank and must stay raw. Regenerate the unified ASM from the project before applying ZX0.`
+  );
+  error.code = 'MIDEAS_DIRECT_ROM_CATALOG_COMPRESSED';
+  return error;
+}
+
+function buildResourceTableAsmFromRecords(resources) {
+  const sorted = [...resources].sort((left, right) => left.id - right.id);
+  const lines = [
+    '; ==================================================================',
+    '; GENERATED RESOURCE TABLE',
+    '; Descriptor format: db bank / dw address / dw stored_size / dw raw_size / db flags',
+    '; Resource id is the zero-based descriptor index.',
+    '; Address is the mapper-window address visible after selecting bank.',
+    '; RESOURCE_FLAG_COMPRESSED_ZX0 means stored_size is compressed and raw_size is output size.',
+    '; ==================================================================',
+    'RESOURCE_TABLE_ENTRY_SIZE EQU 8',
+    'RESOURCE_FLAG_COMPRESSED_ZX0 EQU #01',
+    `RESOURCE_TABLE_COUNT EQU ${sorted.length}`,
+    '',
+    'resource_table:',
+  ];
+
+  if (sorted.length === 0) {
+    lines.push('    ; No banked resources generated for this build.');
+  }
+
+  for (const resource of sorted) {
+    lines.push(`    ; ${resource.label}`);
+    lines.push(`    db ${resource.bank}`);
+    lines.push(`    dw ${formatAsmAddress(resource.windowAddress)}`);
+    lines.push(`    dw ${resource.size}`);
+    lines.push(`    dw ${resource.uncompressedSize}`);
+    lines.push(`    db ${resource.flags || 0}`);
+  }
+
+  return lines.join('\n');
+}
+
+function resolveResourceRuntimeBank(zoneBank, mapperFormat) {
+  const bank = Number(zoneBank);
+  if (!Number.isFinite(bank)) return zoneBank;
+  if (String(mapperFormat || '').toLowerCase() === 'ascii16') {
+    // Glass emits ROM bytes relative to the #4000 cartridge origin, but the
+    // ASCII16 hardware register selects 16 KB file segments. The data zone
+    // whose ASM address is #10000 is runtime segment 1, not logical bank 3.
+    return Math.max(0, bank - 2);
+  }
+  return bank;
+}
+
+/**
+ * Mirrors the generator-side label sanitizer for artifact repair after ZX0 packing.
+ */
+function sanitizeAsmKeyForArtifacts(value) {
+  return String(value || '')
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toUpperCase();
+}
+
+/**
+ * Returns the compact resource shape shared by refreshed JSON artifacts.
+ */
+function buildResourceUsageSummaryFromRecord(resource) {
+  return {
+    id: resource.id,
+    label: resource.label,
+    group: resource.group,
+    type: resource.type,
+    bank: resource.bank,
+    windowAddress: resource.windowAddress,
+    zoneOffset: resource.zoneOffset,
+    size: resource.size,
+    storedSize: resource.size,
+    uncompressedSize: resource.uncompressedSize,
+    flags: resource.flags || 0,
+    placementReason: resource.placementReason,
+  };
+}
+
+function describeMegaromPlacement(resource, zone, unit, labelOffset) {
+  const isCompressed = (resource.flags || 0) & 0x01;
+  const compressionText = isCompressed
+    ? `ZX0 ${resource.size}/${resource.uncompressedSize} bytes`
+    : `raw ${resource.size} bytes`;
+  const unitText = unit.labels.length > 1
+    ? `merged ${unit.groupKey} unit (${unit.labels.length} labels)`
+    : `single ${unit.groupKey} resource`;
+  return (
+    `post-ZX0 first-fit ${unitText}; ${compressionText}; ` +
+    `bank ${zone.physicalBank} zone ${zone.zoneIndex} offset +${formatAsmAddress(unit.zoneOffset + labelOffset)}; ` +
+    `zone slack after pack ${zone.remainingBytes} bytes`
+  );
+}
+
+function buildBankMetadataChecksum(parts) {
+  // Keep this in sync with scripts/build_mideas_unified_rom.py for artifact drift checks.
+  let hash = 0x811c9dc5;
+  const input = parts.map((part) => String(part ?? '')).join('|');
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `fnv1a32:${hash.toString(16).toUpperCase().padStart(8, '0')}`;
+}
+
+function formatManifestV2MapperName(mapperFormat) {
+  switch (String(mapperFormat || '').toLowerCase()) {
+    case 'konami':
+      return 'KONAMI8K';
+    case 'ascii8':
+      return 'ASCII8';
+    case 'ascii16':
+      return 'ASCII16';
+    default:
+      return sanitizeAsmKeyForArtifacts(mapperFormat);
+  }
+}
+
+function formatManifestV2GroupName(groupKey) {
+  return String(groupKey || '').trim().toLowerCase();
+}
+
+function inferManifestV2Lifetime(resource) {
+  const group = String(resource?.group || '').toUpperCase();
+  return group === 'FONT' || group === 'SPRITES' ? 'persistent' : 'stream';
+}
+
+function inferManifestV2RuntimeTarget(resource) {
+  const type = String(resource?.type || '').toUpperCase();
+  if (type === 'MUSIC_TRACK' || type === 'SOUND_DATA' || type === 'SCREEN_EFFECT_ZONE_TABLE') {
+    return 'RAM';
+  }
+  return 'VRAM';
+}
+
+function buildManifestV2IdFromRecords(resources, mapperInfo, zoneSize, dataStartAddress) {
+  const checksum = buildBankMetadataChecksum([
+    'mideas.manifest/2',
+    mapperInfo.mapperFormat,
+    zoneSize,
+    dataStartAddress,
+    resources.reduce((sum, resource) => sum + resource.uncompressedSize, 0),
+    ...[...resources].sort((left, right) => left.id - right.id).flatMap((resource) => [
+      resource.id,
+      resource.label,
+      resource.group,
+      resource.type,
+      resource.bank,
+      resource.physicalAddress,
+      resource.windowAddress,
+      resource.zoneOffset,
+      resource.size,
+      resource.uncompressedSize,
+      resource.flags || 0,
+    ]),
+  ]);
+  return `mideas-v2:${checksum.replace(/^fnv1a32:/, '').toLowerCase()}`;
+}
+
+function buildManifestV2FromRecords(previousManifestV2, resources, zones, mapperInfo, zoneSize, dataStartAddress) {
+  const orderedResources = [...resources].sort((left, right) => left.id - right.id);
+  const resourceGroups = [...new Set(orderedResources.map((resource) => String(resource.group || '').toUpperCase()))]
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right));
+  const windowBaseAddress = parseAsmAddressExpression(mapperInfo.windowBase, 0xA000);
+  const maxRomBank = orderedResources.reduce((maxBank, resource) => {
+    const romBank = Math.trunc((resource.physicalAddress - 0x4000) / zoneSize);
+    return Math.max(maxBank, romBank);
+  }, 0);
+  const resourcesByZone = new Map();
+  for (const resource of orderedResources) {
+    const romBank = Math.trunc((resource.physicalAddress - 0x4000) / zoneSize);
+    if (!resourcesByZone.has(romBank)) resourcesByZone.set(romBank, []);
+    resourcesByZone.get(romBank).push(resource);
+  }
+
+  return {
+    ...(previousManifestV2 || {}),
+    schema: 'mideas.manifest/2',
+    build_id: buildManifestV2IdFromRecords(orderedResources, mapperInfo, zoneSize, dataStartAddress),
+    entry_point: previousManifestV2?.entry_point || '0x4000',
+    boot_reserved_size: previousManifestV2?.boot_reserved_size || 0,
+    cartridge: {
+      mapper: formatManifestV2MapperName(mapperInfo.mapperFormat),
+      bank_size: zoneSize,
+      banks: maxRomBank + 1,
+      data_window: {
+        page: mapperInfo.dataWindowPage,
+        base: mapperInfo.windowBase,
+        mask: mapperInfo.windowMask,
+        bank_divisor: mapperInfo.bankDivisor,
+      },
+    },
+    layout: {
+      policy: 'post_zx0_deterministic_first_fit_decreasing',
+      file_offset_rule: 'file_offset = rom_bank_index * bank_size + bank_offset',
+      data_start_address: dataStartAddress,
+      total_source_bytes: orderedResources.reduce((sum, resource) => sum + resource.uncompressedSize, 0),
+    },
+    groups: [
+      {
+        name: 'boot',
+        fixed_bank: 0,
+        lifetime: 'persistent',
+      },
+      ...resourceGroups.map((groupKey) => ({
+        name: formatManifestV2GroupName(groupKey),
+        lifetime: groupKey === 'FONT' || groupKey === 'SPRITES' ? 'persistent' : 'stream',
+      })),
+    ],
+    resources: orderedResources.map((resource) => {
+      const romBankIndex = Math.trunc((resource.physicalAddress - 0x4000) / zoneSize);
+      const compressed = (resource.flags || 0) & 0x01;
+      const runtimeTarget = inferManifestV2RuntimeTarget(resource);
+      return {
+        id: resource.id,
+        type: formatManifestV2GroupName(resource.type),
+        group: formatManifestV2GroupName(resource.group),
+        file: `generated/${formatManifestV2GroupName(resource.group)}/${resource.label}.asm`,
+        symbol: resource.label,
+        resource_id_symbol: resource.resourceIdLabel,
+        lifetime: inferManifestV2Lifetime(resource),
+        compress: compressed ? 'zx0' : 'none',
+        ...(compressed ? {
+          decompressor: 'zx0',
+          decompress_target: runtimeTarget,
+        } : {}),
+        runtime_target: runtimeTarget,
+        placement: {
+          bank_index: resource.bank,
+          rom_bank_index: romBankIndex,
+          window: mapperInfo.windowBase,
+          window_address: resource.windowAddress,
+          bank_offset: resource.zoneOffset,
+          file_offset: (romBankIndex * zoneSize) + resource.zoneOffset,
+          physical_address: resource.physicalAddress,
+          align: 1,
+        },
+        size: {
+          stored: resource.size,
+          uncompressed: resource.uncompressedSize,
+        },
+        flags: resource.flags || 0,
+      };
+    }),
+    verification: {
+      algorithm: 'fnv1a32-resource-metadata',
+      banks: zones.map((zone) => {
+        const romBank = Math.trunc((zone.orgAddress - 0x4000) / zoneSize);
+        const zoneResources = (resourcesByZone.get(romBank) || []).sort((left, right) => {
+          if (left.zoneOffset !== right.zoneOffset) return left.zoneOffset - right.zoneOffset;
+          return left.id - right.id;
+        });
+        return {
+          bank: zone.physicalBank,
+          verification: buildBankVerificationFromResources(zone.physicalBank, zone.usedBytes, zoneResources),
+        };
+      }),
+      expected_ram_dumps: Array.isArray(previousManifestV2?.verification?.expected_ram_dumps)
+        ? previousManifestV2.verification.expected_ram_dumps
+        : [],
+    },
+  };
+}
+
+function buildBankVerificationFromResources(bank, usedBytes, resources) {
+  // Sort by the in-bank address so equivalent JSON orderings produce the same checksum.
+  const ordered = [...resources].sort((left, right) => {
+    const leftOffset = Number.isFinite(left.zoneOffset) ? left.zoneOffset : left.offset;
+    const rightOffset = Number.isFinite(right.zoneOffset) ? right.zoneOffset : right.offset;
+    if (leftOffset !== rightOffset) return leftOffset - rightOffset;
+    return String(left.label || '').localeCompare(String(right.label || ''));
+  });
+  return {
+    algorithm: 'fnv1a32-resource-metadata',
+    metadataChecksum: buildBankMetadataChecksum([
+      bank,
+      usedBytes,
+      ...ordered.flatMap((resource) => [
+        resource.id,
+        resource.label,
+        Number.isFinite(resource.zoneOffset) ? resource.zoneOffset : resource.offset,
+        resource.size,
+        resource.uncompressedSize,
+        resource.flags || 0,
+      ]),
+    ]),
+    resourceCount: ordered.length,
+    storedBytes: usedBytes,
+  };
+}
+
+/**
+ * Groups final resource records by bank after compression has changed placement.
+ */
+function summarizeResourceRecordsByBank(resources) {
+  const bankMap = new Map();
+  for (const resource of resources) {
+    if (!bankMap.has(resource.bank)) {
+      bankMap.set(resource.bank, []);
+    }
+    bankMap.get(resource.bank).push(resource);
+  }
+
+  return [...bankMap.entries()]
+    .sort((left, right) => left[0] - right[0])
+    .map(([bank, bankResources]) => {
+      const ordered = [...bankResources].sort((left, right) => {
+        if (left.zoneOffset !== right.zoneOffset) return left.zoneOffset - right.zoneOffset;
+        return left.id - right.id;
+      });
+      return {
+        bank,
+        count: ordered.length,
+        storedBytes: ordered.reduce((sum, resource) => sum + resource.size, 0),
+        rawBytes: ordered.reduce((sum, resource) => sum + resource.uncompressedSize, 0),
+        resourceIds: ordered.map((resource) => resource.id),
+        resourceLabels: ordered.map((resource) => resource.label),
+      };
+    });
+}
+
+/**
+ * Reuses existing scene resource ids, or infers them from generated screen labels.
+ */
+function inferSceneResourceIds(scene, resources) {
+  if (Array.isArray(scene?.resourceIds)) {
+    return scene.resourceIds.filter((id) => Number.isFinite(id));
+  }
+
+  const screenKey = sanitizeAsmKeyForArtifacts(scene?.name || scene?.id || `screen_${scene?.index || 0}`);
+  const index = Number.isFinite(scene?.index) ? scene.index : 0;
+  const prefixes = [
+    `SCREEN_${screenKey}_${index}_`,
+    `BEHAVIOR_${screenKey}_${index}_`,
+  ];
+  return resources
+    .filter((resource) => prefixes.some((prefix) => String(resource.label || '').startsWith(prefix)))
+    .map((resource) => resource.id);
+}
+
+/**
+ * Refreshes scene resource placement so project_usage.json matches final ZX0 banks.
+ */
+function refreshProjectUsageScenes(projectUsage, resources) {
+  if (!Array.isArray(projectUsage?.scenes)) return;
+  const resourceById = new Map(resources.map((resource) => [resource.id, resource]));
+
+  projectUsage.scenes = projectUsage.scenes.map((scene) => {
+    const resourceIds = inferSceneResourceIds(scene, resources);
+    const sceneResources = resourceIds
+      .map((id) => resourceById.get(id))
+      .filter(Boolean)
+      .sort((left, right) => {
+        if (left.bank !== right.bank) return left.bank - right.bank;
+        if (left.zoneOffset !== right.zoneOffset) return left.zoneOffset - right.zoneOffset;
+        return left.id - right.id;
+      });
+    const banks = summarizeResourceRecordsByBank(sceneResources);
+    return {
+      ...scene,
+      resourceIds: sceneResources.map((resource) => resource.id),
+      resources: sceneResources.map(buildResourceUsageSummaryFromRecord),
+      banks,
+      loadOrder: banks.map((bank) => ({
+        bank: bank.bank,
+        resourceIds: bank.resourceIds,
+        resourceLabels: bank.resourceLabels,
+      })),
+      totals: {
+        ...(scene?.totals || {}),
+        resourceCount: sceneResources.length,
+        storedBytes: sceneResources.reduce((sum, resource) => sum + resource.size, 0),
+        rawBytes: sceneResources.reduce((sum, resource) => sum + resource.uncompressedSize, 0),
+        compressedResources: sceneResources.filter((resource) => (resource.flags & 0x01) !== 0).length,
+      },
+    };
+  });
+}
+
+/**
+ * Rebuilds load_plan.json from refreshed project_usage data after compression.
+ */
+function buildLoadPlanFromProjectUsage(projectUsage) {
+  const scenes = Array.isArray(projectUsage?.scenes) ? projectUsage.scenes : [];
+  const mapper = projectUsage?.mapper || {};
+  const allResources = Array.isArray(projectUsage?.bankedResources) ? projectUsage.bankedResources : [];
+  const uniqueDataBanks = new Set(allResources.map((resource) => resource.bank).filter(Number.isFinite));
+  const sceneBankTouches = scenes.map((scene) => Array.isArray(scene?.banks) ? scene.banks.length : 0);
+  return {
+    version: 1,
+    scope: 'konami8k_scene_load_plan',
+    strategy: 'group current banked resources by scene and physical bank; optimizer consumes this before repacking',
+    mapper: {
+      format: mapper.format || 'konami',
+      segmentSize: mapper.segmentSize || 8192,
+      dataWindowPage: mapper.dataWindowPage || 'p3',
+      windowBase: mapper.windowBase || '#A000',
+      windowMask: mapper.windowMask || '#1FFF',
+      bankDivisor: mapper.bankDivisor || '#2000',
+    },
+    summary: {
+      sceneCount: scenes.length,
+      resourceCount: allResources.length,
+      uniqueDataBanks: uniqueDataBanks.size,
+      totalSceneBankTouches: sceneBankTouches.reduce((sum, touches) => sum + touches, 0),
+      maxSceneBankTouches: sceneBankTouches.reduce((max, touches) => Math.max(max, touches), 0),
+      totalStoredBytes: allResources.reduce((sum, resource) => sum + (resource.storedSize || resource.size || 0), 0),
+      totalRawBytes: allResources.reduce((sum, resource) => sum + (resource.uncompressedSize || resource.size || 0), 0),
+      compressedResources: allResources.filter((resource) => (resource.flags & 0x01) !== 0).length,
+    },
+    scenes: scenes.map((scene) => {
+      const resources = Array.isArray(scene?.resources) ? scene.resources : [];
+      const banks = Array.isArray(scene?.banks) ? scene.banks : [];
+      const warnings = [];
+      if (resources.length === 0) warnings.push('scene has no matched banked resources');
+      if (banks.length > 3) warnings.push('scene spans more than three data banks');
+      if (resources.some((resource) => resource.storedSize > 8192)) {
+        warnings.push('scene contains a resource larger than one 8KB bank');
+      }
+
+      return {
+        index: scene?.index,
+        id: scene?.id,
+        name: scene?.name,
+        tileBankAssetId: scene?.tileBankAssetId || null,
+        resourceCount: scene?.totals?.resourceCount || resources.length,
+        totalStoredBytes: scene?.totals?.storedBytes || resources.reduce((sum, resource) => sum + (resource.storedSize || 0), 0),
+        totalRawBytes: scene?.totals?.rawBytes || resources.reduce((sum, resource) => sum + (resource.uncompressedSize || 0), 0),
+        compressedResources: scene?.totals?.compressedResources || resources.filter((resource) => (resource.flags & 0x01) !== 0).length,
+        banks,
+        loadOrder: Array.isArray(scene?.loadOrder) ? scene.loadOrder : [],
+        warnings,
+      };
+    }),
+  };
+}
+
+/**
+ * Simulates scene bundle packing so tooling can compare current vs proposed banks.
+ */
+function parseAsmAddressExpression(value, fallback) {
+  const raw = String(value || '').trim();
+  if (raw.startsWith('#')) return parseInt(raw.slice(1), 16);
+  if (/^0x[0-9a-f]+$/i.test(raw)) return parseInt(raw, 16);
+  if (/^[0-9a-f]+h$/i.test(raw)) return parseInt(raw.slice(0, -1), 16);
+  if (/^\d+$/.test(raw)) return parseInt(raw, 10);
+  return fallback;
+}
+
+function buildProposedSceneAwarePlacementFromRecords(scenes, resources, unassignedResources, mapperInfo = {}) {
+  const legacyZoneSize = typeof mapperInfo === 'number' ? mapperInfo : mapperInfo?.segmentSize;
+  const capacity = Math.max(1, Number(legacyZoneSize || 8192) | 0);
+  const windowBase = parseAsmAddressExpression(
+    typeof mapperInfo === 'number' ? '#A000' : mapperInfo?.windowBase,
+    0xA000
+  );
+  const firstBank = resources.reduce((minBank, resource) => Math.min(minBank, resource.bank), Number.POSITIVE_INFINITY);
+  const bankBase = Number.isFinite(firstBank) ? firstBank : 4;
+  const resourceById = new Map(resources.map((resource) => [resource.id, resource]));
+  const makeUnit = (kind, unitResources, scene = null) => ({
+    kind,
+    sceneIndex: scene?.index ?? null,
+    sceneId: scene?.id ?? null,
+    sceneName: scene?.name ?? null,
+    resourceIds: unitResources.map((resource) => resource.id),
+    resourceLabels: unitResources.map((resource) => resource.label),
+    storedBytes: unitResources.reduce((sum, resource) => sum + resource.size, 0),
+    rawBytes: unitResources.reduce((sum, resource) => sum + resource.uncompressedSize, 0),
+  });
+
+  const sceneUnits = scenes.flatMap((scene) => {
+    const sceneResources = (Array.isArray(scene?.resourceIds) ? scene.resourceIds : [])
+      .map((resourceId) => resourceById.get(resourceId))
+      .filter(Boolean);
+    const sceneBytes = sceneResources.reduce((sum, resource) => sum + resource.size, 0);
+    if (sceneBytes <= capacity) {
+      return [makeUnit('scene', sceneResources, scene)];
+    }
+    return sceneResources.map((resource) => makeUnit('scene', [resource], scene));
+  });
+  const sharedUnits = unassignedResources.map((resource) => makeUnit('shared', [resource]));
+  const units = [...sceneUnits, ...sharedUnits]
+    .filter((unit) => unit.storedBytes > 0)
+    .sort((left, right) => {
+      if (right.storedBytes !== left.storedBytes) return right.storedBytes - left.storedBytes;
+      return (left.sceneIndex ?? Number.MAX_SAFE_INTEGER) - (right.sceneIndex ?? Number.MAX_SAFE_INTEGER);
+    });
+
+  const banks = [];
+  for (const unit of units) {
+    let targetBank = banks.find((bank) => bank.freeBytes >= unit.storedBytes);
+    if (!targetBank) {
+      targetBank = {
+        bank: bankBase + banks.length,
+        usedBytes: 0,
+        freeBytes: capacity,
+        units: [],
+      };
+      banks.push(targetBank);
+    }
+    targetBank.units.push(unit);
+    targetBank.usedBytes += unit.storedBytes;
+    targetBank.freeBytes -= unit.storedBytes;
+  }
+
+  const sceneBankMap = new Map();
+  for (const bank of banks) {
+    for (const unit of bank.units) {
+      if (unit.kind !== 'scene' || unit.sceneIndex === null) continue;
+      if (!sceneBankMap.has(unit.sceneIndex)) {
+        sceneBankMap.set(unit.sceneIndex, new Set());
+      }
+      sceneBankMap.get(unit.sceneIndex).add(bank.bank);
+    }
+  }
+  const currentSceneBankTouches = scenes.reduce((sum, scene) => (
+    sum + (Array.isArray(scene?.banks) ? scene.banks.length : 0)
+  ), 0);
+  const proposedSceneBankTouches = scenes.reduce((sum, scene) => sum + (sceneBankMap.get(scene?.index)?.size || 0), 0);
+  const currentBanks = summarizeResourceRecordsByBank(resources);
+  const buildResourcePlacements = (bank) => {
+    let zoneOffset = 0;
+    return bank.units.flatMap((unit) => unit.resourceIds.map((resourceId) => {
+      const resource = resourceById.get(resourceId);
+      if (!resource) return null;
+      const placement = {
+        id: resource.id,
+        label: resource.label,
+        bank: bank.bank,
+        zoneOffset,
+        windowAddress: windowBase + zoneOffset,
+        storedSize: resource.size,
+        uncompressedSize: resource.uncompressedSize,
+        flags: resource.flags || 0,
+        unitKind: unit.kind,
+        sceneIndex: unit.sceneIndex,
+        sceneId: unit.sceneId,
+        sceneName: unit.sceneName,
+        placementReason: (
+          `proposed ${unit.kind} first-fit placement; ${resource.size}/${resource.uncompressedSize} bytes; ` +
+          `bank ${bank.bank} offset +${formatAsmAddress(zoneOffset)}; current ROM placement unchanged`
+        ),
+      };
+      zoneOffset += resource.size;
+      return placement;
+    })).filter(Boolean);
+  };
+  const proposedBanks = banks.map((bank) => {
+    const resourcePlacements = buildResourcePlacements(bank);
+    return {
+      bank: bank.bank,
+      usedBytes: bank.usedBytes,
+      freeBytes: bank.freeBytes,
+      units: bank.units,
+      resourcePlacements,
+      resourceIds: resourcePlacements.map((placement) => placement.id),
+      resourceLabels: resourcePlacements.map((placement) => placement.label),
+    };
+  });
+
+  return {
+    strategy: 'dry-run scene bundles first-fit decreasing with mapper data-zone capacity; current ROM placement is unchanged',
+    zoneSize: capacity,
+    bankCount: banks.length,
+    resourceCount: resources.length,
+    totalStoredBytes: resources.reduce((sum, resource) => sum + resource.size, 0),
+    resourcePlacements: proposedBanks.flatMap((bank) => bank.resourcePlacements),
+    banks: proposedBanks,
+    sceneBankPlan: scenes.map((scene) => ({
+      index: scene?.index,
+      id: scene?.id,
+      name: scene?.name,
+      currentBanks: Array.isArray(scene?.banks) ? scene.banks.map((bank) => bank.bank) : [],
+      proposedBanks: [...(sceneBankMap.get(scene?.index) || new Set())].sort((left, right) => left - right),
+    })),
+    delta: {
+      currentBankCount: currentBanks.length,
+      proposedBankCount: banks.length,
+      currentSceneBankTouches,
+      proposedSceneBankTouches,
+    },
+  };
+}
+
+/**
+ * Rebuilds bank_optimizer.json from final placement without changing the ROM layout.
+ */
+function buildBankOptimizerFromProjectUsage(projectUsage, resources, zones = [], mapperInfo = {}) {
+  const scenes = Array.isArray(projectUsage?.scenes) ? projectUsage.scenes : [];
+  const assignedResourceIds = new Set();
+  for (const scene of scenes) {
+    for (const resourceId of Array.isArray(scene?.resourceIds) ? scene.resourceIds : []) {
+      assignedResourceIds.add(resourceId);
+    }
+  }
+  const unassignedResources = resources
+    .filter((resource) => !assignedResourceIds.has(resource.id))
+    .sort((left, right) => {
+      if (left.bank !== right.bank) return left.bank - right.bank;
+      if (left.zoneOffset !== right.zoneOffset) return left.zoneOffset - right.zoneOffset;
+      return left.id - right.id;
+    });
+  const allBanksByNumber = new Map(summarizeResourceRecordsByBank(resources).map((bank) => [bank.bank, bank]));
+  for (const zone of Array.isArray(zones) ? zones : []) {
+    if (allBanksByNumber.has(zone.physicalBank)) continue;
+    allBanksByNumber.set(zone.physicalBank, {
+      bank: zone.physicalBank,
+      count: 0,
+      storedBytes: 0,
+      rawBytes: 0,
+      resourceIds: [],
+      resourceLabels: [],
+    });
+  }
+  const allBanks = [...allBanksByNumber.values()].sort((left, right) => left.bank - right.bank);
+  const sceneClusters = scenes.map((scene) => {
+    const banks = Array.isArray(scene?.banks) ? scene.banks.map((bank) => bank.bank).filter(Number.isFinite) : [];
+    return {
+      index: scene?.index,
+      id: scene?.id,
+      name: scene?.name,
+      resourceIds: Array.isArray(scene?.resourceIds) ? scene.resourceIds : [],
+      banks,
+      bankCount: banks.length,
+      storedBytes: scene?.totals?.storedBytes || 0,
+      rawBytes: scene?.totals?.rawBytes || 0,
+      coLocated: banks.length <= 1,
+      preferredBank: banks.length > 0 ? banks[0] : null,
+    };
+  });
+
+  return {
+    version: 1,
+    scope: 'konami8k_bank_optimizer',
+    strategy: 'analysis-only scene-aware first-fit input; later pass may repack or duplicate resources',
+    constraints: {
+      mapperFormat: mapperInfo.mapperFormat || 'konami',
+      segmentSize: mapperInfo.segmentSize || 8192,
+      dynamicWindows: 1,
+      dataWindow: {
+        page: mapperInfo.dataWindowPage || 'p3',
+        base: mapperInfo.windowBase || '#A000',
+        mask: mapperInfo.windowMask || '#1FFF',
+        bankDivisor: mapperInfo.bankDivisor || '#2000',
+      },
+      maxRecommendedSceneBanks: 3,
+    },
+    currentPlacement: {
+      bankCount: allBanks.length,
+      resourceCount: resources.length,
+      totalStoredBytes: resources.reduce((sum, resource) => sum + resource.size, 0),
+      totalRawBytes: resources.reduce((sum, resource) => sum + resource.uncompressedSize, 0),
+      compressedResources: resources.filter((resource) => (resource.flags & 0x01) !== 0).length,
+      banks: allBanks,
+    },
+    proposedPlacement: buildProposedSceneAwarePlacementFromRecords(
+      scenes,
+      resources,
+      unassignedResources,
+      mapperInfo,
+    ),
+    sceneClusters,
+    pressureWarnings: sceneClusters
+      .filter((scene) => scene.bankCount > 3)
+      .map((scene) => ({
+        sceneIndex: scene.index,
+        sceneName: scene.name,
+        bankCount: scene.bankCount,
+        message: 'scene spans more than three data banks',
+      })),
+    sharedOrGlobalResources: unassignedResources.map(buildResourceUsageSummaryFromRecord),
+    duplicationCandidates: unassignedResources
+      .filter((resource) => resource.size > 0 && resource.size <= 128)
+      .map((resource) => ({
+        id: resource.id,
+        label: resource.label,
+        group: resource.group,
+        type: resource.type,
+        bank: resource.bank,
+        storedSize: resource.size,
+        uncompressedSize: resource.uncompressedSize,
+      })),
+  };
+}
+
+function replaceActiveResourceTableAsm(sourceCode, resourceTableAsm) {
+  const lines = String(sourceCode || '').split(/\r?\n/);
+  const entrySizeIndex = lines.findIndex((line) => /^\s*RESOURCE_TABLE_ENTRY_SIZE\s+EQU\b/i.test(line));
+  if (entrySizeIndex === -1) return sourceCode;
+
+  let start = entrySizeIndex;
+  for (let i = entrySizeIndex; i >= 0; i--) {
+    if (/^\s*;\s*=+\s*$/.test(lines[i]) && i + 1 < lines.length && /GENERATED RESOURCE TABLE/i.test(lines[i + 1])) {
+      start = i;
+      break;
+    }
+    if (/GENERATED RESOURCE TABLE/i.test(lines[i])) {
+      start = i;
+    }
+  }
+
+  let end = lines.findIndex((line, index) =>
+    index > entrySizeIndex &&
+    (/^\s*;\s*ZX0 decoder\b/i.test(line) || /^\s*dzx0_standard:\s*$/i.test(line) || /^\s*resource_manager_init:\s*$/i.test(line))
+  );
+  if (end === -1) return sourceCode;
+
+  return [
+    ...lines.slice(0, start),
+    ...resourceTableAsm.split(/\r?\n/),
+    '',
+    ...lines.slice(end),
+  ].join('\n');
+}
+
+function parseMegaromDataSection(sourceCode) {
+  const lines = String(sourceCode || '').split(/\r?\n/);
+  let sectionStart = lines.findIndex((line) => /;\s*DATA BANKS .+Zone-packed data/i.test(line));
+  if (sectionStart === -1) return null;
+  if (sectionStart > 0 && /^\s*;\s*=+\s*$/.test(lines[sectionStart - 1])) {
+    sectionStart -= 1;
+  }
+
+  const sectionEnd = findMegaromDataSectionEnd(lines, sectionStart);
+  if (sectionEnd === -1) return null;
+
+  const sectionLines = lines.slice(sectionStart, sectionEnd);
+  const sectionText = sectionLines.join('\n');
+  const zoneSizeMatch = sectionText.match(/Zone-packed data \((\d+) bytes per zone\)/i);
+  if (!zoneSizeMatch) return null;
+  const zoneSize = parseInt(zoneSizeMatch[1], 10);
+  const originalZoneCountMatch = sectionText.match(/Zones used:\s*(\d+)/i);
+  const minimumZoneCount = originalZoneCountMatch ? parseInt(originalZoneCountMatch[1], 10) : 0;
+
+  let dataStartAddress = null;
+  const dataStartMatch = sectionText.match(/Data start address:\s*#([0-9A-F]+)/i);
+  if (dataStartMatch) {
+    dataStartAddress = parseInt(dataStartMatch[1], 16);
+  }
+  if (!Number.isFinite(dataStartAddress)) {
+    const firstOrgMatch = sectionText.match(/^\s*org\s+#([0-9A-F]+)\s*$/im);
+    if (firstOrgMatch) dataStartAddress = parseInt(firstOrgMatch[1], 16);
+  }
+  if (!Number.isFinite(zoneSize) || !Number.isFinite(dataStartAddress)) return null;
+  const windowBaseMatch = sectionText.match(/\|\s*#([0-9A-F]+)/i);
+  const windowMaskMatch = sectionText.match(/\(label\s*&\s*(#[0-9A-F]+)\)/i);
+  const bankDivisorMatch = sectionText.match(/BANK_NUMBER\s*=\s*\(\(label\s*-\s*#4000\)\s*\/\s*(#[0-9A-F]+)\)/i);
+  const dataWindowPageMatch = sectionText.match(/Accessed through mapper\s+(P[234])/i);
+  const windowBaseAddress = windowBaseMatch ? parseInt(windowBaseMatch[1], 16) : 0xA000;
+
+  const firstDiagSeparator = sectionLines.findIndex((line, idx) => idx > 0 && /^\s*;\s*-{10,}\s*$/.test(line));
+  const firstOrgIndex = sectionLines.findIndex((line) => /^\s*org\s+#/i.test(line));
+  if (firstDiagSeparator === -1 || firstOrgIndex === -1) return null;
+
+  const dataLines = sectionLines.slice(firstOrgIndex);
+  const blocks = [];
+  const prelude = [];
+  let currentLabel = null;
+  let currentLines = [];
+  let skipZoneBanner = 0;
+
+  const flushCurrent = () => {
+    if (!currentLabel) return;
+    const blockText = currentLines.join('\n');
+    const compressedMatch = blockText.match(/ZX0 compressed banked resource\s*\((\d+)\s*->\s*(\d+)\s*bytes\)/i);
+    const byteSize = countAsmBytesInLines(currentLines);
+    const bytes = currentLines.flatMap((line) => parseDbLineBytes(line) || []);
+    const declaredRawSize = compressedMatch ? parseInt(compressedMatch[1], 10) : byteSize;
+    const declaredStoredSize = compressedMatch ? parseInt(compressedMatch[2], 10) : byteSize;
+    blocks.push({
+      label: currentLabel,
+      groupKey: getMegaromDataGroupKey(currentLabel),
+      lines: currentLines.slice(),
+      byteSize,
+      bytes,
+      compressed: Boolean(compressedMatch),
+      uncompressedSize: Number.isFinite(declaredRawSize) ? declaredRawSize : byteSize,
+      flags: compressedMatch ? 1 : 0,
+      declaredStoredSize: Number.isFinite(declaredStoredSize) ? declaredStoredSize : byteSize,
+    });
+    currentLabel = null;
+    currentLines = [];
+  };
+
+  for (const line of dataLines) {
+    if (/^\s*org\s+#/i.test(line) || /^\s*ds\s+#/i.test(line)) {
+      flushCurrent();
+      prelude.length = 0;
+      skipZoneBanner = /^\s*org\s+#/i.test(line) ? 3 : 0;
+      continue;
+    }
+
+    if (skipZoneBanner > 0) {
+      if (/^\s*;\s*=+\s*$/.test(line) || /^\s*;\s*DATA ZONE\b/i.test(line) || /^\s*$/.test(line)) {
+        skipZoneBanner -= 1;
+        continue;
+      }
+      skipZoneBanner = 0;
+    }
+
+    const labelMatch = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*):(?:\s*;.*)?\s*$/);
+    if (labelMatch) {
+      flushCurrent();
+      currentLabel = labelMatch[1];
+      currentLines = [...prelude, line];
+      prelude.length = 0;
+      continue;
+    }
+
+    if (!currentLabel) {
+      if (line.trim() === '' || line.trim().startsWith(';')) {
+        prelude.push(line);
+      }
+      continue;
+    }
+
+    currentLines.push(line);
+  }
+  flushCurrent();
+
+  return {
+    allLines: lines,
+    sectionStart,
+    sectionEnd,
+    introLines: sectionLines.slice(0, firstDiagSeparator),
+    zoneSize,
+    dataStartAddress,
+    windowBaseAddress,
+    windowBase: formatAsmAddress(windowBaseAddress),
+    windowMask: windowMaskMatch ? windowMaskMatch[1].toUpperCase() : (zoneSize === 16384 ? '#3FFF' : '#1FFF'),
+    bankDivisor: bankDivisorMatch ? bankDivisorMatch[1].toUpperCase() : (zoneSize === 16384 ? '#4000' : '#2000'),
+    dataWindowPage: dataWindowPageMatch ? dataWindowPageMatch[1].toLowerCase() : 'p3',
+    minimumZoneCount: Number.isFinite(minimumZoneCount) ? minimumZoneCount : 0,
+    blocks,
+  };
+}
+
+function packMegaromResourceBlocks(blocks, dataStartAddress, zoneSize, minimumZoneCount = 0) {
+  const units = [];
+  for (const block of blocks) {
+    const shouldMerge = (block.groupKey === 'patterns' || block.groupKey === 'colors') &&
+      units.length > 0 &&
+      units[units.length - 1].groupKey === block.groupKey;
+
+    if (shouldMerge) {
+      const currentUnit = units[units.length - 1];
+      currentUnit.labelOffsets.set(block.label, currentUnit.byteSize);
+      currentUnit.labels.push(block.label);
+      currentUnit.byteSize += block.byteSize;
+      if (currentUnit.lines.length > 0 && currentUnit.lines[currentUnit.lines.length - 1] !== '') {
+        currentUnit.lines.push('');
+      }
+      currentUnit.lines.push(...block.lines);
+      currentUnit.blocks.push(block);
+      continue;
+    }
+
+    units.push({
+      groupKey: block.groupKey,
+      labels: [block.label],
+      lines: block.lines.slice(),
+      byteSize: block.byteSize,
+      labelOffsets: new Map([[block.label, 0]]),
+      blocks: [block],
+    });
+  }
+
+  const zones = [];
+  let currentZoneUnits = [];
+  let currentZoneUsed = 0;
+  let zoneIndex = 0;
+
+  const flushZone = () => {
+    if (currentZoneUnits.length === 0) return;
+    const orgAddress = dataStartAddress + (zoneIndex * zoneSize);
+    const endAddress = orgAddress + zoneSize;
+    zones.push({
+      zoneIndex,
+      orgAddress,
+      endAddress,
+      physicalBank: (orgAddress - 0x4000) / zoneSize,
+      usedBytes: currentZoneUsed,
+      remainingBytes: zoneSize - currentZoneUsed,
+      units: currentZoneUnits,
+    });
+    zoneIndex += 1;
+    currentZoneUnits = [];
+    currentZoneUsed = 0;
+  };
+
+  for (const unit of units) {
+    if (unit.byteSize > zoneSize) {
+      throw new Error(
+        `MegaROM ZX0 data zone overflow: ${unit.labels.join(', ')} (${unit.byteSize} bytes > zone ${zoneSize})`
+      );
+    }
+
+    if (currentZoneUnits.length > 0 && currentZoneUsed + unit.byteSize > zoneSize) {
+      flushZone();
+    }
+
+    currentZoneUnits.push({
+      ...unit,
+      zoneOffset: currentZoneUsed,
+    });
+    currentZoneUsed += unit.byteSize;
+  }
+  flushZone();
+  while (Number.isFinite(minimumZoneCount) && zones.length < minimumZoneCount) {
+    const orgAddress = dataStartAddress + (zoneIndex * zoneSize);
+    const endAddress = orgAddress + zoneSize;
+    zones.push({
+      zoneIndex,
+      orgAddress,
+      endAddress,
+      physicalBank: (orgAddress - 0x4000) / zoneSize,
+      usedBytes: 0,
+      remainingBytes: zoneSize,
+      units: [],
+    });
+    zoneIndex += 1;
+  }
+
+  return { units, zones };
+}
+
+function renderMegaromDataSection(introLines, zones, zoneSize, dataStartAddress) {
+  const totalBytes = zones.reduce((sum, zone) => sum + zone.usedBytes, 0);
+  const diagnosticsLines = [
+    '; ------------------------------------------------------------------',
+    '; MEGAROM DATA ZONE PACKER (post-ZX0 final sizes)',
+    `; Zone size: ${zoneSize} bytes`,
+    `; Data start address: ${formatAsmAddress(dataStartAddress)}`,
+    `; Total data bytes (post-ZX0 / final): ${totalBytes}`,
+    `; Zones used: ${zones.length}`,
+    '; ------------------------------------------------------------------',
+  ];
+
+  for (const zone of zones) {
+    diagnosticsLines.push(
+      `; ZONE ${zone.zoneIndex.toString().padStart(2, '0')} ` +
+      `[${formatAsmAddress(zone.orgAddress)}-${formatAsmAddress(zone.endAddress)}] ` +
+      `bank ${zone.physicalBank} used=${zone.usedBytes} slack=${zone.remainingBytes}`
+    );
+    for (const unit of zone.units) {
+      diagnosticsLines.push(
+        `;   + ${unit.labels.join(', ')} @ +${formatAsmAddress(unit.zoneOffset)} size=${unit.byteSize}`
+      );
+    }
+  }
+
+  const zoneAsmLines = [];
+  for (const zone of zones) {
+    zoneAsmLines.push(`    org ${formatAsmAddress(zone.orgAddress)}`);
+    zoneAsmLines.push('; ==================================================================');
+    zoneAsmLines.push(
+      `; DATA ZONE ${zone.zoneIndex.toString().padStart(2, '0')} ` +
+      `(bank ${zone.physicalBank}) used=${zone.usedBytes} slack=${zone.remainingBytes}`
+    );
+    zoneAsmLines.push('; ==================================================================');
+    for (const unit of zone.units) {
+      zoneAsmLines.push(...unit.lines);
+      zoneAsmLines.push('');
+    }
+    zoneAsmLines.push(`    ds ${formatAsmAddress(zone.endAddress)} - $, #FF`);
+    zoneAsmLines.push('');
+  }
+
+  return [
+    ...introLines,
+    ...diagnosticsLines,
+    '',
+    ...zoneAsmLines,
+  ];
+}
+
+function updateMegaromCompressionArtifacts({
+  sourceCode,
+  manifest,
+  manifestV2,
+  banks,
+  projectUsage,
+  segmentBudget,
+  resources,
+  zones,
+  zoneSize,
+  dataStartAddress,
+  windowBaseAddress,
+  resourceTableAsm,
+}) {
+  const resourceById = new Map(resources.map((resource) => [resource.id, resource]));
+  const resourceByLabel = new Map(resources.map((resource) => [String(resource.label).toUpperCase(), resource]));
+  for (const zone of zones) {
+    for (const unit of zone.units) {
+      for (const block of unit.blocks || []) {
+        const resource = resourceByLabel.get(String(block.label).toUpperCase());
+        if (!resource) continue;
+        const labelOffset = unit.labelOffsets?.get(block.label) || 0;
+        resource.placementReason = describeMegaromPlacement(resource, zone, unit, labelOffset);
+      }
+    }
+  }
+
+  const zoneResources = zones.map((zone) => ({
+    zone,
+    resources: zone.units.flatMap((unit) =>
+      unit.blocks
+        .map((block) => resourceByLabel.get(String(block.label).toUpperCase()))
+        .filter(Boolean)
+    ),
+  }));
+
+  if (manifest?.summary) {
+    manifest.summary.totalSourceBytes = resources.reduce((sum, resource) => sum + resource.uncompressedSize, 0);
+    manifest.summary.totalStoredBytes = resources.reduce((sum, resource) => sum + resource.size, 0);
+    manifest.summary.resourceCount = resources.length;
+    manifest.summary.zoneCount = zones.length;
+    manifest.summary.overflowCount = 0;
+    manifest.summary.compressedResourceCount = resources.filter((resource) => resource.flags & 0x01).length;
+  }
+  const mapperInfo = {
+    mapperFormat: manifest?.mapper?.format || banks?.mapperFormat || projectUsage?.mapper?.format || (zoneSize === 16384 ? 'ascii16' : 'konami'),
+    segmentSize: zoneSize,
+    dataWindowPage: manifest?.mapper?.dataWindowPage || banks?.dataWindow?.page || projectUsage?.mapper?.dataWindowPage || 'p3',
+    windowBase: manifest?.mapper?.windowBase || banks?.dataWindow?.base || projectUsage?.mapper?.windowBase || formatAsmAddress(windowBaseAddress || 0xA000),
+    windowMask: manifest?.mapper?.windowMask || banks?.dataWindow?.mask || projectUsage?.mapper?.windowMask || (zoneSize === 16384 ? '#3FFF' : '#1FFF'),
+    bankDivisor: manifest?.mapper?.bankDivisor || banks?.dataWindow?.bankDivisor || projectUsage?.mapper?.bankDivisor || (zoneSize === 16384 ? '#4000' : '#2000'),
+  };
+  if (manifest) {
+    manifest.mapper = {
+      ...(manifest.mapper || {}),
+      format: mapperInfo.mapperFormat,
+      dataWindowPage: mapperInfo.dataWindowPage,
+      windowBase: mapperInfo.windowBase,
+      windowMask: mapperInfo.windowMask,
+      bankDivisor: mapperInfo.bankDivisor,
+      zoneSize,
+    };
+  }
+
+  manifest.banks = zoneResources.map(({ zone, resources: zoneResourceList }) => {
+    const resourceSummaries = zoneResourceList.map((resource) => ({
+      id: resource.id,
+      label: resource.label,
+      resourceIdLabel: resource.resourceIdLabel,
+      group: resource.group,
+      type: resource.type,
+      bank: resource.bank,
+      zoneOffset: resource.zoneOffset,
+      physicalAddress: resource.physicalAddress,
+      windowAddress: resource.windowAddress,
+      size: resource.size,
+      storedSize: resource.size,
+      uncompressedSize: resource.uncompressedSize,
+      flags: resource.flags || 0,
+      sourceIndex: resource.sourceIndex,
+      placementReason: resource.placementReason,
+    }));
+    return {
+      bank: zone.physicalBank,
+      zoneIndex: zone.zoneIndex,
+      orgAddress: zone.orgAddress,
+      endAddress: zone.endAddress,
+      usedBytes: zone.usedBytes,
+      freeBytes: zone.remainingBytes,
+      verification: buildBankVerificationFromResources(zone.physicalBank, zone.usedBytes, resourceSummaries),
+      resources: resourceSummaries,
+    };
+  });
+  manifest.overflow = [];
+
+  banks.segmentSize = zoneSize;
+  banks.mapperFormat = mapperInfo.mapperFormat;
+  banks.dataWindow = {
+    ...(banks.dataWindow || {}),
+    page: mapperInfo.dataWindowPage,
+    base: mapperInfo.windowBase,
+    mask: mapperInfo.windowMask,
+    bankDivisor: mapperInfo.bankDivisor,
+  };
+  banks.banks = zoneResources.map(({ zone, resources: zoneResourceList }) => {
+    const resourceSummaries = zoneResourceList.map((resource) => ({
+      id: resource.id,
+      label: resource.label,
+      bank: resource.bank,
+      offset: resource.zoneOffset,
+      address: resource.windowAddress,
+      size: resource.size,
+      storedSize: resource.size,
+      uncompressedSize: resource.uncompressedSize,
+      flags: resource.flags || 0,
+      group: resource.group,
+      type: resource.type,
+      placementReason: resource.placementReason,
+    }));
+    return {
+      bank: zone.physicalBank,
+      origin: zone.orgAddress,
+      end: zone.endAddress,
+      usedBytes: zone.usedBytes,
+      freeBytes: zone.remainingBytes,
+      verification: buildBankVerificationFromResources(zone.physicalBank, zone.usedBytes, resourceSummaries),
+      resources: resourceSummaries,
+    };
+  });
+  banks.overflow = [];
+
+  if (projectUsage?.counts) {
+    projectUsage.counts.bankedResources = resources.length;
+  }
+  projectUsage.mapper = {
+    ...(projectUsage.mapper || {}),
+    format: mapperInfo.mapperFormat,
+    segmentSize: zoneSize,
+    dataWindowPage: mapperInfo.dataWindowPage,
+    windowBase: mapperInfo.windowBase,
+    windowMask: mapperInfo.windowMask,
+    bankDivisor: mapperInfo.bankDivisor,
+  };
+  projectUsage.bankedResources = [...resources]
+    .sort((left, right) => left.id - right.id)
+    .map((resource) => ({
+      id: resource.id,
+      label: resource.label,
+      group: resource.group,
+      type: resource.type,
+      bank: resource.bank,
+      windowAddress: resource.windowAddress,
+      size: resource.size,
+      storedSize: resource.size,
+      uncompressedSize: resource.uncompressedSize,
+      flags: resource.flags || 0,
+      placementReason: resource.placementReason,
+    }));
+  refreshProjectUsageScenes(projectUsage, resources);
+  const loadPlan = buildLoadPlanFromProjectUsage(projectUsage);
+  const bankOptimizer = buildBankOptimizerFromProjectUsage(projectUsage, resources, zones, mapperInfo);
+  const refreshedManifestV2 = manifestV2
+    ? buildManifestV2FromRecords(manifestV2, resources, zones, mapperInfo, zoneSize, dataStartAddress)
+    : null;
+
+  if (Array.isArray(segmentBudget?.dataBanks)) {
+    segmentBudget.dataBanks = zones.map((zone) => ({
+      bank: zone.physicalBank,
+      role: 'asset_data',
+      orgAddress: zone.orgAddress,
+      endAddress: zone.endAddress,
+      usedBytes: zone.usedBytes,
+      freeBytes: zone.remainingBytes,
+      resources: zoneResources.find((entry) => entry.zone === zone)?.resources.length || 0,
+    }));
+  }
+
+  let code = sourceCode;
+  code = replaceMideasArtifactCommentBlock(code, 'resource_table.asm', resourceTableAsm);
+  code = replaceMideasArtifactCommentBlock(code, 'packing_manifest.json', JSON.stringify(manifest, null, 2) + '\n');
+  if (refreshedManifestV2) {
+    code = replaceMideasArtifactCommentBlock(code, 'manifest_v2.json', JSON.stringify(refreshedManifestV2, null, 2) + '\n');
+  }
+  code = replaceMideasArtifactCommentBlock(code, 'banks.json', JSON.stringify(banks, null, 2) + '\n');
+  code = replaceMideasArtifactCommentBlock(code, 'project_usage.json', JSON.stringify(projectUsage, null, 2) + '\n');
+  code = replaceMideasArtifactCommentBlock(code, 'load_plan.json', JSON.stringify(loadPlan, null, 2) + '\n');
+  code = replaceMideasArtifactCommentBlock(code, 'bank_optimizer.json', JSON.stringify(bankOptimizer, null, 2) + '\n');
+  code = replaceMideasArtifactCommentBlock(code, 'segment_budget.json', JSON.stringify(segmentBudget, null, 2) + '\n');
+
+  const manifestTextLines = [
+    'MEGAROM PACKING MANIFEST',
+    `Zone size: ${zoneSize}`,
+    `Data start address: ${formatAsmAddress(dataStartAddress)}`,
+    `Total resource blocks: ${resources.length}`,
+    '',
+  ];
+  for (const { zone, resources: zoneResourceList } of zoneResources) {
+    manifestTextLines.push(`BANK ${String(zone.physicalBank).padStart(2, '0')} used ${zone.usedBytes} / ${zoneSize}`);
+    for (const resource of zoneResourceList) {
+      manifestTextLines.push(
+        `- ${String(resource.label).padEnd(32)} ` +
+        `${String(resource.size).padStart(5, ' ')} stored / ` +
+        `${String(resource.uncompressedSize).padStart(5, ' ')} raw bytes ` +
+        `@ ${formatAsmAddress(resource.windowAddress)} ` +
+        `(rom ${formatAsmAddress(resource.physicalAddress)}, offset +${formatAsmAddress(resource.zoneOffset)}) ` +
+        `[${resource.group}/${resource.type}] flags=${resource.flags || 0}`
+      );
+      manifestTextLines.push(`  reason: ${resource.placementReason || 'placement reason unavailable'}`);
+    }
+    manifestTextLines.push(`FREE ${zone.remainingBytes}`);
+    manifestTextLines.push('');
+  }
+  code = replaceMideasArtifactCommentBlock(code, 'packing_manifest.txt', manifestTextLines.join('\n').trimEnd() + '\n');
+
+  return { code, resourceById };
+}
+
+async function injectZx0IntoMegaromResourceTableAsm(sourceCode, tempDir, info, onProgress = null) {
+  const manifest = parseMideasJsonArtifact(sourceCode, 'packing_manifest.json');
+  const manifestV2 = parseMideasJsonArtifact(sourceCode, 'manifest_v2.json');
+  const banks = parseMideasJsonArtifact(sourceCode, 'banks.json');
+  const projectUsage = parseMideasJsonArtifact(sourceCode, 'project_usage.json');
+  const segmentBudget = parseMideasJsonArtifact(sourceCode, 'segment_budget.json');
+  if (!manifest || !manifestV2 || !banks || !projectUsage || !segmentBudget) {
+    info.warning = 'ZX0 skipped: missing generated MegaROM artifacts for resource_table rewrite';
+    return { code: sourceCode, info };
+  }
+
+  const parsedData = parseMegaromDataSection(sourceCode);
+  if (!parsedData || ![8192, 16384].includes(parsedData.zoneSize)) {
+    info.warning = 'ZX0 skipped: unable to parse supported MegaROM DATA BANKS section';
+    return { code: sourceCode, info };
+  }
+
+  const resources = [];
+  for (const bank of manifest.banks || []) {
+    for (const resource of bank.resources || []) {
+      resources.push({
+        id: resource.id,
+        label: resource.label,
+        resourceIdLabel: resource.resourceIdLabel,
+        group: resource.group,
+        type: resource.type,
+        bank: resource.bank,
+        zoneOffset: resource.zoneOffset,
+        physicalAddress: resource.physicalAddress,
+        windowAddress: resource.windowAddress,
+        size: resource.size,
+        uncompressedSize: resource.uncompressedSize || resource.size,
+        flags: resource.flags || 0,
+        sourceIndex: resource.sourceIndex,
+      });
+    }
+  }
+
+  const compressPresentationName = parsePresentationCompressionFlag(sourceCode, 'PRESENTATION_SCREEN_COMPRESS_NAMETBL', true);
+  const compressPresentationPatterns = parsePresentationCompressionFlag(sourceCode, 'PRESENTATION_SCREEN_COMPRESS_PATTERNS', true);
+  const compressPresentationColors = parsePresentationCompressionFlag(sourceCode, 'PRESENTATION_SCREEN_COMPRESS_COLORS', true);
+  const isPresentationResourceZx0Candidate = (resource) => {
+    const label = String(resource?.label || '').toUpperCase();
+    if (label === 'PRESENTATION_SCREEN_NAMETBL') return compressPresentationName;
+    if (/^PRESENTATION_SCREEN_PATTERNS_B[0-2]$/.test(label)) return compressPresentationPatterns;
+    if (/^PRESENTATION_SCREEN_COLORS_B[0-2]$/.test(label)) return compressPresentationColors;
+    return false;
+  };
+
+  const resourceByLabel = new Map(resources.map((resource) => [String(resource.label).toUpperCase(), resource]));
+  const selectedResources = resources.filter((resource) =>
+    isResourceTableZx0Candidate(resource) || isPresentationResourceZx0Candidate(resource)
+  );
+  const selectedResourceLabels = new Set(selectedResources.map((resource) => String(resource.label).toUpperCase()));
+
+  info.attempted = true;
+  info.candidateScreens = selectedResources.filter((resource) => String(resource.group || '').toUpperCase() === 'SCREENS').length;
+  info.candidateTilePatterns = selectedResources.filter((resource) => String(resource.type || '').toUpperCase() === 'TILE_PATTERNS').length;
+  info.candidateTileColors = selectedResources.filter((resource) => String(resource.type || '').toUpperCase() === 'TILE_COLORS').length;
+  info.candidateFontPatterns = selectedResources.filter((resource) => String(resource.type || '').toUpperCase() === 'FONT_PATTERNS').length;
+  info.candidateFontColors = selectedResources.filter((resource) => String(resource.type || '').toUpperCase() === 'FONT_COLORS').length;
+  info.candidateSpritePatterns = selectedResources.filter((resource) => String(resource.type || '').toUpperCase() === 'SPRITE_PATTERNS').length;
+  const blockByLabel = new Map(parsedData.blocks.map((block) => [String(block.label).toUpperCase(), block]));
+
+  for (const resource of resources) {
+    const label = String(resource.label || '').toUpperCase();
+    if (!isDirectRomScreenBlockCatalog(label)) continue;
+    const block = blockByLabel.get(label);
+    if (block?.compressed || (resource.flags & 0x01)) {
+      throw createDirectRomCatalogCompressedError(label);
+    }
+    resource.flags = 0;
+    resource.uncompressedSize = resource.size;
+  }
+
+  let completed = 0;
+  const candidates = [...selectedResourceLabels].filter((label) => blockByLabel.has(label));
+
+  const emitProgress = (message, phase = 'megaromResources') => {
+    if (typeof onProgress === 'function') {
+      onProgress({ message, phase, current: completed, total: candidates.length });
+    }
+  };
+
+  emitProgress('Compress banked resources...');
+  for (const label of candidates) {
+    const block = blockByLabel.get(label);
+    const resource = resourceByLabel.get(label);
+    if (block.compressed) {
+      resource.size = block.byteSize;
+      resource.uncompressedSize = block.uncompressedSize || block.byteSize;
+      resource.flags = block.flags || 1;
+      info.originalBytes += resource.uncompressedSize;
+      info.compressedBytes += block.byteSize;
+      info.savedBytes += Math.max(0, resource.uncompressedSize - block.byteSize);
+      completed += 1;
+      emitProgress(`Repair compressed banked resources ${completed}/${candidates.length}`);
+      continue;
+    }
+    if (block.byteSize !== block.bytes.length) {
+      info.originalBytes += block.byteSize;
+      info.compressedBytes += block.byteSize;
+      completed += 1;
+      emitProgress(`Compress banked resources ${completed}/${candidates.length}`);
+      continue;
+    }
+    info.originalBytes += block.bytes.length;
+    try {
+      const compressed = await runZx0CompressionAsync(block.bytes, tempDir);
+      if (compressed.length < block.bytes.length) {
+        block.lines = [
+          block.lines[0],
+          `    ; ZX0 compressed banked resource (${block.bytes.length} -> ${compressed.length} bytes)`,
+          ...formatAsmDbLines(Array.from(compressed.values())),
+        ];
+        block.byteSize = compressed.length;
+        block.compressed = true;
+        block.uncompressedSize = block.bytes.length;
+        block.flags = 1;
+        resource.size = compressed.length;
+        resource.uncompressedSize = block.bytes.length;
+        resource.flags = 1;
+        info.compressedBytes += compressed.length;
+        info.savedBytes += (block.bytes.length - compressed.length);
+        const resourceType = String(resource.type || '').toUpperCase();
+        if (resourceType === 'TILE_PATTERNS' || resourceType === 'SCREEN_PATTERNS') {
+          info.compressedTilePatterns += 1;
+        } else if (resourceType === 'TILE_COLORS' || resourceType === 'SCREEN_COLORS') {
+          info.compressedTileColors += 1;
+        } else if (resourceType === 'FONT_PATTERNS') {
+          info.compressedFontPatterns += 1;
+        } else if (resourceType === 'FONT_COLORS') {
+          info.compressedFontColors += 1;
+        } else if (resourceType === 'SPRITE_PATTERNS') {
+          info.compressedSpritePatterns += 1;
+        } else if (resource.group === 'SCREENS') {
+          info.compressedScreens += 1;
+        }
+      } else {
+        info.compressedBytes += block.bytes.length;
+      }
+    } catch (err) {
+      if (!info.warning) {
+        info.warning = `ZX0 compression failed for banked resource ${block.label}: ${err.message}`;
+      }
+      info.compressedBytes += block.bytes.length;
+    }
+    completed += 1;
+    emitProgress(`Compress banked resources ${completed}/${candidates.length}`);
+  }
+
+  const compressedResourceCount = resources.filter((resource) => resource.flags & 0x01).length;
+  if (compressedResourceCount === 0) {
+    info.netSavedBytes = 0;
+    emitProgress('ZX0 compression finished', 'finalize');
+    return { code: sourceCode, info };
+  }
+
+  const { zones } = packMegaromResourceBlocks(
+    parsedData.blocks,
+    parsedData.dataStartAddress,
+    parsedData.zoneSize,
+    parsedData.minimumZoneCount
+  );
+  const mapperFormat = String(manifest?.mapper?.format || (parsedData.zoneSize === 16384 ? 'ascii16' : '')).toLowerCase();
+  const placementByLabel = new Map();
+  for (const zone of zones) {
+    for (const unit of zone.units) {
+      for (const block of unit.blocks) {
+        const labelOffset = unit.labelOffsets.get(block.label) || 0;
+        const zoneOffset = unit.zoneOffset + labelOffset;
+        placementByLabel.set(String(block.label).toUpperCase(), {
+          bank: resolveResourceRuntimeBank(zone.physicalBank, mapperFormat),
+          zoneOffset,
+          physicalAddress: zone.orgAddress + zoneOffset,
+          windowAddress: parsedData.windowBaseAddress + zoneOffset,
+          size: block.byteSize,
+          uncompressedSize: block.uncompressedSize || block.byteSize,
+          flags: block.flags || 0,
+        });
+      }
+    }
+  }
+
+  for (const resource of resources) {
+    const placement = placementByLabel.get(String(resource.label).toUpperCase());
+    if (!placement) continue;
+    resource.bank = placement.bank;
+    resource.zoneOffset = placement.zoneOffset;
+    resource.physicalAddress = placement.physicalAddress;
+    resource.windowAddress = placement.windowAddress;
+    resource.size = placement.size;
+    resource.uncompressedSize = placement.uncompressedSize;
+    resource.flags = placement.flags;
+  }
+
+  const rebuiltSection = renderMegaromDataSection(
+    parsedData.introLines,
+    zones,
+    parsedData.zoneSize,
+    parsedData.dataStartAddress
+  );
+  let finalCode = [
+    ...parsedData.allLines.slice(0, parsedData.sectionStart),
+    ...rebuiltSection,
+    ...parsedData.allLines.slice(parsedData.sectionEnd),
+  ].join('\n');
+
+  const resourceTableAsm = buildResourceTableAsmFromRecords(resources);
+  finalCode = replaceActiveResourceTableAsm(finalCode, resourceTableAsm);
+  const artifactResult = updateMegaromCompressionArtifacts({
+    sourceCode: finalCode,
+    manifest,
+    manifestV2,
+    banks,
+    projectUsage,
+    segmentBudget,
+    resources,
+    zones,
+    zoneSize: parsedData.zoneSize,
+    dataStartAddress: parsedData.dataStartAddress,
+    windowBaseAddress: parsedData.windowBaseAddress,
+    resourceTableAsm,
+  });
+  finalCode = artifactResult.code;
+
+  info.applied = true;
+  info.netSavedBytes = info.savedBytes;
+  info.warning = info.warning || null;
+  emitProgress('ZX0 compression finished', 'finalize');
+  return { code: finalCode, info };
 }
 
 function countSymbolReferences(sourceCodeUpper, symbol) {
@@ -898,11 +3043,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const sourceHasZx0Routine = /^\s*dzx0_standard:/im.test(sourceCode);
   const usesResourceManager = /^\s*resource_table:\s*$/im.test(sourceCode);
   if (usesResourceManager) {
-    // Resource-table descriptors currently store only bank/address/uncompressed
-    // size. Until the resource manager carries compression metadata and a
-    // banked decompression path, keep table-backed resources raw.
-    info.warning = 'ZX0 skipped: resource_table-backed assets require raw banked resources';
-    return { code: sourceCode, info };
+    return injectZx0IntoMegaromResourceTableAsm(sourceCode, tempDir, info, onProgress);
   }
   const screenBufferSymbol = hasEquSymbol(sourceCode, 'LEVEL_MAP_RAM') ? 'LEVEL_MAP_RAM' : 'ZX0_SCREEN_BUFFER';
   const behaviorBufferSymbol = hasEquSymbol(sourceCode, 'BEHAVIOR_MAP_RAM') ? 'BEHAVIOR_MAP_RAM' : 'ZX0_BEHAVIOR_BUFFER';
@@ -915,6 +3056,7 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   const compressPresentationColors = parsePresentationCompressionFlag(sourceCode, 'PRESENTATION_SCREEN_COMPRESS_COLORS', true);
   const presentationDataInPage0 = /^\s*;\s*PRESENTATION_SCREEN_ROM_DATA_GROUP:\s*page0\s*$/im.test(sourceCode);
   const fontDataInPage0 = /^\s*;\s*FONT_DATA_ROM_DATA_GROUP:\s*page0\s*$/im.test(sourceCode);
+  const screenRuntimeDataInPage0 = /^\s*;\s*SCREEN_RUNTIME_DATA_ROM_DATA_GROUP:\s*page0\s*$/im.test(sourceCode);
   info.screenBufferSymbol = screenBufferSymbol;
   info.effectsBufferSymbol = 'runtime_effects_layout';
   info.behaviorBufferSymbol = behaviorBufferSymbol;
@@ -1255,8 +3397,20 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
   let inShowPresentationScreen = false;
   let presentationCopyUsesRamBuffer = false;
   let fontBlobInitInjected = false;
+  let skipPage0CopyToRamAfterZx0 = false;
 
   for (const line of rebuilt) {
+    if (skipPage0CopyToRamAfterZx0) {
+      if (/^\s*ld\s+de\s*,/i.test(line) || /^\s*ld\s+bc\s*,/i.test(line)) {
+        continue;
+      }
+      if (/^\s*call\s+page0_copy_to_ram\s*$/i.test(line)) {
+        skipPage0CopyToRamAfterZx0 = false;
+        continue;
+      }
+      skipPage0CopyToRamAfterZx0 = false;
+    }
+
     if (selectedSpritePatternGroups.length > 0 && /^\s*load_sprite_patterns(?:_[a-z0-9_]+)?:\s*$/i.test(line)) {
       inLoadSpritePatterns = true;
       inUpdateAnimation = false;
@@ -1423,6 +3577,16 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       const layoutLabel = hlLayoutMatch.label.toUpperCase();
       const offset = hlLayoutMatch.offset;
         if (compressedLayoutLabels.has(layoutLabel)) {
+          if (screenRuntimeDataInPage0) {
+            patched.push('    ; Decompress ZX0 page-0 screen layout into RAM buffer');
+            patched.push(`    ld hl, ${hlLayoutMatch.label}`);
+            patched.push(`    ld de, ${screenBufferSymbol}`);
+            patched.push('    call page0_decompress_to_ram');
+            patched.push(`    ld hl, ${screenBufferSymbol}${offset}`);
+            skipPage0CopyToRamAfterZx0 = true;
+            layoutDecompressedInCurrentFunction = true;
+            continue;
+          }
           if (!layoutDecompressedInCurrentFunction) {
             patched.push('    ; Decompress ZX0 screen layout into RAM buffer');
             patched.push('    di');
@@ -1460,6 +3624,16 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       const blockCatalogLabel = hlBlockCatalogMatch.label.toUpperCase();
       const offset = hlBlockCatalogMatch.offset;
       if (compressedBlockCatalogLabels.has(blockCatalogLabel)) {
+        if (screenRuntimeDataInPage0) {
+          patched.push('    ; Decompress ZX0 page-0 screen block catalog into runtime_effects_layout');
+          patched.push(`    ld hl, ${hlBlockCatalogMatch.label}`);
+          patched.push('    ld de, runtime_effects_layout');
+          patched.push('    call page0_decompress_to_ram');
+          patched.push(`    ld hl, runtime_effects_layout${offset}`);
+          skipPage0CopyToRamAfterZx0 = true;
+          blockCatalogDecompressedInCurrentFunction = true;
+          continue;
+        }
         if (!blockCatalogDecompressedInCurrentFunction) {
           patched.push('    ; Decompress ZX0 screen block catalog into runtime_effects_layout');
           patched.push('    di');
@@ -1479,6 +3653,16 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
       const blockMapLabel = hlBlockMapMatch.label.toUpperCase();
       const offset = hlBlockMapMatch.offset;
       if (compressedBlockMapLabels.has(blockMapLabel)) {
+        if (screenRuntimeDataInPage0) {
+          patched.push('    ; Decompress ZX0 page-0 screen block map into runtime_screen_layout');
+          patched.push(`    ld hl, ${hlBlockMapMatch.label}`);
+          patched.push('    ld de, runtime_screen_layout');
+          patched.push('    call page0_decompress_to_ram');
+          patched.push(`    ld hl, runtime_screen_layout${offset}`);
+          skipPage0CopyToRamAfterZx0 = true;
+          blockMapDecompressedInCurrentFunction = true;
+          continue;
+        }
         if (!blockMapDecompressedInCurrentFunction) {
           patched.push('    ; Decompress ZX0 screen block map into runtime_screen_layout');
           patched.push('    di');
@@ -1497,6 +3681,15 @@ async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProg
     if (inLoadScreen && hlEffectsMatch) {
       const effectsLabel = hlEffectsMatch.label.toUpperCase();
       if (compressedEffectsLabels.has(effectsLabel)) {
+        if (screenRuntimeDataInPage0) {
+          patched.push('    ; Decompress ZX0 page-0 effects layout directly into runtime_effects_layout');
+          patched.push(`    ld hl, ${hlEffectsMatch.label}`);
+          patched.push('    ld de, runtime_effects_layout');
+          patched.push('    call page0_decompress_to_ram');
+          patched.push('    ld hl, runtime_effects_layout');
+          skipPage0CopyToRamAfterZx0 = true;
+          continue;
+        }
         patched.push('    ; Decompress ZX0 effects layout directly into runtime_effects_layout');
         patched.push('    di');
         patched.push(`    ld hl, ${hlEffectsMatch.label}`);
@@ -2055,6 +4248,14 @@ app.post('/compile', async (req, res) => {
       }
     }
   } catch (preprocessError) {
+    if (preprocessError?.code === 'MIDEAS_DIRECT_ROM_CATALOG_COMPRESSED') {
+      screenCompressionInfo.warning = preprocessError.message;
+      return res.status(400).send({
+        error: 'Invalid compressed 4x4 shared block catalog',
+        details: preprocessError.message,
+        screenCompressionInfo
+      });
+    }
     screenCompressionInfo.warning = `ZX0 preprocess error: ${preprocessError.message}`;
     console.error('ZX0 preprocess error:', preprocessError);
   }
@@ -2107,7 +4308,7 @@ app.post('/compile', async (req, res) => {
         console.log(`Glass compilation failed. Temp file: ${tempFilePath}`);
 
         // Read the source file to see what we tried to compile
-        fs.readFile(tempFilePath, 'utf8', (readErr, sourceCode) => {
+        fs.readFile(tempFilePath, 'utf8', async (readErr, sourceCode) => {
           const fullErrorText = `${compileStderr}\n${compileStdout}\n${error.message || ''}`;
           const sourceRomConfig = parseSourceRomConfig(codeToCompile);
           const capacityOverflow = isGlassRomCapacityError(fullErrorText);
@@ -2172,6 +4373,103 @@ app.post('/compile', async (req, res) => {
             };
             if (suggestedRomConfig) {
               errorResponse.suggestedRomConfig = suggestedRomConfig;
+            }
+          }
+
+          if (capacityOverflow && normalizedRomMode === 'megarom' && attempt === 1) {
+            try {
+              console.warn('MegaROM capacity failure detected. Retrying once with post-ASM optimization...');
+              const recovery = await optimizePostAsmCode(codeToCompile, {
+                projectName: projectName || 'megarom_recovery',
+                passes: 3,
+                validateGlass: false,
+                rules: [...POST_ASM_APPLY_RULES],
+              });
+
+              const recoveryRomPath = outputFilePath.replace(/\.rom$/i, '.postasm.rom');
+              const recoveryCommand = `java -jar "${jarPath}" -I "${includeServerPath}" "${recovery.outputPath}" "${recoveryRomPath}"`;
+              const recoveryStdout = execSync(recoveryCommand, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+
+              if (fs.existsSync(recoveryRomPath)) {
+                const KB_8 = 8192;
+                const MIN_FLASHCART_ROM_BYTES = 32 * 1024;
+                const optimizedRomData = fs.readFileSync(recoveryRomPath);
+                const originalSize = optimizedRomData.length;
+                const aligned8KBSize = Math.max(KB_8, Math.ceil(originalSize / KB_8) * KB_8);
+                const aligned8KBBanks = aligned8KBSize / KB_8;
+                const isPowerOfTwo = (value) => value > 0 && (value & (value - 1)) === 0;
+                const powerOfTwoBankCount = isPowerOfTwo(aligned8KBBanks)
+                  ? aligned8KBBanks
+                  : Math.pow(2, Math.ceil(Math.log2(aligned8KBBanks)));
+                const targetBankCount = Math.max(MIN_FLASHCART_ROM_BYTES / KB_8, powerOfTwoBankCount);
+                const targetSize = targetBankCount * KB_8;
+                const paddingNeeded = Math.max(0, targetSize - originalSize);
+                const paddedData = paddingNeeded > 0
+                  ? Buffer.concat([optimizedRomData, Buffer.alloc(paddingNeeded, 0xFF)])
+                  : optimizedRomData;
+
+                fs.writeFileSync(outputFilePath, paddedData);
+
+                const romFileName = path.basename(outputFilePath);
+                const recoveredMessage = [
+                  `Glass initially exceeded the MegaROM bank budget${negativeDsOverflowBytes !== null ? ` by ${negativeDsOverflowBytes} bytes` : ''}.`,
+                  'Post-ASM optimization recovered the build and Glass validated the optimized ASM.',
+                  recoveryStdout || '',
+                  recovery.stdout || '',
+                ].filter(Boolean).join('\n');
+
+                return res.send({
+                  success: true,
+                  data: paddedData.toString('hex'),
+                  message: recoveredMessage,
+                  romFile: romFileName,
+                  romPath: outputFilePath,
+                  downloadUrl: `/download/${romFileName}`,
+                  screenCompressionInfo: screenCompressionInfo,
+                  requestedRomConfig: {
+                    romMode: normalizedRomMode,
+                    targetFormat: normalizedTargetFormat,
+                    autoMegaROM: normalizedAutoMegaROM
+                  },
+                  sourceRomConfig: sourceRomConfig,
+                  resolvedRomConfig: {
+                    requestedRomMode: normalizedRomMode,
+                    resolvedRomMode: 'megarom',
+                    targetFormat: normalizedTargetFormat,
+                    mapperTargetFormat: normalizedTargetFormat,
+                    mapperActive: true,
+                    reason: 'MegaROM build recovered by post-ASM optimization after the first Glass capacity failure.'
+                  },
+                  romSizeInfo: {
+                    originalSize: originalSize,
+                    paddedSize: paddedData.length,
+                    paddingAdded: paddedData.length - originalSize,
+                    paddingPolicy: 'post-ASM recovered MegaROM + power-of-two 8KB banks',
+                    aligned8KBSize: aligned8KBSize,
+                    aligned8KBBanks: aligned8KBBanks,
+                    targetHardwareSize: targetSize,
+                    targetHardwareBanks: targetSize / KB_8,
+                    sizeIn8KB: paddedData.length / KB_8,
+                    sizeMod8192: originalSize % KB_8,
+                  },
+                  postAsmRecovery: {
+                    applied: true,
+                    optimizedAsmFile: path.basename(recovery.outputPath),
+                    optimizedAsmDownloadUrl: `/download/${path.basename(recovery.outputPath)}`,
+                    reportJsonFile: path.basename(recovery.reportJsonPath),
+                    reportMarkdownFile: path.basename(recovery.reportMdPath),
+                    summary: recovery.summary,
+                  },
+                  ...(compressedAsmFileInfo || {})
+                });
+              }
+            } catch (recoveryError) {
+              const recoveryMessage = recoveryError instanceof Error ? recoveryError.message : String(recoveryError);
+              console.warn('Post-ASM MegaROM recovery failed:', recoveryMessage);
+              errorResponse.postAsmRecovery = {
+                applied: false,
+                error: recoveryMessage,
+              };
             }
           }
 
@@ -2653,17 +4951,113 @@ app.post('/compress-unified-asm', (req, res) => {
         res.json(buildCompressionResponse(preprocessed));
       })
       .catch((error) => {
-        res.status(500).json({
+        const status = error?.code === 'MIDEAS_DIRECT_ROM_CATALOG_COMPRESSED' ? 400 : 500;
+        res.status(status).json({
           success: false,
-          error: 'Failed to compress unified ASM',
+          error: status === 400 ? 'Invalid compressed 4x4 shared block catalog' : 'Failed to compress unified ASM',
           details: error.message
         });
       });
   } catch (error) {
+    const status = error?.code === 'MIDEAS_DIRECT_ROM_CATALOG_COMPRESSED' ? 400 : 500;
+    return res.status(status).json({
+      success: false,
+      error: status === 400 ? 'Invalid compressed 4x4 shared block catalog' : 'Failed to compress unified ASM',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Endpoint to run post-ASM dead-code analysis without modifying the ASM.
+ * Expects a JSON body with `code` and optional `projectName`/`rules`.
+ * @name POST /analyze-post-asm
+ * @function
+ */
+app.post('/analyze-post-asm', async (req, res) => {
+  const { code, projectName, rules } = req.body;
+
+  if (!code || typeof code !== 'string') {
+    return res.status(400).json({ success: false, error: 'No ASM code provided' });
+  }
+
+  try {
+    const result = await analyzePostAsmCode(code, { projectName, rules });
+    return res.json({
+      success: true,
+      applied: false,
+      message: 'Post-ASM analysis completed; no patches were applied',
+      rules: result.rules,
+      summary: result.summary,
+      report: result.report,
+      reportJsonFile: path.basename(result.reportJsonPath),
+      reportJsonPath: result.reportJsonPath,
+      reportMarkdownFile: path.basename(result.reportMdPath),
+      reportMarkdownPath: result.reportMdPath,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    });
+  } catch (error) {
+    const message = error.message || String(error);
+    const status = message.startsWith('Unknown post-ASM rule id') ? 400 : 500;
+    return res.status(status).json({
+      success: false,
+      error: 'Failed to analyze post-ASM code',
+      details: message,
+    });
+  }
+});
+
+/**
+ * Endpoint to apply conservative post-ASM dead-block elimination into a
+ * separate optimized ASM artifact.
+ * Expects a JSON body with `code` and optional `projectName`/`passes`.
+ * @name POST /optimize-post-asm
+ * @function
+ */
+app.post('/optimize-post-asm', async (req, res) => {
+  const { code, projectName, passes, validateGlass, rules } = req.body;
+
+  if (!code || typeof code !== 'string') {
+    return res.status(400).json({ success: false, error: 'No ASM code provided' });
+  }
+
+  try {
+    const result = await optimizePostAsmCode(code, { projectName, passes, validateGlass, rules });
+    return res.json({
+      success: true,
+      applied: result.summary.appliedPatches > 0,
+      message: result.summary.appliedPatches > 0
+        ? 'Post-ASM optimization completed into a separate optimized ASM file'
+        : 'Post-ASM optimization completed; no patchable rules were found',
+      rules: result.rules,
+      passes: result.passes,
+      validateGlass: result.validateGlass,
+      summary: result.summary,
+      invariantCheck: result.invariantCheck,
+      report: result.report,
+      optimizedCode: result.optimizedCode,
+      optimizedAsmFile: path.basename(result.outputPath),
+      optimizedAsmPath: result.outputPath,
+      optimizedAsmDownloadUrl: `/download/${path.basename(result.outputPath)}`,
+      optimizedRomFile: result.optimizedRomPath ? path.basename(result.optimizedRomPath) : null,
+      optimizedRomPath: result.optimizedRomPath,
+      optimizedRomDownloadUrl: result.optimizedRomPath ? `/download/${path.basename(result.optimizedRomPath)}` : null,
+      reportJsonFile: path.basename(result.reportJsonPath),
+      reportJsonPath: result.reportJsonPath,
+      reportMarkdownFile: path.basename(result.reportMdPath),
+      reportMarkdownPath: result.reportMdPath,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    });
+  } catch (error) {
     return res.status(500).json({
       success: false,
-      error: 'Failed to compress unified ASM',
-      details: error.message
+      error: 'Failed to optimize post-ASM code',
+      details: error.message || String(error),
+      invariantCheck: error.invariantCheck || null,
+      stdout: error.stdout,
+      stderr: error.stderr,
     });
   }
 });
@@ -3203,6 +5597,15 @@ if (require.main === module) {
 module.exports = {
   app,
   injectZx0IntoUnifiedAsm,
+  __postAsmAnalysisForTests: {
+    POST_ASM_ANALYSIS_RULES,
+    normalizePostAsmRuleIds,
+    normalizePostAsmPasses,
+    buildPostAsmAnalysisSummary,
+    comparePostAsmInvariants,
+    analyzePostAsmCode,
+    optimizePostAsmCode,
+  },
   __romCapacityForTests: {
     SIMPLE_ROM_LIMIT_BYTES,
     PLAIN48_ROM_LIMIT_BYTES,

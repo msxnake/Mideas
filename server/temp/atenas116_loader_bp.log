@@ -1,0 +1,7 @@
+t0_5 pc=811D p=00/00/00/00 screen=00 map18_14=33 type=CC val=CC desc_id=00 bank=00 addr=0000 size=0000 raw=0000 flags=00
+space2_before pc=1130 p=00/00/00/00 screen=00 map18_14=33 type=CC val=CC desc_id=00 bank=00 addr=0000 size=0000 raw=0000 flags=00
+space2_after pc=1130 p=00/00/00/00 screen=00 map18_14=33 type=CC val=CC desc_id=00 bank=00 addr=0000 size=0000 raw=0000 flags=00
+space4_before pc=40E2 p=12/02/03/03 screen=00 map18_14=33 type=CC val=CC desc_id=30 bank=04 addr=B380 size=0179 raw=03F0 flags=01
+space4_after pc=0412 p=0C/02/03/03 screen=00 map18_14=33 type=CC val=CC desc_id=33 bank=04 addr=B617 size=00DF raw=03F0 flags=01
+space6_before pc=96C4 p=01/02/03/03 screen=00 map18_14=33 type=CC val=CC desc_id=5E bank=05 addr=A000 size=0300 raw=0300 flags=00
+space6_after pc=45C1 p=12/02/04/03 screen=00 map18_14=33 type=CC val=CC desc_id=30 bank=04 addr=B380 size=0179 raw=03F0 flags=01

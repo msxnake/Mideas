@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\joc60_ascii16_mirror_fix2_compressed.asm",
+  "metrics": {
+    "original_line_count": 32938,
+    "output_line_count": 32938,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-oy0u9s6g\\joc60_ascii16_mirror_fix2_compressed.optimized.optimized.rom",
+        "size_bytes": 262144,
+        "sha256": "fbf68ba9789fe1dc62732fc16e5a2e40ba2ff9b6c858bf1850892e92d56c52a0"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-oy0u9s6g\\joc60_ascii16_mirror_fix2_compressed.original.rom",
+        "size_bytes": 262144,
+        "sha256": "fbf68ba9789fe1dc62732fc16e5a2e40ba2ff9b6c858bf1850892e92d56c52a0"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

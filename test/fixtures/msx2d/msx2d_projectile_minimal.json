@@ -188,6 +188,72 @@
       }
     },
     {
+      "id": "comp_auto_control_script",
+      "name": "AutoControlScript",
+      "type": "componentdefinition",
+      "data": {
+        "id": "comp_auto_control_script",
+        "name": "AutoControlScript",
+        "properties": [
+          {
+            "name": "enabled",
+            "type": "boolean",
+            "defaultValue": "true",
+            "description": "Whether this scripted control component is active in tutorial/dialog/cutscene screens."
+          },
+          {
+            "name": "startsOnScreenLoad",
+            "type": "boolean",
+            "defaultValue": "true",
+            "description": "Run the command list when the screen starts."
+          },
+          {
+            "name": "loop",
+            "type": "boolean",
+            "defaultValue": "false",
+            "description": "Restart the command list after it finishes."
+          },
+          {
+            "name": "defaultDialogueAssetId",
+            "type": "dialogue_ref",
+            "defaultValue": "",
+            "description": "Optional Dialogue asset used by play_dialog, open_dialog, or write_line commands."
+          },
+          {
+            "name": "idleSpriteAssetId",
+            "type": "sprite_ref",
+            "defaultValue": "",
+            "description": "Optional sprite to apply while the FakePlayer is waiting, talking, or finished."
+          },
+          {
+            "name": "walkSpriteAssetId",
+            "type": "sprite_ref",
+            "defaultValue": "",
+            "description": "Optional sprite to apply while the FakePlayer is executing movement commands."
+          },
+          {
+            "name": "scriptFormat",
+            "type": "string",
+            "defaultValue": "commands",
+            "description": "Script runtime format: commands for readable editor commands, eventString for compact FakePlayer event chains."
+          },
+          {
+            "name": "eventString",
+            "type": "string",
+            "defaultValue": "x64d1000ow1sc",
+            "description": "Compact FakePlayer event chain: x64 right, X64 left, y16 down, Y16 up, d1000 delay ms, o open dialog, w1 write dialogue line 1, s wait SPC, t wait text, k clear, c close."
+          },
+          {
+            "name": "commands",
+            "type": "string",
+            "defaultValue": "move_right 64\njump\ndash_right\ndelay 1000\nplay_dialog",
+            "description": "One command per line: move_right or move right pixels, jump, dash_right or dash right, grab_wall, release_wall, delay ms, wait seconds, play_dialog, open_dialog/open frame_dialog, write_line/write text index, wait_spc/wait SPC, wait_text/wait text, clear_dialog/clean, close_dialog."
+          }
+        ],
+        "description": "Editor-only script data for FakePlayer/tutorial actors. It does not change the real Player control path."
+      }
+    },
+    {
       "id": "comp_health",
       "name": "Health",
       "type": "componentdefinition",
@@ -241,6 +307,12 @@
             "type": "word",
             "defaultValue": "256",
             "description": "Initial upward velocity or force."
+          },
+          {
+            "name": "trigger",
+            "type": "string",
+            "defaultValue": "fire",
+            "description": "Input action that starts a jump: fire, action2, or up."
           },
           {
             "name": "jumpSprite",
@@ -456,6 +528,24 @@
       }
     },
     {
+      "id": "comp_limit_on",
+      "name": "Limit_on",
+      "type": "componentdefinition",
+      "data": {
+        "id": "comp_limit_on",
+        "name": "Limit_on",
+        "properties": [
+          {
+            "name": "isEnabled",
+            "type": "boolean",
+            "defaultValue": "true",
+            "description": "If enabled, prevents the player from leaving a screen edge when the WorldMap has no adjacent screen in that direction."
+          }
+        ],
+        "description": "Marker component for player screen limits. Empty WorldMap edges behave like implicit walls."
+      }
+    },
+    {
       "id": "comp_wall_jump",
       "name": "Wall Jump",
       "type": "componentdefinition",
@@ -525,10 +615,88 @@
             "description": "Velocidad vertical mientras se agarra a la pared. 0 = quedarse quieto, 1+ = deslizarse lentamente."
           },
           {
+            "name": "climbSpeed",
+            "type": "byte",
+            "defaultValue": "1",
+            "description": "Pixeles por frame al trepar o bajar mientras se mantiene Boton 2/N y se pulsa arriba o abajo."
+          },
+          {
+            "name": "grabDurationFrames",
+            "type": "byte",
+            "defaultValue": "240",
+            "description": "Frames maximos de wall grab desde el primer agarre. 240 frames son 4 segundos a 60 FPS."
+          },
+          {
+            "name": "grabSpriteAssetId",
+            "type": "sprite_ref",
+            "defaultValue": "",
+            "description": "Sprite que se muestra mientras se esta agarrado a la pared. Si esta vacio, no cambia el sprite."
+          },
+          {
             "name": "isEnabled",
             "type": "boolean",
             "defaultValue": "true",
             "description": "Activa o desactiva el wall grab para esta entidad."
+          }
+        ]
+      }
+    },
+    {
+      "id": "comp_dash",
+      "name": "Dash",
+      "type": "componentdefinition",
+      "data": {
+        "id": "comp_dash",
+        "name": "Dash",
+        "description": "Define un dash corto y preciso para plataformas tipo Celeste. Es dato de diseño hasta que el runtime/generador lo consuma.",
+        "properties": [
+          {
+            "name": "dashSpeed",
+            "type": "byte",
+            "defaultValue": "6",
+            "description": "Velocidad del dash en pixeles por frame o unidad equivalente del runtime."
+          },
+          {
+            "name": "dashDurationFrames",
+            "type": "byte",
+            "defaultValue": "10",
+            "description": "Frames durante los que se mantiene el impulso de dash."
+          },
+          {
+            "name": "dashCooldownFrames",
+            "type": "byte",
+            "defaultValue": "12",
+            "description": "Frames antes de permitir otro dash si el runtime lo permite."
+          },
+          {
+            "name": "maxAirDashes",
+            "type": "byte",
+            "defaultValue": "1",
+            "description": "Dashes disponibles en el aire antes de tocar suelo o recargar."
+          },
+          {
+            "name": "refillOnGround",
+            "type": "boolean",
+            "defaultValue": "true",
+            "description": "Recarga el dash al tocar suelo."
+          },
+          {
+            "name": "refillOnWallGrab",
+            "type": "boolean",
+            "defaultValue": "true",
+            "description": "Recarga el dash al agarrarse a una pared."
+          },
+          {
+            "name": "allowEightDirections",
+            "type": "boolean",
+            "defaultValue": "true",
+            "description": "Permite dash horizontal, vertical y diagonal."
+          },
+          {
+            "name": "isEnabled",
+            "type": "boolean",
+            "defaultValue": "true",
+            "description": "Activa o desactiva el dash para esta entidad."
           }
         ]
       }
@@ -660,6 +828,120 @@
       }
     },
     {
+      "id": "comp_boss_neck_chain",
+      "name": "BossNeckChain",
+      "type": "componentdefinition",
+      "data": {
+        "id": "comp_boss_neck_chain",
+        "name": "BossNeckChain",
+        "description": "Configures an ordered vector of boss tiles where each segment follows the movement of the previous segment.",
+        "properties": [
+          {
+            "name": "enabled",
+            "type": "boolean",
+            "defaultValue": "true",
+            "description": "Whether the boss neck chain movement is active."
+          },
+          {
+            "name": "segments",
+            "type": "string",
+            "defaultValue": "0,0;0,1;0,2",
+            "description": "Ordered tile coordinates as x,y pairs separated by semicolons. First pair is the leading tile."
+          },
+          {
+            "name": "amplitudeX",
+            "type": "byte",
+            "defaultValue": "0",
+            "description": "Maximum horizontal displacement of the leading tile in pixels."
+          },
+          {
+            "name": "amplitudeY",
+            "type": "byte",
+            "defaultValue": "8",
+            "description": "Maximum vertical displacement of the leading tile in pixels."
+          },
+          {
+            "name": "speed",
+            "type": "byte",
+            "defaultValue": "1",
+            "description": "Animation speed multiplier for the leading tile."
+          },
+          {
+            "name": "segmentDelayFrames",
+            "type": "byte",
+            "defaultValue": "4",
+            "description": "Frame delay between one segment and the next."
+          },
+          {
+            "name": "followStrength",
+            "type": "byte",
+            "defaultValue": "85",
+            "description": "Follower strength from 0 to 100. Lower values make later tiles move less."
+          }
+        ]
+      }
+    },
+    {
+      "id": "comp_boss_crush_movement",
+      "name": "BossCrushMovement",
+      "type": "componentdefinition",
+      "data": {
+        "id": "comp_boss_crush_movement",
+        "name": "BossCrushMovement",
+        "description": "Configures a boss slam movement used for stomp/crush attacks.",
+        "properties": [
+          {
+            "name": "enabled",
+            "type": "boolean",
+            "defaultValue": "true",
+            "description": "Whether the boss crush movement is active."
+          },
+          {
+            "name": "direction",
+            "type": "string",
+            "defaultValue": "down",
+            "description": "Crush direction: down, up, left, or right."
+          },
+          {
+            "name": "distance",
+            "type": "byte",
+            "defaultValue": "48",
+            "description": "Maximum displacement in pixels."
+          },
+          {
+            "name": "windupFrames",
+            "type": "byte",
+            "defaultValue": "18",
+            "description": "Telegraph frames before the fast slam."
+          },
+          {
+            "name": "slamFrames",
+            "type": "byte",
+            "defaultValue": "8",
+            "description": "Frames spent moving toward the crush target."
+          },
+          {
+            "name": "holdFrames",
+            "type": "byte",
+            "defaultValue": "14",
+            "description": "Frames held at maximum displacement."
+          },
+          {
+            "name": "returnFrames",
+            "type": "byte",
+            "defaultValue": "24",
+            "description": "Frames spent returning to origin."
+          },
+          {
+            "name": "cooldownFrames",
+            "type": "byte",
+            "defaultValue": "40",
+            "description": "Idle frames before repeating the crush cycle."
+          }
+        ]
+      }
+    },
+    {
       "id": "comp_damage",
       "name": "Damage",
       "type": "componentdefinition",
@@ -698,6 +980,17 @@
         "name": "Deadly Tiles",
         "properties": [],
         "description": "Marker component. Enables per-entity detection of deadly behavior-map tiles and updates the runtime flag used by the state machine."
+      }
+    },
+    {
+      "id": "comp_in_water",
+      "name": "In Water",
+      "type": "componentdefinition",
+      "data": {
+        "id": "comp_in_water",
+        "name": "In Water",
+        "properties": [],
+        "description": "Marker component for entities that should react to water effect zones or water-specific runtime rules."
       }
     },
     {
@@ -936,6 +1229,12 @@
             "type": "word",
             "defaultValue": "250",
             "description": "Time between shots in ms (fire rate)."
+          },
+          {
+            "name": "trigger",
+            "type": "string",
+            "defaultValue": "fire",
+            "description": "Input action that fires: fire, action2, or up."
           },
           {
             "name": "fireKey",
@@ -1601,6 +1900,59 @@
       }
     },
     {
+      "id": "tpl_player_default",
+      "name": "Player Default",
+      "type": "entitytemplate",
+      "data": {
+        "id": "tpl_player_default",
+        "name": "Player Default",
+        "icon": "P",
+        "isPlayer": true,
+        "components": [
+          {
+            "definitionId": "comp_pos",
+            "defaultValues": {
+              "x": 32,
+              "y": 100
+            }
+          },
+          {
+            "definitionId": "comp_render",
+            "defaultValues": {
+              "spriteAssetId": "placeholder_sprite_player",
+              "isVisible": true,
+              "layer": 1
+            }
+          },
+          {
+            "definitionId": "comp_health",
+            "defaultValues": {
+              "current": 3,
+              "max": 3
+            }
+          },
+          {
+            "definitionId": "comp_limit_on",
+            "defaultValues": {
+              "isEnabled": true
+            }
+          },
+          {
+            "definitionId": "comp_cursors",
+            "defaultValues": {
+              "isEnabled": true,
+              "speed": 2,
+              "allowUp": true,
+              "allowDown": true,
+              "allowLeft": true,
+              "allowRight": true
+            }
+          }
+        ],
+        "description": "Minimal default player with position, render, health and cursor movement."
+      }
+    },
+    {
       "id": "tpl_player",
       "name": "Player",
       "type": "entitytemplate",
@@ -1721,9 +2073,79 @@
               "isEnabled": true,
               "speed": 2
             }
+          },
+          {
+            "definitionId": "comp_limit_on",
+            "defaultValues": {
+              "isEnabled": true
+            }
+          },
+          {
+            "definitionId": "comp_dash",
+            "defaultValues": {
+              "dashSpeed": "6",
+              "dashDurationFrames": "10",
+              "dashCooldownFrames": "12",
+              "maxAirDashes": "1",
+              "refillOnGround": true,
+              "refillOnWallGrab": true,
+              "allowEightDirections": true,
+              "isEnabled": true
+            }
           }
         ],
         "description": "The main player character."
+      }
+    },
+    {
+      "id": "tpl_fake_player",
+      "name": "FakePlayer",
+      "type": "entitytemplate",
+      "data": {
+        "id": "tpl_fake_player",
+        "name": "FakePlayer",
+        "icon": "F",
+        "isPlayer": false,
+        "components": [
+          {
+            "definitionId": "comp_pos",
+            "defaultValues": {
+              "x": 32,
+              "y": 120
+            }
+          },
+          {
+            "definitionId": "comp_render",
+            "defaultValues": {
+              "spriteAssetId": "placeholder_sprite_player",
+              "isVisible": true,
+              "layer": 1
+            }
+          },
+          {
+            "definitionId": "comp_animation",
+            "defaultValues": {
+              "currentAnimationName": "player_idle",
+              "animationSpeed": "8",
+              "animateOnlyWhenMoving": true
+            }
+          },
+          {
+            "definitionId": "comp_auto_control_script",
+            "defaultValues": {
+              "enabled": true,
+              "startsOnScreenLoad": true,
+              "loop": false,
+              "defaultDialogueAssetId": "",
+              "idleSpriteAssetId": "",
+              "walkSpriteAssetId": "",
+              "scriptFormat": "eventString",
+              "eventString": "x64d1000ow1sc",
+              "commands": "move_right 64\njump\ndash_right\ndelay 1000\nplay_dialog"
+            }
+          }
+        ],
+        "description": "Script-driven player lookalike for tutorial/dialog/cutscene screens. It intentionally has no PlayerInput component."
       }
     },
     {
@@ -1948,6 +2370,12 @@
             }
           },
           {
+            "definitionId": "comp_limit_on",
+            "defaultValues": {
+              "isEnabled": true
+            }
+          },
+          {
             "definitionId": "comp_aiming",
             "defaultValues": {
               "targetEntityTemplateId": "tpl_enemy_basic",
@@ -2106,6 +2534,12 @@
             }
           },
           {
+            "definitionId": "comp_limit_on",
+            "defaultValues": {
+              "isEnabled": true
+            }
+          },
+          {
             "definitionId": "comp_gravity",
             "defaultValues": {
               "strength": "80",
@@ -2131,6 +2565,8 @@
             "definitionId": "comp_wall_grab",
             "defaultValues": {
               "grabFallSpeed": "1",
+              "climbSpeed": "1",
+              "grabDurationFrames": "240",
               "isEnabled": true
             }
           },
@@ -2143,6 +2579,19 @@
               "slideFallSpeed": "2",
               "lockFrames": "16",
               "requirePressAwayFromWall": false,
+              "isEnabled": true
+            }
+          },
+          {
+            "definitionId": "comp_dash",
+            "defaultValues": {
+              "dashSpeed": "6",
+              "dashDurationFrames": "10",
+              "dashCooldownFrames": "12",
+              "maxAirDashes": "1",
+              "refillOnGround": true,
+              "refillOnWallGrab": true,
+              "allowEightDirections": true,
               "isEnabled": true
             }
           },
@@ -2168,6 +2617,185 @@
           }
         ],
         "description": "Minimal MSX Screen 2 platformer player for Mario, Celeste and Metroid-style tests. Uses core movement, tile collision, health and animation components."
+      }
+    },
+    {
+      "id": "tpl_player_platform",
+      "name": "Player_Platform",
+      "type": "entitytemplate",
+      "data": {
+        "id": "tpl_player_platform",
+        "name": "Player_Platform",
+        "icon": "P",
+        "isPlayer": true,
+        "components": [
+          {
+            "definitionId": "comp_pos",
+            "defaultValues": {
+              "x": 32,
+              "y": 120
+            }
+          },
+          {
+            "definitionId": "comp_render",
+            "defaultValues": {
+              "spriteAssetId": "placeholder_sprite_player",
+              "isVisible": true,
+              "layer": 1
+            }
+          },
+          {
+            "definitionId": "comp_physics",
+            "defaultValues": {
+              "velocityX": 0,
+              "velocityY": 0,
+              "friction": 32,
+              "mass": 1
+            }
+          },
+          {
+            "definitionId": "comp_health",
+            "defaultValues": {
+              "current": 3,
+              "max": 3
+            }
+          },
+          {
+            "definitionId": "comp_collision",
+            "defaultValues": {
+              "hitboxWidth": 12,
+              "hitboxHeight": 15,
+              "offsetX": 2,
+              "offsetY": 1,
+              "collisionLayer": 1,
+              "collidesWith": 14,
+              "isStatic": false,
+              "isTrigger": false
+            }
+          },
+          {
+            "definitionId": "comp_wall_collision",
+            "defaultValues": {
+              "hitboxWidth": 12,
+              "hitboxHeight": 15,
+              "offsetX": 2,
+              "offsetY": 1,
+              "tileSize": 8,
+              "stopOnCollision": true
+            }
+          },
+          {
+            "definitionId": "comp_wall_grab",
+            "defaultValues": {
+              "grabFallSpeed": "1",
+              "climbSpeed": "1",
+              "grabDurationFrames": "240",
+              "grabSpriteAssetId": "",
+              "isEnabled": true
+            }
+          },
+          {
+            "definitionId": "comp_dash",
+            "defaultValues": {
+              "dashSpeed": "6",
+              "dashDurationFrames": "10",
+              "dashCooldownFrames": "12",
+              "maxAirDashes": "1",
+              "refillOnGround": true,
+              "refillOnWallGrab": true,
+              "allowEightDirections": true,
+              "isEnabled": true
+            }
+          },
+          {
+            "definitionId": "comp_jump",
+            "defaultValues": {
+              "jumpPower": "384",
+              "trigger": "fire",
+              "jumpSprite": "",
+              "maxJumps": "1",
+              "currentJumpCount": "0",
+              "isJumping": false,
+              "requireKeyRelease": true
+            }
+          },
+          {
+            "definitionId": "comp_animation",
+            "defaultValues": {
+              "currentAnimationName": "player_idle",
+              "currentFrameIndex": "0",
+              "animationSpeed": "8",
+              "loops": true,
+              "isPlaying": true,
+              "animateOnlyWhenMoving": true
+            }
+          },
+          {
+            "definitionId": "comp_cursors",
+            "defaultValues": {
+              "isEnabled": true,
+              "speed": 2,
+              "allowUp": false,
+              "allowDown": false,
+              "allowLeft": true,
+              "allowRight": true
+            }
+          },
+          {
+            "definitionId": "comp_limit_on",
+            "defaultValues": {
+              "isEnabled": true
+            }
+          },
+          {
+            "definitionId": "comp_statemachine",
+            "defaultValues": {
+              "stateMachineAssetId": "",
+              "currentStateId": "Idle",
+              "isEnabled": true
+            }
+          },
+          {
+            "definitionId": "comp_player_input",
+            "defaultValues": {
+              "controllerId": 0,
+              "inputEnabled": true
+            }
+          },
+          {
+            "definitionId": "comp_gravity",
+            "defaultValues": {
+              "strength": "80",
+              "terminalVelocity": "1024"
+            }
+          },
+          {
+            "definitionId": "comp_tile_collector",
+            "defaultValues": {
+              "collectionRadius": 8,
+              "collectibleTileIds": "dot,powerup,fruit",
+              "replacementTileId": "empty",
+              "targetVariable": "",
+              "incrementAmount": 0,
+              "flagVariable": "",
+              "flagValue": 1,
+              "bonusTileId": "",
+              "bonusReplacementTileId": "",
+              "bonusSoundId": "",
+              "bonusIsPersistent": false,
+              "bonusEntityEffect": "none",
+              "bonusEffectAmount": 1,
+              "bonusSlashStrength": 8,
+              "bonusRespawnSeconds": 0,
+              "isEnabled": true
+            }
+          },
+          {
+            "definitionId": "comp_deadly_tiles",
+            "defaultValues": {}
+          }
+        ],
+        "description": "Platform player template with input, cursors, state machine, tile collision, wall grab, dash, jump, gravity, collection, deadly tiles, health and animation."
       }
     },
     {
@@ -2249,6 +2877,12 @@
               "allowDown": true,
               "allowLeft": true,
               "allowRight": true
+            }
+          },
+          {
+            "definitionId": "comp_limit_on",
+            "defaultValues": {
+              "isEnabled": true
             }
           },
           {
@@ -2360,6 +2994,12 @@
               "allowDown": true,
               "allowLeft": true,
               "allowRight": true
+            }
+          },
+          {
+            "definitionId": "comp_limit_on",
+            "defaultValues": {
+              "isEnabled": true
             }
           },
           {
@@ -2639,6 +3279,12 @@
             }
           },
           {
+            "definitionId": "comp_limit_on",
+            "defaultValues": {
+              "isEnabled": true
+            }
+          },
+          {
             "definitionId": "comp_tile_collector",
             "defaultValues": {
               "collectionRadius": 8,
@@ -2726,6 +3372,12 @@
             }
           },
           {
+            "definitionId": "comp_limit_on",
+            "defaultValues": {
+              "isEnabled": true
+            }
+          },
+          {
             "definitionId": "comp_pacMovement",
             "defaultValues": {
               "speed": 1,
@@ -2809,6 +3461,12 @@
             "defaultValues": {
               "controllerId": 0,
               "inputEnabled": true
+            }
+          },
+          {
+            "definitionId": "comp_limit_on",
+            "defaultValues": {
+              "isEnabled": true
             }
           },
           {
@@ -7154,6 +7812,67 @@
       "description": "Attaches a behavior script to an entity."
     },
     {
+      "id": "comp_auto_control_script",
+      "name": "AutoControlScript",
+      "properties": [
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Whether this scripted control component is active in tutorial/dialog/cutscene screens."
+        },
+        {
+          "name": "startsOnScreenLoad",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Run the command list when the screen starts."
+        },
+        {
+          "name": "loop",
+          "type": "boolean",
+          "defaultValue": "false",
+          "description": "Restart the command list after it finishes."
+        },
+        {
+          "name": "defaultDialogueAssetId",
+          "type": "dialogue_ref",
+          "defaultValue": "",
+          "description": "Optional Dialogue asset used by play_dialog, open_dialog, or write_line commands."
+        },
+        {
+          "name": "idleSpriteAssetId",
+          "type": "sprite_ref",
+          "defaultValue": "",
+          "description": "Optional sprite to apply while the FakePlayer is waiting, talking, or finished."
+        },
+        {
+          "name": "walkSpriteAssetId",
+          "type": "sprite_ref",
+          "defaultValue": "",
+          "description": "Optional sprite to apply while the FakePlayer is executing movement commands."
+        },
+        {
+          "name": "scriptFormat",
+          "type": "string",
+          "defaultValue": "commands",
+          "description": "Script runtime format: commands for readable editor commands, eventString for compact FakePlayer event chains."
+        },
+        {
+          "name": "eventString",
+          "type": "string",
+          "defaultValue": "x64d1000ow1sc",
+          "description": "Compact FakePlayer event chain: x64 right, X64 left, y16 down, Y16 up, d1000 delay ms, o open dialog, w1 write dialogue line 1, s wait SPC, t wait text, k clear, c close."
+        },
+        {
+          "name": "commands",
+          "type": "string",
+          "defaultValue": "move_right 64\njump\ndash_right\ndelay 1000\nplay_dialog",
+          "description": "One command per line: move_right or move right pixels, jump, dash_right or dash right, grab_wall, release_wall, delay ms, wait seconds, play_dialog, open_dialog/open frame_dialog, write_line/write text index, wait_spc/wait SPC, wait_text/wait text, clear_dialog/clean, close_dialog."
+        }
+      ],
+      "description": "Editor-only script data for FakePlayer/tutorial actors. It does not change the real Player control path."
+    },
+    {
       "id": "comp_health",
       "name": "Health",
       "properties": [
@@ -7193,6 +7912,12 @@
           "type": "word",
           "defaultValue": "256",
           "description": "Initial upward velocity or force."
+        },
+        {
+          "name": "trigger",
+          "type": "string",
+          "defaultValue": "fire",
+          "description": "Input action that starts a jump: fire, action2, or up."
         },
         {
           "name": "jumpSprite",
@@ -7387,6 +8112,19 @@
       "description": "Defines collision detection with solid tiles in the collision layer (walls, obstacles)."
     },
     {
+      "id": "comp_limit_on",
+      "name": "Limit_on",
+      "properties": [
+        {
+          "name": "isEnabled",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "If enabled, prevents the player from leaving a screen edge when the WorldMap has no adjacent screen in that direction."
+        }
+      ],
+      "description": "Marker component for player screen limits. Empty WorldMap edges behave like implicit walls."
+    },
+    {
       "id": "comp_wall_jump",
       "name": "Wall Jump",
       "description": "Permite deslizarse por paredes y saltar/rebotar desde ellas con impulso horizontal y vertical configurables.",
@@ -7447,10 +8185,83 @@
           "description": "Velocidad vertical mientras se agarra a la pared. 0 = quedarse quieto, 1+ = deslizarse lentamente."
         },
         {
+          "name": "climbSpeed",
+          "type": "byte",
+          "defaultValue": "1",
+          "description": "Pixeles por frame al trepar o bajar mientras se mantiene Boton 2/N y se pulsa arriba o abajo."
+        },
+        {
+          "name": "grabDurationFrames",
+          "type": "byte",
+          "defaultValue": "240",
+          "description": "Frames maximos de wall grab desde el primer agarre. 240 frames son 4 segundos a 60 FPS."
+        },
+        {
+          "name": "grabSpriteAssetId",
+          "type": "sprite_ref",
+          "defaultValue": "",
+          "description": "Sprite que se muestra mientras se esta agarrado a la pared. Si esta vacio, no cambia el sprite."
+        },
+        {
           "name": "isEnabled",
           "type": "boolean",
           "defaultValue": "true",
           "description": "Activa o desactiva el wall grab para esta entidad."
+        }
+      ]
+    },
+    {
+      "id": "comp_dash",
+      "name": "Dash",
+      "description": "Define un dash corto y preciso para plataformas tipo Celeste. Es dato de diseño hasta que el runtime/generador lo consuma.",
+      "properties": [
+        {
+          "name": "dashSpeed",
+          "type": "byte",
+          "defaultValue": "6",
+          "description": "Velocidad del dash en pixeles por frame o unidad equivalente del runtime."
+        },
+        {
+          "name": "dashDurationFrames",
+          "type": "byte",
+          "defaultValue": "10",
+          "description": "Frames durante los que se mantiene el impulso de dash."
+        },
+        {
+          "name": "dashCooldownFrames",
+          "type": "byte",
+          "defaultValue": "12",
+          "description": "Frames antes de permitir otro dash si el runtime lo permite."
+        },
+        {
+          "name": "maxAirDashes",
+          "type": "byte",
+          "defaultValue": "1",
+          "description": "Dashes disponibles en el aire antes de tocar suelo o recargar."
+        },
+        {
+          "name": "refillOnGround",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Recarga el dash al tocar suelo."
+        },
+        {
+          "name": "refillOnWallGrab",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Recarga el dash al agarrarse a una pared."
+        },
+        {
+          "name": "allowEightDirections",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Permite dash horizontal, vertical y diagonal."
+        },
+        {
+          "name": "isEnabled",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Activa o desactiva el dash para esta entidad."
         }
       ]
     },
@@ -7561,6 +8372,110 @@
       "description": "Manages autonomous behavior for non-player entities."
     },
     {
+      "id": "comp_boss_neck_chain",
+      "name": "BossNeckChain",
+      "description": "Configures an ordered vector of boss tiles where each segment follows the movement of the previous segment.",
+      "properties": [
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Whether the boss neck chain movement is active."
+        },
+        {
+          "name": "segments",
+          "type": "string",
+          "defaultValue": "0,0;0,1;0,2",
+          "description": "Ordered tile coordinates as x,y pairs separated by semicolons. First pair is the leading tile."
+        },
+        {
+          "name": "amplitudeX",
+          "type": "byte",
+          "defaultValue": "0",
+          "description": "Maximum horizontal displacement of the leading tile in pixels."
+        },
+        {
+          "name": "amplitudeY",
+          "type": "byte",
+          "defaultValue": "8",
+          "description": "Maximum vertical displacement of the leading tile in pixels."
+        },
+        {
+          "name": "speed",
+          "type": "byte",
+          "defaultValue": "1",
+          "description": "Animation speed multiplier for the leading tile."
+        },
+        {
+          "name": "segmentDelayFrames",
+          "type": "byte",
+          "defaultValue": "4",
+          "description": "Frame delay between one segment and the next."
+        },
+        {
+          "name": "followStrength",
+          "type": "byte",
+          "defaultValue": "85",
+          "description": "Follower strength from 0 to 100. Lower values make later tiles move less."
+        }
+      ]
+    },
+    {
+      "id": "comp_boss_crush_movement",
+      "name": "BossCrushMovement",
+      "description": "Configures a boss slam movement used for stomp/crush attacks.",
+      "properties": [
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Whether the boss crush movement is active."
+        },
+        {
+          "name": "direction",
+          "type": "string",
+          "defaultValue": "down",
+          "description": "Crush direction: down, up, left, or right."
+        },
+        {
+          "name": "distance",
+          "type": "byte",
+          "defaultValue": "48",
+          "description": "Maximum displacement in pixels."
+        },
+        {
+          "name": "windupFrames",
+          "type": "byte",
+          "defaultValue": "18",
+          "description": "Telegraph frames before the fast slam."
+        },
+        {
+          "name": "slamFrames",
+          "type": "byte",
+          "defaultValue": "8",
+          "description": "Frames spent moving toward the crush target."
+        },
+        {
+          "name": "holdFrames",
+          "type": "byte",
+          "defaultValue": "14",
+          "description": "Frames held at maximum displacement."
+        },
+        {
+          "name": "returnFrames",
+          "type": "byte",
+          "defaultValue": "24",
+          "description": "Frames spent returning to origin."
+        },
+        {
+          "name": "cooldownFrames",
+          "type": "byte",
+          "defaultValue": "40",
+          "description": "Idle frames before repeating the crush cycle."
+        }
+      ]
+    },
+    {
       "id": "comp_damage",
       "name": "Damage",
       "properties": [
@@ -7590,6 +8505,12 @@
       "name": "Deadly Tiles",
       "properties": [],
       "description": "Marker component. Enables per-entity detection of deadly behavior-map tiles and updates the runtime flag used by the state machine."
+    },
+    {
+      "id": "comp_in_water",
+      "name": "In Water",
+      "properties": [],
+      "description": "Marker component for entities that should react to water effect zones or water-specific runtime rules."
     },
     {
       "id": "comp_collectible",
@@ -7808,6 +8729,12 @@
           "type": "word",
           "defaultValue": "250",
           "description": "Time between shots in ms (fire rate)."
+        },
+        {
+          "name": "trigger",
+          "type": "string",
+          "defaultValue": "fire",
+          "description": "Input action that fires: fire, action2, or up."
         },
         {
           "name": "fireKey",
@@ -8419,6 +9346,54 @@
   ],
   "entityTemplates": [
     {
+      "id": "tpl_player_default",
+      "name": "Player Default",
+      "icon": "P",
+      "isPlayer": true,
+      "components": [
+        {
+          "definitionId": "comp_pos",
+          "defaultValues": {
+            "x": 32,
+            "y": 100
+          }
+        },
+        {
+          "definitionId": "comp_render",
+          "defaultValues": {
+            "spriteAssetId": "placeholder_sprite_player",
+            "isVisible": true,
+            "layer": 1
+          }
+        },
+        {
+          "definitionId": "comp_health",
+          "defaultValues": {
+            "current": 3,
+            "max": 3
+          }
+        },
+        {
+          "definitionId": "comp_limit_on",
+          "defaultValues": {
+            "isEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_cursors",
+          "defaultValues": {
+            "isEnabled": true,
+            "speed": 2,
+            "allowUp": true,
+            "allowDown": true,
+            "allowLeft": true,
+            "allowRight": true
+          }
+        }
+      ],
+      "description": "Minimal default player with position, render, health and cursor movement."
+    },
+    {
       "id": "tpl_player",
       "name": "Player",
       "icon": "👤",
@@ -8535,9 +9510,74 @@
             "isEnabled": true,
             "speed": 2
           }
+        },
+        {
+          "definitionId": "comp_limit_on",
+          "defaultValues": {
+            "isEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_dash",
+          "defaultValues": {
+            "dashSpeed": "6",
+            "dashDurationFrames": "10",
+            "dashCooldownFrames": "12",
+            "maxAirDashes": "1",
+            "refillOnGround": true,
+            "refillOnWallGrab": true,
+            "allowEightDirections": true,
+            "isEnabled": true
+          }
         }
       ],
       "description": "The main player character."
+    },
+    {
+      "id": "tpl_fake_player",
+      "name": "FakePlayer",
+      "icon": "F",
+      "isPlayer": false,
+      "components": [
+        {
+          "definitionId": "comp_pos",
+          "defaultValues": {
+            "x": 32,
+            "y": 120
+          }
+        },
+        {
+          "definitionId": "comp_render",
+          "defaultValues": {
+            "spriteAssetId": "placeholder_sprite_player",
+            "isVisible": true,
+            "layer": 1
+          }
+        },
+        {
+          "definitionId": "comp_animation",
+          "defaultValues": {
+            "currentAnimationName": "player_idle",
+            "animationSpeed": "8",
+            "animateOnlyWhenMoving": true
+          }
+        },
+        {
+          "definitionId": "comp_auto_control_script",
+          "defaultValues": {
+            "enabled": true,
+            "startsOnScreenLoad": true,
+            "loop": false,
+            "defaultDialogueAssetId": "",
+            "idleSpriteAssetId": "",
+            "walkSpriteAssetId": "",
+            "scriptFormat": "eventString",
+            "eventString": "x64d1000ow1sc",
+            "commands": "move_right 64\njump\ndash_right\ndelay 1000\nplay_dialog"
+          }
+        }
+      ],
+      "description": "Script-driven player lookalike for tutorial/dialog/cutscene screens. It intentionally has no PlayerInput component."
     },
     {
       "id": "tpl_enemy_basic",
@@ -8742,6 +9782,12 @@
           }
         },
         {
+          "definitionId": "comp_limit_on",
+          "defaultValues": {
+            "isEnabled": true
+          }
+        },
+        {
           "definitionId": "comp_aiming",
           "defaultValues": {
             "targetEntityTemplateId": "tpl_enemy_basic",
@@ -8890,6 +9936,12 @@
           }
         },
         {
+          "definitionId": "comp_limit_on",
+          "defaultValues": {
+            "isEnabled": true
+          }
+        },
+        {
           "definitionId": "comp_gravity",
           "defaultValues": {
             "strength": "80",
@@ -8915,6 +9967,8 @@
           "definitionId": "comp_wall_grab",
           "defaultValues": {
             "grabFallSpeed": "1",
+            "climbSpeed": "1",
+            "grabDurationFrames": "240",
             "isEnabled": true
           }
         },
@@ -8927,6 +9981,19 @@
             "slideFallSpeed": "2",
             "lockFrames": "16",
             "requirePressAwayFromWall": false,
+            "isEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_dash",
+          "defaultValues": {
+            "dashSpeed": "6",
+            "dashDurationFrames": "10",
+            "dashCooldownFrames": "12",
+            "maxAirDashes": "1",
+            "refillOnGround": true,
+            "refillOnWallGrab": true,
+            "allowEightDirections": true,
             "isEnabled": true
           }
         },
@@ -8952,6 +10019,180 @@
         }
       ],
       "description": "Minimal MSX Screen 2 platformer player for Mario, Celeste and Metroid-style tests. Uses core movement, tile collision, health and animation components."
+    },
+    {
+      "id": "tpl_player_platform",
+      "name": "Player_Platform",
+      "icon": "P",
+      "isPlayer": true,
+      "components": [
+        {
+          "definitionId": "comp_pos",
+          "defaultValues": {
+            "x": 32,
+            "y": 120
+          }
+        },
+        {
+          "definitionId": "comp_render",
+          "defaultValues": {
+            "spriteAssetId": "placeholder_sprite_player",
+            "isVisible": true,
+            "layer": 1
+          }
+        },
+        {
+          "definitionId": "comp_physics",
+          "defaultValues": {
+            "velocityX": 0,
+            "velocityY": 0,
+            "friction": 32,
+            "mass": 1
+          }
+        },
+        {
+          "definitionId": "comp_health",
+          "defaultValues": {
+            "current": 3,
+            "max": 3
+          }
+        },
+        {
+          "definitionId": "comp_collision",
+          "defaultValues": {
+            "hitboxWidth": 12,
+            "hitboxHeight": 15,
+            "offsetX": 2,
+            "offsetY": 1,
+            "collisionLayer": 1,
+            "collidesWith": 14,
+            "isStatic": false,
+            "isTrigger": false
+          }
+        },
+        {
+          "definitionId": "comp_wall_collision",
+          "defaultValues": {
+            "hitboxWidth": 12,
+            "hitboxHeight": 15,
+            "offsetX": 2,
+            "offsetY": 1,
+            "tileSize": 8,
+            "stopOnCollision": true
+          }
+        },
+        {
+          "definitionId": "comp_wall_grab",
+          "defaultValues": {
+            "grabFallSpeed": "1",
+            "climbSpeed": "1",
+            "grabDurationFrames": "240",
+            "grabSpriteAssetId": "",
+            "isEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_dash",
+          "defaultValues": {
+            "dashSpeed": "6",
+            "dashDurationFrames": "10",
+            "dashCooldownFrames": "12",
+            "maxAirDashes": "1",
+            "refillOnGround": true,
+            "refillOnWallGrab": true,
+            "allowEightDirections": true,
+            "isEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_jump",
+          "defaultValues": {
+            "jumpPower": "384",
+            "trigger": "fire",
+            "jumpSprite": "",
+            "maxJumps": "1",
+            "currentJumpCount": "0",
+            "isJumping": false,
+            "requireKeyRelease": true
+          }
+        },
+        {
+          "definitionId": "comp_animation",
+          "defaultValues": {
+            "currentAnimationName": "player_idle",
+            "currentFrameIndex": "0",
+            "animationSpeed": "8",
+            "loops": true,
+            "isPlaying": true,
+            "animateOnlyWhenMoving": true
+          }
+        },
+        {
+          "definitionId": "comp_cursors",
+          "defaultValues": {
+            "isEnabled": true,
+            "speed": 2,
+            "allowUp": false,
+            "allowDown": false,
+            "allowLeft": true,
+            "allowRight": true
+          }
+        },
+        {
+          "definitionId": "comp_limit_on",
+          "defaultValues": {
+            "isEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_statemachine",
+          "defaultValues": {
+            "stateMachineAssetId": "",
+            "currentStateId": "Idle",
+            "isEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_player_input",
+          "defaultValues": {
+            "controllerId": 0,
+            "inputEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_gravity",
+          "defaultValues": {
+            "strength": "80",
+            "terminalVelocity": "1024"
+          }
+        },
+        {
+          "definitionId": "comp_tile_collector",
+          "defaultValues": {
+            "collectionRadius": 8,
+            "collectibleTileIds": "dot,powerup,fruit",
+            "replacementTileId": "empty",
+            "targetVariable": "",
+            "incrementAmount": 0,
+            "flagVariable": "",
+            "flagValue": 1,
+            "bonusTileId": "",
+            "bonusReplacementTileId": "",
+            "bonusSoundId": "",
+            "bonusIsPersistent": false,
+            "bonusEntityEffect": "none",
+            "bonusEffectAmount": 1,
+            "bonusSlashStrength": 8,
+            "bonusRespawnSeconds": 0,
+            "isEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_deadly_tiles",
+          "defaultValues": {}
+        }
+      ],
+      "description": "Platform player template with input, cursors, state machine, tile collision, wall grab, dash, jump, gravity, collection, deadly tiles, health and animation."
     },
     {
       "id": "tpl_msx_topdown_player",
@@ -9028,6 +10269,12 @@
             "allowDown": true,
             "allowLeft": true,
             "allowRight": true
+          }
+        },
+        {
+          "definitionId": "comp_limit_on",
+          "defaultValues": {
+            "isEnabled": true
           }
         },
         {
@@ -9134,6 +10381,12 @@
             "allowDown": true,
             "allowLeft": true,
             "allowRight": true
+          }
+        },
+        {
+          "definitionId": "comp_limit_on",
+          "defaultValues": {
+            "isEnabled": true
           }
         },
         {
@@ -9398,6 +10651,12 @@
           }
         },
         {
+          "definitionId": "comp_limit_on",
+          "defaultValues": {
+            "isEnabled": true
+          }
+        },
+        {
           "definitionId": "comp_tile_collector",
           "defaultValues": {
             "collectionRadius": 8,
@@ -9480,6 +10739,12 @@
           }
         },
         {
+          "definitionId": "comp_limit_on",
+          "defaultValues": {
+            "isEnabled": true
+          }
+        },
+        {
           "definitionId": "comp_pacMovement",
           "defaultValues": {
             "speed": 1,
@@ -9558,6 +10823,12 @@
           "defaultValues": {
             "controllerId": 0,
             "inputEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_limit_on",
+          "defaultValues": {
+            "isEnabled": true
           }
         },
         {

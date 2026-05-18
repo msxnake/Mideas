@@ -89,8 +89,18 @@ function buildBehaviorMapDataFromCollisionLayer(screen, analysis) {
             const srcCol = collisionCols > 0
                 ? Math.min(collisionCols - 1, Math.floor((col * collisionCols) / SCREEN_WIDTH))
                 : 0;
-            const tileId = collisionLayer[srcRow]?.[srcCol]?.tileId;
-            behaviorMapData.push((0, screenUtils_1.encodeBehaviorByteFromLogicalProperties)(tileId ? tileById.get(tileId)?.logicalProperties : undefined));
+            behaviorMapData.push((0, screenUtils_1.encodeBehaviorByteFromLogicalProperties)((0, screenUtils_1.getScreenTileLogicalProperties)(collisionLayer[srcRow]?.[srcCol], tileById)));
+        }
+    }
+    return behaviorMapData;
+}
+function buildBehaviorMapDataFromBackgroundLayer(screen, analysis) {
+    const backgroundLayer = screen.layers.background || [];
+    const behaviorMapData = [];
+    const tileById = new Map((analysis.tiles || []).map((tile) => [tile.id, tile]));
+    for (let row = 0; row < SCREEN_HEIGHT; row++) {
+        for (let col = 0; col < SCREEN_WIDTH; col++) {
+            behaviorMapData.push((0, screenUtils_1.encodeBehaviorByteFromLogicalProperties)((0, screenUtils_1.getScreenTileLogicalProperties)(backgroundLayer[row]?.[col], tileById)));
         }
     }
     return behaviorMapData;
@@ -170,6 +180,14 @@ function buildScreenRuntimePage0Candidates(analysis) {
             comments: [`${screen.name} - effects layout`, `Copied from page 0 to runtime_effects_layout on screen load.`],
         });
         if (behaviorSource === 'backgroundChars') {
+            blocks.push({
+                label: `BEHAVIOR_${screenName}_${index}_DATA`,
+                bytes: buildBehaviorMapDataFromBackgroundLayer(screen, analysis),
+                comments: [
+                    `${screen.name} - per-cell behavior map`,
+                    `Copied from page 0 to runtime_behavior_map on screen load.`,
+                ],
+            });
             blocks.push({
                 label: `SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`,
                 bytes: (0, screenUtils_1.buildScreenCharBehaviorTable)({
@@ -349,17 +367,24 @@ function hasPage0DataGroups(analysis, romMode = 'simple32k', fontRawData) {
     return buildPage0Plan(analysis, romMode, fontRawData).selectedGroups.length > 0;
 }
 function page0NeedsZx0Decoder(analysis, romMode = 'simple32k', fontRawData) {
+    const page0Plan = buildPage0Plan(analysis, romMode, fontRawData);
     // Font data in page0 is always ZX0-compressed by server.js
-    if (fontRawData && fontDataUsesPage0Group(analysis, romMode, fontRawData)) {
+    if (fontRawData && page0Plan.selectedGroups.some(group => group.id === 'fontData')) {
         return true;
     }
-    if (!presentationScreenUsesPage0Group(analysis, romMode)) {
-        return false;
+    // Screen runtime blobs packed into page 0 are also ZX0-compressed by
+    // server.js. The screen loader then calls page0_decompress_to_ram for
+    // layout/catalog/map/effects blocks, so the helper must be real.
+    if (page0Plan.selectedGroups.some(group => String(group.id).startsWith('screenRuntime:'))) {
+        return true;
     }
-    const compression = analysis.presentationScreen?.compression;
-    return !!(compression?.compressNameTable ||
-        compression?.compressPatterns ||
-        compression?.compressColors);
+    if (page0Plan.selectedGroups.some(group => group.id === 'presentationScreen')) {
+        const compression = analysis.presentationScreen?.compression;
+        return !!(compression?.compressNameTable ||
+            compression?.compressPatterns ||
+            compression?.compressColors);
+    }
+    return false;
 }
 function formatPage0PlanComments(plan) {
     const lines = [

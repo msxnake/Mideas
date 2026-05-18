@@ -1,0 +1,3706 @@
+{
+  "version": 1,
+  "scope": "konami8k_bank_optimizer",
+  "strategy": "analysis-only scene-aware first-fit input; later pass may repack or duplicate resources",
+  "constraints": {
+    "mapperFormat": "ascii8",
+    "segmentSize": 8192,
+    "dynamicWindows": 1,
+    "dataWindow": {
+      "page": "p3",
+      "base": "#8000",
+      "mask": "#1FFF",
+      "bankDivisor": "#2000"
+    },
+    "maxRecommendedSceneBanks": 3
+  },
+  "currentPlacement": {
+    "bankCount": 6,
+    "resourceCount": 135,
+    "totalStoredBytes": 10559,
+    "totalRawBytes": 46103,
+    "compressedResources": 100,
+    "banks": [
+      {
+        "bank": 3,
+        "count": 93,
+        "storedBytes": 8022,
+        "rawBytes": 43191,
+        "resourceIds": [
+          130,
+          133,
+          64,
+          65,
+          68,
+          69,
+          70,
+          71,
+          131,
+          0,
+          1,
+          2,
+          106,
+          66,
+          67,
+          74,
+          75,
+          82,
+          83,
+          90,
+          91,
+          98,
+          99,
+          107,
+          114,
+          115,
+          122,
+          123,
+          72,
+          73,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          84,
+          85,
+          134,
+          86,
+          87,
+          88,
+          89,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          60,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          108,
+          109,
+          110,
+          111,
+          61,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          112,
+          113,
+          116,
+          117,
+          118,
+          119,
+          120,
+          121,
+          124,
+          125,
+          62,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          126,
+          127,
+          128
+        ],
+        "resourceLabels": [
+          "PRESENTATION_SCREEN_PATTERNS_B1",
+          "PRESENTATION_SCREEN_COLORS_B1",
+          "SCREEN_PAN1_0_LAYOUT",
+          "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+          "BEHAVIOR_PAN1_0_DATA",
+          "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+          "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+          "PRESENTATION_SCREEN_PATTERNS_B2",
+          "ANEC_RIGHT_0_F0_LAYER1",
+          "ANEC_RIGHT_0_F0_LAYER2",
+          "ANEC_RIGHT_0_F1_LAYER1",
+          "SCREEN_PAN5_5_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN1_0_BOSS_TABLE",
+          "SCREEN_PAN2_1_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN2_1_BOSS_TABLE",
+          "SCREEN_BACKGROUND1_2_EFFECT_ZONE_TABLE",
+          "SCREEN_BACKGROUND1_2_BOSS_TABLE",
+          "SCREEN_PAN3_3_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN3_3_BOSS_TABLE",
+          "SCREEN_PAN4_4_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN4_4_BOSS_TABLE",
+          "SCREEN_PAN5_5_BOSS_TABLE",
+          "SCREEN_PAN6_6_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN6_6_BOSS_TABLE",
+          "SCREEN_PAN1_2_7_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN1_2_7_BOSS_TABLE",
+          "SCREEN_PAN2_1_LAYOUT",
+          "SCREEN_PAN2_1_EFFECTS_LAYOUT",
+          "BEHAVIOR_PAN2_1_DATA",
+          "SCREEN_PAN2_1_INTERACTION_TYPE_MAP",
+          "SCREEN_PAN2_1_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN2_1_INTERACTION_TARGET_MAP",
+          "SCREEN_BACKGROUND1_2_LAYOUT",
+          "SCREEN_BACKGROUND1_2_EFFECTS_LAYOUT",
+          "BEHAVIOR_BACKGROUND1_2_DATA",
+          "SCREEN_BACKGROUND1_2_INTERACTION_TYPE_MAP",
+          "PRESENTATION_SCREEN_COLORS_B2",
+          "SCREEN_BACKGROUND1_2_INTERACTION_VALUE_MAP",
+          "SCREEN_BACKGROUND1_2_INTERACTION_TARGET_MAP",
+          "SCREEN_PAN3_3_LAYOUT",
+          "SCREEN_PAN3_3_EFFECTS_LAYOUT",
+          "BEHAVIOR_PAN3_3_DATA",
+          "SCREEN_PAN3_3_INTERACTION_TYPE_MAP",
+          "SCREEN_PAN3_3_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN3_3_INTERACTION_TARGET_MAP",
+          "SCREEN_PAN4_4_LAYOUT",
+          "SCREEN_PAN4_4_EFFECTS_LAYOUT",
+          "tile_pattern_bank0",
+          "ANEC_RIGHT_0_F1_LAYER2",
+          "BOLA_1_F0_LAYER1",
+          "BOLA_1_F1_LAYER1",
+          "PANELL_2_F0_LAYER1",
+          "NINA_WALK_RIGHT_3_F0_LAYER0",
+          "NINA_WALK_RIGHT_3_F0_LAYER1",
+          "BEHAVIOR_PAN4_4_DATA",
+          "SCREEN_PAN4_4_INTERACTION_TYPE_MAP",
+          "SCREEN_PAN4_4_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN4_4_INTERACTION_TARGET_MAP",
+          "SCREEN_PAN5_5_LAYOUT",
+          "SCREEN_PAN5_5_EFFECTS_LAYOUT",
+          "BEHAVIOR_PAN5_5_DATA",
+          "SCREEN_PAN5_5_INTERACTION_TYPE_MAP",
+          "SCREEN_PAN5_5_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN5_5_INTERACTION_TARGET_MAP",
+          "tilebank_pattern_data_0",
+          "NINA_WALK_RIGHT_3_F1_LAYER0",
+          "NINA_WALK_RIGHT_3_F1_LAYER1",
+          "NINA_JUMP_RIGHT_4_F0_LAYER0",
+          "NINA_JUMP_RIGHT_4_F0_LAYER1",
+          "NINA_LAND_RIGHT_5_F0_LAYER0",
+          "NINA_LAND_RIGHT_5_F0_LAYER1",
+          "SCREEN_PAN6_6_LAYOUT",
+          "SCREEN_PAN6_6_EFFECTS_LAYOUT",
+          "BEHAVIOR_PAN6_6_DATA",
+          "SCREEN_PAN6_6_INTERACTION_TYPE_MAP",
+          "SCREEN_PAN6_6_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN6_6_INTERACTION_TARGET_MAP",
+          "SCREEN_PAN1_2_7_LAYOUT",
+          "SCREEN_PAN1_2_7_EFFECTS_LAYOUT",
+          "BEHAVIOR_PAN1_2_7_DATA",
+          "SCREEN_PAN1_2_7_INTERACTION_TYPE_MAP",
+          "tile_color_bank0",
+          "NINA_LAND_RIGHT_5_F1_LAYER0",
+          "NINA_LAND_RIGHT_5_F1_LAYER1",
+          "NINA_LAND_RIGHT_5_F2_LAYER0",
+          "NINA_LAND_RIGHT_5_F2_LAYER1",
+          "NINA_DEAD_RIGHT_6_F0_LAYER0",
+          "NINA_DEAD_RIGHT_6_F0_LAYER2",
+          "SCREEN_PAN1_2_7_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN1_2_7_INTERACTION_TARGET_MAP",
+          "PRESENTATION_SCREEN_NAMETBL"
+        ]
+      },
+      {
+        "bank": 4,
+        "count": 42,
+        "storedBytes": 2537,
+        "rawBytes": 2912,
+        "resourceIds": [
+          129,
+          132,
+          63,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59
+        ],
+        "resourceLabels": [
+          "PRESENTATION_SCREEN_PATTERNS_B0",
+          "PRESENTATION_SCREEN_COLORS_B0",
+          "tilebank_color_data_0",
+          "NINA_DEAD_RIGHT_6_F1_LAYER0",
+          "NINA_DEAD_RIGHT_6_F1_LAYER2",
+          "NINA_IDLE_RIGHT_7_F0_LAYER0",
+          "NINA_IDLE_RIGHT_7_F0_LAYER1",
+          "NINA_IDLE_RIGHT_7_F1_LAYER0",
+          "NINA_IDLE_RIGHT_7_F1_LAYER1",
+          "NINA_FALL_RIGHT_8_F0_LAYER0",
+          "NINA_FALL_RIGHT_8_F0_LAYER1",
+          "CAPCUADRAT1_RIGHT_9_F0_LAYER3",
+          "CAPCUADRAT1_RIGHT_9_F1_LAYER3",
+          "ANEC_LEFT_10_F0_LAYER1",
+          "ANEC_LEFT_10_F0_LAYER2",
+          "ANEC_LEFT_10_F1_LAYER1",
+          "ANEC_LEFT_10_F1_LAYER2",
+          "NINA_WALK_LEFT_11_F0_LAYER0",
+          "NINA_WALK_LEFT_11_F0_LAYER1",
+          "NINA_WALK_LEFT_11_F1_LAYER0",
+          "NINA_WALK_LEFT_11_F1_LAYER1",
+          "NINA_JUMP_LEFT_12_F0_LAYER0",
+          "NINA_JUMP_LEFT_12_F0_LAYER1",
+          "NINA_LAND_LEFT_13_F0_LAYER0",
+          "NINA_LAND_LEFT_13_F0_LAYER1",
+          "NINA_LAND_LEFT_13_F1_LAYER0",
+          "NINA_LAND_LEFT_13_F1_LAYER1",
+          "NINA_LAND_LEFT_13_F2_LAYER0",
+          "NINA_LAND_LEFT_13_F2_LAYER1",
+          "NINA_DEAD_LEFT_14_F0_LAYER0",
+          "NINA_DEAD_LEFT_14_F0_LAYER2",
+          "NINA_DEAD_LEFT_14_F1_LAYER0",
+          "NINA_DEAD_LEFT_14_F1_LAYER2",
+          "NINA_IDLE_LEFT_15_F0_LAYER0",
+          "NINA_IDLE_LEFT_15_F0_LAYER1",
+          "NINA_IDLE_LEFT_15_F1_LAYER0",
+          "NINA_IDLE_LEFT_15_F1_LAYER1",
+          "NINA_FALL_LEFT_16_F0_LAYER0",
+          "NINA_FALL_LEFT_16_F0_LAYER1",
+          "CAPCUADRAT1_LEFT_17_F0_LAYER3",
+          "CAPCUADRAT1_LEFT_17_F1_LAYER3",
+          "SPRITE_PLACEHOLDER_PATTERN"
+        ]
+      },
+      {
+        "bank": 5,
+        "count": 0,
+        "storedBytes": 0,
+        "rawBytes": 0,
+        "resourceIds": [],
+        "resourceLabels": []
+      },
+      {
+        "bank": 6,
+        "count": 0,
+        "storedBytes": 0,
+        "rawBytes": 0,
+        "resourceIds": [],
+        "resourceLabels": []
+      },
+      {
+        "bank": 7,
+        "count": 0,
+        "storedBytes": 0,
+        "rawBytes": 0,
+        "resourceIds": [],
+        "resourceLabels": []
+      },
+      {
+        "bank": 8,
+        "count": 0,
+        "storedBytes": 0,
+        "rawBytes": 0,
+        "resourceIds": [],
+        "resourceLabels": []
+      }
+    ]
+  },
+  "proposedPlacement": {
+    "strategy": "dry-run scene bundles first-fit decreasing with mapper data-zone capacity; current ROM placement is unchanged",
+    "zoneSize": 8192,
+    "bankCount": 2,
+    "resourceCount": 135,
+    "totalStoredBytes": 10559,
+    "banks": [
+      {
+        "bank": 3,
+        "usedBytes": 8186,
+        "freeBytes": 6,
+        "units": [
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              130
+            ],
+            "resourceLabels": [
+              "PRESENTATION_SCREEN_PATTERNS_B1"
+            ],
+            "storedBytes": 1488,
+            "rawBytes": 1488
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              133
+            ],
+            "resourceLabels": [
+              "PRESENTATION_SCREEN_COLORS_B1"
+            ],
+            "storedBytes": 1488,
+            "rawBytes": 1488
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              128
+            ],
+            "resourceLabels": [
+              "PRESENTATION_SCREEN_NAMETBL"
+            ],
+            "storedBytes": 768,
+            "rawBytes": 768
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              129
+            ],
+            "resourceLabels": [
+              "PRESENTATION_SCREEN_PATTERNS_B0"
+            ],
+            "storedBytes": 680,
+            "rawBytes": 680
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              132
+            ],
+            "resourceLabels": [
+              "PRESENTATION_SCREEN_COLORS_B0"
+            ],
+            "storedBytes": 680,
+            "rawBytes": 680
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              131
+            ],
+            "resourceLabels": [
+              "PRESENTATION_SCREEN_PATTERNS_B2"
+            ],
+            "storedBytes": 488,
+            "rawBytes": 488
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              134
+            ],
+            "resourceLabels": [
+              "PRESENTATION_SCREEN_COLORS_B2"
+            ],
+            "storedBytes": 488,
+            "rawBytes": 488
+          },
+          {
+            "kind": "scene",
+            "sceneIndex": 5,
+            "sceneId": "screenmap_1773321312901",
+            "sceneName": "pan5",
+            "resourceIds": [
+              106,
+              107,
+              104,
+              105,
+              108,
+              109,
+              110,
+              111
+            ],
+            "resourceLabels": [
+              "SCREEN_PAN5_5_EFFECT_ZONE_TABLE",
+              "SCREEN_PAN5_5_BOSS_TABLE",
+              "SCREEN_PAN5_5_LAYOUT",
+              "SCREEN_PAN5_5_EFFECTS_LAYOUT",
+              "BEHAVIOR_PAN5_5_DATA",
+              "SCREEN_PAN5_5_INTERACTION_TYPE_MAP",
+              "SCREEN_PAN5_5_INTERACTION_VALUE_MAP",
+              "SCREEN_PAN5_5_INTERACTION_TARGET_MAP"
+            ],
+            "storedBytes": 455,
+            "rawBytes": 4617
+          },
+          {
+            "kind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1770754008863",
+            "sceneName": "pan1",
+            "resourceIds": [
+              64,
+              65,
+              68,
+              69,
+              70,
+              71,
+              66,
+              67
+            ],
+            "resourceLabels": [
+              "SCREEN_PAN1_0_LAYOUT",
+              "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+              "BEHAVIOR_PAN1_0_DATA",
+              "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+              "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+              "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+              "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+              "SCREEN_PAN1_0_BOSS_TABLE"
+            ],
+            "storedBytes": 341,
+            "rawBytes": 4610
+          },
+          {
+            "kind": "scene",
+            "sceneIndex": 4,
+            "sceneId": "screenmap_1772291683578",
+            "sceneName": "pan4",
+            "resourceIds": [
+              98,
+              99,
+              96,
+              97,
+              100,
+              101,
+              102,
+              103
+            ],
+            "resourceLabels": [
+              "SCREEN_PAN4_4_EFFECT_ZONE_TABLE",
+              "SCREEN_PAN4_4_BOSS_TABLE",
+              "SCREEN_PAN4_4_LAYOUT",
+              "SCREEN_PAN4_4_EFFECTS_LAYOUT",
+              "BEHAVIOR_PAN4_4_DATA",
+              "SCREEN_PAN4_4_INTERACTION_TYPE_MAP",
+              "SCREEN_PAN4_4_INTERACTION_VALUE_MAP",
+              "SCREEN_PAN4_4_INTERACTION_TARGET_MAP"
+            ],
+            "storedBytes": 309,
+            "rawBytes": 4610
+          },
+          {
+            "kind": "scene",
+            "sceneIndex": 1,
+            "sceneId": "screenmap_1771184738851",
+            "sceneName": "pan2",
+            "resourceIds": [
+              74,
+              75,
+              72,
+              73,
+              76,
+              77,
+              78,
+              79
+            ],
+            "resourceLabels": [
+              "SCREEN_PAN2_1_EFFECT_ZONE_TABLE",
+              "SCREEN_PAN2_1_BOSS_TABLE",
+              "SCREEN_PAN2_1_LAYOUT",
+              "SCREEN_PAN2_1_EFFECTS_LAYOUT",
+              "BEHAVIOR_PAN2_1_DATA",
+              "SCREEN_PAN2_1_INTERACTION_TYPE_MAP",
+              "SCREEN_PAN2_1_INTERACTION_VALUE_MAP",
+              "SCREEN_PAN2_1_INTERACTION_TARGET_MAP"
+            ],
+            "storedBytes": 296,
+            "rawBytes": 4610
+          },
+          {
+            "kind": "scene",
+            "sceneIndex": 6,
+            "sceneId": "screenmap_1773382451315",
+            "sceneName": "pan6",
+            "resourceIds": [
+              114,
+              115,
+              112,
+              113,
+              116,
+              117,
+              118,
+              119
+            ],
+            "resourceLabels": [
+              "SCREEN_PAN6_6_EFFECT_ZONE_TABLE",
+              "SCREEN_PAN6_6_BOSS_TABLE",
+              "SCREEN_PAN6_6_LAYOUT",
+              "SCREEN_PAN6_6_EFFECTS_LAYOUT",
+              "BEHAVIOR_PAN6_6_DATA",
+              "SCREEN_PAN6_6_INTERACTION_TYPE_MAP",
+              "SCREEN_PAN6_6_INTERACTION_VALUE_MAP",
+              "SCREEN_PAN6_6_INTERACTION_TARGET_MAP"
+            ],
+            "storedBytes": 286,
+            "rawBytes": 4610
+          },
+          {
+            "kind": "scene",
+            "sceneIndex": 3,
+            "sceneId": "screenmap_1771880109228",
+            "sceneName": "pan3",
+            "resourceIds": [
+              90,
+              91,
+              88,
+              89,
+              92,
+              93,
+              94,
+              95
+            ],
+            "resourceLabels": [
+              "SCREEN_PAN3_3_EFFECT_ZONE_TABLE",
+              "SCREEN_PAN3_3_BOSS_TABLE",
+              "SCREEN_PAN3_3_LAYOUT",
+              "SCREEN_PAN3_3_EFFECTS_LAYOUT",
+              "BEHAVIOR_PAN3_3_DATA",
+              "SCREEN_PAN3_3_INTERACTION_TYPE_MAP",
+              "SCREEN_PAN3_3_INTERACTION_VALUE_MAP",
+              "SCREEN_PAN3_3_INTERACTION_TARGET_MAP"
+            ],
+            "storedBytes": 259,
+            "rawBytes": 4610
+          },
+          {
+            "kind": "scene",
+            "sceneIndex": 7,
+            "sceneId": "screenmap_1774194791624",
+            "sceneName": "pan1_2",
+            "resourceIds": [
+              122,
+              123,
+              120,
+              121,
+              124,
+              125,
+              126,
+              127
+            ],
+            "resourceLabels": [
+              "SCREEN_PAN1_2_7_EFFECT_ZONE_TABLE",
+              "SCREEN_PAN1_2_7_BOSS_TABLE",
+              "SCREEN_PAN1_2_7_LAYOUT",
+              "SCREEN_PAN1_2_7_EFFECTS_LAYOUT",
+              "BEHAVIOR_PAN1_2_7_DATA",
+              "SCREEN_PAN1_2_7_INTERACTION_TYPE_MAP",
+              "SCREEN_PAN1_2_7_INTERACTION_VALUE_MAP",
+              "SCREEN_PAN1_2_7_INTERACTION_TARGET_MAP"
+            ],
+            "storedBytes": 113,
+            "rawBytes": 4610
+          },
+          {
+            "kind": "scene",
+            "sceneIndex": 2,
+            "sceneId": "screenmap_1771482721894",
+            "sceneName": "background1",
+            "resourceIds": [
+              82,
+              83,
+              80,
+              81,
+              84,
+              85,
+              86,
+              87
+            ],
+            "resourceLabels": [
+              "SCREEN_BACKGROUND1_2_EFFECT_ZONE_TABLE",
+              "SCREEN_BACKGROUND1_2_BOSS_TABLE",
+              "SCREEN_BACKGROUND1_2_LAYOUT",
+              "SCREEN_BACKGROUND1_2_EFFECTS_LAYOUT",
+              "BEHAVIOR_BACKGROUND1_2_DATA",
+              "SCREEN_BACKGROUND1_2_INTERACTION_TYPE_MAP",
+              "SCREEN_BACKGROUND1_2_INTERACTION_VALUE_MAP",
+              "SCREEN_BACKGROUND1_2_INTERACTION_TARGET_MAP"
+            ],
+            "storedBytes": 42,
+            "rawBytes": 4610
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              59
+            ],
+            "resourceLabels": [
+              "SPRITE_PLACEHOLDER_PATTERN"
+            ],
+            "storedBytes": 5,
+            "rawBytes": 32
+          }
+        ],
+        "resourceIds": [
+          130,
+          133,
+          128,
+          129,
+          132,
+          131,
+          134,
+          106,
+          107,
+          104,
+          105,
+          108,
+          109,
+          110,
+          111,
+          64,
+          65,
+          68,
+          69,
+          70,
+          71,
+          66,
+          67,
+          98,
+          99,
+          96,
+          97,
+          100,
+          101,
+          102,
+          103,
+          74,
+          75,
+          72,
+          73,
+          76,
+          77,
+          78,
+          79,
+          114,
+          115,
+          112,
+          113,
+          116,
+          117,
+          118,
+          119,
+          90,
+          91,
+          88,
+          89,
+          92,
+          93,
+          94,
+          95,
+          122,
+          123,
+          120,
+          121,
+          124,
+          125,
+          126,
+          127,
+          82,
+          83,
+          80,
+          81,
+          84,
+          85,
+          86,
+          87,
+          59
+        ],
+        "resourceLabels": [
+          "PRESENTATION_SCREEN_PATTERNS_B1",
+          "PRESENTATION_SCREEN_COLORS_B1",
+          "PRESENTATION_SCREEN_NAMETBL",
+          "PRESENTATION_SCREEN_PATTERNS_B0",
+          "PRESENTATION_SCREEN_COLORS_B0",
+          "PRESENTATION_SCREEN_PATTERNS_B2",
+          "PRESENTATION_SCREEN_COLORS_B2",
+          "SCREEN_PAN5_5_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN5_5_BOSS_TABLE",
+          "SCREEN_PAN5_5_LAYOUT",
+          "SCREEN_PAN5_5_EFFECTS_LAYOUT",
+          "BEHAVIOR_PAN5_5_DATA",
+          "SCREEN_PAN5_5_INTERACTION_TYPE_MAP",
+          "SCREEN_PAN5_5_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN5_5_INTERACTION_TARGET_MAP",
+          "SCREEN_PAN1_0_LAYOUT",
+          "SCREEN_PAN1_0_EFFECTS_LAYOUT",
+          "BEHAVIOR_PAN1_0_DATA",
+          "SCREEN_PAN1_0_INTERACTION_TYPE_MAP",
+          "SCREEN_PAN1_0_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN1_0_INTERACTION_TARGET_MAP",
+          "SCREEN_PAN1_0_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN1_0_BOSS_TABLE",
+          "SCREEN_PAN4_4_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN4_4_BOSS_TABLE",
+          "SCREEN_PAN4_4_LAYOUT",
+          "SCREEN_PAN4_4_EFFECTS_LAYOUT",
+          "BEHAVIOR_PAN4_4_DATA",
+          "SCREEN_PAN4_4_INTERACTION_TYPE_MAP",
+          "SCREEN_PAN4_4_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN4_4_INTERACTION_TARGET_MAP",
+          "SCREEN_PAN2_1_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN2_1_BOSS_TABLE",
+          "SCREEN_PAN2_1_LAYOUT",
+          "SCREEN_PAN2_1_EFFECTS_LAYOUT",
+          "BEHAVIOR_PAN2_1_DATA",
+          "SCREEN_PAN2_1_INTERACTION_TYPE_MAP",
+          "SCREEN_PAN2_1_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN2_1_INTERACTION_TARGET_MAP",
+          "SCREEN_PAN6_6_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN6_6_BOSS_TABLE",
+          "SCREEN_PAN6_6_LAYOUT",
+          "SCREEN_PAN6_6_EFFECTS_LAYOUT",
+          "BEHAVIOR_PAN6_6_DATA",
+          "SCREEN_PAN6_6_INTERACTION_TYPE_MAP",
+          "SCREEN_PAN6_6_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN6_6_INTERACTION_TARGET_MAP",
+          "SCREEN_PAN3_3_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN3_3_BOSS_TABLE",
+          "SCREEN_PAN3_3_LAYOUT",
+          "SCREEN_PAN3_3_EFFECTS_LAYOUT",
+          "BEHAVIOR_PAN3_3_DATA",
+          "SCREEN_PAN3_3_INTERACTION_TYPE_MAP",
+          "SCREEN_PAN3_3_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN3_3_INTERACTION_TARGET_MAP",
+          "SCREEN_PAN1_2_7_EFFECT_ZONE_TABLE",
+          "SCREEN_PAN1_2_7_BOSS_TABLE",
+          "SCREEN_PAN1_2_7_LAYOUT",
+          "SCREEN_PAN1_2_7_EFFECTS_LAYOUT",
+          "BEHAVIOR_PAN1_2_7_DATA",
+          "SCREEN_PAN1_2_7_INTERACTION_TYPE_MAP",
+          "SCREEN_PAN1_2_7_INTERACTION_VALUE_MAP",
+          "SCREEN_PAN1_2_7_INTERACTION_TARGET_MAP",
+          "SCREEN_BACKGROUND1_2_EFFECT_ZONE_TABLE",
+          "SCREEN_BACKGROUND1_2_BOSS_TABLE",
+          "SCREEN_BACKGROUND1_2_LAYOUT",
+          "SCREEN_BACKGROUND1_2_EFFECTS_LAYOUT",
+          "BEHAVIOR_BACKGROUND1_2_DATA",
+          "SCREEN_BACKGROUND1_2_INTERACTION_TYPE_MAP",
+          "SCREEN_BACKGROUND1_2_INTERACTION_VALUE_MAP",
+          "SCREEN_BACKGROUND1_2_INTERACTION_TARGET_MAP",
+          "SPRITE_PLACEHOLDER_PATTERN"
+        ]
+      },
+      {
+        "bank": 4,
+        "usedBytes": 2373,
+        "freeBytes": 5819,
+        "units": [
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              60
+            ],
+            "resourceLabels": [
+              "tile_pattern_bank0"
+            ],
+            "storedBytes": 259,
+            "rawBytes": 304
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              61
+            ],
+            "resourceLabels": [
+              "tilebank_pattern_data_0"
+            ],
+            "storedBytes": 259,
+            "rawBytes": 304
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              62
+            ],
+            "resourceLabels": [
+              "tile_color_bank0"
+            ],
+            "storedBytes": 95,
+            "rawBytes": 304
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              63
+            ],
+            "resourceLabels": [
+              "tilebank_color_data_0"
+            ],
+            "storedBytes": 95,
+            "rawBytes": 304
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              0
+            ],
+            "resourceLabels": [
+              "ANEC_RIGHT_0_F0_LAYER1"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              2
+            ],
+            "resourceLabels": [
+              "ANEC_RIGHT_0_F1_LAYER1"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              19
+            ],
+            "resourceLabels": [
+              "NINA_DEAD_RIGHT_6_F0_LAYER0"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              20
+            ],
+            "resourceLabels": [
+              "NINA_DEAD_RIGHT_6_F0_LAYER2"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              22
+            ],
+            "resourceLabels": [
+              "NINA_DEAD_RIGHT_6_F1_LAYER2"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              30
+            ],
+            "resourceLabels": [
+              "CAPCUADRAT1_RIGHT_9_F1_LAYER3"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              31
+            ],
+            "resourceLabels": [
+              "ANEC_LEFT_10_F0_LAYER1"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              33
+            ],
+            "resourceLabels": [
+              "ANEC_LEFT_10_F1_LAYER1"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              47
+            ],
+            "resourceLabels": [
+              "NINA_DEAD_LEFT_14_F0_LAYER0"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              48
+            ],
+            "resourceLabels": [
+              "NINA_DEAD_LEFT_14_F0_LAYER2"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              50
+            ],
+            "resourceLabels": [
+              "NINA_DEAD_LEFT_14_F1_LAYER2"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              58
+            ],
+            "resourceLabels": [
+              "CAPCUADRAT1_LEFT_17_F1_LAYER3"
+            ],
+            "storedBytes": 32,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              9
+            ],
+            "resourceLabels": [
+              "NINA_WALK_RIGHT_3_F1_LAYER0"
+            ],
+            "storedBytes": 31,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              29
+            ],
+            "resourceLabels": [
+              "CAPCUADRAT1_RIGHT_9_F0_LAYER3"
+            ],
+            "storedBytes": 31,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              7
+            ],
+            "resourceLabels": [
+              "NINA_WALK_RIGHT_3_F0_LAYER0"
+            ],
+            "storedBytes": 30,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              13
+            ],
+            "resourceLabels": [
+              "NINA_LAND_RIGHT_5_F0_LAYER0"
+            ],
+            "storedBytes": 30,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              17
+            ],
+            "resourceLabels": [
+              "NINA_LAND_RIGHT_5_F2_LAYER0"
+            ],
+            "storedBytes": 30,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              23
+            ],
+            "resourceLabels": [
+              "NINA_IDLE_RIGHT_7_F0_LAYER0"
+            ],
+            "storedBytes": 30,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              25
+            ],
+            "resourceLabels": [
+              "NINA_IDLE_RIGHT_7_F1_LAYER0"
+            ],
+            "storedBytes": 30,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              37
+            ],
+            "resourceLabels": [
+              "NINA_WALK_LEFT_11_F1_LAYER0"
+            ],
+            "storedBytes": 30,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              38
+            ],
+            "resourceLabels": [
+              "NINA_WALK_LEFT_11_F1_LAYER1"
+            ],
+            "storedBytes": 30,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              51
+            ],
+            "resourceLabels": [
+              "NINA_IDLE_LEFT_15_F0_LAYER0"
+            ],
+            "storedBytes": 30,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              53
+            ],
+            "resourceLabels": [
+              "NINA_IDLE_LEFT_15_F1_LAYER0"
+            ],
+            "storedBytes": 30,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              57
+            ],
+            "resourceLabels": [
+              "CAPCUADRAT1_LEFT_17_F0_LAYER3"
+            ],
+            "storedBytes": 30,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              1
+            ],
+            "resourceLabels": [
+              "ANEC_RIGHT_0_F0_LAYER2"
+            ],
+            "storedBytes": 29,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              27
+            ],
+            "resourceLabels": [
+              "NINA_FALL_RIGHT_8_F0_LAYER0"
+            ],
+            "storedBytes": 29,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              32
+            ],
+            "resourceLabels": [
+              "ANEC_LEFT_10_F0_LAYER2"
+            ],
+            "storedBytes": 29,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              34
+            ],
+            "resourceLabels": [
+              "ANEC_LEFT_10_F1_LAYER2"
+            ],
+            "storedBytes": 29,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              41
+            ],
+            "resourceLabels": [
+              "NINA_LAND_LEFT_13_F0_LAYER0"
+            ],
+            "storedBytes": 29,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              45
+            ],
+            "resourceLabels": [
+              "NINA_LAND_LEFT_13_F2_LAYER0"
+            ],
+            "storedBytes": 29,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              55
+            ],
+            "resourceLabels": [
+              "NINA_FALL_LEFT_16_F0_LAYER0"
+            ],
+            "storedBytes": 29,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              3
+            ],
+            "resourceLabels": [
+              "ANEC_RIGHT_0_F1_LAYER2"
+            ],
+            "storedBytes": 28,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              5
+            ],
+            "resourceLabels": [
+              "BOLA_1_F1_LAYER1"
+            ],
+            "storedBytes": 28,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              15
+            ],
+            "resourceLabels": [
+              "NINA_LAND_RIGHT_5_F1_LAYER0"
+            ],
+            "storedBytes": 28,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              35
+            ],
+            "resourceLabels": [
+              "NINA_WALK_LEFT_11_F0_LAYER0"
+            ],
+            "storedBytes": 28,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              43
+            ],
+            "resourceLabels": [
+              "NINA_LAND_LEFT_13_F1_LAYER0"
+            ],
+            "storedBytes": 28,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              44
+            ],
+            "resourceLabels": [
+              "NINA_LAND_LEFT_13_F1_LAYER1"
+            ],
+            "storedBytes": 28,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              10
+            ],
+            "resourceLabels": [
+              "NINA_WALK_RIGHT_3_F1_LAYER1"
+            ],
+            "storedBytes": 27,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              11
+            ],
+            "resourceLabels": [
+              "NINA_JUMP_RIGHT_4_F0_LAYER0"
+            ],
+            "storedBytes": 27,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              16
+            ],
+            "resourceLabels": [
+              "NINA_LAND_RIGHT_5_F1_LAYER1"
+            ],
+            "storedBytes": 27,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              39
+            ],
+            "resourceLabels": [
+              "NINA_JUMP_LEFT_12_F0_LAYER0"
+            ],
+            "storedBytes": 27,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              46
+            ],
+            "resourceLabels": [
+              "NINA_LAND_LEFT_13_F2_LAYER1"
+            ],
+            "storedBytes": 27,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              18
+            ],
+            "resourceLabels": [
+              "NINA_LAND_RIGHT_5_F2_LAYER1"
+            ],
+            "storedBytes": 26,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              21
+            ],
+            "resourceLabels": [
+              "NINA_DEAD_RIGHT_6_F1_LAYER0"
+            ],
+            "storedBytes": 26,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              8
+            ],
+            "resourceLabels": [
+              "NINA_WALK_RIGHT_3_F0_LAYER1"
+            ],
+            "storedBytes": 25,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              36
+            ],
+            "resourceLabels": [
+              "NINA_WALK_LEFT_11_F0_LAYER1"
+            ],
+            "storedBytes": 25,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              49
+            ],
+            "resourceLabels": [
+              "NINA_DEAD_LEFT_14_F1_LAYER0"
+            ],
+            "storedBytes": 25,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              4
+            ],
+            "resourceLabels": [
+              "BOLA_1_F0_LAYER1"
+            ],
+            "storedBytes": 24,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              12
+            ],
+            "resourceLabels": [
+              "NINA_JUMP_RIGHT_4_F0_LAYER1"
+            ],
+            "storedBytes": 24,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              24
+            ],
+            "resourceLabels": [
+              "NINA_IDLE_RIGHT_7_F0_LAYER1"
+            ],
+            "storedBytes": 24,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              26
+            ],
+            "resourceLabels": [
+              "NINA_IDLE_RIGHT_7_F1_LAYER1"
+            ],
+            "storedBytes": 24,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              28
+            ],
+            "resourceLabels": [
+              "NINA_FALL_RIGHT_8_F0_LAYER1"
+            ],
+            "storedBytes": 24,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              40
+            ],
+            "resourceLabels": [
+              "NINA_JUMP_LEFT_12_F0_LAYER1"
+            ],
+            "storedBytes": 24,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              42
+            ],
+            "resourceLabels": [
+              "NINA_LAND_LEFT_13_F0_LAYER1"
+            ],
+            "storedBytes": 24,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              52
+            ],
+            "resourceLabels": [
+              "NINA_IDLE_LEFT_15_F0_LAYER1"
+            ],
+            "storedBytes": 24,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              54
+            ],
+            "resourceLabels": [
+              "NINA_IDLE_LEFT_15_F1_LAYER1"
+            ],
+            "storedBytes": 24,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              56
+            ],
+            "resourceLabels": [
+              "NINA_FALL_LEFT_16_F0_LAYER1"
+            ],
+            "storedBytes": 24,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              6
+            ],
+            "resourceLabels": [
+              "PANELL_2_F0_LAYER1"
+            ],
+            "storedBytes": 23,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              14
+            ],
+            "resourceLabels": [
+              "NINA_LAND_RIGHT_5_F0_LAYER1"
+            ],
+            "storedBytes": 23,
+            "rawBytes": 32
+          }
+        ],
+        "resourceIds": [
+          60,
+          61,
+          62,
+          63,
+          0,
+          2,
+          19,
+          20,
+          22,
+          30,
+          31,
+          33,
+          47,
+          48,
+          50,
+          58,
+          9,
+          29,
+          7,
+          13,
+          17,
+          23,
+          25,
+          37,
+          38,
+          51,
+          53,
+          57,
+          1,
+          27,
+          32,
+          34,
+          41,
+          45,
+          55,
+          3,
+          5,
+          15,
+          35,
+          43,
+          44,
+          10,
+          11,
+          16,
+          39,
+          46,
+          18,
+          21,
+          8,
+          36,
+          49,
+          4,
+          12,
+          24,
+          26,
+          28,
+          40,
+          42,
+          52,
+          54,
+          56,
+          6,
+          14
+        ],
+        "resourceLabels": [
+          "tile_pattern_bank0",
+          "tilebank_pattern_data_0",
+          "tile_color_bank0",
+          "tilebank_color_data_0",
+          "ANEC_RIGHT_0_F0_LAYER1",
+          "ANEC_RIGHT_0_F1_LAYER1",
+          "NINA_DEAD_RIGHT_6_F0_LAYER0",
+          "NINA_DEAD_RIGHT_6_F0_LAYER2",
+          "NINA_DEAD_RIGHT_6_F1_LAYER2",
+          "CAPCUADRAT1_RIGHT_9_F1_LAYER3",
+          "ANEC_LEFT_10_F0_LAYER1",
+          "ANEC_LEFT_10_F1_LAYER1",
+          "NINA_DEAD_LEFT_14_F0_LAYER0",
+          "NINA_DEAD_LEFT_14_F0_LAYER2",
+          "NINA_DEAD_LEFT_14_F1_LAYER2",
+          "CAPCUADRAT1_LEFT_17_F1_LAYER3",
+          "NINA_WALK_RIGHT_3_F1_LAYER0",
+          "CAPCUADRAT1_RIGHT_9_F0_LAYER3",
+          "NINA_WALK_RIGHT_3_F0_LAYER0",
+          "NINA_LAND_RIGHT_5_F0_LAYER0",
+          "NINA_LAND_RIGHT_5_F2_LAYER0",
+          "NINA_IDLE_RIGHT_7_F0_LAYER0",
+          "NINA_IDLE_RIGHT_7_F1_LAYER0",
+          "NINA_WALK_LEFT_11_F1_LAYER0",
+          "NINA_WALK_LEFT_11_F1_LAYER1",
+          "NINA_IDLE_LEFT_15_F0_LAYER0",
+          "NINA_IDLE_LEFT_15_F1_LAYER0",
+          "CAPCUADRAT1_LEFT_17_F0_LAYER3",
+          "ANEC_RIGHT_0_F0_LAYER2",
+          "NINA_FALL_RIGHT_8_F0_LAYER0",
+          "ANEC_LEFT_10_F0_LAYER2",
+          "ANEC_LEFT_10_F1_LAYER2",
+          "NINA_LAND_LEFT_13_F0_LAYER0",
+          "NINA_LAND_LEFT_13_F2_LAYER0",
+          "NINA_FALL_LEFT_16_F0_LAYER0",
+          "ANEC_RIGHT_0_F1_LAYER2",
+          "BOLA_1_F1_LAYER1",
+          "NINA_LAND_RIGHT_5_F1_LAYER0",
+          "NINA_WALK_LEFT_11_F0_LAYER0",
+          "NINA_LAND_LEFT_13_F1_LAYER0",
+          "NINA_LAND_LEFT_13_F1_LAYER1",
+          "NINA_WALK_RIGHT_3_F1_LAYER1",
+          "NINA_JUMP_RIGHT_4_F0_LAYER0",
+          "NINA_LAND_RIGHT_5_F1_LAYER1",
+          "NINA_JUMP_LEFT_12_F0_LAYER0",
+          "NINA_LAND_LEFT_13_F2_LAYER1",
+          "NINA_LAND_RIGHT_5_F2_LAYER1",
+          "NINA_DEAD_RIGHT_6_F1_LAYER0",
+          "NINA_WALK_RIGHT_3_F0_LAYER1",
+          "NINA_WALK_LEFT_11_F0_LAYER1",
+          "NINA_DEAD_LEFT_14_F1_LAYER0",
+          "BOLA_1_F0_LAYER1",
+          "NINA_JUMP_RIGHT_4_F0_LAYER1",
+          "NINA_IDLE_RIGHT_7_F0_LAYER1",
+          "NINA_IDLE_RIGHT_7_F1_LAYER1",
+          "NINA_FALL_RIGHT_8_F0_LAYER1",
+          "NINA_JUMP_LEFT_12_F0_LAYER1",
+          "NINA_LAND_LEFT_13_F0_LAYER1",
+          "NINA_IDLE_LEFT_15_F0_LAYER1",
+          "NINA_IDLE_LEFT_15_F1_LAYER1",
+          "NINA_FALL_LEFT_16_F0_LAYER1",
+          "PANELL_2_F0_LAYER1",
+          "NINA_LAND_RIGHT_5_F0_LAYER1"
+        ]
+      }
+    ],
+    "sceneBankPlan": [
+      {
+        "index": 0,
+        "id": "screenmap_1770754008863",
+        "name": "pan1",
+        "currentBanks": [
+          3
+        ],
+        "proposedBanks": [
+          3
+        ]
+      },
+      {
+        "index": 1,
+        "id": "screenmap_1771184738851",
+        "name": "pan2",
+        "currentBanks": [
+          3
+        ],
+        "proposedBanks": [
+          3
+        ]
+      },
+      {
+        "index": 2,
+        "id": "screenmap_1771482721894",
+        "name": "background1",
+        "currentBanks": [
+          3
+        ],
+        "proposedBanks": [
+          3
+        ]
+      },
+      {
+        "index": 3,
+        "id": "screenmap_1771880109228",
+        "name": "pan3",
+        "currentBanks": [
+          3
+        ],
+        "proposedBanks": [
+          3
+        ]
+      },
+      {
+        "index": 4,
+        "id": "screenmap_1772291683578",
+        "name": "pan4",
+        "currentBanks": [
+          3
+        ],
+        "proposedBanks": [
+          3
+        ]
+      },
+      {
+        "index": 5,
+        "id": "screenmap_1773321312901",
+        "name": "pan5",
+        "currentBanks": [
+          3
+        ],
+        "proposedBanks": [
+          3
+        ]
+      },
+      {
+        "index": 6,
+        "id": "screenmap_1773382451315",
+        "name": "pan6",
+        "currentBanks": [
+          3
+        ],
+        "proposedBanks": [
+          3
+        ]
+      },
+      {
+        "index": 7,
+        "id": "screenmap_1774194791624",
+        "name": "pan1_2",
+        "currentBanks": [
+          3
+        ],
+        "proposedBanks": [
+          3
+        ]
+      }
+    ],
+    "delta": {
+      "currentBankCount": 2,
+      "proposedBankCount": 2,
+      "currentSceneBankTouches": 8,
+      "proposedSceneBankTouches": 8
+    }
+  },
+  "sceneClusters": [
+    {
+      "index": 0,
+      "id": "screenmap_1770754008863",
+      "name": "pan1",
+      "resourceIds": [
+        64,
+        65,
+        68,
+        69,
+        70,
+        71,
+        66,
+        67
+      ],
+      "banks": [
+        3
+      ],
+      "bankCount": 1,
+      "storedBytes": 341,
+      "rawBytes": 4610,
+      "coLocated": true,
+      "preferredBank": 3
+    },
+    {
+      "index": 1,
+      "id": "screenmap_1771184738851",
+      "name": "pan2",
+      "resourceIds": [
+        74,
+        75,
+        72,
+        73,
+        76,
+        77,
+        78,
+        79
+      ],
+      "banks": [
+        3
+      ],
+      "bankCount": 1,
+      "storedBytes": 296,
+      "rawBytes": 4610,
+      "coLocated": true,
+      "preferredBank": 3
+    },
+    {
+      "index": 2,
+      "id": "screenmap_1771482721894",
+      "name": "background1",
+      "resourceIds": [
+        82,
+        83,
+        80,
+        81,
+        84,
+        85,
+        86,
+        87
+      ],
+      "banks": [
+        3
+      ],
+      "bankCount": 1,
+      "storedBytes": 42,
+      "rawBytes": 4610,
+      "coLocated": true,
+      "preferredBank": 3
+    },
+    {
+      "index": 3,
+      "id": "screenmap_1771880109228",
+      "name": "pan3",
+      "resourceIds": [
+        90,
+        91,
+        88,
+        89,
+        92,
+        93,
+        94,
+        95
+      ],
+      "banks": [
+        3
+      ],
+      "bankCount": 1,
+      "storedBytes": 259,
+      "rawBytes": 4610,
+      "coLocated": true,
+      "preferredBank": 3
+    },
+    {
+      "index": 4,
+      "id": "screenmap_1772291683578",
+      "name": "pan4",
+      "resourceIds": [
+        98,
+        99,
+        96,
+        97,
+        100,
+        101,
+        102,
+        103
+      ],
+      "banks": [
+        3
+      ],
+      "bankCount": 1,
+      "storedBytes": 309,
+      "rawBytes": 4610,
+      "coLocated": true,
+      "preferredBank": 3
+    },
+    {
+      "index": 5,
+      "id": "screenmap_1773321312901",
+      "name": "pan5",
+      "resourceIds": [
+        106,
+        107,
+        104,
+        105,
+        108,
+        109,
+        110,
+        111
+      ],
+      "banks": [
+        3
+      ],
+      "bankCount": 1,
+      "storedBytes": 455,
+      "rawBytes": 4617,
+      "coLocated": true,
+      "preferredBank": 3
+    },
+    {
+      "index": 6,
+      "id": "screenmap_1773382451315",
+      "name": "pan6",
+      "resourceIds": [
+        114,
+        115,
+        112,
+        113,
+        116,
+        117,
+        118,
+        119
+      ],
+      "banks": [
+        3
+      ],
+      "bankCount": 1,
+      "storedBytes": 286,
+      "rawBytes": 4610,
+      "coLocated": true,
+      "preferredBank": 3
+    },
+    {
+      "index": 7,
+      "id": "screenmap_1774194791624",
+      "name": "pan1_2",
+      "resourceIds": [
+        122,
+        123,
+        120,
+        121,
+        124,
+        125,
+        126,
+        127
+      ],
+      "banks": [
+        3
+      ],
+      "bankCount": 1,
+      "storedBytes": 113,
+      "rawBytes": 4610,
+      "coLocated": true,
+      "preferredBank": 3
+    }
+  ],
+  "pressureWarnings": [],
+  "sharedOrGlobalResources": [
+    {
+      "id": 130,
+      "label": "PRESENTATION_SCREEN_PATTERNS_B1",
+      "group": "PRESENTATION",
+      "type": "SCREEN_PATTERNS",
+      "bank": 3,
+      "windowAddress": 32768,
+      "zoneOffset": 0,
+      "size": 1488,
+      "storedSize": 1488,
+      "uncompressedSize": 1488,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_PATTERNS_B1 resource; raw 1488 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 133,
+      "label": "PRESENTATION_SCREEN_COLORS_B1",
+      "group": "PRESENTATION",
+      "type": "SCREEN_COLORS",
+      "bank": 3,
+      "windowAddress": 34256,
+      "zoneOffset": 1488,
+      "size": 1488,
+      "storedSize": 1488,
+      "uncompressedSize": 1488,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_COLORS_B1 resource; raw 1488 bytes; bank 3 zone 0 offset +#05D0; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 131,
+      "label": "PRESENTATION_SCREEN_PATTERNS_B2",
+      "group": "PRESENTATION",
+      "type": "SCREEN_PATTERNS",
+      "bank": 3,
+      "windowAddress": 36083,
+      "zoneOffset": 3315,
+      "size": 488,
+      "storedSize": 488,
+      "uncompressedSize": 488,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_PATTERNS_B2 resource; raw 488 bytes; bank 3 zone 0 offset +#0CF3; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 0,
+      "label": "ANEC_RIGHT_0_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 36571,
+      "zoneOffset": 3803,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single ANEC_RIGHT_0_F0_LAYER1 resource; raw 32 bytes; bank 3 zone 0 offset +#0EDB; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 1,
+      "label": "ANEC_RIGHT_0_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 36603,
+      "zoneOffset": 3835,
+      "size": 29,
+      "storedSize": 29,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single ANEC_RIGHT_0_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0EFB; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 2,
+      "label": "ANEC_RIGHT_0_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 36632,
+      "zoneOffset": 3864,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single ANEC_RIGHT_0_F1_LAYER1 resource; raw 32 bytes; bank 3 zone 0 offset +#0F18; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 134,
+      "label": "PRESENTATION_SCREEN_COLORS_B2",
+      "group": "PRESENTATION",
+      "type": "SCREEN_COLORS",
+      "bank": 3,
+      "windowAddress": 37009,
+      "zoneOffset": 4241,
+      "size": 488,
+      "storedSize": 488,
+      "uncompressedSize": 488,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_COLORS_B2 resource; raw 488 bytes; bank 3 zone 0 offset +#1091; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 60,
+      "label": "tile_pattern_bank0",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 37901,
+      "zoneOffset": 5133,
+      "size": 259,
+      "storedSize": 259,
+      "uncompressedSize": 304,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single patterns resource; ZX0 259/304 bytes; bank 3 zone 0 offset +#140D; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 3,
+      "label": "ANEC_RIGHT_0_F1_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 38160,
+      "zoneOffset": 5392,
+      "size": 28,
+      "storedSize": 28,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single ANEC_RIGHT_0_F1_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#1510; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 4,
+      "label": "BOLA_1_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 38188,
+      "zoneOffset": 5420,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single BOLA_1_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#152C; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 5,
+      "label": "BOLA_1_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 38212,
+      "zoneOffset": 5444,
+      "size": 28,
+      "storedSize": 28,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single BOLA_1_F1_LAYER1 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#1544; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 6,
+      "label": "PANELL_2_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 38240,
+      "zoneOffset": 5472,
+      "size": 23,
+      "storedSize": 23,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single PANELL_2_F0_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#1560; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 7,
+      "label": "NINA_WALK_RIGHT_3_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 38263,
+      "zoneOffset": 5495,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_3_F0_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#1577; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 8,
+      "label": "NINA_WALK_RIGHT_3_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 38293,
+      "zoneOffset": 5525,
+      "size": 25,
+      "storedSize": 25,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_3_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#1595; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 61,
+      "label": "tilebank_pattern_data_0",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 38936,
+      "zoneOffset": 6168,
+      "size": 259,
+      "storedSize": 259,
+      "uncompressedSize": 304,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single patterns resource; ZX0 259/304 bytes; bank 3 zone 0 offset +#1818; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 9,
+      "label": "NINA_WALK_RIGHT_3_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 39195,
+      "zoneOffset": 6427,
+      "size": 31,
+      "storedSize": 31,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_3_F1_LAYER0 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#191B; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 10,
+      "label": "NINA_WALK_RIGHT_3_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 39226,
+      "zoneOffset": 6458,
+      "size": 27,
+      "storedSize": 27,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_3_F1_LAYER1 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#193A; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 11,
+      "label": "NINA_JUMP_RIGHT_4_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 39253,
+      "zoneOffset": 6485,
+      "size": 27,
+      "storedSize": 27,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_JUMP_RIGHT_4_F0_LAYER0 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#1955; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 12,
+      "label": "NINA_JUMP_RIGHT_4_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 39280,
+      "zoneOffset": 6512,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_JUMP_RIGHT_4_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#1970; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 13,
+      "label": "NINA_LAND_RIGHT_5_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 39304,
+      "zoneOffset": 6536,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_RIGHT_5_F0_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#1988; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 14,
+      "label": "NINA_LAND_RIGHT_5_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 39334,
+      "zoneOffset": 6566,
+      "size": 23,
+      "storedSize": 23,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_RIGHT_5_F0_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#19A6; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 62,
+      "label": "tile_color_bank0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 3,
+      "windowAddress": 39733,
+      "zoneOffset": 6965,
+      "size": 95,
+      "storedSize": 95,
+      "uncompressedSize": 304,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single colors resource; ZX0 95/304 bytes; bank 3 zone 0 offset +#1B35; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 15,
+      "label": "NINA_LAND_RIGHT_5_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 39828,
+      "zoneOffset": 7060,
+      "size": 28,
+      "storedSize": 28,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_RIGHT_5_F1_LAYER0 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#1B94; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 16,
+      "label": "NINA_LAND_RIGHT_5_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 39856,
+      "zoneOffset": 7088,
+      "size": 27,
+      "storedSize": 27,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_RIGHT_5_F1_LAYER1 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#1BB0; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 17,
+      "label": "NINA_LAND_RIGHT_5_F2_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 39883,
+      "zoneOffset": 7115,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_RIGHT_5_F2_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#1BCB; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 18,
+      "label": "NINA_LAND_RIGHT_5_F2_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 39913,
+      "zoneOffset": 7145,
+      "size": 26,
+      "storedSize": 26,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_RIGHT_5_F2_LAYER1 resource; ZX0 26/32 bytes; bank 3 zone 0 offset +#1BE9; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 19,
+      "label": "NINA_DEAD_RIGHT_6_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 39939,
+      "zoneOffset": 7171,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single NINA_DEAD_RIGHT_6_F0_LAYER0 resource; raw 32 bytes; bank 3 zone 0 offset +#1C03; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 20,
+      "label": "NINA_DEAD_RIGHT_6_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 39971,
+      "zoneOffset": 7203,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single NINA_DEAD_RIGHT_6_F0_LAYER2 resource; raw 32 bytes; bank 3 zone 0 offset +#1C23; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 128,
+      "label": "PRESENTATION_SCREEN_NAMETBL",
+      "group": "PRESENTATION",
+      "type": "SCREEN_NAME_TABLE",
+      "bank": 3,
+      "windowAddress": 40022,
+      "zoneOffset": 7254,
+      "size": 768,
+      "storedSize": 768,
+      "uncompressedSize": 768,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_NAMETBL resource; raw 768 bytes; bank 3 zone 0 offset +#1C56; zone slack after pack 170 bytes"
+    },
+    {
+      "id": 129,
+      "label": "PRESENTATION_SCREEN_PATTERNS_B0",
+      "group": "PRESENTATION",
+      "type": "SCREEN_PATTERNS",
+      "bank": 4,
+      "windowAddress": 32768,
+      "zoneOffset": 0,
+      "size": 680,
+      "storedSize": 680,
+      "uncompressedSize": 680,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_PATTERNS_B0 resource; raw 680 bytes; bank 4 zone 1 offset +#0000; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 132,
+      "label": "PRESENTATION_SCREEN_COLORS_B0",
+      "group": "PRESENTATION",
+      "type": "SCREEN_COLORS",
+      "bank": 4,
+      "windowAddress": 33448,
+      "zoneOffset": 680,
+      "size": 680,
+      "storedSize": 680,
+      "uncompressedSize": 680,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_COLORS_B0 resource; raw 680 bytes; bank 4 zone 1 offset +#02A8; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 63,
+      "label": "tilebank_color_data_0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 4,
+      "windowAddress": 34128,
+      "zoneOffset": 1360,
+      "size": 95,
+      "storedSize": 95,
+      "uncompressedSize": 304,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single colors resource; ZX0 95/304 bytes; bank 4 zone 1 offset +#0550; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 21,
+      "label": "NINA_DEAD_RIGHT_6_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34223,
+      "zoneOffset": 1455,
+      "size": 26,
+      "storedSize": 26,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_DEAD_RIGHT_6_F1_LAYER0 resource; ZX0 26/32 bytes; bank 4 zone 1 offset +#05AF; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 22,
+      "label": "NINA_DEAD_RIGHT_6_F1_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34249,
+      "zoneOffset": 1481,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single NINA_DEAD_RIGHT_6_F1_LAYER2 resource; raw 32 bytes; bank 4 zone 1 offset +#05C9; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 23,
+      "label": "NINA_IDLE_RIGHT_7_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34281,
+      "zoneOffset": 1513,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_7_F0_LAYER0 resource; ZX0 30/32 bytes; bank 4 zone 1 offset +#05E9; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 24,
+      "label": "NINA_IDLE_RIGHT_7_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34311,
+      "zoneOffset": 1543,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_7_F0_LAYER1 resource; ZX0 24/32 bytes; bank 4 zone 1 offset +#0607; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 25,
+      "label": "NINA_IDLE_RIGHT_7_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34335,
+      "zoneOffset": 1567,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_7_F1_LAYER0 resource; ZX0 30/32 bytes; bank 4 zone 1 offset +#061F; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 26,
+      "label": "NINA_IDLE_RIGHT_7_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34365,
+      "zoneOffset": 1597,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_7_F1_LAYER1 resource; ZX0 24/32 bytes; bank 4 zone 1 offset +#063D; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 27,
+      "label": "NINA_FALL_RIGHT_8_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34389,
+      "zoneOffset": 1621,
+      "size": 29,
+      "storedSize": 29,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_FALL_RIGHT_8_F0_LAYER0 resource; ZX0 29/32 bytes; bank 4 zone 1 offset +#0655; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 28,
+      "label": "NINA_FALL_RIGHT_8_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34418,
+      "zoneOffset": 1650,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_FALL_RIGHT_8_F0_LAYER1 resource; ZX0 24/32 bytes; bank 4 zone 1 offset +#0672; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 29,
+      "label": "CAPCUADRAT1_RIGHT_9_F0_LAYER3",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34442,
+      "zoneOffset": 1674,
+      "size": 31,
+      "storedSize": 31,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single CAPCUADRAT1_RIGHT_9_F0_LAYER3 resource; ZX0 31/32 bytes; bank 4 zone 1 offset +#068A; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 30,
+      "label": "CAPCUADRAT1_RIGHT_9_F1_LAYER3",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34473,
+      "zoneOffset": 1705,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single CAPCUADRAT1_RIGHT_9_F1_LAYER3 resource; raw 32 bytes; bank 4 zone 1 offset +#06A9; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 31,
+      "label": "ANEC_LEFT_10_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34505,
+      "zoneOffset": 1737,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single ANEC_LEFT_10_F0_LAYER1 resource; raw 32 bytes; bank 4 zone 1 offset +#06C9; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 32,
+      "label": "ANEC_LEFT_10_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34537,
+      "zoneOffset": 1769,
+      "size": 29,
+      "storedSize": 29,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single ANEC_LEFT_10_F0_LAYER2 resource; ZX0 29/32 bytes; bank 4 zone 1 offset +#06E9; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 33,
+      "label": "ANEC_LEFT_10_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34566,
+      "zoneOffset": 1798,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single ANEC_LEFT_10_F1_LAYER1 resource; raw 32 bytes; bank 4 zone 1 offset +#0706; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 34,
+      "label": "ANEC_LEFT_10_F1_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34598,
+      "zoneOffset": 1830,
+      "size": 29,
+      "storedSize": 29,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single ANEC_LEFT_10_F1_LAYER2 resource; ZX0 29/32 bytes; bank 4 zone 1 offset +#0726; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 35,
+      "label": "NINA_WALK_LEFT_11_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34627,
+      "zoneOffset": 1859,
+      "size": 28,
+      "storedSize": 28,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_11_F0_LAYER0 resource; ZX0 28/32 bytes; bank 4 zone 1 offset +#0743; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 36,
+      "label": "NINA_WALK_LEFT_11_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34655,
+      "zoneOffset": 1887,
+      "size": 25,
+      "storedSize": 25,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_11_F0_LAYER1 resource; ZX0 25/32 bytes; bank 4 zone 1 offset +#075F; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 37,
+      "label": "NINA_WALK_LEFT_11_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34680,
+      "zoneOffset": 1912,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_11_F1_LAYER0 resource; ZX0 30/32 bytes; bank 4 zone 1 offset +#0778; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 38,
+      "label": "NINA_WALK_LEFT_11_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34710,
+      "zoneOffset": 1942,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_11_F1_LAYER1 resource; ZX0 30/32 bytes; bank 4 zone 1 offset +#0796; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 39,
+      "label": "NINA_JUMP_LEFT_12_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34740,
+      "zoneOffset": 1972,
+      "size": 27,
+      "storedSize": 27,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_JUMP_LEFT_12_F0_LAYER0 resource; ZX0 27/32 bytes; bank 4 zone 1 offset +#07B4; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 40,
+      "label": "NINA_JUMP_LEFT_12_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34767,
+      "zoneOffset": 1999,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_JUMP_LEFT_12_F0_LAYER1 resource; ZX0 24/32 bytes; bank 4 zone 1 offset +#07CF; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 41,
+      "label": "NINA_LAND_LEFT_13_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34791,
+      "zoneOffset": 2023,
+      "size": 29,
+      "storedSize": 29,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_LEFT_13_F0_LAYER0 resource; ZX0 29/32 bytes; bank 4 zone 1 offset +#07E7; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 42,
+      "label": "NINA_LAND_LEFT_13_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34820,
+      "zoneOffset": 2052,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_LEFT_13_F0_LAYER1 resource; ZX0 24/32 bytes; bank 4 zone 1 offset +#0804; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 43,
+      "label": "NINA_LAND_LEFT_13_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34844,
+      "zoneOffset": 2076,
+      "size": 28,
+      "storedSize": 28,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_LEFT_13_F1_LAYER0 resource; ZX0 28/32 bytes; bank 4 zone 1 offset +#081C; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 44,
+      "label": "NINA_LAND_LEFT_13_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34872,
+      "zoneOffset": 2104,
+      "size": 28,
+      "storedSize": 28,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_LEFT_13_F1_LAYER1 resource; ZX0 28/32 bytes; bank 4 zone 1 offset +#0838; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 45,
+      "label": "NINA_LAND_LEFT_13_F2_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34900,
+      "zoneOffset": 2132,
+      "size": 29,
+      "storedSize": 29,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_LEFT_13_F2_LAYER0 resource; ZX0 29/32 bytes; bank 4 zone 1 offset +#0854; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 46,
+      "label": "NINA_LAND_LEFT_13_F2_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34929,
+      "zoneOffset": 2161,
+      "size": 27,
+      "storedSize": 27,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_LEFT_13_F2_LAYER1 resource; ZX0 27/32 bytes; bank 4 zone 1 offset +#0871; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 47,
+      "label": "NINA_DEAD_LEFT_14_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34956,
+      "zoneOffset": 2188,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single NINA_DEAD_LEFT_14_F0_LAYER0 resource; raw 32 bytes; bank 4 zone 1 offset +#088C; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 48,
+      "label": "NINA_DEAD_LEFT_14_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 34988,
+      "zoneOffset": 2220,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single NINA_DEAD_LEFT_14_F0_LAYER2 resource; raw 32 bytes; bank 4 zone 1 offset +#08AC; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 49,
+      "label": "NINA_DEAD_LEFT_14_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 35020,
+      "zoneOffset": 2252,
+      "size": 25,
+      "storedSize": 25,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_DEAD_LEFT_14_F1_LAYER0 resource; ZX0 25/32 bytes; bank 4 zone 1 offset +#08CC; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 50,
+      "label": "NINA_DEAD_LEFT_14_F1_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 35045,
+      "zoneOffset": 2277,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single NINA_DEAD_LEFT_14_F1_LAYER2 resource; raw 32 bytes; bank 4 zone 1 offset +#08E5; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 51,
+      "label": "NINA_IDLE_LEFT_15_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 35077,
+      "zoneOffset": 2309,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_15_F0_LAYER0 resource; ZX0 30/32 bytes; bank 4 zone 1 offset +#0905; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 52,
+      "label": "NINA_IDLE_LEFT_15_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 35107,
+      "zoneOffset": 2339,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_15_F0_LAYER1 resource; ZX0 24/32 bytes; bank 4 zone 1 offset +#0923; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 53,
+      "label": "NINA_IDLE_LEFT_15_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 35131,
+      "zoneOffset": 2363,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_15_F1_LAYER0 resource; ZX0 30/32 bytes; bank 4 zone 1 offset +#093B; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 54,
+      "label": "NINA_IDLE_LEFT_15_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 35161,
+      "zoneOffset": 2393,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_15_F1_LAYER1 resource; ZX0 24/32 bytes; bank 4 zone 1 offset +#0959; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 55,
+      "label": "NINA_FALL_LEFT_16_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 35185,
+      "zoneOffset": 2417,
+      "size": 29,
+      "storedSize": 29,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_FALL_LEFT_16_F0_LAYER0 resource; ZX0 29/32 bytes; bank 4 zone 1 offset +#0971; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 56,
+      "label": "NINA_FALL_LEFT_16_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 35214,
+      "zoneOffset": 2446,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_FALL_LEFT_16_F0_LAYER1 resource; ZX0 24/32 bytes; bank 4 zone 1 offset +#098E; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 57,
+      "label": "CAPCUADRAT1_LEFT_17_F0_LAYER3",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 35238,
+      "zoneOffset": 2470,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single CAPCUADRAT1_LEFT_17_F0_LAYER3 resource; ZX0 30/32 bytes; bank 4 zone 1 offset +#09A6; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 58,
+      "label": "CAPCUADRAT1_LEFT_17_F1_LAYER3",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 35268,
+      "zoneOffset": 2500,
+      "size": 32,
+      "storedSize": 32,
+      "uncompressedSize": 32,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single CAPCUADRAT1_LEFT_17_F1_LAYER3 resource; raw 32 bytes; bank 4 zone 1 offset +#09C4; zone slack after pack 5655 bytes"
+    },
+    {
+      "id": 59,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 35300,
+      "zoneOffset": 2532,
+      "size": 5,
+      "storedSize": 5,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 4 zone 1 offset +#09E4; zone slack after pack 5655 bytes"
+    }
+  ],
+  "duplicationCandidates": [
+    {
+      "id": 0,
+      "label": "ANEC_RIGHT_0_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 1,
+      "label": "ANEC_RIGHT_0_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 29,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 2,
+      "label": "ANEC_RIGHT_0_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 3,
+      "label": "ANEC_RIGHT_0_F1_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 28,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 4,
+      "label": "BOLA_1_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 24,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 5,
+      "label": "BOLA_1_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 28,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 6,
+      "label": "PANELL_2_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 23,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 7,
+      "label": "NINA_WALK_RIGHT_3_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 30,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 8,
+      "label": "NINA_WALK_RIGHT_3_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 25,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 9,
+      "label": "NINA_WALK_RIGHT_3_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 31,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 10,
+      "label": "NINA_WALK_RIGHT_3_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 27,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 11,
+      "label": "NINA_JUMP_RIGHT_4_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 27,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 12,
+      "label": "NINA_JUMP_RIGHT_4_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 24,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 13,
+      "label": "NINA_LAND_RIGHT_5_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 30,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 14,
+      "label": "NINA_LAND_RIGHT_5_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 23,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 62,
+      "label": "tile_color_bank0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 3,
+      "storedSize": 95,
+      "uncompressedSize": 304
+    },
+    {
+      "id": 15,
+      "label": "NINA_LAND_RIGHT_5_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 28,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 16,
+      "label": "NINA_LAND_RIGHT_5_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 27,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 17,
+      "label": "NINA_LAND_RIGHT_5_F2_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 30,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 18,
+      "label": "NINA_LAND_RIGHT_5_F2_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 26,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 19,
+      "label": "NINA_DEAD_RIGHT_6_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 20,
+      "label": "NINA_DEAD_RIGHT_6_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 63,
+      "label": "tilebank_color_data_0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 4,
+      "storedSize": 95,
+      "uncompressedSize": 304
+    },
+    {
+      "id": 21,
+      "label": "NINA_DEAD_RIGHT_6_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 26,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 22,
+      "label": "NINA_DEAD_RIGHT_6_F1_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 23,
+      "label": "NINA_IDLE_RIGHT_7_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 30,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 24,
+      "label": "NINA_IDLE_RIGHT_7_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 24,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 25,
+      "label": "NINA_IDLE_RIGHT_7_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 30,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 26,
+      "label": "NINA_IDLE_RIGHT_7_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 24,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 27,
+      "label": "NINA_FALL_RIGHT_8_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 29,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 28,
+      "label": "NINA_FALL_RIGHT_8_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 24,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 29,
+      "label": "CAPCUADRAT1_RIGHT_9_F0_LAYER3",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 31,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 30,
+      "label": "CAPCUADRAT1_RIGHT_9_F1_LAYER3",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 31,
+      "label": "ANEC_LEFT_10_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 32,
+      "label": "ANEC_LEFT_10_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 29,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 33,
+      "label": "ANEC_LEFT_10_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 34,
+      "label": "ANEC_LEFT_10_F1_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 29,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 35,
+      "label": "NINA_WALK_LEFT_11_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 28,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 36,
+      "label": "NINA_WALK_LEFT_11_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 25,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 37,
+      "label": "NINA_WALK_LEFT_11_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 30,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 38,
+      "label": "NINA_WALK_LEFT_11_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 30,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 39,
+      "label": "NINA_JUMP_LEFT_12_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 27,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 40,
+      "label": "NINA_JUMP_LEFT_12_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 24,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 41,
+      "label": "NINA_LAND_LEFT_13_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 29,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 42,
+      "label": "NINA_LAND_LEFT_13_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 24,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 43,
+      "label": "NINA_LAND_LEFT_13_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 28,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 44,
+      "label": "NINA_LAND_LEFT_13_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 28,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 45,
+      "label": "NINA_LAND_LEFT_13_F2_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 29,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 46,
+      "label": "NINA_LAND_LEFT_13_F2_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 27,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 47,
+      "label": "NINA_DEAD_LEFT_14_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 48,
+      "label": "NINA_DEAD_LEFT_14_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 49,
+      "label": "NINA_DEAD_LEFT_14_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 25,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 50,
+      "label": "NINA_DEAD_LEFT_14_F1_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 51,
+      "label": "NINA_IDLE_LEFT_15_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 30,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 52,
+      "label": "NINA_IDLE_LEFT_15_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 24,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 53,
+      "label": "NINA_IDLE_LEFT_15_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 30,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 54,
+      "label": "NINA_IDLE_LEFT_15_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 24,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 55,
+      "label": "NINA_FALL_LEFT_16_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 29,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 56,
+      "label": "NINA_FALL_LEFT_16_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 24,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 57,
+      "label": "CAPCUADRAT1_LEFT_17_F0_LAYER3",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 30,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 58,
+      "label": "CAPCUADRAT1_LEFT_17_F1_LAYER3",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 32,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 59,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "storedSize": 5,
+      "uncompressedSize": 32
+    }
+  ]
+}

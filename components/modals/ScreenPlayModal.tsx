@@ -10,7 +10,7 @@ import {
     Tile
 } from '../../types';
 import { Button } from '../common/Button';
-import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
+import { renderScreenToCanvas, createSpriteDataURL, getScreenTileLogicalProperties } from '../utils/screenUtils';
 import { renderBossInstancesToCanvas } from '../utils/bossRenderUtils';
 import { mirrorPixelDataHorizontally } from '../utils/spriteUtils';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, createTileBasedFont } from '../utils/msxFontRenderer';
@@ -168,10 +168,15 @@ const AVAILABLE_ENGINES: EngineRegistry = {
             const now = performance.now();
             entities.forEach(entity => {
                 const animComp = entity.template.components.find(c => c.definitionId === 'comp_animation');
-                if (animComp && entity.frameImages.length > 1 && now - entity.lastFrameUpdateTime > ANIMATION_SPEED_MS) {
+                const spriteAnimMs = (entity.sprite && typeof entity.sprite.animationSpeedMs === 'number') ? entity.sprite.animationSpeedMs : ANIMATION_SPEED_MS;
+                if (animComp && entity.frameImages.length > 1 && now - entity.lastFrameUpdateTime > spriteAnimMs) {
                     // Check if animation should only play when moving
-                    const animateOnlyWhenMoving = animComp.defaultValues?.animateOnlyWhenMoving === true;
+                    const animOverrides = entity.instance.componentOverrides?.['comp_animation'] || {};
+                    const animateOnlyWhenMoving = (animOverrides.animateOnlyWhenMoving ?? animComp.defaultValues?.animateOnlyWhenMoving) === true;
                     const isMoving = entity.vx !== 0 || entity.vy !== 0;
+                    const stateName = (entity.currentState || '').toLowerCase();
+                    const isMovementState = ['run', 'running', 'walk', 'walking', 'dash', 'dashing'].some(state => stateName.includes(state));
+                    const isAnimationPlaying = (entity as any).isAnimationPlaying ?? animOverrides.isPlaying ?? animComp.defaultValues?.isPlaying ?? true;
 
                     // Priority states that should always animate (death, hurt, attack, etc.)
                     const priorityStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Attack', 'Attacking', 'Stunned', 'GameOver', 'Invulnerable'];
@@ -181,7 +186,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                     ));
 
                     // Only animate if: not restricted to movement, OR is moving, OR in priority state
-                    if (!animateOnlyWhenMoving || isMoving || isInPriorityState) {
+                    if (isAnimationPlaying && (!animateOnlyWhenMoving || isMoving || isMovementState || isInPriorityState)) {
                         const oldFrame = entity.currentFrame;
 
                         // Check if entity has directional rotation system
@@ -656,6 +661,13 @@ const AVAILABLE_ENGINES: EngineRegistry = {
             // Get current pressed keys from the modal's key tracking system (we need to access it from the modal scope)
             // For now, we'll implement a simple key tracking system
             const currentPressedKeys = (window as any).currentPressedKeys || new Set();
+            const hasLimitOn = (entity: AnimatedEntity): boolean => {
+                const limitComp = entity.template.components.find(c => c.definitionId === 'comp_limit_on');
+                const override = entity.instance.componentOverrides?.['comp_limit_on'];
+                if (!limitComp && !override) return false;
+                const enabled = override?.isEnabled ?? limitComp?.defaultValues?.isEnabled;
+                return enabled !== false && enabled !== 'false';
+            };
 
             entities.forEach(entity => {
                 const cursorsComp = entity.template.components.find(c => c.definitionId === 'comp_cursors');
@@ -713,7 +725,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                             const newY = entity.y - speed;
                             const exitDirection = detectScreenExit(entity, entity.x, newY);
 
-                            if (exitDirection) {
+                            if (exitDirection && !hasLimitOn(entity)) {
                                 // Permitir movimiento y marcar cambio de pantalla
                                 entity.vy = -speed;
                                 screenExitDetectedRef.current = exitDirection;
@@ -725,7 +737,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                             const newY = entity.y + speed;
                             const exitDirection = detectScreenExit(entity, entity.x, newY);
 
-                            if (exitDirection) {
+                            if (exitDirection && !hasLimitOn(entity)) {
                                 // Permitir movimiento y marcar cambio de pantalla
                                 entity.vy = speed;
                                 screenExitDetectedRef.current = exitDirection;
@@ -741,7 +753,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                             const newX = entity.x - speed;
                             const exitDirection = detectScreenExit(entity, newX, entity.y);
 
-                            if (exitDirection) {
+                            if (exitDirection && !hasLimitOn(entity)) {
                                 // Permitir movimiento y marcar cambio de pantalla
                                 entity.vx = -speed;
                                 screenExitDetectedRef.current = exitDirection;
@@ -754,7 +766,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                             const newX = entity.x + speed;
                             const exitDirection = detectScreenExit(entity, newX, entity.y);
 
-                            if (exitDirection) {
+                            if (exitDirection && !hasLimitOn(entity)) {
                                 // Permitir movimiento y marcar cambio de pantalla
                                 entity.vx = speed;
                                 screenExitDetectedRef.current = exitDirection;
@@ -1177,9 +1189,51 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                                 case 'PLAY_SOUND':
                                     console.log(`🔊 PLAY_SOUND: ${action.params?.soundId} for ${entity.template.name}`);
                                     break;
+                                case 'CHANGE_SPRITE': {
+                                    const spriteName = action.params?.sprite || action.params?.spriteName || action.params?.sprite_name;
+                                    const spriteAssetData = allAssets.find(a =>
+                                        a.type === 'sprite' &&
+                                        (a.data?.name === spriteName || a.data?.id === spriteName || a.name === spriteName)
+                                    );
+                                    const spriteData = spriteAssetData?.data as Sprite | undefined;
+                                    if (spriteData?.frames?.length) {
+                                        entity.sprite = spriteData;
+                                        entity.spriteAssetId = spriteAssetData?.id;
+                                        entity.currentFrame = 0;
+                                        entity.lastFrameUpdateTime = performance.now();
+                                        (entity as any).isAnimationPlaying = true;
+                                        entity.frameImages = spriteData.frames.map(frame => {
+                                            const img = new Image();
+                                            img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+                                            return img;
+                                        });
+                                        entity.mirroredFrameImages = ['right', 'left'].includes(spriteData.facingDirection)
+                                            ? spriteData.frames.map(frame => {
+                                                const img = new Image();
+                                                img.src = createSpriteDataURL(mirrorPixelDataHorizontally(frame.data), spriteData.size.width, spriteData.size.height);
+                                                return img;
+                                            })
+                                            : undefined;
+                                    }
+                                    break;
+                                }
                                 case 'SET_ANIMATION':
                                     console.log(`🎬 SET_ANIMATION: ${action.params?.animationId} for ${entity.template.name}`);
                                     break;
+                                case 'SET_ANIMATION_SPEED': {
+                                    const rawSpeed = action.params?.speed ?? action.params?.speedMs ?? 200;
+                                    entity.sprite.animationSpeedMs = action.params?.speed !== undefined
+                                        ? Math.max(16, Math.round(Number(rawSpeed) * (1000 / 60)))
+                                        : Math.max(16, Number(rawSpeed) || 200);
+                                    break;
+                                }
+                                case 'TOGGLE_ANIMATION': {
+                                    const mode = action.params?.mode || (action.params?.playing === 0 ? 'stop' : 'start');
+                                    (entity as any).isAnimationPlaying = mode === 'toggle'
+                                        ? !((entity as any).isAnimationPlaying ?? true)
+                                        : mode !== 'stop';
+                                    break;
+                                }
                                 default:
                                     console.log(`❓ Unknown action type: ${action.type}`);
                             }
@@ -1625,10 +1679,8 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 if (tileOnLayer && tileOnLayer.tileId) {
                     // Get tileset from allAssets (same as Game Flow Preview)
                     const tileset = allAssets ? allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile) : [];
-                    const tile = tileset.find(t => t.id === tileOnLayer.tileId);
-
-                    // Use the same logic as Game Flow Preview: check logicalProperties.isSolid
-                    const isSolid = tile?.logicalProperties?.isSolid ?? false;
+                    const tileById = new Map(tileset.map(t => [t.id, t]));
+                    const isSolid = getScreenTileLogicalProperties(tileOnLayer, tileById)?.isSolid ?? false;
 
                     console.log(`🧱 Pac-Man Movement - Tile ${tileOnLayer.tileId} en (${tileX},${tileY}): isSolid=${isSolid}`);
 
@@ -1650,17 +1702,34 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     const evaluateCondition = useCallback((condition: any, entity: AnimatedEntity, pressedKey: string, isKeyDown: boolean): boolean => {
         if (!condition) return false;
 
+        const matchesInputKey = (expectedKey: unknown, actualKey: string): boolean => {
+            const expected = String(expectedKey ?? '').toLowerCase();
+            const actual = String(actualKey ?? '').toLowerCase();
+            const aliases: Record<string, string[]> = {
+                up: ['up', 'arrowup'],
+                down: ['down', 'arrowdown'],
+                left: ['left', 'arrowleft'],
+                right: ['right', 'arrowright'],
+                space: ['space', ' '],
+                fire: ['fire', 'space', ' ', 'keyx', 'x'],
+            };
+            return (aliases[expected] || [expected]).includes(actual);
+        };
+
         switch (condition.type) {
             case 'KEY_PRESSED':
-                return isKeyDown && condition.params?.key === pressedKey;
+                return isKeyDown && matchesInputKey(condition.params?.key, pressedKey);
 
             case 'KEY_RELEASED':
-                return !isKeyDown && condition.params?.key === pressedKey;
+                return !isKeyDown && matchesInputKey(condition.params?.key, pressedKey);
 
             case 'CAN_MOVE_DIRECTION':
                 const canMove = canMoveInDirection(entity, condition.params?.direction);
                 // console.log(`🔍 CAN_MOVE_DIRECTION(${condition.params?.direction}): ${canMove} at position (${entity.x}, ${entity.y})`);
                 return canMove;
+
+            case 'IS_WALL_GRABBING':
+                return entity.isWallGrabbing === true;
 
             case 'AND':
                 if (!condition.conditions || !Array.isArray(condition.conditions)) return false;
@@ -2325,6 +2394,52 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         ctx.imageSmoothingEnabled = false;
 
         const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
+        const tileById = new Map(tileset.map(t => [t.id, t]));
+
+        const getWallCollisionComponent = (entity: AnimatedEntity) =>
+            entity.template.components.find(c => c.definitionId === 'comp_wall_collision')
+            || entity.template.components.find(c => c.definitionId === 'comp_collision');
+
+        const getWallCollisionProps = (entity: AnimatedEntity) => {
+            const comp = getWallCollisionComponent(entity);
+            if (!comp) return null;
+
+            const componentDefaults = componentDefinitions
+                .find(c => c.id === comp.definitionId)
+                ?.properties.reduce((acc, prop) => {
+                    acc[prop.name] = prop.defaultValue;
+                    return acc;
+                }, {} as Record<string, any>) || {};
+            const props = {
+                ...componentDefaults,
+                ...comp.defaultValues,
+                ...(entity.instance.componentOverrides?.[comp.definitionId] || {})
+            };
+            const spriteHitbox = entity.sprite.hitbox;
+
+            return {
+                hitboxWidth: Number(props.hitboxWidth) || spriteHitbox?.width || entity.sprite.size.width,
+                hitboxHeight: Number(props.hitboxHeight) || spriteHitbox?.height || entity.sprite.size.height,
+                offsetX: (props.offsetX !== undefined && props.offsetX !== '') ? Number(props.offsetX) : (spriteHitbox?.offsetX ?? 0),
+                offsetY: (props.offsetY !== undefined && props.offsetY !== '') ? Number(props.offsetY) : (spriteHitbox?.offsetY ?? 0),
+                tileSize: Number(props.tileSize) || TILE_SIZE,
+                stopOnCollision: props.stopOnCollision !== false && props.stopOnCollision !== 'false'
+            };
+        };
+
+        const isSolidCollisionTile = (tileX: number, tileY: number): boolean => {
+            if (tileX < 0 || tileY < 0 || tileX >= screenMap.width || tileY >= screenMap.height) {
+                return true;
+            }
+            const tileOnLayer = screenMap.layers.collision?.[tileY]?.[tileX];
+            if (!tileOnLayer || !tileOnLayer.tileId || tileOnLayer.tileId === 'empty') {
+                return false;
+            }
+            return getScreenTileLogicalProperties(tileOnLayer, tileById)?.isSolid ?? false;
+        };
+
+        const isSolidCollisionAtPixel = (x: number, y: number, tileSize = TILE_SIZE): boolean =>
+            isSolidCollisionTile(Math.floor(x / tileSize), Math.floor(y / tileSize));
 
         // --- Entity Collision Helper Functions (same as GameFlowPreviewModal) ---
         const entityCollisionProps = (entity: AnimatedEntity) => {
@@ -2477,38 +2592,21 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             if (physicsEnabled) {
                 entitiesRef.current.forEach(entity => {
                     const hasGravityComp = entity.template.components.some(c => c.definitionId === 'comp_gravity');
-                    const hasCollisionComp = entity.template.components.some(c => c.definitionId === 'comp_collision');
+                    const hasCollisionComp = entity.template.components.some(c =>
+                        c.definitionId === 'comp_collision' || c.definitionId === 'comp_wall_collision'
+                    );
 
                     // Only run ground check for entities that have gravity or collision
                     if (!hasGravityComp && !hasCollisionComp) return;
 
                     if (screenMap?.layers?.collision) {
-                        // Determine hitbox from comp_collision (if present) or sprite hitbox
-                        let hitboxWidth = entity.sprite.size.width;
-                        let hitboxHeight = entity.sprite.size.height;
-                        let offsetX = 0;
-                        let offsetY = 0;
-
-                        if (hasCollisionComp) {
-                            const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
-                            if (collisionCompDef) {
-                                const props = {
-                                    ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {} as Record<string, any>),
-                                    ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
-                                    ...(entity.instance.componentOverrides?.['comp_collision'] || {})
-                                };
-                                const spriteHitbox = entity.sprite?.hitbox;
-                                hitboxWidth = Number(props.hitboxWidth) || spriteHitbox?.width || entity.sprite.size.width;
-                                hitboxHeight = Number(props.hitboxHeight) || spriteHitbox?.height || entity.sprite.size.height;
-                                offsetX = (props.offsetX !== undefined && props.offsetX !== '' && Number(props.offsetX) !== 0) ? Number(props.offsetX) : (spriteHitbox?.offsetX ?? 0);
-                                offsetY = (props.offsetY !== undefined && props.offsetY !== '' && Number(props.offsetY) !== 0) ? Number(props.offsetY) : (spriteHitbox?.offsetY ?? 0);
-                            }
-                        } else if (entity.sprite?.hitbox) {
-                            hitboxWidth = entity.sprite.hitbox.width;
-                            hitboxHeight = entity.sprite.hitbox.height;
-                            offsetX = entity.sprite.hitbox.offsetX;
-                            offsetY = entity.sprite.hitbox.offsetY;
-                        }
+                        const wallProps = getWallCollisionProps(entity);
+                        const spriteHitbox = entity.sprite?.hitbox;
+                        const hitboxWidth = wallProps?.hitboxWidth ?? spriteHitbox?.width ?? entity.sprite.size.width;
+                        const hitboxHeight = wallProps?.hitboxHeight ?? spriteHitbox?.height ?? entity.sprite.size.height;
+                        const offsetX = wallProps?.offsetX ?? spriteHitbox?.offsetX ?? 0;
+                        const offsetY = wallProps?.offsetY ?? spriteHitbox?.offsetY ?? 0;
+                        const tileSize = wallProps?.tileSize ?? TILE_SIZE;
 
                         const hitboxX = entity.x + offsetX;
                         const hitboxY = entity.y + offsetY;
@@ -2516,17 +2614,8 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                         const centerX2 = hitboxX + Math.floor((2 * hitboxWidth) / 3);
                         const bottomY = hitboxY + hitboxHeight;
 
-                        const checkCollisionAt = (x: number, y: number): boolean => {
-                            const tileX = Math.floor(x / TILE_SIZE);
-                            const tileY = Math.floor(y / TILE_SIZE);
-                            if (tileX < 0 || tileY < 0 || tileX >= 32 || tileY >= 24) return false;
-                            const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
-                            if (!tileOnLayer || !tileOnLayer.tileId) return false;
-                            const tile = tileset.find(t => t.id === tileOnLayer.tileId);
-                            return tile?.logicalProperties?.isSolid ?? false;
-                        };
-
-                        const onGround = checkCollisionAt(centerX1, bottomY + 1) || checkCollisionAt(centerX2, bottomY + 1);
+                        const onGround = isSolidCollisionAtPixel(centerX1, bottomY + 1, tileSize)
+                            || isSolidCollisionAtPixel(centerX2, bottomY + 1, tileSize);
                         entity.isOnGround = onGround;
                         entity.isGrounded = onGround; // Keep both in sync for wallCollisionEngine compatibility
                     } else {
@@ -2591,14 +2680,13 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                             entity.isTouchingWallRight ? 'right' :
                             undefined;
                         const touchingWall = !!wallGrabFacing;
-                        const grabFallSpeed = Math.max(0, Number(wallGrabProps.grabFallSpeed ?? 0) || 0);
                         const climbSpeed = Math.max(0, Number(wallGrabProps.climbSpeed ?? 1) || 0);
                         const grabDurationFrames = Math.max(0, Number(wallGrabProps.grabDurationFrames ?? 240) || 0);
-                        if (onGroundNow) {
+                        if (onGroundNow && !entity.isWallGrabbing) {
                             entity.wallGrabLockout = false;
                             entity.wallGrabTimerRemaining = undefined;
                         }
-                        const canWallGrab = wallGrabEnabled && hasGravity && grabPressed && !onGroundNow && !entity.isOnLadder && !entity.wallGrabLockout;
+                        const canWallGrab = wallGrabEnabled && hasGravity && grabPressed && (!onGroundNow || entity.isWallGrabbing) && !entity.isOnLadder && !entity.wallGrabLockout;
                         const graceFrames = entity.wallGrabReleaseGraceFrames ?? 0;
                         const wallGrabActiveNow = canWallGrab && (touchingWall || (entity.isWallGrabbing && graceFrames > 0));
 
@@ -2614,13 +2702,13 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                             const climbUpPressed = currentPressedKeys.has('ArrowUp');
                             const climbDownPressed = currentPressedKeys.has('ArrowDown');
                             const remainingFrames = Math.max(0, entity.wallGrabTimerRemaining ?? grabDurationFrames);
-                            let wallGrabVy = grabFallSpeed;
+                            let wallGrabVy = 0;
                             if (climbSpeed > 0 && (climbUpPressed || climbDownPressed)) {
                                 wallGrabVy = climbUpPressed ? -climbSpeed : climbSpeed;
                             }
-                            const nextTimer = Math.max(0, remainingFrames - 1);
+                            releaseAfterTimerExpired = remainingFrames <= 0;
+                            const nextTimer = releaseAfterTimerExpired ? 0 : Math.max(0, remainingFrames - 1);
                             entity.wallGrabTimerRemaining = nextTimer;
-                            releaseAfterTimerExpired = nextTimer <= 0;
 
                             entity.vy = wallGrabVy;
                             entity.gravityVel = ((wallGrabVy & 0xFF) << 8) & 0xFFFF;
@@ -2879,6 +2967,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                         let hitboxHeight = 12;
                         let offsetX = 2;
                         let offsetY = 2;
+                        let tileSize = TILE_SIZE;
 
                         // Try to get sprite hitbox values
                         let spriteAssetId: string | undefined;
@@ -2921,11 +3010,12 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
 
                         // Fallback: use collision component values if no sprite hitbox (with Pac-Man style adjustment)
                         if (!spriteAssetId || !allAssets || !allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite')?.data?.hitbox) {
-                            hitboxWidth = Number(props.hitboxWidth) > 14 ? 12 : Number(props.hitboxWidth) || 12;
-                            hitboxHeight = Number(props.hitboxHeight) > 14 ? 12 : Number(props.hitboxHeight) || 12;
-                            offsetX = Number(props.offsetX) || 2;
-                            offsetY = Number(props.offsetY) || 2;
+                            hitboxWidth = Number(props.hitboxWidth) || 12;
+                            hitboxHeight = Number(props.hitboxHeight) || 12;
+                            offsetX = Number(props.offsetX) || 0;
+                            offsetY = Number(props.offsetY) || 0;
                         }
+                        tileSize = Number(props.tileSize) || TILE_SIZE;
 
                         // Check if new position would collide
                         const entityLeft = newX + offsetX;
@@ -2933,10 +3023,10 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                         const entityRight = entityLeft + hitboxWidth;
                         const entityBottom = entityTop + hitboxHeight;
 
-                        const leftTile = Math.floor(entityLeft / 16);
-                        const topTile = Math.floor(entityTop / 16);
-                        const rightTile = Math.floor((entityRight - 1) / 16);
-                        const bottomTile = Math.floor((entityBottom - 1) / 16);
+                        const leftTile = Math.floor(entityLeft / tileSize);
+                        const topTile = Math.floor(entityTop / tileSize);
+                        const rightTile = Math.floor((entityRight - 1) / tileSize);
+                        const bottomTile = Math.floor((entityBottom - 1) / tileSize);
 
                         let hasCollision = false;
                         let collisionType: 'tile' | 'boundary' | null = null;
@@ -2956,8 +3046,9 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
 
                                 const tile = collisionRow[tileX];
 
-                                // Check if tile has a collision (tileId is not null and not empty)
-                                if (tile && tile.tileId && tile.tileId !== 'empty' && tile.tileId !== '') {
+                                // Check if tile is logically solid; non-solid behavior tiles should not stop motion.
+                                if (tile && tile.tileId && tile.tileId !== 'empty' && tile.tileId !== ''
+                                    && (getScreenTileLogicalProperties(tile, tileById)?.isSolid ?? false)) {
                                     hasCollision = true;
                                     collisionType = 'tile';
                                     break;
@@ -2970,6 +3061,22 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                             entity.x = newX;
                             entity.y = newY;
                         } else {
+                            if (collisionType === 'tile') {
+                                if (entity.vy > 0) {
+                                    entity.y = bottomTile * tileSize - offsetY - hitboxHeight;
+                                    entity.isOnGround = true;
+                                    entity.isGrounded = true;
+                                } else if (entity.vy < 0) {
+                                    entity.y = (topTile + 1) * tileSize - offsetY;
+                                    entity.isTouchingCeiling = true;
+                                } else if (entity.vx > 0) {
+                                    entity.x = rightTile * tileSize - offsetX - hitboxWidth;
+                                    entity.isTouchingWallRight = true;
+                                } else if (entity.vx < 0) {
+                                    entity.x = (leftTile + 1) * tileSize - offsetX;
+                                    entity.isTouchingWallLeft = true;
+                                }
+                            }
                             // Stop velocity on collision (only log if entity was actually moving)
                             if (entity.vx !== 0 || entity.vy !== 0) {
                                 if (collisionType === 'boundary') {
@@ -3000,6 +3107,32 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     // Screen boundary constraints removed to allow entities to move off-screen
                     // (useful for side-scrolling games, screen transitions, etc.)
                 } // End of physicsEnabled block
+
+                const limitComp = entity.template.components.find(c => c.definitionId === 'comp_limit_on');
+                const limitOverride = entity.instance.componentOverrides?.['comp_limit_on'];
+                const limitEnabled = (limitComp || limitOverride) &&
+                    (limitOverride?.isEnabled ?? limitComp?.defaultValues?.isEnabled) !== false &&
+                    (limitOverride?.isEnabled ?? limitComp?.defaultValues?.isEnabled) !== 'false';
+                if (limitEnabled) {
+                    const maxX = PREVIEW_WIDTH - entity.sprite.size.width;
+                    const maxY = PREVIEW_HEIGHT - entity.sprite.size.height;
+                    if (entity.x < 0) {
+                        entity.x = 0;
+                        if (entity.vx < 0) entity.vx = 0;
+                    } else if (entity.x > maxX) {
+                        entity.x = maxX;
+                        if (entity.vx > 0) entity.vx = 0;
+                    }
+                    if (entity.y < 0) {
+                        entity.y = 0;
+                        if (entity.vy < 0) entity.vy = 0;
+                    } else if (entity.y > maxY) {
+                        entity.y = maxY;
+                        if (entity.vy > 0) entity.vy = 0;
+                        entity.isOnGround = true;
+                        entity.isGrounded = true;
+                    }
+                }
 
                 // Choose correct sprite image (animation is now handled by animation engine)
                 // Ensure currentFrame is within bounds

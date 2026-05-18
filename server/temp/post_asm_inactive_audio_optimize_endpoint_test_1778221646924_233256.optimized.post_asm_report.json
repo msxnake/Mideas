@@ -1,0 +1,251 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\post_asm_inactive_audio_optimize_endpoint_test_1778221646924_233256.post_asm_input.asm",
+  "metrics": {
+    "original_line_count": 15,
+    "output_line_count": 13,
+    "net_line_delta": -2,
+    "applied_patches": 1,
+    "by_rule": {
+      "inactive-feature-runtime": {
+        "findings": 3,
+        "patchable": 2,
+        "routines": [
+          "runtime.sound.group.tick",
+          "runtime.sound.group.tick:task_audio_tick_far",
+          "task_audio_tick_far"
+        ],
+        "removed_lines": 4,
+        "removed_source_bytes": 58
+      }
+    },
+    "inactive_feature_runtime": {
+      "total_findings": 1,
+      "by_feature": {
+        "sounds": {
+          "findings": 1,
+          "patchable": 1,
+          "report_only": 0,
+          "annotated": 0,
+          "unannotated": 1,
+          "preserved": 0,
+          "owners": {},
+          "routines": [
+            "task_audio_tick_far"
+          ]
+        }
+      }
+    },
+    "block_inventory": {
+      "count": 0,
+      "preserved": 0,
+      "removable": 0,
+      "dead_block_candidates": 0,
+      "total_lines": 0,
+      "total_source_bytes": 0,
+      "dead_candidate_lines": 0,
+      "dead_candidate_source_bytes": 0,
+      "by_kind": {},
+      "by_owner": {},
+      "by_status": {},
+      "largest_blocks": [],
+      "errors": []
+    },
+    "routine_inventory": {
+      "count": 3,
+      "unannotated_count": 3,
+      "by_category": {
+        "boot_or_init": {
+          "count": 1,
+          "line_count": 3,
+          "source_bytes": 21,
+          "unannotated_count": 1,
+          "unannotated_line_count": 3,
+          "unannotated_source_bytes": 21
+        },
+        "far_trampoline": {
+          "count": 1,
+          "line_count": 3,
+          "source_bytes": 30,
+          "unannotated_count": 1,
+          "unannotated_line_count": 3,
+          "unannotated_source_bytes": 30
+        },
+        "runtime_code": {
+          "count": 1,
+          "line_count": 2,
+          "source_bytes": 24,
+          "unannotated_count": 1,
+          "unannotated_line_count": 2,
+          "unannotated_source_bytes": 24
+        }
+      },
+      "largest_routines": [
+        {
+          "name": "task_audio_tick_far",
+          "line_count": 3,
+          "source_bytes": 30,
+          "block_id": null,
+          "category": "far_trampoline",
+          "category_reason": "MegaROM far-call or resident-call trampoline"
+        },
+        {
+          "name": "show_menu_main",
+          "line_count": 2,
+          "source_bytes": 24,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "boot_entry",
+          "line_count": 3,
+          "source_bytes": 21,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        }
+      ],
+      "largest_unannotated_labels": [
+        {
+          "name": "task_audio_tick_far",
+          "line_count": 3,
+          "source_bytes": 30,
+          "block_id": null,
+          "category": "far_trampoline",
+          "category_reason": "MegaROM far-call or resident-call trampoline"
+        },
+        {
+          "name": "show_menu_main",
+          "line_count": 2,
+          "source_bytes": 24,
+          "block_id": null,
+          "category": "runtime_code",
+          "category_reason": "Instruction-bearing runtime label"
+        },
+        {
+          "name": "boot_entry",
+          "line_count": 3,
+          "source_bytes": 21,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        }
+      ],
+      "largest_unannotated_by_category": {
+        "boot_or_init": [
+          {
+            "name": "boot_entry",
+            "line_count": 3,
+            "source_bytes": 21,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          }
+        ],
+        "far_trampoline": [
+          {
+            "name": "task_audio_tick_far",
+            "line_count": 3,
+            "source_bytes": 30,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          }
+        ],
+        "runtime_code": [
+          {
+            "name": "show_menu_main",
+            "line_count": 2,
+            "source_bytes": 24,
+            "block_id": null,
+            "category": "runtime_code",
+            "category_reason": "Instruction-bearing runtime label"
+          }
+        ]
+      }
+    },
+    "optimization_passes": [
+      {
+        "pass": 1,
+        "findings": 3,
+        "patchable": 1,
+        "removed_lines": 2,
+        "removed_source_bytes": 29,
+        "removed_labels": [
+          "task_audio_tick_far"
+        ],
+        "input_line_count": 15,
+        "output_line_count": 13
+      },
+      {
+        "pass": 2,
+        "findings": 0,
+        "patchable": 0,
+        "removed_lines": 0,
+        "removed_source_bytes": 0,
+        "removed_labels": [],
+        "input_line_count": 13,
+        "output_line_count": 13
+      }
+    ],
+    "optimization_summary": {
+      "passes_run": 2,
+      "removed_lines": 2,
+      "removed_source_bytes": 29,
+      "removed_labels": [
+        "task_audio_tick_far"
+      ]
+    },
+    "removed_labels": [
+      "task_audio_tick_far"
+    ]
+  },
+  "blocks": [],
+  "block_analysis": [],
+  "block_errors": [],
+  "findings": [
+    {
+      "rule_id": "inactive-feature-runtime",
+      "title": "Inactive feature runtime group candidate",
+      "routine": "runtime.sound.group.tick",
+      "line_start": 11,
+      "line_end": 13,
+      "summary": "`runtime.sound.group.tick` groups inactive audio tick runtime labels: task_audio_tick_far. No external references outside the group were found. This is ready for a future atomic multi-window patch, or for dead-blocks to remove the annotated windows as whole groups. Atomic patch enabled as `runtime.sound.group.tick` with 1 window(s).",
+      "patchable": false,
+      "patch": null
+    },
+    {
+      "rule_id": "inactive-feature-runtime",
+      "title": "Inactive feature runtime group window is atomically patchable",
+      "routine": "runtime.sound.group.tick:task_audio_tick_far",
+      "line_start": 11,
+      "line_end": 12,
+      "summary": "`task_audio_tick_far` is part of inactive runtime group `runtime.sound.group.tick`. The group has no external references, so this window is removed only together with the other group windows.",
+      "patchable": true,
+      "patch": {
+        "start_index": 10,
+        "end_index": 12,
+        "replacement_lines": [],
+        "reason": "Remove inactive runtime group window `task_audio_tick_far` from `runtime.sound.group.tick`.",
+        "group_id": "runtime.sound.group.tick"
+      }
+    },
+    {
+      "rule_id": "inactive-feature-runtime",
+      "title": "Runtime label belongs to an inactive project feature",
+      "routine": "task_audio_tick_far",
+      "line_start": 11,
+      "line_end": 13,
+      "summary": "`task_audio_tick_far` looks like audio runtime (3 lines, 30 source bytes), but project_usage marks feature `sounds` disabled (sounds=0, tracks=0). Category: far_trampoline (MegaROM far-call or resident-call trampoline). No external label references were found, making this a candidate for a future feature-specific patch rule once block ownership and invariants are added. Block ownership: unannotated.  Atomic patch enabled as `runtime.sound.group.tick` with 1 window(s).The patch is still validated by the post-ASM transform invariants.",
+      "patchable": true,
+      "patch": {
+        "start_index": 10,
+        "end_index": 12,
+        "replacement_lines": [],
+        "reason": "Remove inactive sounds runtime routine with no external references.",
+        "group_id": null
+      }
+    }
+  ],
+  "applied_patches": 1
+}

@@ -55,6 +55,12 @@ type PredefinedInstrumentType =
     | "Strings"
     | "Synth Lead"
     | "Bass"
+    | "VT Buzz Lead"
+    | "VT Plucked Bass"
+    | "VT Arp Bell"
+    | "VT Noise Snare"
+    | "VT Metal Hat"
+    | "VT Hollow Tom"
     | "Kick"
     | "Snare"
     | "Hi-Hat"
@@ -138,6 +144,69 @@ const PREDEFINED_INSTRUMENTS: Record<PredefinedInstrumentType, Partial<Instrumen
         toneEnvelope: "0,0,0,-12",
         ayEnvelopeShape: 8,
         ayToneEnabled: true, ayNoiseEnabled: false,
+    },
+    "VT Buzz Lead": {
+        volumeEnvelope: "",
+        volumeLoop: 255,
+        toneEnvelope: "0,0,1,0,0,-1,0,0",
+        toneLoop: 0,
+        ayEnvelopeShape: 14,
+        hardwareEnvelopeRatio: 1.0,
+        ayToneEnabled: true, ayNoiseEnabled: false,
+    },
+    "VT Plucked Bass": {
+        volumeEnvelope: "15,15,13,10,7,5,3,2,1,0",
+        volumeLoop: 255,
+        toneEnvelope: "-12,-9,-7,-5,-3,-1,0,0",
+        toneLoop: 255,
+        ayEnvelopeShape: undefined,
+        hardwareEnvelopeRatio: undefined,
+        ayToneEnabled: true, ayNoiseEnabled: false,
+    },
+    "VT Arp Bell": {
+        volumeEnvelope: "15,13,11,9,7,5,4,3,2,1,0",
+        volumeLoop: 255,
+        toneEnvelope: "0,12,7,19,12,7",
+        toneLoop: 255,
+        ayEnvelopeShape: 10,
+        hardwareEnvelopeRatio: 2.0,
+        ayToneEnabled: true, ayNoiseEnabled: false,
+    },
+    "VT Noise Snare": {
+        volumeEnvelope: "15,14,12,9,7,5,3,2,1,0",
+        volumeLoop: 255,
+        toneEnvelope: "12,7,3,0,-2",
+        toneLoop: 255,
+        noiseEnvelope: "2,3,5,7,10,14,20,28,31",
+        noiseLoop: 255,
+        ayEnvelopeShape: undefined,
+        hardwareEnvelopeRatio: undefined,
+        ayToneEnabled: true, ayNoiseEnabled: true,
+        noiseBaseFrequency: 4,
+    },
+    "VT Metal Hat": {
+        volumeEnvelope: "13,10,7,4,2,0",
+        volumeLoop: 255,
+        toneEnvelope: "0,12,0,19,0,12",
+        toneLoop: 0,
+        noiseEnvelope: "1,1,2,3,5,8,13,21,31",
+        noiseLoop: 255,
+        ayEnvelopeShape: undefined,
+        hardwareEnvelopeRatio: undefined,
+        ayToneEnabled: true, ayNoiseEnabled: true,
+        noiseBaseFrequency: 1,
+    },
+    "VT Hollow Tom": {
+        volumeEnvelope: "15,14,12,10,8,6,4,2,1,0",
+        volumeLoop: 255,
+        toneEnvelope: "-19,-15,-12,-9,-7,-5,-3,-2,-1,0",
+        toneLoop: 255,
+        noiseEnvelope: "6,7,9,12,16,22,31",
+        noiseLoop: 255,
+        ayEnvelopeShape: undefined,
+        hardwareEnvelopeRatio: undefined,
+        ayToneEnabled: true, ayNoiseEnabled: true,
+        noiseBaseFrequency: 6,
     },
     "Kick": {
         volumeEnvelope: "127,118,100,78,56,32,12,0",
@@ -286,6 +355,34 @@ const ARCHITECTURE_PRESETS: Array<{
         subtitle: "Short tone body plus noise macro",
         tags: ["Tone", "Noise", "One-shot"],
         previewNote: "C-3",
+    },
+    {
+        type: "VT Buzz Lead",
+        title: "VT Buzz Lead",
+        subtitle: "Hardware envelope locked to pitch",
+        tags: ["Tone", "HW Env", "Vibrato"],
+        previewNote: "C-4",
+    },
+    {
+        type: "VT Plucked Bass",
+        title: "VT Plucked Bass",
+        subtitle: "Fast pitch fall with dry volume decay",
+        tags: ["Tone", "Pitch", "Decay"],
+        previewNote: "C-3",
+    },
+    {
+        type: "VT Noise Snare",
+        title: "VT Noise Snare",
+        subtitle: "Tone hit plus rising noise period",
+        tags: ["Tone", "Noise", "One-shot"],
+        previewNote: "C-3",
+    },
+    {
+        type: "VT Metal Hat",
+        title: "VT Metal Hat",
+        subtitle: "Looped clang tone mixed with fast noise",
+        tags: ["Tone", "Noise", "Loop"],
+        previewNote: "C-5",
     },
 ];
 

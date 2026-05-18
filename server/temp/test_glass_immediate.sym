@@ -1,0 +1,6 @@
+BAR: equ 4H
+FOO: equ 10H
+test1: equ 4000H
+test2: equ 4003H
+test3: equ 4005H
+test4: equ 4007H

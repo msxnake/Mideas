@@ -1,0 +1,813 @@
+{
+  "version": 1,
+  "scope": "konami8k_tilebank_integrity",
+  "summary": {
+    "screens": 2,
+    "tileBanks": 2,
+    "checkedScreens": 2,
+    "issueScreens": 1,
+    "issueCells": 96,
+    "issueTiles": 7,
+    "missingAssetCells": 96,
+    "missingAssetTiles": 7,
+    "unassignedCells": 0,
+    "unassignedTiles": 0
+  },
+  "screens": [
+    {
+      "index": 0,
+      "id": "screenmap_1776511902784",
+      "name": "pan1",
+      "tileBankAssetId": "tilebank_1776511918552",
+      "tileBankName": "New Tilebank",
+      "activeArea": {
+        "x": 0,
+        "y": 4,
+        "width": 32,
+        "height": 20
+      },
+      "status": "issues",
+      "totals": {
+        "checkedCells": 240,
+        "uniqueTiles": 11,
+        "issueCells": 96,
+        "issueTiles": 7,
+        "missingAssetCells": 96,
+        "missingAssetTiles": 7,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": [
+        {
+          "tileId": "tile_1776511854312",
+          "tileName": null,
+          "reason": "tile asset not found",
+          "cells": [
+            {
+              "x": 4,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 5,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 6,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 7,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 8,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 9,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 10,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 11,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 12,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 13,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 14,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 15,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 16,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 17,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 18,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 19,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 20,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 21,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 22,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 23,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 24,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 25,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 26,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 27,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 28,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 29,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 30,
+              "y": 4,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 31,
+              "y": 4,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 31,
+              "y": 5,
+              "subTileX": 1,
+              "subTileY": 1
+            },
+            {
+              "x": 31,
+              "y": 6,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 26,
+              "y": 9,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 27,
+              "y": 9,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 28,
+              "y": 9,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 29,
+              "y": 9,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 31,
+              "y": 9,
+              "subTileX": 1,
+              "subTileY": 1
+            },
+            {
+              "x": 31,
+              "y": 10,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 9,
+              "y": 11,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 10,
+              "y": 11,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 18,
+              "y": 11,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 19,
+              "y": 11,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 31,
+              "y": 11,
+              "subTileX": 1,
+              "subTileY": 1
+            },
+            {
+              "x": 9,
+              "y": 12,
+              "subTileX": 0,
+              "subTileY": 1
+            },
+            {
+              "x": 10,
+              "y": 12,
+              "subTileX": 1,
+              "subTileY": 1
+            },
+            {
+              "x": 31,
+              "y": 12,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 14,
+              "y": 13,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 15,
+              "y": 13,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 31,
+              "y": 13,
+              "subTileX": 1,
+              "subTileY": 1
+            },
+            {
+              "x": 31,
+              "y": 14,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 31,
+              "y": 15,
+              "subTileX": 1,
+              "subTileY": 1
+            },
+            {
+              "x": 31,
+              "y": 16,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 19,
+              "y": 17,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 31,
+              "y": 17,
+              "subTileX": 1,
+              "subTileY": 1
+            },
+            {
+              "x": 9,
+              "y": 18,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 10,
+              "y": 18,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 19,
+              "y": 18,
+              "subTileX": 0,
+              "subTileY": 1
+            },
+            {
+              "x": 31,
+              "y": 18,
+              "subTileX": 1,
+              "subTileY": 0
+            },
+            {
+              "x": 9,
+              "y": 19,
+              "subTileX": 0,
+              "subTileY": 1
+            },
+            {
+              "x": 10,
+              "y": 19,
+              "subTileX": 1,
+              "subTileY": 1
+            },
+            {
+              "x": 31,
+              "y": 19,
+              "subTileX": 1,
+              "subTileY": 1
+            }
+          ],
+          "attempts": [
+            {
+              "bankId": "bank_0",
+              "bankName": "Bank 0 - HUD/Fonts",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_1",
+              "bankName": "Bank 1 - Game Tileset",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_2",
+              "bankName": "Bank 2 - Background/Status",
+              "reason": "tile not assigned to this bank"
+            }
+          ]
+        },
+        {
+          "tileId": "tile_1776514675238",
+          "tileName": null,
+          "reason": "tile asset not found",
+          "cells": [
+            {
+              "x": 8,
+              "y": 10,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 8,
+              "y": 11,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 8,
+              "y": 12,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 13,
+              "y": 12,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 8,
+              "y": 13,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 13,
+              "y": 13,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 8,
+              "y": 14,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 13,
+              "y": 14,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 8,
+              "y": 15,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 13,
+              "y": 15,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 8,
+              "y": 16,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 13,
+              "y": 16,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 8,
+              "y": 17,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 13,
+              "y": 17,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 8,
+              "y": 18,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 13,
+              "y": 18,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 8,
+              "y": 19,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 13,
+              "y": 19,
+              "subTileX": 0,
+              "subTileY": 0
+            }
+          ],
+          "attempts": [
+            {
+              "bankId": "bank_0",
+              "bankName": "Bank 0 - HUD/Fonts",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_1",
+              "bankName": "Bank 1 - Game Tileset",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_2",
+              "bankName": "Bank 2 - Background/Status",
+              "reason": "tile not assigned to this bank"
+            }
+          ]
+        },
+        {
+          "tileId": "tile_1776777705689",
+          "tileName": null,
+          "reason": "tile asset not found",
+          "cells": [
+            {
+              "x": 2,
+              "y": 6,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 27,
+              "y": 8,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 18,
+              "y": 10,
+              "subTileX": 0,
+              "subTileY": 0
+            }
+          ],
+          "attempts": [
+            {
+              "bankId": "bank_0",
+              "bankName": "Bank 0 - HUD/Fonts",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_1",
+              "bankName": "Bank 1 - Game Tileset",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_2",
+              "bankName": "Bank 2 - Background/Status",
+              "reason": "tile not assigned to this bank"
+            }
+          ]
+        },
+        {
+          "tileId": "tile_1776787618678",
+          "tileName": null,
+          "reason": "tile asset not found",
+          "cells": [
+            {
+              "x": 10,
+              "y": 10,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 3,
+              "y": 12,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 15,
+              "y": 12,
+              "subTileX": 0,
+              "subTileY": 0
+            }
+          ],
+          "attempts": [
+            {
+              "bankId": "bank_0",
+              "bankName": "Bank 0 - HUD/Fonts",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_1",
+              "bankName": "Bank 1 - Game Tileset",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_2",
+              "bankName": "Bank 2 - Background/Status",
+              "reason": "tile not assigned to this bank"
+            }
+          ]
+        },
+        {
+          "tileId": "tile_1776878493940",
+          "tileName": null,
+          "reason": "tile asset not found",
+          "cells": [
+            {
+              "x": 31,
+              "y": 7,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 31,
+              "y": 8,
+              "subTileX": 0,
+              "subTileY": 1
+            }
+          ],
+          "attempts": [
+            {
+              "bankId": "bank_0",
+              "bankName": "Bank 0 - HUD/Fonts",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_1",
+              "bankName": "Bank 1 - Game Tileset",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_2",
+              "bankName": "Bank 2 - Background/Status",
+              "reason": "tile not assigned to this bank"
+            }
+          ]
+        },
+        {
+          "tileId": "tile_split_tile_1776511854312_0_0_1776878629578",
+          "tileName": null,
+          "reason": "tile asset not found",
+          "cells": [
+            {
+              "x": 30,
+              "y": 9,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 1,
+              "y": 13,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 4,
+              "y": 14,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 5,
+              "y": 14,
+              "subTileX": 0,
+              "subTileY": 0
+            }
+          ],
+          "attempts": [
+            {
+              "bankId": "bank_0",
+              "bankName": "Bank 0 - HUD/Fonts",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_1",
+              "bankName": "Bank 1 - Game Tileset",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_2",
+              "bankName": "Bank 2 - Background/Status",
+              "reason": "tile not assigned to this bank"
+            }
+          ]
+        },
+        {
+          "tileId": "tile_split_tile_1776511854312_1_1_1776878629578",
+          "tileName": null,
+          "reason": "tile asset not found",
+          "cells": [
+            {
+              "x": 1,
+              "y": 7,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 2,
+              "y": 7,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 3,
+              "y": 7,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 2,
+              "y": 13,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 3,
+              "y": 13,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 3,
+              "y": 14,
+              "subTileX": 0,
+              "subTileY": 0
+            },
+            {
+              "x": 6,
+              "y": 14,
+              "subTileX": 0,
+              "subTileY": 0
+            }
+          ],
+          "attempts": [
+            {
+              "bankId": "bank_0",
+              "bankName": "Bank 0 - HUD/Fonts",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_1",
+              "bankName": "Bank 1 - Game Tileset",
+              "reason": "tile not assigned to this bank"
+            },
+            {
+              "bankId": "bank_2",
+              "bankName": "Bank 2 - Background/Status",
+              "reason": "tile not assigned to this bank"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "id": "screenmap_1777377884059",
+      "name": "New Dialog Screen",
+      "tileBankAssetId": "tilebank_1776511918552",
+      "tileBankName": "New Tilebank",
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "ok",
+      "totals": {
+        "checkedCells": 128,
+        "uniqueTiles": 1,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    }
+  ]
+}

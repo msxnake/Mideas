@@ -1,0 +1,6 @@
+memory OK 240
+VRAM OK 0
+vram ERR No such debuggable: vram
+video RAM ERR No such debuggable: video RAM
+VDP VRAM ERR No such debuggable: VDP VRAM
+list OK {VDP palette} ioports joystickports {Printer Port} {PSG regs} {VDP status regs} {VDP register latch status} {C-BIOS Main ROM romblocks} {slotted memory} keymatrix {physical VRAM} {C-BIOS Logo ROM romblocks} {VDP palette latch status} {VDP regs} memory VRAM {C-BIOS Main ROM} {C-BIOS Logo ROM} {VDP data latch value} {CPU regs} {VRAM access status} {atenas126.rom romblocks} {Main RAM} {VRAM pointer} atenas126.rom

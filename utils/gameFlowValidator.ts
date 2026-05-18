@@ -107,6 +107,8 @@ export function validateGameFlow(
   gameFlow.connections.forEach(conn => {
     const fromId = conn.from?.nodeId;
     const toId = conn.to?.nodeId;
+    const fromNode = fromId ? gameFlow.nodes.find(n => n.id === fromId) : undefined;
+    const toNode = toId ? gameFlow.nodes.find(n => n.id === toId) : undefined;
 
     if (fromId && !nodeIds.has(fromId)) {
       issues.push({
@@ -136,6 +138,14 @@ export function validateGameFlow(
       issues.push({
         type: 'ERROR',
         message: `Open Connections! Incomplete connection from node ${fromId || 'unknown'} - no destination defined`
+      });
+    }
+
+    if (toNode?.type === 'Controls' && fromNode?.type !== 'Transition') {
+      issues.push({
+        type: 'ERROR',
+        message: 'Controls node must be preceded by a Transition node',
+        nodeId: toNode.id
       });
     }
   });

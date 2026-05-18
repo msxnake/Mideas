@@ -1,0 +1,19 @@
+intro_spc_before pc=65AF sp=F37C banks=06/06/01 flow=00 exit=00 screen=00 input=00 btn=00 player=01 ent=00 xy=8,80 v=33/35 irq=182
+intro_spc_after pc=65B6 sp=F37C banks=06/06/01 flow=00 exit=00 screen=00 input=00 btn=00 player=01 ent=00 xy=8,80 v=33/35 irq=195
+intro_spc_during pc=77DD sp=F36A banks=00/00/01 flow=00 exit=00 screen=00 input=00 btn=00 player=01 ent=00 xy=8,80 v=33/35 irq=203
+start_spc_before pc=6140 sp=F376 banks=06/06/01 flow=00 exit=00 screen=00 input=00 btn=00 player=01 ent=00 xy=8,80 v=33/35 irq=482
+start_spc_after pc=617A sp=F376 banks=06/06/01 flow=00 exit=00 screen=00 input=00 btn=00 player=01 ent=00 xy=8,80 v=33/35 irq=495
+start_spc_during pc=1A53 sp=F334 banks=00/00/01 flow=00 exit=00 screen=00 input=00 btn=00 player=01 ent=00 xy=8,80 v=33/35 irq=503
+gameplay_start pc=6822 sp=F342 banks=0A/0A/01 flow=01 exit=00 screen=00 input=00 btn=00 player=01 ent=00 xy=8,80 v=00/00 irq=566
+SHOTOK patoantic248_ascii16_after_trigger_start.png
+RIGHT_before pc=65DA sp=6E6B banks=0A/0A/01 flow=01 exit=00 screen=00 input=00 btn=00 player=01 ent=00 xy=8,80 v=00/00 irq=602
+RIGHT_during pc=6738 sp=F37C banks=06/06/01 flow=01 exit=00 screen=00 input=03 btn=00 player=01 ent=00 xy=22,80 v=01/00 irq=622
+RIGHT_after pc=6738 sp=F37C banks=06/06/01 flow=01 exit=00 screen=00 input=03 btn=00 player=01 ent=00 xy=51,80 v=01/00 irq=667
+after_right pc=6738 sp=F37C banks=06/06/01 flow=01 exit=00 screen=00 input=00 btn=00 player=01 ent=00 xy=51,80 v=00/00 irq=685
+SHOTOK patoantic248_ascii16_after_trigger_right.png
+LEFT_before pc=C13D sp=F36E banks=00/00/01 flow=01 exit=00 screen=00 input=00 btn=00 player=01 ent=00 xy=51,80 v=00/00 irq=721
+LEFT_during pc=54E7 sp=F374 banks=00/00/01 flow=01 exit=00 screen=00 input=07 btn=00 player=01 ent=00 xy=37,80 v=FF/00 irq=742
+LEFT_after pc=69EB sp=F370 banks=00/00/01 flow=01 exit=00 screen=00 input=07 btn=00 player=00 ent=00 xy=8,80 v=00/00 irq=787
+after_left pc=6738 sp=F37C banks=06/06/01 flow=01 exit=00 screen=00 input=00 btn=00 player=01 ent=00 xy=8,80 v=00/00 irq=805
+SHOTOK patoantic248_ascii16_after_trigger_left.png
+FINAL pc=7005 sp=F36A banks=00/00/01 flow=01 exit=00 screen=00 input=00 btn=00 player=01 ent=00 xy=8,80 v=00/00 irq=901

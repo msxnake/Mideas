@@ -1,0 +1,551 @@
+{
+  "version": 1,
+  "scope": "konami8k_bank_optimizer",
+  "strategy": "analysis-only scene-aware first-fit input; later pass may repack or duplicate resources",
+  "constraints": {
+    "mapperFormat": "konami",
+    "segmentSize": 8192,
+    "dynamicWindows": 1,
+    "dataWindow": {
+      "page": "p3",
+      "base": "#A000",
+      "mask": "#1FFF",
+      "bankDivisor": "#2000"
+    },
+    "maxRecommendedSceneBanks": 3
+  },
+  "currentPlacement": {
+    "bankCount": 1,
+    "resourceCount": 10,
+    "totalStoredBytes": 68,
+    "totalRawBytes": 4674,
+    "compressedResources": 8,
+    "banks": [
+      {
+        "bank": 3,
+        "count": 10,
+        "storedBytes": 68,
+        "rawBytes": 4674,
+        "resourceIds": [
+          2,
+          3,
+          6,
+          7,
+          8,
+          9,
+          0,
+          1,
+          4,
+          5
+        ],
+        "resourceLabels": [
+          "SCREEN_PANTALLA1_0_LAYOUT",
+          "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+          "BEHAVIOR_PANTALLA1_0_DATA",
+          "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+          "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+          "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP",
+          "NEW_SPRITE_0_F0_LAYER1",
+          "SPRITE_PLACEHOLDER_PATTERN",
+          "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+          "SCREEN_PANTALLA1_0_BOSS_TABLE"
+        ]
+      }
+    ]
+  },
+  "proposedPlacement": {
+    "strategy": "dry-run scene bundles first-fit decreasing with mapper data-zone capacity; current ROM placement is unchanged",
+    "zoneSize": 8192,
+    "bankCount": 1,
+    "resourceCount": 10,
+    "totalStoredBytes": 68,
+    "resourcePlacements": [
+      {
+        "id": 2,
+        "label": "SCREEN_PANTALLA1_0_LAYOUT",
+        "bank": 3,
+        "zoneOffset": 0,
+        "windowAddress": 40960,
+        "storedSize": 6,
+        "uncompressedSize": 768,
+        "flags": 1,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1767095338721",
+        "sceneName": "pantalla1",
+        "placementReason": "proposed scene first-fit placement; 6/768 bytes; bank 3 offset +#0000; current ROM placement unchanged"
+      },
+      {
+        "id": 3,
+        "label": "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+        "bank": 3,
+        "zoneOffset": 6,
+        "windowAddress": 40966,
+        "storedSize": 6,
+        "uncompressedSize": 768,
+        "flags": 1,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1767095338721",
+        "sceneName": "pantalla1",
+        "placementReason": "proposed scene first-fit placement; 6/768 bytes; bank 3 offset +#0006; current ROM placement unchanged"
+      },
+      {
+        "id": 6,
+        "label": "BEHAVIOR_PANTALLA1_0_DATA",
+        "bank": 3,
+        "zoneOffset": 12,
+        "windowAddress": 40972,
+        "storedSize": 6,
+        "uncompressedSize": 768,
+        "flags": 1,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1767095338721",
+        "sceneName": "pantalla1",
+        "placementReason": "proposed scene first-fit placement; 6/768 bytes; bank 3 offset +#000C; current ROM placement unchanged"
+      },
+      {
+        "id": 7,
+        "label": "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+        "bank": 3,
+        "zoneOffset": 18,
+        "windowAddress": 40978,
+        "storedSize": 6,
+        "uncompressedSize": 768,
+        "flags": 1,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1767095338721",
+        "sceneName": "pantalla1",
+        "placementReason": "proposed scene first-fit placement; 6/768 bytes; bank 3 offset +#0012; current ROM placement unchanged"
+      },
+      {
+        "id": 8,
+        "label": "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+        "bank": 3,
+        "zoneOffset": 24,
+        "windowAddress": 40984,
+        "storedSize": 6,
+        "uncompressedSize": 768,
+        "flags": 1,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1767095338721",
+        "sceneName": "pantalla1",
+        "placementReason": "proposed scene first-fit placement; 6/768 bytes; bank 3 offset +#0018; current ROM placement unchanged"
+      },
+      {
+        "id": 9,
+        "label": "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP",
+        "bank": 3,
+        "zoneOffset": 30,
+        "windowAddress": 40990,
+        "storedSize": 6,
+        "uncompressedSize": 768,
+        "flags": 1,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1767095338721",
+        "sceneName": "pantalla1",
+        "placementReason": "proposed scene first-fit placement; 6/768 bytes; bank 3 offset +#001E; current ROM placement unchanged"
+      },
+      {
+        "id": 4,
+        "label": "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+        "bank": 3,
+        "zoneOffset": 36,
+        "windowAddress": 40996,
+        "storedSize": 1,
+        "uncompressedSize": 1,
+        "flags": 0,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1767095338721",
+        "sceneName": "pantalla1",
+        "placementReason": "proposed scene first-fit placement; 1/1 bytes; bank 3 offset +#0024; current ROM placement unchanged"
+      },
+      {
+        "id": 5,
+        "label": "SCREEN_PANTALLA1_0_BOSS_TABLE",
+        "bank": 3,
+        "zoneOffset": 37,
+        "windowAddress": 40997,
+        "storedSize": 1,
+        "uncompressedSize": 1,
+        "flags": 0,
+        "unitKind": "scene",
+        "sceneIndex": 0,
+        "sceneId": "screenmap_1767095338721",
+        "sceneName": "pantalla1",
+        "placementReason": "proposed scene first-fit placement; 1/1 bytes; bank 3 offset +#0025; current ROM placement unchanged"
+      },
+      {
+        "id": 0,
+        "label": "NEW_SPRITE_0_F0_LAYER1",
+        "bank": 3,
+        "zoneOffset": 38,
+        "windowAddress": 40998,
+        "storedSize": 25,
+        "uncompressedSize": 32,
+        "flags": 1,
+        "unitKind": "shared",
+        "sceneIndex": null,
+        "sceneId": null,
+        "sceneName": null,
+        "placementReason": "proposed shared first-fit placement; 25/32 bytes; bank 3 offset +#0026; current ROM placement unchanged"
+      },
+      {
+        "id": 1,
+        "label": "SPRITE_PLACEHOLDER_PATTERN",
+        "bank": 3,
+        "zoneOffset": 63,
+        "windowAddress": 41023,
+        "storedSize": 5,
+        "uncompressedSize": 32,
+        "flags": 1,
+        "unitKind": "shared",
+        "sceneIndex": null,
+        "sceneId": null,
+        "sceneName": null,
+        "placementReason": "proposed shared first-fit placement; 5/32 bytes; bank 3 offset +#003F; current ROM placement unchanged"
+      }
+    ],
+    "banks": [
+      {
+        "bank": 3,
+        "usedBytes": 68,
+        "freeBytes": 8124,
+        "units": [
+          {
+            "kind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1767095338721",
+            "sceneName": "pantalla1",
+            "resourceIds": [
+              2,
+              3,
+              6,
+              7,
+              8,
+              9,
+              4,
+              5
+            ],
+            "resourceLabels": [
+              "SCREEN_PANTALLA1_0_LAYOUT",
+              "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+              "BEHAVIOR_PANTALLA1_0_DATA",
+              "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+              "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+              "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP",
+              "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+              "SCREEN_PANTALLA1_0_BOSS_TABLE"
+            ],
+            "storedBytes": 38,
+            "rawBytes": 4610
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              0
+            ],
+            "resourceLabels": [
+              "NEW_SPRITE_0_F0_LAYER1"
+            ],
+            "storedBytes": 25,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              1
+            ],
+            "resourceLabels": [
+              "SPRITE_PLACEHOLDER_PATTERN"
+            ],
+            "storedBytes": 5,
+            "rawBytes": 32
+          }
+        ],
+        "resourcePlacements": [
+          {
+            "id": 2,
+            "label": "SCREEN_PANTALLA1_0_LAYOUT",
+            "bank": 3,
+            "zoneOffset": 0,
+            "windowAddress": 40960,
+            "storedSize": 6,
+            "uncompressedSize": 768,
+            "flags": 1,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1767095338721",
+            "sceneName": "pantalla1",
+            "placementReason": "proposed scene first-fit placement; 6/768 bytes; bank 3 offset +#0000; current ROM placement unchanged"
+          },
+          {
+            "id": 3,
+            "label": "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+            "bank": 3,
+            "zoneOffset": 6,
+            "windowAddress": 40966,
+            "storedSize": 6,
+            "uncompressedSize": 768,
+            "flags": 1,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1767095338721",
+            "sceneName": "pantalla1",
+            "placementReason": "proposed scene first-fit placement; 6/768 bytes; bank 3 offset +#0006; current ROM placement unchanged"
+          },
+          {
+            "id": 6,
+            "label": "BEHAVIOR_PANTALLA1_0_DATA",
+            "bank": 3,
+            "zoneOffset": 12,
+            "windowAddress": 40972,
+            "storedSize": 6,
+            "uncompressedSize": 768,
+            "flags": 1,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1767095338721",
+            "sceneName": "pantalla1",
+            "placementReason": "proposed scene first-fit placement; 6/768 bytes; bank 3 offset +#000C; current ROM placement unchanged"
+          },
+          {
+            "id": 7,
+            "label": "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+            "bank": 3,
+            "zoneOffset": 18,
+            "windowAddress": 40978,
+            "storedSize": 6,
+            "uncompressedSize": 768,
+            "flags": 1,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1767095338721",
+            "sceneName": "pantalla1",
+            "placementReason": "proposed scene first-fit placement; 6/768 bytes; bank 3 offset +#0012; current ROM placement unchanged"
+          },
+          {
+            "id": 8,
+            "label": "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+            "bank": 3,
+            "zoneOffset": 24,
+            "windowAddress": 40984,
+            "storedSize": 6,
+            "uncompressedSize": 768,
+            "flags": 1,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1767095338721",
+            "sceneName": "pantalla1",
+            "placementReason": "proposed scene first-fit placement; 6/768 bytes; bank 3 offset +#0018; current ROM placement unchanged"
+          },
+          {
+            "id": 9,
+            "label": "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP",
+            "bank": 3,
+            "zoneOffset": 30,
+            "windowAddress": 40990,
+            "storedSize": 6,
+            "uncompressedSize": 768,
+            "flags": 1,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1767095338721",
+            "sceneName": "pantalla1",
+            "placementReason": "proposed scene first-fit placement; 6/768 bytes; bank 3 offset +#001E; current ROM placement unchanged"
+          },
+          {
+            "id": 4,
+            "label": "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+            "bank": 3,
+            "zoneOffset": 36,
+            "windowAddress": 40996,
+            "storedSize": 1,
+            "uncompressedSize": 1,
+            "flags": 0,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1767095338721",
+            "sceneName": "pantalla1",
+            "placementReason": "proposed scene first-fit placement; 1/1 bytes; bank 3 offset +#0024; current ROM placement unchanged"
+          },
+          {
+            "id": 5,
+            "label": "SCREEN_PANTALLA1_0_BOSS_TABLE",
+            "bank": 3,
+            "zoneOffset": 37,
+            "windowAddress": 40997,
+            "storedSize": 1,
+            "uncompressedSize": 1,
+            "flags": 0,
+            "unitKind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1767095338721",
+            "sceneName": "pantalla1",
+            "placementReason": "proposed scene first-fit placement; 1/1 bytes; bank 3 offset +#0025; current ROM placement unchanged"
+          },
+          {
+            "id": 0,
+            "label": "NEW_SPRITE_0_F0_LAYER1",
+            "bank": 3,
+            "zoneOffset": 38,
+            "windowAddress": 40998,
+            "storedSize": 25,
+            "uncompressedSize": 32,
+            "flags": 1,
+            "unitKind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "placementReason": "proposed shared first-fit placement; 25/32 bytes; bank 3 offset +#0026; current ROM placement unchanged"
+          },
+          {
+            "id": 1,
+            "label": "SPRITE_PLACEHOLDER_PATTERN",
+            "bank": 3,
+            "zoneOffset": 63,
+            "windowAddress": 41023,
+            "storedSize": 5,
+            "uncompressedSize": 32,
+            "flags": 1,
+            "unitKind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "placementReason": "proposed shared first-fit placement; 5/32 bytes; bank 3 offset +#003F; current ROM placement unchanged"
+          }
+        ],
+        "resourceIds": [
+          2,
+          3,
+          6,
+          7,
+          8,
+          9,
+          4,
+          5,
+          0,
+          1
+        ],
+        "resourceLabels": [
+          "SCREEN_PANTALLA1_0_LAYOUT",
+          "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+          "BEHAVIOR_PANTALLA1_0_DATA",
+          "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+          "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+          "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP",
+          "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+          "SCREEN_PANTALLA1_0_BOSS_TABLE",
+          "NEW_SPRITE_0_F0_LAYER1",
+          "SPRITE_PLACEHOLDER_PATTERN"
+        ]
+      }
+    ],
+    "sceneBankPlan": [
+      {
+        "index": 0,
+        "id": "screenmap_1767095338721",
+        "name": "pantalla1",
+        "currentBanks": [
+          3
+        ],
+        "proposedBanks": [
+          3
+        ]
+      }
+    ],
+    "delta": {
+      "currentBankCount": 1,
+      "proposedBankCount": 1,
+      "currentSceneBankTouches": 1,
+      "proposedSceneBankTouches": 1
+    }
+  },
+  "sceneClusters": [
+    {
+      "index": 0,
+      "id": "screenmap_1767095338721",
+      "name": "pantalla1",
+      "resourceIds": [
+        2,
+        3,
+        6,
+        7,
+        8,
+        9,
+        4,
+        5
+      ],
+      "banks": [
+        3
+      ],
+      "bankCount": 1,
+      "storedBytes": 38,
+      "rawBytes": 4610,
+      "coLocated": true,
+      "preferredBank": 3
+    }
+  ],
+  "pressureWarnings": [],
+  "sharedOrGlobalResources": [
+    {
+      "id": 0,
+      "label": "NEW_SPRITE_0_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 40996,
+      "zoneOffset": 36,
+      "size": 25,
+      "storedSize": 25,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NEW_SPRITE_0_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0024; zone slack after pack 8124 bytes"
+    },
+    {
+      "id": 1,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 41021,
+      "zoneOffset": 61,
+      "size": 5,
+      "storedSize": 5,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#003D; zone slack after pack 8124 bytes"
+    }
+  ],
+  "duplicationCandidates": [
+    {
+      "id": 0,
+      "label": "NEW_SPRITE_0_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 25,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 1,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 5,
+      "uncompressedSize": 32
+    }
+  ]
+}

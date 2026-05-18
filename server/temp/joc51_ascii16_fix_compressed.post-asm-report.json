@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\joc51_ascii16_fix_compressed.asm",
+  "metrics": {
+    "original_line_count": 32793,
+    "output_line_count": 32793,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-5hhbyojs\\joc51_ascii16_fix_compressed.optimized.optimized.rom",
+        "size_bytes": 262144,
+        "sha256": "3c705a26c12ec09bf1daa6dfdc44fd7b01045d79a0ebbdc7eb194dd14a29bc24"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-5hhbyojs\\joc51_ascii16_fix_compressed.original.rom",
+        "size_bytes": 262144,
+        "sha256": "3c705a26c12ec09bf1daa6dfdc44fd7b01045d79a0ebbdc7eb194dd14a29bc24"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

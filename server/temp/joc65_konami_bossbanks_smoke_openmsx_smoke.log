@@ -1,0 +1,13 @@
+BP_4010 pc=4010 sp=F2EC bank=BB/BB/BA/A9 flow=00 screen=00 irq=0000 inirq=00 pos=0,0
+space1_before pc=4FDF sp=F368 bank=01/02/03/03 flow=01 screen=00 irq=00B3 inirq=00 pos=16,144
+space1_after pc=6A45 sp=F374 bank=01/02/03/03 flow=01 screen=00 irq=00C2 inirq=00 pos=16,108
+space2_before pc=631E sp=F36C bank=06/02/05/03 flow=01 screen=00 irq=012B inirq=00 pos=16,144
+space2_after pc=73FC sp=F370 bank=01/02/03/03 flow=01 screen=00 irq=013A inirq=00 pos=16,110
+t12 pc=7B55 sp=F372 bank=01/02/03/03 flow=01 screen=00 irq=01DF inirq=00 pos=16,144
+SHOTOK joc65_konami_bossbanks_smoke_t12.png
+right_before pc=1A59 sp=F364 bank=01/02/03/03 flow=01 screen=00 irq=0239 inirq=00 pos=16,144
+right_after pc=9020 sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=0277 inirq=00 pos=126,144
+t16 pc=9020 sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=02CE inirq=00 pos=126,144
+SHOTOK joc65_konami_bossbanks_smoke_t16.png
+t22 pc=8404 sp=F36C bank=01/02/03/03 flow=01 screen=00 irq=0436 inirq=00 pos=126,144
+SHOTOK joc65_konami_bossbanks_smoke_t22.png

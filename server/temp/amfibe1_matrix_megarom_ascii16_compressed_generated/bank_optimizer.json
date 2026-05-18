@@ -1,0 +1,276 @@
+{
+  "version": 1,
+  "scope": "konami8k_bank_optimizer",
+  "strategy": "analysis-only scene-aware first-fit input; later pass may repack or duplicate resources",
+  "constraints": {
+    "mapperFormat": "ascii16",
+    "segmentSize": 16384,
+    "dynamicWindows": 1,
+    "dataWindow": {
+      "page": "p3",
+      "base": "#8000",
+      "mask": "#3FFF",
+      "bankDivisor": "#4000"
+    },
+    "maxRecommendedSceneBanks": 3
+  },
+  "currentPlacement": {
+    "bankCount": 2,
+    "resourceCount": 3,
+    "totalStoredBytes": 1546,
+    "totalRawBytes": 2048,
+    "compressedResources": 3,
+    "banks": [
+      {
+        "bank": 1,
+        "count": 3,
+        "storedBytes": 1546,
+        "rawBytes": 2048,
+        "resourceIds": [
+          1,
+          2,
+          0
+        ],
+        "resourceLabels": [
+          "tile_pattern_bank0",
+          "tile_color_bank0",
+          "SPRITE_PLACEHOLDER_PATTERN"
+        ]
+      },
+      {
+        "bank": 3,
+        "count": 0,
+        "storedBytes": 0,
+        "rawBytes": 0,
+        "resourceIds": [],
+        "resourceLabels": []
+      }
+    ]
+  },
+  "proposedPlacement": {
+    "strategy": "dry-run scene bundles first-fit decreasing with mapper data-zone capacity; current ROM placement is unchanged",
+    "zoneSize": 16384,
+    "bankCount": 1,
+    "resourceCount": 3,
+    "totalStoredBytes": 1546,
+    "resourcePlacements": [
+      {
+        "id": 1,
+        "label": "tile_pattern_bank0",
+        "bank": 1,
+        "zoneOffset": 0,
+        "windowAddress": 32768,
+        "storedSize": 982,
+        "uncompressedSize": 1008,
+        "flags": 1,
+        "unitKind": "shared",
+        "sceneIndex": null,
+        "sceneId": null,
+        "sceneName": null,
+        "placementReason": "proposed shared first-fit placement; 982/1008 bytes; bank 1 offset +#0000; current ROM placement unchanged"
+      },
+      {
+        "id": 2,
+        "label": "tile_color_bank0",
+        "bank": 1,
+        "zoneOffset": 982,
+        "windowAddress": 33750,
+        "storedSize": 559,
+        "uncompressedSize": 1008,
+        "flags": 1,
+        "unitKind": "shared",
+        "sceneIndex": null,
+        "sceneId": null,
+        "sceneName": null,
+        "placementReason": "proposed shared first-fit placement; 559/1008 bytes; bank 1 offset +#03D6; current ROM placement unchanged"
+      },
+      {
+        "id": 0,
+        "label": "SPRITE_PLACEHOLDER_PATTERN",
+        "bank": 1,
+        "zoneOffset": 1541,
+        "windowAddress": 34309,
+        "storedSize": 5,
+        "uncompressedSize": 32,
+        "flags": 1,
+        "unitKind": "shared",
+        "sceneIndex": null,
+        "sceneId": null,
+        "sceneName": null,
+        "placementReason": "proposed shared first-fit placement; 5/32 bytes; bank 1 offset +#0605; current ROM placement unchanged"
+      }
+    ],
+    "banks": [
+      {
+        "bank": 1,
+        "usedBytes": 1546,
+        "freeBytes": 14838,
+        "units": [
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              1
+            ],
+            "resourceLabels": [
+              "tile_pattern_bank0"
+            ],
+            "storedBytes": 982,
+            "rawBytes": 1008
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              2
+            ],
+            "resourceLabels": [
+              "tile_color_bank0"
+            ],
+            "storedBytes": 559,
+            "rawBytes": 1008
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              0
+            ],
+            "resourceLabels": [
+              "SPRITE_PLACEHOLDER_PATTERN"
+            ],
+            "storedBytes": 5,
+            "rawBytes": 32
+          }
+        ],
+        "resourcePlacements": [
+          {
+            "id": 1,
+            "label": "tile_pattern_bank0",
+            "bank": 1,
+            "zoneOffset": 0,
+            "windowAddress": 32768,
+            "storedSize": 982,
+            "uncompressedSize": 1008,
+            "flags": 1,
+            "unitKind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "placementReason": "proposed shared first-fit placement; 982/1008 bytes; bank 1 offset +#0000; current ROM placement unchanged"
+          },
+          {
+            "id": 2,
+            "label": "tile_color_bank0",
+            "bank": 1,
+            "zoneOffset": 982,
+            "windowAddress": 33750,
+            "storedSize": 559,
+            "uncompressedSize": 1008,
+            "flags": 1,
+            "unitKind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "placementReason": "proposed shared first-fit placement; 559/1008 bytes; bank 1 offset +#03D6; current ROM placement unchanged"
+          },
+          {
+            "id": 0,
+            "label": "SPRITE_PLACEHOLDER_PATTERN",
+            "bank": 1,
+            "zoneOffset": 1541,
+            "windowAddress": 34309,
+            "storedSize": 5,
+            "uncompressedSize": 32,
+            "flags": 1,
+            "unitKind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "placementReason": "proposed shared first-fit placement; 5/32 bytes; bank 1 offset +#0605; current ROM placement unchanged"
+          }
+        ],
+        "resourceIds": [
+          1,
+          2,
+          0
+        ],
+        "resourceLabels": [
+          "tile_pattern_bank0",
+          "tile_color_bank0",
+          "SPRITE_PLACEHOLDER_PATTERN"
+        ]
+      }
+    ],
+    "sceneBankPlan": [],
+    "delta": {
+      "currentBankCount": 1,
+      "proposedBankCount": 1,
+      "currentSceneBankTouches": 0,
+      "proposedSceneBankTouches": 0
+    }
+  },
+  "sceneClusters": [],
+  "pressureWarnings": [],
+  "sharedOrGlobalResources": [
+    {
+      "id": 1,
+      "label": "tile_pattern_bank0",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 1,
+      "windowAddress": 32768,
+      "zoneOffset": 0,
+      "size": 982,
+      "storedSize": 982,
+      "uncompressedSize": 1008,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single patterns resource; ZX0 982/1008 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 14838 bytes"
+    },
+    {
+      "id": 2,
+      "label": "tile_color_bank0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 1,
+      "windowAddress": 33750,
+      "zoneOffset": 982,
+      "size": 559,
+      "storedSize": 559,
+      "uncompressedSize": 1008,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single colors resource; ZX0 559/1008 bytes; bank 3 zone 0 offset +#03D6; zone slack after pack 14838 bytes"
+    },
+    {
+      "id": 0,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 1,
+      "windowAddress": 34309,
+      "zoneOffset": 1541,
+      "size": 5,
+      "storedSize": 5,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0605; zone slack after pack 14838 bytes"
+    }
+  ],
+  "duplicationCandidates": [
+    {
+      "id": 0,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 1,
+      "storedSize": 5,
+      "uncompressedSize": 32
+    }
+  ]
+}

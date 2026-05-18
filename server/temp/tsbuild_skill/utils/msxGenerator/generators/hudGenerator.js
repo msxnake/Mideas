@@ -107,10 +107,12 @@ render_hud:
     ret
 force_render_hud:
     ret
+; @mideas:block id=runtime.hud.empty_update_stubs kind=routine owner=hud
 update_hud_score:
     ret
 update_hud_lives:
     ret
+; @mideas:endblock id=runtime.hud.empty_update_stubs
 `;
     }
     let asm = `; ==================================================================
@@ -139,7 +141,9 @@ update_hud_lives:
     asm += generateRenderHudFunction(allHudElements, hudRows, analysis);
     // Generate helper functions
     asm += generateHudHelperFunctions(allHudElements, analysis);
-    return asm;
+    return `; @mideas:block id=runtime.hud.core kind=routine owner=hud roots=init_hud,render_hud,force_render_hud,imprimir_marco,hud_draw_frame
+${asm}; @mideas:endblock id=runtime.hud.core
+`;
 }
 /**
  * Generate HUD data structures

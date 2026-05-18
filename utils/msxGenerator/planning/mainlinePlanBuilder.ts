@@ -2,6 +2,23 @@ import type { ProjectAnalysis } from '../../asmTemplateGenerator';
 import type { MSXModularConfig } from '../index';
 import type { MainlineWorkItem, TaskDefinition } from '../types/executionTypes';
 
+function usesLimitOnComponent(analysis: ProjectAnalysis): boolean {
+  const entities = Array.isArray((analysis as any).entities) ? (analysis as any).entities : [];
+  const templates = Array.isArray((analysis as any).templates) ? (analysis as any).templates : [];
+
+  return entities.some((entity: any) => {
+    const template = templates.find((candidate: any) => candidate?.id === entity?.entityTemplateId);
+    const templateComp = template?.components?.find((component: any) =>
+      component?.definitionId === 'comp_limit_on' || component?.definitionName === 'Limit_on'
+    );
+    const overrides = entity?.componentOverrides?.['comp_limit_on'];
+    if (!templateComp && !overrides) return false;
+
+    const enabled = overrides?.isEnabled ?? templateComp?.defaultValues?.isEnabled;
+    return enabled !== false && enabled !== 'false';
+  });
+}
+
 export function buildMainlineWork(
   analysis: ProjectAnalysis,
   _config: MSXModularConfig,
@@ -11,7 +28,8 @@ export function buildMainlineWork(
   const hasAudioTask = tasks.some((task) => task.responsibility === 'audio');
   const hasFrameAudio =
     ((analysis.tracks?.length || 0) > 0) ||
-    ((analysis.stateMachines?.length || 0) > 0);
+    ((analysis.sounds?.length || 0) > 0);
+  const hasLimitOn = usesLimitOnComponent(analysis);
 
   if (!hasAudioTask && hasFrameAudio) {
     mainline.push({
@@ -42,6 +60,15 @@ export function buildMainlineWork(
       routineLabel: 'update_all_entities',
       phase: 'postUpdate',
     },
+    ...(hasLimitOn
+      ? [{
+          id: 'screen_limits',
+          responsibility: 'screenFlow',
+          routineLabel: 'clamp_world_screen_limits',
+          phase: 'postUpdate',
+          notes: ['Applies Limit_on after movement so missing WorldMap edges behave like implicit walls.'],
+        } satisfies MainlineWorkItem]
+      : []),
     {
       id: 'state_machines',
       responsibility: 'stateMachines',
@@ -54,12 +81,14 @@ export function buildMainlineWork(
       routineLabel: 'update_animated_tiles',
       phase: 'postUpdate',
     },
-    {
-      id: 'sfx',
-      responsibility: 'sfx',
-      routineLabel: 'sfx_update',
-      phase: 'postUpdate',
-    },
+    ...(((analysis.sounds?.length || 0) > 0)
+      ? [{
+          id: 'sfx',
+          responsibility: 'sfx',
+          routineLabel: 'sfx_update',
+          phase: 'postUpdate',
+        } satisfies MainlineWorkItem]
+      : []),
     {
       id: 'hud',
       responsibility: 'hud',

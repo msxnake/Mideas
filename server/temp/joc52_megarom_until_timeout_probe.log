@@ -1,0 +1,31 @@
+BP_4010_RESET_OR_INIT pc=4010 sp=F2EC banks=00/00/00 flow=00 exit=00 irq=0000 time=0000 player=33 pxy=13107,13107 boss=05 bossxy=00,04 bbeh=00 bstep=00 stack=F392
+intro_space_before pc=62D9 sp=F36A banks=04/02/03 flow=01 exit=00 irq=00B9 time=003A player=01 pxy=16,144 boss=01 bossxy=11,0A bbeh=3E bstep=04 stack=61A6
+intro_space_after pc=625E sp=F36A banks=01/02/03 flow=01 exit=00 irq=00C8 time=0039 player=01 pxy=16,112 boss=01 bossxy=0F,0A bbeh=34 bstep=02 stack=61D7
+start_space_before pc=62D9 sp=F368 banks=04/02/03 flow=01 exit=00 irq=01E5 time=0035 player=01 pxy=16,144 boss=01 bossxy=11,0A bbeh=0E bstep=02 stack=62B1
+start_space_after pc=1810 sp=F36A banks=01/02/03 flow=01 exit=00 irq=01F4 time=0034 player=01 pxy=16,120 boss=01 bossxy=14,0A bbeh=07 bstep=01 stack=18EF
+t13 pc=1A4B sp=F364 banks=01/02/03 flow=01 exit=00 irq=0221 time=0034 player=01 pxy=16,144 boss=01 bossxy=18,0A bbeh=4B bstep=01 stack=19DD
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_until_timeout_shots/t13_start.png
+t20 pc=40F3 sp=F364 banks=04/02/03 flow=01 exit=00 irq=03C4 time=002D player=01 pxy=16,144 boss=01 bossxy=12,0A bbeh=0C bstep=02 stack=FF4C
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_until_timeout_shots/t20_time45.png
+t25 pc=62F6 sp=F376 banks=01/02/03 flow=01 exit=00 irq=04F0 time=0028 player=01 pxy=16,144 boss=01 bossxy=04,0A bbeh=01 bstep=01 stack=62EA
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_until_timeout_shots/t25_time40.png
+t30 pc=A165 sp=F37C banks=01/02/03 flow=01 exit=00 irq=061B time=0023 player=01 pxy=16,144 boss=01 bossxy=18,0A bbeh=09 bstep=01 stack=A08A
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_until_timeout_shots/t30_time35.png
+t35 pc=416B sp=F372 banks=01/02/03 flow=01 exit=00 irq=0747 time=001E player=01 pxy=16,144 boss=01 bossxy=04,0A bbeh=01 bstep=01 stack=49B4
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_until_timeout_shots/t35_time30.png
+t40 pc=453C sp=F358 banks=01/02/03 flow=01 exit=00 irq=0873 time=0019 player=01 pxy=16,144 boss=01 bossxy=05,0A bbeh=0E bstep=04 stack=632D
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_until_timeout_shots/t40_time25.png
+t45 pc=A1A0 sp=F37C banks=01/02/03 flow=01 exit=00 irq=099E time=0014 player=01 pxy=16,144 boss=01 bossxy=18,0A bbeh=3E bstep=01 stack=A08A
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_until_timeout_shots/t45_time20.png
+t50 pc=416B sp=F374 banks=0D/02/03 flow=01 exit=00 irq=0ACA time=000F player=01 pxy=16,144 boss=01 bossxy=04,0A bbeh=36 bstep=01 stack=4B33
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_until_timeout_shots/t50_time15.png
+t53 pc=452D sp=F358 banks=01/02/03 flow=01 exit=00 irq=0B7E time=000C player=01 pxy=16,144 boss=01 bossxy=18,0A bbeh=3B bstep=01 stack=632D
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_until_timeout_shots/t53_time12.png
+t55 pc=A165 sp=F37C banks=01/02/03 flow=01 exit=00 irq=0BF5 time=000A player=01 pxy=16,144 boss=01 bossxy=0E,0A bbeh=31 bstep=03 stack=A08A
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_until_timeout_shots/t55_time10.png
+t60 pc=6389 sp=F36C banks=04/02/03 flow=01 exit=00 irq=0D21 time=0005 player=01 pxy=16,144 boss=01 bossxy=16,0A bbeh=04 bstep=02 stack=6183
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_until_timeout_shots/t60_time05.png
+t65 pc=77BE sp=F372 banks=01/02/03 flow=01 exit=00 irq=0E4D time=0000 player=01 pxy=16,144 boss=01 bossxy=04,0A bbeh=03 bstep=01 stack=780F
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_until_timeout_shots/t65_timeout.png
+t70 pc=A165 sp=F37C banks=01/02/03 flow=01 exit=00 irq=0F78 time=0000 player=01 pxy=16,144 boss=01 bossxy=17,0A bbeh=54 bstep=02 stack=A08A
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_until_timeout_shots/t70_after_timeout.png

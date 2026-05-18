@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\joc60_konami_after_ascii16_runtime_compressed.asm",
+  "metrics": {
+    "original_line_count": 30254,
+    "output_line_count": 30254,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-w8zqw9tl\\joc60_konami_after_ascii16_runtime_compressed.optimized.optimized.rom",
+        "size_bytes": 139264,
+        "sha256": "d991056d507fcecb1aaa7091f6a8e646f2dd0ab03502172605038f20fbb207f3"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-w8zqw9tl\\joc60_konami_after_ascii16_runtime_compressed.original.rom",
+        "size_bytes": 139264,
+        "sha256": "d991056d507fcecb1aaa7091f6a8e646f2dd0ab03502172605038f20fbb207f3"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

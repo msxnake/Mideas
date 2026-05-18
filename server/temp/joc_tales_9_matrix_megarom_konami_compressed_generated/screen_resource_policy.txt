@@ -1,0 +1,26 @@
+SCREEN RESOURCE POLICY
+Logical view of resources consumed by screen/world loading paths.
+
+COMMON RESOURCES
+- patterns: RESOURCE_ID_TILE_PATTERN_BANK0 -> load_pattern_bank0/load_pattern_bank1/load_pattern_bank2
+- colors: RESOURCE_ID_TILE_COLOR_BANK0 -> load_color_bank0/load_color_bank1/load_color_bank2
+- font patterns: RESOURCE_ID_FONT_PATTERN_DATA
+- font colors: RESOURCE_ID_FONT_COLOR_DATA
+- presentation: none
+- tilebank loaders:
+  tilebank_1777833005588: load_tilebank_tilebank_1777833005588_patterns_to_vram / load_tilebank_tilebank_1777833005588_colors_to_vram
+
+SCREEN 00 New Playable Screen (screenmap_1777833014252)
+- worlds: worldmap_1777833018852
+- tile_bank: tilebank_1777833005588
+- sprite_pattern_slots: 2
+- music_in_game: 0
+- layout: RESOURCE_ID_SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT
+- effects_layout: RESOURCE_ID_SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT
+- effect_zone_table: RESOURCE_ID_SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE
+- interaction_type_map: RESOURCE_ID_SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP
+- interaction_value_map: RESOURCE_ID_SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP
+- interaction_target_map: RESOURCE_ID_SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP
+- behavior: RESOURCE_ID_BEHAVIOR_NEW_PLAYABLE_SCREEN_0_DATA
+- char_behavior_table: RESOURCE_ID_SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE
+- behavior_rebuild_table: used only when runtime code must rebuild from char layout

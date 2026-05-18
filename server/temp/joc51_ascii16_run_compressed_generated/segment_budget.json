@@ -1,0 +1,1682 @@
+{
+  "version": 1,
+  "scope": "megarom_mapper_segment_budget",
+  "mapperFormat": "ascii16",
+  "mapper": {
+    "format": "ascii16",
+    "dataWindowPage": "p3",
+    "windowBase": "#8000",
+    "windowMask": "#3FFF",
+    "bankDivisor": "#4000",
+    "codeSegmentSize": 8192,
+    "dataSegmentSize": 16384
+  },
+  "segmentSize": 8192,
+  "segmentSizeMeaning": "code overlay bank size",
+  "codeSegmentSize": 8192,
+  "dataSegmentSize": 16384,
+  "runtimeLayout": {
+    "mapperFormat": "ascii16",
+    "codeWindowGranularity": 16384,
+    "status": "smoke-candidate",
+    "smokeBlocked": false,
+    "lowerPageResidentBanks": [
+      1
+    ],
+    "lowerPageFarBanks": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "upperPageResidentBanks": [],
+    "lowerPageHazardBankCount": 15,
+    "dataWindowResidentConflict": false,
+    "ramTrampolineRequired": true,
+    "ramTrampolineInstalled": true,
+    "residentEstimatedWindowOverflowCount": 1,
+    "residentEstimatedWindowOverflowSamples": [
+      {
+        "bank": 1,
+        "module": "components",
+        "estimatedBytes": 55894,
+        "windowBytes": 8192,
+        "overflowBytes": 47702,
+        "estimatedSegments": 7
+      }
+    ],
+    "residentEstimatedOutOfWindowLabelCount": 69,
+    "residentEstimatedOutOfWindowLabelSamples": [
+      {
+        "label": "wall_add_signed_offset_clamped",
+        "bank": 1,
+        "module": "components",
+        "line": 4027,
+        "estimatedOffset": 8359,
+        "estimatedAddress": 32935,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "wall_sub_signed_offset_clamped",
+        "bank": 1,
+        "module": "components",
+        "line": 4066,
+        "estimatedOffset": 8390,
+        "estimatedAddress": 32966,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "init_deadly_tiles_system",
+        "bank": 1,
+        "module": "components",
+        "line": 4096,
+        "estimatedOffset": 8426,
+        "estimatedAddress": 33002,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "deadly_tiles_runtime_tile_is_deadly_nb",
+        "bank": 1,
+        "module": "components",
+        "line": 4137,
+        "estimatedOffset": 8567,
+        "estimatedAddress": 33143,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "update_entity_deadly_flag_runtime",
+        "bank": 1,
+        "module": "components",
+        "line": 4189,
+        "estimatedOffset": 8681,
+        "estimatedAddress": 33257,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "update_deadly_tiles_component",
+        "bank": 1,
+        "module": "components",
+        "line": 4267,
+        "estimatedOffset": 8837,
+        "estimatedAddress": 33413,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "refresh_player_deadly_fastpath",
+        "bank": 1,
+        "module": "components",
+        "line": 4323,
+        "estimatedOffset": 9015,
+        "estimatedAddress": 33591,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "init_collectible_system",
+        "bank": 1,
+        "module": "components",
+        "line": 4347,
+        "estimatedOffset": 9087,
+        "estimatedAddress": 33663,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "update_collectible_component",
+        "bank": 1,
+        "module": "components",
+        "line": 4350,
+        "estimatedOffset": 9088,
+        "estimatedAddress": 33664,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "interaction_target_variable_ptr_table",
+        "bank": 1,
+        "module": "components",
+        "line": 4364,
+        "estimatedOffset": 9089,
+        "estimatedAddress": 33665,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "interaction_target_variable_word_table",
+        "bank": 1,
+        "module": "components",
+        "line": 4371,
+        "estimatedOffset": 9099,
+        "estimatedAddress": 33675,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "init_tile_interaction_system",
+        "bank": 1,
+        "module": "components",
+        "line": 4379,
+        "estimatedOffset": 9104,
+        "estimatedAddress": 33680,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "update_slash_component",
+        "bank": 1,
+        "module": "components",
+        "line": 4420,
+        "estimatedOffset": 9218,
+        "estimatedAddress": 33794,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "record_bonus_respawn_slot",
+        "bank": 1,
+        "module": "components",
+        "line": 4422,
+        "estimatedOffset": 9219,
+        "estimatedAddress": 33795,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "update_bonus_respawns",
+        "bank": 1,
+        "module": "components",
+        "line": 4425,
+        "estimatedOffset": 9220,
+        "estimatedAddress": 33796,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "resolve_interaction_target_ptr",
+        "bank": 1,
+        "module": "components",
+        "line": 4432,
+        "estimatedOffset": 9221,
+        "estimatedAddress": 33797,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "interaction_add_last_value_default1",
+        "bank": 1,
+        "module": "components",
+        "line": 4453,
+        "estimatedOffset": 9269,
+        "estimatedAddress": 33845,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "interaction_set_last_value_default1",
+        "bank": 1,
+        "module": "components",
+        "line": 4492,
+        "estimatedOffset": 9376,
+        "estimatedAddress": 33952,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "interaction_toggle_target_lowbit",
+        "bank": 1,
+        "module": "components",
+        "line": 4528,
+        "estimatedOffset": 9474,
+        "estimatedAddress": 34050,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "interaction_clear_button_contact_c",
+        "bank": 1,
+        "module": "components",
+        "line": 4547,
+        "estimatedOffset": 9529,
+        "estimatedAddress": 34105,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "interaction_clear_behavior_at_de",
+        "bank": 1,
+        "module": "components",
+        "line": 4559,
+        "estimatedOffset": 9549,
+        "estimatedAddress": 34125,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "interaction_clear_vram_tile_at_de",
+        "bank": 1,
+        "module": "components",
+        "line": 4567,
+        "estimatedOffset": 9563,
+        "estimatedAddress": 34139,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "check_tile_interaction",
+        "bank": 1,
+        "module": "components",
+        "line": 4590,
+        "estimatedOffset": 9576,
+        "estimatedAddress": 34152,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "scan_tile_interaction_entities",
+        "bank": 1,
+        "module": "components",
+        "line": 4597,
+        "estimatedOffset": 9602,
+        "estimatedAddress": 34178,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "refresh_player_tile_interaction_fastpath",
+        "bank": 1,
+        "module": "components",
+        "line": 4952,
+        "estimatedOffset": 10571,
+        "estimatedAddress": 35147,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "apply_collected_tiles",
+        "bank": 1,
+        "module": "components",
+        "line": 5000,
+        "estimatedOffset": 10695,
+        "estimatedAddress": 35271,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "create_entity",
+        "bank": 1,
+        "module": "components",
+        "line": 5071,
+        "estimatedOffset": 10812,
+        "estimatedAddress": 35388,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_set",
+        "bank": 1,
+        "module": "components",
+        "line": 5120,
+        "estimatedOffset": 10899,
+        "estimatedAddress": 35475,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_set_period_ok",
+        "bank": 1,
+        "module": "components",
+        "line": 5130,
+        "estimatedOffset": 10917,
+        "estimatedAddress": 35493,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_set_entry_wrap",
+        "bank": 1,
+        "module": "components",
+        "line": 5134,
+        "estimatedOffset": 10919,
+        "estimatedAddress": 35495,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_set_entry_ok",
+        "bank": 1,
+        "module": "components",
+        "line": 5139,
+        "estimatedOffset": 10936,
+        "estimatedAddress": 35512,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_set_enable_scheduler",
+        "bank": 1,
+        "module": "components",
+        "line": 5157,
+        "estimatedOffset": 10974,
+        "estimatedAddress": 35550,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_should_run_c",
+        "bank": 1,
+        "module": "components",
+        "line": 5172,
+        "estimatedOffset": 10985,
+        "estimatedAddress": 35561,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_run_period_ok",
+        "bank": 1,
+        "module": "components",
+        "line": 5192,
+        "estimatedOffset": 11030,
+        "estimatedAddress": 35606,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_run_fallback_mod",
+        "bank": 1,
+        "module": "components",
+        "line": 5220,
+        "estimatedOffset": 11090,
+        "estimatedAddress": 35666,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_run_entry_mod",
+        "bank": 1,
+        "module": "components",
+        "line": 5222,
+        "estimatedOffset": 11091,
+        "estimatedAddress": 35667,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_run_entry_ready",
+        "bank": 1,
+        "module": "components",
+        "line": 5227,
+        "estimatedOffset": 11108,
+        "estimatedAddress": 35684,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_run_frame_mod16",
+        "bank": 1,
+        "module": "components",
+        "line": 5235,
+        "estimatedOffset": 11119,
+        "estimatedAddress": 35695,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_run_frame_mod16_no_sub",
+        "bank": 1,
+        "module": "components",
+        "line": 5241,
+        "estimatedOffset": 11135,
+        "estimatedAddress": 35711,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_run_active",
+        "bank": 1,
+        "module": "components",
+        "line": 5247,
+        "estimatedOffset": 11154,
+        "estimatedAddress": 35730,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_run_inactive",
+        "bank": 1,
+        "module": "components",
+        "line": 5250,
+        "estimatedOffset": 11161,
+        "estimatedAddress": 35737,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "entity_job_run_done",
+        "bank": 1,
+        "module": "components",
+        "line": 5252,
+        "estimatedOffset": 11162,
+        "estimatedAddress": 35738,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "init_entity_position",
+        "bank": 1,
+        "module": "components",
+        "line": 5259,
+        "estimatedOffset": 11166,
+        "estimatedAddress": 35742,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "init_entity_sprite",
+        "bank": 1,
+        "module": "components",
+        "line": 5272,
+        "estimatedOffset": 11189,
+        "estimatedAddress": 35765,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "update_all_entities",
+        "bank": 1,
+        "module": "components",
+        "line": 5309,
+        "estimatedOffset": 11211,
+        "estimatedAddress": 35787,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "mark_used_entity_list_dirty",
+        "bank": 1,
+        "module": "components",
+        "line": 5375,
+        "estimatedOffset": 11501,
+        "estimatedAddress": 36077,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "ensure_used_entity_list_current",
+        "bank": 1,
+        "module": "components",
+        "line": 5401,
+        "estimatedOffset": 11512,
+        "estimatedAddress": 36088,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "rebuild_used_entity_list",
+        "bank": 1,
+        "module": "components",
+        "line": 5441,
+        "estimatedOffset": 11535,
+        "estimatedAddress": 36111,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "ensure_player_fast_runtime_bound",
+        "bank": 1,
+        "module": "components",
+        "line": 5648,
+        "estimatedOffset": 12157,
+        "estimatedAddress": 36733,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "sync_player_runtime_from_entity",
+        "bank": 1,
+        "module": "components",
+        "line": 5694,
+        "estimatedOffset": 12282,
+        "estimatedAddress": 36858,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "get_runtime_interaction_type_tile",
+        "bank": 1,
+        "module": "components",
+        "line": 5730,
+        "estimatedOffset": 12375,
+        "estimatedAddress": 36951,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "update_entity_ladder_state_c",
+        "bank": 1,
+        "module": "components",
+        "line": 5758,
+        "estimatedOffset": 12422,
+        "estimatedAddress": 36998,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "player_fast_dash_process_c",
+        "bank": 1,
+        "module": "components",
+        "line": 5832,
+        "estimatedOffset": 12538,
+        "estimatedAddress": 37114,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "player_fast_dash_resolve_dir_c",
+        "bank": 1,
+        "module": "components",
+        "line": 5923,
+        "estimatedOffset": 12883,
+        "estimatedAddress": 37459,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "player_fast_dash_store_velocity_c",
+        "bank": 1,
+        "module": "components",
+        "line": 5972,
+        "estimatedOffset": 12987,
+        "estimatedAddress": 37563,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "player_dash_break_front_tile_c",
+        "bank": 1,
+        "module": "components",
+        "line": 5990,
+        "estimatedOffset": 13010,
+        "estimatedAddress": 37586,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "player_dash_hit_boss_weakpoint",
+        "bank": 1,
+        "module": "components",
+        "line": 6121,
+        "estimatedOffset": 13252,
+        "estimatedAddress": 37828,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "player_dash_cleanup_dead_boss_attacks",
+        "bank": 1,
+        "module": "components",
+        "line": 6226,
+        "estimatedOffset": 13488,
+        "estimatedAddress": 38064,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "update_player_fastpath",
+        "bank": 1,
+        "module": "components",
+        "line": 6271,
+        "estimatedOffset": 13611,
+        "estimatedAddress": 38187,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "execute_all_state_machines",
+        "bank": 1,
+        "module": "components",
+        "line": 6852,
+        "estimatedOffset": 15464,
+        "estimatedAddress": 40040,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "refresh_player_state_machine_fastpath",
+        "bank": 1,
+        "module": "components",
+        "line": 6902,
+        "estimatedOffset": 15563,
+        "estimatedAddress": 40139,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "get_tile_at_position",
+        "bank": 1,
+        "module": "components",
+        "line": 6933,
+        "estimatedOffset": 15611,
+        "estimatedAddress": 40187,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "get_tile_behavior",
+        "bank": 1,
+        "module": "components",
+        "line": 6938,
+        "estimatedOffset": 15613,
+        "estimatedAddress": 40189,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "tile_behavior_table",
+        "bank": 1,
+        "module": "components",
+        "line": 6943,
+        "estimatedOffset": 15615,
+        "estimatedAddress": 40191,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "check_collision_at_point",
+        "bank": 1,
+        "module": "components",
+        "line": 6946,
+        "estimatedOffset": 15616,
+        "estimatedAddress": 40192,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "check_collision_box",
+        "bank": 1,
+        "module": "components",
+        "line": 6959,
+        "estimatedOffset": 15618,
+        "estimatedAddress": 40194,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "div_a_by_c",
+        "bank": 1,
+        "module": "components",
+        "line": 6971,
+        "estimatedOffset": 15620,
+        "estimatedAddress": 40196,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "resolve_runtime_hero_entity",
+        "bank": 1,
+        "module": "components",
+        "line": 6985,
+        "estimatedOffset": 15622,
+        "estimatedAddress": 40198,
+        "estimatedSegment": 1
+      },
+      {
+        "label": "update_secret_zone_component",
+        "bank": 1,
+        "module": "components",
+        "line": 7010,
+        "estimatedOffset": 15692,
+        "estimatedAddress": 40268,
+        "estimatedSegment": 1
+      }
+    ],
+    "residentEstimatedOutOfWindowCallCount": 61,
+    "residentEstimatedOutOfWindowCallSamples": [
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 212,
+        "target": "init_deadly_tiles_system",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 8426,
+        "targetEstimatedAddress": 33002,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 214,
+        "target": "init_tile_interaction_system",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9104,
+        "targetEstimatedAddress": 33680,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 1633,
+        "target": "update_entity_ladder_state_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12422,
+        "targetEstimatedAddress": 36998,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 3496,
+        "target": "wall_sub_signed_offset_clamped",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 8390,
+        "targetEstimatedAddress": 32966,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 3572,
+        "target": "wall_sub_signed_offset_clamped",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 8390,
+        "targetEstimatedAddress": 32966,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 3651,
+        "target": "wall_sub_signed_offset_clamped",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 8390,
+        "targetEstimatedAddress": 32966,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 3705,
+        "target": "wall_sub_signed_offset_clamped",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 8390,
+        "targetEstimatedAddress": 32966,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 3812,
+        "target": "wall_sub_signed_offset_clamped",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 8390,
+        "targetEstimatedAddress": 32966,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 3931,
+        "target": "wall_add_signed_offset_clamped",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 8359,
+        "targetEstimatedAddress": 32935,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 3938,
+        "target": "wall_add_signed_offset_clamped",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 8359,
+        "targetEstimatedAddress": 32935,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4233,
+        "target": "deadly_tiles_runtime_tile_is_deadly_nb",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 8567,
+        "targetEstimatedAddress": 33143,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4311,
+        "target": "update_entity_deadly_flag_runtime",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 8681,
+        "targetEstimatedAddress": 33257,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4343,
+        "target": "update_entity_deadly_flag_runtime",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 8681,
+        "targetEstimatedAddress": 33257,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4459,
+        "target": "resolve_interaction_target_ptr",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9221,
+        "targetEstimatedAddress": 33797,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4498,
+        "target": "resolve_interaction_target_ptr",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9221,
+        "targetEstimatedAddress": 33797,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4534,
+        "target": "resolve_interaction_target_ptr",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9221,
+        "targetEstimatedAddress": 33797,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4593,
+        "target": "scan_tile_interaction_entities",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9602,
+        "targetEstimatedAddress": 34178,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4594,
+        "target": "update_bonus_respawns",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9220,
+        "targetEstimatedAddress": 33796,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4738,
+        "target": "interaction_clear_button_contact_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9529,
+        "targetEstimatedAddress": 34105,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4758,
+        "target": "interaction_clear_behavior_at_de",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9549,
+        "targetEstimatedAddress": 34125,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4763,
+        "target": "interaction_clear_vram_tile_at_de",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9563,
+        "targetEstimatedAddress": 34139,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4786,
+        "target": "interaction_add_last_value_default1",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9269,
+        "targetEstimatedAddress": 33845,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4822,
+        "target": "interaction_clear_behavior_at_de",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9549,
+        "targetEstimatedAddress": 34125,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4823,
+        "target": "interaction_clear_vram_tile_at_de",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9563,
+        "targetEstimatedAddress": 34139,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4824,
+        "target": "interaction_add_last_value_default1",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9269,
+        "targetEstimatedAddress": 33845,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4828,
+        "target": "interaction_clear_behavior_at_de",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9549,
+        "targetEstimatedAddress": 34125,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4829,
+        "target": "interaction_clear_vram_tile_at_de",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9563,
+        "targetEstimatedAddress": 34139,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4836,
+        "target": "interaction_add_last_value_default1",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9269,
+        "targetEstimatedAddress": 33845,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4840,
+        "target": "interaction_clear_behavior_at_de",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9549,
+        "targetEstimatedAddress": 34125,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4841,
+        "target": "interaction_toggle_target_lowbit",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9474,
+        "targetEstimatedAddress": 34050,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4936,
+        "target": "interaction_clear_button_contact_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9529,
+        "targetEstimatedAddress": 34105,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 4981,
+        "target": "scan_tile_interaction_entities",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9602,
+        "targetEstimatedAddress": 34178,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5315,
+        "target": "ensure_used_entity_list_current",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 11512,
+        "targetEstimatedAddress": 36088,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5330,
+        "target": "update_slash_component",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9218,
+        "targetEstimatedAddress": 33794,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5336,
+        "target": "update_deadly_tiles_component",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 8837,
+        "targetEstimatedAddress": 33413,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5337,
+        "target": "check_tile_interaction",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 9576,
+        "targetEstimatedAddress": 34152,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5342,
+        "target": "sync_player_runtime_from_entity",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12282,
+        "targetEstimatedAddress": 36858,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5482,
+        "target": "entity_job_should_run_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 10985,
+        "targetEstimatedAddress": 35561,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5649,
+        "target": "ensure_used_entity_list_current",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 11512,
+        "targetEstimatedAddress": 36088,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5650,
+        "target": "resolve_runtime_hero_entity",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 15622,
+        "targetEstimatedAddress": 40198,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5673,
+        "target": "sync_player_runtime_from_entity",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12282,
+        "targetEstimatedAddress": 36858,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5788,
+        "target": "get_runtime_interaction_type_tile",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12375,
+        "targetEstimatedAddress": 36951,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5804,
+        "target": "get_runtime_interaction_type_tile",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12375,
+        "targetEstimatedAddress": 36951,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5865,
+        "target": "player_fast_dash_resolve_dir_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12883,
+        "targetEstimatedAddress": 37459,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5885,
+        "target": "player_fast_dash_store_velocity_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12987,
+        "targetEstimatedAddress": 37563,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5886,
+        "target": "player_dash_break_front_tile_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 13010,
+        "targetEstimatedAddress": 37586,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5887,
+        "target": "player_dash_hit_boss_weakpoint",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 13252,
+        "targetEstimatedAddress": 37828,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5893,
+        "target": "player_fast_dash_store_velocity_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12987,
+        "targetEstimatedAddress": 37563,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5894,
+        "target": "player_dash_break_front_tile_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 13010,
+        "targetEstimatedAddress": 37586,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5895,
+        "target": "player_dash_hit_boss_weakpoint",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 13252,
+        "targetEstimatedAddress": 37828,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5901,
+        "target": "player_fast_dash_store_velocity_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12987,
+        "targetEstimatedAddress": 37563,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5902,
+        "target": "player_dash_break_front_tile_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 13010,
+        "targetEstimatedAddress": 37586,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5903,
+        "target": "player_dash_hit_boss_weakpoint",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 13252,
+        "targetEstimatedAddress": 37828,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5909,
+        "target": "player_fast_dash_store_velocity_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12987,
+        "targetEstimatedAddress": 37563,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5910,
+        "target": "player_dash_break_front_tile_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 13010,
+        "targetEstimatedAddress": 37586,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 5911,
+        "target": "player_dash_hit_boss_weakpoint",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 13252,
+        "targetEstimatedAddress": 37828,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 6216,
+        "target": "player_dash_cleanup_dead_boss_attacks",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 13488,
+        "targetEstimatedAddress": 38064,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 6272,
+        "target": "ensure_player_fast_runtime_bound",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12157,
+        "targetEstimatedAddress": 36733,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 6295,
+        "target": "update_entity_ladder_state_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12422,
+        "targetEstimatedAddress": 36998,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 6572,
+        "target": "player_fast_dash_process_c",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12538,
+        "targetEstimatedAddress": 37114,
+        "targetEstimatedSegment": 1
+      },
+      {
+        "callerBank": 1,
+        "callerModule": "components",
+        "line": 6845,
+        "target": "sync_player_runtime_from_entity",
+        "targetBank": 1,
+        "targetModule": "components",
+        "targetEstimatedOffset": 12282,
+        "targetEstimatedAddress": 36858,
+        "targetEstimatedSegment": 1
+      }
+    ],
+    "farToFarDirectCallCount": 0,
+    "farToFarDirectCallSamples": [],
+    "lowerPageHiddenResidentCallCount": 0,
+    "lowerPageHiddenResidentCallSamples": [],
+    "reason": "ASCII16 smoke can run through RAM trampolines, but 1 resident bank group(s) exceed their fixed window estimate; this remains a promotion risk until component calls are placed at label level.",
+    "preAssemblyStatus": "smoke-candidate-risk",
+    "actualResidentSymbolsAvailable": true,
+    "actualResidentWindowOverflowCount": 0,
+    "maxActualResidentUsed": 7858,
+    "minActualResidentFree": 334,
+    "actualResidentLowFreeThreshold": 256,
+    "actualResidentLowFreeBankCount": 0,
+    "actualResidentLowFreeBankUsages": [],
+    "actualResidentBankUsages": [
+      {
+        "bank": 1,
+        "orgAddress": 24576,
+        "endAddress": 32768,
+        "usedEnd": 32434,
+        "actualUsedBytes": 7858,
+        "windowBytes": 8192,
+        "freeBytes": 334,
+        "overflowBytes": 0,
+        "overflow": false
+      }
+    ],
+    "postAssemblyReason": "ASCII16 estimated resident pressure remains diagnostic-only: 1 estimated bank group(s) exceed the fixed window, but Glass symbols report actualResidentOverflows=0 and maxActualResidentUsed=7858."
+  },
+  "codeBanks": [
+    {
+      "bank": 1,
+      "role": "resident_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "resident kernel slot 1; fixed P1 window #6000-#8000; stays always mapped so runtime flow does not depend on P3 data-window state",
+      "estimatedUsedBytes": 55894,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "components",
+          "placementReason": "resident kernel slot 1; fixed P1 window #6000-#8000; stays always mapped so runtime flow does not depend on P3 data-window state; module components is part of the resident execution kernel",
+          "estimatedBytes": 55894
+        }
+      ]
+    },
+    {
+      "bank": 4,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 1; physical bank 4; executes through P1/#6000 after reserved asset-data banks; ASCII16 routes 4 resident/bank-0 call target(s) through a RAM bridge",
+      "estimatedUsedBytes": 21656,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "statemachine",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 1; physical bank 4; executes through P1/#6000 after reserved asset-data banks; module statemachine is callable only through bank-0 far trampolines",
+          "estimatedBytes": 21656
+        }
+      ]
+    },
+    {
+      "bank": 5,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 2; physical bank 5; executes through P1/#6000 after reserved asset-data banks; ASCII16 routes 4 resident/bank-0 call target(s) through a RAM bridge",
+      "estimatedUsedBytes": 7763,
+      "estimatedFreeBytes": 429,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "entities",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 2; physical bank 5; executes through P1/#6000 after reserved asset-data banks; module entities is callable only through bank-0 far trampolines",
+          "estimatedBytes": 7763
+        }
+      ]
+    },
+    {
+      "bank": 6,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 3; physical bank 6; executes through P1/#6000 after reserved asset-data banks; ASCII16 localizes FAST_WRTVRM to avoid lower-page far calls into hidden bank-0 hardware helpers; ASCII16 routes 1 resident/bank-0 call target(s) through a RAM bridge",
+      "estimatedUsedBytes": 7713,
+      "estimatedFreeBytes": 479,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "bosses",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 3; physical bank 6; executes through P1/#6000 after reserved asset-data banks; module bosses is callable only through bank-0 far trampolines",
+          "estimatedBytes": 7713
+        }
+      ]
+    },
+    {
+      "bank": 7,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 4; physical bank 7; executes through P1/#6000 after reserved asset-data banks; ASCII16 localizes FAST_FILLVRM, FAST_LDIRVM, FAST_WRTVDP to avoid lower-page far calls into hidden bank-0 hardware helpers; ASCII16 routes 16 resident/bank-0 call target(s) through a RAM bridge",
+      "estimatedUsedBytes": 9236,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "screens_code",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 4; physical bank 7; executes through P1/#6000 after reserved asset-data banks; module screens_code is callable only through bank-0 far trampolines",
+          "estimatedBytes": 9236
+        }
+      ]
+    },
+    {
+      "bank": 8,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 5; physical bank 8; executes through P1/#6000 after reserved asset-data banks; ASCII16 localizes FAST_SNSMAT, FAST_WRTVRM to avoid lower-page far calls into hidden bank-0 hardware helpers; ASCII16 routes 23 resident/bank-0 call target(s) through a RAM bridge",
+      "estimatedUsedBytes": 8934,
+      "estimatedFreeBytes": 0,
+      "estimatedOverBudget": true,
+      "modules": [
+        {
+          "key": "gameflow",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 5; physical bank 8; executes through P1/#6000 after reserved asset-data banks; module gameflow is callable only through bank-0 far trampolines",
+          "estimatedBytes": 8934
+        }
+      ]
+    },
+    {
+      "bank": 9,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 6; physical bank 9; executes through P1/#6000 after reserved asset-data banks; ASCII16 localizes FAST_LDIRVM to avoid lower-page far calls into hidden bank-0 hardware helpers; ASCII16 routes 3 resident/bank-0 call target(s) through a RAM bridge",
+      "estimatedUsedBytes": 5930,
+      "estimatedFreeBytes": 2262,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "sprites",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 6; physical bank 9; executes through P1/#6000 after reserved asset-data banks; module sprites is callable only through bank-0 far trampolines",
+          "estimatedBytes": 5930
+        }
+      ]
+    },
+    {
+      "bank": 10,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 7; physical bank 10; executes through P1/#6000 after reserved asset-data banks; ASCII16 routes 2 resident/bank-0 call target(s) through a RAM bridge",
+      "estimatedUsedBytes": 4634,
+      "estimatedFreeBytes": 3558,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "sound",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 7; physical bank 10; executes through P1/#6000 after reserved asset-data banks; module sound is callable only through bank-0 far trampolines",
+          "estimatedBytes": 4634
+        }
+      ]
+    },
+    {
+      "bank": 11,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 8; physical bank 11; executes through P1/#6000 after reserved asset-data banks; ASCII16 localizes FAST_WRTVRM to avoid lower-page far calls into hidden bank-0 hardware helpers; ASCII16 routes 2 resident/bank-0 call target(s) through a RAM bridge",
+      "estimatedUsedBytes": 4310,
+      "estimatedFreeBytes": 3882,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "hud",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 8; physical bank 11; executes through P1/#6000 after reserved asset-data banks; module hud is callable only through bank-0 far trampolines",
+          "estimatedBytes": 4310
+        }
+      ]
+    },
+    {
+      "bank": 12,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 9; physical bank 12; executes through P1/#6000 after reserved asset-data banks; ASCII16 localizes FAST_LDIRVM, FAST_WRTVRM to avoid lower-page far calls into hidden bank-0 hardware helpers; ASCII16 routes 2 resident/bank-0 call target(s) through a RAM bridge",
+      "estimatedUsedBytes": 4232,
+      "estimatedFreeBytes": 3960,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "font",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 9; physical bank 12; executes through P1/#6000 after reserved asset-data banks; module font is callable only through bank-0 far trampolines",
+          "estimatedBytes": 4232
+        }
+      ]
+    },
+    {
+      "bank": 13,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 10; physical bank 13; executes through P1/#6000 after reserved asset-data banks; ASCII16 localizes FAST_LDIRVM to avoid lower-page far calls into hidden bank-0 hardware helpers; ASCII16 routes 2 resident/bank-0 call target(s) through a RAM bridge",
+      "estimatedUsedBytes": 3967,
+      "estimatedFreeBytes": 4225,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "animtiles",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 10; physical bank 13; executes through P1/#6000 after reserved asset-data banks; module animtiles is callable only through bank-0 far trampolines",
+          "estimatedBytes": 3967
+        }
+      ]
+    },
+    {
+      "bank": 14,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 11; physical bank 14; executes through P1/#6000 after reserved asset-data banks",
+      "estimatedUsedBytes": 2353,
+      "estimatedFreeBytes": 5839,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "scroll",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 11; physical bank 14; executes through P1/#6000 after reserved asset-data banks; module scroll is callable only through bank-0 far trampolines",
+          "estimatedBytes": 2353
+        }
+      ]
+    },
+    {
+      "bank": 15,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 12; physical bank 15; executes through P1/#6000 after reserved asset-data banks; ASCII16 routes 7 resident/bank-0 call target(s) through a RAM bridge",
+      "estimatedUsedBytes": 2676,
+      "estimatedFreeBytes": 5516,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "worlds",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 12; physical bank 15; executes through P1/#6000 after reserved asset-data banks; module worlds is callable only through bank-0 far trampolines",
+          "estimatedBytes": 2676
+        }
+      ]
+    },
+    {
+      "bank": 16,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 13; physical bank 16; executes through P1/#6000 after reserved asset-data banks; ASCII16 routes 1 resident/bank-0 call target(s) through a RAM bridge",
+      "estimatedUsedBytes": 986,
+      "estimatedFreeBytes": 7206,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "patterns_code",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 13; physical bank 16; executes through P1/#6000 after reserved asset-data banks; module patterns_code is callable only through bank-0 far trampolines",
+          "estimatedBytes": 986
+        }
+      ]
+    },
+    {
+      "bank": 17,
+      "role": "far_code",
+      "segmentSize": 8192,
+      "page": 1,
+      "orgAddress": 24576,
+      "endAddress": 32768,
+      "placementReason": "far-call module; sorted by estimated size at overlay index 14; physical bank 17; executes through P1/#6000 after reserved asset-data banks; ASCII16 routes 1 resident/bank-0 call target(s) through a RAM bridge",
+      "estimatedUsedBytes": 938,
+      "estimatedFreeBytes": 7254,
+      "estimatedOverBudget": false,
+      "modules": [
+        {
+          "key": "colors_code",
+          "placementReason": "far-call module; sorted by estimated size at overlay index 14; physical bank 17; executes through P1/#6000 after reserved asset-data banks; module colors_code is callable only through bank-0 far trampolines",
+          "estimatedBytes": 938
+        }
+      ]
+    }
+  ],
+  "dataBanks": [
+    {
+      "bank": 3,
+      "role": "asset_data",
+      "orgAddress": 65536,
+      "endAddress": 81920,
+      "usedBytes": 1811,
+      "freeBytes": 14573,
+      "resources": 55
+    }
+  ]
+}

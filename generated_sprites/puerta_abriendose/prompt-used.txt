@@ -1,0 +1,1 @@
+1x4 pixel art prop animation sheet: medieval wooden arched door opening from closed to fully open, four visibly different frames, same stone frame and scale, solid #FF00FF magenta background, no text, no UI.

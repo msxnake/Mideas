@@ -1,0 +1,14 @@
+t2 pc=1130 sp=F2FE bank=00/00/00/04 flow=00 screen=33 idx=33 irq=0000 inirq=00 player=33 pos=13107,0 vel=33/64
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/04 flow=00 screen=33 idx=33 irq=0000 inirq=00 player=33 pos=13107,0 vel=33/64
+space1_before pc=62D8 sp=F36C bank=04/02/03/03 flow=01 screen=00 idx=00 irq=00BA inirq=00 player=00 pos=61456,37008 vel=00/00
+space1_after pc=A165 sp=F37C bank=01/02/03/03 flow=01 screen=00 idx=00 irq=00C9 inirq=00 player=00 pos=61456,36976 vel=00/FE
+t10 pc=80F1 sp=F362 bank=01/02/03/03 flow=01 screen=00 idx=00 irq=016E inirq=00 player=00 pos=61456,37008 vel=00/00
+SHOTOK joc52_irqfix_t10.png
+right_before pc=6282 sp=F36C bank=04/02/03/03 flow=01 screen=00 idx=00 irq=01E6 inirq=00 player=00 pos=61456,37008 vel=00/00
+right_after pc=7BFE sp=F378 bank=01/02/03/03 flow=01 screen=00 idx=00 irq=0225 inirq=00 player=00 pos=61540,37008 vel=00/00
+t14 pc=1A04 sp=F368 bank=01/02/03/03 flow=01 screen=00 idx=00 irq=025E inirq=00 player=00 pos=61540,37008 vel=00/00
+SHOTOK joc52_irqfix_t14.png
+t20 pc=6326 sp=F36E bank=04/02/03/03 flow=01 screen=00 idx=00 irq=03C5 inirq=00 player=00 pos=61540,37008 vel=00/00
+SHOTOK joc52_irqfix_t20.png
+t25 pc=7AB1 sp=F37A bank=01/02/03/03 flow=01 screen=00 idx=00 irq=04F1 inirq=00 player=00 pos=61540,37008 vel=00/00
+SHOTOK joc52_irqfix_t25.png

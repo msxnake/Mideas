@@ -5,7 +5,7 @@
 import fs from 'fs';
 
 const defaultsPath = 'data/defaults.ts';
-const source = fs.readFileSync(defaultsPath, 'utf8');
+const source = fs.readFileSync(defaultsPath, 'utf8').replace(/\r\n/g, '\n');
 
 const componentIds = new Set(
   [...source.matchAll(/id:\s*"([^"]+)"/g)]
@@ -15,6 +15,7 @@ const componentIds = new Set(
 
 const requiredTemplates = [
   'tpl_msx_platform_player',
+  'tpl_player_platform',
   'tpl_msx_topdown_player',
   'tpl_msx_shooter_player',
   'tpl_msx_projectile',
@@ -59,6 +60,21 @@ const semanticChecks = [
   ['tpl_msx_platform_player', 'comp_wall_collision'],
   ['tpl_msx_platform_player', 'comp_gravity'],
   ['tpl_msx_platform_player', 'comp_jump'],
+  ['tpl_player_platform', 'comp_pos'],
+  ['tpl_player_platform', 'comp_render'],
+  ['tpl_player_platform', 'comp_wall_collision'],
+  ['tpl_player_platform', 'comp_wall_grab'],
+  ['tpl_player_platform', 'comp_dash'],
+  ['tpl_player_platform', 'comp_jump'],
+  ['tpl_player_platform', 'comp_animation'],
+  ['tpl_player_platform', 'comp_cursors'],
+  ['tpl_player_platform', 'comp_statemachine'],
+  ['tpl_player_platform', 'comp_player_input'],
+  ['tpl_player_platform', 'comp_collision'],
+  ['tpl_player_platform', 'comp_gravity'],
+  ['tpl_player_platform', 'comp_tile_collector'],
+  ['tpl_player_platform', 'comp_deadly_tiles'],
+  ['tpl_player_platform', 'comp_health'],
   ['tpl_msx_topdown_player', 'comp_tile_collector'],
   ['tpl_msx_shooter_player', 'comp_shoot'],
   ['tpl_msx_projectile', 'comp_lifetime'],

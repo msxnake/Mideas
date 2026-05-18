@@ -1,0 +1,385 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.buildResourceIdLabelFromAsmLabel = buildResourceIdLabelFromAsmLabel;
+exports.renderNamedArtifactAsCommentBlock = renderNamedArtifactAsCommentBlock;
+exports.buildMegaromGeneratedArtifacts = buildMegaromGeneratedArtifacts;
+exports.renderMegaromGeneratedArtifactsAsCommentBlocks = renderMegaromGeneratedArtifactsAsCommentBlocks;
+function sanitizeAsmKey(value) {
+    return value
+        .replace(/[^A-Za-z0-9]+/g, '_')
+        .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .toUpperCase();
+}
+function buildResourceIdLabelFromAsmLabel(label) {
+    return `RESOURCE_ID_${sanitizeAsmKey(label)}`;
+}
+function formatHex(value, digits = 4) {
+    return `#${value.toString(16).toUpperCase().padStart(digits, '0')}`;
+}
+function inferResourceGroupKey(groupName) {
+    const normalized = groupName.trim().toLowerCase();
+    switch (normalized) {
+        case 'sprites':
+            return 'SPRITES';
+        case 'patterns':
+            return 'PATTERNS';
+        case 'colors':
+            return 'COLORS';
+        case 'screens':
+            return 'SCREENS';
+        case 'font':
+            return 'FONT';
+        case 'presentation':
+            return 'PRESENTATION';
+        case 'sound':
+            return 'SOUND';
+        default:
+            return sanitizeAsmKey(normalized || 'misc');
+    }
+}
+function inferResourceTypeKey(groupName, label) {
+    const group = groupName.trim().toLowerCase();
+    const upperLabel = label.toUpperCase();
+    if (group === 'patterns') {
+        return upperLabel.includes('SPRITE') ? 'SPRITE_PATTERNS' : 'TILE_PATTERNS';
+    }
+    if (group === 'sprites') {
+        return 'SPRITE_PATTERNS';
+    }
+    if (group === 'colors') {
+        return 'TILE_COLORS';
+    }
+    if (group === 'font') {
+        return upperLabel.includes('COLOR') ? 'FONT_COLORS' : 'FONT_PATTERNS';
+    }
+    if (group === 'presentation') {
+        if (upperLabel.includes('NAMETBL'))
+            return 'SCREEN_NAME_TABLE';
+        if (upperLabel.includes('COLOR'))
+            return 'SCREEN_COLORS';
+        if (upperLabel.includes('PATTERN'))
+            return 'SCREEN_PATTERNS';
+        return 'PRESENTATION_DATA';
+    }
+    if (group === 'sound') {
+        if (upperLabel.startsWith('MUSIC_TRACK_'))
+            return 'MUSIC_TRACK';
+        return 'SOUND_DATA';
+    }
+    if (group === 'screens') {
+        if (upperLabel.includes('EFFECT_ZONE_TABLE'))
+            return 'SCREEN_EFFECT_ZONE_TABLE';
+        if (upperLabel.startsWith('BEHAVIOR_'))
+            return 'SCREEN_BEHAVIOR_MAP';
+        if (upperLabel.includes('EFFECTS_LAYOUT'))
+            return 'SCREEN_EFFECTS_LAYOUT';
+        if (upperLabel.includes('BLOCK_CATALOG'))
+            return 'SCREEN_BLOCK_CATALOG';
+        if (upperLabel.includes('BLOCK_MAP'))
+            return 'SCREEN_BLOCK_MAP';
+        if (upperLabel.includes('LAYOUT'))
+            return 'SCREEN_LAYOUT';
+        return 'SCREEN_DATA';
+    }
+    return 'GENERIC_DATA';
+}
+function buildGroupCodeMap(resources) {
+    const groupMap = new Map();
+    let nextCode = 1;
+    for (const resource of resources) {
+        if (!groupMap.has(resource.resourceGroupKey)) {
+            groupMap.set(resource.resourceGroupKey, nextCode++);
+        }
+    }
+    return groupMap;
+}
+function buildTypeCodeMap(resources) {
+    const typeMap = new Map();
+    let nextCode = 1;
+    for (const resource of resources) {
+        if (!typeMap.has(resource.resourceTypeKey)) {
+            typeMap.set(resource.resourceTypeKey, nextCode++);
+        }
+    }
+    return typeMap;
+}
+function buildResourceDescriptors(packResult, mapperWindow) {
+    return packResult.zones
+        .flatMap((zone) => zone.blocks)
+        .sort((left, right) => left.sourceIndex - right.sourceIndex)
+        .map((block, index) => buildResourceDescriptor(block, index, mapperWindow));
+}
+function buildResourceDescriptor(block, id, mapperWindow) {
+    const resourceIdLabel = buildResourceIdLabelFromAsmLabel(block.label);
+    return {
+        id,
+        label: block.label,
+        resourceIdLabel,
+        resourceTypeKey: inferResourceTypeKey(block.groupName, block.label),
+        resourceGroupKey: inferResourceGroupKey(block.groupName),
+        physicalBank: Math.trunc((block.physicalAddress - 0x4000) / mapperWindow.dataZoneSize),
+        physicalAddress: block.physicalAddress,
+        windowAddress: parseInt(mapperWindow.windowBaseExpr.slice(1), 16) + block.zoneOffset,
+        zoneOffset: block.zoneOffset,
+        size: block.byteSize,
+        sourceIndex: block.sourceIndex,
+    };
+}
+function buildResourceIdsAsm(resources) {
+    const lines = [];
+    lines.push('; ==================================================================');
+    lines.push('; GENERATED RESOURCE IDS');
+    lines.push('; Generated by MegaROM export backend.');
+    lines.push('; ==================================================================');
+    lines.push('RESOURCE_ID_INVALID EQU #FF');
+    lines.push('');
+    for (const resource of resources) {
+        lines.push(`${resource.resourceIdLabel.padEnd(40)} EQU ${resource.id}`);
+    }
+    return lines.join('\n').trimEnd();
+}
+function buildResourceTableAsm(resources) {
+    const lines = [];
+    lines.push('; ==================================================================');
+    lines.push('; GENERATED RESOURCE TABLE');
+    lines.push('; Descriptor format: db bank / dw address / dw size');
+    lines.push('; Resource id is the zero-based descriptor index.');
+    lines.push('; Address is the mapper-window address visible after selecting bank.');
+    lines.push('; ==================================================================');
+    lines.push(`RESOURCE_TABLE_ENTRY_SIZE EQU 5`);
+    lines.push(`RESOURCE_TABLE_COUNT EQU ${resources.length}`);
+    lines.push('');
+    lines.push('resource_table:');
+    if (resources.length === 0) {
+        lines.push('    ; No banked resources generated for this build.');
+    }
+    for (const resource of resources) {
+        lines.push(`    ; ${resource.label}`);
+        lines.push(`    db ${resource.physicalBank}`);
+        lines.push(`    dw ${formatHex(resource.windowAddress)}`);
+        lines.push(`    dw ${resource.size}`);
+    }
+    return lines.join('\n').trimEnd();
+}
+function buildPackingManifestText(packResult, resources) {
+    const resourceByLabel = new Map(resources.map((resource) => [resource.label, resource]));
+    const lines = [];
+    lines.push('MEGAROM PACKING MANIFEST');
+    lines.push(`Zone size: ${packResult.zoneSize}`);
+    lines.push(`Data start address: ${formatHex(packResult.dataStartAddress)}`);
+    lines.push(`Total resource blocks: ${resources.length}`);
+    lines.push('');
+    for (const zone of packResult.zones) {
+        lines.push(`BANK ${zone.physicalBank.toString().padStart(2, '0')} used ${zone.usedBytes} / ${packResult.zoneSize}`);
+        for (const block of zone.blocks) {
+            const resource = resourceByLabel.get(block.label);
+            if (!resource) {
+                continue;
+            }
+            lines.push(`- ${resource.label.padEnd(32)} ` +
+                `${resource.size.toString().padStart(5, ' ')} bytes ` +
+                `@ ${formatHex(resource.windowAddress)} ` +
+                `(rom ${formatHex(resource.physicalAddress)}, offset +${formatHex(resource.zoneOffset)}) ` +
+                `[${resource.resourceGroupKey}/${resource.resourceTypeKey}]`);
+        }
+        lines.push(`FREE ${zone.remainingBytes}`);
+        lines.push('');
+    }
+    if (packResult.overflowBlocks.length > 0) {
+        lines.push('OVERFLOW BLOCKS');
+        for (const block of packResult.overflowBlocks) {
+            lines.push(`- ${block.label} ${block.byteSize} bytes`);
+        }
+    }
+    return lines.join('\n').trimEnd();
+}
+function buildPackingManifestJson(packResult, mapperWindow, resources) {
+    const resourceByLabel = new Map(resources.map((resource) => [resource.label, resource]));
+    const manifest = {
+        version: 1,
+        mapper: {
+            dataWindowPage: mapperWindow.dataWindowPage,
+            windowBase: mapperWindow.windowBaseExpr,
+            windowMask: mapperWindow.windowMaskExpr,
+            bankDivisor: mapperWindow.bankDivisorExpr,
+            zoneSize: mapperWindow.dataZoneSize,
+        },
+        summary: {
+            dataStartAddress: packResult.dataStartAddress,
+            totalSourceBytes: packResult.totalBlockBytes,
+            resourceCount: resources.length,
+            zoneCount: packResult.zones.length,
+            overflowCount: packResult.overflowBlocks.length,
+        },
+        banks: packResult.zones.map((zone) => ({
+            bank: zone.physicalBank,
+            zoneIndex: zone.zoneIndex,
+            orgAddress: zone.orgAddress,
+            endAddress: zone.endAddress,
+            usedBytes: zone.usedBytes,
+            freeBytes: zone.remainingBytes,
+            resources: zone.blocks.map((block) => {
+                const resource = resourceByLabel.get(block.label);
+                return {
+                    id: resource?.id ?? null,
+                    label: block.label,
+                    resourceIdLabel: resource?.resourceIdLabel ?? null,
+                    group: resource?.resourceGroupKey ?? block.groupName,
+                    type: resource?.resourceTypeKey ?? 'GENERIC_DATA',
+                    bank: zone.physicalBank,
+                    zoneOffset: block.zoneOffset,
+                    physicalAddress: block.physicalAddress,
+                    windowAddress: resource?.windowAddress ?? null,
+                    size: block.byteSize,
+                    sourceIndex: block.sourceIndex,
+                };
+            }),
+        })),
+        overflow: packResult.overflowBlocks.map((block) => ({
+            label: block.label,
+            group: block.groupName,
+            size: block.byteSize,
+        })),
+    };
+    return JSON.stringify(manifest, null, 2) + '\n';
+}
+function buildBanksJson(packResult, mapperWindow, resources) {
+    const resourceByLabel = new Map(resources.map((resource) => [resource.label, resource]));
+    const banks = {
+        version: 1,
+        segmentSize: mapperWindow.dataZoneSize,
+        dataWindow: {
+            page: mapperWindow.dataWindowPage,
+            base: mapperWindow.windowBaseExpr,
+            mask: mapperWindow.windowMaskExpr,
+            bankDivisor: mapperWindow.bankDivisorExpr,
+        },
+        banks: packResult.zones.map((zone) => ({
+            bank: zone.physicalBank,
+            origin: zone.orgAddress,
+            end: zone.endAddress,
+            usedBytes: zone.usedBytes,
+            freeBytes: zone.remainingBytes,
+            resources: zone.blocks.map((block) => {
+                const resource = resourceByLabel.get(block.label);
+                return {
+                    id: resource?.id ?? null,
+                    label: block.label,
+                    bank: zone.physicalBank,
+                    offset: block.zoneOffset,
+                    address: resource?.windowAddress ?? null,
+                    size: block.byteSize,
+                    group: resource?.resourceGroupKey ?? block.groupName,
+                    type: resource?.resourceTypeKey ?? 'GENERIC_DATA',
+                };
+            }),
+        })),
+        overflow: packResult.overflowBlocks.map((block) => ({
+            label: block.label,
+            group: block.groupName,
+            size: block.byteSize,
+        })),
+    };
+    return JSON.stringify(banks, null, 2) + '\n';
+}
+function countBy(items, keySelector) {
+    const counts = new Map();
+    for (const item of items) {
+        const key = keySelector(item);
+        counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return [...counts.entries()]
+        .sort((left, right) => left[0].localeCompare(right[0]))
+        .map(([key, count]) => ({ key, count }));
+}
+function buildProjectUsageJson(analysis, resources) {
+    const projectUsage = {
+        version: 1,
+        scope: 'konami8k_megarom_data',
+        features: {
+            sprites: Boolean(analysis?.hasSprites || resources.some((resource) => resource.resourceGroupKey === 'SPRITES')),
+            tiles: Boolean(analysis?.hasTiles || resources.some((resource) => resource.resourceTypeKey.includes('TILE'))),
+            screens: Boolean(analysis?.hasScreens || resources.some((resource) => resource.resourceGroupKey === 'SCREENS')),
+            entities: Boolean(analysis?.hasEntities),
+            components: Boolean(analysis?.hasComponents),
+            gameFlow: Boolean(analysis?.hasGameFlow),
+            menus: Boolean(analysis?.hasMenus || analysis?.hasMenuSystem),
+            fonts: Boolean(analysis?.hasFonts || resources.some((resource) => resource.resourceGroupKey === 'FONT')),
+            animations: Boolean(analysis?.hasAnimations),
+            collisions: Boolean(analysis?.hasCollisions),
+            sounds: Boolean((analysis?.sounds?.length || 0) > 0 || (analysis?.tracks?.length || 0) > 0),
+            stateMachines: Boolean((analysis?.stateMachines?.length || 0) > 0),
+        },
+        counts: {
+            components: analysis?.components?.length || 0,
+            templates: analysis?.templates?.length || 0,
+            sprites: analysis?.sprites?.length || 0,
+            tiles: analysis?.tiles?.length || 0,
+            tileBanks: analysis?.tileBanks?.length || 0,
+            screens: analysis?.screenMaps?.length || 0,
+            entities: analysis?.entities?.length || 0,
+            sounds: analysis?.sounds?.length || 0,
+            tracks: analysis?.tracks?.length || 0,
+            stateMachines: analysis?.stateMachines?.length || 0,
+            bankedResources: resources.length,
+        },
+        resourceGroups: countBy(resources, (resource) => resource.resourceGroupKey),
+        resourceTypes: countBy(resources, (resource) => resource.resourceTypeKey),
+        scenes: (analysis?.screenMaps || []).map((screen, index) => ({
+            index,
+            id: screen?.id || screen?.assetId || `screen_${index}`,
+            name: screen?.name || screen?.label || screen?.id || `screen_${index}`,
+        })),
+        bankedResources: resources.map((resource) => ({
+            id: resource.id,
+            label: resource.label,
+            group: resource.resourceGroupKey,
+            type: resource.resourceTypeKey,
+            bank: resource.physicalBank,
+            windowAddress: resource.windowAddress,
+            size: resource.size,
+        })),
+    };
+    return JSON.stringify(projectUsage, null, 2) + '\n';
+}
+function renderNamedArtifactAsCommentBlock(fileName, content) {
+    const lines = content.split(/\r?\n/);
+    const commented = lines.map((line) => (line.length > 0 ? `; ${line}` : ';')).join('\n');
+    return `; [[[MIDEAS_ARTIFACT:${fileName}:BEGIN]]]\n${commented}\n; [[[MIDEAS_ARTIFACT:${fileName}:END]]]`;
+}
+function buildMegaromGeneratedArtifacts(packResult, mapperWindow, analysis) {
+    const resources = buildResourceDescriptors(packResult, mapperWindow);
+    return [
+        {
+            fileName: 'resource_ids.asm',
+            content: buildResourceIdsAsm(resources),
+        },
+        {
+            fileName: 'resource_table.asm',
+            content: buildResourceTableAsm(resources),
+        },
+        {
+            fileName: 'packing_manifest.txt',
+            content: buildPackingManifestText(packResult, resources),
+        },
+        {
+            fileName: 'packing_manifest.json',
+            content: buildPackingManifestJson(packResult, mapperWindow, resources),
+        },
+        {
+            fileName: 'banks.json',
+            content: buildBanksJson(packResult, mapperWindow, resources),
+        },
+        {
+            fileName: 'project_usage.json',
+            content: buildProjectUsageJson(analysis, resources),
+        },
+    ];
+}
+function renderMegaromGeneratedArtifactsAsCommentBlocks(packResult, mapperWindow, analysis) {
+    return buildMegaromGeneratedArtifacts(packResult, mapperWindow, analysis)
+        .map((artifact) => renderNamedArtifactAsCommentBlock(artifact.fileName, artifact.content))
+        .join('\n\n');
+}

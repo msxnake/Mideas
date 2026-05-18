@@ -109,6 +109,16 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
 
   const eraserButtonClass = `w-full mt-1 p-1 text-xs rounded ${currentScreenTool === 'erase' ? 'bg-msx-highlight text-msx-bgcolor' : 'bg-msx-border text-msx-textsecondary hover:bg-msx-highlight/70'}`;
 
+  const getTileAssetForTile = (tile: Tile): ProjectAsset | undefined => (
+    allProjectAssets?.find(asset => {
+      if (asset.type !== 'tile') return false;
+      const assetTile = asset.data as Tile | undefined;
+      return asset.id === tile.id || assetTile?.id === tile.id;
+    })
+  );
+
+  const getSelectableTileId = (tile: Tile): string => getTileAssetForTile(tile)?.id || tile.id;
+
   // Filter tiles based on MSX Screen 2 sector and TileBank
   const filteredTileset = useMemo(() => {
     const isScreen2 = currentScreenMode === "SCREEN 2 (Graphics I)";
@@ -147,7 +157,12 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
 
     // Filter tiles that are assigned to this sector's bank
     const assignedTileIds = Object.keys(sectorBank.assignedTiles);
-    const filtered = tileset.filter(tile => assignedTileIds.includes(tile.id));
+    const assignedTileIdSet = new Set(assignedTileIds);
+    const filtered = tileset.filter(tile => {
+      if (assignedTileIdSet.has(tile.id)) return true;
+      const tileAsset = getTileAssetForTile(tile);
+      return !!tileAsset && assignedTileIdSet.has(tileAsset.id);
+    });
 
     console.log(`📋 Filtering tiles for Sector ${currentSector}:`, {
       totalTiles: tileset.length,
@@ -189,30 +204,35 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
         </div>
       )}
       <div className="grid grid-cols-3 gap-1">
-        {filteredTileset.map(tile => (
-          <div
-            key={tile.id}
-            onClick={() => {
-              setSelectedTileId(tile.id);
-              onSetScreenTool('draw');
-            }}
-            onContextMenu={(e) => {
-              if (onTileContextMenu) {
-                onTileContextMenu(e, tile.id);
-              }
-            }}
-            className={`p-0.5 border-2 rounded cursor-pointer 
-                        ${selectedTileId === tile.id && (currentScreenTool === 'draw' || currentScreenTool === 'select') ? 'border-msx-accent bg-msx-accent/30' : 'border-transparent hover:border-msx-highlight'}`}
-            title={`${tile.name} (${tile.width}x${tile.height}) - Click to select for drawing/filling. Right-click to edit.`}
-          >
-            <img
-              src={createTileDataURL(tile, 0, 0, Math.min(40, tile.width), Math.min(40, tile.height), tile.width, currentScreenMode)}
-              alt={tile.name}
-              className="w-full h-auto object-contain"
-              style={{ imageRendering: 'pixelated', maxWidth: '40px', maxHeight: '40px' }}
-            />
-          </div>
-        ))}
+        {filteredTileset.map(tile => {
+          const selectableTileId = getSelectableTileId(tile);
+          const isSelected = (selectedTileId === tile.id || selectedTileId === selectableTileId)
+            && (currentScreenTool === 'draw' || currentScreenTool === 'select');
+          return (
+            <div
+              key={selectableTileId}
+              onClick={() => {
+                setSelectedTileId(selectableTileId);
+                onSetScreenTool('draw');
+              }}
+              onContextMenu={(e) => {
+                if (onTileContextMenu) {
+                  onTileContextMenu(e, selectableTileId);
+                }
+              }}
+              className={`p-0.5 border-2 rounded cursor-pointer 
+                          ${isSelected ? 'border-msx-accent bg-msx-accent/30' : 'border-transparent hover:border-msx-highlight'}`}
+              title={`${tile.name} (${tile.width}x${tile.height}) - Click to select for drawing/filling. Right-click to edit.`}
+            >
+              <img
+                src={createTileDataURL(tile, 0, 0, Math.min(40, tile.width), Math.min(40, tile.height), tile.width, currentScreenMode)}
+                alt={tile.name}
+                className="w-full h-auto object-contain"
+                style={{ imageRendering: 'pixelated', maxWidth: '40px', maxHeight: '40px' }}
+              />
+            </div>
+          );
+        })}
       </div>
       <Button
         onClick={() => {

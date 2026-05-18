@@ -1,0 +1,1343 @@
+{
+  "version": 1,
+  "scope": "konami8k_tilebank_integrity",
+  "summary": {
+    "screens": 53,
+    "tileBanks": 0,
+    "checkedScreens": 0,
+    "issueScreens": 0,
+    "issueCells": 0,
+    "issueTiles": 0,
+    "missingAssetCells": 0,
+    "missingAssetTiles": 0,
+    "unassignedCells": 0,
+    "unassignedTiles": 0
+  },
+  "screens": [
+    {
+      "index": 0,
+      "id": "screenmap_1752520188906",
+      "name": "pan1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 1,
+      "id": "screenmap_1754755287165",
+      "name": "pan2",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 2,
+      "id": "screenmap_1754757646433",
+      "name": "pan3",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 3,
+      "id": "screenmap_1754822837810",
+      "name": "pan4",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 4,
+      "id": "screenmap_1754823502769",
+      "name": "pan5",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 5,
+      "id": "screenmap_1754847853261",
+      "name": "pan6",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 6,
+      "id": "screenmap_1755254825434",
+      "name": "pan7",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 7,
+      "id": "screenmap_random_0_1_1755255524322",
+      "name": "Room_boss_1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 8,
+      "id": "screenmap_random_0_2_1755255524322",
+      "name": "Room_enemy_1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 9,
+      "id": "screenmap_random_1_1_1755255524322",
+      "name": "Room_final_1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 10,
+      "id": "screenmap_random_1_2_1755255524322",
+      "name": "Room_enemy_2",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 11,
+      "id": "screenmap_random_1_3_1755255524322",
+      "name": "Room_key_1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 12,
+      "id": "screenmap_random_2_1_1755255524322",
+      "name": "Room_normal_1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 13,
+      "id": "screenmap_random_2_3_1755255524322",
+      "name": "Room_enemy_3",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 14,
+      "id": "screenmap_random_2_4_1755255524322",
+      "name": "Room_enemy_4",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 15,
+      "id": "screenmap_random_3_0_1755255524322",
+      "name": "Room_secret_1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 16,
+      "id": "screenmap_random_3_1_1755255524322",
+      "name": "Room_item_1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 17,
+      "id": "screenmap_random_3_2_1755255524322",
+      "name": "Room_key_2",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 18,
+      "id": "screenmap_random_3_3_1755255524322",
+      "name": "Room_normal_2",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 19,
+      "id": "screenmap_random_3_4_1755255524322",
+      "name": "Room_enemy_5",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 20,
+      "id": "screenmap_1755262663123",
+      "name": "pan8",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 21,
+      "id": "screenmap_1755262973244",
+      "name": "pan9",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 22,
+      "id": "screenmap_random_0_1_1755782082961",
+      "name": "Room_normal_1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 23,
+      "id": "screenmap_random_0_2_1755782082962",
+      "name": "Room_secret_1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 24,
+      "id": "screenmap_random_0_3_1755782082962",
+      "name": "Room_key_1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 25,
+      "id": "screenmap_random_0_4_1755782082962",
+      "name": "Room_enemy_1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 26,
+      "id": "screenmap_random_1_0_1755782082962",
+      "name": "Room_normal_2",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 27,
+      "id": "screenmap_random_1_1_1755782082962",
+      "name": "Room_normal_3",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 28,
+      "id": "screenmap_random_1_3_1755782082962",
+      "name": "Room_normal_4",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 29,
+      "id": "screenmap_random_1_4_1755782082962",
+      "name": "Room_enemy_2",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 30,
+      "id": "screenmap_random_1_5_1755782082962",
+      "name": "Room_item_1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 31,
+      "id": "screenmap_random_1_6_1755782082962",
+      "name": "Room_enemy_3",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 32,
+      "id": "screenmap_random_1_7_1755782082962",
+      "name": "Room_enemy_4",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 33,
+      "id": "screenmap_random_2_0_1755782082962",
+      "name": "Room_enemy_5",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 34,
+      "id": "screenmap_random_2_1_1755782082962",
+      "name": "Room_normal_5",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 35,
+      "id": "screenmap_random_2_2_1755782082962",
+      "name": "Room_normal_6",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 36,
+      "id": "screenmap_random_2_3_1755782082962",
+      "name": "Room_normal_7",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 37,
+      "id": "screenmap_random_2_4_1755782082963",
+      "name": "Room_key_2",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 38,
+      "id": "screenmap_random_2_5_1755782082963",
+      "name": "Room_item_2",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 39,
+      "id": "screenmap_random_2_6_1755782082963",
+      "name": "Room_normal_8",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 40,
+      "id": "screenmap_random_2_7_1755782082963",
+      "name": "Room_normal_9",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 41,
+      "id": "screenmap_random_3_1_1755782082963",
+      "name": "Room_normal_10",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 42,
+      "id": "screenmap_random_3_2_1755782082963",
+      "name": "Room_enemy_6",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 43,
+      "id": "screenmap_random_3_3_1755782082963",
+      "name": "Room_enemy_7",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 44,
+      "id": "screenmap_random_3_4_1755782082963",
+      "name": "Room_final_1",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 45,
+      "id": "screenmap_random_3_5_1755782082963",
+      "name": "Room_normal_11",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 46,
+      "id": "screenmap_random_3_6_1755782082964",
+      "name": "Room_enemy_8",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 47,
+      "id": "screenmap_random_3_7_1755782082964",
+      "name": "Room_key_3",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 48,
+      "id": "screenmap_random_4_3_1755782082964",
+      "name": "Room_normal_12",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 49,
+      "id": "screenmap_random_4_4_1755782082964",
+      "name": "Room_enemy_9",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 50,
+      "id": "screenmap_random_4_5_1755782082964",
+      "name": "Room_enemy_10",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 51,
+      "id": "screenmap_random_4_7_1755782082964",
+      "name": "Room_secret_2",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    },
+    {
+      "index": 52,
+      "id": "screenmap_1756133205595",
+      "name": "New Screenmap",
+      "tileBankAssetId": null,
+      "tileBankName": null,
+      "activeArea": {
+        "x": 0,
+        "y": 0,
+        "width": 32,
+        "height": 24
+      },
+      "status": "no_tilebank_selected",
+      "totals": {
+        "checkedCells": 0,
+        "uniqueTiles": 0,
+        "issueCells": 0,
+        "issueTiles": 0,
+        "missingAssetCells": 0,
+        "missingAssetTiles": 0,
+        "unassignedCells": 0,
+        "unassignedTiles": 0
+      },
+      "issues": []
+    }
+  ]
+}

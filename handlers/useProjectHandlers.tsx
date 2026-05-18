@@ -1,11 +1,12 @@
 import { useCallback } from 'react';
-import { ProjectAsset, EditorType, ScreenMap, TileBank, TileBankDefinition, ComponentDefinition, EntityTemplate, MainMenuConfig, Snippet, HelpDocSection, DataFormat, MSXFont, MSXFontColorAttributes, MSXColorValue, PresentationScreenConfig } from '../types';
-import { DEFAULT_TILE_BANK_DEFINITIONS, DEFAULT_MAIN_MENU_CONFIG, DEFAULT_PRESENTATION_SCREEN_CONFIG, DEFAULT_SCREEN_MODE, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../constants';
+import { ProjectAsset, EditorType, ScreenMap, TileBank, TileBankDefinition, ComponentDefinition, EntityTemplate, MainMenuConfig, Snippet, HelpDocSection, DataFormat, MSXFont, MSXFontColorAttributes, MSXColorValue, PresentationScreenConfig, PortraitAsset, DialogueAsset } from '../types';
+import { DEFAULT_MAIN_MENU_CONFIG, DEFAULT_PRESENTATION_SCREEN_CONFIG, DEFAULT_SCREEN_MODE, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../constants';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
 import { getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from '../utils/projectUtils';
 import { cleanUnusedDefinitions } from '../utils/projectCleanup';
 import { addRecentProject, getRecentProjectData, getRecentProjects } from '../utils/recentProjects';
 import { buildGlobalVariableAsmName, buildGlobalVariableConstantPrefix, normalizeGlobalVariableName } from '../utils/globalVariablesUtils';
+import { resolveBestPortraitTileBankAssetId } from '../utils/portraitPackageUtils';
 
 interface ProjectHandlersProps {
   assets: ProjectAsset[];
@@ -274,6 +275,75 @@ function mergePresentationScreenConfig(rawConfig: any): PresentationScreenConfig
   };
 }
 
+function repairPortraitTileBankLinks(sourceAssets: ProjectAsset[]): ProjectAsset[] {
+  const portraitTileBankById = new Map<string, string>();
+
+  const assetsWithPortraits = sourceAssets.map(asset => {
+    if (asset.type !== 'portrait' || !asset.data) return asset;
+
+    const portrait = asset.data as PortraitAsset;
+    const bestTileBankAssetId = resolveBestPortraitTileBankAssetId(portrait, sourceAssets);
+    if (!bestTileBankAssetId || bestTileBankAssetId === portrait.tileBankAssetId) {
+      if (portrait.tileBankAssetId) portraitTileBankById.set(asset.id, portrait.tileBankAssetId);
+      return asset;
+    }
+
+    portraitTileBankById.set(asset.id, bestTileBankAssetId);
+    return {
+      ...asset,
+      data: {
+        ...portrait,
+        tileBankAssetId: bestTileBankAssetId,
+      },
+    };
+  });
+
+  if (portraitTileBankById.size === 0) return assetsWithPortraits;
+
+  const repairGraphic = (graphic: any) => {
+    if (!graphic?.portraitAssetId) return graphic;
+    const portraitTileBankAssetId = portraitTileBankById.get(graphic.portraitAssetId);
+    if (!portraitTileBankAssetId || graphic.tileBankAssetId === portraitTileBankAssetId) return graphic;
+    return { ...graphic, tileBankAssetId: portraitTileBankAssetId };
+  };
+
+  return assetsWithPortraits.map(asset => {
+    if (asset.type !== 'dialogue' || !asset.data) return asset;
+    const dialogue = asset.data as DialogueAsset;
+    const repairedBoxGraphic = repairGraphic(dialogue.box?.graphic);
+    const repairedLines = (dialogue.lines || []).map(line => {
+      const repairedLineGraphic = repairGraphic(line.graphic);
+      return repairedLineGraphic === line.graphic ? line : { ...line, graphic: repairedLineGraphic };
+    });
+
+    if (repairedBoxGraphic === dialogue.box?.graphic && repairedLines.every((line, index) => line === dialogue.lines[index])) {
+      return asset;
+    }
+
+    return {
+      ...asset,
+      data: {
+        ...dialogue,
+        lines: repairedLines,
+        box: {
+          ...dialogue.box,
+          graphic: repairedBoxGraphic,
+        },
+      },
+    };
+  });
+}
+
+function trySetLocalStorageItem(key: string, value: string): boolean {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.error(`Error saving ${key} to localStorage:`, error);
+    return false;
+  }
+}
+
 export const useProjectHandlers = ({
   assets,
   setAssets,
@@ -347,7 +417,8 @@ export const useProjectHandlers = ({
         setCurrentProjectName(projectNameFromModal);
         setCurrentEditor(EditorType.None);
         applyScreenModeDefaults(selectedMode || DEFAULT_SCREEN_MODE);
-        setTileBanksState(DEFAULT_TILE_BANK_DEFINITIONS);
+        setTileBanksState([]);
+        trySetLocalStorageItem('tileBanksConfig', JSON.stringify([]));
         setComponentDefinitionsState(DEFAULT_COMPONENT_DEFINITIONS);
         setEntityTemplatesState(DEFAULT_ENTITY_TEMPLATES);
         setMainMenuConfigState(DEFAULT_MAIN_MENU_CONFIG);
@@ -652,6 +723,7 @@ export const useProjectHandlers = ({
           }
           return asset;
         });
+        loadedAssets = repairPortraitTileBankLinks(loadedAssets);
       }
 
       const loadedMode = projectData.currentScreenMode || DEFAULT_SCREEN_MODE;
@@ -661,24 +733,26 @@ export const useProjectHandlers = ({
 
       if (projectData.assets) {
         const tileBankAssets = projectData.assets.filter((asset: ProjectAsset) => asset.type === 'tilebank');
-        if (tileBankAssets.length > 0) {
-          const ensuredTileBanks = tileBankAssets.map(asset => {
-            const tileBankData = asset.data as TileBank;
-            return {
-              ...tileBankData,
-              banks: tileBankData.banks.map((bank: TileBankDefinition) => ({
-                ...bank,
-                logicalTilesEnabled: (bank as any).logicalTilesEnabled ?? false,
-                logicalTileTypes: (bank as any).logicalTileTypes ?? []
-              }))
-            };
-          });
-          setTileBanksState(ensuredTileBanks);
-          localStorage.setItem('tileBanksConfig', JSON.stringify(ensuredTileBanks));
+        const ensuredTileBanks = tileBankAssets
+          .map(asset => asset.data as TileBank)
+          .filter(tileBankData => Array.isArray(tileBankData?.banks))
+          .map(tileBankData => ({
+            ...tileBankData,
+            banks: tileBankData.banks.map((bank: TileBankDefinition) => ({
+              ...bank,
+              logicalTilesEnabled: (bank as any).logicalTilesEnabled ?? false,
+              logicalTileTypes: (bank as any).logicalTileTypes ?? []
+            }))
+          }));
+        setTileBanksState(ensuredTileBanks);
+        if (!trySetLocalStorageItem('tileBanksConfig', JSON.stringify(ensuredTileBanks))) {
+          loadWarnings.push('No se pudo actualizar la cache local de Tile Banks; el proyecto se cargo igualmente.');
         }
       } else if (projectData.tileBanks) {
         setTileBanksState(projectData.tileBanks);
-        localStorage.setItem('tileBanksConfig', JSON.stringify(projectData.tileBanks));
+        if (!trySetLocalStorageItem('tileBanksConfig', JSON.stringify(projectData.tileBanks))) {
+          loadWarnings.push('No se pudo actualizar la cache local de Tile Banks; el proyecto se cargo igualmente.');
+        }
       }
 
       setComponentDefinitionsState(migratedComponentDefinitions);
@@ -739,11 +813,12 @@ export const useProjectHandlers = ({
         loadWarnings.push('Presentation Screen migrada al sistema de assets.');
       }
 
-      const finalProjectName = projectData.currentProjectName || projectName || 'msx_ide_project';
+      const finalProjectName = projectName || projectData.currentProjectName || 'msx_ide_project';
       setCurrentProjectName(finalProjectName);
 
       const cachedProjectData = {
         ...projectData,
+        currentProjectName: finalProjectName,
         assets: loadedAssets.length > 0 ? loadedAssets : projectData.assets,
         componentDefinitions: migratedComponentDefinitions,
         entityTemplates: templatesForSanitization,

@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "mapperFormat": "konami",
+  "segmentSize": 8192,
+  "dataWindow": {
+    "page": "p3",
+    "base": "#A000",
+    "mask": "#1FFF",
+    "bankDivisor": "#2000"
+  },
+  "banks": [
+    {
+      "bank": 3,
+      "origin": 40960,
+      "end": 49152,
+      "usedBytes": 1546,
+      "freeBytes": 6646,
+      "verification": {
+        "algorithm": "fnv1a32-resource-metadata",
+        "metadataChecksum": "fnv1a32:42AE5CAB",
+        "resourceCount": 3,
+        "storedBytes": 1546
+      },
+      "resources": [
+        {
+          "id": 1,
+          "label": "tile_pattern_bank0",
+          "bank": 3,
+          "offset": 0,
+          "address": 40960,
+          "size": 982,
+          "storedSize": 982,
+          "uncompressedSize": 1008,
+          "flags": 1,
+          "group": "PATTERNS",
+          "type": "TILE_PATTERNS",
+          "placementReason": "post-ZX0 first-fit single patterns resource; ZX0 982/1008 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 6646 bytes"
+        },
+        {
+          "id": 2,
+          "label": "tile_color_bank0",
+          "bank": 3,
+          "offset": 982,
+          "address": 41942,
+          "size": 559,
+          "storedSize": 559,
+          "uncompressedSize": 1008,
+          "flags": 1,
+          "group": "COLORS",
+          "type": "TILE_COLORS",
+          "placementReason": "post-ZX0 first-fit single colors resource; ZX0 559/1008 bytes; bank 3 zone 0 offset +#03D6; zone slack after pack 6646 bytes"
+        },
+        {
+          "id": 0,
+          "label": "SPRITE_PLACEHOLDER_PATTERN",
+          "bank": 3,
+          "offset": 1541,
+          "address": 42501,
+          "size": 5,
+          "storedSize": 5,
+          "uncompressedSize": 32,
+          "flags": 1,
+          "group": "SPRITES",
+          "type": "SPRITE_PATTERNS",
+          "placementReason": "post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0605; zone slack after pack 6646 bytes"
+        }
+      ]
+    }
+  ],
+  "overflow": []
+}

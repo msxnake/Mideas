@@ -1,0 +1,175 @@
+{
+  "target": "asset",
+  "mode": "sheet",
+  "prompt": "1x4 pixel art prop animation sheet: medieval wooden arched door opening from closed to fully open, four visibly different frames, same stone frame and scale, solid #FF00FF magenta background, no text, no UI.",
+  "role": "",
+  "input": "generated_sprites\\puerta_abriendose\\raw-sheet.png",
+  "threshold": 100,
+  "edge_threshold": 150,
+  "duration": 140,
+  "rows": 1,
+  "cols": 4,
+  "cell_size": 128,
+  "fit_scale": 0.92,
+  "trim_border": 4,
+  "edge_clean_depth": 3,
+  "align": "bottom",
+  "shared_scale": true,
+  "component_mode": "largest",
+  "component_padding": 8,
+  "min_component_area": 1,
+  "edge_touch_margin": 0,
+  "frame_labels": [
+    "door-open-1",
+    "door-open-2",
+    "door-open-3",
+    "door-open-4"
+  ],
+  "frames": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "source_box": [
+        0,
+        0,
+        543,
+        724
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 177413,
+      "selected_component_bbox": [
+        60,
+        79,
+        459,
+        604
+      ],
+      "crop_bbox": [
+        52,
+        71,
+        467,
+        612
+      ],
+      "edge_touch": false,
+      "output_size": [
+        87,
+        113
+      ],
+      "paste_position": [
+        20,
+        10
+      ]
+    },
+    {
+      "grid": [
+        0,
+        1
+      ],
+      "source_box": [
+        543,
+        0,
+        1086,
+        724
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 177871,
+      "selected_component_bbox": [
+        60,
+        79,
+        459,
+        613
+      ],
+      "crop_bbox": [
+        52,
+        71,
+        467,
+        621
+      ],
+      "edge_touch": false,
+      "output_size": [
+        87,
+        115
+      ],
+      "paste_position": [
+        20,
+        8
+      ]
+    },
+    {
+      "grid": [
+        0,
+        2
+      ],
+      "source_box": [
+        1086,
+        0,
+        1629,
+        724
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 178486,
+      "selected_component_bbox": [
+        59,
+        79,
+        459,
+        624
+      ],
+      "crop_bbox": [
+        51,
+        71,
+        467,
+        632
+      ],
+      "edge_touch": false,
+      "output_size": [
+        87,
+        117
+      ],
+      "paste_position": [
+        20,
+        6
+      ]
+    },
+    {
+      "grid": [
+        0,
+        3
+      ],
+      "source_box": [
+        1629,
+        0,
+        2172,
+        724
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 178190,
+      "selected_component_bbox": [
+        60,
+        79,
+        459,
+        624
+      ],
+      "crop_bbox": [
+        52,
+        71,
+        467,
+        632
+      ],
+      "edge_touch": false,
+      "output_size": [
+        87,
+        117
+      ],
+      "paste_position": [
+        20,
+        6
+      ]
+    }
+  ],
+  "edge_touch_frames": []
+}

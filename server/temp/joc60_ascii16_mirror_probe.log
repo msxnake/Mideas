@@ -1,0 +1,19 @@
+intro_spc_before pc=68FE sp=F36C banks=00/00/01 input=00 player=00 xy=016,144 facing=02 smSprite=01 sprite=00 left0=06 right0=00
+intro_spc_after pc=C13A sp=F370 banks=00/00/01 input=00 player=00 xy=016,111 facing=02 smSprite=01 sprite=00 left0=06 right0=00
+intro_spc_during pc=C16A sp=F36A banks=08/08/01 input=00 player=00 xy=016,108 facing=02 smSprite=01 sprite=00 left0=06 right0=00
+start_spc_before pc=48D3 sp=F36E banks=00/00/01 input=00 player=00 xy=016,144 facing=02 smSprite=01 sprite=00 left0=06 right0=00
+start_spc_after pc=C20E sp=F376 banks=00/00/01 input=00 player=00 xy=016,111 facing=02 smSprite=01 sprite=00 left0=06 right0=00
+start_spc_during pc=C22E sp=F378 banks=05/05/01 input=00 player=00 xy=016,108 facing=02 smSprite=01 sprite=00 left0=06 right0=00
+game_start pc=1A54 sp=F364 banks=05/05/01 input=00 player=00 xy=016,144 facing=02 smSprite=01 sprite=00 left0=06 right0=00
+SHOTOK start.png
+right_before pc=C2BB sp=F362 banks=00/00/01 input=00 player=00 xy=016,144 facing=02 smSprite=01 sprite=00 left0=06 right0=00
+right_during pc=C285 sp=F362 banks=00/00/01 input=03 player=00 xy=046,144 facing=02 smSprite=01 sprite=00 left0=06 right0=00
+right_after pc=616B sp=F37C banks=05/05/01 input=03 player=00 xy=124,144 facing=02 smSprite=01 sprite=00 left0=06 right0=00
+after_right pc=616B sp=F37C banks=05/05/01 input=00 player=00 xy=124,144 facing=02 smSprite=01 sprite=00 left0=06 right0=00
+SHOTOK after_right.png
+left_before pc=616B sp=F37C banks=05/05/01 input=00 player=00 xy=124,144 facing=02 smSprite=01 sprite=00 left0=06 right0=00
+left_during pc=616B sp=F37C banks=05/05/01 input=07 player=00 xy=094,144 facing=01 smSprite=01 sprite=06 left0=06 right0=00
+left_after pc=616B sp=F37C banks=05/05/01 input=07 player=00 xy=016,144 facing=01 smSprite=01 sprite=06 left0=06 right0=00
+after_left pc=616B sp=F37C banks=05/05/01 input=00 player=00 xy=016,144 facing=01 smSprite=01 sprite=06 left0=06 right0=00
+SHOTOK after_left.png
+final pc=616B sp=F37C banks=05/05/01 input=00 player=00 xy=016,144 facing=01 smSprite=01 sprite=06 left0=06 right0=00

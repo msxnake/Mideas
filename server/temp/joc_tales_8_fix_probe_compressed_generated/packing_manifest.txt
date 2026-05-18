@@ -1,0 +1,38 @@
+MEGAROM PACKING MANIFEST
+Zone size: 8192
+Data start address: #A000
+Total resource blocks: 14
+
+BANK 03 used 2464 / 8192
+- tile_pattern_bank0                 886 stored /  1088 raw bytes @ #A000 (rom #A000, offset +#0000) [PATTERNS/TILE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit merged patterns unit (2 labels); ZX0 886/1088 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 5728 bytes
+- tilebank_pattern_data_0            885 stored /  1088 raw bytes @ #A376 (rom #A376, offset +#0376) [PATTERNS/TILE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit merged patterns unit (2 labels); ZX0 885/1088 bytes; bank 3 zone 0 offset +#0376; zone slack after pack 5728 bytes
+- tile_color_bank0                   302 stored /  1088 raw bytes @ #A6EB (rom #A6EB, offset +#06EB) [COLORS/TILE_COLORS] flags=1
+  reason: post-ZX0 first-fit merged colors unit (2 labels); ZX0 302/1088 bytes; bank 3 zone 0 offset +#06EB; zone slack after pack 5728 bytes
+- tilebank_color_data_0              303 stored /  1088 raw bytes @ #A819 (rom #A819, offset +#0819) [COLORS/TILE_COLORS] flags=1
+  reason: post-ZX0 first-fit merged colors unit (2 labels); ZX0 303/1088 bytes; bank 3 zone 0 offset +#0819; zone slack after pack 5728 bytes
+- SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT     9 stored /   768 raw bytes @ #A948 (rom #A948, offset +#0948) [SCREENS/SCREEN_LAYOUT] flags=1
+  reason: post-ZX0 first-fit single SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT resource; ZX0 9/768 bytes; bank 3 zone 0 offset +#0948; zone slack after pack 5728 bytes
+- SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT     6 stored /   768 raw bytes @ #A951 (rom #A951, offset +#0951) [SCREENS/SCREEN_EFFECTS_LAYOUT] flags=1
+  reason: post-ZX0 first-fit single SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0951; zone slack after pack 5728 bytes
+- SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP     6 stored /   768 raw bytes @ #A957 (rom #A957, offset +#0957) [SCREENS/SCREEN_DATA] flags=1
+  reason: post-ZX0 first-fit single SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0957; zone slack after pack 5728 bytes
+- SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP     9 stored /   768 raw bytes @ #A95D (rom #A95D, offset +#095D) [SCREENS/SCREEN_DATA] flags=1
+  reason: post-ZX0 first-fit single SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP resource; ZX0 9/768 bytes; bank 3 zone 0 offset +#095D; zone slack after pack 5728 bytes
+- SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP     6 stored /   768 raw bytes @ #A966 (rom #A966, offset +#0966) [SCREENS/SCREEN_DATA] flags=1
+  reason: post-ZX0 first-fit single SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0966; zone slack after pack 5728 bytes
+- SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE    10 stored /   256 raw bytes @ #A96C (rom #A96C, offset +#096C) [SCREENS/SCREEN_DATA] flags=1
+  reason: post-ZX0 first-fit single SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE resource; ZX0 10/256 bytes; bank 3 zone 0 offset +#096C; zone slack after pack 5728 bytes
+- NEW_SPRITE_0_F0_LAYER2              25 stored /    32 raw bytes @ #A976 (rom #A976, offset +#0976) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NEW_SPRITE_0_F0_LAYER2 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0976; zone slack after pack 5728 bytes
+- SPRITE_PLACEHOLDER_PATTERN           5 stored /    32 raw bytes @ #A98F (rom #A98F, offset +#098F) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#098F; zone slack after pack 5728 bytes
+- SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE    11 stored /    11 raw bytes @ #A994 (rom #A994, offset +#0994) [SCREENS/SCREEN_DATA] flags=0
+  reason: post-ZX0 first-fit single SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE resource; raw 11 bytes; bank 3 zone 0 offset +#0994; zone slack after pack 5728 bytes
+- SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE     1 stored /     1 raw bytes @ #A99F (rom #A99F, offset +#099F) [SCREENS/SCREEN_EFFECT_ZONE_TABLE] flags=0
+  reason: post-ZX0 first-fit single SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#099F; zone slack after pack 5728 bytes
+FREE 5728
+
+BANK 04 used 0 / 8192
+FREE 8192

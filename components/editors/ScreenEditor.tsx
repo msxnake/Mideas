@@ -98,6 +98,10 @@ interface ScreenEditorProps {
   showSectorLines: boolean;
   /** Callback to toggle sector grid lines visibility. */
   onToggleSectorLines: () => void;
+  /** Catalog block selected from the properties panel, used as a temporary stamp. */
+  catalogStamp?: TileStamp | null;
+  /** Clears the temporary catalog stamp selection. */
+  onClearCatalogStamp?: () => void;
 }
 
 const normalizeTemplateIdentity = (value: string | undefined) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -158,12 +162,45 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   copiedLayerBuffer, setCopiedLayerBuffer, setStatusBarMessage,
   onActiveLayerChange, componentDefinitions, entityTemplates, onShowMapFile,
   onNavigateToAsset, onShowContextMenu, waypointPickerState, onWaypointPicked,
-  zoom, setZoom, showSectorLines, onToggleSectorLines
+  zoom, setZoom, showSectorLines, onToggleSectorLines, catalogStamp, onClearCatalogStamp
 }) => {
 
   const screenModeMetrics = useMemo(() => getScreenModeMetrics(currentScreenMode), [currentScreenMode]);
   const isScreen2 = isScreen2Mode(currentScreenMode);
   const EDITOR_BASE_TILE_DIM = screenModeMetrics.baseTileSize;
+
+  const findTileByAnyId = useCallback((tileId: string | null | undefined): Tile | undefined => {
+    if (!tileId) return undefined;
+    const directTile = tileset.find(t => t.id === tileId);
+    if (directTile) return directTile;
+    const tileAsset = allProjectAssets.find(asset => {
+      if (asset.type !== 'tile') return false;
+      const assetTile = asset.data as Tile | undefined;
+      return asset.id === tileId || assetTile?.id === tileId;
+    });
+    return tileAsset?.data as Tile | undefined;
+  }, [allProjectAssets, tileset]);
+
+  const getTileIdAliases = useCallback((tileId: string | null | undefined): string[] => {
+    if (!tileId) return [];
+    const aliases = new Set<string>([tileId]);
+    const tileAsset = allProjectAssets.find(asset => {
+      if (asset.type !== 'tile') return false;
+      const assetTile = asset.data as Tile | undefined;
+      return asset.id === tileId || assetTile?.id === tileId;
+    });
+    if (tileAsset) {
+      aliases.add(tileAsset.id);
+      const assetTile = tileAsset.data as Tile | undefined;
+      if (assetTile?.id) aliases.add(assetTile.id);
+    }
+    return Array.from(aliases);
+  }, [allProjectAssets]);
+
+  const hasTileBankAssignment = useCallback((bank: TileBankDefinition | undefined, tileId: string | null | undefined): boolean => {
+    if (!bank || !tileId) return false;
+    return getTileIdAliases(tileId).some(alias => !!bank.assignedTiles?.[alias]);
+  }, [getTileIdAliases]);
 
   useEffect(() => {
     const targetWidth = screenModeMetrics.widthTiles;
@@ -395,6 +432,12 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (catalogStamp) {
+          onClearCatalogStamp?.();
+          setCurrentScreenTool('draw');
+          setStatusBarMessage('Catalog block deselected');
+          return;
+        }
         if (selectedStampId) {
           setSelectedStampId(null);
           setCurrentScreenTool('draw');
@@ -407,7 +450,16 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectedStampId, setStatusBarMessage]);
+  }, [catalogStamp, onClearCatalogStamp, selectedStampId, setStatusBarMessage]);
+
+  useEffect(() => {
+    if (!catalogStamp) return;
+    setSelectedStampId(null);
+    setCurrentScreenTool('stamp');
+    if (activeLayer !== 'background') {
+      setActiveLayer('background');
+    }
+  }, [activeLayer, catalogStamp]);
 
   const handleActiveAreaInputChange = (
     prop: 'activeAreaX' | 'activeAreaY' | 'activeAreaWidth' | 'activeAreaHeight',
@@ -875,7 +927,6 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         },
         Array.from({ length: blockMap.catalog.length }, () => 0)
       );
-
       const overlay: ScreenGridOptimizationOverlay = {
         mode,
         blocks: blockMap.mapIndices.map((catalogIndex, index) => ({
@@ -1082,7 +1133,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           const tileBankData = tileBankAsset.data as TileBank;
           const sectorBank = tileBankData.banks[sector];
 
-          if (sectorBank && !sectorBank.assignedTiles[selectedTileId]) {
+          if (sectorBank && !hasTileBankAssignment(sectorBank, selectedTileId)) {
             setStatusBarMessage(`⚠ Cannot place tile here! This tile is not assigned to Sector ${sector}. Deselecting tile.`);
             setSelectedTileId(null); // Clear invalid tile selection
             return; // Block placement
@@ -1104,8 +1155,9 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     }
 
     // Handle stamp placement
-    if (currentScreenTool === 'stamp' && selectedStampId) {
-      const selectedStamp = stamps.find(s => s.id === selectedStampId);
+    const stampToPlace = catalogStamp || (selectedStampId ? stamps.find(s => s.id === selectedStampId) : null);
+    if (currentScreenTool === 'stamp' && stampToPlace) {
+      const selectedStamp = stampToPlace;
       if (selectedStamp) {
         if (activeLayer === 'effects') {
           const stampFitsInZone = selectedStamp.tiles.every((row, dy) =>
@@ -1138,12 +1190,12 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       }
     }
 
-    const selectedTileAsset = tileset.find(t => t.id === selectedTileId);
+    const selectedTileAsset = findTileByAnyId(selectedTileId);
 
     if (!selectedTileAsset && currentScreenTool === 'erase') {
       const cellToClear = currentLayerData[point.y]?.[point.x];
       if (cellToClear && cellToClear.tileId) {
-        const originalTileAsset = tileset.find(t => t.id === cellToClear.tileId);
+        const originalTileAsset = findTileByAnyId(cellToClear.tileId);
         if (originalTileAsset) {
           const spanX = Math.ceil(originalTileAsset.width / EDITOR_BASE_TILE_DIM);
           const spanY = Math.ceil(originalTileAsset.height / EDITOR_BASE_TILE_DIM);
@@ -1228,7 +1280,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       newLayers[layerToUpdateKey] = currentLayerData;
       onUpdate({ layers: newLayers });
     }
-  }, [screenMap.layers, screenMap.tileBankAssetId, activeLayer, onUpdate, selectedTileId, tileset, EDITOR_BASE_TILE_DIM, setLastClickedCell, currentScreenTool, currentScreenMode, allProjectAssets, setSelectedTileId, setStatusBarMessage, getSectorFromY, setCurrentSector, stamps, selectedStampId, isSecretZoneEditingSelectionValid, isPointInsideSelectedSecretZone]);
+  }, [screenMap.layers, screenMap.tileBankAssetId, activeLayer, onUpdate, selectedTileId, tileset, EDITOR_BASE_TILE_DIM, setLastClickedCell, currentScreenTool, currentScreenMode, allProjectAssets, setSelectedTileId, setStatusBarMessage, getSectorFromY, setCurrentSector, stamps, selectedStampId, catalogStamp, isSecretZoneEditingSelectionValid, isPointInsideSelectedSecretZone, findTileByAnyId, hasTileBankAssignment]);
 
   const handleClearSelection = () => {
     if (!selectionRect || activeLayer === 'entities' || activeLayer === 'bosses') return;
@@ -1309,11 +1361,12 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   }, [selectionRect, activeLayer, screenMap.layers, stamps, setStatusBarMessage]);
 
   const handleSelectStamp = useCallback((stampId: string | null) => {
+    onClearCatalogStamp?.();
     setSelectedStampId(stampId);
     if (stampId) {
       setCurrentScreenTool('stamp');
     }
-  }, []);
+  }, [onClearCatalogStamp]);
 
   const handleDeleteStamp = useCallback((stampId: string) => {
     setStamps(stamps.filter(s => s.id !== stampId));
@@ -1337,7 +1390,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       }
     }
     const layerToUpdateKey = activeLayer as 'background' | 'collision' | 'effects';
-    const selectedTileAsset = tileset.find(t => t.id === selectedTileId);
+    const selectedTileAsset = findTileByAnyId(selectedTileId);
     if (!selectedTileAsset) return;
 
     const newLayers = { ...screenMap.layers };
@@ -1388,7 +1441,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       }
     }
     const layerToUpdateKey = activeLayer as 'background' | 'collision' | 'effects';
-    const selectedTileAsset = tileset.find(t => t.id === selectedTileId);
+    const selectedTileAsset = findTileByAnyId(selectedTileId);
     if (!selectedTileAsset) return;
 
     const assetSubTilesWide = Math.ceil(selectedTileAsset.width / EDITOR_BASE_TILE_DIM);
@@ -1495,7 +1548,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           const mapX = (screenMap.activeAreaX ?? 0) + c;
           const screenTile = activeLayerData[mapY]?.[mapX];
           if (screenTile?.tileId) {
-            const tileAsset = tileset.find(t => t.id === screenTile.tileId);
+            const tileAsset = findTileByAnyId(screenTile.tileId);
             if (tileAsset) {
             }
           }
@@ -1654,7 +1707,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           if (screenTile && screenTile.tileId) {
             row.push({ ...screenTile });
             if (!referencedTilesSet.has(screenTile.tileId)) {
-              const tileAsset = tileset.find(t => t.id === screenTile.tileId);
+              const tileAsset = findTileByAnyId(screenTile.tileId);
               if (tileAsset) {
                 const alreadyAddedTile = allReferencedTiles.find(rt => deepCompareTiles(rt, tileAsset));
                 if (!alreadyAddedTile) {
@@ -1688,7 +1741,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       referencedTiles: allReferencedTiles,
     };
     setCopiedScreenBuffer(copiedData);
-  }, [screenMap, tileset, setCopiedScreenBuffer, EDITOR_BASE_TILE_DIM]);
+  }, [screenMap, tileset, setCopiedScreenBuffer, EDITOR_BASE_TILE_DIM, findTileByAnyId]);
 
   const confirmPasteScreen = useCallback(() => {
     if (!copiedScreenBuffer) return;
@@ -1765,6 +1818,9 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
 
   const handleSetScreenTool = (tool: ScreenEditorTool) => {
+    if (tool !== 'stamp') {
+      onClearCatalogStamp?.();
+    }
     setCurrentScreenTool(tool);
     if (tool !== 'select' && selectionRect) {
       setSelectionRect(null);
@@ -1865,7 +1921,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const handleTileContextMenu = (event: React.MouseEvent, tileId: string) => {
     event.preventDefault();
     if (!tileId) return;
-    const tileName = tileset.find(t => t.id === tileId)?.name || "Tile";
+    const tileName = findTileByAnyId(tileId)?.name || "Tile";
 
     const menuItems: ContextMenuItem[] = [
       {
@@ -2165,7 +2221,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             waypointPickerState={waypointPickerState}
             onWaypointPicked={onWaypointPicked}
             showSectorLines={showSectorLines}
-            selectedStamp={selectedStampId ? stamps.find(s => s.id === selectedStampId) : null}
+            selectedStamp={catalogStamp || (selectedStampId ? stamps.find(s => s.id === selectedStampId) : null)}
             optimizationOverlay={backgroundOptimizationOverlay}
           />
           <PatrolPathLayer

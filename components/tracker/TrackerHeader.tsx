@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
 import { PlayIcon, StopIcon, ListBulletIcon, CheckCircleIcon, MusicNoteIcon, SoundIcon } from '../icons/MsxIcons';
 import { DEFAULT_PT3_ROWS_PER_PATTERN } from '../../constants';
+import { TrackerChannelId } from '../../types';
 
 /**
  * Props for the {@link TrackerHeader} component.
@@ -52,6 +53,12 @@ interface TrackerHeaderProps {
   isPlaying: boolean;
   /** Callback to toggle playback. */
   onPlayStop: () => void;
+  /** Visible tracker channels for the current sound chip. */
+  channels: TrackerChannelId[];
+  /** Channels muted in the tracker preview/playback engine. */
+  mutedChannels: Set<TrackerChannelId>;
+  /** Callback to toggle a single channel mute state. */
+  onToggleChannelMute: (channelId: TrackerChannelId) => void;
   /** Callback to load a sample song. */
   onLoadSampleSong: () => void;
   /** Callback to silence all channels. */
@@ -80,6 +87,7 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
   ayHardwareEnvelopePeriod, onAyHardwareEnvelopePeriodChange,
   ayNoisePeriod, onAyNoisePeriodChange,
   isPlaying, onPlayStop, onLoadSampleSong, onSilenceAllChannels,
+  channels, mutedChannels, onToggleChannelMute,
   soundChip, onSoundChipChange, onImportPT3File, isExternalPT3
 }) => {
   const [localPatternRows, setLocalPatternRows] = useState(String(patternRows));
@@ -210,6 +218,25 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
               />
             </div>
           )}
+        </div>
+
+        <div className="flex flex-wrap items-end gap-1 rounded border border-msx-border/70 bg-black/10 px-2 py-1.5">
+          <div className="mr-1 pb-1 text-[0.62rem] uppercase tracking-wider text-msx-textsecondary">Mute</div>
+          {channels.map(channelId => {
+            const isMuted = mutedChannels.has(channelId);
+            return (
+              <Button
+                key={channelId}
+                onClick={() => onToggleChannelMute(channelId)}
+                size="sm"
+                variant={isMuted ? "danger" : "ghost"}
+                className="!h-8 !min-w-8 !px-2 font-mono"
+                title={`${isMuted ? 'Unmute' : 'Mute'} channel ${channelId}`}
+              >
+                {channelId}
+              </Button>
+            );
+          })}
         </div>
 
         <div className="flex min-w-[15rem] flex-grow flex-wrap items-end justify-end gap-1">

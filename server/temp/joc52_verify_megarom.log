@@ -1,0 +1,18 @@
+boot pc=1130 sp=F2FE ffff=5F banks=00/00/00 flow=00 screen=33 ent=33 spr=33 sum=33 boss=00/05 layout=00,00,00 input=00 buttons=27 player=13107,13107
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_verify_shots/megarom_boot.png
+space1_before pc=62E0 sp=F354 ffff=5F banks=04/02/03 flow=00 screen=00 ent=01 spr=12 sum=06 boss=01/01 layout=FF,FF,FF input=00 buttons=00 player=0,0
+space1_held pc=62E5 sp=F354 ffff=5F banks=04/02/03 flow=00 screen=00 ent=01 spr=12 sum=06 boss=01/01 layout=FF,FF,FF input=00 buttons=00 player=0,0
+space1_after pc=62E4 sp=F354 ffff=5F banks=04/02/03 flow=00 screen=00 ent=01 spr=12 sum=06 boss=01/01 layout=FF,FF,FF input=00 buttons=00 player=0,0
+after_space1 pc=62E1 sp=F354 ffff=5F banks=04/02/03 flow=00 screen=00 ent=01 spr=12 sum=06 boss=01/01 layout=FF,FF,FF input=00 buttons=00 player=0,0
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_verify_shots/megarom_after_space1.png
+space2_before pc=77B9 sp=F372 ffff=5F banks=01/02/03 flow=01 screen=00 ent=01 spr=12 sum=06 boss=01/01 layout=FF,FF,FF input=00 buttons=00 player=16,144
+space2_held pc=4680 sp=F374 ffff=5F banks=01/02/03 flow=01 screen=00 ent=01 spr=12 sum=06 boss=01/01 layout=FF,FF,FF input=00 buttons=01 player=16,112
+space2_after pc=4664 sp=F374 ffff=5F banks=01/02/03 flow=01 screen=00 ent=01 spr=12 sum=06 boss=01/01 layout=FF,FF,FF input=00 buttons=00 player=16,109
+after_space2 pc=1A40 sp=F364 ffff=5F banks=01/02/03 flow=01 screen=00 ent=01 spr=12 sum=06 boss=01/01 layout=FF,FF,FF input=00 buttons=00 player=16,144
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_verify_shots/megarom_after_space2.png
+right_before pc=19D0 sp=F366 ffff=5F banks=01/02/03 flow=01 screen=00 ent=01 spr=12 sum=06 boss=01/01 layout=FF,FF,FF input=00 buttons=00 player=16,144
+right_held pc=A165 sp=F37C ffff=5F banks=01/02/03 flow=01 screen=00 ent=01 spr=12 sum=06 boss=01/01 layout=FF,FF,FF input=03 buttons=00 player=100,144
+right_after pc=A165 sp=F37C ffff=5F banks=01/02/03 flow=01 screen=00 ent=01 spr=12 sum=06 boss=01/01 layout=FF,FF,FF input=00 buttons=00 player=124,144
+after_right pc=A165 sp=F37C ffff=5F banks=01/02/03 flow=01 screen=00 ent=01 spr=12 sum=06 boss=01/01 layout=FF,FF,FF input=00 buttons=00 player=124,144
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_verify_shots/megarom_after_right.png
+final pc=A165 sp=F37C ffff=5F banks=01/02/03 flow=01 screen=00 ent=01 spr=12 sum=06 boss=01/01 layout=FF,FF,FF input=00 buttons=00 player=124,144

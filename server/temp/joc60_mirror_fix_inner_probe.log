@@ -1,0 +1,21 @@
+BP_ENTRY_01 pc=8167 B=00 HL=82D2 param=56 input=00 facing0=EE asset0=33 wallactive0=34
+BP_ENTRY_02 pc=8167 B=00 HL=82D3 param=30 input=00 facing0=EE asset0=33 wallactive0=34
+BP_ENTRY_03 pc=8167 B=00 HL=82D4 param=2E input=00 facing0=EE asset0=33 wallactive0=34
+BP_ENTRY_04 pc=8167 B=00 HL=82D5 param=32 input=00 facing0=EE asset0=33 wallactive0=34
+BP_ENTRY_05 pc=8167 B=00 HL=82D6 param=39 input=00 facing0=EE asset0=33 wallactive0=34
+space1_before pc=8C83 input=00 facing0=02 asset0=00 wallactive0=34
+space1_after pc=8C83 input=00 facing0=02 asset0=00 wallactive0=34
+space2_before pc=4B1E input=00 facing0=02 asset0=00 wallactive0=34
+space2_after pc=80EA input=00 facing0=02 asset0=00 wallactive0=34
+idle pc=6332 input=00 facing0=02 asset0=00 wallactive0=34
+right_before pc=77D8 input=00 facing0=02 asset0=00 wallactive0=34
+BP_ENTRY_06 pc=8167 B=00 HL=894A param=00 input=03 facing0=02 asset0=00 wallactive0=34
+BP_ENTRY_07 pc=8167 B=00 HL=89E4 param=04 input=00 facing0=02 asset0=00 wallactive0=34
+right_after pc=19A1 input=00 facing0=02 asset0=00 wallactive0=34
+after_right pc=8C83 input=00 facing0=02 asset0=00 wallactive0=34
+left_before pc=8C83 input=00 facing0=02 asset0=00 wallactive0=34
+BP_ENTRY_08 pc=8167 B=00 HL=894D param=00 input=07 facing0=01 asset0=00 wallactive0=34
+BP_ENTRY_09 pc=8167 B=00 HL=8A34 param=04 input=00 facing0=01 asset0=00 wallactive0=34
+left_after pc=8C83 input=00 facing0=01 asset0=00 wallactive0=34
+after_left pc=8C83 input=00 facing0=01 asset0=00 wallactive0=34
+final pc=8C83 input=00 facing0=01 asset0=00 wallactive0=34

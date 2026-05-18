@@ -1,0 +1,22 @@
+MEGAROM PACKING MANIFEST
+Zone size: 8192
+Data start address: #22000
+Total resource blocks: 15
+
+BANK 15 used 1793 / 8192
+- SCREEN_PAN1_0_EFFECTS_LAYOUT         6 stored /   768 raw bytes @ #A000 (rom #22000, offset +#0000) [SCREENS/SCREEN_EFFECTS_LAYOUT] flags=1
+- SCREEN_PAN1_0_INTERACTION_TYPE_MAP     6 stored /   768 raw bytes @ #A006 (rom #22006, offset +#0006) [SCREENS/SCREEN_DATA] flags=1
+- SCREEN_PAN1_0_INTERACTION_VALUE_MAP    12 stored /   768 raw bytes @ #A00C (rom #2200C, offset +#000C) [SCREENS/SCREEN_DATA] flags=1
+- SCREEN_PAN1_0_INTERACTION_TARGET_MAP     6 stored /   768 raw bytes @ #A018 (rom #22018, offset +#0018) [SCREENS/SCREEN_DATA] flags=1
+- tile_pattern_bank0                 490 stored /   664 raw bytes @ #A01E (rom #2201E, offset +#001E) [PATTERNS/TILE_PATTERNS] flags=1
+- tile_color_bank0                   361 stored /   664 raw bytes @ #A208 (rom #22208, offset +#0208) [COLORS/TILE_COLORS] flags=1
+- tilebank_pattern_data_0            482 stored /   640 raw bytes @ #A371 (rom #22371, offset +#0371) [PATTERNS/TILE_PATTERNS] flags=1
+- tilebank_color_data_0              350 stored /   640 raw bytes @ #A553 (rom #22553, offset +#0553) [COLORS/TILE_COLORS] flags=1
+- SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE     6 stored /   256 raw bytes @ #A6B1 (rom #226B1, offset +#06B1) [SCREENS/SCREEN_DATA] flags=1
+- SCREEN_PAN1_0_BLOCK_CATALOG         18 stored /    48 raw bytes @ #A6B7 (rom #226B7, offset +#06B7) [SCREENS/SCREEN_BLOCK_CATALOG] flags=1
+- SCREEN_PAN1_0_BLOCK_MAP              9 stored /    48 raw bytes @ #A6C9 (rom #226C9, offset +#06C9) [SCREENS/SCREEN_BLOCK_MAP] flags=1
+- NEW_SPRITE_0_F0_LAYER1              30 stored /    32 raw bytes @ #A6D2 (rom #226D2, offset +#06D2) [SPRITES/SPRITE_PATTERNS] flags=1
+- SPRITE_PLACEHOLDER_PATTERN           5 stored /    32 raw bytes @ #A6F0 (rom #226F0, offset +#06F0) [SPRITES/SPRITE_PATTERNS] flags=1
+- SCREEN_PAN1_0_BOSS_TABLE            11 stored /    11 raw bytes @ #A6F5 (rom #226F5, offset +#06F5) [SCREENS/SCREEN_DATA] flags=0
+- SCREEN_PAN1_0_EFFECT_ZONE_TABLE      1 stored /     1 raw bytes @ #A700 (rom #22700, offset +#0700) [SCREENS/SCREEN_EFFECT_ZONE_TABLE] flags=0
+FREE 6399

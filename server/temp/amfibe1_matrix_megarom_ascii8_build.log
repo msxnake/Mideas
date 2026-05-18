@@ -1,0 +1,438 @@
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/components/utils/screenUtils.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\components\utils\screenUtils.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/components/utils/spriteUtils.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\components\utils\spriteUtils.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/statemachine.types.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\statemachine.types.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/types.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\types.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/generators/colorsGenerator.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\generators\colorsGenerator.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/generators/mapperWindowUtils.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\generators\mapperWindowUtils.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/generators/patternsGenerator.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\generators\patternsGenerator.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/generators/runtimeLayoutPolicy.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\generators\runtimeLayoutPolicy.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/index.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\index.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/planning/executionValidators.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\planning\executionValidators.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/planning/mainlinePlanBuilder.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\planning\mainlinePlanBuilder.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/planning/taskPlanBuilder.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\planning\taskPlanBuilder.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/utils/componentAnalyzer.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\utils\componentAnalyzer.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/utils/megaromResourceArtifacts.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\utils\megaromResourceArtifacts.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/msxGenerator/utils/screen2TileBanks.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\utils\screen2TileBanks.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/screenOptimization/blockMapBuilder.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\screenOptimization\blockMapBuilder.js'.
+error TS5033: Could not write file 'C:/Users/salam/Documents/Programacion/Mideas/server/temp/tsbuild_skill/utils/tileBankOptimization.js': UNKNOWN: unknown error, open 'C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\tileBankOptimization.js'.
+utils/msxGenerator/generators/screensGenerator.ts(302,9): error TS2304: Cannot find name 'ScreenBlockExportMode'.
+utils/msxGenerator/generators/screensGenerator.ts(309,93): error TS2304: Cannot find name 'ScreenBlockExportMode'.
+utils/msxGenerator/generators/screensGenerator.ts(314,118): error TS2304: Cannot find name 'ScreenBlockExportMode'.
+utils/msxGenerator/generators/screensGenerator.ts(3302,86): error TS2345: Argument of type 'BuiltScreenBlockMap | BuiltSharedScreenBlockMap' is not assignable to parameter of type 'BuiltSharedScreenBlockMap'.
+  Property 'sharedCatalog' is missing in type 'BuiltScreenBlockMap' but required in type 'BuiltSharedScreenBlockMap'.
+Running: C:\Program Files\nodejs\npx.cmd tsc --pretty false --module commonjs --target ES2020 --outDir C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill --moduleResolution node --skipLibCheck --noEmitOnError false utils\msxGenerator\index.ts
+? Generating modular ASM files...
+? Project: amfibe1, Assets: 261, Config: {
+  generateUnified: true,
+  romMode: 'megarom',
+  targetFormat: 'ascii8',
+  executionMode: 'interruptTaskManager',
+  autoMegaROM: false
+}
+? Analysis complete: 0 sprites, 207 tiles
+? [MSX GENERATOR] Generating all ASM files...
+? Hardware Mode: HYBRID, Optimize: safe
+[MSX GENERATOR] ROM config: mode=megarom, mapper=ascii8, autoMegaROM=false
+ÐYZî [INTERRUPT GENERATOR] Generating interrupt.asm...
+ƒo. [INTERRUPT GENERATOR] Generated interrupt.asm (22023 chars)
+? Analyzing component usage...
+? Total entities in project: 0
+? Active entities: 0
+? Used templates: 
+? Component usage summary:
+  - Total used components: 0
+? Generating optimized entities.asm...
+  - Total entity templates in JSON: 17
+  - Actually instantiated entities: 0
+  - Used entity templates: 0
+  - Filtered out: 17 unused templates
+? generateSpritesFile() called:
+  - analysis.sprites.length: 0
+  - expandedSprites.length: 0
+  - analysis.entities.length: 0
+  - analysis.templates.length: 17
+? Analyzing component usage...
+? Total entities in project: 0
+? Active entities: 0
+? Used templates: 
+? Component usage summary:
+  - Total used components: 0
+  - activeEntities.length: 0
+? [HUD Generator] Total screens: 0
+? [HUD Generator] Total HUD elements found: 0
+? Analyzing component usage...
+? Total entities in project: 0
+? Active entities: 0
+? Used templates: 
+? Component usage summary:
+  - Total used components: 0
+? Analyzing component usage...
+? Total entities in project: 0
+? Active entities: 0
+? Used templates: 
+? Component usage summary:
+  - Total used components: 0
+? Modular ASM files generated successfully!
+? Generated 28 files
+? [DEBUG] Files generated: [
+  'page0.asm',          'bios.asm',
+  'constants.asm',      'variables.asm',
+  'mapper.asm',         'resource_ids.asm',
+  'resource_table.asm', 'resource_manager.asm',
+  'interrupt.asm',      'header.asm',
+  'patterns.asm',       'colors.asm',
+  'components.asm',     'entities.asm',
+  'worlds.asm',         'screens.asm',
+  'sprites.asm',        'font.asm',
+  'hud.asm',            'menus.asm',
+  'sound.asm',          'scroll.asm',
+  'animtiles.asm',      'bosses.asm',
+  'statemachine.asm',   'gameflow.asm',
+  'main.asm',           'unitedFiles.asm'
+]
+? [DEBUG] interrupt.asm length: 22023
+ASM generated: C:\Users\salam\Documents\Programacion\Mideas\server\temp\amfibe1_matrix_megarom_ascii8.asm
+Project: amfibe1
+Assets: 261
+ASM chars: 378949
+ROM config: mode=megarom, mapper=ascii8, engine=interruptTaskManager, autoMegaROM=false
+Running: node C:\Users\salam\AppData\Local\Temp\tmp5bf8nic7.cjs C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\index.js C:\Users\salam\Downloads\amfibe1.json C:\Users\salam\Documents\Programacion\Mideas\server\temp\amfibe1_matrix_megarom_ascii8.asm amfibe1 megarom ascii8 interruptTaskManager false
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_024: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_025: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_026: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_027: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_028: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_029: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_030: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_031: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_032: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_033: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_034: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_035: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_036: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_037: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_038: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_039: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_040: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_041: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_042: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_043: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_044: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_045: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_046: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_047: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_048: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_049: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_050: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_051: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_052: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_053: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_054: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_055: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_056: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_057: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_058: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_059: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_060: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_061: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_062: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_063: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_064: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_065: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_066: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_067: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_068: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_069: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_070: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_071: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_072: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_073: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_074: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_075: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_076: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_077: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_078: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_079: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_080: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_081: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_082: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_083: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_084: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_085: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_086: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_087: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_088: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_089: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_090: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_091: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_092: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_093: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_094: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_095: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_096: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_097: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_098: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_099: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_100: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_101: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_102: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_103: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_104: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_024: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_025: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_026: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_027: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_028: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_029: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_030: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_031: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_032: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_033: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_034: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_035: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_036: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_037: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_038: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_039: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_040: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_041: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_042: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_043: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_044: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_045: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_046: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_047: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_048: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_049: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_050: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_051: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_052: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_053: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_054: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_055: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_056: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_057: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_058: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_059: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_060: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_061: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_062: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_063: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_064: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_065: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_066: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_067: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_068: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_069: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_070: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_071: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_072: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_073: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_074: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_075: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_076: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_077: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_078: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_079: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_080: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_081: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_082: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_083: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_084: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_085: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_086: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_087: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_088: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_089: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_090: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_091: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_092: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_093: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_094: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_095: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_096: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_097: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_098: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_099: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_100: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_101: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_102: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_103: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_104: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_024: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_025: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_026: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_027: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_028: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_029: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_030: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_031: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_032: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_033: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_034: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_035: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_036: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_037: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_038: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_039: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_040: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_041: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_042: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_043: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_044: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_045: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_046: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_047: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_048: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_049: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_050: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_051: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_052: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_053: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_054: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_055: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_056: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_057: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_058: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_059: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_060: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_061: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_062: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_063: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_064: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_065: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_066: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_067: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_068: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_069: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_070: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_071: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_072: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_073: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_074: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_075: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_076: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_077: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_078: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_079: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_080: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_081: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_082: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_083: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_084: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_085: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_086: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_087: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_088: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_089: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_090: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_091: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_092: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_093: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_094: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_095: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_096: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_097: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_098: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_099: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_100: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_101: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_102: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_103: chars 254/255 are reserved
+Skipping base SCREEN 2 pattern load for amphibian_boss_long_snout_magenta_B1_104: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_024: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_025: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_026: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_027: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_028: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_029: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_030: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_031: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_032: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_033: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_034: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_035: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_036: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_037: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_038: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_039: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_040: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_041: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_042: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_043: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_044: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_045: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_046: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_047: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_048: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_049: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_050: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_051: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_052: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_053: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_054: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_055: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_056: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_057: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_058: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_059: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_060: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_061: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_062: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_063: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_064: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_065: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_066: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_067: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_068: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_069: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_070: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_071: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_072: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_073: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_074: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_075: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_076: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_077: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_078: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_079: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_080: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_081: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_082: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_083: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_084: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_085: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_086: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_087: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_088: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_089: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_090: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_091: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_092: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_093: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_094: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_095: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_096: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_097: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_098: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_099: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_100: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_101: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_102: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_103: chars 254/255 are reserved
+Skipping base SCREEN 2 color load for amphibian_boss_long_snout_magenta_B1_104: chars 254/255 are reserved
+{"outputPath":"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\amfibe1_matrix_megarom_ascii8_compressed.asm","info":{"attempted":true,"applied":true,"method":"ZX0","candidateScreens":0,"candidateScreenBlockMaps":0,"candidateEffects":0,"candidateBehaviorMaps":0,"candidateTilePatterns":1,"candidateTileColors":1,"candidateFontPatterns":0,"candidateFontColors":0,"candidateSpritePatterns":1,"compressedScreens":0,"compressedScreenBlockMaps":0,"compressedEffects":0,"compressedBehaviorMaps":0,"compressedTilePatterns":1,"compressedTileColors":1,"compressedFontPatterns":0,"compressedFontColors":0,"compressedSpritePatterns":1,"originalBytes":2048,"compressedBytes":1546,"savedBytes":502,"netSavedBytes":502,"warning":null,"screenBufferSymbol":null,"effectsBufferSymbol":"runtime_effects_layout","behaviorBufferSymbol":null,"tilePatternBufferSymbol":null,"tileColorBufferSymbol":null,"fontPatternBufferSymbol":null,"fontColorBufferSymbol":null,"spritePatternBufferSymbol":null}}
+Running: node C:\Users\salam\AppData\Local\Temp\tmp5v9lh2xr.cjs C:\Users\salam\Documents\Programacion\Mideas\server\server.js C:\Users\salam\Documents\Programacion\Mideas\server\temp\amfibe1_matrix_megarom_ascii8.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp\amfibe1_matrix_megarom_ascii8_compressed.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp
+Running: java -jar C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar -I C:\Users\salam\Documents\Programacion\Mideas\server C:\Users\salam\Documents\Programacion\Mideas\server\temp\amfibe1_matrix_megarom_ascii8_compressed.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp\amfibe1_matrix_megarom_ascii8.rom C:\Users\salam\Documents\Programacion\Mideas\server\temp\amfibe1_matrix_megarom_ascii8.sym
+
+Done.
+Project: amfibe1
+JSON: C:\Users\salam\Downloads\amfibe1.json
+ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\amfibe1_matrix_megarom_ascii8.asm (378949 chars)
+Generated artifacts: C:\Users\salam\Documents\Programacion\Mideas\server\temp\amfibe1_matrix_megarom_ascii8_compressed_generated
+ZX0 ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\amfibe1_matrix_megarom_ascii8_compressed.asm
+ZX0: applied=True, netSavedBytes=502, warning=none
+ROM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\amfibe1_matrix_megarom_ascii8.rom (original=122880 bytes, padded=131072 bytes)
+MegaROM mapper artifacts: format=ascii8, segmentSize=8192, window=p3/#8000, banks=1, bossDataBanks=1, resources=3, manifestV2=mideas-v2:05ef1b8d, tilebankIssueScreens=0, tilebankIssueCells=0, tilebankMissingAssetCells=0, tilebankUnassignedCells=0
+Glass: C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar
+Generator config: mode=megarom, mapper=ascii8, engine=interruptTaskManager, autoMegaROM=False

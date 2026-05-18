@@ -1,0 +1,228 @@
+BP_4010_RESET_OR_BOOT pc=4010 sp=F2EC tos=F392 a=1F f=08 hl=4004 de=4010 banks=00/04/33/3A flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=99/3393/0040/0000/00
+BP_MAPPER_SET_P3 pc=418C sp=F37C tos=417B a=01 f=44 hl=80C2 de=5530 banks=00/00/33/3A flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=99/3393/0040/0000/00
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F37C tos=417B a=01 f=44 hl=80C2 de=5530 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=99/3393/0040/0000/00
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_MAPPER_SET_P3 pc=418C sp=F37E tos=4034 a=01 f=44 hl=80C2 de=5530 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F37E tos=4034 a=01 f=44 hl=80C2 de=5530 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F37A tos=5091 a=0A f=44 hl=6000 de=E823 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F37A tos=4E36 a=06 f=28 hl=6000 de=E816 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_GAMEFLOW_START_FAR pc=4E47 sp=F380 tos=A8D3 a=E2 f=A0 hl=6000 de=E816 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_ASCII16_TAIL_JUMP pc=C219 sp=F380 tos=A8D3 a=06 f=A0 hl=6008 de=E816 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_GAMEFLOW_START pc=6008 sp=F380 tos=A8D3 a=06 f=A0 hl=6008 de=E816 banks=06/06/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_GAMEFLOW_HANDLE_START pc=603B sp=F380 tos=A8D3 a=00 f=42 hl=685C de=685D banks=06/06/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_A16_MAPPER_STUB pc=6B03 sp=F37C tos=604C a=06 f=2C hl=6864 de=6864 banks=06/06/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_A16_MAPPER_STUB_AFTER_CP_BANK pc=6B05 sp=F37C tos=604C a=06 f=42 hl=6864 de=6864 banks=06/06/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_START_INIT_ROUTINE pc=6864 sp=F378 tos=6B16 a=06 f=42 hl=6864 de=6B16 banks=06/06/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_A16_INIT_GAME_SYSTEMS_STUB pc=6B59 sp=F376 tos=6867 a=06 f=42 hl=6864 de=6B16 banks=06/06/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_ASCII16_RESIDENT_CALL_ENTRY pc=C1B9 sp=F374 tos=6B68 a=06 f=42 hl=6864 de=6B16 banks=06/06/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F36E tos=5527 a=FF f=44 hl=4C46 de=C28A banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F36A tos=549E a=00 f=44 hl=600A de=C28A banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_GAMEFLOW_HANDLE_START pc=603B sp=F364 tos=C158 a=01 f=40 hl=DBCA de=DBAA banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_START_INIT_ROUTINE pc=6864 sp=F362 tos=605A a=00 f=08 hl=DCCA de=DCCB banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_AFTER_INIT_GAME_SYSTEMS_CALL pc=6867 sp=F362 tos=605A a=00 f=08 hl=DCCB de=DCCB banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=0 res=00/0000/0000/0000/00
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F340 tos=50E2 a=0A f=84 hl=6245 de=01FF banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=00/0000/0000/0000/00
+BP_LOAD_PATTERNS_FAR pc=52F4 sp=F36E tos=552A a=FF f=44 hl=D9A9 de=C28A banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=00/0000/0000/0000/00
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F36A tos=52FE a=10 f=44 hl=601B de=C28A banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=00/0000/0000/0000/00
+BP_ASCII16_RESIDENT_CALL_ENTRY pc=C1B9 sp=F35E tos=6063 a=3C f=44 hl=601B de=0400 banks=10/10/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=00/0000/0000/0000/00
+BP_RESOURCE_LOAD_TO_VRAM pc=48BD sp=F35A tos=C1E1 a=3C f=44 hl=601B de=0400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=00/0000/0000/0000/00
+BP_RESOURCE_FIND_BY_ID pc=46EB sp=F356 tos=48C1 a=3C f=44 hl=601B de=0400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=00/0000/0000/0000/00
+BP_RESOURCE_DECOMPRESS_TO_VRAM pc=47D8 sp=F35A tos=C1E1 a=01 f=10 hl=8E3B de=0400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_RESOURCE_DECOMPRESS_TO_RAM pc=478D sp=F354 tos=4813 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_PUSH_P3 pc=41B3 sp=F350 tos=4792 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3 pc=418C sp=F352 tos=4796 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F352 tos=4796 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_DZX0_STANDARD pc=4643 sp=F352 tos=4799 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_DZX0_STANDARD_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_MAPPER_POP_P3 pc=41BA sp=F352 tos=479C a=10 f=51 hl=8F3E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3 pc=418C sp=F352 tos=479C a=01 f=51 hl=8F3E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F352 tos=479C a=01 f=51 hl=8F3E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_FAST_LDIRVM pc=40CA sp=F35A tos=C1E1 a=00 f=44 hl=EB00 de=0400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_ASCII16_RESIDENT_CALL_RESTORE pc=C1E1 sp=F35C tos=1044 a=00 f=44 hl=EC30 de=0400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_ASCII16_RESIDENT_CALL_RET pc=C1F5 sp=F35E tos=6063 a=00 f=44 hl=EC30 de=0400 banks=10/10/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_GAMEFLOW_START pc=6008 sp=F362 tos=6023 a=00 f=44 hl=EC30 de=0400 banks=10/10/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_ASCII16_RESIDENT_CALL_ENTRY pc=C1B9 sp=F35E tos=6063 a=3C f=44 hl=EC30 de=0C00 banks=10/10/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_RESOURCE_LOAD_TO_VRAM pc=48BD sp=F35A tos=C1E1 a=3C f=44 hl=EC30 de=0C00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_RESOURCE_FIND_BY_ID pc=46EB sp=F356 tos=48C1 a=3C f=44 hl=EC30 de=0C00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_RESOURCE_DECOMPRESS_TO_VRAM pc=47D8 sp=F35A tos=C1E1 a=01 f=10 hl=8E3B de=0C00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_RESOURCE_DECOMPRESS_TO_RAM pc=478D sp=F354 tos=4813 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_PUSH_P3 pc=41B3 sp=F350 tos=4792 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3 pc=418C sp=F352 tos=4796 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F352 tos=4796 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_DZX0_STANDARD pc=4643 sp=F352 tos=4799 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_DZX0_STANDARD_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_MAPPER_POP_P3 pc=41BA sp=F352 tos=479C a=10 f=51 hl=8F3E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3 pc=418C sp=F352 tos=479C a=01 f=51 hl=8F3E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F352 tos=479C a=01 f=51 hl=8F3E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=1 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F326 tos=50E2 a=0A f=84 hl=6245 de=01FF banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_FAST_LDIRVM pc=40CA sp=F35A tos=C1E1 a=00 f=44 hl=EB00 de=0C00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_ASCII16_RESIDENT_CALL_RESTORE pc=C1E1 sp=F35C tos=1044 a=00 f=44 hl=EC30 de=0C00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_ASCII16_RESIDENT_CALL_RET pc=C1F5 sp=F35E tos=6063 a=00 f=44 hl=EC30 de=0C00 banks=10/10/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_ASCII16_RESIDENT_CALL_ENTRY pc=C1B9 sp=F35E tos=6063 a=3C f=44 hl=EC30 de=1400 banks=10/10/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_RESOURCE_LOAD_TO_VRAM pc=48BD sp=F35A tos=C1E1 a=3C f=44 hl=EC30 de=1400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_RESOURCE_FIND_BY_ID pc=46EB sp=F356 tos=48C1 a=3C f=44 hl=EC30 de=1400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_RESOURCE_DECOMPRESS_TO_VRAM pc=47D8 sp=F35A tos=C1E1 a=01 f=10 hl=8E3B de=1400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_RESOURCE_DECOMPRESS_TO_RAM pc=478D sp=F354 tos=4813 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_MAPPER_PUSH_P3 pc=41B3 sp=F350 tos=4792 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3 pc=418C sp=F352 tos=4796 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F352 tos=4796 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_DZX0_STANDARD pc=4643 sp=F352 tos=4799 a=01 f=10 hl=8E3B de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_DZX0_STANDARD_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_MAPPER_POP_P3 pc=41BA sp=F352 tos=479C a=10 f=51 hl=8F3E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3 pc=418C sp=F352 tos=479C a=01 f=51 hl=8F3E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F352 tos=479C a=01 f=51 hl=8F3E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=2 res=01/8E3B/0103/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F326 tos=50E2 a=0A f=84 hl=6245 de=01FF banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/8E3B/0103/0130/01
+BP_FAST_LDIRVM pc=40CA sp=F35A tos=C1E1 a=00 f=44 hl=EB00 de=1400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/8E3B/0103/0130/01
+BP_ASCII16_RESIDENT_CALL_RESTORE pc=C1E1 sp=F35C tos=1044 a=00 f=44 hl=EC30 de=1400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/8E3B/0103/0130/01
+BP_ASCII16_RESIDENT_CALL_RET pc=C1F5 sp=F35E tos=6063 a=00 f=44 hl=EC30 de=1400 banks=10/10/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/8E3B/0103/0130/01
+BP_LOAD_COLORS_FAR pc=537B sp=F36E tos=552D a=FF f=44 hl=EC30 de=C28A banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/8E3B/0103/0130/01
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F36A tos=5385 a=11 f=44 hl=601B de=C28A banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/8E3B/0103/0130/01
+BP_ASCII16_RESIDENT_CALL_ENTRY pc=C1B9 sp=F35E tos=6063 a=3E f=44 hl=601B de=2400 banks=11/11/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/8E3B/0103/0130/01
+BP_RESOURCE_LOAD_TO_VRAM pc=48BD sp=F35A tos=C1E1 a=3E f=44 hl=601B de=2400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/8E3B/0103/0130/01
+BP_RESOURCE_FIND_BY_ID pc=46EB sp=F356 tos=48C1 a=3E f=44 hl=601B de=2400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/8E3B/0103/0130/01
+BP_RESOURCE_DECOMPRESS_TO_VRAM pc=47D8 sp=F35A tos=C1E1 a=01 f=10 hl=A2EF de=2400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/A2EF/005F/0130/01
+BP_RESOURCE_DECOMPRESS_TO_RAM pc=478D sp=F354 tos=4813 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/A2EF/005F/0130/01
+BP_MAPPER_PUSH_P3 pc=41B3 sp=F350 tos=4792 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3 pc=418C sp=F352 tos=4796 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F352 tos=4796 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_DZX0_STANDARD pc=4643 sp=F352 tos=4799 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/A2EF/005F/0130/01
+BP_DZX0_STANDARD_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_MAPPER_POP_P3 pc=41BA sp=F352 tos=479C a=04 f=51 hl=A34E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3 pc=418C sp=F352 tos=479C a=01 f=51 hl=A34E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F352 tos=479C a=01 f=51 hl=A34E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=3 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F328 tos=50E2 a=0A f=84 hl=6245 de=01FF banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_FAST_LDIRVM pc=40CA sp=F35A tos=C1E1 a=00 f=44 hl=EB00 de=2400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_ASCII16_RESIDENT_CALL_RESTORE pc=C1E1 sp=F35C tos=1144 a=00 f=44 hl=EC30 de=2400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_ASCII16_RESIDENT_CALL_RET pc=C1F5 sp=F35E tos=6063 a=00 f=44 hl=EC30 de=2400 banks=11/11/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_GAMEFLOW_START pc=6008 sp=F362 tos=6023 a=00 f=44 hl=EC30 de=2400 banks=11/11/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_ASCII16_RESIDENT_CALL_ENTRY pc=C1B9 sp=F35E tos=6063 a=3E f=44 hl=EC30 de=2C00 banks=11/11/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_RESOURCE_LOAD_TO_VRAM pc=48BD sp=F35A tos=C1E1 a=3E f=44 hl=EC30 de=2C00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_RESOURCE_FIND_BY_ID pc=46EB sp=F356 tos=48C1 a=3E f=44 hl=EC30 de=2C00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_RESOURCE_DECOMPRESS_TO_VRAM pc=47D8 sp=F35A tos=C1E1 a=01 f=10 hl=A2EF de=2C00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_RESOURCE_DECOMPRESS_TO_RAM pc=478D sp=F354 tos=4813 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_MAPPER_PUSH_P3 pc=41B3 sp=F350 tos=4792 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3 pc=418C sp=F352 tos=4796 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F352 tos=4796 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_DZX0_STANDARD pc=4643 sp=F352 tos=4799 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_DZX0_STANDARD_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_MAPPER_POP_P3 pc=41BA sp=F352 tos=479C a=04 f=51 hl=A34E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3 pc=418C sp=F352 tos=479C a=01 f=51 hl=A34E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F352 tos=479C a=01 f=51 hl=A34E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_FAST_LDIRVM pc=40CA sp=F35A tos=C1E1 a=00 f=44 hl=EB00 de=2C00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=4 res=01/A2EF/005F/0130/01
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F32E tos=50E2 a=0A f=84 hl=6245 de=01FF banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_ASCII16_RESIDENT_CALL_RESTORE pc=C1E1 sp=F35C tos=1144 a=00 f=44 hl=EC30 de=2C00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_ASCII16_RESIDENT_CALL_RET pc=C1F5 sp=F35E tos=6063 a=00 f=44 hl=EC30 de=2C00 banks=11/11/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_ASCII16_RESIDENT_CALL_ENTRY pc=C1B9 sp=F35E tos=6063 a=3E f=44 hl=EC30 de=3400 banks=11/11/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_RESOURCE_LOAD_TO_VRAM pc=48BD sp=F35A tos=C1E1 a=3E f=44 hl=EC30 de=3400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_RESOURCE_FIND_BY_ID pc=46EB sp=F356 tos=48C1 a=3E f=44 hl=EC30 de=3400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_RESOURCE_DECOMPRESS_TO_VRAM pc=47D8 sp=F35A tos=C1E1 a=01 f=10 hl=A2EF de=3400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_RESOURCE_DECOMPRESS_TO_RAM pc=478D sp=F354 tos=4813 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_MAPPER_PUSH_P3 pc=41B3 sp=F350 tos=4792 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3 pc=418C sp=F352 tos=4796 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F352 tos=4796 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_DZX0_STANDARD pc=4643 sp=F352 tos=4799 a=01 f=10 hl=A2EF de=EB00 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_DZX0_STANDARD_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_MAPPER_POP_P3 pc=41BA sp=F352 tos=479C a=04 f=51 hl=A34E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3 pc=418C sp=F352 tos=479C a=01 f=51 hl=A34E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE pc=4195 sp=F352 tos=479C a=01 f=51 hl=A34E de=EC30 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_MAPPER_SET_P3_AFTER_WRITE_BYTES_8E3B 29 00 7F 68 00 E0 EC 00 74 00 EF A0 00 11 22 00 22 71 00 F0 F1 00 70 06 
+BP_FAST_LDIRVM pc=40CA sp=F35A tos=C1E1 a=00 f=44 hl=EB00 de=3400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_ASCII16_RESIDENT_CALL_RESTORE pc=C1E1 sp=F35C tos=1144 a=00 f=44 hl=EC30 de=3400 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_ASCII16_RESIDENT_CALL_RET pc=C1F5 sp=F35E tos=6063 a=00 f=44 hl=EC30 de=3400 banks=11/11/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_INIT_ANIMTILES_FAR pc=5201 sp=F36E tos=5530 a=FF f=44 hl=EC30 de=C28A banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F36A tos=520B a=0D f=44 hl=6000 de=C28A banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=5 res=01/A2EF/005F/0130/01
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F31C tos=50E2 a=0A f=84 hl=6245 de=C158 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=6 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F362 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=6 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F362 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=6 res=01/A2EF/005F/0130/01
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F31E tos=50E2 a=0A f=84 hl=6245 de=C158 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=7 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F362 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=7 res=01/A2EF/005F/0130/01
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F334 tos=50E2 a=0A f=84 hl=6245 de=01FF banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=8 res=01/A2EF/005F/0130/01
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F31E tos=50E2 a=0A f=84 hl=6245 de=C158 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=9 res=01/A2EF/005F/0130/01
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F31E tos=50E2 a=0A f=84 hl=6245 de=C158 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=10 res=01/A2EF/005F/0130/01
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F320 tos=50E2 a=0A f=84 hl=6245 de=C158 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=11 res=01/A2EF/005F/0130/01
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F322 tos=50E2 a=0A f=84 hl=6245 de=C158 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=12 res=01/A2EF/005F/0130/01
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F326 tos=50E2 a=0A f=84 hl=6245 de=C158 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=13 res=01/A2EF/005F/0130/01
+BP_ASCII16_FAR_CALL_P1_RAM pc=C139 sp=F328 tos=50E2 a=0A f=84 hl=6245 de=C158 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=14 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F360 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=25 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F360 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=26 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F360 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=26 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F35E tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=45 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F35E tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=46 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F35E tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=46 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F35C tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=65 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F35C tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=66 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F35C tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=67 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F35A tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=86 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F35A tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=86 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F35A tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=87 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F358 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=106 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F358 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=107 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F358 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=107 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F356 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=126 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F356 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=127 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F356 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=128 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F354 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=147 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F354 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=147 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F354 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=148 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F352 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=167 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F352 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=168 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F352 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=168 res=01/A2EF/005F/0130/01
+intro_spc_before pc=5F56 sp=F352 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=186 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F350 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=187 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F350 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=188 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F350 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=189 res=01/A2EF/005F/0130/01
+intro_spc_after pc=199C sp=F34A tos=C158 a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=199 res=01/A2EF/005F/0130/01
+intro_spc_during pc=19A2 sp=F342 tos=01FF a=00 f=44 hl=247A de=01FF banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=204 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F34E tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=208 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F34E tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=208 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F34E tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=209 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F34C tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=228 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F34C tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=229 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F34C tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=229 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F34A tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=249 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F34A tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=249 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F34A tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=250 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F348 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=269 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F348 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=269 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F348 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=270 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F346 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=289 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F346 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=290 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F346 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=290 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F344 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=310 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F344 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=310 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F344 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=311 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F342 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=330 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F342 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=330 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F342 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=331 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F340 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=350 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F340 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=351 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F340 tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=351 res=01/A2EF/005F/0130/01
+BP_INIT_COMPONENTS_WRAPPER pc=5494 sp=F33E tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=371 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F33E tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=371 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F33E tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=372 res=01/A2EF/005F/0130/01
+BP_REBUILD_USED_ENTITIES_WRAPPER pc=54E4 sp=F33C tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=391 res=01/A2EF/005F/0130/01
+BP_INIT_GAME_SYSTEMS_RET pc=5548 sp=F33C tos=600F a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=392 res=01/A2EF/005F/0130/01
+start_spc_before pc=19A6 sp=F320 tos=0104 a=00 f=44 hl=247A de=01FF banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=486 res=01/A2EF/005F/0130/01
+start_spc_after pc=19AB sp=F31C tos=4010 a=00 f=44 hl=247A de=01FF banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=499 res=01/A2EF/005F/0130/01
+start_spc_during pc=1A06 sp=F320 tos=0044 a=1F f=08 hl=247A de=01FF banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=504 res=01/A2EF/005F/0130/01
+gameplay_start pc=19A4 sp=F31A tos=0044 a=00 f=44 hl=247A de=01FF banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=570 res=01/A2EF/005F/0130/01
+SHOTOK patoantic248_ascii16_trace_start.png
+RIGHT_before pc=49D6 sp=F2F0 tos=0104 a=6F f=2C hl=E817 de=C158 banks=00/00/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=606 res=01/A2EF/005F/0130/01
+RIGHT_during pc=19A1 sp=F30A tos=6000 a=08 f=44 hl=6000 de=C158 banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=623 res=01/A2EF/005F/0130/01
+RIGHT_after pc=19B1 sp=F30C tos=4010 a=1F f=08 hl=247A de=01FF banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=665 res=01/A2EF/005F/0130/01
+after_right pc=19AB sp=F30A tos=4010 a=00 f=44 hl=247A de=01FF banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=689 res=01/A2EF/005F/0130/01
+SHOTOK patoantic248_ascii16_trace_after_right.png
+FINAL pc=1A04 sp=F302 tos=0104 a=1F f=08 hl=247A de=01FF banks=0D/0D/01/01 flow=00 exit=00 screen=00 input=00 player=FF xy=17220,40761 irq=785 res=01/A2EF/005F/0130/01
+BYTES_6B03 FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF 
+COUNTS reset=1 zero=0 restart=0 startfar=1 tail=1 start=3 handleStart=2 stub=1 cpDone=1 stubReturn=0 stubBridge=0 initStub=1 resEntry=7 resRestore=6 resRet=6 afterInitCall=1 initComponents=40 loadPatterns=1 loadColors=1 initAnim=1 initBoss=0 initEntities=0 rebuild=39 initFont=0 initDone=39 auto=0 farram=791 init=2 resLoadVram=6 resFind=6 resVramZx0=6 resRamZx0=6 resCopyVram=0 fastLdir=6 p3set=14 p3after=14 p3push=6 p3pop=6 dzx0=6

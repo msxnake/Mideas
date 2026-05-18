@@ -1,0 +1,255 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\post_asm_boss_attack_runtime_apply_test_1778608196824_675155.post_asm_input.asm",
+  "metrics": {
+    "original_line_count": 19,
+    "output_line_count": 15,
+    "net_line_delta": -4,
+    "applied_patches": 2,
+    "by_rule": {
+      "unused-boss-attack-runtime": {
+        "findings": 3,
+        "patchable": 2,
+        "routines": [
+          "runtime.boss.attack.projectile",
+          "runtime.boss.attack.projectile:draw_boss_projectile_attack_far",
+          "runtime.boss.attack.projectile:update_boss_projectile_runtime_far"
+        ],
+        "removed_lines": 4,
+        "removed_source_bytes": 85
+      }
+    },
+    "inactive_feature_runtime": {
+      "total_findings": 0,
+      "by_feature": {}
+    },
+    "block_inventory": {
+      "count": 0,
+      "preserved": 0,
+      "removable": 0,
+      "dead_block_candidates": 0,
+      "total_lines": 0,
+      "total_source_bytes": 0,
+      "dead_candidate_lines": 0,
+      "dead_candidate_source_bytes": 0,
+      "by_kind": {},
+      "by_owner": {},
+      "by_status": {},
+      "largest_blocks": [],
+      "errors": []
+    },
+    "routine_inventory": {
+      "count": 4,
+      "unannotated_count": 4,
+      "by_category": {
+        "boot_or_init": {
+          "count": 1,
+          "line_count": 3,
+          "source_bytes": 21,
+          "unannotated_count": 1,
+          "unannotated_line_count": 3,
+          "unannotated_source_bytes": 21
+        },
+        "far_trampoline": {
+          "count": 3,
+          "line_count": 8,
+          "source_bytes": 123,
+          "unannotated_count": 3,
+          "unannotated_line_count": 8,
+          "unannotated_source_bytes": 123
+        }
+      },
+      "largest_routines": [
+        {
+          "name": "update_boss_projectile_runtime_far",
+          "line_count": 3,
+          "source_bytes": 45,
+          "block_id": null,
+          "category": "far_trampoline",
+          "category_reason": "MegaROM far-call or resident-call trampoline"
+        },
+        {
+          "name": "draw_boss_projectile_attack_far",
+          "line_count": 3,
+          "source_bytes": 42,
+          "block_id": null,
+          "category": "far_trampoline",
+          "category_reason": "MegaROM far-call or resident-call trampoline"
+        },
+        {
+          "name": "draw_boss_laser_attack_far",
+          "line_count": 2,
+          "source_bytes": 36,
+          "block_id": null,
+          "category": "far_trampoline",
+          "category_reason": "MegaROM far-call or resident-call trampoline"
+        },
+        {
+          "name": "boot_entry",
+          "line_count": 3,
+          "source_bytes": 21,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        }
+      ],
+      "largest_unannotated_labels": [
+        {
+          "name": "update_boss_projectile_runtime_far",
+          "line_count": 3,
+          "source_bytes": 45,
+          "block_id": null,
+          "category": "far_trampoline",
+          "category_reason": "MegaROM far-call or resident-call trampoline"
+        },
+        {
+          "name": "draw_boss_projectile_attack_far",
+          "line_count": 3,
+          "source_bytes": 42,
+          "block_id": null,
+          "category": "far_trampoline",
+          "category_reason": "MegaROM far-call or resident-call trampoline"
+        },
+        {
+          "name": "draw_boss_laser_attack_far",
+          "line_count": 2,
+          "source_bytes": 36,
+          "block_id": null,
+          "category": "far_trampoline",
+          "category_reason": "MegaROM far-call or resident-call trampoline"
+        },
+        {
+          "name": "boot_entry",
+          "line_count": 3,
+          "source_bytes": 21,
+          "block_id": null,
+          "category": "boot_or_init",
+          "category_reason": "Boot/init routine"
+        }
+      ],
+      "largest_unannotated_by_category": {
+        "boot_or_init": [
+          {
+            "name": "boot_entry",
+            "line_count": 3,
+            "source_bytes": 21,
+            "block_id": null,
+            "category": "boot_or_init",
+            "category_reason": "Boot/init routine"
+          }
+        ],
+        "far_trampoline": [
+          {
+            "name": "update_boss_projectile_runtime_far",
+            "line_count": 3,
+            "source_bytes": 45,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          },
+          {
+            "name": "draw_boss_projectile_attack_far",
+            "line_count": 3,
+            "source_bytes": 42,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          },
+          {
+            "name": "draw_boss_laser_attack_far",
+            "line_count": 2,
+            "source_bytes": 36,
+            "block_id": null,
+            "category": "far_trampoline",
+            "category_reason": "MegaROM far-call or resident-call trampoline"
+          }
+        ]
+      }
+    },
+    "optimization_passes": [
+      {
+        "pass": 1,
+        "findings": 3,
+        "patchable": 2,
+        "removed_lines": 4,
+        "removed_source_bytes": 85,
+        "removed_labels": [
+          "draw_boss_projectile_attack_far",
+          "update_boss_projectile_runtime_far"
+        ],
+        "input_line_count": 19,
+        "output_line_count": 15
+      },
+      {
+        "pass": 2,
+        "findings": 0,
+        "patchable": 0,
+        "removed_lines": 0,
+        "removed_source_bytes": 0,
+        "removed_labels": [],
+        "input_line_count": 15,
+        "output_line_count": 15
+      }
+    ],
+    "optimization_summary": {
+      "passes_run": 2,
+      "removed_lines": 4,
+      "removed_source_bytes": 85,
+      "removed_labels": [
+        "draw_boss_projectile_attack_far",
+        "update_boss_projectile_runtime_far"
+      ]
+    },
+    "removed_labels": [
+      "draw_boss_projectile_attack_far",
+      "update_boss_projectile_runtime_far"
+    ]
+  },
+  "blocks": [],
+  "block_analysis": [],
+  "block_errors": [],
+  "findings": [
+    {
+      "rule_id": "unused-boss-attack-runtime",
+      "title": "Unused boss attack runtime group window is atomically patchable",
+      "routine": "runtime.boss.attack.projectile:update_boss_projectile_runtime_far",
+      "line_start": 12,
+      "line_end": 13,
+      "summary": "`update_boss_projectile_runtime_far` is part of unused boss attack group `runtime.boss.attack.projectile`. The group has no external references, so this window is removed only together with the other group windows.",
+      "patchable": true,
+      "patch": {
+        "start_index": 11,
+        "end_index": 13,
+        "replacement_lines": [],
+        "reason": "Remove unused boss attack group window `update_boss_projectile_runtime_far` from `runtime.boss.attack.projectile`.",
+        "group_id": "runtime.boss.attack.projectile"
+      }
+    },
+    {
+      "rule_id": "unused-boss-attack-runtime",
+      "title": "Boss attack runtime type is unused",
+      "routine": "runtime.boss.attack.projectile",
+      "line_start": 13,
+      "line_end": 17,
+      "summary": "`runtime.boss.attack.projectile` covers boss projectile attack labels: draw_boss_projectile_attack_far, update_boss_projectile_runtime_far. `project_usage.bossAttackRuntime.usedTypes` is Laser, so attack type `Projectile` is not used by any referenced boss attack. No external references outside this attack group were found. This is a candidate for a future atomic type-specific patch. Atomic patch enabled as `runtime.boss.attack.projectile` with 2 window(s).",
+      "patchable": false,
+      "patch": null
+    },
+    {
+      "rule_id": "unused-boss-attack-runtime",
+      "title": "Unused boss attack runtime group window is atomically patchable",
+      "routine": "runtime.boss.attack.projectile:draw_boss_projectile_attack_far",
+      "line_start": 15,
+      "line_end": 16,
+      "summary": "`draw_boss_projectile_attack_far` is part of unused boss attack group `runtime.boss.attack.projectile`. The group has no external references, so this window is removed only together with the other group windows.",
+      "patchable": true,
+      "patch": {
+        "start_index": 14,
+        "end_index": 16,
+        "replacement_lines": [],
+        "reason": "Remove unused boss attack group window `draw_boss_projectile_attack_far` from `runtime.boss.attack.projectile`.",
+        "group_id": "runtime.boss.attack.projectile"
+      }
+    }
+  ],
+  "applied_patches": 2
+}

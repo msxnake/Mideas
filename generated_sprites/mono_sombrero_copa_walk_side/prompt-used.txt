@@ -1,0 +1,1 @@
+Side-view platformer walking animation sheet: 2x2 grid, monkey with black top hat and red band, facing right, four visibly different walk poses, same scale and identity, solid #FF00FF magenta background, no text, no UI.

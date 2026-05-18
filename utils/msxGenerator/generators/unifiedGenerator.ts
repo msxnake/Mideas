@@ -13,9 +13,12 @@ import { getPatternsBank4Data } from './patternsGenerator';
 import { getColorsBank4Data } from './colorsGenerator';
 import { buildWorldSpritePatternPolicyManifest, getSpritesBank4Data } from './spritesGenerator';
 import { getSoundBank4Data } from './soundGenerator';
+import { generateBossDataBankSections, type BossDataBankSectionResult } from './bossesGenerator';
 import { buildWorldMusicPolicyManifest } from './worldGenerator';
 import { getZx0DecoderAsm } from './zx0Utils';
-import { getMapperWindowConfig } from './mapperWindowUtils';
+import { generateDirectHardwareFile } from './directHardwareGenerator';
+import { generateComponentTriggerHelpers } from './componentsGenerator';
+import { getMapperWindowConfig, type MapperWindowConfig } from './mapperWindowUtils';
 import { packMegaromDataGroups } from '../utils/megaromDataPacker';
 import {
     buildMegaromGeneratedArtifacts,
@@ -42,6 +45,57 @@ function formatExecutionPlanComments(executionPlan: ExecutionPlan): string {
         : '; Warning: none';
 
     return `; Engine Execution Mode: ${executionPlan.mode}\n${irqTasks}\n${mainlineWork}\n${warnings}\n`;
+}
+
+function usesLimitOnComponent(analysis: ProjectAnalysis): boolean {
+    const entities = Array.isArray((analysis as any).entities) ? (analysis as any).entities : [];
+    const templates = Array.isArray((analysis as any).templates) ? (analysis as any).templates : [];
+
+    return entities.some((entity: any) => {
+        const template = templates.find((candidate: any) => candidate?.id === entity?.entityTemplateId);
+        const templateComp = template?.components?.find((component: any) =>
+            component?.definitionId === 'comp_limit_on' || component?.definitionName === 'Limit_on'
+        );
+        const overrides = entity?.componentOverrides?.['comp_limit_on'];
+        if (!templateComp && !overrides) return false;
+
+        const enabled = overrides?.isEnabled ?? templateComp?.defaultValues?.isEnabled;
+        return enabled !== false && enabled !== 'false';
+    });
+}
+
+function buildFarIrqLockEnter(): string {
+    return `    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+`;
+}
+
+function buildFarIrqLockLeave(): string {
+    return `    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+`;
+}
+
+function buildFarIrqRestoreGuard(doneLabel: string, requireP1BankZero = false): string {
+    let asm = `    ld a, (interrupt_in_progress)
+    or a
+    jp nz, ${doneLabel}
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, ${doneLabel}
+`;
+    if (requireP1BankZero) {
+        asm += `    ld a, (mapper_bank_p1_current)
+    or a
+    jp nz, ${doneLabel}
+`;
+    }
+    asm += `    ei
+${doneLabel}:
+`;
+    return asm;
 }
 
 /**
@@ -109,7 +163,10 @@ export function generateUnifiedFile(
 ): string {
     // Check what features are needed
     const hasPresentationScreenNode = analysis.gameFlow?.nodes?.some(node => node.type === 'PresentationScreen');
-    const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
+    const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu' || node.type === 'Controls');
+    const hasGameFlowText = analysis.gameFlow?.nodes?.some(node =>
+        node.type === 'Text' || node.type === 'TextScroll' || node.type === 'TextScrollColor' || node.type === 'TextScroll2'
+    );
     const hasText = analysis.screenMaps?.some(screen =>
         (screen.layers as any)?.text || (screen as any).textElements?.length > 0
     );
@@ -119,7 +176,7 @@ export function generateUnifiedFile(
     const hasHud = analysis.screenMaps?.some(screen =>
         screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
     );
-    const needsFont = hasMenus || hasText || hasHud || hasDialogue;
+    const needsFont = hasMenus || hasGameFlowText || hasText || hasHud || hasDialogue;
     const fontInPage0 = config.romMode === 'plain48k' && !!needsFont;
     const fontRawData = fontInPage0 ? getFontRawData(analysis) : undefined;
     const page0Plan = buildPage0Plan(analysis, config.romMode, fontRawData);
@@ -202,8 +259,10 @@ ${needsFont ? files['font.asm'] : `; [font.asm skipped - no text/menus]
 init_font_system:
     ret
 
+; @mideas:block id=runtime.font.reload_stub kind=routine owner=unified
 reload_font_system:
     ret
+; @mideas:endblock id=runtime.font.reload_stub
 
 `}
 
@@ -237,6 +296,8 @@ init_page0_runtime_state:
     in a, (#A8)
     ld (slot_primary_normal), a
     ld e, a
+    ld a, (#FFFF)
+    ld (slot_subslot_normal), a
     ld a, e
     and #03
     call GETSLOT
@@ -273,6 +334,18 @@ init_page0_runtime_state:
 ;   interrupts remain disabled on return
 page0_map_expanded_slot:
     ld c, a
+
+    ; Keep the raw expanded-slot register value captured while page 3 RAM was visible.
+    ; Recomputing it is unsafe because MSX stores the hardware value as-is.
+    ld d, 0
+    ld a, (page3_normal_slot)
+    and #80
+    jr z, .page0_subslot_ready
+    inc d
+.page0_subslot_ready:
+    ld a, (slot_subslot_normal)
+    ld e, a
+
     ld a, (slot_primary_normal)
     ; Keep pages 1-3 exactly as they were; only replace page 0 primary slot bits.
     and #FC
@@ -283,31 +356,12 @@ page0_map_expanded_slot:
     di
     out (#A8), a
 
-    ld a, c
-    and #80
+    ld a, d
+    or a
     ret z
-    ld a, c
-    and #0C
-    rrca
-    rrca
-    ld b, a
-    ld a, (ROM_slot)
-    and #0C
-    or b
-    ld b, a
-    ld a, (page2_normal_slot)
-    and #0C
-    rlca
-    rlca
-    or b
-    ld b, a
-    ld a, (page3_normal_slot)
-    and #0C
-    rlca
-    rlca
-    rlca
-    rlca
-    or b
+.page0_write_subslots:
+    ld a, e
+    cpl
     ld (#FFFF), a
     ret
 
@@ -336,7 +390,9 @@ page0_restore_bios_rom:
 ; output:
 ;   hl: source advanced by chunk size
 page0_copy_chunk_to_buffer:
+    push bc
     call page0_map_game_rom
+    pop bc
     ld de, page0_transfer_buffer
     ldir
     jp page0_restore_bios_rom
@@ -446,7 +502,11 @@ page0_copy_to_ram:
     ret
 
 init_game_systems:
+    ld a, (gameflow_reveal_world_after_load)
+    or a
+    jr nz, .igs_skip_disscr
     call DISSCR               ; Disable screen while loading VRAM assets
+.igs_skip_disscr:
     ; Cold boot / restart must not trust cached VRAM state from RAM contents.
     xor a
     ld (vram_cache_tile_patterns_ready), a
@@ -472,8 +532,10 @@ ${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load pattern and color da
 `}
     ; Initialize animated tile runtime (safe no-op if no animated groups)
     call init_animated_tiles
-    ; Initialize boss runtime (safe no-op if no boss assets)
+${projectHasBossRuntime(analysis) ? `    ; Initialize boss runtime
     call init_boss_system
+` : `    ; No boss runtime - skip boss initialization
+`}
 
 ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize game entities with real positions from JSON
     call init_entities
@@ -491,7 +553,11 @@ ${needsFont ? `    ; Initialize font system
     ld a, 1
     ld (hud_dirty_flag), a
 ` : ``}
+    ld a, (gameflow_reveal_world_after_load)
+    or a
+    jr nz, .igs_skip_enascr
     call ENASCR               ; Re-enable screen after VRAM updates
+.igs_skip_enascr:
     ret
 
 ; ==================================================================
@@ -514,16 +580,18 @@ ${config.romMode === 'plain48k' ? `    ds #C000 - $        ; Pad linear 48K ROM 
 // ==================================================================
 // Layout: N banks × 8KB, static 4-bank mapping + dynamic data banking
 //
-// STATIC MAP (always visible, set at boot in restart_rom_continue):
+// STATIC BOOT MAP (set in restart_rom_continue):
 //   Bank 0 @ 4000h-5FFFh : Bootstrap (header, bios, mapper, interrupt, init helpers)
-//   Bank 1 @ 6000h-7FFFh : Game code A (components, scroll, gameflow, worlds)
-//   Bank 2 @ 8000h-9FFFh : Game data  (sprites, patterns, colors, screens, animtiles)
-//   Bank 3 @ A000h-BFFFh : Game code B (entities, statemachine, font, menus, hud, sound)
+//   Bank 1 @ 6000h-7FFFh : resident engine window A
+//   Bank 2 @ 8000h-9FFFh : resident engine window B
+//   Bank 3 @ A000h-BFFFh : default/restored data window
 //
-// DYNAMIC BANKING (P2 window, bank 4+):
-//   Large data that overflows bank 2 is placed in banks 4+ (ORG #C000, #E000, #10000…).
-//   Loading routines switch P2 to the target bank, copy via FAST_LDIRVM, then restore P2.
-//   Data HL address uses (label & #1FFF) | #8000 (window-relative formula).
+// DYNAMIC BANKING (Konami4/Konami 8K P3 window, bank 3+):
+//   Banks 0, 1 and 2 are treated as the resident 24 KB kernel.
+//   Bank 3 is the first A000-BFFF data-window segment after boot.
+//   Banked data is placed in banks 3+ (ORG #A000, #C000, #E000...).
+//   Loading routines switch P3/A000h to the target bank, copy, then restore P3.
+//   Data HL address uses (label & #1FFF) | #A000 (window-relative formula).
 //
 // BANK NUMBER FORMULA (assembly-time constant):
 //   BANK_N EQU ((label - #4000) / #2000)
@@ -535,40 +603,137 @@ ${config.romMode === 'plain48k' ? `    ds #C000 - $        ; Pad linear 48K ROM 
 // ==================================================================
 
 // ==================================================================
-// FFD (First-Fit Decreasing) Bank Packer for MegaROM code banks 1-3
+// FFD (First-Fit Decreasing) Bank Packer for MegaROM code/data banks
 // ==================================================================
 
 const MEGAROM_BANK_SIZE = 8192;
+const FIRST_ASSET_DATA_PHYSICAL_BANK = 3;
 // FFD packer threshold: use full 8KB.
 // estimateAsmBytesLocal overestimates by ~5-10x so virtually every module exceeds this
 // and gets its own bank slot — which is intentional (one module per physical bank).
 const MEGAROM_CODE_BANK_SIZE = MEGAROM_BANK_SIZE; // 8192 bytes
 
 // Resident execution kernel for MegaROM.
-// These modules must remain in the three fixed windows because the boot code,
-// main game loop, and entity/state updates execute every frame.
+// Bank 3 can be temporarily replaced by banked data, so all P3 code paths must
+// reach banked resources through bank-0 routines that restore P3 before return.
 const RESIDENT_MODULE_WINDOW_ORDER = [
-    { key: 'components', orgAddress: 0x6000, endAddress: 0x8000, windowPage: 1 },
-    { key: 'statemachine', orgAddress: 0x8000, endAddress: 0xA000, windowPage: 2 },
-    { key: 'gameflow', orgAddress: 0xA000, endAddress: 0xC000, windowPage: 3 },
+    { keys: ['components'], orgAddress: 0x6000, endAddress: 0x8000, windowPage: 1 },
+    { keys: ['components_tail', 'statemachine', 'gameflow'], orgAddress: 0x8000, endAddress: 0xA000, windowPage: 2 },
 ] as const;
 
-const RESIDENT_MODULE_KEYS = new Set<string>(RESIDENT_MODULE_WINDOW_ORDER.map((slot) => slot.key));
+type ResidentModuleWindowSlot = (typeof RESIDENT_MODULE_WINDOW_ORDER)[number];
+
+function getResidentModuleWindowOrder(targetFormat: UnifiedMapperFormat): readonly ResidentModuleWindowSlot[] {
+    if (targetFormat === 'ascii16') {
+        // ASCII16 maps #8000-#BFFF as the resource/code data window. Keep that
+        // page non-resident; lower-page overlays are interrupt-safe because
+        // H.TIMI enters through RAM and remaps bank0 before the dispatcher.
+        return [RESIDENT_MODULE_WINDOW_ORDER[0]];
+    }
+    return RESIDENT_MODULE_WINDOW_ORDER;
+}
 
 interface PackedBankModule {
     key: string;
     content: string;
     estimatedBytes: number;
+    placementReason?: string;
 }
 
 interface PackedBank {
     physicalBank: number; // 1-based: 1, 2, 3, 4, ...
-    orgAddress: number;   // #6000, #8000, #A000 (cyclic for far banks)
-    endAddress: number;   // #8000, #A000, #C000
+    orgAddress: number;
+    endAddress: number;
     modules: PackedBankModule[];
     usedBytes: number;
-    isFar: boolean;       // true if physicalBank > 3 (requires far-call trampolines)
-    windowPage: number;   // 1=P1(#6000), 2=P2(#8000), 3=P3(#A000)
+    isFar: boolean;       // true when accessed through far-call trampolines
+    windowPage: number;
+    placementReason?: string;
+}
+
+interface Ascii16HiddenCallReport {
+    count: number;
+    samples: Array<{
+        bank: number;
+        module: string;
+        line: number;
+        target: string;
+    }>;
+}
+
+interface Ascii16ResidentBridgeReport {
+    count: number;
+    samples: Array<{
+        bank: number;
+        module: string;
+        target: string;
+        stub: string;
+    }>;
+}
+
+interface Ascii16ResidentWindowOverflowReport {
+    count: number;
+    samples: Array<{
+        bank: number;
+        module: string;
+        estimatedBytes: number;
+        windowBytes: number;
+        overflowBytes: number;
+        estimatedSegments: number;
+    }>;
+    estimatedOutOfWindowLabelCount: number;
+    estimatedOutOfWindowLabelSamples: Array<{
+        bank: number;
+        module: string;
+        label: string;
+        line: number;
+        estimatedOffset: number;
+        estimatedAddress: number;
+        estimatedSegment: number;
+    }>;
+    estimatedOutOfWindowCallCount: number;
+    estimatedOutOfWindowCallSamples: Array<{
+        callerBank: number;
+        callerModule: string;
+        line: number;
+        target: string;
+        targetBank: number;
+        targetModule: string;
+        targetEstimatedOffset: number;
+        targetEstimatedAddress: number;
+        targetEstimatedSegment: number;
+    }>;
+}
+
+interface Ascii16FarToFarCallReport {
+    count: number;
+    samples: Array<{
+        callerBank: number;
+        callerModule: string;
+        line: number;
+        target: string;
+        targetBank: number;
+        targetModule: string;
+    }>;
+}
+
+interface FarCodeSlot {
+    orgAddress: number;
+    endAddress: number;
+    windowPage: number;
+}
+
+// Keep diagnostic addresses in the same #HHHH form used by generated ASM.
+function formatHex16(value: number): string {
+    return `#${value.toString(16).toUpperCase().padStart(4, '0')}`;
+}
+
+function projectHasBossRuntime(analysis: ProjectAnalysis): boolean {
+    const hasBossAssets = (analysis.bosses?.length || 0) > 0;
+    const hasBossInstances = (analysis.screenMaps || []).some((screen: any) =>
+        Array.isArray(screen?.bossInstances) && screen.bossInstances.length > 0
+    );
+    return hasBossAssets || hasBossInstances;
 }
 
 function estimateAsmBytesLocal(asm: string): number {
@@ -593,55 +758,128 @@ function estimateAsmBytesLocal(asm: string): number {
     return Math.max(dataBytes, Math.floor(textBytes * 0.28));
 }
 
-// Cyclic ORG/end addresses for primary code slots (P1, P2, P3 windows)
-const CODE_SLOT_ORG  = [0x6000, 0x8000, 0xA000];
-const CODE_SLOT_END  = [0x8000, 0xA000, 0xC000];
-const CODE_SLOT_PAGE = [1, 2, 3]; // mapper window page index
+function parseAsmNumericLiteralLocal(raw: string): number {
+    const value = raw.trim().toLowerCase();
+    if (/^\d+$/.test(value)) return parseInt(value, 10);
+    if (/^#([0-9a-f]+)$/.test(value)) return parseInt(value.slice(1), 16);
+    if (/^0x([0-9a-f]+)$/.test(value)) return parseInt(value.slice(2), 16);
+    if (/^([0-9a-f]+)h$/.test(value)) return parseInt(value.slice(0, -1), 16);
+    return 0;
+}
 
-// Far code must not execute from P2 because runtime loaders use P2 as the
-// data window. If a far routine running at #8000 switches data banks, it hides
-// its own code and returns into garbage.
-const FAR_CODE_SLOT_ORG  = [0x6000, 0xA000];
-const FAR_CODE_SLOT_END  = [0x8000, 0xC000];
-const FAR_CODE_SLOT_PAGE = [1, 3];
+// Lightweight size estimator used only for diagnostics before Glass has the
+// final symbol addresses. The Python build script verifies actual bank ends
+// from .sym output after assembly.
+function estimateAsmLineBytesLocal(line: string): number {
+    const code = line.split(';')[0].trim();
+    if (!code) return 0;
+    if (/^[A-Za-z_][A-Za-z0-9_]*:$/.test(code)) return 0;
+    const dbMatch = code.match(/^db\s+(.+)$/i);
+    if (dbMatch) return dbMatch[1].split(',').filter(t => t.trim().length > 0).length;
+    const dwMatch = code.match(/^dw\s+(.+)$/i);
+    if (dwMatch) return dwMatch[1].split(',').filter(t => t.trim().length > 0).length * 2;
+    const dsMatch = code.match(/^ds\s+([^,]+)/i);
+    if (dsMatch) return parseAsmNumericLiteralLocal(dsMatch[1]);
+    return Math.max(1, Math.floor(code.length * 0.28));
+}
 
-function packModulesFFD(modules: PackedBankModule[]): PackedBank[] {
+// Far code must not execute from the active data window. Konami uses P1 for
+// #6000, while ASCII8 must use P2 for the same CPU address because P1 is the
+// #4000 bank-0 page that keeps trampolines resident.
+function getFarCodeSlots(targetFormat: UnifiedMapperFormat): FarCodeSlot[] {
+    if (targetFormat === 'ascii8') {
+        return [{ orgAddress: 0x6000, endAddress: 0x8000, windowPage: 2 }];
+    }
+    return [{ orgAddress: 0x6000, endAddress: 0x8000, windowPage: 1 }];
+}
+
+function resolveCurrentCodeBankPlaceholders(content: string, runtimeBank: number): string {
+    // Some generators emit self-bank placeholders before FFD packing decides
+    // whether the module is resident or overlay code.
+    return content.replace(/__MIDEAS_CURRENT_CODE_BANK__/g, runtimeBank.toString());
+}
+
+function getAscii16RuntimeBankNumber(
+    bank: PackedBank,
+    firstFarPhysicalBank: number,
+    firstFarRuntimeBank: number
+): number {
+    // ASCII16 registers select 16KB file segments. The first segment is the
+    // resident header/components page, then come packed data segments, then
+    // the far-code overlays. packed physicalBank ids are placement ids, so
+    // convert them to the actual runtime segment index.
+    return firstFarRuntimeBank + (bank.physicalBank - firstFarPhysicalBank);
+}
+
+function getRuntimeCodeBankNumber(
+    bank: PackedBank,
+    targetFormat: UnifiedMapperFormat,
+    firstFarPhysicalBank: number,
+    firstFarRuntimeBank: number
+): number {
+    if (targetFormat === 'ascii16' && bank.isFar && bank.orgAddress < 0x8000) {
+        return getAscii16RuntimeBankNumber(bank, firstFarPhysicalBank, firstFarRuntimeBank);
+    }
+    return bank.physicalBank;
+}
+
+function packModulesFFD(
+    modules: PackedBankModule[],
+    firstFarPhysicalBank: number,
+    targetFormat: UnifiedMapperFormat
+): PackedBank[] {
     const banks: PackedBank[] = [];
+    const farCodeSlots = getFarCodeSlots(targetFormat);
 
-    // Keep the resident execution kernel in fixed windows 1-3.
-    RESIDENT_MODULE_WINDOW_ORDER.forEach((slot, index) => {
-        const module = modules.find((candidate) => candidate.key === slot.key);
+    const residentModuleWindowOrder = getResidentModuleWindowOrder(targetFormat);
+    const residentModuleKeys = new Set<string>(residentModuleWindowOrder.flatMap((slot) => slot.keys));
+
+    // Keep the resident execution kernel in fixed windows where the mapper format allows it.
+    residentModuleWindowOrder.forEach((slot, index) => {
+        const physicalBank = index + 1;
+        const placementReason = `resident kernel slot ${index + 1}; fixed P${slot.windowPage} window ${formatHex16(slot.orgAddress)}-${formatHex16(slot.endAddress)}; stays always mapped so runtime flow does not depend on P3 data-window state`;
+        const slotModules = slot.keys
+            .map((key) => modules.find((candidate) => candidate.key === key))
+            .filter((module): module is PackedBankModule => Boolean(module))
+            .map((module) => ({
+                ...module,
+                placementReason: `${placementReason}; module ${module.key} is part of the resident execution kernel`,
+            }));
         banks.push({
-            physicalBank: index + 1,
+            physicalBank,
             orgAddress: slot.orgAddress,
             endAddress: slot.endAddress,
-            modules: module ? [module] : [],
-            usedBytes: module ? module.estimatedBytes : 0,
+            modules: slotModules,
+            usedBytes: slotModules.reduce((sum, module) => sum + module.estimatedBytes, 0),
             isFar: false,
             windowPage: slot.windowPage,
+            placementReason,
         });
     });
 
     // Everything else is explicitly banked and accessed through bank-0 wrappers/trampolines.
     const bankedModules = modules
-        .filter((module) => !RESIDENT_MODULE_KEYS.has(module.key))
+        .filter((module) => !residentModuleKeys.has(module.key))
         .sort((a, b) => b.estimatedBytes - a.estimatedBytes);
 
-    for (const module of bankedModules) {
-        const slotIndex = banks.length;
-        const physicalBank = slotIndex + 1;
-        const farSlotIndex = slotIndex - RESIDENT_MODULE_WINDOW_ORDER.length;
-        const cycleIdx = farSlotIndex % FAR_CODE_SLOT_ORG.length;
+    bankedModules.forEach((module, farBankIndex) => {
+        const physicalBank = firstFarPhysicalBank + farBankIndex;
+        const slot = farCodeSlots[farBankIndex % farCodeSlots.length];
+        const placementReason = `far-call module; sorted by estimated size at overlay index ${farBankIndex + 1}; physical bank ${physicalBank}; executes through P${slot.windowPage}/${formatHex16(slot.orgAddress)} after reserved asset-data banks`;
         banks.push({
             physicalBank,
-            orgAddress: FAR_CODE_SLOT_ORG[cycleIdx],
-            endAddress: FAR_CODE_SLOT_END[cycleIdx],
-            modules: [module],
+            orgAddress: slot.orgAddress,
+            endAddress: slot.endAddress,
+            modules: [{
+                ...module,
+                placementReason: `${placementReason}; module ${module.key} is callable only through bank-0 far trampolines`,
+            }],
             usedBytes: module.estimatedBytes,
             isFar: true,
-            windowPage: FAR_CODE_SLOT_PAGE[cycleIdx],
+            windowPage: slot.windowPage,
+            placementReason,
         });
-    }
+    });
 
     return banks;
 }
@@ -659,7 +897,7 @@ function formatPackedBankLayoutComment(banks: PackedBank[]): string {
         const farTag = bank.isFar ? ' [FAR — accessed via trampoline]' : '';
         lines.push(`; Bank ${bank.physicalBank} [#${orgHex}-#${endHex}]: ${moduleList} (${bank.usedBytes}/${MEGAROM_CODE_BANK_SIZE} bytes est.)${farTag}`);
     }
-    lines.push('; Bank 4+ (data) [#C000+]: DATA (patterns, colors, screens, font, presentation)');
+    lines.push('; Bank 3+ (data) [#A000+]: DATA mapped through P3/A000 before far code banks');
     lines.push('; ------------------------------------------------------------------');
     return lines.join('\n');
 }
@@ -669,13 +907,15 @@ function formatPackedBankLayoutComment(banks: PackedBank[]): string {
 // ==================================================================
 // Far banks (physicalBank > 3) are not statically mapped at boot.
 // Callers in bank 0 use trampolines that:
-//   1. push/save the current P1 bank
-//   2. map the far bank to P1 (#6000)
-//   3. call the routine (which runs at its normal ORG address in P1)
-//   4. restore the original P1 bank
+//   1. push/save the current code-window bank
+//   2. map the far bank to the mapper page matching the routine ORG
+//   3. call the routine at its normal ORG address
+//   4. restore the original code-window bank
+//   5. re-enable IRQ only when not already inside the IRQ dispatcher
 //
 // The far bank's modules are assembled with the same ORG as their
-// windowPage (e.g. #6000 for windowPage=1). Because they contain
+// mapper window (e.g. #6000 through P1 on Konami or P2 on ASCII8).
+// Because they contain
 // different labels from the primary bank at the same ORG, Glass
 // has no label conflicts. At runtime the CPU executes from the
 // correct physical bank via the trampoline.
@@ -706,6 +946,9 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
         case 'worlds': {
             const worldMaps = (analysis as any).worldmaps || [];
             const pts: string[] = ['load_world_default', 'check_world_screen_transition'];
+            if (usesLimitOnComponent(analysis)) {
+                pts.push('clamp_world_screen_limits');
+            }
             worldMaps.forEach((world: any, _wi: number) => {
                 const worldId = (world.id || 'unknown').toLowerCase().replace(/[^a-z0-9_]/g, '_');
                 pts.push(`load_world_${worldId}`);
@@ -717,6 +960,12 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
             return pts;
         }
         case 'screens_code': {
+            return [
+                'show_presentation_screen_image',
+                'show_presentation_screen',
+            ];
+        }
+        case 'screen_loaders': {
             const screenMaps = analysis.screenMaps || [];
             const importedHudFrameDrawLabels = screenMaps
                 .map((screen: any) => {
@@ -731,13 +980,12 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
                 return `load_screen_${screenName}${screenIdSuffix.toLowerCase()}`;
                 }),
                 ...importedHudFrameDrawLabels,
-                'show_presentation_screen',
                 'set_screen_colors',
                 'init_char0_color',
             ];
         }
         case 'font':
-            return ['init_font_system', 'reload_font_system'];
+            return ['init_font_system', 'reload_font_system', 'print_string_screen2'];
         case 'menus':
             return ['render_menu', 'init_menu_system'];
         case 'hud':
@@ -745,9 +993,56 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
         case 'sound':
             return ['init_sound_system', 'task_audio_tick', 'sfx_update', 'music_update', 'music_stop', 'music_play_track', 'music_execute_command'];
         case 'statemachine':
-            return ['init_statemachine_system', 'update_statemachine_system', 'execute_all_state_machines'];
+            return ['init_statemachine_system', 'update_statemachine_system', 'execute_all_state_machines', 'SM_ExecuteActions', 'SM_UpdateSound'];
+        case 'components_tail':
+            return ['update_player_fastpath', 'execute_all_state_machines', 'refresh_player_state_machine_fastpath'];
+        case 'components_autocontrol':
+            return ['init_auto_control_script_system', 'update_auto_control_script_component', 'update_auto_event_string_component'];
         case 'gameflow':
-            return ['game_loop', 'gameflow_update'];
+            return ['gameflow_init', 'gameflow_start', 'gameflow_world_game_loop', 'game_loop', 'gameflow_update'];
+        case 'gameflow_aux':
+            return [
+                'display_end_screen',
+                'show_text_screen',
+                'wait_for_fire',
+                'print_string_vram',
+                'clear_screen_row',
+                'render_controls_screen',
+                'controls_toggle_selected',
+                'trans_clear_column',
+                'trans_clear_column_range',
+                'trans_reveal_column',
+                'trans_reveal_column_range',
+                'trans_clear_row_direct',
+                'trans_clear_row_range',
+                'trans_reveal_row_direct',
+                'trans_reveal_row_range',
+                'trans_fast_filvrm',
+                'textscroll_capture_font_patterns',
+                'textscroll_prepare_pattern_masks',
+                'textscroll_clear_name_table',
+                'textscroll_render_name_frame',
+                'textscroll_update_pattern_frame',
+                'textscroll2_capture_font_patterns',
+                'textscroll2_init_name_table',
+                'textscroll2_init_color_table',
+                'textscroll2_clear_pattern_table',
+                'textscroll2_shift_vram_up1',
+                'gameflow_get_default_connection',
+                'gameflow_read_confirm_direct',
+                'get_world_screen_timer_frames_per_second',
+                'reload_world_screen_timer_frames',
+                'snapshot_world_screen_timer_interrupt_counter',
+                'reset_world_screen_timer',
+                'update_world_screen_timer',
+                'execute_transition_reveal_target',
+            ];
+        case 'gameflow_aux2':
+            return [
+                'render_submenu_screen',
+                'submenu_prepare_cursor_sprite',
+                'submenu_hide_cursor_sprite',
+            ];
         case 'sprites':
             return [
                 'init_sprites',
@@ -762,20 +1057,729 @@ function getKnownEntryPoints(moduleKey: string, analysis: ProjectAnalysis): stri
             return ['init_animated_tiles', 'update_animated_tiles', 'update_animated_tiles_vram'];
         case 'bosses':
             return ['init_boss_system', 'init_screen_boss_from_current_screen', 'update_boss_system', 'draw_boss_attack', 'draw_boss_meteor_attack', 'draw_boss_bomb_attack', 'draw_boss_boomerang_attack', 'draw_boss_rock_attack', 'draw_boss_laser_attack', 'draw_boss_sine_wave_attack', 'draw_boss_homing_missile_attack'];
+        case 'boss_attacks':
+            return ['draw_boss_attack', 'update_boss_projectile_runtime', 'draw_boss_projectile_attack', 'draw_boss_meteor_attack', 'draw_boss_bomb_attack', 'draw_boss_boomerang_attack', 'draw_boss_rock_attack', 'draw_boss_laser_attack', 'draw_boss_sine_wave_attack', 'draw_boss_homing_missile_attack'];
         default:
             return [];
     }
 }
 
+function splitBossAttackRuntimeModule(content: string): { core: string; attacks: string } {
+    const attackStart = content.indexOf('; Register Contract:\n; input: A = sprite asset index (#FF = placeholder)');
+    const coreEnd = content.indexOf('; @mideas:endblock id=runtime.boss.core', attackStart);
+    if (attackStart === -1 || coreEnd === -1 || coreEnd <= attackStart) {
+        return { core: content, attacks: '' };
+    }
+
+    const corePrefix = content.slice(0, attackStart)
+        .replace(/\bcall\s+update_boss_projectile_runtime\b/g, 'call call_update_boss_projectile_runtime_resident')
+        .replace(/\bcall\s+draw_boss_attack\b/g, 'call call_draw_boss_attack_resident');
+    const coreSuffix = content.slice(coreEnd);
+    const attackBody = content.slice(attackStart, coreEnd).trimEnd();
+    const attacks = `; ==================================================================
+; BOSS ATTACK RUNTIME
+; Split from bosses.asm so the boss core and projectile/attack code can
+; occupy separate 8KB MegaROM code banks.
+; ==================================================================
+; @mideas:block id=runtime.boss.attacks kind=routine owner=bosses roots=draw_boss_attack,update_boss_projectile_runtime
+${attackBody}
+; @mideas:endblock id=runtime.boss.attacks
+`;
+    return { core: `${corePrefix}${coreSuffix}`, attacks };
+}
+
+function splitScreenLoaderRuntimeModule(content: string): { core: string; loaders: string } {
+    const loaderStart = content.indexOf('; SCREEN LOADING FUNCTIONS');
+    if (loaderStart === -1) {
+        return { core: content, loaders: '' };
+    }
+
+    const separatorStart = content.lastIndexOf('; ==================================================================', loaderStart);
+    const splitStart = separatorStart !== -1 ? separatorStart : loaderStart;
+    const core = `${content.slice(0, splitStart).trimEnd()}
+
+; [SCREEN LOADING FUNCTIONS moved to screen_loaders far module]
+`;
+    const loaders = `; ==================================================================
+; SCREEN LOADER RUNTIME
+; Split from screens.asm so screen constants/data metadata and loader
+; routines can occupy separate 8KB MegaROM code banks.
+; ==================================================================
+${content.slice(splitStart).trimStart()}`;
+    return { core, loaders };
+}
+
+function splitComponentsResidentTailModule(content: string, enabled: boolean): { core: string; tail: string; autoControl: string } {
+    if (!enabled) {
+        return { core: content, tail: '', autoControl: '' };
+    }
+
+    const playerFastPathStart = content.indexOf('\nupdate_player_fastpath:');
+    if (playerFastPathStart === -1) {
+        return { core: content, tail: '', autoControl: '' };
+    }
+
+    const commentStart = content.lastIndexOf('; ------------------------------------------------------------------', playerFastPathStart);
+    const splitStart = commentStart !== -1 ? commentStart : playerFastPathStart + 1;
+    const autoControlStartCandidates = [
+        content.indexOf('\n; ==================================================================\n; AUTOCONTROL SCRIPT SYSTEM'),
+        content.indexOf('\n    ; AutoControlScript system filtered out'),
+    ].filter(index => index >= 0 && index < splitStart);
+    const autoControlStart = autoControlStartCandidates.length > 0 ? Math.min(...autoControlStartCandidates) + 1 : -1;
+    let autoControlBlock = '';
+    let coreBeforeTail = content.slice(0, splitStart);
+
+    if (autoControlStart >= 0) {
+        const damageStartCandidates = [
+            content.indexOf('\n    ; Damage system', autoControlStart),
+            content.indexOf('\n; @mideas:block id=runtime.components.damage', autoControlStart),
+        ].filter(index => index > autoControlStart && index < splitStart);
+        const autoControlEnd = damageStartCandidates.length > 0 ? Math.min(...damageStartCandidates) + 1 : -1;
+        if (autoControlEnd > autoControlStart) {
+            autoControlBlock = `${content.slice(autoControlStart, autoControlEnd).trimEnd()}
+
+`;
+            coreBeforeTail = `${content.slice(0, autoControlStart).trimEnd()}
+
+; [AUTOCONTROL SCRIPT / DIALOGUE SYSTEM moved to components_tail resident module]
+
+${content.slice(autoControlEnd, splitStart).trimStart()}`;
+        }
+    }
+
+    const carryBlockStart = coreBeforeTail.indexOf('; @mideas:block id=runtime.components.carry');
+    const carryBlockEndMarker = '; @mideas:endblock id=runtime.components.carry';
+    let carryBlock = '';
+    if (carryBlockStart >= 0) {
+        const carryBlockEnd = coreBeforeTail.indexOf(carryBlockEndMarker, carryBlockStart);
+        if (carryBlockEnd >= 0) {
+            const blockEnd = carryBlockEnd + carryBlockEndMarker.length;
+            carryBlock = `${coreBeforeTail.slice(carryBlockStart, blockEnd).trimEnd()}
+
+`;
+            coreBeforeTail = `${coreBeforeTail.slice(0, carryBlockStart).trimEnd()}
+
+; [CARRY SYSTEM moved to components_tail resident module]
+
+${coreBeforeTail.slice(blockEnd).trimStart()}`;
+        }
+    }
+
+    const core = `${coreBeforeTail.trimEnd()}
+
+; [PLAYER FASTPATH / STATE MACHINE EXECUTOR moved to components_tail resident module]
+`;
+    const tail = `; ==================================================================
+; COMPONENTS RESIDENT TAIL
+; Split from components.asm so the always-mapped P1 component core stays
+; within one 8KB Konami/ASCII8 bank while tail routines run from P2.
+; ==================================================================
+${carryBlock}
+${content.slice(splitStart).trimStart()}`;
+    const autoControl = autoControlBlock
+        ? `; ==================================================================
+; COMPONENTS AUTOCONTROL FAR RUNTIME
+; Split from components.asm so dialogue/FakePlayer script code does not
+; consume the fixed P2 resident bank.
+; ==================================================================
+${autoControlBlock}`
+        : '';
+    return { core, tail, autoControl };
+}
+
+function splitGameflowAuxModule(content: string): { core: string; aux: string; aux2: string } {
+    let core = content;
+    const auxBlocks: string[] = [];
+    const aux2Blocks: string[] = [];
+
+    const extractRange = (start: number, end: number, replacement: string): string => {
+        if (start < 0 || end <= start) {
+            return '';
+        }
+        const block = core.slice(start, end).trim();
+        core = `${core.slice(0, start)}${replacement}${core.slice(end)}`;
+        return block;
+    };
+
+    const displayStart = core.indexOf('\n; ------------------------------------------------------------------\n; display_end_screen');
+    const printHelperStart = displayStart >= 0
+        ? core.indexOf('\n; ------------------------------------------------------------------\n; Helper: Print string to VRAM', displayStart)
+        : -1;
+    if (displayStart >= 0 && printHelperStart > displayStart) {
+        const block = extractRange(
+            displayStart,
+            printHelperStart,
+            '\n; [End screen renderer moved to gameflow_aux far module]\n'
+        );
+        if (block) {
+            auxBlocks.push(block);
+            core = core.replace(/\bcall\s+display_end_screen\b/g, 'call display_end_screen_far');
+        }
+    }
+
+    const endStringsStart = core.indexOf('\n; ------------------------------------------------------------------\n; End screen message strings');
+    const endBlockMarker = endStringsStart >= 0
+        ? core.indexOf('\n; @mideas:endblock id=runtime.gameflow.end_screen', endStringsStart)
+        : -1;
+    if (endStringsStart >= 0 && endBlockMarker > endStringsStart) {
+        const block = extractRange(
+            endStringsStart,
+            endBlockMarker,
+            '\n; [End screen strings moved to gameflow_aux far module]\n'
+        );
+        if (block) {
+            auxBlocks.push(block);
+        }
+    }
+
+    const controlsBlockMatch = core.match(/\ncontrols_toggle_selected:[\s\S]*?\n(?=gameflow_handle_music:|gameflow_get_default_connection:)/);
+    const controlsToggleStart = controlsBlockMatch?.index ?? -1;
+    const controlsEnd = controlsBlockMatch && controlsToggleStart >= 0
+        ? controlsToggleStart + controlsBlockMatch[0].length
+        : -1;
+    if (controlsBlockMatch && controlsToggleStart >= 0 && controlsEnd > controlsToggleStart) {
+        const block = extractRange(
+            controlsToggleStart,
+            controlsEnd,
+            '\n; [Controls menu render/toggle helpers moved to gameflow_aux far module]\n'
+        );
+        if (block) {
+            auxBlocks.push(block);
+            core = core
+                .replace(/\bcall\s+controls_toggle_selected\b/g, 'call controls_toggle_selected_far')
+                .replace(/\bcall\s+render_controls_screen\b/g, 'call render_controls_screen_far');
+        }
+    }
+
+    const controlsStringBlocks: string[] = [];
+    core = core.replace(
+        /\n(controls_[A-Za-z0-9_]+_(?:title|primary_label|secondary_label):\r?\n\s+db\s+"[^"\r\n]*",\s*0\r?\n)/g,
+        (_match, labelBlock: string) => {
+            controlsStringBlocks.push(labelBlock.trimEnd());
+            return '\n';
+        }
+    );
+    if (controlsStringBlocks.length > 0) {
+        auxBlocks.push(`; ------------------------------------------------------------------\n; Controls node text strings\n; ------------------------------------------------------------------\n${controlsStringBlocks.join('\n')}`);
+    }
+
+    const transitionHelpersMatch = core.match(/\ntrans_clear_column:[\s\S]*?\n(?=gameflow_handle_controls:|gameflow_handle_music:|gameflow_get_default_connection:)/);
+    const transitionHelpersStart = transitionHelpersMatch?.index ?? -1;
+    const transitionHelpersEnd = transitionHelpersMatch && transitionHelpersStart >= 0
+        ? transitionHelpersStart + transitionHelpersMatch[0].length
+        : -1;
+    if (transitionHelpersMatch && transitionHelpersStart >= 0 && transitionHelpersEnd > transitionHelpersStart) {
+        const block = extractRange(
+            transitionHelpersStart,
+            transitionHelpersEnd,
+            '\n; [Transition row/VRAM helpers moved to gameflow_aux far module]\n'
+        );
+        if (block) {
+            auxBlocks.push(block);
+            core = core
+                .replace(/\bcall\s+trans_clear_column\b/g, 'call trans_clear_column_far')
+                .replace(/\bcall\s+trans_clear_column_range\b/g, 'call trans_clear_column_range_far')
+                .replace(/\bcall\s+trans_reveal_column\b/g, 'call trans_reveal_column_far')
+                .replace(/\bcall\s+trans_reveal_column_range\b/g, 'call trans_reveal_column_range_far')
+                .replace(/\bcall\s+trans_clear_row_direct\b/g, 'call trans_clear_row_direct_far')
+                .replace(/\bcall\s+trans_clear_row_range\b/g, 'call trans_clear_row_range_far')
+                .replace(/\bcall\s+trans_reveal_row_direct\b/g, 'call trans_reveal_row_direct_far')
+                .replace(/\bcall\s+trans_reveal_row_range\b/g, 'call trans_reveal_row_range_far')
+                .replace(/\bcall\s+trans_fast_filvrm\b/g, 'call trans_fast_filvrm_far');
+        }
+    }
+
+    const textScrollHelpersMatch = core.match(/\ntextscroll_capture_font_patterns:[\s\S]*?\n(?=textscroll_wait_speed:)/);
+    const textScrollHelpersStart = textScrollHelpersMatch?.index ?? -1;
+    const textScrollHelpersEnd = textScrollHelpersMatch && textScrollHelpersStart >= 0
+        ? textScrollHelpersStart + textScrollHelpersMatch[0].length
+        : -1;
+    if (textScrollHelpersMatch && textScrollHelpersStart >= 0 && textScrollHelpersEnd > textScrollHelpersStart) {
+        const block = extractRange(
+            textScrollHelpersStart,
+            textScrollHelpersEnd,
+            '\n; [TextScroll VRAM/color helpers moved to gameflow_aux far module]\n'
+        );
+        if (block) {
+            auxBlocks.push(block);
+            core = core
+                .replace(/\bcall\s+textscroll_capture_font_patterns\b/g, 'call textscroll_capture_font_patterns_far')
+                .replace(/\bcall\s+textscroll_prepare_pattern_masks\b/g, 'call textscroll_prepare_pattern_masks_far')
+                .replace(/\bcall\s+textscroll_clear_name_table\b/g, 'call textscroll_clear_name_table_far')
+                .replace(/\bcall\s+textscroll_render_name_frame\b/g, 'call textscroll_render_name_frame_far')
+                .replace(/\bcall\s+textscroll_update_pattern_frame\b/g, 'call textscroll_update_pattern_frame_far');
+        }
+    }
+
+    const textScroll2HelpersMatch = core.match(/\ntextscroll2_capture_font_patterns:[\s\S]*?\n(?=textscroll2_wait_speed:)/);
+    const textScroll2HelpersStart = textScroll2HelpersMatch?.index ?? -1;
+    const textScroll2HelpersEnd = textScroll2HelpersMatch && textScroll2HelpersStart >= 0
+        ? textScroll2HelpersStart + textScroll2HelpersMatch[0].length
+        : -1;
+    if (textScroll2HelpersMatch && textScroll2HelpersStart >= 0 && textScroll2HelpersEnd > textScroll2HelpersStart) {
+        const block = extractRange(
+            textScroll2HelpersStart,
+            textScroll2HelpersEnd,
+            '\n; [TextScroll2 pattern-scroll helpers moved to gameflow_aux far module]\n'
+        );
+        if (block) {
+            auxBlocks.push(block);
+            core = core
+                .replace(/\bcall\s+textscroll2_capture_font_patterns\b/g, 'call textscroll2_capture_font_patterns_far')
+                .replace(/\bcall\s+textscroll2_init_name_table\b/g, 'call textscroll2_init_name_table_far')
+                .replace(/\bcall\s+textscroll2_init_color_table\b/g, 'call textscroll2_init_color_table_far')
+                .replace(/\bcall\s+textscroll2_clear_pattern_table\b/g, 'call textscroll2_clear_pattern_table_far')
+                .replace(/\bcall\s+textscroll2_shift_vram_up1\b/g, 'call textscroll2_shift_vram_up1_far');
+        }
+    }
+
+    const defaultConnectionMatch = core.match(/\ngameflow_get_default_connection:[\s\S]*?\n(?=; Get connection by type)/);
+    const defaultConnectionStart = defaultConnectionMatch?.index ?? -1;
+    const defaultConnectionEnd = defaultConnectionMatch && defaultConnectionStart >= 0
+        ? defaultConnectionStart + defaultConnectionMatch[0].length
+        : -1;
+    if (defaultConnectionMatch && defaultConnectionStart >= 0 && defaultConnectionEnd > defaultConnectionStart) {
+        const block = extractRange(
+            defaultConnectionStart,
+            defaultConnectionEnd,
+            '\n; [Default connection helper moved to gameflow_aux far module]\n'
+        );
+        if (block) {
+            auxBlocks.push(block);
+            core = core.replace(/\bcall\s+gameflow_get_default_connection\b/g, 'call gameflow_get_default_connection_far');
+        }
+    }
+
+    const confirmInputMatch = core.match(/\n; ------------------------------------------------------------------\n; gameflow_read_confirm_direct[\s\S]*?\n(?=gameflow_world_game_loop:)/);
+    const confirmInputStart = confirmInputMatch?.index ?? -1;
+    const confirmInputEnd = confirmInputMatch && confirmInputStart >= 0
+        ? confirmInputStart + confirmInputMatch[0].length
+        : -1;
+    if (confirmInputMatch && confirmInputStart >= 0 && confirmInputEnd > confirmInputStart) {
+        const block = extractRange(
+            confirmInputStart,
+            confirmInputEnd,
+            '\n; [Confirm input helper moved to gameflow_aux far module]\n'
+        );
+        if (block) {
+            auxBlocks.push(block);
+            core = core.replace(/\bcall\s+gameflow_read_confirm_direct\b/g, 'call gameflow_read_confirm_direct_far');
+        }
+    }
+
+    const textScreenStart = core.indexOf('\n; ------------------------------------------------------------------\n; show_text_screen');
+    const textScreenEndMarker = '; @mideas:endblock id=runtime.gameflow.text_screen';
+    const waitForFireStart = textScreenStart >= 0
+        ? core.indexOf('\n; ------------------------------------------------------------------\n; wait_for_fire', textScreenStart)
+        : -1;
+    const textScreenEndMarkerStart = textScreenStart >= 0
+        ? core.indexOf(textScreenEndMarker, textScreenStart)
+        : -1;
+    const textScreenEnd = waitForFireStart >= 0
+        ? waitForFireStart
+        : textScreenEndMarkerStart >= 0
+        ? textScreenEndMarkerStart + textScreenEndMarker.length
+        : -1;
+    if (textScreenStart >= 0 && textScreenEnd > textScreenStart) {
+        const block = extractRange(
+            textScreenStart,
+            textScreenEnd,
+            '\n; [Text screen renderer moved to gameflow_aux far module]\n'
+        );
+        if (block) {
+            auxBlocks.push(block);
+            core = core.replace(/\bcall\s+show_text_screen\b/g, 'call show_text_screen_far');
+        }
+    }
+
+    const submenuHelpersStart = core.indexOf('\nrender_submenu_screen:');
+    const submenuEndMarker = '; @mideas:endblock id=runtime.gameflow.submenu';
+    const submenuEndMarkerStart = submenuHelpersStart >= 0
+        ? core.indexOf(submenuEndMarker, submenuHelpersStart)
+        : -1;
+    if (submenuHelpersStart >= 0 && submenuEndMarkerStart > submenuHelpersStart) {
+        const block = extractRange(
+            submenuHelpersStart,
+            submenuEndMarkerStart,
+            '\n; [SubMenu render/cursor helpers moved to gameflow_aux2 far module]\n'
+        );
+        if (block) {
+            aux2Blocks.push(block);
+            core = core
+                .replace(/\bcall\s+render_submenu_screen\b/g, 'call render_submenu_screen_far')
+                .replace(/\bcall\s+submenu_prepare_cursor_sprite\b/g, 'call submenu_prepare_cursor_sprite_far')
+                .replace(/\bcall\s+submenu_hide_cursor_sprite\b/g, 'call submenu_hide_cursor_sprite_far');
+        }
+    }
+
+    const screenTimerStart = core.indexOf('\n; @mideas:block id=runtime.gameflow.screen_timer');
+    const screenTimerEndMarker = '; @mideas:endblock id=runtime.gameflow.screen_timer';
+    const screenTimerEndMarkerStart = screenTimerStart >= 0
+        ? core.indexOf(screenTimerEndMarker, screenTimerStart)
+        : -1;
+    const screenTimerEnd = screenTimerEndMarkerStart >= 0
+        ? screenTimerEndMarkerStart + screenTimerEndMarker.length
+        : -1;
+    if (screenTimerStart >= 0 && screenTimerEnd > screenTimerStart) {
+        const block = extractRange(
+            screenTimerStart,
+            screenTimerEnd,
+            '\n; [World screen timer helpers moved to gameflow_aux far module]\n'
+        );
+        if (block) {
+            auxBlocks.push(block);
+            core = core
+                .replace(/\bcall\s+get_world_screen_timer_frames_per_second\b/g, 'call get_world_screen_timer_frames_per_second_far')
+                .replace(/\bcall\s+reload_world_screen_timer_frames\b/g, 'call reload_world_screen_timer_frames_far')
+                .replace(/\bcall\s+snapshot_world_screen_timer_interrupt_counter\b/g, 'call snapshot_world_screen_timer_interrupt_counter_far')
+                .replace(/\bcall\s+reset_world_screen_timer\b/g, 'call reset_world_screen_timer_far')
+                .replace(/\bcall\s+update_world_screen_timer\b/g, 'call update_world_screen_timer_far');
+        }
+    }
+
+    const revealTargetStart = core.indexOf('\n; ==================================================================\n; execute_transition_reveal_target');
+    const revealTargetEnd = revealTargetStart >= 0
+        ? core.indexOf('\n; ------------------------------------------------------------------\n; trans_diag_clear_init', revealTargetStart)
+        : -1;
+    if (revealTargetStart >= 0 && revealTargetEnd > revealTargetStart) {
+        const block = extractRange(
+            revealTargetStart,
+            revealTargetEnd,
+            '\n; [Transition target reveal moved to gameflow_aux far module]\n'
+        );
+        if (block) {
+            auxBlocks.push(block);
+            core = core.replace(/\bcall\s+execute_transition_reveal_target\b/g, 'call execute_transition_reveal_target_far');
+        }
+    }
+
+    const stripUnusedLabelRange = (startLabel: string, endNeedle: string): void => {
+        const escapedLabel = startLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (new RegExp(`\\b(?:call|jp|jr)\\s+${escapedLabel}\\b`, 'i').test(core)) {
+            return;
+        }
+        const start = core.indexOf(`\n${startLabel}:`);
+        const end = start >= 0 ? core.indexOf(endNeedle, start) : -1;
+        if (start >= 0 && end > start) {
+            core = `${core.slice(0, start)}\n; [Unused ${startLabel} stripped from resident GameFlow]\n${core.slice(end)}`;
+        }
+    };
+
+    stripUnusedLabelRange('gameflow_get_connection_by_type', '; @mideas:endblock id=runtime.gameflow.connection_by_type');
+    stripUnusedLabelRange('gameflow_presentation_wait_frames', '; @mideas:endblock id=runtime.gameflow.presentation_wait_frames');
+
+    const clearStart = core.indexOf('\n; ------------------------------------------------------------------\n; Helper: Clear screen area for menus/end screens');
+    const clearEndMarker = clearStart >= 0
+        ? core.indexOf('\n; @mideas:endblock id=runtime.gameflow.clear_screen_area_helpers', clearStart)
+        : -1;
+    const clearMarkerEnd = clearEndMarker >= 0 ? core.indexOf('\n', clearEndMarker + 1) : -1;
+    const clearEnd = clearMarkerEnd > clearEndMarker ? clearMarkerEnd : clearEndMarker;
+    const coreWithoutClearHelpers = clearStart >= 0 && clearEnd > clearStart
+        ? `${core.slice(0, clearStart)}${core.slice(clearEnd)}`
+        : core;
+    const coreCallsClearHelpers = /\bcall\s+clear_screen_(?:area|row)\b/.test(coreWithoutClearHelpers);
+    const auxCallsClearHelpers = auxBlocks.some((block) => /\bcall\s+clear_screen_(?:area|row)\b/.test(block));
+    if (!coreCallsClearHelpers && auxCallsClearHelpers) {
+        if (clearStart >= 0 && clearEndMarker > clearStart) {
+            const block = extractRange(
+                clearStart,
+                clearEnd,
+                '\n; [Clear screen helpers moved to gameflow_aux far module]\n'
+            );
+            if (block) {
+                auxBlocks.unshift(block);
+            }
+        }
+    }
+
+    const printStringHelperMatch = core.match(
+        /\n; ------------------------------------------------------------------\n; Helper: Print string to VRAM[\s\S]*?(?=\n; \[End screen strings moved to gameflow_aux far module\]|\n; @mideas:endblock id=runtime.gameflow.end_screen)/
+    );
+    const printStringHelperStart = printStringHelperMatch?.index ?? -1;
+    const printStringHelperEnd = printStringHelperMatch && printStringHelperStart >= 0
+        ? printStringHelperStart + printStringHelperMatch[0].length
+        : -1;
+    if (printStringHelperMatch && printStringHelperStart >= 0 && printStringHelperEnd > printStringHelperStart) {
+        const coreWithoutPrintStringHelper = `${core.slice(0, printStringHelperStart)}${core.slice(printStringHelperEnd)}`;
+        const coreCallsPrintStringHelper = /\b(?:call|jp)\s+print_string_vram\b/i.test(coreWithoutPrintStringHelper);
+        const auxCallsPrintStringHelper = auxBlocks.some((block) =>
+            /\b(?:call|jp)\s+print_string_vram\b/i.test(block)
+        );
+        if (auxCallsPrintStringHelper && !coreCallsPrintStringHelper) {
+            const block = extractRange(
+                printStringHelperStart,
+                printStringHelperEnd,
+                '\n; [Print string VRAM helper moved to gameflow_aux far module]\n'
+            );
+            if (block) {
+                auxBlocks.push(block);
+            }
+        }
+    }
+
+    const auxContent = auxBlocks.join('\n\n')
+        .replace(/\bcall\s+init_char0_color\b/g, 'call call_init_char0_color_resident')
+        .replace(/\bcall\s+reload_font_system\b/g, 'call call_reload_font_system_resident')
+        .replace(/\bcall\s+set_screen_colors\b/g, 'call call_set_screen_colors_resident')
+        .replace(/\bcall\s+task_audio_tick\b/g, 'call call_task_audio_tick_resident');
+    const aux2Content = aux2Blocks.join('\n\n')
+        .replace(/\bcall\s+init_char0_color\b/g, 'call call_init_char0_color_resident')
+        .replace(/\bcall\s+init_font_system\b/g, 'call call_init_font_system_resident')
+        .replace(/\bcall\s+reload_font_system\b/g, 'call call_reload_font_system_resident')
+        .replace(/\bcall\s+set_screen_colors\b/g, 'call call_set_screen_colors_resident')
+        .replace(/\bcall\s+show_sprite\b/g, 'call call_show_sprite_resident')
+        .replace(/\bcall\s+hide_sprite\b/g, 'call call_hide_sprite_resident')
+        .replace(/\bcall\s+clear_all_sprites\b/g, 'call call_clear_all_sprites_resident')
+        .replace(/\bcall\s+update_sprites_to_vram\b/g, 'call call_update_sprites_to_vram_resident')
+        .replace(/\bcall\s+task_audio_tick\b/g, 'call call_task_audio_tick_resident')
+        .replace(/\bcall\s+print_string_vram\b/g, 'call print_string_vram_far')
+        .replace(/\bcall\s+clear_screen_row\b/g, 'call clear_screen_row_far');
+    const aux = auxBlocks.length > 0
+        ? `; ==================================================================\n; GAMEFLOW AUXILIARY FAR RUNTIME\n; Split from gameflow.asm so long-lived input loops stay resident while\n; short render/toggle helpers can live in an overlay bank.\n; ==================================================================\n${auxContent}\n`
+        : '';
+    const aux2 = aux2Blocks.length > 0
+        ? `; ==================================================================\n; GAMEFLOW AUXILIARY FAR RUNTIME 2\n; Larger one-shot handlers split from resident GameFlow to keep P2 below\n; the Konami 8K resident window.\n; ==================================================================\n${aux2Content}\n`
+        : '';
+
+    return { core, aux, aux2 };
+}
+
+function byteLowExpr(expr: string): string {
+    return `(${expr}) & #FF`;
+}
+
+function byteHighExpr(expr: string): string {
+    return `((${expr}) >> 8) & #FF`;
+}
+
+function dbLine(bytes: string[]): string {
+    return `    db ${bytes.join(', ')}\n`;
+}
+
+function generateAscii16RamFarCallInstaller(): string {
+    const targetAddr = 'ascii16_far_target_addr';
+    const targetBank = 'ascii16_far_target_bank';
+    const oldBank = 'ascii16_far_old_bank';
+    const farCallDepth = 'ascii16_far_call_depth';
+    const residentTargetAddr = 'ascii16_resident_call_target_addr';
+    const residentSavedHl = 'ascii16_resident_call_saved_hl';
+    const residentSavedDe = 'ascii16_resident_call_saved_de';
+    const residentOldBank = 'ascii16_resident_call_old_bank';
+    const irqSavedBank = 'ascii16_irq_saved_bank';
+    const currentP1 = 'mapper_bank_p1_current';
+    const currentP2 = 'mapper_bank_p2_current';
+    const mapperRegP1Low = '#00';
+    const mapperRegP1High = '#60';
+    const normalReturn = 'ASCII16_FAR_CALL_P1_RAM + (a1601 - a1600)';
+    const preserveReturn = 'ASCII16_FAR_CALL_P1_PRESERVE_A_RAM + (a16pa1 - a16pa0)';
+    const residentReturn = 'ASCII16_RESIDENT_CALL_P1_RAM + (a16rc1 - a16rc0)';
+    const residentSkipEi = 'ASCII16_RESIDENT_CALL_P1_RAM + (a16rc2 - a16rc0)';
+    const addrBytes = (label: string) => [byteLowExpr(label), byteHighExpr(label)];
+
+    const normalBytes = [
+        '#22', ...addrBytes(residentSavedHl), // ld (saved_hl), hl
+        '#ED', '#53', ...addrBytes(residentSavedDe), // ld (saved_de), de
+        '#22', ...addrBytes(targetAddr), '#32', ...addrBytes(targetBank),
+        '#3A', ...addrBytes(farCallDepth), '#3C', '#32', ...addrBytes(farCallDepth),
+        '#3A', ...addrBytes(currentP1), '#F5',
+        '#3A', ...addrBytes(targetBank), '#32', ...addrBytes(currentP1),
+        '#32', ...addrBytes(currentP2), '#32', mapperRegP1Low, mapperRegP1High,
+        '#11', byteLowExpr(normalReturn), byteHighExpr(normalReturn),
+        '#D5',
+        '#2A', ...addrBytes(targetAddr),
+        '#E5',
+        '#2A', ...addrBytes(residentSavedHl),
+        '#ED', '#5B', ...addrBytes(residentSavedDe),
+        '#C9',
+    ];
+    const normalRestoreBytes = [
+        '#F3', // di before remapping P1 back from an overlay-visible state
+        '#3A', ...addrBytes(farCallDepth), '#3D', '#32', ...addrBytes(farCallDepth),
+        '#F1', '#32', ...addrBytes(currentP1),
+        '#32', ...addrBytes(currentP2), '#32', mapperRegP1Low, mapperRegP1High,
+        '#C9',
+    ];
+    const preserveBytes = [
+        '#22', ...addrBytes(residentSavedHl), // ld (saved_hl), hl
+        '#ED', '#53', ...addrBytes(residentSavedDe), // ld (saved_de), de
+        '#22', ...addrBytes(targetAddr), '#32', ...addrBytes(targetBank),
+        '#3A', ...addrBytes(farCallDepth), '#3C', '#32', ...addrBytes(farCallDepth),
+        '#3A', ...addrBytes(currentP1), '#F5',
+        '#3A', ...addrBytes(targetBank), '#32', ...addrBytes(currentP1),
+        '#32', ...addrBytes(currentP2), '#32', mapperRegP1Low, mapperRegP1High,
+        '#11', byteLowExpr(preserveReturn), byteHighExpr(preserveReturn),
+        '#D5',
+        '#2A', ...addrBytes(targetAddr),
+        '#E5',
+        '#2A', ...addrBytes(residentSavedHl),
+        '#ED', '#5B', ...addrBytes(residentSavedDe),
+        '#08',
+        '#C9',
+    ];
+    const preserveRestoreBytes = [
+        '#F3', // di before remapping P1 back from an overlay-visible state
+        '#08',
+        '#3A', ...addrBytes(farCallDepth), '#3D', '#32', ...addrBytes(farCallDepth),
+        '#F1', '#32', ...addrBytes(currentP1),
+        '#32', ...addrBytes(currentP2), '#32', mapperRegP1Low, mapperRegP1High,
+        '#C9',
+    ];
+    const residentBytes = [
+        '#F3', // di while staging RAM globals used before the target entry
+        '#08', // ex af, af' (save caller AF while selecting bank0)
+        '#22', ...addrBytes(residentSavedHl), // ld (saved_hl), hl
+        '#ED', '#53', ...addrBytes(residentSavedDe), // ld (saved_de), de
+        '#3A', ...addrBytes(currentP1), // ld a, (mapper_bank_p1_current)
+        '#F5', // push af (old bank is stack-local so nested far calls cannot clobber it)
+        '#AF', // xor a (resident lower page / bank0)
+        '#32', ...addrBytes(currentP1), // ld (mapper_bank_p1_current), a
+        '#32', ...addrBytes(currentP2), // ld (mapper_bank_p2_current), a
+        '#32', mapperRegP1Low, mapperRegP1High, // ld (#6000), a
+        '#2A', ...addrBytes(residentTargetAddr), // ld hl, (target_addr)
+        '#11', byteLowExpr(residentReturn), byteHighExpr(residentReturn), // ld de, ram_return
+        '#D5', // push de
+        '#E5', // push hl (target address)
+        '#2A', ...addrBytes(residentSavedHl), // ld hl, (saved_hl)
+        '#ED', '#5B', ...addrBytes(residentSavedDe), // ld de, (saved_de)
+        '#08', // ex af, af' (restore caller AF for target)
+        '#C9', // ret into resident target
+    ];
+    const residentRestoreBytes = [
+        '#F3', // di before restoring the caller's lower-page overlay
+        '#08', // ex af, af' (save target AF while restoring far bank)
+        '#F1', // pop af (old bank saved by the resident bridge entry)
+        '#32', ...addrBytes(currentP1), // ld (mapper_bank_p1_current), a
+        '#32', ...addrBytes(currentP2), // ld (mapper_bank_p2_current), a
+        '#32', mapperRegP1Low, mapperRegP1High, // ld (#6000), a
+        '#3A', ...addrBytes(farCallDepth), // ld a, (ascii16_far_call_depth)
+        '#B7', // or a
+        '#C2', byteLowExpr(residentSkipEi), byteHighExpr(residentSkipEi), // jp nz, skip ei
+        '#3A', ...addrBytes('interrupt_in_progress'), // ld a, (interrupt_in_progress)
+        '#B7', // or a
+        '#C2', byteLowExpr(residentSkipEi), byteHighExpr(residentSkipEi), // jp nz, skip ei
+        '#FB', // ei when returning to non-ISR code
+    ];
+    const residentRestoreExitBytes = [
+        '#08', // ex af, af' (restore target AF)
+        '#C9', // ret to original far caller
+    ];
+    const tailJumpBytes = [
+        '#22', ...addrBytes(targetAddr), // ld (target_addr), hl
+        '#32', ...addrBytes(targetBank), // ld (target_bank), a
+        '#3A', ...addrBytes(targetBank), // ld a, (target_bank)
+        '#32', ...addrBytes(currentP1), // ld (mapper_bank_p1_current), a
+        '#32', ...addrBytes(currentP2), // ld (mapper_bank_p2_current), a
+        '#32', mapperRegP1Low, mapperRegP1High, // ld (#6000), a
+        '#2A', ...addrBytes(targetAddr), // ld hl, (target_addr)
+        '#FB', // ei: tail GameFlow owns the lower page after this point
+        '#E9', // jp (hl)
+    ];
+    const irqEntryBytes = [
+        '#F5', // push af (do not clobber interrupted AF before dispatcher prologue)
+        '#3A', ...addrBytes(currentP1), // ld a, (mapper_bank_p1_current)
+        '#32', ...addrBytes(irqSavedBank), // ld (ascii16_irq_saved_bank), a
+        '#AF', // xor a (resident lower 16KB page / bank0)
+        '#32', ...addrBytes(currentP1), // ld (mapper_bank_p1_current), a
+        '#32', ...addrBytes(currentP2), // ld (mapper_bank_p2_current), a
+        '#32', mapperRegP1Low, mapperRegP1High, // ld (#6000), a
+        '#F1', // pop af
+        '#C3', ...addrBytes('interrupt_dispatcher'), // jp interrupt_dispatcher
+    ];
+    const irqExitBytes = [
+        '#F5', // push af (preserve dispatcher-restored AF for BIOS hook)
+        '#3A', ...addrBytes(irqSavedBank), // ld a, (ascii16_irq_saved_bank)
+        '#32', ...addrBytes(currentP1), // ld (mapper_bank_p1_current), a
+        '#32', ...addrBytes(currentP2), // ld (mapper_bank_p2_current), a
+        '#32', mapperRegP1Low, mapperRegP1High, // ld (#6000), a
+        '#F1', // pop af
+        '#C3', ...addrBytes('old_htimi_hook'), // jp old_htimi_hook
+    ];
+    const normalSize = normalBytes.length + normalRestoreBytes.length;
+    const preserveSize = preserveBytes.length + preserveRestoreBytes.length;
+    const residentSize = residentBytes.length + residentRestoreBytes.length + residentRestoreExitBytes.length;
+    const tailJumpSize = tailJumpBytes.length;
+    const irqEntrySize = irqEntryBytes.length;
+    const irqExitSize = irqExitBytes.length;
+
+    return `; ==================================================================
+; ASCII16 RAM FAR-CALL BRIDGE
+; ==================================================================
+; ASCII16 changes #4000-#7FFF as one 16 KB page. A ROM trampoline in
+; bank 0 cannot switch that page and then continue executing safely,
+; so P1 far-call bodies copy this tiny bridge to RAM during boot.
+install_ascii16_far_call_ram:
+    ld hl, a1600
+    ld de, ASCII16_FAR_CALL_P1_RAM
+    ld bc, ${normalSize}
+    ldir
+    ld hl, a16pa0
+    ld de, ASCII16_FAR_CALL_P1_PRESERVE_A_RAM
+    ld bc, ${preserveSize}
+    ldir
+    ld hl, a16rc0
+    ld de, ASCII16_RESIDENT_CALL_P1_RAM
+    ld bc, ${residentSize}
+    ldir
+    ld hl, a16tj0
+    ld de, ASCII16_TAIL_JUMP_P1_RAM
+    ld bc, ${tailJumpSize}
+    ldir
+    ld hl, a16iq0
+    ld de, ASCII16_IRQ_ENTRY_RAM
+    ld bc, ${irqEntrySize}
+    ldir
+    ld hl, a16ix0
+    ld de, ASCII16_IRQ_EXIT_RAM
+    ld bc, ${irqExitSize}
+    ldir
+    xor a
+    ld (${farCallDepth}), a
+    ret
+
+a1600:
+${dbLine(normalBytes)}a1601:
+${dbLine(normalRestoreBytes)}a1602:
+
+a16pa0:
+${dbLine(preserveBytes)}a16pa1:
+${dbLine(preserveRestoreBytes)}
+
+a16rc0:
+${dbLine(residentBytes)}a16rc1:
+${dbLine(residentRestoreBytes)}a16rc2:
+${dbLine(residentRestoreExitBytes)}
+
+a16tj0:
+${dbLine(tailJumpBytes)}
+
+a16iq0:
+${dbLine(irqEntryBytes)}
+
+a16ix0:
+${dbLine(irqExitBytes)}
+
+`;
+}
+
 /**
  * Generate far-call trampolines in bank 0 for all far-bank modules.
- * Each trampoline uses the correct mapper window (pX) matching the far bank's ORG address:
- *   windowPage 1 (#6000) → mapper_push_p1 / mapper_set_bank_p1 / mapper_pop_p1
- *   windowPage 2 (#8000) → mapper_push_p2 / mapper_set_bank_p2 / mapper_pop_p2
- *   windowPage 3 (#A000) → mapper_push_p3 / mapper_set_bank_p3 / mapper_pop_p3
+ * Far code executes through the mapper page that owns the module ORG
+ * (Konami P1/#6000, ASCII8 P2/#6000). ASCII16 P1 wrappers call a RAM
+ * bridge because switching the lower 16KB page hides the bank-0 wrapper.
+ * The generated stack save/restore contract is also checked by the Python
+ * build validator.
+ * The contract is intentionally stack-local: no mapper_push/mapper_pop RAM
+ * slots are used inside the trampoline, so nested IRQ paths cannot overwrite
+ * the saved return bank.
  * All trampolines live in bank 0 (fixed #4000-#5FFF) so they are always reachable.
  */
-function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAnalysis): string {
+function generateFarCallTrampolines(
+    farBanks: PackedBank[],
+    analysis: ProjectAnalysis,
+    targetFormat: UnifiedMapperFormat,
+    firstFarPhysicalBank: number,
+    firstFarRuntimeBank: number
+): string {
     if (farBanks.length === 0) return '';
 
     const preserveAEntryPoints = new Set([
@@ -786,7 +1790,42 @@ function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAna
         'music_play_track',
         'set_screen_colors',
         'init_char0_color',
+        'SM_ExecuteActions',
+        'display_end_screen',
+        'trans_clear_column',
+        'trans_clear_column_range',
+        'trans_reveal_column',
+        'trans_reveal_column_range',
+        'trans_clear_row_direct',
+        'trans_clear_row_range',
+        'trans_reveal_row_direct',
+        'trans_reveal_row_range',
+        'trans_fast_filvrm',
+        'gameflow_read_confirm_direct',
+        'clear_screen_row',
     ]);
+    const preserveHlReturnEntryPoints = new Set([
+        'gameflow_get_default_connection',
+    ]);
+    const postAsmOwnedFarTrampolineEntryPoints = new Set([
+        'init_sound_system',
+        'task_audio_tick',
+        'music_update',
+        'sfx_update',
+        'music_stop',
+        'music_play_track',
+        'music_execute_command',
+        'init_boss_system',
+        'init_screen_boss_from_current_screen',
+        'update_boss_system',
+        'draw_boss_attack',
+    ]);
+    const interactiveFarEntryPoints = new Set([
+        'gameflow_handle_submenu',
+    ]);
+
+    const needsAscii16RamBridge = targetFormat === 'ascii16'
+        && farBanks.some((bank) => bank.windowPage === 1);
 
     let asm = `; ==================================================================
 ; FAR-CALL TRAMPOLINES — bank 0 (always accessible at #4000-#5FFF)
@@ -795,13 +1834,21 @@ function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAna
 ; ==================================================================
 
 `;
+    if (needsAscii16RamBridge) {
+        asm += generateAscii16RamFarCallInstaller();
+    }
 
     for (const bank of farBanks) {
         const bankNum = bank.physicalBank;
+        const runtimeBankNum = getRuntimeCodeBankNumber(bank, targetFormat, firstFarPhysicalBank, firstFarRuntimeBank);
         const wp = bank.windowPage; // 1, 2 or 3
         const orgHex = bank.orgAddress.toString(16).toUpperCase().padStart(4, '0');
         asm += `; --- Far bank ${bankNum} [#${orgHex}, window P${wp}] trampolines ---\n`;
-        asm += `FAR_BANK_${bankNum} EQU ${bankNum}\n\n`;
+        asm += `FAR_BANK_${bankNum} EQU ${runtimeBankNum}\n`;
+        if (runtimeBankNum !== bankNum) {
+            asm += `; Mapper bank ${runtimeBankNum} is the ASCII16 runtime segment for packed far bank ${bankNum}.\n`;
+        }
+        asm += `\n`;
 
         for (const mod of bank.modules) {
             const content = mod.content || '';
@@ -811,16 +1858,119 @@ function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAna
             ];
             for (const ep of eps) {
                 // Only generate trampolines for labels actually defined in the module
-                const labelPattern = new RegExp(`^${ep}:`, 'm');
+                const labelPattern = new RegExp(`^\\s*${ep}:`, 'm');
                 if (!labelPattern.test(content)) {
                     continue; // Skip — label not defined in this module
                 }
-                asm += `${ep}_far:\n`;
-                if (preserveAEntryPoints.has(ep)) {
-                    asm += `    ex af, af'\n`;
-                    asm += `    ld a, i\n`;
+                const farLabel = `${ep}_far`;
+                const farBlockId = `runtime.far_trampoline.${farLabel}`;
+                const hasFarOwnershipBlock = postAsmOwnedFarTrampolineEntryPoints.has(ep);
+                const closeFarOwnershipBlock = () => {
+                    asm += hasFarOwnershipBlock
+                        ? `; @mideas:endblock id=${farBlockId}\n\n`
+                        : `\n`;
+                };
+                if (hasFarOwnershipBlock) {
+                    asm += `; @mideas:block id=${farBlockId} kind=trampoline owner=far-call preserve=true\n`;
+                }
+                asm += `${farLabel}:\n`;
+                if (targetFormat === 'ascii16' && wp === 1) {
+                    if (ep === 'gameflow_start') {
+                        asm += `    di\n`;
+                        asm += `    ld a, FAR_BANK_${bankNum}\n`;
+                        asm += `    ld hl, ${ep}\n`;
+                        asm += `    jp ASCII16_TAIL_JUMP_P1_RAM\n`;
+                        closeFarOwnershipBlock();
+                        continue;
+                    }
+                    if (preserveHlReturnEntryPoints.has(ep)) {
+                        asm += `    push af\n`;
+                        asm += `    di\n`;
+                        asm += buildFarIrqLockEnter();
+                        asm += `    ld a, FAR_BANK_${bankNum}\n`;
+                        asm += `    ld hl, ${ep}\n`;
+                        asm += `    call ASCII16_FAR_CALL_P1_RAM\n`;
+                        asm += `    push hl\n`;
+                        asm += buildFarIrqLockLeave();
+                        asm += buildFarIrqRestoreGuard(`.${ep}_far_irq_done`, true);
+                        asm += `    pop hl\n`;
+                        asm += `    pop af\n`;
+                        asm += `    ret\n`;
+                        closeFarOwnershipBlock();
+                        continue;
+                    }
+                    if (preserveAEntryPoints.has(ep)) {
+                        asm += `    ex af, af'\n`;
+                        asm += `    di\n`;
+                        asm += buildFarIrqLockEnter();
+                        asm += `    ld a, FAR_BANK_${bankNum}\n`;
+                        asm += `    ld hl, ${ep}\n`;
+                        asm += `    call ASCII16_FAR_CALL_P1_PRESERVE_A_RAM\n`;
+                        asm += buildFarIrqLockLeave();
+                        asm += buildFarIrqRestoreGuard(`.${ep}_far_irq_done`, true);
+                        asm += `    ex af, af'\n`;
+                        asm += `    ret\n`;
+                        closeFarOwnershipBlock();
+                        continue;
+                    }
                     asm += `    push af\n`;
                     asm += `    di\n`;
+                    asm += buildFarIrqLockEnter();
+                    asm += `    ld a, FAR_BANK_${bankNum}\n`;
+                    asm += `    ld hl, ${ep}\n`;
+                    asm += `    call ASCII16_FAR_CALL_P1_RAM\n`;
+                    asm += buildFarIrqLockLeave();
+                    asm += buildFarIrqRestoreGuard(`.${ep}_far_irq_done`, true);
+                    asm += `    pop af\n`;
+                    asm += `    ret\n`;
+                    closeFarOwnershipBlock();
+                    continue;
+                }
+                if (interactiveFarEntryPoints.has(ep)) {
+                    asm += `    push af\n`;
+                    asm += `    di\n`;
+                    asm += `    ld a, (mapper_bank_p${wp}_current)\n`;
+                    asm += `    push af\n`;
+                    asm += `    ld a, FAR_BANK_${bankNum}\n`;
+                    asm += `    call mapper_set_bank_p${wp}\n`;
+                    asm += `    ; Interactive far handlers contain HALT/input loops. Keep IRQs\n`;
+                    asm += `    ; enabled while the handler owns the mapped bank, then restore\n`;
+                    asm += `    ; the caller bank in a short DI window on exit.\n`;
+                    asm += `    ei\n`;
+                    asm += `    call ${ep}\n`;
+                    asm += `    di\n`;
+                    asm += `    pop af\n`;
+                    asm += `    call mapper_set_bank_p${wp}\n`;
+                    asm += buildFarIrqRestoreGuard(`.${ep}_far_irq_done`);
+                    asm += `    pop af\n`;
+                    asm += `    ret\n`;
+                    closeFarOwnershipBlock();
+                    continue;
+                }
+                if (preserveHlReturnEntryPoints.has(ep)) {
+                    asm += `    push af\n`;
+                    asm += `    di\n`;
+                    asm += buildFarIrqLockEnter();
+                    asm += `    ld a, (mapper_bank_p${wp}_current)\n`;
+                    asm += `    push af\n`;
+                    asm += `    ld a, FAR_BANK_${bankNum}\n`;
+                    asm += `    call mapper_set_bank_p${wp}\n`;
+                    asm += `    call ${ep}\n`;
+                    asm += `    pop af\n`;
+                    asm += `    call mapper_set_bank_p${wp}\n`;
+                    asm += `    push hl\n`;
+                    asm += buildFarIrqLockLeave();
+                    asm += buildFarIrqRestoreGuard(`.${ep}_far_irq_done`);
+                    asm += `    pop hl\n`;
+                    asm += `    pop af\n`;
+                    asm += `    ret\n`;
+                    closeFarOwnershipBlock();
+                    continue;
+                }
+                if (preserveAEntryPoints.has(ep)) {
+                    asm += `    ex af, af'\n`;
+                    asm += `    di\n`;
+                    asm += buildFarIrqLockEnter();
                     asm += `    ld a, (mapper_bank_p${wp}_current)\n`;
                     asm += `    push af\n`;
                     asm += `    ld a, FAR_BANK_${bankNum}\n`;
@@ -830,21 +1980,16 @@ function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAna
                     asm += `    ex af, af'\n`;
                     asm += `    pop af\n`;
                     asm += `    call mapper_set_bank_p${wp}\n`;
-                    asm += `    pop af\n`;
-                    asm += `    jp po, .${ep}_far_irq_done\n`;
-                    asm += `    ld a, (interrupt_in_progress)\n`;
-                    asm += `    or a\n`;
-                    asm += `    jr nz, .${ep}_far_irq_done\n`;
-                    asm += `    ei\n`;
-                    asm += `.${ep}_far_irq_done:\n`;
+                    asm += buildFarIrqLockLeave();
+                    asm += buildFarIrqRestoreGuard(`.${ep}_far_irq_done`);
                     asm += `    ex af, af'\n`;
-                    asm += `    ret\n\n`;
+                    asm += `    ret\n`;
+                    closeFarOwnershipBlock();
                     continue;
                 }
                 asm += `    push af\n`;
-                asm += `    ld a, i\n`;
-                asm += `    push af\n`;
                 asm += `    di\n`;
+                asm += buildFarIrqLockEnter();
                 asm += `    ld a, (mapper_bank_p${wp}_current)\n`;
                 asm += `    push af\n`;
                 asm += `    ld a, FAR_BANK_${bankNum}\n`;
@@ -852,15 +1997,11 @@ function generateFarCallTrampolines(farBanks: PackedBank[], analysis: ProjectAna
                 asm += `    call ${ep}\n`;
                 asm += `    pop af\n`;
                 asm += `    call mapper_set_bank_p${wp}\n`;
+                asm += buildFarIrqLockLeave();
+                asm += buildFarIrqRestoreGuard(`.${ep}_far_irq_done`);
                 asm += `    pop af\n`;
-                asm += `    jp po, .${ep}_far_irq_done\n`;
-                asm += `    ld a, (interrupt_in_progress)\n`;
-                asm += `    or a\n`;
-                asm += `    jr nz, .${ep}_far_irq_done\n`;
-                asm += `    ei\n`;
-                asm += `.${ep}_far_irq_done:\n`;
-                asm += `    pop af\n`;
-                asm += `    ret\n\n`;
+                asm += `    ret\n`;
+                closeFarOwnershipBlock();
             }
         }
     }
@@ -895,12 +2036,11 @@ function getDynamicFarEntryPoints(moduleKey: string, content: string): string[] 
     return [...labels];
 }
 
-function collectDefinedLabels(files: GeneratedASMFiles): Set<string> {
+function collectDefinedLabels(files: Record<string, string | undefined>): Set<string> {
     const labels = new Set<string>();
-    const labelPattern = /^([A-Za-z_][A-Za-z0-9_]*):/gm;
+    const labelPattern = /^\s*([A-Za-z_][A-Za-z0-9_]*):/gm;
 
-    (Object.keys(files) as Array<keyof GeneratedASMFiles>).forEach((fileKey) => {
-        const asm = files[fileKey] || '';
+    Object.values(files).forEach((asm = '') => {
         for (const match of asm.matchAll(labelPattern)) {
             labels.add(match[1]);
         }
@@ -909,9 +2049,552 @@ function collectDefinedLabels(files: GeneratedASMFiles): Set<string> {
     return labels;
 }
 
+function collectCallTargets(asm: string): Array<{ target: string; line: number }> {
+    const calls: Array<{ target: string; line: number }> = [];
+    const callPattern = /\b(?:call|jp)\s+([A-Za-z_][A-Za-z0-9_]*)\b/i;
+    asm.split(/\r?\n/).forEach((line, index) => {
+        const code = line.split(';')[0];
+        const match = code.match(callPattern);
+        if (match) {
+            calls.push({ target: match[1], line: index + 1 });
+        }
+    });
+    return calls;
+}
+
+function collectEstimatedLabelOffsets(asm: string): Map<string, { line: number; estimatedOffset: number }> {
+    const labels = new Map<string, { line: number; estimatedOffset: number }>();
+    let estimatedOffset = 0;
+    asm.split(/\r?\n/).forEach((line, index) => {
+        const code = line.split(';')[0].trim();
+        const labelMatch = code.match(/^([A-Za-z_][A-Za-z0-9_]*):$/);
+        if (labelMatch) {
+            labels.set(labelMatch[1], { line: index + 1, estimatedOffset });
+        }
+        estimatedOffset += estimateAsmLineBytesLocal(line);
+    });
+    return labels;
+}
+
+const ASCII16_LOCAL_FAST_ROUTINES = [
+    'FAST_FILLVRM',
+    'FAST_LDIRVM',
+    'FAST_LDIRVM_256',
+    'FAST_WRTVRM',
+    'FAST_RDVRM',
+    'FAST_WRTVDP',
+    'FAST_GTSTCK',
+    'FAST_GTTRIG',
+    'FAST_SNSMAT',
+];
+
+function extractDirectHardwareRoutine(label: string): string {
+    const source = generateDirectHardwareFile({ mode: 'hybrid', optimizeLevel: 'safe' });
+    const labelIndex = source.indexOf(`\n${label}:`);
+    if (labelIndex < 0) {
+        return '';
+    }
+    const start = Math.max(0, source.lastIndexOf('\n; ==================================================================', labelIndex));
+    const nextRoutine = source.indexOf('\n; ==================================================================', labelIndex + label.length + 2);
+    return source.slice(start, nextRoutine >= 0 ? nextRoutine : source.length).trimEnd() + '\n';
+}
+
+function escapeRegExpLiteral(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function renameDirectHardwareRoutine(asm: string, label: string, suffix: string): string {
+    let renamed = asm.replace(new RegExp(`\\b${label}\\b`, 'g'), `${label}_${suffix}`);
+    renamed = renamed.replace(/\bjoystick_direction_table\b/g, `joystick_direction_table_${suffix}`);
+    const localLabels = new Set<string>();
+    asm.replace(/^\s*(\.[A-Za-z_][A-Za-z0-9_]*):/gm, (_match, localLabel: string) => {
+        localLabels.add(localLabel);
+        return _match;
+    });
+    localLabels.forEach((localLabel) => {
+        renamed = renamed.replace(
+            new RegExp(`${escapeRegExpLiteral(localLabel)}\\b`, 'g'),
+            `${localLabel}_${suffix}`
+        );
+    });
+    return renamed;
+}
+
+function localizeAscii16FastHardwareCalls(packedBanks: PackedBank[]): void {
+    const routineCache = new Map<string, string>();
+
+    packedBanks
+        .filter((bank) => bank.isFar && bank.orgAddress < 0x8000)
+        .forEach((bank) => {
+            const needed = new Set<string>();
+            bank.modules.forEach((module) => {
+                collectCallTargets(module.content).forEach((call) => {
+                    if (ASCII16_LOCAL_FAST_ROUTINES.includes(call.target)) {
+                        needed.add(call.target);
+                    }
+                });
+            });
+
+            if (needed.size === 0 || bank.modules.length === 0) {
+                return;
+            }
+
+            const suffix = `A16B${bank.physicalBank}`;
+            bank.modules = bank.modules.map((module) => {
+                let content = module.content;
+                needed.forEach((label) => {
+                    content = content.replace(new RegExp(`\\b(call|jp)\\s+${label}\\b`, 'g'), `$1 ${label}_${suffix}`);
+                });
+                return { ...module, content };
+            });
+
+            const localizedRoutines = [...needed]
+                .sort()
+                .map((label) => {
+                    if (!routineCache.has(label)) {
+                        routineCache.set(label, extractDirectHardwareRoutine(label));
+                    }
+                    const routine = routineCache.get(label) || '';
+                    return routine ? renameDirectHardwareRoutine(routine, label, suffix) : '';
+                })
+                .filter(Boolean)
+                .join('\n');
+
+            if (!localizedRoutines) {
+                return;
+            }
+
+            const lastIndex = bank.modules.length - 1;
+            const extra = `\n; ASCII16-local direct hardware routines for far bank ${bank.physicalBank}\n${localizedRoutines}`;
+            bank.modules[lastIndex] = {
+                ...bank.modules[lastIndex],
+                content: `${bank.modules[lastIndex].content}${extra}`,
+                estimatedBytes: bank.modules[lastIndex].estimatedBytes + estimateAsmBytesLocal(extra),
+            };
+            bank.usedBytes += estimateAsmBytesLocal(extra);
+            bank.placementReason = `${bank.placementReason || ''}; ASCII16 localizes ${[...needed].sort().join(', ')} to avoid lower-page far calls into hidden bank-0 hardware helpers`;
+        });
+}
+
+function buildAscii16HiddenCallReport(
+    files: GeneratedASMFiles,
+    primaryBanks: PackedBank[],
+    farCodeBanks: PackedBank[],
+    farTrampolines: string
+): Ascii16HiddenCallReport {
+    const bank0Files: Record<string, string | undefined> = {
+        'header.asm': files['header.asm'],
+        'bios.asm': files['bios.asm'],
+        'mapper.asm': files['mapper.asm'],
+        'resource_ids.asm': files['resource_ids.asm'],
+        'resource_table.asm': files['resource_table.asm'],
+        'resource_manager.asm': files['resource_manager.asm'],
+        'interrupt.asm': files['interrupt.asm'],
+        'far_trampolines.asm': farTrampolines,
+        // These labels are emitted by the unified MegaROM template rather than
+        // the modular file map, but lower-page ASCII16 overlays still hide them.
+        'bank0_template.asm': 'init_game_systems:\nload_game_screen:\nmain_loop:\nresident_noop:\n',
+    };
+    const lowerResidentFiles = Object.fromEntries(
+        primaryBanks
+            .filter((bank) => bank.orgAddress < 0x8000)
+            .flatMap((bank) => bank.modules.map((module) => [`bank${bank.physicalBank}_${module.key}`, module.content]))
+    );
+    const hiddenLabels = collectDefinedLabels({ ...bank0Files, ...lowerResidentFiles });
+    const samples: Ascii16HiddenCallReport['samples'] = [];
+    let count = 0;
+
+    farCodeBanks
+        .filter((bank) => bank.orgAddress < 0x8000)
+        .forEach((bank) => {
+            bank.modules.forEach((module) => {
+                for (const call of collectCallTargets(module.content)) {
+                    if (!hiddenLabels.has(call.target)) {
+                        continue;
+                    }
+                    count++;
+                    if (samples.length < 16) {
+                        samples.push({
+                            bank: bank.physicalBank,
+                            module: module.key,
+                            line: call.line,
+                            target: call.target,
+                        });
+                    }
+                }
+            });
+        });
+
+    return { count, samples };
+}
+
+function buildAscii16ResidentWindowOverflowReport(
+    packedBanks: PackedBank[],
+    targetFormat: UnifiedMapperFormat
+): Ascii16ResidentWindowOverflowReport {
+    if (targetFormat !== 'ascii16') {
+        return {
+            count: 0,
+            samples: [],
+            estimatedOutOfWindowLabelCount: 0,
+            estimatedOutOfWindowLabelSamples: [],
+            estimatedOutOfWindowCallCount: 0,
+            estimatedOutOfWindowCallSamples: [],
+        };
+    }
+
+    const samples: Ascii16ResidentWindowOverflowReport['samples'] = [];
+    // This report is intentionally estimate-based: it highlights component
+    // pressure early, while post-assembly symbol checks decide real overflow.
+    const outOfWindowLabelSamples: Ascii16ResidentWindowOverflowReport['estimatedOutOfWindowLabelSamples'] = [];
+    const outOfWindowCallSamples: Ascii16ResidentWindowOverflowReport['estimatedOutOfWindowCallSamples'] = [];
+    const outOfWindowLabels = new Map<string, {
+        bank: number;
+        module: string;
+        line: number;
+        estimatedOffset: number;
+        estimatedAddress: number;
+        estimatedSegment: number;
+    }>();
+    let count = 0;
+    let outOfWindowLabelCount = 0;
+    let outOfWindowCallCount = 0;
+    for (const bank of packedBanks) {
+        if (bank.isFar) {
+            continue;
+        }
+        const windowBytes = Math.max(0, bank.endAddress - bank.orgAddress);
+        if (windowBytes <= 0 || bank.usedBytes <= windowBytes) {
+            continue;
+        }
+        count++;
+        if (samples.length < 16) {
+            samples.push({
+                bank: bank.physicalBank,
+                module: bank.modules.map((module) => module.key).join(', ') || '(empty)',
+                estimatedBytes: bank.usedBytes,
+                windowBytes,
+                overflowBytes: bank.usedBytes - windowBytes,
+                estimatedSegments: Math.ceil(bank.usedBytes / windowBytes),
+            });
+        }
+        for (const module of bank.modules) {
+            const labels = collectEstimatedLabelOffsets(module.content);
+            labels.forEach((placement, label) => {
+                if (placement.estimatedOffset < windowBytes) {
+                    return;
+                }
+                const estimatedSegment = Math.floor(placement.estimatedOffset / windowBytes);
+                const entry = {
+                    bank: bank.physicalBank,
+                    module: module.key,
+                    line: placement.line,
+                    estimatedOffset: placement.estimatedOffset,
+                    estimatedAddress: bank.orgAddress + placement.estimatedOffset,
+                    estimatedSegment,
+                };
+                outOfWindowLabels.set(label, entry);
+                outOfWindowLabelCount++;
+                if (outOfWindowLabelSamples.length < 96) {
+                    outOfWindowLabelSamples.push({ label, ...entry });
+                }
+            });
+        }
+    }
+
+    if (outOfWindowLabels.size > 0) {
+        for (const bank of packedBanks) {
+            for (const module of bank.modules) {
+                for (const call of collectCallTargets(module.content)) {
+                    const target = outOfWindowLabels.get(call.target);
+                    if (!target) {
+                        continue;
+                    }
+                    outOfWindowCallCount++;
+                    if (outOfWindowCallSamples.length < 96) {
+                        outOfWindowCallSamples.push({
+                            callerBank: bank.physicalBank,
+                            callerModule: module.key,
+                            line: call.line,
+                            target: call.target,
+                            targetBank: target.bank,
+                            targetModule: target.module,
+                            targetEstimatedOffset: target.estimatedOffset,
+                            targetEstimatedAddress: target.estimatedAddress,
+                            targetEstimatedSegment: target.estimatedSegment,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    return {
+        count,
+        samples,
+        estimatedOutOfWindowLabelCount: outOfWindowLabelCount,
+        estimatedOutOfWindowLabelSamples: outOfWindowLabelSamples,
+        estimatedOutOfWindowCallCount: outOfWindowCallCount,
+        estimatedOutOfWindowCallSamples: outOfWindowCallSamples,
+    };
+}
+
+function buildAscii16FarToFarCallReport(
+    packedBanks: PackedBank[],
+    targetFormat: UnifiedMapperFormat
+): Ascii16FarToFarCallReport {
+    if (targetFormat !== 'ascii16') {
+        return { count: 0, samples: [] };
+    }
+
+    const farLabelOwners = new Map<string, { bank: number; module: string }>();
+    for (const bank of packedBanks) {
+        if (!bank.isFar) {
+            continue;
+        }
+        for (const module of bank.modules) {
+            collectDefinedLabels({ [module.key]: module.content }).forEach((label) => {
+                farLabelOwners.set(label, { bank: bank.physicalBank, module: module.key });
+            });
+        }
+    }
+
+    let count = 0;
+    const samples: Ascii16FarToFarCallReport['samples'] = [];
+    for (const bank of packedBanks) {
+        if (!bank.isFar) {
+            continue;
+        }
+        for (const module of bank.modules) {
+            for (const call of collectCallTargets(module.content)) {
+                const target = farLabelOwners.get(call.target);
+                if (!target || target.bank === bank.physicalBank) {
+                    continue;
+                }
+                count++;
+                if (samples.length < 96) {
+                    samples.push({
+                        callerBank: bank.physicalBank,
+                        callerModule: module.key,
+                        line: call.line,
+                        target: call.target,
+                        targetBank: target.bank,
+                        targetModule: target.module,
+                    });
+                }
+            }
+        }
+    }
+
+    return { count, samples };
+}
+
+function sanitizeAscii16ResidentStubTarget(target: string): string {
+    return target.replace(/[^A-Za-z0-9_]/g, '_');
+}
+
+function generateAscii16ResidentCallStub(target: string, label: string): string {
+    if (target === 'mapper_call_hl_auto') {
+        return `${label}:
+    ; If GameFlow asks mapper_call_hl_auto to call a routine in this same
+    ; ASCII16 lower-page overlay, keep the overlay mapped and call directly.
+    ; Going through bank 0 would make the RAM far-call bridge restore bank 0,
+    ; leaving the caller executing #6000 code from the wrong 16 KB page.
+    cp __MIDEAS_CURRENT_CODE_BANK__
+    jp nz, .${label}_bridge
+    push af
+    ld a, h
+    cp #80
+    jp nc, .${label}_restore_bridge
+    pop af
+    push de
+    ld de, .${label}_return
+    push de
+    jp (hl)
+.${label}_return:
+    pop de
+    ret
+.${label}_restore_bridge:
+    pop af
+.${label}_bridge:
+    push af
+    ld a, ${target} & #FF
+    ld (ascii16_resident_call_target_addr), a
+    ld a, (${target} >> 8) & #FF
+    ld (ascii16_resident_call_target_addr + 1), a
+    pop af
+    call ASCII16_RESIDENT_CALL_P1_RAM
+    ret
+`;
+    }
+
+    return `${label}:
+    push af
+    ld a, ${target} & #FF
+    ld (ascii16_resident_call_target_addr), a
+    ld a, (${target} >> 8) & #FF
+    ld (ascii16_resident_call_target_addr + 1), a
+    pop af
+    call ASCII16_RESIDENT_CALL_P1_RAM
+    ret
+`;
+}
+
+function isAscii16HiddenResidentTarget(target: string, hiddenLabels: Set<string>): boolean {
+    // Bank-0 generated wrappers such as call_update_animated_tiles_vram_resident
+    // are not always present in the modular file map collected below. Treat the
+    // naming convention as resident so far overlays cannot call their local
+    // address while bank 0 is hidden by an ASCII16 lower-page segment.
+    return hiddenLabels.has(target) || /^call_[A-Za-z0-9_]+_resident$/.test(target);
+}
+
+function localizeAscii16HiddenResidentCalls(
+    files: GeneratedASMFiles,
+    primaryBanks: PackedBank[],
+    farCodeBanks: PackedBank[],
+    farTrampolines: string
+): Ascii16ResidentBridgeReport {
+    const bank0Files: Record<string, string | undefined> = {
+        'header.asm': files['header.asm'],
+        'bios.asm': files['bios.asm'],
+        'mapper.asm': files['mapper.asm'],
+        'resource_ids.asm': files['resource_ids.asm'],
+        'resource_table.asm': files['resource_table.asm'],
+        'resource_manager.asm': files['resource_manager.asm'],
+        'interrupt.asm': files['interrupt.asm'],
+        'far_trampolines.asm': farTrampolines,
+        // These labels are emitted by the unified MegaROM template rather than
+        // the modular file map, but lower-page ASCII16 overlays still hide them.
+        'bank0_template.asm': 'init_game_systems:\nload_game_screen:\nmain_loop:\nresident_noop:\n',
+    };
+    const lowerResidentFiles = Object.fromEntries(
+        primaryBanks
+            .filter((bank) => bank.orgAddress < 0x8000)
+            .flatMap((bank) => bank.modules.map((module) => [`bank${bank.physicalBank}_${module.key}`, module.content]))
+    );
+    const hiddenLabels = collectDefinedLabels({ ...bank0Files, ...lowerResidentFiles });
+    const report: Ascii16ResidentBridgeReport = { count: 0, samples: [] };
+
+    farCodeBanks
+        .filter((bank) => bank.orgAddress < 0x8000)
+        .forEach((bank) => {
+            const targetToStub = new Map<string, string>();
+
+            bank.modules.forEach((module) => {
+                collectCallTargets(module.content).forEach((call) => {
+                    if (isAscii16HiddenResidentTarget(call.target, hiddenLabels)) {
+                        const stubLabel = `a16r${bank.physicalBank}_${targetToStub.size}_${sanitizeAscii16ResidentStubTarget(call.target).slice(0, 8)}`;
+                        if (!targetToStub.has(call.target)) {
+                            targetToStub.set(call.target, stubLabel);
+                        }
+                    }
+                });
+            });
+
+            if (targetToStub.size === 0 || bank.modules.length === 0) {
+                return;
+            }
+
+            targetToStub.forEach((stub, target) => {
+                report.count++;
+                if (report.samples.length < 96) {
+                    report.samples.push({
+                        bank: bank.physicalBank,
+                        module: bank.modules.map((module) => module.key).join(', ') || '(empty)',
+                        target,
+                        stub,
+                    });
+                }
+            });
+
+            bank.modules = bank.modules.map((module) => {
+                let content = module.content;
+                targetToStub.forEach((stubLabel, target) => {
+                    content = content.replace(new RegExp(`\\b(call|jp)\\s+${target}\\b`, 'g'), `$1 ${stubLabel}`);
+                });
+                return { ...module, content };
+            });
+
+            const stubs = [...targetToStub.entries()]
+                .map(([target, stubLabel]) => generateAscii16ResidentCallStub(target, stubLabel))
+                .join('\n');
+            const extra = `\n; ASCII16-local resident call stubs for far bank ${bank.physicalBank}\n${stubs}`;
+            const lastIndex = bank.modules.length - 1;
+            bank.modules[lastIndex] = {
+                ...bank.modules[lastIndex],
+                content: `${bank.modules[lastIndex].content}${extra}`,
+                estimatedBytes: bank.modules[lastIndex].estimatedBytes + estimateAsmBytesLocal(extra),
+            };
+            bank.usedBytes += estimateAsmBytesLocal(extra);
+            bank.placementReason = `${bank.placementReason || ''}; ASCII16 routes ${targetToStub.size} resident/bank-0 call target(s) through a RAM bridge`;
+        });
+
+    return report;
+}
+
 function replaceCallInstruction(asm: string, fromLabel: string, toLabel: string): string {
     const pattern = new RegExp(`\\bcall\\s+${fromLabel}\\b`, 'g');
     return asm.replace(pattern, `call ${toLabel}`);
+}
+
+function rewriteAscii16BootForLowerPageFarOverlays(
+    files: GeneratedASMFiles,
+    targetFormat: UnifiedMapperFormat,
+    farCodeBanks: PackedBank[],
+    farModuleKeys: Set<string>
+): void {
+    if (targetFormat !== 'ascii16' || !files['header.asm']) return;
+
+    const hasLowerPageOverlay = farCodeBanks.some((bank) => bank.windowPage === 1);
+    if (!hasLowerPageOverlay) return;
+
+    // The header can call far resident wrappers while registering boot tasks.
+    // Install the RAM bridge immediately after the ASCII16 static mapper setup,
+    // before any lower-page overlay can hide bank 0.
+    let header = files['header.asm'].replace(
+        /(\s+ld a, 1\r?\n\s+call mapper_set_bank_p3\r?\n)/,
+        `$1    ; Install lower-page far-call bridge before boot-time overlay calls.
+    call install_ascii16_far_call_ram
+`
+    );
+
+    if (!farModuleKeys.has('gameflow')) {
+        files['header.asm'] = header;
+        return;
+    }
+
+    // Header starts GameFlow before any banked module has control. When GameFlow is
+    // an ASCII16 overlay, enter it through bank-0 trampolines instead of a hidden
+    // direct CALL/JP into the data window.
+    header = replaceCallInstruction(header, 'gameflow_init', 'gameflow_init_far');
+    header = header.replace(/\bjp\s+gameflow_start\b/g, 'jp gameflow_start_far');
+    files['header.asm'] = header;
+}
+
+function rewriteAscii16InterruptForLowerPageFarOverlays(
+    files: GeneratedASMFiles,
+    targetFormat: UnifiedMapperFormat,
+    farCodeBanks: PackedBank[]
+): void {
+    if (targetFormat !== 'ascii16' || !files['interrupt.asm']) return;
+
+    const hasLowerPageOverlay = farCodeBanks.some((bank) => bank.windowPage === 1);
+    if (!hasLowerPageOverlay) return;
+
+    let interruptAsm = files['interrupt.asm'];
+    // H.TIMI lives in RAM but normally jumps to a ROM address. ASCII16 lower
+    // overlays can hide bank 0 at #4000-#7FFF, so route IRQ entry/exit through
+    // RAM stubs that map bank0 before the dispatcher and restore the interrupted
+    // lower page before chaining to the saved BIOS hook.
+    interruptAsm = interruptAsm.replace(
+        /ld hl,\s*interrupt_dispatcher\s*; Address of our ISR/g,
+        'ld hl, ASCII16_IRQ_ENTRY_RAM ; RAM ISR entry remaps bank0 before dispatcher'
+    );
+    interruptAsm = interruptAsm.replace(
+        /\bjp\s+old_htimi_hook\b/g,
+        'jp ASCII16_IRQ_EXIT_RAM'
+    );
+    files['interrupt.asm'] = interruptAsm;
 }
 
 function rewriteDynamicFarCallSites(files: GeneratedASMFiles, farModuleKeys: Set<string>): GeneratedASMFiles {
@@ -924,6 +2607,10 @@ function rewriteDynamicFarCallSites(files: GeneratedASMFiles, farModuleKeys: Set
                 /\bcall\s+(load_tilebank_[A-Za-z0-9_]+_patterns_to_vram)\b/g,
                 'call $1_far'
             );
+            rewritten[fileKey] = rewritten[fileKey].replace(
+                /\bDW\s+(load_tilebank_[A-Za-z0-9_]+_patterns_to_vram)\b/g,
+                'DW $1_far'
+            );
         });
     }
 
@@ -934,18 +2621,48 @@ function rewriteDynamicFarCallSites(files: GeneratedASMFiles, farModuleKeys: Set
                 /\bcall\s+(load_tilebank_[A-Za-z0-9_]+_colors_to_vram)\b/g,
                 'call $1_far'
             );
+            rewritten[fileKey] = rewritten[fileKey].replace(
+                /\bDW\s+(load_tilebank_[A-Za-z0-9_]+_colors_to_vram)\b/g,
+                'DW $1_far'
+            );
+        });
+    }
+
+    if (farModuleKeys.has('components_autocontrol')) {
+        (Object.keys(rewritten) as Array<keyof GeneratedASMFiles>).forEach((fileKey) => {
+            rewritten[fileKey] = replaceCallInstruction(
+                rewritten[fileKey],
+                'init_auto_control_script_system',
+                'init_auto_control_script_system_far'
+            );
+            rewritten[fileKey] = replaceCallInstruction(
+                rewritten[fileKey],
+                'update_auto_control_script_component',
+                'update_auto_control_script_component_far'
+            );
+            rewritten[fileKey] = replaceCallInstruction(
+                rewritten[fileKey],
+                'update_auto_event_string_component',
+                'update_auto_event_string_component_far'
+            );
         });
     }
 
     return rewritten;
 }
 
-function rewriteResidentCallSites(files: GeneratedASMFiles, farModuleKeys: Set<string>): GeneratedASMFiles {
+function rewriteResidentCallSites(
+    files: GeneratedASMFiles,
+    farModuleKeys: Set<string>,
+    targetFormat: UnifiedMapperFormat,
+    farCodeBanks: PackedBank[]
+): GeneratedASMFiles {
     const rewritten: GeneratedASMFiles = { ...files };
     const replacements: Array<[string, string]> = [
         ['check_world_screen_transition', 'call_check_world_screen_transition_resident'],
         ['reload_font_system', 'call_reload_font_system_resident'],
         ['init_font_system', 'call_init_font_system_resident'],
+        ['print_string_screen2', 'call_print_string_screen2_resident'],
         ['render_hud', 'call_render_hud_resident'],
         ['force_render_hud', 'call_force_render_hud_resident'],
         ['init_sound_system', 'call_init_sound_system_resident'],
@@ -971,6 +2688,7 @@ function rewriteResidentCallSites(files: GeneratedASMFiles, farModuleKeys: Set<s
         ['init_boss_system', 'call_init_boss_system_resident'],
         ['init_screen_boss_from_current_screen', 'call_init_screen_boss_from_current_screen_resident'],
         ['update_boss_system', 'call_update_boss_system_resident'],
+        ['update_boss_projectile_runtime', 'call_update_boss_projectile_runtime_resident'],
         ['draw_boss_attack', 'call_draw_boss_attack_resident'],
         ['draw_boss_meteor_attack', 'call_draw_boss_meteor_attack_resident'],
         ['draw_boss_bomb_attack', 'call_draw_boss_bomb_attack_resident'],
@@ -981,22 +2699,59 @@ function rewriteResidentCallSites(files: GeneratedASMFiles, farModuleKeys: Set<s
         ['draw_boss_homing_missile_attack', 'call_draw_boss_homing_missile_attack_resident'],
         ['load_colors_to_vram', 'call_load_colors_to_vram_resident'],
         ['update_entities', 'call_update_entities_resident'],
+        ['create_entity', 'call_create_entity_resident'],
+        ['entity_job_set', 'call_entity_job_set_resident'],
+        ['force_update_entity_sprite', 'call_force_update_entity_sprite_resident'],
+        ['rebuild_used_entity_list', 'call_rebuild_used_entity_list_resident'],
+        ['sync_player_runtime_from_entity', 'call_sync_player_runtime_from_entity_resident'],
+        ['apply_collected_tiles', 'call_apply_collected_tiles_resident'],
+        ['init_statemachine_system', 'call_init_statemachine_system_resident'],
+        ['update_statemachine_system', 'call_update_statemachine_system_resident'],
+        ['execute_all_state_machines', 'call_execute_all_state_machines_resident'],
+        ['SM_ExecuteActions', 'call_SM_ExecuteActions_resident'],
+        ['SM_UpdateSound', 'call_SM_UpdateSound_resident'],
     ];
 
     (Object.keys(rewritten) as Array<keyof GeneratedASMFiles>).forEach((fileKey) => {
         let asm = rewritten[fileKey];
         for (const [fromLabel, toLabel] of replacements) {
+            // refresh_player_sprite_fastpath and force_update_entity_sprite are emitted
+            // together in components.asm. In ASCII16, rewriting that intra-bank call
+            // through a resident wrapper can remap the lower 16 KB page mid-call and
+            // strand the caller's return address on the stack every frame.
+            if (targetFormat === 'ascii16' && fileKey === 'components.asm' && fromLabel === 'force_update_entity_sprite') {
+                continue;
+            }
+            if (targetFormat === 'ascii16' && fileKey === 'entities.asm' && fromLabel === 'SM_ExecuteActions') {
+                // Initial entity OnEnter runs while lower-page overlays are still
+                // being initialized. Keep the no-op local to entities.asm because
+                // resident lower-page labels are hidden while the ASCII16 entity
+                // overlay is mapped at #4000-#7FFF.
+                const localNoopLabel = 'entities_ascii16_init_noop';
+                asm = replaceCallInstruction(asm, fromLabel, localNoopLabel);
+                if (!new RegExp(`^${localNoopLabel}:`, 'm').test(asm)) {
+                    asm += `\n${localNoopLabel}:\n    ret\n`;
+                }
+                continue;
+            }
+            if (targetFormat === 'ascii16' && fileKey === 'statemachine.asm' && fromLabel === 'SM_ExecuteActions') {
+                continue;
+            }
             asm = replaceCallInstruction(asm, fromLabel, toLabel);
         }
         rewritten[fileKey] = asm;
     });
+
+    rewriteAscii16BootForLowerPageFarOverlays(rewritten, targetFormat, farCodeBanks, farModuleKeys);
+    rewriteAscii16InterruptForLowerPageFarOverlays(rewritten, targetFormat, farCodeBanks);
 
     return rewriteDynamicFarCallSites(rewritten, farModuleKeys);
 }
 
 function generateResidentCallWrappers(
     farModuleKeys: Set<string>,
-    availableLabels: Set<string>
+    availableLabels: Set<string>,
+    targetFormat: UnifiedMapperFormat
 ): string {
     const resolveResidentTarget = (label: string, moduleKey: string): string => {
         const target = farCallLabel(label, farModuleKeys, moduleKey);
@@ -1006,6 +2761,7 @@ function generateResidentCallWrappers(
     const checkWorldScreenTransitionCall = resolveResidentTarget('check_world_screen_transition', 'worlds');
     const initFontCall = resolveResidentTarget('init_font_system', 'font');
     const reloadFontCall = resolveResidentTarget('reload_font_system', 'font');
+    const printStringScreen2Call = resolveResidentTarget('print_string_screen2', 'font');
     const renderHudCall = resolveResidentTarget('render_hud', 'hud');
     const forceRenderHudCall = resolveResidentTarget('force_render_hud', 'hud');
     const initSoundCall = resolveResidentTarget('init_sound_system', 'sound');
@@ -1020,22 +2776,50 @@ function generateResidentCallWrappers(
     const initBossCall = resolveResidentTarget('init_boss_system', 'bosses');
     const initScreenBossCall = resolveResidentTarget('init_screen_boss_from_current_screen', 'bosses');
     const updateBossCall = resolveResidentTarget('update_boss_system', 'bosses');
-    const drawBossAttackCall = resolveResidentTarget('draw_boss_attack', 'bosses');
-    const drawBossMeteorCall = resolveResidentTarget('draw_boss_meteor_attack', 'bosses');
-    const drawBossBombCall = resolveResidentTarget('draw_boss_bomb_attack', 'bosses');
-    const drawBossBoomerangCall = resolveResidentTarget('draw_boss_boomerang_attack', 'bosses');
-    const drawBossRockCall = resolveResidentTarget('draw_boss_rock_attack', 'bosses');
-    const drawBossLaserCall = resolveResidentTarget('draw_boss_laser_attack', 'bosses');
-    const drawBossSineWaveCall = resolveResidentTarget('draw_boss_sine_wave_attack', 'bosses');
-    const drawBossHomingMissileCall = resolveResidentTarget('draw_boss_homing_missile_attack', 'bosses');
+    const updateBossProjectileCall = resolveResidentTarget('update_boss_projectile_runtime', 'boss_attacks');
+    const drawBossAttackCall = resolveResidentTarget('draw_boss_attack', 'boss_attacks');
+    const drawBossMeteorCall = resolveResidentTarget('draw_boss_meteor_attack', 'boss_attacks');
+    const drawBossBombCall = resolveResidentTarget('draw_boss_bomb_attack', 'boss_attacks');
+    const drawBossBoomerangCall = resolveResidentTarget('draw_boss_boomerang_attack', 'boss_attacks');
+    const drawBossRockCall = resolveResidentTarget('draw_boss_rock_attack', 'boss_attacks');
+    const drawBossLaserCall = resolveResidentTarget('draw_boss_laser_attack', 'boss_attacks');
+    const drawBossSineWaveCall = resolveResidentTarget('draw_boss_sine_wave_attack', 'boss_attacks');
+    const drawBossHomingMissileCall = resolveResidentTarget('draw_boss_homing_missile_attack', 'boss_attacks');
     const loadColorsToVramCall = resolveResidentTarget('load_colors_to_vram', 'colors_code');
     const updateEntitiesCall = resolveResidentTarget('update_entities', 'entities');
+    const componentBank = targetFormat === 'ascii16' ? 0 : 1;
+    const componentWindowPage = targetFormat === 'ascii8' ? 2 : 1;
+    const ascii16ComponentCall = (wrapperLabel: string, targetLabel: string): string => {
+        if (targetFormat !== 'ascii16') {
+            return '';
+        }
+        return `${wrapperLabel}:
+    ; ASCII16 maps #4000-#7FFF as one page. Components live in the
+    ; bank0+bank1 segment, so route through RAM when the caller may
+    ; currently be executing from another lower-page overlay.
+    push af
+    di
+${buildFarIrqLockEnter()}
+    ld a, ${componentBank}
+    ld hl, ${targetLabel}
+    call ASCII16_FAR_CALL_P1_RAM
+${buildFarIrqLockLeave()}${buildFarIrqRestoreGuard(`.${wrapperLabel}_done`, true)}
+    pop af
+    ret
+
+`;
+    };
     const initSpritesCall = resolveResidentTarget('init_sprites', 'sprites');
     const loadSpritePatternsByPackCall = resolveResidentTarget('load_sprite_patterns_by_pack_id', 'sprites');
     const ensureSpritePatternsByPackCall = resolveResidentTarget('ensure_sprite_patterns_by_pack_id', 'sprites');
     const ensureSpritePatternsForWorldCall = resolveResidentTarget('ensure_sprite_patterns_for_world_id', 'sprites');
-    const setScreenColorsCall = resolveResidentTarget('set_screen_colors', 'screens_code');
-    const initChar0ColorCall = resolveResidentTarget('init_char0_color', 'screens_code');
+    const setScreenColorsCall = resolveResidentTarget('set_screen_colors', 'screen_loaders');
+    const initChar0ColorCall = resolveResidentTarget('init_char0_color', 'screen_loaders');
+    const initStateMachineCall = resolveResidentTarget('init_statemachine_system', 'statemachine');
+    const updateStateMachineCall = resolveResidentTarget('update_statemachine_system', 'statemachine');
+    const executeAllStateMachinesCall = resolveResidentTarget('execute_all_state_machines', 'components');
+    const smExecuteActionsCall = resolveResidentTarget('SM_ExecuteActions', 'statemachine');
+    const smUpdateSoundCall = resolveResidentTarget('SM_UpdateSound', 'statemachine');
 
     return `; ==================================================================
 ; RESIDENT CALL WRAPPERS — bank 0 stable entrypoints
@@ -1051,15 +2835,21 @@ call_init_font_system_resident:
 call_reload_font_system_resident:
     jp ${reloadFontCall}
 
+call_print_string_screen2_resident:
+    jp ${printStringScreen2Call}
+
 call_render_hud_resident:
     jp ${renderHudCall}
 
 call_force_render_hud_resident:
     jp ${forceRenderHudCall}
 
+; @mideas:block id=runtime.sound.resident.init kind=routine owner=sound
 call_init_sound_system_resident:
     jp ${initSoundCall}
+; @mideas:endblock id=runtime.sound.resident.init
 
+; @mideas:block id=runtime.sound.resident.tick kind=routine owner=sound
 call_task_audio_tick_resident:
     ; Keep IRQ audio dispatch resident: music_update may live in a far
     ; sound bank, while SM_UpdateSound lives in the primary statemachine
@@ -1070,27 +2860,38 @@ call_task_audio_tick_resident:
     push de
     push hl
     call call_music_update_resident
-${availableLabels.has('SM_UpdateSound') ? `    call SM_UpdateSound
+${smUpdateSoundCall !== 'resident_noop' ? `    call call_SM_UpdateSound_resident
 ` : ``}    pop hl
     pop de
     pop bc
     pop af
     ret
+; @mideas:endblock id=runtime.sound.resident.tick
 
+; @mideas:block id=runtime.sound.resident.music_update kind=routine owner=sound
 call_music_update_resident:
     jp ${musicUpdateCall}
+; @mideas:endblock id=runtime.sound.resident.music_update
 
+; @mideas:block id=runtime.sound.resident.sfx_update kind=routine owner=sound
 call_sfx_update_resident:
     jp ${sfxUpdateCall}
+; @mideas:endblock id=runtime.sound.resident.sfx_update
 
+; @mideas:block id=runtime.sound.resident.music_stop kind=routine owner=sound
 call_music_stop_resident:
     jp ${musicStopCall}
+; @mideas:endblock id=runtime.sound.resident.music_stop
 
+; @mideas:block id=runtime.sound.resident.music_play_track kind=routine owner=sound
 call_music_play_track_resident:
     jp ${musicPlayTrackCall}
+; @mideas:endblock id=runtime.sound.resident.music_play_track
 
+; @mideas:block id=runtime.sound.resident.music_execute_command kind=routine owner=sound
 call_music_execute_command_resident:
     jp ${musicExecuteCommandCall}
+; @mideas:endblock id=runtime.sound.resident.music_execute_command
 
 call_init_sprites_resident:
     jp ${initSpritesCall}
@@ -1109,6 +2910,21 @@ call_set_screen_colors_resident:
 
 call_init_char0_color_resident:
     jp ${initChar0ColorCall}
+
+call_init_statemachine_system_resident:
+    jp ${initStateMachineCall}
+
+call_update_statemachine_system_resident:
+    jp ${updateStateMachineCall}
+
+call_execute_all_state_machines_resident:
+    jp ${executeAllStateMachinesCall}
+
+call_SM_ExecuteActions_resident:
+    jp ${smExecuteActionsCall}
+
+call_SM_UpdateSound_resident:
+    jp ${smUpdateSoundCall}
 
 call_show_sprite_resident:
     cp 32
@@ -1147,7 +2963,7 @@ call_update_sprites_to_vram_resident:
     ld (sprites_dirty), a
     ld hl, sprite_attributes
     ld de, SPRATR
-    ld bc, 44
+    ld bc, 128
     call FAST_LDIRVM
     ret
 
@@ -1189,44 +3005,142 @@ call_update_animated_tiles_resident:
 call_update_animated_tiles_vram_resident:
     jp ${updateAnimatedTilesVramCall}
 
+; @mideas:block id=runtime.boss.resident.init kind=routine owner=bosses preserve=true roots=call_init_boss_system_resident
 call_init_boss_system_resident:
     jp ${initBossCall}
+; @mideas:endblock id=runtime.boss.resident.init
 
+; @mideas:block id=runtime.boss.resident.init_screen kind=routine owner=bosses preserve=true roots=call_init_screen_boss_from_current_screen_resident
 call_init_screen_boss_from_current_screen_resident:
     jp ${initScreenBossCall}
+; @mideas:endblock id=runtime.boss.resident.init_screen
 
+; @mideas:block id=runtime.boss.resident.update kind=routine owner=bosses preserve=true roots=call_update_boss_system_resident
 call_update_boss_system_resident:
     jp ${updateBossCall}
+; @mideas:endblock id=runtime.boss.resident.update
 
+; @mideas:block id=runtime.boss.resident.update_projectile kind=routine owner=bosses preserve=true roots=call_update_boss_projectile_runtime_resident
+call_update_boss_projectile_runtime_resident:
+    jp ${updateBossProjectileCall}
+; @mideas:endblock id=runtime.boss.resident.update_projectile
+
+; @mideas:block id=runtime.boss.resident.draw_attack kind=routine owner=bosses preserve=true roots=call_draw_boss_attack_resident
 call_draw_boss_attack_resident:
     jp ${drawBossAttackCall}
+; @mideas:endblock id=runtime.boss.resident.draw_attack
 
+; @mideas:block id=runtime.boss.resident.draw_meteor kind=routine owner=bosses preserve=true roots=call_draw_boss_meteor_attack_resident
 call_draw_boss_meteor_attack_resident:
     jp ${drawBossMeteorCall}
+; @mideas:endblock id=runtime.boss.resident.draw_meteor
 
+; @mideas:block id=runtime.boss.resident.draw_bomb kind=routine owner=bosses preserve=true roots=call_draw_boss_bomb_attack_resident
 call_draw_boss_bomb_attack_resident:
     jp ${drawBossBombCall}
+; @mideas:endblock id=runtime.boss.resident.draw_bomb
 
+; @mideas:block id=runtime.boss.resident.draw_boomerang kind=routine owner=bosses preserve=true roots=call_draw_boss_boomerang_attack_resident
 call_draw_boss_boomerang_attack_resident:
     jp ${drawBossBoomerangCall}
+; @mideas:endblock id=runtime.boss.resident.draw_boomerang
 
+; @mideas:block id=runtime.boss.resident.draw_rock kind=routine owner=bosses preserve=true roots=call_draw_boss_rock_attack_resident
 call_draw_boss_rock_attack_resident:
     jp ${drawBossRockCall}
+; @mideas:endblock id=runtime.boss.resident.draw_rock
 
+; @mideas:block id=runtime.boss.resident.draw_laser kind=routine owner=bosses preserve=true roots=call_draw_boss_laser_attack_resident
 call_draw_boss_laser_attack_resident:
     jp ${drawBossLaserCall}
+; @mideas:endblock id=runtime.boss.resident.draw_laser
 
+; @mideas:block id=runtime.boss.resident.draw_sine_wave kind=routine owner=bosses preserve=true roots=call_draw_boss_sine_wave_attack_resident
 call_draw_boss_sine_wave_attack_resident:
     jp ${drawBossSineWaveCall}
+; @mideas:endblock id=runtime.boss.resident.draw_sine_wave
 
+; @mideas:block id=runtime.boss.resident.draw_homing_missile kind=routine owner=bosses preserve=true roots=call_draw_boss_homing_missile_attack_resident
 call_draw_boss_homing_missile_attack_resident:
     jp ${drawBossHomingMissileCall}
+; @mideas:endblock id=runtime.boss.resident.draw_homing_missile
 
 call_load_colors_to_vram_resident:
     jp ${loadColorsToVramCall}
 
 call_update_entities_resident:
     jp ${updateEntitiesCall}
+
+${targetFormat === 'ascii16' ? ascii16ComponentCall('call_init_components_resident', 'init_components') : `call_init_components_resident:
+    call init_components
+    ret
+
+`}
+call_create_entity_resident:
+    push af
+    call mapper_push_p${componentWindowPage}
+    ld a, ${componentBank}
+    call mapper_set_bank_p${componentWindowPage}
+    pop af
+    call create_entity
+    push af
+    call mapper_pop_p${componentWindowPage}
+    pop af
+    ret
+
+call_entity_job_set_resident:
+    push af
+    call mapper_push_p${componentWindowPage}
+    ld a, ${componentBank}
+    call mapper_set_bank_p${componentWindowPage}
+    pop af
+    call entity_job_set
+    push af
+    call mapper_pop_p${componentWindowPage}
+    pop af
+    ret
+
+${targetFormat === 'ascii16' ? `call_force_update_entity_sprite_resident:
+    ; Entity init may run from an ASCII16 lower-page overlay while components.asm
+    ; is split across multiple physical 16 KB segments. The per-frame sprite
+    ; refresh paths call force_update_entity_sprite directly from the component
+    ; segment, and GameFlow bootstraps SAT after load_world, so this external
+    ; init-time wrapper must not remap P1 to a guessed component bank.
+    ret
+` : `call_force_update_entity_sprite_resident:
+    call mapper_push_p${componentWindowPage}
+    ld a, ${componentBank}
+    call mapper_set_bank_p${componentWindowPage}
+    call force_update_entity_sprite
+    call mapper_pop_p${componentWindowPage}
+    ret
+`}
+
+${targetFormat === 'ascii16' ? ascii16ComponentCall('call_rebuild_used_entity_list_resident', 'rebuild_used_entity_list') : `call_rebuild_used_entity_list_resident:
+    call mapper_push_p${componentWindowPage}
+    ld a, ${componentBank}
+    call mapper_set_bank_p${componentWindowPage}
+    call rebuild_used_entity_list
+    call mapper_pop_p${componentWindowPage}
+    ret
+`}
+
+${targetFormat === 'ascii16' ? ascii16ComponentCall('call_sync_player_runtime_from_entity_resident', 'sync_player_runtime_from_entity') : `call_sync_player_runtime_from_entity_resident:
+    call mapper_push_p${componentWindowPage}
+    ld a, ${componentBank}
+    call mapper_set_bank_p${componentWindowPage}
+    call sync_player_runtime_from_entity
+    call mapper_pop_p${componentWindowPage}
+    ret
+`}
+
+call_apply_collected_tiles_resident:
+    call mapper_push_p${componentWindowPage}
+    ld a, ${componentBank}
+    call mapper_set_bank_p${componentWindowPage}
+    call apply_collected_tiles
+    call mapper_pop_p${componentWindowPage}
+    ret
 
 resident_noop:
     ret
@@ -1241,6 +3155,280 @@ interface MegaromUnifiedOptions {
     needsFont: boolean;
     hasHud: boolean;
     hasPresentationScreenNode: boolean;
+}
+
+function isModuleUsedByAnalysis(
+    key: string,
+    analysis: ProjectAnalysis,
+    options: MegaromUnifiedOptions
+): boolean {
+    switch (key) {
+        case 'components':
+        case 'components_tail':
+        case 'components_autocontrol':
+            return Boolean(analysis.hasComponents);
+        case 'sprites':
+            return Boolean(analysis.hasSprites);
+        case 'animtiles':
+            return Boolean(analysis.hasAnimations);
+        case 'bosses':
+            return Boolean((analysis.bosses?.length || 0) > 0);
+        case 'patterns_code':
+        case 'colors_code':
+            return Boolean(analysis.hasTiles);
+        case 'screens_code':
+        case 'screen_loaders':
+            return Boolean(analysis.hasScreens);
+        case 'gameflow':
+            return Boolean(analysis.hasGameFlow);
+        case 'worlds':
+            return Boolean((analysis.worldmaps?.length || 0) > 0);
+        case 'entities':
+            return Boolean(analysis.hasEntities);
+        case 'statemachine':
+            return Boolean((analysis.stateMachines?.length || 0) > 0);
+        case 'font':
+            return Boolean(options.needsFont);
+        case 'menus':
+            return Boolean(options.hasMenus);
+        case 'hud':
+            return Boolean(options.hasHud);
+        case 'sound':
+            return Boolean((analysis.sounds?.length || 0) > 0 || (analysis.tracks?.length || 0) > 0);
+        case 'scroll':
+            return Boolean((analysis.screenMaps || []).some((screen: any) => screen?.scroll || screen?.scrollConfig));
+        default:
+            return true;
+    }
+}
+
+function buildUnusedReportText(
+    analysis: ProjectAnalysis,
+    codeModules: PackedBankModule[],
+    options: MegaromUnifiedOptions
+): string {
+    const candidates = codeModules
+        .filter((module) => !isModuleUsedByAnalysis(module.key, analysis, options))
+        .sort((left, right) => right.estimatedBytes - left.estimatedBytes);
+    const retained = codeModules
+        .filter((module) => isModuleUsedByAnalysis(module.key, analysis, options))
+        .sort((left, right) => left.key.localeCompare(right.key));
+    const estimatedSavings = candidates.reduce((total, module) => total + module.estimatedBytes, 0);
+    const lines: string[] = [];
+
+    lines.push('MIDEAS UNUSED MODULE REPORT');
+    lines.push('Scope: konami8k_megarom_resident_modules');
+    lines.push(`Candidate unused modules: ${candidates.length}`);
+    lines.push(`Estimated removable bytes: ${estimatedSavings}`);
+    lines.push('');
+    lines.push('Candidates:');
+    if (candidates.length === 0) {
+        lines.push('- none');
+    } else {
+        for (const module of candidates) {
+            lines.push(`- ${module.key}: ${module.estimatedBytes} estimated bytes`);
+        }
+    }
+    lines.push('');
+    lines.push('Retained modules:');
+    for (const module of retained) {
+        lines.push(`- ${module.key}: ${module.estimatedBytes} estimated bytes`);
+    }
+    lines.push('');
+    lines.push('Note: report-only; module removal is a later pipeline step.');
+
+    return lines.join('\n') + '\n';
+}
+
+function buildSegmentBudgetJson(
+    packedBanks: PackedBank[],
+    dataPack: ReturnType<typeof packMegaromDataGroups>,
+    mapperWindow: MapperWindowConfig,
+    bossDataBanks: BossDataBankSectionResult = { asm: '', bankCount: 0, banks: [] },
+    ascii16HiddenCallReport: Ascii16HiddenCallReport = { count: 0, samples: [] },
+    ascii16ResidentBridgeReport: Ascii16ResidentBridgeReport = { count: 0, samples: [] },
+    ascii16ResidentWindowOverflowReport: Ascii16ResidentWindowOverflowReport = {
+        count: 0,
+        samples: [],
+        estimatedOutOfWindowLabelCount: 0,
+        estimatedOutOfWindowLabelSamples: [],
+        estimatedOutOfWindowCallCount: 0,
+        estimatedOutOfWindowCallSamples: [],
+    },
+    ascii16FarToFarCallReport: Ascii16FarToFarCallReport = { count: 0, samples: [] }
+): string {
+    const codeSegmentSize = MEGAROM_BANK_SIZE;
+    const dataSegmentSize = mapperWindow.dataZoneSize;
+    const codeWindowGranularity = mapperWindow.targetFormat === 'ascii16'
+        ? 0x4000
+        : codeSegmentSize;
+    const ascii16LowerPageResidentBanks = mapperWindow.targetFormat === 'ascii16'
+        ? packedBanks
+            .filter((bank) => !bank.isFar && bank.orgAddress < 0x8000)
+            .map((bank) => bank.physicalBank)
+        : [];
+    const ascii16LowerPageFarBanks = mapperWindow.targetFormat === 'ascii16'
+        ? packedBanks
+            .filter((bank) => bank.isFar && bank.orgAddress < 0x8000)
+            .map((bank) => bank.physicalBank)
+        : [];
+    const ascii16UpperPageResidentBanks = mapperWindow.targetFormat === 'ascii16'
+        ? packedBanks
+            .filter((bank) => !bank.isFar && bank.orgAddress >= 0x8000 && bank.orgAddress < 0xC000)
+            .map((bank) => bank.physicalBank)
+        : [];
+    const ascii16RamTrampolineRequired = mapperWindow.targetFormat === 'ascii16'
+        && ascii16LowerPageFarBanks.length > 0;
+    const ascii16RamTrampolineInstalled = ascii16RamTrampolineRequired;
+    const ascii16HiddenResidentCallCount = mapperWindow.targetFormat === 'ascii16'
+        ? ascii16HiddenCallReport.count
+        : 0;
+    const ascii16DataWindowResidentConflict = mapperWindow.targetFormat === 'ascii16'
+        && dataPack.zones.length > 0
+        && ascii16UpperPageResidentBanks.length > 0;
+    const ascii16ResidentWindowOverflowCount = mapperWindow.targetFormat === 'ascii16'
+        ? ascii16ResidentWindowOverflowReport.count
+        : 0;
+    const ascii16FarToFarCallCount = mapperWindow.targetFormat === 'ascii16'
+        ? ascii16FarToFarCallReport.count
+        : 0;
+    const ascii16SmokeBlocked = mapperWindow.targetFormat === 'ascii16'
+        && (
+            ascii16HiddenResidentCallCount > 0
+            || ascii16FarToFarCallCount > 0
+            || ascii16DataWindowResidentConflict
+            || (ascii16RamTrampolineRequired && !ascii16RamTrampolineInstalled)
+        );
+    const budget = {
+        version: 1,
+        scope: mapperWindow.targetFormat === 'konami'
+            ? 'konami8k_segment_budget'
+            : 'megarom_mapper_segment_budget',
+        mapperFormat: mapperWindow.targetFormat,
+        mapper: {
+            format: mapperWindow.targetFormat,
+            dataWindowPage: mapperWindow.dataWindowPage,
+            windowBase: mapperWindow.windowBaseExpr,
+            windowMask: mapperWindow.windowMaskExpr,
+            bankDivisor: mapperWindow.bankDivisorExpr,
+            codeSegmentSize,
+            dataSegmentSize,
+        },
+        // Legacy validators read segmentSize as the code overlay bank size.
+        segmentSize: codeSegmentSize,
+        segmentSizeMeaning: 'code overlay bank size',
+        codeSegmentSize,
+        dataSegmentSize,
+        runtimeLayout: {
+            mapperFormat: mapperWindow.targetFormat,
+            codeWindowGranularity,
+            status: ascii16SmokeBlocked
+                ? 'compile-only'
+                : (ascii16ResidentWindowOverflowCount > 0 ? 'smoke-candidate-risk' : 'smoke-candidate'),
+            smokeBlocked: ascii16SmokeBlocked,
+            lowerPageResidentBanks: ascii16LowerPageResidentBanks,
+            lowerPageFarBanks: ascii16LowerPageFarBanks,
+            upperPageResidentBanks: ascii16UpperPageResidentBanks,
+            lowerPageHazardBankCount: ascii16LowerPageResidentBanks.length + ascii16LowerPageFarBanks.length,
+            dataWindowResidentConflict: ascii16DataWindowResidentConflict,
+            ramTrampolineRequired: ascii16RamTrampolineRequired,
+            ramTrampolineInstalled: ascii16RamTrampolineInstalled,
+            residentEstimatedWindowOverflowCount: ascii16ResidentWindowOverflowCount,
+            residentEstimatedWindowOverflowSamples: mapperWindow.targetFormat === 'ascii16'
+                ? ascii16ResidentWindowOverflowReport.samples
+                : [],
+            residentEstimatedOutOfWindowLabelCount: mapperWindow.targetFormat === 'ascii16'
+                ? ascii16ResidentWindowOverflowReport.estimatedOutOfWindowLabelCount
+                : 0,
+            residentEstimatedOutOfWindowLabelSamples: mapperWindow.targetFormat === 'ascii16'
+                ? ascii16ResidentWindowOverflowReport.estimatedOutOfWindowLabelSamples
+                : [],
+            residentEstimatedOutOfWindowCallCount: mapperWindow.targetFormat === 'ascii16'
+                ? ascii16ResidentWindowOverflowReport.estimatedOutOfWindowCallCount
+                : 0,
+            residentEstimatedOutOfWindowCallSamples: mapperWindow.targetFormat === 'ascii16'
+                ? ascii16ResidentWindowOverflowReport.estimatedOutOfWindowCallSamples
+                : [],
+            farToFarDirectCallCount: ascii16FarToFarCallCount,
+            farToFarDirectCallSamples: mapperWindow.targetFormat === 'ascii16'
+                ? ascii16FarToFarCallReport.samples
+                : [],
+            lowerPageHiddenResidentCallCount: ascii16HiddenResidentCallCount,
+            lowerPageHiddenResidentCallSamples: mapperWindow.targetFormat === 'ascii16'
+                ? ascii16HiddenCallReport.samples
+                : [],
+            residentBridgeCallCount: mapperWindow.targetFormat === 'ascii16'
+                ? ascii16ResidentBridgeReport.count
+                : 0,
+            residentBridgeCallSamples: mapperWindow.targetFormat === 'ascii16'
+                ? ascii16ResidentBridgeReport.samples
+                : [],
+            reason: ascii16SmokeBlocked
+                ? (ascii16HiddenResidentCallCount > 0
+                        ? `ASCII16 maps #4000-#7FFF as one shared 16KB page. A RAM trampoline is installed for lower-page far calls, but ${ascii16HiddenResidentCallCount} lower-page far call(s) still target resident/bank-0 routines that would be hidden after remap.`
+                        : (ascii16FarToFarCallCount > 0
+                        ? `ASCII16 lower-page overlays still contain ${ascii16FarToFarCallCount} direct far-to-far call(s). These must route through bank-0/RAM trampolines before gameplay smoke is accepted.`
+                        : (ascii16DataWindowResidentConflict
+                        ? `ASCII16 maps #8000-#BFFF as one shared 16KB data/code page. Resident bank(s) ${ascii16UpperPageResidentBanks.join(', ')} overlap the resource data window, so data loads can hide executing resident code.`
+                        : (ascii16RamTrampolineRequired && !ascii16RamTrampolineInstalled
+                            ? `ASCII16 lower-page overlays require a RAM far-call bridge, but the bridge was not installed.`
+                            : `ASCII16 runtime layout is still compile-only until the remaining mapper hazard is resolved.`))))
+                : (mapperWindow.targetFormat === 'ascii16' && (ascii16LowerPageResidentBanks.length > 0 || ascii16LowerPageFarBanks.length > 0)
+                    ? (ascii16ResidentWindowOverflowCount > 0
+                        ? `ASCII16 smoke can run through RAM trampolines, but ${ascii16ResidentWindowOverflowCount} resident bank group(s) exceed their fixed window estimate; this remains a promotion risk until component calls are placed at label level.`
+                        : 'ASCII16 lower-page code uses RAM trampolines for far calls and resident-call bridges; no hidden resident calls remain, so gameplay smoke can run.')
+                    : 'No ASCII16 lower-page code-window hazard detected.'),
+        },
+        codeBanks: packedBanks.map((bank) => ({
+            bank: bank.physicalBank,
+            role: bank.isFar ? 'far_code' : 'resident_code',
+            segmentSize: codeSegmentSize,
+            page: bank.windowPage,
+            orgAddress: bank.orgAddress,
+            endAddress: bank.endAddress,
+            placementReason: bank.placementReason || '',
+            estimatedUsedBytes: bank.usedBytes,
+            estimatedFreeBytes: Math.max(0, codeSegmentSize - bank.usedBytes),
+            estimatedOverBudget: bank.usedBytes > codeSegmentSize,
+            modules: bank.modules.map((module) => ({
+                key: module.key,
+                placementReason: module.placementReason || bank.placementReason || '',
+                estimatedBytes: module.estimatedBytes,
+            })),
+        })),
+        dataBanks: dataPack.zones.map((zone) => ({
+            bank: zone.physicalBank,
+            role: 'asset_data',
+            segmentSize: dataSegmentSize,
+            dataWindowPage: mapperWindow.dataWindowPage,
+            windowBase: mapperWindow.windowBaseExpr,
+            windowMask: mapperWindow.windowMaskExpr,
+            bankDivisor: mapperWindow.bankDivisorExpr,
+            orgAddress: zone.orgAddress,
+            endAddress: zone.endAddress,
+            usedBytes: zone.usedBytes,
+            freeBytes: zone.remainingBytes,
+            resources: zone.blocks.length,
+        })),
+        bossDataBanks: bossDataBanks.banks.map((bank) => ({
+            bank: bank.bank,
+            role: 'boss_data',
+            segmentSize: dataSegmentSize,
+            dataWindowPage: mapperWindow.dataWindowPage,
+            windowBase: mapperWindow.windowBaseExpr,
+            windowMask: mapperWindow.windowMaskExpr,
+            bankDivisor: mapperWindow.bankDivisorExpr,
+            orgAddress: bank.orgAddress,
+            endAddress: bank.endAddress,
+            usedBytes: bank.usedBytes,
+            freeBytes: bank.freeBytes,
+            bossId: bank.bossId,
+            bossName: bank.bossName,
+            placementReason: 'one boss per mapper data bank',
+        })),
+    };
+
+    return JSON.stringify(budget, null, 2) + '\n';
 }
 
 function generateMegaromUnifiedFile(
@@ -1265,18 +3453,32 @@ function generateMegaromUnifiedFile(
     // blocks drift across zone boundaries. Code placement is still an
     // implementation step, not the final 16KB-stable policy.
 
-    // Build FFD packer layout for diagnostic comment
-    // Modules are the CODE sections (data goes to bank4, so patterns/colors/screens are code-only here)
+    const bossRuntimeModules = splitBossAttackRuntimeModule(files['bosses.asm']);
+    const screenRuntimeModules = splitScreenLoaderRuntimeModule(files['screens.asm']);
+    const componentsRuntimeModules = splitComponentsResidentTailModule(
+        files['components.asm'],
+        config.targetFormat !== 'ascii16'
+    );
+    const gameflowRuntimeModules = splitGameflowAuxModule(files['gameflow.asm']);
+
+    // Build FFD packer layout for diagnostic comment.
+    // Modules are CODE sections; large pattern/color/screen bytes are emitted as banked data.
     const codeModules: PackedBankModule[] = [
-        { key: 'components', content: files['components.asm'], estimatedBytes: estimateAsmBytesLocal(files['components.asm']) },
+        { key: 'components', content: componentsRuntimeModules.core, estimatedBytes: estimateAsmBytesLocal(componentsRuntimeModules.core) },
+        ...(componentsRuntimeModules.tail.trim().length > 0 ? [{ key: 'components_tail', content: componentsRuntimeModules.tail, estimatedBytes: estimateAsmBytesLocal(componentsRuntimeModules.tail) }] : []),
+        ...(componentsRuntimeModules.autoControl.trim().length > 0 ? [{ key: 'components_autocontrol', content: componentsRuntimeModules.autoControl, estimatedBytes: estimateAsmBytesLocal(componentsRuntimeModules.autoControl) }] : []),
         { key: 'sprites', content: files['sprites.asm'], estimatedBytes: estimateAsmBytesLocal(files['sprites.asm']) },
         { key: 'animtiles', content: files['animtiles.asm'], estimatedBytes: estimateAsmBytesLocal(files['animtiles.asm']) },
-        { key: 'bosses', content: files['bosses.asm'], estimatedBytes: estimateAsmBytesLocal(files['bosses.asm']) },
+        { key: 'bosses', content: bossRuntimeModules.core, estimatedBytes: estimateAsmBytesLocal(bossRuntimeModules.core) },
+        ...(bossRuntimeModules.attacks.trim().length > 0 ? [{ key: 'boss_attacks', content: bossRuntimeModules.attacks, estimatedBytes: estimateAsmBytesLocal(bossRuntimeModules.attacks) }] : []),
         { key: 'scroll', content: files['scroll.asm'], estimatedBytes: estimateAsmBytesLocal(files['scroll.asm']) },
         { key: 'patterns_code', content: files['patterns.asm'], estimatedBytes: estimateAsmBytesLocal(files['patterns.asm']) },
         { key: 'colors_code', content: files['colors.asm'], estimatedBytes: estimateAsmBytesLocal(files['colors.asm']) },
-        { key: 'screens_code', content: files['screens.asm'], estimatedBytes: estimateAsmBytesLocal(files['screens.asm']) },
-        ...(analysis.gameFlow ? [{ key: 'gameflow', content: files['gameflow.asm'], estimatedBytes: estimateAsmBytesLocal(files['gameflow.asm']) }] : []),
+        { key: 'screens_code', content: screenRuntimeModules.core, estimatedBytes: estimateAsmBytesLocal(screenRuntimeModules.core) },
+        ...(screenRuntimeModules.loaders.trim().length > 0 ? [{ key: 'screen_loaders', content: screenRuntimeModules.loaders, estimatedBytes: estimateAsmBytesLocal(screenRuntimeModules.loaders) }] : []),
+        ...(analysis.gameFlow ? [{ key: 'gameflow', content: gameflowRuntimeModules.core, estimatedBytes: estimateAsmBytesLocal(gameflowRuntimeModules.core) }] : []),
+        ...(analysis.gameFlow && gameflowRuntimeModules.aux.trim().length > 0 ? [{ key: 'gameflow_aux', content: gameflowRuntimeModules.aux, estimatedBytes: estimateAsmBytesLocal(gameflowRuntimeModules.aux) }] : []),
+        ...(analysis.gameFlow && gameflowRuntimeModules.aux2.trim().length > 0 ? [{ key: 'gameflow_aux2', content: gameflowRuntimeModules.aux2, estimatedBytes: estimateAsmBytesLocal(gameflowRuntimeModules.aux2) }] : []),
         { key: 'worlds', content: files['worlds.asm'], estimatedBytes: estimateAsmBytesLocal(files['worlds.asm']) },
         ...(analysis.entities && analysis.entities.length > 0 ? [{ key: 'entities', content: files['entities.asm'], estimatedBytes: estimateAsmBytesLocal(files['entities.asm']) }] : []),
         ...(files['statemachine.asm'] && files['statemachine.asm'].trim() !== '; No State Machines' ? [{ key: 'statemachine', content: files['statemachine.asm'], estimatedBytes: estimateAsmBytesLocal(files['statemachine.asm']) }] : []),
@@ -1288,11 +3490,10 @@ function generateMegaromUnifiedFile(
         { key: 'sound', content: files['sound.asm'], estimatedBytes: estimateAsmBytesLocal(files['sound.asm']) },
     ].filter(m => m.estimatedBytes > 0);
 
-    const packedBanks = packModulesFFD(codeModules);
-    const packerLayoutComment = formatPackedBankLayoutComment(packedBanks);
+    const unusedReportText = buildUnusedReportText(analysis, codeModules, options);
 
-    // Build bank4 section: sprite data + pattern data + color data + screen data + font data + presentation screen
-    // assembled at org #C000. Labels accessed via P2 window using (label & #1FFF) | #8000.
+    // Build banked data sections before assigning far-code physical banks so
+    // P3/A000 can be used as the first real asset segment, per the paper.
     const presentationBank4Data = getPresentationScreenBank4Data(analysis);
     // MegaROM font.asm keeps a small inline copy of font patterns/colors so
     // menu/text reloads do not depend on a nested banked-resource copy.
@@ -1304,39 +3505,10 @@ function generateMegaromUnifiedFile(
     const screensBank4Data = analysis.screenMaps && analysis.screenMaps.length > 0
         ? getScreensBank4Data(analysis, config.targetFormat) : '';
 
-    // Separate primary banks (1-3, always mapped) from far banks (4+, trampoline accessed)
-    const primaryBanks = packedBanks.filter(b => !b.isFar);
-    const farCodeBanks = packedBanks.filter(b => b.isFar);
-
-    // Build set of module keys that ended up in far banks
-    const farModuleKeySet = new Set<string>(farCodeBanks.flatMap(b => b.modules.map(m => m.key)));
-
-    const emittedFiles = rewriteResidentCallSites(files, farModuleKeySet);
-    const availableLabels = collectDefinedLabels(emittedFiles);
-
-    // Generate far-call trampolines for bank 0
-    const farTrampolines = generateFarCallTrampolines(farCodeBanks, analysis);
-    const availableWrapperTargets = new Set<string>([
-        ...availableLabels,
-        ...collectDefinedLabels({ 'main.asm': farTrampolines } as GeneratedASMFiles),
-    ]);
-    const residentCallWrappers = generateResidentCallWrappers(farModuleKeySet, availableWrapperTargets);
-
-    // Determine whether init_entities and init_font_system are in far banks
-    const initEntitiesCall = farModuleKeySet.has('entities') ? 'init_entities_far' : 'init_entities';
-    const initFontCall     = farModuleKeySet.has('font')     ? 'init_font_system_far' : 'init_font_system';
-    const loadPatternsToVramCall = farCallLabel('load_patterns_to_vram', farModuleKeySet, 'patterns_code');
-    const loadColorsToVramCall = farCallLabel('load_colors_to_vram', farModuleKeySet, 'colors_code');
-    const initAnimatedTilesCall = farCallLabel('init_animated_tiles', farModuleKeySet, 'animtiles');
-    const initBossCall = farCallLabel('init_boss_system', farModuleKeySet, 'bosses');
-
     const mapperWindow = getMapperWindowConfig(config.romMode, config.targetFormat);
     const dataZoneSize = mapperWindow.dataZoneSize;
-    const totalCodeBanks = packedBanks.length; // primary + far code banks (boot bank 0 not counted)
-    const emittedCodeBytes = (totalCodeBanks + 1) * 0x2000; // bank0 bootstrap + packed 8KB code banks
-    const alignedDataOffset = Math.ceil(emittedCodeBytes / dataZoneSize) * dataZoneSize;
-    const dataOrgAddress = 0x4000 + alignedDataOffset;
-    const dataStartPhysBank = (dataOrgAddress - 0x4000) / dataZoneSize;
+    const dataStartPhysBank = FIRST_ASSET_DATA_PHYSICAL_BANK;
+    const dataOrgAddress = 0x4000 + (dataStartPhysBank * dataZoneSize);
     const dataPack = packMegaromDataGroups(
         [
             { groupName: 'sprites', asm: spritesBank4Data },
@@ -1358,17 +3530,180 @@ function generateMegaromUnifiedFile(
         throw new Error(`MegaROM data zone overflow: ${overflowSummary}`);
     }
 
-    const generatedArtifacts = buildMegaromGeneratedArtifacts(dataPack, mapperWindow);
+    const reservedDataBankCount = Math.max(1, dataPack.zones.length);
+    const firstBossDataPhysicalBank = dataStartPhysBank + reservedDataBankCount;
+    const bossDataBanks = generateBossDataBankSections(
+        analysis,
+        firstBossDataPhysicalBank,
+        dataZoneSize,
+        {
+            windowMaskExpr: mapperWindow.windowMaskExpr,
+            windowBaseExpr: mapperWindow.windowBaseExpr,
+            bankDivisorExpr: mapperWindow.bankDivisorExpr,
+        }
+    );
+    const firstFarPhysicalBank = firstBossDataPhysicalBank + bossDataBanks.bankCount;
+    const firstFarRuntimeBank = config.targetFormat === 'ascii16'
+        ? 1 + reservedDataBankCount + bossDataBanks.bankCount
+        : firstFarPhysicalBank;
+    const packedBanks = packModulesFFD(codeModules, firstFarPhysicalBank, config.targetFormat);
+
+    // Separate resident banks (1-2, always mapped) from far banks (after data, trampoline accessed)
+    const primaryBanks = packedBanks.filter(b => !b.isFar);
+    const farCodeBanks = packedBanks.filter(b => b.isFar);
+
+    // Build set of module keys that ended up in far banks
+    const farModuleKeySet = new Set<string>(farCodeBanks.flatMap(b => b.modules.map(m => m.key)));
+
+    const emittedFiles = rewriteResidentCallSites(
+        { ...files, 'gameflow.asm': gameflowRuntimeModules.core },
+        farModuleKeySet,
+        config.targetFormat,
+        farCodeBanks
+    );
+    const emittedBossRuntimeModules = splitBossAttackRuntimeModule(emittedFiles['bosses.asm']);
+    const emittedScreenRuntimeModules = splitScreenLoaderRuntimeModule(emittedFiles['screens.asm']);
+    const emittedComponentsRuntimeModules = splitComponentsResidentTailModule(
+        emittedFiles['components.asm'],
+        config.targetFormat !== 'ascii16'
+    );
+    const residentComponentTriggerHelpers =
+        config.romMode === 'megarom'
+        && /\bcall\s+component_trigger_(?:edge|level)_pressed_a\b/i.test(emittedFiles['components.asm'])
+        && !/^\s*component_trigger_edge_pressed_a:/mi.test(emittedFiles['components.asm'])
+            ? `; ==================================================================
+; COMPONENT TRIGGER HELPERS - bank 0 resident copy
+; Components call these routines directly. In MegaROM they must not live in a
+; lower-page overlay such as GameFlow, because ASCII16 maps #4000-#7FFF as one
+; 16 KB segment and the same CPU address can mean a different ROM page.
+; ==================================================================
+${generateComponentTriggerHelpers()}
+`
+            : '';
+    const emittedModuleContent = (module: PackedBankModule): string => {
+        switch (module.key) {
+            case 'components': return emittedComponentsRuntimeModules.core;
+            case 'components_tail': return emittedComponentsRuntimeModules.tail;
+            case 'components_autocontrol': return emittedComponentsRuntimeModules.autoControl;
+            case 'sprites': return emittedFiles['sprites.asm'];
+            case 'animtiles': return emittedFiles['animtiles.asm'];
+            case 'bosses': return emittedBossRuntimeModules.core;
+            case 'boss_attacks': return emittedBossRuntimeModules.attacks;
+            case 'scroll': return emittedFiles['scroll.asm'];
+            case 'patterns_code': return emittedFiles['patterns.asm'];
+            case 'colors_code': return emittedFiles['colors.asm'];
+            case 'screens_code': return emittedScreenRuntimeModules.core;
+            case 'screen_loaders': return emittedScreenRuntimeModules.loaders;
+            case 'gameflow': return emittedFiles['gameflow.asm'];
+            case 'gameflow_aux': return gameflowRuntimeModules.aux;
+            case 'gameflow_aux2': return gameflowRuntimeModules.aux2;
+            case 'worlds': return emittedFiles['worlds.asm'];
+            case 'entities': return emittedFiles['entities.asm'];
+            case 'statemachine': return emittedFiles['statemachine.asm'];
+            case 'font': return emittedFiles['font.asm'];
+            case 'menus': return emittedFiles['menus.asm'];
+            case 'hud': return emittedFiles['hud.asm'];
+            case 'sound': return emittedFiles['sound.asm'];
+            default: return module.content;
+        }
+    };
+    const syncPackedBankModuleContent = () => packedBanks.forEach((bank) => {
+        bank.modules = bank.modules.map((module) => ({
+            ...module,
+            content: emittedModuleContent(module),
+        }));
+    });
+    syncPackedBankModuleContent();
+    if (config.targetFormat === 'ascii16') {
+        // Run after emitted module content is synced. Otherwise later sync would
+        // discard the localized FAST_* copies and far code would bridge to bank 0
+        // while HL still points at data in the hidden lower-page overlay.
+        localizeAscii16FastHardwareCalls(packedBanks);
+    }
+
+    // Generate far-call trampolines for bank 0
+    const farTrampolines = generateFarCallTrampolines(
+        farCodeBanks,
+        analysis,
+        config.targetFormat,
+        firstFarPhysicalBank,
+        firstFarRuntimeBank
+    );
+    const ascii16ResidentBridgeReport = config.targetFormat === 'ascii16'
+        ? localizeAscii16HiddenResidentCalls(emittedFiles, primaryBanks, farCodeBanks, farTrampolines)
+        : { count: 0, samples: [] };
+    const packerLayoutComment = formatPackedBankLayoutComment(packedBanks);
+    const placedModuleFiles = Object.fromEntries(
+        packedBanks.flatMap((bank) =>
+            bank.modules.map((module) => [`${bank.physicalBank}_${module.key}`, module.content])
+        )
+    );
+    const availablePlacedLabels = collectDefinedLabels(placedModuleFiles);
+    const availableWrapperTargets = new Set<string>([
+        ...availablePlacedLabels,
+        ...collectDefinedLabels({ 'main.asm': farTrampolines }),
+    ]);
+    const residentCallWrappers = generateResidentCallWrappers(
+        farModuleKeySet,
+        availableWrapperTargets,
+        config.targetFormat
+    );
+
+    // Determine whether init_entities and init_font_system are in far banks
+    const initEntitiesCall = farModuleKeySet.has('entities') ? 'init_entities_far' : 'init_entities';
+    const initFontCall     = farModuleKeySet.has('font')     ? 'init_font_system_far' : 'init_font_system';
+    const loadPatternsToVramCall = farCallLabel('load_patterns_to_vram', farModuleKeySet, 'patterns_code');
+    const loadColorsToVramCall = farCallLabel('load_colors_to_vram', farModuleKeySet, 'colors_code');
+    const initAnimatedTilesCall = farCallLabel('init_animated_tiles', farModuleKeySet, 'animtiles');
+    const initBossCall = farCallLabel('init_boss_system', farModuleKeySet, 'bosses');
+    const initBossRuntimeAsm = projectHasBossRuntime(analysis)
+        ? `    ; Initialize boss runtime
+    call ${initBossCall}
+`
+        : `    ; No boss runtime - skip boss initialization
+`;
+    const initComponentsCall = config.targetFormat === 'ascii16' ? 'call_init_components_resident' : 'init_components';
+    const rebuildUsedEntityListCall = config.targetFormat === 'ascii16' ? 'call_rebuild_used_entity_list_resident' : 'rebuild_used_entity_list';
+
+    const generatedArtifacts = buildMegaromGeneratedArtifacts(dataPack, mapperWindow, analysis);
     const generatedArtifactMap = new Map(generatedArtifacts.map((artifact) => [artifact.fileName, artifact.content]));
+    const ascii16HiddenCallReport = config.targetFormat === 'ascii16'
+        ? buildAscii16HiddenCallReport(emittedFiles, primaryBanks, farCodeBanks, farTrampolines)
+        : { count: 0, samples: [] };
+    const ascii16ResidentWindowOverflowReport = buildAscii16ResidentWindowOverflowReport(
+        packedBanks,
+        config.targetFormat
+    );
+    const ascii16FarToFarCallReport = buildAscii16FarToFarCallReport(
+        packedBanks,
+        config.targetFormat
+    );
+    const segmentBudgetJson = buildSegmentBudgetJson(
+        packedBanks,
+        dataPack,
+        mapperWindow,
+        bossDataBanks,
+        ascii16HiddenCallReport,
+        ascii16ResidentBridgeReport,
+        ascii16ResidentWindowOverflowReport,
+        ascii16FarToFarCallReport
+    );
     const generatedArtifactBlocks = [
-        renderMegaromGeneratedArtifactsAsCommentBlocks(dataPack, mapperWindow),
+        renderMegaromGeneratedArtifactsAsCommentBlocks(dataPack, mapperWindow, analysis),
         renderNamedArtifactAsCommentBlock('resource_manager.asm', files['resource_manager.asm']),
         renderNamedArtifactAsCommentBlock('world_music_policy.txt', buildWorldMusicPolicyManifest(analysis)),
         renderNamedArtifactAsCommentBlock('world_sprite_pattern_policy.txt', buildWorldSpritePatternPolicyManifest(analysis)),
         renderNamedArtifactAsCommentBlock('screen_resource_policy.txt', buildScreenResourcePolicyManifest(analysis)),
+        renderNamedArtifactAsCommentBlock('unused_report.txt', unusedReportText),
+        renderNamedArtifactAsCommentBlock('segment_budget.json', segmentBudgetJson),
     ].join('\n\n');
     const resourceIdsAsm = generatedArtifactMap.get('resource_ids.asm') || files['resource_ids.asm'];
     const resourceTableAsm = generatedArtifactMap.get('resource_table.asm') || files['resource_table.asm'];
+    const reservedEmptyDataBankAsm = dataPack.asm.trim().length > 0
+        ? ''
+        : `    org #${dataOrgAddress.toString(16).toUpperCase().padStart(4, '0')}
+; Reserved empty P3 data-window bank so far code starts after bank ${dataStartPhysBank}.
+    ds #${(dataOrgAddress + dataZoneSize).toString(16).toUpperCase().padStart(4, '0')} - $, #FF`;
 
     const overflowDataSection = `; ==================================================================
 ; DATA BANKS — Zone-packed data (${dataZoneSize} bytes per zone)
@@ -1381,7 +3716,12 @@ function generateMegaromUnifiedFile(
 ; ==================================================================
 ${dataPack.diagnosticsComment}
 
-${dataPack.asm}`;
+${dataPack.asm || reservedEmptyDataBankAsm}
+
+${bossDataBanks.asm ? `; ==================================================================
+; BOSS DATA BANKS — One boss per ${dataZoneSize} byte mapper data bank
+; ==================================================================
+${bossDataBanks.asm}` : '; No banked boss data emitted.'}`;
 
     const farCodeBanksAsmComment = farCodeBanks.length > 0
         ? `; Far code banks: ${farCodeBanks.map(b => `bank${b.physicalBank}(${b.modules.map(m=>m.key).join(',')})`).join(' ')}\n`
@@ -1394,10 +3734,10 @@ ${dataPack.asm}`;
 ; Mapper: ${config.targetFormat}
 ;
 ; Bank 0 [#4000-#5FFFh] : Bootstrap (header, bios, mapper, interrupt, init)
-; Banks 1-3 [#6000-#BFFFh] : Game code — FFD-packed primary (see layout below)
-; Bank 4+ (code) [far]  : Far code banks — accessed via trampolines in bank 0
-; Bank 4+ (data) [#C000h+] : DATA TABLES (patterns, colors, screens, font - P2 switch)
-; Generated artifacts: resource_ids.asm, resource_table.asm, resource_manager.asm, packing_manifest.txt
+; Banks 1-2 [#6000-#9FFFh] : Resident engine code
+; Bank 3+ (data) [#A000h+] : DATA TABLES (patterns, colors, screens, font - mapper data-window switch)
+; Banks after data [far]    : Overlay code, constrained to P1 trampolines
+; Generated artifacts: resource_ids.asm, resource_table.asm, resource_manager.asm, packing_manifest.txt, packing_manifest.json, manifest_v2.json, banks.json, project_usage.json, load_plan.json, bank_optimizer.json, tilebank_integrity.json, unused_report.txt, segment_budget.json
 ;
 ; Tiles: ${analysis.tiles?.length || 0}
 ; Sprites: ${analysis.sprites?.length || 0}
@@ -1433,11 +3773,18 @@ ${resourceIdsAsm}
 
 ${resourceTableAsm}
 
+; ZX0 decoder is resident in bank 0 so banked resource loads can
+; decompress data while the P3 mapper window exposes the source bank.
+${getZx0DecoderAsm()}
+
 ${files['resource_manager.asm']}
+
+${residentComponentTriggerHelpers}
 
 ; ==================================================================
 ; PAGE-0 STUBS — labels required by header.asm, no-ops in megarom
 ; ==================================================================
+; @mideas:block id=runtime.page0.stubs kind=routine owner=unified roots=init_page0_runtime_state,page0_map_expanded_slot,page0_map_game_rom,page0_restore_bios_rom,page0_copy_chunk_to_buffer,page0_decompress_to_ram,page0_copy_to_vram
 init_page0_runtime_state:
     ret
 
@@ -1458,17 +3805,24 @@ page0_decompress_to_ram:
 
 page0_copy_to_vram:
     ret
+; @mideas:endblock id=runtime.page0.stubs
 
 ${emittedFiles['interrupt.asm']}
 
 ${farTrampolines}${residentCallWrappers}; ==================================================================
 ; INIT_GAME_SYSTEMS — in bank 0 so it is reachable from any bank
-; Calls routines in statically-mapped primary banks (1-3) via CALL.
-; Routines in far banks (4+) are called via _far trampolines above.
+; Calls routines in statically-mapped primary banks (1-2) via CALL.
+; Routines in far banks are called via _far trampolines above.
 ; ==================================================================
 init_game_systems:
+    ld a, (gameflow_reveal_world_after_load)
+    or a
+    jr nz, .igs_skip_disscr
     call DISSCR               ; Disable screen while loading VRAM assets
-    ; Cold boot / restart must not trust cached VRAM state from RAM contents.
+.igs_skip_disscr:
+${config.targetFormat === 'ascii16' && farCodeBanks.some((bank) => bank.windowPage === 1) ? `    ; Install lower-page far-call bridge before any ASCII16 P1 overlay calls.
+    call install_ascii16_far_call_ram
+` : ''}    ; Cold boot / restart must not trust cached VRAM state from RAM contents.
     xor a
     ld (vram_cache_tile_patterns_ready), a
     ld (vram_cache_tile_colors_ready), a
@@ -1476,7 +3830,7 @@ init_game_systems:
     ld a, #FF
     ld (current_screen2_tilebank_id), a
 ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize component systems (entities detected)
-    call init_components
+    call ${initComponentsCall}
 ` : `    ; No entities - skipping component system initialization
 `}
 ${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load shared gameplay pattern/color data once unless VRAM was invalidated.
@@ -1486,8 +3840,7 @@ ${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load shared gameplay patt
 `}
     ; Initialize animated tile runtime (safe no-op if no animated groups)
     call ${initAnimatedTilesCall}
-    ; Initialize boss runtime (safe no-op if no boss assets)
-    call ${initBossCall}
+${initBossRuntimeAsm}
 
 ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize game entities with real positions from JSON
     call ${initEntitiesCall}
@@ -1495,7 +3848,7 @@ ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize game ent
 `}
 ${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load the first game screen
     call load_game_screen
-    call rebuild_used_entity_list
+    call ${rebuildUsedEntityListCall}
 ` : `    ; No screens - skip screen loading
 `}
 ${needsFont ? `    ; Initialize font system
@@ -1504,7 +3857,11 @@ ${needsFont ? `    ; Initialize font system
 `}${hasHud ? `    ; HUD dirty flag - will be rendered after screen loading (by GameFlow WorldLink)
     ld a, 1
     ld (hud_dirty_flag), a
-` : ``}    call ENASCR               ; Re-enable screen after VRAM updates
+` : ``}    ld a, (gameflow_reveal_world_after_load)
+    or a
+    jr nz, .igs_skip_enascr
+    call ENASCR               ; Re-enable screen after VRAM updates
+.igs_skip_enascr:
     ret
 
 load_game_screen:
@@ -1513,93 +3870,74 @@ load_game_screen:
 ${!needsFont ? `init_font_system:
     ret
 
+; @mideas:block id=runtime.font.reload_stub kind=routine owner=unified
 reload_font_system:
     ret
+; @mideas:endblock id=runtime.font.reload_stub
 
 ` : ''}; --- End of Bank 0 — pad to 8KB boundary ---
+BANK_0_USED_END:
     ds #6000 - $, #FF
 
 ${primaryBanks.map(bank => {
     const orgHex = bank.orgAddress.toString(16).toUpperCase().padStart(4, '0');
     const endHex = bank.endAddress.toString(16).toUpperCase().padStart(4, '0');
     const moduleList = bank.modules.map(m => m.key).join(', ') || '(empty)';
-    const moduleContents = bank.modules.map(m => {
-        switch (m.key) {
-            case 'components': return emittedFiles['components.asm'];
-            case 'sprites': return emittedFiles['sprites.asm'];
-            case 'animtiles': return emittedFiles['animtiles.asm'];
-            case 'bosses': return emittedFiles['bosses.asm'];
-            case 'scroll': return emittedFiles['scroll.asm'];
-            case 'patterns_code': return emittedFiles['patterns.asm'];
-            case 'colors_code': return emittedFiles['colors.asm'];
-            case 'screens_code': return emittedFiles['screens.asm'];
-            case 'gameflow': return emittedFiles['gameflow.asm'];
-            case 'worlds': return emittedFiles['worlds.asm'];
-            case 'entities': return emittedFiles['entities.asm'];
-            case 'statemachine': return emittedFiles['statemachine.asm'];
-            case 'font': return emittedFiles['font.asm'];
-            case 'menus': return emittedFiles['menus.asm'];
-            case 'hud': return emittedFiles['hud.asm'];
-            case 'sound': return emittedFiles['sound.asm'];
-            default: return m.content;
-        }
-    }).join('\n\n');
+    const runtimeBank = getRuntimeCodeBankNumber(bank, config.targetFormat, firstFarPhysicalBank, firstFarRuntimeBank);
+    const moduleContents = bank.modules
+        .map(m => resolveCurrentCodeBankPlaceholders(m.content, runtimeBank))
+        .join('\n\n');
     return `; ##################################################################
 ; BANK ${bank.physicalBank} — [#${orgHex}h-#${endHex}h] PRIMARY: ${moduleList}
-; (Always mapped at boot: bank1→P1, bank2→P2, bank3→P3)
+; (Always mapped at boot: bank1→P1, bank2→P2)
 ; ##################################################################
     org #${orgHex}
 
 ${moduleContents || '; (empty bank)'}
 
 ; --- End of Bank ${bank.physicalBank} — pad to 8KB boundary ---
+BANK_${bank.physicalBank}_USED_END:
     ds #${endHex} - $, #FF`;
 }).join('\n\n')}
+
+${overflowDataSection}
 
 ${farCodeBanks.length > 0 ? `${farCodeBanks.map(bank => {
     const orgHex = bank.orgAddress.toString(16).toUpperCase().padStart(4, '0');
     const endHex = bank.endAddress.toString(16).toUpperCase().padStart(4, '0');
     const moduleList = bank.modules.map(m => m.key).join(', ') || '(empty)';
-    const moduleContents = bank.modules.map(m => {
-        switch (m.key) {
-            case 'components': return emittedFiles['components.asm'];
-            case 'sprites': return emittedFiles['sprites.asm'];
-            case 'animtiles': return emittedFiles['animtiles.asm'];
-            case 'bosses': return emittedFiles['bosses.asm'];
-            case 'scroll': return emittedFiles['scroll.asm'];
-            case 'patterns_code': return emittedFiles['patterns.asm'];
-            case 'colors_code': return emittedFiles['colors.asm'];
-            case 'screens_code': return emittedFiles['screens.asm'];
-            case 'gameflow': return emittedFiles['gameflow.asm'];
-            case 'worlds': return emittedFiles['worlds.asm'];
-            case 'entities': return emittedFiles['entities.asm'];
-            case 'statemachine': return emittedFiles['statemachine.asm'];
-            case 'font': return emittedFiles['font.asm'];
-            case 'menus': return emittedFiles['menus.asm'];
-            case 'hud': return emittedFiles['hud.asm'];
-            case 'sound': return emittedFiles['sound.asm'];
-            default: return m.content;
-        }
-    }).join('\n\n');
+    const runtimeBank = getRuntimeCodeBankNumber(bank, config.targetFormat, firstFarPhysicalBank, firstFarRuntimeBank);
+    const farRomStride = config.targetFormat === 'ascii16' && bank.orgAddress < 0x8000 ? 0x4000 : 0x2000;
+    const farRomStrideHex = farRomStride.toString(16).toUpperCase().padStart(4, '0');
+    const ascii16PreOrgPad = farRomStride === 0x4000 && bank.orgAddress === 0x6000
+        ? `    ; ASCII16 maps the whole 16KB segment at #4000; pad the lower half
+    ; so #6000-origin overlay labels execute at their intended CPU address.
+    ds #2000, #FF
+`
+        : '';
+    const ascii16PhysicalStridePad = farRomStride === 0x4000 && bank.orgAddress !== 0x6000 ? `\n    ds #2000, #FF` : '';
+    const moduleContents = bank.modules
+        .map(m => resolveCurrentCodeBankPlaceholders(m.content, runtimeBank))
+        .join('\n\n');
     return `; ##################################################################
 ; FAR BANK ${bank.physicalBank} — [#${orgHex}h-#${endHex}h] FAR CODE: ${moduleList}
 ; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
 ; At runtime: bank0 saves P${bank.windowPage}, maps bank${bank.physicalBank} to P${bank.windowPage},
 ; calls routine, then restores P${bank.windowPage}.
 ; NOTE: routines in this bank MUST only call code in bank 0 or
-;       primary banks (1-3). No far-to-far calls allowed.
+;       primary banks (1-2). No far-to-far calls allowed.
 ; ##################################################################
 FAR_BANK_${bank.physicalBank}_ROM_START:
+${ascii16PreOrgPad}
     org #${orgHex}
 
 ${moduleContents || '; (empty far bank)'}
 
-; --- End of Far Bank ${bank.physicalBank} — pad to 8KB boundary ---
-    ds #${endHex} - $, #FF
-    org FAR_BANK_${bank.physicalBank}_ROM_START + #2000`;
+; --- End of Far Bank ${bank.physicalBank} — pad to ${config.targetFormat === 'ascii16' && bank.orgAddress < 0x8000 ? '16KB ASCII16 segment' : '8KB boundary'} ---
+BANK_${bank.physicalBank}_USED_END:
+    ds #${endHex} - $, #FF${ascii16PhysicalStridePad}
+    org FAR_BANK_${bank.physicalBank}_ROM_START + #${farRomStrideHex}`;
 }).join('\n\n')}` : ''}
-
-${overflowDataSection}
     end                 ; End of assembly
 `;
 }

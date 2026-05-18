@@ -30,6 +30,7 @@ import { InstrumentEditorModal } from '../tracker/InstrumentEditorModal';
 import { OrnamentEditorModal } from '../tracker/OrnamentEditorModal';
 import { WaveformEditorModal } from '../tracker/WaveformEditorModal';
 import { Panel } from '../common/Panel';
+import { createCmajorChiptuneSampleSong } from '../../utils/trackerSampleSong';
 
 
 /**
@@ -40,7 +41,7 @@ interface TrackerComposerProps {
   /** The song data object to be edited. */
   songData: TrackerSongData;
   /** Callback function to update the song data. */
-  onUpdate: (data: Partial<TrackerSongData>) => void;
+  onUpdate: (data: Partial<TrackerSongData> | ((currentSong: TrackerSongData) => Partial<TrackerSongData>)) => void;
 }
 
 /**
@@ -286,6 +287,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const [localSongAuthor, setLocalSongAuthor] = useState(songData.author || "");
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRow, setPlaybackRow] = useState(0);
+  const [mutedChannels, setMutedChannels] = useState<Set<TrackerChannelId>>(new Set());
 
   const [focusedCell, setFocusedCell] = useState<{ rowIndex: number, channelId: TrackerChannelId, field: keyof TrackerCell } | null>(null);
   const [synthesizer, setSynthesizer] = useState<AYSynthesizer | SCCSynthesizer | null>(null);
@@ -319,6 +321,32 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const channelPendingNoteCutRef = useRef<boolean[]>(Array(SCC_CHANNELS.length).fill(false));
   const previewNoteTimeoutsRef = useRef<(number | null)[]>([]);
   const channels = useMemo(() => songData.soundChip === 'SCC' ? SCC_CHANNELS : PT3_CHANNELS, [songData.soundChip]);
+
+  const silencePlaybackChannel = useCallback((channelId: TrackerChannelId) => {
+    const channelIndex = channels.indexOf(channelId);
+    if (channelIndex < 0) return;
+    synthesizer?.playNote(channelIndex as any, "===", null, null, null);
+    channelPendingNoteCutRef.current[channelIndex] = false;
+    if (playbackPianoTimeoutsRef.current[channelIndex]) {
+      clearTimeout(playbackPianoTimeoutsRef.current[channelIndex]!);
+      playbackPianoTimeoutsRef.current[channelIndex] = null;
+    }
+    playbackPianoNotesRef.current[channelIndex] = null;
+    playbackPianoLevelsRef.current[channelIndex] = 0;
+    playbackInstrumentIdsRef.current[channelIndex] = null;
+  }, [channels, synthesizer]);
+
+  const handleToggleChannelMute = useCallback((channelId: TrackerChannelId) => {
+    setMutedChannels(prev => {
+      const next = new Set(prev);
+      if (next.has(channelId)) {
+        next.delete(channelId);
+      } else {
+        next.add(channelId);
+      }
+      return next;
+    });
+  }, []);
 
   const clearPreviewNoteTimeout = useCallback((channelIndex?: number) => {
     if (channelIndex === undefined) {
@@ -361,6 +389,21 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     setActivePianoKeys(new Set());
     setActivePianoKeyLevels(new Map());
   }, [channels.length]);
+
+  useEffect(() => {
+    setMutedChannels(prev => {
+      const next = new Set<TrackerChannelId>();
+      channels.forEach(channelId => {
+        if (prev.has(channelId)) next.add(channelId);
+      });
+      return next.size === prev.size ? prev : next;
+    });
+  }, [channels]);
+
+  useEffect(() => {
+    mutedChannels.forEach(channelId => silencePlaybackChannel(channelId));
+    publishPianoVisualState();
+  }, [mutedChannels, silencePlaybackChannel, publishPianoVisualState]);
 
   const isPlayableNote = useCallback((note: string | null | undefined): note is string => {
     return !!note && note !== '---' && note !== '===';
@@ -478,9 +521,24 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     return "";
   }, [songData, isLogModalOpen, addLog]);
 
+  const activePatternStorageIndex = useMemo(() => {
+    const orderIndex = songData.currentPatternIndexInOrder;
+    const orderedPatternIndex = songData.order?.[orderIndex];
+    if (
+      typeof orderedPatternIndex === 'number' &&
+      orderedPatternIndex >= 0 &&
+      orderedPatternIndex < songData.patterns.length
+    ) {
+      return orderedPatternIndex;
+    }
+
+    const idPatternIndex = songData.patterns.findIndex(p => p.id === activePatternIdToUse);
+    return idPatternIndex >= 0 ? idPatternIndex : 0;
+  }, [songData.currentPatternIndexInOrder, songData.order, songData.patterns, activePatternIdToUse]);
+
   const currentPattern = useMemo(() => {
-    return songData.patterns.find(p => p.id === activePatternIdToUse);
-  }, [songData.patterns, activePatternIdToUse]);
+    return songData.patterns[activePatternStorageIndex];
+  }, [songData.patterns, activePatternStorageIndex]);
 
   const getResolvedCellValue = useCallback((
     rowIndex: number,
@@ -623,8 +681,12 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       return;
     }
 
-    const updatedPatterns = songData.patterns.map(p => {
-      if (p.id === currentPattern.id) {
+    onUpdate((currentSong) => {
+      const targetPattern = currentSong.patterns[activePatternStorageIndex];
+      if (!targetPattern) return {};
+
+      const updatedPatterns = currentSong.patterns.map((p, patternIndex) => {
+        if (patternIndex === activePatternStorageIndex) {
         const newRowsArray = [...p.rows];
         if (num > p.numRows) {
           for (let i = p.numRows; i < num; i++) {
@@ -636,9 +698,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         return { ...p, numRows: num, rows: newRowsArray };
       }
       return p;
+      });
+
+      return { patterns: updatedPatterns };
     });
-    onUpdate({ patterns: updatedPatterns });
-  }, [currentPattern, songData.patterns, onUpdate, channels]);
+  }, [currentPattern, activePatternStorageIndex, songData.patterns, onUpdate, channels]);
 
 
   const handleCellChange = useCallback((rowIndex: number, channelId: TrackerChannelId, field: keyof TrackerCell, inputValue: string | number | null) => {
@@ -669,8 +733,12 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       }
     }
     if (isValid) {
-      const updatedPatterns = songData.patterns.map(p => {
-        if (p.id === currentPattern.id) {
+      onUpdate((currentSong) => {
+        const targetPattern = currentSong.patterns[activePatternStorageIndex];
+        if (!targetPattern) return {};
+
+        const updatedPatterns = currentSong.patterns.map((p, patternIndex) => {
+          if (patternIndex === activePatternStorageIndex) {
           const newRows = p.rows.map((r, rIdx) => {
             if (rIdx === rowIndex) {
               const newRow = { ...r };
@@ -697,10 +765,12 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
           return { ...p, rows: newRows };
         }
         return p;
+        });
+
+        return { patterns: updatedPatterns };
       });
-      onUpdate({ patterns: updatedPatterns });
     }
-  }, [currentPattern, songData.patterns, onUpdate, activeInstrumentId, activeOrnamentId]);
+  }, [currentPattern, activePatternStorageIndex, songData.patterns, onUpdate, activeInstrumentId, activeOrnamentId]);
 
   const handlePlayStop = async () => {
     if (synthesizer) {
@@ -785,6 +855,18 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       }
 
       channels.forEach((chId, chIndex) => {
+        if (mutedChannels.has(chId)) {
+          synthesizer.playNote(chIndex as any, "===", null, null, null);
+          if (playbackPianoTimeoutsRef.current[chIndex]) {
+            clearTimeout(playbackPianoTimeoutsRef.current[chIndex]!);
+            playbackPianoTimeoutsRef.current[chIndex] = null;
+          }
+          playbackPianoNotesRef.current[chIndex] = null;
+          playbackPianoLevelsRef.current[chIndex] = 0;
+          playbackInstrumentIdsRef.current[chIndex] = null;
+          channelPendingNoteCutRef.current[chIndex] = false;
+          return;
+        }
         const cell = rowData[chId] || { note: "---", instrument: null, ornament: null, volume: null };
         const nextCell = nextRowData ? (nextRowData[chId] || { note: "---" }) : { note: "---" };
         const nextKeeps = !nextCell.note || nextCell.note === '---';
@@ -855,7 +937,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       }
     }
     return () => { if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current); };
-  }, [isPlaying, playbackRow, songData, synthesizer, onUpdate, currentPattern, channels, clearPreviewNoteTimeout, clearPianoHighlights, isPlayableNote, schedulePianoVisualEnvelope, publishPianoVisualState]);
+  }, [isPlaying, playbackRow, songData, synthesizer, onUpdate, currentPattern, channels, mutedChannels, clearPreviewNoteTimeout, clearPianoHighlights, isPlayableNote, schedulePianoVisualEnvelope, publishPianoVisualState]);
 
   const focusCellAndSelectText = useCallback((rIdx: number, chId: TrackerChannelId, fld: keyof TrackerCell) => {
     if (!currentPattern || rIdx < 0 || rIdx >= currentPattern.numRows) return;
@@ -887,13 +969,15 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
       handleCellChange(rowIndex, channelId, 'note', noteString);
 
-      synthesizer.playNote(
-        channelIndex as any, noteString,
-        resolvedInstrumentId !== null ? resolvedInstrumentId : activeInstrumentId,
-        resolvedOrnamentId !== null ? resolvedOrnamentId : activeOrnamentId,
-        resolvedVolume
-      );
-      schedulePreviewNoteCut(channelIndex);
+      if (!mutedChannels.has(channelId)) {
+        synthesizer.playNote(
+          channelIndex as any, noteString,
+          resolvedInstrumentId !== null ? resolvedInstrumentId : activeInstrumentId,
+          resolvedOrnamentId !== null ? resolvedOrnamentId : activeOrnamentId,
+          resolvedVolume
+        );
+        schedulePreviewNoteCut(channelIndex);
+      }
 
       setActivePianoKeys(prev => new Set(prev).add(noteString));
       setActivePianoKeyLevels(prev => {
@@ -949,7 +1033,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       case 'Delete': case 'Backspace': e.preventDefault(); handleCellChange(rowIndex, channelId, field, null); break;
       default: break;
     }
-  }, [focusedCell, currentPattern, channels, handleCellChange, focusCellAndSelectText, keyboardOctaveOffset, synthesizer, activeInstrumentId, activeOrnamentId, editStepJump, fieldsOrder, songData.instruments, songData.ornaments, schedulePreviewNoteCut, getResolvedCellValue]);
+  }, [focusedCell, currentPattern, channels, handleCellChange, focusCellAndSelectText, keyboardOctaveOffset, synthesizer, activeInstrumentId, activeOrnamentId, editStepJump, fieldsOrder, songData.instruments, songData.ornaments, schedulePreviewNoteCut, getResolvedCellValue, mutedChannels]);
 
   const handleCurrentPatternIndexInOrderChange = useCallback((newIndex: number) => {
     if (songData.order && newIndex >= 0 && newIndex < songData.order.length) {
@@ -1020,7 +1104,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     if (songData.patterns.length <= 1) { alert("Cannot delete the last pattern."); return; }
     if (!currentPattern) return;
 
-    const currentPatternArrayIndex = songData.patterns.findIndex(p => p.id === currentPattern.id);
+    const currentPatternArrayIndex = activePatternStorageIndex;
     if (currentPatternArrayIndex === -1) return;
 
     const newPatterns = songData.patterns.filter(p => p.id !== currentPattern.id);
@@ -1047,7 +1131,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       currentPatternIndexInOrder: newCurrentPatternIndexInOrder,
       currentPatternId: nextActivePatternId,
     });
-  }, [currentPattern, songData.patterns, songData.order, songData.currentPatternIndexInOrder, onUpdate]);
+  }, [currentPattern, activePatternStorageIndex, songData.patterns, songData.order, songData.currentPatternIndexInOrder, onUpdate]);
 
   const handleInstrumentModalFieldChange = (field: keyof InstrumentModalBuffer, value: any) => {
     setInstrumentModalBuffer(prev => ({ ...prev, [field]: value }));
@@ -1129,14 +1213,16 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       const channelIndex = channels.indexOf(focusedCell.channelId);
       const resolvedInstrumentId = getResolvedCellValue(focusedCell.rowIndex, focusedCell.channelId, 'instrument');
       const resolvedOrnamentId = getResolvedCellValue(focusedCell.rowIndex, focusedCell.channelId, 'ornament');
-      synthesizer?.playNote(
-        channelIndex as any,
-        noteName,
-        resolvedInstrumentId !== null ? resolvedInstrumentId : activeInstrumentId,
-        resolvedOrnamentId !== null ? resolvedOrnamentId : activeOrnamentId,
-        currentPattern.rows[focusedCell.rowIndex][focusedCell.channelId].volume ?? 15
-      );
-      schedulePreviewNoteCut(channelIndex);
+      if (!mutedChannels.has(focusedCell.channelId)) {
+        synthesizer?.playNote(
+          channelIndex as any,
+          noteName,
+          resolvedInstrumentId !== null ? resolvedInstrumentId : activeInstrumentId,
+          resolvedOrnamentId !== null ? resolvedOrnamentId : activeOrnamentId,
+          currentPattern.rows[focusedCell.rowIndex][focusedCell.channelId].volume ?? 15
+        );
+        schedulePreviewNoteCut(channelIndex);
+      }
       setActivePianoKeys(prev => new Set(prev).add(noteName));
       setActivePianoKeyLevels(prev => {
         const next = new Map(prev);
@@ -1155,7 +1241,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         'note'
       );
     }
-  }, [focusedCell, synthesizer, currentPattern, handleCellChange, activeInstrumentId, activeOrnamentId, focusCellAndSelectText, editStepJump, channels, schedulePreviewNoteCut, getResolvedCellValue]);
+  }, [focusedCell, synthesizer, currentPattern, handleCellChange, activeInstrumentId, activeOrnamentId, focusCellAndSelectText, editStepJump, channels, schedulePreviewNoteCut, getResolvedCellValue, mutedChannels]);
 
   const handleOpenInstrumentModal = useCallback((instrument: PT3Instrument | null) => {
     if (instrument) {
@@ -1269,8 +1355,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     setIsLogModalOpen(true);
 
     addLog("Initiating sample song load...");
-    addLog("Calling createOdeToJoySampleSong().");
-    const sampleSong = createOdeToJoySampleSong();
+    addLog("Calling createCmajorChiptuneSampleSong().");
+    const sampleSong = createCmajorChiptuneSampleSong();
     addLog(`Sample song data created: ID=${sampleSong.id}, Name=${sampleSong.name}, Patterns=${sampleSong.patterns.length}, Instruments=${sampleSong.instruments.length}, currentPatternId=${sampleSong.currentPatternId}`);
 
     addLog("Calling onUpdate() to update global application state with sample song.");
@@ -1398,6 +1484,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         ayNoisePeriod={songData.ayNoisePeriod}
         onAyNoisePeriodChange={(val) => handleGlobalDataChange('ayNoisePeriod', val)}
         isPlaying={isPlaying} onPlayStop={handlePlayStop}
+        channels={channels}
+        mutedChannels={mutedChannels}
+        onToggleChannelMute={handleToggleChannelMute}
         onLoadSampleSong={handleLoadSampleSong}
         onSilenceAllChannels={handleSilenceAllChannels}
         soundChip={songData.soundChip}
@@ -1451,7 +1540,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             <div className="flex items-center gap-3">
               <span className="text-[0.62rem] uppercase tracking-wider text-msx-textsecondary">Pattern Editor</span>
               <span className="font-mono text-msx-highlight">{currentPattern.name}</span>
-              <span className="rounded border border-msx-border bg-black/20 px-2 py-0.5 font-mono text-[0.62rem] text-msx-textsecondary">#{String(songData.patterns.findIndex(p => p.id === currentPattern.id)).padStart(2, '0')}</span>
+              <span className="rounded border border-msx-border bg-black/20 px-2 py-0.5 font-mono text-[0.62rem] text-msx-textsecondary">#{String(activePatternStorageIndex).padStart(2, '0')}</span>
             </div>
             <div className="flex items-center gap-2 font-mono text-[0.68rem] text-msx-textsecondary">
               <span className="rounded border border-msx-border/70 bg-black/20 px-2 py-0.5">Order {String(songData.currentPatternIndexInOrder).padStart(2, '0')}</span>

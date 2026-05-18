@@ -1,0 +1,175 @@
+{
+  "target": "npc",
+  "mode": "jump",
+  "prompt": "1x4 32x32 pixel-art jumping animation for the same Indian woman in side profile facing right: crouch, rising, airborne peak, landing; red sari with gold trim, magenta background.",
+  "role": "",
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\generated-sprites\\indian_woman_profile_animations_32x32\\jump\\raw-sheet.png",
+  "threshold": 100,
+  "edge_threshold": 150,
+  "duration": 200,
+  "rows": 1,
+  "cols": 4,
+  "cell_size": 32,
+  "fit_scale": 0.92,
+  "trim_border": 4,
+  "edge_clean_depth": 3,
+  "align": "center",
+  "shared_scale": true,
+  "component_mode": "largest",
+  "component_padding": 2,
+  "min_component_area": 1,
+  "edge_touch_margin": 1,
+  "frame_labels": [
+    "indian_woman_profile_jump-1",
+    "indian_woman_profile_jump-2",
+    "indian_woman_profile_jump-3",
+    "indian_woman_profile_jump-4"
+  ],
+  "frames": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "source_box": [
+        0,
+        0,
+        495,
+        793
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 55592,
+      "selected_component_bbox": [
+        116,
+        305,
+        378,
+        668
+      ],
+      "crop_bbox": [
+        114,
+        303,
+        380,
+        670
+      ],
+      "edge_touch": false,
+      "output_size": [
+        17,
+        24
+      ],
+      "paste_position": [
+        7,
+        4
+      ]
+    },
+    {
+      "grid": [
+        0,
+        1
+      ],
+      "source_box": [
+        495,
+        0,
+        990,
+        793
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 61100,
+      "selected_component_bbox": [
+        100,
+        175,
+        373,
+        615
+      ],
+      "crop_bbox": [
+        98,
+        173,
+        375,
+        617
+      ],
+      "edge_touch": false,
+      "output_size": [
+        18,
+        29
+      ],
+      "paste_position": [
+        7,
+        1
+      ]
+    },
+    {
+      "grid": [
+        0,
+        2
+      ],
+      "source_box": [
+        990,
+        0,
+        1485,
+        793
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 58423,
+      "selected_component_bbox": [
+        77,
+        87,
+        335,
+        488
+      ],
+      "crop_bbox": [
+        75,
+        85,
+        337,
+        490
+      ],
+      "edge_touch": false,
+      "output_size": [
+        17,
+        26
+      ],
+      "paste_position": [
+        7,
+        3
+      ]
+    },
+    {
+      "grid": [
+        0,
+        3
+      ],
+      "source_box": [
+        1485,
+        0,
+        1980,
+        793
+      ],
+      "component_mode": "largest",
+      "component_count": 1,
+      "selected_component_area": 55801,
+      "selected_component_bbox": [
+        53,
+        304,
+        314,
+        668
+      ],
+      "crop_bbox": [
+        51,
+        302,
+        316,
+        670
+      ],
+      "edge_touch": false,
+      "output_size": [
+        17,
+        24
+      ],
+      "paste_position": [
+        7,
+        4
+      ]
+    }
+  ],
+  "edge_touch_frames": []
+}

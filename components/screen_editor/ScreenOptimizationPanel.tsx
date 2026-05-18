@@ -25,8 +25,8 @@ interface ScreenOptimizationPanelProps {
 
 const MODE_LABELS: Record<ScreenBlockExportMode, string> = {
   raw: 'Raw tiles',
-  blocks2x2: 'Blocks 2x2',
-  blocks4x4: 'Blocks 4x4',
+  blocks2x2: 'Shared 2x2 blocks',
+  blocks4x4: 'Shared 4x4 blocks',
 };
 
 function formatDelta(bytes: number): string {
@@ -150,7 +150,7 @@ export const ScreenOptimizationPanel: React.FC<ScreenOptimizationPanelProps> = (
         <div className="mt-1 text-msx-textsecondary">{currentStatusText}</div>
         <div className="mt-1 text-msx-cyan">{recommendationText}</div>
         <div className="mt-1 text-msx-textsecondary">
-          Runtime collision/effects remain tile-based. This only changes export packing.
+          Runtime collision/effects remain tile-based. ROM export shares catalogs across compatible screens.
         </div>
       </div>
 
@@ -200,9 +200,10 @@ export const ScreenOptimizationPanel: React.FC<ScreenOptimizationPanelProps> = (
           </div>
           <div className="mt-1 text-msx-textsecondary">{rawLengthBytes}B total | direct tile stream</div>
         </div>
-        {renderModeSummary('Blocks 2x2', currentMode === 'blocks2x2', blocks2x2, rawLengthBytes)}
-        {renderModeSummary('Blocks 4x4', currentMode === 'blocks4x4', blocks4x4, rawLengthBytes)}
+        {renderModeSummary('Shared 2x2 blocks', currentMode === 'blocks2x2', blocks2x2, rawLengthBytes)}
+        {renderModeSummary('Shared 4x4 blocks', currentMode === 'blocks4x4', blocks4x4, rawLengthBytes)}
       </div>
+
     </Panel>
   );
 };

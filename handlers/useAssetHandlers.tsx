@@ -2,24 +2,26 @@ import { useCallback } from 'react';
 import {
   ProjectAsset, EditorType, Tile, Sprite, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph,
-  PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset, PT3Instrument, TrackerSongData, TrackerPattern,
-  DialogueAsset, PortraitAsset, ScreenKind
+  PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset,
+  DialogueAsset, PortraitAsset, ScreenKind, Boss
 } from '../types';
 import {
   DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE, MSX1_PALETTE,
   DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR, DEFAULT_SCREEN_WIDTH_TILES,
   DEFAULT_SCREEN_HEIGHT_TILES, DEFAULT_SPRITE_SIZE, EDITOR_BASE_TILE_DIM_S2,
-  DEFAULT_TILE_BANK_DEFINITIONS, DEFAULT_PSG_INSTRUMENTS, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED, DEFAULT_PT3_ROWS_PER_PATTERN,
+  DEFAULT_TILE_BANK_DEFINITIONS,
   DEFAULT_PRESENTATION_SCREEN_CONFIG
 } from '../constants';
 import { createDefaultLineAttributes } from '../components/utils/tileUtils';
 import { DEFAULT_MSX_FONT } from '../components/utils/msxFontRenderer';
 import { createDefaultScreen5PaletteSlots } from '../utils/screen5PaletteUtils';
 import { getScreenModeMetrics } from '../utils/screenModeConfig';
+import { createCmajorChiptuneSampleSong } from '../utils/trackerSampleSong';
 
 interface AssetHandlersProps {
   assets: ProjectAsset[];
   setAssetsWithHistory: (updater: (prevAssets: ProjectAsset[]) => ProjectAsset[]) => void;
+  setTileBanksWithHistory: (updater: (prevTileBanks: TileBank[]) => TileBank[]) => void;
   setStatusBarMessage: (message: string) => void;
   selectedAssetId: string | null;
   setSelectedAssetId: (id: string | null) => void;
@@ -35,16 +37,10 @@ interface AssetHandlersProps {
   setWaypointPickerState: (state: any) => void;
 }
 
-const cloneDefaultPsgInstrument = (instrument: PT3Instrument): PT3Instrument => ({
-  ...instrument,
-  volumeEnvelope: instrument.volumeEnvelope ? [...instrument.volumeEnvelope] : undefined,
-  toneEnvelope: instrument.toneEnvelope ? [...instrument.toneEnvelope] : undefined,
-  noiseEnvelope: instrument.noiseEnvelope ? [...instrument.noiseEnvelope] : undefined,
-});
-
 export const useAssetHandlers = ({
   assets,
   setAssetsWithHistory,
+  setTileBanksWithHistory,
   setStatusBarMessage,
   selectedAssetId,
   setSelectedAssetId,
@@ -60,7 +56,159 @@ export const useAssetHandlers = ({
   setWaypointPickerState
 }: AssetHandlersProps) => {
 
+  const getTileDataIdFromAsset = (asset: ProjectAsset | undefined): string | undefined => (
+    asset?.type === 'tile' ? (asset.data as Tile | undefined)?.id : undefined
+  );
+
+  const collectTileReferenceIds = (tileAsset: ProjectAsset): Set<string> => {
+    const tileIds = new Set<string>([tileAsset.id]);
+    const tileDataId = getTileDataIdFromAsset(tileAsset);
+    if (tileDataId) tileIds.add(tileDataId);
+    return tileIds;
+  };
+
+  const collectBossTileIds = (boss: Boss): Set<string> => {
+    const tileIds = new Set<string>();
+    const addTileId = (tileId?: string | null) => {
+      if (tileId) tileIds.add(tileId);
+    };
+    const addTileMatrix = (matrix?: (string | null)[][]) => {
+      matrix?.forEach(row => row.forEach(addTileId));
+    };
+    const addWeakPointTiles = (weakPoints?: Array<{ destroyedTileId?: string }>) => {
+      weakPoints?.forEach(weakPoint => addTileId(weakPoint.destroyedTileId));
+    };
+
+    boss.phases?.forEach(phase => {
+      addTileMatrix(phase.tileMatrix);
+      addWeakPointTiles(phase.weakPoints);
+      phase.forms?.forEach(form => {
+        addTileMatrix(form.tileMatrix);
+        addWeakPointTiles(form.weakPoints);
+      });
+    });
+    boss.attacks?.forEach(attack => {
+      addTileId(attack.laserTileAssetId);
+      addTileId(attack.blockTileAssetId);
+    });
+
+    return tileIds;
+  };
+
+  const removeTileAssignmentsFromBank = (tileBank: TileBank, tileIdsToRemove: Set<string>): TileBank => ({
+    ...tileBank,
+    banks: tileBank.banks.map(bank => {
+      const assignedTiles = { ...(bank.assignedTiles || {}) };
+      let changed = false;
+      tileIdsToRemove.forEach(tileId => {
+        if (tileId in assignedTiles) {
+          delete assignedTiles[tileId];
+          changed = true;
+        }
+      });
+
+      return changed ? { ...bank, assignedTiles } : bank;
+    }),
+  });
+
+  const deleteAssetAndMaybeTiles = (
+    assetToDelete: ProjectAsset,
+    tileIdsToDelete: Set<string> = new Set(),
+    deletedTileAssetCount = tileIdsToDelete.size
+  ) => {
+    setAssetsWithHistory(prevAssets => {
+      const remainingAssets = prevAssets
+        .filter(asset => asset.id !== assetToDelete.id)
+        .filter(asset => {
+          if (asset.type !== 'tile') return true;
+          const tileReferenceIds = collectTileReferenceIds(asset);
+          return !Array.from(tileReferenceIds).some(tileId => tileIdsToDelete.has(tileId));
+        })
+        .map(asset => {
+          if (asset.type !== 'tilebank' || !asset.data || tileIdsToDelete.size === 0) return asset;
+          return {
+            ...asset,
+            data: removeTileAssignmentsFromBank(asset.data as TileBank, tileIdsToDelete),
+          };
+        });
+
+      if (assetToDelete.type !== 'statemachine') {
+        return remainingAssets;
+      }
+
+      return remainingAssets.map(asset => {
+        if (asset.type !== 'screenmap' || !asset.data) return asset;
+
+        const screenMap = asset.data as ScreenMap;
+        const entities = screenMap.layers?.entities;
+        if (!Array.isArray(entities)) return asset;
+
+        let changed = false;
+        const updatedEntities = entities.map(entity => {
+          const overrides = entity.componentOverrides || {};
+          const smOverride = overrides['comp_statemachine'];
+          if (!smOverride || typeof smOverride !== 'object') return entity;
+          if ((smOverride as any).stateMachineAssetId !== assetToDelete.id) return entity;
+
+          const nextSmOverride = { ...(smOverride as Record<string, any>) };
+          delete nextSmOverride.stateMachineAssetId;
+          delete nextSmOverride.currentStateId;
+
+          const nextOverrides: Record<string, any> = { ...overrides };
+          if (Object.keys(nextSmOverride).length === 0) {
+            delete nextOverrides['comp_statemachine'];
+          } else {
+            nextOverrides['comp_statemachine'] = nextSmOverride;
+          }
+
+          changed = true;
+          return { ...entity, componentOverrides: nextOverrides };
+        });
+
+        if (!changed) return asset;
+
+        return {
+          ...asset,
+          data: {
+            ...screenMap,
+            layers: {
+              ...screenMap.layers,
+              entities: updatedEntities
+            }
+          }
+        };
+      });
+    });
+
+    if (tileIdsToDelete.size > 0) {
+      setTileBanksWithHistory(prevTileBanks => prevTileBanks.map(tileBank => removeTileAssignmentsFromBank(tileBank, tileIdsToDelete)));
+    }
+    if (assetToDelete.type === 'tilebank') {
+      const deletedTileBankId = (assetToDelete.data as TileBank | undefined)?.id;
+      setTileBanksWithHistory(prevTileBanks => prevTileBanks.filter(tileBank => (
+        tileBank.id !== assetToDelete.id && tileBank.id !== deletedTileBankId
+      )));
+    }
+
+    if (selectedAssetId === assetToDelete.id) {
+      setSelectedAssetId(null);
+      setCurrentEditor(EditorType.None);
+      setSelectedEffectZoneId(null);
+    }
+
+    const isDeletingSingleTile = assetToDelete.type === 'tile';
+    setStatusBarMessage(
+      tileIdsToDelete.size > 0
+        ? `Asset "${assetToDelete.name}" deleted${isDeletingSingleTile ? '' : ` with ${deletedTileAssetCount} boss tile${deletedTileAssetCount === 1 ? '' : 's'}`}. Bank assignments were cleaned.`
+        : `Asset "${assetToDelete.name}" deleted.`
+    );
+    setIsConfirmModalOpen(false);
+    setConfirmModalProps(null);
+  };
+
   const handleUpdateAsset = useCallback((assetId: string, updatedData: any, newAssetsToCreate?: ProjectAsset[]) => {
+    const assetBeforeUpdate = assets.find(asset => asset.id === assetId);
+    const originalUpdatedData = updatedData;
     setAssetsWithHistory(prevAssets => {
       let intermediateAssets = prevAssets;
       if (newAssetsToCreate && newAssetsToCreate.length > 0) {
@@ -72,7 +220,8 @@ export const useAssetHandlers = ({
         setStatusBarMessage(message);
       }
 
-      const isDataUpdateNeeded = updatedData && (!(typeof updatedData === 'object' && Object.keys(updatedData).length === 0));
+      const isFunctionalUpdate = typeof updatedData === 'function';
+      const isDataUpdateNeeded = isFunctionalUpdate || (updatedData && (!(typeof updatedData === 'object' && Object.keys(updatedData).length === 0)));
 
       if (!isDataUpdateNeeded) {
         return intermediateAssets;
@@ -80,28 +229,61 @@ export const useAssetHandlers = ({
 
       return intermediateAssets.map(asset => {
         if (asset.id === assetId) {
+          let effectiveUpdatedData = isFunctionalUpdate
+            ? updatedData(asset.data, asset)
+            : updatedData;
+
+          if (!effectiveUpdatedData || (typeof effectiveUpdatedData === 'object' && Object.keys(effectiveUpdatedData).length === 0)) {
+            return asset;
+          }
+
           let newAssetData: ProjectAsset['data'] = asset.data;
           let newAssetName = asset.name;
 
           // Check if name is being updated and apply it to the asset itself
-          if (updatedData && typeof updatedData === 'object' && 'name' in updatedData) {
-            newAssetName = updatedData.name;
+          if (effectiveUpdatedData && typeof effectiveUpdatedData === 'object' && 'name' in effectiveUpdatedData) {
+            newAssetName = effectiveUpdatedData.name;
             // Remove name from data update to avoid duplication
-            const { name, ...dataWithoutName } = updatedData;
-            updatedData = dataWithoutName;
+            const { name, ...dataWithoutName } = effectiveUpdatedData;
+            effectiveUpdatedData = dataWithoutName;
           }
 
           if (typeof asset.data === 'object' && asset.data !== null) {
-            newAssetData = { ...asset.data, ...updatedData };
+            newAssetData = { ...asset.data, ...effectiveUpdatedData };
           } else {
-            newAssetData = updatedData;
+            newAssetData = effectiveUpdatedData;
           }
           return { ...asset, name: newAssetName, data: newAssetData };
         }
         return asset;
       });
     });
-  }, [setAssetsWithHistory, setStatusBarMessage]);
+    const createdTileBanks = (newAssetsToCreate || [])
+      .filter(asset => asset.type === 'tilebank' && asset.data && Array.isArray((asset.data as TileBank).banks))
+      .map(asset => asset.data as TileBank);
+    if (createdTileBanks.length > 0) {
+      setTileBanksWithHistory(prevTileBanks => [
+        ...prevTileBanks.filter(tileBank => !createdTileBanks.some(created => created.id === tileBank.id)),
+        ...createdTileBanks
+      ]);
+    }
+    if (
+      assetBeforeUpdate?.type === 'tilebank'
+      && originalUpdatedData
+      && typeof originalUpdatedData === 'object'
+      && Object.keys(originalUpdatedData).length > 0
+    ) {
+      const tileBankData = assetBeforeUpdate.data as TileBank | undefined;
+      if (tileBankData && Array.isArray(tileBankData.banks)) {
+        const updatedTileBank = { ...tileBankData, ...originalUpdatedData } as TileBank;
+        setTileBanksWithHistory(prevTileBanks => prevTileBanks.map(tileBank => (
+          tileBank.id === assetBeforeUpdate.id || tileBank.id === tileBankData.id
+            ? updatedTileBank
+            : tileBank
+        )));
+      }
+    }
+  }, [assets, setAssetsWithHistory, setStatusBarMessage, setTileBanksWithHistory]);
 
   const handleNewAsset = (type: ProjectAsset['type'], options?: { select?: boolean; screenKind?: ScreenKind }): ProjectAsset | undefined => {
     const id = `${type}_${Date.now()}`;
@@ -250,36 +432,8 @@ export const useAssetHandlers = ({
         newEditorType = EditorType.WorldMap;
         break;
       case 'track':
-        // Create initial empty pattern
-        const initialPattern: TrackerPattern = {
-          id: `pattern_${Date.now()}`,
-          name: 'Pattern 00',
-          numRows: DEFAULT_PT3_ROWS_PER_PATTERN,
-          rows: Array(DEFAULT_PT3_ROWS_PER_PATTERN).fill(null).map(() => ({
-            A: { note: null, instrument: null, ornament: null, volume: null },
-            B: { note: null, instrument: null, ornament: null, volume: null },
-            C: { note: null, instrument: null, ornament: null, volume: null },
-          }))
-        };
-
-        newAssetData = {
-          id,
-          name: defaultName,
-          soundChip: 'PSG',
-          author: "Unknown",
-          title: defaultName,
-          bpm: DEFAULT_PT3_BPM,
-          speed: DEFAULT_PT3_SPEED,
-          globalVolume: 15,
-          patterns: [initialPattern],
-          order: [0],
-          lengthInPatterns: 1,
-          restartPosition: 0,
-          instruments: DEFAULT_PSG_INSTRUMENTS.map(cloneDefaultPsgInstrument),
-          ornaments: [],
-          currentPatternIndexInOrder: 0,
-          currentPatternId: initialPattern.id,
-        } as TrackerSongData;
+        newAssetData = createCmajorChiptuneSampleSong(id);
+        defaultName = newAssetData.name;
         newEditorType = EditorType.Track;
         break;
       case 'behavior':
@@ -347,6 +501,7 @@ export const useAssetHandlers = ({
             maxLinesPerBox: 3,
             stripUnsupportedChars: true,
             charDelayFrames: 2,
+            mouthToggleEveryChars: 3,
           },
         } as DialogueAsset;
         newEditorType = EditorType.Dialogue;
@@ -360,6 +515,7 @@ export const useAssetHandlers = ({
           tileBankAssetId: undefined,
           cells: Array(16).fill(''),
           dedupeIdenticalTiles: true,
+          mouth: { enabled: false, cellIndex: 0, openTileId: '' },
         } as PortraitAsset;
         newEditorType = EditorType.Portrait;
         break;
@@ -438,6 +594,12 @@ export const useAssetHandlers = ({
 
     const newAsset: ProjectAsset = { id, name: defaultName, type, data: newAssetData };
     setAssetsWithHistory(prevAssets => [...prevAssets, newAsset]);
+    if (type === 'tilebank') {
+      setTileBanksWithHistory(prevTileBanks => [
+        ...prevTileBanks.filter(tileBank => tileBank.id !== id),
+        newAssetData as TileBank
+      ]);
+    }
     if (options?.select !== false) {
       setSelectedAssetId(id);
       setCurrentEditor(newEditorType);
@@ -449,67 +611,55 @@ export const useAssetHandlers = ({
   const handleDeleteAsset = (assetId: string) => {
     const assetToDelete = assets.find(a => a.id === assetId);
     if (assetToDelete) {
+      const bossTileAssets = assetToDelete.type === 'boss'
+        ? Array.from(collectBossTileIds(assetToDelete.data as Boss))
+            .map(tileId => assets.find(asset => (
+              asset.type === 'tile'
+              && (asset.id === tileId || getTileDataIdFromAsset(asset) === tileId)
+            )))
+            .filter((asset): asset is ProjectAsset => !!asset)
+        : [];
+      const bossTileIds = new Set(bossTileAssets.flatMap(asset => Array.from(collectTileReferenceIds(asset))));
+
+      if (assetToDelete.type === 'boss' && bossTileAssets.length > 0) {
+        const previewTileNames = bossTileAssets.slice(0, 8).map(asset => asset.name);
+        const hiddenTileCount = Math.max(0, bossTileAssets.length - previewTileNames.length);
+
+        setConfirmModalProps({
+          title: "Delete Boss",
+          message: (
+            <div className="space-y-3">
+              <p>Delete boss "{assetToDelete.name}"?</p>
+              <p>
+                This boss uses {bossTileAssets.length} tile{bossTileAssets.length === 1 ? '' : 's'}. You can keep those tiles, or delete them together with the boss.
+              </p>
+              <div className="max-h-28 overflow-y-auto rounded border border-msx-border bg-msx-bgcolor p-2 text-xs text-msx-textsecondary">
+                {previewTileNames.map((tileName, index) => (
+                  <div key={`${tileName}-${index}`} className="truncate">{tileName}</div>
+                ))}
+                {hiddenTileCount > 0 && <div>...and {hiddenTileCount} more</div>}
+              </div>
+            </div>
+          ),
+          onConfirm: () => deleteAssetAndMaybeTiles(assetToDelete),
+          onSecondaryAction: () => deleteAssetAndMaybeTiles(assetToDelete, bossTileIds, bossTileAssets.length),
+          confirmText: "Delete Boss Only",
+          secondaryText: "Delete Boss + Tiles",
+          secondaryButtonVariant: "danger",
+          confirmButtonVariant: "danger"
+        });
+        setIsConfirmModalOpen(true);
+        return;
+      }
+
       setConfirmModalProps({
         title: "Delete Asset",
         message: `Are you sure you want to delete asset "${assetToDelete.name}"? This action can be undone.`,
-        onConfirm: () => {
-          setAssetsWithHistory(prevAssets => {
-            const remainingAssets = prevAssets.filter(a => a.id !== assetId);
-            if (assetToDelete.type !== 'statemachine') {
-              return remainingAssets;
-            }
-
-            return remainingAssets.map(asset => {
-              if (asset.type !== 'screenmap' || !asset.data) return asset;
-
-              const screenMap = asset.data as ScreenMap;
-              const entities = screenMap.layers?.entities;
-              if (!Array.isArray(entities)) return asset;
-
-              let changed = false;
-              const updatedEntities = entities.map(entity => {
-                const overrides = entity.componentOverrides || {};
-                const smOverride = overrides['comp_statemachine'];
-                if (!smOverride || typeof smOverride !== 'object') return entity;
-                if ((smOverride as any).stateMachineAssetId !== assetId) return entity;
-
-                const nextSmOverride = { ...(smOverride as Record<string, any>) };
-                delete nextSmOverride.stateMachineAssetId;
-                delete nextSmOverride.currentStateId;
-
-                const nextOverrides: Record<string, any> = { ...overrides };
-                if (Object.keys(nextSmOverride).length === 0) {
-                  delete nextOverrides['comp_statemachine'];
-                } else {
-                  nextOverrides['comp_statemachine'] = nextSmOverride;
-                }
-
-                changed = true;
-                return { ...entity, componentOverrides: nextOverrides };
-              });
-
-              if (!changed) return asset;
-
-              return {
-                ...asset,
-                data: {
-                  ...screenMap,
-                  layers: {
-                    ...screenMap.layers,
-                    entities: updatedEntities
-                  }
-                }
-              };
-            });
-          });
-          if (selectedAssetId === assetId) {
-            setSelectedAssetId(null);
-            setCurrentEditor(EditorType.None);
-            setSelectedEffectZoneId(null);
-          }
-          setStatusBarMessage(`Asset "${assetToDelete.name}" deleted.`);
-          setIsConfirmModalOpen(false);
-        },
+        onConfirm: () => deleteAssetAndMaybeTiles(
+          assetToDelete,
+          assetToDelete.type === 'tile' ? collectTileReferenceIds(assetToDelete) : undefined,
+          assetToDelete.type === 'tile' ? 1 : undefined
+        ),
         confirmText: "Delete",
         confirmButtonVariant: "danger"
       });

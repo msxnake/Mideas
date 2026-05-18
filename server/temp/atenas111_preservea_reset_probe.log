@@ -1,0 +1,12 @@
+t2 pc=1130 sp=F2FE bank=00/00/00 flow=00 sel=33
+BP_4010_1 pc=4010 sp=F2EC bank=00/00/00 flow=00 sel=33
+pre_space pc=96BC sp=F37C bank=01/02/03 flow=00 sel=33
+space1_before pc=96BC sp=F37C bank=01/02/03 flow=00 sel=33
+space1_after pc=4598 sp=F364 bank=12/02/04 flow=00 sel=33
+t8_5 pc=9E40 sp=F376 bank=01/02/03 flow=00 sel=00
+SHOTOK atenas111_t8_5.png
+space2_before pc=9E40 sp=F376 bank=01/02/03 flow=00 sel=00
+space2_after pc=9E40 sp=F376 bank=01/02/03 flow=00 sel=00
+t11_5 pc=9E40 sp=F376 bank=01/02/03 flow=00 sel=00
+SHOTOK atenas111_t11_5.png
+final pc=1A04 sp=F362 bank=01/02/03 flow=00 sel=00

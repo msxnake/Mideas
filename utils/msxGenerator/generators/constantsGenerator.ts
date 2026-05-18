@@ -161,6 +161,13 @@ TRIG_B      EQU #20      ; Trigger B (MSX2+)
 INPUT_BTN_FIRE EQU #01   ; Fire/Space button bit in input_btn_curr/input_btn_prev
 INPUT_BTN_GRAB EQU #02   ; Grab button bit in input_btn_curr/input_btn_prev
 
+; Runtime control binding modes
+CONTROL_KEY_SPC    EQU 0
+CONTROL_KEY_CTRL   EQU 1
+CONTROL_KEY_N      EQU 0
+CONTROL_PHYS_BTN1  EQU 0
+CONTROL_PHYS_BTN2  EQU 1
+
 ; Direction flags shared by input/state machine helpers
 DIR_ALLOW_UP     EQU #01 ; Bit 0: Allow UP movement
 DIR_ALLOW_DOWN   EQU #02 ; Bit 1: Allow DOWN movement
@@ -227,6 +234,9 @@ NODE_TYPE_MENU          EQU 3    ; Menu node (shows menu interface)
 NODE_TYPE_SUBMENU       EQU 3    ; Alias for menu node
 NODE_TYPE_SUB_MENU      EQU 3    ; Alias with underscore (for compatibility)
 NODE_TYPE_TEXT          EQU 4    ; Text node (displays text)
+NODE_TYPE_TEXT_SCROLL   EQU 15   ; Text scroll node (story crawl)
+NODE_TYPE_TEXT_SCROLL2  EQU 16   ; Pattern-table pixel text scroll node
+NODE_TYPE_TEXT_SCROLL_COLOR EQU 17 ; Colored Galious-style text scroll node
 NODE_TYPE_TRANSITION    EQU 5    ; Transition node
 NODE_TYPE_RESTART       EQU 6    ; Restart node (restart game/level)
 NODE_TYPE_END           EQU 7    ; End node (game over, victory, credits)
@@ -236,6 +246,7 @@ NODE_TYPE_WAYPOINT      EQU 10   ; Waypoint node (routing marker)
 NODE_TYPE_GROUP         EQU 11   ; Group node (nested flow)
 NODE_TYPE_MUSIC         EQU 12   ; Music node (audio command)
 NODE_TYPE_PRESENTATION_SCREEN EQU 13 ; Presentation Screen node (static tile screen)
+NODE_TYPE_CONTROLS      EQU 14   ; Controls node (button binding menu)
 NODE_TYPE_UNKNOWN       EQU 255  ; Unknown/unsupported node type
 ${analysis.gameFlow ? `
 ; Additional Game Flow States detected in project

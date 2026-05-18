@@ -1,0 +1,15 @@
+t01 pc=811D tick=01 bossActive=00 bossXY=0,4 beh=count:0 idx:0 timer:0 type:0 aux0:0 projectile=active:0 xy:0,0 dist:0
+t03 pc=1130 tick=01 bossActive=00 bossXY=0,4 beh=count:0 idx:0 timer:0 type:0 aux0:0 projectile=active:0 xy:0,0 dist:0
+space1_before pc=79B3 tick=86 bossActive=AA bossXY=3,6 beh=count:7 idx:4 timer:8 type:0 aux0:255 projectile=active:1 xy:158,104 dist:160
+space1_after pc=B88A tick=93 bossActive=AA bossXY=3,6 beh=count:7 idx:5 timer:35 type:1 aux0:255 projectile=active:1 xy:197,104 dist:160
+t09 pc=B2BE tick=F3 bossActive=AA bossXY=1,6 beh=count:7 idx:5 timer:22 type:1 aux0:255 projectile=active:0 xy:199,104 dist:160
+space2_before pc=5C38 tick=A7 bossActive=AA bossXY=1,6 beh=count:7 idx:5 timer:8 type:1 aux0:255 projectile=active:0 xy:199,104 dist:160
+space2_after pc=AD2D tick=B4 bossActive=AA bossXY=1,6 beh=count:7 idx:3 timer:8 type:2 aux0:0 projectile=active:1 xy:52,104 dist:160
+t13 pc=1A48 tick=E3 bossActive=AA bossXY=1,6 beh=count:7 idx:5 timer:31 type:1 aux0:255 projectile=active:1 xy:193,104 dist:160
+t14 pc=19D0 tick=1F bossActive=AA bossXY=1,6 beh=count:7 idx:4 timer:14 type:0 aux0:255 projectile=active:1 xy:124,104 dist:160
+t15 pc=B88A tick=5B bossActive=AA bossXY=1,6 beh=count:7 idx:3 timer:7 type:2 aux0:0 projectile=active:1 xy:55,104 dist:160
+t16 pc=B88A tick=97 bossActive=AA bossXY=1,6 beh=count:7 idx:5 timer:17 type:1 aux0:255 projectile=active:0 xy:199,104 dist:160
+t17 pc=B88A tick=D3 bossActive=AA bossXY=1,6 beh=count:7 idx:5 timer:0 type:0 aux0:255 projectile=active:1 xy:166,104 dist:160
+t18 pc=B88A tick=0F bossActive=AA bossXY=1,6 beh=count:7 idx:4 timer:23 type:0 aux0:255 projectile=active:1 xy:97,104 dist:160
+t19 pc=B88A tick=4B bossActive=AA bossXY=1,6 beh=count:7 idx:5 timer:3 type:1 aux0:255 projectile=active:0 xy:199,104 dist:160
+t20 pc=B88A tick=87 bossActive=AA bossXY=1,6 beh=count:7 idx:5 timer:26 type:1 aux0:255 projectile=active:0 xy:199,104 dist:160

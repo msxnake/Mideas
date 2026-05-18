@@ -1,0 +1,15 @@
+BP_4010_RESET_OR_INIT pc=4010 sp=F2EC screen=22 player=22 boss=05 bossxy=00,04
+intro_space_before pc=86D3 sp=F374 screen=22 player=00 boss=01 bossxy=0F,0A
+intro_space_after pc=98F6 sp=F37C screen=22 player=00 boss=01 bossxy=0D,0A
+start_space_before pc=50B9 sp=F374 screen=22 player=00 boss=01 bossxy=14,0A
+start_space_after pc=877D sp=F372 screen=22 player=00 boss=01 bossxy=18,0A
+game_early pc=5B4C sp=F378 screen=22 player=00 boss=01 bossxy=18,0A
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_loop_shots/joc52_loop_48k_capture_game_early.png
+game_late pc=5B3D sp=F376 screen=22 player=00 boss=01 bossxy=18,0A
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_loop_shots/joc52_loop_48k_capture_game_late.png
+right_before pc=1A04 sp=F368 screen=22 player=00 boss=01 bossxy=18,0A
+right_after pc=98F6 sp=F37C screen=22 player=00 boss=01 bossxy=10,0A
+after_right pc=98F6 sp=F37C screen=22 player=00 boss=01 bossxy=0E,0A
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_loop_shots/joc52_loop_48k_capture_after_right.png
+final pc=98F6 sp=F37C screen=22 player=00 boss=01 bossxy=04,0A
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_loop_shots/joc52_loop_48k_capture_final.png

@@ -1,0 +1,12 @@
+t1 pc=811D sp=F2F6 stack=F392/F043/247A/00FF bank=00/04/33/3A flow=00 screen=00 player=FF/FF pxy=17220,40761
+t3 pc=1130 sp=F2FE stack=0E0A/C9C9/C9C9/C9C9 bank=00/04/33/3A flow=00 screen=00 player=FF/FF pxy=17220,40761
+t65 pc=65AF sp=F37C stack=6597/6985/A8D3/185E bank=06/06/01/01 flow=00 screen=00 player=FF/FF pxy=17220,57401
+space1_before pc=65AF sp=F37C stack=6597/6985/A8D3/185E bank=06/06/01/01 flow=00 screen=00 player=FF/FF pxy=17220,57401
+space1_after pc=4685 sp=F356 stack=4675/FF60/4799/4813 bank=00/00/01/01 flow=00 screen=00 player=FF/FF pxy=17220,57401
+t9 pc=199A sp=F352 stack=5AB3/61D8/60A5/61D8 bank=07/07/01/01 flow=00 screen=00 player=FF/FF pxy=17220,57401
+space2_before pc=19A3 sp=F31C stack=04F3/01FF/247A/0042 bank=07/07/01/01 flow=00 screen=00 player=FF/FF pxy=17220,57401
+space2_after pc=5846 sp=F328 stack=61D8/60A5/61D8/60A5 bank=07/07/01/01 flow=00 screen=00 player=FF/FF pxy=17220,57401
+t135 pc=1A59 sp=F300 stack=19DD/4010/0104/0100 bank=07/07/01/01 flow=00 screen=00 player=FF/FF pxy=17220,57401
+right_down pc=1A07 sp=F2E8 stack=04F3/01FF/247A/0042 bank=07/07/01/01 flow=00 screen=00 player=FF/FF pxy=17220,57401
+right_up pc=1A09 sp=F2E0 stack=247A/0042/0100/7E19 bank=07/07/01/01 flow=00 screen=00 player=FF/FF pxy=17220,57401
+t18 pc=1A09 sp=F2D4 stack=247A/0042/0100/7E19 bank=07/07/01/01 flow=00 screen=00 player=FF/FF pxy=17220,57401

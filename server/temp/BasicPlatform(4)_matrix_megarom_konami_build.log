@@ -1,0 +1,426 @@
+? Generating modular ASM files...
+? Project: BasicPlatform(4), Assets: 157, Config: {
+  generateUnified: true,
+  romMode: 'megarom',
+  targetFormat: 'konami',
+  executionMode: 'interruptTaskManager',
+  autoMegaROM: false
+}
+? Analysis complete: 6 sprites, 55 tiles
+? [MSX GENERATOR] Generating all ASM files...
+? Hardware Mode: HYBRID, Optimize: safe
+[MSX GENERATOR] ROM config: mode=megarom, mapper=konami, autoMegaROM=false
+ÐYZî [INTERRUPT GENERATOR] Generating interrupt.asm...
+ƒo. [INTERRUPT GENERATOR] Generated interrupt.asm (20785 chars)
+? Analyzing component usage...
+? Total entities in project: 17
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 2 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 3 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: Basic Enemy 1 (template: tpl_enemy_basic)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 2 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 2 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 2 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+? Active entities: 17
+? Used templates: tpl_1755947317423_1m6n5, tpl_enemy_basic
+  ? Analyzing template "Basic Enemy" for entity "Basic Enemy 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_ai_behavior ? Behavior
+    - Component: comp_health ? Health
+    - Component: comp_gravity ? Gravity
+    - Component: comp_animation ? Animation
+    - Component: comp_collision ? Collision
+    - Component: comp_damage ? Damage
+    - Override: comp_ai_behavior ? Behavior
+    - Override: comp_render ? Sprite
+    - Override: comp_pos ? Position
+? Component usage summary:
+  - Total used components: 8
+    • Position: 1 entities
+    • Sprite: 1 entities
+    • Behavior: 1 entities
+    • Health: 1 entities
+    • Gravity: 1 entities
+    • Animation: 1 entities
+    • Collision: 1 entities
+    • Damage: 1 entities
+? Generating optimized components.asm...
+  - Active entities: 17 
+  - Used components: Position, Sprite, Behavior, Health, Gravity, Animation, Collision, Damage 
+  - Dynamic platform riding: STUB 
+  - Filtered out: 19 unused components
+? Analyzing component usage...
+? Total entities in project: 17
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 2 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 3 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: Basic Enemy 1 (template: tpl_enemy_basic)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 2 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 2 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 2 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+? Active entities: 17
+? Used templates: tpl_1755947317423_1m6n5, tpl_enemy_basic
+  ? Analyzing template "Basic Enemy" for entity "Basic Enemy 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_ai_behavior ? Behavior
+    - Component: comp_health ? Health
+    - Component: comp_gravity ? Gravity
+    - Component: comp_animation ? Animation
+    - Component: comp_collision ? Collision
+    - Component: comp_damage ? Damage
+    - Override: comp_ai_behavior ? Behavior
+    - Override: comp_render ? Sprite
+    - Override: comp_pos ? Position
+? Component usage summary:
+  - Total used components: 8
+    • Position: 1 entities
+    • Sprite: 1 entities
+    • Behavior: 1 entities
+    • Health: 1 entities
+    • Gravity: 1 entities
+    • Animation: 1 entities
+    • Collision: 1 entities
+    • Damage: 1 entities
+? Generating optimized entities.asm...
+  - Total entity templates in JSON: 9
+  - Actually instantiated entities: 17
+  - Used entity templates: 2
+  - Filtered out: 7 unused templates
+? First tile structure check: {
+  tileId: 'tile_1754759322077',
+  position: { x: 10, y: 0 },
+  banksCount: 3,
+  banks: [
+    {
+      name: undefined,
+      assignedTileIds: [Array],
+      hasThisTile: true,
+      assignedTilesType: 'object',
+      assignedTilesSample: [Array]
+    },
+    {
+      name: undefined,
+      assignedTileIds: [Array],
+      hasThisTile: true,
+      assignedTilesType: 'object',
+      assignedTilesSample: [Array]
+    },
+    {
+      name: undefined,
+      assignedTileIds: [Array],
+      hasThisTile: true,
+      assignedTilesType: 'object',
+      assignedTilesSample: [Array]
+    }
+  ]
+}
+? generateSpritesFile() called:
+  - analysis.sprites.length: 6
+  - expandedSprites.length: 9
+  - analysis.entities.length: 17
+  - analysis.templates.length: 9
+? Analyzing component usage...
+? Total entities in project: 17
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 2 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 3 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: Basic Enemy 1 (template: tpl_enemy_basic)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 2 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 2 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 2 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+  - Entity: patrulla1 1 (template: tpl_1755947317423_1m6n5)
+? Active entities: 17
+? Used templates: tpl_1755947317423_1m6n5, tpl_enemy_basic
+  ? Analyzing template "Basic Enemy" for entity "Basic Enemy 1"
+    - Component: comp_pos ? Position
+    - Component: comp_render ? Sprite
+    - Component: comp_ai_behavior ? Behavior
+    - Component: comp_health ? Health
+    - Component: comp_gravity ? Gravity
+    - Component: comp_animation ? Animation
+    - Component: comp_collision ? Collision
+    - Component: comp_damage ? Damage
+    - Override: comp_ai_behavior ? Behavior
+    - Override: comp_render ? Sprite
+    - Override: comp_pos ? Position
+? Component usage summary:
+  - Total used components: 8
+    • Position: 1 entities
+    • Sprite: 1 entities
+    • Behavior: 1 entities
+    • Health: 1 entities
+    • Gravity: 1 entities
+    • Animation: 1 entities
+    • Collision: 1 entities
+    • Damage: 1 entities
+  - activeEntities.length: 17
+
+? getEntitySpriteInfo for entity: "patrulla1 1" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 2" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 3" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 1" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "Basic Enemy 1" (template: tpl_enemy_basic)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   Template found: "Basic Enemy"
+   Template components: comp_pos, comp_render, comp_ai_behavior, comp_health, comp_gravity, comp_animation, comp_collision, comp_damage
+   ? Found spriteAssetId in overrides: "sprite_1753894878658_3"
+   Resolved spriteAssetId: "sprite_1753894878658_3"
+   ? Found sprite "bird1" at index 1
+
+? getEntitySpriteInfo for entity: "patrulla1 1" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 1" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 1" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 2" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 1" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 2" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 1" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 2" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 1" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 1" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 1" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+
+? getEntitySpriteInfo for entity: "patrulla1 1" (template: tpl_1755947317423_1m6n5)
+   Available sprites: "hero1_right" (sprite_1753010040941), "bird1" (sprite_1753894878658_3), "ball1" (sprite_1754755701676), "bird2" (sprite_1753814652486), "minipotato_right" (sprite_1754938056148), "blackDuck_left" (sprite_1756133339179), "hero1_left" (sprite_1753010040941__auto_left), "minipotato_left" (sprite_1754938056148__auto_left), "blackDuck_right" (sprite_1756133339179__auto_right)
+   ? Template not found!
+? [HUD Generator] Total screens: 53
+  ? Screen "pan1" (screenmap_1752520188906): hudConfiguration=true, elements=0
+  ? Screen "pan2" (screenmap_1754755287165): hudConfiguration=true, elements=0
+  ? Screen "pan3" (screenmap_1754757646433): hudConfiguration=true, elements=0
+  ? Screen "pan4" (screenmap_1754822837810): hudConfiguration=true, elements=0
+  ? Screen "pan5" (screenmap_1754823502769): hudConfiguration=true, elements=0
+  ? Screen "pan6" (screenmap_1754847853261): hudConfiguration=true, elements=0
+  ? Screen "pan7" (screenmap_1755254825434): hudConfiguration=true, elements=0
+  ? Screen "Room_boss_1" (screenmap_random_0_1_1755255524322): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_1" (screenmap_random_0_2_1755255524322): hudConfiguration=true, elements=0
+  ? Screen "Room_final_1" (screenmap_random_1_1_1755255524322): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_2" (screenmap_random_1_2_1755255524322): hudConfiguration=true, elements=0
+  ? Screen "Room_key_1" (screenmap_random_1_3_1755255524322): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_1" (screenmap_random_2_1_1755255524322): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_3" (screenmap_random_2_3_1755255524322): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_4" (screenmap_random_2_4_1755255524322): hudConfiguration=true, elements=0
+  ? Screen "Room_secret_1" (screenmap_random_3_0_1755255524322): hudConfiguration=true, elements=0
+  ? Screen "Room_item_1" (screenmap_random_3_1_1755255524322): hudConfiguration=true, elements=0
+  ? Screen "Room_key_2" (screenmap_random_3_2_1755255524322): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_2" (screenmap_random_3_3_1755255524322): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_5" (screenmap_random_3_4_1755255524322): hudConfiguration=true, elements=0
+  ? Screen "pan8" (screenmap_1755262663123): hudConfiguration=true, elements=0
+  ? Screen "pan9" (screenmap_1755262973244): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_1" (screenmap_random_0_1_1755782082961): hudConfiguration=true, elements=0
+  ? Screen "Room_secret_1" (screenmap_random_0_2_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_key_1" (screenmap_random_0_3_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_1" (screenmap_random_0_4_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_2" (screenmap_random_1_0_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_3" (screenmap_random_1_1_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_4" (screenmap_random_1_3_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_2" (screenmap_random_1_4_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_item_1" (screenmap_random_1_5_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_3" (screenmap_random_1_6_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_4" (screenmap_random_1_7_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_5" (screenmap_random_2_0_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_5" (screenmap_random_2_1_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_6" (screenmap_random_2_2_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_7" (screenmap_random_2_3_1755782082962): hudConfiguration=true, elements=0
+  ? Screen "Room_key_2" (screenmap_random_2_4_1755782082963): hudConfiguration=true, elements=0
+  ? Screen "Room_item_2" (screenmap_random_2_5_1755782082963): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_8" (screenmap_random_2_6_1755782082963): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_9" (screenmap_random_2_7_1755782082963): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_10" (screenmap_random_3_1_1755782082963): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_6" (screenmap_random_3_2_1755782082963): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_7" (screenmap_random_3_3_1755782082963): hudConfiguration=true, elements=0
+  ? Screen "Room_final_1" (screenmap_random_3_4_1755782082963): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_11" (screenmap_random_3_5_1755782082963): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_8" (screenmap_random_3_6_1755782082964): hudConfiguration=true, elements=0
+  ? Screen "Room_key_3" (screenmap_random_3_7_1755782082964): hudConfiguration=true, elements=0
+  ? Screen "Room_normal_12" (screenmap_random_4_3_1755782082964): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_9" (screenmap_random_4_4_1755782082964): hudConfiguration=true, elements=0
+  ? Screen "Room_enemy_10" (screenmap_random_4_5_1755782082964): hudConfiguration=true, elements=0
+  ? Screen "Room_secret_2" (screenmap_random_4_7_1755782082964): hudConfiguration=true, elements=0
+  ? Screen "New Screenmap" (screenmap_1756133205595): hudConfiguration=true, elements=0
+? [HUD Generator] Total HUD elements found: 0
+? Modular ASM files generated successfully!
+? Generated 28 files
+? [DEBUG] Files generated: [
+  'page0.asm',          'bios.asm',
+  'constants.asm',      'variables.asm',
+  'mapper.asm',         'resource_ids.asm',
+  'resource_table.asm', 'resource_manager.asm',
+  'interrupt.asm',      'header.asm',
+  'patterns.asm',       'colors.asm',
+  'components.asm',     'entities.asm',
+  'worlds.asm',         'screens.asm',
+  'sprites.asm',        'font.asm',
+  'hud.asm',            'menus.asm',
+  'sound.asm',          'scroll.asm',
+  'animtiles.asm',      'bosses.asm',
+  'statemachine.asm',   'gameflow.asm',
+  'main.asm',           'unitedFiles.asm'
+]
+? [DEBUG] interrupt.asm length: 20785
+ASM generated: C:\Users\salam\Documents\Programacion\Mideas\server\temp\BasicPlatform(4)_matrix_megarom_konami.asm
+Project: BasicPlatform(4)
+Assets: 157
+ASM chars: 4816457
+ROM config: mode=megarom, mapper=konami, engine=interruptTaskManager, autoMegaROM=false
+Running: C:\Program Files\nodejs\npx.cmd tsc --pretty false --module commonjs --target ES2020 --outDir C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill --moduleResolution node --skipLibCheck --noEmitOnError false utils\msxGenerator\index.ts
+Running: node C:\Users\salam\AppData\Local\Temp\tmpccb_rhdc.cjs C:\Users\salam\Documents\Programacion\Mideas\server\temp\tsbuild_skill\utils\msxGenerator\index.js C:\Users\salam\Documents\Programacion\Mideas\Examples\BasicPlatform(4).json C:\Users\salam\Documents\Programacion\Mideas\server\temp\BasicPlatform(4)_matrix_megarom_konami.asm BasicPlatform(4) megarom konami interruptTaskManager false
+??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 2"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 3"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 2"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 2"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 2"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 2"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 3"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 2"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 2"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 2"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+Entity patrulla1 1 position clamped: (800,24) ? (240,24)
+[Sprites Generator] Auto-generated "hero1_left" from "hero1_right" using horizontal mirror.
+[Sprites Generator] Auto-generated "minipotato_left" from "minipotato_right" using horizontal mirror.
+[Sprites Generator] Auto-generated "blackDuck_right" from "blackDuck_left" using horizontal mirror.
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 2"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 3"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 2"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 2"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 2"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+  ??  Template "tpl_1755947317423_1m6n5" not found for entity "patrulla1 1"
+{"outputPath":"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\BasicPlatform(4)_matrix_megarom_konami_compressed.asm","info":{"attempted":true,"applied":true,"method":"ZX0","candidateScreens":424,"candidateScreenBlockMaps":0,"candidateEffects":0,"candidateBehaviorMaps":0,"candidateTilePatterns":1,"candidateTileColors":1,"candidateFontPatterns":0,"candidateFontColors":0,"candidateSpritePatterns":72,"compressedScreens":318,"compressedScreenBlockMaps":0,"compressedEffects":0,"compressedBehaviorMaps":0,"compressedTilePatterns":1,"compressedTileColors":1,"compressedFontPatterns":0,"compressedFontColors":0,"compressedSpritePatterns":57,"originalBytes":248554,"compressedBytes":6660,"savedBytes":241894,"netSavedBytes":241894,"warning":null,"screenBufferSymbol":null,"effectsBufferSymbol":"runtime_effects_layout","behaviorBufferSymbol":null,"tilePatternBufferSymbol":null,"tileColorBufferSymbol":null,"fontPatternBufferSymbol":null,"fontColorBufferSymbol":null,"spritePatternBufferSymbol":null}}
+Running: node C:\Users\salam\AppData\Local\Temp\tmptnf3a719.cjs C:\Users\salam\Documents\Programacion\Mideas\server\server.js C:\Users\salam\Documents\Programacion\Mideas\server\temp\BasicPlatform(4)_matrix_megarom_konami.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp\BasicPlatform(4)_matrix_megarom_konami_compressed.asm C:\Users\salam\Documents\Programacion\Mideas\server\temp
+Optimized ASM written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\BasicPlatform(4)_matrix_megarom_konami_compressed.optimized.asm
+Running: C:\Users\salam\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\python.exe C:\Users\salam\Documents\Programacion\Mideas\scripts\post_asm_optimize.py --input C:\Users\salam\Documents\Programacion\Mideas\server\temp\BasicPlatform(4)_matrix_megarom_konami_compressed.asm --rules dead-blocks,unused-screen-loaders,inactive-feature-runtime --passes 7 --apply --output C:\Users\salam\Documents\Programacion\Mideas\server\temp\BasicPlatform(4)_matrix_megarom_konami_compressed.optimized.asm --validate-glass C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar
+Glass validation failed for original ASM; continuing with optimized ASM.
+Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -1391
+	at java.io.ByteArrayOutputStream.<init>(Unknown Source)
+	at nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)
+	at nl.grauw.glass.Line.getBytes(Line.java:119)
+	at nl.grauw.glass.Source.getBytes(Source.java:91)
+	at nl.grauw.glass.Source.assemble(Source.java:53)
+	at nl.grauw.glass.Assembler.writeObject(Assembler.java:72)
+	at nl.grauw.glass.Assembler.main(Assembler.java:59)
+Glass validation failed for optimized ASM.
+Exception in thread "main" java.lang.IllegalArgumentException: Negative initial size: -1089
+	at java.io.ByteArrayOutputStream.<init>(Unknown Source)
+	at nl.grauw.glass.instructions.Ds$Ds_N_N.getBytes(Ds.java:75)
+	at nl.grauw.glass.Line.getBytes(Line.java:119)
+	at nl.grauw.glass.Source.getBytes(Source.java:91)
+	at nl.grauw.glass.Source.assemble(Source.java:53)
+	at nl.grauw.glass.Assembler.writeObject(Assembler.java:72)
+	at nl.grauw.glass.Assembler.main(Assembler.java:59)
+Traceback (most recent call last):
+  File "C:\Users\salam\Documents\Programacion\Mideas\scripts\build_mideas_unified_rom.py", line 3537, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "C:\Users\salam\Documents\Programacion\Mideas\scripts\build_mideas_unified_rom.py", line 3343, in main
+    asm_to_compile = maybe_run_post_asm_optimizer(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\salam\Documents\Programacion\Mideas\scripts\build_mideas_unified_rom.py", line 2992, in maybe_run_post_asm_optimizer
+    run_command(cmd, cwd=project_root)
+  File "C:\Users\salam\Documents\Programacion\Mideas\scripts\build_mideas_unified_rom.py", line 227, in run_command
+    raise RuntimeError(f"Command failed ({completed.returncode}): {' '.join(cmd)}")
+RuntimeError: Command failed (1): C:\Users\salam\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\python.exe C:\Users\salam\Documents\Programacion\Mideas\scripts\post_asm_optimize.py --input C:\Users\salam\Documents\Programacion\Mideas\server\temp\BasicPlatform(4)_matrix_megarom_konami_compressed.asm --rules dead-blocks,unused-screen-loaders,inactive-feature-runtime --passes 7 --apply --output C:\Users\salam\Documents\Programacion\Mideas\server\temp\BasicPlatform(4)_matrix_megarom_konami_compressed.optimized.asm --validate-glass C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar

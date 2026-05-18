@@ -1,0 +1,15 @@
+start pc=0 sp=65535 romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255
+t1 pc=33053 sp=62198 romslot=0 primary=0 bios0=0 page3=0 flow=0 exit=0 screen=51
+shot t01_boot.png OK
+t4 pc=16657 sp=62316 romslot=1 primary=212 bios0=0 page3=131 flow=0 exit=0 screen=0
+shot t04_title.png OK
+bp_page0_copy_to_ram pc=39994 sp=62322 romslot=1 primary=212 bios0=0 page3=131 flow=0 exit=0 screen=0
+bp_page0_map_game_rom pc=39912 sp=62312 romslot=1 primary=212 bios0=0 page3=131 flow=0 exit=0 screen=0
+space1 pc=495 sp=64594 romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255
+shot t07_space1.png OK
+t10 pc=605 sp=65340 romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255
+shot t10_after_space1.png OK
+space2 pc=388 sp=64994 romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255
+shot t12_space2.png OK
+done pc=486 sp=63524 romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255
+shot t16_late.png OK

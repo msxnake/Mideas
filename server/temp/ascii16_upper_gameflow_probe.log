@@ -1,0 +1,19 @@
+t1 pc=811D sp=F2F6 bank=00/00/00/00 flow=00 screen=22 irq=0000 inirq=00 pos=8738,8738 input=00 btn=27
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/00 flow=00 screen=22 irq=0000 inirq=00 pos=8738,8738 input=00 btn=27
+t4 pc=1A02 sp=F258 bank=00/00/00/00 flow=00 screen=22 irq=0000 inirq=00 pos=8738,8738 input=00 btn=27
+space1_before pc=199E sp=D20C bank=00/00/00/00 flow=00 screen=F4 irq=04F3 inirq=24 pos=1088,40961 input=00 btn=27
+space1_after pc=1A10 sp=CE4E bank=00/00/00/00 flow=00 screen=F4 irq=04F3 inirq=24 pos=1088,40961 input=00 btn=27
+t10 pc=1130 sp=F2FE bank=9F/00/00/5A flow=B7 screen=F4 irq=04F3 inirq=24 pos=1088,40961 input=F0 btn=FF
+space2_before pc=1B19 sp=F300 bank=9F/00/00/5A flow=B7 screen=F4 irq=04F3 inirq=24 pos=1088,40961 input=F0 btn=FF
+space2_after pc=1B19 sp=F300 bank=9F/00/00/5A flow=B7 screen=F4 irq=04F3 inirq=24 pos=1088,40961 input=F0 btn=FF
+t13 pc=1B19 sp=F300 bank=9F/00/00/5A flow=B7 screen=F4 irq=04F3 inirq=24 pos=1088,40961 input=F0 btn=FF
+SHOTOK ascii16_upper_t13.png
+right_before pc=1B19 sp=F300 bank=9F/00/00/5A flow=B7 screen=F4 irq=04F3 inirq=24 pos=1088,40961 input=F0 btn=FF
+right_after pc=1B19 sp=F300 bank=9F/00/00/5A flow=B7 screen=F4 irq=04F3 inirq=24 pos=1088,40961 input=F0 btn=FF
+after_right pc=1B19 sp=F300 bank=9F/00/00/5A flow=B7 screen=F4 irq=04F3 inirq=24 pos=1088,40961 input=F0 btn=FF
+SHOTOK ascii16_upper_right.png
+left_before pc=1B19 sp=F300 bank=9F/00/00/5A flow=B7 screen=F4 irq=04F3 inirq=24 pos=1088,40961 input=F0 btn=FF
+left_after pc=1B19 sp=F300 bank=9F/00/00/5A flow=B7 screen=F4 irq=04F3 inirq=24 pos=1088,40961 input=F0 btn=FF
+after_left pc=1B19 sp=F300 bank=9F/00/00/5A flow=B7 screen=F4 irq=04F3 inirq=24 pos=1088,40961 input=F0 btn=FF
+SHOTOK ascii16_upper_left.png
+t22 pc=1B19 sp=F300 bank=9F/00/00/5A flow=B7 screen=F4 irq=04F3 inirq=24 pos=1088,40961 input=F0 btn=FF

@@ -1,0 +1,165 @@
+MSX IDE Compiler Backend listening at http://localhost:3001
+Compilation request received
+  projectName: patoantic_repair_probe
+  generateSymbols parameter: true
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1161890
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic_repair_probe_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 64,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 2,
+  candidateTileColors: 2,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 60,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 40023,
+  compressedBytes: 4479,
+  savedBytes: 35544,
+  netSavedBytes: 35544,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic_repair_probe.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic_repair_probe.rom" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic_repair_probe.sym"
+Symbols will be saved to: C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic_repair_probe.sym
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic_repair_probe.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic_repair_probe.rom" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic_repair_probe.sym"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 155648 bytes
+   8KB aligned: 155648 bytes (19x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 106496 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+OpenMSX symbols: 1719 ROM symbols (filtered 0x4000-0xFFFF)
+Symbol file generated: patoantic_repair_probe.sym (123132 bytes)
+Compilation request received
+  projectName: patoantic248
+  generateSymbols parameter: false
+  requested ROM config: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false }
+  Code length: 1161620
+ZX0 screen compression applied. Output ASM: C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248_compressed.asm
+ZX0 compression stats: {
+  attempted: true,
+  applied: true,
+  method: 'ZX0',
+  candidateScreens: 64,
+  candidateScreenBlockMaps: 0,
+  candidateEffects: 0,
+  candidateBehaviorMaps: 0,
+  candidateTilePatterns: 2,
+  candidateTileColors: 2,
+  candidateFontPatterns: 0,
+  candidateFontColors: 0,
+  candidateSpritePatterns: 60,
+  compressedScreens: 0,
+  compressedScreenBlockMaps: 0,
+  compressedEffects: 0,
+  compressedBehaviorMaps: 0,
+  compressedTilePatterns: 0,
+  compressedTileColors: 0,
+  compressedFontPatterns: 0,
+  compressedFontColors: 0,
+  compressedSpritePatterns: 0,
+  originalBytes: 40023,
+  compressedBytes: 4479,
+  savedBytes: 35544,
+  netSavedBytes: 35544,
+  warning: null,
+  screenBufferSymbol: null,
+  effectsBufferSymbol: 'runtime_effects_layout',
+  behaviorBufferSymbol: null,
+  tilePatternBufferSymbol: null,
+  tileColorBufferSymbol: null,
+  fontPatternBufferSymbol: null,
+  fontColorBufferSymbol: null,
+  spritePatternBufferSymbol: null
+}
+Unified compressed ASM alias written: C:\Users\salam\Documents\Programacion\Mideas\server\temp\unitedCompressedFiles.asm
+Executing Glass: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248.rom"
+=== GLASS COMPILATION RESULTS ===
+Command: java -jar "C:\Users\salam\Documents\Programacion\Mideas\server\glass.jar" -I "C:\Users\salam\Documents\Programacion\Mideas\server" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248.asm" "C:\Users\salam\Documents\Programacion\Mideas\server\temp\patoantic248.rom"
+Attempt: 1
+Error object: null
+STDOUT: 
+STDERR: 
+===================================
+ROM Size Adjustment:
+   Original: 155648 bytes
+   8KB aligned: 155648 bytes (19x8KB)
+   Hardware-safe: 262144 bytes (32x8KB)
+   Added: 106496 bytes of padding (0xFF)
+ROM diagnostics: {
+  sizeMod8192: 0,
+  banks8KB: 32,
+  romOrigin: '0x4000',
+  endAddress: '0x43FFF',
+  simpleRomLimitBytes: 32768,
+  plain48RomLimitBytes: 49152,
+  exceedsSimpleRomLimit: true,
+  exceedsPlain48RomLimit: true,
+  fitsPlain48RomLimit: false,
+  requestedRomMode: 'megarom',
+  requestedTargetFormat: 'konami',
+  requestedAutoMegaROM: false,
+  linear48kCapable: false,
+  plain48kSupportWarning: null,
+  romModeConflictWarning: null,
+  resolvedRomMode: 'megarom',
+  resolvedTargetFormat: 'konami',
+  mapperTargetFormat: 'konami',
+  mapperActive: true,
+  mapperResolutionReason: 'Forced megarom by request.',
+  sourceRomConfig: { romMode: 'megarom', targetFormat: 'konami', autoMegaROM: false },
+  sourceConfigMismatchWarning: null
+}
+Starting OpenMSX with ROM: patoantic248.rom

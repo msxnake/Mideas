@@ -1,0 +1,18 @@
+boot pc=1130 sp=F2FE ffff=5F banks=00/00/00 flow=00 screen=33 input=00 buttons=27 player=0,0
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_verify_shots/48k_boot.png
+space1_before pc=86D3 sp=F374 ffff=5F banks=00/01/02 flow=01 screen=00 input=00 buttons=00 player=16,144
+space1_held pc=87DF sp=F372 ffff=5F banks=00/01/02 flow=01 screen=00 input=00 buttons=01 player=16,118
+space1_after pc=98F6 sp=F37C ffff=5F banks=00/01/02 flow=01 screen=00 input=00 buttons=00 player=16,110
+after_space1 pc=86D7 sp=F374 ffff=5F banks=00/01/02 flow=01 screen=00 input=00 buttons=00 player=16,144
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_verify_shots/48k_after_space1.png
+space2_before pc=50B9 sp=F374 ffff=5F banks=00/01/02 flow=01 screen=00 input=00 buttons=00 player=16,144
+space2_held pc=4688 sp=F36E ffff=5F banks=00/01/02 flow=01 screen=00 input=00 buttons=01 player=16,123
+space2_after pc=4F86 sp=F376 ffff=5F banks=00/01/02 flow=01 screen=00 input=00 buttons=00 player=16,112
+after_space2 pc=5E97 sp=F37A ffff=5F banks=00/01/02 flow=01 screen=00 input=00 buttons=00 player=16,144
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_verify_shots/48k_after_space2.png
+right_before pc=1A04 sp=F368 ffff=5F banks=00/01/02 flow=01 screen=00 input=00 buttons=00 player=16,144
+right_held pc=98F6 sp=F37C ffff=5F banks=00/01/02 flow=01 screen=00 input=03 buttons=00 player=72,144
+right_after pc=98F6 sp=F37C ffff=5F banks=00/01/02 flow=01 screen=00 input=00 buttons=00 player=88,144
+after_right pc=98F6 sp=F37C ffff=5F banks=00/01/02 flow=01 screen=00 input=00 buttons=00 player=88,144
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_verify_shots/48k_after_right.png
+final pc=98F6 sp=F37C ffff=5F banks=00/01/02 flow=01 screen=00 input=00 buttons=00 player=88,144

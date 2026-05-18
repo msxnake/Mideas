@@ -1,0 +1,13 @@
+BP_4010 pc=4010 sp=F2EC bank=00/00/00/00 flow=00 screen=33 irq=0000 inirq=00 pos=13107,13107
+space1_before pc=84ED sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=00B1 inirq=00 pos=216,164
+space1_after pc=84ED sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=00C0 inirq=00 pos=216,128
+space2_before pc=84ED sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=0129 inirq=00 pos=216,252
+space2_after pc=84ED sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=0138 inirq=00 pos=216,216
+t12 pc=6945 sp=F378 bank=01/02/03/03 flow=01 screen=00 irq=01DD inirq=00 pos=216,68
+SHOTOK joc_tales_8_fix_smoke_t12.png
+right_before pc=4783 sp=F374 bank=01/02/03/03 flow=01 screen=00 irq=0237 inirq=00 pos=216,168
+right_after pc=84ED sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=0275 inirq=00 pos=78,164
+t16 pc=84ED sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=02CC inirq=00 pos=78,0
+SHOTOK joc_tales_8_fix_smoke_t16.png
+t22 pc=40DC sp=F378 bank=01/02/03/03 flow=01 screen=00 irq=0434 inirq=00 pos=78,160
+SHOTOK joc_tales_8_fix_smoke_t22.png

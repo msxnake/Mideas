@@ -1,0 +1,6 @@
+WORLD MUSIC POLICY
+Source: inferred from Game Flow paths reaching each WorldLink.
+Mode preserve: multiple different music states can reach the same world.
+
+WORLD 00 New Worldmap (worldmap_1776512078647)
+- policy: stop

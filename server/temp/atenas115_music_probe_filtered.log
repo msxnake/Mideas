@@ -1,0 +1,15 @@
+T00_5 pc=8113 sp=F2F6 bank=00/00/00/00 irq=0000 inirq=00 lock=00 music=00 track=00 row=00
+T01 pc=8113 sp=F2F6 bank=00/00/00/00 irq=0000 inirq=00 lock=00 music=00 track=00 row=00
+T02 pc=1130 sp=F2FE bank=00/00/00/00 irq=0000 inirq=00 lock=00 music=00 track=00 row=00
+T03 pc=1130 sp=F2FE bank=00/00/00/00 irq=0000 inirq=00 lock=00 music=00 track=00 row=00
+SHOTOK t03.png
+BP_INIT pc=4010 sp=F2EC bank=00/00/00/00 irq=0000 inirq=00 lock=00 music=00 track=00 row=00
+T04 pc=40E2 sp=F36A bank=12/02/03/03 irq=0001 inirq=00 lock=01 music=00 track=00 row=00
+T04_5 pc=CA29 sp=158C bank=01/02/03/03 irq=0006 inirq=00 lock=00 music=00 track=00 row=00
+T05 pc=CA29 sp=158C bank=01/02/03/03 irq=0006 inirq=00 lock=00 music=00 track=00 row=00
+SHOTOK t05.png
+T06 pc=CA29 sp=158C bank=01/02/03/03 irq=0006 inirq=00 lock=00 music=00 track=00 row=00
+T08 pc=CA29 sp=158C bank=01/02/03/03 irq=0006 inirq=00 lock=00 music=00 track=00 row=00
+SHOTOK t08.png
+T10 pc=CA29 sp=158C bank=01/02/03/03 irq=0006 inirq=00 lock=00 music=00 track=00 row=00
+SHOTOK t10.png

@@ -1,0 +1,8 @@
+boot_1_5 pc=1130 sp=F2FE p=00/00/00 flow=00 exit=00 in=00 btn=27
+SHOTOK atenas118_probe_01_boot.png
+space_down pc=1130 sp=F2FE p=00/00/00 flow=00 exit=00 in=00 btn=27
+space_up pc=1130 sp=F2FE p=00/00/00 flow=00 exit=00 in=00 btn=27
+after_space_4_2 pc=0678 sp=F35A p=00/00/00 flow=00 exit=00 in=00 btn=00
+SHOTOK atenas118_probe_02_after_space.png
+later_6_0 pc=8CDE sp=F37C p=00/00/00 flow=00 exit=00 in=00 btn=00
+SHOTOK atenas118_probe_03_later.png

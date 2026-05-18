@@ -1,0 +1,16 @@
+boot pc=1130 sp=F2FE banks=00/00/00 flow=00 screen=33 list=FF/22/22 active0=00 hero=FF prun=33 pidx=33 player=13107,13107 e0 act=00 ply=33 xy=33,00 mask=33/00 scr=33 bg=00,00,9B
+space1_before pc=62E0 sp=F354 banks=04/02/03 flow=00 screen=00 list=01/01/01 active0=00 hero=00 prun=00 pidx=FF player=0,0 e0 act=01 ply=01 xy=10,90 mask=FB/23 scr=00 bg=FF,8C,81
+space1_held pc=62E5 sp=F354 banks=04/02/03 flow=00 screen=00 list=01/01/01 active0=00 hero=00 prun=00 pidx=FF player=0,0 e0 act=01 ply=01 xy=10,90 mask=FB/23 scr=00 bg=FF,8C,81
+space1_after pc=62E4 sp=F354 banks=04/02/03 flow=00 screen=00 list=01/01/01 active0=00 hero=00 prun=00 pidx=FF player=0,0 e0 act=01 ply=01 xy=10,90 mask=FB/23 scr=00 bg=FF,8C,81
+after_space1 pc=62E1 sp=F354 banks=04/02/03 flow=00 screen=00 list=01/01/01 active0=00 hero=00 prun=00 pidx=FF player=0,0 e0 act=01 ply=01 xy=10,90 mask=FB/23 scr=00 bg=FF,8C,81
+space2_before pc=77B9 sp=F372 banks=01/02/03 flow=01 screen=00 list=01/01/01 active0=00 hero=00 prun=01 pidx=00 player=16,144 e0 act=01 ply=01 xy=10,90 mask=FB/23 scr=00 bg=FF,8C,81
+space2_held pc=4680 sp=F374 banks=01/02/03 flow=01 screen=00 list=01/01/01 active0=00 hero=00 prun=01 pidx=00 player=16,112 e0 act=01 ply=01 xy=10,70 mask=FB/23 scr=00 bg=FF,8C,81
+space2_after pc=4664 sp=F374 banks=01/02/03 flow=01 screen=00 list=01/01/01 active0=00 hero=00 prun=01 pidx=00 player=16,109 e0 act=01 ply=01 xy=10,6D mask=FB/23 scr=00 bg=FF,8C,81
+after_space2 pc=1A40 sp=F364 banks=01/02/03 flow=01 screen=00 list=01/01/01 active0=00 hero=00 prun=01 pidx=00 player=16,144 e0 act=01 ply=01 xy=10,90 mask=FB/23 scr=00 bg=FF,8C,81
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_verify_shots/megarom_ecs_after_space2.png
+right_before pc=19D0 sp=F366 banks=01/02/03 flow=01 screen=00 list=01/01/01 active0=00 hero=00 prun=01 pidx=00 player=16,144 e0 act=01 ply=01 xy=10,90 mask=FB/23 scr=00 bg=FF,8C,81
+right_held pc=A165 sp=F37C banks=01/02/03 flow=01 screen=00 list=01/01/01 active0=00 hero=00 prun=01 pidx=00 player=100,144 e0 act=01 ply=01 xy=64,90 mask=FB/23 scr=00 bg=FF,8C,81
+right_after pc=A165 sp=F37C banks=01/02/03 flow=01 screen=00 list=01/01/01 active0=00 hero=00 prun=01 pidx=00 player=124,144 e0 act=01 ply=01 xy=7C,90 mask=FB/23 scr=00 bg=FF,8C,81
+after_right pc=A165 sp=F37C banks=01/02/03 flow=01 screen=00 list=01/01/01 active0=00 hero=00 prun=01 pidx=00 player=124,144 e0 act=01 ply=01 xy=7C,90 mask=FB/23 scr=00 bg=FF,8C,81
+SHOTOK C:/Users/salam/Documents/Programacion/Mideas/server/temp/joc52_verify_shots/megarom_ecs_after_right.png
+final pc=A165 sp=F37C banks=01/02/03 flow=01 screen=00 list=01/01/01 active0=00 hero=00 prun=01 pidx=00 player=124,144 e0 act=01 ply=01 xy=7C,90 mask=FB/23 scr=00 bg=FF,8C,81

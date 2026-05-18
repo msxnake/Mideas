@@ -1,0 +1,16 @@
+t02 pc=1130 sp=F2FE banks=00/00/00 flow=00 screen=00 player=00 xy=51,51 tick=0000 music=00
+BP_4010_RESET_OR_INIT pc=4010 sp=F2EC banks=00/00/00 flow=00 screen=00 player=00 xy=51,51 tick=0000 music=00
+t04 pc=40E2 sp=F36A banks=12/02/03 flow=00 screen=00 player=00 xy=0,0 tick=0001 music=00
+t06 pc=95DB sp=F37C banks=01/02/03 flow=00 screen=00 player=00 xy=56,160 tick=0065 music=01
+intro_space_before pc=95DB sp=F37C banks=01/02/03 flow=00 screen=00 player=00 xy=56,160 tick=00A1 music=01
+intro_space_during pc=95EB sp=F37C banks=01/02/03 flow=00 screen=00 player=00 xy=56,160 tick=00AC music=01
+intro_space_after pc=459E sp=F364 banks=12/02/04 flow=00 screen=00 player=00 xy=0,0 tick=00B1 music=01
+t08_after_intro_space pc=9D3A sp=F378 banks=01/02/03 flow=00 screen=00 player=00 xy=56,160 tick=00CF music=00
+t10 pc=9D74 sp=F376 banks=01/02/03 flow=00 screen=00 player=00 xy=56,160 tick=013F music=00
+start_space_before pc=9D74 sp=F376 banks=01/02/03 flow=00 screen=00 player=00 xy=56,160 tick=01B7 music=00
+start_space_during pc=9DD8 sp=F376 banks=01/02/03 flow=00 screen=00 player=00 xy=56,160 tick=01C1 music=00
+start_space_after pc=9D74 sp=F376 banks=01/02/03 flow=00 screen=00 player=00 xy=56,160 tick=01CC music=00
+t13_after_start_space pc=9D74 sp=F376 banks=01/02/03 flow=00 screen=00 player=00 xy=56,160 tick=01F3 music=00
+t14 pc=1A04 sp=F362 banks=01/02/03 flow=00 screen=00 player=00 xy=56,160 tick=022F music=00
+t15 pc=9D74 sp=F376 banks=01/02/03 flow=00 screen=00 player=00 xy=56,160 tick=026A music=00
+t16 pc=9D74 sp=F376 banks=01/02/03 flow=00 screen=00 player=00 xy=56,160 tick=02A6 music=00

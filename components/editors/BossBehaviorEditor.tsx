@@ -24,6 +24,7 @@ import {
   LockIcon,
   PlusCircleIcon,
   ShieldIcon,
+  SwapVertIcon,
   TrashIcon,
   ViewfinderCircleIcon,
 } from '../icons/MsxIcons';
@@ -381,6 +382,7 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
   const [selectedActionId, setSelectedActionId] = useState<string | null>(phase.behaviorLoop?.[0]?.id || null);
   const [playheadFrame, setPlayheadFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [draggedAnimationFormId, setDraggedAnimationFormId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const attacks = boss.attacks || [];
@@ -553,6 +555,31 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
     const [action] = nextLoop.splice(index, 1);
     nextLoop.splice(targetIndex, 0, action);
     onUpdatePhase({ behaviorLoop: nextLoop });
+  };
+
+  const getAnimationFormsInDisplayOrder = (action: Extract<BossBehaviorAction, { type: 'animateForm' }>) => {
+    const formById = new Map(forms.map(form => [form.id, form]));
+    const selectedForms = action.formIds
+      .map(formId => formById.get(formId))
+      .filter((form): form is BossForm => Boolean(form));
+    const selectedFormIds = new Set(selectedForms.map(form => form.id));
+    const unselectedForms = forms.filter(form => !selectedFormIds.has(form.id));
+    return [...selectedForms, ...unselectedForms];
+  };
+
+  const reorderAnimationForm = (
+    action: Extract<BossBehaviorAction, { type: 'animateForm' }>,
+    draggedFormId: string,
+    targetFormId: string
+  ) => {
+    if (draggedFormId === targetFormId) return;
+    const fromIndex = action.formIds.indexOf(draggedFormId);
+    const toIndex = action.formIds.indexOf(targetFormId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const nextFormIds = [...action.formIds];
+    const [draggedForm] = nextFormIds.splice(fromIndex, 1);
+    nextFormIds.splice(toIndex, 0, draggedForm);
+    updateAction(action.id, { formIds: nextFormIds } as Partial<BossBehaviorAction>);
   };
 
   const updateTarget = (target: BossBehaviorTarget | undefined, patch: Partial<BossBehaviorTarget>): BossBehaviorTarget => ({
@@ -777,31 +804,9 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="text-msx-highlight">Stage Preview</div>
-                <div className="text-[0.65rem] text-msx-textsecondary">Screen background, boss footprint and selected target</div>
+                <div className="text-[0.65rem] text-msx-textsecondary">Screen background, boss footprint, player marker and selected target</div>
               </div>
-              <div className="flex items-center gap-2">
-                <select
-                  value={boss.linkedScreenId || selectedScreenAsset?.id || ''}
-                  onChange={event => {
-                    const linkedScreenId = event.target.value || null;
-                    const nextScreen = screenAssets.find(asset => asset.id === linkedScreenId);
-                    const nextScreenData = nextScreen?.data as ScreenMap | undefined;
-                    const nextBossInstance = (nextScreenData?.bossInstances || []).find(instance => instance.bossAssetId === boss.id);
-                    onUpdateBoss({
-                      linkedScreenId,
-                      ...(nextBossInstance ? {
-                        behaviorPreviewStartXChar: boss.behaviorPreviewStartXChar ?? nextBossInstance.xChar,
-                        behaviorPreviewStartYChar: boss.behaviorPreviewStartYChar ?? nextBossInstance.yChar,
-                      } : {}),
-                    });
-                  }}
-                  className="max-w-56 rounded border border-msx-border bg-msx-bgcolor p-1"
-                >
-                  <option value="">No screen</option>
-                  {screenAssets.map(screen => (
-                    <option key={screen.id} value={screen.id}>{screen.name}</option>
-                  ))}
-                </select>
+              <div className="flex flex-wrap items-center gap-2">
                 <label className="flex items-center gap-1 text-msx-textsecondary">
                   X
                   <input
@@ -820,7 +825,7 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
                     className="w-14 rounded border border-msx-border bg-msx-bgcolor p-1"
                   />
                 </label>
-                <label className="flex items-center gap-1 text-msx-textsecondary">
+                <label className="flex items-center gap-1 text-msx-textsecondary" title="Preview player X position used by Player targets">
                   PX
                   <input
                     type="number"
@@ -829,7 +834,7 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
                     className="w-14 rounded border border-msx-border bg-msx-bgcolor p-1"
                   />
                 </label>
-                <label className="flex items-center gap-1 text-msx-textsecondary">
+                <label className="flex items-center gap-1 text-msx-textsecondary" title="Preview player Y position used by Player targets">
                   PY
                   <input
                     type="number"
@@ -838,12 +843,37 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
                     className="w-14 rounded border border-msx-border bg-msx-bgcolor p-1"
                   />
                 </label>
+                <label className="flex min-w-44 items-center gap-1 text-msx-textsecondary">
+                  Preview Screen
+                  <select
+                    value={boss.linkedScreenId || selectedScreenAsset?.id || ''}
+                    onChange={event => {
+                      const linkedScreenId = event.target.value || null;
+                      const nextScreen = screenAssets.find(asset => asset.id === linkedScreenId);
+                      const nextScreenData = nextScreen?.data as ScreenMap | undefined;
+                      const nextBossInstance = (nextScreenData?.bossInstances || []).find(instance => instance.bossAssetId === boss.id);
+                      onUpdateBoss({
+                        linkedScreenId,
+                        ...(nextBossInstance ? {
+                          behaviorPreviewStartXChar: boss.behaviorPreviewStartXChar ?? nextBossInstance.xChar,
+                          behaviorPreviewStartYChar: boss.behaviorPreviewStartYChar ?? nextBossInstance.yChar,
+                        } : {}),
+                      });
+                    }}
+                    className="w-36 rounded border border-msx-border bg-msx-bgcolor p-1"
+                  >
+                    <option value="">No screen</option>
+                    {screenAssets.map(screen => (
+                      <option key={screen.id} value={screen.id}>{screen.name}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </div>
-            <div className="overflow-auto rounded border border-msx-border bg-msx-bgcolor p-2">
+            <div className="flex min-h-52 items-center justify-center overflow-auto rounded border border-msx-border bg-msx-bgcolor p-2">
               <canvas
                 ref={canvasRef}
-                className="mx-auto block max-w-full"
+                className="block max-w-full"
                 onClick={handleStageClick}
                 style={{ imageRendering: 'pixelated', cursor: selectedAction && 'target' in selectedAction ? 'crosshair' : 'default' }}
               />
@@ -1234,10 +1264,40 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
                   </div>
                   <div className="space-y-1 rounded border border-msx-border/40 bg-msx-bgcolor/40 p-2">
                     <label className="block text-msx-textsecondary">Forms in animation</label>
-                    {forms.map(form => {
+                    {getAnimationFormsInDisplayOrder(selectedAction).map(form => {
                       const checked = selectedAction.formIds.includes(form.id);
+                      const isDragging = draggedAnimationFormId === form.id;
                       return (
-                        <label key={form.id} className="flex items-center gap-2">
+                        <label
+                          key={form.id}
+                          draggable={checked}
+                          onDragStart={event => {
+                            if (!checked) {
+                              event.preventDefault();
+                              return;
+                            }
+                            event.dataTransfer.effectAllowed = 'move';
+                            event.dataTransfer.setData('text/plain', form.id);
+                            setDraggedAnimationFormId(form.id);
+                          }}
+                          onDragOver={event => {
+                            if (!checked || !draggedAnimationFormId || draggedAnimationFormId === form.id) return;
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = 'move';
+                          }}
+                          onDrop={event => {
+                            event.preventDefault();
+                            const draggedFormId = draggedAnimationFormId || event.dataTransfer.getData('text/plain');
+                            reorderAnimationForm(selectedAction, draggedFormId, form.id);
+                            setDraggedAnimationFormId(null);
+                          }}
+                          onDragEnd={() => setDraggedAnimationFormId(null)}
+                          className={`flex items-center gap-2 rounded px-1 py-0.5 ${checked ? 'cursor-grab hover:bg-msx-border/40' : 'cursor-default opacity-80'} ${isDragging ? 'bg-msx-accent/20 opacity-60' : ''}`}
+                          title={checked ? 'Drag to reorder this animation frame' : undefined}
+                        >
+                          <span className={`flex h-4 w-4 items-center justify-center text-msx-textsecondary ${checked ? '' : 'opacity-30'}`} aria-hidden="true">
+                            <SwapVertIcon className="w-3 h-3" />
+                          </span>
                           <input
                             type="checkbox"
                             checked={checked}

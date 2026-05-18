@@ -1,0 +1,14 @@
+BP_4010 pc=4010 sp=F2EC a=1F hl=4004 de=4010 bc=0101 bank=00/00/00/04 id=BB desc_bank=BA addr=99A9 size=3393 raw=0040 flags=00 mem=FF FF FF FF FF FF FF FF 
+ZX0_ENTER_1 pc=4512 sp=F368 a=10 hl=A1DA de=D45A bc=001D bank=05/02/03/03 id=26 desc_bank=10 addr=A1DA size=001D raw=0060 flags=01 mem=CD B6 A1 CD BD A1 3E 01 
+ZX0_RETURN_1 pc=451E sp=F368 a=40 hl=A1F7 de=D4BA bc=FE00 bank=05/02/10/03 id=26 desc_bank=10 addr=A1DA size=001D raw=0060 flags=01 mem=95 FF BC 8C F8 A1 91 58 
+ZX0_ENTER_2 pc=4512 sp=F368 a=10 hl=A738 de=C45A bc=0010 bank=05/02/03/03 id=27 desc_bank=10 addr=A738 size=0010 raw=0030 flags=01 mem=FF FF FF FF FF FF FF FF 
+BP_4010 pc=4010 sp=F2EC a=1F hl=4004 de=4010 bc=0101 bank=05/02/10/03 id=27 desc_bank=10 addr=A738 size=0010 raw=0030 flags=01 mem=FF FF FF FF FF FF FF FF 
+space_before pc=046F sp=F35E a=00 hl=0000 de=00D1 bc=B40B bank=01/02/03/03 id=FF desc_bank=00 addr=0000 size=0000 raw=0000 flags=00 mem=43 44 00 00 00 00 00 00 
+ZX0_ENTER_3 pc=4512 sp=F368 a=10 hl=A1DA de=D45A bc=001D bank=05/02/03/03 id=26 desc_bank=10 addr=A1DA size=001D raw=0060 flags=01 mem=CD B6 A1 CD BD A1 3E 01 
+ZX0_RETURN_3 pc=451E sp=F368 a=40 hl=A1F7 de=D4BA bc=FE00 bank=05/02/10/03 id=26 desc_bank=10 addr=A1DA size=001D raw=0060 flags=01 mem=95 FF BC 8C F8 A1 91 58 
+ZX0_ENTER_4 pc=4512 sp=F368 a=10 hl=A738 de=C45A bc=0010 bank=05/02/03/03 id=27 desc_bank=10 addr=A738 size=0010 raw=0030 flags=01 mem=FF FF FF FF FF FF FF FF 
+BP_4010 pc=4010 sp=F2EC a=1F hl=4004 de=4010 bc=0101 bank=05/02/10/03 id=27 desc_bank=10 addr=A738 size=0010 raw=0030 flags=01 mem=FF FF FF FF FF FF FF FF 
+ZX0_ENTER_5 pc=4512 sp=F368 a=10 hl=A1DA de=D45A bc=001D bank=05/02/03/03 id=26 desc_bank=10 addr=A1DA size=001D raw=0060 flags=01 mem=CD B6 A1 CD BD A1 3E 01 
+ZX0_RETURN_5 pc=451E sp=F368 a=40 hl=A1F7 de=D4BA bc=FE00 bank=05/02/10/03 id=26 desc_bank=10 addr=A1DA size=001D raw=0060 flags=01 mem=95 FF BC 8C F8 A1 91 58 
+ZX0_ENTER_6 pc=4512 sp=F368 a=10 hl=A738 de=C45A bc=0010 bank=05/02/03/03 id=27 desc_bank=10 addr=A738 size=0010 raw=0030 flags=01 mem=FF FF FF FF FF FF FF FF 
+t12 pc=1130 sp=F2FE a=8E hl=FAFC de=0E5E bc=4198 bank=05/02/10/03 id=27 desc_bank=10 addr=A738 size=0010 raw=0030 flags=01 mem=FF FF FF FF FF FF FF FF 

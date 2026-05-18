@@ -77,6 +77,7 @@ function ensureDialogue(dialogue: DialogueAsset): DialogueAsset {
       maxLinesPerBox: 3,
       stripUnsupportedChars: true,
       charDelayFrames: 2,
+      mouthToggleEveryChars: 3,
       ...dialogue.exportOptions,
     },
   };
@@ -298,6 +299,18 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
   const borderCodes = { ...DEFAULT_BORDER_CHAR_CODES, ...data.box.borderCharCodes };
   const graphic = { ...DEFAULT_TILE_GRAPHIC, ...(data.box.graphic || {}) };
   const selectedGraphicPortrait = portraitAssets.find(asset => asset.id === graphic.portraitAssetId)?.data;
+  const updateLinePortrait = (line: DialogueLine, portraitAssetId: string) => {
+    if (!portraitAssetId) {
+      updateLine(line.id, { graphic: undefined });
+      return;
+    }
+    const baseGraphic = getLineGraphic(line) || {
+      ...graphic,
+      enabled: true,
+      tileIds: Array.isArray(graphic.tileIds) ? graphic.tileIds : [],
+    };
+    updateLineGraphic(line.id, applyPortraitToGraphic(baseGraphic, portraitAssetId));
+  };
   const selectedBank = availableTileBanks.find(bank => bank.id === data.box.tileBankAssetId);
   const bankTileIds = selectedBank
     ? Array.from(new Set(selectedBank.banks.flatMap(bank => Object.keys(bank.assignedTiles || {}))))
@@ -367,7 +380,7 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                       Remove
                     </Button>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-[180px_220px_1fr] gap-2">
                     <div>
                       <label className={labelClassName}>Speaker</label>
                       <input
@@ -376,6 +389,25 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                         onChange={event => updateLine(line.id, { speaker: event.target.value })}
                         placeholder="NPC"
                       />
+                    </div>
+                    <div>
+                      <label className={labelClassName}>Line Portrait / NPC</label>
+                      <select
+                        className={compactInputClassName}
+                        value={line.graphic?.portraitAssetId || (line.graphic ? '__manual__' : '')}
+                        onChange={event => {
+                          if (event.target.value === '__manual__') return;
+                          updateLinePortrait(line, event.target.value);
+                        }}
+                      >
+                        <option value="">Global portrait</option>
+                        {line.graphic && !line.graphic.portraitAssetId && (
+                          <option value="__manual__">Manual line grid</option>
+                        )}
+                        {portraitAssets.map(asset => (
+                          <option key={asset.id} value={asset.id}>{asset.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <label className="flex items-end gap-2 text-xs text-msx-textsecondary pb-2">
                       <input
@@ -870,6 +902,10 @@ export const DialogueEditor: React.FC<DialogueEditorProps> = ({
                 <div>
                   <label className={labelClassName}>Char Delay Frames</label>
                   <input type="number" min={0} max={255} className={compactInputClassName} value={data.exportOptions.charDelayFrames} onChange={event => updateExportOptions({ charDelayFrames: clampNumber(Number(event.target.value), 0, 255) })} />
+                </div>
+                <div>
+                  <label className={labelClassName}>Mouth Toggle Chars</label>
+                  <input type="number" min={0} max={32} className={compactInputClassName} value={data.exportOptions.mouthToggleEveryChars ?? 3} onChange={event => updateExportOptions({ mouthToggleEveryChars: clampNumber(Number(event.target.value), 0, 32) })} />
                 </div>
                 <div>
                   <label className={labelClassName}>Max Chars / Line</label>

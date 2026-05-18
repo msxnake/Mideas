@@ -1,0 +1,2719 @@
+{
+  "version": 1,
+  "scope": "konami8k_megarom_data",
+  "mapper": {
+    "format": "konami",
+    "segmentSize": 8192,
+    "dataWindowPage": "p3",
+    "windowBase": "#A000",
+    "windowMask": "#1FFF",
+    "bankDivisor": "#2000"
+  },
+  "features": {
+    "sprites": true,
+    "tiles": true,
+    "screens": true,
+    "entities": true,
+    "components": true,
+    "gameFlow": true,
+    "menus": false,
+    "bosses": false,
+    "dialogues": true,
+    "worldmaps": true,
+    "fonts": true,
+    "animations": true,
+    "collisions": true,
+    "sounds": true,
+    "stateMachines": true
+  },
+  "counts": {
+    "components": 33,
+    "templates": 18,
+    "sprites": 7,
+    "tiles": 34,
+    "tileBanks": 1,
+    "screens": 4,
+    "entities": 2,
+    "menus": 0,
+    "bosses": 0,
+    "bossInstances": 0,
+    "bossAttackTypes": 0,
+    "bossAttacksReferenced": 0,
+    "dialogues": 1,
+    "worldmaps": 2,
+    "presentationScreens": 1,
+    "sounds": 0,
+    "tracks": 1,
+    "stateMachines": 2,
+    "bankedResources": 102
+  },
+  "resourceGroups": [
+    {
+      "key": "COLORS",
+      "count": 3
+    },
+    {
+      "key": "PATTERNS",
+      "count": 3
+    },
+    {
+      "key": "PRESENTATION",
+      "count": 7
+    },
+    {
+      "key": "SCREENS",
+      "count": 40
+    },
+    {
+      "key": "SOUND",
+      "count": 1
+    },
+    {
+      "key": "SPRITES",
+      "count": 48
+    }
+  ],
+  "resourceTypes": [
+    {
+      "key": "MUSIC_TRACK",
+      "count": 1
+    },
+    {
+      "key": "SCREEN_BEHAVIOR_MAP",
+      "count": 4
+    },
+    {
+      "key": "SCREEN_BLOCK_CATALOG",
+      "count": 4
+    },
+    {
+      "key": "SCREEN_BLOCK_MAP",
+      "count": 4
+    },
+    {
+      "key": "SCREEN_COLORS",
+      "count": 3
+    },
+    {
+      "key": "SCREEN_DATA",
+      "count": 20
+    },
+    {
+      "key": "SCREEN_EFFECT_ZONE_TABLE",
+      "count": 4
+    },
+    {
+      "key": "SCREEN_EFFECTS_LAYOUT",
+      "count": 4
+    },
+    {
+      "key": "SCREEN_NAME_TABLE",
+      "count": 1
+    },
+    {
+      "key": "SCREEN_PATTERNS",
+      "count": 3
+    },
+    {
+      "key": "SPRITE_PATTERNS",
+      "count": 48
+    },
+    {
+      "key": "TILE_COLORS",
+      "count": 3
+    },
+    {
+      "key": "TILE_PATTERNS",
+      "count": 3
+    }
+  ],
+  "bossAttackRuntime": {
+    "usedTypes": [],
+    "unusedTypes": [
+      "Projectile",
+      "Meteor",
+      "Bomb",
+      "Boomerang",
+      "Rock",
+      "Laser",
+      "SineWave",
+      "HomingMissile",
+      "SlamRocks",
+      "FallingBlocks"
+    ],
+    "typeCounts": {},
+    "referencedAttacks": 0
+  },
+  "gameFlowReachability": {
+    "hasGameFlow": true,
+    "reachableScreenIds": [
+      "screenmap_1778062394614",
+      "screenmap_1778230236021",
+      "screenmap_1778230684484",
+      "screenmap_1778241953722"
+    ],
+    "reachableWorldIds": [
+      "worldmap_1778070705501",
+      "worldmap_1778241700081"
+    ],
+    "scenes": [
+      {
+        "index": 0,
+        "id": "screenmap_1778062394614",
+        "name": "pantalla1",
+        "reachable": true,
+        "sources": [
+          "worldmap:worldmap_1778070705501:node:wmnode_1778244817006"
+        ],
+        "reason": "reachable from GameFlow start graph"
+      },
+      {
+        "index": 1,
+        "id": "screenmap_1778230236021",
+        "name": "pantalla2",
+        "reachable": true,
+        "sources": [
+          "worldmap:worldmap_1778070705501:node:wmnode_1778244824823"
+        ],
+        "reason": "reachable from GameFlow start graph"
+      },
+      {
+        "index": 2,
+        "id": "screenmap_1778230684484",
+        "name": "pantalla3",
+        "reachable": true,
+        "sources": [
+          "worldmap:worldmap_1778070705501:node:wmnode_1778244828231"
+        ],
+        "reason": "reachable from GameFlow start graph"
+      },
+      {
+        "index": 3,
+        "id": "screenmap_1778241953722",
+        "name": "d_pantalla1",
+        "reachable": true,
+        "sources": [
+          "worldmap:worldmap_1778241700081:node:wmnode_1778242321460"
+        ],
+        "reason": "reachable from GameFlow start graph"
+      }
+    ],
+    "counts": {
+      "totalScreens": 4,
+      "reachableScreens": 4,
+      "unreachableScreens": 0,
+      "unknownScreens": 0
+    }
+  },
+  "scenes": [
+    {
+      "index": 0,
+      "id": "screenmap_1778062394614",
+      "name": "pantalla1",
+      "size": {
+        "width": 32,
+        "height": 24
+      },
+      "screenKind": "playable",
+      "screenEngine": "player",
+      "tileBankAssetId": "tilebank_1778059819923",
+      "tileUsage": {
+        "backgroundTileIds": [
+          "tile_1778262507395",
+          "tile_1778322668397",
+          "tile_split_tile_1778059635683_0_0_1778059746994",
+          "tile_split_tile_1778059635683_0_1_1778059746994",
+          "tile_split_tile_1778059635683_0_2_1778059746994",
+          "tile_split_tile_1778059635683_0_5_1778059746994",
+          "tile_split_tile_1778059635683_1_0_1778059746994",
+          "tile_split_tile_1778059635683_1_1_1778059746994",
+          "tile_split_tile_1778059635683_1_2_1778059746994",
+          "tile_split_tile_1778059635683_1_4_1778059746994",
+          "tile_split_tile_1778059635683_1_5_1778059746994",
+          "tile_split_tile_1778062027973_0_0_1778062267325",
+          "tile_split_tile_1778062027973_1_0_1778062267325"
+        ],
+        "collisionTileIds": [],
+        "effectsTileIds": [],
+        "uniqueTileIds": [
+          "tile_1778262507395",
+          "tile_1778322668397",
+          "tile_split_tile_1778059635683_0_0_1778059746994",
+          "tile_split_tile_1778059635683_0_1_1778059746994",
+          "tile_split_tile_1778059635683_0_2_1778059746994",
+          "tile_split_tile_1778059635683_0_5_1778059746994",
+          "tile_split_tile_1778059635683_1_0_1778059746994",
+          "tile_split_tile_1778059635683_1_1_1778059746994",
+          "tile_split_tile_1778059635683_1_2_1778059746994",
+          "tile_split_tile_1778059635683_1_4_1778059746994",
+          "tile_split_tile_1778059635683_1_5_1778059746994",
+          "tile_split_tile_1778062027973_0_0_1778062267325",
+          "tile_split_tile_1778062027973_1_0_1778062267325"
+        ]
+      },
+      "entities": {
+        "count": 0,
+        "templateIds": [],
+        "names": []
+      },
+      "effectZones": {
+        "count": 0
+      },
+      "bosses": {
+        "count": 0,
+        "bossIds": []
+      },
+      "resourceIds": [
+        55,
+        57,
+        58,
+        56,
+        59,
+        61,
+        62,
+        63,
+        60,
+        54
+      ],
+      "resources": [
+        {
+          "id": 55,
+          "label": "SCREEN_PANTALLA1_0_BLOCK_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_BLOCK_MAP",
+          "bank": 3,
+          "windowAddress": 46243,
+          "zoneOffset": 5283,
+          "size": 47,
+          "storedSize": 47,
+          "uncompressedSize": 48,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_BLOCK_MAP resource; ZX0 47/48 bytes; bank 3 zone 0 offset +#14A3; zone slack after pack 1071 bytes"
+        },
+        {
+          "id": 57,
+          "label": "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECT_ZONE_TABLE",
+          "bank": 4,
+          "windowAddress": 46609,
+          "zoneOffset": 5649,
+          "size": 1,
+          "storedSize": 1,
+          "uncompressedSize": 1,
+          "flags": 0,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1611; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 58,
+          "label": "SCREEN_PANTALLA1_0_BOSS_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 46610,
+          "zoneOffset": 5650,
+          "size": 1,
+          "storedSize": 1,
+          "uncompressedSize": 1,
+          "flags": 0,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_BOSS_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1612; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 56,
+          "label": "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECTS_LAYOUT",
+          "bank": 4,
+          "windowAddress": 47740,
+          "zoneOffset": 6780,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1A7C; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 59,
+          "label": "BEHAVIOR_PANTALLA1_0_DATA",
+          "group": "SCREENS",
+          "type": "SCREEN_BEHAVIOR_MAP",
+          "bank": 4,
+          "windowAddress": 47746,
+          "zoneOffset": 6786,
+          "size": 60,
+          "storedSize": 60,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single BEHAVIOR_PANTALLA1_0_DATA resource; ZX0 60/768 bytes; bank 4 zone 1 offset +#1A82; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 61,
+          "label": "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 47806,
+          "zoneOffset": 6846,
+          "size": 11,
+          "storedSize": 11,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP resource; ZX0 11/768 bytes; bank 4 zone 1 offset +#1ABE; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 62,
+          "label": "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 47817,
+          "zoneOffset": 6857,
+          "size": 52,
+          "storedSize": 52,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP resource; ZX0 52/768 bytes; bank 4 zone 1 offset +#1AC9; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 63,
+          "label": "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 47869,
+          "zoneOffset": 6909,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1AFD; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 60,
+          "label": "SCREEN_PANTALLA1_0_CHAR_BEHAVIOR_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 47912,
+          "zoneOffset": 6952,
+          "size": 39,
+          "storedSize": 39,
+          "uncompressedSize": 256,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_CHAR_BEHAVIOR_TABLE resource; ZX0 39/256 bytes; bank 4 zone 1 offset +#1B28; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 54,
+          "label": "SCREEN_PANTALLA1_0_BLOCK_CATALOG",
+          "group": "SCREENS",
+          "type": "SCREEN_BLOCK_CATALOG",
+          "bank": 5,
+          "windowAddress": 41594,
+          "zoneOffset": 634,
+          "size": 343,
+          "storedSize": 343,
+          "uncompressedSize": 560,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_BLOCK_CATALOG resource; ZX0 343/560 bytes; bank 5 zone 2 offset +#027A; zone slack after pack 5533 bytes"
+        }
+      ],
+      "banks": [
+        {
+          "bank": 3,
+          "count": 1,
+          "storedBytes": 47,
+          "rawBytes": 48,
+          "resourceIds": [
+            55
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_BLOCK_MAP"
+          ]
+        },
+        {
+          "bank": 4,
+          "count": 8,
+          "storedBytes": 176,
+          "rawBytes": 4098,
+          "resourceIds": [
+            57,
+            58,
+            56,
+            59,
+            61,
+            62,
+            63,
+            60
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA1_0_BOSS_TABLE",
+            "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA1_0_DATA",
+            "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+            "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP",
+            "SCREEN_PANTALLA1_0_CHAR_BEHAVIOR_TABLE"
+          ]
+        },
+        {
+          "bank": 5,
+          "count": 1,
+          "storedBytes": 343,
+          "rawBytes": 560,
+          "resourceIds": [
+            54
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_BLOCK_CATALOG"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            55
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_BLOCK_MAP"
+          ]
+        },
+        {
+          "bank": 4,
+          "resourceIds": [
+            57,
+            58,
+            56,
+            59,
+            61,
+            62,
+            63,
+            60
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA1_0_BOSS_TABLE",
+            "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA1_0_DATA",
+            "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+            "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP",
+            "SCREEN_PANTALLA1_0_CHAR_BEHAVIOR_TABLE"
+          ]
+        },
+        {
+          "bank": 5,
+          "resourceIds": [
+            54
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA1_0_BLOCK_CATALOG"
+          ]
+        }
+      ],
+      "totals": {
+        "resourceCount": 10,
+        "storedBytes": 566,
+        "rawBytes": 4706,
+        "compressedResources": 8
+      }
+    },
+    {
+      "index": 1,
+      "id": "screenmap_1778230236021",
+      "name": "pantalla2",
+      "size": {
+        "width": 32,
+        "height": 24
+      },
+      "screenKind": "playable",
+      "screenEngine": "player",
+      "tileBankAssetId": "tilebank_1778059819923",
+      "tileUsage": {
+        "backgroundTileIds": [
+          "tile_1778262507395",
+          "tile_1778322668397",
+          "tile_1778334286997",
+          "tile_split_tile_1778059635683_0_0_1778059746994",
+          "tile_split_tile_1778059635683_1_0_1778059746994",
+          "tile_split_tile_1778062027973_0_0_1778062267325",
+          "tile_split_tile_1778062027973_1_0_1778062267325"
+        ],
+        "collisionTileIds": [],
+        "effectsTileIds": [],
+        "uniqueTileIds": [
+          "tile_1778262507395",
+          "tile_1778322668397",
+          "tile_1778334286997",
+          "tile_split_tile_1778059635683_0_0_1778059746994",
+          "tile_split_tile_1778059635683_1_0_1778059746994",
+          "tile_split_tile_1778062027973_0_0_1778062267325",
+          "tile_split_tile_1778062027973_1_0_1778062267325"
+        ]
+      },
+      "entities": {
+        "count": 1,
+        "templateIds": [
+          "tpl_player"
+        ],
+        "names": [
+          "Player 1"
+        ]
+      },
+      "effectZones": {
+        "count": 0
+      },
+      "bosses": {
+        "count": 0,
+        "bossIds": []
+      },
+      "resourceIds": [
+        65,
+        64,
+        67,
+        68,
+        66,
+        69,
+        71,
+        72,
+        73,
+        70
+      ],
+      "resources": [
+        {
+          "id": 65,
+          "label": "SCREEN_PANTALLA2_1_BLOCK_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_BLOCK_MAP",
+          "bank": 3,
+          "windowAddress": 46290,
+          "zoneOffset": 5330,
+          "size": 31,
+          "storedSize": 31,
+          "uncompressedSize": 48,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_BLOCK_MAP resource; ZX0 31/48 bytes; bank 3 zone 0 offset +#14D2; zone slack after pack 1071 bytes"
+        },
+        {
+          "id": 64,
+          "label": "SCREEN_PANTALLA2_1_BLOCK_CATALOG",
+          "group": "SCREENS",
+          "type": "SCREEN_BLOCK_CATALOG",
+          "bank": 4,
+          "windowAddress": 46337,
+          "zoneOffset": 5377,
+          "size": 177,
+          "storedSize": 177,
+          "uncompressedSize": 288,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_BLOCK_CATALOG resource; ZX0 177/288 bytes; bank 4 zone 1 offset +#1501; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 67,
+          "label": "SCREEN_PANTALLA2_1_EFFECT_ZONE_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECT_ZONE_TABLE",
+          "bank": 4,
+          "windowAddress": 46611,
+          "zoneOffset": 5651,
+          "size": 1,
+          "storedSize": 1,
+          "uncompressedSize": 1,
+          "flags": 0,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1613; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 68,
+          "label": "SCREEN_PANTALLA2_1_BOSS_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 46612,
+          "zoneOffset": 5652,
+          "size": 1,
+          "storedSize": 1,
+          "uncompressedSize": 1,
+          "flags": 0,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_BOSS_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1614; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 66,
+          "label": "SCREEN_PANTALLA2_1_EFFECTS_LAYOUT",
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECTS_LAYOUT",
+          "bank": 4,
+          "windowAddress": 47875,
+          "zoneOffset": 6915,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1B03; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 69,
+          "label": "BEHAVIOR_PANTALLA2_1_DATA",
+          "group": "SCREENS",
+          "type": "SCREEN_BEHAVIOR_MAP",
+          "bank": 4,
+          "windowAddress": 47881,
+          "zoneOffset": 6921,
+          "size": 31,
+          "storedSize": 31,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single BEHAVIOR_PANTALLA2_1_DATA resource; ZX0 31/768 bytes; bank 4 zone 1 offset +#1B09; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 71,
+          "label": "SCREEN_PANTALLA2_1_INTERACTION_TYPE_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 47951,
+          "zoneOffset": 6991,
+          "size": 11,
+          "storedSize": 11,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_INTERACTION_TYPE_MAP resource; ZX0 11/768 bytes; bank 4 zone 1 offset +#1B4F; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 72,
+          "label": "SCREEN_PANTALLA2_1_INTERACTION_VALUE_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 47962,
+          "zoneOffset": 7002,
+          "size": 37,
+          "storedSize": 37,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_INTERACTION_VALUE_MAP resource; ZX0 37/768 bytes; bank 4 zone 1 offset +#1B5A; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 73,
+          "label": "SCREEN_PANTALLA2_1_INTERACTION_TARGET_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 47999,
+          "zoneOffset": 7039,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1B7F; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 70,
+          "label": "SCREEN_PANTALLA2_1_CHAR_BEHAVIOR_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 48137,
+          "zoneOffset": 7177,
+          "size": 27,
+          "storedSize": 27,
+          "uncompressedSize": 256,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_CHAR_BEHAVIOR_TABLE resource; ZX0 27/256 bytes; bank 4 zone 1 offset +#1C09; zone slack after pack 149 bytes"
+        }
+      ],
+      "banks": [
+        {
+          "bank": 3,
+          "count": 1,
+          "storedBytes": 31,
+          "rawBytes": 48,
+          "resourceIds": [
+            65
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA2_1_BLOCK_MAP"
+          ]
+        },
+        {
+          "bank": 4,
+          "count": 9,
+          "storedBytes": 297,
+          "rawBytes": 4386,
+          "resourceIds": [
+            64,
+            67,
+            68,
+            66,
+            69,
+            71,
+            72,
+            73,
+            70
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA2_1_BLOCK_CATALOG",
+            "SCREEN_PANTALLA2_1_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA2_1_BOSS_TABLE",
+            "SCREEN_PANTALLA2_1_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA2_1_DATA",
+            "SCREEN_PANTALLA2_1_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA2_1_INTERACTION_VALUE_MAP",
+            "SCREEN_PANTALLA2_1_INTERACTION_TARGET_MAP",
+            "SCREEN_PANTALLA2_1_CHAR_BEHAVIOR_TABLE"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 3,
+          "resourceIds": [
+            65
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA2_1_BLOCK_MAP"
+          ]
+        },
+        {
+          "bank": 4,
+          "resourceIds": [
+            64,
+            67,
+            68,
+            66,
+            69,
+            71,
+            72,
+            73,
+            70
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA2_1_BLOCK_CATALOG",
+            "SCREEN_PANTALLA2_1_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA2_1_BOSS_TABLE",
+            "SCREEN_PANTALLA2_1_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA2_1_DATA",
+            "SCREEN_PANTALLA2_1_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA2_1_INTERACTION_VALUE_MAP",
+            "SCREEN_PANTALLA2_1_INTERACTION_TARGET_MAP",
+            "SCREEN_PANTALLA2_1_CHAR_BEHAVIOR_TABLE"
+          ]
+        }
+      ],
+      "totals": {
+        "resourceCount": 10,
+        "storedBytes": 328,
+        "rawBytes": 4434,
+        "compressedResources": 8
+      }
+    },
+    {
+      "index": 2,
+      "id": "screenmap_1778230684484",
+      "name": "pantalla3",
+      "size": {
+        "width": 32,
+        "height": 24
+      },
+      "screenKind": "playable",
+      "screenEngine": "player",
+      "tileBankAssetId": "tilebank_1778059819923",
+      "tileUsage": {
+        "backgroundTileIds": [
+          "tile_1778322668397",
+          "tile_split_tile_1778059635683_0_0_1778059746994",
+          "tile_split_tile_1778059635683_0_1_1778059746994",
+          "tile_split_tile_1778059635683_0_2_1778059746994",
+          "tile_split_tile_1778059635683_0_3_1778059746994",
+          "tile_split_tile_1778059635683_0_5_1778059746994",
+          "tile_split_tile_1778059635683_1_0_1778059746994",
+          "tile_split_tile_1778059635683_1_1_1778059746994",
+          "tile_split_tile_1778059635683_1_2_1778059746994",
+          "tile_split_tile_1778059635683_1_3_1778059746994",
+          "tile_split_tile_1778059635683_1_4_1778059746994",
+          "tile_split_tile_1778059635683_1_5_1778059746994",
+          "tile_split_tile_1778062027973_0_0_1778062267325",
+          "tile_split_tile_1778062027973_1_0_1778062267325"
+        ],
+        "collisionTileIds": [],
+        "effectsTileIds": [],
+        "uniqueTileIds": [
+          "tile_1778322668397",
+          "tile_split_tile_1778059635683_0_0_1778059746994",
+          "tile_split_tile_1778059635683_0_1_1778059746994",
+          "tile_split_tile_1778059635683_0_2_1778059746994",
+          "tile_split_tile_1778059635683_0_3_1778059746994",
+          "tile_split_tile_1778059635683_0_5_1778059746994",
+          "tile_split_tile_1778059635683_1_0_1778059746994",
+          "tile_split_tile_1778059635683_1_1_1778059746994",
+          "tile_split_tile_1778059635683_1_2_1778059746994",
+          "tile_split_tile_1778059635683_1_3_1778059746994",
+          "tile_split_tile_1778059635683_1_4_1778059746994",
+          "tile_split_tile_1778059635683_1_5_1778059746994",
+          "tile_split_tile_1778062027973_0_0_1778062267325",
+          "tile_split_tile_1778062027973_1_0_1778062267325"
+        ]
+      },
+      "entities": {
+        "count": 0,
+        "templateIds": [],
+        "names": []
+      },
+      "effectZones": {
+        "count": 0
+      },
+      "bosses": {
+        "count": 0,
+        "bossIds": []
+      },
+      "resourceIds": [
+        75,
+        77,
+        78,
+        76,
+        79,
+        81,
+        82,
+        83,
+        80,
+        74
+      ],
+      "resources": [
+        {
+          "id": 75,
+          "label": "SCREEN_PANTALLA3_2_BLOCK_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_BLOCK_MAP",
+          "bank": 4,
+          "windowAddress": 46514,
+          "zoneOffset": 5554,
+          "size": 47,
+          "storedSize": 47,
+          "uncompressedSize": 48,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_BLOCK_MAP resource; ZX0 47/48 bytes; bank 4 zone 1 offset +#15B2; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 77,
+          "label": "SCREEN_PANTALLA3_2_EFFECT_ZONE_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECT_ZONE_TABLE",
+          "bank": 4,
+          "windowAddress": 46613,
+          "zoneOffset": 5653,
+          "size": 1,
+          "storedSize": 1,
+          "uncompressedSize": 1,
+          "flags": 0,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1615; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 78,
+          "label": "SCREEN_PANTALLA3_2_BOSS_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 46614,
+          "zoneOffset": 5654,
+          "size": 1,
+          "storedSize": 1,
+          "uncompressedSize": 1,
+          "flags": 0,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_BOSS_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1616; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 76,
+          "label": "SCREEN_PANTALLA3_2_EFFECTS_LAYOUT",
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECTS_LAYOUT",
+          "bank": 4,
+          "windowAddress": 48005,
+          "zoneOffset": 7045,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1B85; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 79,
+          "label": "BEHAVIOR_PANTALLA3_2_DATA",
+          "group": "SCREENS",
+          "type": "SCREEN_BEHAVIOR_MAP",
+          "bank": 4,
+          "windowAddress": 48011,
+          "zoneOffset": 7051,
+          "size": 44,
+          "storedSize": 44,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single BEHAVIOR_PANTALLA3_2_DATA resource; ZX0 44/768 bytes; bank 4 zone 1 offset +#1B8B; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 81,
+          "label": "SCREEN_PANTALLA3_2_INTERACTION_TYPE_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 48055,
+          "zoneOffset": 7095,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1BB7; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 82,
+          "label": "SCREEN_PANTALLA3_2_INTERACTION_VALUE_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 48061,
+          "zoneOffset": 7101,
+          "size": 43,
+          "storedSize": 43,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_INTERACTION_VALUE_MAP resource; ZX0 43/768 bytes; bank 4 zone 1 offset +#1BBD; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 83,
+          "label": "SCREEN_PANTALLA3_2_INTERACTION_TARGET_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 48104,
+          "zoneOffset": 7144,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1BE8; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 80,
+          "label": "SCREEN_PANTALLA3_2_CHAR_BEHAVIOR_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 48164,
+          "zoneOffset": 7204,
+          "size": 35,
+          "storedSize": 35,
+          "uncompressedSize": 256,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_CHAR_BEHAVIOR_TABLE resource; ZX0 35/256 bytes; bank 4 zone 1 offset +#1C24; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 74,
+          "label": "SCREEN_PANTALLA3_2_BLOCK_CATALOG",
+          "group": "SCREENS",
+          "type": "SCREEN_BLOCK_CATALOG",
+          "bank": 5,
+          "windowAddress": 41937,
+          "zoneOffset": 977,
+          "size": 343,
+          "storedSize": 343,
+          "uncompressedSize": 560,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_BLOCK_CATALOG resource; ZX0 343/560 bytes; bank 5 zone 2 offset +#03D1; zone slack after pack 5533 bytes"
+        }
+      ],
+      "banks": [
+        {
+          "bank": 4,
+          "count": 9,
+          "storedBytes": 189,
+          "rawBytes": 4146,
+          "resourceIds": [
+            75,
+            77,
+            78,
+            76,
+            79,
+            81,
+            82,
+            83,
+            80
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA3_2_BLOCK_MAP",
+            "SCREEN_PANTALLA3_2_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA3_2_BOSS_TABLE",
+            "SCREEN_PANTALLA3_2_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA3_2_DATA",
+            "SCREEN_PANTALLA3_2_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA3_2_INTERACTION_VALUE_MAP",
+            "SCREEN_PANTALLA3_2_INTERACTION_TARGET_MAP",
+            "SCREEN_PANTALLA3_2_CHAR_BEHAVIOR_TABLE"
+          ]
+        },
+        {
+          "bank": 5,
+          "count": 1,
+          "storedBytes": 343,
+          "rawBytes": 560,
+          "resourceIds": [
+            74
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA3_2_BLOCK_CATALOG"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 4,
+          "resourceIds": [
+            75,
+            77,
+            78,
+            76,
+            79,
+            81,
+            82,
+            83,
+            80
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA3_2_BLOCK_MAP",
+            "SCREEN_PANTALLA3_2_EFFECT_ZONE_TABLE",
+            "SCREEN_PANTALLA3_2_BOSS_TABLE",
+            "SCREEN_PANTALLA3_2_EFFECTS_LAYOUT",
+            "BEHAVIOR_PANTALLA3_2_DATA",
+            "SCREEN_PANTALLA3_2_INTERACTION_TYPE_MAP",
+            "SCREEN_PANTALLA3_2_INTERACTION_VALUE_MAP",
+            "SCREEN_PANTALLA3_2_INTERACTION_TARGET_MAP",
+            "SCREEN_PANTALLA3_2_CHAR_BEHAVIOR_TABLE"
+          ]
+        },
+        {
+          "bank": 5,
+          "resourceIds": [
+            74
+          ],
+          "resourceLabels": [
+            "SCREEN_PANTALLA3_2_BLOCK_CATALOG"
+          ]
+        }
+      ],
+      "totals": {
+        "resourceCount": 10,
+        "storedBytes": 532,
+        "rawBytes": 4706,
+        "compressedResources": 8
+      }
+    },
+    {
+      "index": 3,
+      "id": "screenmap_1778241953722",
+      "name": "d_pantalla1",
+      "size": {
+        "width": 32,
+        "height": 24
+      },
+      "screenKind": "dialog",
+      "screenEngine": "fakePlayer",
+      "tileBankAssetId": "tilebank_1778059819923",
+      "tileUsage": {
+        "backgroundTileIds": [
+          "tile_split_tile_1778059635683_0_0_1778059746994",
+          "tile_split_tile_1778059635683_1_0_1778059746994",
+          "tile_split_tile_1778062027973_0_0_1778062267325",
+          "tile_split_tile_1778062027973_1_0_1778062267325"
+        ],
+        "collisionTileIds": [],
+        "effectsTileIds": [],
+        "uniqueTileIds": [
+          "tile_split_tile_1778059635683_0_0_1778059746994",
+          "tile_split_tile_1778059635683_1_0_1778059746994",
+          "tile_split_tile_1778062027973_0_0_1778062267325",
+          "tile_split_tile_1778062027973_1_0_1778062267325"
+        ]
+      },
+      "entities": {
+        "count": 1,
+        "templateIds": [
+          "tpl_fake_player"
+        ],
+        "names": [
+          "FakePlayer 1"
+        ]
+      },
+      "effectZones": {
+        "count": 0
+      },
+      "bosses": {
+        "count": 0,
+        "bossIds": []
+      },
+      "resourceIds": [
+        85,
+        87,
+        88,
+        86,
+        89,
+        91,
+        92,
+        93,
+        90,
+        84
+      ],
+      "resources": [
+        {
+          "id": 85,
+          "label": "SCREEN_D_PANTALLA1_3_BLOCK_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_BLOCK_MAP",
+          "bank": 4,
+          "windowAddress": 46561,
+          "zoneOffset": 5601,
+          "size": 18,
+          "storedSize": 18,
+          "uncompressedSize": 48,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_BLOCK_MAP resource; ZX0 18/48 bytes; bank 4 zone 1 offset +#15E1; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 87,
+          "label": "SCREEN_D_PANTALLA1_3_EFFECT_ZONE_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECT_ZONE_TABLE",
+          "bank": 4,
+          "windowAddress": 46615,
+          "zoneOffset": 5655,
+          "size": 1,
+          "storedSize": 1,
+          "uncompressedSize": 1,
+          "flags": 0,
+          "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1617; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 88,
+          "label": "SCREEN_D_PANTALLA1_3_BOSS_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 46616,
+          "zoneOffset": 5656,
+          "size": 1,
+          "storedSize": 1,
+          "uncompressedSize": 1,
+          "flags": 0,
+          "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_BOSS_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1618; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 86,
+          "label": "SCREEN_D_PANTALLA1_3_EFFECTS_LAYOUT",
+          "group": "SCREENS",
+          "type": "SCREEN_EFFECTS_LAYOUT",
+          "bank": 4,
+          "windowAddress": 48110,
+          "zoneOffset": 7150,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1BEE; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 89,
+          "label": "BEHAVIOR_D_PANTALLA1_3_DATA",
+          "group": "SCREENS",
+          "type": "SCREEN_BEHAVIOR_MAP",
+          "bank": 4,
+          "windowAddress": 48116,
+          "zoneOffset": 7156,
+          "size": 21,
+          "storedSize": 21,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single BEHAVIOR_D_PANTALLA1_3_DATA resource; ZX0 21/768 bytes; bank 4 zone 1 offset +#1BF4; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 91,
+          "label": "SCREEN_D_PANTALLA1_3_INTERACTION_TYPE_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 48199,
+          "zoneOffset": 7239,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1C47; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 92,
+          "label": "SCREEN_D_PANTALLA1_3_INTERACTION_VALUE_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 48205,
+          "zoneOffset": 7245,
+          "size": 24,
+          "storedSize": 24,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_INTERACTION_VALUE_MAP resource; ZX0 24/768 bytes; bank 4 zone 1 offset +#1C4D; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 93,
+          "label": "SCREEN_D_PANTALLA1_3_INTERACTION_TARGET_MAP",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 4,
+          "windowAddress": 48229,
+          "zoneOffset": 7269,
+          "size": 6,
+          "storedSize": 6,
+          "uncompressedSize": 768,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1C65; zone slack after pack 149 bytes"
+        },
+        {
+          "id": 90,
+          "label": "SCREEN_D_PANTALLA1_3_CHAR_BEHAVIOR_TABLE",
+          "group": "SCREENS",
+          "type": "SCREEN_DATA",
+          "bank": 5,
+          "windowAddress": 42280,
+          "zoneOffset": 1320,
+          "size": 24,
+          "storedSize": 24,
+          "uncompressedSize": 256,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_CHAR_BEHAVIOR_TABLE resource; ZX0 24/256 bytes; bank 5 zone 2 offset +#0528; zone slack after pack 5533 bytes"
+        },
+        {
+          "id": 84,
+          "label": "SCREEN_D_PANTALLA1_3_BLOCK_CATALOG",
+          "group": "SCREENS",
+          "type": "SCREEN_BLOCK_CATALOG",
+          "bank": 5,
+          "windowAddress": 42304,
+          "zoneOffset": 1344,
+          "size": 97,
+          "storedSize": 97,
+          "uncompressedSize": 176,
+          "flags": 1,
+          "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_BLOCK_CATALOG resource; ZX0 97/176 bytes; bank 5 zone 2 offset +#0540; zone slack after pack 5533 bytes"
+        }
+      ],
+      "banks": [
+        {
+          "bank": 4,
+          "count": 8,
+          "storedBytes": 83,
+          "rawBytes": 3890,
+          "resourceIds": [
+            85,
+            87,
+            88,
+            86,
+            89,
+            91,
+            92,
+            93
+          ],
+          "resourceLabels": [
+            "SCREEN_D_PANTALLA1_3_BLOCK_MAP",
+            "SCREEN_D_PANTALLA1_3_EFFECT_ZONE_TABLE",
+            "SCREEN_D_PANTALLA1_3_BOSS_TABLE",
+            "SCREEN_D_PANTALLA1_3_EFFECTS_LAYOUT",
+            "BEHAVIOR_D_PANTALLA1_3_DATA",
+            "SCREEN_D_PANTALLA1_3_INTERACTION_TYPE_MAP",
+            "SCREEN_D_PANTALLA1_3_INTERACTION_VALUE_MAP",
+            "SCREEN_D_PANTALLA1_3_INTERACTION_TARGET_MAP"
+          ]
+        },
+        {
+          "bank": 5,
+          "count": 2,
+          "storedBytes": 121,
+          "rawBytes": 432,
+          "resourceIds": [
+            90,
+            84
+          ],
+          "resourceLabels": [
+            "SCREEN_D_PANTALLA1_3_CHAR_BEHAVIOR_TABLE",
+            "SCREEN_D_PANTALLA1_3_BLOCK_CATALOG"
+          ]
+        }
+      ],
+      "loadOrder": [
+        {
+          "bank": 4,
+          "resourceIds": [
+            85,
+            87,
+            88,
+            86,
+            89,
+            91,
+            92,
+            93
+          ],
+          "resourceLabels": [
+            "SCREEN_D_PANTALLA1_3_BLOCK_MAP",
+            "SCREEN_D_PANTALLA1_3_EFFECT_ZONE_TABLE",
+            "SCREEN_D_PANTALLA1_3_BOSS_TABLE",
+            "SCREEN_D_PANTALLA1_3_EFFECTS_LAYOUT",
+            "BEHAVIOR_D_PANTALLA1_3_DATA",
+            "SCREEN_D_PANTALLA1_3_INTERACTION_TYPE_MAP",
+            "SCREEN_D_PANTALLA1_3_INTERACTION_VALUE_MAP",
+            "SCREEN_D_PANTALLA1_3_INTERACTION_TARGET_MAP"
+          ]
+        },
+        {
+          "bank": 5,
+          "resourceIds": [
+            90,
+            84
+          ],
+          "resourceLabels": [
+            "SCREEN_D_PANTALLA1_3_CHAR_BEHAVIOR_TABLE",
+            "SCREEN_D_PANTALLA1_3_BLOCK_CATALOG"
+          ]
+        }
+      ],
+      "totals": {
+        "resourceCount": 10,
+        "storedBytes": 204,
+        "rawBytes": 4322,
+        "compressedResources": 8
+      }
+    }
+  ],
+  "bankedResources": [
+    {
+      "id": 0,
+      "label": "NINA_WALK_RIGHT_0_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46579,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER0 resource; ZX0 30/32 bytes; bank 4 zone 1 offset +#15F3; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 1,
+      "label": "NINA_WALK_RIGHT_0_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42401,
+      "size": 25,
+      "storedSize": 25,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER1 resource; ZX0 25/32 bytes; bank 5 zone 2 offset +#05A1; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 2,
+      "label": "NINA_WALK_RIGHT_0_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42426,
+      "size": 31,
+      "storedSize": 31,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER0 resource; ZX0 31/32 bytes; bank 5 zone 2 offset +#05BA; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 3,
+      "label": "NINA_WALK_RIGHT_0_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42457,
+      "size": 27,
+      "storedSize": 27,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER1 resource; ZX0 27/32 bytes; bank 5 zone 2 offset +#05D9; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 4,
+      "label": "NINA_JUMP_RIGHT_1_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42484,
+      "size": 27,
+      "storedSize": 27,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_JUMP_RIGHT_1_F0_LAYER0 resource; ZX0 27/32 bytes; bank 5 zone 2 offset +#05F4; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 5,
+      "label": "NINA_JUMP_RIGHT_1_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42511,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_JUMP_RIGHT_1_F0_LAYER1 resource; ZX0 24/32 bytes; bank 5 zone 2 offset +#060F; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 6,
+      "label": "NINA_LAND_RIGHT_2_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42535,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_RIGHT_2_F0_LAYER0 resource; ZX0 30/32 bytes; bank 5 zone 2 offset +#0627; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 7,
+      "label": "NINA_LAND_RIGHT_2_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42565,
+      "size": 23,
+      "storedSize": 23,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_RIGHT_2_F0_LAYER1 resource; ZX0 23/32 bytes; bank 5 zone 2 offset +#0645; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 8,
+      "label": "NINA_LAND_RIGHT_2_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42588,
+      "size": 28,
+      "storedSize": 28,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_RIGHT_2_F1_LAYER0 resource; ZX0 28/32 bytes; bank 5 zone 2 offset +#065C; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 9,
+      "label": "NINA_LAND_RIGHT_2_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42616,
+      "size": 27,
+      "storedSize": 27,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_RIGHT_2_F1_LAYER1 resource; ZX0 27/32 bytes; bank 5 zone 2 offset +#0678; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 10,
+      "label": "NINA_LAND_RIGHT_2_F2_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42643,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_RIGHT_2_F2_LAYER0 resource; ZX0 30/32 bytes; bank 5 zone 2 offset +#0693; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 11,
+      "label": "NINA_LAND_RIGHT_2_F2_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42673,
+      "size": 26,
+      "storedSize": 26,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_RIGHT_2_F2_LAYER1 resource; ZX0 26/32 bytes; bank 5 zone 2 offset +#06B1; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 12,
+      "label": "NINA_DEAD_3_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42699,
+      "size": 14,
+      "storedSize": 14,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_DEAD_3_F0_LAYER0 resource; ZX0 14/32 bytes; bank 5 zone 2 offset +#06CB; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 13,
+      "label": "NINA_DEAD_3_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42713,
+      "size": 27,
+      "storedSize": 27,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_DEAD_3_F1_LAYER0 resource; ZX0 27/32 bytes; bank 5 zone 2 offset +#06D9; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 14,
+      "label": "NINA_DEAD_3_F2_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42740,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_DEAD_3_F2_LAYER0 resource; ZX0 24/32 bytes; bank 5 zone 2 offset +#06F4; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 15,
+      "label": "NINA_IDLE_RIGHT_4_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42764,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER0 resource; ZX0 30/32 bytes; bank 5 zone 2 offset +#070C; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 16,
+      "label": "NINA_IDLE_RIGHT_4_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42794,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER1 resource; ZX0 24/32 bytes; bank 5 zone 2 offset +#072A; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 17,
+      "label": "NINA_IDLE_RIGHT_4_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42818,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F1_LAYER0 resource; ZX0 30/32 bytes; bank 5 zone 2 offset +#0742; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 18,
+      "label": "NINA_IDLE_RIGHT_4_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42848,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F1_LAYER1 resource; ZX0 24/32 bytes; bank 5 zone 2 offset +#0760; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 19,
+      "label": "NINA_FALL_RIGHT_5_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42872,
+      "size": 29,
+      "storedSize": 29,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_FALL_RIGHT_5_F0_LAYER0 resource; ZX0 29/32 bytes; bank 5 zone 2 offset +#0778; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 20,
+      "label": "NINA_FALL_RIGHT_5_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42901,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_FALL_RIGHT_5_F0_LAYER1 resource; ZX0 24/32 bytes; bank 5 zone 2 offset +#0795; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 21,
+      "label": "NINA_GRUB_RIGHT_6_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42925,
+      "size": 18,
+      "storedSize": 18,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_6_F0_LAYER1 resource; ZX0 18/32 bytes; bank 5 zone 2 offset +#07AD; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 22,
+      "label": "NINA_GRUB_RIGHT_6_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42943,
+      "size": 28,
+      "storedSize": 28,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_6_F0_LAYER2 resource; ZX0 28/32 bytes; bank 5 zone 2 offset +#07BF; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 23,
+      "label": "NINA_GRUB_RIGHT_6_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42971,
+      "size": 23,
+      "storedSize": 23,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_6_F1_LAYER1 resource; ZX0 23/32 bytes; bank 5 zone 2 offset +#07DB; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 24,
+      "label": "NINA_GRUB_RIGHT_6_F1_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 42994,
+      "size": 29,
+      "storedSize": 29,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_GRUB_RIGHT_6_F1_LAYER2 resource; ZX0 29/32 bytes; bank 5 zone 2 offset +#07F2; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 25,
+      "label": "NINA_WALK_LEFT_7_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43023,
+      "size": 28,
+      "storedSize": 28,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER0 resource; ZX0 28/32 bytes; bank 5 zone 2 offset +#080F; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 26,
+      "label": "NINA_WALK_LEFT_7_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43051,
+      "size": 25,
+      "storedSize": 25,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER1 resource; ZX0 25/32 bytes; bank 5 zone 2 offset +#082B; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 27,
+      "label": "NINA_WALK_LEFT_7_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43076,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER0 resource; ZX0 30/32 bytes; bank 5 zone 2 offset +#0844; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 28,
+      "label": "NINA_WALK_LEFT_7_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43106,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER1 resource; ZX0 30/32 bytes; bank 5 zone 2 offset +#0862; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 29,
+      "label": "NINA_JUMP_LEFT_8_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43136,
+      "size": 27,
+      "storedSize": 27,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_JUMP_LEFT_8_F0_LAYER0 resource; ZX0 27/32 bytes; bank 5 zone 2 offset +#0880; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 30,
+      "label": "NINA_JUMP_LEFT_8_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43163,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_JUMP_LEFT_8_F0_LAYER1 resource; ZX0 24/32 bytes; bank 5 zone 2 offset +#089B; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 31,
+      "label": "NINA_LAND_LEFT_9_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43187,
+      "size": 29,
+      "storedSize": 29,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_LEFT_9_F0_LAYER0 resource; ZX0 29/32 bytes; bank 5 zone 2 offset +#08B3; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 32,
+      "label": "NINA_LAND_LEFT_9_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43216,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_LEFT_9_F0_LAYER1 resource; ZX0 24/32 bytes; bank 5 zone 2 offset +#08D0; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 33,
+      "label": "NINA_LAND_LEFT_9_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43240,
+      "size": 28,
+      "storedSize": 28,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_LEFT_9_F1_LAYER0 resource; ZX0 28/32 bytes; bank 5 zone 2 offset +#08E8; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 34,
+      "label": "NINA_LAND_LEFT_9_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43268,
+      "size": 28,
+      "storedSize": 28,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_LEFT_9_F1_LAYER1 resource; ZX0 28/32 bytes; bank 5 zone 2 offset +#0904; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 35,
+      "label": "NINA_LAND_LEFT_9_F2_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43296,
+      "size": 29,
+      "storedSize": 29,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_LEFT_9_F2_LAYER0 resource; ZX0 29/32 bytes; bank 5 zone 2 offset +#0920; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 36,
+      "label": "NINA_LAND_LEFT_9_F2_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43325,
+      "size": 27,
+      "storedSize": 27,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_LAND_LEFT_9_F2_LAYER1 resource; ZX0 27/32 bytes; bank 5 zone 2 offset +#093D; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 37,
+      "label": "NINA_IDLE_LEFT_10_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43352,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER0 resource; ZX0 30/32 bytes; bank 5 zone 2 offset +#0958; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 38,
+      "label": "NINA_IDLE_LEFT_10_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43382,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER1 resource; ZX0 24/32 bytes; bank 5 zone 2 offset +#0976; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 39,
+      "label": "NINA_IDLE_LEFT_10_F1_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43406,
+      "size": 30,
+      "storedSize": 30,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_10_F1_LAYER0 resource; ZX0 30/32 bytes; bank 5 zone 2 offset +#098E; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 40,
+      "label": "NINA_IDLE_LEFT_10_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43436,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_IDLE_LEFT_10_F1_LAYER1 resource; ZX0 24/32 bytes; bank 5 zone 2 offset +#09AC; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 41,
+      "label": "NINA_FALL_LEFT_11_F0_LAYER0",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43460,
+      "size": 29,
+      "storedSize": 29,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_FALL_LEFT_11_F0_LAYER0 resource; ZX0 29/32 bytes; bank 5 zone 2 offset +#09C4; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 42,
+      "label": "NINA_FALL_LEFT_11_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43489,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_FALL_LEFT_11_F0_LAYER1 resource; ZX0 24/32 bytes; bank 5 zone 2 offset +#09E1; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 43,
+      "label": "NINA_GRUB_LEFT_12_F0_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43513,
+      "size": 20,
+      "storedSize": 20,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_12_F0_LAYER1 resource; ZX0 20/32 bytes; bank 5 zone 2 offset +#09F9; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 44,
+      "label": "NINA_GRUB_LEFT_12_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43533,
+      "size": 29,
+      "storedSize": 29,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_12_F0_LAYER2 resource; ZX0 29/32 bytes; bank 5 zone 2 offset +#0A0D; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 45,
+      "label": "NINA_GRUB_LEFT_12_F1_LAYER1",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43562,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_12_F1_LAYER1 resource; ZX0 24/32 bytes; bank 5 zone 2 offset +#0A2A; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 46,
+      "label": "NINA_GRUB_LEFT_12_F1_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43586,
+      "size": 28,
+      "storedSize": 28,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NINA_GRUB_LEFT_12_F1_LAYER2 resource; ZX0 28/32 bytes; bank 5 zone 2 offset +#0A42; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 47,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 5,
+      "windowAddress": 43614,
+      "size": 5,
+      "storedSize": 5,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 5 zone 2 offset +#0A5E; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 48,
+      "label": "tile_pattern_bank0",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 45952,
+      "size": 385,
+      "storedSize": 385,
+      "uncompressedSize": 1016,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single patterns resource; ZX0 385/1016 bytes; bank 4 zone 1 offset +#1380; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 49,
+      "label": "tilebank_pattern_data_0",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 4,
+      "windowAddress": 46846,
+      "size": 545,
+      "storedSize": 545,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single patterns resource; ZX0 545/768 bytes; bank 4 zone 1 offset +#16FE; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 50,
+      "label": "tilebank_pattern_data_1",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 45024,
+      "size": 748,
+      "storedSize": 748,
+      "uncompressedSize": 2016,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single patterns resource; ZX0 748/2016 bytes; bank 3 zone 0 offset +#0FE0; zone slack after pack 1071 bytes"
+    },
+    {
+      "id": 51,
+      "label": "tile_color_bank0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 4,
+      "windowAddress": 46617,
+      "size": 229,
+      "storedSize": 229,
+      "uncompressedSize": 1016,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single colors resource; ZX0 229/1016 bytes; bank 4 zone 1 offset +#1619; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 52,
+      "label": "tilebank_color_data_0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 4,
+      "windowAddress": 47391,
+      "size": 349,
+      "storedSize": 349,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single colors resource; ZX0 349/768 bytes; bank 4 zone 1 offset +#191F; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 53,
+      "label": "tilebank_color_data_1",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 3,
+      "windowAddress": 45772,
+      "size": 471,
+      "storedSize": 471,
+      "uncompressedSize": 2016,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single colors resource; ZX0 471/2016 bytes; bank 3 zone 0 offset +#12CC; zone slack after pack 1071 bytes"
+    },
+    {
+      "id": 54,
+      "label": "SCREEN_PANTALLA1_0_BLOCK_CATALOG",
+      "group": "SCREENS",
+      "type": "SCREEN_BLOCK_CATALOG",
+      "bank": 5,
+      "windowAddress": 41594,
+      "size": 343,
+      "storedSize": 343,
+      "uncompressedSize": 560,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_BLOCK_CATALOG resource; ZX0 343/560 bytes; bank 5 zone 2 offset +#027A; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 55,
+      "label": "SCREEN_PANTALLA1_0_BLOCK_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_BLOCK_MAP",
+      "bank": 3,
+      "windowAddress": 46243,
+      "size": 47,
+      "storedSize": 47,
+      "uncompressedSize": 48,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_BLOCK_MAP resource; ZX0 47/48 bytes; bank 3 zone 0 offset +#14A3; zone slack after pack 1071 bytes"
+    },
+    {
+      "id": 56,
+      "label": "SCREEN_PANTALLA1_0_EFFECTS_LAYOUT",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECTS_LAYOUT",
+      "bank": 4,
+      "windowAddress": 47740,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1A7C; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 57,
+      "label": "SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECT_ZONE_TABLE",
+      "bank": 4,
+      "windowAddress": 46609,
+      "size": 1,
+      "storedSize": 1,
+      "uncompressedSize": 1,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1611; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 58,
+      "label": "SCREEN_PANTALLA1_0_BOSS_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 46610,
+      "size": 1,
+      "storedSize": 1,
+      "uncompressedSize": 1,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_BOSS_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1612; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 59,
+      "label": "BEHAVIOR_PANTALLA1_0_DATA",
+      "group": "SCREENS",
+      "type": "SCREEN_BEHAVIOR_MAP",
+      "bank": 4,
+      "windowAddress": 47746,
+      "size": 60,
+      "storedSize": 60,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single BEHAVIOR_PANTALLA1_0_DATA resource; ZX0 60/768 bytes; bank 4 zone 1 offset +#1A82; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 60,
+      "label": "SCREEN_PANTALLA1_0_CHAR_BEHAVIOR_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 47912,
+      "size": 39,
+      "storedSize": 39,
+      "uncompressedSize": 256,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_CHAR_BEHAVIOR_TABLE resource; ZX0 39/256 bytes; bank 4 zone 1 offset +#1B28; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 61,
+      "label": "SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 47806,
+      "size": 11,
+      "storedSize": 11,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_INTERACTION_TYPE_MAP resource; ZX0 11/768 bytes; bank 4 zone 1 offset +#1ABE; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 62,
+      "label": "SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 47817,
+      "size": 52,
+      "storedSize": 52,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_INTERACTION_VALUE_MAP resource; ZX0 52/768 bytes; bank 4 zone 1 offset +#1AC9; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 63,
+      "label": "SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 47869,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA1_0_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1AFD; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 64,
+      "label": "SCREEN_PANTALLA2_1_BLOCK_CATALOG",
+      "group": "SCREENS",
+      "type": "SCREEN_BLOCK_CATALOG",
+      "bank": 4,
+      "windowAddress": 46337,
+      "size": 177,
+      "storedSize": 177,
+      "uncompressedSize": 288,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_BLOCK_CATALOG resource; ZX0 177/288 bytes; bank 4 zone 1 offset +#1501; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 65,
+      "label": "SCREEN_PANTALLA2_1_BLOCK_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_BLOCK_MAP",
+      "bank": 3,
+      "windowAddress": 46290,
+      "size": 31,
+      "storedSize": 31,
+      "uncompressedSize": 48,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_BLOCK_MAP resource; ZX0 31/48 bytes; bank 3 zone 0 offset +#14D2; zone slack after pack 1071 bytes"
+    },
+    {
+      "id": 66,
+      "label": "SCREEN_PANTALLA2_1_EFFECTS_LAYOUT",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECTS_LAYOUT",
+      "bank": 4,
+      "windowAddress": 47875,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1B03; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 67,
+      "label": "SCREEN_PANTALLA2_1_EFFECT_ZONE_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECT_ZONE_TABLE",
+      "bank": 4,
+      "windowAddress": 46611,
+      "size": 1,
+      "storedSize": 1,
+      "uncompressedSize": 1,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1613; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 68,
+      "label": "SCREEN_PANTALLA2_1_BOSS_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 46612,
+      "size": 1,
+      "storedSize": 1,
+      "uncompressedSize": 1,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_BOSS_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1614; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 69,
+      "label": "BEHAVIOR_PANTALLA2_1_DATA",
+      "group": "SCREENS",
+      "type": "SCREEN_BEHAVIOR_MAP",
+      "bank": 4,
+      "windowAddress": 47881,
+      "size": 31,
+      "storedSize": 31,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single BEHAVIOR_PANTALLA2_1_DATA resource; ZX0 31/768 bytes; bank 4 zone 1 offset +#1B09; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 70,
+      "label": "SCREEN_PANTALLA2_1_CHAR_BEHAVIOR_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 48137,
+      "size": 27,
+      "storedSize": 27,
+      "uncompressedSize": 256,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_CHAR_BEHAVIOR_TABLE resource; ZX0 27/256 bytes; bank 4 zone 1 offset +#1C09; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 71,
+      "label": "SCREEN_PANTALLA2_1_INTERACTION_TYPE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 47951,
+      "size": 11,
+      "storedSize": 11,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_INTERACTION_TYPE_MAP resource; ZX0 11/768 bytes; bank 4 zone 1 offset +#1B4F; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 72,
+      "label": "SCREEN_PANTALLA2_1_INTERACTION_VALUE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 47962,
+      "size": 37,
+      "storedSize": 37,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_INTERACTION_VALUE_MAP resource; ZX0 37/768 bytes; bank 4 zone 1 offset +#1B5A; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 73,
+      "label": "SCREEN_PANTALLA2_1_INTERACTION_TARGET_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 47999,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA2_1_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1B7F; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 74,
+      "label": "SCREEN_PANTALLA3_2_BLOCK_CATALOG",
+      "group": "SCREENS",
+      "type": "SCREEN_BLOCK_CATALOG",
+      "bank": 5,
+      "windowAddress": 41937,
+      "size": 343,
+      "storedSize": 343,
+      "uncompressedSize": 560,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_BLOCK_CATALOG resource; ZX0 343/560 bytes; bank 5 zone 2 offset +#03D1; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 75,
+      "label": "SCREEN_PANTALLA3_2_BLOCK_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_BLOCK_MAP",
+      "bank": 4,
+      "windowAddress": 46514,
+      "size": 47,
+      "storedSize": 47,
+      "uncompressedSize": 48,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_BLOCK_MAP resource; ZX0 47/48 bytes; bank 4 zone 1 offset +#15B2; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 76,
+      "label": "SCREEN_PANTALLA3_2_EFFECTS_LAYOUT",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECTS_LAYOUT",
+      "bank": 4,
+      "windowAddress": 48005,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1B85; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 77,
+      "label": "SCREEN_PANTALLA3_2_EFFECT_ZONE_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECT_ZONE_TABLE",
+      "bank": 4,
+      "windowAddress": 46613,
+      "size": 1,
+      "storedSize": 1,
+      "uncompressedSize": 1,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1615; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 78,
+      "label": "SCREEN_PANTALLA3_2_BOSS_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 46614,
+      "size": 1,
+      "storedSize": 1,
+      "uncompressedSize": 1,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_BOSS_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1616; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 79,
+      "label": "BEHAVIOR_PANTALLA3_2_DATA",
+      "group": "SCREENS",
+      "type": "SCREEN_BEHAVIOR_MAP",
+      "bank": 4,
+      "windowAddress": 48011,
+      "size": 44,
+      "storedSize": 44,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single BEHAVIOR_PANTALLA3_2_DATA resource; ZX0 44/768 bytes; bank 4 zone 1 offset +#1B8B; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 80,
+      "label": "SCREEN_PANTALLA3_2_CHAR_BEHAVIOR_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 48164,
+      "size": 35,
+      "storedSize": 35,
+      "uncompressedSize": 256,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_CHAR_BEHAVIOR_TABLE resource; ZX0 35/256 bytes; bank 4 zone 1 offset +#1C24; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 81,
+      "label": "SCREEN_PANTALLA3_2_INTERACTION_TYPE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 48055,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1BB7; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 82,
+      "label": "SCREEN_PANTALLA3_2_INTERACTION_VALUE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 48061,
+      "size": 43,
+      "storedSize": 43,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_INTERACTION_VALUE_MAP resource; ZX0 43/768 bytes; bank 4 zone 1 offset +#1BBD; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 83,
+      "label": "SCREEN_PANTALLA3_2_INTERACTION_TARGET_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 48104,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_PANTALLA3_2_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1BE8; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 84,
+      "label": "SCREEN_D_PANTALLA1_3_BLOCK_CATALOG",
+      "group": "SCREENS",
+      "type": "SCREEN_BLOCK_CATALOG",
+      "bank": 5,
+      "windowAddress": 42304,
+      "size": 97,
+      "storedSize": 97,
+      "uncompressedSize": 176,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_BLOCK_CATALOG resource; ZX0 97/176 bytes; bank 5 zone 2 offset +#0540; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 85,
+      "label": "SCREEN_D_PANTALLA1_3_BLOCK_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_BLOCK_MAP",
+      "bank": 4,
+      "windowAddress": 46561,
+      "size": 18,
+      "storedSize": 18,
+      "uncompressedSize": 48,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_BLOCK_MAP resource; ZX0 18/48 bytes; bank 4 zone 1 offset +#15E1; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 86,
+      "label": "SCREEN_D_PANTALLA1_3_EFFECTS_LAYOUT",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECTS_LAYOUT",
+      "bank": 4,
+      "windowAddress": 48110,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1BEE; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 87,
+      "label": "SCREEN_D_PANTALLA1_3_EFFECT_ZONE_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_EFFECT_ZONE_TABLE",
+      "bank": 4,
+      "windowAddress": 46615,
+      "size": 1,
+      "storedSize": 1,
+      "uncompressedSize": 1,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1617; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 88,
+      "label": "SCREEN_D_PANTALLA1_3_BOSS_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 46616,
+      "size": 1,
+      "storedSize": 1,
+      "uncompressedSize": 1,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_BOSS_TABLE resource; raw 1 bytes; bank 4 zone 1 offset +#1618; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 89,
+      "label": "BEHAVIOR_D_PANTALLA1_3_DATA",
+      "group": "SCREENS",
+      "type": "SCREEN_BEHAVIOR_MAP",
+      "bank": 4,
+      "windowAddress": 48116,
+      "size": 21,
+      "storedSize": 21,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single BEHAVIOR_D_PANTALLA1_3_DATA resource; ZX0 21/768 bytes; bank 4 zone 1 offset +#1BF4; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 90,
+      "label": "SCREEN_D_PANTALLA1_3_CHAR_BEHAVIOR_TABLE",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 5,
+      "windowAddress": 42280,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 256,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_CHAR_BEHAVIOR_TABLE resource; ZX0 24/256 bytes; bank 5 zone 2 offset +#0528; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 91,
+      "label": "SCREEN_D_PANTALLA1_3_INTERACTION_TYPE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 48199,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1C47; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 92,
+      "label": "SCREEN_D_PANTALLA1_3_INTERACTION_VALUE_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 48205,
+      "size": 24,
+      "storedSize": 24,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_INTERACTION_VALUE_MAP resource; ZX0 24/768 bytes; bank 4 zone 1 offset +#1C4D; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 93,
+      "label": "SCREEN_D_PANTALLA1_3_INTERACTION_TARGET_MAP",
+      "group": "SCREENS",
+      "type": "SCREEN_DATA",
+      "bank": 4,
+      "windowAddress": 48229,
+      "size": 6,
+      "storedSize": 6,
+      "uncompressedSize": 768,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SCREEN_D_PANTALLA1_3_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 4 zone 1 offset +#1C65; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 94,
+      "label": "music_track_0_Atenas_Epic_March_data",
+      "group": "SOUND",
+      "type": "MUSIC_TRACK",
+      "bank": 5,
+      "windowAddress": 40960,
+      "size": 634,
+      "storedSize": 634,
+      "uncompressedSize": 634,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single MUSIC_TRACK_0_ATENAS_EPIC_MARCH_DATA resource; raw 634 bytes; bank 5 zone 2 offset +#0000; zone slack after pack 5533 bytes"
+    },
+    {
+      "id": 95,
+      "label": "PRESENTATION_SCREEN_NAMETBL",
+      "group": "PRESENTATION",
+      "type": "SCREEN_NAME_TABLE",
+      "bank": 4,
+      "windowAddress": 48235,
+      "size": 768,
+      "storedSize": 768,
+      "uncompressedSize": 768,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_NAMETBL resource; raw 768 bytes; bank 4 zone 1 offset +#1C6B; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 96,
+      "label": "PRESENTATION_SCREEN_PATTERNS_B0",
+      "group": "PRESENTATION",
+      "type": "SCREEN_PATTERNS",
+      "bank": 4,
+      "windowAddress": 42720,
+      "size": 1616,
+      "storedSize": 1616,
+      "uncompressedSize": 1616,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_PATTERNS_B0 resource; raw 1616 bytes; bank 4 zone 1 offset +#06E0; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 97,
+      "label": "PRESENTATION_SCREEN_PATTERNS_B1",
+      "group": "PRESENTATION",
+      "type": "SCREEN_PATTERNS",
+      "bank": 3,
+      "windowAddress": 46321,
+      "size": 1760,
+      "storedSize": 1760,
+      "uncompressedSize": 1760,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_PATTERNS_B1 resource; raw 1760 bytes; bank 3 zone 0 offset +#14F1; zone slack after pack 1071 bytes"
+    },
+    {
+      "id": 98,
+      "label": "PRESENTATION_SCREEN_PATTERNS_B2",
+      "group": "PRESENTATION",
+      "type": "SCREEN_PATTERNS",
+      "bank": 3,
+      "windowAddress": 40960,
+      "size": 2032,
+      "storedSize": 2032,
+      "uncompressedSize": 2032,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_PATTERNS_B2 resource; raw 2032 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 1071 bytes"
+    },
+    {
+      "id": 99,
+      "label": "PRESENTATION_SCREEN_COLORS_B0",
+      "group": "PRESENTATION",
+      "type": "SCREEN_COLORS",
+      "bank": 4,
+      "windowAddress": 44336,
+      "size": 1616,
+      "storedSize": 1616,
+      "uncompressedSize": 1616,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_COLORS_B0 resource; raw 1616 bytes; bank 4 zone 1 offset +#0D30; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 100,
+      "label": "PRESENTATION_SCREEN_COLORS_B1",
+      "group": "PRESENTATION",
+      "type": "SCREEN_COLORS",
+      "bank": 4,
+      "windowAddress": 40960,
+      "size": 1760,
+      "storedSize": 1760,
+      "uncompressedSize": 1760,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_COLORS_B1 resource; raw 1760 bytes; bank 4 zone 1 offset +#0000; zone slack after pack 149 bytes"
+    },
+    {
+      "id": 101,
+      "label": "PRESENTATION_SCREEN_COLORS_B2",
+      "group": "PRESENTATION",
+      "type": "SCREEN_COLORS",
+      "bank": 3,
+      "windowAddress": 42992,
+      "size": 2032,
+      "storedSize": 2032,
+      "uncompressedSize": 2032,
+      "flags": 0,
+      "placementReason": "post-ZX0 first-fit single PRESENTATION_SCREEN_COLORS_B2 resource; raw 2032 bytes; bank 3 zone 0 offset +#07F0; zone slack after pack 1071 bytes"
+    }
+  ]
+}

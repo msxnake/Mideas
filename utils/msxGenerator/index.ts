@@ -16,6 +16,7 @@ import { generateGameFlowFile } from './generators/gameFlowGenerator';
 import { generateMainFile } from './generators/mainGenerator';
 import { generateMapperFile } from './generators/mapperGenerator';
 import { generateResourceManagerFile } from './generators/resourceManagerGenerator';
+import { shouldKeepRuntimeBackgroundLayout } from './generators/runtimeLayoutPolicy';
 import { generatePatternsFile } from './generators/patternsGenerator';
 import { generateColorsFile } from './generators/colorsGenerator';
 import { generateUnifiedFile } from './generators/unifiedGenerator';
@@ -238,6 +239,7 @@ export function generateModularASM(
   const autoMegaROM = config.autoMegaROM ?? false;
   const executionPlan = buildValidatedExecutionPlan(analysis, config);
   const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
+  const keepRuntimeBackgroundLayout = shouldKeepRuntimeBackgroundLayout(analysis);
 
   // Generate individual files
   console.log('📝 [MSX GENERATOR] Generating all ASM files...');
@@ -245,7 +247,10 @@ export function generateModularASM(
   console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
 
   // For plain48k ROMs, move font data to page 0 to free space in the main ROM window
-  const hasMenus = analysis.gameFlow?.nodes?.some((node: any) => node.type === 'SubMenu');
+  const hasMenus = analysis.gameFlow?.nodes?.some((node: any) => node.type === 'SubMenu' || node.type === 'Controls');
+  const hasGameFlowText = analysis.gameFlow?.nodes?.some((node: any) =>
+    node.type === 'Text' || node.type === 'TextScroll' || node.type === 'TextScrollColor' || node.type === 'TextScroll2'
+  );
   const hasText = analysis.screenMaps?.some((screen: any) =>
     (screen.layers as any)?.text || (screen as any).textElements?.length > 0
   );
@@ -255,7 +260,7 @@ export function generateModularASM(
   const hasHudElements = analysis.screenMaps?.some((screen: any) =>
     screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
   );
-  const needsFont = !!(hasMenus || hasText || hasHudElements || hasDialogue);
+  const needsFont = !!(hasMenus || hasGameFlowText || hasText || hasHudElements || hasDialogue);
   const fontInPage0 = romMode === 'plain48k' && needsFont;
   const fontInBank4 = romMode === 'megarom' && needsFont;
   const fontRawData = fontInPage0 ? getFontRawData(analysis) : undefined;
@@ -268,14 +273,14 @@ export function generateModularASM(
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
     'resource_ids.asm': '; Resource ids are emitted by the unified MegaROM backend when available.\nRESOURCE_ID_INVALID EQU #FF\n',
     'resource_table.asm': '; Resource table is emitted by the unified MegaROM backend when available.\nRESOURCE_TABLE_ENTRY_SIZE EQU 8\nRESOURCE_TABLE_COUNT EQU 0\nresource_table:\n',
-    'resource_manager.asm': generateResourceManagerFile(mapperWindow),
+    'resource_manager.asm': generateResourceManagerFile(mapperWindow, { keepRuntimeBackgroundLayout }),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
-    'header.asm': generateHeaderFile(projectName, analysis, executionPlan, romMode),
+    'header.asm': generateHeaderFile(projectName, analysis, executionPlan, romMode, targetFormat),
     'patterns.asm': generatePatternsFile(analysis, romMode, romMode === 'megarom', targetFormat),
     'colors.asm': generateColorsFile(analysis, romMode, romMode === 'megarom', targetFormat),
     'components.asm': (interruptDrivenComponents && romMode !== 'megarom')
       ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
-      : generateComponentsFile(analysis, romMode),
+      : generateComponentsFile(analysis, romMode, targetFormat),
     'entities.asm': generateEntitiesFile(analysis),
     'worlds.asm': generateWorldsFile(analysis, romMode),
     'screens.asm': generateScreensFile(analysis, romMode, romMode === 'megarom', targetFormat),
@@ -286,9 +291,9 @@ export function generateModularASM(
     'sound.asm': generateSoundFile(analysis, executionPlan, romMode),
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis, romMode, targetFormat),
-    'bosses.asm': generateBossesFile(analysis),
+    'bosses.asm': generateBossesFile(analysis, { includeBossData: romMode !== 'megarom' }),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
-      ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId, romMode)
+      ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId, romMode, targetFormat, (analysis as any).entities)
       : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis, executionPlan, romMode),
     'main.asm': generateMainFile(projectName, analysis, romMode),
@@ -356,7 +361,10 @@ export function generateModularASMFromSummary(
   console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
 
   // For plain48k ROMs, move font data to page 0 to free space in the main ROM window
-  const hasMenus2 = analysis.gameFlow?.nodes?.some((node: any) => node.type === 'SubMenu');
+  const hasMenus2 = analysis.gameFlow?.nodes?.some((node: any) => node.type === 'SubMenu' || node.type === 'Controls');
+  const hasGameFlowText2 = analysis.gameFlow?.nodes?.some((node: any) =>
+    node.type === 'Text' || node.type === 'TextScroll' || node.type === 'TextScrollColor' || node.type === 'TextScroll2'
+  );
   const hasText2 = analysis.screenMaps?.some((screen: any) =>
     (screen.layers as any)?.text || (screen as any).textElements?.length > 0
   );
@@ -366,12 +374,14 @@ export function generateModularASMFromSummary(
   const hasHudElements2 = analysis.screenMaps?.some((screen: any) =>
     screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
   );
-  const needsFont2 = !!(hasMenus2 || hasText2 || hasHudElements2 || hasDialogue2);
+  const needsFont2 = !!(hasMenus2 || hasGameFlowText2 || hasText2 || hasHudElements2 || hasDialogue2);
   const fontInPage02 = romMode === 'plain48k' && needsFont2;
   const fontInBank42 = romMode === 'megarom' && needsFont2;
   const fontRawData2 = fontInPage02 ? getFontRawData(analysis) : undefined;
 
   // Generate files using same logic as generateModularASM
+  const keepRuntimeBackgroundLayout2 = shouldKeepRuntimeBackgroundLayout(analysis);
+
   const files: GeneratedASMFiles = {
     'page0.asm': generatePage0File(analysis, romMode, fontRawData2),
     'bios.asm': generateBIOSFile({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
@@ -380,14 +390,14 @@ export function generateModularASMFromSummary(
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
     'resource_ids.asm': '; Resource ids are emitted by the unified MegaROM backend when available.\nRESOURCE_ID_INVALID EQU #FF\n',
     'resource_table.asm': '; Resource table is emitted by the unified MegaROM backend when available.\nRESOURCE_TABLE_ENTRY_SIZE EQU 8\nRESOURCE_TABLE_COUNT EQU 0\nresource_table:\n',
-    'resource_manager.asm': generateResourceManagerFile(mapperWindow),
+    'resource_manager.asm': generateResourceManagerFile(mapperWindow, { keepRuntimeBackgroundLayout: keepRuntimeBackgroundLayout2 }),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
-    'header.asm': generateHeaderFile(summary.projectInfo.name, analysis, executionPlan, romMode),
+    'header.asm': generateHeaderFile(summary.projectInfo.name, analysis, executionPlan, romMode, targetFormat),
     'patterns.asm': generatePatternsFile(analysis, romMode, romMode === 'megarom', targetFormat),
     'colors.asm': generateColorsFile(analysis, romMode, romMode === 'megarom', targetFormat),
     'components.asm': (interruptDrivenComponents && romMode !== 'megarom')
       ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
-      : generateComponentsFile(analysis, romMode),
+      : generateComponentsFile(analysis, romMode, targetFormat),
     'entities.asm': generateEntitiesFile(analysis),
     'worlds.asm': generateWorldsFile(analysis, romMode),
     'screens.asm': generateScreensFile(analysis, romMode, romMode === 'megarom', targetFormat),
@@ -398,9 +408,9 @@ export function generateModularASMFromSummary(
     'sound.asm': generateSoundFile(analysis, executionPlan, romMode),
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis, romMode, targetFormat),
-    'bosses.asm': generateBossesFile(analysis),
+    'bosses.asm': generateBossesFile(analysis, { includeBossData: romMode !== 'megarom' }),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
-      ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId, romMode)
+      ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId, romMode, targetFormat, (analysis as any).entities)
       : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis, executionPlan, romMode),
     'main.asm': generateMainFile(summary.projectInfo.name, analysis, romMode),

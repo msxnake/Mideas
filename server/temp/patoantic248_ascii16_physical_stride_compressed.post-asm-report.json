@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\patoantic248_ascii16_physical_stride_compressed.asm",
+  "metrics": {
+    "original_line_count": 46288,
+    "output_line_count": 46288,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-21yjswec\\patoantic248_ascii16_physical_stride_compressed.optimized.optimized.rom",
+        "size_bytes": 311296,
+        "sha256": "5d967039ecc5fbd3001a8b4e256507793403634b13e9c9cb49707cd30e7c4755"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-21yjswec\\patoantic248_ascii16_physical_stride_compressed.original.rom",
+        "size_bytes": 311296,
+        "sha256": "5d967039ecc5fbd3001a8b4e256507793403634b13e9c9cb49707cd30e7c4755"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

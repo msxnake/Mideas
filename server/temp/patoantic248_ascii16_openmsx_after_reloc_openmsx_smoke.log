@@ -1,0 +1,13 @@
+BP_4010 pc=4010 sp=F2EC bank=00/04/33/3A flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+space1_before pc=CA29 sp=F6C0 bank=00/00/01/01 flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+space1_after pc=CA29 sp=F6C0 bank=00/00/01/01 flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+space2_before pc=CA29 sp=F6C0 bank=00/00/01/01 flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+space2_after pc=CA29 sp=F6C0 bank=00/00/01/01 flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+t12 pc=CA29 sp=F6C0 bank=00/00/01/01 flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+SHOTOK patoantic248_ascii16_openmsx_after_reloc_t12.png
+right_before pc=CA29 sp=F6C0 bank=00/00/01/01 flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+right_after pc=CA29 sp=F6C0 bank=00/00/01/01 flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+t16 pc=CA29 sp=F6C0 bank=00/00/01/01 flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+SHOTOK patoantic248_ascii16_openmsx_after_reloc_t16.png
+t22 pc=CA29 sp=F6C0 bank=00/00/01/01 flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+SHOTOK patoantic248_ascii16_openmsx_after_reloc_t22.png

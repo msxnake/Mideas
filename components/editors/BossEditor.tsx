@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { Boss, BossBehaviorAction, BossForm, BossPhase, BossPhaseWeakPoint, ProjectAsset, Sprite, Tile, TileBank, TileBankDefinition, BossAttack, BossCrushMovement, BossNeckChain, ContextMenuItem, EditorType } from '../../types';
+import { Boss, BossBehaviorAction, BossForm, BossPhase, BossPhaseWeakPoint, ProjectAsset, ScreenMap, Sprite, Tile, TileBank, TileBankDefinition, BossAttack, BossCrushMovement, BossNeckChain, ContextMenuItem, EditorType } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, CopyIcon, EraserIcon, PasteIcon, PlusCircleIcon, TrashIcon, PencilIcon, ViewfinderCircleIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
@@ -7,7 +7,7 @@ import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { createTileDataURL } from '../utils/screenUtils';
 import { EDITOR_BASE_TILE_DIM_S2, DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, DEFAULT_SCREEN2_FG_COLOR, MSX_SCREEN5_PALETTE, DEFAULT_SCREEN2_BG_COLOR } from '../../constants';
 import { createDefaultLineAttributes } from '../utils/tileUtils';
-import { BossMovementController, BossTileSelection } from './BossMovementController';
+import { BossFireOriginMarker, BossMovementController, BossTileSelection } from './BossMovementController';
 import { BossTilesetPanel } from './BossTilesetPanel';
 import { BossPreviewModal } from '../modals/BossPreviewModal';
 import { BossBehaviorEditor } from './BossBehaviorEditor';
@@ -78,12 +78,19 @@ const SpritePreview: React.FC<{ spriteAssetId: string; allAssets: ProjectAsset[]
     return <img src={canvas.toDataURL()} alt={sprite.name} className="w-6 h-6 object-contain border border-msx-border bg-msx-panelbg flex-shrink-0" style={{ imageRendering: 'pixelated' }} />;
 };
 
-type BossEditMode = 'tiles' | 'collision' | 'weakpoints' | 'neck' | 'behavior';
+type BossEditMode = 'tiles' | 'collision' | 'weakpoints' | 'neck' | 'fireorigin' | 'behavior';
 
 interface CopiedBossTileBlock {
     width: number;
     height: number;
     tileMatrix: (string | null)[][];
+}
+
+interface BossContentBounds {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
 }
 
 const createDefaultBossNeckChain = (): BossNeckChain => ({
@@ -112,14 +119,194 @@ const BOSS_EDIT_MODE_LABELS: Record<BossEditMode, string> = {
     collision: 'Collision',
     weakpoints: 'Weak Points',
     neck: 'Neck',
+    fireorigin: 'Fire Origin',
     behavior: 'Behavior',
 };
 
 const clampNumber = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+const FIRE_ORIGIN_ATTACK_TYPES = new Set<BossAttack['type']>(['Projectile', 'Boomerang', 'Rock', 'SineWave', 'HomingMissile', 'Laser', 'Bomb']);
+
+const supportsFireOrigin = (attack: BossAttack): boolean => FIRE_ORIGIN_ATTACK_TYPES.has(attack.type);
+
+const getAttackOriginCell = (attack: BossAttack, phase: BossPhase | undefined): { x: number; y: number } => {
+    const width = Math.max(1, phase?.dimensions?.width || 1);
+    const height = Math.max(1, phase?.dimensions?.height || 1);
+    const x = Math.round(((attack.spawnOffsetX ?? 0) + (width * 4) - 4) / 8);
+    const y = Math.round(((attack.spawnOffsetY ?? 0) + (height * 4) - 4) / 8);
+    return {
+        x: clampNumber(Number.isFinite(x) ? x : Math.floor(width / 2), 0, width - 1),
+        y: clampNumber(Number.isFinite(y) ? y : Math.floor(height / 2), 0, height - 1),
+    };
+};
+
+const getSpawnOffsetFromOriginCell = (x: number, y: number, phase: BossPhase | undefined): Pick<BossAttack, 'spawnOffsetX' | 'spawnOffsetY'> => {
+    const width = Math.max(1, phase?.dimensions?.width || 1);
+    const height = Math.max(1, phase?.dimensions?.height || 1);
+    return {
+        spawnOffsetX: (clampNumber(x, 0, width - 1) * 8 + 4) - (width * 4),
+        spawnOffsetY: (clampNumber(y, 0, height - 1) * 8 + 4) - (height * 4),
+    };
+};
 
 const getPhaseTileCount = (phase: BossPhase | undefined) => (
     phase?.tileMatrix?.reduce((count, row) => count + row.filter(Boolean).length, 0) ?? 0
 );
+
+const isBlackOrTransparentPixel = (color: string | null | undefined): boolean => {
+    const normalized = String(color || '').replace(/\s/g, '').toLowerCase();
+    return normalized === ''
+        || normalized === '#000'
+        || normalized === '#000000'
+        || normalized === 'transparent'
+        || normalized === 'rgba(0,0,0,0)';
+};
+
+const isVisuallyEmptyTile = (tile: Tile | undefined): boolean => (
+    !!tile && !tile.data.some(row => row.some(pixel => !isBlackOrTransparentPixel(pixel)))
+);
+
+const isContentTileId = (tileId: string | null | undefined, tileById: Map<string, Tile>): boolean => {
+    if (!tileId) return false;
+    const tile = tileById.get(tileId);
+    return !isVisuallyEmptyTile(tile);
+};
+
+const expandBoundsWithTileMatrix = (
+    bounds: BossContentBounds | null,
+    matrix: (string | null)[][] | undefined,
+    tileById: Map<string, Tile>
+): BossContentBounds | null => {
+    let nextBounds = bounds;
+    matrix?.forEach((row, y) => {
+        row.forEach((tileId, x) => {
+            if (!isContentTileId(tileId, tileById)) return;
+            nextBounds = nextBounds
+                ? {
+                    minX: Math.min(nextBounds.minX, x),
+                    minY: Math.min(nextBounds.minY, y),
+                    maxX: Math.max(nextBounds.maxX, x),
+                    maxY: Math.max(nextBounds.maxY, y),
+                }
+                : { minX: x, minY: y, maxX: x, maxY: y };
+        });
+    });
+    return nextBounds;
+};
+
+const getPhaseContentBounds = (phase: BossPhase | undefined, tileById: Map<string, Tile>): BossContentBounds | null => {
+    if (!phase?.dimensions) return null;
+    let bounds: BossContentBounds | null = null;
+    bounds = expandBoundsWithTileMatrix(bounds, phase.tileMatrix, tileById);
+    phase.forms?.forEach(form => {
+        bounds = expandBoundsWithTileMatrix(bounds, form.tileMatrix, tileById);
+    });
+    return bounds;
+};
+
+const getMatrixContentBounds = (matrix: (string | null)[][] | undefined, tileById: Map<string, Tile>): BossContentBounds | null => (
+    expandBoundsWithTileMatrix(null, matrix, tileById)
+);
+
+const boundsContainsBounds = (outer: BossContentBounds, inner: BossContentBounds | null): boolean => (
+    !inner
+    || (
+        inner.minX >= outer.minX
+        && inner.minY >= outer.minY
+        && inner.maxX <= outer.maxX
+        && inner.maxY <= outer.maxY
+    )
+);
+
+const cropNullableMatrix = <T,>(
+    matrix: T[][] | undefined,
+    bounds: BossContentBounds,
+    fallback: T
+): T[][] => {
+    const width = bounds.maxX - bounds.minX + 1;
+    const height = bounds.maxY - bounds.minY + 1;
+    return Array.from({ length: height }, (_, y) => (
+        Array.from({ length: width }, (_, x) => matrix?.[bounds.minY + y]?.[bounds.minX + x] ?? fallback)
+    ));
+};
+
+const cropWeakPointsToBounds = (weakPoints: BossPhaseWeakPoint[] | undefined, bounds: BossContentBounds): BossPhaseWeakPoint[] | undefined => (
+    weakPoints
+        ?.filter(weakPoint => (
+            weakPoint.x >= bounds.minX
+            && weakPoint.y >= bounds.minY
+            && weakPoint.x <= bounds.maxX
+            && weakPoint.y <= bounds.maxY
+        ))
+        .map(weakPoint => ({
+            ...weakPoint,
+            x: weakPoint.x - bounds.minX,
+            y: weakPoint.y - bounds.minY,
+        }))
+);
+
+const cropNeckChainToBounds = (neckChain: BossNeckChain | undefined, bounds: BossContentBounds): BossNeckChain | undefined => (
+    neckChain
+        ? {
+            ...neckChain,
+            segments: neckChain.segments
+                .filter(segment => (
+                    segment.x >= bounds.minX
+                    && segment.y >= bounds.minY
+                    && segment.x <= bounds.maxX
+                    && segment.y <= bounds.maxY
+                ))
+                .map(segment => ({
+                    x: segment.x - bounds.minX,
+                    y: segment.y - bounds.minY,
+                })),
+        }
+        : undefined
+);
+
+const shiftFixedBehaviorTargets = (
+    loop: BossBehaviorAction[] | undefined,
+    dx: number,
+    dy: number
+): BossBehaviorAction[] | undefined => (
+    loop?.map(action => {
+        if (!('target' in action) || action.target?.type !== 'fixed') return action;
+        return {
+            ...action,
+            target: {
+                ...action.target,
+                xChar: (action.target.xChar ?? 0) + dx,
+                yChar: (action.target.yChar ?? 0) + dy,
+            },
+        } as BossBehaviorAction;
+    })
+);
+
+const clonePhaseCollisionMatrix = (phase: BossPhase): boolean[][] => {
+    const width = Math.max(1, phase.dimensions?.width || 1);
+    const height = Math.max(1, phase.dimensions?.height || 1);
+    const source = phase.collisionMatrix || [];
+    return Array.from({ length: height }, (_, y) =>
+        Array.from({ length: width }, (_, x) => Boolean(source[y]?.[x]))
+    );
+};
+
+const isPhaseCollisionMatrixSized = (phase: BossPhase): boolean => {
+    const width = Math.max(1, phase.dimensions?.width || 1);
+    const height = Math.max(1, phase.dimensions?.height || 1);
+    return phase.collisionMatrix?.length === height
+        && phase.collisionMatrix.every(row => row.length === width);
+};
+
+const buildSolidTileCollisionMatrix = (phase: BossPhase, tileById: Map<string, Tile>): boolean[][] => {
+    const width = Math.max(1, phase.dimensions?.width || 1);
+    const height = Math.max(1, phase.dimensions?.height || 1);
+    return Array.from({ length: height }, (_, y) => (
+        Array.from({ length: width }, (_, x) => {
+            const tileId = phase.tileMatrix?.[y]?.[x];
+            return Boolean(tileId && tileById.get(tileId)?.logicalProperties?.isSolid);
+        })
+    ));
+};
 
 type BossBankTileStatus = 'assigned' | 'identical' | 'canAdd' | 'noSpace' | 'missing';
 
@@ -252,7 +439,7 @@ const mirrorLineAttributes = (
  * It includes a grid for tile-based construction, property editors for phases and attacks,
  * and panels for managing the boss's structure and tileset.
  */
-export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAssets, tileBanks, onUpdateTileBank, onNavigateToAsset, onShowContextMenu, currentScreenMode, zoom, setZoom, copiedBossPhase, setCopiedBossPhase }) => {
+export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAssets, onUpdateTileBank, onNavigateToAsset, onShowContextMenu, currentScreenMode, zoom, setZoom, copiedBossPhase, setCopiedBossPhase }) => {
     
     const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(boss.phases[0]?.id || null);
     const [editMode, setEditMode] = useState<BossEditMode>('tiles');
@@ -262,8 +449,20 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [collapsedAttackIds, setCollapsedAttackIds] = useState<Set<string>>(() => new Set());
     const [selectedWeakPointCoord, setSelectedWeakPointCoord] = useState<{ x: number; y: number } | null>(null);
-    const [selectedCompatibilityTileBankId, setSelectedCompatibilityTileBankId] = useState<string>(tileBanks[0]?.id || '');
+    const [selectedFireOriginAttackId, setSelectedFireOriginAttackId] = useState<string | null>(null);
+    const [selectedCompatibilityTileBankId, setSelectedCompatibilityTileBankId] = useState<string>('');
     const bossPackageInputRef = useRef<HTMLInputElement>(null);
+    const projectTileBanks = useMemo<TileBank[]>(() => (
+        allAssets
+            .filter(asset => asset.type === 'tilebank')
+            .map(asset => {
+                const tileBank = asset.data as TileBank | undefined;
+                return tileBank && Array.isArray(tileBank.banks)
+                    ? { ...tileBank, id: tileBank.id || asset.id, name: asset.name || tileBank.name }
+                    : null;
+            })
+            .filter((tileBank): tileBank is TileBank => !!tileBank)
+    ), [allAssets]);
     
     const [assetPickerState, setAssetPickerState] = useState<{
         isOpen: boolean; assetTypeToPick: ProjectAsset['type'] | null;
@@ -283,12 +482,20 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     }, [editMode]);
 
     useEffect(() => {
-        if (!selectedCompatibilityTileBankId && tileBanks[0]?.id) {
-            setSelectedCompatibilityTileBankId(tileBanks[0].id);
-        } else if (selectedCompatibilityTileBankId && !tileBanks.some(tileBank => tileBank.id === selectedCompatibilityTileBankId)) {
-            setSelectedCompatibilityTileBankId(tileBanks[0]?.id || '');
+        if (!selectedFireOriginAttackId) return;
+        const selectedAttack = boss.attacks?.find(attack => attack.id === selectedFireOriginAttackId);
+        if (!selectedAttack || !supportsFireOrigin(selectedAttack)) {
+            setSelectedFireOriginAttackId(null);
         }
-    }, [selectedCompatibilityTileBankId, tileBanks]);
+    }, [boss.attacks, selectedFireOriginAttackId]);
+
+    useEffect(() => {
+        if (!selectedCompatibilityTileBankId && projectTileBanks[0]?.id) {
+            setSelectedCompatibilityTileBankId(projectTileBanks[0].id);
+        } else if (selectedCompatibilityTileBankId && !projectTileBanks.some(tileBank => tileBank.id === selectedCompatibilityTileBankId)) {
+            setSelectedCompatibilityTileBankId(projectTileBanks[0]?.id || '');
+        }
+    }, [selectedCompatibilityTileBankId, projectTileBanks]);
 
     const openAssetPicker = (assetType: ProjectAsset['type'], currentValue: string | undefined, onSelectCallback: (assetId: string) => void) => {
         setAssetPickerState({
@@ -320,7 +527,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                 const { boss: importedBoss, assetsToCreate } = remapBossPackageForImport(packageData, allAssets, {
                     bossId: boss.id,
                     bossName: boss.name,
-                    existingTileBankIds: new Set(tileBanks.map(tileBank => tileBank.id)),
+                    existingTileBankIds: new Set(projectTileBanks.map(tileBank => tileBank.id)),
                 });
                 onUpdate(importedBoss, assetsToCreate);
                 setSelectedPhaseId(importedBoss.phases[0]?.id || null);
@@ -487,6 +694,19 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
         const currentPhase = boss.phases.find(p => p.id === selectedPhaseId);
         if (!currentPhase || currentPhase.buildType !== 'tile') return;
 
+        if (editMode === 'fireorigin') {
+            if (!selectedFireOriginAttackId) return;
+            const originOffsets = getSpawnOffsetFromOriginCell(x, y, currentPhase);
+            onUpdate({
+                attacks: bossAttacks.map(attack => (
+                    attack.id === selectedFireOriginAttackId
+                        ? { ...attack, ...originOffsets }
+                        : attack
+                )),
+            });
+            return;
+        }
+
         const updatedPhases = boss.phases.map(p => {
             if (p.id === selectedPhaseId) {
                 const newPhase = { ...p };
@@ -499,11 +719,9 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                         }
                         break;
                     case 'collision':
-                        const newCollisionMatrix = (newPhase.collisionMatrix || []).map(row => [...row]);
-                        if (newCollisionMatrix[y]) {
-                            newCollisionMatrix[y][x] = !newCollisionMatrix[y][x];
-                            newPhase.collisionMatrix = newCollisionMatrix;
-                        }
+                        const newCollisionMatrix = clonePhaseCollisionMatrix(newPhase);
+                        newCollisionMatrix[y][x] = !newCollisionMatrix[y][x];
+                        newPhase.collisionMatrix = newCollisionMatrix;
                         break;
                     case 'weakpoints':
                         const newWeakPoints = [...(newPhase.weakPoints || [])];
@@ -538,6 +756,34 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
             return p;
         });
         onUpdate({ phases: updatedPhases });
+    };
+
+    const applySolidTilesToCollision = () => {
+        if (!selectedPhaseId) return;
+
+        const updatedPhases = boss.phases.map(phase => {
+            if (phase.id !== selectedPhaseId || phase.buildType !== 'tile') return phase;
+            return {
+                ...phase,
+                collisionMatrix: buildSolidTileCollisionMatrix(phase, tileById),
+            };
+        });
+        onUpdate({ phases: updatedPhases });
+    };
+
+    const handleEditModeChange = (mode: BossEditMode) => {
+        if (mode === 'collision') {
+            const currentPhase = boss.phases.find(phase => phase.id === selectedPhaseId);
+            if (currentPhase?.buildType === 'tile' && !isPhaseCollisionMatrixSized(currentPhase)) {
+                const updatedPhases = boss.phases.map(phase => (
+                    phase.id === selectedPhaseId && phase.buildType === 'tile'
+                        ? { ...phase, collisionMatrix: buildSolidTileCollisionMatrix(phase, tileById) }
+                        : phase
+                ));
+                onUpdate({ phases: updatedPhases });
+            }
+        }
+        setEditMode(mode);
     };
 
     const handleCreateNewTile = (cellX: number, cellY: number) => {
@@ -638,11 +884,51 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const selectedPhase = useMemo(() => boss.phases.find(p => p.id === selectedPhaseId), [boss.phases, selectedPhaseId]);
     const tileset = useMemo(() => allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile), [allAssets]);
     const allTiles = useMemo(() => allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile), [allAssets]);
-    const tileById = useMemo(() => new Map(allTiles.map(tile => [tile.id, tile])), [allTiles]);
+    const tileById = useMemo<Map<string, Tile>>(() => new Map(allTiles.map(tile => [tile.id, tile])), [allTiles]);
     const bossAttacks = boss.attacks || [];
+    const selectedFireOriginAttack = bossAttacks.find(attack => attack.id === selectedFireOriginAttackId) || null;
+    const fireOriginMarkers = useMemo<BossFireOriginMarker[]>(() => (
+        bossAttacks
+            .filter(supportsFireOrigin)
+            .map((attack, index) => {
+                const origin = getAttackOriginCell(attack, selectedPhase);
+                return {
+                    ...origin,
+                    label: String(index + 1),
+                    title: `${attack.name} (${attack.type})`,
+                    selected: attack.id === selectedFireOriginAttackId,
+                };
+            })
+    ), [bossAttacks, selectedFireOriginAttackId, selectedPhase]);
     const selectedNeckChain = selectedPhase?.neckChain || createDefaultBossNeckChain();
     const selectedCrushMovement = selectedPhase?.crushMovement || createDefaultBossCrushMovement();
     const selectedPhaseTileCount = getPhaseTileCount(selectedPhase);
+    const selectedVisibleContentBounds = useMemo(() => getMatrixContentBounds(selectedPhase?.tileMatrix, tileById), [selectedPhase?.tileMatrix, tileById]);
+    const linkedBossPreviewStart = useMemo(() => {
+        if (!boss.linkedScreenId) return null;
+        const linkedScreenAsset = allAssets.find(asset => asset.id === boss.linkedScreenId && asset.type === 'screenmap');
+        const linkedScreen = linkedScreenAsset?.data as ScreenMap | undefined;
+        const linkedBossInstance = linkedScreen?.bossInstances?.find(instance => instance.bossAssetId === boss.id);
+        return linkedBossInstance
+            ? { x: linkedBossInstance.xChar, y: linkedBossInstance.yChar }
+            : null;
+    }, [allAssets, boss.id, boss.linkedScreenId]);
+    const previewStartX = Number.isFinite(boss.behaviorPreviewStartXChar)
+        ? boss.behaviorPreviewStartXChar as number
+        : linkedBossPreviewStart?.x;
+    const previewStartY = Number.isFinite(boss.behaviorPreviewStartYChar)
+        ? boss.behaviorPreviewStartYChar as number
+        : linkedBossPreviewStart?.y;
+    const canTrimSelectedPhase = !!(
+        selectedPhase?.dimensions
+        && selectedVisibleContentBounds
+        && (
+            selectedVisibleContentBounds.minX > 0
+            || selectedVisibleContentBounds.minY > 0
+            || selectedVisibleContentBounds.maxX < selectedPhase.dimensions.width - 1
+            || selectedVisibleContentBounds.maxY < selectedPhase.dimensions.height - 1
+        )
+    );
     const selectedWeakPoints = selectedPhase?.weakPoints || [];
     const selectedWeakPoint = selectedWeakPointCoord
         ? selectedWeakPoints.find(weakPoint => weakPoint.x === selectedWeakPointCoord.x && weakPoint.y === selectedWeakPointCoord.y) || null
@@ -650,7 +936,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
 
     const assignedTileIds = useMemo(() => {
         const assignedTileIds = new Set<string>();
-        tileBanks.forEach(tileBank => {
+        projectTileBanks.forEach(tileBank => {
             tileBank.banks?.forEach(bank => {
                 Object.keys(bank.assignedTiles || {}).forEach(tileId => {
                     assignedTileIds.add(tileId);
@@ -659,13 +945,13 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
         });
 
         return assignedTileIds;
-    }, [tileBanks]);
+    }, [projectTileBanks]);
 
     const showUnassignedTilesWarning = useMemo(() => (
         allTiles.some(tile => tile.width === 8 && tile.height === 8 && !assignedTileIds.has(tile.id))
     ), [allTiles, assignedTileIds]);
 
-    const bossTileBankRequirements = useMemo(() => {
+    const bossTileBankRequirements = useMemo<Map<string, Set<number>>>(() => {
         const requirements = new Map<string, Set<number>>();
         const addRequirement = (tileId: string | null | undefined) => {
             if (!tileId) return;
@@ -694,8 +980,8 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     }, [boss.phases, boss.attacks]);
 
     const selectedCompatibilityTileBank = useMemo(
-        () => tileBanks.find(tileBank => tileBank.id === selectedCompatibilityTileBankId),
-        [tileBanks, selectedCompatibilityTileBankId]
+        () => projectTileBanks.find(tileBank => tileBank.id === selectedCompatibilityTileBankId),
+        [projectTileBanks, selectedCompatibilityTileBankId]
     );
 
     const bossBankCompatibility = useMemo((): BossBankTileCompatibility[] => {
@@ -704,9 +990,10 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
         const tileHashes = new Map(allTiles.map(tile => [tile.id, tileGraphicHash(tile)]));
         const bankAssignedTileIdsByIndex = selectedCompatibilityTileBank.banks.map(bank => new Set(Object.keys(bank.assignedTiles || {})));
 
-        return Array.from(bossTileBankRequirements.entries()).map(([tileId, bankIndexes]) => {
+        const requirementEntries = Array.from(bossTileBankRequirements.entries()) as [string, Set<number>][];
+        return requirementEntries.map(([tileId, bankIndexes]): BossBankTileCompatibility => {
             const tile = tileById.get(tileId);
-            const requiredBankIndexes = Array.from(bankIndexes).sort((a, b) => a - b);
+            const requiredBankIndexes = Array.from(bankIndexes).sort((a: number, b: number) => a - b);
             if (!tile) {
                 return {
                     tileId,
@@ -855,8 +1142,13 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
         const nextX = clampNumber(selection.x + dx, 0, selectedPhase.dimensions.width - selection.width);
         const nextY = clampNumber(selection.y + dy, 0, selectedPhase.dimensions.height - selection.height);
         if (nextX === selection.x && nextY === selection.y) return;
+        const actualDx = nextX - selection.x;
+        const actualDy = nextY - selection.y;
 
-        updateSelectedPhaseTileMatrix(matrix => {
+        const updatedPhases = boss.phases.map(phase => {
+            if (phase.id !== selectedPhaseId || phase.buildType !== 'tile') return phase;
+
+            const matrix = createPhaseTileMatrix(phase);
             const block = Array.from({ length: selection.height }, (_, y) => (
                 Array.from({ length: selection.width }, (_, x) => matrix[selection.y + y]?.[selection.x + x] ?? null)
             ));
@@ -874,7 +1166,21 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                 });
             });
 
-            return nextMatrix;
+            return {
+                ...phase,
+                tileMatrix: nextMatrix,
+                behaviorLoop: shiftFixedBehaviorTargets(phase.behaviorLoop, -actualDx, -actualDy),
+            };
+        });
+
+        onUpdate({
+            phases: updatedPhases,
+            ...(Number.isFinite(previewStartX)
+                ? { behaviorPreviewStartXChar: (previewStartX as number) - actualDx }
+                : {}),
+            ...(Number.isFinite(previewStartY)
+                ? { behaviorPreviewStartYChar: (previewStartY as number) - actualDy }
+                : {}),
         });
         setTileSelection({ ...selection, x: nextX, y: nextY });
     };
@@ -904,26 +1210,93 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const selectFilledTiles = () => {
         if (!selectedPhase?.dimensions) return;
 
-        const matrix = createPhaseTileMatrix(selectedPhase);
-        let minX = selectedPhase.dimensions.width;
-        let minY = selectedPhase.dimensions.height;
-        let maxX = -1;
-        let maxY = -1;
-
-        matrix.forEach((row, y) => {
-            row.forEach((tileId, x) => {
-                if (!tileId) return;
-                minX = Math.min(minX, x);
-                minY = Math.min(minY, y);
-                maxX = Math.max(maxX, x);
-                maxY = Math.max(maxY, y);
-            });
-        });
-
-        setTileSelection(maxX >= minX && maxY >= minY
-            ? { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 }
+        const bounds = getPhaseContentBounds(selectedPhase, tileById);
+        setTileSelection(bounds
+            ? { x: bounds.minX, y: bounds.minY, width: bounds.maxX - bounds.minX + 1, height: bounds.maxY - bounds.minY + 1 }
             : null
         );
+    };
+
+    const trimSelectedPhaseToContent = () => {
+        if (!selectedPhaseId || !selectedPhase?.dimensions || !selectedVisibleContentBounds) return;
+
+        const bounds = selectedVisibleContentBounds;
+        trimSelectedPhaseToBounds(bounds, 'content');
+    };
+
+    const trimSelectedPhaseToSelection = () => {
+        if (!activeTileSelection) return;
+
+        trimSelectedPhaseToBounds({
+            minX: activeTileSelection.x,
+            minY: activeTileSelection.y,
+            maxX: activeTileSelection.x + activeTileSelection.width - 1,
+            maxY: activeTileSelection.y + activeTileSelection.height - 1,
+        }, 'selection');
+    };
+
+    const trimSelectedPhaseToBounds = (bounds: BossContentBounds, source: 'content' | 'selection') => {
+        if (!selectedPhaseId || !selectedPhase?.dimensions) return;
+
+        const nextWidth = bounds.maxX - bounds.minX + 1;
+        const nextHeight = bounds.maxY - bounds.minY + 1;
+        const trimOffsetX = bounds.minX;
+        const trimOffsetY = bounds.minY;
+        const formsWithOutsideTiles = selectedPhase.forms?.filter(form => !boundsContainsBounds(bounds, getMatrixContentBounds(form.tileMatrix, tileById))) || [];
+        if (formsWithOutsideTiles.length > 0) {
+            const shouldTrim = window.confirm(
+                `${source === 'content' ? 'Trim to Content' : 'Trim to Selection'} will crop ${formsWithOutsideTiles.length} form(s) with tiles outside the selected bounds. Continue?`
+            );
+            if (!shouldTrim) return;
+        }
+
+        const nextPreviewStartX = Number.isFinite(previewStartX) ? (previewStartX as number) + trimOffsetX : undefined;
+        const nextPreviewStartY = Number.isFinite(previewStartY) ? (previewStartY as number) + trimOffsetY : undefined;
+
+        const updatedPhases = boss.phases.map(phase => {
+            if (phase.id !== selectedPhaseId || phase.buildType !== 'tile') return phase;
+
+            return {
+                ...phase,
+                dimensions: { width: nextWidth, height: nextHeight },
+                tileMatrix: cropNullableMatrix<string | null>(phase.tileMatrix, bounds, null),
+                collisionMatrix: phase.collisionMatrix
+                    ? cropNullableMatrix<boolean>(phase.collisionMatrix, bounds, false)
+                    : undefined,
+                weakPoints: cropWeakPointsToBounds(phase.weakPoints, bounds),
+                neckChain: cropNeckChainToBounds(phase.neckChain, bounds),
+                behaviorLoop: shiftFixedBehaviorTargets(phase.behaviorLoop, trimOffsetX, trimOffsetY),
+                forms: phase.forms?.map(form => ({
+                    ...form,
+                    dimensions: { width: nextWidth, height: nextHeight },
+                    tileMatrix: cropNullableMatrix<string | null>(form.tileMatrix, bounds, null),
+                    collisionMatrix: form.collisionMatrix
+                        ? cropNullableMatrix<boolean>(form.collisionMatrix, bounds, false)
+                        : undefined,
+                    weakPoints: cropWeakPointsToBounds(form.weakPoints, bounds),
+                })),
+            };
+        });
+
+        const shiftedWeakPointCoord = selectedWeakPointCoord
+            && selectedWeakPointCoord.x >= bounds.minX
+            && selectedWeakPointCoord.y >= bounds.minY
+            && selectedWeakPointCoord.x <= bounds.maxX
+            && selectedWeakPointCoord.y <= bounds.maxY
+            ? { x: selectedWeakPointCoord.x - bounds.minX, y: selectedWeakPointCoord.y - bounds.minY }
+            : null;
+
+        onUpdate({
+            phases: updatedPhases,
+            ...(Number.isFinite(nextPreviewStartX)
+                ? { behaviorPreviewStartXChar: nextPreviewStartX }
+                : {}),
+            ...(Number.isFinite(nextPreviewStartY)
+                ? { behaviorPreviewStartYChar: nextPreviewStartY }
+                : {}),
+        });
+        setSelectedWeakPointCoord(shiftedWeakPointCoord);
+        setTileSelection({ x: 0, y: 0, width: nextWidth, height: nextHeight });
     };
 
     const activeTileSelection = getClampedTileSelection();
@@ -967,21 +1340,30 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
         for (const item of bossBankCompatibility) {
             if (item.status !== 'canAdd') continue;
             const tile = tileById.get(item.tileId);
-            if (!tile || item.charCode === undefined) continue;
+            if (!tile) continue;
+
+            const requiredBanks = item.requiredBankIndexes
+                .map(bankIndex => nextBanks[bankIndex])
+                .filter((bank): bank is TileBankDefinition => !!bank);
+            const nextCharCode = findSharedAvailableCharBlock(requiredBanks, tileById, item.tileId, item.charsNeeded);
+            if (nextCharCode === -1) {
+                window.alert(`Cannot merge: tile "${item.tileName}" no longer fits in the selected banks.`);
+                return;
+            }
 
             for (const bankIndex of item.requiredBankIndexes) {
                 const bank = nextBanks[bankIndex];
                 if (!bank) continue;
 
-                if (!isCharBlockAvailableInBank(bank, tileById, item.tileId, item.charCode, item.charsNeeded)) {
+                if (!isCharBlockAvailableInBank(bank, tileById, item.tileId, nextCharCode, item.charsNeeded)) {
                     window.alert(`Cannot merge: tile "${item.tileName}" no longer fits in bank ${bankIndex}.`);
                     return;
                 }
 
                 const previousCharCode = Number((bank.assignedTiles[item.tileId] as any)?.charCode);
-                bank.assignedTiles[item.tileId] = { charCode: item.charCode };
+                bank.assignedTiles[item.tileId] = { charCode: nextCharCode };
                 if (Number.isFinite(previousCharCode)) {
-                    if (previousCharCode !== item.charCode) repairedCount++;
+                    if (previousCharCode !== nextCharCode) repairedCount++;
                 } else {
                     assignedCount++;
                 }
@@ -1020,6 +1402,64 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const handleUpdateAttack = (attackId: string, field: keyof BossAttack, value: any) => {
         const updatedAttacks = bossAttacks.map(a => a.id === attackId ? { ...a, [field]: value } : a);
         onUpdate({ attacks: updatedAttacks });
+    };
+
+    const handleUpdateAttackOriginCell = (attackId: string, x: number, y: number) => {
+        const originOffsets = getSpawnOffsetFromOriginCell(x, y, selectedPhase);
+        const updatedAttacks = bossAttacks.map(attack => (
+            attack.id === attackId ? { ...attack, ...originOffsets } : attack
+        ));
+        onUpdate({ attacks: updatedAttacks });
+    };
+
+    const renderFireOriginControls = (attack: BossAttack) => {
+        if (!supportsFireOrigin(attack)) return null;
+        const width = Math.max(1, selectedPhase?.dimensions?.width || 1);
+        const height = Math.max(1, selectedPhase?.dimensions?.height || 1);
+        const origin = getAttackOriginCell(attack, selectedPhase);
+
+        return (
+            <div className="col-span-2 rounded border border-orange-400/30 bg-orange-400/10 p-2">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="text-orange-300">Fire origin</span>
+                    <Button
+                        size="sm"
+                        variant={selectedFireOriginAttackId === attack.id && editMode === 'fireorigin' ? 'secondary' : 'ghost'}
+                        icon={<ViewfinderCircleIcon className="w-3 h-3" />}
+                        onClick={() => {
+                            setSelectedFireOriginAttackId(attack.id);
+                            setEditMode('fireorigin');
+                        }}
+                    >
+                        Pick
+                    </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <div>
+                        <label className="block text-msx-textsecondary">Origin X tile:</label>
+                        <input
+                            type="number"
+                            min="0"
+                            max={width - 1}
+                            value={origin.x}
+                            onChange={e => handleUpdateAttackOriginCell(attack.id, Math.max(0, Math.min(width - 1, parseInt(e.target.value) || 0)), origin.y)}
+                            className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-msx-textsecondary">Origin Y tile:</label>
+                        <input
+                            type="number"
+                            min="0"
+                            max={height - 1}
+                            value={origin.y}
+                            onChange={e => handleUpdateAttackOriginCell(attack.id, origin.x, Math.max(0, Math.min(height - 1, parseInt(e.target.value) || 0)))}
+                            className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                        />
+                    </div>
+                </div>
+            </div>
+        );
     };
 
     const handleAddAttack = () => {
@@ -1347,7 +1787,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                             {(Object.keys(BOSS_EDIT_MODE_LABELS) as BossEditMode[]).map(mode => (
                                 <Button
                                     key={mode}
-                                    onClick={() => setEditMode(mode)}
+                                    onClick={() => handleEditModeChange(mode)}
                                     variant={editMode === mode ? 'secondary' : 'ghost'}
                                     size="sm"
                                     disabled={!selectedPhase || (mode !== 'behavior' && selectedPhase.buildType !== 'tile')}
@@ -1387,6 +1827,20 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                         <Button onClick={pasteTileSelection} variant="ghost" size="sm" icon={<PasteIcon className="w-3 h-3" />} disabled={!copiedBossTileBlock}>Paste</Button>
                                         <Button onClick={clearTileSelection} variant="ghost" size="sm" icon={<EraserIcon className="w-3 h-3" />} disabled={!activeTileSelection}>Clear</Button>
                                         <Button onClick={selectFilledTiles} variant="ghost" size="sm" disabled={selectedPhaseTileCount === 0}>Select Filled</Button>
+                                        <Button onClick={trimSelectedPhaseToContent} variant="secondary" size="sm" disabled={!canTrimSelectedPhase}>Trim to Content</Button>
+                                        <Button onClick={trimSelectedPhaseToSelection} variant="secondary" size="sm" disabled={!activeTileSelection}>Trim to Selection</Button>
+                                    </div>
+                                )}
+                                {editMode === 'collision' && (
+                                    <div className="flex flex-wrap items-center gap-1 text-xs">
+                                        <Button onClick={applySolidTilesToCollision} variant="ghost" size="sm" disabled={selectedPhaseTileCount === 0}>Use Solid Tiles</Button>
+                                    </div>
+                                )}
+                                {editMode === 'fireorigin' && (
+                                    <div className="flex flex-wrap items-center gap-1 text-xs text-msx-textsecondary">
+                                        <span>
+                                            Attack: {selectedFireOriginAttack ? `${selectedFireOriginAttack.name} (${selectedFireOriginAttack.type})` : 'select one in Attacks'}
+                                        </span>
                                     </div>
                                 )}
                                 <BossMovementController
@@ -1400,6 +1854,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                     selectionEnabled={editMode === 'tiles'}
                                     tileSelection={tileSelection}
                                     onTileSelectionChange={setTileSelection}
+                                    fireOriginMarkers={fireOriginMarkers}
                                 />
                             </div>
                         ) : selectedPhase && selectedPhase.buildType === 'sprite' ? (
@@ -1443,21 +1898,6 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                 />
                                 <p className="text-[10px] leading-snug text-msx-textsecondary">1 = fastest. 2-4 reduces MSX slowdown by updating Boss movement/redraw less often.</p>
                             </div>
-                            <div>
-                                <label className="block text-msx-textsecondary mt-2">Preview Screen:</label>
-                                <select
-                                    value={boss.linkedScreenId || ''}
-                                    onChange={e => handleUpdateField('linkedScreenId', e.target.value || null)}
-                                    className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
-                                >
-                                    <option value="">None</option>
-                                    {allAssets.filter(a => a.type === 'screenmap').map(screen => (
-                                        <option key={screen.id} value={screen.id}>
-                                            {screen.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
                             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-msx-border/40">
                                 <Button onClick={handleExportBossPackage} variant="secondary" size="sm" icon={<SaveIcon className="w-3 h-3" />}>
                                     Export Boss
@@ -1481,7 +1921,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                     className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
                                 >
                                     <option value="">Select Bank...</option>
-                                    {tileBanks.map(tileBank => (
+                                    {projectTileBanks.map(tileBank => (
                                         <option key={tileBank.id} value={tileBank.id}>{tileBank.name}</option>
                                     ))}
                                 </select>
@@ -1577,7 +2017,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                             <label className="block text-xs text-msx-textsecondary mb-1">Tile Bank:</label>
                                             <select value={selectedPhase.tileBankId || ''} onChange={e => handleUpdatePhase(selectedPhaseId!, 'tileBankId', e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded">
                                                 <option value="">Select Bank...</option>
-                                                {tileBanks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                                {projectTileBanks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                             </select>
                                         </div>
                                         <div className="space-y-2 pt-2 border-t border-msx-border/30">
@@ -1771,13 +2211,14 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                         </div>
                                     </>
                                 )}
-                                 <div className="flex items-center space-x-1 pt-2 border-t border-msx-border/30">
+                                <div className="flex items-center space-x-1 pt-2 border-t border-msx-border/30">
                                     <span className="text-msx-textsecondary">Mode:</span>
-                                    <Button onClick={() => setEditMode('tiles')} variant={editMode === 'tiles' ? 'secondary' : 'ghost'} size="sm">Graphic</Button>
-                                    <Button onClick={() => setEditMode('collision')} variant={editMode === 'collision' ? 'secondary' : 'ghost'} size="sm">Collision</Button>
-                                    <Button onClick={() => setEditMode('weakpoints')} variant={editMode === 'weakpoints' ? 'secondary' : 'ghost'} size="sm">Weak Points</Button>
-                                    <Button onClick={() => setEditMode('neck')} variant={editMode === 'neck' ? 'secondary' : 'ghost'} size="sm">Neck</Button>
-                                    <Button onClick={() => setEditMode('behavior')} variant={editMode === 'behavior' ? 'secondary' : 'ghost'} size="sm">Behavior</Button>
+                                    <Button onClick={() => handleEditModeChange('tiles')} variant={editMode === 'tiles' ? 'secondary' : 'ghost'} size="sm">Graphic</Button>
+                                    <Button onClick={() => handleEditModeChange('collision')} variant={editMode === 'collision' ? 'secondary' : 'ghost'} size="sm">Collision</Button>
+                                    <Button onClick={() => handleEditModeChange('weakpoints')} variant={editMode === 'weakpoints' ? 'secondary' : 'ghost'} size="sm">Weak Points</Button>
+                                    <Button onClick={() => handleEditModeChange('neck')} variant={editMode === 'neck' ? 'secondary' : 'ghost'} size="sm">Neck</Button>
+                                    <Button onClick={() => handleEditModeChange('fireorigin')} variant={editMode === 'fireorigin' ? 'secondary' : 'ghost'} size="sm">Fire Origin</Button>
+                                    <Button onClick={() => handleEditModeChange('behavior')} variant={editMode === 'behavior' ? 'secondary' : 'ghost'} size="sm">Behavior</Button>
                                 </div>
                                 <div className="flex items-center space-x-2 pt-2 border-t border-msx-border/30">
                                     <label htmlFor="boss-zoom" className="text-msx-textsecondary text-xs whitespace-nowrap">Zoom:</label>
@@ -1989,12 +2430,13 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                                                 <input type="number" min="1" max="16" value={attack.homingTurnStep ?? 2} onChange={e => handleUpdateAttack(attack.id, 'homingTurnStep', Math.max(1, parseInt(e.target.value) || 1))} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                                                             </div>
                                                         )}
+                                                        {renderFireOriginControls(attack)}
                                                         <div>
-                                                            <label className="block text-msx-textsecondary">Offset X:</label>
+                                                            <label className="block text-msx-textsecondary">Fine X px:</label>
                                                             <input type="number" value={attack.spawnOffsetX ?? 0} onChange={e => handleUpdateAttack(attack.id, 'spawnOffsetX', parseInt(e.target.value) || 0)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                                                         </div>
                                                         <div>
-                                                            <label className="block text-msx-textsecondary">Offset Y:</label>
+                                                            <label className="block text-msx-textsecondary">Fine Y px:</label>
                                                             <input type="number" value={attack.spawnOffsetY ?? 0} onChange={e => handleUpdateAttack(attack.id, 'spawnOffsetY', parseInt(e.target.value) || 0)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                                                         </div>
                                                     </div>
@@ -2216,12 +2658,13 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                                             <label className="block text-msx-textsecondary">Cooldown ms:</label>
                                                             <input type="number" min="100" step="50" value={attack.cooldown ?? 1200} onChange={e => handleUpdateAttack(attack.id, 'cooldown', parseInt(e.target.value) || 100)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                                                         </div>
+                                                        {renderFireOriginControls(attack)}
                                                         <div>
-                                                            <label className="block text-msx-textsecondary">Offset X:</label>
+                                                            <label className="block text-msx-textsecondary">Fine X px:</label>
                                                             <input type="number" value={attack.spawnOffsetX ?? 0} onChange={e => handleUpdateAttack(attack.id, 'spawnOffsetX', parseInt(e.target.value) || 0)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                                                         </div>
                                                         <div>
-                                                            <label className="block text-msx-textsecondary">Offset Y:</label>
+                                                            <label className="block text-msx-textsecondary">Fine Y px:</label>
                                                             <input type="number" value={attack.spawnOffsetY ?? 0} onChange={e => handleUpdateAttack(attack.id, 'spawnOffsetY', parseInt(e.target.value) || 0)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                                                         </div>
                                                     </div>
@@ -2290,12 +2733,13 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                                             <label className="block text-msx-textsecondary">Cooldown ms:</label>
                                                             <input type="number" min="100" step="50" value={attack.cooldown ?? 1500} onChange={e => handleUpdateAttack(attack.id, 'cooldown', parseInt(e.target.value) || 100)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                                                         </div>
+                                                        {renderFireOriginControls(attack)}
                                                         <div>
-                                                            <label className="block text-msx-textsecondary">Center X:</label>
+                                                            <label className="block text-msx-textsecondary">Fine X px:</label>
                                                             <input type="number" value={attack.spawnOffsetX ?? 0} onChange={e => handleUpdateAttack(attack.id, 'spawnOffsetX', parseInt(e.target.value) || 0)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                                                         </div>
                                                         <div>
-                                                            <label className="block text-msx-textsecondary">Center Y:</label>
+                                                            <label className="block text-msx-textsecondary">Fine Y px:</label>
                                                             <input type="number" value={attack.spawnOffsetY ?? 0} onChange={e => handleUpdateAttack(attack.id, 'spawnOffsetY', parseInt(e.target.value) || 0)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                                                         </div>
                                                     </div>

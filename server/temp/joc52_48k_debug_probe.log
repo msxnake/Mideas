@@ -1,0 +1,8 @@
+start pc=0 sp=65535 a8=ERR romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255
+t1 pc=33053 sp=62198 a8=ERR romslot=0 primary=0 bios0=0 page3=0 flow=0 exit=0 screen=51
+t4 pc=16657 sp=62316 a8=ERR romslot=1 primary=212 bios0=0 page3=131 flow=0 exit=0 screen=0
+bp_page0_copy_to_ram pc=39960 sp=62322 a8=ERR romslot=1 primary=212 bios0=0 page3=131 flow=0 exit=0 screen=0
+bp_page0_map_game_rom pc=39878 sp=62312 a8=ERR romslot=1 primary=212 bios0=0 page3=131 flow=0 exit=0 screen=0
+bp_page0_restore_bios_rom pc=39885 sp=62314 a8=ERR romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255
+space1 pc=12 sp=65534 a8=ERR romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255
+t10 pc=18 sp=65530 a8=ERR romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255

@@ -1,5 +1,6 @@
 
 import { ProjectAsset, TileBank, Tile, ScreenMap } from '../../types';
+import { resolveTileAssignmentCharCode } from '../../utils/tileBankOptimization';
 
 interface ProjectState {
     assets: ProjectAsset[];
@@ -89,19 +90,17 @@ const resolveMacro = (macroName: string, param: string, state: ProjectState): st
                 if (tileAsset) {
                     const tile = tileAsset.data as Tile;
                     const tileLabel = toAsmLabel(tile.name);
-                    const baseCharCode = assignment.charCode;
-                    
                     const widthInChars = Math.ceil(tile.width / EDITOR_BASE_TILE_DIM_S2);
                     const heightInChars = Math.ceil(tile.height / EDITOR_BASE_TILE_DIM_S2);
                     const numChars = widthInChars * heightInChars;
 
                     if (numChars === 1) {
-                        asmOutput += `${tileLabel}_CHAR EQU ${baseCharCode}\n`;
+                        asmOutput += `${tileLabel}_CHAR EQU ${resolveTileAssignmentCharCode(assignment as any, tile, 0, 0) ?? 0}\n`;
                     } else {
-                         asmOutput += `${tileLabel}_BASE_CHAR EQU ${baseCharCode}\n`;
+                         asmOutput += `${tileLabel}_BASE_CHAR EQU ${assignment.charCode}\n`;
                          for (let y = 0; y < heightInChars; y++) {
                              for (let x = 0; x < widthInChars; x++) {
-                                 asmOutput += `${tileLabel}_${y}_${x}_CHAR EQU ${baseCharCode + (y * widthInChars) + x}\n`;
+                                 asmOutput += `${tileLabel}_${y}_${x}_CHAR EQU ${resolveTileAssignmentCharCode(assignment as any, tile, x, y) ?? 0}\n`;
                              }
                          }
                     }

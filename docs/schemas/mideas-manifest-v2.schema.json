@@ -1,0 +1,386 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mideas.local/schemas/mideas-manifest-v2.schema.json",
+  "title": "Mideas Manifest v2",
+  "type": "object",
+  "required": [
+    "schema",
+    "build_id",
+    "entry_point",
+    "boot_reserved_size",
+    "cartridge",
+    "layout",
+    "groups",
+    "resources",
+    "verification"
+  ],
+  "properties": {
+    "schema": {
+      "const": "mideas.manifest/2"
+    },
+    "build_id": {
+      "type": "string",
+      "pattern": "^mideas-v2:[0-9a-f]{8}$"
+    },
+    "entry_point": {
+      "$ref": "#/$defs/hexAddress"
+    },
+    "boot_reserved_size": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cartridge": {
+      "type": "object",
+      "required": [
+        "mapper",
+        "bank_size",
+        "banks",
+        "data_window"
+      ],
+      "properties": {
+        "mapper": {
+          "enum": [
+            "KONAMI8K",
+            "ASCII8",
+            "ASCII16"
+          ]
+        },
+        "bank_size": {
+          "enum": [
+            8192,
+            16384
+          ]
+        },
+        "banks": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "data_window": {
+          "type": "object",
+          "required": [
+            "page",
+            "base",
+            "mask",
+            "bank_divisor"
+          ],
+          "properties": {
+            "page": {
+              "enum": [
+                "p2",
+                "p3"
+              ]
+            },
+            "base": {
+              "$ref": "#/$defs/hexAddress"
+            },
+            "mask": {
+              "$ref": "#/$defs/hexAddress"
+            },
+            "bank_divisor": {
+              "$ref": "#/$defs/hexAddress"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "layout": {
+      "type": "object",
+      "required": [
+        "policy",
+        "file_offset_rule",
+        "data_start_address",
+        "total_source_bytes"
+      ],
+      "properties": {
+        "policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "file_offset_rule": {
+          "const": "file_offset = rom_bank_index * bank_size + bank_offset"
+        },
+        "data_start_address": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_source_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "groups": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "fixed_bank": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lifetime": {
+            "$ref": "#/$defs/lifetime"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/resource"
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": [
+        "algorithm",
+        "banks",
+        "expected_ram_dumps"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "fnv1a32-resource-metadata"
+        },
+        "banks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "bank",
+              "verification"
+            ],
+            "properties": {
+              "bank": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "verification": {
+                "$ref": "#/$defs/bankVerification"
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "expected_ram_dumps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "addr",
+              "len",
+              "sha256"
+            ],
+            "properties": {
+              "addr": {
+                "$ref": "#/$defs/hexAddress"
+              },
+              "len": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{64}$"
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "hexAddress": {
+      "type": "string",
+      "pattern": "^(#|0x)[0-9A-Fa-f]+$"
+    },
+    "lifetime": {
+      "enum": [
+        "persistent",
+        "stream"
+      ]
+    },
+    "resource": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "group",
+        "symbol",
+        "resource_id_symbol",
+        "lifetime",
+        "compress",
+        "runtime_target",
+        "placement",
+        "size",
+        "flags"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$"
+        },
+        "group": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$"
+        },
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "symbol": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+        },
+        "resource_id_symbol": {
+          "type": "string",
+          "pattern": "^RESOURCE_ID_[A-Z0-9_]+$"
+        },
+        "lifetime": {
+          "$ref": "#/$defs/lifetime"
+        },
+        "compress": {
+          "enum": [
+            "none",
+            "zx0"
+          ]
+        },
+        "decompressor": {
+          "enum": [
+            "zx0"
+          ]
+        },
+        "decompress_target": {
+          "$ref": "#/$defs/runtimeTarget"
+        },
+        "runtime_target": {
+          "$ref": "#/$defs/runtimeTarget"
+        },
+        "placement": {
+          "$ref": "#/$defs/placement"
+        },
+        "size": {
+          "type": "object",
+          "required": [
+            "stored",
+            "uncompressed"
+          ],
+          "properties": {
+            "stored": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "uncompressed": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": true
+        },
+        "flags": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "runtimeTarget": {
+      "enum": [
+        "RAM",
+        "VRAM"
+      ]
+    },
+    "placement": {
+      "type": "object",
+      "required": [
+        "bank_index",
+        "rom_bank_index",
+        "window",
+        "window_address",
+        "bank_offset",
+        "file_offset",
+        "physical_address",
+        "align"
+      ],
+      "properties": {
+        "bank_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rom_bank_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "window": {
+          "$ref": "#/$defs/hexAddress"
+        },
+        "window_address": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bank_offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "file_offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "physical_address": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "align": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "bankVerification": {
+      "type": "object",
+      "required": [
+        "algorithm",
+        "metadataChecksum",
+        "resourceCount",
+        "storedBytes"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "fnv1a32-resource-metadata"
+        },
+        "metadataChecksum": {
+          "type": "string",
+          "pattern": "^fnv1a32:[0-9A-F]{8}$"
+        },
+        "resourceCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "storedBytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

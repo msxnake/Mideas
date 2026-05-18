@@ -10,7 +10,8 @@ import {
 import { Button } from '../common/Button';
 import {
   PatternBrushIcon, TilesetIcon as SplitIcon, CopyIcon, PasteIcon, SparklesIcon,
-  ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, SwapHorizIcon, SwapVertIcon
+  ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, SwapHorizIcon, SwapVertIcon,
+  GridIcon
 } from '../icons/MsxIcons';
 import { PngIcon } from '../icons/PngIcon';
 import pencilImg from '../../src/assets/icons/pencil.png';
@@ -135,6 +136,9 @@ interface PixelGridProps {
   onGridInteraction: (point: Point, isRightClick: boolean) => void;
   pixelSize?: number;
   showCenterGuide?: boolean;
+  showGrid8x8?: boolean;
+  selectedGrid8x8Cell?: Point | null;
+  selectedGrid8x8Cells?: Point[];
   currentScreenMode: string;
   symmetrySettings: SymmetrySettings;
   currentTool: DrawingTool;
@@ -146,7 +150,7 @@ interface PixelGridProps {
  */
 const PixelGrid: React.FC<PixelGridProps> = ({
   pixelData, tileWidth, tileHeight, lineAttributes, onGridInteraction,
-  pixelSize = 20, showCenterGuide, currentScreenMode, symmetrySettings, currentTool
+  pixelSize = 20, showCenterGuide, showGrid8x8, selectedGrid8x8Cell, selectedGrid8x8Cells, currentScreenMode, symmetrySettings, currentTool
 }) => {
   const [isMouseDown, setIsMouseDown] = useState(false);
   const [isRightMBDown, setIsRightMBDown] = useState(false);
@@ -219,6 +223,59 @@ const PixelGrid: React.FC<PixelGridProps> = ({
     }
   }
 
+  const grid8x8Lines = [];
+  if (showGrid8x8) {
+    const dashedLineColor = 'rgba(255, 255, 255, 0.65)';
+    const dashedLinePatternV = `repeating-linear-gradient(to bottom, ${dashedLineColor} 0 4px, transparent 4px 8px)`;
+    const dashedLinePatternH = `repeating-linear-gradient(to right, ${dashedLineColor} 0 4px, transparent 4px 8px)`;
+
+    for (let i = 8; i < tileWidth; i += 8) {
+      grid8x8Lines.push(
+        <div
+          key={`grid8-v-${i}`}
+          className="absolute pointer-events-none"
+          style={{ left: i * pixelSize - 1, top: 0, width: 2, height: '100%', backgroundImage: dashedLinePatternV, zIndex: 20 }}
+        />
+      );
+    }
+    for (let i = 8; i < tileHeight; i += 8) {
+      grid8x8Lines.push(
+        <div
+          key={`grid8-h-${i}`}
+          className="absolute pointer-events-none"
+          style={{ top: i * pixelSize - 1, left: 0, height: 2, width: '100%', backgroundImage: dashedLinePatternH, zIndex: 20 }}
+        />
+      );
+    }
+  }
+
+  const selectedGrid8x8OverlayCells = selectedGrid8x8Cells && selectedGrid8x8Cells.length > 0
+    ? selectedGrid8x8Cells
+    : selectedGrid8x8Cell
+      ? [selectedGrid8x8Cell]
+      : [];
+  const selectedGrid8x8Overlays = selectedGrid8x8OverlayCells.map((cell) => {
+        const startX = cell.x * EDITOR_BASE_TILE_DIM_S2;
+        const startY = cell.y * EDITOR_BASE_TILE_DIM_S2;
+        if (startX >= tileWidth || startY >= tileHeight) return null;
+        const cellWidth = Math.min(EDITOR_BASE_TILE_DIM_S2, tileWidth - startX);
+        const cellHeight = Math.min(EDITOR_BASE_TILE_DIM_S2, tileHeight - startY);
+        return (
+          <div
+            key={`selected-grid8-${cell.x}-${cell.y}`}
+            className="absolute pointer-events-none border-2 border-msx-highlight"
+            style={{
+              left: startX * pixelSize,
+              top: startY * pixelSize,
+              width: cellWidth * pixelSize,
+              height: cellHeight * pixelSize,
+              zIndex: 30,
+              boxShadow: '0 0 0 1px rgba(0,0,0,0.65) inset',
+            }}
+          />
+        );
+      });
+
 
   return (
     <div
@@ -257,6 +314,8 @@ const PixelGrid: React.FC<PixelGridProps> = ({
           );
         })
       )}
+      {grid8x8Lines}
+      {selectedGrid8x8Overlays}
     </div>
   );
 };
@@ -1330,6 +1389,38 @@ const defaultLogicalProps: TileLogicalProperties = {
   isInteractable: false, interactionType: 'none', interactionValue: 1, interactionTarget: '',
 };
 
+type LogicalEditScope = 'tile' | 'char';
+
+const getTileCharKey = (charX: number, charY: number): string => `${charX},${charY}`;
+
+const cloneLogicalProperties = (props?: TileLogicalProperties | null): TileLogicalProperties => ({
+  ...(props || defaultLogicalProps),
+});
+
+const logicalPropertiesEqual = (a?: TileLogicalProperties | null, b?: TileLogicalProperties | null): boolean => (
+  JSON.stringify(a || defaultLogicalProps) === JSON.stringify(b || defaultLogicalProps)
+);
+
+const trimCharLogicalPropertiesForDimensions = (
+  charLogicalProperties: Record<string, TileLogicalProperties> | undefined,
+  width: number,
+  height: number
+): Record<string, TileLogicalProperties> | undefined => {
+  if (!charLogicalProperties) return undefined;
+  const cols = Math.max(1, Math.ceil(width / EDITOR_BASE_TILE_DIM_S2));
+  const rows = Math.max(1, Math.ceil(height / EDITOR_BASE_TILE_DIM_S2));
+  const next: Record<string, TileLogicalProperties> = {};
+
+  Object.entries(charLogicalProperties).forEach(([key, value]) => {
+    const [x, y] = key.split(',').map(Number);
+    if (Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < cols && y < rows) {
+      next[key] = cloneLogicalProperties(value);
+    }
+  });
+
+  return Object.keys(next).length > 0 ? next : undefined;
+};
+
 const DEFAULT_TILE_ANIMATION_SPEED = 8;
 
 const clampInt = (value: number, min: number, max: number, fallback: number): number => {
@@ -1538,6 +1629,10 @@ export const TileEditor: React.FC<TileEditorProps> = ({
   zoom, setZoom, onSelectGlobalColor
 }) => {
   const [showCenterGuide, setShowCenterGuide] = useState(true);
+  const [showGrid8x8, setShowGrid8x8] = useState(false);
+  const [logicalEditScope, setLogicalEditScope] = useState<LogicalEditScope>('tile');
+  const [selectedLogicalChar, setSelectedLogicalChar] = useState<Point>({ x: 0, y: 0 });
+  const [selectedLogicalChars, setSelectedLogicalChars] = useState<Point[]>([{ x: 0, y: 0 }]);
   const [copiedAttribute, setCopiedAttribute] = useState<LineColorAttribute | null>(null);
   const [symmetrySettings, setSymmetrySettings] = useState<SymmetrySettings>({
     horizontal: false,
@@ -1560,6 +1655,8 @@ export const TileEditor: React.FC<TileEditorProps> = ({
   const [isAnimationPreviewPlaying, setIsAnimationPreviewPlaying] = useState(true);
   const [animationPreviewFrameIndex, setAnimationPreviewFrameIndex] = useState(0);
   const [animationTransformCheckpoint, setAnimationTransformCheckpoint] = useState(0);
+  const [splitWidth, setSplitWidth] = useState(8);
+  const [splitHeight, setSplitHeight] = useState(8);
 
   // Collapsible left-column sections
   const [leftPanelOpen, setLeftPanelOpen] = useState<Record<string, boolean>>({
@@ -1572,9 +1669,83 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     setLeftPanelOpen(prev => ({ ...prev, [key]: !prev[key] }));
 
   const isScreen2 = currentScreenMode === "SCREEN 2 (Graphics I)";
+  const tileCharColumns = Math.max(1, Math.ceil(tile.width / EDITOR_BASE_TILE_DIM_S2));
+  const tileCharRows = Math.max(1, Math.ceil(tile.height / EDITOR_BASE_TILE_DIM_S2));
+  const tileCharTotal = tileCharColumns * tileCharRows;
+  const selectedLogicalCharKey = getTileCharKey(selectedLogicalChar.x, selectedLogicalChar.y);
+  const selectedLogicalCharKeys = useMemo(() => {
+    const keys = new Set<string>();
+    selectedLogicalChars.forEach(({ x, y }) => {
+      if (x >= 0 && y >= 0 && x < tileCharColumns && y < tileCharRows) {
+        keys.add(getTileCharKey(x, y));
+      }
+    });
+    if (keys.size === 0) keys.add(selectedLogicalCharKey);
+    return Array.from(keys);
+  }, [selectedLogicalChars, selectedLogicalCharKey, tileCharColumns, tileCharRows]);
+  const selectedLogicalCharCells = useMemo(
+    () => selectedLogicalCharKeys.map(key => {
+      const [x, y] = key.split(',').map(Number);
+      return { x, y };
+    }),
+    [selectedLogicalCharKeys]
+  );
+  const selectedGroupHasOverride = useMemo(
+    () => selectedLogicalCharKeys.some(key => !!tile.charLogicalProperties?.[key]),
+    [selectedLogicalCharKeys, tile.charLogicalProperties]
+  );
+  const selectedCharLogicalOverride = tile.charLogicalProperties?.[selectedLogicalCharKey];
+  const activeLogicalProperties = useMemo(
+    () => logicalEditScope === 'char'
+      ? cloneLogicalProperties(selectedCharLogicalOverride || tile.logicalProperties)
+      : cloneLogicalProperties(tile.logicalProperties),
+    [logicalEditScope, selectedCharLogicalOverride, tile.logicalProperties]
+  );
+  const charOverrideCount = useMemo(
+    () => Object.keys(trimCharLogicalPropertiesForDimensions(tile.charLogicalProperties, tile.width, tile.height) || {}).length,
+    [tile.charLogicalProperties, tile.width, tile.height]
+  );
+  const splitWidthOptions = useMemo(
+    () => EDITABLE_TILE_DIMENSIONS.filter(d => d <= tile.width && tile.width % d === 0),
+    [tile.width]
+  );
+  const splitHeightOptions = useMemo(
+    () => EDITABLE_TILE_DIMENSIONS.filter(d => d <= tile.height && tile.height % d === 0),
+    [tile.height]
+  );
   const { slots: screen5PaletteSlots, changed: screen5PaletteChanged } = useMemo(() => ensureScreen5PaletteSlots(tile.screen5Palette), [tile.screen5Palette]);
   const screen5PaletteForPicker = useMemo(() => screen5SlotsToMsxColors(screen5PaletteSlots), [screen5PaletteSlots]);
   const [activeScreen5PaletteSlot, setActiveScreen5PaletteSlot] = useState(1);
+
+  useEffect(() => {
+    if (!splitWidthOptions.includes(splitWidth)) {
+      setSplitWidth(splitWidthOptions[0] ?? 8);
+    }
+  }, [splitWidth, splitWidthOptions]);
+
+  useEffect(() => {
+    if (!splitHeightOptions.includes(splitHeight)) {
+      setSplitHeight(splitHeightOptions[0] ?? 8);
+    }
+  }, [splitHeight, splitHeightOptions]);
+
+  useEffect(() => {
+    setSelectedLogicalChar(prev => ({
+      x: Math.min(prev.x, tileCharColumns - 1),
+      y: Math.min(prev.y, tileCharRows - 1),
+    }));
+    setSelectedLogicalChars(current => {
+      const bounded = current
+        .map(cell => ({
+          x: Math.min(cell.x, tileCharColumns - 1),
+          y: Math.min(cell.y, tileCharRows - 1),
+        }))
+        .filter((cell, index, cells) =>
+          cells.findIndex(other => other.x === cell.x && other.y === cell.y) === index
+        );
+      return bounded.length > 0 ? bounded : [{ x: 0, y: 0 }];
+    });
+  }, [tileCharColumns, tileCharRows]);
 
   useEffect(() => {
     if (!isScreen2 && screen5PaletteChanged) {
@@ -1676,7 +1847,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
 
 
   useEffect(() => {
-    const props = tile.logicalProperties || defaultLogicalProps;
+    const props = activeLogicalProperties || defaultLogicalProps;
     const mapId = props.mapId ?? 0;
 
     const familyId = (mapId >> 4) & 0x0F;
@@ -1700,7 +1871,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     setSelectedInteractionType(interactionType);
     setInteractionValue(clampInt(Number(props.interactionValue ?? 1), 0, 255, 1));
     setInteractionTarget(typeof props.interactionTarget === 'string' ? props.interactionTarget : '');
-  }, [tile.logicalProperties]);
+  }, [activeLogicalProperties]);
 
 
   useEffect(() => {
@@ -1907,6 +2078,9 @@ export const TileEditor: React.FC<TileEditorProps> = ({
       data: clonePixelData(tile.data),
       lineAttributes: cloneLineAttributes(tile.lineAttributes),
       logicalProperties: tile.logicalProperties ? { ...tile.logicalProperties } : { ...defaultLogicalProps },
+      charLogicalProperties: tile.charLogicalProperties
+        ? Object.fromEntries(Object.entries(tile.charLogicalProperties).map(([key, value]) => [key, cloneLogicalProperties(value)]))
+        : undefined,
       screen5Palette: isScreen2
         ? undefined
         : (tile.screen5Palette?.map(slot => ({ ...slot })) ?? screen5PaletteSlots.map(slot => ({ ...slot }))),
@@ -2025,7 +2199,13 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     } else {
       newPixelData = resizePixelPatternData(tile.data, tile.width, tile.height, newWidth, newHeight, selectedColor);
     }
-    onUpdate({ width: newWidth, height: newHeight, data: newPixelData, lineAttributes: newLineAttributes });
+    onUpdate({
+      width: newWidth,
+      height: newHeight,
+      data: newPixelData,
+      lineAttributes: newLineAttributes,
+      charLogicalProperties: trimCharLogicalPropertiesForDimensions(tile.charLogicalProperties, newWidth, newHeight),
+    });
   };
 
 
@@ -2316,7 +2496,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     const newIsSolid = solidityTypeInfo ? solidityTypeInfo.isSolid : false;
 
     const updatedLogicalProps: TileLogicalProperties = {
-      ...(tile.logicalProperties || defaultLogicalProps),
+      ...activeLogicalProperties,
       mapId: newMapId,
       familyId: familyIdToUse,
       instanceId: newInstanceId,
@@ -2330,7 +2510,50 @@ export const TileEditor: React.FC<TileEditorProps> = ({
       interactionValue: interactionValueToUse,
       interactionTarget: interactionTargetToUse,
     };
-    onUpdate({ logicalProperties: updatedLogicalProps });
+    if (logicalEditScope === 'char') {
+      const nextCharLogicalProperties: Record<string, TileLogicalProperties> = {
+        ...(tile.charLogicalProperties || {}),
+      };
+      selectedLogicalCharKeys.forEach(key => {
+        nextCharLogicalProperties[key] = updatedLogicalProps;
+      });
+      onUpdate({ charLogicalProperties: nextCharLogicalProperties });
+    } else {
+      onUpdate({ logicalProperties: updatedLogicalProps });
+    }
+  };
+
+  const handleSelectLogicalChar = (charX: number, charY: number, addToSelection = false) => {
+    const nextCell = { x: charX, y: charY };
+    setSelectedLogicalChar(nextCell);
+    setSelectedLogicalChars(prev => {
+      if (!addToSelection) return [nextCell];
+      const key = getTileCharKey(charX, charY);
+      const exists = prev.some(cell => getTileCharKey(cell.x, cell.y) === key);
+      if (exists) {
+        const filtered = prev.filter(cell => getTileCharKey(cell.x, cell.y) !== key);
+        return filtered.length > 0 ? filtered : [nextCell];
+      }
+      return [...prev, nextCell];
+    });
+    setLogicalEditScope('char');
+    setShowGrid8x8(true);
+  };
+
+  const handleClearSelectedCharLogicalOverride = () => {
+    if (!selectedGroupHasOverride) return;
+    const nextCharLogicalProperties: Record<string, TileLogicalProperties> = { ...(tile.charLogicalProperties || {}) };
+    selectedLogicalCharKeys.forEach(key => {
+      delete nextCharLogicalProperties[key];
+    });
+    onUpdate({
+      charLogicalProperties: Object.keys(nextCharLogicalProperties).length > 0 ? nextCharLogicalProperties : undefined,
+    });
+  };
+
+  const handleClearAllCharLogicalOverrides = () => {
+    if (!tile.charLogicalProperties || Object.keys(tile.charLogicalProperties).length === 0) return;
+    onUpdate({ charLogicalProperties: undefined });
   };
 
   const handleSolidityTypeChange = (newFamilyIdValue: SolidityTypeId) => {
@@ -2377,14 +2600,15 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     (Object.entries(flagStates).reduce((acc, [key, val]) =>
       val ? acc | (1 << PROPERTY_FLAGS[key as PropertyFlagKey].bit) : acc, 0));
 
-  const handleSplitTile8x8 = () => {
-    if (tile.width % 8 !== 0 || tile.height % 8 !== 0) {
-      alert("Tile dimensions must be multiples of 8 to use 'Split 8x8'.");
+  const handleSplitTile = () => {
+    if (tile.width % splitWidth !== 0 || tile.height % splitHeight !== 0) {
+      alert(`Tile dimensions must be divisible by the split size (${splitWidth}x${splitHeight}).`);
       return;
     }
     const newAssetsToCreate: ProjectAsset[] = [];
-    const numTilesX = tile.width / 8;
-    const numTilesY = tile.height / 8;
+    const numTilesX = tile.width / splitWidth;
+    const numTilesY = tile.height / splitHeight;
+    const splitSegmentsX = splitWidth / SCREEN2_PIXELS_PER_COLOR_SEGMENT;
 
     for (let ty = 0; ty < numTilesY; ty++) {
       for (let tx = 0; tx < numTilesX; tx++) {
@@ -2395,13 +2619,13 @@ export const TileEditor: React.FC<TileEditorProps> = ({
           newTileLineAttributes = [];
         }
 
-        for (let pixelY = 0; pixelY < 8; pixelY++) {
-          const originalPixelY = ty * 8 + pixelY;
+        for (let pixelY = 0; pixelY < splitHeight; pixelY++) {
+          const originalPixelY = ty * splitHeight + pixelY;
           const newRow: MSXColorValue[] = [];
           const newRowAttrs: LineColorAttribute[] = [];
 
-          for (let pixelX = 0; pixelX < 8; pixelX++) {
-            const originalPixelX = tx * 8 + pixelX;
+          for (let pixelX = 0; pixelX < splitWidth; pixelX++) {
+            const originalPixelX = tx * splitWidth + pixelX;
             if (tile.data[originalPixelY] && tile.data[originalPixelY][originalPixelX] !== undefined) {
               newRow.push(tile.data[originalPixelY][originalPixelX]);
             } else {
@@ -2411,27 +2635,50 @@ export const TileEditor: React.FC<TileEditorProps> = ({
           newTilePixelData.push(newRow);
 
           if (currentScreenMode === "SCREEN 2 (Graphics I)" && newTileLineAttributes && tile.lineAttributes) {
-            if (tile.lineAttributes[originalPixelY] && tile.lineAttributes[originalPixelY][tx]) {
-              newRowAttrs.push({ ...tile.lineAttributes[originalPixelY][tx] });
-            } else {
-              // Fallback if original attributes are missing for this segment (should not happen ideally)
-              newRowAttrs.push({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR });
+            const originalSegmentOffset = tx * splitSegmentsX;
+            for (let segX = 0; segX < splitSegmentsX; segX++) {
+              const originalSegmentX = originalSegmentOffset + segX;
+              if (tile.lineAttributes[originalPixelY] && tile.lineAttributes[originalPixelY][originalSegmentX]) {
+                newRowAttrs.push({ ...tile.lineAttributes[originalPixelY][originalSegmentX] });
+              } else {
+                // Fallback if original attributes are missing for this segment (should not happen ideally)
+                newRowAttrs.push({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR });
+              }
             }
             newTileLineAttributes.push(newRowAttrs);
           }
         }
 
         const newTileId = `tile_split_${tile.id}_${tx}_${ty}_${Date.now()}`;
-        const newTileName = `${tile.name}_part_${ty}_${tx}`;
+        const newTileName = `${tile.name}_part_${ty}_${tx}_${splitWidth}x${splitHeight}`;
+        const splitCharsX = Math.max(1, Math.floor(splitWidth / EDITOR_BASE_TILE_DIM_S2));
+        const splitCharsY = Math.max(1, Math.floor(splitHeight / EDITOR_BASE_TILE_DIM_S2));
+        const splitBaseCharX = tx * splitCharsX;
+        const splitBaseCharY = ty * splitCharsY;
+        let splitBaseLogicalProperties = cloneLogicalProperties(tile.logicalProperties);
+        const splitCharLogicalProperties: Record<string, TileLogicalProperties> = {};
+
+        for (let charY = 0; charY < splitCharsY; charY++) {
+          for (let charX = 0; charX < splitCharsX; charX++) {
+            const sourceKey = getTileCharKey(splitBaseCharX + charX, splitBaseCharY + charY);
+            const sourceProps = cloneLogicalProperties(tile.charLogicalProperties?.[sourceKey] || tile.logicalProperties);
+            if (charX === 0 && charY === 0) {
+              splitBaseLogicalProperties = sourceProps;
+            } else if (!logicalPropertiesEqual(sourceProps, splitBaseLogicalProperties)) {
+              splitCharLogicalProperties[getTileCharKey(charX, charY)] = sourceProps;
+            }
+          }
+        }
 
         const newSplitTile: Tile = {
           id: newTileId,
           name: newTileName,
-          width: 8,
-          height: 8,
+          width: splitWidth,
+          height: splitHeight,
           data: newTilePixelData,
           lineAttributes: newTileLineAttributes,
-          logicalProperties: { ...defaultLogicalProps }, // New tiles get default logical props
+          logicalProperties: splitBaseLogicalProperties,
+          charLogicalProperties: Object.keys(splitCharLogicalProperties).length > 0 ? splitCharLogicalProperties : undefined,
           ...(isScreen2 ? {} : { screen5Palette: screen5PaletteSlots.map(slot => ({ ...slot })) })
         };
         newAssetsToCreate.push({
@@ -2541,7 +2788,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
             const loadedTile: Tile = JSON.parse(e.target?.result as string);
             // Basic validation to ensure it's a tile object
             if (loadedTile && loadedTile.id && loadedTile.name && loadedTile.data) {
-              onUpdate(loadedTile);
+              onUpdate({ ...loadedTile, id: tile.id });
               setStatusBarMessage(`Tile '${loadedTile.name}' loaded successfully.`);
             } else {
               throw new Error("Invalid tile JSON structure.");
@@ -2555,7 +2802,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
       }
     };
     input.click();
-  }, [onUpdate, setStatusBarMessage]);
+  }, [onUpdate, setStatusBarMessage, tile.id]);
 
   const handleFillAll = (type: 'fg' | 'bg', newColor: MSX1ColorValue) => {
     if (!tile.lineAttributes) return;
@@ -2609,11 +2856,43 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                     {EDITABLE_TILE_DIMENSIONS.map(d => <option key={`h-${d}`} value={d}>{d}</option>)}
                   </select>
                 </div>
-                <div className="flex space-x-2 pt-1">
+                <div className="flex flex-wrap gap-2 pt-1">
                   <Button onClick={handleCopyCurrentTile} size="sm" variant="secondary" icon={<CopyIcon />}>Copy Tile</Button>
                   <Button onClick={handlePasteTileData} size="sm" variant="secondary" icon={<PasteIcon />} disabled={!copiedTileData}>Paste Data</Button>
-                  <Button onClick={handleSplitTile8x8} size="sm" variant="secondary" icon={<SplitIcon />}>Split 8x8</Button>
                   <Button onClick={() => setIsGeneratorModalOpen(true)} size="sm" variant="secondary" icon={<SparklesIcon />}>Generator</Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span className="text-msx-textsecondary">Split size:</span>
+                  <select
+                    value={splitWidth}
+                    onChange={(e) => setSplitWidth(parseInt(e.target.value, 10))}
+                    className="p-1 bg-msx-bgcolor border-msx-border rounded"
+                    title="Split part width"
+                  >
+                    {splitWidthOptions.map(d => <option key={`split-w-${d}`} value={d}>{d}</option>)}
+                  </select>
+                  <span>x</span>
+                  <select
+                    value={splitHeight}
+                    onChange={(e) => setSplitHeight(parseInt(e.target.value, 10))}
+                    className="p-1 bg-msx-bgcolor border-msx-border rounded"
+                    title="Split part height"
+                  >
+                    {splitHeightOptions.map(d => <option key={`split-h-${d}`} value={d}>{d}</option>)}
+                  </select>
+                  <span className="text-msx-textsecondary">
+                    {Math.floor(tile.width / splitWidth) * Math.floor(tile.height / splitHeight)} parts
+                  </span>
+                    <Button
+                      onClick={handleSplitTile}
+                      size="sm"
+                      variant="secondary"
+                      icon={<SplitIcon />}
+                      disabled={splitWidthOptions.length === 0 || splitHeightOptions.length === 0 || (splitWidth === tile.width && splitHeight === tile.height)}
+                      title={`Create ${Math.floor(tile.width / splitWidth) * Math.floor(tile.height / splitHeight)} tile parts of ${splitWidth}x${splitHeight}px`}
+                    >
+                      Split
+                    </Button>
                 </div>
               </div>
             </CollapsiblePanel>
@@ -2650,6 +2929,110 @@ export const TileEditor: React.FC<TileEditorProps> = ({
             <CollapsiblePanel title="Logical Properties (Collision/Behavior)" isOpen={!!leftPanelOpen.logical} onToggle={() => toggleLeftPanel('logical')}>
               <div className="space-y-2 text-xs">
                 <p className="text-[0.65rem] text-msx-textsecondary">Define gameplay attributes for this tile. These are exported in the Behavior Map.</p>
+                <div className="pt-1 border-t border-msx-border/50 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-msx-textsecondary">Edit:</span>
+                    <Button
+                      onClick={() => setLogicalEditScope('tile')}
+                      size="sm"
+                      variant={logicalEditScope === 'tile' ? 'secondary' : 'ghost'}
+                      className="px-2 py-0.5 text-[0.65rem]"
+                    >
+                      Whole Tile
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setLogicalEditScope('char');
+                        setShowGrid8x8(true);
+                      }}
+                      size="sm"
+                      variant={logicalEditScope === 'char' ? 'secondary' : 'ghost'}
+                      className="px-2 py-0.5 text-[0.65rem]"
+                    >
+                      8x8 Char
+                    </Button>
+                    <span className="text-msx-textsecondary" title="Ctrl+click cells to add or remove them from the edit group">
+                      {charOverrideCount} overrides
+                    </span>
+                  </div>
+                  <div
+                    className="grid gap-1"
+                    style={{ gridTemplateColumns: `repeat(${tileCharColumns}, minmax(0, 1fr))` }}
+                  >
+                    {Array.from({ length: tileCharRows }).flatMap((_, charY) =>
+                      Array.from({ length: tileCharColumns }).map((__, charX) => {
+                        const key = getTileCharKey(charX, charY);
+                        const hasOverride = !!tile.charLogicalProperties?.[key];
+                        const props = cloneLogicalProperties(tile.charLogicalProperties?.[key] || tile.logicalProperties);
+                        const familyId = props.familyId ?? ((props.mapId ?? 0) >> 4);
+                        const mapId = props.mapId ?? ((familyId << 4) | (props.instanceId ?? 0));
+                        const isSelected = logicalEditScope === 'char' && selectedLogicalCharKeys.includes(key);
+                        const isPrimary = logicalEditScope === 'char' && selectedLogicalChar.x === charX && selectedLogicalChar.y === charY;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={(event) => handleSelectLogicalChar(charX, charY, event.ctrlKey || event.metaKey)}
+                            className={`h-7 rounded border font-mono text-[0.6rem] transition-colors ${isSelected
+                              ? `border-msx-highlight ${isPrimary ? 'ring-1 ring-msx-highlight' : 'bg-msx-highlight/15'}`
+                              : 'border-msx-border hover:border-msx-highlight'
+                              } ${familyId > 0 ? 'bg-msx-danger/30 text-msx-textprimary' : 'bg-msx-bgcolor text-msx-textsecondary'}`}
+                            title={`Char ${charX},${charY} MapID ${mapId}${hasOverride ? ' (override)' : ' (inherits whole tile)'}. Ctrl+click to group cells.`}
+                          >
+                            {hasOverride ? '*' : ''}{mapId.toString(16).padStart(2, '0').toUpperCase()}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                  {logicalEditScope === 'char' && (
+                    <div className="flex flex-wrap items-center gap-2 text-msx-textsecondary">
+                      <span>
+                        {selectedLogicalCharKeys.length > 1
+                          ? `Selected chars: ${selectedLogicalCharKeys.length} (active ${selectedLogicalChar.x},${selectedLogicalChar.y})`
+                          : `Selected char: ${selectedLogicalChar.x},${selectedLogicalChar.y}`}
+                      </span>
+                      <Button
+                        onClick={() => handleSolidityTypeChange(0)}
+                        size="sm"
+                        variant="ghost"
+                        className="px-2 py-0.5 text-[0.65rem]"
+                        title="Apply NoSolid to the selected chars"
+                      >
+                        NoSolid
+                      </Button>
+                      <Button
+                        onClick={() => handleSolidityTypeChange(1)}
+                        size="sm"
+                        variant="ghost"
+                        className="px-2 py-0.5 text-[0.65rem]"
+                        title="Apply Solid to the selected chars"
+                      >
+                        Solid
+                      </Button>
+                      <Button
+                        onClick={handleClearSelectedCharLogicalOverride}
+                        size="sm"
+                        variant="ghost"
+                        className="px-2 py-0.5 text-[0.65rem]"
+                        disabled={!selectedGroupHasOverride}
+                        title="Remove selected char overrides and inherit the whole tile properties"
+                      >
+                        Use Tile Default
+                      </Button>
+                      <Button
+                        onClick={handleClearAllCharLogicalOverrides}
+                        size="sm"
+                        variant="ghost"
+                        className="px-2 py-0.5 text-[0.65rem]"
+                        disabled={charOverrideCount === 0}
+                        title="Remove all per-char logical overrides"
+                      >
+                        Clear All
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 <div>
                   <label className="block mb-0.5">Solidity Family:</label>
                   <select
@@ -2979,7 +3362,22 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                   )}
                 </div>
               )}
-              <Button onClick={() => setIsFileModalOpen(true)} size="sm" variant="secondary" icon={<PngIcon src={floppyDiskImg} alt="File Ops" className="w-4 h-4" />} className="ml-auto">File Ops</Button>
+              <Button
+                onClick={() => setShowGrid8x8(v => !v)}
+                size="sm"
+                variant={showGrid8x8 ? 'secondary' : 'ghost'}
+                icon={<GridIcon className="w-4 h-4" />}
+                title={showGrid8x8 ? 'Hide dashed 8x8 grid' : 'Show dashed 8x8 grid'}
+              >
+                8x8 Grid
+              </Button>
+              <div
+                className="ml-auto px-2 py-1 rounded border border-msx-border bg-msx-bgcolor text-xs text-msx-textprimary font-mono whitespace-nowrap"
+                title={`Tile actual: ${tile.width}x${tile.height}px, ${tileCharTotal} casillas de 8x8`}
+              >
+                8x8: {tileCharColumns}x{tileCharRows} = {tileCharTotal}
+              </div>
+              <Button onClick={() => setIsFileModalOpen(true)} size="sm" variant="secondary" icon={<PngIcon src={floppyDiskImg} alt="File Ops" className="w-4 h-4" />}>File Ops</Button>
             </div>
             {isFileModalOpen && (
               <TileFileOperationsModal
@@ -3023,21 +3421,28 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                 </Button>
               </div>
             </div>
-            <PixelGrid
-              pixelData={tile.data}
-              tileWidth={tile.width}
-              tileHeight={tile.height}
-              lineAttributes={tile.lineAttributes || []}
-              onGridInteraction={handleGridInteraction}
-              pixelSize={zoom}
-              showCenterGuide={showCenterGuide}
-              currentScreenMode={currentScreenMode}
-              symmetrySettings={symmetrySettings}
-              currentTool={currentTool}
-            />
+            <div className="w-full overflow-auto p-1" style={{ maxHeight: 'max(240px, calc(100vh - 300px))' }}>
+              <div className="w-max mx-auto">
+                <PixelGrid
+                  pixelData={tile.data}
+                  tileWidth={tile.width}
+                  tileHeight={tile.height}
+                  lineAttributes={tile.lineAttributes || []}
+                  onGridInteraction={handleGridInteraction}
+                  pixelSize={zoom}
+                  showCenterGuide={showCenterGuide}
+                  showGrid8x8={showGrid8x8}
+                  selectedGrid8x8Cell={logicalEditScope === 'char' ? selectedLogicalChar : null}
+                  selectedGrid8x8Cells={logicalEditScope === 'char' ? selectedLogicalCharCells : []}
+                  currentScreenMode={currentScreenMode}
+                  symmetrySettings={symmetrySettings}
+                  currentTool={currentTool}
+                />
+              </div>
+            </div>
             <div className="flex items-center space-x-2 text-xs">
               <span>Zoom:</span>
-              <input type="range" min="8" max="40" value={zoom} onChange={(e) => setZoom(parseInt(e.target.value))} className="w-24 accent-msx-accent" />
+              <input type="range" min="2" max="40" value={zoom} onChange={(e) => setZoom(parseInt(e.target.value))} className="w-24 accent-msx-accent" />
               <label><input type="checkbox" checked={showCenterGuide} onChange={() => setShowCenterGuide(s => !s)} /> Guide</label>
             </div>
             <div className="p-1 bg-msx-panelbg rounded border border-msx-border text-xs flex flex-wrap gap-1 items-center">

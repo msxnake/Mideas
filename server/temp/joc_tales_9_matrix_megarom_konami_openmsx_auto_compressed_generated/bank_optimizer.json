@@ -1,0 +1,382 @@
+{
+  "version": 1,
+  "scope": "konami8k_bank_optimizer",
+  "strategy": "analysis-only scene-aware first-fit input; later pass may repack or duplicate resources",
+  "constraints": {
+    "mapperFormat": "konami",
+    "segmentSize": 8192,
+    "dynamicWindows": 1,
+    "dataWindow": {
+      "page": "p3",
+      "base": "#A000",
+      "mask": "#1FFF",
+      "bankDivisor": "#2000"
+    },
+    "maxRecommendedSceneBanks": 3
+  },
+  "currentPlacement": {
+    "bankCount": 2,
+    "resourceCount": 14,
+    "totalStoredBytes": 2407,
+    "totalRawBytes": 8380,
+    "compressedResources": 12,
+    "banks": [
+      {
+        "bank": 3,
+        "count": 14,
+        "storedBytes": 2407,
+        "rawBytes": 8380,
+        "resourceIds": [
+          3,
+          5,
+          2,
+          4,
+          6,
+          7,
+          11,
+          12,
+          13,
+          0,
+          1,
+          9,
+          8,
+          10
+        ],
+        "resourceLabels": [
+          "tilebank_pattern_data_0",
+          "tilebank_color_data_0",
+          "tile_pattern_bank0",
+          "tile_color_bank0",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP",
+          "NEW_SPRITE_0_F0_LAYER2",
+          "SPRITE_PLACEHOLDER_PATTERN",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE"
+        ]
+      },
+      {
+        "bank": 4,
+        "count": 0,
+        "storedBytes": 0,
+        "rawBytes": 0,
+        "resourceIds": [],
+        "resourceLabels": []
+      }
+    ]
+  },
+  "proposedPlacement": {
+    "strategy": "dry-run scene bundles first-fit decreasing; current ROM placement is unchanged",
+    "bankCount": 1,
+    "resourceCount": 14,
+    "totalStoredBytes": 2407,
+    "banks": [
+      {
+        "bank": 3,
+        "usedBytes": 2407,
+        "freeBytes": 5785,
+        "units": [
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              3
+            ],
+            "resourceLabels": [
+              "tilebank_pattern_data_0"
+            ],
+            "storedBytes": 885,
+            "rawBytes": 1088
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              2
+            ],
+            "resourceLabels": [
+              "tile_pattern_bank0"
+            ],
+            "storedBytes": 843,
+            "rawBytes": 1016
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              5
+            ],
+            "resourceLabels": [
+              "tilebank_color_data_0"
+            ],
+            "storedBytes": 303,
+            "rawBytes": 1088
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              4
+            ],
+            "resourceLabels": [
+              "tile_color_bank0"
+            ],
+            "storedBytes": 288,
+            "rawBytes": 1016
+          },
+          {
+            "kind": "scene",
+            "sceneIndex": 0,
+            "sceneId": "screenmap_1777833014252",
+            "sceneName": "New Playable Screen",
+            "resourceIds": [
+              6,
+              7,
+              11,
+              12,
+              13,
+              9,
+              8,
+              10
+            ],
+            "resourceLabels": [
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE",
+              "SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE"
+            ],
+            "storedBytes": 58,
+            "rawBytes": 4108
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              0
+            ],
+            "resourceLabels": [
+              "NEW_SPRITE_0_F0_LAYER2"
+            ],
+            "storedBytes": 25,
+            "rawBytes": 32
+          },
+          {
+            "kind": "shared",
+            "sceneIndex": null,
+            "sceneId": null,
+            "sceneName": null,
+            "resourceIds": [
+              1
+            ],
+            "resourceLabels": [
+              "SPRITE_PLACEHOLDER_PATTERN"
+            ],
+            "storedBytes": 5,
+            "rawBytes": 32
+          }
+        ],
+        "resourceIds": [
+          3,
+          2,
+          5,
+          4,
+          6,
+          7,
+          11,
+          12,
+          13,
+          9,
+          8,
+          10,
+          0,
+          1
+        ],
+        "resourceLabels": [
+          "tilebank_pattern_data_0",
+          "tile_pattern_bank0",
+          "tilebank_color_data_0",
+          "tile_color_bank0",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_LAYOUT",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECTS_LAYOUT",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TYPE_MAP",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_VALUE_MAP",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_INTERACTION_TARGET_MAP",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_BOSS_TABLE",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_EFFECT_ZONE_TABLE",
+          "SCREEN_NEW_PLAYABLE_SCREEN_0_CHAR_BEHAVIOR_TABLE",
+          "NEW_SPRITE_0_F0_LAYER2",
+          "SPRITE_PLACEHOLDER_PATTERN"
+        ]
+      }
+    ],
+    "sceneBankPlan": [
+      {
+        "index": 0,
+        "id": "screenmap_1777833014252",
+        "name": "New Playable Screen",
+        "currentBanks": [
+          3
+        ],
+        "proposedBanks": [
+          3
+        ]
+      }
+    ],
+    "delta": {
+      "currentBankCount": 1,
+      "proposedBankCount": 1,
+      "currentSceneBankTouches": 1,
+      "proposedSceneBankTouches": 1
+    }
+  },
+  "sceneClusters": [
+    {
+      "index": 0,
+      "id": "screenmap_1777833014252",
+      "name": "New Playable Screen",
+      "resourceIds": [
+        6,
+        7,
+        11,
+        12,
+        13,
+        9,
+        8,
+        10
+      ],
+      "banks": [
+        3
+      ],
+      "bankCount": 1,
+      "storedBytes": 58,
+      "rawBytes": 4108,
+      "coLocated": true,
+      "preferredBank": 3
+    }
+  ],
+  "pressureWarnings": [],
+  "sharedOrGlobalResources": [
+    {
+      "id": 3,
+      "label": "tilebank_pattern_data_0",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 40960,
+      "zoneOffset": 0,
+      "size": 885,
+      "storedSize": 885,
+      "uncompressedSize": 1088,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single patterns resource; ZX0 885/1088 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 5785 bytes"
+    },
+    {
+      "id": 5,
+      "label": "tilebank_color_data_0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 3,
+      "windowAddress": 41845,
+      "zoneOffset": 885,
+      "size": 303,
+      "storedSize": 303,
+      "uncompressedSize": 1088,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single colors resource; ZX0 303/1088 bytes; bank 3 zone 0 offset +#0375; zone slack after pack 5785 bytes"
+    },
+    {
+      "id": 2,
+      "label": "tile_pattern_bank0",
+      "group": "PATTERNS",
+      "type": "TILE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 42148,
+      "zoneOffset": 1188,
+      "size": 843,
+      "storedSize": 843,
+      "uncompressedSize": 1016,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single patterns resource; ZX0 843/1016 bytes; bank 3 zone 0 offset +#04A4; zone slack after pack 5785 bytes"
+    },
+    {
+      "id": 4,
+      "label": "tile_color_bank0",
+      "group": "COLORS",
+      "type": "TILE_COLORS",
+      "bank": 3,
+      "windowAddress": 42991,
+      "zoneOffset": 2031,
+      "size": 288,
+      "storedSize": 288,
+      "uncompressedSize": 1016,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single colors resource; ZX0 288/1016 bytes; bank 3 zone 0 offset +#07EF; zone slack after pack 5785 bytes"
+    },
+    {
+      "id": 0,
+      "label": "NEW_SPRITE_0_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 43315,
+      "zoneOffset": 2355,
+      "size": 25,
+      "storedSize": 25,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single NEW_SPRITE_0_F0_LAYER2 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0933; zone slack after pack 5785 bytes"
+    },
+    {
+      "id": 1,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "windowAddress": 43340,
+      "zoneOffset": 2380,
+      "size": 5,
+      "storedSize": 5,
+      "uncompressedSize": 32,
+      "flags": 1,
+      "placementReason": "post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#094C; zone slack after pack 5785 bytes"
+    }
+  ],
+  "duplicationCandidates": [
+    {
+      "id": 0,
+      "label": "NEW_SPRITE_0_F0_LAYER2",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 25,
+      "uncompressedSize": 32
+    },
+    {
+      "id": 1,
+      "label": "SPRITE_PLACEHOLDER_PATTERN",
+      "group": "SPRITES",
+      "type": "SPRITE_PATTERNS",
+      "bank": 3,
+      "storedSize": 5,
+      "uncompressedSize": 32
+    }
+  ]
+}

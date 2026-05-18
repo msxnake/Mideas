@@ -1,0 +1,19 @@
+t1_5 pc=1130 sp=F2FE af=8E44 bc=779A de=82D2 hl=FAFC bank=00/04/33/3A flow=00 screen=33 irq=0000 inirq=00 pos=0,0 far=00:0400 res=AA33
+BP_4010_INIT_01 pc=4010 sp=F2EC af=1F08 bc=0101 de=4010 hl=4004 bank=00/04/33/3A flow=00 screen=33 irq=0000 inirq=00 pos=0,0 far=00:0400 res=AA33
+BP_C139_FARCALL_RAM_01 pc=C139 sp=F37A af=0C44 bc=0000 de=E782 hl=6000 bank=00/00/01/01 flow=00 screen=33 irq=0000 inirq=00 pos=0,0 far=00:0400 res=AA33
+BP_6008_GAMEFLOW_START_01 pc=6008 sp=F376 af=0C44 bc=0000 de=C15A hl=6000 bank=0C/0C/01/01 flow=00 screen=33 irq=0000 inirq=00 pos=0,0 far=0C:6000 res=AA33
+BP_603B_HANDLE_START_01 pc=603B sp=F376 af=0C44 bc=0000 de=C15A hl=6000 bank=0C/0C/01/01 flow=00 screen=33 irq=0000 inirq=00 pos=0,0 far=0C:6000 res=AA33
+t4_0 pc=1A04 sp=F258 af=1F08 bc=04F3 de=01FF hl=247A bank=0C/0C/01/01 flow=00 screen=33 irq=0000 inirq=00 pos=0,0 far=0C:6000 res=AA33
+space1_before pc=199E sp=D20A af=9F8C bc=0000 de=C15A hl=6000 bank=0C/0C/01/01 flow=00 screen=AB irq=01FF inirq=19 pos=511,9338 far=0C:6000 res=AA33
+space1_after pc=19AE sp=CEC2 af=1F08 bc=04F3 de=01FF hl=247A bank=0C/0C/01/01 flow=00 screen=AB irq=01FF inirq=19 pos=511,9338 far=0C:6000 res=AA33
+BP_0000_TRAP_01 pc=0000 sp=BFF0 af=9F8C bc=0000 de=C19F hl=6000 bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338 far=40:8C01 res=009F
+space2_before pc=1130 sp=F2FE af=8E44 bc=6B98 de=0E5E hl=FAFC bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338 far=40:8C01 res=009F
+space2_after pc=1130 sp=F2FE af=8E44 bc=5998 de=0E5E hl=FAFC bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338 far=40:8C01 res=009F
+t10_0 pc=1130 sp=F2FE af=8E44 bc=2F98 de=0E5E hl=FAFC bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338 far=40:8C01 res=009F
+t12_0 pc=1B19 sp=F300 af=0044 bc=0000 de=FFFF hl=26D2 bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338 far=40:8C01 res=009F
+SHOTOK ascii16_flow_t12.png
+right_before pc=1B19 sp=F300 af=0044 bc=0000 de=FFFF hl=26D2 bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338 far=40:8C01 res=009F
+right_after pc=1B19 sp=F300 af=0044 bc=0000 de=FFFF hl=26D2 bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338 far=40:8C01 res=009F
+t14_5 pc=1B19 sp=F300 af=0044 bc=0000 de=FFFF hl=26D2 bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338 far=40:8C01 res=009F
+SHOTOK ascii16_flow_t14_5.png
+t16_0 pc=1B19 sp=F300 af=0044 bc=0000 de=FFFF hl=26D2 bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338 far=40:8C01 res=009F

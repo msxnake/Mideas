@@ -1,0 +1,27 @@
+T01 pc=8113 sp=F2F6 bank=00/00/00/00 irq=0000 lock=00 music=00 track=00 row=00
+T03 pc=1130 sp=F2FE bank=00/00/00/00 irq=0000 lock=00 music=00 track=00 row=00
+SHOTOK t03.png
+BP_INIT pc=4010 sp=F2EC bank=00/00/00/00 irq=0000 lock=00 music=00 track=00 row=00
+BP_MUSIC_HANDLER pc=9E10 sp=F380 bank=01/02/03/03 irq=0005 lock=00 music=00 track=00 row=00
+BP_CALL_MUSIC_RESIDENT pc=55E7 sp=F37C bank=01/02/03/03 irq=0005 lock=00 music=00 track=00 row=00
+BP_MUSIC_FAR pc=4C2E sp=F37C bank=01/02/03/03 irq=0005 lock=00 music=00 track=00 row=00
+BP_MUSIC_EXEC_BANK08 pc=626C sp=F376 bank=08/02/03/03 irq=0005 lock=01 music=00 track=00 row=00
+BP_MUSIC_PLAY_BANK08 pc=65BA sp=F370 bank=08/02/03/03 irq=0005 lock=02 music=00 track=00 row=00
+T05 pc=95DB sp=F37C bank=01/02/03/03 irq=0028 lock=00 music=01 track=00 row=06
+SHOTOK t05.png
+SPACE1_before pc=95DB sp=F37C bank=01/02/03/03 irq=00A0 lock=00 music=01 track=00 row=1A
+SPACE1_after pc=40DC sp=F370 bank=12/02/03/03 irq=00AE lock=01 music=01 track=00 row=1C
+BP_MUSIC_HANDLER pc=9E10 sp=F380 bank=01/02/03/03 irq=00B2 lock=00 music=01 track=00 row=1C
+BP_CALL_MUSIC_RESIDENT pc=55E7 sp=F37C bank=01/02/03/03 irq=00B2 lock=00 music=01 track=00 row=1C
+BP_MUSIC_FAR pc=4C2E sp=F37C bank=01/02/03/03 irq=00B2 lock=00 music=01 track=00 row=1C
+BP_MUSIC_EXEC_BANK08 pc=626C sp=F376 bank=08/02/03/03 irq=00B2 lock=01 music=01 track=00 row=1C
+BP_MUSIC_STOP_BANK08 pc=6248 sp=F376 bank=08/02/03/03 irq=00B2 lock=01 music=01 track=00 row=1C
+T08 pc=9D3A sp=F378 bank=01/02/03/03 irq=00CF lock=00 music=00 track=00 row=00
+SPACE2_before pc=9D74 sp=F376 bank=01/02/03/03 irq=0103 lock=00 music=00 track=00 row=00
+SPACE2_after pc=9D74 sp=F376 bank=01/02/03/03 irq=0112 lock=00 music=00 track=00 row=00
+T10 pc=9D74 sp=F376 bank=01/02/03/03 irq=013F lock=00 music=00 track=00 row=00
+SHOTOK t10.png
+T12 pc=9D74 sp=F376 bank=01/02/03/03 irq=01B7 lock=00 music=00 track=00 row=00
+SHOTOK t12.png
+T16 pc=9D74 sp=F376 bank=01/02/03/03 irq=02A6 lock=00 music=00 track=00 row=00
+SHOTOK t16.png

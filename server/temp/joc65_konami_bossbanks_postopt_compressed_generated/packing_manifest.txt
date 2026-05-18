@@ -1,0 +1,128 @@
+MEGAROM PACKING MANIFEST
+Zone size: 8192
+Data start address: #A000
+Total resource blocks: 59
+
+BANK 03 used 4196 / 8192
+- tile_pattern_bank0                 747 stored /  1016 raw bytes @ #A000 (rom #A000, offset +#0000) [PATTERNS/TILE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single patterns resource; ZX0 747/1016 bytes; bank 3 zone 0 offset +#0000; zone slack after pack 3996 bytes
+- tile_color_bank0                   376 stored /  1016 raw bytes @ #A2EB (rom #A2EB, offset +#02EB) [COLORS/TILE_COLORS] flags=1
+  reason: post-ZX0 first-fit single colors resource; ZX0 376/1016 bytes; bank 3 zone 0 offset +#02EB; zone slack after pack 3996 bytes
+- tilebank_pattern_data_0            691 stored /   896 raw bytes @ #A463 (rom #A463, offset +#0463) [PATTERNS/TILE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit merged patterns unit (2 labels); ZX0 691/896 bytes; bank 3 zone 0 offset +#0463; zone slack after pack 3996 bytes
+- tilebank_pattern_data_1            689 stored /   896 raw bytes @ #A716 (rom #A716, offset +#0716) [PATTERNS/TILE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit merged patterns unit (2 labels); ZX0 689/896 bytes; bank 3 zone 0 offset +#0716; zone slack after pack 3996 bytes
+- tilebank_color_data_0              354 stored /   896 raw bytes @ #A9C7 (rom #A9C7, offset +#09C7) [COLORS/TILE_COLORS] flags=1
+  reason: post-ZX0 first-fit merged colors unit (2 labels); ZX0 354/896 bytes; bank 3 zone 0 offset +#09C7; zone slack after pack 3996 bytes
+- tilebank_color_data_1              353 stored /   896 raw bytes @ #AB29 (rom #AB29, offset +#0B29) [COLORS/TILE_COLORS] flags=1
+  reason: post-ZX0 first-fit merged colors unit (2 labels); ZX0 353/896 bytes; bank 3 zone 0 offset +#0B29; zone slack after pack 3996 bytes
+- SCREEN_PAN1_0_EFFECTS_LAYOUT         6 stored /   768 raw bytes @ #AC8A (rom #AC8A, offset +#0C8A) [SCREENS/SCREEN_EFFECTS_LAYOUT] flags=1
+  reason: post-ZX0 first-fit single SCREEN_PAN1_0_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0C8A; zone slack after pack 3996 bytes
+- SCREEN_PAN1_0_INTERACTION_TYPE_MAP     6 stored /   768 raw bytes @ #AC90 (rom #AC90, offset +#0C90) [SCREENS/SCREEN_DATA] flags=1
+  reason: post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0C90; zone slack after pack 3996 bytes
+- SCREEN_PAN1_0_INTERACTION_VALUE_MAP    13 stored /   768 raw bytes @ #AC96 (rom #AC96, offset +#0C96) [SCREENS/SCREEN_DATA] flags=1
+  reason: post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_VALUE_MAP resource; ZX0 13/768 bytes; bank 3 zone 0 offset +#0C96; zone slack after pack 3996 bytes
+- SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE    15 stored /   256 raw bytes @ #ACA3 (rom #ACA3, offset +#0CA3) [SCREENS/SCREEN_DATA] flags=1
+  reason: post-ZX0 first-fit single SCREEN_PAN1_0_CHAR_BEHAVIOR_TABLE resource; ZX0 15/256 bytes; bank 3 zone 0 offset +#0CA3; zone slack after pack 3996 bytes
+- SCREEN_PAN1_0_BOSS_TABLE            13 stored /    13 raw bytes @ #ACB2 (rom #ACB2, offset +#0CB2) [SCREENS/SCREEN_DATA] flags=0
+  reason: post-ZX0 first-fit single SCREEN_PAN1_0_BOSS_TABLE resource; raw 13 bytes; bank 3 zone 0 offset +#0CB2; zone slack after pack 3996 bytes
+- SCREEN_PAN1_0_EFFECT_ZONE_TABLE      1 stored /     1 raw bytes @ #ACBF (rom #ACBF, offset +#0CBF) [SCREENS/SCREEN_EFFECT_ZONE_TABLE] flags=0
+  reason: post-ZX0 first-fit single SCREEN_PAN1_0_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#0CBF; zone slack after pack 3996 bytes
+- SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE     1 stored /     1 raw bytes @ #ACC0 (rom #ACC0, offset +#0CC0) [SCREENS/SCREEN_EFFECT_ZONE_TABLE] flags=0
+  reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_EFFECT_ZONE_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#0CC0; zone slack after pack 3996 bytes
+- SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE     1 stored /     1 raw bytes @ #ACC1 (rom #ACC1, offset +#0CC1) [SCREENS/SCREEN_DATA] flags=0
+  reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_BOSS_TABLE resource; raw 1 bytes; bank 3 zone 0 offset +#0CC1; zone slack after pack 3996 bytes
+- SCREEN_PAN1_0_INTERACTION_TARGET_MAP     6 stored /   768 raw bytes @ #ACC2 (rom #ACC2, offset +#0CC2) [SCREENS/SCREEN_DATA] flags=1
+  reason: post-ZX0 first-fit single SCREEN_PAN1_0_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0CC2; zone slack after pack 3996 bytes
+- SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT    21 stored /   768 raw bytes @ #ACC8 (rom #ACC8, offset +#0CC8) [SCREENS/SCREEN_LAYOUT] flags=1
+  reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_LAYOUT resource; ZX0 21/768 bytes; bank 3 zone 0 offset +#0CC8; zone slack after pack 3996 bytes
+- SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT     6 stored /   768 raw bytes @ #ACDD (rom #ACDD, offset +#0CDD) [SCREENS/SCREEN_EFFECTS_LAYOUT] flags=1
+  reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_EFFECTS_LAYOUT resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0CDD; zone slack after pack 3996 bytes
+- BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA     6 stored /   768 raw bytes @ #ACE3 (rom #ACE3, offset +#0CE3) [SCREENS/SCREEN_BEHAVIOR_MAP] flags=1
+  reason: post-ZX0 first-fit single BEHAVIOR_NEW_DIALOG_SCREEN_1_DATA resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0CE3; zone slack after pack 3996 bytes
+- SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP     6 stored /   768 raw bytes @ #ACE9 (rom #ACE9, offset +#0CE9) [SCREENS/SCREEN_DATA] flags=1
+  reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TYPE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0CE9; zone slack after pack 3996 bytes
+- SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP     6 stored /   768 raw bytes @ #ACEF (rom #ACEF, offset +#0CEF) [SCREENS/SCREEN_DATA] flags=1
+  reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_VALUE_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0CEF; zone slack after pack 3996 bytes
+- SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP     6 stored /   768 raw bytes @ #ACF5 (rom #ACF5, offset +#0CF5) [SCREENS/SCREEN_DATA] flags=1
+  reason: post-ZX0 first-fit single SCREEN_NEW_DIALOG_SCREEN_1_INTERACTION_TARGET_MAP resource; ZX0 6/768 bytes; bank 3 zone 0 offset +#0CF5; zone slack after pack 3996 bytes
+- SCREEN_PAN1_0_BLOCK_CATALOG         29 stored /    96 raw bytes @ #ACFB (rom #ACFB, offset +#0CFB) [SCREENS/SCREEN_BLOCK_CATALOG] flags=1
+  reason: post-ZX0 first-fit single SCREEN_PAN1_0_BLOCK_CATALOG resource; ZX0 29/96 bytes; bank 3 zone 0 offset +#0CFB; zone slack after pack 3996 bytes
+- SCREEN_PAN1_0_BLOCK_MAP             16 stored /    48 raw bytes @ #AD18 (rom #AD18, offset +#0D18) [SCREENS/SCREEN_BLOCK_MAP] flags=1
+  reason: post-ZX0 first-fit single SCREEN_PAN1_0_BLOCK_MAP resource; ZX0 16/48 bytes; bank 3 zone 0 offset +#0D18; zone slack after pack 3996 bytes
+- NINA_WALK_RIGHT_0_F0_LAYER0         30 stored /    32 raw bytes @ #AD28 (rom #AD28, offset +#0D28) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0D28; zone slack after pack 3996 bytes
+- NINA_WALK_RIGHT_0_F0_LAYER1         25 stored /    32 raw bytes @ #AD46 (rom #AD46, offset +#0D46) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_WALK_RIGHT_0_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0D46; zone slack after pack 3996 bytes
+- NINA_WALK_RIGHT_0_F1_LAYER0         31 stored /    32 raw bytes @ #AD5F (rom #AD5F, offset +#0D5F) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER0 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0D5F; zone slack after pack 3996 bytes
+- NINA_WALK_RIGHT_0_F1_LAYER1         27 stored /    32 raw bytes @ #AD7E (rom #AD7E, offset +#0D7E) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_WALK_RIGHT_0_F1_LAYER1 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0D7E; zone slack after pack 3996 bytes
+- NINA_GRUB_RIGHT_1_F0_LAYER1         18 stored /    32 raw bytes @ #AD99 (rom #AD99, offset +#0D99) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F0_LAYER1 resource; ZX0 18/32 bytes; bank 3 zone 0 offset +#0D99; zone slack after pack 3996 bytes
+- NINA_GRUB_RIGHT_1_F0_LAYER2         28 stored /    32 raw bytes @ #ADAB (rom #ADAB, offset +#0DAB) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F0_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0DAB; zone slack after pack 3996 bytes
+- NINA_GRUB_RIGHT_1_F1_LAYER1         23 stored /    32 raw bytes @ #ADC7 (rom #ADC7, offset +#0DC7) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F1_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#0DC7; zone slack after pack 3996 bytes
+- NINA_GRUB_RIGHT_1_F1_LAYER2         29 stored /    32 raw bytes @ #ADDE (rom #ADDE, offset +#0DDE) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_GRUB_RIGHT_1_F1_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0DDE; zone slack after pack 3996 bytes
+- NEW_SPRITE_2_F0_LAYER1               5 stored /    32 raw bytes @ #ADFB (rom #ADFB, offset +#0DFB) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER1 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0DFB; zone slack after pack 3996 bytes
+- NEW_SPRITE_2_F0_LAYER2               5 stored /    32 raw bytes @ #AE00 (rom #AE00, offset +#0E00) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER2 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0E00; zone slack after pack 3996 bytes
+- NEW_SPRITE_2_F0_LAYER3               5 stored /    32 raw bytes @ #AE05 (rom #AE05, offset +#0E05) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NEW_SPRITE_2_F0_LAYER3 resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#0E05; zone slack after pack 3996 bytes
+- NINA_JUMP_RIGHT_3_F0_LAYER0         27 stored /    32 raw bytes @ #AE0A (rom #AE0A, offset +#0E0A) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_JUMP_RIGHT_3_F0_LAYER0 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0E0A; zone slack after pack 3996 bytes
+- NINA_JUMP_RIGHT_3_F0_LAYER1         24 stored /    32 raw bytes @ #AE25 (rom #AE25, offset +#0E25) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_JUMP_RIGHT_3_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0E25; zone slack after pack 3996 bytes
+- NINA_IDLE_RIGHT_4_F0_LAYER1         23 stored /    32 raw bytes @ #AE3D (rom #AE3D, offset +#0E3D) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER1 resource; ZX0 23/32 bytes; bank 3 zone 0 offset +#0E3D; zone slack after pack 3996 bytes
+- NINA_IDLE_RIGHT_4_F0_LAYER2         28 stored /    32 raw bytes @ #AE54 (rom #AE54, offset +#0E54) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_IDLE_RIGHT_4_F0_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0E54; zone slack after pack 3996 bytes
+- NEW_SPRITE_RIGHT_5_F0_LAYER1        31 stored /    32 raw bytes @ #AE70 (rom #AE70, offset +#0E70) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NEW_SPRITE_RIGHT_5_F0_LAYER1 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#0E70; zone slack after pack 3996 bytes
+- NEW_SPRITE_RIGHT_5_F0_LAYER2        30 stored /    32 raw bytes @ #AE8F (rom #AE8F, offset +#0E8F) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NEW_SPRITE_RIGHT_5_F0_LAYER2 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0E8F; zone slack after pack 3996 bytes
+- PROJECTIL1_6_F0_LAYER1              17 stored /    32 raw bytes @ #AEAD (rom #AEAD, offset +#0EAD) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single PROJECTIL1_6_F0_LAYER1 resource; ZX0 17/32 bytes; bank 3 zone 0 offset +#0EAD; zone slack after pack 3996 bytes
+- PROJECTIL1_6_F0_LAYER2              12 stored /    32 raw bytes @ #AEBE (rom #AEBE, offset +#0EBE) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single PROJECTIL1_6_F0_LAYER2 resource; ZX0 12/32 bytes; bank 3 zone 0 offset +#0EBE; zone slack after pack 3996 bytes
+- PROJECTIL1_6_F1_LAYER1              14 stored /    32 raw bytes @ #AECA (rom #AECA, offset +#0ECA) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single PROJECTIL1_6_F1_LAYER1 resource; ZX0 14/32 bytes; bank 3 zone 0 offset +#0ECA; zone slack after pack 3996 bytes
+- PROJECTIL1_6_F1_LAYER2              13 stored /    32 raw bytes @ #AED8 (rom #AED8, offset +#0ED8) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single PROJECTIL1_6_F1_LAYER2 resource; ZX0 13/32 bytes; bank 3 zone 0 offset +#0ED8; zone slack after pack 3996 bytes
+- NINA_WALK_LEFT_7_F0_LAYER0          28 stored /    32 raw bytes @ #AEE5 (rom #AEE5, offset +#0EE5) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER0 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0EE5; zone slack after pack 3996 bytes
+- NINA_WALK_LEFT_7_F0_LAYER1          25 stored /    32 raw bytes @ #AF01 (rom #AF01, offset +#0F01) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_WALK_LEFT_7_F0_LAYER1 resource; ZX0 25/32 bytes; bank 3 zone 0 offset +#0F01; zone slack after pack 3996 bytes
+- NINA_WALK_LEFT_7_F1_LAYER0          30 stored /    32 raw bytes @ #AF1A (rom #AF1A, offset +#0F1A) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER0 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0F1A; zone slack after pack 3996 bytes
+- NINA_WALK_LEFT_7_F1_LAYER1          30 stored /    32 raw bytes @ #AF38 (rom #AF38, offset +#0F38) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_WALK_LEFT_7_F1_LAYER1 resource; ZX0 30/32 bytes; bank 3 zone 0 offset +#0F38; zone slack after pack 3996 bytes
+- NINA_GRUB_LEFT_8_F0_LAYER1          20 stored /    32 raw bytes @ #AF56 (rom #AF56, offset +#0F56) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_GRUB_LEFT_8_F0_LAYER1 resource; ZX0 20/32 bytes; bank 3 zone 0 offset +#0F56; zone slack after pack 3996 bytes
+- NINA_GRUB_LEFT_8_F0_LAYER2          29 stored /    32 raw bytes @ #AF6A (rom #AF6A, offset +#0F6A) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_GRUB_LEFT_8_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#0F6A; zone slack after pack 3996 bytes
+- NINA_GRUB_LEFT_8_F1_LAYER1          24 stored /    32 raw bytes @ #AF87 (rom #AF87, offset +#0F87) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_GRUB_LEFT_8_F1_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0F87; zone slack after pack 3996 bytes
+- NINA_GRUB_LEFT_8_F1_LAYER2          28 stored /    32 raw bytes @ #AF9F (rom #AF9F, offset +#0F9F) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_GRUB_LEFT_8_F1_LAYER2 resource; ZX0 28/32 bytes; bank 3 zone 0 offset +#0F9F; zone slack after pack 3996 bytes
+- NINA_JUMP_LEFT_9_F0_LAYER0          27 stored /    32 raw bytes @ #AFBB (rom #AFBB, offset +#0FBB) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_JUMP_LEFT_9_F0_LAYER0 resource; ZX0 27/32 bytes; bank 3 zone 0 offset +#0FBB; zone slack after pack 3996 bytes
+- NINA_JUMP_LEFT_9_F0_LAYER1          24 stored /    32 raw bytes @ #AFD6 (rom #AFD6, offset +#0FD6) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_JUMP_LEFT_9_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0FD6; zone slack after pack 3996 bytes
+- NINA_IDLE_LEFT_10_F0_LAYER1         24 stored /    32 raw bytes @ #AFEE (rom #AFEE, offset +#0FEE) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER1 resource; ZX0 24/32 bytes; bank 3 zone 0 offset +#0FEE; zone slack after pack 3996 bytes
+- NINA_IDLE_LEFT_10_F0_LAYER2         29 stored /    32 raw bytes @ #B006 (rom #B006, offset +#1006) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NINA_IDLE_LEFT_10_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#1006; zone slack after pack 3996 bytes
+- NEW_SPRITE_LEFT_11_F0_LAYER1        31 stored /    32 raw bytes @ #B023 (rom #B023, offset +#1023) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NEW_SPRITE_LEFT_11_F0_LAYER1 resource; ZX0 31/32 bytes; bank 3 zone 0 offset +#1023; zone slack after pack 3996 bytes
+- NEW_SPRITE_LEFT_11_F0_LAYER2        29 stored /    32 raw bytes @ #B042 (rom #B042, offset +#1042) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single NEW_SPRITE_LEFT_11_F0_LAYER2 resource; ZX0 29/32 bytes; bank 3 zone 0 offset +#1042; zone slack after pack 3996 bytes
+- SPRITE_PLACEHOLDER_PATTERN           5 stored /    32 raw bytes @ #B05F (rom #B05F, offset +#105F) [SPRITES/SPRITE_PATTERNS] flags=1
+  reason: post-ZX0 first-fit single SPRITE_PLACEHOLDER_PATTERN resource; ZX0 5/32 bytes; bank 3 zone 0 offset +#105F; zone slack after pack 3996 bytes
+FREE 3996
+
+BANK 04 used 0 / 8192
+FREE 8192

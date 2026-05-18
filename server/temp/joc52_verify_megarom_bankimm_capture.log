@@ -1,0 +1,19 @@
+BP_4010_RESET_OR_INIT pc=4010 sp=F2EC banks=00/00/00 flow=00 exit=00 screen=22 player=22 pxy=8738,8738 boss=05 bossxy=00,04 dirty=00
+title_before_input pc=A165 sp=F37C banks=01/02/03 flow=00 exit=00 screen=22 player=22 pxy=8738,8738 boss=01 bossxy=18,0C dirty=00
+SHOTOK megarom_bankimm_title.png
+intro_space_before pc=624D sp=F36C banks=04/02/03 flow=0A exit=00 screen=22 player=22 pxy=8738,8738 boss=01 bossxy=11,0A dirty=00
+intro_space_after pc=625F sp=F36A banks=01/02/03 flow=0A exit=00 screen=22 player=22 pxy=8738,8738 boss=01 bossxy=0F,0A dirty=00
+after_intro pc=708E sp=F372 banks=01/02/03 flow=00 exit=00 screen=22 player=22 pxy=8738,8738 boss=01 bossxy=04,0A dirty=00
+SHOTOK megarom_bankimm_after_intro.png
+start_space_before pc=61B2 sp=F36C banks=04/02/03 flow=0A exit=00 screen=22 player=22 pxy=8738,8738 boss=01 bossxy=11,0A dirty=00
+start_space_after pc=1810 sp=F36A banks=01/02/03 flow=0A exit=00 screen=22 player=22 pxy=8738,8738 boss=01 bossxy=14,0A dirty=00
+game_early pc=1A50 sp=F364 banks=01/02/03 flow=00 exit=00 screen=22 player=22 pxy=8738,8738 boss=01 bossxy=18,0A dirty=00
+SHOTOK megarom_bankimm_game_early.png
+game_late pc=1A59 sp=F364 banks=01/02/03 flow=00 exit=00 screen=22 player=22 pxy=8738,8738 boss=01 bossxy=18,0A dirty=00
+SHOTOK megarom_bankimm_game_late.png
+right_before pc=19D0 sp=F366 banks=01/02/03 flow=00 exit=00 screen=22 player=22 pxy=8738,8738 boss=01 bossxy=18,0A dirty=00
+right_after pc=A165 sp=F37C banks=01/02/03 flow=0A exit=00 screen=22 player=22 pxy=8738,8738 boss=01 bossxy=12,0A dirty=00
+after_right pc=A165 sp=F37C banks=01/02/03 flow=0A exit=00 screen=22 player=22 pxy=8738,8738 boss=01 bossxy=11,0A dirty=00
+SHOTOK megarom_bankimm_after_right.png
+final pc=A165 sp=F37C banks=01/02/03 flow=0A exit=00 screen=22 player=22 pxy=8738,8738 boss=01 bossxy=07,0A dirty=00
+SHOTOK megarom_bankimm_final.png

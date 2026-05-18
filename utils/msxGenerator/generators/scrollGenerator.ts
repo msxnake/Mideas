@@ -18,7 +18,8 @@ export function generateScrollFile(analysis: ProjectAnalysis): string {
   const tileWidth = analysis.tiles?.[0]?.width || 8;
   const tileHeight = analysis.tiles?.[0]?.height || 8;
 
-  return `; ==================================================================
+  return `; @mideas:block id=runtime.scroll.core kind=routine owner=scroll roots=init_scroll_system,set_camera_position,move_camera,center_camera_on_entity,update_scroll,redraw_viewport,multiply_a_by_b
+; ==================================================================
 ; SCROLL SYSTEM
 ; File: scroll.asm
 ; Description: Viewport management and screen scrolling for large worlds
@@ -384,5 +385,6 @@ multiply_a_by_b:
 ; ==================================================================
 ; END OF SCROLL SYSTEM
 ; ==================================================================
+; @mideas:endblock id=runtime.scroll.core
 `;
 }

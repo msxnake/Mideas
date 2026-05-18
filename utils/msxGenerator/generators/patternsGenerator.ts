@@ -21,6 +21,43 @@ import {
 } from './mapperWindowUtils';
 import { buildResourceIdLabelFromAsmLabel } from '../utils/megaromResourceArtifacts';
 
+const BASE_SCREEN2_DYNAMIC_CHAR_CAPACITY = 126; // chars 128-253; chars 254/255 are reserved
+
+function collectBasePatternEntries(analysis: ProjectAnalysis) {
+  const entries: Array<{
+    tile: any;
+    index: number;
+    charsWide: number;
+    charsHigh: number;
+    totalChars: number;
+    patternBytes: Uint8Array | number[];
+  }> = [];
+  let usedChars = 0;
+
+  (analysis.tiles || []).forEach((tile: any, index: number) => {
+    const charsWide = Math.ceil(tile.width / 8);
+    const charsHigh = Math.ceil(tile.height / 8);
+    const totalChars = charsWide * charsHigh;
+
+    if (usedChars + totalChars > BASE_SCREEN2_DYNAMIC_CHAR_CAPACITY) {
+      console.warn(`Skipping base SCREEN 2 pattern load for ${tile.name || tile.id}: chars 254/255 are reserved`);
+      return;
+    }
+
+    entries.push({
+      tile,
+      index,
+      charsWide,
+      charsHigh,
+      totalChars,
+      patternBytes: generateTilePatternBytes(tile, 'SCREEN 2 (Graphics I)'),
+    });
+    usedChars += totalChars;
+  });
+
+  return entries;
+}
+
 /**
  * Generate pattern data file (patterns.asm)
  *
@@ -51,14 +88,13 @@ export function generatePatternsFile(
   const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
   const mapperPush = usesMapper ? buildMapperDataPushAsm('PATTERN_DATA_BANK', mapperWindow) : '';
   const mapperPop  = usesMapper ? buildMapperDataPopAsm(mapperWindow) : '';
-  // Window-relative HL formula for mapper mode: data accessed via P2 window (#8000-#9FFF).
-  // Works for ALL banks: (label & #1FFF) | #8000 gives the correct window offset.
-  // For banks 0-3 this equals the label itself when label is in #8000-#9FFF range;
-  // for overflow banks (#C000+) it maps to the correct P2 window address.
+  // Window-relative HL formula is mapper-specific (Konami: A000h/P3).
+  // For overflow banks (#C000+) it maps labels to the configured data window.
   const dataHl = (label: string) => usesMapper ? buildMapperWindowedAddress(label, mapperWindow) : label;
   const referencedTileBanks = buildReferencedScreen2TileBanks(analysis);
   const bankBaseExpressions = ['CHRTBL2', 'CHRTBL2 + #800', 'CHRTBL2 + #1000'];
   const patternDataResourceId = buildResourceIdLabelFromAsmLabel('tile_pattern_bank0');
+  const basePatternEntries = collectBasePatternEntries(analysis);
   const tileBankIdSection = referencedTileBanks.length > 0
     ? `SCREEN2_TILEBANK_INVALID EQU #FF\n${referencedTileBanks.map((runtime, index) => `${getScreen2TileBankIdLabel(runtime.tileBankId)} EQU ${index}`).join('\n')}\n\n`
     : `SCREEN2_TILEBANK_INVALID EQU #FF\n\n`;
@@ -76,6 +112,17 @@ export function generatePatternsFile(
   const sharedPatternDataBySignature = new Map<string, string>();
   const sharedPatternDataBlocks: string[] = [];
   let nextSharedPatternDataIndex = 0;
+
+  const buildTileBankPatternClearAsm = (bank: any, bankIndex: number): string => {
+    if (!bank || bank.byteCount <= 0) return '';
+    return `    ; Clear the full pattern bank first so reserved/stale chars
+    ; from presentation/dialog tilebanks cannot leak through unused chars.
+    xor a
+    ld hl, ${bankBaseExpressions[bankIndex]}
+    ld bc, 2048
+    call FAST_FILLVRM
+`;
+  };
 
   const tileBankRuntimeAsm = referencedTileBanks.map((runtime) => {
     let asm = `; ==================================================================
@@ -96,6 +143,7 @@ export function generatePatternsFile(
       if (bank.byteCount > 0) {
         const dataResourceId = buildResourceIdLabelFromAsmLabel(dataLabel);
         asm += `${runtime.labelBase}_load_pattern_bank${bankIndex}:\n`;
+        asm += buildTileBankPatternClearAsm(bank, bankIndex);
         if (useResourceManager) {
           asm += `    ld a, ${dataResourceId}\n`;
           asm += `    ld de, ${bankBaseExpressions[bankIndex]} + (${bank.startChar} * 8)\n`;
@@ -122,11 +170,7 @@ export function generatePatternsFile(
     return asm;
   }).join('');
 
-  const totalPatternBytes = analysis.tiles.reduce((total, tile) => {
-    const charsWide = Math.ceil(tile.width / 8);
-    const charsHigh = Math.ceil(tile.height / 8);
-    return total + (charsWide * charsHigh * 8);
-  }, 0);
+  const totalPatternBytes = basePatternEntries.reduce((total, entry) => total + (entry.totalChars * 8), 0);
 
   // Build the data section (tile_pattern_bank0 + tilebank shared data)
   let dataSection = '';
@@ -135,12 +179,7 @@ export function generatePatternsFile(
 ; TILE PATTERN BANK 0 (Base patterns)
 ; ==================================================================
 tile_pattern_bank0:\n`;
-    dataSection += analysis.tiles.map((tile, index) => {
-      const patternBytes = generateTilePatternBytes(tile, 'SCREEN 2 (Graphics I)');
-      const charsWide = Math.ceil(tile.width / 8);
-      const charsHigh = Math.ceil(tile.height / 8);
-      const totalChars = charsWide * charsHigh;
-
+    dataSection += basePatternEntries.map(({ tile, index, charsWide, charsHigh, totalChars, patternBytes }) => {
       if (tile.width % 8 !== 0 || tile.height % 8 !== 0) {
         console.warn(`Tile ${tile.name} size ${tile.width}x${tile.height} is not multiple of 8px - may cause visual artifacts`);
       }
@@ -192,7 +231,7 @@ ${useResourceManager ? `    ld a, ${patternDataResourceId}
     call resource_load_to_vram_by_id
     ret` : `${mapperPush}    ld hl, ${dataHl('tile_pattern_bank0')}
     ld de, CHRTBL2 + (128 * 8)    ; VRAM pattern table bank 0 (start at char 128)
-    ld bc, ${totalPatternBytes}    ; Total bytes for all tile characters (16x16 tiles = 4 chars each)
+    ld bc, ${totalPatternBytes}    ; Base tile bytes capped to chars 128-253
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
 ${mapperPop}    ret`}
 
@@ -204,7 +243,7 @@ ${useResourceManager ? `    ld a, ${patternDataResourceId}
     call resource_load_to_vram_by_id
     ret` : `${mapperPush}    ld hl, ${dataHl('tile_pattern_bank0')}     ; Same source as Bank 0
     ld de, CHRTBL2 + #800 + (128 * 8) ; VRAM pattern table bank 1 (+#800 offset + char 128)
-    ld bc, ${totalPatternBytes}    ; Total bytes for all tile characters
+    ld bc, ${totalPatternBytes}    ; Base tile bytes capped to chars 128-253
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
 ${mapperPop}    ret`}
 
@@ -216,7 +255,7 @@ ${useResourceManager ? `    ld a, ${patternDataResourceId}
     call resource_load_to_vram_by_id
     ret` : `${mapperPush}    ld hl, ${dataHl('tile_pattern_bank0')}     ; Same source as Bank 0
     ld de, CHRTBL2 + #1000 + (128 * 8) ; VRAM pattern table bank 2 (+#1000 offset + char 128)
-    ld bc, ${totalPatternBytes}    ; Total bytes for all tile characters
+    ld bc, ${totalPatternBytes}    ; Base tile bytes capped to chars 128-253
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
 ${mapperPop}    ret`}
 
@@ -265,11 +304,7 @@ export function getPatternsBank4Data(analysis: ProjectAnalysis): string {
 ; ==================================================================
 tile_pattern_bank0:\n`;
 
-  asm += analysis.tiles.map((tile, index) => {
-    const patternBytes = generateTilePatternBytes(tile, 'SCREEN 2 (Graphics I)');
-    const charsWide = Math.ceil(tile.width / 8);
-    const charsHigh = Math.ceil(tile.height / 8);
-    const totalChars = charsWide * charsHigh;
+  asm += collectBasePatternEntries(analysis).map(({ tile, index, totalChars, patternBytes }) => {
     const bytesHex = Array.from(patternBytes).map(b => `#${b.toString(16).padStart(2, '0').toUpperCase()}`);
     return `    ; Tile ${index}: ${tile.name} (${tile.width}x${tile.height}px = ${totalChars} MSX characters)\n    db ${bytesHex.join(', ')}\n`;
   }).join('');

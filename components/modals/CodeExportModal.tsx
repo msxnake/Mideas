@@ -2,7 +2,7 @@ import React, { startTransition, useState } from 'react';
 import JSZip from 'jszip';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
-import { ProjectAsset } from '../../types';
+import { ExportRomMode, ProjectAsset } from '../../types';
 import { hasPresentationScreenData } from '../utils/presentationScreenUtils';
 import {
   generateCompleteGameAssembly,
@@ -31,10 +31,11 @@ interface CodeExportModalProps {
   currentProjectName?: string | null;
   projectData?: any; // Full project data including tileBanks
   onEditFile?: (filename: string, content: string) => void;
+  defaultRomMode?: ExportRomMode;
 }
 
 type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'asm_all_in_one' | 'tiles' | 'sprites' | 'screens' | 'entities';
-type RomMode = 'auto' | 'simple32k' | 'plain48k' | 'megarom';
+type RomMode = ExportRomMode;
 type MapperFormat = 'konami' | 'ascii8' | 'ascii16';
 type EngineExecutionMode = 'gameLoopHalt' | 'interruptTaskManager';
 type RomBuildConfig = {
@@ -118,6 +119,58 @@ interface MapperReadyBundle {
   activeIndex: number;
 }
 
+interface PostAsmAnalysisResult {
+  success: boolean;
+  applied?: boolean;
+  message?: string;
+  summary?: {
+    findings?: number;
+    appliedPatches?: number;
+    deadBlockCandidates?: number;
+    deadCandidateLines?: number;
+    deadCandidateSourceBytes?: number;
+    unusedRuntimeLabels?: number;
+    inactiveFeatureRuntime?: number;
+    unusedScreenLoaders?: number;
+    unusedBossAttackRuntime?: number;
+    unusedComponentRuntime?: number;
+    stateMachineDispatchHandlers?: number;
+    originalLineCount?: number;
+    outputLineCount?: number;
+    removedLines?: number;
+    removedSourceBytes?: number;
+    selectedRules?: string[];
+    ruleMetrics?: Record<string, {
+      findings?: number;
+      patchable?: number;
+      removedLines?: number;
+      removedSourceBytes?: number;
+    }>;
+  };
+  report?: {
+    findings?: Array<{
+      rule_id: string;
+      routine: string;
+      line_start: number;
+      line_end: number;
+      summary: string;
+      patchable?: boolean;
+    }>;
+  };
+  invariantCheck?: {
+    ok?: boolean;
+    errors?: Array<{ id?: string; message?: string }>;
+  } | null;
+  reportJsonFile?: string;
+  reportMarkdownFile?: string;
+  optimizedAsmFile?: string;
+  optimizedAsmDownloadUrl?: string;
+  optimizedRomFile?: string | null;
+  optimizedRomDownloadUrl?: string | null;
+  error?: string;
+  details?: string;
+}
+
 export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   isOpen,
   onClose,
@@ -125,6 +178,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   currentProjectName,
   projectData,
   onEditFile,
+  defaultRomMode = 'simple32k',
 }) => {
   const [exportType, setExportType] = useState<ExportType>('asm_all_in_one');
   const [options, setOptions] = useState<CodeGenerationOptions>(DEFAULT_CODE_OPTIONS);
@@ -134,10 +188,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCompiling, setIsCompiling] = useState(false);
   const [isCompressingAsm, setIsCompressingAsm] = useState(false);
+  const [isPostAsmAnalyzing, setIsPostAsmAnalyzing] = useState(false);
+  const [isPostAsmOptimizing, setIsPostAsmOptimizing] = useState(false);
   const [compilationResult, setCompilationResult] = useState<{ success: boolean; message: string; data?: string } | null>(null);
   const [asmCompressionResult, setAsmCompressionResult] = useState<any>(null);
+  const [postAsmAnalysisResult, setPostAsmAnalysisResult] = useState<PostAsmAnalysisResult | null>(null);
+  const [postAsmOptimizationResult, setPostAsmOptimizationResult] = useState<PostAsmAnalysisResult | null>(null);
   const [projectAnalysis, setProjectAnalysis] = useState<any>(null);
-  const [romMode, setRomMode] = useState<RomMode>('simple32k');
+  const [romMode, setRomMode] = useState<RomMode>(defaultRomMode);
   const [mapperFormat, setMapperFormat] = useState<MapperFormat>('konami');
   const [romSizeKB, setRomSizeKB] = useState<number | undefined>(undefined);
   const [executionMode, setExecutionMode] = useState<EngineExecutionMode>('interruptTaskManager');
@@ -149,7 +207,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [pipelineStatus, setPipelineStatus] = useState('Ready');
   const [zx0Options, setZx0Options] = useState<Zx0CompressionOptions>(DEFAULT_ZX0_OPTIONS);
 
-  const isPipelineBusy = isGenerating || isCompiling || isCompressingAsm || isQuickValidating || isBuildingAndRunning;
+  const isPipelineBusy = isGenerating || isCompiling || isCompressingAsm || isPostAsmAnalyzing || isPostAsmOptimizing || isQuickValidating || isBuildingAndRunning;
   const backendBaseUrl = (() => {
     const env = import.meta.env as Record<string, string | undefined>;
     const configuredBaseUrl = env.VITE_BACKEND_URL?.trim() || env.VITE_API_BASE_URL?.trim();
@@ -461,9 +519,22 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
   };
 
-  const runOpenMSXRequest = async (romFile: string, resolvedRomMode?: string) => {
+  const runOpenMSXRequest = async (
+    romFile: string,
+    resolvedRomMode?: string,
+    mapperTargetFormat?: string
+  ) => {
     try {
-      const romType = resolvedRomMode === 'plain48k' ? 'Plain' : undefined;
+      const normalizedMapper = (mapperTargetFormat || '').toLowerCase();
+      const romType = resolvedRomMode === 'plain48k'
+        ? 'Plain'
+        : resolvedRomMode === 'megarom' && normalizedMapper === 'konami'
+          ? 'konami'
+          : resolvedRomMode === 'megarom' && normalizedMapper === 'ascii8'
+            ? 'ASCII8'
+            : resolvedRomMode === 'megarom' && normalizedMapper === 'ascii16'
+              ? 'ASCII16'
+              : undefined;
       const response = await fetch(buildBackendUrl('/run-openmsx'), {
         method: 'POST',
         headers: {
@@ -595,6 +666,104 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
   };
 
+  const runPostAsmAnalysisRequest = async (
+    sourceCode: string,
+    projectNameInput?: string
+  ): Promise<PostAsmAnalysisResult> => {
+    try {
+      const response = await fetch(buildBackendUrl('/analyze-post-asm'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: sourceCode,
+          projectName: projectNameInput || currentProjectName || 'MSX_Game',
+          rules: ['dead-blocks', 'unused-runtime-labels', 'inactive-feature-runtime', 'unused-screen-loaders', 'unused-boss-attack-runtime', 'unused-component-runtime', 'state-machine-dispatch-handlers']
+        }),
+      });
+
+      const responseText = await response.text();
+      let result: PostAsmAnalysisResult;
+
+      try {
+        result = JSON.parse(responseText);
+      } catch (jsonError) {
+        return {
+          success: false,
+          message: `Post-ASM analysis response error: ${responseText}`,
+          details: String(jsonError)
+        };
+      }
+
+      if (!response.ok || !result.success) {
+        return {
+          success: false,
+          message: result.details || result.error || 'Unknown post-ASM analysis error',
+          ...result
+        };
+      }
+
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        message: buildBackendFetchError('Post-ASM analysis', error),
+        details: String(error)
+      };
+    }
+  };
+
+  const runPostAsmOptimizeRequest = async (
+    sourceCode: string,
+    projectNameInput?: string
+  ): Promise<PostAsmAnalysisResult> => {
+    try {
+      const response = await fetch(buildBackendUrl('/optimize-post-asm'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: sourceCode,
+          projectName: projectNameInput || currentProjectName || 'MSX_Game',
+          passes: 7,
+          validateGlass: true,
+          rules: ['dead-blocks', 'unused-screen-loaders', 'inactive-feature-runtime', 'unused-boss-attack-runtime', 'unused-component-runtime', 'state-machine-dispatch-handlers']
+        }),
+      });
+
+      const responseText = await response.text();
+      let result: PostAsmAnalysisResult;
+
+      try {
+        result = JSON.parse(responseText);
+      } catch (jsonError) {
+        return {
+          success: false,
+          message: `Post-ASM optimization response error: ${responseText}`,
+          details: String(jsonError)
+        };
+      }
+
+      if (!response.ok || !result.success) {
+        return {
+          success: false,
+          message: result.details || result.error || 'Unknown post-ASM optimization error',
+          ...result
+        };
+      }
+
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        message: buildBackendFetchError('Post-ASM optimization', error),
+        details: String(error)
+      };
+    }
+  };
+
   const maybeAutoCompressMapperReadyBundle = async (bundle: MapperReadyBundle) => {
     const sourceCode = bundle.modularFiles['unitedFiles.asm'] || bundle.mainCode;
     if (!unifiedAsmNeedsRequiredZx0Preprocess(sourceCode, bundle.romConfig)) {
@@ -695,6 +864,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const handleGenerateCode = async () => {
     setIsGenerating(true);
     setAsmCompressionResult(null);
+    setPostAsmAnalysisResult(null);
+    setPostAsmOptimizationResult(null);
 
     try {
       let code = '';
@@ -867,6 +1038,46 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
   };
 
+  const handleAnalyzePostAsm = async () => {
+    if (!generatedCode.trim()) {
+      alert('Generate code first before analyzing ASM');
+      return;
+    }
+
+    setIsPostAsmAnalyzing(true);
+    setPostAsmAnalysisResult(null);
+
+    try {
+      const result = await runPostAsmAnalysisRequest(generatedCode, currentProjectName || 'MSX_Game');
+      setPostAsmAnalysisResult(result);
+      if (!result.success) {
+        alert(`Post-ASM analysis failed: ${result.message || 'Unknown error'}`);
+      }
+    } finally {
+      setIsPostAsmAnalyzing(false);
+    }
+  };
+
+  const handleOptimizePostAsm = async () => {
+    if (!generatedCode.trim()) {
+      alert('Generate code first before optimizing ASM');
+      return;
+    }
+
+    setIsPostAsmOptimizing(true);
+    setPostAsmOptimizationResult(null);
+
+    try {
+      const result = await runPostAsmOptimizeRequest(generatedCode, currentProjectName || 'MSX_Game');
+      setPostAsmOptimizationResult(result);
+      if (!result.success) {
+        alert(`Post-ASM optimization failed: ${result.message || 'Unknown error'}`);
+      }
+    } finally {
+      setIsPostAsmOptimizing(false);
+    }
+  };
+
   const handleCompileCode = async () => {
     if (!generatedCode.trim()) {
       alert('Generate code first before compiling');
@@ -915,6 +1126,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     setIsCompressingAsm(true);
     setCompilationResult(null);
     setAsmCompressionResult(null);
+    setPostAsmAnalysisResult(null);
+    setPostAsmOptimizationResult(null);
     setQuickValidationSummary(null);
     setPipelineProgress(5);
     setPipelineStatus('Generating ASM...');
@@ -1040,7 +1253,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           setPipelineStatus('Launching OpenMSX...');
           const openMsxResult = await runOpenMSXRequest(
             (compileResult as any).romFile,
-            compileResult?.resolvedRomConfig?.resolvedRomMode
+            compileResult?.resolvedRomConfig?.resolvedRomMode,
+            compileResult?.resolvedRomConfig?.mapperTargetFormat || bundle.romConfig.targetFormat
           );
           if (openMsxResult.success) {
             summary += `\nRun: OpenMSX launched (${(compileResult as any).romFile})`;
@@ -1126,6 +1340,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
     setIsCompressingAsm(true);
     setAsmCompressionResult(null);
+    setPostAsmAnalysisResult(null);
+    setPostAsmOptimizationResult(null);
 
     try {
       const result = await runCompressRequest(sourceCode, currentProjectName || 'MSX_Game', zx0Options);
@@ -1641,6 +1857,24 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 </Button>
 
                 <Button
+                  onClick={handleAnalyzePostAsm}
+                  disabled={isPostAsmAnalyzing || isPipelineBusy || !generatedCode.trim()}
+                  variant="secondary"
+                  className="w-full"
+                >
+                  {isPostAsmAnalyzing ? 'Analyzing unused ASM...' : 'Analyze unused ASM'}
+                </Button>
+
+                <Button
+                  onClick={handleOptimizePostAsm}
+                  disabled={isPostAsmOptimizing || isPipelineBusy || !generatedCode.trim()}
+                  variant="secondary"
+                  className="w-full"
+                >
+                  {isPostAsmOptimizing ? 'Applying validated ASM optimization...' : 'Apply unused ASM (validated)'}
+                </Button>
+
+                <Button
                   onClick={handleCompileCode}
                   disabled={isCompiling || isQuickValidating || isBuildingAndRunning || !generatedCode.trim()}
                   variant="secondary"
@@ -1675,6 +1909,167 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   <div className="p-2 rounded text-xs bg-blue-900 bg-opacity-30 border border-blue-600 text-msx-textsecondary whitespace-pre-wrap">
                     <div className="font-semibold text-blue-300 mb-1">Mapper Pipeline Summary</div>
                     {quickValidationSummary}
+                  </div>
+                )}
+
+                {postAsmAnalysisResult && (
+                  <div className={`p-2 rounded text-xs border text-msx-textsecondary ${
+                    postAsmAnalysisResult.success
+                      ? 'bg-cyan-900 bg-opacity-30 border-cyan-600'
+                      : 'bg-red-900 bg-opacity-30 border-red-600'
+                  }`}>
+                    <div className={`font-semibold mb-1 ${postAsmAnalysisResult.success ? 'text-cyan-300' : 'text-red-300'}`}>
+                      Post-ASM Analysis
+                    </div>
+                    {postAsmAnalysisResult.success ? (
+                      <>
+                        <div>Findings: {postAsmAnalysisResult.summary?.findings ?? 0}</div>
+                        <div>
+                          Dead blocks: {postAsmAnalysisResult.summary?.deadBlockCandidates ?? 0}
+                          {' '}({postAsmAnalysisResult.summary?.deadCandidateLines ?? 0} lines / {postAsmAnalysisResult.summary?.deadCandidateSourceBytes ?? 0} bytes)
+                        </div>
+                        <div>Unused runtime labels: {postAsmAnalysisResult.summary?.unusedRuntimeLabels ?? 0}</div>
+                        <div>Inactive feature runtime: {postAsmAnalysisResult.summary?.inactiveFeatureRuntime ?? 0}</div>
+                        <div>Unused screen loaders: {postAsmAnalysisResult.summary?.unusedScreenLoaders ?? 0}</div>
+                        <div>Unused boss attack runtime: {postAsmAnalysisResult.summary?.unusedBossAttackRuntime ?? 0}</div>
+                        <div>Unused component runtime: {postAsmAnalysisResult.summary?.unusedComponentRuntime ?? 0}</div>
+                        <div>State-machine dispatch handlers: {postAsmAnalysisResult.summary?.stateMachineDispatchHandlers ?? 0}</div>
+                        {(postAsmAnalysisResult.summary?.selectedRules?.length || 0) > 0 && (
+                          <div className="font-mono text-[11px] text-cyan-100">
+                            Rules: {postAsmAnalysisResult.summary?.selectedRules?.join(', ')}
+                          </div>
+                        )}
+                        <div>ASM lines: {postAsmAnalysisResult.summary?.originalLineCount ?? 0}</div>
+                        {(postAsmAnalysisResult.report?.findings || []).slice(0, 5).map((finding, index) => (
+                          <div key={`${finding.rule_id}_${finding.routine}_${index}`} className="mt-1 font-mono text-[11px] text-msx-textprimary">
+                            {finding.rule_id}: {finding.routine} lines {finding.line_start}-{finding.line_end}
+                          </div>
+                        ))}
+                        {(postAsmAnalysisResult.report?.findings?.length || 0) > 5 && (
+                          <div className="mt-1">
+                            +{(postAsmAnalysisResult.report?.findings?.length || 0) - 5} more in report
+                          </div>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {postAsmAnalysisResult.reportMarkdownFile && (
+                            <button
+                              onClick={() => {
+                                const downloadUrl = buildBackendUrl(`/download/${postAsmAnalysisResult.reportMarkdownFile}`);
+                                const link = document.createElement('a');
+                                link.href = downloadUrl;
+                                link.download = postAsmAnalysisResult.reportMarkdownFile || 'post_asm_report.md';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              }}
+                              className="px-3 py-1 bg-cyan-700 hover:bg-cyan-600 text-white text-xs rounded transition-colors"
+                            >
+                              Download MD
+                            </button>
+                          )}
+                          {postAsmAnalysisResult.reportJsonFile && (
+                            <button
+                              onClick={() => {
+                                const downloadUrl = buildBackendUrl(`/download/${postAsmAnalysisResult.reportJsonFile}`);
+                                const link = document.createElement('a');
+                                link.href = downloadUrl;
+                                link.download = postAsmAnalysisResult.reportJsonFile || 'post_asm_report.json';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              }}
+                              className="px-3 py-1 bg-cyan-700 hover:bg-cyan-600 text-white text-xs rounded transition-colors"
+                            >
+                              Download JSON
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div>{postAsmAnalysisResult.message || postAsmAnalysisResult.details || 'Analysis failed'}</div>
+                    )}
+                  </div>
+                )}
+
+                {postAsmOptimizationResult && (
+                  <div className={`p-2 rounded text-xs border text-msx-textsecondary ${
+                    postAsmOptimizationResult.success
+                      ? 'bg-purple-900 bg-opacity-30 border-purple-600'
+                      : 'bg-red-900 bg-opacity-30 border-red-600'
+                  }`}>
+                    <div className={`font-semibold mb-1 ${postAsmOptimizationResult.success ? 'text-purple-300' : 'text-red-300'}`}>
+                      Post-ASM Optimized Artifact
+                    </div>
+                    {postAsmOptimizationResult.success ? (
+                      <>
+                        <div>Applied patches: {postAsmOptimizationResult.summary?.appliedPatches ?? 0}</div>
+                        <div>
+                          Dead-block savings: {postAsmOptimizationResult.summary?.deadCandidateLines ?? 0} lines / {postAsmOptimizationResult.summary?.deadCandidateSourceBytes ?? 0} bytes
+                        </div>
+                        <div>
+                          Removed total: {postAsmOptimizationResult.summary?.removedLines ?? 0} lines / {postAsmOptimizationResult.summary?.removedSourceBytes ?? 0} bytes
+                        </div>
+                        {(postAsmOptimizationResult.summary?.selectedRules?.length || 0) > 0 && (
+                          <div className="font-mono text-[11px] text-purple-100">
+                            Rules: {postAsmOptimizationResult.summary?.selectedRules?.join(', ')}
+                          </div>
+                        )}
+                        {Object.entries(postAsmOptimizationResult.summary?.ruleMetrics || {})
+                          .filter(([, metrics]) => (metrics.removedLines || 0) > 0 || (metrics.patchable || 0) > 0)
+                          .map(([ruleId, metrics]) => (
+                            <div key={ruleId} className="font-mono text-[11px] text-msx-textprimary">
+                              {ruleId}: {metrics.patchable ?? 0} patchable, {metrics.removedLines ?? 0} lines
+                            </div>
+                          ))}
+                        <div>
+                          Invariants: {postAsmOptimizationResult.invariantCheck?.ok === false ? 'failed' : 'passed'}
+                        </div>
+                        <div>{postAsmOptimizationResult.message || 'Optimized ASM generated separately.'}</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {postAsmOptimizationResult.optimizedAsmDownloadUrl && (
+                            <button
+                              onClick={() => {
+                                const downloadUrl = buildBackendUrl(postAsmOptimizationResult.optimizedAsmDownloadUrl || '');
+                                const link = document.createElement('a');
+                                link.href = downloadUrl;
+                                link.download = postAsmOptimizationResult.optimizedAsmFile || 'optimized.asm';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              }}
+                              className="px-3 py-1 bg-purple-700 hover:bg-purple-600 text-white text-xs rounded transition-colors"
+                            >
+                              Download optimized ASM
+                            </button>
+                          )}
+                          {postAsmOptimizationResult.optimizedRomDownloadUrl && (
+                            <button
+                              onClick={() => {
+                                const downloadUrl = buildBackendUrl(postAsmOptimizationResult.optimizedRomDownloadUrl || '');
+                                const link = document.createElement('a');
+                                link.href = downloadUrl;
+                                link.download = postAsmOptimizationResult.optimizedRomFile || 'optimized.rom';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              }}
+                              className="px-3 py-1 bg-purple-700 hover:bg-purple-600 text-white text-xs rounded transition-colors"
+                            >
+                              Download optimized ROM
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>{postAsmOptimizationResult.message || postAsmOptimizationResult.details || 'Optimization failed'}</div>
+                        {(postAsmOptimizationResult.invariantCheck?.errors || []).map((error, index) => (
+                          <div key={`${error.id || 'invariant'}_${index}`} className="mt-1 text-red-200">
+                            {error.message || error.id || 'Invariant check failed'}
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
                 )}
 

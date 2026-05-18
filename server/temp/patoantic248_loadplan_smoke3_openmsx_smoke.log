@@ -1,0 +1,13 @@
+BP_4010 pc=4010 sp=F2EC bank=00/04/33/3A flow=00 screen=00 irq=0000 inirq=00 pos=0,0
+space1_before pc=602B sp=F374 bank=04/02/03/03 flow=00 screen=00 irq=00B8 inirq=00 pos=8,80
+space1_after pc=4677 sp=F364 bank=0E/02/11/03 flow=00 screen=00 irq=00C7 inirq=00 pos=8,80
+space2_before pc=A140 sp=F376 bank=01/02/03/03 flow=00 screen=00 irq=0130 inirq=00 pos=8,80
+space2_after pc=46A2 sp=F35E bank=06/02/11/03 flow=00 screen=00 irq=013F inirq=00 pos=8,80
+t12 pc=7978 sp=F376 bank=01/02/03/03 flow=01 screen=00 irq=01E4 inirq=00 pos=8,80
+SHOTOK patoantic248_loadplan_smoke3_t12.png
+right_before pc=6611 sp=6E5B bank=08/02/03/03 flow=01 screen=00 irq=023E inirq=01 pos=8,80
+right_after pc=A708 sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=027C inirq=00 pos=80,80
+t16 pc=A708 sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=02D3 inirq=00 pos=80,80
+SHOTOK patoantic248_loadplan_smoke3_t16.png
+t22 pc=A708 sp=F37C bank=01/02/03/03 flow=01 screen=00 irq=043B inirq=00 pos=80,80
+SHOTOK patoantic248_loadplan_smoke3_t22.png

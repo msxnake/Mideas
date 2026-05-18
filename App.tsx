@@ -146,7 +146,9 @@ const App: React.FC = () => {
     saveScreenZoom,
     setSaveScreenZoom,
     saveSectorLines,
-    setSaveSectorLines
+    setSaveSectorLines,
+    defaultExportRomMode,
+    setDefaultExportRomMode
   } = appState;
 
   // Context Menu state
@@ -399,6 +401,7 @@ const App: React.FC = () => {
   const assetHandlers = useAssetHandlers({
     assets,
     setAssetsWithHistory,
+    setTileBanksWithHistory,
     setStatusBarMessage,
     selectedAssetId,
     setSelectedAssetId,
@@ -587,6 +590,9 @@ const App: React.FC = () => {
   // Handle rename functionality
   const handleConfirmRename = useCallback((newName: string) => {
     if (assetToRenameInfo) {
+      const assetToRename = assets.find(asset => asset.id === assetToRenameInfo.id);
+      const tileBankDataId = assetToRename?.type === 'tilebank' ? (assetToRename.data as TileBank | undefined)?.id : undefined;
+
       setAssetsWithHistory(prevAssets => prevAssets.map(a => {
         if (a.id === assetToRenameInfo.id) {
           const updatedAsset = { ...a, name: newName };
@@ -597,11 +603,20 @@ const App: React.FC = () => {
         }
         return a;
       }));
+
+      if (assetToRenameInfo.type === 'tilebank') {
+        setTileBanksWithHistory(prevBanks => prevBanks.map(tileBank => (
+          tileBank.id === assetToRenameInfo.id || tileBank.id === tileBankDataId
+            ? { ...tileBank, name: newName }
+            : tileBank
+        )));
+      }
+
       setStatusBarMessage(`Asset renamed to ${newName}.`);
     }
     setIsRenameModalOpen(false);
     setAssetToRenameInfo(null);
-  }, [assetToRenameInfo, setAssetsWithHistory, setStatusBarMessage, setIsRenameModalOpen, setAssetToRenameInfo]);
+  }, [assetToRenameInfo, assets, setAssetsWithHistory, setTileBanksWithHistory, setStatusBarMessage, setIsRenameModalOpen, setAssetToRenameInfo]);
 
   const handleCancelRename = () => {
     setIsRenameModalOpen(false);
@@ -660,6 +675,7 @@ const App: React.FC = () => {
     const configToSave = {
       dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled,
       worldViewGridVisible, saveBossZoom, saveSpriteZoom, saveTileZoom, saveScreenZoom, saveSectorLines,
+      defaultExportRomMode,
       ...(saveBossZoom ? { bossEditorZoom } : {}),
       ...(saveTileZoom ? { tileEditorZoom } : {}),
       ...(saveScreenZoom ? { screenEditorZoom } : {}),
@@ -670,7 +686,7 @@ const App: React.FC = () => {
   };
 
   const resetIdeConfig = () => {
-    // Reset to defaults - these would need to be implemented with proper setters
+    setDefaultExportRomMode('simple32k');
     setStatusBarMessage("IDE configuration reset to defaults.");
   };
 
@@ -782,6 +798,8 @@ const App: React.FC = () => {
     setShowSectorLines,
     saveSectorLines,
     setSaveSectorLines,
+    defaultExportRomMode,
+    setDefaultExportRomMode,
 
     // History
     history,

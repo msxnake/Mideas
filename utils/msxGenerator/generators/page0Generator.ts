@@ -4,7 +4,7 @@
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { ScreenMap } from '../../../types';
-import { buildScreenCharBehaviorTable, buildScreenInteractionMaps, encodeBehaviorByteFromLogicalProperties, generateScreenMapLayoutBytes, resolveScreenBehaviorSource } from '../../../components/utils/screenUtils';
+import { buildScreenCharBehaviorTable, buildScreenInteractionMaps, encodeBehaviorByteFromLogicalProperties, generateScreenMapLayoutBytes, getScreenTileLogicalProperties, resolveScreenBehaviorSource } from '../../../components/utils/screenUtils';
 import { buildScreenBlockMapFromBytes } from '../../screenOptimization/blockMapBuilder';
 import { resolveRuntimeScreen2TileBankDefinitions } from '../utils/screen2TileBanks';
 import type { FontRawData } from './fontGenerator';
@@ -144,8 +144,25 @@ function buildBehaviorMapDataFromCollisionLayer(screen: ScreenMap, analysis: Pro
       const srcCol = collisionCols > 0
         ? Math.min(collisionCols - 1, Math.floor((col * collisionCols) / SCREEN_WIDTH))
         : 0;
-      const tileId = collisionLayer[srcRow]?.[srcCol]?.tileId;
-      behaviorMapData.push(encodeBehaviorByteFromLogicalProperties(tileId ? tileById.get(tileId)?.logicalProperties : undefined));
+      behaviorMapData.push(encodeBehaviorByteFromLogicalProperties(
+        getScreenTileLogicalProperties(collisionLayer[srcRow]?.[srcCol], tileById as any)
+      ));
+    }
+  }
+
+  return behaviorMapData;
+}
+
+function buildBehaviorMapDataFromBackgroundLayer(screen: ScreenMap, analysis: ProjectAnalysis): number[] {
+  const backgroundLayer = screen.layers.background || [];
+  const behaviorMapData: number[] = [];
+  const tileById = new Map((analysis.tiles || []).map((tile: any) => [tile.id, tile]));
+
+  for (let row = 0; row < SCREEN_HEIGHT; row++) {
+    for (let col = 0; col < SCREEN_WIDTH; col++) {
+      behaviorMapData.push(encodeBehaviorByteFromLogicalProperties(
+        getScreenTileLogicalProperties(backgroundLayer[row]?.[col], tileById as any)
+      ));
     }
   }
 
@@ -230,6 +247,14 @@ function buildScreenRuntimePage0Candidates(analysis: ProjectAnalysis): ScreenRun
       });
 
       if (behaviorSource === 'backgroundChars') {
+        blocks.push({
+          label: `BEHAVIOR_${screenName}_${index}_DATA`,
+          bytes: buildBehaviorMapDataFromBackgroundLayer(screen, analysis),
+          comments: [
+            `${screen.name} - per-cell behavior map`,
+            `Copied from page 0 to runtime_behavior_map on screen load.`,
+          ],
+        });
         blocks.push({
           label: `SCREEN_${screenName}_${index}_CHAR_BEHAVIOR_TABLE`,
           bytes: buildScreenCharBehaviorTable(
@@ -451,21 +476,30 @@ export function page0NeedsZx0Decoder(
   romMode: string = 'simple32k',
   fontRawData?: FontRawData
 ): boolean {
+  const page0Plan = buildPage0Plan(analysis, romMode, fontRawData);
+
   // Font data in page0 is always ZX0-compressed by server.js
-  if (fontRawData && fontDataUsesPage0Group(analysis, romMode, fontRawData)) {
+  if (fontRawData && page0Plan.selectedGroups.some(group => group.id === 'fontData')) {
     return true;
   }
 
-  if (!presentationScreenUsesPage0Group(analysis, romMode)) {
-    return false;
+  // Screen runtime blobs packed into page 0 are also ZX0-compressed by
+  // server.js. The screen loader then calls page0_decompress_to_ram for
+  // layout/catalog/map/effects blocks, so the helper must be real.
+  if (page0Plan.selectedGroups.some(group => String(group.id).startsWith('screenRuntime:'))) {
+    return true;
   }
 
-  const compression = analysis.presentationScreen?.compression;
-  return !!(
-    compression?.compressNameTable ||
-    compression?.compressPatterns ||
-    compression?.compressColors
-  );
+  if (page0Plan.selectedGroups.some(group => group.id === 'presentationScreen')) {
+    const compression = analysis.presentationScreen?.compression;
+    return !!(
+      compression?.compressNameTable ||
+      compression?.compressPatterns ||
+      compression?.compressColors
+    );
+  }
+
+  return false;
 }
 
 export function formatPage0PlanComments(plan: Page0Plan): string {

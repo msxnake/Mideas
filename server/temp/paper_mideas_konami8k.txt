@@ -1,0 +1,572 @@
+
+--- PAGE 1 ---
+
+Pipeline para generar una MegaROM Konami 8K sin
+SCC con Mideas
+Gestion de bancos de 8K, optimizacion, ZX0 y estrategia de integracion futura
+Borrador tecnico para revisiones de Mideas
+1 de mayo de 2026
+Resumen
+Este documento propone un pipeline practico para que Mideas pueda exportar una MegaROM
+MSX de tipo Konami 8K sin SCC, tambien conocida como Konami4 o K4. El problema principal
+no es solo generar un fichero .rom mas grande, sino hacer que el codigo, los datos comprimidos
+ZX0 y las tablas de Mideas convivan con un mapa de memoria en el que solo hay 32 KB de ROM
+visibles a la vez, repartidos en ventanas de 8 KB.
+La recomendacion central es no intentar usar los cuatro bancos como si fueran libres. En Konami
+8K sin SCC, el segmento 0 queda fijo en 4000h-5FFFh; 6000h-7FFFh, 8000h-9FFFh y A000h-BFFFh
+son seleccionables escribiendo en 6000h, 8000h y A000h, respectivamente. Para Mideas, el camino
+menos arriesgado es una arquitectura de “24 KB estables + ventana de 8 KB”: mantener los
+segmentos 0, 1 y 2 como nucleo residente y usar A000h-BFFFh como unica ventana dinamica para
+assets comprimidos, pantallas, tablas de nivel y overlays opcionales. Esta decision reduce mucho
+la complejidad del codigo y permite aplazar las llamadas a codigo banked para una fase posterior .
+1. Objetivos
+El objetivo no es reproducir internamente todos los detalles de como trabajaba Konami, sino
+adoptar un patron compatible con el mapper clasico y razonable para una herramienta visual
+como Mideas.
+Objetivos principales:
+• Generar una ROM correcta para mapper Konami 8K sin SCC.
+• Evitar que el juego dependa del estado inicial incierto de algunos bancos.
+• Mantener el codigo de juego sencillo: un solo banco dinamico al inicio.
+• Aprovechar al maximo cada bloque de 8 KB mediante compresion ZX0 y empaquetado por
+uso real.
+• Reducir el problema actual de Mideas: inclusion de muchas rutinas ASM no usadas.
+• Dejar preparado el sistema para revisiones futuras: mas ventanas dinamicas, overlays de
+codigo y optimizacion por perfiles.
+2. Modelo de mapper: Konami 8K sin SCC
+Una MegaROM divide el contenido total de la ROM en segmentos, normalmente de 8 KB o 16 KB.
+El mapper expone algunos segmentos en la ventana visible por la CPU Z80 y permite cambiar que
+segmento aparece en cada zona escribiendo un numero de segmento en direcciones concretas.
+Para Konami 8K sin SCC el modelo recomendable para Mideas es:
+1
+
+--- PAGE 2 ---
+
+Ventana Z80 Tamano Tipo
+Registro de
+seleccion
+Estado
+recomendado
+4000h-5FFFh 8 KB fijo ninguno segmento 0,
+nunca cambia
+6000h-7FFFh 8 KB conmutable escribir en
+6000h
+inicializar a
+segmento 1 y
+tratar como fijo
+8000h-9FFFh 8 KB conmutable escribir en
+8000h
+inicializar a
+segmento 2 y
+tratar como fijo
+A000h-BFFFh 8 KB conmutable escribir en
+A000h
+ventana
+dinamica
+principal
+Puntos criticos:
+• El segmento 0 debe contener la cabecera ROM, el arranque y las rutinas que no pueden
+desaparecer .
+• No hay que ejecutar codigo desde una ventana que se vaya a cambiar en ese momento.
+• Las rutinas de cambio de banco, interrupciones, descompresion, copia a VRAM y tablas de
+assets deben residir en la parte fija o semiresidente.
+• Hay que inicializar explicitamente 6000h, 8000h y A000h al arrancar . En documentacion de
+mappers Konami sin SCC, 8000h y A000h pueden arrancar con segmento aleatorio; Mideas
+no debe depender de que contengan 2 y 3.
+• Antes de usar 8000h-BFFFh, el slot del cartucho debe estar visible en la pagina 2 del Z80. Si
+el sistema de ensamblado ya hace esta configuracion, se puede encapsular; si no, Mideas
+debe generar una rutina equivalente.
+3. Principio de diseno: 24 KB estables + 8 KB dinamicos
+La tentacion natural es usar tres ventanas dinamicas, pero eso complica mucho el codigo gene-
+rado. Mideas es una herramienta visual; por tanto conviene que la primera implementacion sea
+robusta, no maximalista.
+3.1 Layout recomendado
+Segmento Direccion visible Uso recomendado
+0 4000h-5FFFh boot, cabecera, ISR,
+bankswitch, ZX0, loader ,
+tablas globales
+1 6000h-7FFFh motor comun: input,
+sprites, colisiones base,
+PSG, ECS minimo
+2 8000h-9FFFh motor extendido: scroll,
+menus, state machines,
+rutinas frecuentes
+3..N A000h-BFFFh bancos de assets, pantallas,
+mapas, enemigos, scripts y
+audio
+Esta politica convierte Konami 8K sin SCC en algo parecido a una ROM de 24 KB residente con
+una ventana de datos de 8 KB. No es el maximo teorico, pero es el punto de equilibrio mas seguro.
+2
+
+--- PAGE 3 ---
+
+3.2 Cuando usar una segunda ventana dinamica
+Solo conviene permitir que 8000h-9FFFh cambie cuando el proyecto ya tenga:
+• asset loader estable;
+• rutina de bankswitch probada;
+• ISR completamente fija;
+• tabla de dependencias generada automaticamente;
+• tests que detecten llamadas directas a simbolos de bancos no visibles.
+La segunda fase podria ser “16 KB estables + 2 ventanas dinamicas”, usando 8000h y A000h. No
+deberia ser el primer objetivo.
+4. Como lo hacia Konami: patron extrapolable
+En terminos practicos, el mapper Konami sin SCC obliga a una idea simple: hay un nucleo que
+siempre esta disponible y el resto se trae por ventanas de 8 KB. Konami podia mantener codigo
+general, interrupciones, tablas de salto y rutinas de carga en la parte fija, mientras que niveles,
+graficos, textos, patrones de enemigos y bloques de musica se iban seleccionando segun el punto
+del juego.
+Para Mideas, el patron util no es copiar una implementacion historica concreta, sino aplicar estos
+principios:
+• El banco fijo no es desperdicio: es el kernel del cartucho.
+• Las pantallas o fases deben tener bancos de datos asociados.
+• El codigo que se ejecuta cada frame debe ser residente.
+• El codigo raro, como cinematicas, menus especiales o jefes, puede convertirse en overlay
+mas adelante.
+• Los assets se referencian por ID, no por direccion absoluta en el codigo de juego.
+• Cada cambio de banco debe ser explicito, pequeno y trazable.
+5. Problema especifico de Mideas
+Segun la descripcion publica de Mideas, la herramienta busca generar ASM Z80 optimizado para
+MSX1, exportar .ROM, crear .BIN de graficos y audio, y trabajar con sistemas como ECS, state
+machines, GameFlow , sprites, colisiones e interrupciones. Esto encaja bien con una MegaROM,
+pero solo si el generador deja de emitir un bloque ASM monolitico.
+Problemas actuales esperables:
+1. Rutinas no usadas incluidas en el ASM final.
+2. Assets generados sin informacion de uso: no se sabe que pantalla, enemigo o estado necesita
+cada dato.
+3. Simbolos directos a direcciones ROM, peligrosos cuando una direccion pertenece a un banco
+conmutable.
+4. Compresion ZX0 aplicada sin tener en cuenta que un bloque comprimido no debe cruzar un
+limite de 8 KB.
+5. Falta de un manifiesto que diga: asset X esta en banco B, offset O, tamano comprimido C,
+tamano descomprimido D y destino V/RAM.
+La solucion no es reescribir todo Mideas. La solucion es interponer una capa de manifest, empa-
+quetado y generacion de tablas entre el editor visual y el ensamblado final.
+6. Pipeline propuesto
+El pipeline debe separar claramente seis fases.
+3
+
+--- PAGE 4 ---
+
+6.1 Fase A: analisis del proyecto
+Mideas debe generar un grafo de uso:
+• pantallas usadas;
+• tilesets usados por cada pantalla;
+• sprites y animaciones usadas por cada entidad;
+• componentes ECS realmente activados;
+• state machines usadas;
+• sonidos usados;
+• rutinas requeridas por cada sistema.
+Salida: project_usage.json.
+Ejemplo conceptual:
+{
+"features": {
+"scroll": true,
+"tile_collision": true,
+"story_mode": false,
+"ladder_tiles": true,
+"ice_tiles": false
+},
+"scenes": [
+{
+"id": "stage_01",
+"screens": ["s01_00", "s01_01"],
+"tilesets": ["cave_main"],
+"entities": ["hero", "bat", "door"],
+"sounds": ["jump", "hit"]
+}
+]
+}
+6.2 Fase B: poda de rutinas ASM
+El generador ASM debe pasar de “incluirlo todo” a “incluir solo lo activado”.
+Ejemplo generico:
+; Generado por Mideas
+MIDEAS_USE_SCROLL equ 1
+MIDEAS_USE_TILE_COLLISION equ 1
+MIDEAS_USE_STORY_MODE equ 0
+MIDEAS_USE_ICE_TILES equ 0
+; El ensamblador o preprocesador incluye solo lo necesario.
+; Pseudocodigo, adaptable al assembler real.
+IF MIDEAS_USE_SCROLL
+INCLUDE "systems/scroll.asm"
+ENDIF
+IF MIDEAS_USE_TILE_COLLISION
+INCLUDE "systems/tile_collision.asm"
+ENDIF
+La meta es que el segmento 0 no se llene de sistemas que el juego no usa. Para MegaROM, cada
+byte fijo vale mucho mas que un byte en banco de datos.
+4
+
+--- PAGE 5 ---
+
+6.3 Fase C: clasificacion de codigo
+Cada rutina debe clasificarse asi:
+Clase Residencia Ejemplos
+fixed_core segmento 0 boot, ISR, bankswitch, loader ,
+ZX0, VDP base
+resident_engine segmentos 1 y 2 input, ECS usado cada frame,
+colision comun, sprites
+overlay_code banco dinamico jefes, cinematicas, menus
+raros, minijuegos
+asset_data banco dinamico mapas, tiles, patrones, musica,
+textos
+ram_code RAM rutinas copiadas a RAM si
+necesitan ejecutarse sin ROM
+visible
+Primera implementacion: fixed_core, resident_engine y asset_data. Dejar overlay_code para
+fase futura.
+6.4 Fase D: compresion ZX0 por bloque
+No se debe comprimir un banco entero como unidad inicial, porque eso impide cargar assets
+individuales y obliga a gastar mucha RAM. Lo recomendable es comprimir cada asset o grupo
+pequeno.
+Reglas:
+• Comprimir mapas, patrones, nombres de pantalla y textos por separado.
+• Agrupar solo cuando siempre se carguen juntos.
+• Guardar compressed_size y uncompressed_size.
+• Si un asset descomprimido no cabe en el buffer RAM disponible, dividirlo en chunks.
+• No permitir que un bloque comprimido cruce de un banco de 8 KB a otro.
+Salida: ficheros .zx0 y metadatos.
+6.5 Fase E: empaquetado de bancos de 8 KB
+El empaquetador recibe assets comprimidos y restricciones de convivencia. Recomendacion:
+1. Agrupar por escena o por flujo de juego.
+2. Ordenar bloques por tamano decreciente.
+3. Aplicar first-fit decreasing con restricciones.
+4. Rellenar huecos con assets pequenos o textos.
+5. Permitir duplicar assets muy pequenos si evita un cambio de banco caro.
+6. Emitir error si un bloque individual comprimido supera 8 KB.
+Salida: banks.json, banks.inc y bank_XX.bin.
+Ejemplo de tabla de assets generada:
+; asset_id, bank, offset, c_size, u_size, dest_type, dest_addr
+AssetTable:
+db ASSET_STAGE01_MAP
+db 3
+dw 0A120h
+dw 532
+dw 2048
+5
+
+--- PAGE 6 ---
+
+db DEST_RAM
+dw StageMapBuffer
+db ASSET_CAVE_TILES
+db 4
+dw 0A000h
+dw 2860
+dw 6144
+db DEST_VRAM_BUFFERED
+dw 0000h
+6.6 Fase F: ensamblado, concatenacion y verificacion
+Cada segmento debe tener exactamente 8192 bytes al final. El builder concatena segmentos en
+orden:
+segment_00.bin -> ROM offset 00000h -> visible en 4000h
+segment_01.bin -> ROM offset 02000h -> visible en 6000h
+segment_02.bin -> ROM offset 04000h -> visible en 8000h
+segment_03.bin -> ROM offset 06000h -> visible en A000h cuando se selecciona 3
+...
+Verificaciones obligatorias:
+• Ningun segmento supera 8192 bytes.
+• Segmento 0 contiene cabecera ROM valida.
+• Los segmentos 1, 2 y 3 se seleccionan explicitamente en el arranque.
+• Los assets no cruzan limites de banco.
+• No hay llamadas directas a simbolos banked sin macro o descriptor .
+• No se cambia A000h mientras se ejecuta codigo desde A000h.
+• La ISR no depende de bancos dinamicos.
+• El descompresor ZX0 no esta en un banco que pueda desaparecer .
+7. Arranque recomendado
+El arranque debe ser conservador .
+Pseudocodigo:
+org 4000h
+db "AB"
+dw Init
+dw 0,0,0,0
+Init:
+di
+; 1. Asegurar que la pagina 2 del Z80 ve el mismo slot del cartucho
+; si el sistema de build no lo hace automaticamente.
+call EnsureCartridgePage2
+; 2. Inicializar mapeo conocido.
+ld a ,1
+ld (6000h),a
+ld (CurrentBank6000),a
+ld a ,2
+6
+
+--- PAGE 7 ---
+
+ld (8000h),a
+ld (CurrentBank8000),a
+ld a ,3
+ld (0A000h),a
+ld (CurrentBankA000),a
+; 3. Inicializar RAM, VDP, PSG, tablas y juego.
+call InitRAM
+call InitVDP
+call InitGame
+ei
+MainLoop:
+call GameTick
+jp MainLoop
+EnsureCartridgePage2 puede ser una rutina propia o una macro del ensamblador . Lo importante
+es que Mideas no suponga que 8000h-BFFFh apunta ya al cartucho en todos los casos.
+8. API minima de bankswitch
+Todas las rutinas deben vivir en segmento 0 o en un segmento que nunca se cambie durante la
+operacion.
+CurrentBankA000: db 255
+SetBankA000:
+; Entrada: A = segmento a mapear en A000h-BFFFh
+; Destruye: HL
+ld hl ,CurrentBankA000
+cp (hl)
+ret z
+ld (0A000h),a
+ld (hl),a
+ret
+Version segura para secciones criticas:
+SetBankA000_DI:
+; Entrada: A = segmento
+di
+call SetBankA000
+ei
+ret
+No siempre conviene hacer di/ei en cada cambio, porque puede afectar a musica e interrup-
+ciones. La regla limpia es: la ISR no debe usar la ventana dinamica. Entonces el cambio normal
+puede ser sin di, y solo se desactivan interrupciones durante cargas largas o cambios de estado
+delicados.
+9. Loader de assets con ZX0
+La tabla global de assets evita que el juego conozca direcciones fisicas de bancos.
+Pseudocodigo:
+7
+
+--- PAGE 8 ---
+
+; Entrada: A = asset_id
+LoadAsset:
+call FindAssetDescriptor
+; descriptor: bank, source_addr, compressed_size,
+; uncompressed_size, destination
+ld a ,(DescriptorBank)
+call SetBankA000
+ld hl ,(DescriptorSource) ; por ejemplo A000h + offset
+ld de ,(DescriptorRAMDest) ; buffer RAM o destino RAM
+call dzx0_standard ; HL origen, DE destino
+; Si el destino real es VRAM, copiar despues desde RAM.
+call OptionalCopyToVRAM
+ret
+Con ZX0 hay dos estrategias:
+1. Sencilla: descomprimir desde ROM a RAM y luego copiar a VRAM. Es la mas facil de inte-
+grar .
+2. Avanzada: adaptar el depacker para escribir directamente al puerto VDP . Es mas compleja
+y debe esperar a que el pipeline basico funcione.
+Para MSX1 con poca RAM, el builder debe dividir assets grandes en chunks. Por ejemplo, un
+tileset de 6 KB puede cargarse en partes de 1 KB o 2 KB si el buffer disponible es pequeno.
+10. Aprovechamiento maximo de los 8 KB
+El objetivo no es llenar todos los bancos al 100%, sino maximizar bytes utiles sin generar un
+infierno de dependencias. Reglas recomendadas:
+10.1 Comprimir antes de empaquetar
+Empaquetar datos sin comprimir desperdicia ROM. Empaquetar bancos enteros comprimidos
+complica la carga. El equilibrio es comprimir por asset o por grupo de assets que siempre se
+cargan juntos.
+10.2 Usar restricciones de convivencia
+Un asset puede tener etiquetas:
+{
+"id": "bat_sprite_patterns",
+"group": "stage_01",
+"must_be_with": ["bat_anim_table"],
+"prefer_with": ["stage_01_map"],
+"can_duplicate_if_under": 32
+}
+10.3 Duplicar lo pequeno, deduplicar lo grande
+Un bloque de 12 bytes puede duplicarse en varios bancos si evita cambios. Un tileset de 2 KB
+debe deduplicarse.
+8
+
+--- PAGE 9 ---
+
+10.4 Evitar alineaciones innecesarias
+Alinear todo a 256 bytes puede desperdiciar mucho. Para datos comprimidos, normalmente basta
+alineacion de 1 o 2 bytes. Reservar alineacion grande solo para tablas que lo necesiten.
+10.5 Ordenar cargas por banco
+Si una pantalla necesita tres assets del banco 6, cargarlos todos antes de cambiar a otro banco.
+Mideas puede generar un plan de carga:
+stage_01_load_plan:
+bank 6: map, tile_names, collision
+bank 7: sprites, animations
+bank 8: music, sfx
+10.6 Banco de overflow
+Cuando un grupo de escena no cabe en 8 KB, crear bancos overflow:
+stage_01_core -> datos necesarios al entrar
+stage_01_extra -> datos diferidos
+stage_01_boss -> datos del jefe, cargados tarde
+11. Estructura interna de un banco dinamico
+Dos opciones.
+11.1 T abla global solamente
+La tabla de assets esta en segmento 0. El banco dinamico solo contiene bytes de datos.
+Ventajas:
+• Maximo espacio util.
+• Menos lectura de cabeceras.
+• Mas simple para Mideas.
+Desventajas:
+• Si hay corrupcion o mezcla de bancos, se detecta peor .
+11.2 Cabecera por banco
+Cada banco empieza con una cabecera pequena.
+org 0A000h
+BankHeader:
+db "K4BK"
+db BANK_ID
+db BANK_TYPE_ASSETS
+dw BankUsedBytes
+db BankAssetCount
+Ventajas:
+• Facil depuracion.
+• Permite validar que el banco correcto esta mapeado.
+Desventaja:
+9
+
+--- PAGE 10 ---
+
+• Pierde unos bytes por banco.
+Recomendacion: para builds debug, usar cabecera. Para release, permitir eliminarla.
+12. Overlays de codigo: fase futura
+No implementar banked code arbitrario en la primera version. Cuando se implemente, usar solo
+llamadas a traves de trampolin.
+Ejemplo conceptual:
+; Entrada:
+; A = banco que contiene el overlay
+; HL = offset dentro de A000h-BFFFh
+BankCallA000:
+; Guardar banco actual.
+push hl
+ld hl ,CurrentBankA000
+ld b ,(hl)
+pop hl
+push bc
+; Cambiar banco.
+call SetBankA000
+; Convertir offset en direccion real y llamar.
+; El overlay no debe cambiar A000h por su cuenta.
+call CallHL_In_A000_Window
+; Restaurar banco anterior.
+pop af
+call SetBankA000
+ret
+La dificultad no esta en cambiar el banco; esta en asegurar que el overlay no llama a codigo o
+datos que no estan visibles. Por eso debe ser una segunda fase.
+13. Reduccion de rutinas no usadas en Mideas
+Este es probablemente el mayor ahorro inmediato. Antes de pelear por bancos, Mideas debe
+generar menos codigo fijo.
+13.1 Catalogo de modulos
+Cada rutina o sistema debe declarar:
+module: tile_collision
+requires:
+- vdp_base
+uses_ram: 64
+resident: true
+features:
+- tile_collision
+exports:
+- CheckTileCollision
+10
+
+--- PAGE 11 ---
+
+13.2 Resolucion automatica
+El generador toma project_usage.json, resuelve dependencias y emite:
+resident_core.asm
+resident_engine.asm
+unused_report.txt
+unused_report.txt debe listar rutinas descartadas y bytes ahorrados.
+13.3 Presupuesto por segmento
+Mideas debe mostrar presupuestos:
+Segmento 0 fixed_core: 6120 / 8192 bytes
+Segmento 1 resident_engine: 7420 / 8192 bytes
+Segmento 2 resident_ext: 6810 / 8192 bytes
+Banco 3 stage_01: 8012 / 8192 bytes
+Banco 4 stage_02: 7904 / 8192 bytes
+Si segmento 0 supera 8192 bytes, el builder debe fallar . No debe arreglarlo silenciosamente.
+14. Compatibilidad y tamano de ROM
+Para un objetivo conservador , Mideas deberia empezar con 128 KB o 256 KB:
+• 128 KB = 16 segmentos de 8 KB.
+• 256 KB = 32 segmentos de 8 KB.
+Algunas herramientas modernas pueden modelar mappers Konami con mas capacidad, pero para
+una primera revision conviene fijar un objetivo pequeno y verificable. Si luego se soporta hardwa-
+re o flashcart que permita mas segmentos, el pipeline no cambia: solo cambia el rango maximo
+de bank_id.
+15. Validacion automatica
+El builder debe incluir un validador previo a la ROM final.
+Checklist:
+[ ] segment_00.bin <= 8192
+[ ] segment_01.bin <= 8192
+[ ] segment_02.bin <= 8192
+[ ] todos los bancos dinamicos <= 8192
+[ ] cabecera AB en offset 0000 de la ROM, visible en 4000h
+[ ] Init inicializa 6000h=1, 8000h=2, A000h=3
+[ ] no hay asset comprimido cruzando banco
+[ ] todas las referencias banked pasan por AssetTable
+[ ] ISR no toca datos en A000h-BFFFh
+[ ] dzx0 esta en segmento fijo o residente
+[ ] ROM final tiene tamano multiplo de 8192
+Ademas, se recomienda una prueba de humo:
+1. Arrancar ROM.
+2. Inicializar mapper .
+3. Mapear cada banco dinamico en A000h.
+4. Leer cabecera debug o checksum.
+5. Cargar un asset ZX0 por banco.
+11
+
+--- PAGE 12 ---
+
+6. Volver al banco por defecto.
+7. Ejecutar una pantalla de test.
+16. Plan de implantacion en Mideas
+16.1 Fase 1: MegaROM de datos, sin banked code
+Implementar:
+• segmentos 0, 1 y 2 residentes;
+• ventana A000h dinamica;
+• tabla de assets;
+• compresion ZX0 por asset;
+• empaquetador 8 KB;
+• loader ROM->RAM->VRAM;
+• poda basica de rutinas por feature flags.
+Resultado: gran mejora de capacidad sin complicar el codigo de gameplay .
+16.2 Fase 2: optimizador de bancos
+Implementar:
+• grafo de uso por escena;
+• first-fit decreasing con restricciones;
+• reportes de bytes libres;
+• duplicacion controlada de assets pequenos;
+• carga agrupada por banco.
+16.3 Fase 3: segunda ventana dinamica
+Permitir que 8000h tambien sea dinamico solo para datos. Mantener codigo en 4000h/6000h.
+16.4 Fase 4: overlays de codigo
+Permitir banked code para modulos raros, con trampolin y verificador de dependencias.
+17. Conclusiones
+No parece demasiado tarde para implementar soporte MegaROM Konami 8K sin SCC en Mideas
+si se trata como una capa de exportacion y empaquetado, no como una reescritura completa del
+motor . La clave es no intentar resolver todos los casos desde el primer dia.
+La arquitectura recomendada es:
+4000h-5FFFh segmento 0 fijo: kernel
+6000h-7FFFh segmento 1 residente: motor comun
+8000h-9FFFh segmento 2 residente: motor extendido
+A000h-BFFFh ventana dinamica: assets ZX0 y datos de escena
+Esto permite:
+• usar correctamente el mapper Konami sin SCC;
+• mantener el codigo sencillo;
+• aprovechar ZX0 sin cruzar bancos;
+• reducir rutinas no usadas;
+• mostrar presupuestos claros por banco;
+12
+
+--- PAGE 13 ---
+
+• evolucionar hacia overlays de codigo en revisiones futuras.
+La regla de oro para Mideas deberia ser: el juego nunca debe saber donde vive un asset; solo
+debe pedir LoadAsset(asset_id). El builder decide banco, offset, compresion y orden de carga.
+Referencias
+[1] MSX Resource Center Wiki, “MegaROM Mappers”, seccion “Konami MegaROMs without
+SCC”.
+[2] Nocash / problemkaputt, “Portar MSX Tech Doc”, seccion “Cartridge Memory Mappers” .
+[3] Einar Saukas, “ZX0: Data compressor for 8-bit computers and low-end platforms” .
+[4] asMSX manual, MegaROM directives and Konami mapper notes .
+[5] MSX Game Library , “Create a mapped ROM” .
+[6] MSX Resource Center , “Mideas, creador de juegos para MSX” .
+[7] MSX Resource Center forum, “How to do a MegaROM?” .
+13

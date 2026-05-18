@@ -1,0 +1,9 @@
+start pc=0 sp=65535 romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255
+t1 pc=33053 sp=62198 romslot=0 primary=0 bios0=0 page3=0 flow=0 exit=0 screen=51
+t4 pc=16657 sp=62316 romslot=1 primary=212 bios0=0 page3=131 flow=0 exit=0 screen=0
+bp_page0_copy_to_ram pc=39982 sp=62322 romslot=1 primary=212 bios0=0 page3=131 flow=0 exit=0 screen=0
+bp_page0_map_game_rom pc=39900 sp=62312 romslot=1 primary=212 bios0=0 page3=131 flow=0 exit=0 screen=0
+space1 pc=12538 sp=38 romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255
+t10 pc=10396 sp=38 romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255
+space2 pc=8713 sp=38 romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255
+done pc=16044 sp=38 romslot=255 primary=255 bios0=255 page3=255 flow=255 exit=255 screen=255

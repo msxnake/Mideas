@@ -1,0 +1,13 @@
+BP_4010 pc=4010 sp=F2EC bank=00/04/33/3A flow=00 screen=33 irq=0000 inirq=00 pos=0,0
+space1_before pc=199E sp=D20A bank=0C/0C/01/01 flow=00 screen=AB irq=01FF inirq=19 pos=511,9338
+space1_after pc=199D sp=CF5A bank=0C/0C/01/01 flow=00 screen=AB irq=01FF inirq=19 pos=511,9338
+space2_before pc=1130 sp=F2FE bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338
+space2_after pc=1130 sp=F2FE bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338
+t12 pc=1B19 sp=F300 bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338
+SHOTOK patoantic248_ascii16_openmsx_after_bridge_boot_t12.png
+right_before pc=1B19 sp=F300 bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338
+right_after pc=1B19 sp=F300 bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338
+t16 pc=1B19 sp=F300 bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338
+SHOTOK patoantic248_ascii16_openmsx_after_bridge_boot_t16.png
+t22 pc=1B19 sp=F300 bank=01/A0/F4/F3 flow=10 screen=AB irq=01FF inirq=19 pos=511,9338
+SHOTOK patoantic248_ascii16_openmsx_after_bridge_boot_t22.png

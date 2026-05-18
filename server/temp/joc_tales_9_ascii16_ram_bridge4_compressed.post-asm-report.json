@@ -1,0 +1,26 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\joc_tales_9_ascii16_ram_bridge4_compressed.asm",
+  "metrics": {
+    "original_line_count": 20308,
+    "output_line_count": 20308,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {},
+    "rom_validation": {
+      "optimized": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-t9pdxsz3\\joc_tales_9_ascii16_ram_bridge4_compressed.optimized.optimized.rom",
+        "size_bytes": 131072,
+        "sha256": "976f57f77716463905997e6c75491f3bfb857f7a13934c6435f6316966d44a28"
+      },
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-t9pdxsz3\\joc_tales_9_ascii16_ram_bridge4_compressed.original.rom",
+        "size_bytes": 131072,
+        "sha256": "976f57f77716463905997e6c75491f3bfb857f7a13934c6435f6316966d44a28"
+      },
+      "delta_bytes": 0,
+      "same_sha256": true
+    }
+  },
+  "findings": [],
+  "applied_patches": 0
+}

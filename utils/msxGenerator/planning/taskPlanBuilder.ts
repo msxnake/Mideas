@@ -10,11 +10,12 @@ export function buildInterruptTasks(
   const interruptConfig = config.interruptConfig ?? {};
   const hasExternalPt3Audio = (analysis.tracks || [])
     .some((track: any) => track?.playbackBackend === 'external-pt3');
-  const enableAudioTask = interruptConfig.enableAudioTask ?? hasExternalPt3Audio;
+  const defaultEnableAudioTask = hasExternalPt3Audio && config.romMode !== 'megarom';
+  const enableAudioTask = interruptConfig.enableAudioTask ?? defaultEnableAudioTask;
   const enableFrameCounterTask = interruptConfig.enableFrameCounterTask ?? true;
   const hasFrameAudio =
     ((analysis.tracks?.length || 0) > 0) ||
-    ((analysis.stateMachines?.length || 0) > 0);
+    ((analysis.sounds?.length || 0) > 0);
 
   if (enableAudioTask && hasFrameAudio) {
     tasks.push({

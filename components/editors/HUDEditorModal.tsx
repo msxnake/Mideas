@@ -5,6 +5,7 @@ import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
 import { MSX1_PALETTE, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR } from '../../constants';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
 import { createTileDataURL } from '../utils/screenUtils';
+import { resolveTileAssignmentCharCode } from '../../utils/tileBankOptimization';
 import { InlineColorPicker } from '../common/InlineColorPicker'; 
 
 /**
@@ -361,7 +362,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
       return 0;
     }
 
-    const assignment = bank.assignedTiles?.[screenTile.tileId] as { charCode?: number } | undefined;
+    const assignment = bank.assignedTiles?.[screenTile.tileId] as any;
     if (!assignment || typeof assignment.charCode !== 'number') {
       return 0;
     }
@@ -371,10 +372,9 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
       return 0;
     }
 
-    const widthInChars = Math.max(1, Math.ceil(tileAsset.width / baseCellDimension));
     const subX = screenTile.subTileX || 0;
     const subY = screenTile.subTileY || 0;
-    const charCode = assignment.charCode + (subY * widthInChars) + subX;
+    const charCode = resolveTileAssignmentCharCode(assignment, tileAsset, subX, subY) ?? 0;
     if (charCode < bank.charsetRangeStart || charCode > bank.charsetRangeEnd) {
       return 0;
     }

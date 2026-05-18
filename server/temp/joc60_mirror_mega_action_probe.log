@@ -1,0 +1,61 @@
+BP_Action_ChangeSprite_01 pc=8167 B=00 HL=82D2 param=56 input=00 facing0=EE asset0=33
+BP_Action_ChangeSprite_02 pc=8167 B=00 HL=82D3 param=30 input=00 facing0=EE asset0=33
+BP_Action_ChangeSprite_03 pc=8167 B=00 HL=82D4 param=2E input=00 facing0=EE asset0=33
+BP_Action_ChangeSprite_04 pc=8167 B=00 HL=82D5 param=32 input=00 facing0=EE asset0=33
+BP_Action_ChangeSprite_05 pc=8167 B=00 HL=82D6 param=39 input=00 facing0=EE asset0=33
+BP_SM_Update_01 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_02 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_03 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_04 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_05 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_06 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_07 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_08 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_09 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_10 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_11 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_12 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_13 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_14 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_15 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_16 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_17 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_18 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_19 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_20 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_21 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_22 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_23 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_24 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_25 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_26 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_27 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_28 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_29 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_30 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_31 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_32 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_33 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_34 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_35 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_36 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_37 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_38 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_39 pc=8000 A=00 B=00 input=00 player=00
+BP_SM_Update_40 pc=8000 A=00 B=00 input=00 player=00
+space1_before pc=8C8B idx=00 input=00 prev=00 facing=02 asset=00 frame=00 smptr=8913 prof=0000/0000/0088
+space1_after pc=8C8B idx=00 input=00 prev=00 facing=02 asset=00 frame=01 smptr=8913 prof=0000/0000/009A
+space2_before pc=4B1E idx=00 input=00 prev=00 facing=02 asset=00 frame=01 smptr=8913 prof=0000/0000/0100
+space2_after pc=80EA idx=00 input=00 prev=00 facing=02 asset=00 frame=01 smptr=8913 prof=0000/0000/0112
+idle pc=6332 idx=00 input=00 prev=00 facing=02 asset=00 frame=01 smptr=8913 prof=0000/0000/01B3
+right_before pc=77D8 idx=00 input=00 prev=00 facing=02 asset=00 frame=01 smptr=8913 prof=0000/0000/01FB
+BP_Action_ChangeSprite_06 pc=8167 B=00 HL=8952 param=00 input=03 facing0=02 asset0=00
+BP_Action_ChangeSprite_07 pc=8167 B=00 HL=89EC param=04 input=00 facing0=02 asset0=00
+right_after pc=19A1 idx=00 input=00 prev=00 facing=02 asset=00 frame=00 smptr=8913 prof=0000/0000/023D
+after_right pc=8C8B idx=00 input=00 prev=00 facing=02 asset=00 frame=00 smptr=8913 prof=0000/0000/024F
+left_before pc=8C8B idx=00 input=00 prev=00 facing=02 asset=00 frame=00 smptr=8913 prof=0000/0000/0273
+BP_Action_ChangeSprite_08 pc=8167 B=00 HL=8955 param=00 input=07 facing0=01 asset0=00
+BP_Action_ChangeSprite_09 pc=8167 B=00 HL=8A3C param=04 input=00 facing0=01 asset0=00
+left_after pc=8C8B idx=00 input=00 prev=00 facing=01 asset=00 frame=00 smptr=8913 prof=0000/0000/02C1
+after_left pc=8C8B idx=00 input=00 prev=00 facing=01 asset=00 frame=00 smptr=8913 prof=0000/0000/02D9
+final pc=8C8B idx=00 input=00 prev=00 facing=01 asset=00 frame=00 smptr=8913 prof=0000/0000/031B
