@@ -171,7 +171,9 @@ const residentWrappersSource = sliceBetween(unifiedSource, 'call_update_sprites_
 // Public config remains opt-in. Existing exports must not start running the
 // hard Player IRQ path unless interruptConfig.enableHardPlayerTick is explicit.
 assert.match(indexSource, /enableHardPlayerTick\?: boolean/);
+assert.match(indexSource, /const hasHardPlayerTickScreenRuntime = \(analysis\.screenMaps\?\.length \|\| 0\) > 0/);
 assert.match(indexSource, /const hardPlayerTickEnabled = \(config\.interruptConfig\?\.enableHardPlayerTick \?\? false\)/);
+assert.match(indexSource, /&& hasHardPlayerTickScreenRuntime/);
 assert.match(indexSource, /!\(romMode === 'megarom' && targetFormat === 'ascii16'\)/);
 assert.match(interruptSource, /function generateInitInterruptSystem\(hardPlayerTickEnabled: boolean\)/);
 assert.match(interruptSource, /ld a, \$\{hardPlayerTickEnabled \? 1 : 0\}/);

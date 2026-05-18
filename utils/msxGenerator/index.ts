@@ -241,7 +241,9 @@ export function generateModularASM(
   const executionPlan = buildValidatedExecutionPlan(analysis, config);
   const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
   const keepRuntimeBackgroundLayout = shouldKeepRuntimeBackgroundLayout(analysis);
+  const hasHardPlayerTickScreenRuntime = (analysis.screenMaps?.length || 0) > 0;
   const hardPlayerTickEnabled = (config.interruptConfig?.enableHardPlayerTick ?? false)
+    && hasHardPlayerTickScreenRuntime
     && !(romMode === 'megarom' && targetFormat === 'ascii16');
 
   // Generate individual files
@@ -364,7 +366,9 @@ export function generateModularASMFromSummary(
   const autoMegaROM = config.autoMegaROM ?? false;
   const executionPlan = buildValidatedExecutionPlan(analysis, config);
   const mapperWindow = getMapperWindowConfig(romMode, targetFormat);
+  const hasHardPlayerTickScreenRuntime = (analysis.screenMaps?.length || 0) > 0;
   const hardPlayerTickEnabled = (config.interruptConfig?.enableHardPlayerTick ?? false)
+    && hasHardPlayerTickScreenRuntime
     && !(romMode === 'megarom' && targetFormat === 'ascii16');
 
   console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);

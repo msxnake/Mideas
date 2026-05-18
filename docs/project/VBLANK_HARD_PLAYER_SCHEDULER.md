@@ -20,7 +20,7 @@ The VBlank dispatcher order is:
 3. Run `run_hard_player_tick` if `player_hard_tick_enabled` is set.
 4. Run soft IRQ tasks from `task_table`.
 
-`run_hard_player_tick` is disabled by default and can be enabled by exporting with `interruptConfig.enableHardPlayerTick=true`. This keeps existing ROMs stable while the fast path is validated per mapper target. MegaROM ASCII16 currently forces this option off because its `components_tail` module is not kept in an IRQ-visible resident window.
+`run_hard_player_tick` is disabled by default and can be enabled by exporting with `interruptConfig.enableHardPlayerTick=true`. This keeps existing ROMs stable while the fast path is validated per mapper target. Exports without `screenMaps` force the option off because there is no `current_screen_engine` runtime to gate against. MegaROM ASCII16 also currently forces this option off because its `components_tail` module is not kept in an IRQ-visible resident window.
 
 There is no massive catch-up loop. If the hard zone cannot run because the IRQ-safe mapper/VRAM window is locked, Mideas records the miss in `player_hard_tick_lost` and returns to the normal dispatcher. The next VBlank runs one hard tick, not N accumulated hard ticks. Soft tasks use their own cadence gates and must also avoid unbounded catch-up.
 
@@ -81,6 +81,7 @@ Soft tasks should be idempotent and bounded. If a soft task sees that several fr
 ## Invariants
 
 - `interruptConfig.enableHardPlayerTick` is opt-in and defaults to false.
+- Exports without screen runtime disable `interruptConfig.enableHardPlayerTick` so `run_hard_player_tick` cannot reference absent screen-engine RAM.
 - MegaROM ASCII16 disables `interruptConfig.enableHardPlayerTick` until its hard Player routines can be guaranteed resident.
 - `interrupt_counter` increments exactly once per VBlank dispatcher entry while interrupts are enabled.
 - `run_hard_player_tick` is called before the `task_table` walk.
