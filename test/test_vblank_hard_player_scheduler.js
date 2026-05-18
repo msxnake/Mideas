@@ -13,6 +13,7 @@ const spritesSource = fs.readFileSync('utils/msxGenerator/generators/spritesGene
 const unifiedSource = fs.readFileSync('utils/msxGenerator/generators/unifiedGenerator.ts', 'utf8');
 const indexSource = fs.readFileSync('utils/msxGenerator/index.ts', 'utf8');
 const docSource = fs.readFileSync('docs/project/VBLANK_HARD_PLAYER_SCHEDULER.md', 'utf8');
+const buildScriptSource = fs.readFileSync('scripts/build_mideas_unified_rom.py', 'utf8');
 
 function assertContains(source, pattern, label) {
   assert.match(source, pattern, label);
@@ -177,6 +178,8 @@ assert.match(indexSource, /&& hasHardPlayerTickScreenRuntime/);
 assert.match(indexSource, /!\(romMode === 'megarom' && targetFormat === 'ascii16'\)/);
 assert.match(interruptSource, /function generateInitInterruptSystem\(hardPlayerTickEnabled: boolean\)/);
 assert.match(interruptSource, /ld a, \$\{hardPlayerTickEnabled \? 1 : 0\}/);
+assert.match(buildScriptSource, /--enable-hard-player-tick/);
+assert.match(buildScriptSource, /enableHardPlayerTick: enableHardPlayerTick \|\| Boolean\(raw\.interruptConfig && raw\.interruptConfig\.enableHardPlayerTick\)/);
 
 assert.match(interruptSource, /hardPlayerTickEnabled\?: boolean/);
 assert.match(interruptSource, /ld \(player_hard_tick_enabled\), a/);

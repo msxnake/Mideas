@@ -22,6 +22,8 @@ The VBlank dispatcher order is:
 
 `run_hard_player_tick` is disabled by default and can be enabled by exporting with `interruptConfig.enableHardPlayerTick=true`. This keeps existing ROMs stable while the fast path is validated per mapper target. Exports without `screenMaps` force the option off because there is no `current_screen_engine` runtime to gate against. MegaROM ASCII16 also currently forces this option off because its `components_tail` module is not kept in an IRQ-visible resident window.
 
+CLI smoke builds can opt in without editing the saved project JSON by passing `--enable-hard-player-tick` to `scripts/build_mideas_unified_rom.py`.
+
 There is no massive catch-up loop. If the hard zone cannot run because the IRQ-safe mapper/VRAM window is locked, Mideas records the miss in `player_hard_tick_lost` and returns to the normal dispatcher. The next VBlank runs one hard tick, not N accumulated hard ticks. Soft tasks use their own cadence gates and must also avoid unbounded catch-up.
 
 ## Hard Player Pipeline

@@ -33,9 +33,10 @@ export function getRuntimeSecretRestoreBufferSize(analysis: ProjectAnalysis): nu
     if (!Array.isArray(screen?.effectZones)) continue;
 
     for (const zone of screen.effectZones) {
-      const rect = zone?.rect || {};
-      const width = Number(rect.width ?? zone?.width ?? 0);
-      const height = Number(rect.height ?? zone?.height ?? 0);
+      const zoneAny = zone as any;
+      const rect = (zoneAny?.rect || {}) as any;
+      const width = Number(rect.width ?? zoneAny?.width ?? 0);
+      const height = Number(rect.height ?? zoneAny?.height ?? 0);
       if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
         continue;
       }

@@ -86,6 +86,15 @@ def parse_args() -> argparse.Namespace:
         help="Enable autoMegaROM in generator config",
     )
     parser.add_argument(
+        "--enable-hard-player-tick",
+        action="store_true",
+        help=(
+            "Enable interruptConfig.enableHardPlayerTick for generated ASM. "
+            "Useful for opt-in VBlank Player realtime pipeline smoke tests "
+            "without editing the source project JSON."
+        ),
+    )
+    parser.add_argument(
         "--run-openmsx",
         action="store_true",
         help="Launch OpenMSX with generated ROM",
@@ -2969,6 +2978,7 @@ def generate_asm_from_json(
     target_format: str,
     execution_mode: str,
     auto_megarom: bool,
+    enable_hard_player_tick: bool,
 ) -> tuple[str, int]:
     with json_path.open("r", encoding="utf-8") as fh:
         project = json.load(fh)
@@ -2985,6 +2995,7 @@ const romMode = process.argv[6];
 const targetFormat = process.argv[7];
 const executionMode = process.argv[8];
 const autoMegaROM = process.argv[9] === "true";
+const enableHardPlayerTick = process.argv[10] === "true";
 const raw = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
 const name = forcedName || raw.name || "mideas_project";
 const assets = Array.isArray(raw.assets) ? [...raw.assets] : [];
@@ -3048,6 +3059,10 @@ const files = generator.generateModularASM(name, assets, {
   targetFormat,
   executionMode,
   autoMegaROM,
+  interruptConfig: {
+    ...(raw.interruptConfig || {}),
+    enableHardPlayerTick: enableHardPlayerTick || Boolean(raw.interruptConfig && raw.interruptConfig.enableHardPlayerTick),
+  },
 });
 const asm = files["unitedFiles.asm"] || files["main.asm"];
 if (!asm) {
@@ -3083,6 +3098,7 @@ console.log(`ROM config: mode=${romMode}, mapper=${targetFormat}, engine=${execu
                 target_format,
                 execution_mode,
                 "true" if auto_megarom else "false",
+                "true" if enable_hard_player_tick else "false",
             ],
             cwd=project_root,
         )
@@ -3863,6 +3879,7 @@ def main() -> int:
         target_format=args.target_format,
         execution_mode=args.execution_mode,
         auto_megarom=args.auto_megarom,
+        enable_hard_player_tick=args.enable_hard_player_tick,
     )
 
     zx0_asm, zx0_info = maybe_run_zx0_preprocess(
