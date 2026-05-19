@@ -12,6 +12,7 @@ import { useProjectHandlers } from './handlers/useProjectHandlers';
 import { useImportExportHandlers } from './handlers/useImportExportHandlers';
 import { useSnippetHandlers } from './handlers/useSnippetHandlers';
 import { useHistoryHandlers } from './handlers/useHistoryHandlers';
+import { getProjectTargetFromScreenMode, isAssetTypeEnabledForProject } from './utils/projectTarget';
 
 /** The interval for autosaving the project, in milliseconds. @constant */
 const AUTOSAVE_INTERVAL = 10 * 60 * 1000;
@@ -553,6 +554,13 @@ const App: React.FC = () => {
     if (assetId) {
       const asset = assets.find(a => a.id === assetId);
       if (asset) {
+        if (!isAssetTypeEnabledForProject(asset.type, currentScreenMode)) {
+          setSelectedAssetId(null);
+          setCurrentEditor(EditorType.None);
+          setStatusBarMessage(`${asset.name} is disabled in ${getProjectTargetFromScreenMode(currentScreenMode)} projects.`);
+          return;
+        }
+
         switch (asset.type) {
           case 'tile':
             setCurrentEditor(EditorType.Tile);

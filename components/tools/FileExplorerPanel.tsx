@@ -3,6 +3,7 @@ import { ProjectAsset, EditorType, ContextMenuItem } from '../../types';
 import { Panel } from '../common/Panel';
 import { ContextMenu } from '../common/ContextMenu';
 import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon, SaveIcon, LoadIcon, CheckCircleIcon } from '../icons/MsxIcons';
+import { getAssetTarget, getProjectTargetFromScreenMode, isAssetTypeEnabledForProject } from '../../utils/projectTarget';
 
 /**
  * Props for the {@link FileExplorerPanel} component.
@@ -32,6 +33,10 @@ interface FileExplorerPanelProps {
   isMainMenuActive?: boolean;
   /** Whether the Presentation Screen system editor is active. */
   isPresentationScreenActive?: boolean;
+  /** Current project screen mode used to disable incompatible asset families. */
+  currentScreenMode: string;
+  /** Whether a project is loaded or has been created. */
+  hasActiveProject: boolean;
   /** Optional CSS class name for the panel. */
   className?: string;
 }
@@ -174,6 +179,8 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   onRequestSaveSelectedTiles,
   isMainMenuActive = false,
   isPresentationScreenActive = false,
+  currentScreenMode,
+  hasActiveProject,
   className = '',
 }) => {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
@@ -337,6 +344,14 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   };
 
   const contextMenuItems = getContextMenuItems();
+  const projectTarget = getProjectTargetFromScreenMode(currentScreenMode);
+  const isFolderEnabled = (folderType: ProjectAsset['type']) => hasActiveProject && isAssetTypeEnabledForProject(folderType, currentScreenMode);
+  const getDisabledTitle = (assetType: ProjectAsset['type']): string | undefined => {
+    const assetTarget = getAssetTarget(assetType);
+    if (!hasActiveProject) return 'Create or load a project first.';
+    if (assetTarget !== 'COMMON' && assetTarget !== projectTarget) return `${FOLDER_DISPLAY_NAMES[assetType]} are disabled in ${projectTarget} projects.`;
+    return undefined;
+  };
 
   return (
     <Panel
@@ -359,7 +374,8 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
         />
       )}
 
-      {(assets.length === 0 && systemTools.every(tool => !tool.isActive)) && <p className="text-xs text-msx-textsecondary p-2">No assets in project. Click 'New Asset' in the toolbar to create one.</p>}
+      {!hasActiveProject && <p className="text-xs text-msx-textsecondary p-2">Create or load a project to enable assets.</p>}
+      {(hasActiveProject && assets.length === 0 && systemTools.every(tool => !tool.isActive)) && <p className="text-xs text-msx-textsecondary p-2">No assets in project. Click 'New Asset' in the toolbar to create one.</p>}
 
       <ul className="space-y-0.5 text-sm font-sans">
         {systemTools.map(tool => (
@@ -380,6 +396,8 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
           // Code Files are managed exclusively via the Export Z80 Code modal
           const assetsInFolder = folderType === 'code' ? [] : (groupedAssets[folderType] || []);
           const isExpanded = !!expandedFolders[folderType];
+          const folderEnabled = isFolderEnabled(folderType);
+          const disabledTitle = getDisabledTitle(folderType);
 
           let processedAssets = assetsInFolder;
           if (folderType === 'tile') {
@@ -422,10 +440,12 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
           return (
             <li key={folderType}>
               <button
-                onClick={() => toggleFolder(folderType)}
-                className={`${baseItemClass} ${inactiveItemClass} focus:outline-none`}
+                onClick={() => { if (folderEnabled) toggleFolder(folderType); }}
+                disabled={!folderEnabled}
+                className={`${baseItemClass} ${folderEnabled ? inactiveItemClass : 'text-msx-textsecondary/40 cursor-not-allowed'} focus:outline-none`}
                 aria-expanded={isExpanded}
                 aria-controls={`folder-content-${folderType}`}
+                title={disabledTitle}
               >
                 {isExpanded ? <CaretDownIcon className="w-3 h-3 mr-1.5 flex-shrink-0" /> : <CaretRightIcon className="w-3 h-3 mr-1.5 flex-shrink-0" />}
                 <AssetIcon type={folderType} />
@@ -527,6 +547,8 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                   {processedAssets.map(asset => {
                     const isSelected = selectedAssetId === asset.id;
                     const isTileSelected = folderType === 'tile' && selectedTileIds.includes(asset.id);
+                    const assetEnabled = hasActiveProject && isAssetTypeEnabledForProject(asset.type, currentScreenMode);
+                    const assetDisabledTitle = getDisabledTitle(asset.type);
 
                     return (
                       <li
@@ -542,6 +564,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                       >
                         <button
                           onClick={(e) => {
+                            if (!assetEnabled) return;
                             if (folderType === 'tile') {
                               if (e.ctrlKey) {
                                 setSelectedTileIds(prev => 
@@ -559,9 +582,10 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                           }}
                           onDoubleClick={() => onRequestRename(asset.id, asset.name, asset.type)}
                           className={`text-left py-1 flex items-center flex-grow truncate rounded-l-sm
-                                    ${isSelected ? activeItemClass : (isTileSelected ? selectedTileClass : inactiveItemClass)}
+                                    ${!assetEnabled ? 'text-msx-textsecondary/40 cursor-not-allowed' : (isSelected ? activeItemClass : (isTileSelected ? selectedTileClass : inactiveItemClass))}
                                     pl-2`}
-                          title={`Select: ${asset.name}. Double-click to rename.`}
+                          disabled={!assetEnabled}
+                          title={assetDisabledTitle || `Select: ${asset.name}. Double-click to rename.`}
                           aria-current={isSelected ? "page" : undefined}
                         >
                           <AssetIcon type={asset.type} />
@@ -575,9 +599,10 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                         <div className={`flex-shrink-0 flex items-center ${isTileSelected ? (isSelected ? activeItemClass : selectedTileClass) : ''}`}>
                           <button
                             onClick={(e) => { e.stopPropagation(); onRequestRename(asset.id, asset.name, asset.type); }}
+                            disabled={!assetEnabled}
                             className={`p-0.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-msx-accent
                                         ${isSelected || isTileSelected ? 'text-white hover:bg-msx-highlight/80' : 'text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-accent/30'}
-                                        opacity-0 group-hover:opacity-100 focus-within:opacity-100`}
+                                        opacity-0 group-hover:opacity-100 focus-within:opacity-100 disabled:opacity-20 disabled:cursor-not-allowed`}
                             aria-label={`Rename ${asset.name}`}
                             title={`Rename ${asset.name}`}
                           >
@@ -585,9 +610,10 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); onRequestDelete(asset.id); }}
+                            disabled={!assetEnabled}
                             className={`p-0.5 rounded-sm focus:outline-none focus:ring-1 focus:ring-msx-danger
                                         ${isSelected || isTileSelected ? 'text-white hover:bg-msx-danger/80' : 'text-msx-danger/70 hover:text-msx-danger hover:bg-msx-danger/30'}
-                                        opacity-0 group-hover:opacity-100 focus-within:opacity-100`}
+                                        opacity-0 group-hover:opacity-100 focus-within:opacity-100 disabled:opacity-20 disabled:cursor-not-allowed`}
                             aria-label={`Delete ${asset.name}`}
                             title={`Delete ${asset.name}`}
                           >

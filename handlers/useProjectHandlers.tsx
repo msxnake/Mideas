@@ -7,6 +7,7 @@ import { cleanUnusedDefinitions } from '../utils/projectCleanup';
 import { addRecentProject, getRecentProjectData, getRecentProjects } from '../utils/recentProjects';
 import { buildGlobalVariableAsmName, buildGlobalVariableConstantPrefix, normalizeGlobalVariableName } from '../utils/globalVariablesUtils';
 import { resolveBestPortraitTileBankAssetId } from '../utils/portraitPackageUtils';
+import { isAssetTypeEnabledForProject } from '../utils/projectTarget';
 
 interface ProjectHandlersProps {
   assets: ProjectAsset[];
@@ -728,8 +729,14 @@ export const useProjectHandlers = ({
 
       const loadedMode = projectData.currentScreenMode || DEFAULT_SCREEN_MODE;
       applyScreenModeDefaults(loadedMode);
-      if (projectData.selectedAssetId) setSelectedAssetId(projectData.selectedAssetId);
-      if (projectData.currentEditor) setCurrentEditor(projectData.currentEditor);
+      const selectedAsset = loadedAssets.find(asset => asset.id === projectData.selectedAssetId);
+      if (selectedAsset && isAssetTypeEnabledForProject(selectedAsset.type, loadedMode)) {
+        setSelectedAssetId(projectData.selectedAssetId);
+        if (projectData.currentEditor) setCurrentEditor(projectData.currentEditor);
+      } else {
+        setSelectedAssetId(null);
+        setCurrentEditor(EditorType.None);
+      }
 
       if (projectData.assets) {
         const tileBankAssets = projectData.assets.filter((asset: ProjectAsset) => asset.type === 'tilebank');

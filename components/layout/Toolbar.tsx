@@ -7,6 +7,7 @@ import { ProjectAsset, DataFormat, EditorType, ScreenKind, ExportRomMode } from 
 import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon, SparklesIcon, ClockIcon, TrashIcon, ImageIcon } from '../icons/MsxIcons';
 import { APP_VERSION } from '../../constants';
 import { getRecentProjects, removeRecentProject, clearRecentProjects, formatRecentDate, RecentProject } from '../../utils/recentProjects';
+import { getProjectTargetFromScreenMode, isAssetTypeEnabledForProject } from '../../utils/projectTarget';
 
 
 /**
@@ -113,6 +114,8 @@ interface ToolbarProps {
   isToggleEditorDisabled: boolean;
   /** Current MSX screen mode for asset creation/rendering. */
   currentScreenMode: string;
+  /** Whether a project is loaded or has been created. */
+  hasActiveProject: boolean;
   /** Callback to load a recent project by its path. */
   onOpenRecentProject?: (path: string) => void;
 }
@@ -121,7 +124,7 @@ interface ToolbarProps {
 /**
  * A reusable dropdown menu component.
  */
-const DropdownMenu: React.FC<{ label: string; children: React.ReactNode; alignRight?: boolean }> = ({ label, children, alignRight }) => {
+const DropdownMenu: React.FC<{ label: string; children: React.ReactNode; alignRight?: boolean; disabled?: boolean }> = ({ label, children, alignRight, disabled }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -154,8 +157,9 @@ const DropdownMenu: React.FC<{ label: string; children: React.ReactNode; alignRi
   return (
     <div ref={menuRef} className="relative">
       <button
-        onClick={() => setIsOpen(o => !o)}
-        className={`px-3 py-1.5 text-xs rounded-md font-sans focus:outline-none transition-colors duration-150 ${isOpen ? 'bg-msx-border text-msx-textprimary' : 'bg-transparent text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary'}`}
+        onClick={() => { if (!disabled) setIsOpen(o => !o); }}
+        disabled={disabled}
+        className={`px-3 py-1.5 text-xs rounded-md font-sans focus:outline-none transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed ${isOpen ? 'bg-msx-border text-msx-textprimary' : 'bg-transparent text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary disabled:hover:bg-transparent disabled:hover:text-msx-textsecondary'}`}
         aria-haspopup="true"
         aria-expanded={isOpen}
       >
@@ -253,6 +257,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
   onToggleEditor, isToggleEditorDisabled,
   currentScreenMode,
+  hasActiveProject,
   onOpenRecentProject
 }) => {
   const { loadConfig: loadThemeConfig } = useTheme();
@@ -326,6 +331,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
   /** Vertical separator between toolbar groups */
   const Sep = () => <div className="w-px h-5 bg-msx-border shrink-0 mx-0.5" />;
+  const projectTarget = getProjectTargetFromScreenMode(currentScreenMode);
+  const canCreateAsset = (type: ProjectAsset['type']) => hasActiveProject && isAssetTypeEnabledForProject(type, currentScreenMode);
 
   return (
     <div className="bg-msx-panelbg border-b border-msx-border px-2 py-1 flex items-center gap-1 shadow-md relative">
@@ -335,10 +342,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <DropdownMenu label="File">
         <DropdownItem onClick={onNewProject} icon={<PlusCircleIcon />}>New Project</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={onSaveProject} icon={<SaveFloppyIcon />}>Save Project</DropdownItem>
-        <DropdownItem onClick={onSaveProjectAs} icon={<SaveFloppyIcon />}>Save Project As...</DropdownItem>
+        <DropdownItem onClick={onSaveProject} icon={<SaveFloppyIcon />} disabled={!hasActiveProject}>Save Project</DropdownItem>
+        <DropdownItem onClick={onSaveProjectAs} icon={<SaveFloppyIcon />} disabled={!hasActiveProject}>Save Project As...</DropdownItem>
         <DropdownItem onClick={onLoadProject} icon={<FolderOpenIcon />}>Load Project</DropdownItem>
-        <DropdownItem onClick={onImportBossPackage} icon={<BugIcon />}>Import Boss Package (.json)</DropdownItem>
+        <DropdownItem onClick={onImportBossPackage} icon={<BugIcon />} disabled={!hasActiveProject || projectTarget !== 'MSX1'}>Import Boss Package (.json)</DropdownItem>
 
         {/* Open Recent Submenu */}
         <div ref={recentMenuRef} className="relative">
@@ -396,67 +403,67 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </div>
 
         <DropdownSeparator />
-        <DropdownItem onClick={onExportZ80Code}>Export Z80 Code</DropdownItem>
-        <DropdownItem onClick={onExportGameStructureJson}>Export Game Structure (.json)</DropdownItem>
+        <DropdownItem onClick={onExportZ80Code} disabled={!hasActiveProject}>Export Z80 Code</DropdownItem>
+        <DropdownItem onClick={onExportGameStructureJson} disabled={!hasActiveProject}>Export Game Structure (.json)</DropdownItem>
       </DropdownMenu>
 
       <Sep />
 
       {/* GROUP 2: Edit */}
-      <Button onClick={onUndo} variant="ghost" size="sm" icon={<ArrowUturnLeftIcon />} title="Undo (Ctrl+Z)" disabled={isUndoDisabled}>Undo</Button>
-      <Button onClick={onRedo} variant="ghost" size="sm" icon={<ArrowUturnRightIcon />} title="Redo (Ctrl+Y)" disabled={isRedoDisabled}>Redo</Button>
+      <Button onClick={onUndo} variant="ghost" size="sm" icon={<ArrowUturnLeftIcon />} title="Undo (Ctrl+Z)" disabled={!hasActiveProject || isUndoDisabled}>Undo</Button>
+      <Button onClick={onRedo} variant="ghost" size="sm" icon={<ArrowUturnRightIcon />} title="Redo (Ctrl+Y)" disabled={!hasActiveProject || isRedoDisabled}>Redo</Button>
 
       <Sep />
 
       {/* GROUP 3: New Asset */}
-      <DropdownMenu label="New Asset">
-        <DropdownItem onClick={() => onNewAsset('statemachine')} icon={<PuzzlePieceIcon />} colorClass="text-purple-200 hover:bg-purple-600 hover:text-white">State Machine</DropdownItem>
+      <DropdownMenu label="New Asset" disabled={!hasActiveProject}>
+        <DropdownItem onClick={() => onNewAsset('statemachine')} icon={<PuzzlePieceIcon />} colorClass="text-purple-200 hover:bg-purple-600 hover:text-white" disabled={!canCreateAsset('statemachine')}>State Machine</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={() => onNewAsset('tile')} icon={<TilesetIcon />} colorClass="text-red-200 hover:bg-red-500 hover:text-white">Tile</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('sprite')} icon={<SpriteIcon />} colorClass="text-orange-200 hover:bg-orange-500 hover:text-white">Sprite</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('msx2sprite')} icon={<SpriteIcon />} colorClass="text-cyan-200 hover:bg-cyan-600 hover:text-white">MSX2 Sprite</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('msx2bitmap')} icon={<MapIcon />} colorClass="text-sky-200 hover:bg-sky-600 hover:text-white">MSX2 Bitmap</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('msx2screen')} icon={<MapIcon />} colorClass="text-blue-200 hover:bg-blue-600 hover:text-white">MSX2 16x16 Screen</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('font')} icon={<PencilIcon />} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white">Font</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('boss')} icon={<BugIcon />} colorClass="text-green-200 hover:bg-green-500 hover:text-white">Boss</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('screenmap', { screenKind: 'playable' })} icon={<MapIcon />} colorClass="text-blue-200 hover:bg-blue-500 hover:text-white">Playable Screen</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('screenmap', { screenKind: 'tutorial' })} icon={<MapIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white">Tutorial Screen</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('screenmap', { screenKind: 'dialog' })} icon={<MapIcon />} colorClass="text-sky-200 hover:bg-sky-500 hover:text-white">Dialog Screen</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('screenmap', { screenKind: 'cutscene' })} icon={<MapIcon />} colorClass="text-indigo-200 hover:bg-indigo-500 hover:text-white">Cutscene Screen</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('worldmap')} icon={<WorldMapIcon />} colorClass="text-indigo-200 hover:bg-indigo-500 hover:text-white">World Map</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('gameflow')} icon={<GameFlowIcon />} colorClass="text-violet-200 hover:bg-violet-500 hover:text-white">Game Flow</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('dialogue')} icon={<PencilIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white">Dialogue</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('portrait')} icon={<TilesetIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Portrait</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('tile')} icon={<TilesetIcon />} colorClass="text-red-200 hover:bg-red-500 hover:text-white" disabled={!canCreateAsset('tile')}>Tile</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('sprite')} icon={<SpriteIcon />} colorClass="text-orange-200 hover:bg-orange-500 hover:text-white" disabled={!canCreateAsset('sprite')}>Sprite</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('msx2sprite')} icon={<SpriteIcon />} colorClass="text-cyan-200 hover:bg-cyan-600 hover:text-white" disabled={!canCreateAsset('msx2sprite')}>MSX2 Sprite</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('msx2bitmap')} icon={<MapIcon />} colorClass="text-sky-200 hover:bg-sky-600 hover:text-white" disabled={!canCreateAsset('msx2bitmap')}>MSX2 Bitmap</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('msx2screen')} icon={<MapIcon />} colorClass="text-blue-200 hover:bg-blue-600 hover:text-white" disabled={!canCreateAsset('msx2screen')}>MSX2 16x16 Screen</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('font')} icon={<PencilIcon />} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white" disabled={!canCreateAsset('font')}>Font</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('boss')} icon={<BugIcon />} colorClass="text-green-200 hover:bg-green-500 hover:text-white" disabled={!canCreateAsset('boss')}>Boss</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('screenmap', { screenKind: 'playable' })} icon={<MapIcon />} colorClass="text-blue-200 hover:bg-blue-500 hover:text-white" disabled={!canCreateAsset('screenmap')}>Playable Screen</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('screenmap', { screenKind: 'tutorial' })} icon={<MapIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white" disabled={!canCreateAsset('screenmap')}>Tutorial Screen</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('screenmap', { screenKind: 'dialog' })} icon={<MapIcon />} colorClass="text-sky-200 hover:bg-sky-500 hover:text-white" disabled={!canCreateAsset('screenmap')}>Dialog Screen</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('screenmap', { screenKind: 'cutscene' })} icon={<MapIcon />} colorClass="text-indigo-200 hover:bg-indigo-500 hover:text-white" disabled={!canCreateAsset('screenmap')}>Cutscene Screen</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('worldmap')} icon={<WorldMapIcon />} colorClass="text-indigo-200 hover:bg-indigo-500 hover:text-white" disabled={!canCreateAsset('worldmap')}>World Map</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('gameflow')} icon={<GameFlowIcon />} colorClass="text-violet-200 hover:bg-violet-500 hover:text-white" disabled={!canCreateAsset('gameflow')}>Game Flow</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('dialogue')} icon={<PencilIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white" disabled={!canCreateAsset('dialogue')}>Dialogue</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('portrait')} icon={<TilesetIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white" disabled={!canCreateAsset('portrait')}>Portrait</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={() => onNewAsset('palette')} icon={<SparklesIcon />} colorClass="text-fuchsia-200 hover:bg-fuchsia-500 hover:text-white">Palette</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('palette')} icon={<SparklesIcon />} colorClass="text-fuchsia-200 hover:bg-fuchsia-500 hover:text-white" disabled={!canCreateAsset('palette')}>Palette</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={() => onNewAsset('tilebank')} icon={<TilesetIcon />} colorClass="text-purple-200 hover:bg-purple-500 hover:text-white">Tile Banks</DropdownItem>
-        <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Component Definition</DropdownItem>
-        <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entity Template</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('globalvariables')} icon={<SparklesIcon />} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white">Global Variables</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('tilebank')} icon={<TilesetIcon />} colorClass="text-purple-200 hover:bg-purple-500 hover:text-white" disabled={!canCreateAsset('tilebank')}>Tile Banks</DropdownItem>
+        <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white" disabled={!hasActiveProject}>Component Definition</DropdownItem>
+        <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white" disabled={!hasActiveProject}>Entity Template</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('globalvariables')} icon={<SparklesIcon />} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white" disabled={!canCreateAsset('globalvariables')}>Global Variables</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={() => onNewAsset('sound')} icon={<SoundIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white">Sound FX</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('track')} icon={<MusicNoteIcon />} colorClass="text-emerald-200 hover:bg-emerald-500 hover:text-white">Music Track</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('sound')} icon={<SoundIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white" disabled={!canCreateAsset('sound')}>Sound FX</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('track')} icon={<MusicNoteIcon />} colorClass="text-emerald-200 hover:bg-emerald-500 hover:text-white" disabled={!canCreateAsset('track')}>Music Track</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={() => onNewAsset('presentationscreen')} icon={<MapIcon />} colorClass="text-teal-200 hover:bg-teal-500 hover:text-white">Presentation Screen</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('presentationscreen')} icon={<MapIcon />} colorClass="text-teal-200 hover:bg-teal-500 hover:text-white" disabled={!canCreateAsset('presentationscreen')}>Presentation Screen</DropdownItem>
       </DropdownMenu>
 
       <Sep />
 
       {/* GROUP 4: Views / Editors */}
-      <Button onClick={onOpenWorldView} variant="ghost" size="sm" icon={<WorldViewIcon />} title="World View">
+      <Button onClick={onOpenWorldView} variant="ghost" size="sm" icon={<WorldViewIcon />} title="World View" disabled={!hasActiveProject}>
         World View
       </Button>
-      <Button onClick={onOpenPngMsxTool} variant="ghost" size="sm" icon={<ImageIcon />} title="PNG a MSX Screen 2 Chars">
+      <Button onClick={onOpenPngMsxTool} variant="ghost" size="sm" icon={<ImageIcon />} title="PNG a MSX Screen 2 Chars" disabled={!hasActiveProject || projectTarget !== 'MSX1'}>
         PNG a MSX
       </Button>
-      <Button onClick={onOpenComponentDefEditor} variant="ghost" size="sm" icon={<PuzzlePieceIcon />} title="Component Definitions">
+      <Button onClick={onOpenComponentDefEditor} variant="ghost" size="sm" icon={<PuzzlePieceIcon />} title="Component Definitions" disabled={!hasActiveProject}>
         Components
       </Button>
-      <Button onClick={onOpenEntityTemplateEditor} variant="ghost" size="sm" icon={<SpriteIcon />} title="Entity Templates">
+      <Button onClick={onOpenEntityTemplateEditor} variant="ghost" size="sm" icon={<SpriteIcon />} title="Entity Templates" disabled={!hasActiveProject}>
         Templates
       </Button>
-      <Button onClick={onToggleEditor} variant="ghost" size="sm" icon={<SwapHorizIcon />} title="Toggle Last Editor" disabled={isToggleEditorDisabled}>
+      <Button onClick={onToggleEditor} variant="ghost" size="sm" icon={<SwapHorizIcon />} title="Toggle Last Editor" disabled={!hasActiveProject || isToggleEditorDisabled}>
         Last Editor
       </Button>
 
@@ -464,9 +471,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <div className="flex-1" />
 
       {/* GROUP 5: Settings + Help — always far right */}
-      <DropdownMenu label="Configure" alignRight>
-        <DropdownItem onClick={onConfigureASM}>Configure ASM Compiler...</DropdownItem>
-        <DropdownItem onClick={onConfigureEmulator}>Configure MSX Emulator...</DropdownItem>
+      <DropdownMenu label="Configure" alignRight disabled={!hasActiveProject}>
+        <DropdownItem onClick={onConfigureASM} disabled={!hasActiveProject}>Configure ASM Compiler...</DropdownItem>
+        <DropdownItem onClick={onConfigureEmulator} disabled={!hasActiveProject}>Configure MSX Emulator...</DropdownItem>
         <DropdownSeparator />
         <DropdownToggleItem label="Data Format (Hex/Dec)" isChecked={dataOutputFormat === 'hex'} onToggle={() => setDataOutputFormat(dataOutputFormat === 'hex' ? 'decimal' : 'hex')} onText="Hex" offText="Dec" />
         <DropdownSelectItem
@@ -494,7 +501,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={onResetConfig}>Restore Default Config</DropdownItem>
       </DropdownMenu>
 
-      <DropdownMenu label="Help">
+      <DropdownMenu label="Help" disabled={!hasActiveProject}>
         <DropdownItem onClick={onOpenHelpDocs} icon={<QuestionMarkCircleIcon />}>Tutorials</DropdownItem>
         <DropdownItem onClick={onOpenAbout}>About</DropdownItem>
       </DropdownMenu>

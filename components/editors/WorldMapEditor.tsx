@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, ScreenMap, Tile, DataFormat, ContextMenuItem } from '../../types';
+import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, ScreenMap, Tile, DataFormat, ContextMenuItem, Msx2Screen5TileScreen, ProjectAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, SaveFloppyIcon, CodeIcon, PencilIcon } from '../icons/MsxIcons';
@@ -17,7 +17,7 @@ const CONNECTION_PROXIMITY_THRESHOLD_DEFAULT_FACTOR = 1.5; // Multiplier for gri
 interface WorldMapEditorProps {
   worldMapGraph: WorldMapGraph;
   onUpdate: (data: Partial<WorldMapGraph>, newAssetsToCreate?: ProjectAsset[]) => void;
-  availableScreenMaps: ScreenMap[];
+  availableScreenMaps: WorldMapSelectableScreen[];
   tileset: Tile[];
   currentScreenMode: string;
   dataOutputFormat: DataFormat;
@@ -26,9 +26,66 @@ interface WorldMapEditorProps {
   setStatusBarMessage: (message: string) => void;
 }
 
+type WorldMapSelectableScreen = ScreenMap | Msx2Screen5TileScreen;
+
+const isMsx2Screen5TileScreen = (screen: WorldMapSelectableScreen | undefined): screen is Msx2Screen5TileScreen => {
+  return !!screen && (screen as Msx2Screen5TileScreen).vdpMode === 'SCREEN5' && Array.isArray((screen as Msx2Screen5TileScreen).tiles);
+};
+
+const isScreenMap = (screen: WorldMapSelectableScreen | undefined): screen is ScreenMap => {
+  return !!screen && !!(screen as ScreenMap).layers;
+};
+
+const resolveMsx2Screen5Color = (screen: Msx2Screen5TileScreen, colorIndex: number): string => {
+  return screen.palette?.[colorIndex]?.hex || (colorIndex === 0 ? '#000000' : '#ffffff');
+};
+
+const drawMsx2Screen5Preview = (
+  ctx: CanvasRenderingContext2D,
+  screen: Msx2Screen5TileScreen,
+  previewWidth: number,
+  previewHeight: number
+): void => {
+  const sourceCanvas = document.createElement('canvas');
+  sourceCanvas.width = 256;
+  sourceCanvas.height = 212;
+  const sourceCtx = sourceCanvas.getContext('2d');
+  if (!sourceCtx) return;
+
+  sourceCtx.fillStyle = resolveMsx2Screen5Color(screen, 0);
+  sourceCtx.fillRect(0, 0, sourceCanvas.width, sourceCanvas.height);
+
+  const tileSize = screen.tileSize || 16;
+  const visibleRows = Math.ceil(sourceCanvas.height / tileSize);
+  const visibleCols = Math.ceil(sourceCanvas.width / tileSize);
+
+  for (let tileY = 0; tileY < visibleRows; tileY++) {
+    for (let tileX = 0; tileX < visibleCols; tileX++) {
+      const tileIndex = screen.map?.[tileY]?.[tileX] ?? 0;
+      const tile = screen.tiles?.[tileIndex];
+      if (!tile) continue;
+
+      for (let py = 0; py < tileSize; py++) {
+        const destY = tileY * tileSize + py;
+        if (destY >= sourceCanvas.height) continue;
+
+        for (let px = 0; px < tileSize; px++) {
+          const destX = tileX * tileSize + px;
+          if (destX >= sourceCanvas.width) continue;
+          const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
+          sourceCtx.fillStyle = resolveMsx2Screen5Color(screen, colorIndex);
+          sourceCtx.fillRect(destX, destY, 1, 1);
+        }
+      }
+    }
+  }
+
+  ctx.drawImage(sourceCanvas, 0, 0, previewWidth, previewHeight);
+};
+
 // Simplified preview for world map nodes
 const createScreenMiniPreviewDataURL = (
-  screenMap: ScreenMap | undefined,
+  screenMap: WorldMapSelectableScreen | undefined,
   tileset: Tile[],
   worldNodeWidth: number,
   worldNodeHeight: number,
@@ -47,6 +104,13 @@ const createScreenMiniPreviewDataURL = (
 
   ctx.fillStyle = currentScreenMode === "SCREEN 2 (Graphics I)" ? '#000080' : '#2F2FC1';
   ctx.fillRect(0, 0, previewWidth, previewHeight);
+
+  if (isMsx2Screen5TileScreen(screenMap)) {
+    drawMsx2Screen5Preview(ctx, screenMap, previewWidth, previewHeight);
+    return canvas.toDataURL();
+  }
+
+  if (!isScreenMap(screenMap)) return canvas.toDataURL();
 
   const layer = screenMap.layers.background;
   if (!layer || layer.length === 0 || layer[0].length === 0) return canvas.toDataURL();
@@ -828,8 +892,12 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
             value=""
             aria-label="Add screen to world map"
           >
-            <option value="">Select ScreenMap...</option>
-            {availableScreenMaps.map(sm => <option key={sm.id} value={sm.id}>{sm.name}</option>)}
+            <option value="">Select Screen...</option>
+            {availableScreenMaps.map(sm => (
+              <option key={sm.id} value={sm.id}>
+                {sm.name} {isMsx2Screen5TileScreen(sm) ? '[MSX2 SCREEN 5]' : '[ScreenMap]'}
+              </option>
+            ))}
           </select>
         </div>
         <Button onClick={handleSetStartScreen} size="sm" disabled={!selectedNodeId} variant="secondary">Set Start</Button>
@@ -1006,7 +1074,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
           isOpen={isExportAsmModalOpen}
           onClose={() => setIsExportAsmModalOpen(false)}
           worldMapGraph={worldMapGraph}
-          availableScreenMaps={availableScreenMaps}
+          availableScreenMaps={availableScreenMaps.filter(isScreenMap)}
           dataOutputFormat={dataOutputFormat}
         />
       )}

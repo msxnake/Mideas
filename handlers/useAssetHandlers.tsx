@@ -17,6 +17,7 @@ import { DEFAULT_MSX_FONT } from '../components/utils/msxFontRenderer';
 import { createDefaultScreen5PaletteSlots } from '../utils/screen5PaletteUtils';
 import { getScreenModeMetrics } from '../utils/screenModeConfig';
 import { createCmajorChiptuneSampleSong } from '../utils/trackerSampleSong';
+import { getProjectTargetFromScreenMode, isAssetTypeEnabledForProject } from '../utils/projectTarget';
 
 interface AssetHandlersProps {
   assets: ProjectAsset[];
@@ -286,6 +287,11 @@ export const useAssetHandlers = ({
   }, [assets, setAssetsWithHistory, setStatusBarMessage, setTileBanksWithHistory]);
 
   const handleNewAsset = (type: ProjectAsset['type'], options?: { select?: boolean; screenKind?: ScreenKind }): ProjectAsset | undefined => {
+    if (!isAssetTypeEnabledForProject(type, currentScreenMode)) {
+      setStatusBarMessage(`${type} is disabled in ${getProjectTargetFromScreenMode(currentScreenMode)} projects.`);
+      return undefined;
+    }
+
     const id = `${type}_${Date.now()}`;
     let newAssetData: any;
     let defaultName = `New ${type.charAt(0).toUpperCase() + type.slice(1)}`;
