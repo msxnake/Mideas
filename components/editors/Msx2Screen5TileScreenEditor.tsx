@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Msx2Screen5Tile, Msx2Screen5TileScreen } from '../../types';
+import { MSXColorValue, Msx2Screen5Tile, Msx2Screen5TileScreen } from '../../types';
 import { ensureScreen5PaletteSlots } from '../../utils/screen5PaletteUtils';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
@@ -7,6 +7,7 @@ import { Button } from '../common/Button';
 interface Msx2Screen5TileScreenEditorProps {
   screen: Msx2Screen5TileScreen;
   onUpdate: (data: Partial<Msx2Screen5TileScreen>) => void;
+  selectedColor: MSXColorValue;
 }
 
 const SCREEN_WIDTH = 256;
@@ -40,11 +41,10 @@ const normalizeMap = (map: number[][] | undefined, tileCount: number): number[][
     Array.from({ length: MAP_WIDTH }, (_, x) => Math.max(0, Math.min(Math.max(0, tileCount - 1), Number(map?.[y]?.[x]) || 0)))
   );
 
-export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorProps> = ({ screen, onUpdate }) => {
+export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorProps> = ({ screen, onUpdate, selectedColor }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tileCanvasRef = useRef<HTMLCanvasElement>(null);
   const [selectedTileIndex, setSelectedTileIndex] = useState(0);
-  const [activeSlot, setActiveSlot] = useState(1);
   const [mode, setMode] = useState<'map' | 'tile'>('map');
   const [showGrid, setShowGrid] = useState(true);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -53,6 +53,10 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
   const tiles = useMemo(() => normalizeTiles(screen.tiles), [screen.tiles]);
   const map = useMemo(() => normalizeMap(screen.map, tiles.length), [screen.map, tiles.length]);
   const selectedTile = tiles[Math.max(0, Math.min(tiles.length - 1, selectedTileIndex))];
+  const activeSlot = useMemo(() => {
+    const exact = slots.find(slot => slot.hex === selectedColor)?.slotIndex;
+    return typeof exact === 'number' ? exact : 0;
+  }, [selectedColor, slots]);
 
   useEffect(() => {
     if (changed) onUpdate({ palette: slots.map(slot => ({ ...slot })) });
@@ -238,25 +242,15 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
       </div>
 
       <div className="min-h-0 overflow-y-auto border-l border-msx-border pl-2 space-y-2">
-        <Panel title="Palette SCREEN 5">
-          <div className="grid grid-cols-4 gap-2 p-2">
-            {slots.map(slot => (
-              <button
-                key={slot.slotIndex}
-                type="button"
-                className={`h-8 rounded border text-[0.65rem] ${activeSlot === slot.slotIndex ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'}`}
-                style={{ backgroundColor: slot.hex === TRANSPARENT_HEX ? '#111827' : slot.hex }}
-                onClick={() => setActiveSlot(slot.slotIndex)}
-                title={`Slot ${slot.slotIndex}: ${slot.hex}`}
-              >
-                <span className="bg-black/40 px-1 rounded text-white">{slot.slotIndex}</span>
-              </button>
-            ))}
-          </div>
-        </Panel>
-
         <Panel title={`Edit Tile ${selectedTileIndex}`}>
-          <div className="p-2">
+          <div className="p-2 space-y-2">
+            <div className="flex items-center justify-between text-xs text-msx-textsecondary">
+              <span>Color slot {activeSlot}</span>
+              <span
+                className="inline-block w-5 h-5 rounded border border-msx-border"
+                style={{ backgroundColor: slots[activeSlot]?.hex === TRANSPARENT_HEX ? '#111827' : slots[activeSlot]?.hex }}
+              />
+            </div>
             <canvas
               ref={tileCanvasRef}
               className="w-full border border-msx-border bg-black"
