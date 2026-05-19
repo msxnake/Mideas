@@ -421,11 +421,17 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   ): Promise<MapperReadyBundle> => {
     const projectName = projectNameInput || currentProjectName || 'MSX_Game';
     const romConfig = romConfigInput || buildCurrentRomConfig();
+    const currentScreenMode = projectData?.currentScreenMode || 'SCREEN 2 (Graphics I)';
+    const targetGraphicsBackend = currentScreenMode === 'SCREEN 5 (Graphics III)'
+      ? 'msx2-screen5-bitmap'
+      : 'screen2-tilebank';
     const { generateModularASM } = await import('../../utils/msxGenerator');
 
     const modularFiles = generateModularASM(projectName, getEnhancedAssets(), {
       generateUnified: true,
-      ...romConfig
+      ...romConfig,
+      screenMode: currentScreenMode,
+      targetGraphicsBackend
     });
 
     const files = getModularFileOrder()

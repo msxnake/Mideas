@@ -36,6 +36,7 @@ import { generateAnimatedTilesFile } from './generators/animatedTilesGenerator';
 import { generateBossesFile } from './generators/bossesGenerator';
 import { generatePage0File } from './generators/page0Generator';
 import { getMapperWindowConfig } from './generators/mapperWindowUtils';
+import { generateMsx2Screen5Files } from './generators/msx2/msx2Screen5Generator';
 import { buildExecutionPlan } from './planning/executionPlan';
 import { validateExecutionPlan } from './planning/executionValidators';
 import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes';
@@ -45,6 +46,7 @@ import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes'
  */
 export type MSXMapperFormat = 'konami' | 'ascii8' | 'ascii16';
 export type MSXRomMode = 'auto' | 'simple32k' | 'plain48k' | 'megarom';
+export type GraphicsBackend = 'screen2-tilebank' | 'msx2-screen5-bitmap';
 
 export interface MSXInterruptConfig {
   enableAudioTask?: boolean;
@@ -65,6 +67,8 @@ export interface MSXModularConfig {
   hardwareMode?: 'bios' | 'direct' | 'hybrid'; // Hardware access mode
   optimizeLevel?: 'safe' | 'aggressive'; // Optimization level for direct mode
   interruptConfig?: MSXInterruptConfig;
+  screenMode?: string;
+  targetGraphicsBackend?: GraphicsBackend;
 }
 
 function resolveExecutionMode(config: MSXModularConfig): EngineExecutionMode {
@@ -189,6 +193,18 @@ export function generateModularASM(
   }
 
   console.log(`📊 Project: ${projectName}, Assets: ${assets.length}, Config:`, config);
+
+  if (config.targetGraphicsBackend === 'msx2-screen5-bitmap') {
+    if (config.screenMode !== 'SCREEN 5 (Graphics III)') {
+      throw new Error(`MSX2 bitmap backend currently supports only SCREEN 5 (Graphics III), received: ${config.screenMode || 'unknown'}`);
+    }
+    const analysis = analyzeProject(projectName, assets);
+    return generateMsx2Screen5Files(projectName, analysis, {
+      screenMode: config.screenMode,
+      romMode: config.romMode || 'simple32k',
+      targetFormat: config.targetFormat || 'konami',
+    });
+  }
 
   // Analyze project
   let analysis: ProjectAnalysis;

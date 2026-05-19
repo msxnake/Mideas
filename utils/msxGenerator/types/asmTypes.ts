@@ -127,6 +127,7 @@ export interface GeneratedASMFiles {
  * Project Analysis (from asmTemplateGenerator)
  */
 export interface ProjectAnalysis {
+  assets?: ProjectAsset[];
   hasSprites: boolean;
   hasTiles: boolean;
   hasScreens: boolean;

@@ -854,7 +854,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             componentDefinitions,
             entityTemplates,
             mainMenuConfig,
-            presentationScreen
+            presentationScreen,
+            currentScreenMode
           }}
           onEditFile={handleEditGeneratedFile}
         />

@@ -21,6 +21,7 @@ export interface HotSpot {
  * Project analysis data structure
  */
 export interface ProjectAnalysis {
+  assets?: ProjectAsset[];
   projectName: string;
   components: ComponentDefinition[];
   templates: EntityTemplate[];
@@ -232,6 +233,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   const globalVariables = getUsedGlobalVariables(assets);
 
   return {
+    assets,
     projectName,
     components,
     templates,
