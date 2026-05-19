@@ -1,5 +1,5 @@
 import { DEFAULT_SCREEN5_CUSTOM_PALETTE } from '../../../../constants';
-import { GameFlowConnection, GameFlowNode, Msx2Sprite, PaletteAsset, Screen5PaletteSlot, ScreenMap, Sprite, Tile } from '../../../../types';
+import { GameFlowConnection, GameFlowNode, Msx2Sprite, PaletteAsset, Screen5PaletteSlot, ScreenMap, Tile } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -18,8 +18,6 @@ const TRANSPARENT_HEX = 'RGBA(0,0,0,0)';
 const SCREEN5_SPRATR_VRAM = '#7600';
 const SCREEN5_SPRCOL_VRAM = '#7400';
 const SCREEN5_SPRPAT_VRAM = '#7800';
-
-type HardwareSpriteSource = Sprite | Msx2Sprite;
 
 const sanitizeLabel = (value: string, fallback: string): string =>
   String(value || fallback)
@@ -149,28 +147,27 @@ function formatBytes(label: string, bytes: number[], comment?: string): string {
   return `${lines.join('\n')}\n`;
 }
 
-function getHardwareSpriteSource(analysis: ProjectAnalysis): HardwareSpriteSource | undefined {
-  return analysis.msx2Sprites?.[0] || analysis.sprites?.[0];
+function getHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefined {
+  return analysis.msx2Sprites?.[0];
 }
 
-function getHardwareSpriteSettings(sprite: HardwareSpriteSource): { x: number; y: number; color: number; patternIndex: number } {
-  const attrs = (sprite as Sprite).attributes?.msx2HardwareSprite || {};
-  const hardware = (sprite as Msx2Sprite).hardware || {};
+function getHardwareSpriteSettings(sprite: Msx2Sprite): { x: number; y: number; color: number; patternIndex: number } {
+  const hardware = sprite.hardware || {};
   return {
-    x: Number.isFinite(Number(hardware.x ?? attrs.x)) ? Number(hardware.x ?? attrs.x) : 56,
-    y: Number.isFinite(Number(hardware.y ?? attrs.y)) ? Number(hardware.y ?? attrs.y) : 120,
-    color: Number.isFinite(Number(hardware.color ?? attrs.color)) ? Number(hardware.color ?? attrs.color) : 5,
-    patternIndex: Number.isFinite(Number(hardware.patternIndex ?? attrs.patternIndex)) ? Number(hardware.patternIndex ?? attrs.patternIndex) : 0,
+    x: Number.isFinite(Number(hardware.x)) ? Number(hardware.x) : 56,
+    y: Number.isFinite(Number(hardware.y)) ? Number(hardware.y) : 120,
+    color: Number.isFinite(Number(hardware.color)) ? Number(hardware.color) : 5,
+    patternIndex: Number.isFinite(Number(hardware.patternIndex)) ? Number(hardware.patternIndex) : 0,
   };
 }
 
-function isTransparentSpritePixel(color: string | undefined, sprite: HardwareSpriteSource): boolean {
+function isTransparentSpritePixel(color: string | undefined, sprite: Msx2Sprite): boolean {
   const normalized = normalizeColor(color);
   if (!normalized || normalized === TRANSPARENT_HEX) return true;
   return normalized === normalizeColor(sprite.backgroundColor);
 }
 
-function spritePatternByte(sprite: HardwareSpriteSource, x0: number, y: number): number {
+function spritePatternByte(sprite: Msx2Sprite, x0: number, y: number): number {
   const frame = sprite.frames?.[sprite.currentFrameIndex || 0] || sprite.frames?.[0];
   let value = 0;
   for (let bit = 0; bit < 8; bit++) {
@@ -183,7 +180,7 @@ function spritePatternByte(sprite: HardwareSpriteSource, x0: number, y: number):
   return value;
 }
 
-function buildHardwareSpritePattern(sprite: HardwareSpriteSource | undefined): number[] {
+function buildHardwareSpritePattern(sprite: Msx2Sprite | undefined): number[] {
   if (!sprite) return [];
   const bytes: number[] = [];
   // V9938 16x16 sprites use four consecutive 8x8 patterns:

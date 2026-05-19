@@ -67,19 +67,6 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     updateFrameData(next);
   };
 
-  const resizeSprite = (size: number) => {
-    const nextFrames = sprite.frames.map(existingFrame => {
-      const nextData = createPixels(size, size, sprite.backgroundColor);
-      for (let y = 0; y < Math.min(size, existingFrame.data.length); y++) {
-        for (let x = 0; x < Math.min(size, existingFrame.data[y]?.length || 0); x++) {
-          nextData[y][x] = existingFrame.data[y][x];
-        }
-      }
-      return { ...existingFrame, data: nextData };
-    });
-    onUpdate({ size: { width: size, height: size }, frames: nextFrames });
-  };
-
   const addFrame = () => {
     const frames = [
       ...sprite.frames,
@@ -105,14 +92,9 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             onChange={event => onUpdate({ name: event.target.value })}
             className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm"
           />
-          <select
-            value={sprite.size.width}
-            onChange={event => resizeSprite(Number(event.target.value))}
-            className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm"
-          >
-            <option value={16}>16x16</option>
-            <option value={32}>32x32</option>
-          </select>
+          <span className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm">
+            16x16 hardware
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="secondary" onClick={() => setZoom(Math.max(8, zoom - 2))}>-</Button>

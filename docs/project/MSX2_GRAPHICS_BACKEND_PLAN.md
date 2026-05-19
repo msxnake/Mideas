@@ -21,7 +21,7 @@ The first MSX2 slice supports:
 - Tile map rasterization into SCREEN 5 bytes, 2 pixels per byte.
 - Simple ROM output with BIOS `CHGMOD`, palette load, bitmap load, and HALT loop.
 - First hardware sprite MVP:
-  - Uses the first sprite asset as one visible 16x16 MSX2 sprite.
+  - Uses the first `msx2sprite` asset as one visible 16x16 MSX2 hardware sprite.
   - Emits pattern/color/SAT data inline before large bitmaps so simple ROM smoke tests can read it from the first ROM window.
   - Writes sprite VRAM tables with V9938 extended addressing for `#7400/#7600/#7800`.
 - Minimal GameFlow over existing nodes:
