@@ -348,7 +348,7 @@ export const useAssetHandlers = ({
         newEditorType = EditorType.Sprite;
         break;
       case 'msx2sprite':
-        defaultName = 'New MSX2 Sprite';
+        defaultName = 'New MSX2 Metasprite';
         const msx2SpriteSize = 16;
         const msx2Palette = createDefaultScreen5PaletteSlots();
         const msx2Background = MSX_SCREEN5_PALETTE[0].hex;
@@ -363,7 +363,7 @@ export const useAssetHandlers = ({
           backgroundColor: msx2Background,
           frames: [{ id: `frame_${Date.now()}`, data: msx2SpriteData }],
           currentFrameIndex: 0,
-          hardware: { x: 72, y: 102, color: 5, patternIndex: 0 }
+          hardware: { x: 72, y: 102, color: 5, patternIndex: 0, useOrColor: true }
         } as Msx2Sprite;
         newEditorType = EditorType.Msx2Sprite;
         break;

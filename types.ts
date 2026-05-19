@@ -240,6 +240,8 @@ export interface Msx2HardwareSpriteSettings {
   y: number;
   color: number;
   patternIndex: number;
+  /** Enables Konami-style OR-color composition when a row contains A, B, and A|B colors. */
+  useOrColor?: boolean;
 }
 
 export interface Msx2Sprite {

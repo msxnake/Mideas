@@ -152,12 +152,12 @@ function getHardwareSpriteSource(analysis: ProjectAnalysis): Msx2Sprite | undefi
 }
 
 function getHardwareSpriteSettings(sprite: Msx2Sprite): { x: number; y: number; color: number; patternIndex: number } {
-  const hardware = sprite.hardware || {};
+  const hardware = sprite.hardware;
   return {
-    x: Number.isFinite(Number(hardware.x)) ? Number(hardware.x) : 56,
-    y: Number.isFinite(Number(hardware.y)) ? Number(hardware.y) : 120,
-    color: Number.isFinite(Number(hardware.color)) ? Number(hardware.color) : 5,
-    patternIndex: Number.isFinite(Number(hardware.patternIndex)) ? Number(hardware.patternIndex) : 0,
+    x: Number.isFinite(Number(hardware?.x)) ? Number(hardware?.x) : 56,
+    y: Number.isFinite(Number(hardware?.y)) ? Number(hardware?.y) : 120,
+    color: Number.isFinite(Number(hardware?.color)) ? Number(hardware?.color) : 5,
+    patternIndex: Number.isFinite(Number(hardware?.patternIndex)) ? Number(hardware?.patternIndex) : 0,
   };
 }
 
@@ -167,28 +167,44 @@ function isTransparentSpritePixel(color: string | undefined, sprite: Msx2Sprite)
   return normalized === normalizeColor(sprite.backgroundColor);
 }
 
-function spritePatternByte(sprite: Msx2Sprite, x0: number, y: number): number {
-  const frame = sprite.frames?.[sprite.currentFrameIndex || 0] || sprite.frames?.[0];
+interface Msx2HardwareLayer {
+  pattern: number[];
+  colors: number[];
+  xOffset: number;
+  yOffset: number;
+}
+
+interface RowLayerComposition {
+  masks: number[];
+  colors: number[];
+}
+
+interface OrColorPair {
+  base: number;
+  overlay: number;
+  result: number;
+}
+
+function spritePatternByteForLayer(rowCompositions: RowLayerComposition[], layerIndex: number, x0: number, y: number): number {
+  const mask = rowCompositions[y]?.masks[layerIndex] || 0;
+  if (!mask) return 0;
   let value = 0;
   for (let bit = 0; bit < 8; bit++) {
-    const x = x0 + bit;
-    const color = frame?.data?.[y]?.[x];
-    if (!isTransparentSpritePixel(color, sprite)) {
+    if (mask & (1 << (x0 + bit))) {
       value |= 0x80 >> bit;
     }
   }
   return value;
 }
 
-function buildHardwareSpritePattern(sprite: Msx2Sprite | undefined): number[] {
-  if (!sprite) return [];
+function buildHardwareSpritePatternForLayer(rowCompositions: RowLayerComposition[], layerIndex: number): number[] {
   const bytes: number[] = [];
   // V9938 16x16 sprites use four consecutive 8x8 patterns:
   // top-left, top-right, bottom-left, bottom-right.
-  for (let y = 0; y < 8; y++) bytes.push(spritePatternByte(sprite, 0, y));
-  for (let y = 0; y < 8; y++) bytes.push(spritePatternByte(sprite, 8, y));
-  for (let y = 8; y < 16; y++) bytes.push(spritePatternByte(sprite, 0, y));
-  for (let y = 8; y < 16; y++) bytes.push(spritePatternByte(sprite, 8, y));
+  for (let y = 0; y < 8; y++) bytes.push(spritePatternByteForLayer(rowCompositions, layerIndex, 0, y));
+  for (let y = 0; y < 8; y++) bytes.push(spritePatternByteForLayer(rowCompositions, layerIndex, 8, y));
+  for (let y = 8; y < 16; y++) bytes.push(spritePatternByteForLayer(rowCompositions, layerIndex, 0, y));
+  for (let y = 8; y < 16; y++) bytes.push(spritePatternByteForLayer(rowCompositions, layerIndex, 8, y));
   return bytes;
 }
 
@@ -200,16 +216,123 @@ function paletteSlotForSpriteColor(sprite: Msx2Sprite, color: string | undefined
   return undefined;
 }
 
-function buildHardwareSpriteLineColors(sprite: Msx2Sprite, fallbackColor: number): number[] {
+function findBestOrColorPair(slots: number[], counts: Map<number, number>): OrColorPair | undefined {
+  let best: { pair: OrColorPair; score: number } | undefined;
+  slots.forEach(base => {
+    slots.forEach(overlay => {
+      if (base === overlay) return;
+      const result = base | overlay;
+      if (result === base || result === overlay || !slots.includes(result)) return;
+      const score = ((counts.get(result) || 0) * 4) + (counts.get(base) || 0) + (counts.get(overlay) || 0);
+      if (!best || score > best.score || (score === best.score && result < best.pair.result)) {
+        best = { pair: { base, overlay, result }, score };
+      }
+    });
+  });
+  return best?.pair;
+}
+
+function buildCellRowComposition(slots: number[], useOrColor: boolean): RowLayerComposition {
+  const counts = new Map<number, number>();
+  slots.forEach(slot => {
+    if (slot > 0) counts.set(slot, (counts.get(slot) || 0) + 1);
+  });
+  const uniqueSlots = Array.from(counts.keys()).sort((a, b) => a - b);
+  if (!uniqueSlots.length) return { masks: [0], colors: [0] };
+
+  const masks: number[] = [];
+  const colors: number[] = [];
+  const handled = new Set<number>();
+  const orPair = useOrColor ? findBestOrColorPair(uniqueSlots, counts) : undefined;
+  if (orPair) {
+    let baseMask = 0;
+    let overlayMask = 0;
+    slots.forEach((slot, x) => {
+      if (slot === orPair.base) baseMask |= 1 << x;
+      if (slot === orPair.overlay) overlayMask |= 1 << x;
+      if (slot === orPair.result) {
+        baseMask |= 1 << x;
+        overlayMask |= 1 << x;
+      }
+    });
+    masks.push(baseMask);
+    colors.push(orPair.base);
+    masks.push(overlayMask);
+    colors.push(0x40 | orPair.overlay);
+    handled.add(orPair.base);
+    handled.add(orPair.overlay);
+    handled.add(orPair.result);
+  }
+
+  uniqueSlots.forEach(slot => {
+    if (handled.has(slot)) return;
+    let mask = 0;
+    slots.forEach((rowSlot, x) => {
+      if (rowSlot === slot) mask |= 1 << x;
+    });
+    masks.push(mask);
+    colors.push(slot);
+  });
+
+  return { masks, colors };
+}
+
+function buildHardwareSpriteLayers(sprite: Msx2Sprite, fallbackColor: number): Msx2HardwareLayer[] {
   const frame = sprite.frames?.[sprite.currentFrameIndex || 0] || sprite.frames?.[0];
-  return Array.from({ length: 16 }, (_, y) => {
-    const row = frame?.data?.[y] || [];
-    for (let x = 0; x < 16; x++) {
-      const slot = paletteSlotForSpriteColor(sprite, row[x]);
-      if (slot !== undefined) return slot;
+  const useOrColor = sprite.hardware?.useOrColor !== false;
+  const cellColumns = Math.max(1, Math.ceil((sprite.size?.width || 16) / 16));
+  const cellRows = Math.max(1, Math.ceil((sprite.size?.height || 16) / 16));
+  const layers: Msx2HardwareLayer[] = [];
+
+  for (let cellY = 0; cellY < cellRows; cellY++) {
+    for (let cellX = 0; cellX < cellColumns; cellX++) {
+      const xOffset = cellX * 16;
+      const yOffset = cellY * 16;
+      const rowCompositions = Array.from({ length: 16 }, (_, y) => {
+        const slots = Array.from({ length: 16 }, (_, x) =>
+          paletteSlotForSpriteColor(sprite, frame?.data?.[yOffset + y]?.[xOffset + x]) || 0
+        );
+        return buildCellRowComposition(slots, useOrColor);
+      });
+      const layerCount = Math.min(8, Math.max(1, ...rowCompositions.map(row => row.colors.length)));
+      for (let layerIndex = 0; layerIndex < layerCount; layerIndex++) {
+        const colors = rowCompositions.map(row => row.colors[layerIndex] ?? 0);
+        const hasPixels = rowCompositions.some(row => (row.masks[layerIndex] || 0) !== 0);
+        if (!hasPixels) continue;
+        layers.push({
+          pattern: buildHardwareSpritePatternForLayer(rowCompositions, layerIndex),
+          colors: colors.map(color => color || Math.max(1, Math.min(15, fallbackColor))),
+          xOffset,
+          yOffset,
+        });
+      }
     }
-    return 0;
-  }).map(color => color === 0 ? 0 : Math.max(1, Math.min(15, color || fallbackColor)));
+  }
+
+  return layers.length ? layers : [{
+    pattern: Array(32).fill(0),
+    colors: Array(16).fill(Math.max(1, Math.min(15, fallbackColor))),
+    xOffset: 0,
+    yOffset: 0,
+  }];
+}
+
+function clampHardwareSpriteY(value: number): number {
+  return Math.max(0, Math.min(211, value));
+}
+
+function clampHardwareSpriteX(value: number): number {
+  return Math.max(0, Math.min(255, value));
+}
+
+function clampBasePatternIndex(patternIndex: number, spriteCount: number): number {
+  const aligned = Math.max(0, patternIndex) & 0xFC;
+  const maxBase = Math.max(0, 252 - (Math.max(1, spriteCount) - 1) * 4);
+  return Math.min(aligned, maxBase & 0xFC);
+}
+
+function clampHardwareSpriteCount(layers: Msx2HardwareLayer[]): Msx2HardwareLayer[] {
+  return layers.slice(0, 32);
 }
 
 function hasHardwareSprite(analysis: ProjectAnalysis): boolean {
@@ -237,14 +360,14 @@ function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis): string {
     ld bc, #0F06
     call WRTVDP
 
-    ld hl, msx2_hw_sprite_pattern_0
+    ld hl, msx2_hw_sprite_patterns
     ld de, ${SCREEN5_SPRPAT_VRAM}
-    ld bc, 32
+    ld bc, msx2_hw_sprite_patterns_end - msx2_hw_sprite_patterns
     call copy_to_vram_ext
 
-    ld hl, msx2_hw_sprite_colors_0
+    ld hl, msx2_hw_sprite_colors
     ld de, ${SCREEN5_SPRCOL_VRAM}
-    ld bc, 16
+    ld bc, msx2_hw_sprite_colors_end - msx2_hw_sprite_colors
     call copy_to_vram_ext
 
     ld hl, msx2_hw_sprite_attrs
@@ -289,18 +412,28 @@ function buildHardwareSpriteDataAsm(analysis: ProjectAnalysis): string {
   const sprite = getHardwareSpriteSource(analysis);
   if (!sprite) return '';
   const settings = getHardwareSpriteSettings(sprite);
-  const y = Math.max(0, Math.min(211, settings.y));
-  const x = Math.max(0, Math.min(255, settings.x));
+  const y = clampHardwareSpriteY(settings.y);
+  const x = clampHardwareSpriteX(settings.x);
   const color = Math.max(1, Math.min(15, settings.color));
-  const patternIndex = Math.max(0, Math.min(252, settings.patternIndex));
-  const pattern = buildHardwareSpritePattern(sprite);
-  const attributes = [y, x, patternIndex, 0, 216, 0, 0, 0, ...Array(120).fill(0)];
-  const colors = buildHardwareSpriteLineColors(sprite, color);
+  const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color));
+  const basePatternIndex = clampBasePatternIndex(settings.patternIndex, layers.length);
+  const visibleAttributes = layers.flatMap((layer, layerIndex) => [
+    clampHardwareSpriteY(y + layer.yOffset),
+    clampHardwareSpriteX(x + layer.xOffset),
+    basePatternIndex + (layerIndex * 4),
+    0,
+  ]);
+  const terminator = [216, 0, 0, 0];
+  const attributes = [...visibleAttributes, ...terminator, ...Array(Math.max(0, 128 - visibleAttributes.length - terminator.length)).fill(0)];
 
   return `
-${formatBytes('msx2_hw_sprite_pattern_0', pattern, `Hardware sprite pattern: ${sprite.name || 'sprite 0'}`)}
-${formatBytes('msx2_hw_sprite_colors_0', colors, 'Hardware sprite line colors for V9938 sprite mode 2')}
-${formatBytes('msx2_hw_sprite_attrs', attributes, 'Sprite 0 visible; sprite 1 Y=216 terminates the SAT')}
+msx2_hw_sprite_patterns:
+${layers.map((layer, index) => formatBytes(`msx2_hw_sprite_pattern_${index}`, layer.pattern, `Hardware metasprite part ${index}: x+${layer.xOffset}, y+${layer.yOffset}`)).join('')}msx2_hw_sprite_patterns_end:
+
+msx2_hw_sprite_colors:
+${layers.map((layer, index) => formatBytes(`msx2_hw_sprite_colors_${index}`, layer.colors, `Line colors for hardware sprite layer ${index}`)).join('')}msx2_hw_sprite_colors_end:
+
+${formatBytes('msx2_hw_sprite_attrs', attributes, `${layers.length} visible metasprite hardware sprite(s); next Y=216 terminates the SAT`)}
 `;
 }
 

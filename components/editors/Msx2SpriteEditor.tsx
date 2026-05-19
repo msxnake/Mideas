@@ -90,6 +90,42 @@ const visibleRowColors = (row: MSXColorValue[] | undefined, backgroundColor: MSX
   return Array.from(colors);
 };
 
+const paletteSlotForColor = (color: string, palette: { slotIndex: number; hex: string }[]): number | undefined =>
+  palette.find(slot => normalizeColor(slot.hex) === normalizeColor(color))?.slotIndex;
+
+interface HardwareOrColorPair {
+  base: number;
+  overlay: number;
+  result: number;
+}
+
+const findHardwareOrColorPair = (slots: number[]): HardwareOrColorPair | undefined => {
+  const counts = new Map<number, number>();
+  slots.forEach(slot => counts.set(slot, (counts.get(slot) || 0) + 1));
+  const uniqueSlots = Array.from(counts.keys()).sort((a, b) => a - b);
+  let best: { pair: HardwareOrColorPair; score: number } | undefined;
+  uniqueSlots.forEach(base => {
+    uniqueSlots.forEach(overlay => {
+      if (base === overlay) return;
+      const result = base | overlay;
+      if (result === base || result === overlay || !uniqueSlots.includes(result)) return;
+      const score = ((counts.get(result) || 0) * 4) + (counts.get(base) || 0) + (counts.get(overlay) || 0);
+      if (!best || score > best.score || (score === best.score && result < best.pair.result)) {
+        best = { pair: { base, overlay, result }, score };
+      }
+    });
+  });
+  return best?.pair;
+};
+
+const hardwareRowLayerCount = (slots: number[], useOrColor: boolean): { layerCount: number; usesOrColor: boolean } => {
+  const uniqueSlots = Array.from(new Set(slots)).filter(slot => slot > 0);
+  const orPair = useOrColor ? findHardwareOrColorPair(slots) : undefined;
+  if (!orPair) return { layerCount: uniqueSlots.length, usesOrColor: false };
+  const remaining = uniqueSlots.filter(slot => slot !== orPair.base && slot !== orPair.overlay && slot !== orPair.result);
+  return { layerCount: 2 + remaining.length, usesOrColor: true };
+};
+
 const toAsmBytes = (sprite: Msx2Sprite): string => {
   const frame = normalizeFrame(sprite);
   const bytes: number[] = [];
@@ -238,22 +274,57 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
 
   const resolvedHitbox = sprite.hitbox || { width: sprite.size.width, height: sprite.size.height, offsetX: 0, offsetY: 0 };
   const animationSpeedMs = sprite.animationSpeedMs || 150;
+  const useOrColor = sprite.hardware?.useOrColor !== false;
+  const cellColumns = Math.max(1, Math.ceil(sprite.size.width / 16));
+  const cellRows = Math.max(1, Math.ceil(sprite.size.height / 16));
   const rowDiagnostics = useMemo(() => {
-    return Array.from({ length: sprite.size.height }, (_, y) => {
-      const colors = visibleRowColors(frame[y], sprite.backgroundColor);
-      const firstColor = colors[0];
-      const slot = firstColor
-        ? palette.find(item => normalizeColor(item.hex) === firstColor)?.slotIndex
-        : 0;
-      return {
-        y,
-        colors,
-        slot: typeof slot === 'number' ? slot : undefined,
-        invalid: colors.length > 1,
-      };
-    });
-  }, [frame, palette, sprite.backgroundColor, sprite.size.height]);
+    return Array.from({ length: sprite.size.height }, (_, y) =>
+      Array.from({ length: cellColumns }, (_, cellX) => {
+        const xOffset = cellX * 16;
+        const rowSlice = frame[y]?.slice(xOffset, xOffset + 16) || [];
+        const colors = visibleRowColors(rowSlice, sprite.backgroundColor);
+        const bg = normalizeColor(sprite.backgroundColor);
+        const slots = rowSlice
+          .map(color => {
+            const normalized = normalizeColor(String(color || ''));
+            if (!normalized || normalized === bg || normalized === normalizeColor(TRANSPARENT_HEX)) return undefined;
+            return paletteSlotForColor(normalized, palette);
+          })
+          .filter((slot): slot is number => typeof slot === 'number' && slot > 0);
+        const { layerCount, usesOrColor } = hardwareRowLayerCount(slots, useOrColor);
+        return {
+          y,
+          cellX,
+          colors,
+          slots: Array.from(new Set(slots)).sort((a, b) => a - b),
+          layerCount,
+          usesOrColor,
+          invalid: layerCount > 8,
+        };
+      })
+    ).flat();
+  }, [cellColumns, frame, palette, sprite.backgroundColor, sprite.size.height, useOrColor]);
   const invalidLineCount = rowDiagnostics.filter(row => row.invalid).length;
+  const orColorLineCount = rowDiagnostics.filter(row => row.usesOrColor).length;
+  const maxSpritesPerScanline = Math.max(
+    1,
+    ...Array.from({ length: sprite.size.height }, (_, y) =>
+      rowDiagnostics.filter(row => row.y === y).reduce((sum, row) => sum + row.layerCount, 0)
+    )
+  );
+  const scanlineOverflow = maxSpritesPerScanline > 8;
+  const estimatedHardwareSprites = Array.from({ length: cellRows }, (_, cellY) =>
+    Array.from({ length: cellColumns }, (_, cellX) => {
+      const firstY = cellY * 16;
+      const lastY = Math.min(sprite.size.height, firstY + 16);
+      return Math.max(
+        0,
+        ...rowDiagnostics
+          .filter(row => row.cellX === cellX && row.y >= firstY && row.y < lastY)
+          .map(row => row.layerCount)
+      );
+    }).reduce((sum, value) => sum + value, 0)
+  ).reduce((sum, value) => sum + value, 0);
 
   useEffect(() => {
     if (paletteChanged) {
@@ -316,7 +387,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     paintPixel(point, color);
   };
 
-  const setHardware = (field: keyof Msx2Sprite['hardware'], value: number) => {
+  const setHardware = (field: keyof Msx2Sprite['hardware'], value: number | boolean) => {
     onUpdate({ hardware: { ...sprite.hardware, [field]: value } });
   };
 
@@ -586,23 +657,28 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
 
         <Panel title="MSX2 HW Limits" collapsible>
           <div className="p-3 space-y-2 text-xs">
-            <div className={invalidLineCount > 0 ? 'text-msx-warning' : 'text-msx-textsecondary'}>
+            <div className={(invalidLineCount > 0 || scanlineOverflow) ? 'text-msx-warning' : 'text-msx-textsecondary'}>
               {invalidLineCount > 0
-                ? `${invalidLineCount} lines use more than one visible color. Hardware will use the first color in each line; use overlapped sprites for real multicolor rows.`
-                : 'OK: each visible line uses one hardware color.'}
+                ? `${invalidLineCount} cell line${invalidLineCount === 1 ? '' : 's'} need more than 8 overlapped sprites. Reduce colors there.`
+                : scanlineOverflow
+                  ? `${maxSpritesPerScanline}/8 hardware sprites on the busiest scanline. OpenMSX will drop extras unless you multiplex/flicker.`
+                : `${estimatedHardwareSprites} hardware sprite${estimatedHardwareSprites === 1 ? '' : 's'} across ${cellColumns}x${cellRows} metasprite cells.`}
+            </div>
+            <div className="text-msx-textsecondary">
+              Worst scanline: {maxSpritesPerScanline}/8 visible hardware sprites. {orColorLineCount} line{orColorLineCount === 1 ? '' : 's'} use OR color.
             </div>
             <div className="grid grid-cols-4 gap-1">
               {rowDiagnostics.map(row => (
                 <div
-                  key={row.y}
+                  key={`${row.cellX}-${row.y}`}
                   className={`rounded border px-1 py-0.5 ${row.invalid ? 'border-msx-warning text-msx-warning' : 'border-msx-border text-msx-textsecondary'}`}
-                  title={row.colors.length ? `Line ${row.y}: ${row.colors.join(', ')}` : `Line ${row.y}: transparent`}
+                  title={row.colors.length ? `Cell ${row.cellX}, line ${row.y}: ${row.colors.join(', ')}` : `Cell ${row.cellX}, line ${row.y}: transparent`}
                 >
-                  y{row.y}: {row.colors.length ? `S${row.slot ?? '?'}` : 'T'}
+                  c{row.cellX} y{row.y}: {row.layerCount ? `${row.layerCount}${row.usesOrColor ? '+' : ''}` : 'T'}
                 </div>
               ))}
             </div>
-            <p className="text-msx-textsecondary">Transparent pixels are pattern bits set to 0. Empty lines export color 0.</p>
+            <p className="text-msx-textsecondary">Transparent pixels are pattern bits set to 0. Rows are split into overlapped SCREEN 5 sprite mode 2 layers; OR color uses the VDP color-table CC bit.</p>
           </div>
         </Panel>
 
@@ -612,6 +688,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             <label>Y<input type="number" value={sprite.hardware.y} min={0} max={211} onChange={e => setHardware('y', Number(e.target.value))} className="mt-1 w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1" /></label>
             <label>Color<input type="number" value={sprite.hardware.color} min={1} max={15} onChange={e => setHardware('color', Number(e.target.value))} className="mt-1 w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1" /></label>
             <label>Pattern<input type="number" value={sprite.hardware.patternIndex} min={0} max={252} step={4} onChange={e => setHardware('patternIndex', Number(e.target.value))} className="mt-1 w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1" /></label>
+            <label className="col-span-2 flex items-center justify-between gap-2">OR color<input type="checkbox" checked={useOrColor} onChange={e => setHardware('useOrColor', e.target.checked)} /></label>
           </div>
         </Panel>
 
