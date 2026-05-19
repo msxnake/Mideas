@@ -365,15 +365,19 @@ function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis): string {
   if (!sprite) return '';
   return `init_hardware_sprites:
     ; SCREEN 5 hardware sprite MVP. Clobbers AF/BC/DE/HL.
-    ; R#1 = #E2 selects 16x16 sprites and keeps display/IRQ bits compatible with BIOS use.
-    ld bc, #E201
-    call WRTVDP
-    ld a, #E2
+    ; Preserve the SCREEN 5 mode bits set by CHGMOD; only select 16x16, non-magnified sprites.
+    ld a, (#F3E0)
+    or #02
+    and #FE
     ld (#F3E0), a
+    ld b, a
+    ld c, #01
+    call WRTVDP
 
     ; Sprite attribute/color/pattern tables live above the SCREEN 5 bitmap.
-    ; R#5 selects SAT #7600. R#11 remains 0 because the table is below 64KB.
-    ld bc, #EC05
+    ; In sprite mode 2, R#5 selects the combined color+attribute table:
+    ; color table #7400, SAT #7600. Bits 0-2 must be 1.
+    ld bc, #EF05
     call WRTVDP
     ld bc, #000B
     call WRTVDP
@@ -383,17 +387,17 @@ function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis): string {
     ld hl, msx2_hw_sprite_patterns
     ld de, ${SCREEN5_SPRPAT_VRAM}
     ld bc, msx2_hw_sprite_patterns_end - msx2_hw_sprite_patterns
-    call copy_to_vram_ext
+    call LDIRVM
 
     ld hl, msx2_hw_sprite_colors
     ld de, ${SCREEN5_SPRCOL_VRAM}
     ld bc, msx2_hw_sprite_colors_end - msx2_hw_sprite_colors
-    call copy_to_vram_ext
+    call LDIRVM
 
     ld hl, msx2_hw_sprite_attrs
     ld de, ${SCREEN5_SPRATR_VRAM}
     ld bc, 128
-    call copy_to_vram_ext
+    call LDIRVM
 
     xor a
     ld bc, #000E
