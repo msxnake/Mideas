@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outJson = path.join(root, 'Examples', 'msx2_screen5_manic_miner_example.json');
 const outPng = path.join(root, 'screenshots', 'msx2_screen5_manic_miner_example.png');
+const outBackgroundPng = path.join(root, 'screenshots', 'msx2_screen5_manic_miner_bitmap.png');
 const WIDTH = 256;
 const HEIGHT = 212;
 
@@ -201,13 +202,13 @@ function chunk(type, data) {
   return Buffer.concat([length, typeBuffer, data, crc]);
 }
 
-function writePng(filePath) {
+function writePng(filePath, sourcePixels = pixels) {
   const raw = Buffer.alloc((WIDTH * 4 + 1) * HEIGHT);
   let offset = 0;
   for (let y = 0; y < HEIGHT; y++) {
     raw[offset++] = 0;
     for (let x = 0; x < WIDTH; x++) {
-      const [r, g, b, a] = hexToRgb(palette[pixels[y][x]].hex);
+      const [r, g, b, a] = hexToRgb(palette[sourcePixels[y][x]].hex);
       raw[offset++] = r;
       raw[offset++] = g;
       raw[offset++] = b;
@@ -230,6 +231,8 @@ function writePng(filePath) {
 
 fs.mkdirSync(path.dirname(outJson), { recursive: true });
 fs.writeFileSync(outJson, `${JSON.stringify(project, null, 2)}\n`, 'utf8');
-writePng(outPng);
+writePng(outPng, pixels);
+writePng(outBackgroundPng, bitmapPixels);
 console.log(`Example JSON: ${outJson}`);
 console.log(`Screenshot PNG: ${outPng}`);
+console.log(`Bitmap-only PNG: ${outBackgroundPng}`);
