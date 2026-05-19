@@ -1,5 +1,5 @@
 import { DEFAULT_SCREEN5_CUSTOM_PALETTE } from '../../../../constants';
-import { GameFlowConnection, GameFlowNode, Msx2Sprite, PaletteAsset, Screen5PaletteSlot, ScreenMap, Tile } from '../../../../types';
+import { GameFlowConnection, GameFlowNode, Msx2Bitmap, Msx2Sprite, PaletteAsset, Screen5PaletteSlot, ScreenMap, Tile } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -55,6 +55,11 @@ function resolveScreen5Palette(analysis: ProjectAnalysis): Screen5PaletteSlot[] 
   const paletteAsset = assets?.find(asset => asset?.type === 'palette')?.data as PaletteAsset | undefined;
   if (paletteAsset?.mode === 'SCREEN5' && paletteAsset.slots?.length === 16) {
     return paletteAsset.slots.map(slot => ({ ...slot }));
+  }
+
+  const bitmapPalette = (analysis.msx2Bitmaps || []).find(bitmap => bitmap.palette?.length === 16)?.palette;
+  if (bitmapPalette?.length === 16) {
+    return bitmapPalette.map(slot => ({ ...slot }));
   }
 
   const tilePalette = (analysis.tiles || []).find(tile => tile.screen5Palette?.length === 16)?.screen5Palette;
@@ -118,6 +123,21 @@ function buildScreen5BitmapBytes(screen: ScreenMap | undefined, tiles: Tile[], s
     }
   }
 
+  return bytes;
+}
+
+function buildScreen5BitmapBytesFromAsset(bitmap: Msx2Bitmap | undefined): number[] {
+  const bytes: number[] = [];
+  const pixels = bitmap?.pixels || [];
+  for (let y = 0; y < SCREEN5_HEIGHT; y++) {
+    const row = pixels[y] || [];
+    for (let byteX = 0; byteX < SCREEN5_WIDTH / 2; byteX++) {
+      const x0 = byteX * 2;
+      const hi = Math.max(0, Math.min(15, Number(row[x0]) || 0));
+      const lo = Math.max(0, Math.min(15, Number(row[x0 + 1]) || 0));
+      bytes.push(((hi & 0x0f) << 4) | (lo & 0x0f));
+    }
+  }
   return bytes;
 }
 
@@ -551,10 +571,21 @@ function buildMsx2GameFlowProgram(analysis: ProjectAnalysis, screenLabels: Map<s
 
 function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2Screen5Config): string {
   const screens = collectReferencedScreens(analysis);
+  const bitmaps = analysis.msx2Bitmaps || [];
   const slots = resolveScreen5Palette(analysis);
   const paletteBytes = buildPaletteBytes(slots);
   const title = projectName.replace(/[^ -~]/g, '');
+  const bitmapLabels = new Map<string, string>();
   const screenLabels = new Map<string, string>();
+  const bitmapBlocks = bitmaps.map((bitmap, index) => {
+    const label = sanitizeLabel(bitmap?.name || `msx2_bitmap_${index}`, `MSX2_BITMAP_${index}`);
+    bitmapLabels.set(bitmap.id || bitmap.name || `bitmap_${index}`, label);
+    return formatBytes(
+      `${label}_BITMAP`,
+      buildScreen5BitmapBytesFromAsset(bitmap),
+      `${bitmap?.name || `Bitmap ${index}`} packed as SCREEN 5, 2 pixels per byte`
+    );
+  });
   const screenBitmapBlocks = screens.map((screen, index) => {
     const label = sanitizeLabel(screen?.name || `screen5_screen_${index}`, `SCREEN5_SCREEN_${index}`);
     screenLabels.set(screen.id || screen.name || `screen_${index}`, label);
@@ -564,10 +595,19 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       `${screen?.name || `Screen ${index}`} rasterized as SCREEN 5, 2 pixels per byte`
     );
   });
+  if (bitmapBlocks.length === 0 && screenBitmapBlocks.length === 0) {
+    bitmapBlocks.push(formatBytes('SCREEN5_SCREEN_0_BITMAP', Array(SCREEN5_BYTES).fill(0), 'Empty SCREEN 5 bitmap'));
+  }
+  const bitmapLoadLabels = bitmaps.map((bitmap, index) =>
+    bitmapLabels.get(bitmap.id || bitmap.name || `bitmap_${index}`) || sanitizeLabel(bitmap.name, `MSX2_BITMAP_${index}`)
+  );
+  const screenLoadLabels = screens.map((screen, index) =>
+    screenLabels.get(screen.id || screen.name || `screen_${index}`) || sanitizeLabel(screen.name, `SCREEN5_SCREEN_${index}`)
+  );
+  const allLoadLabels = [...bitmapLoadLabels, ...screenLoadLabels];
   const firstScreen = screens[0] || analysis.screenMaps?.[0];
-  const firstScreenLabel = firstScreen
-    ? screenLabels.get(firstScreen.id || firstScreen.name) || sanitizeLabel(firstScreen.name, 'SCREEN5_SCREEN_0')
-    : 'SCREEN5_SCREEN_0';
+  const firstScreenLabel = allLoadLabels[0]
+    || (firstScreen ? screenLabels.get(firstScreen.id || firstScreen.name) || sanitizeLabel(firstScreen.name, 'SCREEN5_SCREEN_0') : 'SCREEN5_SCREEN_0');
   const gameFlowProgram = buildMsx2GameFlowProgram(analysis, screenLabels);
   const hardwareSpriteInitAsm = buildHardwareSpriteInitAsm(analysis);
   const hardwareSpriteDataAsm = buildHardwareSpriteDataAsm(analysis);
@@ -674,8 +714,7 @@ load_${firstScreenLabel}_bitmap:
     call LDIRVM
     ret
 
-${screens.slice(1).map(screen => {
-  const label = screenLabels.get(screen.id || screen.name);
+${allLoadLabels.filter(label => label !== firstScreenLabel).map(label => {
   return `load_${label}_bitmap:
     ld hl, ${label}_BITMAP
     ld de, SCREEN5_BITMAP_VRAM
@@ -686,7 +725,7 @@ ${screens.slice(1).map(screen => {
 }).join('\n')}
 ${formatBytes('screen5_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G')}
 ${hardwareSpriteDataAsm}
-${screenBitmapBlocks.join('\n')}
+${[...bitmapBlocks, ...screenBitmapBlocks].join('\n')}
     ds #C000 - $, #FF
     end
 `;
