@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { Msx2Sprite, MSXColorValue, PixelData, Screen5PaletteSlot } from '../../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Msx2Sprite, MSXColorValue, PixelData } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { DEFAULT_SCREEN5_CUSTOM_PALETTE, MSX_SCREEN5_PALETTE } from '../../constants';
+import { ensureScreen5PaletteSlots } from '../../utils/screen5PaletteUtils';
 
 interface Msx2SpriteEditorProps {
   sprite: Msx2Sprite;
@@ -13,15 +13,6 @@ const clonePixels = (data: PixelData): PixelData => data.map(row => [...row]);
 
 const createPixels = (width: number, height: number, color: MSXColorValue): PixelData =>
   Array.from({ length: height }, () => Array.from({ length: width }, () => color));
-
-const ensurePalette = (palette?: Screen5PaletteSlot[]): Screen5PaletteSlot[] => {
-  const source = palette?.length === 16 ? palette : DEFAULT_SCREEN5_CUSTOM_PALETTE;
-  return source.map((slot, index) => ({
-    slotIndex: slot.slotIndex ?? index,
-    masterIndex: slot.masterIndex,
-    hex: slot.hex,
-  }));
-};
 
 const normalizeFrame = (sprite: Msx2Sprite): PixelData => {
   const frame = sprite.frames[sprite.currentFrameIndex] || sprite.frames[0];
@@ -49,10 +40,22 @@ const toAsmBytes = (sprite: Msx2Sprite): string => {
 };
 
 export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUpdate }) => {
-  const palette = useMemo(() => ensurePalette(sprite.palette), [sprite.palette]);
+  const { slots: palette, changed: paletteChanged } = useMemo(() => ensureScreen5PaletteSlots(sprite.palette), [sprite.palette]);
   const frame = normalizeFrame(sprite);
-  const [selectedColor, setSelectedColor] = useState<MSXColorValue>(palette[5]?.hex || MSX_SCREEN5_PALETTE[5]?.hex || '#FFFF00');
+  const [selectedColor, setSelectedColor] = useState<MSXColorValue>(palette[5]?.hex || palette[1]?.hex || '#FFFFFF');
   const [zoom, setZoom] = useState(18);
+
+  useEffect(() => {
+    if (paletteChanged) {
+      onUpdate({ palette: palette.map(slot => ({ ...slot })) });
+    }
+  }, [paletteChanged, palette, onUpdate]);
+
+  useEffect(() => {
+    if (!palette.some(slot => slot.hex === selectedColor)) {
+      setSelectedColor(palette[1]?.hex || palette[0]?.hex || '#FFFFFF');
+    }
+  }, [palette, selectedColor]);
 
   const updateFrameData = (data: PixelData) => {
     const frames = sprite.frames.length > 0 ? [...sprite.frames] : [{ id: `frame_${Date.now()}`, data }];
@@ -148,7 +151,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                   className={`h-8 rounded border ${selectedColor === slot.hex ? 'border-msx-highlight' : 'border-msx-border'}`}
                   style={{ backgroundColor: slot.hex === sprite.backgroundColor ? '#111827' : slot.hex }}
                   onClick={() => setSelectedColor(slot.hex)}
-                  title={`Slot ${slot.slotIndex}: ${slot.hex}`}
+                  title={`Slot ${slot.slotIndex}: ${slot.hex}${slot.masterIndex >= 0 ? ` / master ${slot.masterIndex}` : ''}`}
                 />
               ))}
             </div>

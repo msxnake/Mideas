@@ -369,10 +369,32 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const [selectedPaletteAssetId, setSelectedPaletteAssetId] = useState<string>('');
 
   useEffect(() => {
-    if (props.currentEditor !== EditorType.Tile) {
+    if (props.currentEditor !== EditorType.Tile && props.currentEditor !== EditorType.Msx2Sprite) {
       setSelectedPaletteAssetId('');
     }
   }, [props.currentEditor, selectedAssetId]);
+
+  const applyScreen5PaletteToMsx2Sprite = (sprite: Msx2Sprite, nextSlots: ReturnType<typeof ensureScreen5PaletteSlots>['slots']): Partial<Msx2Sprite> => {
+    const { slots: currentSlots } = ensureScreen5PaletteSlots(sprite.palette);
+    const remapByColor = new Map<string, string>();
+    currentSlots.forEach((slot, index) => {
+      const nextHex = nextSlots[index]?.hex;
+      if (nextHex) {
+        remapByColor.set(slot.hex.toUpperCase(), nextHex);
+      }
+    });
+    const remapColor = (color: MSXColorValue): MSXColorValue =>
+      (remapByColor.get(String(color).toUpperCase()) || color) as MSXColorValue;
+
+    return {
+      palette: nextSlots.map(slot => ({ ...slot })),
+      backgroundColor: (nextSlots[0]?.hex || sprite.backgroundColor) as MSXColorValue,
+      frames: sprite.frames.map(frame => ({
+        ...frame,
+        data: frame.data.map(row => row.map(color => remapColor(color))),
+      })),
+    };
+  };
 
   const renderRightPanelContent = () => {
     if (currentEditor === EditorType.Screen && currentScreenEditorActiveLayer === 'entities') {
@@ -384,7 +406,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         />
       );
     }
-    const paletteEditors = [EditorType.Tile, EditorType.Sprite, EditorType.Screen, EditorType.Font, EditorType.Boss];
+    const paletteEditors = [EditorType.Tile, EditorType.Sprite, EditorType.Msx2Sprite, EditorType.Screen, EditorType.Font, EditorType.Boss];
     if (paletteEditors.includes(currentEditor) || (currentEditor === EditorType.None && selectedAssetId === null) ) {
       if (currentEditor === EditorType.Screen && currentScreenEditorActiveLayer === 'entities') {
         return null;
@@ -395,10 +417,17 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         const { slots } = ensureScreen5PaletteSlots((activeAsset.data as Tile).screen5Palette);
         paletteToUse = screen5SlotsToMsxColors(slots);
       }
+      if (!isScreen2Mode && currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite') {
+        const { slots } = ensureScreen5PaletteSlots((activeAsset.data as Msx2Sprite).palette);
+        paletteToUse = screen5SlotsToMsxColors(slots);
+      }
       const paletteAssets = assets.filter(a => a.type === 'palette');
-      const shouldShowSavedPalettesPanel = !isScreen2Mode && currentEditor === EditorType.Tile && activeAsset?.type === 'tile';
+      const canApplySavedPalette = !isScreen2Mode && (
+        (currentEditor === EditorType.Tile && activeAsset?.type === 'tile') ||
+        (currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite')
+      );
       const applyPaletteFromAsset = () => {
-        if (!shouldShowSavedPalettesPanel || !selectedPaletteAssetId) {
+        if (!canApplySavedPalette || !selectedPaletteAssetId) {
           setStatusBarMessage('Selecciona una paleta para cargar.');
           return;
         }
@@ -408,8 +437,15 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           return;
         }
         const sanitized = ensureScreen5PaletteSlots((paletteAsset.data as any).slots || []).slots;
-        handleUpdateAsset(activeAsset!.id, { screen5Palette: sanitized.map(slot => ({ ...slot })) });
-        setStatusBarMessage(`Paleta "${paletteAsset.name}" aplicada al tile.`);
+        if (activeAsset?.type === 'tile') {
+          handleUpdateAsset(activeAsset.id, { screen5Palette: sanitized.map(slot => ({ ...slot })) });
+          setStatusBarMessage(`Paleta "${paletteAsset.name}" aplicada al tile.`);
+          return;
+        }
+        if (activeAsset?.type === 'msx2sprite') {
+          handleUpdateAsset(activeAsset.id, applyScreen5PaletteToMsx2Sprite(activeAsset.data as Msx2Sprite, sanitized));
+          setStatusBarMessage(`Paleta "${paletteAsset.name}" aplicada al sprite MSX2.`);
+        }
       };
       return (
         <>
@@ -419,7 +455,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             onColorSelect={setSelectedColor}
             isMsx1Palette={isScreen2Mode}
           />
-          {shouldShowSavedPalettesPanel && (
+          {canApplySavedPalette && (
             <Panel title="Paletas guardadas" className="mt-2">
               {paletteAssets.length > 0 ? (
                 <div className="space-y-2 text-xs">
