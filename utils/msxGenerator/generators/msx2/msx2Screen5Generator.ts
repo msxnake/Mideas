@@ -654,6 +654,7 @@ init_rom:
     di
     im 1
     ld sp, #F380
+    call map_page2_to_cart_primary
 
     ld a, #C9
     ld (HKEY), a
@@ -681,6 +682,21 @@ ${gameFlowProgram}
 .main_loop:
     halt
     jr .main_loop
+
+map_page2_to_cart_primary:
+    ; Keep #8000-#BFFF on the same primary slot as the cart page at #4000.
+    ; Raw SCREEN 5 backgrounds are larger than 16 KB, so LDIRVM may read data above #8000.
+    in a, (#A8)
+    ld b, a
+    and #0C
+    add a, a
+    add a, a
+    ld c, a
+    ld a, b
+    and #CF
+    or c
+    out (#A8), a
+    ret
 
 wait_key:
     call CHGET
