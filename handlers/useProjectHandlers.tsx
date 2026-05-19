@@ -660,6 +660,11 @@ export const useProjectHandlers = ({
             return { ...a, params: p };
           });
 
+        const normalizeMsx2Layer = (layer: number[][] | undefined, fallback?: number[][]): number[][] =>
+          Array.from({ length: 14 }, (_, y) =>
+            Array.from({ length: 16 }, (_, x) => Math.max(0, Math.min(255, Number(layer?.[y]?.[x] ?? fallback?.[y]?.[x] ?? 0) || 0)))
+          );
+
         loadedAssets = projectData.assets.map((asset: ProjectAsset) => {
           if (asset.type === 'screenmap' && asset.data) {
             const screenMap = asset.data as ScreenMap;
@@ -676,6 +681,30 @@ export const useProjectHandlers = ({
                 },
               };
             }
+          }
+          if (asset.type === 'msx2screen' && asset.data) {
+            const screen = asset.data as any;
+            const layers = {
+              collision: normalizeMsx2Layer(screen.layers?.collision, screen.collisionMap),
+              effects: normalizeMsx2Layer(screen.layers?.effects),
+              entities: Array.isArray(screen.layers?.entities) ? screen.layers.entities : [],
+            };
+            return {
+              ...asset,
+              data: {
+                ...screen,
+                layers,
+                runtime: {
+                  screenKind: screen.runtime?.screenKind || 'playable',
+                  screenEngine: screen.runtime?.screenEngine || 'player',
+                  activeAreaX: Number.isFinite(Number(screen.runtime?.activeAreaX)) ? Number(screen.runtime.activeAreaX) : 0,
+                  activeAreaY: Number.isFinite(Number(screen.runtime?.activeAreaY)) ? Number(screen.runtime.activeAreaY) : 0,
+                  activeAreaWidth: Number.isFinite(Number(screen.runtime?.activeAreaWidth)) ? Number(screen.runtime.activeAreaWidth) : 16,
+                  activeAreaHeight: Number.isFinite(Number(screen.runtime?.activeAreaHeight)) ? Number(screen.runtime.activeAreaHeight) : 14,
+                },
+                collisionMap: layers.collision,
+              },
+            };
           }
           if (asset.type === 'globalvariables' && asset.data) {
             const data = asset.data as any;

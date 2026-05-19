@@ -18,6 +18,8 @@ const TRANSPARENT_HEX = 'RGBA(0,0,0,0)';
 const SCREEN5_SPRATR_VRAM = '#7600';
 const SCREEN5_SPRCOL_VRAM = '#7400';
 const SCREEN5_SPRPAT_VRAM = '#7800';
+const MSX2_TILE_SCREEN_WIDTH = 16;
+const MSX2_TILE_SCREEN_HEIGHT = 14;
 
 const sanitizeLabel = (value: string, fallback: string): string =>
   String(value || fallback)
@@ -170,6 +172,81 @@ function buildScreen5BitmapBytesFromTileScreen(screen: Msx2Screen5TileScreen | u
   return bytes;
 }
 
+function buildTileScreenLayerBytes(
+  screen: Msx2Screen5TileScreen | undefined,
+  layerName: 'collision' | 'effects'
+): number[] {
+  const fallback = layerName === 'collision' ? screen?.collisionMap : undefined;
+  const layer = screen?.layers?.[layerName];
+  const bytes: number[] = [];
+  for (let y = 0; y < MSX2_TILE_SCREEN_HEIGHT; y++) {
+    for (let x = 0; x < MSX2_TILE_SCREEN_WIDTH; x++) {
+      bytes.push(Math.max(0, Math.min(255, Number(layer?.[y]?.[x] ?? fallback?.[y]?.[x] ?? 0) || 0)));
+    }
+  }
+  return bytes;
+}
+
+function countTileScreenEffectCode(screen: Msx2Screen5TileScreen | undefined, code: number): number {
+  return buildTileScreenLayerBytes(screen, 'effects').filter(value => value === code).length;
+}
+
+function buildTilePatternBytes(tile: any | undefined): number[] {
+  const bytes: number[] = [];
+  for (let y = 0; y < 16; y++) {
+    const row = tile?.pixels?.[y] || [];
+    for (let byteX = 0; byteX < 8; byteX++) {
+      const x0 = byteX * 2;
+      const hi = Math.max(0, Math.min(15, Number(row[x0]) || 0));
+      const lo = Math.max(0, Math.min(15, Number(row[x0 + 1]) || 0));
+      bytes.push(((hi & 0x0f) << 4) | (lo & 0x0f));
+    }
+  }
+  return bytes;
+}
+
+function buildTileScreenTileBlocks(label: string, screen: Msx2Screen5TileScreen | undefined): string {
+  const tiles = screen?.tiles?.length ? screen.tiles : [{ pixels: Array.from({ length: 16 }, () => Array(16).fill(0)) }];
+  return tiles
+    .map((tile, index) => formatBytes(`${label}_TILE_${index}`, buildTilePatternBytes(tile), `${screen?.name || label} tile ${index}, 16x16 packed SCREEN 5`))
+    .join('\n');
+}
+
+function buildTileScreenLoadRoutine(
+  label: string,
+  screen: Msx2Screen5TileScreen | undefined,
+  loadRuntimeLayerPointers: (label: string) => string
+): string {
+  const tiles = screen?.tiles || [];
+  const map = screen?.map || [];
+  const tileBytes = tiles.map(tile => buildTilePatternBytes(tile));
+  const maxTileIndex = Math.max(0, tiles.length - 1);
+  const calls: string[] = [];
+  for (let tileY = 0; tileY < MSX2_TILE_SCREEN_HEIGHT; tileY++) {
+    const pixelY = tileY * 16;
+    const rowCount = Math.max(0, Math.min(16, SCREEN5_HEIGHT - pixelY));
+    if (rowCount <= 0) continue;
+    for (let tileX = 0; tileX < MSX2_TILE_SCREEN_WIDTH; tileX++) {
+      const tileIndex = Math.max(0, Math.min(maxTileIndex, Number(map[tileY]?.[tileX]) || 0));
+      if ((tileBytes[tileIndex] || []).every(value => value === 0)) continue;
+      const vramAddress = (pixelY * (SCREEN5_WIDTH / 2)) + (tileX * 8);
+      calls.push(`    ld hl, ${label}_TILE_${tileIndex}
+    ld de, #${vramAddress.toString(16).toUpperCase().padStart(4, '0')}
+    ld b, ${rowCount}
+    call copy_tile_rows_to_vram`);
+    }
+  }
+
+  return `load_${label}_bitmap:
+    xor a
+    ld hl, SCREEN5_BITMAP_VRAM
+    ld bc, SCREEN5_BITMAP_SIZE
+    call FILVRM
+${calls.join('\n')}
+${loadRuntimeLayerPointers(label)}    ret
+`;
+}
+
 function buildPaletteBytes(slots: Screen5PaletteSlot[]): number[] {
   const bytes: number[] = [];
   for (let i = 0; i < 16; i++) {
@@ -208,6 +285,47 @@ function getHardwareSpriteSettings(sprite: Msx2Sprite): { x: number; y: number; 
     color: Number.isFinite(Number(hardware?.color)) ? Number(hardware?.color) : 5,
     patternIndex: Number.isFinite(Number(hardware?.patternIndex)) ? Number(hardware?.patternIndex) : 0,
   };
+}
+
+function clampTileCoordinate(value: unknown, max: number): number {
+  return Math.max(0, Math.min(max, Number(value) || 0));
+}
+
+function getPrimaryRuntimeTileScreen(analysis: ProjectAnalysis): Msx2Screen5TileScreen | undefined {
+  return collectReferencedTileScreens(analysis)[0] || analysis.msx2Screens?.[0];
+}
+
+function getPlayerStartFromTileScreen(screen: Msx2Screen5TileScreen | undefined): { x: number; y: number } | undefined {
+  const player = screen?.layers?.entities?.find(entity => entity.kind === 'player')
+    || screen?.layers?.entities?.[0];
+  if (!player?.position) return undefined;
+  return {
+    x: clampHardwareSpriteX(clampTileCoordinate(player.position.x, 15) * 16),
+    y: clampHardwareSpriteY(clampTileCoordinate(player.position.y, 13) * 16),
+  };
+}
+
+function getHardwareSpriteRuntimeSettings(
+  analysis: ProjectAnalysis,
+  sprite: Msx2Sprite
+): { x: number; y: number; color: number; patternIndex: number } {
+  const settings = getHardwareSpriteSettings(sprite);
+  const start = getPlayerStartFromTileScreen(getPrimaryRuntimeTileScreen(analysis));
+  return {
+    ...settings,
+    x: start?.x ?? settings.x,
+    y: start?.y ?? settings.y,
+  };
+}
+
+function getRuntimePatrolBounds(analysis: ProjectAnalysis): { minX: number; maxX: number } {
+  const screen = getPrimaryRuntimeTileScreen(analysis);
+  const runtime = screen?.runtime;
+  const minTileX = clampTileCoordinate(runtime?.activeAreaX, 15);
+  const widthTiles = Math.max(1, Math.min(16 - minTileX, Number(runtime?.activeAreaWidth) || 16));
+  const minX = Math.max(1, minTileX * 16);
+  const maxX = Math.max(minX + 1, Math.min(239, (minTileX + widthTiles) * 16 - 16));
+  return { minX, maxX };
 }
 
 function isTransparentSpritePixel(color: string | undefined, sprite: Msx2Sprite): boolean {
@@ -392,8 +510,11 @@ function hasHardwareSprite(analysis: ProjectAnalysis): boolean {
 function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis): string {
   const sprite = getHardwareSpriteSource(analysis);
   if (!sprite) return '';
+  const settings = getHardwareSpriteRuntimeSettings(analysis, sprite);
+  const x = clampHardwareSpriteX(settings.x);
+  const y = clampHardwareSpriteY(settings.y);
   return `init_hardware_sprites:
-    ; SCREEN 5 hardware sprite MVP. Clobbers AF/BC/DE/HL.
+    ; SCREEN 5 hardware sprite runtime. Clobbers AF/BC/DE/HL.
     ; Preserve the SCREEN 5 mode bits set by CHGMOD; only select 16x16, non-magnified sprites.
     ld a, (#F3E0)
     or #02
@@ -428,6 +549,28 @@ function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis): string {
     ld bc, 128
     call LDIRVM
 
+    ld a, ${x}
+    ld (msx2_player_sprite_x), a
+    ld a, ${y}
+    ld (msx2_player_sprite_y), a
+    ld a, 1
+    ld (msx2_player_sprite_dx), a
+    xor a
+    ld (msx2_player_sprite_frame), a
+    ld (msx2_player_jump_frames), a
+    ld (msx2_player_jump_lock), a
+    ld (msx2_player_on_ground), a
+    ld (msx2_player_dead_flag), a
+    ld (msx2_exit_reached_flag), a
+    ld (msx2_collectible_count), a
+    ld (msx2_collectible_latch), a
+    ld (msx2_exit_blocked_flag), a
+    ld (msx2_game_over_flag), a
+    ld a, 3
+    ld (msx2_lives), a
+    call draw_msx2_lives_hud
+    call upload_hardware_sprite_attrs
+
     xor a
     ld bc, #000E
     call WRTVDP
@@ -456,6 +599,457 @@ copy_to_vram_ext:
     ld a, b
     or c
     jr nz, .copy_loop
+    xor a
+    out (VDP_CTRL_PORT), a
+    ld a, #8E
+    out (VDP_CTRL_PORT), a
+    ret
+
+copy_tile_rows_to_vram:
+    ; HL=packed 16x16 tile source, DE=SCREEN 5 VRAM destination, B=row count.
+    ; Copies 8 packed bytes per row and advances VRAM by one SCREEN 5 scanline.
+.tile_row_loop:
+    push bc
+    ld bc, 8
+    call copy_to_vram_ext
+    ex de, hl
+    ld bc, 128
+    add hl, bc
+    ex de, hl
+    pop bc
+    djnz .tile_row_loop
+    ret
+
+write_vram_byte_ext:
+    ; A=data, HL=absolute VRAM destination. Clobbers AF/B.
+    ld b, a
+    ld a, h
+    and #C0
+    rlca
+    rlca
+    out (VDP_CTRL_PORT), a
+    ld a, #8E
+    out (VDP_CTRL_PORT), a
+    ld a, l
+    out (VDP_CTRL_PORT), a
+    ld a, h
+    and #3F
+    or #40
+    out (VDP_CTRL_PORT), a
+    ld a, b
+    out (VDP_DATA_PORT), a
+    xor a
+    out (VDP_CTRL_PORT), a
+    ld a, #8E
+    out (VDP_CTRL_PORT), a
+    ret
+
+`;
+}
+
+function addImmediateToA(value: number): string {
+  if (!value) return '';
+  return `    add a, ${Math.max(0, Math.min(255, value))}\n`;
+}
+
+function buildHardwareSpriteRuntimeAsm(
+  analysis: ProjectAnalysis,
+  requiredCollectibles: number
+): string {
+  const sprite = getHardwareSpriteSource(analysis);
+  if (!sprite) return '';
+  const settings = getHardwareSpriteSettings(sprite);
+  const color = Math.max(1, Math.min(15, settings.color));
+  const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color));
+  const basePatternIndex = clampBasePatternIndex(settings.patternIndex, layers.length);
+  const patrolBounds = getRuntimePatrolBounds(analysis);
+  const attrWrites = layers.map((layer, layerIndex) => {
+    const attrAddress = 0x7600 + (layerIndex * 4);
+    return `    ; Sprite layer ${layerIndex}: x+${layer.xOffset}, y+${layer.yOffset}
+    ld a, (msx2_player_sprite_y)
+${addImmediateToA(layer.yOffset)}    ld hl, #${attrAddress.toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    ld a, (msx2_player_sprite_x)
+${addImmediateToA(layer.xOffset)}    ld hl, #${(attrAddress + 1).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    ld a, ${basePatternIndex + (layerIndex * 4)}
+    ld hl, #${(attrAddress + 2).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    xor a
+    ld hl, #${(attrAddress + 3).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+`;
+  }).join('\n');
+
+  return `draw_msx2_lives_hud:
+    ; Tiny SCREEN 5 life pips at the top-left. Clobbers AF/BC/DE/HL.
+    ld a, (msx2_lives)
+    cp 1
+    jp nc, .life_1_on
+    ld a, #88
+    jp .draw_life_1
+.life_1_on:
+    ld a, #33
+.draw_life_1:
+    ld hl, #0101
+    call draw_msx2_life_pip
+    ld a, (msx2_lives)
+    cp 2
+    jp nc, .life_2_on
+    ld a, #88
+    jp .draw_life_2
+.life_2_on:
+    ld a, #33
+.draw_life_2:
+    ld hl, #0107
+    call draw_msx2_life_pip
+    ld a, (msx2_lives)
+    cp 3
+    jp nc, .life_3_on
+    ld a, #88
+    jp .draw_life_3
+.life_3_on:
+    ld a, #33
+.draw_life_3:
+    ld hl, #010D
+    call draw_msx2_life_pip
+    ret
+
+draw_msx2_life_pip:
+    ; A=packed color byte, HL=SCREEN 5 VRAM destination. Clobbers AF/BC/DE/HL.
+    ld e, a
+    ld d, 6
+.pip_row:
+    push hl
+    ld c, 4
+.pip_col:
+    ld a, e
+    call write_vram_byte_ext
+    inc hl
+    dec c
+    jp nz, .pip_col
+    pop hl
+    ld bc, 128
+    add hl, bc
+    dec d
+    jp nz, .pip_row
+    ret
+
+update_hardware_sprite_input:
+    ; First playable MSX2 slice: keyboard/joystick left-right plus jump/gravity.
+    ; Clobbers AF/BC/DE/HL.
+    xor a
+    call GTSTCK
+    cp 2
+    jp z, move_hardware_sprite_right
+    cp 3
+    jp z, move_hardware_sprite_right
+    cp 4
+    jp z, move_hardware_sprite_right
+    cp 6
+    jp z, move_hardware_sprite_left
+    cp 7
+    jp z, move_hardware_sprite_left
+    cp 8
+    jp z, move_hardware_sprite_left
+    jp update_hardware_sprite_vertical
+
+move_hardware_sprite_right:
+    ld a, (msx2_player_sprite_x)
+    cp ${patrolBounds.maxX}
+    jp nc, msx2_try_world_edge_transition_right
+    inc a
+    add a, 15
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 8
+    ld c, a
+    call msx2_collision_at_pixel
+    jp nz, .right_blocked
+    ld a, (msx2_player_sprite_x)
+    inc a
+    ld (msx2_player_sprite_x), a
+    ld a, 1
+    ld (msx2_player_sprite_dx), a
+    jp update_hardware_sprite_vertical
+.right_blocked:
+    xor a
+    ld (msx2_player_sprite_dx), a
+    jp update_hardware_sprite_vertical
+
+move_hardware_sprite_left:
+    ld a, (msx2_player_sprite_x)
+    cp ${patrolBounds.minX}
+    jp z, msx2_try_world_edge_transition_left
+    jp c, msx2_try_world_edge_transition_left
+    dec a
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 8
+    ld c, a
+    call msx2_collision_at_pixel
+    jp nz, .left_blocked
+    ld a, (msx2_player_sprite_x)
+    dec a
+    ld (msx2_player_sprite_x), a
+    xor a
+    ld (msx2_player_sprite_dx), a
+    jp update_hardware_sprite_vertical
+.left_blocked:
+    ld a, 1
+    ld (msx2_player_sprite_dx), a
+    jp update_hardware_sprite_vertical
+
+auto_patrol_hardware_sprite:
+    ; Move every 4 frames so the sprite visibly patrols without racing.
+    ld a, (msx2_player_sprite_frame)
+    inc a
+    and 3
+    ld (msx2_player_sprite_frame), a
+    jp nz, update_hardware_sprite_vertical
+    ld a, (msx2_player_sprite_dx)
+    or a
+    jp z, move_hardware_sprite_left
+    jp move_hardware_sprite_right
+
+update_hardware_sprite_vertical:
+    ; Jump uses SPACE on keyboard matrix row 8, bit 0. Gravity is 1 px/frame.
+    ; Clobbers AF/BC/DE/HL.
+    ld a, 8
+    call SNSMAT
+    bit 0, a
+    jp nz, .space_released
+    ld a, (msx2_player_jump_lock)
+    or a
+    jp nz, .after_jump_input
+    ld a, (msx2_player_on_ground)
+    or a
+    jp z, .after_jump_input
+    ld a, 22
+    ld (msx2_player_jump_frames), a
+    xor a
+    ld (msx2_player_on_ground), a
+    ld a, 1
+    ld (msx2_player_jump_lock), a
+    jp .after_jump_input
+.space_released:
+    xor a
+    ld (msx2_player_jump_lock), a
+.after_jump_input:
+    ld a, (msx2_player_jump_frames)
+    or a
+    jp z, apply_hardware_sprite_gravity
+    ld a, (msx2_player_sprite_y)
+    or a
+    jp z, .cancel_jump
+    dec a
+    ld c, a
+    ld a, (msx2_player_sprite_x)
+    add a, 8
+    ld b, a
+    call msx2_collision_at_pixel
+    jp nz, .cancel_jump
+    ld a, (msx2_player_sprite_y)
+    dec a
+    ld (msx2_player_sprite_y), a
+    ld a, (msx2_player_jump_frames)
+    dec a
+    ld (msx2_player_jump_frames), a
+    jp upload_hardware_sprite_attrs
+.cancel_jump:
+    xor a
+    ld (msx2_player_jump_frames), a
+    jp upload_hardware_sprite_attrs
+
+apply_hardware_sprite_gravity:
+    ld a, (msx2_player_sprite_x)
+    add a, 8
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 16
+    ld c, a
+    call msx2_collision_at_pixel
+    jp nz, .grounded
+    xor a
+    ld (msx2_player_on_ground), a
+    ld a, (msx2_player_sprite_y)
+    cp 196
+    jp nc, upload_hardware_sprite_attrs
+    inc a
+    ld (msx2_player_sprite_y), a
+    jp upload_hardware_sprite_attrs
+.grounded:
+    ld a, 1
+    ld (msx2_player_on_ground), a
+    jp upload_hardware_sprite_attrs
+
+upload_hardware_sprite_attrs:
+    ; Writes visible sprite layer attributes to SCREEN 5 SAT. Clobbers AF/BC/DE/HL.
+${attrWrites}    call update_msx2_effect_state
+    ret
+
+update_msx2_effect_state:
+    ; Effect layer contract: 1=hazard, 2=exit, 3=collectible.
+    ; Clobbers AF/BC/DE/HL.
+    ld a, (msx2_player_sprite_x)
+    add a, 8
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 8
+    ld c, a
+    call msx2_effect_at_pixel
+    or a
+    jp z, .no_effect
+    cp 1
+    jp z, .hazard
+    cp 2
+    jp z, .exit
+    cp 3
+    jp z, .collectible
+    ld b, #07
+    jp .write_border
+.no_effect:
+    xor a
+    ld (msx2_collectible_latch), a
+    ld b, #04
+    jp .write_border
+.hazard:
+    xor a
+    ld (msx2_collectible_latch), a
+    ld a, 1
+    ld (msx2_player_dead_flag), a
+    ld a, (msx2_lives)
+    or a
+    jp z, .hazard_game_over
+    dec a
+    ld (msx2_lives), a
+    jp nz, .hazard_after_lives
+.hazard_game_over:
+    ld a, 1
+    ld (msx2_game_over_flag), a
+.hazard_after_lives:
+    call draw_msx2_lives_hud
+    call msx2_respawn_current_screen
+    ld b, #08
+    jp .write_border
+.exit:
+    xor a
+    ld (msx2_collectible_latch), a
+    ld a, (msx2_collectible_count)
+    cp ${Math.max(0, Math.min(255, requiredCollectibles))}
+    jp c, .exit_locked
+    ld a, 1
+    ld (msx2_exit_reached_flag), a
+    xor a
+    ld (msx2_exit_blocked_flag), a
+    ld b, #07
+    jp .write_border
+.exit_locked:
+    ld a, 1
+    ld (msx2_exit_blocked_flag), a
+    ld b, #06
+    jp .write_border
+.collectible:
+    ld a, (msx2_collectible_latch)
+    or a
+    jp nz, .collectible_border
+    xor a
+    ld (hl), a
+    ld a, 1
+    ld (msx2_collectible_latch), a
+    ld a, (msx2_collectible_count)
+    cp ${Math.max(0, Math.min(255, requiredCollectibles))}
+    jp nc, .collectible_border
+    ld a, (msx2_collectible_count)
+    inc a
+    ld (msx2_collectible_count), a
+.collectible_border:
+    ld b, #0A
+.write_border:
+    ld c, #07
+    call WRTVDP
+    ret
+
+msx2_collision_at_pixel:
+    ; B=x pixel, C=y pixel. Returns A=collision byte with Z set when empty.
+    ; Clobbers AF/BC/DE/HL.
+    ld a, c
+    srl a
+    srl a
+    srl a
+    srl a
+    and #0F
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ld e, a
+    ld a, b
+    srl a
+    srl a
+    srl a
+    srl a
+    and #0F
+    add a, e
+    ld e, a
+    ld d, 0
+    ld hl, (msx2_current_collision_ptr)
+    add hl, de
+    ld a, (hl)
+    or a
+    ret
+
+msx2_effect_at_pixel:
+    ; B=x pixel, C=y pixel. Returns A=effect byte with Z set when empty.
+    ; HL points at the effect cell so callers may clear mutable RAM effects.
+    ; Clobbers AF/BC/DE/HL.
+    ld a, c
+    srl a
+    srl a
+    srl a
+    srl a
+    and #0F
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ld e, a
+    ld a, b
+    srl a
+    srl a
+    srl a
+    srl a
+    and #0F
+    add a, e
+    ld e, a
+    ld d, 0
+    ld hl, (msx2_current_effects_ptr)
+    add hl, de
+    ld a, (hl)
+    or a
+    ret
+
+msx2_respawn_current_screen:
+    ; Respawn at the player entity for the active msx2screen.
+    ; Clobbers AF/DE/HL.
+    ld a, (msx2_current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_spawn_x
+    add hl, de
+    ld a, (hl)
+    ld (msx2_player_sprite_x), a
+    ld a, (msx2_current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_spawn_y
+    add hl, de
+    ld a, (hl)
+    ld (msx2_player_sprite_y), a
+    xor a
+    ld (msx2_player_jump_frames), a
+    ld (msx2_player_jump_lock), a
+    ld (msx2_player_on_ground), a
     ret
 
 `;
@@ -464,7 +1058,7 @@ copy_to_vram_ext:
 function buildHardwareSpriteDataAsm(analysis: ProjectAnalysis): string {
   const sprite = getHardwareSpriteSource(analysis);
   if (!sprite) return '';
-  const settings = getHardwareSpriteSettings(sprite);
+  const settings = getHardwareSpriteRuntimeSettings(analysis, sprite);
   const y = clampHardwareSpriteY(settings.y);
   const x = clampHardwareSpriteX(settings.x);
   const color = Math.max(1, Math.min(15, settings.color));
@@ -491,9 +1085,11 @@ ${formatBytes('msx2_hw_sprite_attrs', attributes, `${layers.length} visible meta
 }
 
 function defaultTargetNodeId(connections: GameFlowConnection[] | undefined, nodeId: string): string | undefined {
-  return (connections || []).find(connection =>
-    connection.from?.nodeId === nodeId && !connection.from?.sourceId
-  )?.to?.nodeId;
+  const connection = (connections || []).find((candidate: any) => {
+    const fromNodeId = candidate.from?.nodeId || candidate.fromNodeId;
+    return fromNodeId === nodeId && !candidate.from?.sourceId;
+  }) as any;
+  return connection?.to?.nodeId || connection?.toNodeId;
 }
 
 function resolveScreenByAssetId(analysis: ProjectAnalysis, assetId: string | undefined): ScreenMap | undefined {
@@ -502,6 +1098,30 @@ function resolveScreenByAssetId(analysis: ProjectAnalysis, assetId: string | und
   const asset = assets?.find(item => item.id === assetId && item.type === 'screenmap');
   if (asset?.data) return asset.data as ScreenMap;
   return (analysis.screenMaps || []).find(screen => screen.id === assetId);
+}
+
+function resolveTileScreenByAssetId(analysis: ProjectAnalysis, assetId: string | undefined): Msx2Screen5TileScreen | undefined {
+  if (!assetId) return undefined;
+  const assets = (analysis as any).assets as Array<{ id?: string; type?: string; data?: unknown }> | undefined;
+  const asset = assets?.find(item => item.id === assetId && item.type === 'msx2screen');
+  if (asset?.data) return asset.data as Msx2Screen5TileScreen;
+  return (analysis.msx2Screens || []).find(screen => screen.id === assetId);
+}
+
+function resolveWorldByAssetId(analysis: ProjectAnalysis, worldAssetId: string | undefined): any | undefined {
+  if (!worldAssetId) return undefined;
+  return (analysis.worldmaps || []).find((candidate: any) => candidate?.id === worldAssetId);
+}
+
+function resolveWorldStartScreenAssetId(analysis: ProjectAnalysis, worldAssetId: string | undefined): string | undefined {
+  const world = resolveWorldByAssetId(analysis, worldAssetId);
+  const startNodeId = world?.startScreenNodeId || world?.startScreenId || world?.nodes?.[0]?.id;
+  const startNode = world?.nodes?.find((node: any) => node?.id === startNodeId) || world?.nodes?.[0];
+  return startNode?.screenAssetId || startNode?.screenId;
+}
+
+function getGameFlowWorldAssetId(node: any): string | undefined {
+  return node?.worldAssetId || node?.data?.worldAssetId || node?.data?.worldMapId;
 }
 
 function collectReferencedScreens(analysis: ProjectAnalysis): ScreenMap[] {
@@ -526,11 +1146,58 @@ function collectReferencedScreens(analysis: ProjectAnalysis): ScreenMap[] {
   return Array.from(screens.values());
 }
 
-function buildMsx2GameFlowProgram(analysis: ProjectAnalysis, screenLabels: Map<string, string>): string {
+function collectReferencedTileScreens(analysis: ProjectAnalysis): Msx2Screen5TileScreen[] {
+  const screens = new Map<string, Msx2Screen5TileScreen>();
+  const addScreen = (screen: Msx2Screen5TileScreen | undefined) => {
+    if (!screen) return;
+    screens.set(screen.id || screen.name || `msx2_screen_${screens.size}`, screen);
+  };
+
+  addScreen(analysis.msx2Screens?.[0]);
+
+  for (const node of analysis.gameFlow?.nodes || []) {
+    if (node.type !== 'WorldLink') continue;
+    const world = resolveWorldByAssetId(analysis, getGameFlowWorldAssetId(node));
+    for (const worldNode of world?.nodes || []) {
+      addScreen(resolveTileScreenByAssetId(analysis, worldNode?.screenAssetId || worldNode?.screenId));
+    }
+  }
+
+  return Array.from(screens.values());
+}
+
+function buildMsx2TileScreenLoadLines(label: string | undefined, tileScreenIndexByLabel: Map<string, number>): string {
+  if (!label) return '';
+  const index = tileScreenIndexByLabel.get(label);
+  const setIndex = index === undefined
+    ? ''
+    : `    ld a, ${index}\n    ld (msx2_current_screen_index), a\n`;
+  return `    call load_${label}_bitmap\n${setIndex}`;
+}
+
+function screenLoadLabelForAssetId(
+  analysis: ProjectAnalysis,
+  screenLabels: Map<string, string>,
+  tileScreenLabels: Map<string, string>,
+  screenAssetId: string | undefined
+): string | undefined {
+  const screen = resolveScreenByAssetId(analysis, screenAssetId);
+  if (screen) return screenLabels.get(screen.id || screen.name);
+  const tileScreen = resolveTileScreenByAssetId(analysis, screenAssetId);
+  if (tileScreen) return tileScreenLabels.get(tileScreen.id || tileScreen.name);
+  return undefined;
+}
+
+function buildMsx2GameFlowProgram(
+  analysis: ProjectAnalysis,
+  screenLabels: Map<string, string>,
+  tileScreenLabels: Map<string, string>,
+  tileScreenIndexByLabel: Map<string, number>
+): string {
   const graph = analysis.gameFlow;
-  const fallbackLabel = screenLabels.values().next().value;
+  const fallbackLabel = tileScreenLabels.values().next().value || screenLabels.values().next().value;
   if (!graph?.nodes?.length) {
-    return fallbackLabel ? `    call load_${fallbackLabel}_bitmap\n` : '';
+    return buildMsx2TileScreenLoadLines(fallbackLabel, tileScreenIndexByLabel);
   }
 
   const nodeById = new Map(graph.nodes.map(node => [node.id, node]));
@@ -555,16 +1222,25 @@ function buildMsx2GameFlowProgram(analysis: ProjectAnalysis, screenLabels: Map<s
       case 'Text': {
         const screen = resolveScreenByAssetId(analysis, current.appearance?.backgroundScreenAssetId) || analysis.screenMaps?.[0];
         const label = screen ? screenLabels.get(screen.id || screen.name) : undefined;
-        if (label) lines.push(`    call load_${label}_bitmap`);
+        if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel).trimEnd());
         lines.push('    call wait_key');
         break;
       }
       case 'SubMenu': {
         const screen = resolveScreenByAssetId(analysis, current.appearance?.backgroundScreenAssetId) || analysis.screenMaps?.[0];
         const label = screen ? screenLabels.get(screen.id || screen.name) : undefined;
-        if (label) lines.push(`    call load_${label}_bitmap`);
+        if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel).trimEnd());
         lines.push('    call wait_key');
         break;
+      }
+      case 'WorldLink': {
+        const screenAssetId = resolveWorldStartScreenAssetId(analysis, getGameFlowWorldAssetId(current));
+        const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, screenAssetId) || fallbackLabel;
+        if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel).trimEnd());
+        lines.push('    jp .main_loop');
+        terminated = true;
+        current = undefined;
+        continue;
       }
       case 'Transition':
         if (current.effect === 'cls') {
@@ -602,10 +1278,89 @@ function buildMsx2GameFlowProgram(analysis: ProjectAnalysis, screenLabels: Map<s
   return `${lines.join('\n')}\n`;
 }
 
+function buildMsx2WorldTransitionAsm(
+  analysis: ProjectAnalysis,
+  tileScreens: Msx2Screen5TileScreen[],
+  tileScreenLoadLabels: string[]
+): string {
+  const screenIndexById = new Map<string, number>();
+  tileScreens.forEach((screen, index) => {
+    if (screen.id) screenIndexById.set(screen.id, index);
+  });
+
+  const transitions = new Map<number, { west?: number; east?: number }>();
+  const setTransition = (fromIndex: number, direction: 'west' | 'east', toIndex: number) => {
+    const entry = transitions.get(fromIndex) || {};
+    entry[direction] = toIndex;
+    transitions.set(fromIndex, entry);
+  };
+
+  for (const node of analysis.gameFlow?.nodes || []) {
+    if (node.type !== 'WorldLink') continue;
+    const world = resolveWorldByAssetId(analysis, getGameFlowWorldAssetId(node));
+    if (!world?.nodes?.length) continue;
+    const worldNodeById = new Map<string, any>((world.nodes || []).map((worldNode: any) => [String(worldNode?.id || ''), worldNode]));
+    for (const connection of world.connections || []) {
+      const fromNode = worldNodeById.get(String(connection?.fromNodeId || ''));
+      const toNode = worldNodeById.get(String(connection?.toNodeId || ''));
+      const fromIndex = screenIndexById.get(fromNode?.screenAssetId || fromNode?.screenId);
+      const toIndex = screenIndexById.get(toNode?.screenAssetId || toNode?.screenId);
+      if (fromIndex === undefined || toIndex === undefined) continue;
+      if (connection?.fromDirection === 'west' || connection?.fromDirection === 'east') {
+        setTransition(fromIndex, connection.fromDirection, toIndex);
+      }
+    }
+  }
+
+  const buildDirectionRoutine = (direction: 'west' | 'east'): string => {
+    const suffix = direction === 'west' ? 'left' : 'right';
+    const enterX = direction === 'west' ? 238 : 2;
+    const handlers = tileScreenLoadLabels.map((_label, index) => {
+      const targetIndex = transitions.get(index)?.[direction];
+      return `    cp ${index}
+    jp z, .${suffix}_screen_${index}
+`;
+    }).join('');
+    const cases = tileScreenLoadLabels.map((_label, index) => {
+      const targetIndex = transitions.get(index)?.[direction];
+      if (targetIndex === undefined) {
+        return `.${suffix}_screen_${index}:
+    jp upload_hardware_sprite_attrs
+`;
+      }
+      const targetLabel = tileScreenLoadLabels[targetIndex];
+      const targetStart = getPlayerStartFromTileScreen(tileScreens[targetIndex]);
+      const enterY = clampHardwareSpriteY(targetStart?.y ?? 144);
+      return `.${suffix}_screen_${index}:
+    call load_${targetLabel}_bitmap
+    ld a, ${targetIndex}
+    ld (msx2_current_screen_index), a
+    ld a, ${enterX}
+    ld (msx2_player_sprite_x), a
+    ld a, ${enterY}
+    ld (msx2_player_sprite_y), a
+    xor a
+    ld (msx2_player_jump_frames), a
+    ld (msx2_player_jump_lock), a
+    ld (msx2_player_on_ground), a
+    jp update_hardware_sprite_vertical
+`;
+    }).join('\n');
+
+    return `msx2_try_world_edge_transition_${suffix}:
+    ld a, (msx2_current_screen_index)
+${handlers}    jp upload_hardware_sprite_attrs
+${cases}`;
+  };
+
+  return `${buildDirectionRoutine('west')}
+${buildDirectionRoutine('east')}`;
+}
+
 function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2Screen5Config): string {
   const screens = collectReferencedScreens(analysis);
   const bitmaps = analysis.msx2Bitmaps || [];
-  const tileScreens = analysis.msx2Screens || [];
+  const tileScreens = collectReferencedTileScreens(analysis);
   const slots = resolveScreen5Palette(analysis);
   const paletteBytes = buildPaletteBytes(slots);
   const title = projectName.replace(/[^ -~]/g, '');
@@ -632,11 +1387,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const tileScreenBlocks = tileScreens.map((screen, index) => {
     const label = sanitizeLabel(screen?.name || `msx2_screen5_screen_${index}`, `MSX2_SCREEN5_SCREEN_${index}`);
     bitmapLabels.set(screen.id || screen.name || `tile_screen_${index}`, label);
-    return formatBytes(
-      `${label}_BITMAP`,
-      buildScreen5BitmapBytesFromTileScreen(screen),
-      `${screen?.name || `MSX2 Tile Screen ${index}`} rasterized from 16x16 SCREEN 5 bitmap tiles`
-    );
+    return buildTileScreenTileBlocks(label, screen);
   });
   if (bitmapBlocks.length === 0 && screenBitmapBlocks.length === 0 && tileScreenBlocks.length === 0) {
     bitmapBlocks.push(formatBytes('SCREEN5_SCREEN_0_BITMAP', Array(SCREEN5_BYTES).fill(0), 'Empty SCREEN 5 bitmap'));
@@ -647,16 +1398,68 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const screenLoadLabels = screens.map((screen, index) =>
     screenLabels.get(screen.id || screen.name || `screen_${index}`) || sanitizeLabel(screen.name, `SCREEN5_SCREEN_${index}`)
   );
+  const tileScreenLabels = new Map<string, string>();
   const tileScreenLoadLabels = tileScreens.map((screen, index) =>
     bitmapLabels.get(screen.id || screen.name || `tile_screen_${index}`) || sanitizeLabel(screen.name, `MSX2_SCREEN5_SCREEN_${index}`)
   );
-  const allLoadLabels = [...tileScreenLoadLabels, ...bitmapLoadLabels, ...screenLoadLabels];
+  const tileScreenIndexByLabel = new Map<string, number>();
+  const runtimeLayerLabels = new Map<string, { collision: string; effects: string }>();
+  tileScreens.forEach((screen, index) => {
+    const label = tileScreenLoadLabels[index];
+    tileScreenLabels.set(screen.id || screen.name || `tile_screen_${index}`, label);
+    tileScreenIndexByLabel.set(label, index);
+    runtimeLayerLabels.set(label, {
+      collision: `${label}_COLLISION`,
+      effects: `${label}_EFFECTS`,
+    });
+  });
+  const tileScreenRuntimeBlocks = tileScreens.map((screen, index) => {
+    const label = tileScreenLoadLabels[index];
+    return [
+      formatBytes(`${label}_COLLISION`, buildTileScreenLayerBytes(screen, 'collision'), `${screen?.name || `MSX2 Tile Screen ${index}`} collision layer, 16x14 bytes`),
+      formatBytes(`${label}_EFFECTS`, buildTileScreenLayerBytes(screen, 'effects'), `${screen?.name || `MSX2 Tile Screen ${index}`} effects layer, 16x14 bytes`),
+    ].join('\n');
+  });
+  const genericLoadLabels = [...bitmapLoadLabels, ...screenLoadLabels];
+  const allLoadLabels = [...tileScreenLoadLabels, ...genericLoadLabels];
   const firstScreen = screens[0] || analysis.screenMaps?.[0];
   const firstScreenLabel = allLoadLabels[0]
     || (firstScreen ? screenLabels.get(firstScreen.id || firstScreen.name) || sanitizeLabel(firstScreen.name, 'SCREEN5_SCREEN_0') : 'SCREEN5_SCREEN_0');
-  const gameFlowProgram = buildMsx2GameFlowProgram(analysis, screenLabels);
+  const gameFlowProgram = buildMsx2GameFlowProgram(analysis, screenLabels, tileScreenLabels, tileScreenIndexByLabel);
   const hardwareSpriteInitAsm = buildHardwareSpriteInitAsm(analysis);
   const hardwareSpriteDataAsm = buildHardwareSpriteDataAsm(analysis);
+  const requiredCollectibles = Math.min(255, tileScreens.reduce((total, screen) => total + countTileScreenEffectCode(screen, 3), 0));
+  const spawnXBytes = tileScreens.map(screen => clampHardwareSpriteX(getPlayerStartFromTileScreen(screen)?.x ?? 96));
+  const spawnYBytes = tileScreens.map(screen => clampHardwareSpriteY(getPlayerStartFromTileScreen(screen)?.y ?? 144));
+  const worldTransitionAsm = buildMsx2WorldTransitionAsm(analysis, tileScreens, tileScreenLoadLabels);
+  const firstScreenIndex = tileScreenIndexByLabel.get(firstScreenLabel);
+  const firstScreenIndexInit = firstScreenIndex === undefined
+    ? ''
+    : `    ld a, ${firstScreenIndex}\n    ld (msx2_current_screen_index), a\n`;
+  const loadRuntimeLayerPointers = (label: string): string => {
+    const runtimeLabels = runtimeLayerLabels.get(label);
+    const collisionLabel = runtimeLabels?.collision || 'screen5_empty_collision_layer';
+    const effectsLabel = runtimeLabels?.effects || 'screen5_empty_effects_layer';
+    return `    ld hl, ${collisionLabel}
+    ld (msx2_current_collision_ptr), hl
+    ld hl, ${effectsLabel}
+    ld de, msx2_effects_runtime_buffer
+    ld bc, msx2_layer_size
+    ldir
+    ld hl, msx2_effects_runtime_buffer
+    ld (msx2_current_effects_ptr), hl
+`;
+  };
+  const tileScreenLoadRoutines = tileScreens.map((screen, index) =>
+    buildTileScreenLoadRoutine(tileScreenLoadLabels[index], screen, loadRuntimeLayerPointers)
+  );
+  const genericScreenLoadRoutines = genericLoadLabels.map(label => `load_${label}_bitmap:
+    ld hl, ${label}_BITMAP
+    ld de, SCREEN5_BITMAP_VRAM
+    ld bc, SCREEN5_BITMAP_SIZE
+    call LDIRVM
+${loadRuntimeLayerPointers(label)}    ret
+`);
 
   return `; ==================================================================
 ; Mideas MSX2 SCREEN 5 bitmap backend
@@ -670,10 +1473,13 @@ CHGMOD  EQU #005F
 DISSCR  EQU #0041
 ENASCR  EQU #0044
 FILVRM  EQU #0056
+WRTVRM  EQU #004D
 WRTVDP  EQU #0047
 LDIRVM  EQU #005C
 CHGCLR  EQU #0062
 CHGET   EQU #009F
+GTSTCK  EQU #00D5
+SNSMAT  EQU #0141
 HKEY    EQU #F3DB
 CLIKSW  EQU #F3DC
 BAKCLR  EQU #F3E9
@@ -684,6 +1490,26 @@ VDP_DATA_PORT EQU #98
 VDP_CTRL_PORT EQU #99
 SCREEN5_BITMAP_VRAM EQU #0000
 SCREEN5_BITMAP_SIZE EQU ${SCREEN5_BYTES}
+msx2_player_sprite_x EQU #C000
+msx2_player_sprite_y EQU #C001
+msx2_player_sprite_dx EQU #C002
+msx2_player_sprite_frame EQU #C003
+msx2_current_collision_ptr EQU #C004
+msx2_current_effects_ptr EQU #C006
+msx2_player_jump_frames EQU #C008
+msx2_player_on_ground EQU #C009
+msx2_player_jump_lock EQU #C00A
+msx2_current_screen_index EQU #C00B
+msx2_player_dead_flag EQU #C00C
+msx2_exit_reached_flag EQU #C00D
+msx2_collectible_count EQU #C00E
+msx2_collectible_latch EQU #C00F
+msx2_exit_blocked_flag EQU #C010
+msx2_lives EQU #C011
+msx2_game_over_flag EQU #C012
+msx2_effects_runtime_buffer EQU #C020
+msx2_layer_size EQU ${MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT}
+msx2_required_collectibles EQU ${requiredCollectibles}
 
     org #4000
 
@@ -720,14 +1546,26 @@ init_rom:
 
     call load_screen5_palette
     call load_${firstScreenLabel}_bitmap
-${hasHardwareSprite(analysis) ? '    call init_hardware_sprites\n' : ''}
+${firstScreenIndexInit}${hasHardwareSprite(analysis) ? '    call init_hardware_sprites\n' : ''}
     call ENASCR
     ei
 
 ${gameFlowProgram}
 .main_loop:
-    halt
+${hasHardwareSprite(analysis) ? '    call update_hardware_sprite_input\n' : ''}
+    call wait_frame_busy
     jr .main_loop
+
+wait_frame_busy:
+    ; Simple ROM backend delay. Avoid HALT here so C-BIOS/OpenMSX smoke tests
+    ; keep advancing even when no VBlank hook is installed by the minimal backend.
+    ld bc, #0800
+.wait_loop:
+    dec bc
+    ld a, b
+    or c
+    jp nz, .wait_loop
+    ret
 
 map_page2_to_cart_primary:
     ; Keep #8000-#BFFF on the same primary slot as the cart page at #4000.
@@ -756,6 +1594,8 @@ clear_screen5_bitmap:
     ret
 
 ${hardwareSpriteInitAsm}
+${buildHardwareSpriteRuntimeAsm(analysis, requiredCollectibles)}
+${worldTransitionAsm}
 load_screen5_palette:
     ; R#16 selects the first palette register; port #9A receives 2 bytes per slot.
     ld bc, #0010
@@ -769,25 +1609,14 @@ load_screen5_palette:
     djnz .palette_loop
     ret
 
-load_${firstScreenLabel}_bitmap:
-    ld hl, ${firstScreenLabel}_BITMAP
-    ld de, SCREEN5_BITMAP_VRAM
-    ld bc, SCREEN5_BITMAP_SIZE
-    call LDIRVM
-    ret
-
-${allLoadLabels.filter(label => label !== firstScreenLabel).map(label => {
-  return `load_${label}_bitmap:
-    ld hl, ${label}_BITMAP
-    ld de, SCREEN5_BITMAP_VRAM
-    ld bc, SCREEN5_BITMAP_SIZE
-    call LDIRVM
-    ret
-`;
-}).join('\n')}
+${[...tileScreenLoadRoutines, ...genericScreenLoadRoutines].join('\n')}
 ${formatBytes('screen5_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G')}
+${formatBytes('msx2_screen_spawn_x', spawnXBytes.length ? spawnXBytes : [96], 'Per-msx2screen respawn X coordinates')}
+${formatBytes('msx2_screen_spawn_y', spawnYBytes.length ? spawnYBytes : [144], 'Per-msx2screen respawn Y coordinates')}
+${formatBytes('screen5_empty_collision_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 collision layer, 16x14 bytes')}
+${formatBytes('screen5_empty_effects_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 effects layer, 16x14 bytes')}
 ${hardwareSpriteDataAsm}
-${[...tileScreenBlocks, ...bitmapBlocks, ...screenBitmapBlocks].join('\n')}
+${[...tileScreenRuntimeBlocks, ...tileScreenBlocks, ...bitmapBlocks, ...screenBitmapBlocks].join('\n')}
     ds #C000 - $, #FF
     end
 `;

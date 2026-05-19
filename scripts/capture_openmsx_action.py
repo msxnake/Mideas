@@ -57,6 +57,13 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Load the ROM via carta inside the TCL script instead of passing -cart",
     )
+    parser.add_argument("--probe-output", help="Optional text file where OpenMSX writes memory probe values")
+    parser.add_argument(
+        "--probe",
+        action="append",
+        default=[],
+        help="Memory probe as label:address, for example collectible:0xC00E. May be repeated.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print the resolved command and TCL script")
     return parser.parse_args()
 
@@ -152,6 +159,25 @@ def parse_sequence(sequence: str, default_hold_ms: int) -> list[tuple[str, str, 
     return actions
 
 
+def parse_probes(raw_probes: list[str]) -> list[tuple[str, int]]:
+    probes: list[tuple[str, int]] = []
+    for raw_probe in raw_probes:
+        if ":" not in raw_probe:
+            raise ValueError(f"Probe must use label:address format: {raw_probe}")
+        label, raw_addr = raw_probe.split(":", 1)
+        label = label.strip()
+        if not label or any(ch.isspace() for ch in label):
+            raise ValueError(f"Probe label must be non-empty and contain no whitespace: {raw_probe}")
+        try:
+            address = int(raw_addr.strip(), 0)
+        except ValueError as exc:
+            raise ValueError(f"Invalid probe address in {raw_probe}") from exc
+        if address < 0 or address > 0xFFFF:
+            raise ValueError(f"Probe address out of range in {raw_probe}")
+        probes.append((label, address))
+    return probes
+
+
 def auto_close_timeout_ms(
     actions: list[tuple[str, str, int]],
     boot_wait_ms: int,
@@ -171,6 +197,8 @@ def auto_close_timeout_ms(
 def build_tcl(
     rom_path: Path,
     output_path: Path,
+    probe_output_path: Path | None,
+    probes: list[tuple[str, int]],
     actions: list[tuple[str, str, int]],
     boot_wait_ms: int,
     gap_ms: int,
@@ -211,9 +239,22 @@ def build_tcl(
 
     current_ms += capture_wait_ms
     output_tcl = output_path.as_posix()
+    probe_lines: list[str] = []
+    if probe_output_path and probes:
+        probe_tcl = probe_output_path.as_posix()
+        probe_lines.extend(
+            [
+                f"    set probe_path \"{probe_tcl}\"",
+                "    set pf [open $probe_path \"w\"]",
+            ]
+        )
+        for label, address in probes:
+            probe_lines.append(f"    puts $pf [format \"{label}=%02X\" [debug read memory 0x{address:04X}]]")
+        probe_lines.append("    close $pf")
     lines.extend(
         [
             f"after time {openmsx_seconds(current_ms)} {{",
+            *probe_lines,
             f"    set out_path \"{output_tcl}\"",
             "    if {[catch {screenshot $out_path} err]} {",
             "        puts \"ACTION ERROR: screenshot failed: $err\"",
@@ -296,9 +337,17 @@ def main() -> int:
         output_path = Path(args.output).expanduser().resolve() if args.output else build_default_output_path(rom_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         actions = parse_sequence(args.sequence, args.hold_ms)
+        probes = parse_probes(args.probe)
+        probe_output_path = Path(args.probe_output).expanduser().resolve() if args.probe_output else None
+        if probes and not probe_output_path:
+            raise ValueError("--probe-output is required when --probe is used")
+        if probe_output_path:
+            probe_output_path.parent.mkdir(parents=True, exist_ok=True)
         tcl_content = build_tcl(
             rom_path=rom_path,
             output_path=output_path,
+            probe_output_path=probe_output_path,
+            probes=probes,
             actions=actions,
             boot_wait_ms=args.boot_wait_ms,
             gap_ms=args.gap_ms,
@@ -323,6 +372,8 @@ def main() -> int:
     print(" ".join(f'"{part}"' if " " in part else part for part in cmd))
     print(f"ROM: {rom_path}")
     print(f"Output: {output_path}")
+    if args.probe_output:
+        print(f"Probe output: {Path(args.probe_output).expanduser().resolve()}")
     print(f"Sequence: {args.sequence}")
 
     if args.dry_run:

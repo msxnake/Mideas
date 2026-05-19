@@ -409,6 +409,19 @@ export const useAssetHandlers = ({
           ],
           map: Array.from({ length: 14 }, (_, y) => Array.from({ length: 16 }, () => y === 13 ? 1 : 0)),
           collisionMap: Array.from({ length: 14 }, (_, y) => Array.from({ length: 16 }, () => y === 13 ? 1 : 0)),
+          layers: {
+            collision: Array.from({ length: 14 }, (_, y) => Array.from({ length: 16 }, () => y === 13 ? 1 : 0)),
+            effects: Array.from({ length: 14 }, () => Array.from({ length: 16 }, () => 0)),
+            entities: [],
+          },
+          runtime: {
+            screenKind: 'playable',
+            screenEngine: 'player',
+            activeAreaX: 0,
+            activeAreaY: 0,
+            activeAreaWidth: 16,
+            activeAreaHeight: 14,
+          },
         } as Msx2Screen5TileScreen;
         newEditorType = EditorType.Msx2Screen;
         break;

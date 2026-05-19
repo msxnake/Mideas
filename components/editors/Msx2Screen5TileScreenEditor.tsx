@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MSXColorValue, Msx2Screen5Tile, Msx2Screen5TileScreen } from '../../types';
+import { MSXColorValue, Msx2Screen5EntityInstance, Msx2Screen5Layers, Msx2Screen5Runtime, Msx2Screen5Tile, Msx2Screen5TileScreen } from '../../types';
 import { ensureScreen5PaletteSlots } from '../../utils/screen5PaletteUtils';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
@@ -41,17 +41,52 @@ const normalizeMap = (map: number[][] | undefined, tileCount: number): number[][
     Array.from({ length: MAP_WIDTH }, (_, x) => Math.max(0, Math.min(Math.max(0, tileCount - 1), Number(map?.[y]?.[x]) || 0)))
   );
 
+const normalizeByteLayer = (layer: number[][] | undefined, fallback?: number[][]): number[][] =>
+  Array.from({ length: MAP_HEIGHT }, (_, y) =>
+    Array.from({ length: MAP_WIDTH }, (_, x) => Math.max(0, Math.min(255, Number(layer?.[y]?.[x] ?? fallback?.[y]?.[x] ?? 0) || 0)))
+  );
+
+const normalizeEntities = (entities?: Msx2Screen5EntityInstance[]): Msx2Screen5EntityInstance[] =>
+  (entities || []).map((entity, index) => ({
+    id: entity.id || `msx2_entity_${index}`,
+    name: entity.name || `Entity ${index + 1}`,
+    kind: entity.kind || 'custom',
+    position: {
+      x: Math.max(0, Math.min(MAP_WIDTH - 1, Number(entity.position?.x) || 0)),
+      y: Math.max(0, Math.min(MAP_HEIGHT - 1, Number(entity.position?.y) || 0)),
+    },
+    spriteAssetId: entity.spriteAssetId,
+    params: entity.params || {},
+  }));
+
+const normalizeLayers = (screen: Msx2Screen5TileScreen): Msx2Screen5Layers => ({
+  collision: normalizeByteLayer(screen.layers?.collision, screen.collisionMap),
+  effects: normalizeByteLayer(screen.layers?.effects),
+  entities: normalizeEntities(screen.layers?.entities),
+});
+
+const normalizeRuntime = (runtime?: Msx2Screen5Runtime): Msx2Screen5Runtime => ({
+  screenKind: runtime?.screenKind || 'playable',
+  screenEngine: runtime?.screenEngine || 'player',
+  activeAreaX: Math.max(0, Math.min(MAP_WIDTH - 1, Number(runtime?.activeAreaX) || 0)),
+  activeAreaY: Math.max(0, Math.min(MAP_HEIGHT - 1, Number(runtime?.activeAreaY) || 0)),
+  activeAreaWidth: Math.max(1, Math.min(MAP_WIDTH, Number(runtime?.activeAreaWidth) || MAP_WIDTH)),
+  activeAreaHeight: Math.max(1, Math.min(MAP_HEIGHT, Number(runtime?.activeAreaHeight) || MAP_HEIGHT)),
+});
+
 export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorProps> = ({ screen, onUpdate, selectedColor }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tileCanvasRef = useRef<HTMLCanvasElement>(null);
   const [selectedTileIndex, setSelectedTileIndex] = useState(0);
-  const [mode, setMode] = useState<'map' | 'tile'>('map');
+  const [mode, setMode] = useState<'visual' | 'collision' | 'effects' | 'entities' | 'tile'>('visual');
   const [showGrid, setShowGrid] = useState(true);
   const [isDrawing, setIsDrawing] = useState(false);
 
   const { slots, changed } = useMemo(() => ensureScreen5PaletteSlots(screen.palette), [screen.palette]);
   const tiles = useMemo(() => normalizeTiles(screen.tiles), [screen.tiles]);
   const map = useMemo(() => normalizeMap(screen.map, tiles.length), [screen.map, tiles.length]);
+  const layers = useMemo(() => normalizeLayers(screen), [screen]);
+  const runtime = useMemo(() => normalizeRuntime(screen.runtime), [screen.runtime]);
   const selectedTile = tiles[Math.max(0, Math.min(tiles.length - 1, selectedTileIndex))];
   const activeSlot = useMemo(() => {
     const exact = slots.find(slot => slot.hex === selectedColor)?.slotIndex;
@@ -61,6 +96,16 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
   useEffect(() => {
     if (changed) onUpdate({ palette: slots.map(slot => ({ ...slot })) });
   }, [changed, onUpdate, slots]);
+
+  useEffect(() => {
+    if (!screen.layers || !screen.runtime) {
+      onUpdate({
+        layers,
+        runtime,
+        collisionMap: layers.collision,
+      });
+    }
+  }, [layers, onUpdate, runtime, screen.layers, screen.runtime]);
 
   useEffect(() => {
     setSelectedTileIndex(index => Math.max(0, Math.min(tiles.length - 1, index)));
@@ -112,7 +157,37 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
         ctx.stroke();
       }
     }
-  }, [map, slots, tiles, showGrid]);
+
+    if (mode === 'collision' || mode === 'effects' || mode === 'entities') {
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          const px = x * TILE_SIZE * 2;
+          const py = y * TILE_SIZE * 2;
+          const collision = layers.collision[y]?.[x] || 0;
+          const effect = layers.effects[y]?.[x] || 0;
+          if (mode === 'collision' && collision) {
+            ctx.fillStyle = 'rgba(255, 64, 64, 0.42)';
+            ctx.fillRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
+          }
+          if (mode === 'effects' && effect) {
+            ctx.fillStyle = 'rgba(80, 220, 255, 0.38)';
+            ctx.fillRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
+          }
+        }
+      }
+
+      if (mode === 'entities') {
+        for (const entity of layers.entities) {
+          const px = entity.position.x * TILE_SIZE * 2;
+          const py = entity.position.y * TILE_SIZE * 2;
+          ctx.fillStyle = entity.kind === 'player' ? '#FFFF00' : entity.kind === 'enemy' ? '#FF4040' : '#40FF80';
+          ctx.fillRect(px + 8, py + 8, TILE_SIZE * 2 - 16, TILE_SIZE * 2 - 16);
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.strokeRect(px + 8.5, py + 8.5, TILE_SIZE * 2 - 17, TILE_SIZE * 2 - 17);
+        }
+      }
+    }
+  }, [map, slots, tiles, showGrid, mode, layers]);
 
   useEffect(() => {
     const canvas = tileCanvasRef.current;
@@ -142,14 +217,53 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
     }
   }, [selectedTile, slots]);
 
-  const placeTile = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const updateLayers = (nextLayers: Msx2Screen5Layers) => {
+    onUpdate({
+      layers: nextLayers,
+      collisionMap: nextLayers.collision,
+    });
+  };
+
+  const handleMapCanvasPaint = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = Math.floor(((event.clientX - rect.left) / rect.width) * MAP_WIDTH);
     const y = Math.floor(((event.clientY - rect.top) / rect.height) * MAP_HEIGHT);
     if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) return;
-    const next = map.map(row => [...row]);
-    next[y][x] = selectedTileIndex;
-    onUpdate({ map: next });
+
+    if (mode === 'visual') {
+      const next = map.map(row => [...row]);
+      next[y][x] = selectedTileIndex;
+      onUpdate({ map: next });
+      return;
+    }
+
+    if (mode === 'collision') {
+      const next = { ...layers, collision: layers.collision.map(row => [...row]) };
+      next.collision[y][x] = event.button === 2 ? 0 : (next.collision[y][x] ? 0 : 1);
+      updateLayers(next);
+      return;
+    }
+
+    if (mode === 'effects') {
+      const next = { ...layers, effects: layers.effects.map(row => [...row]) };
+      next.effects[y][x] = event.button === 2 ? 0 : (next.effects[y][x] ? 0 : 1);
+      updateLayers(next);
+      return;
+    }
+
+    if (mode === 'entities') {
+      const existing = layers.entities.find(entity => entity.position.x === x && entity.position.y === y);
+      const nextEntities = existing
+        ? layers.entities.filter(entity => entity.id !== existing.id)
+        : [...layers.entities, {
+            id: `msx2_entity_${Date.now()}`,
+            name: `Entity ${layers.entities.length + 1}`,
+            kind: layers.entities.some(entity => entity.kind === 'player') ? 'enemy' : 'player',
+            position: { x, y },
+            params: {},
+          } as Msx2Screen5EntityInstance];
+      updateLayers({ ...layers, entities: nextEntities });
+    }
   };
 
   const paintTilePixel = (event: React.MouseEvent<HTMLCanvasElement>, force = false) => {
@@ -195,8 +309,13 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
               className="w-full px-2 py-1 bg-msx-panelbg border border-msx-border rounded"
             />
             <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant={mode === 'map' ? 'primary' : 'secondary'} onClick={() => setMode('map')}>Map</Button>
+              <Button size="sm" variant={mode === 'visual' ? 'primary' : 'secondary'} onClick={() => setMode('visual')}>Visual</Button>
               <Button size="sm" variant={mode === 'tile' ? 'primary' : 'secondary'} onClick={() => setMode('tile')}>Tile</Button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <Button size="sm" variant={mode === 'collision' ? 'primary' : 'secondary'} onClick={() => setMode('collision')}>Collision</Button>
+              <Button size="sm" variant={mode === 'effects' ? 'primary' : 'secondary'} onClick={() => setMode('effects')}>Effects</Button>
+              <Button size="sm" variant={mode === 'entities' ? 'primary' : 'secondary'} onClick={() => setMode('entities')}>Entities</Button>
             </div>
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={showGrid} onChange={event => setShowGrid(event.target.checked)} />
@@ -204,6 +323,9 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
             </label>
             <div className="text-msx-textsecondary">
               16x14 tiles, 16x16 px. Export crops the visible SCREEN 5 area to 256x212.
+            </div>
+            <div className="text-msx-textsecondary">
+              Runtime: {runtime.screenKind} / {runtime.screenEngine}
             </div>
           </div>
         </Panel>
@@ -235,8 +357,8 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
         <canvas
           ref={canvasRef}
           className="border border-msx-border bg-black"
-          onMouseDown={event => { setIsDrawing(true); placeTile(event); }}
-          onMouseMove={event => { if (isDrawing && mode === 'map') placeTile(event); }}
+          onMouseDown={event => { setIsDrawing(true); handleMapCanvasPaint(event); }}
+          onMouseMove={event => { if (isDrawing && (mode === 'visual' || mode === 'collision' || mode === 'effects')) handleMapCanvasPaint(event); }}
           onContextMenu={event => event.preventDefault()}
         />
       </div>
@@ -265,6 +387,9 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
           <div className="p-2 text-xs text-msx-textsecondary space-y-1">
             <div>Tile raw size: 128 bytes</div>
             <div>Map size: 208 bytes</div>
+            <div>Collision layer: 224 bytes</div>
+            <div>Effects layer: 224 bytes</div>
+            <div>Entities: {layers.entities.length}</div>
             <div>Current backend: rasterizes to 27136-byte SCREEN 5 bitmap.</div>
           </div>
         </Panel>

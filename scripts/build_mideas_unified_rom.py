@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--glass", help="Explicit path to glass.jar")
     parser.add_argument(
         "--ts-build-dir",
-        help="Directory for temporary compiled generator JS (default: server/temp/tsbuild_skill)",
+        help="Directory for temporary compiled generator JS (default: unique OS temp dir; with --skip-ts-build default is server/temp/tsbuild_skill)",
     )
     parser.add_argument(
         "--skip-ts-build",
@@ -3059,6 +3059,8 @@ const files = generator.generateModularASM(name, assets, {
   targetFormat,
   executionMode,
   autoMegaROM,
+  screenMode: raw.screenMode || raw.currentScreenMode || "SCREEN 2 (Graphics I)",
+  targetGraphicsBackend: raw.targetGraphicsBackend || ((raw.screenMode || raw.currentScreenMode) === "SCREEN 5 (Graphics III)" ? "msx2-screen5-bitmap" : "screen2-tilebank"),
   interruptConfig: {
     ...(raw.interruptConfig || {}),
     enableHardPlayerTick: enableHardPlayerTick || Boolean(raw.interruptConfig && raw.interruptConfig.enableHardPlayerTick),
@@ -3846,11 +3848,12 @@ def main() -> int:
     if sym_output:
         ensure_parent(sym_output)
 
-    ts_build_dir = (
-        Path(args.ts_build_dir).expanduser().resolve()
-        if args.ts_build_dir
-        else (project_root / "server" / "temp" / "tsbuild_skill").resolve()
-    )
+    if args.ts_build_dir:
+        ts_build_dir = Path(args.ts_build_dir).expanduser().resolve()
+    elif args.skip_ts_build:
+        ts_build_dir = (project_root / "server" / "temp" / "tsbuild_skill").resolve()
+    else:
+        ts_build_dir = Path(tempfile.mkdtemp(prefix="mideas_tsbuild_")).resolve()
     compiled_index = ts_build_dir / "utils" / "msxGenerator" / "index.js"
 
     if args.skip_ts_build:

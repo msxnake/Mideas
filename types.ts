@@ -283,6 +283,34 @@ export interface Msx2Screen5Tile {
   pixels: number[][];
 }
 
+export type Msx2ScreenKind = ScreenKind;
+export type Msx2ScreenEngineKind = ScreenEngineKind;
+export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'hazard' | 'custom';
+
+export interface Msx2Screen5EntityInstance {
+  id: string;
+  name: string;
+  kind: Msx2EntityKind;
+  position: { x: number; y: number };
+  spriteAssetId?: string;
+  params?: Record<string, any>;
+}
+
+export interface Msx2Screen5Layers {
+  collision: number[][];
+  effects: number[][];
+  entities: Msx2Screen5EntityInstance[];
+}
+
+export interface Msx2Screen5Runtime {
+  screenKind: Msx2ScreenKind;
+  screenEngine: Msx2ScreenEngineKind;
+  activeAreaX: number;
+  activeAreaY: number;
+  activeAreaWidth: number;
+  activeAreaHeight: number;
+}
+
 export interface Msx2Screen5TileScreen {
   id: string;
   name: string;
@@ -294,6 +322,11 @@ export interface Msx2Screen5TileScreen {
   palette: Screen5PaletteSlot[];
   tiles: Msx2Screen5Tile[];
   map: number[][];
+  /** MSX2 runtime layers. Kept separate from visual SCREEN 5 tile data to avoid duplicating 27 KB bitmaps. */
+  layers?: Msx2Screen5Layers;
+  /** Runtime role/engine metadata for MSX2 screens. */
+  runtime?: Msx2Screen5Runtime;
+  /** Legacy collision map retained for older projects. Prefer layers.collision for new data. */
   collisionMap?: number[][];
   notes?: string;
 }

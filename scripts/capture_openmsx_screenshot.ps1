@@ -14,9 +14,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 function Resolve-ExistingPath([string]$PathValue) {
-  $candidate = [System.IO.Path]::GetFullPath((Join-Path $ProjectRoot $PathValue))
-  if (Test-Path -LiteralPath $PathValue) {
-    return [System.IO.Path]::GetFullPath($PathValue)
+  $candidate = if ([System.IO.Path]::IsPathRooted($PathValue)) {
+    [System.IO.Path]::GetFullPath($PathValue)
+  } else {
+    [System.IO.Path]::GetFullPath((Join-Path $ProjectRoot $PathValue))
   }
   if (Test-Path -LiteralPath $candidate) {
     return $candidate
@@ -52,7 +53,11 @@ if (-not $Output) {
   $shotDir = Join-Path $projectRootFull "server/temp/msx2-screen5-minimal/screenshots"
   $Output = Join-Path $shotDir (([System.IO.Path]::GetFileNameWithoutExtension($romPath)) + ".png")
 }
-$outputPath = [System.IO.Path]::GetFullPath((Join-Path $projectRootFull $Output))
+$outputPath = if ([System.IO.Path]::IsPathRooted($Output)) {
+  [System.IO.Path]::GetFullPath($Output)
+} else {
+  [System.IO.Path]::GetFullPath((Join-Path $projectRootFull $Output))
+}
 $outputDir = Split-Path -Parent $outputPath
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 
