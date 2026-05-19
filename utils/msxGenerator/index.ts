@@ -148,6 +148,7 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
     templates: [], // Added missing property
     entities: summary.assets.entities as any[],
     sprites: summary.assets.sprites as any[],
+    msx2Sprites: [],
     sounds: [],
     tracks: tracks as any[],
     trackIndexByAssetId,
@@ -232,6 +233,7 @@ export function generateModularASM(
       templates: [],
       entities: [],
       sprites: [],
+      msx2Sprites: [],
       sounds: [],
       tracks: [],
       trackIndexByAssetId: {},

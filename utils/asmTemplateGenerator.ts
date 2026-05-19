@@ -3,7 +3,7 @@
  * Generates dynamic ASM code from templates with replaceable sections
  */
 
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig, DialogueAsset, PortraitAsset, Boss } from '../types';
+import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Msx2Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData, TileBank, PresentationScreenConfig, DialogueAsset, PortraitAsset, Boss } from '../types';
 import { StateMachine } from '../statemachine.types';
 import { getUsedGlobalVariables } from './globalVariablesUtils';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
@@ -26,6 +26,7 @@ export interface ProjectAnalysis {
   components: ComponentDefinition[];
   templates: EntityTemplate[];
   sprites: Sprite[];
+  msx2Sprites: Msx2Sprite[];
   sounds?: any[];
   tracks?: TrackerSongData[];
   trackIndexByAssetId?: Record<string, number>;
@@ -75,6 +76,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   let components = assets.filter(a => a.type === 'componentdefinition').map(a => a.data as ComponentDefinition);
   let templates = assets.filter(a => a.type === 'entitytemplate').map(a => a.data as EntityTemplate);
   const sprites = assets.filter(a => a.type === 'sprite').map(a => a.data as Sprite);
+  const msx2Sprites = assets.filter(a => a.type === 'msx2sprite').map(a => a.data as Msx2Sprite);
   const sounds = assets
     .filter(a => a.type === 'sound')
     .map(a => ({
@@ -238,6 +240,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     components,
     templates,
     sprites,
+    msx2Sprites,
     sounds,
     tracks,
     trackIndexByAssetId,

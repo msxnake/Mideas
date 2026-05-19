@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import {
-  ProjectAsset, EditorType, Tile, Sprite, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
+  ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph,
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset,
   DialogueAsset, PortraitAsset, ScreenKind, Boss
@@ -346,6 +346,26 @@ export const useAssetHandlers = ({
           currentFrameIndex: 0
         };
         newEditorType = EditorType.Sprite;
+        break;
+      case 'msx2sprite':
+        defaultName = 'New MSX2 Sprite';
+        const msx2SpriteSize = 16;
+        const msx2Palette = createDefaultScreen5PaletteSlots();
+        const msx2Background = MSX_SCREEN5_PALETTE[0].hex;
+        const msx2SpriteData: PixelData = Array(msx2SpriteSize).fill(null).map(() => Array(msx2SpriteSize).fill(msx2Background));
+        newAssetData = {
+          id,
+          name: defaultName,
+          target: 'MSX2',
+          vdpMode: 'SCREEN5',
+          size: { width: msx2SpriteSize, height: msx2SpriteSize },
+          palette: msx2Palette,
+          backgroundColor: msx2Background,
+          frames: [{ id: `frame_${Date.now()}`, data: msx2SpriteData }],
+          currentFrameIndex: 0,
+          hardware: { x: 72, y: 102, color: 5, patternIndex: 0 }
+        } as Msx2Sprite;
+        newEditorType = EditorType.Msx2Sprite;
         break;
       case 'screenmap':
         const { widthTiles: mapW, heightTiles: mapH } = getScreenModeMetrics(currentScreenMode);

@@ -560,6 +560,9 @@ const App: React.FC = () => {
           case 'sprite':
             setCurrentEditor(EditorType.Sprite);
             break;
+          case 'msx2sprite':
+            setCurrentEditor(EditorType.Msx2Sprite);
+            break;
           case 'screenmap':
             setCurrentEditor(EditorType.Screen);
             break;

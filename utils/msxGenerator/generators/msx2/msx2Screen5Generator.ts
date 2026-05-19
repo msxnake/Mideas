@@ -1,5 +1,5 @@
 import { DEFAULT_SCREEN5_CUSTOM_PALETTE } from '../../../../constants';
-import { GameFlowConnection, GameFlowNode, PaletteAsset, Screen5PaletteSlot, ScreenMap, Sprite, Tile } from '../../../../types';
+import { GameFlowConnection, GameFlowNode, Msx2Sprite, PaletteAsset, Screen5PaletteSlot, ScreenMap, Sprite, Tile } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -18,6 +18,8 @@ const TRANSPARENT_HEX = 'RGBA(0,0,0,0)';
 const SCREEN5_SPRATR_VRAM = '#7600';
 const SCREEN5_SPRCOL_VRAM = '#7400';
 const SCREEN5_SPRPAT_VRAM = '#7800';
+
+type HardwareSpriteSource = Sprite | Msx2Sprite;
 
 const sanitizeLabel = (value: string, fallback: string): string =>
   String(value || fallback)
@@ -147,13 +149,28 @@ function formatBytes(label: string, bytes: number[], comment?: string): string {
   return `${lines.join('\n')}\n`;
 }
 
-function isTransparentSpritePixel(color: string | undefined, sprite: Sprite): boolean {
+function getHardwareSpriteSource(analysis: ProjectAnalysis): HardwareSpriteSource | undefined {
+  return analysis.msx2Sprites?.[0] || analysis.sprites?.[0];
+}
+
+function getHardwareSpriteSettings(sprite: HardwareSpriteSource): { x: number; y: number; color: number; patternIndex: number } {
+  const attrs = (sprite as Sprite).attributes?.msx2HardwareSprite || {};
+  const hardware = (sprite as Msx2Sprite).hardware || {};
+  return {
+    x: Number.isFinite(Number(hardware.x ?? attrs.x)) ? Number(hardware.x ?? attrs.x) : 56,
+    y: Number.isFinite(Number(hardware.y ?? attrs.y)) ? Number(hardware.y ?? attrs.y) : 120,
+    color: Number.isFinite(Number(hardware.color ?? attrs.color)) ? Number(hardware.color ?? attrs.color) : 5,
+    patternIndex: Number.isFinite(Number(hardware.patternIndex ?? attrs.patternIndex)) ? Number(hardware.patternIndex ?? attrs.patternIndex) : 0,
+  };
+}
+
+function isTransparentSpritePixel(color: string | undefined, sprite: HardwareSpriteSource): boolean {
   const normalized = normalizeColor(color);
   if (!normalized || normalized === TRANSPARENT_HEX) return true;
   return normalized === normalizeColor(sprite.backgroundColor);
 }
 
-function spritePatternByte(sprite: Sprite, x0: number, y: number): number {
+function spritePatternByte(sprite: HardwareSpriteSource, x0: number, y: number): number {
   const frame = sprite.frames?.[sprite.currentFrameIndex || 0] || sprite.frames?.[0];
   let value = 0;
   for (let bit = 0; bit < 8; bit++) {
@@ -166,7 +183,7 @@ function spritePatternByte(sprite: Sprite, x0: number, y: number): number {
   return value;
 }
 
-function buildHardwareSpritePattern(sprite: Sprite | undefined): number[] {
+function buildHardwareSpritePattern(sprite: HardwareSpriteSource | undefined): number[] {
   if (!sprite) return [];
   const bytes: number[] = [];
   // V9938 16x16 sprites use four consecutive 8x8 patterns:
@@ -179,18 +196,13 @@ function buildHardwareSpritePattern(sprite: Sprite | undefined): number[] {
 }
 
 function hasHardwareSprite(analysis: ProjectAnalysis): boolean {
-  const sprite = analysis.sprites?.[0];
+  const sprite = getHardwareSpriteSource(analysis);
   return Boolean(sprite?.frames?.[0]?.data);
 }
 
 function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis): string {
-  const sprite = analysis.sprites?.[0];
+  const sprite = getHardwareSpriteSource(analysis);
   if (!sprite) return '';
-  const attrs = (sprite as any).attributes?.msx2HardwareSprite || {};
-  const y = Math.max(0, Math.min(211, Number.isFinite(Number(attrs.y)) ? Number(attrs.y) : 120));
-  const x = Math.max(0, Math.min(255, Number.isFinite(Number(attrs.x)) ? Number(attrs.x) : 56));
-  const color = Math.max(1, Math.min(15, Number.isFinite(Number(attrs.color)) ? Number(attrs.color) : 5));
-
   return `init_hardware_sprites:
     ; SCREEN 5 hardware sprite MVP. Clobbers AF/BC/DE/HL.
     ; R#1 = #E2 selects 16x16 sprites and keeps display/IRQ bits compatible with BIOS use.
@@ -257,14 +269,15 @@ copy_to_vram_ext:
 }
 
 function buildHardwareSpriteDataAsm(analysis: ProjectAnalysis): string {
-  const sprite = analysis.sprites?.[0];
+  const sprite = getHardwareSpriteSource(analysis);
   if (!sprite) return '';
-  const attrs = (sprite as any).attributes?.msx2HardwareSprite || {};
-  const y = Math.max(0, Math.min(211, Number.isFinite(Number(attrs.y)) ? Number(attrs.y) : 120));
-  const x = Math.max(0, Math.min(255, Number.isFinite(Number(attrs.x)) ? Number(attrs.x) : 56));
-  const color = Math.max(1, Math.min(15, Number.isFinite(Number(attrs.color)) ? Number(attrs.color) : 5));
+  const settings = getHardwareSpriteSettings(sprite);
+  const y = Math.max(0, Math.min(211, settings.y));
+  const x = Math.max(0, Math.min(255, settings.x));
+  const color = Math.max(1, Math.min(15, settings.color));
+  const patternIndex = Math.max(0, Math.min(252, settings.patternIndex));
   const pattern = buildHardwareSpritePattern(sprite);
-  const attributes = [y, x, 0, 0, 216, 0, 0, 0, ...Array(120).fill(0)];
+  const attributes = [y, x, patternIndex, 0, 216, 0, 0, 0, ...Array(120).fill(0)];
   const colors = Array(16).fill(color);
 
   return `

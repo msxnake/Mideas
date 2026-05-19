@@ -414,6 +414,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownSeparator />
         <DropdownItem onClick={() => onNewAsset('tile')} icon={<TilesetIcon />} colorClass="text-red-200 hover:bg-red-500 hover:text-white">Tile</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('sprite')} icon={<SpriteIcon />} colorClass="text-orange-200 hover:bg-orange-500 hover:text-white">Sprite</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('msx2sprite')} icon={<SpriteIcon />} colorClass="text-cyan-200 hover:bg-cyan-600 hover:text-white">MSX2 Sprite</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('font')} icon={<PencilIcon />} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white">Font</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('boss')} icon={<BugIcon />} colorClass="text-green-200 hover:bg-green-500 hover:text-white">Boss</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('screenmap', { screenKind: 'playable' })} icon={<MapIcon />} colorClass="text-blue-200 hover:bg-blue-500 hover:text-white">Playable Screen</DropdownItem>

@@ -230,6 +230,31 @@ export interface Sprite {
   }>;
 }
 
+export interface Msx2SpriteFrame {
+  id: string;
+  data: PixelData;
+}
+
+export interface Msx2HardwareSpriteSettings {
+  x: number;
+  y: number;
+  color: number;
+  patternIndex: number;
+}
+
+export interface Msx2Sprite {
+  id: string;
+  name: string;
+  target: 'MSX2';
+  vdpMode: 'SCREEN5';
+  size: { width: number; height: number };
+  palette: Screen5PaletteSlot[];
+  backgroundColor: MSXColorValue;
+  frames: Msx2SpriteFrame[];
+  currentFrameIndex: number;
+  hardware: Msx2HardwareSpriteSettings;
+}
+
 /**
  * Represents a single tile placed on a screen map layer.
  */
@@ -1924,6 +1949,7 @@ export enum EditorType {
   StateMachine = "StateMachine",
   GlobalVariables = "GlobalVariables",
   Palette = "Palette",
+  Msx2Sprite = "Msx2Sprite",
   PngMsxChars = "PngMsxChars",
 }
 
@@ -1936,9 +1962,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
+  type: 'tile' | 'sprite' | 'msx2sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }
