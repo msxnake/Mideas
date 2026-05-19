@@ -1,0 +1,6646 @@
+{
+  "name": "msx2_manic_miner_screen",
+  "screenMode": "SCREEN 5 (Graphics III)",
+  "targetGraphicsBackend": "msx2-screen5-bitmap",
+  "assets": [
+    {
+      "id": "pal_msx2_manic_miner",
+      "name": "MSX2 Manic Miner Palette",
+      "type": "palette",
+      "data": {
+        "mode": "SCREEN5",
+        "notes": "Bright platform palette for MSX2 Manic Miner style smoke.",
+        "slots": [
+          {
+            "slotIndex": 0,
+            "masterIndex": -1,
+            "hex": "rgba(0,0,0,0)"
+          },
+          {
+            "slotIndex": 1,
+            "masterIndex": 0,
+            "hex": "#000000"
+          },
+          {
+            "slotIndex": 2,
+            "masterIndex": 511,
+            "hex": "#FFFFFF"
+          },
+          {
+            "slotIndex": 3,
+            "masterIndex": 448,
+            "hex": "#FF0000"
+          },
+          {
+            "slotIndex": 4,
+            "masterIndex": 56,
+            "hex": "#00FFFF"
+          },
+          {
+            "slotIndex": 5,
+            "masterIndex": 504,
+            "hex": "#FFFF00"
+          },
+          {
+            "slotIndex": 6,
+            "masterIndex": 292,
+            "hex": "#929292"
+          },
+          {
+            "slotIndex": 7,
+            "masterIndex": 73,
+            "hex": "#249249"
+          },
+          {
+            "slotIndex": 8,
+            "masterIndex": 146,
+            "hex": "#499249"
+          },
+          {
+            "slotIndex": 9,
+            "masterIndex": 365,
+            "hex": "#B66DB6"
+          },
+          {
+            "slotIndex": 10,
+            "masterIndex": 18,
+            "hex": "#004949"
+          },
+          {
+            "slotIndex": 11,
+            "masterIndex": 475,
+            "hex": "#FF6D6D"
+          },
+          {
+            "slotIndex": 12,
+            "masterIndex": 438,
+            "hex": "#DBB6DB"
+          },
+          {
+            "slotIndex": 13,
+            "masterIndex": 79,
+            "hex": "#2424FF"
+          },
+          {
+            "slotIndex": 14,
+            "masterIndex": 433,
+            "hex": "#DBDB24"
+          },
+          {
+            "slotIndex": 15,
+            "masterIndex": 183,
+            "hex": "#49DBFF"
+          }
+        ]
+      }
+    },
+    {
+      "id": "mm_black",
+      "name": "Black",
+      "type": "tile",
+      "data": {
+        "id": "mm_black",
+        "name": "Black",
+        "width": 8,
+        "height": 8,
+        "screen5Palette": [
+          {
+            "slotIndex": 0,
+            "masterIndex": -1,
+            "hex": "rgba(0,0,0,0)"
+          },
+          {
+            "slotIndex": 1,
+            "masterIndex": 0,
+            "hex": "#000000"
+          },
+          {
+            "slotIndex": 2,
+            "masterIndex": 511,
+            "hex": "#FFFFFF"
+          },
+          {
+            "slotIndex": 3,
+            "masterIndex": 448,
+            "hex": "#FF0000"
+          },
+          {
+            "slotIndex": 4,
+            "masterIndex": 56,
+            "hex": "#00FFFF"
+          },
+          {
+            "slotIndex": 5,
+            "masterIndex": 504,
+            "hex": "#FFFF00"
+          },
+          {
+            "slotIndex": 6,
+            "masterIndex": 292,
+            "hex": "#929292"
+          },
+          {
+            "slotIndex": 7,
+            "masterIndex": 73,
+            "hex": "#249249"
+          },
+          {
+            "slotIndex": 8,
+            "masterIndex": 146,
+            "hex": "#499249"
+          },
+          {
+            "slotIndex": 9,
+            "masterIndex": 365,
+            "hex": "#B66DB6"
+          },
+          {
+            "slotIndex": 10,
+            "masterIndex": 18,
+            "hex": "#004949"
+          },
+          {
+            "slotIndex": 11,
+            "masterIndex": 475,
+            "hex": "#FF6D6D"
+          },
+          {
+            "slotIndex": 12,
+            "masterIndex": 438,
+            "hex": "#DBB6DB"
+          },
+          {
+            "slotIndex": 13,
+            "masterIndex": 79,
+            "hex": "#2424FF"
+          },
+          {
+            "slotIndex": 14,
+            "masterIndex": 433,
+            "hex": "#DBDB24"
+          },
+          {
+            "slotIndex": 15,
+            "masterIndex": 183,
+            "hex": "#49DBFF"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 0,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "data": [
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "mm_platform",
+      "name": "Cavern Platform",
+      "type": "tile",
+      "data": {
+        "id": "mm_platform",
+        "name": "Cavern Platform",
+        "width": 8,
+        "height": 8,
+        "screen5Palette": [
+          {
+            "slotIndex": 0,
+            "masterIndex": -1,
+            "hex": "rgba(0,0,0,0)"
+          },
+          {
+            "slotIndex": 1,
+            "masterIndex": 0,
+            "hex": "#000000"
+          },
+          {
+            "slotIndex": 2,
+            "masterIndex": 511,
+            "hex": "#FFFFFF"
+          },
+          {
+            "slotIndex": 3,
+            "masterIndex": 448,
+            "hex": "#FF0000"
+          },
+          {
+            "slotIndex": 4,
+            "masterIndex": 56,
+            "hex": "#00FFFF"
+          },
+          {
+            "slotIndex": 5,
+            "masterIndex": 504,
+            "hex": "#FFFF00"
+          },
+          {
+            "slotIndex": 6,
+            "masterIndex": 292,
+            "hex": "#929292"
+          },
+          {
+            "slotIndex": 7,
+            "masterIndex": 73,
+            "hex": "#249249"
+          },
+          {
+            "slotIndex": 8,
+            "masterIndex": 146,
+            "hex": "#499249"
+          },
+          {
+            "slotIndex": 9,
+            "masterIndex": 365,
+            "hex": "#B66DB6"
+          },
+          {
+            "slotIndex": 10,
+            "masterIndex": 18,
+            "hex": "#004949"
+          },
+          {
+            "slotIndex": 11,
+            "masterIndex": 475,
+            "hex": "#FF6D6D"
+          },
+          {
+            "slotIndex": 12,
+            "masterIndex": 438,
+            "hex": "#DBB6DB"
+          },
+          {
+            "slotIndex": 13,
+            "masterIndex": 79,
+            "hex": "#2424FF"
+          },
+          {
+            "slotIndex": 14,
+            "masterIndex": 433,
+            "hex": "#DBDB24"
+          },
+          {
+            "slotIndex": 15,
+            "masterIndex": 183,
+            "hex": "#49DBFF"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 0,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "data": [
+          [
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF"
+          ],
+          [
+            "#00FFFF",
+            "#2424FF",
+            "#2424FF",
+            "#2424FF",
+            "#2424FF",
+            "#2424FF",
+            "#2424FF",
+            "#00FFFF"
+          ],
+          [
+            "#00FFFF",
+            "#2424FF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#2424FF",
+            "#00FFFF"
+          ],
+          [
+            "#00FFFF",
+            "#2424FF",
+            "#00FFFF",
+            "#2424FF",
+            "#2424FF",
+            "#00FFFF",
+            "#2424FF",
+            "#00FFFF"
+          ],
+          [
+            "#00FFFF",
+            "#2424FF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#2424FF",
+            "#00FFFF"
+          ],
+          [
+            "#00FFFF",
+            "#2424FF",
+            "#2424FF",
+            "#2424FF",
+            "#2424FF",
+            "#2424FF",
+            "#2424FF",
+            "#00FFFF"
+          ],
+          [
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF"
+          ],
+          [
+            "#2424FF",
+            "#2424FF",
+            "#2424FF",
+            "#2424FF",
+            "#2424FF",
+            "#2424FF",
+            "#2424FF",
+            "#2424FF"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "mm_brick",
+      "name": "Brick",
+      "type": "tile",
+      "data": {
+        "id": "mm_brick",
+        "name": "Brick",
+        "width": 8,
+        "height": 8,
+        "screen5Palette": [
+          {
+            "slotIndex": 0,
+            "masterIndex": -1,
+            "hex": "rgba(0,0,0,0)"
+          },
+          {
+            "slotIndex": 1,
+            "masterIndex": 0,
+            "hex": "#000000"
+          },
+          {
+            "slotIndex": 2,
+            "masterIndex": 511,
+            "hex": "#FFFFFF"
+          },
+          {
+            "slotIndex": 3,
+            "masterIndex": 448,
+            "hex": "#FF0000"
+          },
+          {
+            "slotIndex": 4,
+            "masterIndex": 56,
+            "hex": "#00FFFF"
+          },
+          {
+            "slotIndex": 5,
+            "masterIndex": 504,
+            "hex": "#FFFF00"
+          },
+          {
+            "slotIndex": 6,
+            "masterIndex": 292,
+            "hex": "#929292"
+          },
+          {
+            "slotIndex": 7,
+            "masterIndex": 73,
+            "hex": "#249249"
+          },
+          {
+            "slotIndex": 8,
+            "masterIndex": 146,
+            "hex": "#499249"
+          },
+          {
+            "slotIndex": 9,
+            "masterIndex": 365,
+            "hex": "#B66DB6"
+          },
+          {
+            "slotIndex": 10,
+            "masterIndex": 18,
+            "hex": "#004949"
+          },
+          {
+            "slotIndex": 11,
+            "masterIndex": 475,
+            "hex": "#FF6D6D"
+          },
+          {
+            "slotIndex": 12,
+            "masterIndex": 438,
+            "hex": "#DBB6DB"
+          },
+          {
+            "slotIndex": 13,
+            "masterIndex": 79,
+            "hex": "#2424FF"
+          },
+          {
+            "slotIndex": 14,
+            "masterIndex": 433,
+            "hex": "#DBDB24"
+          },
+          {
+            "slotIndex": 15,
+            "masterIndex": 183,
+            "hex": "#49DBFF"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 0,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "data": [
+          [
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000"
+          ],
+          [
+            "#FF0000",
+            "#FFFF00",
+            "#FFFF00",
+            "#FF0000",
+            "#FFFF00",
+            "#FFFF00",
+            "#FF0000",
+            "#FFFF00"
+          ],
+          [
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000"
+          ],
+          [
+            "#FFFF00",
+            "#FFFF00",
+            "#FF0000",
+            "#FFFF00",
+            "#FFFF00",
+            "#FF0000",
+            "#FFFF00",
+            "#FFFF00"
+          ],
+          [
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000"
+          ],
+          [
+            "#FF0000",
+            "#FFFF00",
+            "#FFFF00",
+            "#FF0000",
+            "#FFFF00",
+            "#FFFF00",
+            "#FF0000",
+            "#FFFF00"
+          ],
+          [
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000"
+          ],
+          [
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "mm_conveyor",
+      "name": "Conveyor",
+      "type": "tile",
+      "data": {
+        "id": "mm_conveyor",
+        "name": "Conveyor",
+        "width": 8,
+        "height": 8,
+        "screen5Palette": [
+          {
+            "slotIndex": 0,
+            "masterIndex": -1,
+            "hex": "rgba(0,0,0,0)"
+          },
+          {
+            "slotIndex": 1,
+            "masterIndex": 0,
+            "hex": "#000000"
+          },
+          {
+            "slotIndex": 2,
+            "masterIndex": 511,
+            "hex": "#FFFFFF"
+          },
+          {
+            "slotIndex": 3,
+            "masterIndex": 448,
+            "hex": "#FF0000"
+          },
+          {
+            "slotIndex": 4,
+            "masterIndex": 56,
+            "hex": "#00FFFF"
+          },
+          {
+            "slotIndex": 5,
+            "masterIndex": 504,
+            "hex": "#FFFF00"
+          },
+          {
+            "slotIndex": 6,
+            "masterIndex": 292,
+            "hex": "#929292"
+          },
+          {
+            "slotIndex": 7,
+            "masterIndex": 73,
+            "hex": "#249249"
+          },
+          {
+            "slotIndex": 8,
+            "masterIndex": 146,
+            "hex": "#499249"
+          },
+          {
+            "slotIndex": 9,
+            "masterIndex": 365,
+            "hex": "#B66DB6"
+          },
+          {
+            "slotIndex": 10,
+            "masterIndex": 18,
+            "hex": "#004949"
+          },
+          {
+            "slotIndex": 11,
+            "masterIndex": 475,
+            "hex": "#FF6D6D"
+          },
+          {
+            "slotIndex": 12,
+            "masterIndex": 438,
+            "hex": "#DBB6DB"
+          },
+          {
+            "slotIndex": 13,
+            "masterIndex": 79,
+            "hex": "#2424FF"
+          },
+          {
+            "slotIndex": 14,
+            "masterIndex": 433,
+            "hex": "#DBDB24"
+          },
+          {
+            "slotIndex": 15,
+            "masterIndex": 183,
+            "hex": "#49DBFF"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 0,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "data": [
+          [
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292"
+          ],
+          [
+            "#929292",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#929292",
+            "#929292",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#929292"
+          ],
+          [
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292"
+          ],
+          [
+            "#FFFFFF",
+            "#FFFFFF",
+            "#929292",
+            "#929292",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#929292",
+            "#929292"
+          ],
+          [
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292"
+          ],
+          [
+            "#929292",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#929292",
+            "#929292",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#929292"
+          ],
+          [
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292",
+            "#929292"
+          ],
+          [
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF",
+            "#00FFFF"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "mm_spike",
+      "name": "Spike",
+      "type": "tile",
+      "data": {
+        "id": "mm_spike",
+        "name": "Spike",
+        "width": 8,
+        "height": 8,
+        "screen5Palette": [
+          {
+            "slotIndex": 0,
+            "masterIndex": -1,
+            "hex": "rgba(0,0,0,0)"
+          },
+          {
+            "slotIndex": 1,
+            "masterIndex": 0,
+            "hex": "#000000"
+          },
+          {
+            "slotIndex": 2,
+            "masterIndex": 511,
+            "hex": "#FFFFFF"
+          },
+          {
+            "slotIndex": 3,
+            "masterIndex": 448,
+            "hex": "#FF0000"
+          },
+          {
+            "slotIndex": 4,
+            "masterIndex": 56,
+            "hex": "#00FFFF"
+          },
+          {
+            "slotIndex": 5,
+            "masterIndex": 504,
+            "hex": "#FFFF00"
+          },
+          {
+            "slotIndex": 6,
+            "masterIndex": 292,
+            "hex": "#929292"
+          },
+          {
+            "slotIndex": 7,
+            "masterIndex": 73,
+            "hex": "#249249"
+          },
+          {
+            "slotIndex": 8,
+            "masterIndex": 146,
+            "hex": "#499249"
+          },
+          {
+            "slotIndex": 9,
+            "masterIndex": 365,
+            "hex": "#B66DB6"
+          },
+          {
+            "slotIndex": 10,
+            "masterIndex": 18,
+            "hex": "#004949"
+          },
+          {
+            "slotIndex": 11,
+            "masterIndex": 475,
+            "hex": "#FF6D6D"
+          },
+          {
+            "slotIndex": 12,
+            "masterIndex": 438,
+            "hex": "#DBB6DB"
+          },
+          {
+            "slotIndex": 13,
+            "masterIndex": 79,
+            "hex": "#2424FF"
+          },
+          {
+            "slotIndex": 14,
+            "masterIndex": 433,
+            "hex": "#DBDB24"
+          },
+          {
+            "slotIndex": 15,
+            "masterIndex": 183,
+            "hex": "#49DBFF"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 0,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "data": [
+          [
+            "#000000",
+            "#000000",
+            "#FFFFFF",
+            "#000000",
+            "#000000",
+            "#FFFFFF",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#FFFFFF",
+            "#000000",
+            "#000000",
+            "#FFFFFF",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#000000",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF"
+          ],
+          [
+            "#000000",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#000000",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF"
+          ],
+          [
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF"
+          ],
+          [
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000"
+          ],
+          [
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000",
+            "#FF0000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "mm_ladder",
+      "name": "Ladder",
+      "type": "tile",
+      "data": {
+        "id": "mm_ladder",
+        "name": "Ladder",
+        "width": 8,
+        "height": 8,
+        "screen5Palette": [
+          {
+            "slotIndex": 0,
+            "masterIndex": -1,
+            "hex": "rgba(0,0,0,0)"
+          },
+          {
+            "slotIndex": 1,
+            "masterIndex": 0,
+            "hex": "#000000"
+          },
+          {
+            "slotIndex": 2,
+            "masterIndex": 511,
+            "hex": "#FFFFFF"
+          },
+          {
+            "slotIndex": 3,
+            "masterIndex": 448,
+            "hex": "#FF0000"
+          },
+          {
+            "slotIndex": 4,
+            "masterIndex": 56,
+            "hex": "#00FFFF"
+          },
+          {
+            "slotIndex": 5,
+            "masterIndex": 504,
+            "hex": "#FFFF00"
+          },
+          {
+            "slotIndex": 6,
+            "masterIndex": 292,
+            "hex": "#929292"
+          },
+          {
+            "slotIndex": 7,
+            "masterIndex": 73,
+            "hex": "#249249"
+          },
+          {
+            "slotIndex": 8,
+            "masterIndex": 146,
+            "hex": "#499249"
+          },
+          {
+            "slotIndex": 9,
+            "masterIndex": 365,
+            "hex": "#B66DB6"
+          },
+          {
+            "slotIndex": 10,
+            "masterIndex": 18,
+            "hex": "#004949"
+          },
+          {
+            "slotIndex": 11,
+            "masterIndex": 475,
+            "hex": "#FF6D6D"
+          },
+          {
+            "slotIndex": 12,
+            "masterIndex": 438,
+            "hex": "#DBB6DB"
+          },
+          {
+            "slotIndex": 13,
+            "masterIndex": 79,
+            "hex": "#2424FF"
+          },
+          {
+            "slotIndex": 14,
+            "masterIndex": 433,
+            "hex": "#DBDB24"
+          },
+          {
+            "slotIndex": 15,
+            "masterIndex": 183,
+            "hex": "#49DBFF"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 0,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "data": [
+          [
+            "#FFFF00",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#FFFF00"
+          ],
+          [
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00"
+          ],
+          [
+            "#FFFF00",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#FFFF00"
+          ],
+          [
+            "#FFFF00",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#FFFF00"
+          ],
+          [
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00"
+          ],
+          [
+            "#FFFF00",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#FFFF00"
+          ],
+          [
+            "#FFFF00",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#FFFF00"
+          ],
+          [
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "mm_key",
+      "name": "Key",
+      "type": "tile",
+      "data": {
+        "id": "mm_key",
+        "name": "Key",
+        "width": 8,
+        "height": 8,
+        "screen5Palette": [
+          {
+            "slotIndex": 0,
+            "masterIndex": -1,
+            "hex": "rgba(0,0,0,0)"
+          },
+          {
+            "slotIndex": 1,
+            "masterIndex": 0,
+            "hex": "#000000"
+          },
+          {
+            "slotIndex": 2,
+            "masterIndex": 511,
+            "hex": "#FFFFFF"
+          },
+          {
+            "slotIndex": 3,
+            "masterIndex": 448,
+            "hex": "#FF0000"
+          },
+          {
+            "slotIndex": 4,
+            "masterIndex": 56,
+            "hex": "#00FFFF"
+          },
+          {
+            "slotIndex": 5,
+            "masterIndex": 504,
+            "hex": "#FFFF00"
+          },
+          {
+            "slotIndex": 6,
+            "masterIndex": 292,
+            "hex": "#929292"
+          },
+          {
+            "slotIndex": 7,
+            "masterIndex": 73,
+            "hex": "#249249"
+          },
+          {
+            "slotIndex": 8,
+            "masterIndex": 146,
+            "hex": "#499249"
+          },
+          {
+            "slotIndex": 9,
+            "masterIndex": 365,
+            "hex": "#B66DB6"
+          },
+          {
+            "slotIndex": 10,
+            "masterIndex": 18,
+            "hex": "#004949"
+          },
+          {
+            "slotIndex": 11,
+            "masterIndex": 475,
+            "hex": "#FF6D6D"
+          },
+          {
+            "slotIndex": 12,
+            "masterIndex": 438,
+            "hex": "#DBB6DB"
+          },
+          {
+            "slotIndex": 13,
+            "masterIndex": 79,
+            "hex": "#2424FF"
+          },
+          {
+            "slotIndex": 14,
+            "masterIndex": 433,
+            "hex": "#DBDB24"
+          },
+          {
+            "slotIndex": 15,
+            "masterIndex": 183,
+            "hex": "#49DBFF"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 0,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "data": [
+          [
+            "#000000",
+            "#000000",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#FFFF00",
+            "#FFFF00",
+            "#000000",
+            "#000000",
+            "#FFFF00",
+            "#FFFF00",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#FFFF00",
+            "#FFFF00",
+            "#000000",
+            "#000000",
+            "#FFFF00",
+            "#FFFF00",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#FFFF00",
+            "#FFFF00",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#FFFF00",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#FFFF00",
+            "#FFFF00",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "mm_portal",
+      "name": "Portal",
+      "type": "tile",
+      "data": {
+        "id": "mm_portal",
+        "name": "Portal",
+        "width": 8,
+        "height": 8,
+        "screen5Palette": [
+          {
+            "slotIndex": 0,
+            "masterIndex": -1,
+            "hex": "rgba(0,0,0,0)"
+          },
+          {
+            "slotIndex": 1,
+            "masterIndex": 0,
+            "hex": "#000000"
+          },
+          {
+            "slotIndex": 2,
+            "masterIndex": 511,
+            "hex": "#FFFFFF"
+          },
+          {
+            "slotIndex": 3,
+            "masterIndex": 448,
+            "hex": "#FF0000"
+          },
+          {
+            "slotIndex": 4,
+            "masterIndex": 56,
+            "hex": "#00FFFF"
+          },
+          {
+            "slotIndex": 5,
+            "masterIndex": 504,
+            "hex": "#FFFF00"
+          },
+          {
+            "slotIndex": 6,
+            "masterIndex": 292,
+            "hex": "#929292"
+          },
+          {
+            "slotIndex": 7,
+            "masterIndex": 73,
+            "hex": "#249249"
+          },
+          {
+            "slotIndex": 8,
+            "masterIndex": 146,
+            "hex": "#499249"
+          },
+          {
+            "slotIndex": 9,
+            "masterIndex": 365,
+            "hex": "#B66DB6"
+          },
+          {
+            "slotIndex": 10,
+            "masterIndex": 18,
+            "hex": "#004949"
+          },
+          {
+            "slotIndex": 11,
+            "masterIndex": 475,
+            "hex": "#FF6D6D"
+          },
+          {
+            "slotIndex": 12,
+            "masterIndex": 438,
+            "hex": "#DBB6DB"
+          },
+          {
+            "slotIndex": 13,
+            "masterIndex": 79,
+            "hex": "#2424FF"
+          },
+          {
+            "slotIndex": 14,
+            "masterIndex": 433,
+            "hex": "#DBDB24"
+          },
+          {
+            "slotIndex": 15,
+            "masterIndex": 183,
+            "hex": "#49DBFF"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 0,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "data": [
+          [
+            "#000000",
+            "#B66DB6",
+            "#B66DB6",
+            "#B66DB6",
+            "#B66DB6",
+            "#B66DB6",
+            "#B66DB6",
+            "#000000"
+          ],
+          [
+            "#B66DB6",
+            "#49DBFF",
+            "#49DBFF",
+            "#49DBFF",
+            "#49DBFF",
+            "#49DBFF",
+            "#B66DB6",
+            "#B66DB6"
+          ],
+          [
+            "#B66DB6",
+            "#49DBFF",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#49DBFF",
+            "#B66DB6"
+          ],
+          [
+            "#B66DB6",
+            "#49DBFF",
+            "#000000",
+            "#B66DB6",
+            "#B66DB6",
+            "#000000",
+            "#49DBFF",
+            "#B66DB6"
+          ],
+          [
+            "#B66DB6",
+            "#49DBFF",
+            "#000000",
+            "#B66DB6",
+            "#B66DB6",
+            "#000000",
+            "#49DBFF",
+            "#B66DB6"
+          ],
+          [
+            "#B66DB6",
+            "#49DBFF",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#49DBFF",
+            "#B66DB6"
+          ],
+          [
+            "#B66DB6",
+            "#49DBFF",
+            "#49DBFF",
+            "#49DBFF",
+            "#49DBFF",
+            "#49DBFF",
+            "#B66DB6",
+            "#B66DB6"
+          ],
+          [
+            "#000000",
+            "#B66DB6",
+            "#B66DB6",
+            "#B66DB6",
+            "#B66DB6",
+            "#B66DB6",
+            "#B66DB6",
+            "#000000"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "mm_player_head",
+      "name": "Player Head",
+      "type": "tile",
+      "data": {
+        "id": "mm_player_head",
+        "name": "Player Head",
+        "width": 8,
+        "height": 8,
+        "screen5Palette": [
+          {
+            "slotIndex": 0,
+            "masterIndex": -1,
+            "hex": "rgba(0,0,0,0)"
+          },
+          {
+            "slotIndex": 1,
+            "masterIndex": 0,
+            "hex": "#000000"
+          },
+          {
+            "slotIndex": 2,
+            "masterIndex": 511,
+            "hex": "#FFFFFF"
+          },
+          {
+            "slotIndex": 3,
+            "masterIndex": 448,
+            "hex": "#FF0000"
+          },
+          {
+            "slotIndex": 4,
+            "masterIndex": 56,
+            "hex": "#00FFFF"
+          },
+          {
+            "slotIndex": 5,
+            "masterIndex": 504,
+            "hex": "#FFFF00"
+          },
+          {
+            "slotIndex": 6,
+            "masterIndex": 292,
+            "hex": "#929292"
+          },
+          {
+            "slotIndex": 7,
+            "masterIndex": 73,
+            "hex": "#249249"
+          },
+          {
+            "slotIndex": 8,
+            "masterIndex": 146,
+            "hex": "#499249"
+          },
+          {
+            "slotIndex": 9,
+            "masterIndex": 365,
+            "hex": "#B66DB6"
+          },
+          {
+            "slotIndex": 10,
+            "masterIndex": 18,
+            "hex": "#004949"
+          },
+          {
+            "slotIndex": 11,
+            "masterIndex": 475,
+            "hex": "#FF6D6D"
+          },
+          {
+            "slotIndex": 12,
+            "masterIndex": 438,
+            "hex": "#DBB6DB"
+          },
+          {
+            "slotIndex": 13,
+            "masterIndex": 79,
+            "hex": "#2424FF"
+          },
+          {
+            "slotIndex": 14,
+            "masterIndex": 433,
+            "hex": "#DBDB24"
+          },
+          {
+            "slotIndex": 15,
+            "masterIndex": 183,
+            "hex": "#49DBFF"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 0,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "data": [
+          [
+            "#000000",
+            "#000000",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#FF6D6D",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FF6D6D",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#FF6D6D",
+            "#FFFFFF",
+            "#FF6D6D",
+            "#FFFFFF",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#FF6D6D",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FFFFFF",
+            "#FF6D6D",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "mm_player_body",
+      "name": "Player Body",
+      "type": "tile",
+      "data": {
+        "id": "mm_player_body",
+        "name": "Player Body",
+        "width": 8,
+        "height": 8,
+        "screen5Palette": [
+          {
+            "slotIndex": 0,
+            "masterIndex": -1,
+            "hex": "rgba(0,0,0,0)"
+          },
+          {
+            "slotIndex": 1,
+            "masterIndex": 0,
+            "hex": "#000000"
+          },
+          {
+            "slotIndex": 2,
+            "masterIndex": 511,
+            "hex": "#FFFFFF"
+          },
+          {
+            "slotIndex": 3,
+            "masterIndex": 448,
+            "hex": "#FF0000"
+          },
+          {
+            "slotIndex": 4,
+            "masterIndex": 56,
+            "hex": "#00FFFF"
+          },
+          {
+            "slotIndex": 5,
+            "masterIndex": 504,
+            "hex": "#FFFF00"
+          },
+          {
+            "slotIndex": 6,
+            "masterIndex": 292,
+            "hex": "#929292"
+          },
+          {
+            "slotIndex": 7,
+            "masterIndex": 73,
+            "hex": "#249249"
+          },
+          {
+            "slotIndex": 8,
+            "masterIndex": 146,
+            "hex": "#499249"
+          },
+          {
+            "slotIndex": 9,
+            "masterIndex": 365,
+            "hex": "#B66DB6"
+          },
+          {
+            "slotIndex": 10,
+            "masterIndex": 18,
+            "hex": "#004949"
+          },
+          {
+            "slotIndex": 11,
+            "masterIndex": 475,
+            "hex": "#FF6D6D"
+          },
+          {
+            "slotIndex": 12,
+            "masterIndex": 438,
+            "hex": "#DBB6DB"
+          },
+          {
+            "slotIndex": 13,
+            "masterIndex": 79,
+            "hex": "#2424FF"
+          },
+          {
+            "slotIndex": 14,
+            "masterIndex": 433,
+            "hex": "#DBDB24"
+          },
+          {
+            "slotIndex": 15,
+            "masterIndex": 183,
+            "hex": "#49DBFF"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 0,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "data": [
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#000000",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#2424FF",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#2424FF",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#2424FF",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#2424FF",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#FF6D6D",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#FF6D6D",
+            "#FFFF00",
+            "#FFFF00",
+            "#FF6D6D",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#FFFF00",
+            "#FFFF00",
+            "#000000",
+            "#000000",
+            "#FFFF00",
+            "#FFFF00",
+            "#000000"
+          ],
+          [
+            "#FFFF00",
+            "#FFFF00",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#FFFF00",
+            "#FFFF00"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "mm_enemy",
+      "name": "Patrol Enemy",
+      "type": "tile",
+      "data": {
+        "id": "mm_enemy",
+        "name": "Patrol Enemy",
+        "width": 8,
+        "height": 8,
+        "screen5Palette": [
+          {
+            "slotIndex": 0,
+            "masterIndex": -1,
+            "hex": "rgba(0,0,0,0)"
+          },
+          {
+            "slotIndex": 1,
+            "masterIndex": 0,
+            "hex": "#000000"
+          },
+          {
+            "slotIndex": 2,
+            "masterIndex": 511,
+            "hex": "#FFFFFF"
+          },
+          {
+            "slotIndex": 3,
+            "masterIndex": 448,
+            "hex": "#FF0000"
+          },
+          {
+            "slotIndex": 4,
+            "masterIndex": 56,
+            "hex": "#00FFFF"
+          },
+          {
+            "slotIndex": 5,
+            "masterIndex": 504,
+            "hex": "#FFFF00"
+          },
+          {
+            "slotIndex": 6,
+            "masterIndex": 292,
+            "hex": "#929292"
+          },
+          {
+            "slotIndex": 7,
+            "masterIndex": 73,
+            "hex": "#249249"
+          },
+          {
+            "slotIndex": 8,
+            "masterIndex": 146,
+            "hex": "#499249"
+          },
+          {
+            "slotIndex": 9,
+            "masterIndex": 365,
+            "hex": "#B66DB6"
+          },
+          {
+            "slotIndex": 10,
+            "masterIndex": 18,
+            "hex": "#004949"
+          },
+          {
+            "slotIndex": 11,
+            "masterIndex": 475,
+            "hex": "#FF6D6D"
+          },
+          {
+            "slotIndex": 12,
+            "masterIndex": 438,
+            "hex": "#DBB6DB"
+          },
+          {
+            "slotIndex": 13,
+            "masterIndex": 79,
+            "hex": "#2424FF"
+          },
+          {
+            "slotIndex": 14,
+            "masterIndex": 433,
+            "hex": "#DBDB24"
+          },
+          {
+            "slotIndex": 15,
+            "masterIndex": 183,
+            "hex": "#49DBFF"
+          }
+        ],
+        "logicalProperties": {
+          "mapId": 0,
+          "familyId": 0,
+          "instanceId": 0,
+          "isSolid": false,
+          "isBreakable": false,
+          "isMovable": false,
+          "causesDamage": false,
+          "isInteractiveSwitch": false,
+          "isInteractable": false,
+          "interactionType": "none",
+          "interactionValue": 1,
+          "interactionTarget": ""
+        },
+        "data": [
+          [
+            "#000000",
+            "#000000",
+            "#249249",
+            "#249249",
+            "#249249",
+            "#249249",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#249249",
+            "#499249",
+            "#249249",
+            "#249249",
+            "#499249",
+            "#249249",
+            "#000000"
+          ],
+          [
+            "#249249",
+            "#249249",
+            "#499249",
+            "#499249",
+            "#499249",
+            "#499249",
+            "#249249",
+            "#249249"
+          ],
+          [
+            "#249249",
+            "#249249",
+            "#499249",
+            "#49DBFF",
+            "#49DBFF",
+            "#499249",
+            "#249249",
+            "#249249"
+          ],
+          [
+            "#249249",
+            "#249249",
+            "#499249",
+            "#499249",
+            "#499249",
+            "#499249",
+            "#249249",
+            "#249249"
+          ],
+          [
+            "#000000",
+            "#249249",
+            "#499249",
+            "#249249",
+            "#249249",
+            "#499249",
+            "#249249",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#249249",
+            "#249249",
+            "#249249",
+            "#249249",
+            "#000000",
+            "#000000"
+          ],
+          [
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "asset_screen_msx2_manic_miner_01",
+      "name": "MSX2 Manic Miner Screen",
+      "type": "screenmap",
+      "data": {
+        "id": "screen_msx2_manic_miner_01",
+        "name": "MSX2 Manic Miner Screen",
+        "width": 32,
+        "height": 27,
+        "screenKind": "gameplay",
+        "screenEngine": "fakePlayer",
+        "layers": {
+          "background": [
+            [
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_key",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_key",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_key",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_conveyor",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_player_head",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_player_head",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_player_body",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_player_body",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_key",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_enemy",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_enemy",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_player_head",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_player_head",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_player_body",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_player_body",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_key",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_enemy",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_brick",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_portal",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_spike",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_spike",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_ladder",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_spike",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_black",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ],
+            [
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              },
+              {
+                "tileId": "mm_platform",
+                "subTileX": 0,
+                "subTileY": 0
+              }
+            ]
+          ],
+          "collision": [],
+          "effects": [],
+          "entities": []
+        },
+        "backgroundColor": 1,
+        "borderColor": 1
+      }
+    },
+    {
+      "id": "asset_gf_msx2_manic_miner",
+      "name": "MSX2 Manic Miner Flow",
+      "type": "gameflow",
+      "data": {
+        "id": "gf_msx2_manic_miner",
+        "name": "MSX2 Manic Miner Flow",
+        "startNodeId": "gf_start",
+        "panOffset": {
+          "x": 0,
+          "y": 0
+        },
+        "zoomLevel": 1,
+        "nodes": [
+          {
+            "id": "gf_start",
+            "type": "Start",
+            "position": {
+              "x": 80,
+              "y": 120
+            }
+          },
+          {
+            "id": "gf_screen",
+            "type": "Text",
+            "title": "Manic Miner Screen",
+            "message": "",
+            "position": {
+              "x": 260,
+              "y": 120
+            },
+            "appearance": {
+              "backgroundScreenAssetId": "asset_screen_msx2_manic_miner_01",
+              "colors": {
+                "text": "#FFFFFF",
+                "background": "#000000",
+                "promptText": "#FFFFFF"
+              }
+            }
+          },
+          {
+            "id": "gf_end",
+            "type": "End",
+            "endType": "Victory",
+            "message": "END",
+            "position": {
+              "x": 460,
+              "y": 120
+            }
+          }
+        ],
+        "connections": [
+          {
+            "id": "c_start_screen",
+            "from": {
+              "nodeId": "gf_start"
+            },
+            "to": {
+              "nodeId": "gf_screen"
+            }
+          },
+          {
+            "id": "c_screen_end",
+            "from": {
+              "nodeId": "gf_screen"
+            },
+            "to": {
+              "nodeId": "gf_end"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
