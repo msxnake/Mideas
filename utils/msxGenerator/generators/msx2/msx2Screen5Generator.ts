@@ -192,6 +192,26 @@ function buildHardwareSpritePattern(sprite: Msx2Sprite | undefined): number[] {
   return bytes;
 }
 
+function paletteSlotForSpriteColor(sprite: Msx2Sprite, color: string | undefined): number | undefined {
+  const normalized = normalizeColor(color);
+  if (!normalized || isTransparentSpritePixel(color, sprite)) return undefined;
+  const slotIndex = sprite.palette?.find(slot => normalizeColor(slot.hex) === normalized)?.slotIndex;
+  if (typeof slotIndex === 'number' && slotIndex > 0 && slotIndex < 16) return slotIndex;
+  return undefined;
+}
+
+function buildHardwareSpriteLineColors(sprite: Msx2Sprite, fallbackColor: number): number[] {
+  const frame = sprite.frames?.[sprite.currentFrameIndex || 0] || sprite.frames?.[0];
+  return Array.from({ length: 16 }, (_, y) => {
+    const row = frame?.data?.[y] || [];
+    for (let x = 0; x < 16; x++) {
+      const slot = paletteSlotForSpriteColor(sprite, row[x]);
+      if (slot !== undefined) return slot;
+    }
+    return 0;
+  }).map(color => color === 0 ? 0 : Math.max(1, Math.min(15, color || fallbackColor)));
+}
+
 function hasHardwareSprite(analysis: ProjectAnalysis): boolean {
   const sprite = getHardwareSpriteSource(analysis);
   return Boolean(sprite?.frames?.[0]?.data);
@@ -275,7 +295,7 @@ function buildHardwareSpriteDataAsm(analysis: ProjectAnalysis): string {
   const patternIndex = Math.max(0, Math.min(252, settings.patternIndex));
   const pattern = buildHardwareSpritePattern(sprite);
   const attributes = [y, x, patternIndex, 0, 216, 0, 0, 0, ...Array(120).fill(0)];
-  const colors = Array(16).fill(color);
+  const colors = buildHardwareSpriteLineColors(sprite, color);
 
   return `
 ${formatBytes('msx2_hw_sprite_pattern_0', pattern, `Hardware sprite pattern: ${sprite.name || 'sprite 0'}`)}

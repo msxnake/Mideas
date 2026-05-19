@@ -252,6 +252,14 @@ export interface Msx2Sprite {
   backgroundColor: MSXColorValue;
   frames: Msx2SpriteFrame[];
   currentFrameIndex: number;
+  animationSpeedMs?: number;
+  loops?: boolean;
+  hitbox?: {
+    width: number;
+    height: number;
+    offsetX: number;
+    offsetY: number;
+  };
   hardware: Msx2HardwareSpriteSettings;
 }
 
