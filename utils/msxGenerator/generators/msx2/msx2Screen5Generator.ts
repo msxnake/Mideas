@@ -1,5 +1,5 @@
 import { DEFAULT_SCREEN5_CUSTOM_PALETTE } from '../../../../constants';
-import { GameFlowConnection, GameFlowNode, PaletteAsset, Screen5PaletteSlot, ScreenMap, Tile } from '../../../../types';
+import { GameFlowConnection, GameFlowNode, PaletteAsset, Screen5PaletteSlot, ScreenMap, Sprite, Tile } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -15,6 +15,9 @@ const SCREEN5_HEIGHT = 212;
 const SCREEN5_BYTES = (SCREEN5_WIDTH * SCREEN5_HEIGHT) / 2;
 const CELL_SIZE = 8;
 const TRANSPARENT_HEX = 'RGBA(0,0,0,0)';
+const SCREEN5_SPRATR_VRAM = '#7600';
+const SCREEN5_SPRCOL_VRAM = '#7400';
+const SCREEN5_SPRPAT_VRAM = '#7800';
 
 const sanitizeLabel = (value: string, fallback: string): string =>
   String(value || fallback)
@@ -142,6 +145,133 @@ function formatBytes(label: string, bytes: number[], comment?: string): string {
     lines.push(`    DB ${bytes.slice(offset, offset + 16).map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}`);
   }
   return `${lines.join('\n')}\n`;
+}
+
+function isTransparentSpritePixel(color: string | undefined, sprite: Sprite): boolean {
+  const normalized = normalizeColor(color);
+  if (!normalized || normalized === TRANSPARENT_HEX) return true;
+  return normalized === normalizeColor(sprite.backgroundColor);
+}
+
+function spritePatternByte(sprite: Sprite, x0: number, y: number): number {
+  const frame = sprite.frames?.[sprite.currentFrameIndex || 0] || sprite.frames?.[0];
+  let value = 0;
+  for (let bit = 0; bit < 8; bit++) {
+    const x = x0 + bit;
+    const color = frame?.data?.[y]?.[x];
+    if (!isTransparentSpritePixel(color, sprite)) {
+      value |= 0x80 >> bit;
+    }
+  }
+  return value;
+}
+
+function buildHardwareSpritePattern(sprite: Sprite | undefined): number[] {
+  if (!sprite) return [];
+  const bytes: number[] = [];
+  // V9938 16x16 sprites use four consecutive 8x8 patterns:
+  // top-left, top-right, bottom-left, bottom-right.
+  for (let y = 0; y < 8; y++) bytes.push(spritePatternByte(sprite, 0, y));
+  for (let y = 0; y < 8; y++) bytes.push(spritePatternByte(sprite, 8, y));
+  for (let y = 8; y < 16; y++) bytes.push(spritePatternByte(sprite, 0, y));
+  for (let y = 8; y < 16; y++) bytes.push(spritePatternByte(sprite, 8, y));
+  return bytes;
+}
+
+function hasHardwareSprite(analysis: ProjectAnalysis): boolean {
+  const sprite = analysis.sprites?.[0];
+  return Boolean(sprite?.frames?.[0]?.data);
+}
+
+function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis): string {
+  const sprite = analysis.sprites?.[0];
+  if (!sprite) return '';
+  const attrs = (sprite as any).attributes?.msx2HardwareSprite || {};
+  const y = Math.max(0, Math.min(211, Number.isFinite(Number(attrs.y)) ? Number(attrs.y) : 120));
+  const x = Math.max(0, Math.min(255, Number.isFinite(Number(attrs.x)) ? Number(attrs.x) : 56));
+  const color = Math.max(1, Math.min(15, Number.isFinite(Number(attrs.color)) ? Number(attrs.color) : 5));
+
+  return `init_hardware_sprites:
+    ; SCREEN 5 hardware sprite MVP. Clobbers AF/BC/DE/HL.
+    ; R#1 = #E2 selects 16x16 sprites and keeps display/IRQ bits compatible with BIOS use.
+    ld bc, #E201
+    call WRTVDP
+    ld a, #E2
+    ld (#F3E0), a
+
+    ; Sprite attribute/color/pattern tables live above the SCREEN 5 bitmap.
+    ; R#5 selects SAT #7600. R#11 remains 0 because the table is below 64KB.
+    ld bc, #EC05
+    call WRTVDP
+    ld bc, #000B
+    call WRTVDP
+    ld bc, #0F06
+    call WRTVDP
+
+    ld hl, msx2_hw_sprite_pattern_0
+    ld de, ${SCREEN5_SPRPAT_VRAM}
+    ld bc, 32
+    call copy_to_vram_ext
+
+    ld hl, msx2_hw_sprite_colors_0
+    ld de, ${SCREEN5_SPRCOL_VRAM}
+    ld bc, 16
+    call copy_to_vram_ext
+
+    ld hl, msx2_hw_sprite_attrs
+    ld de, ${SCREEN5_SPRATR_VRAM}
+    ld bc, 128
+    call copy_to_vram_ext
+
+    xor a
+    ld bc, #000E
+    call WRTVDP
+    ret
+
+copy_to_vram_ext:
+    ; HL=RAM/ROM source, DE=absolute VRAM destination, BC=length. Clobbers AF/BC/DE/HL.
+    ld a, d
+    and #C0
+    rlca
+    rlca
+    out (VDP_CTRL_PORT), a
+    ld a, #8E
+    out (VDP_CTRL_PORT), a
+    ld a, e
+    out (VDP_CTRL_PORT), a
+    ld a, d
+    and #3F
+    or #40
+    out (VDP_CTRL_PORT), a
+.copy_loop:
+    ld a, (hl)
+    out (VDP_DATA_PORT), a
+    inc hl
+    dec bc
+    ld a, b
+    or c
+    jr nz, .copy_loop
+    ret
+
+`;
+}
+
+function buildHardwareSpriteDataAsm(analysis: ProjectAnalysis): string {
+  const sprite = analysis.sprites?.[0];
+  if (!sprite) return '';
+  const attrs = (sprite as any).attributes?.msx2HardwareSprite || {};
+  const y = Math.max(0, Math.min(211, Number.isFinite(Number(attrs.y)) ? Number(attrs.y) : 120));
+  const x = Math.max(0, Math.min(255, Number.isFinite(Number(attrs.x)) ? Number(attrs.x) : 56));
+  const color = Math.max(1, Math.min(15, Number.isFinite(Number(attrs.color)) ? Number(attrs.color) : 5));
+  const pattern = buildHardwareSpritePattern(sprite);
+  const attributes = [y, x, 0, 0, 216, 0, 0, 0, ...Array(120).fill(0)];
+  const colors = Array(16).fill(color);
+
+  return `
+${formatBytes('msx2_hw_sprite_pattern_0', pattern, `Hardware sprite pattern: ${sprite.name || 'sprite 0'}`)}
+${formatBytes('msx2_hw_sprite_colors_0', colors, 'Hardware sprite line colors for V9938 sprite mode 2')}
+${formatBytes('msx2_hw_sprite_attrs', attributes, 'Sprite 0 visible; sprite 1 Y=216 terminates the SAT')}
+`;
 }
 
 function defaultTargetNodeId(connections: GameFlowConnection[] | undefined, nodeId: string): string | undefined {
@@ -276,6 +406,8 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     ? screenLabels.get(firstScreen.id || firstScreen.name) || sanitizeLabel(firstScreen.name, 'SCREEN5_SCREEN_0')
     : 'SCREEN5_SCREEN_0';
   const gameFlowProgram = buildMsx2GameFlowProgram(analysis, screenLabels);
+  const hardwareSpriteInitAsm = buildHardwareSpriteInitAsm(analysis);
+  const hardwareSpriteDataAsm = buildHardwareSpriteDataAsm(analysis);
 
   return `; ==================================================================
 ; Mideas MSX2 SCREEN 5 bitmap backend
@@ -299,6 +431,8 @@ BAKCLR  EQU #F3E9
 BDRCLR  EQU #F3EA
 
 VDP_PALETTE_PORT EQU #9A
+VDP_DATA_PORT EQU #98
+VDP_CTRL_PORT EQU #99
 SCREEN5_BITMAP_VRAM EQU #0000
 SCREEN5_BITMAP_SIZE EQU ${SCREEN5_BYTES}
 
@@ -336,6 +470,7 @@ init_rom:
 
     call load_screen5_palette
     call load_${firstScreenLabel}_bitmap
+${hasHardwareSprite(analysis) ? '    call init_hardware_sprites\n' : ''}
     call ENASCR
     ei
 
@@ -355,6 +490,7 @@ clear_screen5_bitmap:
     call FILVRM
     ret
 
+${hardwareSpriteInitAsm}
 load_screen5_palette:
     ; R#16 selects the first palette register; port #9A receives 2 bytes per slot.
     ld bc, #0010
@@ -386,6 +522,7 @@ ${screens.slice(1).map(screen => {
 `;
 }).join('\n')}
 ${formatBytes('screen5_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G')}
+${hardwareSpriteDataAsm}
 ${screenBitmapBlocks.join('\n')}
     ds #C000 - $, #FF
     end
@@ -415,7 +552,9 @@ export function generateMsx2Screen5Files(
     'entities.asm': '; Entities are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
     'worlds.asm': '; Worlds are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
     'screens.asm': '; SCREEN 5 bitmap data is emitted in unitedFiles.asm.\n',
-    'sprites.asm': '; Sprites are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
+    'sprites.asm': hasHardwareSprite(analysis)
+      ? '; MSX2 SCREEN 5 hardware sprite MVP is emitted inline in unitedFiles.asm.\n'
+      : '; Sprites are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
     'font.asm': '; Font is out of scope for the first MSX2 SCREEN 5 backend slice.\n',
     'hud.asm': '; HUD is out of scope for the first MSX2 SCREEN 5 backend slice.\n',
     'menus.asm': '; Menus are out of scope for the first MSX2 SCREEN 5 backend slice.\n',

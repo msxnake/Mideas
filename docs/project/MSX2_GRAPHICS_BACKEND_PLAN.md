@@ -20,6 +20,10 @@ The first MSX2 slice supports:
 - 16 palette slots selected from the MSX2 512-color RGB333 master palette.
 - Tile map rasterization into SCREEN 5 bytes, 2 pixels per byte.
 - Simple ROM output with BIOS `CHGMOD`, palette load, bitmap load, and HALT loop.
+- First hardware sprite MVP:
+  - Uses the first sprite asset as one visible 16x16 MSX2 sprite.
+  - Emits pattern/color/SAT data inline before large bitmaps so simple ROM smoke tests can read it from the first ROM window.
+  - Writes sprite VRAM tables with V9938 extended addressing for `#7400/#7600/#7800`.
 - Minimal GameFlow over existing nodes:
   `Start -> Text(backgroundScreenAssetId) -> Transition(cls) -> Text(...) -> End`.
 
@@ -27,7 +31,7 @@ Out of scope for this slice:
 
 - Full SCREEN 2 GameFlow runtime parity.
 - Entities/components.
-- Sprites.
+- Multi-sprite allocation, animation, movement, and entity-driven sprite updates.
 - HUD/font/menu systems.
 - MegaROM resource packing.
 - SCREEN 6, SCREEN 7, SCREEN 8.
@@ -48,7 +52,7 @@ Out of scope for this slice:
 3. Runtime features
    - Add basic screen transitions and clear/fill helpers.
    - Add key-wait and single-screen GameFlow smoke.
-   - Reintroduce hardware sprites through a SCREEN 5-specific sprite loader.
+   - Expand the SCREEN 5-specific hardware sprite loader beyond the first-sprite smoke path.
    - Add collision/effects maps as RAM data, not as name-table data.
 
 4. Engine integration

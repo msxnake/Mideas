@@ -20,6 +20,8 @@ BAKCLR  EQU #F3E9
 BDRCLR  EQU #F3EA
 
 VDP_PALETTE_PORT EQU #9A
+VDP_DATA_PORT EQU #98
+VDP_CTRL_PORT EQU #99
 SCREEN5_BITMAP_VRAM EQU #0000
 SCREEN5_BITMAP_SIZE EQU 27136
 
@@ -57,6 +59,8 @@ init_rom:
 
     call load_screen5_palette
     call load_MSX2_MANIC_MINER_SCREEN_bitmap
+    call init_hardware_sprites
+
     call ENASCR
     ei
 
@@ -79,6 +83,69 @@ clear_screen5_bitmap:
     ld bc, SCREEN5_BITMAP_SIZE
     call FILVRM
     ret
+
+init_hardware_sprites:
+    ; SCREEN 5 hardware sprite MVP. Clobbers AF/BC/DE/HL.
+    ; R#1 = #E2 selects 16x16 sprites and keeps display/IRQ bits compatible with BIOS use.
+    ld bc, #E201
+    call WRTVDP
+    ld a, #E2
+    ld (#F3E0), a
+
+    ; Sprite attribute/color/pattern tables live above the SCREEN 5 bitmap.
+    ; R#5 selects SAT #7600. R#11 remains 0 because the table is below 64KB.
+    ld bc, #EC05
+    call WRTVDP
+    ld bc, #000B
+    call WRTVDP
+    ld bc, #0F06
+    call WRTVDP
+
+    ld hl, msx2_hw_sprite_pattern_0
+    ld de, #7800
+    ld bc, 32
+    call copy_to_vram_ext
+
+    ld hl, msx2_hw_sprite_colors_0
+    ld de, #7400
+    ld bc, 16
+    call copy_to_vram_ext
+
+    ld hl, msx2_hw_sprite_attrs
+    ld de, #7600
+    ld bc, 128
+    call copy_to_vram_ext
+
+    xor a
+    ld bc, #000E
+    call WRTVDP
+    ret
+
+copy_to_vram_ext:
+    ; HL=RAM/ROM source, DE=absolute VRAM destination, BC=length. Clobbers AF/BC/DE/HL.
+    ld a, d
+    and #C0
+    rlca
+    rlca
+    out (VDP_CTRL_PORT), a
+    ld a, #8E
+    out (VDP_CTRL_PORT), a
+    ld a, e
+    out (VDP_CTRL_PORT), a
+    ld a, d
+    and #3F
+    or #40
+    out (VDP_CTRL_PORT), a
+.copy_loop:
+    ld a, (hl)
+    out (VDP_DATA_PORT), a
+    inc hl
+    dec bc
+    ld a, b
+    or c
+    jr nz, .copy_loop
+    ret
+
 
 load_screen5_palette:
     ; R#16 selects the first palette register; port #9A receives 2 bytes per slot.
@@ -105,6 +172,28 @@ load_MSX2_MANIC_MINER_SCREEN_bitmap:
 screen5_palette_data:
     DB #00,#00,#00,#00,#77,#07,#70,#00,#00,#07,#70,#07,#44,#04,#11,#01
     DB #22,#02,#55,#05,#02,#02,#73,#03,#66,#06,#17,#01,#61,#06,#27,#06
+
+
+; Hardware sprite pattern: MSX2 Hardware Player
+msx2_hw_sprite_pattern_0:
+    DB #1E,#3F,#3F,#3F,#1E,#3F,#7F,#FF,#00,#00,#00,#00,#00,#00,#80,#C0
+    DB #BE,#3E,#1C,#14,#36,#63,#C1,#80,#80,#00,#00,#00,#00,#00,#80,#80
+
+; Hardware sprite line colors for V9938 sprite mode 2
+msx2_hw_sprite_colors_0:
+    DB #05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05,#05
+
+; Sprite 0 visible; sprite 1 Y=216 terminates the SAT
+msx2_hw_sprite_attrs:
+    DB #66,#48,#00,#00,#D8,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+
 
 ; MSX2 Manic Miner Screen rasterized as SCREEN 5, 2 pixels per byte
 MSX2_MANIC_MINER_SCREEN_BITMAP:
