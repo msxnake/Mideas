@@ -20,6 +20,8 @@ BAKCLR  EQU #F3E9
 BDRCLR  EQU #F3EA
 
 VDP_PALETTE_PORT EQU #9A
+VDP_DATA_PORT EQU #98
+VDP_CTRL_PORT EQU #99
 SCREEN5_BITMAP_VRAM EQU #0000
 SCREEN5_BITMAP_SIZE EQU 27136
 
@@ -38,6 +40,7 @@ init_rom:
     di
     im 1
     ld sp, #F380
+    call map_page2_to_cart_primary
 
     ld a, #C9
     ld (HKEY), a
@@ -57,6 +60,7 @@ init_rom:
 
     call load_screen5_palette
     call load_SCREEN5_MINIMAL_32X27_bitmap
+
     call ENASCR
     ei
 
@@ -72,6 +76,21 @@ init_rom:
     halt
     jr .main_loop
 
+map_page2_to_cart_primary:
+    ; Keep #8000-#BFFF on the same primary slot as the cart page at #4000.
+    ; Raw SCREEN 5 backgrounds are larger than 16 KB, so LDIRVM may read data above #8000.
+    in a, (#A8)
+    ld b, a
+    and #0C
+    add a, a
+    add a, a
+    ld c, a
+    ld a, b
+    and #CF
+    or c
+    out (#A8), a
+    ret
+
 wait_key:
     call CHGET
     ret
@@ -82,6 +101,7 @@ clear_screen5_bitmap:
     ld bc, SCREEN5_BITMAP_SIZE
     call FILVRM
     ret
+
 
 load_screen5_palette:
     ; R#16 selects the first palette register; port #9A receives 2 bytes per slot.
@@ -108,6 +128,7 @@ load_SCREEN5_MINIMAL_32X27_bitmap:
 screen5_palette_data:
     DB #00,#00,#00,#00,#11,#06,#33,#07,#17,#01,#27,#03,#51,#01,#27,#06
     DB #71,#01,#73,#03,#61,#06,#64,#06,#11,#04,#65,#02,#55,#05,#77,#07
+
 
 ; SCREEN5_MINIMAL_32X27 rasterized as SCREEN 5, 2 pixels per byte
 SCREEN5_MINIMAL_32X27_BITMAP:

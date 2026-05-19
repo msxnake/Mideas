@@ -855,6 +855,9 @@ gameflow_world_game_loop:
     halt
 ${frameAudioTickAsm}    ; Poll input immediately after V-Blank edge so the hero uses
     ; the freshest input state in the same visible frame.
+    ld a, (player_hard_tick_enabled)
+    or a
+    jp nz, .skip_player_fastpath_pre_update
     call task_update_input
     ld a, (current_screen_engine)
     or a
@@ -875,6 +878,9 @@ ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stag
     ld a, (current_screen_engine)
     or a
     jp nz, .skip_player_fastpath_before_sm
+    ld a, (player_hard_tick_enabled)
+    or a
+    jp nz, .skip_player_fastpath_before_sm
 
     ; Refresh player deadly-tile state before state machines consume it.
     call refresh_player_deadly_fastpath
@@ -890,6 +896,9 @@ ${hasScreenTimer ? `    ; Update per-screen countdown timer (60 seconds per stag
     call execute_all_state_machines
 
     ld a, (current_screen_engine)
+    or a
+    jp nz, .skip_player_fastpath_post_update
+    ld a, (player_hard_tick_enabled)
     or a
     jp nz, .skip_player_fastpath_post_update
 
@@ -6959,6 +6968,9 @@ gameflow_world_game_loop:
     halt                            ; Frame sync at loop start (V-Blank edge)
 ${frameAudioTickAsm}    ; Poll input immediately after V-Blank so hero movement lands
     ; in the same frame that gets uploaded to SAT.
+    ld a, (player_hard_tick_enabled)
+    or a
+    jp nz, .skip_player_fastpath_pre_update
     call task_update_input
     ld a, (current_screen_engine)
     or a
@@ -6970,12 +6982,18 @@ ${frameAudioTickAsm}    ; Poll input immediately after V-Blank so hero movement 
     ld a, (current_screen_engine)
     or a
     jp nz, .skip_player_fastpath_before_sm
+    ld a, (player_hard_tick_enabled)
+    or a
+    jp nz, .skip_player_fastpath_before_sm
     call refresh_player_deadly_fastpath
     call refresh_player_tile_interaction_fastpath
     call refresh_player_state_machine_fastpath
 .skip_player_fastpath_before_sm:
     call execute_all_state_machines
     ld a, (current_screen_engine)
+    or a
+    jp nz, .skip_player_fastpath_post_update
+    ld a, (player_hard_tick_enabled)
     or a
     jp nz, .skip_player_fastpath_post_update
     call refresh_player_wallgrab_fastpath

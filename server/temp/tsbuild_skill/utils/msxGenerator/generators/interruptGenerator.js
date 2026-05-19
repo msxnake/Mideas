@@ -22,7 +22,7 @@ function generateInterruptFile(analysis, config = {}, executionPlan) {
     // Memory layout
     code += generateInterruptMemoryLayout();
     // Core functions
-    code += generateInitInterruptSystem();
+    code += generateInitInterruptSystem(config.hardPlayerTickEnabled ?? false);
     code += generateStopInterruptSystem();
     code += generateInterruptDispatcher();
     code += generateTaskManagementFunctions();
@@ -71,7 +71,7 @@ function generateInterruptMemoryLayout() {
 /**
  * Generate init_interrupt_system routine
  */
-function generateInitInterruptSystem() {
+function generateInitInterruptSystem(hardPlayerTickEnabled) {
     return `; ==================================================================
 ; INIT_INTERRUPT_SYSTEM - Install H.TIMI hook
 ; ==================================================================
@@ -120,7 +120,11 @@ init_interrupt_system:
     ld (interrupt_counter+1), a
     ld (vblank_flag), a
     ld (interrupt_in_progress), a
+    ld (player_hard_tick_lost), a
+    ld (player_hard_tick_lost+1), a
     ld (far_call_irq_lock_depth), a
+    ld a, ${hardPlayerTickEnabled ? 1 : 0}
+    ld (player_hard_tick_enabled), a
 
     ; --- STEP 5: Mark system as enabled ---
     ld a, 1
@@ -167,6 +171,7 @@ stop_interrupt_system:
     ; Mark system as disabled
     xor a
     ld (interrupt_system_enabled), a
+    ld (player_hard_tick_enabled), a
 
     ei                          ; Re-enable interrupts
     ret
@@ -218,15 +223,18 @@ interrupt_dispatcher:
     or a
     jr z, .exit                 ; If disabled, exit quickly
 
-    ; --- STEP 3: Increment frame counter ---
+    ; --- STEP 3: Ack/latch VBlank flag (reads VDP status before gameplay tick) ---
+    call update_vblank_flag
+
+    ; --- STEP 4: Increment frame counter ---
     ld hl, (interrupt_counter)
     inc hl
     ld (interrupt_counter), hl
 
-    ; --- STEP 3.5: Update VBlank flag (reads VDP status) ---
-    call update_vblank_flag
+    ; --- STEP 5: Run the non-negotiable Player tick before soft tasks ---
+    call run_hard_player_tick
 
-    ; --- STEP 4: Walk through task table (DI ensures no nested interrupts) ---
+    ; --- STEP 6: Walk through task table (DI ensures no nested interrupts) ---
     di                          ; Disable interrupts for task execution
     ld hl, task_table           ; HL = pointer to task table
     ld b, 8                     ; 8 slots
@@ -272,7 +280,7 @@ interrupt_dispatcher:
     xor a
     ld (interrupt_in_progress), a
 
-    ; --- STEP 5: Restore registers ---
+    ; --- STEP 7: Restore registers ---
     pop iy                      ; 14 cycles
     pop ix                      ; 14 cycles
     pop de                      ; 10 cycles
@@ -280,7 +288,7 @@ interrupt_dispatcher:
     pop hl                      ; 10 cycles
     pop af                      ; 10 cycles
 
-    ; --- STEP 6: Return from interrupt ---
+    ; --- STEP 8: Return from interrupt ---
     ; For H.TIMI we should chain to the original hook (best compatibility)
     ; and let the BIOS interrupt handler manage EI/RETI.
     jp old_htimi_hook
@@ -338,6 +346,70 @@ update_vblank_flag:
     pop af
     ret
 ; @mideas:endblock id=runtime.interrupt.vblank_flag
+
+; ==================================================================
+; RUN_HARD_PLAYER_TICK - Optional hard realtime Player slice
+; ==================================================================
+; @mideas:block id=runtime.interrupt.hard_player_tick kind=routine owner=interrupt roots=run_hard_player_tick
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Run the optional VBlank hard Player pipeline before deferred tasks.',
+        inputs: ['player_hard_tick_enabled', 'current_screen_engine', 'Player runtime RAM'],
+        outputs: [
+            'input buffers refreshed',
+            'Player state/movement/collision/animation refreshed',
+            'Player SAT bytes uploaded before soft sprite work',
+            'player_hard_tick_lost incremented if the slice is skipped by lock state',
+        ],
+        clobbers: ['AF', 'BC', 'DE', 'HL'],
+        preserved: ['AF, BC, DE, HL (by push/pop wrapper)', 'IX', 'IY'],
+        usage: [
+            'A = enable/engine/lock checks',
+            'BC/DE/HL = scratch inside called Player fastpaths',
+        ],
+        notes: [
+            'Disabled by default until a ROM opts in via interruptConfig.enableHardPlayerTick.',
+            'Line interrupts must not call this path or increment interrupt_counter.',
+        ],
+    })}
+run_hard_player_tick:
+    push af
+    push bc
+    push de
+    push hl
+
+    ld a, (player_hard_tick_enabled)
+    or a
+    jp z, .hard_player_done
+
+    ; Do not enter mapper/VRAM-sensitive Player code while a far trampoline owns
+    ; an IRQ-masked mapper window. Count the missed hard tick for debug builds.
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp z, .hard_player_unlocked
+    ld hl, player_hard_tick_lost
+    inc (hl)
+    jp nz, .hard_player_done
+    inc hl
+    inc (hl)
+    jp .hard_player_done
+
+.hard_player_unlocked:
+    ld a, (current_screen_engine)
+    or a
+    jp nz, .hard_player_done
+
+    ; HARD_PLAYER: input -> player state -> player sprite RAM -> player SAT only.
+    call task_update_input
+    call update_player_realtime_pipeline
+    call upload_player_sprites_to_vram
+
+.hard_player_done:
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+; @mideas:endblock id=runtime.interrupt.hard_player_tick
 
 ; ==================================================================
 ; ENABLE_TASK - Activate a task in the system

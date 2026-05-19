@@ -1493,6 +1493,10 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     currentAddress++;
     code += `interrupt_in_progress   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 while the H.TIMI dispatcher is running\n`;
     currentAddress++;
+    code += `player_hard_tick_enabled EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=run Player hard realtime pipeline inside VBlank hook\n`;
+    currentAddress++;
+    code += `player_hard_tick_lost   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Debug counter: hard Player ticks skipped by mapper/IRQ lock (16-bit)\n`;
+    currentAddress += 2;
     code += `far_call_irq_lock_depth EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Nonzero while far trampolines own an IRQ-masked mapper window\n`;
     currentAddress++;
     code += `RAM_INTERRUPT_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; End of interrupt system\n`;

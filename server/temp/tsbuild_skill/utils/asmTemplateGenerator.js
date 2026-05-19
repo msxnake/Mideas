@@ -18,6 +18,9 @@ function analyzeProject(projectName, assets) {
     let components = assets.filter(a => a.type === 'componentdefinition').map(a => a.data);
     let templates = assets.filter(a => a.type === 'entitytemplate').map(a => a.data);
     const sprites = assets.filter(a => a.type === 'sprite').map(a => a.data);
+    const msx2Sprites = assets.filter(a => a.type === 'msx2sprite').map(a => a.data);
+    const msx2Bitmaps = assets.filter(a => a.type === 'msx2bitmap').map(a => a.data);
+    const msx2Screens = assets.filter(a => a.type === 'msx2screen').map(a => a.data);
     const sounds = assets
         .filter(a => a.type === 'sound')
         .map(a => ({
@@ -161,10 +164,14 @@ function analyzeProject(projectName, assets) {
     // CRITICAL: Extract only USED GlobalVariables (filter unused ones)
     const globalVariables = (0, globalVariablesUtils_1.getUsedGlobalVariables)(assets);
     return {
+        assets,
         projectName,
         components,
         templates,
         sprites,
+        msx2Sprites,
+        msx2Bitmaps,
+        msx2Screens,
         sounds,
         tracks,
         trackIndexByAssetId,

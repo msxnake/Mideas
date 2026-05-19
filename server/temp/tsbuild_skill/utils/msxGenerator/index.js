@@ -36,6 +36,7 @@ const animatedTilesGenerator_1 = require("./generators/animatedTilesGenerator");
 const bossesGenerator_1 = require("./generators/bossesGenerator");
 const page0Generator_1 = require("./generators/page0Generator");
 const mapperWindowUtils_1 = require("./generators/mapperWindowUtils");
+const msx2Screen5Generator_1 = require("./generators/msx2/msx2Screen5Generator");
 const executionPlan_1 = require("./planning/executionPlan");
 const executionValidators_1 = require("./planning/executionValidators");
 function resolveExecutionMode(config) {
@@ -73,6 +74,17 @@ function buildRuntimeTrackIndexByAssetId(tracks) {
         return map;
     }, {});
 }
+function resolveGraphicsBackend(config) {
+    if (config.targetGraphicsBackend === 'msx2-screen5-tile16') {
+        return 'msx2-screen5-bitmap';
+    }
+    if (config.targetGraphicsBackend) {
+        return config.targetGraphicsBackend;
+    }
+    return config.screenMode === 'SCREEN 5 (Graphics III)'
+        ? 'msx2-screen5-bitmap'
+        : 'screen2-tilebank';
+}
 /**
  * Convert ProjectSummary to ProjectAnalysis format
  */
@@ -107,6 +119,9 @@ function convertSummaryToAnalysis(summary) {
         templates: [], // Added missing property
         entities: summary.assets.entities,
         sprites: summary.assets.sprites,
+        msx2Sprites: [],
+        msx2Bitmaps: [],
+        msx2Screens: [],
         sounds: [],
         tracks: tracks,
         trackIndexByAssetId,
@@ -142,6 +157,18 @@ function generateModularASM(projectName, assets, config = {}) {
         throw new Error('assets must be an array');
     }
     console.log(`📊 Project: ${projectName}, Assets: ${assets.length}, Config:`, config);
+    const targetGraphicsBackend = resolveGraphicsBackend(config);
+    if (targetGraphicsBackend === 'msx2-screen5-bitmap') {
+        if (config.screenMode !== 'SCREEN 5 (Graphics III)') {
+            throw new Error(`MSX2 bitmap backend currently supports only SCREEN 5 (Graphics III), received: ${config.screenMode || 'unknown'}`);
+        }
+        const analysis = (0, asmTemplateGenerator_1.analyzeProject)(projectName, assets);
+        return (0, msx2Screen5Generator_1.generateMsx2Screen5Files)(projectName, analysis, {
+            screenMode: config.screenMode,
+            romMode: config.romMode || 'simple32k',
+            targetFormat: config.targetFormat || 'konami',
+        });
+    }
     // Analyze project
     let analysis;
     try {
@@ -169,6 +196,9 @@ function generateModularASM(projectName, assets, config = {}) {
             templates: [],
             entities: [],
             sprites: [],
+            msx2Sprites: [],
+            msx2Bitmaps: [],
+            msx2Screens: [],
             sounds: [],
             tracks: [],
             trackIndexByAssetId: {},
@@ -193,6 +223,10 @@ function generateModularASM(projectName, assets, config = {}) {
     const executionPlan = buildValidatedExecutionPlan(analysis, config);
     const mapperWindow = (0, mapperWindowUtils_1.getMapperWindowConfig)(romMode, targetFormat);
     const keepRuntimeBackgroundLayout = (0, runtimeLayoutPolicy_1.shouldKeepRuntimeBackgroundLayout)(analysis);
+    const hasHardPlayerTickScreenRuntime = (analysis.screenMaps?.length || 0) > 0;
+    const hardPlayerTickEnabled = (config.interruptConfig?.enableHardPlayerTick ?? false)
+        && hasHardPlayerTickScreenRuntime
+        && !(romMode === 'megarom' && targetFormat === 'ascii16');
     // Generate individual files
     console.log('📝 [MSX GENERATOR] Generating all ASM files...');
     console.log(`🔧 Hardware Mode: ${hardwareMode.toUpperCase()}, Optimize: ${optimizeLevel}`);
@@ -216,7 +250,7 @@ function generateModularASM(projectName, assets, config = {}) {
         'resource_ids.asm': '; Resource ids are emitted by the unified MegaROM backend when available.\nRESOURCE_ID_INVALID EQU #FF\n',
         'resource_table.asm': '; Resource table is emitted by the unified MegaROM backend when available.\nRESOURCE_TABLE_ENTRY_SIZE EQU 8\nRESOURCE_TABLE_COUNT EQU 0\nresource_table:\n',
         'resource_manager.asm': (0, resourceManagerGenerator_1.generateResourceManagerFile)(mapperWindow, { keepRuntimeBackgroundLayout }),
-        'interrupt.asm': (0, interruptGenerator_1.generateInterruptFile)(analysis, { interruptDrivenComponents, romMode }, executionPlan),
+        'interrupt.asm': (0, interruptGenerator_1.generateInterruptFile)(analysis, { interruptDrivenComponents, romMode, hardPlayerTickEnabled }, executionPlan),
         'header.asm': (0, headerGenerator_1.generateHeaderFile)(projectName, analysis, executionPlan, romMode, targetFormat),
         'patterns.asm': (0, patternsGenerator_1.generatePatternsFile)(analysis, romMode, romMode === 'megarom', targetFormat),
         'colors.asm': (0, colorsGenerator_1.generateColorsFile)(analysis, romMode, romMode === 'megarom', targetFormat),
@@ -287,6 +321,10 @@ function generateModularASMFromSummary(summary, config = {}) {
     const autoMegaROM = config.autoMegaROM ?? false;
     const executionPlan = buildValidatedExecutionPlan(analysis, config);
     const mapperWindow = (0, mapperWindowUtils_1.getMapperWindowConfig)(romMode, targetFormat);
+    const hasHardPlayerTickScreenRuntime = (analysis.screenMaps?.length || 0) > 0;
+    const hardPlayerTickEnabled = (config.interruptConfig?.enableHardPlayerTick ?? false)
+        && hasHardPlayerTickScreenRuntime
+        && !(romMode === 'megarom' && targetFormat === 'ascii16');
     console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
     // For plain48k ROMs, move font data to page 0 to free space in the main ROM window
     const hasMenus2 = analysis.gameFlow?.nodes?.some((node) => node.type === 'SubMenu' || node.type === 'Controls');
@@ -309,7 +347,7 @@ function generateModularASMFromSummary(summary, config = {}) {
         'resource_ids.asm': '; Resource ids are emitted by the unified MegaROM backend when available.\nRESOURCE_ID_INVALID EQU #FF\n',
         'resource_table.asm': '; Resource table is emitted by the unified MegaROM backend when available.\nRESOURCE_TABLE_ENTRY_SIZE EQU 8\nRESOURCE_TABLE_COUNT EQU 0\nresource_table:\n',
         'resource_manager.asm': (0, resourceManagerGenerator_1.generateResourceManagerFile)(mapperWindow, { keepRuntimeBackgroundLayout: keepRuntimeBackgroundLayout2 }),
-        'interrupt.asm': (0, interruptGenerator_1.generateInterruptFile)(analysis, { interruptDrivenComponents, romMode }, executionPlan),
+        'interrupt.asm': (0, interruptGenerator_1.generateInterruptFile)(analysis, { interruptDrivenComponents, romMode, hardPlayerTickEnabled }, executionPlan),
         'header.asm': (0, headerGenerator_1.generateHeaderFile)(summary.projectInfo.name, analysis, executionPlan, romMode, targetFormat),
         'patterns.asm': (0, patternsGenerator_1.generatePatternsFile)(analysis, romMode, romMode === 'megarom', targetFormat),
         'colors.asm': (0, colorsGenerator_1.generateColorsFile)(analysis, romMode, romMode === 'megarom', targetFormat),
