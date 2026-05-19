@@ -433,7 +433,6 @@ export const useProjectHandlers = ({
         const newProjectFiles = ["main.asm", "data/graphics.asm", "data/components.asm", "code/behaviors.asm"];
         const formattedDate = getFormattedDate();
         const createdAssets: ProjectAsset[] = [];
-        let mainAsmAssetId: string | null = null;
 
         newProjectFiles.forEach(filename => {
           const fileContent = filename === "main.asm"
@@ -447,19 +446,12 @@ export const useProjectHandlers = ({
             data: fileContent
           };
           createdAssets.push(newAsset);
-          if (filename === "main.asm") {
-            mainAsmAssetId = assetId;
-          }
         });
 
         setAssets(createdAssets);
-        if (mainAsmAssetId) {
-          setSelectedAssetId(mainAsmAssetId);
-          setCurrentEditor(EditorType.Code);
-          setStatusBarMessage(`Project "${projectNameFromModal}" created in ${selectedMode}. main.asm opened.`);
-        } else {
-          setStatusBarMessage(`Project "${projectNameFromModal}" created in ${selectedMode}.`);
-        }
+        setSelectedAssetId(null);
+        setCurrentEditor(EditorType.None);
+        setStatusBarMessage(`Project "${projectNameFromModal}" created in ${selectedMode}.`);
         setIsNewProjectModalOpen(false);
         setIsConfirmModalOpen(false);
       },
