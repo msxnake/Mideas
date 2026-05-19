@@ -39,6 +39,9 @@ const map = Array.from({ length: 14 }, (_, y) =>
   Array.from({ length: 16 }, (_, x) => {
     if (y === 10 && x >= 2 && x <= 12) return 1;
     if (y === 9 && x === 8) return 2;
+    if (y === 6 && x === 3) return 3;
+    if (y === 4 && x === 12) return 3;
+    if (y === 9 && x === 5) return 3;
     if (y === 8 && x === 5) return 3;
     return 0;
   })
@@ -141,6 +144,27 @@ const project = {
               position: { x: 6, y: 9 },
               spriteAssetId: 'sprite_msx2_layers_player',
               params: {},
+            },
+            {
+              id: 'entity_msx2_enemy_left',
+              name: 'Enemy Patrol',
+              kind: 'enemy',
+              position: { x: 3, y: 6 },
+              params: { movement: 'patrolX', minX: 2, maxX: 6, direction: 1 },
+            },
+            {
+              id: 'entity_msx2_enemy_right',
+              name: 'Enemy Hazard Right',
+              kind: 'enemy',
+              position: { x: 5, y: 9 },
+              params: {},
+            },
+            {
+              id: 'entity_msx2_enemy_vertical',
+              name: 'Enemy Vertical Patrol',
+              kind: 'enemy',
+              position: { x: 12, y: 4 },
+              params: { movement: 'patrolY', minY: 3, maxY: 7, direction: 1 },
             },
           ],
         },
@@ -284,5 +308,19 @@ const project = {
 };
 
 fs.mkdirSync(path.dirname(outJson), { recursive: true });
-fs.writeFileSync(outJson, `${JSON.stringify(project, null, 2)}\n`, 'utf8');
+const fixtureJson = `${JSON.stringify(project, null, 2)}\n`;
+let existingMatches = false;
+if (fs.existsSync(outJson)) {
+  try {
+    const existing = JSON.parse(fs.readFileSync(outJson, 'utf8'));
+    existingMatches = `${JSON.stringify(existing, null, 2)}\n` === fixtureJson;
+  } catch {
+    existingMatches = false;
+  }
+}
+if (!existingMatches) {
+  const tempJson = `${outJson}.tmp`;
+  fs.writeFileSync(tempJson, fixtureJson, 'utf8');
+  fs.renameSync(tempJson, outJson);
+}
 console.log(outJson);

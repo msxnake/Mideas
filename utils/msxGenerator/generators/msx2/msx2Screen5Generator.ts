@@ -20,6 +20,7 @@ const SCREEN5_SPRCOL_VRAM = '#7400';
 const SCREEN5_SPRPAT_VRAM = '#7800';
 const MSX2_TILE_SCREEN_WIDTH = 16;
 const MSX2_TILE_SCREEN_HEIGHT = 14;
+const MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN = 4;
 
 const sanitizeLabel = (value: string, fallback: string): string =>
   String(value || fallback)
@@ -305,6 +306,39 @@ function getPlayerStartFromTileScreen(screen: Msx2Screen5TileScreen | undefined)
   };
 }
 
+function getEntityParamNumber(params: Record<string, any> | undefined, key: string, fallback: number): number {
+  const value = Number(params?.[key]);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function getEnemyHazardRuntimeSlots(screen: Msx2Screen5TileScreen | undefined): Array<{ x: number; y: number; minX: number; maxX: number; minY: number; maxY: number; dx: number; dy: number }> {
+  return (screen?.layers?.entities || [])
+    .filter(entity => (entity.kind === 'enemy' || entity.kind === 'hazard') && entity.position)
+    .slice(0, MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)
+    .map(entity => {
+      const xTile = clampTileCoordinate(entity.position?.x, 15);
+      const yTile = clampTileCoordinate(entity.position?.y, 13);
+      const movement = String(entity.params?.movement || entity.params?.motion || '').toLowerCase();
+      const hasPatrolX = movement === 'patrolx' || movement === 'patrol-x' || movement === 'horizontal';
+      const hasPatrolY = movement === 'patroly' || movement === 'patrol-y' || movement === 'vertical';
+      const minXTile = hasPatrolX ? clampTileCoordinate(getEntityParamNumber(entity.params, 'minX', xTile), 15) : xTile;
+      const maxXTile = hasPatrolX ? clampTileCoordinate(getEntityParamNumber(entity.params, 'maxX', xTile), 15) : xTile;
+      const minYTile = hasPatrolY ? clampTileCoordinate(getEntityParamNumber(entity.params, 'minY', yTile), 13) : yTile;
+      const maxYTile = hasPatrolY ? clampTileCoordinate(getEntityParamNumber(entity.params, 'maxY', yTile), 13) : yTile;
+      const direction = getEntityParamNumber(entity.params, 'direction', 1) < 0 ? -1 : 1;
+      return {
+        x: clampHardwareSpriteX(xTile * 16),
+        y: clampHardwareSpriteY(yTile * 16),
+        minX: clampHardwareSpriteX(Math.min(minXTile, maxXTile) * 16),
+        maxX: clampHardwareSpriteX(Math.max(minXTile, maxXTile) * 16),
+        minY: clampHardwareSpriteY(Math.min(minYTile, maxYTile) * 16),
+        maxY: clampHardwareSpriteY(Math.max(minYTile, maxYTile) * 16),
+        dx: hasPatrolX ? direction : 0,
+        dy: hasPatrolY ? direction : 0,
+      };
+    });
+}
+
 function getHardwareSpriteRuntimeSettings(
   analysis: ProjectAnalysis,
   sprite: Msx2Sprite
@@ -566,6 +600,11 @@ function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis): string {
     ld (msx2_collectible_latch), a
     ld (msx2_exit_blocked_flag), a
     ld (msx2_game_over_flag), a
+    ld (msx2_game_over_restart_lock), a
+    ld (msx2_level_complete_flag), a
+    ld (msx2_level_continue_lock), a
+    ld (msx2_enemy_hit_flag), a
+    ld (msx2_enemy_damage_cooldown), a
     ld a, 3
     ld (msx2_lives), a
     call draw_msx2_lives_hud
@@ -654,7 +693,9 @@ function addImmediateToA(value: number): string {
 
 function buildHardwareSpriteRuntimeAsm(
   analysis: ProjectAnalysis,
-  requiredCollectibles: number
+  requiredCollectibles: number,
+  restartScreenLabel: string,
+  restartScreenIndex: number
 ): string {
   const sprite = getHardwareSpriteSource(analysis);
   if (!sprite) return '';
@@ -680,6 +721,177 @@ ${addImmediateToA(layer.xOffset)}    ld hl, #${(attrAddress + 1).toString(16).to
     call write_vram_byte_ext
 `;
   }).join('\n');
+  const enemySlotAddress = (base: string, slot: number): string => slot
+    ? `    ld hl, ${base}
+    ld de, ${slot}
+    add hl, de
+`
+    : `    ld hl, ${base}
+`;
+  const enemySlotCollisionChecks = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => {
+    const addSlot = slot ? `    add a, ${slot}\n` : '';
+    return `    ld a, (msx2_current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_count
+    add hl, de
+    ld a, (hl)
+    cp ${slot + 1}
+    jp c, .enemy_no_slot_${slot}
+    ld a, (msx2_current_screen_index)
+    add a, a
+    add a, a
+${addSlot}    ld e, a
+    ld d, 0
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld b, (hl)
+    ld a, (msx2_player_sprite_x)
+    add a, 8
+    ld c, a
+    ld a, c
+    cp b
+    jp c, .enemy_no_slot_${slot}
+    ld a, b
+    add a, 15
+    cp c
+    jp c, .enemy_no_slot_${slot}
+    ld a, (msx2_current_screen_index)
+    add a, a
+    add a, a
+${addSlot}    ld e, a
+    ld d, 0
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld b, (hl)
+    ld a, (msx2_player_sprite_y)
+    add a, 8
+    ld c, a
+    ld a, c
+    cp b
+    jp c, .enemy_no_slot_${slot}
+    ld a, b
+    add a, 15
+    cp c
+    jp c, .enemy_no_slot_${slot}
+    jp .enemy_damage
+.enemy_no_slot_${slot}:
+`;
+  }).join('');
+  const enemySlotMovementRoutines = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => {
+    const addSlot = slot ? `    add a, ${slot}\n` : '';
+    return `    call update_msx2_enemy_position_slot_${slot}
+`;
+  }).join('');
+  const enemySlotMovementHandlers = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => {
+    const addSlot = slot ? `    add a, ${slot}\n` : '';
+    return `update_msx2_enemy_position_slot_${slot}:
+    ld a, (msx2_current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_count
+    add hl, de
+    ld a, (hl)
+    cp ${slot + 1}
+    ret c
+${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
+    ld a, (hl)
+    or a
+    jp z, .enemy_slot_${slot}_check_y
+    cp #FF
+    jp z, .enemy_slot_${slot}_left
+.enemy_slot_${slot}_right:
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld b, (hl)
+    ld a, (msx2_current_screen_index)
+    add a, a
+    add a, a
+${addSlot}    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_max_x
+    add hl, de
+    ld a, b
+    cp (hl)
+    jp nc, .enemy_slot_${slot}_turn_left
+    inc b
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld (hl), b
+    ret
+.enemy_slot_${slot}_turn_left:
+${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
+    ld (hl), #FF
+.enemy_slot_${slot}_left:
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld b, (hl)
+    ld a, (msx2_current_screen_index)
+    add a, a
+    add a, a
+${addSlot}    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_min_x
+    add hl, de
+    ld a, b
+    cp (hl)
+    jp c, .enemy_slot_${slot}_turn_right
+    jp z, .enemy_slot_${slot}_turn_right
+    dec b
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld (hl), b
+    ret
+.enemy_slot_${slot}_turn_right:
+${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
+    ld (hl), 1
+    ret
+.enemy_slot_${slot}_check_y:
+${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
+    ld a, (hl)
+    or a
+    ret z
+    cp #FF
+    jp z, .enemy_slot_${slot}_up
+.enemy_slot_${slot}_down:
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld b, (hl)
+    ld a, (msx2_current_screen_index)
+    add a, a
+    add a, a
+${addSlot}    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_max_y
+    add hl, de
+    ld a, b
+    cp (hl)
+    jp nc, .enemy_slot_${slot}_turn_up
+    inc b
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld (hl), b
+    ret
+.enemy_slot_${slot}_turn_up:
+${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
+    ld (hl), #FF
+.enemy_slot_${slot}_up:
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld b, (hl)
+    ld a, (msx2_current_screen_index)
+    add a, a
+    add a, a
+${addSlot}    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_min_y
+    add hl, de
+    ld a, b
+    cp (hl)
+    jp c, .enemy_slot_${slot}_turn_down
+    jp z, .enemy_slot_${slot}_turn_down
+    dec b
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld (hl), b
+    ret
+.enemy_slot_${slot}_turn_down:
+${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
+    ld (hl), 1
+    ret
+
+`;
+  }).join('');
 
   return `draw_msx2_lives_hud:
     ; Tiny SCREEN 5 life pips at the top-left. Clobbers AF/BC/DE/HL.
@@ -735,9 +947,55 @@ draw_msx2_life_pip:
     jp nz, .pip_row
     ret
 
+draw_msx2_game_over_banner:
+    ; Simple visible game-over mark in SCREEN 5. Clobbers AF/BC/DE/HL.
+    ld hl, #0828
+    ld d, 12
+.game_over_row:
+    push hl
+    ld c, 48
+.game_over_col:
+    ld a, #88
+    call write_vram_byte_ext
+    inc hl
+    dec c
+    jp nz, .game_over_col
+    pop hl
+    ld bc, 128
+    add hl, bc
+    dec d
+    jp nz, .game_over_row
+    ret
+
+draw_msx2_level_complete_banner:
+    ; Simple visible level-complete mark in SCREEN 5. Clobbers AF/BC/DE/HL.
+    ld hl, #1028
+    ld d, 12
+.level_complete_row:
+    push hl
+    ld c, 48
+.level_complete_col:
+    ld a, #AA
+    call write_vram_byte_ext
+    inc hl
+    dec c
+    jp nz, .level_complete_col
+    pop hl
+    ld bc, 128
+    add hl, bc
+    dec d
+    jp nz, .level_complete_row
+    ret
+
 update_hardware_sprite_input:
     ; First playable MSX2 slice: keyboard/joystick left-right plus jump/gravity.
     ; Clobbers AF/BC/DE/HL.
+    ld a, (msx2_level_complete_flag)
+    or a
+    jp nz, msx2_level_complete_idle
+    ld a, (msx2_game_over_flag)
+    or a
+    jp nz, msx2_game_over_idle
     xor a
     call GTSTCK
     cp 2
@@ -799,6 +1057,86 @@ move_hardware_sprite_left:
     ld a, 1
     ld (msx2_player_sprite_dx), a
     jp update_hardware_sprite_vertical
+
+msx2_game_over_idle:
+    ld a, 8
+    call SNSMAT
+    bit 0, a
+    jp nz, .restart_space_released
+    ld a, (msx2_game_over_restart_lock)
+    or a
+    jp z, msx2_restart_game
+    jp .draw_game_over
+.restart_space_released:
+    xor a
+    ld (msx2_game_over_restart_lock), a
+.draw_game_over:
+    call draw_msx2_game_over_banner
+    call write_hardware_sprite_attrs
+    ret
+
+msx2_level_complete_idle:
+    ld a, 8
+    call SNSMAT
+    bit 0, a
+    jp nz, .continue_space_released
+    ld a, (msx2_level_continue_lock)
+    or a
+    jp z, msx2_continue_after_level_complete
+    jp .draw_level_complete
+.continue_space_released:
+    xor a
+    ld (msx2_level_continue_lock), a
+.draw_level_complete:
+    call draw_msx2_level_complete_banner
+    call write_hardware_sprite_attrs
+    ret
+
+msx2_continue_after_level_complete:
+    call load_${restartScreenLabel}_bitmap
+    ld a, ${Math.max(0, Math.min(255, restartScreenIndex))}
+    ld (msx2_current_screen_index), a
+    xor a
+    ld (msx2_level_complete_flag), a
+    ld (msx2_level_continue_lock), a
+    ld (msx2_exit_reached_flag), a
+    ld (msx2_exit_blocked_flag), a
+    ld (msx2_collectible_count), a
+    ld (msx2_collectible_latch), a
+    ld (msx2_player_dead_flag), a
+    ld (msx2_game_over_flag), a
+    ld (msx2_game_over_restart_lock), a
+    ld (msx2_enemy_hit_flag), a
+    ld (msx2_enemy_damage_cooldown), a
+    call msx2_reset_enemy_runtime_for_current_screen
+    call draw_msx2_lives_hud
+    call msx2_respawn_current_screen
+    call write_hardware_sprite_attrs
+    ret
+
+msx2_restart_game:
+    call load_${restartScreenLabel}_bitmap
+    ld a, ${Math.max(0, Math.min(255, restartScreenIndex))}
+    ld (msx2_current_screen_index), a
+    xor a
+    ld (msx2_game_over_flag), a
+    ld (msx2_game_over_restart_lock), a
+    ld (msx2_player_dead_flag), a
+    ld (msx2_exit_reached_flag), a
+    ld (msx2_collectible_count), a
+    ld (msx2_collectible_latch), a
+    ld (msx2_exit_blocked_flag), a
+    ld (msx2_level_complete_flag), a
+    ld (msx2_level_continue_lock), a
+    ld (msx2_enemy_hit_flag), a
+    ld (msx2_enemy_damage_cooldown), a
+    call msx2_reset_enemy_runtime_for_current_screen
+    ld a, 3
+    ld (msx2_lives), a
+    call draw_msx2_lives_hud
+    call msx2_respawn_current_screen
+    call write_hardware_sprite_attrs
+    ret
 
 auto_patrol_hardware_sprite:
     ; Move every 4 frames so the sprite visibly patrols without racing.
@@ -883,9 +1221,126 @@ apply_hardware_sprite_gravity:
     ld (msx2_player_on_ground), a
     jp upload_hardware_sprite_attrs
 
-upload_hardware_sprite_attrs:
+write_hardware_sprite_attrs:
     ; Writes visible sprite layer attributes to SCREEN 5 SAT. Clobbers AF/BC/DE/HL.
-${attrWrites}    call update_msx2_effect_state
+${attrWrites}    ret
+
+upload_hardware_sprite_attrs:
+    call write_hardware_sprite_attrs
+    call update_msx2_effect_state
+    call update_msx2_enemy_positions
+    call update_msx2_enemy_state
+    ret
+
+msx2_reset_enemy_runtime_for_current_screen:
+    ; Copy static enemy slots for current screen into mutable runtime RAM.
+    ; Clobbers AF/BC/DE/HL.
+    ld a, (msx2_current_screen_index)
+    add a, a
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_x
+    add hl, de
+    ld de, msx2_enemy_runtime_x
+    ld bc, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}
+    ldir
+    ld a, (msx2_current_screen_index)
+    add a, a
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_y
+    add hl, de
+    ld de, msx2_enemy_runtime_y
+    ld bc, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}
+    ldir
+    ld a, (msx2_current_screen_index)
+    add a, a
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_dx
+    add hl, de
+    ld de, msx2_enemy_runtime_dx
+    ld bc, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}
+    ldir
+    ld a, (msx2_current_screen_index)
+    add a, a
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_dy
+    add hl, de
+    ld de, msx2_enemy_runtime_dy
+    ld bc, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}
+    ldir
+    ret
+
+update_msx2_enemy_positions:
+    ; Move active enemy/hazard runtime slots before collision checks.
+    ; Clobbers AF/BC/DE/HL.
+    ld a, (msx2_game_over_flag)
+    or a
+    ret nz
+    ld a, (msx2_level_complete_flag)
+    or a
+    ret nz
+${enemySlotMovementRoutines}    ret
+
+${enemySlotMovementHandlers}
+
+msx2_apply_damage_respawn:
+    ; Shared damage path for effect hazards and entity enemies.
+    ; Clobbers AF/DE/HL.
+    ld a, 1
+    ld (msx2_player_dead_flag), a
+    ld a, (msx2_lives)
+    or a
+    jp z, .damage_game_over
+    dec a
+    ld (msx2_lives), a
+    jp nz, .damage_after_lives
+.damage_game_over:
+    ld a, 1
+    ld (msx2_game_over_flag), a
+    ld (msx2_game_over_restart_lock), a
+.damage_after_lives:
+    call draw_msx2_lives_hud
+    call msx2_respawn_current_screen
+    ld a, (msx2_game_over_flag)
+    or a
+    ret z
+    call draw_msx2_game_over_banner
+    ret
+
+update_msx2_enemy_state:
+    ; Uses enemy/hazard entities for the active screen as tile-sized damage bodies.
+    ; Clobbers AF/BC/DE/HL.
+    ld a, (msx2_game_over_flag)
+    or a
+    ret nz
+    ld a, (msx2_level_complete_flag)
+    or a
+    ret nz
+    ld a, (msx2_enemy_damage_cooldown)
+    or a
+    jp z, .enemy_cooldown_ready
+    dec a
+    ld (msx2_enemy_damage_cooldown), a
+    ret
+.enemy_cooldown_ready:
+${enemySlotCollisionChecks}    ret
+.enemy_damage:
+    ld a, 1
+    ld (msx2_enemy_hit_flag), a
+    ld a, 255
+    ld (msx2_enemy_damage_cooldown), a
+    call msx2_apply_damage_respawn
+    call write_hardware_sprite_attrs
+    ld b, #08
+    ld c, #07
+    call WRTVDP
     ret
 
 update_msx2_effect_state:
@@ -916,20 +1371,8 @@ update_msx2_effect_state:
 .hazard:
     xor a
     ld (msx2_collectible_latch), a
-    ld a, 1
-    ld (msx2_player_dead_flag), a
-    ld a, (msx2_lives)
-    or a
-    jp z, .hazard_game_over
-    dec a
-    ld (msx2_lives), a
-    jp nz, .hazard_after_lives
-.hazard_game_over:
-    ld a, 1
-    ld (msx2_game_over_flag), a
-.hazard_after_lives:
-    call draw_msx2_lives_hud
-    call msx2_respawn_current_screen
+    call msx2_apply_damage_respawn
+    call write_hardware_sprite_attrs
     ld b, #08
     jp .write_border
 .exit:
@@ -940,8 +1383,12 @@ update_msx2_effect_state:
     jp c, .exit_locked
     ld a, 1
     ld (msx2_exit_reached_flag), a
+    ld (msx2_level_complete_flag), a
+    ld (msx2_level_continue_lock), a
     xor a
     ld (msx2_exit_blocked_flag), a
+    call draw_msx2_level_complete_banner
+    call write_hardware_sprite_attrs
     ld b, #07
     jp .write_border
 .exit_locked:
@@ -1335,6 +1782,7 @@ function buildMsx2WorldTransitionAsm(
     call load_${targetLabel}_bitmap
     ld a, ${targetIndex}
     ld (msx2_current_screen_index), a
+    call msx2_reset_enemy_runtime_for_current_screen
     ld a, ${enterX}
     ld (msx2_player_sprite_x), a
     ld a, ${enterY}
@@ -1431,11 +1879,40 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const requiredCollectibles = Math.min(255, tileScreens.reduce((total, screen) => total + countTileScreenEffectCode(screen, 3), 0));
   const spawnXBytes = tileScreens.map(screen => clampHardwareSpriteX(getPlayerStartFromTileScreen(screen)?.x ?? 96));
   const spawnYBytes = tileScreens.map(screen => clampHardwareSpriteY(getPlayerStartFromTileScreen(screen)?.y ?? 144));
+  const enemyHazards = tileScreens.map(screen => getEnemyHazardRuntimeSlots(screen));
+  const enemyCountBytes = enemyHazards.map(enemies => Math.min(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN, enemies.length));
+  const enemyXBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => clampHardwareSpriteX(enemies[index]?.x ?? 0))
+  );
+  const enemyYBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => clampHardwareSpriteY(enemies[index]?.y ?? 0))
+  );
+  const enemyMinXBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => clampHardwareSpriteX(enemies[index]?.minX ?? 0))
+  );
+  const enemyMaxXBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => clampHardwareSpriteX(enemies[index]?.maxX ?? 0))
+  );
+  const enemyMinYBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => clampHardwareSpriteY(enemies[index]?.minY ?? 0))
+  );
+  const enemyMaxYBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => clampHardwareSpriteY(enemies[index]?.maxY ?? 0))
+  );
+  const enemyDxBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => enemies[index]?.dx === -1 ? 0xFF : enemies[index]?.dx ? 1 : 0)
+  );
+  const enemyDyBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => enemies[index]?.dy === -1 ? 0xFF : enemies[index]?.dy ? 1 : 0)
+  );
   const worldTransitionAsm = buildMsx2WorldTransitionAsm(analysis, tileScreens, tileScreenLoadLabels);
   const firstScreenIndex = tileScreenIndexByLabel.get(firstScreenLabel);
   const firstScreenIndexInit = firstScreenIndex === undefined
     ? ''
     : `    ld a, ${firstScreenIndex}\n    ld (msx2_current_screen_index), a\n`;
+  const firstScreenEnemyRuntimeInit = firstScreenIndex === undefined || !hasHardwareSprite(analysis)
+    ? ''
+    : '    call msx2_reset_enemy_runtime_for_current_screen\n';
   const loadRuntimeLayerPointers = (label: string): string => {
     const runtimeLabels = runtimeLayerLabels.get(label);
     const collisionLabel = runtimeLabels?.collision || 'screen5_empty_collision_layer';
@@ -1507,7 +1984,16 @@ msx2_collectible_latch EQU #C00F
 msx2_exit_blocked_flag EQU #C010
 msx2_lives EQU #C011
 msx2_game_over_flag EQU #C012
+msx2_game_over_restart_lock EQU #C013
+msx2_level_complete_flag EQU #C014
+msx2_level_continue_lock EQU #C015
+msx2_enemy_hit_flag EQU #C016
+msx2_enemy_damage_cooldown EQU #C017
 msx2_effects_runtime_buffer EQU #C020
+msx2_enemy_runtime_x EQU #C100
+msx2_enemy_runtime_y EQU #C104
+msx2_enemy_runtime_dx EQU #C108
+msx2_enemy_runtime_dy EQU #C10C
 msx2_layer_size EQU ${MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT}
 msx2_required_collectibles EQU ${requiredCollectibles}
 
@@ -1546,7 +2032,7 @@ init_rom:
 
     call load_screen5_palette
     call load_${firstScreenLabel}_bitmap
-${firstScreenIndexInit}${hasHardwareSprite(analysis) ? '    call init_hardware_sprites\n' : ''}
+${firstScreenIndexInit}${firstScreenEnemyRuntimeInit}${hasHardwareSprite(analysis) ? '    call init_hardware_sprites\n' : ''}
     call ENASCR
     ei
 
@@ -1594,7 +2080,7 @@ clear_screen5_bitmap:
     ret
 
 ${hardwareSpriteInitAsm}
-${buildHardwareSpriteRuntimeAsm(analysis, requiredCollectibles)}
+${buildHardwareSpriteRuntimeAsm(analysis, requiredCollectibles, firstScreenLabel, firstScreenIndex ?? 0)}
 ${worldTransitionAsm}
 load_screen5_palette:
     ; R#16 selects the first palette register; port #9A receives 2 bytes per slot.
@@ -1613,6 +2099,15 @@ ${[...tileScreenLoadRoutines, ...genericScreenLoadRoutines].join('\n')}
 ${formatBytes('screen5_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G')}
 ${formatBytes('msx2_screen_spawn_x', spawnXBytes.length ? spawnXBytes : [96], 'Per-msx2screen respawn X coordinates')}
 ${formatBytes('msx2_screen_spawn_y', spawnYBytes.length ? spawnYBytes : [144], 'Per-msx2screen respawn Y coordinates')}
+${formatBytes('msx2_screen_enemy_count', enemyCountBytes.length ? enemyCountBytes : [0], `Per-msx2screen active enemy/hazard entity count, capped at ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}`)}
+${formatBytes('msx2_screen_enemy_x', enemyXBytes.length ? enemyXBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard entity X coordinates, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_y', enemyYBytes.length ? enemyYBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard entity Y coordinates, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_min_x', enemyMinXBytes.length ? enemyMinXBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard patrol minimum X, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_max_x', enemyMaxXBytes.length ? enemyMaxXBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard patrol maximum X, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_min_y', enemyMinYBytes.length ? enemyMinYBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard patrol minimum Y, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_max_y', enemyMaxYBytes.length ? enemyMaxYBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard patrol maximum Y, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_dx', enemyDxBytes.length ? enemyDxBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard initial movement direction, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_dy', enemyDyBytes.length ? enemyDyBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard initial vertical movement direction, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('screen5_empty_collision_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 collision layer, 16x14 bytes')}
 ${formatBytes('screen5_empty_effects_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 effects layer, 16x14 bytes')}
 ${hardwareSpriteDataAsm}
@@ -1642,7 +2137,7 @@ export function generateMsx2Screen5Files(
     'patterns.asm': '; SCREEN 2 pattern tables are intentionally not used by MSX2 SCREEN 5.\n',
     'colors.asm': '; SCREEN 2 color tables are intentionally not used by MSX2 SCREEN 5.\n',
     'components.asm': '; Components are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
-    'entities.asm': '; Entities are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
+    'entities.asm': '; MSX2 SCREEN 5 backend emits player spawn and enemy/hazard runtime data in unitedFiles.asm.\n',
     'worlds.asm': '; Worlds are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
     'screens.asm': '; SCREEN 5 bitmap data is emitted in unitedFiles.asm.\n',
     'sprites.asm': hasHardwareSprite(analysis)
