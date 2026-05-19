@@ -47,6 +47,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'sprite': return <SpriteIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'msx2sprite': return <SpriteIcon className={`${iconClass} text-cyan-300 group-hover:text-msx-accent`} />;
     case 'msx2bitmap': return <MapIcon className={`${iconClass} text-sky-300 group-hover:text-msx-accent`} />;
+    case 'msx2screen': return <MapIcon className={`${iconClass} text-blue-300 group-hover:text-msx-accent`} />;
     case 'font': return <PencilIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'boss': return <BugIcon className={`${iconClass} text-msx-danger group-hover:text-msx-accent`} />;
     case 'screenmap': return <MapIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -77,7 +78,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
 };
 
 /** The order in which asset type folders should be displayed. @constant */
-const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
+const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2bitmap', 'msx2screen', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
 /** A mapping from asset type keys to their display names. @constant */
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   statemachine: "State Machines",
@@ -85,6 +86,7 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   sprite: "Sprites",
   msx2sprite: "MSX2 Sprites",
   msx2bitmap: "MSX2 Bitmaps",
+  msx2screen: "MSX2 16x16 Screens",
   font: "Fonts",
   boss: "Bosses",
   screenmap: "Screen Maps",
@@ -111,6 +113,7 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   sprite: EditorType.Sprite,
   msx2sprite: EditorType.Msx2Sprite,
   msx2bitmap: EditorType.Msx2Bitmap,
+  msx2screen: EditorType.Msx2Screen,
   font: EditorType.Font,
   boss: EditorType.Boss,
   screenmap: EditorType.Screen,

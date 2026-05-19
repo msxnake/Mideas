@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import {
-  ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Bitmap, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
+  ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Bitmap, Msx2Screen5TileScreen, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph,
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset,
   DialogueAsset, PortraitAsset, ScreenKind, Boss
@@ -380,6 +380,31 @@ export const useAssetHandlers = ({
           transparentSlot: 0,
         } as Msx2Bitmap;
         newEditorType = EditorType.Msx2Bitmap;
+        break;
+      case 'msx2screen':
+        defaultName = 'New MSX2 16x16 Screen';
+        const screen5TileSize = 16;
+        const blankTile = Array.from({ length: screen5TileSize }, () => Array.from({ length: screen5TileSize }, () => 0));
+        const floorTile = Array.from({ length: screen5TileSize }, (_, y) =>
+          Array.from({ length: screen5TileSize }, (_, x) => y < 3 ? 15 : (x % 8 < 4 ? 5 : 4))
+        );
+        newAssetData = {
+          id,
+          name: defaultName,
+          target: 'MSX2',
+          vdpMode: 'SCREEN5',
+          tileSize: 16,
+          widthTiles: 16,
+          heightTiles: 14,
+          palette: createDefaultScreen5PaletteSlots(),
+          tiles: [
+            { id: `tile_${Date.now()}_0`, name: 'Blank', pixels: blankTile },
+            { id: `tile_${Date.now()}_1`, name: 'Platform', pixels: floorTile },
+          ],
+          map: Array.from({ length: 14 }, (_, y) => Array.from({ length: 16 }, () => y === 13 ? 1 : 0)),
+          collisionMap: Array.from({ length: 14 }, (_, y) => Array.from({ length: 16 }, () => y === 13 ? 1 : 0)),
+        } as Msx2Screen5TileScreen;
+        newEditorType = EditorType.Msx2Screen;
         break;
       case 'screenmap':
         const { widthTiles: mapW, heightTiles: mapH } = getScreenModeMetrics(currentScreenMode);
