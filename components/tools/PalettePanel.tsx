@@ -28,7 +28,7 @@ interface PalettePanelProps {
  * @category Tools
  */
 export const PalettePanel: React.FC<PalettePanelProps> = ({ palette, selectedColor, onColorSelect, isMsx1Palette = false }) => {
-  const title = isMsx1Palette ? "MSX1 Palette (SCREEN 2)" : "MSX Palette (SCREEN 5)";
+  const title = isMsx1Palette ? "MSX1 Palette (SCREEN 2)" : "MSX2 Palette (SCREEN 5)";
   
   return (
     <Panel title={title} titleClassName="text-msx-highlight">

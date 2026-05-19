@@ -411,20 +411,21 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       if (currentEditor === EditorType.Screen && currentScreenEditorActiveLayer === 'entities') {
         return null;
       }
-      const isScreen2Mode = currentScreenMode === "SCREEN 2 (Graphics I)";
-      let paletteToUse = isScreen2Mode ? MSX1_PALETTE : MSX_SCREEN5_PALETTE;
-      if (!isScreen2Mode && currentEditor === EditorType.Tile && activeAsset?.type === 'tile') {
+      const isMsx2SpriteEditor = currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite';
+      const usesScreen2Palette = currentScreenMode === "SCREEN 2 (Graphics I)" && !isMsx2SpriteEditor;
+      let paletteToUse = usesScreen2Palette ? MSX1_PALETTE : MSX_SCREEN5_PALETTE;
+      if (!usesScreen2Palette && currentEditor === EditorType.Tile && activeAsset?.type === 'tile') {
         const { slots } = ensureScreen5PaletteSlots((activeAsset.data as Tile).screen5Palette);
         paletteToUse = screen5SlotsToMsxColors(slots);
       }
-      if (!isScreen2Mode && currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite') {
+      if (isMsx2SpriteEditor) {
         const { slots } = ensureScreen5PaletteSlots((activeAsset.data as Msx2Sprite).palette);
         paletteToUse = screen5SlotsToMsxColors(slots);
       }
       const paletteAssets = assets.filter(a => a.type === 'palette');
-      const canApplySavedPalette = !isScreen2Mode && (
+      const canApplySavedPalette = !usesScreen2Palette && (
         (currentEditor === EditorType.Tile && activeAsset?.type === 'tile') ||
-        (currentEditor === EditorType.Msx2Sprite && activeAsset?.type === 'msx2sprite')
+        isMsx2SpriteEditor
       );
       const applyPaletteFromAsset = () => {
         if (!canApplySavedPalette || !selectedPaletteAssetId) {
@@ -453,7 +454,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             palette={paletteToUse}
             selectedColor={selectedColor}
             onColorSelect={setSelectedColor}
-            isMsx1Palette={isScreen2Mode}
+            isMsx1Palette={usesScreen2Palette}
           />
           {canApplySavedPalette && (
             <Panel title="Paletas guardadas" className="mt-2">
