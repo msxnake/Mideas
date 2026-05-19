@@ -10,8 +10,9 @@ This smoke fixture exercises only the `msx2-screen5-bitmap` backend. It does not
 - Palette: 16 MSX2 V9938 RGB333 slots using the default MSX2 palette
 - Tiles: two 8x8 tiles
 - Screen map: 32x27 cells, matching the 256x212 SCREEN 5 bitmap area
+- GameFlow: `Start -> Text(background screen) -> Transition(cls) -> Text(background screen) -> End`
 
-The fixture stores empty layer arrays initially; the smoke script normalizes them to deterministic 32x27 background/collision/effects arrays before generation.
+The fixture stores a deterministic 32x27 background. The smoke script normalizes the background/collision/effects arrays before generation.
 
 ## Reproducible Command
 
@@ -48,3 +49,13 @@ targetGraphicsBackend = msx2-screen5-bitmap
 ```
 
 It also checks that the generated file contains the MSX2 SCREEN 5 backend marker and that the returned `patterns.asm` and `colors.asm` files are the backend isolation stubs saying SCREEN 2 tables are intentionally not used.
+
+It also checks the first MSX2 GameFlow slice:
+
+- `Text` nodes emit `wait_key`
+- `Transition(cls)` emits `clear_screen5_bitmap`
+- GameFlow code is emitted inline in `unitedFiles.asm`, not through the SCREEN 2 `gameFlowGenerator.ts`
+
+## Current Scope Limit
+
+The smoke remains a simple 32KB ROM. A single SCREEN 5 bitmap already takes 27136 bytes, so multiple full-screen bitmaps need compression or a mapper-backed resource path before they can be supported safely.

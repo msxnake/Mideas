@@ -1,5 +1,5 @@
 import { DEFAULT_SCREEN5_CUSTOM_PALETTE } from '../../../../constants';
-import { PaletteAsset, Screen5PaletteSlot, ScreenMap, Tile } from '../../../../types';
+import { GameFlowConnection, GameFlowNode, PaletteAsset, Screen5PaletteSlot, ScreenMap, Tile } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -144,13 +144,138 @@ function formatBytes(label: string, bytes: number[], comment?: string): string {
   return `${lines.join('\n')}\n`;
 }
 
+function defaultTargetNodeId(connections: GameFlowConnection[] | undefined, nodeId: string): string | undefined {
+  return (connections || []).find(connection =>
+    connection.from?.nodeId === nodeId && !connection.from?.sourceId
+  )?.to?.nodeId;
+}
+
+function resolveScreenByAssetId(analysis: ProjectAnalysis, assetId: string | undefined): ScreenMap | undefined {
+  if (!assetId) return undefined;
+  const assets = (analysis as any).assets as Array<{ id?: string; type?: string; data?: unknown }> | undefined;
+  const asset = assets?.find(item => item.id === assetId && item.type === 'screenmap');
+  if (asset?.data) return asset.data as ScreenMap;
+  return (analysis.screenMaps || []).find(screen => screen.id === assetId);
+}
+
+function collectReferencedScreens(analysis: ProjectAnalysis): ScreenMap[] {
+  const screens = new Map<string, ScreenMap>();
+  const addScreen = (screen: ScreenMap | undefined) => {
+    if (!screen) return;
+    screens.set(screen.id || screen.name || `screen_${screens.size}`, screen);
+  };
+
+  addScreen(analysis.screenMaps?.[0]);
+
+  for (const node of analysis.gameFlow?.nodes || []) {
+    if (node.type === 'Text') {
+      addScreen(resolveScreenByAssetId(analysis, node.appearance?.backgroundScreenAssetId));
+    } else if (node.type === 'SubMenu') {
+      addScreen(resolveScreenByAssetId(analysis, node.appearance?.backgroundScreenAssetId));
+    } else if (node.type === 'Restart') {
+      addScreen(resolveScreenByAssetId(analysis, node.appearance?.backgroundScreenAssetId));
+    }
+  }
+
+  return Array.from(screens.values());
+}
+
+function buildMsx2GameFlowProgram(analysis: ProjectAnalysis, screenLabels: Map<string, string>): string {
+  const graph = analysis.gameFlow;
+  const fallbackLabel = screenLabels.values().next().value;
+  if (!graph?.nodes?.length) {
+    return fallbackLabel ? `    call load_${fallbackLabel}_bitmap\n` : '';
+  }
+
+  const nodeById = new Map(graph.nodes.map(node => [node.id, node]));
+  const startNodeId = graph.startNodeId || graph.nodes.find(node => node.type === 'Start')?.id;
+  const lines: string[] = [
+    '    ; MSX2 minimal GameFlow: Start/Text(background)/Transition(cls)/End.',
+  ];
+  const unsupported = new Set<string>();
+  const visited = new Set<string>();
+  let terminated = false;
+  let current: GameFlowNode | undefined = startNodeId ? nodeById.get(startNodeId) : undefined;
+
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+
+    switch (current.type) {
+      case 'Start':
+      case 'Waypoint':
+      case 'Globals':
+      case 'Music':
+        break;
+      case 'Text': {
+        const screen = resolveScreenByAssetId(analysis, current.appearance?.backgroundScreenAssetId) || analysis.screenMaps?.[0];
+        const label = screen ? screenLabels.get(screen.id || screen.name) : undefined;
+        if (label) lines.push(`    call load_${label}_bitmap`);
+        lines.push('    call wait_key');
+        break;
+      }
+      case 'SubMenu': {
+        const screen = resolveScreenByAssetId(analysis, current.appearance?.backgroundScreenAssetId) || analysis.screenMaps?.[0];
+        const label = screen ? screenLabels.get(screen.id || screen.name) : undefined;
+        if (label) lines.push(`    call load_${label}_bitmap`);
+        lines.push('    call wait_key');
+        break;
+      }
+      case 'Transition':
+        if (current.effect === 'cls') {
+          lines.push('    call clear_screen5_bitmap');
+        } else {
+          unsupported.add(`Transition:${current.effect}`);
+        }
+        break;
+      case 'End':
+        lines.push('    jp .main_loop');
+        terminated = true;
+        current = undefined;
+        continue;
+      case 'Restart':
+        lines.push('    jp init_rom');
+        terminated = true;
+        current = undefined;
+        continue;
+      default:
+        unsupported.add(current.type);
+        break;
+    }
+
+    const nextNodeId = defaultTargetNodeId(graph.connections, current.id);
+    current = nextNodeId ? nodeById.get(nextNodeId) : undefined;
+  }
+
+  if (unsupported.size > 0) {
+    lines.push(`    ; Unsupported MSX2 GameFlow nodes skipped in MVP: ${Array.from(unsupported).join(', ')}`);
+  }
+
+  if (!terminated) {
+    lines.push('    jp .main_loop');
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2Screen5Config): string {
-  const screen = analysis.screenMaps?.[0];
-  const screenLabel = sanitizeLabel(screen?.name || 'screen5_screen_0', 'SCREEN5_SCREEN_0');
+  const screens = collectReferencedScreens(analysis);
   const slots = resolveScreen5Palette(analysis);
-  const bitmapBytes = buildScreen5BitmapBytes(screen, analysis.tiles || [], slots);
   const paletteBytes = buildPaletteBytes(slots);
   const title = projectName.replace(/[^ -~]/g, '');
+  const screenLabels = new Map<string, string>();
+  const screenBitmapBlocks = screens.map((screen, index) => {
+    const label = sanitizeLabel(screen?.name || `screen5_screen_${index}`, `SCREEN5_SCREEN_${index}`);
+    screenLabels.set(screen.id || screen.name || `screen_${index}`, label);
+    return formatBytes(
+      `${label}_BITMAP`,
+      buildScreen5BitmapBytes(screen, analysis.tiles || [], slots),
+      `${screen?.name || `Screen ${index}`} rasterized as SCREEN 5, 2 pixels per byte`
+    );
+  });
+  const firstScreen = screens[0] || analysis.screenMaps?.[0];
+  const firstScreenLabel = firstScreen
+    ? screenLabels.get(firstScreen.id || firstScreen.name) || sanitizeLabel(firstScreen.name, 'SCREEN5_SCREEN_0')
+    : 'SCREEN5_SCREEN_0';
+  const gameFlowProgram = buildMsx2GameFlowProgram(analysis, screenLabels);
 
   return `; ==================================================================
 ; Mideas MSX2 SCREEN 5 bitmap backend
@@ -163,9 +288,11 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
 CHGMOD  EQU #005F
 DISSCR  EQU #0041
 ENASCR  EQU #0044
+FILVRM  EQU #0056
 WRTVDP  EQU #0047
 LDIRVM  EQU #005C
 CHGCLR  EQU #0062
+CHGET   EQU #009F
 HKEY    EQU #F3DB
 CLIKSW  EQU #F3DC
 BAKCLR  EQU #F3E9
@@ -208,13 +335,25 @@ init_rom:
     call WRTVDP
 
     call load_screen5_palette
-    call load_${screenLabel}_bitmap
+    call load_${firstScreenLabel}_bitmap
     call ENASCR
     ei
 
+${gameFlowProgram}
 .main_loop:
     halt
     jr .main_loop
+
+wait_key:
+    call CHGET
+    ret
+
+clear_screen5_bitmap:
+    xor a
+    ld hl, SCREEN5_BITMAP_VRAM
+    ld bc, SCREEN5_BITMAP_SIZE
+    call FILVRM
+    ret
 
 load_screen5_palette:
     ; R#16 selects the first palette register; port #9A receives 2 bytes per slot.
@@ -229,15 +368,25 @@ load_screen5_palette:
     djnz .palette_loop
     ret
 
-load_${screenLabel}_bitmap:
-    ld hl, ${screenLabel}_BITMAP
+load_${firstScreenLabel}_bitmap:
+    ld hl, ${firstScreenLabel}_BITMAP
     ld de, SCREEN5_BITMAP_VRAM
     ld bc, SCREEN5_BITMAP_SIZE
     call LDIRVM
     ret
 
+${screens.slice(1).map(screen => {
+  const label = screenLabels.get(screen.id || screen.name);
+  return `load_${label}_bitmap:
+    ld hl, ${label}_BITMAP
+    ld de, SCREEN5_BITMAP_VRAM
+    ld bc, SCREEN5_BITMAP_SIZE
+    call LDIRVM
+    ret
+`;
+}).join('\n')}
 ${formatBytes('screen5_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G')}
-${formatBytes(`${screenLabel}_BITMAP`, bitmapBytes, `${screen?.name || 'First screen'} rasterized as SCREEN 5, 2 pixels per byte`)}
+${screenBitmapBlocks.join('\n')}
     ds #C000 - $, #FF
     end
 `;
@@ -258,7 +407,7 @@ export function generateMsx2Screen5Files(
     'resource_ids.asm': '; MSX2 SCREEN 5 backend has no resource table in MVP.\n',
     'resource_table.asm': '; MSX2 SCREEN 5 backend has no resource table in MVP.\n',
     'resource_manager.asm': '; MSX2 SCREEN 5 backend has no resource manager in MVP.\n',
-    'interrupt.asm': '; MSX2 SCREEN 5 backend uses HALT loop in MVP.\n',
+    'interrupt.asm': '; MSX2 SCREEN 5 backend uses BIOS CHGET and HALT loop in MVP.\n',
     'header.asm': '; MSX2 SCREEN 5 backend header is emitted in unitedFiles.asm.\n',
     'patterns.asm': '; SCREEN 2 pattern tables are intentionally not used by MSX2 SCREEN 5.\n',
     'colors.asm': '; SCREEN 2 color tables are intentionally not used by MSX2 SCREEN 5.\n',
@@ -275,7 +424,7 @@ export function generateMsx2Screen5Files(
     'animtiles.asm': '; Animated tiles are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
     'bosses.asm': '; Bosses are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
     'statemachine.asm': '; State machines are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
-    'gameflow.asm': '; GameFlow is out of scope for the first MSX2 SCREEN 5 backend slice.\n',
+    'gameflow.asm': '; MSX2 SCREEN 5 minimal GameFlow is emitted inline in unitedFiles.asm.\n',
     'main.asm': unitedFiles,
     'unitedFiles.asm': unitedFiles,
   };

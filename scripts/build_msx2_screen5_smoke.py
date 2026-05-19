@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -152,6 +153,15 @@ if (!asm) {
 if (!asm.includes("Mideas MSX2 SCREEN 5 bitmap backend")) {
   throw new Error("Generated ASM does not look like the MSX2 SCREEN 5 backend output");
 }
+if (!asm.includes("MSX2 minimal GameFlow")) {
+  throw new Error("Generated ASM does not include the MSX2 minimal GameFlow marker");
+}
+if (!asm.includes("call clear_screen5_bitmap")) {
+  throw new Error("Generated ASM does not include the MSX2 cls transition");
+}
+if (!asm.includes("call wait_key")) {
+  throw new Error("Generated ASM does not include the MSX2 Text wait");
+}
 if ((files["patterns.asm"] || "").includes("intentionally not used") === false) {
   throw new Error("MSX2 backend did not return the SCREEN 2 patterns.asm isolation marker");
 }
@@ -159,7 +169,9 @@ if ((files["colors.asm"] || "").includes("intentionally not used") === false) {
   throw new Error("MSX2 backend did not return the SCREEN 2 colors.asm isolation marker");
 }
 
-fs.writeFileSync(asmPath, asm, "utf8");
+const tmpAsmPath = `${asmPath}.tmp`;
+fs.writeFileSync(tmpAsmPath, asm, "utf8");
+fs.renameSync(tmpAsmPath, asmPath);
 console.log(`ASM generated: ${asmPath}`);
 console.log(`Project: ${name}`);
 console.log(`Assets: ${assets.length}`);
@@ -188,6 +200,9 @@ def resolve_glass(project_root: Path, explicit: str | None) -> Path:
 
 def compile_rom(project_root: Path, glass: Path, asm_output: Path, rom_output: Path, sym_output: Path | None) -> None:
     rom_output.parent.mkdir(parents=True, exist_ok=True)
+    rom_output.unlink(missing_ok=True)
+    if sym_output:
+        sym_output.unlink(missing_ok=True)
     cmd = ["java", "-jar", str(glass), str(asm_output), str(rom_output)]
     if sym_output:
         sym_output.parent.mkdir(parents=True, exist_ok=True)
@@ -227,6 +242,14 @@ def capture_openmsx(project_root: Path, openmsx: str, rom_output: Path, screensh
     screenshot_output.parent.mkdir(parents=True, exist_ok=True)
     if screenshot_output.exists():
         screenshot_output.unlink()
+    if os.name == "nt":
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", "Get-Process openmsx -ErrorAction SilentlyContinue | Stop-Process -Force"],
+            cwd=str(project_root),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
 
     tcl = f'''
 proc do_capture {{}} {{

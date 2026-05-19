@@ -91,6 +91,47 @@ const screen = {
   borderColor: 1,
 };
 
+const gameFlow = {
+  id: 'gf_msx2_minimal',
+  name: 'MSX2 Minimal Flow',
+  startNodeId: 'gf_start',
+  panOffset: { x: 0, y: 0 },
+  zoomLevel: 1,
+  nodes: [
+    { id: 'gf_start', type: 'Start', position: { x: 80, y: 120 } },
+    {
+      id: 'gf_screen_a',
+      type: 'Text',
+      title: 'Screen A',
+      message: '',
+      position: { x: 260, y: 120 },
+      appearance: {
+        backgroundScreenAssetId: 'asset_screen_msx2_minimal',
+        colors: { text: '#FFFFFF', background: '#000000', promptText: '#FFFFFF' },
+      },
+    },
+    { id: 'gf_cls', type: 'Transition', effect: 'cls', duration: 100, position: { x: 460, y: 120 } },
+    {
+      id: 'gf_screen_b',
+      type: 'Text',
+      title: 'Screen B',
+      message: '',
+      position: { x: 660, y: 120 },
+      appearance: {
+        backgroundScreenAssetId: 'asset_screen_msx2_minimal',
+        colors: { text: '#FFFFFF', background: '#000000', promptText: '#FFFFFF' },
+      },
+    },
+    { id: 'gf_end', type: 'End', endType: 'Victory', message: 'END', position: { x: 860, y: 120 } },
+  ],
+  connections: [
+    { id: 'c_start_a', from: { nodeId: 'gf_start' }, to: { nodeId: 'gf_screen_a' } },
+    { id: 'c_a_cls', from: { nodeId: 'gf_screen_a' }, to: { nodeId: 'gf_cls' } },
+    { id: 'c_cls_b', from: { nodeId: 'gf_cls' }, to: { nodeId: 'gf_screen_b' } },
+    { id: 'c_b_end', from: { nodeId: 'gf_screen_b' }, to: { nodeId: 'gf_end' } },
+  ],
+};
+
 const assets = [
   ...tiles.map(tile => ({ id: `asset_${tile.id}`, name: tile.name, type: 'tile', data: tile })),
   {
@@ -100,6 +141,7 @@ const assets = [
     data: { mode: 'SCREEN5', slots: tilePalette, notes: 'Minimal SCREEN 5 smoke palette.' },
   },
   { id: 'asset_screen_msx2_minimal', name: screen.name, type: 'screenmap', data: screen },
+  { id: 'asset_gf_msx2_minimal', name: gameFlow.name, type: 'gameflow', data: gameFlow },
 ];
 
 mkdirSync(outDir, { recursive: true });
@@ -124,6 +166,15 @@ const files = generator.generateModularASM('MSX2_Screen5_Minimal', assets, {
 });
 
 writeFileSync(asmPath, files['unitedFiles.asm']);
+if (!files['unitedFiles.asm'].includes('MSX2 minimal GameFlow')) {
+  throw new Error('MSX2 minimal GameFlow marker missing');
+}
+if (!files['unitedFiles.asm'].includes('call clear_screen5_bitmap')) {
+  throw new Error('MSX2 cls transition was not emitted');
+}
+if (!files['unitedFiles.asm'].includes('call wait_key')) {
+  throw new Error('MSX2 Text wait was not emitted');
+}
 execFileSync('java', ['-jar', glassPath, asmPath, romPath], { stdio: 'inherit' });
 
 console.log(JSON.stringify({

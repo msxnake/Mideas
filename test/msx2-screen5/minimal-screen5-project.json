@@ -13437,6 +13437,125 @@
         "backgroundColor": 1,
         "borderColor": 1
       }
+    },
+    {
+      "id": "gf_asset_msx2_minimal",
+      "name": "MSX2 Minimal Flow",
+      "type": "gameflow",
+      "data": {
+        "id": "gf_msx2_minimal",
+        "name": "MSX2 Minimal Flow",
+        "startNodeId": "gf_start",
+        "panOffset": {
+          "x": 0,
+          "y": 0
+        },
+        "zoomLevel": 1,
+        "nodes": [
+          {
+            "id": "gf_start",
+            "type": "Start",
+            "position": {
+              "x": 80,
+              "y": 120
+            }
+          },
+          {
+            "id": "gf_screen_a",
+            "type": "Text",
+            "title": "Screen A",
+            "message": "",
+            "position": {
+              "x": 260,
+              "y": 120
+            },
+            "appearance": {
+              "backgroundScreenAssetId": "screen_screen5_minimal",
+              "colors": {
+                "text": "#FFFFFF",
+                "background": "#000000",
+                "promptText": "#FFFFFF"
+              }
+            }
+          },
+          {
+            "id": "gf_cls",
+            "type": "Transition",
+            "effect": "cls",
+            "duration": 100,
+            "position": {
+              "x": 460,
+              "y": 120
+            }
+          },
+          {
+            "id": "gf_screen_b",
+            "type": "Text",
+            "title": "Screen B",
+            "message": "",
+            "position": {
+              "x": 660,
+              "y": 120
+            },
+            "appearance": {
+              "backgroundScreenAssetId": "screen_asset_msx2_minimal",
+              "colors": {
+                "text": "#FFFFFF",
+                "background": "#000000",
+                "promptText": "#FFFFFF"
+              }
+            }
+          },
+          {
+            "id": "gf_end",
+            "type": "End",
+            "endType": "Victory",
+            "message": "END",
+            "position": {
+              "x": 860,
+              "y": 120
+            }
+          }
+        ],
+        "connections": [
+          {
+            "id": "c_start_a",
+            "from": {
+              "nodeId": "gf_start"
+            },
+            "to": {
+              "nodeId": "gf_screen_a"
+            }
+          },
+          {
+            "id": "c_a_cls",
+            "from": {
+              "nodeId": "gf_screen_a"
+            },
+            "to": {
+              "nodeId": "gf_cls"
+            }
+          },
+          {
+            "id": "c_cls_b",
+            "from": {
+              "nodeId": "gf_cls"
+            },
+            "to": {
+              "nodeId": "gf_screen_b"
+            }
+          },
+          {
+            "id": "c_b_end",
+            "from": {
+              "nodeId": "gf_screen_b"
+            },
+            "to": {
+              "nodeId": "gf_end"
+            }
+          }
+        ]
+      }
     }
   ]
 }

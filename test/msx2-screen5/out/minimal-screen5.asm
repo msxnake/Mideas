@@ -9,9 +9,11 @@
 CHGMOD  EQU #005F
 DISSCR  EQU #0041
 ENASCR  EQU #0044
+FILVRM  EQU #0056
 WRTVDP  EQU #0047
 LDIRVM  EQU #005C
 CHGCLR  EQU #0062
+CHGET   EQU #009F
 HKEY    EQU #F3DB
 CLIKSW  EQU #F3DC
 BAKCLR  EQU #F3E9
@@ -58,9 +60,28 @@ init_rom:
     call ENASCR
     ei
 
+    ; MSX2 minimal GameFlow: Start/Text(background)/Transition(cls)/End.
+    call load_SCREEN5_MINIMAL_32X27_bitmap
+    call wait_key
+    call clear_screen5_bitmap
+    call load_SCREEN5_MINIMAL_32X27_bitmap
+    call wait_key
+    jp .main_loop
+
 .main_loop:
     halt
     jr .main_loop
+
+wait_key:
+    call CHGET
+    ret
+
+clear_screen5_bitmap:
+    xor a
+    ld hl, SCREEN5_BITMAP_VRAM
+    ld bc, SCREEN5_BITMAP_SIZE
+    call FILVRM
+    ret
 
 load_screen5_palette:
     ; R#16 selects the first palette register; port #9A receives 2 bytes per slot.
@@ -81,6 +102,7 @@ load_SCREEN5_MINIMAL_32X27_bitmap:
     ld bc, SCREEN5_BITMAP_SIZE
     call LDIRVM
     ret
+
 
 ; Palette bytes: byte1=(R<<4)|B, byte2=G
 screen5_palette_data:

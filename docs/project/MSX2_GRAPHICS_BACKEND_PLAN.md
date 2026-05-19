@@ -20,10 +20,12 @@ The first MSX2 slice supports:
 - 16 palette slots selected from the MSX2 512-color RGB333 master palette.
 - Tile map rasterization into SCREEN 5 bytes, 2 pixels per byte.
 - Simple ROM output with BIOS `CHGMOD`, palette load, bitmap load, and HALT loop.
+- Minimal GameFlow over existing nodes:
+  `Start -> Text(backgroundScreenAssetId) -> Transition(cls) -> Text(...) -> End`.
 
 Out of scope for this slice:
 
-- GameFlow runtime.
+- Full SCREEN 2 GameFlow runtime parity.
 - Entities/components.
 - Sprites.
 - HUD/font/menu systems.
@@ -44,12 +46,13 @@ Out of scope for this slice:
    - Compile the generated ASM with Glass.
 
 3. Runtime features
+   - Add basic screen transitions and clear/fill helpers.
+   - Add key-wait and single-screen GameFlow smoke.
    - Reintroduce hardware sprites through a SCREEN 5-specific sprite loader.
    - Add collision/effects maps as RAM data, not as name-table data.
-   - Add basic screen transitions and clear/fill helpers.
 
 4. Engine integration
-   - Add GameFlow start/load-screen support.
+   - Expand GameFlow screen loading beyond the single 32KB-ROM bitmap limit.
    - Add entities/components that do not assume SCREEN 2 name-table writes.
    - Add HUD/text strategy for bitmap modes.
 
