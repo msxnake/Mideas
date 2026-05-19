@@ -39,6 +39,20 @@ Use a specific OpenMSX binary or machine:
 python scripts/build_msx2_screen5_smoke.py --openmsx "C:\Program Files\openMSX\openmsx.exe" --machine C-BIOS_MSX2
 ```
 
+Capture after advancing the minimal GameFlow with SPACE:
+
+```powershell
+python scripts\capture_openmsx_action.py `
+  --rom test\msx2-screen5\out\minimal-screen5.rom `
+  --sequence "SPACE,WAIT:500" `
+  --project-root . `
+  --output test\msx2-screen5\out\minimal-screen5-after-space.png `
+  --openmsx "C:\Program Files\openMSX\openmsx.exe" `
+  --machine C-BIOS_MSX2 `
+  --boot-wait-ms 6000 `
+  --capture-wait-ms 1000
+```
+
 ## Isolation Checks
 
 The helper calls `generateModularASM` with:
@@ -55,6 +69,7 @@ It also checks the first MSX2 GameFlow slice:
 - `Text` nodes emit `wait_key`
 - `Transition(cls)` emits `clear_screen5_bitmap`
 - GameFlow code is emitted inline in `unitedFiles.asm`, not through the SCREEN 2 `gameFlowGenerator.ts`
+- `scripts/capture_openmsx_action.py` can send SPACE through OpenMSX key matrix row 8 mask `0x01` and capture the post-input state.
 
 ## Current Scope Limit
 
