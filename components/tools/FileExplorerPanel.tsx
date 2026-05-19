@@ -291,6 +291,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   const baseItemClass = "w-full text-left pl-1 pr-1 py-1.5 rounded flex items-center group";
   const activeItemClass = "bg-msx-accent text-white";
   const inactiveItemClass = "text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary";
+  const disabledItemClass = "text-msx-textsecondary/25 opacity-35 grayscale cursor-not-allowed line-through decoration-red-500 decoration-2 decoration-solid";
   const selectedTileClass = "bg-msx-highlight text-white";
 
   const systemTools: Array<{
@@ -442,7 +443,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
               <button
                 onClick={() => { if (folderEnabled) toggleFolder(folderType); }}
                 disabled={!folderEnabled}
-                className={`${baseItemClass} ${folderEnabled ? inactiveItemClass : 'text-msx-textsecondary/40 cursor-not-allowed'} focus:outline-none`}
+                className={`${baseItemClass} ${folderEnabled ? inactiveItemClass : disabledItemClass} focus:outline-none`}
                 aria-expanded={isExpanded}
                 aria-controls={`folder-content-${folderType}`}
                 title={disabledTitle}
@@ -582,7 +583,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                           }}
                           onDoubleClick={() => onRequestRename(asset.id, asset.name, asset.type)}
                           className={`text-left py-1 flex items-center flex-grow truncate rounded-l-sm
-                                    ${!assetEnabled ? 'text-msx-textsecondary/40 cursor-not-allowed' : (isSelected ? activeItemClass : (isTileSelected ? selectedTileClass : inactiveItemClass))}
+                                    ${!assetEnabled ? disabledItemClass : (isSelected ? activeItemClass : (isTileSelected ? selectedTileClass : inactiveItemClass))}
                                     pl-2`}
                           disabled={!assetEnabled}
                           title={assetDisabledTitle || `Select: ${asset.name}. Double-click to rename.`}

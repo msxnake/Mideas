@@ -178,7 +178,7 @@ const DropdownMenu: React.FC<{ label: string; children: React.ReactNode; alignRi
  * An item within a DropdownMenu.
  */
 const DropdownItem: React.FC<{ onClick: () => void; children: React.ReactNode; icon?: React.ReactNode; disabled?: boolean; colorClass?: string; }> = ({ onClick, children, icon, disabled, colorClass }) => {
-  const baseClasses = "w-full text-left px-3 py-1.5 text-xs flex items-center disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseClasses = "w-full text-left px-3 py-1.5 text-xs flex items-center disabled:opacity-35 disabled:grayscale disabled:cursor-not-allowed disabled:line-through disabled:decoration-red-500 disabled:decoration-2";
   const defaultClasses = "text-msx-textsecondary hover:bg-msx-accent hover:text-white disabled:hover:bg-transparent disabled:hover:text-msx-textsecondary";
   const customClasses = colorClass || defaultClasses;
 
