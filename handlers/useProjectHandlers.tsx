@@ -927,6 +927,22 @@ export const useProjectHandlers = ({
     event.target.value = '';
   };
 
+  const handleLoadProjectFromRawContent = useCallback((rawContent: string, options?: { projectName?: string; sourcePath?: string }) => {
+    try {
+      const projectData = JSON.parse(rawContent);
+      const sourcePath = options?.sourcePath || options?.projectName || 'project.json';
+      const projectName = options?.projectName
+        || sourcePath.split(/[\\/]/).pop()?.replace(/\.json$/i, '')
+        || projectData.currentProjectName
+        || 'msx_ide_project';
+
+      loadProjectFromParsedData(projectData, { projectName, sourcePath, rawContent });
+    } catch (error) {
+      console.error('Error loading project:', error);
+      setStatusBarMessage('Error loading project file. Please check the file format.');
+    }
+  }, [loadProjectFromParsedData, setStatusBarMessage]);
+
   const handleOpenRecentProject = (path: string) => {
     const cachedData = getRecentProjectData(path);
     if (!cachedData) {
@@ -953,6 +969,7 @@ export const useProjectHandlers = ({
     handleSaveProject,
     handleConfirmSaveAsProjectAs,
     handleLoadProject,
+    handleLoadProjectFromRawContent,
     handleOpenRecentProject
   };
 };

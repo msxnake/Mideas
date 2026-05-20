@@ -16,6 +16,8 @@ const checks = [
   ['single Entity Properties panel', (source.match(/Panel title="Entity Properties"/g) || []).length === 1],
   ['Behavior mode button exists', (source.includes("setMode('behavior')") || source.includes("layerButton('behavior'")) && source.includes("'Behavior'")],
   ['Entities mode button exists', (source.includes("setMode('entities')") || source.includes("layerButton('entities'")) && source.includes("'Entities'")],
+  ['entity creation palette replaces tile palette in entities mode', source.includes('Panel title="Create Entity"') && source.includes("mode !== 'entities'") && source.includes('DEFAULT_MSX2_ENTITY_CREATE_PRESETS')],
+  ['entity creation presets include core MSX2 actors', source.includes("id: 'player'") && source.includes("id: 'ghost_maze'") && source.includes("id: 'patrol_x'") && source.includes("id: 'door'")],
   ['entity kind options include enemy', source.includes('<option value="enemy">Enemy</option>')],
   ['movement options include patrol X/Y', source.includes('<option value="patrolX">Patrol X</option>') && source.includes('<option value="patrolY">Patrol Y</option>')],
   ['entity tile coordinate labels exist', source.includes('>Tile X</span>') && source.includes('>Tile Y</span>')],
@@ -34,7 +36,9 @@ const checks = [
   ['patrol X edits only X bounds', source.includes("selectedEntity.params.movement === 'patrolX'") && source.includes('aria-label="Patrol min X"') && source.includes('aria-label="Patrol max X"')],
   ['patrol Y edits only Y bounds', source.includes('aria-label="Patrol min Y"') && source.includes('aria-label="Patrol max Y"')],
   ['active area clamps width and height to origin', source.includes('MAP_WIDTH - activeAreaX') && source.includes('MAP_HEIGHT - activeAreaY') && source.includes('MAP_WIDTH - x') && source.includes('MAP_HEIGHT - y')],
-  ['copy paste uses active area crop', source.includes('runtime.activeAreaY + y') && source.includes('runtime.activeAreaX + x') && source.includes('pasteWidth') && source.includes('pasteHeight')],
+  ['copy paste uses active or selected area crop', source.includes('activeEditRect.y + y') && source.includes('activeEditRect.x + x') && source.includes('pasteWidth') && source.includes('pasteHeight')],
+  ['selection tools panel exists', source.includes('Panel title="Selection Tools"') && source.includes('Select Area') && source.includes('Fill') && source.includes('Clear')],
+  ['selection rect is rendered in grid', source.includes('selectionRect.x * TILE_SIZE * 2') && source.includes('selectionRect.width * TILE_SIZE * 2')],
 ];
 
 const failures = checks.filter(([, passed]) => !passed);

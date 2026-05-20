@@ -498,6 +498,7 @@ const App: React.FC = () => {
   // Refs for autosave functionality
   const autosaveFunctionRef = useRef<(() => void) | null>(null);
   const fileLoadInputRef = useRef<HTMLInputElement>(null);
+  const urlProjectLoadRef = useRef(false);
 
   // Track previous values for editor context
   useEffect(() => {
@@ -528,6 +529,36 @@ const App: React.FC = () => {
       return () => clearInterval(intervalId);
     }
   }, [autosaveEnabled, assets.length, currentProjectName, projectHandlers]);
+
+  useEffect(() => {
+    if (urlProjectLoadRef.current) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const loadProjectUrl = params.get('loadProjectUrl');
+    if (!loadProjectUrl) return;
+
+    urlProjectLoadRef.current = true;
+    const projectName = params.get('projectName') || undefined;
+    setStatusBarMessage(`Loading project from ${loadProjectUrl}...`);
+
+    fetch(loadProjectUrl)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.text();
+      })
+      .then(rawContent => {
+        projectHandlers.handleLoadProjectFromRawContent(rawContent, {
+          projectName,
+          sourcePath: loadProjectUrl,
+        });
+      })
+      .catch(error => {
+        console.error('Error loading project URL:', error);
+        setStatusBarMessage('Error loading project URL. Please check the file path.');
+      });
+  }, [projectHandlers, setStatusBarMessage]);
 
   // Handle editor toggle
   const handleToggleEditor = useCallback(() => {

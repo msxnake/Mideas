@@ -23,13 +23,15 @@ const MSX2_TILE_SCREEN_HEIGHT = 14;
 const MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN = 4;
 const MSX2_MAX_PLAYER_HARDWARE_LAYERS = 32 - MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN - 1;
 const MSX2_ENEMY_SPRITE_COLOR = 13;
+const MSX2_ENEMY_MOVEMENT_PATROL = 0;
+const MSX2_ENEMY_MOVEMENT_GHOST_MAZE = 2;
 const MSX2_RUNTIME_RAM_START = 0xC000;
 const MSX2_RUNTIME_RAM_LIMIT = 0xF300;
 const MSX2_ENEMY_SPRITE_PATTERN = [
-  0x00, 0x03, 0x07, 0x0F, 0x1F, 0x1B, 0x3F, 0x3C,
-  0x3C, 0x3F, 0x1B, 0x1F, 0x0F, 0x07, 0x03, 0x00,
-  0x00, 0xC0, 0xE0, 0xF0, 0xF8, 0xD8, 0xFC, 0x3C,
-  0x3C, 0xFC, 0xD8, 0xF8, 0xF0, 0xE0, 0xC0, 0x00,
+  0x07, 0x1F, 0x3F, 0x7F, 0x67, 0xE7, 0xFF, 0xFF,
+  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xEE, 0xC6, 0x80,
+  0xE0, 0xF8, 0xFC, 0xFE, 0x9E, 0x9F, 0xFF, 0xFF,
+  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xEF, 0x31, 0x01,
 ];
 
 const sanitizeLabel = (value: string, fallback: string): string =>
@@ -337,7 +339,7 @@ function estimateMsx2RuntimeRamEnd(tileScreenCount: number): number {
   const effectRuntimeSize = Math.max(1, tileScreenCount) * layerSize;
   const effectScratchBase = Math.max(0xC200, (effectRuntimeBase + effectRuntimeSize + 0x0f) & 0xfff0);
   const enemyRuntimeBase = (effectScratchBase + layerSize + 0x0f) & 0xfff0;
-  return enemyRuntimeBase + 0x10;
+  return enemyRuntimeBase + 0x1c;
 }
 
 function maxPersistentMsx2ScreenCount(): number {
@@ -411,7 +413,7 @@ function getEntityParamNumber(params: Record<string, any> | undefined, key: stri
   return Number.isFinite(value) ? value : fallback;
 }
 
-function getEnemyHazardRuntimeSlots(screen: Msx2Screen5TileScreen | undefined): Array<{ x: number; y: number; minX: number; maxX: number; minY: number; maxY: number; dx: number; dy: number }> {
+function getEnemyHazardRuntimeSlots(screen: Msx2Screen5TileScreen | undefined): Array<{ x: number; y: number; minX: number; maxX: number; minY: number; maxY: number; dx: number; dy: number; mode: number; speed: number }> {
   return (screen?.layers?.entities || [])
     .filter(entity => (entity.kind === 'enemy' || entity.kind === 'hazard') && entity.position)
     .slice(0, MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN)
@@ -421,11 +423,23 @@ function getEnemyHazardRuntimeSlots(screen: Msx2Screen5TileScreen | undefined): 
       const movement = String(entity.params?.movement || entity.params?.motion || '').toLowerCase();
       const hasPatrolX = movement === 'patrolx' || movement === 'patrol-x' || movement === 'horizontal';
       const hasPatrolY = movement === 'patroly' || movement === 'patrol-y' || movement === 'vertical';
+      const hasGhostMaze = movement === 'ghostmaze'
+        || movement === 'ghost-maze'
+        || movement === 'mazeghost'
+        || movement === 'maze-ghost'
+        || movement === 'ghost'
+        || movement === 'pacman-ghost'
+        || movement === 'puck-ghost'
+        || movement === 'chase';
       const minXTile = hasPatrolX ? clampTileCoordinate(getEntityParamNumber(entity.params, 'minX', xTile), 15) : xTile;
       const maxXTile = hasPatrolX ? clampTileCoordinate(getEntityParamNumber(entity.params, 'maxX', xTile), 15) : xTile;
       const minYTile = hasPatrolY ? clampTileCoordinate(getEntityParamNumber(entity.params, 'minY', yTile), 13) : yTile;
       const maxYTile = hasPatrolY ? clampTileCoordinate(getEntityParamNumber(entity.params, 'maxY', yTile), 13) : yTile;
       const direction = getEntityParamNumber(entity.params, 'direction', 1) < 0 ? -1 : 1;
+      const initialDirection = String(entity.params?.initialDirection || entity.params?.startDirection || '').toLowerCase();
+      const ghostDx = initialDirection === 'left' ? -1 : initialDirection === 'up' || initialDirection === 'down' ? 0 : direction;
+      const ghostDy = initialDirection === 'up' ? -1 : initialDirection === 'down' ? 1 : 0;
+      const speed = Math.max(1, Math.min(15, Math.floor(Number(entity.params?.speed ?? entity.params?.frameStep ?? 2) || 2)));
       return {
         x: clampHardwareSpriteX(xTile * 16),
         y: clampHardwareSpriteY(yTile * 16),
@@ -433,8 +447,10 @@ function getEnemyHazardRuntimeSlots(screen: Msx2Screen5TileScreen | undefined): 
         maxX: clampHardwareSpriteX(Math.max(minXTile, maxXTile) * 16),
         minY: clampHardwareSpriteY(Math.min(minYTile, maxYTile) * 16),
         maxY: clampHardwareSpriteY(Math.max(minYTile, maxYTile) * 16),
-        dx: hasPatrolX ? direction : 0,
-        dy: hasPatrolY ? direction : 0,
+        dx: hasGhostMaze ? ghostDx : hasPatrolX ? direction : 0,
+        dy: hasGhostMaze ? ghostDy : hasPatrolY ? direction : 0,
+        mode: hasGhostMaze ? MSX2_ENEMY_MOVEMENT_GHOST_MAZE : MSX2_ENEMY_MOVEMENT_PATROL,
+        speed,
       };
     });
 }
@@ -460,6 +476,24 @@ function getRuntimePatrolBounds(analysis: ProjectAnalysis): { minX: number; maxX
   const minX = Math.max(1, minTileX * 16);
   const maxX = Math.max(minX + 1, Math.min(239, (minTileX + widthTiles) * 16 - 16));
   return { minX, maxX };
+}
+
+function usesMazeMovement(analysis: ProjectAnalysis): boolean {
+  const screen = getPrimaryRuntimeTileScreen(analysis);
+  const runtime = (screen?.runtime || {}) as Record<string, unknown>;
+  const mode = String(
+    runtime.movementMode
+      ?? runtime.movement
+      ?? runtime.controlMode
+      ?? runtime.playerMode
+      ?? ''
+  ).toLowerCase();
+
+  return mode === 'maze'
+    || mode === 'maze-chase'
+    || mode === 'mazechase'
+    || mode === 'pacman'
+    || mode === 'pac-man';
 }
 
 function isTransparentSpritePixel(color: string | undefined, sprite: Msx2Sprite): boolean {
@@ -877,6 +911,7 @@ function buildHardwareSpriteRuntimeAsm(
   const basePatternIndex = clampBasePatternIndex(settings.patternIndex, layers.length + 1);
   const enemyPatternIndex = basePatternIndex + (layers.length * 4);
   const patrolBounds = getRuntimePatrolBounds(analysis);
+  const mazeMovement = usesMazeMovement(analysis);
   const attrWrites = layers.map((layer, layerIndex) => {
     const attrAddress = 0x7600 + (layerIndex * 4);
     return `    ; Sprite layer ${layerIndex}: x+${layer.xOffset}, y+${layer.yOffset}
@@ -933,6 +968,106 @@ ${slotAddress('msx2_enemy_runtime_x')}    ld a, (hl)
 `;
   }).join('\n');
   const terminatorAttrAddress = 0x7600 + ((layers.length + MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN) * 4);
+  const mazeMovementInputAsm = mazeMovement ? `
+update_hardware_sprite_input_maze:
+    ; Four-direction maze movement: no gravity, no jump. Clobbers AF/BC/DE/HL.
+    ld a, (msx2_level_complete_flag)
+    or a
+    jp nz, msx2_level_complete_idle
+    ld a, (msx2_game_over_flag)
+    or a
+    jp nz, msx2_game_over_idle
+    xor a
+    call GTSTCK
+    cp 1
+    jp z, maze_move_up
+    cp 2
+    jp z, maze_move_up
+    cp 8
+    jp z, maze_move_up
+    cp 5
+    jp z, maze_move_down
+    cp 4
+    jp z, maze_move_down
+    cp 6
+    jp z, maze_move_down
+    cp 3
+    jp z, maze_move_right
+    cp 7
+    jp z, maze_move_left
+    jp upload_hardware_sprite_attrs
+
+maze_move_up:
+    ld a, (msx2_player_sprite_y)
+    or a
+    jp z, upload_hardware_sprite_attrs
+    dec a
+    ld c, a
+    ld a, (msx2_player_sprite_x)
+    add a, 8
+    ld b, a
+    call msx2_collision_at_pixel
+    jp nz, upload_hardware_sprite_attrs
+    ld a, (msx2_player_sprite_y)
+    dec a
+    ld (msx2_player_sprite_y), a
+    jp upload_hardware_sprite_attrs
+
+maze_move_down:
+    ld a, (msx2_player_sprite_y)
+    cp 196
+    jp nc, upload_hardware_sprite_attrs
+    inc a
+    add a, 15
+    ld c, a
+    ld a, (msx2_player_sprite_x)
+    add a, 8
+    ld b, a
+    call msx2_collision_at_pixel
+    jp nz, upload_hardware_sprite_attrs
+    ld a, (msx2_player_sprite_y)
+    inc a
+    ld (msx2_player_sprite_y), a
+    jp upload_hardware_sprite_attrs
+
+maze_move_right:
+    ld a, (msx2_player_sprite_x)
+    cp ${patrolBounds.maxX}
+    jp nc, msx2_try_world_edge_transition_right
+    inc a
+    add a, 15
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 8
+    ld c, a
+    call msx2_collision_at_pixel
+    jp nz, upload_hardware_sprite_attrs
+    ld a, (msx2_player_sprite_x)
+    inc a
+    ld (msx2_player_sprite_x), a
+    ld a, 1
+    ld (msx2_player_sprite_dx), a
+    jp upload_hardware_sprite_attrs
+
+maze_move_left:
+    ld a, (msx2_player_sprite_x)
+    cp ${patrolBounds.minX}
+    jp z, msx2_try_world_edge_transition_left
+    jp c, msx2_try_world_edge_transition_left
+    dec a
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 8
+    ld c, a
+    call msx2_collision_at_pixel
+    jp nz, upload_hardware_sprite_attrs
+    ld a, (msx2_player_sprite_x)
+    dec a
+    ld (msx2_player_sprite_x), a
+    xor a
+    ld (msx2_player_sprite_dx), a
+    jp upload_hardware_sprite_attrs
+` : '';
   const enemySlotAddress = (base: string, slot: number): string => slot
     ? `    ld hl, ${base}
     ld de, ${slot}
@@ -1004,6 +1139,10 @@ ${enemySlotAddress('msx2_enemy_runtime_y', slot)}
     ld a, (hl)
     cp ${slot + 1}
     ret c
+${enemySlotAddress('msx2_enemy_runtime_mode', slot)}
+    ld a, (hl)
+    cp ${MSX2_ENEMY_MOVEMENT_GHOST_MAZE}
+    jp z, .enemy_slot_${slot}_ghost_maze
 ${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
     ld a, (hl)
     or a
@@ -1100,6 +1239,202 @@ ${enemySlotAddress('msx2_enemy_runtime_y', slot)}
 .enemy_slot_${slot}_turn_down:
 ${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
     ld (hl), 1
+    ret
+
+.enemy_slot_${slot}_ghost_maze:
+${enemySlotAddress('msx2_enemy_runtime_tick', slot)}
+    ld a, (hl)
+    or a
+    jp z, .enemy_slot_${slot}_ghost_tick_ready
+    dec a
+    ld (hl), a
+    ret
+.enemy_slot_${slot}_ghost_tick_ready:
+${enemySlotAddress('msx2_enemy_runtime_speed', slot)}
+    ld a, (hl)
+    or a
+    jp nz, .enemy_slot_${slot}_ghost_store_tick
+    ld a, 2
+.enemy_slot_${slot}_ghost_store_tick:
+${enemySlotAddress('msx2_enemy_runtime_tick', slot)}
+    ld (hl), a
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld a, (hl)
+    and #0F
+    jp nz, .enemy_slot_${slot}_ghost_forward
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld a, (hl)
+    and #0F
+    jp nz, .enemy_slot_${slot}_ghost_forward
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld b, (hl)
+    ld a, (msx2_player_sprite_x)
+    cp b
+    jp c, .enemy_slot_${slot}_ghost_prefer_left
+.enemy_slot_${slot}_ghost_prefer_right:
+    jp .enemy_slot_${slot}_ghost_try_right_first
+.enemy_slot_${slot}_ghost_prefer_left:
+    jp .enemy_slot_${slot}_ghost_try_left_first
+.enemy_slot_${slot}_ghost_try_right_first:
+    call .enemy_slot_${slot}_ghost_can_right
+    jp z, .enemy_slot_${slot}_ghost_set_right
+    jp .enemy_slot_${slot}_ghost_try_vertical
+.enemy_slot_${slot}_ghost_try_left_first:
+    call .enemy_slot_${slot}_ghost_can_left
+    jp z, .enemy_slot_${slot}_ghost_set_left
+.enemy_slot_${slot}_ghost_try_vertical:
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld b, (hl)
+    ld a, (msx2_player_sprite_y)
+    cp b
+    jp c, .enemy_slot_${slot}_ghost_try_up_first
+    call .enemy_slot_${slot}_ghost_can_down
+    jp z, .enemy_slot_${slot}_ghost_set_down
+    call .enemy_slot_${slot}_ghost_can_up
+    jp z, .enemy_slot_${slot}_ghost_set_up
+    jp .enemy_slot_${slot}_ghost_try_reverse
+.enemy_slot_${slot}_ghost_try_up_first:
+    call .enemy_slot_${slot}_ghost_can_up
+    jp z, .enemy_slot_${slot}_ghost_set_up
+    call .enemy_slot_${slot}_ghost_can_down
+    jp z, .enemy_slot_${slot}_ghost_set_down
+.enemy_slot_${slot}_ghost_try_reverse:
+${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
+    ld a, (hl)
+    cp 1
+    jp z, .enemy_slot_${slot}_ghost_set_left
+    cp #FF
+    jp z, .enemy_slot_${slot}_ghost_set_right
+${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
+    ld a, (hl)
+    cp 1
+    jp z, .enemy_slot_${slot}_ghost_set_up
+    cp #FF
+    jp z, .enemy_slot_${slot}_ghost_set_down
+    ret
+.enemy_slot_${slot}_ghost_forward:
+${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
+    ld a, (hl)
+    cp 1
+    jp z, .enemy_slot_${slot}_ghost_move_right_checked
+    cp #FF
+    jp z, .enemy_slot_${slot}_ghost_move_left_checked
+${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
+    ld a, (hl)
+    cp 1
+    jp z, .enemy_slot_${slot}_ghost_move_down_checked
+    cp #FF
+    jp z, .enemy_slot_${slot}_ghost_move_up_checked
+    jp .enemy_slot_${slot}_ghost_try_right_first
+.enemy_slot_${slot}_ghost_set_right:
+${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
+    ld (hl), 1
+${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
+    ld (hl), 0
+    jp .enemy_slot_${slot}_ghost_move_right
+.enemy_slot_${slot}_ghost_set_left:
+${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
+    ld (hl), #FF
+${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
+    ld (hl), 0
+    jp .enemy_slot_${slot}_ghost_move_left
+.enemy_slot_${slot}_ghost_set_down:
+${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
+    ld (hl), 0
+${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
+    ld (hl), 1
+    jp .enemy_slot_${slot}_ghost_move_down
+.enemy_slot_${slot}_ghost_set_up:
+${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
+    ld (hl), 0
+${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
+    ld (hl), #FF
+    jp .enemy_slot_${slot}_ghost_move_up
+.enemy_slot_${slot}_ghost_move_right_checked:
+    call .enemy_slot_${slot}_ghost_can_right
+    jp nz, .enemy_slot_${slot}_ghost_try_vertical
+.enemy_slot_${slot}_ghost_move_right:
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    inc (hl)
+    ret
+.enemy_slot_${slot}_ghost_move_left_checked:
+    call .enemy_slot_${slot}_ghost_can_left
+    jp nz, .enemy_slot_${slot}_ghost_try_vertical
+.enemy_slot_${slot}_ghost_move_left:
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    dec (hl)
+    ret
+.enemy_slot_${slot}_ghost_move_down_checked:
+    call .enemy_slot_${slot}_ghost_can_down
+    jp nz, .enemy_slot_${slot}_ghost_try_right_first
+.enemy_slot_${slot}_ghost_move_down:
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    inc (hl)
+    ret
+.enemy_slot_${slot}_ghost_move_up_checked:
+    call .enemy_slot_${slot}_ghost_can_up
+    jp nz, .enemy_slot_${slot}_ghost_try_right_first
+.enemy_slot_${slot}_ghost_move_up:
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    dec (hl)
+    ret
+.enemy_slot_${slot}_ghost_can_right:
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld a, (hl)
+    cp ${patrolBounds.maxX}
+    jp nc, .enemy_slot_${slot}_ghost_blocked
+    inc a
+    add a, 15
+    ld b, a
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld a, (hl)
+    add a, 8
+    ld c, a
+    call msx2_collision_at_pixel
+    ret
+.enemy_slot_${slot}_ghost_can_left:
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld a, (hl)
+    cp ${patrolBounds.minX}
+    jp z, .enemy_slot_${slot}_ghost_blocked
+    jp c, .enemy_slot_${slot}_ghost_blocked
+    dec a
+    ld b, a
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld a, (hl)
+    add a, 8
+    ld c, a
+    call msx2_collision_at_pixel
+    ret
+.enemy_slot_${slot}_ghost_can_down:
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld a, (hl)
+    cp 196
+    jp nc, .enemy_slot_${slot}_ghost_blocked
+    inc a
+    add a, 15
+    ld c, a
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld a, (hl)
+    add a, 8
+    ld b, a
+    call msx2_collision_at_pixel
+    ret
+.enemy_slot_${slot}_ghost_can_up:
+${enemySlotAddress('msx2_enemy_runtime_y', slot)}
+    ld a, (hl)
+    or a
+    jp z, .enemy_slot_${slot}_ghost_blocked
+    dec a
+    ld c, a
+${enemySlotAddress('msx2_enemy_runtime_x', slot)}
+    ld a, (hl)
+    add a, 8
+    ld b, a
+    call msx2_collision_at_pixel
+    ret
+.enemy_slot_${slot}_ghost_blocked:
+    or 1
     ret
 
 `;
@@ -1237,9 +1572,11 @@ update_msx2_air_timer:
     call write_hardware_sprite_attrs
     ret
 
+${mazeMovementInputAsm}
 update_hardware_sprite_input:
     ; First playable MSX2 slice: keyboard/joystick left-right plus jump/gravity.
     ; Clobbers AF/BC/DE/HL.
+${mazeMovement ? '    jp update_hardware_sprite_input_maze\n' : ''}
     ld a, (msx2_level_complete_flag)
     or a
     jp nz, msx2_level_complete_idle
@@ -1645,6 +1982,36 @@ msx2_reset_enemy_runtime_for_current_screen:
     ld hl, msx2_screen_enemy_dy
     add hl, de
     ld de, msx2_enemy_runtime_dy
+    ld bc, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}
+    ldir
+    ld a, (msx2_current_screen_index)
+    add a, a
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_mode
+    add hl, de
+    ld de, msx2_enemy_runtime_mode
+    ld bc, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}
+    ldir
+    ld a, (msx2_current_screen_index)
+    add a, a
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_speed
+    add hl, de
+    ld de, msx2_enemy_runtime_speed
+    ld bc, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}
+    ldir
+    ld a, (msx2_current_screen_index)
+    add a, a
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_speed
+    add hl, de
+    ld de, msx2_enemy_runtime_tick
     ld bc, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}
     ldir
     ret
@@ -2139,13 +2506,20 @@ function collectReferencedTileScreens(analysis: ProjectAnalysis): Msx2Screen5Til
   return Array.from(screens.values());
 }
 
-function buildMsx2TileScreenLoadLines(label: string | undefined, tileScreenIndexByLabel: Map<string, number>): string {
+function buildMsx2TileScreenLoadLines(
+  label: string | undefined,
+  tileScreenIndexByLabel: Map<string, number>,
+  refreshHardwareSprites = false
+): string {
   if (!label) return '';
   const index = tileScreenIndexByLabel.get(label);
   const setIndex = index === undefined
     ? ''
     : `    ld a, ${index}\n    ld (msx2_current_screen_index), a\n`;
-  return `${setIndex}    call load_${label}_bitmap\n`;
+  const spriteRefresh = refreshHardwareSprites
+    ? '    call msx2_reset_enemy_runtime_for_current_screen\n    call init_hardware_sprites\n'
+    : '';
+  return `${setIndex}    call load_${label}_bitmap\n${spriteRefresh}`;
 }
 
 function screenLoadLabelForAssetId(
@@ -2169,8 +2543,9 @@ function buildMsx2GameFlowProgram(
 ): string {
   const graph = analysis.gameFlow;
   const fallbackLabel = tileScreenLabels.values().next().value || screenLabels.values().next().value;
+  const refreshHardwareSprites = hasHardwareSprite(analysis);
   if (!graph?.nodes?.length) {
-    return buildMsx2TileScreenLoadLines(fallbackLabel, tileScreenIndexByLabel);
+    return buildMsx2TileScreenLoadLines(fallbackLabel, tileScreenIndexByLabel, refreshHardwareSprites);
   }
 
   const nodeById = new Map(graph.nodes.map(node => [node.id, node]));
@@ -2195,21 +2570,21 @@ function buildMsx2GameFlowProgram(
       case 'Text': {
         const screen = resolveScreenByAssetId(analysis, current.appearance?.backgroundScreenAssetId) || analysis.screenMaps?.[0];
         const label = screen ? screenLabels.get(screen.id || screen.name) : undefined;
-        if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel).trimEnd());
+        if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
         lines.push('    call wait_key');
         break;
       }
       case 'SubMenu': {
         const screen = resolveScreenByAssetId(analysis, current.appearance?.backgroundScreenAssetId) || analysis.screenMaps?.[0];
         const label = screen ? screenLabels.get(screen.id || screen.name) : undefined;
-        if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel).trimEnd());
+        if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
         lines.push('    call wait_key');
         break;
       }
       case 'WorldLink': {
         const screenAssetId = resolveWorldStartScreenAssetId(analysis, getGameFlowWorldAssetId(current));
         const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, screenAssetId) || fallbackLabel;
-        if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel).trimEnd());
+        if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
         lines.push('    jp .main_loop');
         terminated = true;
         current = undefined;
@@ -2453,6 +2828,12 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const enemyDyBytes = enemyHazards.flatMap(enemies =>
     Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => enemies[index]?.dy === -1 ? 0xFF : enemies[index]?.dy ? 1 : 0)
   );
+  const enemyModeBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => Math.max(0, Math.min(255, enemies[index]?.mode ?? 0)))
+  );
+  const enemySpeedBytes = enemyHazards.flatMap(enemies =>
+    Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => Math.max(1, Math.min(15, enemies[index]?.speed ?? 2)))
+  );
   const worldTransitionAsm = buildMsx2WorldTransitionAsm(analysis, tileScreens, tileScreenLoadLabels);
   const firstScreenIndex = tileScreenIndexByLabel.get(firstScreenLabel);
   const firstScreenIndexInit = firstScreenIndex === undefined
@@ -2560,6 +2941,9 @@ msx2_enemy_runtime_x EQU ${formatHexWord(enemyRuntimeBase)}
 msx2_enemy_runtime_y EQU ${formatHexWord(enemyRuntimeBase + 0x04)}
 msx2_enemy_runtime_dx EQU ${formatHexWord(enemyRuntimeBase + 0x08)}
 msx2_enemy_runtime_dy EQU ${formatHexWord(enemyRuntimeBase + 0x0c)}
+msx2_enemy_runtime_mode EQU ${formatHexWord(enemyRuntimeBase + 0x10)}
+msx2_enemy_runtime_speed EQU ${formatHexWord(enemyRuntimeBase + 0x14)}
+msx2_enemy_runtime_tick EQU ${formatHexWord(enemyRuntimeBase + 0x18)}
 msx2_runtime_ram_end EQU ${formatHexWord(runtimeRamEnd)}
 msx2_runtime_ram_limit EQU ${formatHexWord(MSX2_RUNTIME_RAM_LIMIT)}
 msx2_layer_size EQU ${MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT}
@@ -2681,6 +3065,8 @@ ${formatBytes('msx2_screen_enemy_min_y', enemyMinYBytes.length ? enemyMinYBytes 
 ${formatBytes('msx2_screen_enemy_max_y', enemyMaxYBytes.length ? enemyMaxYBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard patrol maximum Y, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_dx', enemyDxBytes.length ? enemyDxBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard initial movement direction, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_dy', enemyDyBytes.length ? enemyDyBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard initial vertical movement direction, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_mode', enemyModeBytes.length ? enemyModeBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard movement component mode, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('msx2_screen_enemy_speed', enemySpeedBytes.length ? enemySpeedBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(2), `Per-msx2screen enemy/hazard movement component frame delay, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('screen5_blank_tile', Array(16 * 8).fill(0), 'Packed blank 16x16 tile used to erase collected items')}
 ${formatBytes('screen5_empty_collision_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 collision layer, 16x14 bytes')}
 ${formatBytes('screen5_empty_effects_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 effects layer, 16x14 bytes')}

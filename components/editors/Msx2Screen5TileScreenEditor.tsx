@@ -2,13 +2,18 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { MSXColorValue, Msx2Screen5EntityInstance, Msx2Screen5Layers, Msx2Screen5Runtime, Msx2Screen5Tile, Msx2Screen5TileScreen } from '../../types';
 import { ensureScreen5PaletteSlots } from '../../utils/screen5PaletteUtils';
 import {
+  DEFAULT_MSX2_ENTITY_CREATE_PRESETS,
   MAP_HEIGHT,
   MAP_WIDTH,
   Msx2Screen5CellAction,
+  Msx2EntityCreatePreset,
   Msx2Screen5EditMode,
+  Msx2Screen5EntityPalettePanel,
   Msx2Screen5EntityPanel,
   Msx2Screen5ExportModelPanel,
   Msx2Screen5Grid,
+  Msx2Screen5SelectionPanel,
+  Msx2Screen5SelectionRect,
   Msx2Screen5StatusBar,
   Msx2Screen5TileEditorPanel,
   Msx2Screen5TilesPanel,
@@ -108,10 +113,13 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
   const [selectedEffectCode, setSelectedEffectCode] = useState(1);
   const [selectedBehaviorCode, setSelectedBehaviorCode] = useState(1);
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  const [selectedEntityPresetId, setSelectedEntityPresetId] = useState(DEFAULT_MSX2_ENTITY_CREATE_PRESETS[0].id);
   const [showGrid, setShowGrid] = useState(true);
   const [showRuntimeOverlays, setShowRuntimeOverlays] = useState(false);
   const [copiedLayer, setCopiedLayer] = useState<CopiedMsx2Layer | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectionRect, setSelectionRect] = useState<Msx2Screen5SelectionRect | null>(null);
 
   const { slots, changed } = useMemo(() => ensureScreen5PaletteSlots(screen.palette), [screen.palette]);
   const tiles = useMemo(() => normalizeTiles(screen.tiles), [screen.tiles]);
@@ -122,6 +130,11 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
   const selectedEntity = useMemo(
     () => layers.entities.find(entity => entity.id === selectedEntityId) || null,
     [layers.entities, selectedEntityId]
+  );
+  const selectedEntityPreset = useMemo<Msx2EntityCreatePreset>(
+    () => DEFAULT_MSX2_ENTITY_CREATE_PRESETS.find(preset => preset.id === selectedEntityPresetId)
+      || DEFAULT_MSX2_ENTITY_CREATE_PRESETS[0],
+    [selectedEntityPresetId]
   );
   const activeSlot = useMemo(() => {
     const exact = slots.find(slot => slot.hex === selectedColor)?.slotIndex;
@@ -229,12 +242,24 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
         return;
       }
       const id = `msx2_entity_${Date.now()}`;
+      const presetParams = { ...(selectedEntityPreset.params || {}) };
+      if (presetParams.movement === 'patrolX') {
+        presetParams.minX = x;
+        presetParams.maxX = Math.min(MAP_WIDTH - 1, x + 4);
+        presetParams.minY = y;
+        presetParams.maxY = y;
+      } else if (presetParams.movement === 'patrolY') {
+        presetParams.minX = x;
+        presetParams.maxX = x;
+        presetParams.minY = y;
+        presetParams.maxY = Math.min(MAP_HEIGHT - 1, y + 4);
+      }
       const nextEntity: Msx2Screen5EntityInstance = {
         id,
-        name: `Entity ${layers.entities.length + 1}`,
-        kind: layers.entities.some(entity => entity.kind === 'player') ? 'enemy' : 'player',
+        name: `${selectedEntityPreset.label} ${layers.entities.length + 1}`,
+        kind: selectedEntityPreset.kind,
         position: { x, y },
-        params: {},
+        params: presetParams,
       };
       updateLayers({ ...layers, entities: [...layers.entities, nextEntity] });
       setSelectedEntityId(id);
@@ -270,30 +295,74 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
   };
 
   const editableRuntimeLayer = mode === 'collision' || mode === 'effects' || mode === 'behavior';
+  const editableSelectionLayer = mode === 'visual' || editableRuntimeLayer;
+  const activeEditRect = selectionRect || {
+    x: runtime.activeAreaX,
+    y: runtime.activeAreaY,
+    width: runtime.activeAreaWidth,
+    height: runtime.activeAreaHeight,
+  };
+
+  const getActiveRuntimeLayer = (): number[][] =>
+    mode === 'collision' ? layers.collision : mode === 'effects' ? layers.effects : (layers.behavior || normalizeByteLayer(undefined));
+
+  const getPaintValueForCurrentLayer = () => {
+    if (mode === 'visual') return selectedTileIndex;
+    if (mode === 'collision') return 1;
+    if (mode === 'effects') return selectedEffectCode;
+    if (mode === 'behavior') return selectedBehaviorCode;
+    return 0;
+  };
+
+  const updateCurrentRuntimeLayer = (nextLayer: number[][]) => {
+    if (mode === 'collision') updateLayers({ ...layers, collision: nextLayer });
+    if (mode === 'effects') updateLayers({ ...layers, effects: nextLayer });
+    if (mode === 'behavior') updateLayers({ ...layers, behavior: nextLayer });
+  };
+
+  const applySelectionValue = (value: number) => {
+    if (!editableSelectionLayer || !selectionRect) return;
+    if (mode === 'visual') {
+      const nextMap = map.map(row => [...row]);
+      for (let y = selectionRect.y; y < selectionRect.y + selectionRect.height; y++) {
+        for (let x = selectionRect.x; x < selectionRect.x + selectionRect.width; x++) {
+          nextMap[y][x] = Math.max(0, Math.min(tiles.length - 1, value));
+        }
+      }
+      onUpdate({ map: nextMap });
+      return;
+    }
+
+    const nextLayer = getActiveRuntimeLayer().map(row => [...row]);
+    for (let y = selectionRect.y; y < selectionRect.y + selectionRect.height; y++) {
+      for (let x = selectionRect.x; x < selectionRect.x + selectionRect.width; x++) {
+        nextLayer[y][x] = Math.max(0, Math.min(255, value));
+      }
+    }
+    updateCurrentRuntimeLayer(nextLayer);
+  };
 
   const copyActiveLayer = () => {
     if (!editableRuntimeLayer) return;
-    const layer = mode === 'collision' ? layers.collision : mode === 'effects' ? layers.effects : (layers.behavior || normalizeByteLayer(undefined));
-    const data = Array.from({ length: runtime.activeAreaHeight }, (_, y) =>
-      layer[runtime.activeAreaY + y].slice(runtime.activeAreaX, runtime.activeAreaX + runtime.activeAreaWidth)
+    const layer = getActiveRuntimeLayer();
+    const data = Array.from({ length: activeEditRect.height }, (_, y) =>
+      layer[activeEditRect.y + y].slice(activeEditRect.x, activeEditRect.x + activeEditRect.width)
     );
-    setCopiedLayer({ data, width: runtime.activeAreaWidth, height: runtime.activeAreaHeight });
+    setCopiedLayer({ data, width: activeEditRect.width, height: activeEditRect.height });
   };
 
   const pasteActiveLayer = () => {
     if (!editableRuntimeLayer || !copiedLayer) return;
-    const sourceLayer = mode === 'collision' ? layers.collision : mode === 'effects' ? layers.effects : (layers.behavior || normalizeByteLayer(undefined));
+    const sourceLayer = getActiveRuntimeLayer();
     const nextLayer = sourceLayer.map(row => [...row]);
-    const pasteWidth = Math.min(runtime.activeAreaWidth, copiedLayer.width);
-    const pasteHeight = Math.min(runtime.activeAreaHeight, copiedLayer.height);
+    const pasteWidth = Math.min(activeEditRect.width, copiedLayer.width);
+    const pasteHeight = Math.min(activeEditRect.height, copiedLayer.height);
     for (let y = 0; y < pasteHeight; y++) {
       for (let x = 0; x < pasteWidth; x++) {
-        nextLayer[runtime.activeAreaY + y][runtime.activeAreaX + x] = Math.max(0, Math.min(255, Number(copiedLayer.data[y]?.[x]) || 0));
+        nextLayer[activeEditRect.y + y][activeEditRect.x + x] = Math.max(0, Math.min(255, Number(copiedLayer.data[y]?.[x]) || 0));
       }
     }
-    if (mode === 'collision') updateLayers({ ...layers, collision: nextLayer });
-    if (mode === 'effects') updateLayers({ ...layers, effects: nextLayer });
-    if (mode === 'behavior') updateLayers({ ...layers, behavior: nextLayer });
+    updateCurrentRuntimeLayer(nextLayer);
   };
 
   return (
@@ -327,14 +396,35 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
             onUpdateSelectedEntityParams={updateSelectedEntityParams}
             onRemoveSelectedEntity={removeSelectedEntity}
           />
-          <Msx2Screen5TilesPanel
-            tiles={tiles}
-            selectedTileIndex={selectedTileIndex}
-            onSelectTileIndex={setSelectedTileIndex}
-            onAddTile={addTile}
-            onDuplicateTile={duplicateTile}
-            onClearTile={clearTile}
+          <Msx2Screen5EntityPalettePanel
+            mode={mode}
+            presets={DEFAULT_MSX2_ENTITY_CREATE_PRESETS}
+            selectedPresetId={selectedEntityPresetId}
+            onSelectPresetId={setSelectedEntityPresetId}
           />
+          <Msx2Screen5SelectionPanel
+            selectionMode={selectionMode}
+            onSelectionModeChange={setSelectionMode}
+            selectionRect={selectionRect}
+            canEditSelection={editableSelectionLayer && !!selectionRect}
+            canCopySelection={editableRuntimeLayer && !!selectionRect}
+            canPasteSelection={editableRuntimeLayer && !!copiedLayer}
+            onClearSelectionRect={() => setSelectionRect(null)}
+            onFillSelection={() => applySelectionValue(getPaintValueForCurrentLayer())}
+            onClearSelection={() => applySelectionValue(0)}
+            onCopySelection={copyActiveLayer}
+            onPasteSelection={pasteActiveLayer}
+          />
+          {mode !== 'entities' && (
+            <Msx2Screen5TilesPanel
+              tiles={tiles}
+              selectedTileIndex={selectedTileIndex}
+              onSelectTileIndex={setSelectedTileIndex}
+              onAddTile={addTile}
+              onDuplicateTile={duplicateTile}
+              onClearTile={clearTile}
+            />
+          )}
         </div>
 
         <div className="w-[540px] flex-none min-h-0 overflow-auto flex items-start justify-center p-3">
@@ -346,24 +436,29 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
             mode={mode}
             layers={layers}
             runtime={runtime}
+            selectionMode={selectionMode}
+            selectionRect={selectionRect}
             selectedEntityId={selectedEntityId}
             showRuntimeOverlays={showRuntimeOverlays}
             isDrawing={isDrawing}
             onSetDrawing={setIsDrawing}
             onCellAction={handleCellAction}
+            onSelectionChange={setSelectionRect}
           />
         </div>
 
         <div className="w-[300px] flex-none min-h-0 overflow-y-auto border-l border-msx-border pl-2 space-y-2">
-          <Msx2Screen5TileEditorPanel
-            selectedTileIndex={selectedTileIndex}
-            selectedTile={selectedTile}
-            slots={slots}
-            activeSlot={activeSlot}
-            isDrawing={isDrawing}
-            onSetDrawing={setIsDrawing}
-            onPixelAction={handleTilePixelAction}
-          />
+          {mode !== 'entities' && (
+            <Msx2Screen5TileEditorPanel
+              selectedTileIndex={selectedTileIndex}
+              selectedTile={selectedTile}
+              slots={slots}
+              activeSlot={activeSlot}
+              isDrawing={isDrawing}
+              onSetDrawing={setIsDrawing}
+              onPixelAction={handleTilePixelAction}
+            />
+          )}
           <Msx2Screen5ExportModelPanel layers={layers} />
         </div>
       </div>
@@ -374,6 +469,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
         selectedBehaviorCode={selectedBehaviorCode}
         layers={layers}
         runtime={runtime}
+        selectionRect={selectionRect}
       />
     </div>
   );

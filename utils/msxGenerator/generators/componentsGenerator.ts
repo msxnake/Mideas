@@ -16672,6 +16672,12 @@ update_statemachine_component:
     ret
 update_carry_component:
     ret
+carry_sync_current_screen_followers:
+    ret
+carry_apply_dropped_box_tiles_current_screen:
+    ret
+carry_materialize_landed_box:
+    ret
 update_damage_component:
     ret
 update_shoot_component:

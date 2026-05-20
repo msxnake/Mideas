@@ -79,7 +79,22 @@ export function generatePatternsFile(
 ; File: patterns.asm
 ; ==================================================================
 
-; No tiles detected in project - file generated as placeholder
+; No SCREEN 2 tiles detected in project. Keep the public loader labels
+; available because shared GameFlow/transition code can reference them in
+; MSX2-only projects.
+SCREEN2_TILEBANK_INVALID EQU #FF
+
+load_pattern_bank0:
+    ret
+
+load_pattern_bank1:
+    ret
+
+load_pattern_bank2:
+    ret
+
+load_patterns_to_vram:
+    ret
 `;
   }
 

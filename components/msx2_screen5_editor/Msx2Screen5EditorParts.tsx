@@ -20,6 +20,31 @@ export interface Msx2Screen5CellAction {
   button: number;
 }
 
+export interface Msx2Screen5SelectionRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface Msx2EntityCreatePreset {
+  id: string;
+  label: string;
+  kind: Msx2EntityKind;
+  params?: Record<string, any>;
+}
+
+export const DEFAULT_MSX2_ENTITY_CREATE_PRESETS: Msx2EntityCreatePreset[] = [
+  { id: 'player', label: 'Player', kind: 'player' },
+  { id: 'enemy_static', label: 'Enemy', kind: 'enemy' },
+  { id: 'ghost_maze', label: 'Ghost Maze', kind: 'enemy', params: { movement: 'ghostMaze', initialDirection: 'right', speed: 4 } },
+  { id: 'patrol_x', label: 'Patrol X', kind: 'enemy', params: { movement: 'patrolX', direction: 1 } },
+  { id: 'patrol_y', label: 'Patrol Y', kind: 'enemy', params: { movement: 'patrolY', direction: 1 } },
+  { id: 'hazard', label: 'Hazard', kind: 'hazard' },
+  { id: 'collectible', label: 'Collectible', kind: 'collectible' },
+  { id: 'door', label: 'Door', kind: 'door' },
+];
+
 interface Msx2Screen5ToolbarProps {
   screenName: string;
   onScreenNameChange: (name: string) => void;
@@ -198,6 +223,59 @@ export const Msx2Screen5Toolbar: React.FC<Msx2Screen5ToolbarProps> = ({
   );
 };
 
+interface Msx2Screen5SelectionPanelProps {
+  selectionMode: boolean;
+  onSelectionModeChange: (selectionMode: boolean) => void;
+  selectionRect: Msx2Screen5SelectionRect | null;
+  canEditSelection: boolean;
+  canCopySelection: boolean;
+  canPasteSelection: boolean;
+  onClearSelectionRect: () => void;
+  onFillSelection: () => void;
+  onClearSelection: () => void;
+  onCopySelection: () => void;
+  onPasteSelection: () => void;
+}
+
+export const Msx2Screen5SelectionPanel: React.FC<Msx2Screen5SelectionPanelProps> = ({
+  selectionMode,
+  onSelectionModeChange,
+  selectionRect,
+  canEditSelection,
+  canCopySelection,
+  canPasteSelection,
+  onClearSelectionRect,
+  onFillSelection,
+  onClearSelection,
+  onCopySelection,
+  onPasteSelection,
+}) => (
+  <Panel title="Selection Tools">
+    <div className="p-2 space-y-2 text-xs">
+      <Button
+        size="sm"
+        variant={selectionMode ? 'primary' : 'secondary'}
+        onClick={() => onSelectionModeChange(!selectionMode)}
+        className="w-full"
+      >
+        Select Area
+      </Button>
+      <div className="text-msx-textsecondary">
+        Selection: {selectionRect ? `${selectionRect.width}x${selectionRect.height} @ ${selectionRect.x},${selectionRect.y}` : 'None'}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Button size="sm" variant="secondary" onClick={onFillSelection} disabled={!canEditSelection}>Fill</Button>
+        <Button size="sm" variant="danger" onClick={onClearSelection} disabled={!canEditSelection}>Clear</Button>
+        <Button size="sm" variant="secondary" onClick={onCopySelection} disabled={!canCopySelection}>Copy Sel.</Button>
+        <Button size="sm" variant="secondary" onClick={onPasteSelection} disabled={!canPasteSelection}>Paste Sel.</Button>
+      </div>
+      <Button size="sm" variant="ghost" onClick={onClearSelectionRect} disabled={!selectionRect} className="w-full">
+        Unselect Area
+      </Button>
+    </div>
+  </Panel>
+);
+
 interface Msx2Screen5EntityPanelProps {
   mode: Msx2Screen5EditMode;
   selectedEntity: Msx2Screen5EntityInstance | null;
@@ -249,6 +327,14 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
                     onUpdateSelectedEntity({ params: {} });
                     return;
                   }
+                  if (movement === 'ghostMaze') {
+                    onUpdateSelectedEntityParams({
+                      movement,
+                      initialDirection: selectedEntity.params?.initialDirection || 'right',
+                      speed: Math.max(1, Math.min(15, Number(selectedEntity.params?.speed) || 2)),
+                    });
+                    return;
+                  }
                   onUpdateSelectedEntityParams({
                     movement,
                     direction: Number(selectedEntity.params?.direction) || 1,
@@ -264,6 +350,7 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
                 <option value="static">Static</option>
                 <option value="patrolX">Patrol X</option>
                 <option value="patrolY">Patrol Y</option>
+                <option value="ghostMaze">Ghost Maze</option>
               </select>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -296,7 +383,37 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
                 />
               </label>
             </div>
-            {selectedEntity.params?.movement && selectedEntity.params.movement !== 'static' && (
+            {selectedEntity.params?.movement === 'ghostMaze' && (
+              <div className="grid grid-cols-2 gap-2">
+                <label className="space-y-1">
+                  <span className="text-msx-textsecondary">Start Dir</span>
+                  <select
+                    value={selectedEntity.params?.initialDirection || 'right'}
+                    onChange={event => onUpdateSelectedEntityParams({ initialDirection: event.target.value })}
+                    className={numberInputClass}
+                    aria-label="Ghost start direction"
+                  >
+                    <option value="right">Right</option>
+                    <option value="left">Left</option>
+                    <option value="up">Up</option>
+                    <option value="down">Down</option>
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-msx-textsecondary">Speed</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={15}
+                    value={Math.max(1, Math.min(15, Number(selectedEntity.params?.speed) || 2))}
+                    onChange={event => onUpdateSelectedEntityParams({ speed: Math.max(1, Math.min(15, Number(event.target.value) || 2)) })}
+                    className={numberInputClass}
+                    aria-label="Ghost movement speed"
+                  />
+                </label>
+              </div>
+            )}
+            {selectedEntity.params?.movement && selectedEntity.params.movement !== 'static' && selectedEntity.params.movement !== 'ghostMaze' && (
               <>
                 {selectedEntity.params.movement === 'patrolX' ? (
                   <div className="grid grid-cols-2 gap-2">
@@ -337,6 +454,40 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
         ) : (
           <div className="text-msx-textsecondary">No entity selected.</div>
         )}
+      </div>
+    </Panel>
+  );
+};
+
+interface Msx2Screen5EntityPalettePanelProps {
+  mode: Msx2Screen5EditMode;
+  presets: Msx2EntityCreatePreset[];
+  selectedPresetId: string;
+  onSelectPresetId: (presetId: string) => void;
+}
+
+export const Msx2Screen5EntityPalettePanel: React.FC<Msx2Screen5EntityPalettePanelProps> = ({
+  mode,
+  presets,
+  selectedPresetId,
+  onSelectPresetId,
+}) => {
+  if (mode !== 'entities') return null;
+
+  return (
+    <Panel title="Create Entity">
+      <div className="p-2 grid grid-cols-2 gap-2 text-xs">
+        {presets.map(preset => (
+          <Button
+            key={preset.id}
+            size="sm"
+            variant={preset.id === selectedPresetId ? 'primary' : 'secondary'}
+            onClick={() => onSelectPresetId(preset.id)}
+            title={`${preset.label} (${preset.kind})`}
+          >
+            {preset.label}
+          </Button>
+        ))}
       </div>
     </Panel>
   );
@@ -390,11 +541,14 @@ interface Msx2Screen5GridProps {
   mode: Msx2Screen5EditMode;
   layers: Msx2Screen5Layers;
   runtime: Msx2Screen5Runtime;
+  selectionMode: boolean;
+  selectionRect: Msx2Screen5SelectionRect | null;
   selectedEntityId: string | null;
   showRuntimeOverlays: boolean;
   isDrawing: boolean;
   onSetDrawing: (isDrawing: boolean) => void;
   onCellAction: (action: Msx2Screen5CellAction) => void;
+  onSelectionChange: (rect: Msx2Screen5SelectionRect | null) => void;
 }
 
 export const Msx2Screen5Grid: React.FC<Msx2Screen5GridProps> = ({
@@ -405,13 +559,17 @@ export const Msx2Screen5Grid: React.FC<Msx2Screen5GridProps> = ({
   mode,
   layers,
   runtime,
+  selectionMode,
+  selectionRect,
   selectedEntityId,
   showRuntimeOverlays,
   isDrawing,
   onSetDrawing,
   onCellAction,
+  onSelectionChange,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -477,6 +635,20 @@ export const Msx2Screen5Grid: React.FC<Msx2Screen5GridProps> = ({
     ctx.lineWidth = 1;
     }
 
+    if (selectionRect) {
+      ctx.strokeStyle = 'rgba(255, 232, 80, 0.95)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([10, 5]);
+      ctx.strokeRect(
+        selectionRect.x * TILE_SIZE * 2 + 1.5,
+        selectionRect.y * TILE_SIZE * 2 + 1.5,
+        selectionRect.width * TILE_SIZE * 2 - 3,
+        selectionRect.height * TILE_SIZE * 2 - 3
+      );
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1;
+    }
+
     if (showRuntimeOverlays || mode === 'collision' || mode === 'effects' || mode === 'behavior' || mode === 'entities') {
       for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -536,17 +708,74 @@ export const Msx2Screen5Grid: React.FC<Msx2Screen5GridProps> = ({
             ctx.lineTo(xLine, (maxY + 1) * TILE_SIZE * 2 - 8);
             ctx.stroke();
           }
+          if (entity.params?.movement === 'ghostMaze') {
+            const cx = px + TILE_SIZE;
+            const cy = py + TILE_SIZE;
+            const direction = entity.params?.initialDirection || 'right';
+            const endX = direction === 'left' ? cx - 14 : direction === 'right' ? cx + 14 : cx;
+            const endY = direction === 'up' ? cy - 14 : direction === 'down' ? cy + 14 : cy;
+            ctx.strokeStyle = '#FFFF00';
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+            ctx.fillStyle = '#FFFF00';
+            ctx.font = '10px monospace';
+            ctx.fillText('G', px + 11, py + 21);
+          }
         }
       }
     }
-  }, [map, slots, tiles, showGrid, mode, layers, runtime, selectedEntityId, showRuntimeOverlays]);
+  }, [map, slots, tiles, showGrid, mode, layers, runtime, selectionRect, selectedEntityId, showRuntimeOverlays]);
 
-  const emitCellAction = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const getCellFromEvent = (event: React.MouseEvent<HTMLCanvasElement>): { x: number; y: number } | null => {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = Math.floor(((event.clientX - rect.left) / rect.width) * MAP_WIDTH);
     const y = Math.floor(((event.clientY - rect.top) / rect.height) * MAP_HEIGHT);
-    if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) return;
-    onCellAction({ x, y, button: event.button });
+    if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) return null;
+    return { x, y };
+  };
+
+  const buildSelectionRect = (start: { x: number; y: number }, end: { x: number; y: number }): Msx2Screen5SelectionRect => {
+    const x = Math.min(start.x, end.x);
+    const y = Math.min(start.y, end.y);
+    return {
+      x,
+      y,
+      width: Math.abs(start.x - end.x) + 1,
+      height: Math.abs(start.y - end.y) + 1,
+    };
+  };
+
+  const emitCellAction = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const cell = getCellFromEvent(event);
+    if (!cell) return;
+    onCellAction({ x: cell.x, y: cell.y, button: event.button });
+  };
+
+  const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const cell = getCellFromEvent(event);
+    if (!cell) return;
+    onSetDrawing(true);
+    if (selectionMode && mode !== 'entities' && mode !== 'tile') {
+      selectionStartRef.current = cell;
+      onSelectionChange({ x: cell.x, y: cell.y, width: 1, height: 1 });
+      return;
+    }
+    emitCellAction(event);
+  };
+
+  const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const cell = getCellFromEvent(event);
+    if (!cell) return;
+    if (selectionMode && selectionStartRef.current && mode !== 'entities' && mode !== 'tile') {
+      onSelectionChange(buildSelectionRect(selectionStartRef.current, cell));
+      return;
+    }
+    if (mode === 'visual' || mode === 'collision' || mode === 'effects' || mode === 'behavior') {
+      emitCellAction(event);
+    }
   };
 
   return (
@@ -554,8 +783,8 @@ export const Msx2Screen5Grid: React.FC<Msx2Screen5GridProps> = ({
       ref={canvasRef}
       className="border border-msx-border bg-black"
       style={{ width: `${MAP_PIXEL_WIDTH * 2}px`, maxWidth: '100%', height: 'auto', aspectRatio: `${MAP_PIXEL_WIDTH} / ${MAP_PIXEL_HEIGHT}` }}
-      onMouseDown={event => { onSetDrawing(true); emitCellAction(event); }}
-      onMouseMove={event => { if (isDrawing && (mode === 'visual' || mode === 'collision' || mode === 'effects' || mode === 'behavior')) emitCellAction(event); }}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
       onContextMenu={event => event.preventDefault()}
     />
   );
@@ -666,6 +895,7 @@ interface Msx2Screen5StatusBarProps {
   selectedBehaviorCode: number;
   layers: Msx2Screen5Layers;
   runtime: Msx2Screen5Runtime;
+  selectionRect: Msx2Screen5SelectionRect | null;
 }
 
 export const Msx2Screen5StatusBar: React.FC<Msx2Screen5StatusBarProps> = ({
@@ -675,6 +905,7 @@ export const Msx2Screen5StatusBar: React.FC<Msx2Screen5StatusBarProps> = ({
   selectedBehaviorCode,
   layers,
   runtime,
+  selectionRect,
 }) => {
   const collectibleCells = layers.effects.flat().filter(value => value === 3).length;
 
@@ -687,6 +918,7 @@ export const Msx2Screen5StatusBar: React.FC<Msx2Screen5StatusBarProps> = ({
       Entities: {layers.entities.length} |
       Collectibles: {runtime.requiredCollectibles ?? 0}/{collectibleCells} |
       Active Area: X:{runtime.activeAreaX} Y:{runtime.activeAreaY} W:{runtime.activeAreaWidth} H:{runtime.activeAreaHeight} |
+      Selection: {selectionRect ? `${selectionRect.x},${selectionRect.y} ${selectionRect.width}x${selectionRect.height}` : 'None'} |
       Size: 16x14 / 256x224 map / 256x212 visible
     </div>
   );

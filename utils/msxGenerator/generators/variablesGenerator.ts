@@ -1277,11 +1277,17 @@ MAX_ENTITIES        EQU 32
   currentAddress += 32 * 4;
 
 
-  // Screen system variables (only if screens exist)
-  if (analysis.screenMaps.length > 0) {
+  const screenRuntimeCount = Math.max(
+    Array.isArray(analysis.screenMaps) ? analysis.screenMaps.length : 0,
+    Array.isArray((analysis as any).msx2Screens) ? (analysis as any).msx2Screens.length : 0
+  );
+
+  // Screen system variables. MSX2 native tile screens also use WorldMap/GameFlow
+  // runtime state, even when a project has no legacy MSX1 screenmap assets.
+  if (screenRuntimeCount > 0) {
     code += `
 ; ==================================================================
-; SCREEN SYSTEM VARIABLES (${analysis.screenMaps.length} screens detected)
+; SCREEN SYSTEM VARIABLES (${screenRuntimeCount} runtime screens detected)
 ; ==================================================================
 `;
     code += `current_screen_id   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Currently displayed screen ID\n`;
