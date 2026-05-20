@@ -31,6 +31,15 @@ import { OrnamentEditorModal } from '../tracker/OrnamentEditorModal';
 import { WaveformEditorModal } from '../tracker/WaveformEditorModal';
 import { Panel } from '../common/Panel';
 import { createCmajorChiptuneSampleSong } from '../../utils/trackerSampleSong';
+import { CowbellPT3Player } from '../utils/cowbellPt3Player';
+
+const hasFullPT3Header = (bytes: Uint8Array): boolean => {
+  const headerText = new TextDecoder('ascii', { fatal: false }).decode(bytes.slice(0, 20));
+  return headerText.startsWith('ProTracker') || headerText.startsWith('Vortex Tracker');
+};
+
+const DEMO_PT3_URL = '/samples/pt3/kuvo-forgotten-puppet.pt3';
+const DEMO_PT3_FILENAME = 'KUVO - Forgotten puppet (2021).pt3';
 
 
 /**
@@ -294,6 +303,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   const playbackIntervalRef = useRef<number | null>(null);
   const patternEditorRef = useRef<HTMLDivElement>(null);
+  const externalPt3PlayerRef = useRef<CowbellPT3Player | null>(null);
+  const [externalPt3Status, setExternalPt3Status] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [externalPt3Error, setExternalPt3Error] = useState<string | null>(null);
+  const [externalPt3CurrentTime, setExternalPt3CurrentTime] = useState(0);
+  const [externalPt3Duration, setExternalPt3Duration] = useState<number | null>(null);
 
   const [isInstrumentModalOpen, setIsInstrumentModalOpen] = useState(false);
   const [editingInstrument, setEditingInstrument] = useState<PT3Instrument | null>(null);
@@ -578,6 +592,23 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, [songData, synthesizer]);
 
   useEffect(() => {
+    return () => {
+      externalPt3PlayerRef.current?.close();
+      externalPt3PlayerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    externalPt3PlayerRef.current?.close();
+    externalPt3PlayerRef.current = null;
+    setExternalPt3Status(songData.playbackBackend === 'external-pt3' && songData.externalPt3Data?.length ? 'ready' : 'idle');
+    setExternalPt3Error(null);
+    setExternalPt3CurrentTime(0);
+    setExternalPt3Duration(null);
+    setIsPlaying(false);
+  }, [songData.playbackBackend, songData.externalPt3Data]);
+
+  useEffect(() => {
     if (isLogModalOpen) addLog(`useEffect: Setting localSongName to '${songData.name}'`);
     setLocalSongName(songData.name);
   }, [songData.name, isLogModalOpen, addLog]);
@@ -771,6 +802,78 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       });
     }
   }, [currentPattern, activePatternStorageIndex, songData.patterns, onUpdate, activeInstrumentId, activeOrnamentId]);
+
+  const ensureExternalPt3Player = useCallback(async (): Promise<CowbellPT3Player | null> => {
+    if (!songData.externalPt3Data?.length) {
+      setExternalPt3Error('No PT3 data loaded.');
+      setExternalPt3Status('error');
+      return null;
+    }
+    const bytes = new Uint8Array(songData.externalPt3Data);
+    if (!songData.externalPt3HasHeader || !hasFullPT3Header(bytes)) {
+      setExternalPt3Error('This file was imported as headerless PT3 data. Reimport the original .pt3 file with its ProTracker/Vortex Tracker header before playback.');
+      setExternalPt3Status('error');
+      return null;
+    }
+
+    if (!externalPt3PlayerRef.current) {
+      externalPt3PlayerRef.current = new CowbellPT3Player(bytes, {
+        onPlay: () => {
+          setIsPlaying(true);
+          setExternalPt3Status('ready');
+        },
+        onPause: () => setIsPlaying(false),
+        onEnded: () => {
+          setIsPlaying(false);
+          setExternalPt3CurrentTime(0);
+        },
+        onLoadedMetadata: (duration) => setExternalPt3Duration(duration),
+        onTimeUpdate: (currentTime, duration) => {
+          setExternalPt3CurrentTime(currentTime);
+          setExternalPt3Duration(duration);
+        },
+      });
+    }
+
+    return externalPt3PlayerRef.current;
+  }, [songData.externalPt3Data]);
+
+  const handleExternalPt3PlayStop = useCallback(async () => {
+    if (isPlaying) {
+      externalPt3PlayerRef.current?.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    setExternalPt3Status('loading');
+    setExternalPt3Error(null);
+    try {
+      const player = await ensureExternalPt3Player();
+      if (!player) return;
+      await player.play();
+      setExternalPt3Status('ready');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not start PT3 playback.';
+      setExternalPt3Error(message);
+      setExternalPt3Status('error');
+      setIsPlaying(false);
+      externalPt3PlayerRef.current?.close();
+      externalPt3PlayerRef.current = null;
+    }
+  }, [ensureExternalPt3Player, isPlaying]);
+
+  const handleExternalPt3Stop = useCallback(() => {
+    externalPt3PlayerRef.current?.stop();
+    setIsPlaying(false);
+    setExternalPt3CurrentTime(0);
+  }, []);
+
+  const handleExternalPt3Seek = useCallback((value: string) => {
+    const nextTime = Number(value);
+    if (!Number.isFinite(nextTime)) return;
+    externalPt3PlayerRef.current?.seek(nextTime);
+    setExternalPt3CurrentTime(nextTime);
+  }, []);
 
   const handlePlayStop = async () => {
     if (synthesizer) {
@@ -1375,6 +1478,51 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, [onUpdate, isPlaying, addLog, clearPianoHighlights]);
 
   const handleImportPT3File = useCallback(() => {
+    const loadPT3Buffer = (buffer: ArrayBuffer, fileName: string) => {
+      const bytes = new Uint8Array(buffer);
+      const textDecoder = new TextDecoder('ascii', { fatal: false });
+      const hasHeader = hasFullPT3Header(bytes);
+
+      let trackBytes: number[];
+      let speed = 6;
+      let title = fileName.replace(/\.[^/.]+$/, '');
+
+      if (hasHeader && bytes.length > 99) {
+        // Full .pt3 file - extract title and speed from header.
+        const titleRaw = textDecoder.decode(bytes.slice(30, 64));
+        const nullIdx = titleRaw.indexOf('\0');
+        const extractedTitle = (nullIdx >= 0 ? titleRaw.slice(0, nullIdx) : titleRaw).trim();
+        if (extractedTitle) title = extractedTitle;
+        speed = bytes[99] || 6;
+        trackBytes = Array.from(bytes);
+      } else {
+        speed = bytes[0] || 6;
+        trackBytes = Array.from(bytes);
+      }
+
+      externalPt3PlayerRef.current?.close();
+      externalPt3PlayerRef.current = null;
+      setExternalPt3CurrentTime(0);
+      setExternalPt3Duration(null);
+      setExternalPt3Status('ready');
+      setExternalPt3Error(hasHeader ? null : 'Loaded headerless PT3 data. Cowbell playback needs the original .pt3 file with its ProTracker/Vortex Tracker header.');
+      if (isPlaying) setIsPlaying(false);
+      onUpdate({
+        name: title,
+        title,
+        speed,
+        playbackBackend: 'external-pt3',
+        externalPt3Data: trackBytes,
+        externalPt3HasHeader: hasHeader,
+        externalPt3PlayerId: 'custom',
+        patterns: [],
+        order: [],
+        lengthInPatterns: 0,
+        currentPatternId: undefined,
+        currentPatternIndexInOrder: 0,
+      });
+    };
+
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.pt3,.99';
@@ -1384,47 +1532,49 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       const reader = new FileReader();
       reader.onload = (evt) => {
         const buffer = evt.target?.result as ArrayBuffer;
-        const bytes = new Uint8Array(buffer);
-
-        const headerText = new TextDecoder('ascii', { fatal: false }).decode(bytes.slice(0, 10));
-        const hasHeader = headerText.startsWith('ProTracker');
-
-        let trackBytes: number[];
-        let speed = 6;
-        let title = file.name.replace(/\.[^/.]+$/, '');
-
-        if (hasHeader && bytes.length > 99) {
-          // Full .pt3 file — extract title and speed from header
-          const titleRaw = new TextDecoder('ascii', { fatal: false }).decode(bytes.slice(30, 64));
-          const nullIdx = titleRaw.indexOf('\0');
-          const extractedTitle = (nullIdx >= 0 ? titleRaw.slice(0, nullIdx) : titleRaw).trim();
-          if (extractedTitle) title = extractedTitle;
-          speed = bytes[99] || 6;
-          trackBytes = Array.from(bytes.slice(99)); // strip 99-byte header
-        } else {
-          // Already stripped .99 file
-          speed = bytes[0] || 6;
-          trackBytes = Array.from(bytes);
-        }
-
-        if (isPlaying) setIsPlaying(false);
-        onUpdate({
-          name: title,
-          title,
-          speed,
-          playbackBackend: 'external-pt3',
-          externalPt3Data: trackBytes,
-          externalPt3HasHeader: false,
-          patterns: [],
-          order: [],
-          lengthInPatterns: 0,
-          currentPatternId: undefined,
-          currentPatternIndexInOrder: 0,
-        });
+        loadPT3Buffer(buffer, file.name);
       };
       reader.readAsArrayBuffer(file);
     };
     input.click();
+  }, [onUpdate, isPlaying]);
+
+  const handleLoadDemoPT3File = useCallback(async () => {
+    const response = await fetch(DEMO_PT3_URL);
+    if (!response.ok) {
+      setExternalPt3Error(`Could not load bundled PT3 demo (${response.status}).`);
+      setExternalPt3Status('error');
+      return;
+    }
+    const buffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    const textDecoder = new TextDecoder('ascii', { fatal: false });
+    const hasHeader = hasFullPT3Header(bytes);
+    const titleRaw = hasHeader ? textDecoder.decode(bytes.slice(30, 64)) : '';
+    const nullIdx = titleRaw.indexOf('\0');
+    const extractedTitle = (nullIdx >= 0 ? titleRaw.slice(0, nullIdx) : titleRaw).trim();
+
+    externalPt3PlayerRef.current?.close();
+    externalPt3PlayerRef.current = null;
+    setExternalPt3CurrentTime(0);
+    setExternalPt3Duration(null);
+    setExternalPt3Status('ready');
+    setExternalPt3Error(hasHeader ? null : 'Bundled PT3 demo is missing a ProTracker/Vortex Tracker header.');
+    if (isPlaying) setIsPlaying(false);
+    onUpdate({
+      name: extractedTitle || DEMO_PT3_FILENAME.replace(/\.[^/.]+$/, ''),
+      title: extractedTitle || DEMO_PT3_FILENAME.replace(/\.[^/.]+$/, ''),
+      speed: bytes[99] || 6,
+      playbackBackend: 'external-pt3',
+      externalPt3Data: Array.from(bytes),
+      externalPt3HasHeader: hasHeader,
+      externalPt3PlayerId: 'custom',
+      patterns: [],
+      order: [],
+      lengthInPatterns: 0,
+      currentPatternId: undefined,
+      currentPatternIndexInOrder: 0,
+    });
   }, [onUpdate, isPlaying]);
 
   const handleSelectPattern = useCallback((id: string) => {
@@ -1446,13 +1596,84 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     return <Panel title="Tracker Composer"><p className="p-4">Loading pattern data...</p></Panel>;
   }
   if (songData.playbackBackend === 'external-pt3') {
+    const duration = externalPt3Duration ?? 0;
+    const formatTime = (seconds: number | null): string => {
+      if (seconds === null || !Number.isFinite(seconds)) return '--:--';
+      const safeSeconds = Math.max(0, Math.floor(seconds));
+      const mins = Math.floor(safeSeconds / 60);
+      const secs = safeSeconds % 60;
+      return `${mins}:${String(secs).padStart(2, '0')}`;
+    };
+
     return (
-      <Panel title="Tracker Composer" className="flex-grow flex flex-col items-center justify-center p-4 bg-msx-bgcolor">
-        <p className="text-msx-highlight font-bold mb-2">✓ PT3 External Backend</p>
-        <p className="text-msx-textsecondary mb-1">Track: <span className="text-msx-textprimary">{songData.title || songData.name || 'Unnamed'}</span></p>
-        <p className="text-msx-textsecondary mb-4">Size: <span className="text-msx-textprimary">{(songData.externalPt3Data?.length ?? 0)} bytes</span></p>
-        <Button onClick={handleImportPT3File} variant="primary" className="mt-2" title="Replace with another .pt3 or .99 file">Replace PT3 File</Button>
-        <Button onClick={() => onUpdate({ playbackBackend: 'native', externalPt3Data: undefined, externalPt3HasHeader: undefined })} variant="secondary" className="mt-2">Switch to Native Tracker</Button>
+      <Panel title="Tracker Composer" className="flex-grow bg-msx-bgcolor p-4">
+        <div className="mx-auto flex h-full max-w-3xl flex-col justify-center">
+          <div className="rounded border border-msx-border bg-msx-panelbg p-4 shadow-[0_10px_24px_rgba(0,0,0,0.25)]">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-msx-border pb-3">
+              <div>
+                <div className="text-[0.65rem] font-semibold uppercase tracking-wider text-msx-highlight">External PT3 Preview</div>
+                <div className="mt-1 text-lg font-bold text-msx-textprimary">{songData.title || songData.name || 'Unnamed PT3'}</div>
+                <div className="mt-1 text-xs text-msx-textsecondary">
+                  Cowbell ZXPT3 backend / {(songData.externalPt3Data?.length ?? 0).toLocaleString()} bytes / {songData.externalPt3HasHeader ? 'full PT3' : 'headerless data'}
+                </div>
+              </div>
+              <div className="rounded border border-msx-border bg-msx-bgcolor px-2 py-1 text-xs uppercase text-msx-textsecondary">
+                {externalPt3Status}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <input
+                type="range"
+                min={0}
+                max={Math.max(0, duration)}
+                step={0.05}
+                value={Math.min(externalPt3CurrentTime, Math.max(0, duration))}
+                disabled={!duration}
+                onChange={e => handleExternalPt3Seek(e.target.value)}
+                className="w-full accent-msx-highlight"
+                title="Seek"
+              />
+              <div className="mt-1 flex justify-between font-mono text-[0.68rem] text-msx-textsecondary">
+                <span>{formatTime(externalPt3CurrentTime)}</span>
+                <span>{formatTime(externalPt3Duration)}</span>
+              </div>
+            </div>
+
+            {externalPt3Error && (
+              <div className="mb-4 rounded border border-msx-warning/70 bg-msx-warning/10 px-3 py-2 text-xs text-msx-warning">
+                {externalPt3Error}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={handleExternalPt3PlayStop}
+                variant={isPlaying ? 'danger' : 'primary'}
+                disabled={externalPt3Status === 'loading' || !songData.externalPt3Data?.length}
+              >
+                {isPlaying ? 'Pause' : externalPt3Status === 'loading' ? 'Loading...' : 'Play PT3'}
+              </Button>
+              <Button onClick={handleExternalPt3Stop} variant="ghost" disabled={!songData.externalPt3Data?.length}>
+                Stop
+              </Button>
+              <Button onClick={handleImportPT3File} variant="secondary" title="Replace with another .pt3 or .99 file">
+                Replace PT3 File
+              </Button>
+              <Button
+                onClick={() => {
+                  externalPt3PlayerRef.current?.close();
+                  externalPt3PlayerRef.current = null;
+                  setIsPlaying(false);
+                  onUpdate({ playbackBackend: 'native', externalPt3Data: undefined, externalPt3HasHeader: undefined, externalPt3PlayerId: undefined });
+                }}
+                variant="ghost"
+              >
+                Switch to Native Tracker
+              </Button>
+            </div>
+          </div>
+        </div>
       </Panel>
     );
   }
@@ -1492,6 +1713,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         soundChip={songData.soundChip}
         onSoundChipChange={(chip) => onUpdate({ soundChip: chip, instruments: [] })}
         onImportPT3File={handleImportPT3File}
+        onLoadDemoPT3File={handleLoadDemoPT3File}
         isExternalPT3={songData.playbackBackend === 'external-pt3'}
       />
 

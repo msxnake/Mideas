@@ -69,6 +69,8 @@ interface TrackerHeaderProps {
   onSoundChipChange: (chip: 'PSG' | 'SCC') => void;
   /** Optional callback to import a PT3 file as external backend. */
   onImportPT3File?: () => void;
+  /** Optional callback to load the bundled PT3 demo track. */
+  onLoadDemoPT3File?: () => void;
   /** Whether the current track uses the external PT3 backend. */
   isExternalPT3?: boolean;
 }
@@ -88,7 +90,7 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
   ayNoisePeriod, onAyNoisePeriodChange,
   isPlaying, onPlayStop, onLoadSampleSong, onSilenceAllChannels,
   channels, mutedChannels, onToggleChannelMute,
-  soundChip, onSoundChipChange, onImportPT3File, isExternalPT3
+  soundChip, onSoundChipChange, onImportPT3File, onLoadDemoPT3File, isExternalPT3
 }) => {
   const [localPatternRows, setLocalPatternRows] = useState(String(patternRows));
 
@@ -249,6 +251,16 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
               title="Import external PT3 file (.pt3 or .99) - replaces native tracker data"
             >
               {isExternalPT3 ? 'PT3 active' : 'Import PT3'}
+            </Button>
+          )}
+          {onLoadDemoPT3File && soundChip === 'PSG' && (
+            <Button
+              onClick={onLoadDemoPT3File}
+              size="sm"
+              variant="ghost"
+              title="Load bundled PT3 demo track"
+            >
+              Demo PT3
             </Button>
           )}
           <Button onClick={onPlayStop} size="sm" variant={isPlaying ? "danger" : "primary"} icon={isPlaying ? <StopIcon /> : <PlayIcon />}>
