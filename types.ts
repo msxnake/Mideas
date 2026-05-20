@@ -307,6 +307,10 @@ export interface Msx2Screen5Layers {
 export interface Msx2Screen5Runtime {
   screenKind: Msx2ScreenKind;
   screenEngine: Msx2ScreenEngineKind;
+  /** Number of collected effect=3 cells required before exits unlock on this MSX2 screen. */
+  requiredCollectibles?: number;
+  /** Initial air/time value for this MSX2 screen. */
+  initialAir?: number;
   activeAreaX: number;
   activeAreaY: number;
   activeAreaWidth: number;

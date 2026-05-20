@@ -59,6 +59,11 @@ const normalizeEntities = (entities?: Msx2Screen5EntityInstance[]): Msx2Screen5E
     params: entity.params || {},
   }));
 
+const normalizeOptionalByte = (value: unknown, min = 0): number | undefined => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(min, Math.min(255, Math.floor(numeric))) : undefined;
+};
+
 const normalizeLayers = (screen: Msx2Screen5TileScreen): Msx2Screen5Layers => ({
   collision: normalizeByteLayer(screen.layers?.collision, screen.collisionMap),
   effects: normalizeByteLayer(screen.layers?.effects),
@@ -69,6 +74,8 @@ const normalizeLayers = (screen: Msx2Screen5TileScreen): Msx2Screen5Layers => ({
 const normalizeRuntime = (runtime?: Msx2Screen5Runtime): Msx2Screen5Runtime => ({
   screenKind: runtime?.screenKind || 'playable',
   screenEngine: runtime?.screenEngine || 'player',
+  requiredCollectibles: normalizeOptionalByte(runtime?.requiredCollectibles),
+  initialAir: normalizeOptionalByte(runtime?.initialAir, 1),
   activeAreaX: Math.max(0, Math.min(MAP_WIDTH - 1, Number(runtime?.activeAreaX) || 0)),
   activeAreaY: Math.max(0, Math.min(MAP_HEIGHT - 1, Number(runtime?.activeAreaY) || 0)),
   activeAreaWidth: Math.max(1, Math.min(MAP_WIDTH, Number(runtime?.activeAreaWidth) || MAP_WIDTH)),
@@ -449,6 +456,40 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
             <div className="text-msx-textsecondary">
               Runtime: {runtime.screenKind} / {runtime.screenEngine}
             </div>
+            <label className="block space-y-1">
+              <span className="text-msx-textsecondary">Required collectibles</span>
+              <input
+                type="number"
+                min={0}
+                max={255}
+                value={runtime.requiredCollectibles ?? 0}
+                onChange={event => onUpdate({
+                  runtime: {
+                    ...runtime,
+                    requiredCollectibles: Math.max(0, Math.min(255, Number(event.target.value) || 0)),
+                  },
+                })}
+                className={numberInputClass}
+                aria-label="MSX2 required collectibles"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-msx-textsecondary">Initial air</span>
+              <input
+                type="number"
+                min={1}
+                max={255}
+                value={runtime.initialAir ?? 255}
+                onChange={event => onUpdate({
+                  runtime: {
+                    ...runtime,
+                    initialAir: Math.max(1, Math.min(255, Number(event.target.value) || 255)),
+                  },
+                })}
+                className={numberInputClass}
+                aria-label="MSX2 initial air"
+              />
+            </label>
           </div>
         </Panel>
 

@@ -204,6 +204,8 @@ const project = {
         runtime: {
           screenKind: 'playable',
           screenEngine: 'player',
+          requiredCollectibles: 2,
+          initialAir: 255,
           activeAreaX: 0,
           activeAreaY: 0,
           activeAreaWidth: 16,
@@ -236,6 +238,8 @@ const project = {
         runtime: {
           screenKind: 'playable',
           screenEngine: 'player',
+          requiredCollectibles: 2,
+          initialAir: 192,
           activeAreaX: 0,
           activeAreaY: 0,
           activeAreaWidth: 16,
@@ -340,6 +344,13 @@ const project = {
     keyMapping: { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', fire1: ' ', fire2: 'm' },
   },
 };
+
+const startScreenAssetIndex = project.assets.findIndex(asset => asset.id === 'screen_msx2_layers_smoke');
+const exitScreenAssetIndex = project.assets.findIndex(asset => asset.id === 'screen_msx2_layers_exit');
+if (startScreenAssetIndex >= 0 && exitScreenAssetIndex > startScreenAssetIndex) {
+  const [exitScreenAsset] = project.assets.splice(exitScreenAssetIndex, 1);
+  project.assets.splice(startScreenAssetIndex, 0, exitScreenAsset);
+}
 
 fs.mkdirSync(path.dirname(outJson), { recursive: true });
 const fixtureJson = `${JSON.stringify(project, null, 2)}\n`;

@@ -97,7 +97,7 @@ def validate_fixture_json(project_json: Path) -> None:
         raise RuntimeError("Fixture is not using the MSX2 16x16 tile backend alias")
 
     screen_assets = [asset for asset in project.get("assets", []) if asset.get("type") == "msx2screen"]
-    screen_asset = screen_assets[0] if screen_assets else None
+    screen_asset = next((asset for asset in screen_assets if asset.get("id") == "screen_msx2_layers_smoke"), None)
     sprite_asset = next((asset for asset in project.get("assets", []) if asset.get("type") == "msx2sprite"), None)
     world_asset = next((asset for asset in project.get("assets", []) if asset.get("type") == "worldmap"), None)
     gameflow_asset = next((asset for asset in project.get("assets", []) if asset.get("type") == "gameflow"), None)
@@ -105,6 +105,8 @@ def validate_fixture_json(project_json: Path) -> None:
         raise RuntimeError("Fixture does not contain an msx2screen asset")
     if len(screen_assets) < 2:
         raise RuntimeError("Fixture must contain at least two msx2screen assets for WorldMap transition smoke")
+    if screen_assets[0].get("id") == screen_asset.get("id"):
+        raise RuntimeError("Fixture must keep the WorldMap start screen out of the first asset slot")
     if not sprite_asset:
         raise RuntimeError("Fixture does not contain an msx2sprite asset")
     if not world_asset:
@@ -113,6 +115,13 @@ def validate_fixture_json(project_json: Path) -> None:
         raise RuntimeError("Fixture does not contain a gameflow asset")
 
     screen = screen_asset.get("data", {})
+    for asset in screen_assets:
+        runtime = asset.get("data", {}).get("runtime", {})
+        if int(runtime.get("requiredCollectibles", -1)) != 2:
+            raise RuntimeError("Fixture MSX2 screens must require two collectibles before exits unlock")
+        initial_air = int(runtime.get("initialAir", -1))
+        if initial_air < 1 or initial_air > 255:
+            raise RuntimeError("Fixture MSX2 screens must define an initialAir byte between 1 and 255")
     layers = screen.get("layers", {})
     for layer_name in ("collision", "effects", "behavior"):
         layer = layers.get(layer_name)
@@ -270,6 +279,11 @@ const required = [
   "write_hardware_sprite_attrs",
   "msx2_required_collectibles",
   "msx2_required_collectibles EQU 2",
+  "msx2_screen_required_collectibles",
+  "msx2_compare_collectibles_required",
+  "msx2_screen_initial_air",
+  "msx2_load_current_screen_air",
+  "msx2_reset_screen_transition_flags",
   "msx2_respawn_current_screen",
   "msx2_screen_spawn_x",
   "msx2_screen_enemy_count",
@@ -342,6 +356,11 @@ def validate_asm(asm_output: Path) -> None:
         "write_hardware_sprite_attrs",
         "msx2_required_collectibles",
         "msx2_required_collectibles EQU 2",
+        "msx2_screen_required_collectibles",
+        "msx2_compare_collectibles_required",
+        "msx2_screen_initial_air",
+        "msx2_load_current_screen_air",
+        "msx2_reset_screen_transition_flags",
         "msx2_respawn_current_screen",
         "msx2_screen_spawn_x",
         "msx2_screen_enemy_count",
@@ -963,6 +982,30 @@ def validate_world_transition_screenshot(path: Path) -> None:
     print(f"World transition pixel check passed: marker_pixels={len(cyan_exit_marker_pixels)}")
 
 
+def validate_world_transition_air_probe(path: Path, label: str) -> None:
+    values = read_probe_values(path)
+    required = ["screen", "air", "air_frame"]
+    missing = [key for key in required if key not in values]
+    if missing:
+        raise RuntimeError(f"OpenMSX {label} WorldMap air probe is missing values: {', '.join(missing)}")
+    if values["screen"] != 1:
+        raise RuntimeError(f"OpenMSX {label} WorldMap air probe did not reach the exit room: screen={values['screen']:02X}")
+    if not (0 < values["air"] <= 0xC0):
+        raise RuntimeError(
+            f"OpenMSX {label} WorldMap air probe did not load the target screen initial air: "
+            f"air={values['air']:02X}"
+        )
+    if values["air_frame"] >= 48:
+        raise RuntimeError(
+            f"OpenMSX {label} WorldMap air frame divider is outside its expected range: "
+            f"air_frame={values['air_frame']:02X}"
+        )
+    print(
+        f"WorldMap target air probe check passed ({label}): "
+        f"screen={values['screen']:02X}, air={values['air']:02X}, air_frame={values['air_frame']:02X}"
+    )
+
+
 def read_probe_values(path: Path) -> dict[str, int]:
     if not path.exists():
         raise RuntimeError(f"OpenMSX gameplay probe was not created: {path}")
@@ -1283,17 +1326,19 @@ def main() -> None:
         validate_jump_screenshot(grounded_screenshot_output, jump_screenshot_output)
         validate_world_transition_screenshot(locked_transition_screenshot_output)
         validate_world_transition_screenshot(transition_screenshot_output)
+        validate_world_transition_air_probe(locked_gameplay_probe_output, "locked")
+        validate_world_transition_air_probe(gameplay_probe_output, "open")
         validate_level_complete_screenshot(transition_screenshot_output)
         validate_level_continue_probe(level_continue_probe_output)
         validate_level_continue_screenshot(level_continue_screenshot_output)
         validate_gameplay_probe(
             locked_gameplay_probe_output,
-            {"collectible": 1, "hazard": 1, "exit": 0, "blocked": 1, "level": 0, "level_lock": 0, "enemy": 1, "lives": 2},
+            {"collectible": 1, "hazard": 0, "exit": 0, "blocked": 1, "level": 0, "level_lock": 0, "enemy": 0, "lives": 2, "screen": 1},
             "locked exit after one collectible",
         )
         validate_gameplay_probe(
             gameplay_probe_output,
-            {"collectible": 2, "hazard": 1, "exit": 1, "blocked": 0, "level": 1, "enemy": 1, "lives": 2},
+            {"collectible": 2, "hazard": 0, "exit": 1, "blocked": 0, "level": 1, "enemy": 0, "lives": 2, "screen": 1},
             "open exit after both collectibles",
         )
     print(f"OpenMSX screenshot ready: {screenshot_output}")

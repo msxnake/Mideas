@@ -3536,6 +3536,8 @@
         "runtime": {
           "screenKind": "playable",
           "screenEngine": "player",
+          "requiredCollectibles": 2,
+          "initialAir": 255,
           "activeAreaX": 0,
           "activeAreaY": 0,
           "activeAreaWidth": 16,
@@ -6973,6 +6975,8 @@
         "runtime": {
           "screenKind": "playable",
           "screenEngine": "player",
+          "requiredCollectibles": 2,
+          "initialAir": 192,
           "activeAreaX": 0,
           "activeAreaY": 0,
           "activeAreaWidth": 16,

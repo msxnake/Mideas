@@ -684,6 +684,8 @@ export const useProjectHandlers = ({
           }
           if (asset.type === 'msx2screen' && asset.data) {
             const screen = asset.data as any;
+            const requiredCollectibles = Number(screen.runtime?.requiredCollectibles);
+            const initialAir = Number(screen.runtime?.initialAir);
             const layers = {
               collision: normalizeMsx2Layer(screen.layers?.collision, screen.collisionMap),
               effects: normalizeMsx2Layer(screen.layers?.effects),
@@ -698,6 +700,12 @@ export const useProjectHandlers = ({
                 runtime: {
                   screenKind: screen.runtime?.screenKind || 'playable',
                   screenEngine: screen.runtime?.screenEngine || 'player',
+                  ...(Number.isFinite(requiredCollectibles)
+                    ? { requiredCollectibles: Math.max(0, Math.min(255, Math.floor(requiredCollectibles))) }
+                    : {}),
+                  ...(Number.isFinite(initialAir)
+                    ? { initialAir: Math.max(1, Math.min(255, Math.floor(initialAir))) }
+                    : {}),
                   activeAreaX: Number.isFinite(Number(screen.runtime?.activeAreaX)) ? Number(screen.runtime.activeAreaX) : 0,
                   activeAreaY: Number.isFinite(Number(screen.runtime?.activeAreaY)) ? Number(screen.runtime.activeAreaY) : 0,
                   activeAreaWidth: Number.isFinite(Number(screen.runtime?.activeAreaWidth)) ? Number(screen.runtime.activeAreaWidth) : 16,

@@ -412,11 +412,14 @@ export const useAssetHandlers = ({
           layers: {
             collision: Array.from({ length: 14 }, (_, y) => Array.from({ length: 16 }, () => y === 13 ? 1 : 0)),
             effects: Array.from({ length: 14 }, () => Array.from({ length: 16 }, () => 0)),
+            behavior: Array.from({ length: 14 }, () => Array.from({ length: 16 }, () => 0)),
             entities: [],
           },
           runtime: {
             screenKind: 'playable',
             screenEngine: 'player',
+            requiredCollectibles: 0,
+            initialAir: 255,
             activeAreaX: 0,
             activeAreaY: 0,
             activeAreaWidth: 16,

@@ -200,6 +200,22 @@ function countTileScreenEffectCode(screen: Msx2Screen5TileScreen | undefined, co
   return buildTileScreenLayerBytes(screen, 'effects').filter(value => value === code).length;
 }
 
+function getTileScreenRequiredCollectibles(screen: Msx2Screen5TileScreen | undefined): number {
+  const configured = Number(screen?.runtime?.requiredCollectibles);
+  if (Number.isFinite(configured)) {
+    return Math.max(0, Math.min(255, Math.floor(configured)));
+  }
+  return Math.max(0, Math.min(255, countTileScreenEffectCode(screen, 3)));
+}
+
+function getTileScreenInitialAir(screen: Msx2Screen5TileScreen | undefined): number {
+  const configured = Number(screen?.runtime?.initialAir);
+  if (Number.isFinite(configured)) {
+    return Math.max(1, Math.min(255, Math.floor(configured)));
+  }
+  return 255;
+}
+
 function buildTilePatternBytes(tile: any | undefined): number[] {
   const bytes: number[] = [];
   for (let y = 0; y < 16; y++) {
@@ -613,9 +629,7 @@ function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis): string {
     ld (msx2_level_continue_lock), a
     ld (msx2_enemy_hit_flag), a
     ld (msx2_enemy_damage_cooldown), a
-    ld (msx2_air_frame_counter), a
-    ld a, 255
-    ld (msx2_air_value), a
+    call msx2_load_current_screen_air
     ld a, 3
     ld (msx2_lives), a
     call draw_msx2_lives_hud
@@ -1332,9 +1346,7 @@ msx2_continue_after_level_complete:
     ld (msx2_game_over_restart_lock), a
     ld (msx2_enemy_hit_flag), a
     ld (msx2_enemy_damage_cooldown), a
-    ld (msx2_air_frame_counter), a
-    ld a, 255
-    ld (msx2_air_value), a
+    call msx2_load_current_screen_air
     call msx2_reset_enemy_runtime_for_current_screen
     call draw_msx2_lives_hud
     call draw_msx2_collectible_hud
@@ -1359,10 +1371,8 @@ msx2_restart_game:
     ld (msx2_level_continue_lock), a
     ld (msx2_enemy_hit_flag), a
     ld (msx2_enemy_damage_cooldown), a
-    ld (msx2_air_frame_counter), a
+    call msx2_load_current_screen_air
     call msx2_reset_enemy_runtime_for_current_screen
-    ld a, 255
-    ld (msx2_air_value), a
     ld a, 3
     ld (msx2_lives), a
     call draw_msx2_lives_hud
@@ -1663,8 +1673,7 @@ update_msx2_effect_state:
 .exit:
     xor a
     ld (msx2_collectible_latch), a
-    ld a, (msx2_collectible_count)
-    cp ${Math.max(0, Math.min(255, requiredCollectibles))}
+    call msx2_compare_collectibles_required
     jp c, .exit_locked
     ld a, 1
     ld (msx2_exit_reached_flag), a
@@ -1690,8 +1699,7 @@ update_msx2_effect_state:
     call clear_msx2_collectible_visual
     ld a, 1
     ld (msx2_collectible_latch), a
-    ld a, (msx2_collectible_count)
-    cp ${Math.max(0, Math.min(255, requiredCollectibles))}
+    call msx2_compare_collectibles_required
     jp nc, .collectible_border
     ld a, (msx2_collectible_count)
     inc a
@@ -1702,6 +1710,48 @@ update_msx2_effect_state:
 .write_border:
     ld c, #07
     call WRTVDP
+    ret
+
+msx2_compare_collectibles_required:
+    ; Compares current collected count with the active screen requirement.
+    ; Carry set means collected < required. Clobbers AF/HL, preserves BC/DE.
+    ld a, (msx2_current_screen_index)
+    ld hl, msx2_screen_required_collectibles
+    add a, l
+    ld l, a
+    ld a, h
+    adc a, 0
+    ld h, a
+    ld a, (msx2_collectible_count)
+    cp (hl)
+    ret
+
+msx2_load_current_screen_air:
+    ; Loads the active screen initial air value. Clobbers AF/HL, preserves BC/DE.
+    xor a
+    ld (msx2_air_frame_counter), a
+    ld a, (msx2_current_screen_index)
+    ld hl, msx2_screen_initial_air
+    add a, l
+    ld l, a
+    ld a, h
+    adc a, 0
+    ld h, a
+    ld a, (hl)
+    ld (msx2_air_value), a
+    ret
+
+msx2_reset_screen_transition_flags:
+    ; Clears transient per-screen event flags on WorldMap entry. Clobbers AF only.
+    xor a
+    ld (msx2_player_dead_flag), a
+    ld (msx2_exit_reached_flag), a
+    ld (msx2_exit_blocked_flag), a
+    ld (msx2_collectible_latch), a
+    ld (msx2_enemy_hit_flag), a
+    ld (msx2_enemy_damage_cooldown), a
+    ld (msx2_level_complete_flag), a
+    ld (msx2_level_continue_lock), a
     ret
 
 clear_msx2_collectible_visual:
@@ -1994,14 +2044,18 @@ function collectReferencedTileScreens(analysis: ProjectAnalysis): Msx2Screen5Til
     screens.set(screen.id || screen.name || `msx2_screen_${screens.size}`, screen);
   };
 
-  addScreen(analysis.msx2Screens?.[0]);
-
   for (const node of analysis.gameFlow?.nodes || []) {
     if (node.type !== 'WorldLink') continue;
-    const world = resolveWorldByAssetId(analysis, getGameFlowWorldAssetId(node));
+    const worldAssetId = getGameFlowWorldAssetId(node);
+    const world = resolveWorldByAssetId(analysis, worldAssetId);
+    addScreen(resolveTileScreenByAssetId(analysis, resolveWorldStartScreenAssetId(analysis, worldAssetId)));
     for (const worldNode of world?.nodes || []) {
       addScreen(resolveTileScreenByAssetId(analysis, worldNode?.screenAssetId || worldNode?.screenId));
     }
+  }
+
+  if (screens.size === 0) {
+    addScreen(analysis.msx2Screens?.[0]);
   }
 
   return Array.from(screens.values());
@@ -2176,7 +2230,10 @@ function buildMsx2WorldTransitionAsm(
     call load_${targetLabel}_bitmap
     ld a, ${targetIndex}
     ld (msx2_current_screen_index), a
+    call msx2_reset_screen_transition_flags
     call msx2_reset_enemy_runtime_for_current_screen
+    call msx2_load_current_screen_air
+    call draw_msx2_air_hud
     ld a, ${enterX}
     ld (msx2_player_sprite_x), a
     ld a, ${enterY}
@@ -2272,7 +2329,9 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const gameFlowProgram = buildMsx2GameFlowProgram(analysis, screenLabels, tileScreenLabels, tileScreenIndexByLabel);
   const hardwareSpriteInitAsm = buildHardwareSpriteInitAsm(analysis);
   const hardwareSpriteDataAsm = buildHardwareSpriteDataAsm(analysis);
-  const requiredCollectibles = Math.min(255, tileScreens.reduce((total, screen) => total + countTileScreenEffectCode(screen, 3), 0));
+  const requiredCollectiblesByScreen = tileScreens.map(screen => getTileScreenRequiredCollectibles(screen));
+  const requiredCollectibles = Math.min(255, Math.max(0, ...requiredCollectiblesByScreen));
+  const initialAirByScreen = tileScreens.map(screen => getTileScreenInitialAir(screen));
   const spawnXBytes = tileScreens.map(screen => clampHardwareSpriteX(getPlayerStartFromTileScreen(screen)?.x ?? 96));
   const spawnYBytes = tileScreens.map(screen => clampHardwareSpriteY(getPlayerStartFromTileScreen(screen)?.y ?? 144));
   const enemyHazards = tileScreens.map(screen => getEnemyHazardRuntimeSlots(screen));
@@ -2502,6 +2561,8 @@ ${[...tileScreenLoadRoutines, ...genericScreenLoadRoutines].join('\n')}
 ${formatBytes('screen5_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G')}
 ${formatBytes('msx2_screen_spawn_x', spawnXBytes.length ? spawnXBytes : [96], 'Per-msx2screen respawn X coordinates')}
 ${formatBytes('msx2_screen_spawn_y', spawnYBytes.length ? spawnYBytes : [144], 'Per-msx2screen respawn Y coordinates')}
+${formatBytes('msx2_screen_required_collectibles', requiredCollectiblesByScreen.length ? requiredCollectiblesByScreen : [requiredCollectibles], 'Per-msx2screen collectible count required before exits unlock')}
+${formatBytes('msx2_screen_initial_air', initialAirByScreen.length ? initialAirByScreen : [255], 'Per-msx2screen initial air/time values')}
 ${formatBytes('msx2_screen_enemy_count', enemyCountBytes.length ? enemyCountBytes : [0], `Per-msx2screen active enemy/hazard entity count, capped at ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN}`)}
 ${formatBytes('msx2_screen_enemy_x', enemyXBytes.length ? enemyXBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard entity X coordinates, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_y', enemyYBytes.length ? enemyYBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard entity Y coordinates, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
