@@ -2,7 +2,7 @@ import { getFrequencyForNoteString } from './noteFrequencies';
 import { PT3Instrument, PT3Ornament, TrackerSongData } from '../../types';
 
 const AY_CLOCK_FREQUENCY = 3579545 / 2;
-const FRAME_RATE_HZ = 50;
+const DEFAULT_TRACKER_TICK_MS = 20;
 const CHANNELS = 3;
 
 const AY_DAC_TABLE: readonly number[] = [
@@ -24,6 +24,7 @@ interface ChannelState {
   ornamentStep: number;
   toneOffset: number;
   ornamentOffset: number;
+  envelopeRestartPending: boolean;
   keyOn: boolean;
 }
 
@@ -39,6 +40,7 @@ const createChannelState = (): ChannelState => ({
   ornamentStep: 0,
   toneOffset: 0,
   ornamentOffset: 0,
+  envelopeRestartPending: false,
   keyOn: false,
 });
 
@@ -68,6 +70,7 @@ export class AYRegisterSynthesizer {
   private envelopePhaseSeconds = 0;
   private envelopeStep = 0;
   private envelopeHolding = false;
+  private envelopeAttack = false;
   private lastEnvelopeShape = -1;
 
   constructor(initialMasterVolume: number = 0.5) {
@@ -82,6 +85,7 @@ export class AYRegisterSynthesizer {
       const replacement = songData.instruments.find(instrument => instrument.id === channel.instrument?.id) as PT3Instrument | undefined;
       channel.instrument = replacement ?? null;
     });
+    this.restartTrackerFrameTimer();
   }
 
   public getSongData(): TrackerSongData | null {
@@ -100,7 +104,7 @@ export class AYRegisterSynthesizer {
         this.processor.onaudioprocess = this.renderAudio;
         this.processor.connect(this.masterGain);
 
-        this.frameIntervalId = window.setInterval(() => this.advanceTrackerFrame(), 1000 / FRAME_RATE_HZ);
+        this.restartTrackerFrameTimer();
         this.isInitialized = true;
       } catch (error) {
         console.error('Error initializing AY register synthesizer:', error);
@@ -146,6 +150,7 @@ export class AYRegisterSynthesizer {
         ? (this.songDataRef.instruments.find(instrument => instrument.id === instrumentIdFromCell) as PT3Instrument | undefined) ?? null
         : null;
       this.resetChannelProgress(state);
+      state.envelopeRestartPending = true;
     }
 
     if (ornamentIdFromCell !== null && this.songDataRef) {
@@ -167,6 +172,7 @@ export class AYRegisterSynthesizer {
       state.currentPeriod = state.basePeriod;
       state.keyOn = state.basePeriod !== null && state.instrument !== null;
       this.resetChannelProgress(state);
+      state.envelopeRestartPending = true;
     }
 
     this.writeChannelRegisters(channel);
@@ -222,10 +228,9 @@ export class AYRegisterSynthesizer {
     const sampleRate = this.audioContext.sampleRate;
     const noisePeriod = Math.max(1, this.registers[6] & 0x1f);
     const noiseFrequency = AY_CLOCK_FREQUENCY / (32 * noisePeriod);
-    const envelopeLevel = this.getEnvelopeLevel(sampleRate);
-
     for (let i = 0; i < output.length; i++) {
       let mixed = 0;
+      const envelopeLevel = this.getEnvelopeLevel(sampleRate);
 
       this.noisePhase += noiseFrequency / sampleRate;
       while (this.noisePhase >= 1) {
@@ -268,8 +273,7 @@ export class AYRegisterSynthesizer {
       this.advanceHardwareEnvelope();
     }
 
-    const attack = (this.lastEnvelopeShape & 0x04) !== 0;
-    return attack ? this.envelopeStep : 15 - this.envelopeStep;
+    return this.envelopeAttack ? this.envelopeStep : 15 - this.envelopeStep;
   }
 
   private advanceHardwareEnvelope(): void {
@@ -284,17 +288,20 @@ export class AYRegisterSynthesizer {
     if (this.envelopeStep < 16) return;
 
     if (!continueFlag) {
+      this.envelopeAttack = false;
       this.envelopeStep = 15;
       this.envelopeHolding = true;
       return;
     }
 
     if (hold) {
-      this.envelopeStep = alternate ? 0 : 15;
+      if (alternate) this.envelopeAttack = !this.envelopeAttack;
+      this.envelopeStep = 15;
       this.envelopeHolding = true;
       return;
     }
 
+    if (alternate) this.envelopeAttack = !this.envelopeAttack;
     this.envelopeStep = 0;
   }
 
@@ -305,6 +312,23 @@ export class AYRegisterSynthesizer {
       this.advanceChannelState(state);
       this.writeChannelRegisters(channel as 0 | 1 | 2);
     }
+  }
+
+  private restartTrackerFrameTimer(): void {
+    const nextTickMs = this.getTrackerTickMs();
+    if (this.frameIntervalId !== null) {
+      clearInterval(this.frameIntervalId);
+      this.frameIntervalId = null;
+    }
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      this.frameIntervalId = window.setInterval(() => this.advanceTrackerFrame(), nextTickMs);
+    }
+  }
+
+  private getTrackerTickMs(): number {
+    const bpm = this.songDataRef?.bpm ?? 125;
+    if (!Number.isFinite(bpm) || bpm <= 0) return DEFAULT_TRACKER_TICK_MS;
+    return Math.max(5, 2500 / bpm);
   }
 
   private advanceChannelState(state: ChannelState): void {
@@ -353,7 +377,8 @@ export class AYRegisterSynthesizer {
       const envelopePeriod = this.resolveHardwareEnvelopePeriod(state);
       this.registers[11] = envelopePeriod & 0xff;
       this.registers[12] = (envelopePeriod >> 8) & 0xff;
-      this.writeEnvelopeShape(instrument.ayEnvelopeShape);
+      this.writeEnvelopeShape(instrument.ayEnvelopeShape, state.envelopeRestartPending);
+      state.envelopeRestartPending = false;
     } else {
       this.registers[8 + channel] = this.resolveVolume(state) & 0x0f;
     }
@@ -365,11 +390,12 @@ export class AYRegisterSynthesizer {
     this.registers[7] &= 0x3f;
   }
 
-  private writeEnvelopeShape(shape: number): void {
+  private writeEnvelopeShape(shape: number, forceRestart = false): void {
     const normalizedShape = shape & 0x0f;
-    if (this.lastEnvelopeShape === normalizedShape) return;
+    if (!forceRestart && this.lastEnvelopeShape === normalizedShape) return;
     this.registers[13] = normalizedShape;
     this.lastEnvelopeShape = normalizedShape;
+    this.envelopeAttack = (normalizedShape & 0x04) !== 0;
     this.envelopeStep = 0;
     this.envelopePhaseSeconds = 0;
     this.envelopeHolding = false;
