@@ -4,12 +4,18 @@ import { PT3Instrument, PT3Ornament, TrackerSongData } from '../../types';
 const AY_CLOCK_FREQUENCY = 3579545 / 2;
 const DEFAULT_TRACKER_TICK_MS = 20;
 const CHANNELS = 3;
+const DC_BLOCKER_R = 0.995;
+const ANALOG_LOW_PASS_CUTOFF_HZ = 12000;
 
-const AY_DAC_TABLE: readonly number[] = [
-  0.0000, 0.0137, 0.0205, 0.0291,
-  0.0423, 0.0618, 0.0847, 0.1369,
-  0.1691, 0.2647, 0.3527, 0.4499,
-  0.5765, 0.6873, 0.8482, 1.0000,
+const YM2149_DAC_TABLE: readonly number[] = [
+  0, 369 / 196605, 438 / 196605, 521 / 196605,
+  619 / 196605, 735 / 196605, 874 / 196605, 1039 / 196605,
+  1234 / 196605, 1467 / 196605, 1744 / 196605, 2072 / 196605,
+  2463 / 196605, 2927 / 196605, 3479 / 196605, 4135 / 196605,
+  4914 / 196605, 5841 / 196605, 6942 / 196605, 8250 / 196605,
+  9806 / 196605, 11654 / 196605, 13851 / 196605, 16462 / 196605,
+  19565 / 196605, 23253 / 196605, 27636 / 196605, 32845 / 196605,
+  39037 / 196605, 46395 / 196605, 55141 / 196605, 65535 / 196605,
 ];
 
 interface ChannelState {
@@ -63,15 +69,23 @@ export class AYRegisterSynthesizer {
   private registers = new Uint8Array(14);
   private channelStates: ChannelState[] = [createChannelState(), createChannelState(), createChannelState()];
 
-  private tonePhase = [0, 0, 0];
-  private noisePhase = 0;
-  private noiseOutput = 1;
+  private toneCounters = [8, 8, 8];
+  private toneOutputs = [0, 0, 0];
+  private noiseCounter = 16;
+  private noiseOutput = 0;
   private noiseLfsr = 1;
-  private envelopePhaseSeconds = 0;
-  private envelopeStep = 0;
-  private envelopeHolding = false;
-  private envelopeAttack = false;
-  private lastEnvelopeShape = -1;
+  private envelopeCounter = 0;
+  private envelopeStep = 31;
+  private envelopeFirstCycle = true;
+  private envelopeAlternateMask = 0;
+  private envelopeHoldMask = 0;
+  private envelopeAlternateBit = 0;
+  private envelopeAttackBit = 0;
+  private envelopeContinueBit = 0;
+  private lastEnvelopeShape = 0;
+  private dcBlockerInput = 0;
+  private dcBlockerOutput = 0;
+  private analogLowPassOutput = 0;
 
   constructor(initialMasterVolume: number = 0.5) {
     this.currentMasterVolume = Math.max(0, Math.min(initialMasterVolume, 1.0));
@@ -226,83 +240,76 @@ export class AYRegisterSynthesizer {
 
     const output = event.outputBuffer.getChannelData(0);
     const sampleRate = this.audioContext.sampleRate;
-    const noisePeriod = Math.max(1, this.registers[6] & 0x1f);
-    const noiseFrequency = AY_CLOCK_FREQUENCY / (32 * noisePeriod);
+    const chipTicksPerSample = AY_CLOCK_FREQUENCY / sampleRate;
+    const lowPassCoefficient = this.getLowPassCoefficient(sampleRate);
     for (let i = 0; i < output.length; i++) {
       let mixed = 0;
-      const envelopeLevel = this.getEnvelopeLevel(sampleRate);
+      const envelopeLevel = this.advanceEnvelope(chipTicksPerSample);
 
-      this.noisePhase += noiseFrequency / sampleRate;
-      while (this.noisePhase >= 1) {
-        this.noisePhase -= 1;
-        const feedback = ((this.noiseLfsr >> 0) ^ (this.noiseLfsr >> 3)) & 1;
-        this.noiseLfsr = (this.noiseLfsr >> 1) | (feedback << 16);
-        this.noiseOutput = (this.noiseLfsr & 1) ? 1 : -1;
-      }
+      this.advanceNoise(chipTicksPerSample);
 
       for (let channel = 0; channel < CHANNELS; channel++) {
-        const period = this.getTonePeriodFromRegisters(channel);
+        this.advanceTone(channel, chipTicksPerSample);
         const toneDisabled = (this.registers[7] & (1 << channel)) !== 0;
         const noiseDisabled = (this.registers[7] & (1 << (channel + 3))) !== 0;
-        const toneFrequency = period > 0 ? AY_CLOCK_FREQUENCY / (16 * period) : 0;
-
-        if (toneFrequency > 0) {
-          this.tonePhase[channel] += toneFrequency / sampleRate;
-          if (this.tonePhase[channel] >= 1) this.tonePhase[channel] -= Math.floor(this.tonePhase[channel]);
-        }
-
-        const toneValue = toneDisabled ? 1 : (this.tonePhase[channel] < 0.5 ? 1 : -1);
-        const noiseValue = noiseDisabled ? 1 : this.noiseOutput;
-        const gate = toneValue > 0 && noiseValue > 0 ? 1 : 0;
+        const toneMask = toneDisabled ? 31 : this.toneOutputs[channel];
+        const noiseMask = noiseDisabled ? 31 : this.noiseOutput;
         const volumeRegister = this.registers[8 + channel];
-        const volumeLevel = (volumeRegister & 0x10) !== 0 ? envelopeLevel : (volumeRegister & 0x0f);
-        mixed += gate * AY_DAC_TABLE[volumeLevel];
+        const volumeIndex = (volumeRegister & 0x10) !== 0 ? envelopeLevel : ((volumeRegister & 0x0f) << 1);
+        mixed += YM2149_DAC_TABLE[volumeIndex & toneMask & noiseMask];
       }
 
-      output[i] = (mixed / CHANNELS) * 0.85;
+      const rawSample = (mixed / CHANNELS) * 0.95;
+      const dcBlocked = rawSample - this.dcBlockerInput + (DC_BLOCKER_R * this.dcBlockerOutput);
+      this.dcBlockerInput = rawSample;
+      this.dcBlockerOutput = dcBlocked;
+      this.analogLowPassOutput += lowPassCoefficient * (dcBlocked - this.analogLowPassOutput);
+      output[i] = this.analogLowPassOutput;
     }
   };
 
-  private getEnvelopeLevel(sampleRate: number): number {
-    const envelopePeriod = Math.max(1, this.registers[11] | (this.registers[12] << 8));
-    const secondsPerStep = (256 * envelopePeriod) / AY_CLOCK_FREQUENCY;
-    this.envelopePhaseSeconds += 1 / sampleRate;
-
-    while (this.envelopePhaseSeconds >= secondsPerStep) {
-      this.envelopePhaseSeconds -= secondsPerStep;
-      this.advanceHardwareEnvelope();
+  private advanceTone(channel: number, chipTicksPerSample: number): void {
+    const tonePeriodTicks = Math.max(8, 8 * this.getTonePeriodFromRegisters(channel));
+    this.toneCounters[channel] -= chipTicksPerSample;
+    while (this.toneCounters[channel] < 0) {
+      this.toneCounters[channel] += tonePeriodTicks;
+      this.toneOutputs[channel] ^= 31;
     }
-
-    return this.envelopeAttack ? this.envelopeStep : 15 - this.envelopeStep;
   }
 
-  private advanceHardwareEnvelope(): void {
-    if (this.envelopeHolding) return;
+  private advanceNoise(chipTicksPerSample: number): void {
+    const noisePeriodTicks = Math.max(16, 16 * (this.registers[6] & 0x1f));
+    this.noiseCounter -= chipTicksPerSample;
+    while (this.noiseCounter < 0) {
+      this.noiseCounter += noisePeriodTicks;
+      if (((this.noiseLfsr + 1) & 0x02) !== 0) {
+        this.noiseOutput ^= 31;
+      }
+      if ((this.noiseLfsr & 0x01) !== 0) {
+        this.noiseLfsr ^= 0x24000;
+      }
+      this.noiseLfsr >>= 1;
+    }
+  }
 
-    const shape = this.lastEnvelopeShape & 0x0f;
-    const continueFlag = (shape & 0x08) !== 0;
-    const alternate = (shape & 0x02) !== 0;
-    const hold = (shape & 0x01) !== 0;
-
-    this.envelopeStep++;
-    if (this.envelopeStep < 16) return;
-
-    if (!continueFlag) {
-      this.envelopeAttack = false;
-      this.envelopeStep = 15;
-      this.envelopeHolding = true;
-      return;
+  private advanceEnvelope(chipTicksPerSample: number): number {
+    const envelopePeriodTicks = Math.max(16, 16 * (this.registers[11] | (this.registers[12] << 8)));
+    this.envelopeCounter -= 2 * chipTicksPerSample;
+    while (this.envelopeCounter < 0) {
+      this.envelopeCounter += envelopePeriodTicks;
+      this.envelopeStep--;
+      if (this.envelopeStep < 0) {
+        this.envelopeStep = 31;
+        this.envelopeFirstCycle = false;
+        this.envelopeAlternateMask ^= 31;
+      }
     }
 
-    if (hold) {
-      if (alternate) this.envelopeAttack = !this.envelopeAttack;
-      this.envelopeStep = 15;
-      this.envelopeHolding = true;
-      return;
-    }
-
-    if (alternate) this.envelopeAttack = !this.envelopeAttack;
-    this.envelopeStep = 0;
+    let level = this.envelopeStep ^ (this.envelopeAlternateMask && this.envelopeAlternateBit);
+    if (!this.envelopeFirstCycle) level |= this.envelopeHoldMask;
+    level ^= this.envelopeAttackBit;
+    if (!this.envelopeFirstCycle) level &= this.envelopeContinueBit;
+    return level & 31;
   }
 
   private advanceTrackerFrame(): void {
@@ -329,6 +336,12 @@ export class AYRegisterSynthesizer {
     const bpm = this.songDataRef?.bpm ?? 125;
     if (!Number.isFinite(bpm) || bpm <= 0) return DEFAULT_TRACKER_TICK_MS;
     return Math.max(5, 2500 / bpm);
+  }
+
+  private getLowPassCoefficient(sampleRate: number): number {
+    const rc = 1 / (2 * Math.PI * ANALOG_LOW_PASS_CUTOFF_HZ);
+    const dt = 1 / sampleRate;
+    return dt / (rc + dt);
   }
 
   private advanceChannelState(state: ChannelState): void {
@@ -395,10 +408,14 @@ export class AYRegisterSynthesizer {
     if (!forceRestart && this.lastEnvelopeShape === normalizedShape) return;
     this.registers[13] = normalizedShape;
     this.lastEnvelopeShape = normalizedShape;
-    this.envelopeAttack = (normalizedShape & 0x04) !== 0;
-    this.envelopeStep = 0;
-    this.envelopePhaseSeconds = 0;
-    this.envelopeHolding = false;
+    this.envelopeCounter = 0;
+    this.envelopeStep = 32;
+    this.envelopeFirstCycle = true;
+    this.envelopeAlternateMask = 0;
+    this.envelopeHoldMask = (normalizedShape & 0x01) !== 0 ? 31 : 0;
+    this.envelopeAlternateBit = (normalizedShape & 0x02) !== 0 ? 31 : 0;
+    this.envelopeAttackBit = (normalizedShape & 0x04) !== 0 ? 31 : 0;
+    this.envelopeContinueBit = (normalizedShape & 0x08) !== 0 ? 31 : 0;
   }
 
   private resolveVolume(state: ChannelState): number {
