@@ -4,6 +4,7 @@ import { PT3Instrument, PT3Ornament, TrackerSongData } from '../../types';
 const AY_CLOCK_FREQUENCY = 3579545 / 2;
 const DEFAULT_TRACKER_TICK_MS = 20;
 const CHANNELS = 3;
+const OSCILLOSCOPE_BUFFER_SIZE = 1024;
 const DC_BLOCKER_R = 0.995;
 const ANALOG_LOW_PASS_CUTOFF_HZ = 12000;
 
@@ -86,6 +87,12 @@ export class AYRegisterSynthesizer {
   private dcBlockerInput = 0;
   private dcBlockerOutput = 0;
   private analogLowPassOutput = 0;
+  private oscilloscopeBuffers: Float32Array[] = [
+    new Float32Array(OSCILLOSCOPE_BUFFER_SIZE),
+    new Float32Array(OSCILLOSCOPE_BUFFER_SIZE),
+    new Float32Array(OSCILLOSCOPE_BUFFER_SIZE),
+  ];
+  private oscilloscopeWriteIndex = 0;
 
   constructor(initialMasterVolume: number = 0.5) {
     this.currentMasterVolume = Math.max(0, Math.min(initialMasterVolume, 1.0));
@@ -209,6 +216,16 @@ export class AYRegisterSynthesizer {
     this.registers[10] = 0;
   }
 
+  public getOscilloscopeSnapshot(): Float32Array[] {
+    return this.oscilloscopeBuffers.map(buffer => {
+      const snapshot = new Float32Array(OSCILLOSCOPE_BUFFER_SIZE);
+      const tailLength = OSCILLOSCOPE_BUFFER_SIZE - this.oscilloscopeWriteIndex;
+      snapshot.set(buffer.subarray(this.oscilloscopeWriteIndex), 0);
+      snapshot.set(buffer.subarray(0, this.oscilloscopeWriteIndex), tailLength);
+      return snapshot;
+    });
+  }
+
   public async closeContext(): Promise<void> {
     this.stopAllNotes();
     if (this.frameIntervalId !== null) {
@@ -256,8 +273,11 @@ export class AYRegisterSynthesizer {
         const noiseMask = noiseDisabled ? 31 : this.noiseOutput;
         const volumeRegister = this.registers[8 + channel];
         const volumeIndex = (volumeRegister & 0x10) !== 0 ? envelopeLevel : ((volumeRegister & 0x0f) << 1);
-        mixed += YM2149_DAC_TABLE[volumeIndex & toneMask & noiseMask];
+        const channelSample = YM2149_DAC_TABLE[volumeIndex & toneMask & noiseMask];
+        this.oscilloscopeBuffers[channel][this.oscilloscopeWriteIndex] = channelSample;
+        mixed += channelSample;
       }
+      this.oscilloscopeWriteIndex = (this.oscilloscopeWriteIndex + 1) % OSCILLOSCOPE_BUFFER_SIZE;
 
       const rawSample = (mixed / CHANNELS) * 0.95;
       const dcBlocked = rawSample - this.dcBlockerInput + (DC_BLOCKER_R * this.dcBlockerOutput);

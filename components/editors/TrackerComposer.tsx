@@ -24,6 +24,7 @@ import { PatternsPanel } from '../tracker/PatternsPanel';
 import { InstrumentsPanel } from '../tracker/InstrumentsPanel';
 import { OrnamentsPanel } from '../tracker/OrnamentsPanel';
 import { TrackerPianoControls } from '../tracker/TrackerPianoControls';
+import { PsgOscilloscopePanel } from '../tracker/PsgOscilloscopePanel';
 import { PlusCircleIcon } from '../icons/MsxIcons';
 import { PatternEditorGrid } from '../tracker/PatternEditorGrid';
 import { InstrumentEditorModal } from '../tracker/InstrumentEditorModal';
@@ -1716,6 +1717,14 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         onLoadDemoPT3File={handleLoadDemoPT3File}
         isExternalPT3={songData.playbackBackend === 'external-pt3'}
       />
+      {songData.soundChip === 'PSG' && songData.playbackBackend !== 'external-pt3' && (
+        <PsgOscilloscopePanel
+          channels={channels}
+          mutedChannels={mutedChannels}
+          synthesizer={synthesizer}
+          isPlaying={isPlaying}
+        />
+      )}
 
       <div className="min-h-0 flex flex-grow overflow-hidden"> {/* Main content area (scrollable) */}
         <div className="w-64 flex-shrink-0 overflow-y-auto border-r border-msx-border bg-msx-panelbg/55 p-2 text-xs shadow-[6px_0_18px_rgba(0,0,0,0.22)]"> {/* Left panels column */}
