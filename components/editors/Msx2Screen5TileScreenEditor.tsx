@@ -16,6 +16,7 @@ import {
   Msx2Screen5SelectionRect,
   Msx2Screen5StatusBar,
   Msx2Screen5TileEditorPanel,
+  Msx2Screen5TilePaintTool,
   Msx2Screen5TilesPanel,
   Msx2Screen5Toolbar,
   TILE_SIZE,
@@ -27,23 +28,40 @@ interface Msx2Screen5TileScreenEditorProps {
   selectedColor: MSXColorValue;
 }
 
-const createTilePixels = (slot = 0): number[][] =>
-  Array.from({ length: TILE_SIZE }, () => Array.from({ length: TILE_SIZE }, () => slot));
+const MSX2_TILE_DIMENSION_OPTIONS = [8, 16, 24, 32] as const;
+
+const normalizeTileDimension = (value: unknown): number => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return TILE_SIZE;
+  const multipleOfEight = Math.round(numeric / 8) * 8;
+  return Math.max(8, Math.min(32, multipleOfEight));
+};
+
+const createTilePixels = (slot = 0, width = TILE_SIZE, height = TILE_SIZE): number[][] =>
+  Array.from({ length: height }, () => Array.from({ length: width }, () => slot));
 
 const cloneTile = (tile: Msx2Screen5Tile): Msx2Screen5Tile => ({
   ...tile,
+  width: normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE),
+  height: normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE),
   pixels: tile.pixels.map(row => [...row]),
 });
 
 const normalizeTiles = (tiles?: Msx2Screen5Tile[]): Msx2Screen5Tile[] => {
   const source = tiles?.length ? tiles : [{ id: 'tile_0', name: 'Tile 0', pixels: createTilePixels(0) }];
-  return source.map((tile, index) => ({
-    id: tile.id || `tile_${index}`,
-    name: tile.name || `Tile ${index}`,
-    pixels: Array.from({ length: TILE_SIZE }, (_, y) =>
-      Array.from({ length: TILE_SIZE }, (_, x) => Math.max(0, Math.min(15, Number(tile.pixels?.[y]?.[x]) || 0)))
-    ),
-  }));
+  return source.map((tile, index) => {
+    const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
+    const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
+    return {
+      id: tile.id || `tile_${index}`,
+      name: tile.name || `Tile ${index}`,
+      width,
+      height,
+      pixels: Array.from({ length: height }, (_, y) =>
+        Array.from({ length: width }, (_, x) => Math.max(0, Math.min(15, Number(tile.pixels?.[y]?.[x]) || 0)))
+      ),
+    };
+  });
 };
 
 const normalizeMap = (map: number[][] | undefined, tileCount: number): number[][] =>
@@ -120,6 +138,8 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
   const [isDrawing, setIsDrawing] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectionRect, setSelectionRect] = useState<Msx2Screen5SelectionRect | null>(null);
+  const [paintSlot, setPaintSlot] = useState(0);
+  const [tilePaintTool, setTilePaintTool] = useState<Msx2Screen5TilePaintTool>('pencil');
 
   const { slots, changed } = useMemo(() => ensureScreen5PaletteSlots(screen.palette), [screen.palette]);
   const tiles = useMemo(() => normalizeTiles(screen.tiles), [screen.tiles]);
@@ -136,14 +156,19 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
       || DEFAULT_MSX2_ENTITY_CREATE_PRESETS[0],
     [selectedEntityPresetId]
   );
-  const activeSlot = useMemo(() => {
+  const selectedColorSlot = useMemo(() => {
     const exact = slots.find(slot => slot.hex === selectedColor)?.slotIndex;
     return typeof exact === 'number' ? exact : 0;
   }, [selectedColor, slots]);
+  const activeSlot = Math.max(0, Math.min(15, paintSlot));
 
   useEffect(() => {
     if (changed) onUpdate({ palette: slots.map(slot => ({ ...slot })) });
   }, [changed, onUpdate, slots]);
+
+  useEffect(() => {
+    setPaintSlot(selectedColorSlot);
+  }, [selectedColorSlot]);
 
   useEffect(() => {
     if (!screen.layers || !screen.layers.behavior || !screen.runtime) {
@@ -269,12 +294,102 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
   const handleTilePixelAction = (x: number, y: number, button: number) => {
     if (!selectedTile) return;
     const nextTiles = tiles.map(cloneTile);
-    nextTiles[selectedTileIndex].pixels[y][x] = button === 2 ? 0 : activeSlot;
+    const targetIndex = Math.max(0, Math.min(nextTiles.length - 1, selectedTileIndex));
+    const targetTile = nextTiles[targetIndex];
+    const paintTool = button === 2 ? 'erase' : tilePaintTool;
+    const tileWidth = normalizeTileDimension(targetTile.width ?? targetTile.pixels?.[0]?.length ?? TILE_SIZE);
+    const tileHeight = normalizeTileDimension(targetTile.height ?? targetTile.pixels?.length ?? TILE_SIZE);
+
+    if (paintTool === 'pick') {
+      setPaintSlot(Math.max(0, Math.min(15, Number(targetTile.pixels?.[y]?.[x]) || 0)));
+      setTilePaintTool('pencil');
+      return;
+    }
+
+    if (paintTool === 'fill') {
+      const sourceSlot = Math.max(0, Math.min(15, Number(targetTile.pixels?.[y]?.[x]) || 0));
+      if (sourceSlot !== activeSlot) {
+        const queue: Array<[number, number]> = [[x, y]];
+        const seen = new Set<string>();
+        while (queue.length) {
+          const [cx, cy] = queue.shift()!;
+          const key = `${cx},${cy}`;
+          if (seen.has(key) || cx < 0 || cy < 0 || cx >= tileWidth || cy >= tileHeight) continue;
+          seen.add(key);
+          if ((targetTile.pixels?.[cy]?.[cx] ?? 0) !== sourceSlot) continue;
+          targetTile.pixels[cy][cx] = activeSlot;
+          queue.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+        }
+      }
+      onUpdate({ tiles: nextTiles });
+      return;
+    }
+
+    targetTile.pixels[y][x] = paintTool === 'erase' ? 0 : activeSlot;
+    onUpdate({ tiles: nextTiles });
+  };
+
+  const updateSelectedTilePixels = (buildPixels: (tile: Msx2Screen5Tile) => number[][]) => {
+    if (!selectedTile) return;
+    const nextTiles = tiles.map(cloneTile);
+    const targetIndex = Math.max(0, Math.min(nextTiles.length - 1, selectedTileIndex));
+    const current = nextTiles[targetIndex];
+    const width = normalizeTileDimension(current.width ?? current.pixels?.[0]?.length ?? TILE_SIZE);
+    const height = normalizeTileDimension(current.height ?? current.pixels?.length ?? TILE_SIZE);
+    const pixels = buildPixels(current);
+    current.width = width;
+    current.height = height;
+    current.pixels = Array.from({ length: height }, (_, y) =>
+      Array.from({ length: width }, (_, x) => Math.max(0, Math.min(15, Number(pixels?.[y]?.[x]) || 0)))
+    );
+    onUpdate({ tiles: nextTiles });
+  };
+
+  const fillSelectedTile = () => {
+    updateSelectedTilePixels(tile =>
+      createTilePixels(activeSlot, tile.width || TILE_SIZE, tile.height || TILE_SIZE)
+    );
+  };
+
+  const flipSelectedTileHorizontal = () => {
+    updateSelectedTilePixels(tile => tile.pixels.map(row => [...row].reverse()));
+  };
+
+  const flipSelectedTileVertical = () => {
+    updateSelectedTilePixels(tile => [...tile.pixels].reverse().map(row => [...row]));
+  };
+
+  const shiftSelectedTile = (dx: number, dy: number) => {
+    updateSelectedTilePixels(tile => {
+      const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
+      const height = normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE);
+      return Array.from({ length: height }, (_, y) =>
+        Array.from({ length: width }, (_, x) => {
+          const sourceX = x - dx;
+          const sourceY = y - dy;
+          if (sourceX < 0 || sourceY < 0 || sourceX >= width || sourceY >= height) return 0;
+          return tile.pixels[sourceY]?.[sourceX] ?? 0;
+        })
+      );
+    });
+  };
+
+  const resizeSelectedTile = (width: number, height: number) => {
+    if (!selectedTile) return;
+    const nextWidth = normalizeTileDimension(width);
+    const nextHeight = normalizeTileDimension(height);
+    const nextTiles = tiles.map(cloneTile);
+    const current = nextTiles[selectedTileIndex];
+    current.width = nextWidth;
+    current.height = nextHeight;
+    current.pixels = Array.from({ length: nextHeight }, (_, y) =>
+      Array.from({ length: nextWidth }, (_, x) => Math.max(0, Math.min(15, Number(current.pixels?.[y]?.[x]) || 0)))
+    );
     onUpdate({ tiles: nextTiles });
   };
 
   const addTile = () => {
-    const nextTiles = [...tiles.map(cloneTile), { id: `tile_${Date.now()}`, name: `Tile ${tiles.length}`, pixels: createTilePixels(0) }];
+    const nextTiles = [...tiles.map(cloneTile), { id: `tile_${Date.now()}`, name: `Tile ${tiles.length}`, width: TILE_SIZE, height: TILE_SIZE, pixels: createTilePixels(0) }];
     onUpdate({ tiles: nextTiles });
     setSelectedTileIndex(nextTiles.length - 1);
   };
@@ -290,7 +405,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
 
   const clearTile = () => {
     const nextTiles = tiles.map(cloneTile);
-    nextTiles[selectedTileIndex].pixels = createTilePixels(0);
+    nextTiles[selectedTileIndex].pixels = createTilePixels(0, selectedTile.width || TILE_SIZE, selectedTile.height || TILE_SIZE);
     onUpdate({ tiles: nextTiles });
   };
 
@@ -418,6 +533,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
           {mode !== 'entities' && (
             <Msx2Screen5TilesPanel
               tiles={tiles}
+              slots={slots}
               selectedTileIndex={selectedTileIndex}
               onSelectTileIndex={setSelectedTileIndex}
               onAddTile={addTile}
@@ -454,9 +570,18 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
               selectedTile={selectedTile}
               slots={slots}
               activeSlot={activeSlot}
+              paintTool={tilePaintTool}
+              dimensionOptions={MSX2_TILE_DIMENSION_OPTIONS}
               isDrawing={isDrawing}
               onSetDrawing={setIsDrawing}
+              onSelectSlot={setPaintSlot}
+              onPaintToolChange={setTilePaintTool}
               onPixelAction={handleTilePixelAction}
+              onResizeTile={resizeSelectedTile}
+              onFillTile={fillSelectedTile}
+              onFlipHorizontal={flipSelectedTileHorizontal}
+              onFlipVertical={flipSelectedTileVertical}
+              onShiftTile={shiftSelectedTile}
             />
           )}
           <Msx2Screen5ExportModelPanel layers={layers} />

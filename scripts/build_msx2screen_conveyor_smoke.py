@@ -39,7 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--left-probe-output", default=str(out / "msx2screen-conveyor-left-probe.txt"), help="Output OpenMSX left conveyor RAM probe path")
     parser.add_argument("--openmsx", help="Explicit openmsx executable path")
     parser.add_argument("--machine", default="C-BIOS_MSX2", help="OpenMSX machine id")
-    parser.add_argument("--sequence", default="WAIT:100", help="Input sequence for capture")
+    parser.add_argument("--sequence", default="WAIT:200", help="Input sequence for capture")
     parser.add_argument("--boot-wait-ms", type=int, default=6000, help="Wait before input replay")
     parser.add_argument("--capture-wait-ms", type=int, default=0, help="Wait before screenshot after input")
     parser.add_argument("--skip-openmsx", action="store_true", help="Build and static-check only")

@@ -280,6 +280,10 @@ export interface Msx2Bitmap {
 export interface Msx2Screen5Tile {
   id: string;
   name: string;
+  /** Width in pixels. Must be a multiple of 8. Defaults to the screen cell size, 16. */
+  width?: number;
+  /** Height in pixels. Must be a multiple of 8. Defaults to the screen cell size, 16. */
+  height?: number;
   pixels: number[][];
 }
 

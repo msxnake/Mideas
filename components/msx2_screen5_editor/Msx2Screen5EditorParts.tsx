@@ -4,6 +4,7 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 
 export type Msx2Screen5EditMode = 'visual' | 'collision' | 'effects' | 'behavior' | 'entities' | 'tile';
+export type Msx2Screen5TilePaintTool = 'pencil' | 'erase' | 'fill' | 'pick';
 
 export const SCREEN_WIDTH = 256;
 export const SCREEN_HEIGHT = 212;
@@ -13,6 +14,12 @@ export const MAP_HEIGHT = 14;
 export const MAP_PIXEL_WIDTH = MAP_WIDTH * TILE_SIZE;
 export const MAP_PIXEL_HEIGHT = MAP_HEIGHT * TILE_SIZE;
 export const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
+
+const getTilePixelWidth = (tile: Msx2Screen5Tile | undefined): number =>
+  Math.max(8, Math.min(32, Number(tile?.width ?? tile?.pixels?.[0]?.length ?? TILE_SIZE) || TILE_SIZE));
+
+const getTilePixelHeight = (tile: Msx2Screen5Tile | undefined): number =>
+  Math.max(8, Math.min(32, Number(tile?.height ?? tile?.pixels?.length ?? TILE_SIZE) || TILE_SIZE));
 
 export interface Msx2Screen5CellAction {
   x: number;
@@ -165,7 +172,7 @@ export const Msx2Screen5Toolbar: React.FC<Msx2Screen5ToolbarProps> = ({
           <Button size="sm" variant="secondary" onClick={onPasteLayer} disabled={!canPasteLayer}>Paste Layer</Button>
         </div>
         <div className="text-msx-textsecondary">
-          16x14 tiles, 16x16 px. The visible SCREEN 5 crop is marked at 256x212.
+          16x14 visual anchors. Tiles can be 8/16/24/32 px in each axis; the visible SCREEN 5 crop is marked at 256x212.
         </div>
         <div className="text-msx-textsecondary">
           Runtime: {runtime.screenKind} / {runtime.screenEngine}
@@ -495,6 +502,7 @@ export const Msx2Screen5EntityPalettePanel: React.FC<Msx2Screen5EntityPalettePan
 
 interface Msx2Screen5TilesPanelProps {
   tiles: Msx2Screen5Tile[];
+  slots: Screen5PaletteSlot[];
   selectedTileIndex: number;
   onSelectTileIndex: (index: number) => void;
   onAddTile: () => void;
@@ -502,15 +510,55 @@ interface Msx2Screen5TilesPanelProps {
   onClearTile: () => void;
 }
 
+interface Msx2TilePreviewProps {
+  tile: Msx2Screen5Tile;
+  slots: Screen5PaletteSlot[];
+}
+
+const Msx2TilePreview: React.FC<Msx2TilePreviewProps> = ({ tile, slots }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const width = getTilePixelWidth(tile);
+    const height = getTilePixelHeight(tile);
+    canvas.width = width;
+    canvas.height = height;
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#05070b';
+    ctx.fillRect(0, 0, width, height);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const slot = tile.pixels?.[y]?.[x] ?? 0;
+        const hex = slots[slot]?.hex || '#000000';
+        ctx.fillStyle = hex === TRANSPARENT_HEX ? '#05070b' : hex;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  }, [tile, slots]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="h-10 w-10 flex-none rounded border border-msx-border bg-black"
+      style={{ imageRendering: 'pixelated' }}
+      aria-label={`MSX2 tile ${tile.name} preview`}
+    />
+  );
+};
+
 export const Msx2Screen5TilesPanel: React.FC<Msx2Screen5TilesPanelProps> = ({
   tiles,
+  slots,
   selectedTileIndex,
   onSelectTileIndex,
   onAddTile,
   onDuplicateTile,
   onClearTile,
 }) => (
-  <Panel title="Tiles 16x16">
+  <Panel title="Tiles">
     <div className="p-2 space-y-2">
       <div className="grid grid-cols-2 gap-1">
         <Button size="sm" variant="secondary" onClick={onAddTile}>Add</Button>
@@ -522,10 +570,18 @@ export const Msx2Screen5TilesPanel: React.FC<Msx2Screen5TilesPanelProps> = ({
           <button
             key={tile.id}
             type="button"
-            className={`text-left px-2 py-1 rounded border text-xs ${index === selectedTileIndex ? 'border-msx-highlight bg-msx-highlight/20' : 'border-msx-border bg-msx-panelbg'}`}
+            className={`min-w-0 text-left px-2 py-1 rounded border text-xs ${index === selectedTileIndex ? 'border-msx-highlight bg-msx-highlight/20' : 'border-msx-border bg-msx-panelbg'}`}
             onClick={() => onSelectTileIndex(index)}
           >
-            {index}: {tile.name}
+            <span className="flex items-center gap-2">
+              <Msx2TilePreview tile={tile} slots={slots} />
+              <span className="min-w-0">
+                <span className="block truncate">{index}: {tile.name}</span>
+                <span className="block text-[10px] text-msx-textsecondary">
+                  {getTilePixelWidth(tile)}x{getTilePixelHeight(tile)}
+                </span>
+              </span>
+            </span>
           </button>
         ))}
       </div>
@@ -584,12 +640,18 @@ export const Msx2Screen5Grid: React.FC<Msx2Screen5GridProps> = ({
     for (let my = 0; my < MAP_HEIGHT; my++) {
       for (let mx = 0; mx < MAP_WIDTH; mx++) {
         const tile = tiles[map[my][mx]] || tiles[0];
-        for (let py = 0; py < TILE_SIZE; py++) {
-          for (let px = 0; px < TILE_SIZE; px++) {
+        const tileWidth = getTilePixelWidth(tile);
+        const tileHeight = getTilePixelHeight(tile);
+        for (let py = 0; py < tileHeight; py++) {
+          const drawY = my * TILE_SIZE + py;
+          if (drawY >= MAP_PIXEL_HEIGHT) continue;
+          for (let px = 0; px < tileWidth; px++) {
+            const drawX = mx * TILE_SIZE + px;
+            if (drawX >= MAP_PIXEL_WIDTH) continue;
             const slot = tile.pixels[py][px] & 0x0f;
             const hex = slots[slot]?.hex || '#000000';
             ctx.fillStyle = hex === TRANSPARENT_HEX ? '#000000' : hex;
-            ctx.fillRect(((mx * TILE_SIZE) + px) * 2, ((my * TILE_SIZE) + py) * 2, 2, 2);
+            ctx.fillRect(drawX * 2, drawY * 2, 2, 2);
           }
         }
       }
@@ -795,9 +857,18 @@ interface Msx2Screen5TileEditorPanelProps {
   selectedTile: Msx2Screen5Tile;
   slots: Screen5PaletteSlot[];
   activeSlot: number;
+  paintTool: Msx2Screen5TilePaintTool;
+  dimensionOptions: readonly number[];
   isDrawing: boolean;
   onSetDrawing: (isDrawing: boolean) => void;
+  onSelectSlot: (slot: number) => void;
+  onPaintToolChange: (tool: Msx2Screen5TilePaintTool) => void;
   onPixelAction: (x: number, y: number, button: number) => void;
+  onResizeTile: (width: number, height: number) => void;
+  onFillTile: () => void;
+  onFlipHorizontal: () => void;
+  onFlipVertical: () => void;
+  onShiftTile: (dx: number, dy: number) => void;
 }
 
 export const Msx2Screen5TileEditorPanel: React.FC<Msx2Screen5TileEditorPanelProps> = ({
@@ -805,9 +876,18 @@ export const Msx2Screen5TileEditorPanel: React.FC<Msx2Screen5TileEditorPanelProp
   selectedTile,
   slots,
   activeSlot,
+  paintTool,
+  dimensionOptions,
   isDrawing,
   onSetDrawing,
+  onSelectSlot,
+  onPaintToolChange,
   onPixelAction,
+  onResizeTile,
+  onFillTile,
+  onFlipHorizontal,
+  onFlipVertical,
+  onShiftTile,
 }) => {
   const tileCanvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -815,36 +895,43 @@ export const Msx2Screen5TileEditorPanel: React.FC<Msx2Screen5TileEditorPanelProp
     const canvas = tileCanvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx || !selectedTile) return;
+    const tileWidth = getTilePixelWidth(selectedTile);
+    const tileHeight = getTilePixelHeight(selectedTile);
     const zoom = 16;
-    canvas.width = TILE_SIZE * zoom;
-    canvas.height = TILE_SIZE * zoom;
+    canvas.width = tileWidth * zoom;
+    canvas.height = tileHeight * zoom;
     ctx.imageSmoothingEnabled = false;
-    for (let y = 0; y < TILE_SIZE; y++) {
-      for (let x = 0; x < TILE_SIZE; x++) {
-        const hex = slots[selectedTile.pixels[y][x]]?.hex || '#000';
+    for (let y = 0; y < tileHeight; y++) {
+      for (let x = 0; x < tileWidth; x++) {
+        const hex = slots[selectedTile.pixels?.[y]?.[x] ?? 0]?.hex || '#000';
         ctx.fillStyle = hex === TRANSPARENT_HEX ? '#05070b' : hex;
         ctx.fillRect(x * zoom, y * zoom, zoom, zoom);
       }
     }
     ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-    for (let i = 0; i <= TILE_SIZE; i++) {
+    for (let i = 0; i <= tileWidth; i++) {
       ctx.beginPath();
       ctx.moveTo(i * zoom + 0.5, 0);
-      ctx.lineTo(i * zoom + 0.5, TILE_SIZE * zoom);
+      ctx.lineTo(i * zoom + 0.5, tileHeight * zoom);
       ctx.stroke();
+    }
+    for (let i = 0; i <= tileHeight; i++) {
       ctx.beginPath();
       ctx.moveTo(0, i * zoom + 0.5);
-      ctx.lineTo(TILE_SIZE * zoom, i * zoom + 0.5);
+      ctx.lineTo(tileWidth * zoom, i * zoom + 0.5);
       ctx.stroke();
     }
   }, [selectedTile, slots]);
 
   const emitPixelAction = (event: React.MouseEvent<HTMLCanvasElement>, force = false) => {
     if (!force && !isDrawing) return;
+    if (!force && (paintTool === 'fill' || paintTool === 'pick')) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    const x = Math.floor(((event.clientX - rect.left) / rect.width) * TILE_SIZE);
-    const y = Math.floor(((event.clientY - rect.top) / rect.height) * TILE_SIZE);
-    if (x < 0 || y < 0 || x >= TILE_SIZE || y >= TILE_SIZE || !selectedTile) return;
+    const tileWidth = getTilePixelWidth(selectedTile);
+    const tileHeight = getTilePixelHeight(selectedTile);
+    const x = Math.floor(((event.clientX - rect.left) / rect.width) * tileWidth);
+    const y = Math.floor(((event.clientY - rect.top) / rect.height) * tileHeight);
+    if (x < 0 || y < 0 || x >= tileWidth || y >= tileHeight || !selectedTile) return;
     onPixelAction(x, y, event.button);
   };
 
@@ -857,6 +944,71 @@ export const Msx2Screen5TileEditorPanel: React.FC<Msx2Screen5TileEditorPanelProp
             className="inline-block w-5 h-5 rounded border border-msx-border"
             style={{ backgroundColor: slots[activeSlot]?.hex === TRANSPARENT_HEX ? '#111827' : slots[activeSlot]?.hex }}
           />
+        </div>
+        <div className="grid grid-cols-8 gap-1" aria-label="MSX2 tile palette">
+          {slots.map(slot => (
+            <button
+              key={slot.slotIndex}
+              type="button"
+              className={`h-6 rounded border ${slot.slotIndex === activeSlot ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'}`}
+              style={{ backgroundColor: slot.hex === TRANSPARENT_HEX ? '#111827' : slot.hex }}
+              onClick={() => onSelectSlot(slot.slotIndex)}
+              title={`Slot ${slot.slotIndex}: ${slot.hex}`}
+              aria-label={`MSX2 paint slot ${slot.slotIndex}`}
+            />
+          ))}
+        </div>
+        <div className="grid grid-cols-4 gap-1 text-xs" aria-label="MSX2 tile paint tools">
+          {([
+            ['pencil', 'Pencil'],
+            ['erase', 'Erase'],
+            ['fill', 'Bucket'],
+            ['pick', 'Pick'],
+          ] as const).map(([tool, label]) => (
+            <Button
+              key={tool}
+              size="sm"
+              variant={paintTool === tool ? 'primary' : 'secondary'}
+              onClick={() => onPaintToolChange(tool)}
+              aria-label={`MSX2 tile tool ${tool}`}
+              title={`${label} tool`}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <label className="space-y-1">
+            <span className="text-msx-textsecondary">Tile W</span>
+            <select
+              value={getTilePixelWidth(selectedTile)}
+              onChange={event => onResizeTile(Number(event.target.value), getTilePixelHeight(selectedTile))}
+              className="w-full px-2 py-1 bg-msx-panelbg border border-msx-border rounded"
+              aria-label="MSX2 tile width"
+            >
+              {dimensionOptions.map(size => <option key={size} value={size}>{size}px</option>)}
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-msx-textsecondary">Tile H</span>
+            <select
+              value={getTilePixelHeight(selectedTile)}
+              onChange={event => onResizeTile(getTilePixelWidth(selectedTile), Number(event.target.value))}
+              className="w-full px-2 py-1 bg-msx-panelbg border border-msx-border rounded"
+              aria-label="MSX2 tile height"
+            >
+              {dimensionOptions.map(size => <option key={size} value={size}>{size}px</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="grid grid-cols-3 gap-1 text-xs">
+          <Button size="sm" variant="secondary" onClick={onFillTile} title="Fill selected tile" aria-label="MSX2 fill tile">Fill</Button>
+          <Button size="sm" variant="secondary" onClick={onFlipHorizontal} title="Flip tile horizontally" aria-label="MSX2 flip tile horizontal">Flip H</Button>
+          <Button size="sm" variant="secondary" onClick={onFlipVertical} title="Flip tile vertically" aria-label="MSX2 flip tile vertical">Flip V</Button>
+          <Button size="sm" variant="secondary" onClick={() => onShiftTile(-1, 0)} title="Shift tile left" aria-label="MSX2 shift tile left">Left</Button>
+          <Button size="sm" variant="secondary" onClick={() => onShiftTile(0, -1)} title="Shift tile up" aria-label="MSX2 shift tile up">Up</Button>
+          <Button size="sm" variant="secondary" onClick={() => onShiftTile(1, 0)} title="Shift tile right" aria-label="MSX2 shift tile right">Right</Button>
+          <Button size="sm" variant="secondary" onClick={() => onShiftTile(0, 1)} title="Shift tile down" aria-label="MSX2 shift tile down">Down</Button>
         </div>
         <canvas
           ref={tileCanvasRef}
@@ -877,13 +1029,13 @@ interface Msx2Screen5ExportModelPanelProps {
 export const Msx2Screen5ExportModelPanel: React.FC<Msx2Screen5ExportModelPanelProps> = ({ layers }) => (
   <Panel title="Export Model">
     <div className="p-2 text-xs text-msx-textsecondary space-y-1">
-      <div>Tile raw size: 128 bytes</div>
+      <div>Tile raw size: variable, multiples of 8 px</div>
       <div>Map size: 224 bytes</div>
       <div>Collision layer: 224 bytes</div>
       <div>Effects layer: 224 bytes</div>
       <div>Behavior layer: 224 bytes</div>
       <div>Entities: {layers.entities.length}</div>
-      <div>Current backend: emits packed 16x16 tiles plus runtime layers.</div>
+      <div>Current backend: emits packed 16x16 tiles or rasterized variable-size tile screens plus runtime layers.</div>
     </div>
   </Panel>
 );
@@ -919,7 +1071,7 @@ export const Msx2Screen5StatusBar: React.FC<Msx2Screen5StatusBarProps> = ({
       Collectibles: {runtime.requiredCollectibles ?? 0}/{collectibleCells} |
       Active Area: X:{runtime.activeAreaX} Y:{runtime.activeAreaY} W:{runtime.activeAreaWidth} H:{runtime.activeAreaHeight} |
       Selection: {selectionRect ? `${selectionRect.x},${selectionRect.y} ${selectionRect.width}x${selectionRect.height}` : 'None'} |
-      Size: 16x14 / 256x224 map / 256x212 visible
+      Size: 16x14 anchors / variable visual tiles / 256x212 visible
     </div>
   );
 };

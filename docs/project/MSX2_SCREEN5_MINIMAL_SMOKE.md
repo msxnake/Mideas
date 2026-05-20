@@ -295,6 +295,10 @@ The MSX2 Screen editor now exposes these runtime layers directly: `Collision`, `
 
 `Entities` mode supports selecting or creating an entity by cell, editing its kind, tile position, and movement mode, and deleting it explicitly. `patrolX` and `patrolY` expose the same `minX`, `maxX`, `minY`, `maxY`, and `direction` params consumed by the MSX2 runtime enemy tables. `ghostMaze` exposes `initialDirection` and `speed` for Pac-Man-style maze enemies.
 
+MSX2 visual tiles can store per-tile `width` and `height` metadata constrained to 8/16/24/32 pixels. The editor resizes tile pixel data without touching MSX1 tile assets, and the SCREEN 5 backend emits rectangular tile copies for variable-size MSX2 tiles instead of rasterizing every native `msx2screen` into a full bitmap. Runtime collision, effects, behavior, and entities remain on the existing 16x14 cell grid in this first slice.
+
+The MSX2 tile editor now has an internal 16-slot palette picker, visual previews in the tile list, and basic tile operations for fill, horizontal/vertical flip, and one-pixel shifts. It also exposes tile-local paint modes for pencil, erase, contiguous bucket fill, and pick-color. These tools are scoped to native `msx2screen` tiles and do not alter the MSX1 `screenmap` editor.
+
 Dedicated conveyor smoke:
 
 ```powershell

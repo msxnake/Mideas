@@ -39,6 +39,26 @@ const checks = [
   ['copy paste uses active or selected area crop', source.includes('activeEditRect.y + y') && source.includes('activeEditRect.x + x') && source.includes('pasteWidth') && source.includes('pasteHeight')],
   ['selection tools panel exists', source.includes('Panel title="Selection Tools"') && source.includes('Select Area') && source.includes('Fill') && source.includes('Clear')],
   ['selection rect is rendered in grid', source.includes('selectionRect.x * TILE_SIZE * 2') && source.includes('selectionRect.width * TILE_SIZE * 2')],
+  ['variable tile dimensions controls exist', source.includes('MSX2_TILE_DIMENSION_OPTIONS') && source.includes('aria-label="MSX2 tile width"') && source.includes('aria-label="MSX2 tile height"')],
+  ['variable tile dimensions are normalized to multiples of 8', source.includes('Math.round(numeric / 8) * 8') && source.includes('Math.max(8, Math.min(32')],
+  ['tile list shows visual previews', source.includes('Msx2TilePreview') && source.includes('MSX2 tile ${tile.name} preview')],
+  ['tile editor exposes MSX2 palette swatches', source.includes('aria-label="MSX2 tile palette"') && source.includes('aria-label={`MSX2 paint slot ${slot.slotIndex}`}')],
+  ['tile editor exposes fill and transform tools', [
+    'aria-label="MSX2 fill tile"',
+    'aria-label="MSX2 flip tile horizontal"',
+    'aria-label="MSX2 flip tile vertical"',
+    'aria-label="MSX2 shift tile left"',
+    'aria-label="MSX2 shift tile up"',
+    'aria-label="MSX2 shift tile right"',
+    'aria-label="MSX2 shift tile down"',
+  ].every((needle) => source.includes(needle))],
+  ['tile editor exposes paint modes', [
+    'aria-label="MSX2 tile paint tools"',
+    'aria-label={`MSX2 tile tool ${tool}`}',
+    "Msx2Screen5TilePaintTool = 'pencil' | 'erase' | 'fill' | 'pick'",
+    "paintTool === 'fill'",
+    "paintTool === 'pick'",
+  ].every((needle) => source.includes(needle))],
 ];
 
 const failures = checks.filter(([, passed]) => !passed);

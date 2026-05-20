@@ -16,31 +16,48 @@ interface WorldViewEditorProps {
 
 type WorldViewScreen = ScreenMap | Msx2Screen5TileScreen;
 
+const unwrapWorldViewScreen = (screen: WorldViewScreen | any | undefined): WorldViewScreen | undefined => {
+    const data = screen?.data;
+    if (data && (data.vdpMode === 'SCREEN5' || data.layers || data.map)) {
+        return data as WorldViewScreen;
+    }
+    return screen as WorldViewScreen | undefined;
+};
+
 const isMsx2Screen5TileScreen = (screen: WorldViewScreen | undefined): screen is Msx2Screen5TileScreen => {
-    return !!screen && (screen as Msx2Screen5TileScreen).vdpMode === 'SCREEN5' && Array.isArray((screen as Msx2Screen5TileScreen).tiles);
+    const unwrapped = unwrapWorldViewScreen(screen);
+    return !!unwrapped && (unwrapped as Msx2Screen5TileScreen).vdpMode === 'SCREEN5' && Array.isArray((unwrapped as Msx2Screen5TileScreen).tiles);
 };
 
 const isScreenMap = (screen: WorldViewScreen | undefined): screen is ScreenMap => {
-    return !!screen && Array.isArray((screen as ScreenMap).layers?.background);
+    const unwrapped = unwrapWorldViewScreen(screen);
+    return !!unwrapped && Array.isArray((unwrapped as ScreenMap).layers?.background);
 };
 
 const getWorldViewScreenPixelSize = (
     screen: WorldViewScreen,
     baseSliceDim: number
 ): { width: number; height: number } => {
-    if (isMsx2Screen5TileScreen(screen)) {
+    const unwrapped = unwrapWorldViewScreen(screen) || screen;
+    if (isMsx2Screen5TileScreen(unwrapped)) {
         return { width: 256, height: 212 };
     }
 
     return {
-        width: screen.width * baseSliceDim,
-        height: screen.height * baseSliceDim,
+        width: (unwrapped as ScreenMap).width * baseSliceDim,
+        height: (unwrapped as ScreenMap).height * baseSliceDim,
     };
 };
 
 const resolveMsx2Screen5Color = (screen: Msx2Screen5TileScreen, colorIndex: number): string => {
     return screen.palette?.[colorIndex]?.hex || (colorIndex === 0 ? '#000000' : '#ffffff');
 };
+
+const getMsx2TilePixelWidth = (tile: Msx2Screen5TileScreen['tiles'][number] | undefined): number =>
+    Math.max(8, Math.min(32, Number(tile?.width ?? tile?.pixels?.[0]?.length ?? 16) || 16));
+
+const getMsx2TilePixelHeight = (tile: Msx2Screen5TileScreen['tiles'][number] | undefined): number =>
+    Math.max(8, Math.min(32, Number(tile?.height ?? tile?.pixels?.length ?? 16) || 16));
 
 const renderMsx2Screen5ToCanvas = (
     canvas: HTMLCanvasElement,
@@ -55,22 +72,24 @@ const renderMsx2Screen5ToCanvas = (
     ctx.fillStyle = resolveMsx2Screen5Color(screen, 0);
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const tileSize = screen.tileSize || 16;
-    const visibleRows = Math.ceil(canvas.height / tileSize);
-    const visibleCols = Math.ceil(canvas.width / tileSize);
+    const anchorSize = Math.max(1, Number(screen.tileSize) || 16);
+    const visibleRows = Math.ceil(canvas.height / anchorSize);
+    const visibleCols = Math.ceil(canvas.width / anchorSize);
 
     for (let tileY = 0; tileY < visibleRows; tileY++) {
         for (let tileX = 0; tileX < visibleCols; tileX++) {
             const tileIndex = screen.map?.[tileY]?.[tileX] ?? 0;
             const tile = screen.tiles?.[tileIndex];
             if (!tile) continue;
+            const tileWidth = getMsx2TilePixelWidth(tile);
+            const tileHeight = getMsx2TilePixelHeight(tile);
 
-            for (let py = 0; py < tileSize; py++) {
-                const destY = tileY * tileSize + py;
+            for (let py = 0; py < tileHeight; py++) {
+                const destY = tileY * anchorSize + py;
                 if (destY >= canvas.height) continue;
 
-                for (let px = 0; px < tileSize; px++) {
-                    const destX = tileX * tileSize + px;
+                for (let px = 0; px < tileWidth; px++) {
+                    const destX = tileX * anchorSize + px;
                     if (destX >= canvas.width) continue;
 
                     const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
@@ -80,6 +99,68 @@ const renderMsx2Screen5ToCanvas = (
             }
         }
     }
+};
+
+const isTransparentScreen5Color = (color: string): boolean =>
+    color === 'rgba(0,0,0,0)' || color === 'transparent' || (color.startsWith('rgba(') && color.endsWith(',0)'));
+
+const createMsx2Screen5SvgDataURL = (screen: Msx2Screen5TileScreen): string => {
+    const anchorSize = Math.max(1, Number(screen.tileSize) || 16);
+    const visibleRows = Math.ceil(212 / anchorSize);
+    const visibleCols = Math.ceil(256 / anchorSize);
+    const rects: string[] = [];
+    const bg = resolveMsx2Screen5Color(screen, 0);
+
+    if (!isTransparentScreen5Color(bg)) {
+        rects.push(`<rect x="0" y="0" width="256" height="212" fill="${bg}"/>`);
+    }
+
+    for (let tileY = 0; tileY < visibleRows; tileY++) {
+        for (let tileX = 0; tileX < visibleCols; tileX++) {
+            const tileIndex = screen.map?.[tileY]?.[tileX] ?? 0;
+            const tile = screen.tiles?.[tileIndex];
+            if (!tile) continue;
+            const tileWidth = getMsx2TilePixelWidth(tile);
+            const tileHeight = getMsx2TilePixelHeight(tile);
+            const destBaseX = tileX * anchorSize;
+            const destBaseY = tileY * anchorSize;
+
+            for (let py = 0; py < tileHeight; py++) {
+                const destY = destBaseY + py;
+                if (destY >= 212) continue;
+                let runColor = '';
+                let runStart = -1;
+
+                const flushRun = (endPx: number) => {
+                    if (runStart < 0 || isTransparentScreen5Color(runColor)) return;
+                    const x = destBaseX + runStart;
+                    const width = Math.min(destBaseX + endPx, 256) - x;
+                    if (width > 0) {
+                        rects.push(`<rect x="${x}" y="${destY}" width="${width}" height="1" fill="${runColor}"/>`);
+                    }
+                };
+
+                for (let px = 0; px < tileWidth; px++) {
+                    const destX = destBaseX + px;
+                    if (destX >= 256) {
+                        flushRun(px);
+                        break;
+                    }
+                    const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
+                    const color = resolveMsx2Screen5Color(screen, colorIndex);
+                    if (color !== runColor) {
+                        flushRun(px);
+                        runColor = color;
+                        runStart = px;
+                    }
+                }
+                flushRun(tileWidth);
+            }
+        }
+    }
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="212" viewBox="0 0 256 212" shape-rendering="crispEdges">${rects.join('')}</svg>`;
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 };
 
 const renderScreenMapToCanvas = (
@@ -152,14 +233,49 @@ const renderWorldViewScreenToCanvas = (
     currentScreenMode: string,
     baseSliceDim: number
 ) => {
-    if (isMsx2Screen5TileScreen(screen)) {
-        renderMsx2Screen5ToCanvas(canvas, screen);
+    const unwrapped = unwrapWorldViewScreen(screen) || screen;
+    if (isMsx2Screen5TileScreen(unwrapped)) {
+        renderMsx2Screen5ToCanvas(canvas, unwrapped);
         return;
     }
 
-    if (isScreenMap(screen)) {
-        renderScreenMapToCanvas(canvas, screen, tileset, currentScreenMode, baseSliceDim);
+    if (isScreenMap(unwrapped)) {
+        renderScreenMapToCanvas(canvas, unwrapped, tileset, currentScreenMode, baseSliceDim);
     }
+};
+
+const createWorldViewScreenDataURL = (
+    screen: WorldViewScreen,
+    tileset: Tile[],
+    currentScreenMode: string,
+    baseSliceDim: number
+): string => {
+    const unwrapped = unwrapWorldViewScreen(screen) || screen;
+    if (isMsx2Screen5TileScreen(unwrapped)) {
+        return createMsx2Screen5SvgDataURL(unwrapped);
+    }
+
+    const { width, height } = getWorldViewScreenPixelSize(screen, baseSliceDim);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    renderWorldViewScreenToCanvas(canvas, screen, tileset, currentScreenMode, baseSliceDim);
+    return canvas.toDataURL();
+};
+
+const getWorldViewScreenDebugInfo = (screen: WorldViewScreen): { vdpMode: string; tileCount: number; mapRows: number; firstMapValue: string; firstTileColor: string; paletteColor: string } => {
+    const msx2 = screen as Msx2Screen5TileScreen;
+    const firstMapValue = msx2.map?.[0]?.[0] ?? '';
+    const firstTile = Array.isArray(msx2.tiles) ? msx2.tiles[Number(firstMapValue) || 0] : undefined;
+    const firstTileColor = firstTile?.pixels?.[0]?.[0] ?? '';
+    return {
+        vdpMode: String(msx2.vdpMode || 'screenmap'),
+        tileCount: Array.isArray(msx2.tiles) ? msx2.tiles.length : 0,
+        mapRows: Array.isArray(msx2.map) ? msx2.map.length : 0,
+        firstMapValue: String(firstMapValue),
+        firstTileColor: String(firstTileColor),
+        paletteColor: String(msx2.palette?.[Number(firstTileColor) || 0]?.hex ?? ''),
+    };
 };
 
 const ScreenCanvas: React.FC<{
@@ -168,17 +284,30 @@ const ScreenCanvas: React.FC<{
     currentScreenMode: string;
     baseSliceDim: number;
 }> = React.memo(({ screen, tileset, currentScreenMode, baseSliceDim }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const unwrapped = unwrapWorldViewScreen(screen) || screen;
+    const { width, height } = getWorldViewScreenPixelSize(unwrapped, baseSliceDim);
+    const debugInfo = getWorldViewScreenDebugInfo(unwrapped);
+    const dataUrl = useMemo(
+        () => createWorldViewScreenDataURL(unwrapped, tileset, currentScreenMode, baseSliceDim),
+        [unwrapped, tileset, currentScreenMode, baseSliceDim]
+    );
 
-    useEffect(() => {
-        if (canvasRef.current) {
-            renderWorldViewScreenToCanvas(canvasRef.current, screen, tileset, currentScreenMode, baseSliceDim);
-        }
-    }, [screen, tileset, currentScreenMode, baseSliceDim]);
-
-    const { width, height } = getWorldViewScreenPixelSize(screen, baseSliceDim);
-
-    return <canvas ref={canvasRef} width={width} height={height} style={{ width, height, imageRendering: 'pixelated' }} />;
+    return (
+        <img
+            src={dataUrl}
+            width={width}
+            height={height}
+            alt={unwrapped.name}
+            data-vdp-mode={debugInfo.vdpMode}
+            data-tile-count={debugInfo.tileCount}
+            data-map-rows={debugInfo.mapRows}
+            data-first-map-value={debugInfo.firstMapValue}
+            data-first-tile-color={debugInfo.firstTileColor}
+            data-palette-color={debugInfo.paletteColor}
+            draggable={false}
+            style={{ width: `${width}px`, height: `${height}px`, maxWidth: 'none', imageRendering: 'pixelated', display: 'block' }}
+        />
+    );
 });
 ScreenCanvas.displayName = 'ScreenCanvas';
 
@@ -253,7 +382,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
         while (queue.length > 0) {
             const currentNodeId = queue.shift()!;
             const currentNode = worldMapGraph.nodes.find(n => n.id === currentNodeId);
-            const currentScreenMap = allScreenMaps.find(s => s.id === currentNode?.screenAssetId);
+            const currentScreenMap = allScreenMaps.find(s => unwrapWorldViewScreen(s)?.id === currentNode?.screenAssetId);
             const currentPosition = screenPositions.get(currentNodeId);
     
             if (!currentNode || !currentScreenMap || !currentPosition) continue;
@@ -279,7 +408,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
     
                 if (neighborNodeId && directionToPlaceNeighbor) {
                     const neighborNode = worldMapGraph.nodes.find(n => n.id === neighborNodeId);
-                    const neighborScreenMap = allScreenMaps.find(s => s.id === neighborNode?.screenAssetId);
+                    const neighborScreenMap = allScreenMaps.find(s => unwrapWorldViewScreen(s)?.id === neighborNode?.screenAssetId);
     
                     if (neighborNode && neighborScreenMap) {
                         const { width: neighborPixelWidth, height: neighborPixelHeight } = getWorldViewScreenPixelSize(neighborScreenMap, EDITOR_BASE_TILE_DIM);
@@ -321,10 +450,11 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         
         const nodesToRender = Array.from(screenPositions.entries()).map(([nodeId, position]) => {
-            const screenMap = allScreenMaps.find(s => s.id === worldMapGraph.nodes.find(n => n.id === nodeId)?.screenAssetId);
+            const screenMap = allScreenMaps.find(s => unwrapWorldViewScreen(s)?.id === worldMapGraph.nodes.find(n => n.id === nodeId)?.screenAssetId);
             if (!screenMap) return null;
+            const unwrappedScreenMap = unwrapWorldViewScreen(screenMap) || screenMap;
     
-            const { width: screenPixelWidth, height: screenPixelHeight } = getWorldViewScreenPixelSize(screenMap, EDITOR_BASE_TILE_DIM);
+            const { width: screenPixelWidth, height: screenPixelHeight } = getWorldViewScreenPixelSize(unwrappedScreenMap, EDITOR_BASE_TILE_DIM);
     
             minX = Math.min(minX, position.x);
             minY = Math.min(minY, position.y);
@@ -333,10 +463,12 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
             
             return {
                 key: nodeId,
-                screenMap,
+                screenMap: unwrappedScreenMap,
                 left: position.x,
                 top: position.y,
-                title: `Screen: ${screenMap.name} at (${position.x}, ${position.y})`
+                width: screenPixelWidth,
+                height: screenPixelHeight,
+                title: `Screen: ${unwrappedScreenMap.name} at (${position.x}, ${position.y})`
             };
         }).filter((item): item is NonNullable<typeof item> => !!item);
     
@@ -476,6 +608,8 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                                 style={{
                                     left: s.left,
                                     top: s.top,
+                                    width: s.width,
+                                    height: s.height,
                                     boxSizing: 'border-box',
                                     ...(isGridVisible && {
                                         border: '1px dashed #fff',

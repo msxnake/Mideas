@@ -165,27 +165,56 @@ function buildScreen5BitmapBytesFromAsset(bitmap: Msx2Bitmap | undefined): numbe
 }
 
 function buildScreen5BitmapBytesFromTileScreen(screen: Msx2Screen5TileScreen | undefined): number[] {
-  const bytes: number[] = [];
   const tiles = screen?.tiles || [];
   const map = screen?.map || [];
   const tileByIndex = (index: number) => tiles[Math.max(0, Math.min(tiles.length - 1, Number(index) || 0))];
+  const pixels = Array.from({ length: SCREEN5_HEIGHT }, () => Array(SCREEN5_WIDTH).fill(0));
 
+  for (let tileY = 0; tileY < MSX2_TILE_SCREEN_HEIGHT; tileY++) {
+    for (let tileX = 0; tileX < MSX2_TILE_SCREEN_WIDTH; tileX++) {
+      const tile = tileByIndex(map[tileY]?.[tileX] ?? 0);
+      const tileWidth = getMsx2TilePixelWidth(tile);
+      const tileHeight = getMsx2TilePixelHeight(tile);
+      const destBaseX = tileX * 16;
+      const destBaseY = tileY * 16;
+      for (let py = 0; py < tileHeight; py++) {
+        const destY = destBaseY + py;
+        if (destY >= SCREEN5_HEIGHT) continue;
+        for (let px = 0; px < tileWidth; px++) {
+          const destX = destBaseX + px;
+          if (destX >= SCREEN5_WIDTH) continue;
+          pixels[destY][destX] = Math.max(0, Math.min(15, Number(tile?.pixels?.[py]?.[px]) || 0));
+        }
+      }
+    }
+  }
+
+  const bytes: number[] = [];
   for (let y = 0; y < SCREEN5_HEIGHT; y++) {
-    const tileY = Math.floor(y / 16);
-    const pixelY = y % 16;
     for (let byteX = 0; byteX < SCREEN5_WIDTH / 2; byteX++) {
       const x0 = byteX * 2;
-      const x1 = x0 + 1;
-      const tileX0 = Math.floor(x0 / 16);
-      const tileX1 = Math.floor(x1 / 16);
-      const tile0 = tileByIndex(map[tileY]?.[tileX0] ?? 0);
-      const tile1 = tileByIndex(map[tileY]?.[tileX1] ?? 0);
-      const hi = Math.max(0, Math.min(15, Number(tile0?.pixels?.[pixelY]?.[x0 % 16]) || 0));
-      const lo = Math.max(0, Math.min(15, Number(tile1?.pixels?.[pixelY]?.[x1 % 16]) || 0));
+      const hi = pixels[y][x0];
+      const lo = pixels[y][x0 + 1];
       bytes.push(((hi & 0x0f) << 4) | (lo & 0x0f));
     }
   }
   return bytes;
+}
+
+function getMsx2TilePixelWidth(tile: any | undefined): number {
+  const numeric = Number(tile?.width ?? tile?.pixels?.[0]?.length ?? 16);
+  if (!Number.isFinite(numeric)) return 16;
+  return Math.max(8, Math.min(32, Math.round(numeric / 8) * 8));
+}
+
+function getMsx2TilePixelHeight(tile: any | undefined): number {
+  const numeric = Number(tile?.height ?? tile?.pixels?.length ?? 16);
+  if (!Number.isFinite(numeric)) return 16;
+  return Math.max(8, Math.min(32, Math.round(numeric / 8) * 8));
+}
+
+function hasVariableMsx2TileSize(screen: Msx2Screen5TileScreen | undefined): boolean {
+  return (screen?.tiles || []).some(tile => getMsx2TilePixelWidth(tile) !== 16 || getMsx2TilePixelHeight(tile) !== 16);
 }
 
 function buildTileScreenLayerBytes(
@@ -224,10 +253,13 @@ function getTileScreenInitialAir(screen: Msx2Screen5TileScreen | undefined): num
 }
 
 function buildTilePatternBytes(tile: any | undefined): number[] {
+  const tileWidth = getMsx2TilePixelWidth(tile);
+  const tileHeight = getMsx2TilePixelHeight(tile);
+  const bytesPerRow = tileWidth / 2;
   const bytes: number[] = [];
-  for (let y = 0; y < 16; y++) {
+  for (let y = 0; y < tileHeight; y++) {
     const row = tile?.pixels?.[y] || [];
-    for (let byteX = 0; byteX < 8; byteX++) {
+    for (let byteX = 0; byteX < bytesPerRow; byteX++) {
       const x0 = byteX * 2;
       const hi = Math.max(0, Math.min(15, Number(row[x0]) || 0));
       const lo = Math.max(0, Math.min(15, Number(row[x0 + 1]) || 0));
@@ -240,7 +272,11 @@ function buildTilePatternBytes(tile: any | undefined): number[] {
 function buildTileScreenTileBlocks(label: string, screen: Msx2Screen5TileScreen | undefined): string {
   const tiles = screen?.tiles?.length ? screen.tiles : [{ pixels: Array.from({ length: 16 }, () => Array(16).fill(0)) }];
   return tiles
-    .map((tile, index) => formatBytes(`${label}_TILE_${index}`, buildTilePatternBytes(tile), `${screen?.name || label} tile ${index}, 16x16 packed SCREEN 5`))
+    .map((tile, index) => {
+      const tileWidth = getMsx2TilePixelWidth(tile);
+      const tileHeight = getMsx2TilePixelHeight(tile);
+      return formatBytes(`${label}_TILE_${index}`, buildTilePatternBytes(tile), `${screen?.name || label} tile ${index}, ${tileWidth}x${tileHeight} packed SCREEN 5`);
+    })
     .join('\n');
 }
 
@@ -254,16 +290,30 @@ function buildTileScreenLoadRoutine(
   const map = screen?.map || [];
   const tileBytes = tiles.map(tile => buildTilePatternBytes(tile));
   const maxTileIndex = Math.max(0, tiles.length - 1);
+  const variableTileSize = hasVariableMsx2TileSize(screen);
   const calls: string[] = [];
   for (let tileY = 0; tileY < MSX2_TILE_SCREEN_HEIGHT; tileY++) {
     const pixelY = tileY * 16;
-    const rowCount = Math.max(0, Math.min(16, SCREEN5_HEIGHT - pixelY));
-    if (rowCount <= 0) continue;
     for (let tileX = 0; tileX < MSX2_TILE_SCREEN_WIDTH; tileX++) {
       const tileIndex = Math.max(0, Math.min(maxTileIndex, Number(map[tileY]?.[tileX]) || 0));
-      if ((tileBytes[tileIndex] || []).every(value => value === 0)) continue;
+      const tile = tiles[tileIndex];
+      const tileWidth = getMsx2TilePixelWidth(tile);
+      const tileHeight = getMsx2TilePixelHeight(tile);
+      const pixelX = tileX * 16;
+      if (pixelX + tileWidth > SCREEN5_WIDTH) continue;
+      const rowCount = Math.max(0, Math.min(tileHeight, SCREEN5_HEIGHT - pixelY));
+      if (rowCount <= 0) continue;
+      const bytesPerRow = tileWidth / 2;
+      const sourceBytes = tileBytes[tileIndex] || [];
+      if (sourceBytes.every(value => value === 0)) continue;
       const vramAddress = (pixelY * (SCREEN5_WIDTH / 2)) + (tileX * 8);
-      calls.push(`    ld hl, ${label}_TILE_${tileIndex}
+      calls.push(variableTileSize
+        ? `    ld hl, ${label}_TILE_${tileIndex}
+    ld de, #${vramAddress.toString(16).toUpperCase().padStart(4, '0')}
+    ld b, ${rowCount}
+    ld c, ${bytesPerRow}
+    call copy_tile_rect_rows_to_vram`
+        : `    ld hl, ${label}_TILE_${tileIndex}
     ld de, #${vramAddress.toString(16).toUpperCase().padStart(4, '0')}
     ld b, ${rowCount}
     call copy_tile_rows_to_vram`);
@@ -794,6 +844,21 @@ copy_tile_rows_to_vram:
     ex de, hl
     pop bc
     djnz .tile_row_loop
+    ret
+
+copy_tile_rect_rows_to_vram:
+    ; HL=packed tile source, DE=SCREEN 5 VRAM destination, B=row count, C=packed bytes per row.
+    ; Used by MSX2 variable-size visual tiles. Widths are multiples of 8 pixels.
+.tile_rect_row_loop:
+    push bc
+    ld b, 0
+    call copy_to_vram_ext
+    ex de, hl
+    ld bc, 128
+    add hl, bc
+    ex de, hl
+    pop bc
+    djnz .tile_rect_row_loop
     ret
 
 write_vram_byte_ext:

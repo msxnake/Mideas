@@ -404,8 +404,8 @@ export const useAssetHandlers = ({
           heightTiles: 14,
           palette: createDefaultScreen5PaletteSlots(),
           tiles: [
-            { id: `tile_${Date.now()}_0`, name: 'Blank', pixels: blankTile },
-            { id: `tile_${Date.now()}_1`, name: 'Platform', pixels: floorTile },
+            { id: `tile_${Date.now()}_0`, name: 'Blank', width: screen5TileSize, height: screen5TileSize, pixels: blankTile },
+            { id: `tile_${Date.now()}_1`, name: 'Platform', width: screen5TileSize, height: screen5TileSize, pixels: floorTile },
           ],
           map: Array.from({ length: 14 }, (_, y) => Array.from({ length: 16 }, () => y === 13 ? 1 : 0)),
           collisionMap: Array.from({ length: 14 }, (_, y) => Array.from({ length: 16 }, () => y === 13 ? 1 : 0)),

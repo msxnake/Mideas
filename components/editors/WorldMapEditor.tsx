@@ -40,6 +40,12 @@ const resolveMsx2Screen5Color = (screen: Msx2Screen5TileScreen, colorIndex: numb
   return screen.palette?.[colorIndex]?.hex || (colorIndex === 0 ? '#000000' : '#ffffff');
 };
 
+const getMsx2TilePixelWidth = (tile: Msx2Screen5TileScreen['tiles'][number] | undefined): number =>
+  Math.max(8, Math.min(32, Number(tile?.width ?? tile?.pixels?.[0]?.length ?? 16) || 16));
+
+const getMsx2TilePixelHeight = (tile: Msx2Screen5TileScreen['tiles'][number] | undefined): number =>
+  Math.max(8, Math.min(32, Number(tile?.height ?? tile?.pixels?.length ?? 16) || 16));
+
 const drawMsx2Screen5Preview = (
   ctx: CanvasRenderingContext2D,
   screen: Msx2Screen5TileScreen,
@@ -55,22 +61,24 @@ const drawMsx2Screen5Preview = (
   sourceCtx.fillStyle = resolveMsx2Screen5Color(screen, 0);
   sourceCtx.fillRect(0, 0, sourceCanvas.width, sourceCanvas.height);
 
-  const tileSize = screen.tileSize || 16;
-  const visibleRows = Math.ceil(sourceCanvas.height / tileSize);
-  const visibleCols = Math.ceil(sourceCanvas.width / tileSize);
+  const anchorSize = screen.tileSize || 16;
+  const visibleRows = Math.ceil(sourceCanvas.height / anchorSize);
+  const visibleCols = Math.ceil(sourceCanvas.width / anchorSize);
 
   for (let tileY = 0; tileY < visibleRows; tileY++) {
     for (let tileX = 0; tileX < visibleCols; tileX++) {
       const tileIndex = screen.map?.[tileY]?.[tileX] ?? 0;
       const tile = screen.tiles?.[tileIndex];
       if (!tile) continue;
+      const tileWidth = getMsx2TilePixelWidth(tile);
+      const tileHeight = getMsx2TilePixelHeight(tile);
 
-      for (let py = 0; py < tileSize; py++) {
-        const destY = tileY * tileSize + py;
+      for (let py = 0; py < tileHeight; py++) {
+        const destY = tileY * anchorSize + py;
         if (destY >= sourceCanvas.height) continue;
 
-        for (let px = 0; px < tileSize; px++) {
-          const destX = tileX * tileSize + px;
+        for (let px = 0; px < tileWidth; px++) {
+          const destX = tileX * anchorSize + px;
           if (destX >= sourceCanvas.width) continue;
           const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
           sourceCtx.fillStyle = resolveMsx2Screen5Color(screen, colorIndex);
