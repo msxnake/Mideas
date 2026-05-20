@@ -8,7 +8,7 @@ import {
   PT3_KEYBOARD_OCTAVE_MIN_MAX,
   DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED
 } from '../../constants';
-import { AYSynthesizer } from '../utils/aySynthesizer';
+import { AYRegisterSynthesizer } from '../utils/ayRegisterSynthesizer';
 import { SCCSynthesizer } from '../utils/sccSynthesizer';
 import {
   createEmptyRow, createDefaultTrackerPattern,
@@ -299,7 +299,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const [mutedChannels, setMutedChannels] = useState<Set<TrackerChannelId>>(new Set());
 
   const [focusedCell, setFocusedCell] = useState<{ rowIndex: number, channelId: TrackerChannelId, field: keyof TrackerCell } | null>(null);
-  const [synthesizer, setSynthesizer] = useState<AYSynthesizer | SCCSynthesizer | null>(null);
+  const [synthesizer, setSynthesizer] = useState<AYRegisterSynthesizer | SCCSynthesizer | null>(null);
 
   const playbackIntervalRef = useRef<number | null>(null);
   const patternEditorRef = useRef<HTMLDivElement>(null);
@@ -576,7 +576,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   useEffect(() => {
     const synth = songData.soundChip === 'SCC'
       ? new SCCSynthesizer(songData.globalVolume / 15)
-      : new AYSynthesizer(songData.globalVolume / 15);
+      : new AYRegisterSynthesizer(songData.globalVolume / 15);
 
     synth.setSongData(songData);
     setSynthesizer(synth);

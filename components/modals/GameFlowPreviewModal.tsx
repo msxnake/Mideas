@@ -44,7 +44,7 @@ import type { PresentationScreenConfig } from '../../types';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowsPointingOutIcon } from '../icons/MsxIcons';
 import { StateMachine, StateMachineState, Action, TransitionGuard } from '../../statemachine.types';
-import { AYSynthesizer } from '../utils/aySynthesizer';
+import { AYRegisterSynthesizer } from '../utils/ayRegisterSynthesizer';
 import {
     buildScreenWorldMap,
     localToGlobal,
@@ -3175,7 +3175,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
 
             // Create new synthesizer
-            const synth = new AYSynthesizer(trackData.globalVolume / 15);
+            const synth = new AYRegisterSynthesizer(trackData.globalVolume / 15);
             synth.setSongData(trackData);
             musicSynthesizerRef.current = synth;
             currentMusicTrackIdRef.current = trackId;
@@ -6416,7 +6416,7 @@ useEffect(() => {
                         }
 
                         // Create new synthesizer
-                        const synth = new AYSynthesizer(trackData.globalVolume / 15);
+                        const synth = new AYRegisterSynthesizer(trackData.globalVolume / 15);
                         synth.setSongData(trackData);
                         musicSynthesizerRef.current = synth;
                         currentMusicTrackIdRef.current = musicNode.trackAssetId;
