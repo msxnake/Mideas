@@ -687,6 +687,7 @@ export const useProjectHandlers = ({
             const layers = {
               collision: normalizeMsx2Layer(screen.layers?.collision, screen.collisionMap),
               effects: normalizeMsx2Layer(screen.layers?.effects),
+              behavior: normalizeMsx2Layer(screen.layers?.behavior),
               entities: Array.isArray(screen.layers?.entities) ? screen.layers.entities : [],
             };
             return {

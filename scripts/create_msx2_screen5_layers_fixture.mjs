@@ -34,14 +34,35 @@ const wallTile = Array.from({ length: 16 }, (_, y) =>
 const effectTile = Array.from({ length: 16 }, (_, y) =>
   Array.from({ length: 16 }, (_, x) => ((x + y) % 2 === 0 ? 7 : 1))
 );
+const collectibleTile = Array.from({ length: 16 }, (_, y) =>
+  Array.from({ length: 16 }, (_, x) => {
+    const dx = x - 7.5;
+    const dy = y - 7.5;
+    if ((dx * dx) + (dy * dy) < 28) return (x + y) % 2 === 0 ? 11 : 15;
+    return 0;
+  })
+);
+const ladderTile = Array.from({ length: 16 }, (_, y) =>
+  Array.from({ length: 16 }, (_, x) => (x === 3 || x === 12 || y % 5 === 0 ? 7 : 0))
+);
+const conveyorTile = Array.from({ length: 16 }, (_, y) =>
+  Array.from({ length: 16 }, (_, x) => {
+    if (y < 3) return 15;
+    if ((x + y) % 6 < 3) return 8;
+    return 6;
+  })
+);
 
 const map = Array.from({ length: 14 }, (_, y) =>
   Array.from({ length: 16 }, (_, x) => {
     if (y === 10 && x >= 2 && x <= 12) return 1;
+    if (y === 10 && x === 12) return 6;
     if (y === 9 && x === 8) return 2;
     if (y === 6 && x === 3) return 3;
     if (y === 4 && x === 12) return 3;
-    if (y === 9 && x === 5) return 3;
+    if (y === 9 && x === 5) return 4;
+    if ((y === 8 || y === 9) && x === 6) return 5;
+    if (y === 9 && x === 7) return 4;
     if (y === 8 && x === 5) return 3;
     return 0;
   })
@@ -61,7 +82,15 @@ const collision = Array.from({ length: 14 }, (_, y) =>
 const effects = Array.from({ length: 14 }, (_, y) =>
   Array.from({ length: 16 }, (_, x) => {
     if (y === 8 && x === 7) return 1; // jump hazard over the collectible
+    if (y === 9 && x === 5) return 3; // second required collectible on the exit route
     if (y === 9 && x === 7) return 3; // collectible before the blocking wall
+    return 0;
+  })
+);
+const behavior = Array.from({ length: 14 }, (_, y) =>
+  Array.from({ length: 16 }, (_, x) => {
+    if ((y === 8 || y === 9) && x === 6) return 1;
+    if (y === 10 && x === 12) return 2;
     return 0;
   })
 );
@@ -77,6 +106,9 @@ const msx2Tiles = [
   { id: 'msx2_tile_platform', name: 'Platform', pixels: platformTile },
   { id: 'msx2_tile_wall', name: 'Collision Wall', pixels: wallTile },
   { id: 'msx2_tile_effect', name: 'Effect Marker', pixels: effectTile },
+  { id: 'msx2_tile_collectible', name: 'Collectible', pixels: collectibleTile },
+  { id: 'msx2_tile_ladder', name: 'Ladder', pixels: ladderTile },
+  { id: 'msx2_tile_conveyor', name: 'Conveyor Right', pixels: conveyorTile },
 ];
 
 const spriteRows = [
@@ -136,6 +168,7 @@ const project = {
         layers: {
           collision,
           effects,
+          behavior,
           entities: [
             {
               id: 'entity_msx2_player',
@@ -197,6 +230,7 @@ const project = {
         layers: {
           collision: exitCollision,
           effects: exitEffects,
+          behavior: Array.from({ length: 14 }, () => Array(16).fill(0)),
           entities: [],
         },
         runtime: {

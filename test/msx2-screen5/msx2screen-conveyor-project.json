@@ -1,5 +1,5 @@
 {
-  "name": "msx2screen_layers_smoke",
+  "name": "msx2screen_conveyor_smoke",
   "currentScreenMode": "SCREEN 5 (Graphics III)",
   "screenMode": "SCREEN 5 (Graphics III)",
   "targetGraphicsBackend": "msx2-screen5-tile16",
@@ -2436,8 +2436,8 @@
             1,
             1,
             1,
-            1,
-            1,
+            6,
+            6,
             1,
             1,
             1,
@@ -3453,8 +3453,8 @@
               0,
               0,
               0,
-              0,
-              0,
+              2,
+              3,
               0,
               0,
               0,
@@ -3530,46 +3530,6 @@
               },
               "spriteAssetId": "sprite_msx2_layers_player",
               "params": {}
-            },
-            {
-              "id": "entity_msx2_enemy_left",
-              "name": "Enemy Patrol",
-              "kind": "enemy",
-              "position": {
-                "x": 3,
-                "y": 6
-              },
-              "params": {
-                "movement": "patrolX",
-                "minX": 2,
-                "maxX": 6,
-                "direction": 1
-              }
-            },
-            {
-              "id": "entity_msx2_enemy_right",
-              "name": "Enemy Hazard Right",
-              "kind": "enemy",
-              "position": {
-                "x": 5,
-                "y": 9
-              },
-              "params": {}
-            },
-            {
-              "id": "entity_msx2_enemy_vertical",
-              "name": "Enemy Vertical Patrol",
-              "kind": "enemy",
-              "position": {
-                "x": 12,
-                "y": 4
-              },
-              "params": {
-                "movement": "patrolY",
-                "minY": 3,
-                "maxY": 7,
-                "direction": 1
-              }
             }
           ]
         },

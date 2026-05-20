@@ -299,6 +299,8 @@ export interface Msx2Screen5EntityInstance {
 export interface Msx2Screen5Layers {
   collision: number[][];
   effects: number[][];
+  /** MSX2-only behavior cells. 1 = ladder, 2 = conveyor right, 3 = conveyor left. Kept separate from collision/effects. */
+  behavior?: number[][];
   entities: Msx2Screen5EntityInstance[];
 }
 

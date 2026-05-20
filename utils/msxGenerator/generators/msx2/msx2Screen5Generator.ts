@@ -21,6 +21,14 @@ const SCREEN5_SPRPAT_VRAM = '#7800';
 const MSX2_TILE_SCREEN_WIDTH = 16;
 const MSX2_TILE_SCREEN_HEIGHT = 14;
 const MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN = 4;
+const MSX2_MAX_PLAYER_HARDWARE_LAYERS = 32 - MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN - 1;
+const MSX2_ENEMY_SPRITE_COLOR = 13;
+const MSX2_ENEMY_SPRITE_PATTERN = [
+  0x00, 0x03, 0x07, 0x0F, 0x1F, 0x1B, 0x3F, 0x3C,
+  0x3C, 0x3F, 0x1B, 0x1F, 0x0F, 0x07, 0x03, 0x00,
+  0x00, 0xC0, 0xE0, 0xF0, 0xF8, 0xD8, 0xFC, 0x3C,
+  0x3C, 0xFC, 0xD8, 0xF8, 0xF0, 0xE0, 0xC0, 0x00,
+];
 
 const sanitizeLabel = (value: string, fallback: string): string =>
   String(value || fallback)
@@ -175,7 +183,7 @@ function buildScreen5BitmapBytesFromTileScreen(screen: Msx2Screen5TileScreen | u
 
 function buildTileScreenLayerBytes(
   screen: Msx2Screen5TileScreen | undefined,
-  layerName: 'collision' | 'effects'
+  layerName: 'collision' | 'effects' | 'behavior'
 ): number[] {
   const fallback = layerName === 'collision' ? screen?.collisionMap : undefined;
   const layer = screen?.layers?.[layerName];
@@ -605,9 +613,14 @@ function buildHardwareSpriteInitAsm(analysis: ProjectAnalysis): string {
     ld (msx2_level_continue_lock), a
     ld (msx2_enemy_hit_flag), a
     ld (msx2_enemy_damage_cooldown), a
+    ld (msx2_air_frame_counter), a
+    ld a, 255
+    ld (msx2_air_value), a
     ld a, 3
     ld (msx2_lives), a
     call draw_msx2_lives_hud
+    call draw_msx2_collectible_hud
+    call draw_msx2_air_hud
     call upload_hardware_sprite_attrs
 
     xor a
@@ -691,6 +704,75 @@ function addImmediateToA(value: number): string {
   return `    add a, ${Math.max(0, Math.min(255, value))}\n`;
 }
 
+function buildCollectibleHudSlotAsm(requiredCollectibles: number): string {
+  const slotCount = Math.max(0, Math.min(4, Math.floor(requiredCollectibles)));
+  if (slotCount === 0) {
+    return `draw_msx2_collectible_hud:
+    ; No collectibles are required for this level. Clobbers AF/BC/DE/HL.
+    ret
+`;
+  }
+  return `draw_msx2_collectible_hud:
+    ; Tiny SCREEN 5 collectible-progress pips after the life HUD. Clobbers AF/BC/DE/HL.
+${Array.from({ length: slotCount }, (_unused, index) => {
+  const required = index + 1;
+  const destination = 0x0119 + (index * 0x0006);
+  return `    ld a, (msx2_collectible_count)
+    cp ${required}
+    jp nc, .collectible_hud_${required}_on
+    ld a, #11
+    jp .draw_collectible_hud_${required}
+.collectible_hud_${required}_on:
+    ld a, #AA
+.draw_collectible_hud_${required}:
+    ld hl, #${destination.toString(16).toUpperCase().padStart(4, '0')}
+    call draw_msx2_life_pip
+`;
+}).join('')}    ret
+`;
+}
+
+function buildAirHudSlotAsm(): string {
+  return `draw_msx2_air_hud:
+    ; SCREEN 5 air/time bar at the top-right. Clobbers AF/BC/DE/HL.
+${Array.from({ length: 16 }, (_unused, index) => {
+  const threshold = Math.max(1, Math.min(255, Math.ceil(((index + 1) * 255) / 16)));
+  const destination = 0x0150 + (index * 0x0002);
+  return `    ld a, (msx2_air_value)
+    cp ${threshold}
+    jp nc, .air_hud_${index}_on
+    ld a, #11
+    jp .draw_air_hud_${index}
+.air_hud_${index}_on:
+    ld a, #33
+.draw_air_hud_${index}:
+    ld hl, #${destination.toString(16).toUpperCase().padStart(4, '0')}
+    call draw_msx2_air_segment
+`;
+}).join('')}    ret
+
+draw_msx2_air_segment:
+    ; A=packed color byte, HL=SCREEN 5 VRAM destination. Clobbers AF/BC/DE/HL.
+    ld e, a
+    ld d, 4
+.air_segment_row:
+    push hl
+    ld c, 2
+.air_segment_col:
+    ld a, e
+    call write_vram_byte_ext
+    inc hl
+    dec c
+    jp nz, .air_segment_col
+    pop hl
+    ld bc, 128
+    add hl, bc
+    dec d
+    jp nz, .air_segment_row
+    ret
+`;
+}
+
 function buildHardwareSpriteRuntimeAsm(
   analysis: ProjectAnalysis,
   requiredCollectibles: number,
@@ -701,8 +783,9 @@ function buildHardwareSpriteRuntimeAsm(
   if (!sprite) return '';
   const settings = getHardwareSpriteSettings(sprite);
   const color = Math.max(1, Math.min(15, settings.color));
-  const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color));
-  const basePatternIndex = clampBasePatternIndex(settings.patternIndex, layers.length);
+  const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
+  const basePatternIndex = clampBasePatternIndex(settings.patternIndex, layers.length + 1);
+  const enemyPatternIndex = basePatternIndex + (layers.length * 4);
   const patrolBounds = getRuntimePatrolBounds(analysis);
   const attrWrites = layers.map((layer, layerIndex) => {
     const attrAddress = 0x7600 + (layerIndex * 4);
@@ -721,6 +804,45 @@ ${addImmediateToA(layer.xOffset)}    ld hl, #${(attrAddress + 1).toString(16).to
     call write_vram_byte_ext
 `;
   }).join('\n');
+  const enemyAttrWrites = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, slot) => {
+    const attrAddress = 0x7600 + ((layers.length + slot) * 4);
+    const slotAddress = (base: string): string => slot
+      ? `    ld hl, ${base}
+    ld de, ${slot}
+    add hl, de
+`
+      : `    ld hl, ${base}
+`;
+    return `    ; Enemy/hazard sprite slot ${slot}.
+    ld a, (msx2_current_screen_index)
+    ld e, a
+    ld d, 0
+    ld hl, msx2_screen_enemy_count
+    add hl, de
+    ld a, (hl)
+    cp ${slot + 1}
+    jp nc, .enemy_sprite_${slot}_visible
+    ld a, 216
+    ld hl, #${attrAddress.toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    jp .enemy_sprite_${slot}_done
+.enemy_sprite_${slot}_visible:
+${slotAddress('msx2_enemy_runtime_y')}    ld a, (hl)
+    ld hl, #${attrAddress.toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+${slotAddress('msx2_enemy_runtime_x')}    ld a, (hl)
+    ld hl, #${(attrAddress + 1).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    ld a, ${enemyPatternIndex}
+    ld hl, #${(attrAddress + 2).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    xor a
+    ld hl, #${(attrAddress + 3).toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+.enemy_sprite_${slot}_done:
+`;
+  }).join('\n');
+  const terminatorAttrAddress = 0x7600 + ((layers.length + MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN) * 4);
   const enemySlotAddress = (base: string, slot: number): string => slot
     ? `    ld hl, ${base}
     ld de, ${slot}
@@ -947,6 +1069,10 @@ draw_msx2_life_pip:
     jp nz, .pip_row
     ret
 
+${buildCollectibleHudSlotAsm(requiredCollectibles)}
+
+${buildAirHudSlotAsm()}
+
 draw_msx2_game_over_banner:
     ; Simple visible game-over mark in SCREEN 5. Clobbers AF/BC/DE/HL.
     ld hl, #0828
@@ -987,6 +1113,40 @@ draw_msx2_level_complete_banner:
     jp nz, .level_complete_row
     ret
 
+update_msx2_air_timer:
+    ; Decrements the SCREEN 5 air/time resource on a coarse frame divider. Clobbers AF/BC/DE/HL.
+    ld a, (msx2_game_over_flag)
+    or a
+    ret nz
+    ld a, (msx2_level_complete_flag)
+    or a
+    ret nz
+    ld a, (msx2_air_frame_counter)
+    inc a
+    cp 48
+    jp nc, .air_tick
+    ld (msx2_air_frame_counter), a
+    ret
+.air_tick:
+    xor a
+    ld (msx2_air_frame_counter), a
+    ld a, (msx2_air_value)
+    or a
+    jp z, .air_empty
+    dec a
+    ld (msx2_air_value), a
+    call draw_msx2_air_hud
+    ld a, (msx2_air_value)
+    or a
+    ret nz
+.air_empty:
+    ld a, 1
+    ld (msx2_game_over_flag), a
+    ld (msx2_game_over_restart_lock), a
+    call draw_msx2_game_over_banner
+    call write_hardware_sprite_attrs
+    ret
+
 update_hardware_sprite_input:
     ; First playable MSX2 slice: keyboard/joystick left-right plus jump/gravity.
     ; Clobbers AF/BC/DE/HL.
@@ -998,6 +1158,18 @@ update_hardware_sprite_input:
     jp nz, msx2_game_over_idle
     xor a
     call GTSTCK
+    cp 1
+    jp z, try_msx2_ladder_up
+    cp 2
+    jp z, try_msx2_ladder_up_or_right
+    cp 8
+    jp z, try_msx2_ladder_up_or_left
+    cp 5
+    jp z, try_msx2_ladder_down
+    cp 4
+    jp z, try_msx2_ladder_down_or_right
+    cp 6
+    jp z, try_msx2_ladder_down_or_left
     cp 2
     jp z, move_hardware_sprite_right
     cp 3
@@ -1011,6 +1183,58 @@ update_hardware_sprite_input:
     cp 8
     jp z, move_hardware_sprite_left
     jp update_hardware_sprite_vertical
+
+try_msx2_ladder_up:
+    call msx2_ladder_at_player_center
+    jp z, move_msx2_ladder_up
+    jp update_hardware_sprite_vertical
+
+try_msx2_ladder_up_or_right:
+    call msx2_ladder_at_player_center
+    jp z, move_msx2_ladder_up
+    jp move_hardware_sprite_right
+
+try_msx2_ladder_up_or_left:
+    call msx2_ladder_at_player_center
+    jp z, move_msx2_ladder_up
+    jp move_hardware_sprite_left
+
+try_msx2_ladder_down:
+    call msx2_ladder_below_player_center
+    jp z, move_msx2_ladder_down
+    jp update_hardware_sprite_vertical
+
+try_msx2_ladder_down_or_right:
+    call msx2_ladder_below_player_center
+    jp z, move_msx2_ladder_down
+    jp move_hardware_sprite_right
+
+try_msx2_ladder_down_or_left:
+    call msx2_ladder_below_player_center
+    jp z, move_msx2_ladder_down
+    jp move_hardware_sprite_left
+
+move_msx2_ladder_up:
+    ld a, (msx2_player_sprite_y)
+    or a
+    jp z, upload_hardware_sprite_attrs
+    dec a
+    ld (msx2_player_sprite_y), a
+    xor a
+    ld (msx2_player_jump_frames), a
+    ld (msx2_player_on_ground), a
+    jp upload_hardware_sprite_attrs
+
+move_msx2_ladder_down:
+    ld a, (msx2_player_sprite_y)
+    cp 196
+    jp nc, upload_hardware_sprite_attrs
+    inc a
+    ld (msx2_player_sprite_y), a
+    xor a
+    ld (msx2_player_jump_frames), a
+    ld (msx2_player_on_ground), a
+    jp upload_hardware_sprite_attrs
 
 move_hardware_sprite_right:
     ld a, (msx2_player_sprite_x)
@@ -1108,8 +1332,13 @@ msx2_continue_after_level_complete:
     ld (msx2_game_over_restart_lock), a
     ld (msx2_enemy_hit_flag), a
     ld (msx2_enemy_damage_cooldown), a
+    ld (msx2_air_frame_counter), a
+    ld a, 255
+    ld (msx2_air_value), a
     call msx2_reset_enemy_runtime_for_current_screen
     call draw_msx2_lives_hud
+    call draw_msx2_collectible_hud
+    call draw_msx2_air_hud
     call msx2_respawn_current_screen
     call write_hardware_sprite_attrs
     ret
@@ -1130,10 +1359,15 @@ msx2_restart_game:
     ld (msx2_level_continue_lock), a
     ld (msx2_enemy_hit_flag), a
     ld (msx2_enemy_damage_cooldown), a
+    ld (msx2_air_frame_counter), a
     call msx2_reset_enemy_runtime_for_current_screen
+    ld a, 255
+    ld (msx2_air_value), a
     ld a, 3
     ld (msx2_lives), a
     call draw_msx2_lives_hud
+    call draw_msx2_collectible_hud
+    call draw_msx2_air_hud
     call msx2_respawn_current_screen
     call write_hardware_sprite_attrs
     ret
@@ -1219,11 +1453,61 @@ apply_hardware_sprite_gravity:
 .grounded:
     ld a, 1
     ld (msx2_player_on_ground), a
+    call apply_msx2_conveyor
     jp upload_hardware_sprite_attrs
 
+apply_msx2_conveyor:
+    ; Behavior code 2 pushes right, code 3 pushes left. Clobbers AF/BC/DE/HL.
+    call msx2_behavior_below_player_center
+    cp 2
+    jp z, .conveyor_right
+    cp 3
+    jp z, .conveyor_left
+    ret
+.conveyor_right:
+    ld a, (msx2_player_sprite_x)
+    cp ${patrolBounds.maxX}
+    ret nc
+    inc a
+    add a, 15
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 8
+    ld c, a
+    call msx2_collision_at_pixel
+    ret nz
+    ld a, (msx2_player_sprite_x)
+    inc a
+    ld (msx2_player_sprite_x), a
+    ld a, 1
+    ld (msx2_player_sprite_dx), a
+    ret
+.conveyor_left:
+    ld a, (msx2_player_sprite_x)
+    cp ${patrolBounds.minX}
+    ret z
+    ret c
+    dec a
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 8
+    ld c, a
+    call msx2_collision_at_pixel
+    ret nz
+    ld a, (msx2_player_sprite_x)
+    dec a
+    ld (msx2_player_sprite_x), a
+    xor a
+    ld (msx2_player_sprite_dx), a
+    ret
+
 write_hardware_sprite_attrs:
-    ; Writes visible sprite layer attributes to SCREEN 5 SAT. Clobbers AF/BC/DE/HL.
-${attrWrites}    ret
+    ; Writes player and enemy sprite attributes to SCREEN 5 SAT. Clobbers AF/BC/DE/HL.
+${attrWrites}
+${enemyAttrWrites}    ld a, 216
+    ld hl, #${terminatorAttrAddress.toString(16).toUpperCase().padStart(4, '0')}
+    call write_vram_byte_ext
+    ret
 
 upload_hardware_sprite_attrs:
     call write_hardware_sprite_attrs
@@ -1307,6 +1591,7 @@ msx2_apply_damage_respawn:
     ld (msx2_game_over_restart_lock), a
 .damage_after_lives:
     call draw_msx2_lives_hud
+    call draw_msx2_air_hud
     call msx2_respawn_current_screen
     ld a, (msx2_game_over_flag)
     or a
@@ -1402,6 +1687,7 @@ update_msx2_effect_state:
     jp nz, .collectible_border
     xor a
     ld (hl), a
+    call clear_msx2_collectible_visual
     ld a, 1
     ld (msx2_collectible_latch), a
     ld a, (msx2_collectible_count)
@@ -1410,11 +1696,47 @@ update_msx2_effect_state:
     ld a, (msx2_collectible_count)
     inc a
     ld (msx2_collectible_count), a
+    call draw_msx2_collectible_hud
 .collectible_border:
     ld b, #0A
 .write_border:
     ld c, #07
     call WRTVDP
+    ret
+
+clear_msx2_collectible_visual:
+    ; Clears the 16x16 visual tile under the active collectible cell.
+    ; Clobbers AF/BC/DE/HL.
+    ld a, (msx2_player_sprite_y)
+    add a, 8
+    srl a
+    srl a
+    srl a
+    srl a
+    and #0F
+    add a, a
+    add a, a
+    add a, a
+    ld h, a
+    ld l, 0
+    ld a, (msx2_player_sprite_x)
+    add a, 8
+    srl a
+    srl a
+    srl a
+    srl a
+    and #0F
+    add a, a
+    add a, a
+    add a, a
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld d, h
+    ld e, l
+    ld hl, screen5_blank_tile
+    ld b, 16
+    call copy_tile_rows_to_vram
     ret
 
 msx2_collision_at_pixel:
@@ -1476,6 +1798,70 @@ msx2_effect_at_pixel:
     or a
     ret
 
+msx2_behavior_at_pixel:
+    ; B=x pixel, C=y pixel. Returns A=behavior byte with Z set when empty.
+    ; Clobbers AF/BC/DE/HL.
+    ld a, c
+    srl a
+    srl a
+    srl a
+    srl a
+    and #0F
+    add a, a
+    add a, a
+    add a, a
+    add a, a
+    ld e, a
+    ld a, b
+    srl a
+    srl a
+    srl a
+    srl a
+    and #0F
+    add a, e
+    ld e, a
+    ld d, 0
+    ld hl, (msx2_current_behavior_ptr)
+    add hl, de
+    ld a, (hl)
+    or a
+    ret
+
+msx2_ladder_at_player_center:
+    ; Returns Z when the player center is on behavior code 1 (ladder). Clobbers AF/BC/DE/HL.
+    ld a, (msx2_player_sprite_x)
+    add a, 8
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 8
+    ld c, a
+    call msx2_behavior_at_pixel
+    cp 1
+    ret
+
+msx2_ladder_below_player_center:
+    ; Returns Z when the lower center is on behavior code 1 (ladder). Clobbers AF/BC/DE/HL.
+    ld a, (msx2_player_sprite_x)
+    add a, 8
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 10
+    ld c, a
+    call msx2_behavior_at_pixel
+    cp 1
+    ret
+
+msx2_behavior_below_player_center:
+    ; Returns the behavior byte under the player feet. Clobbers AF/BC/DE/HL.
+    ld a, (msx2_player_sprite_x)
+    add a, 8
+    ld b, a
+    ld a, (msx2_player_sprite_y)
+    add a, 16
+    ld c, a
+    call msx2_behavior_at_pixel
+    ret
+
 msx2_respawn_current_screen:
     ; Respawn at the player entity for the active msx2screen.
     ; Clobbers AF/DE/HL.
@@ -1495,8 +1881,9 @@ msx2_respawn_current_screen:
     ld (msx2_player_sprite_y), a
     xor a
     ld (msx2_player_jump_frames), a
-    ld (msx2_player_jump_lock), a
     ld (msx2_player_on_ground), a
+    inc a
+    ld (msx2_player_jump_lock), a
     ret
 
 `;
@@ -1509,25 +1896,32 @@ function buildHardwareSpriteDataAsm(analysis: ProjectAnalysis): string {
   const y = clampHardwareSpriteY(settings.y);
   const x = clampHardwareSpriteX(settings.x);
   const color = Math.max(1, Math.min(15, settings.color));
-  const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color));
-  const basePatternIndex = clampBasePatternIndex(settings.patternIndex, layers.length);
+  const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
+  const basePatternIndex = clampBasePatternIndex(settings.patternIndex, layers.length + 1);
+  const enemyPatternIndex = basePatternIndex + (layers.length * 4);
   const visibleAttributes = layers.flatMap((layer, layerIndex) => [
     clampHardwareSpriteY(y + layer.yOffset),
     clampHardwareSpriteX(x + layer.xOffset),
     basePatternIndex + (layerIndex * 4),
     0,
   ]);
+  const enemyAttributes = Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, () => [
+    216,
+    0,
+    enemyPatternIndex,
+    0,
+  ]).flat();
   const terminator = [216, 0, 0, 0];
-  const attributes = [...visibleAttributes, ...terminator, ...Array(Math.max(0, 128 - visibleAttributes.length - terminator.length)).fill(0)];
+  const attributes = [...visibleAttributes, ...enemyAttributes, ...terminator, ...Array(Math.max(0, 128 - visibleAttributes.length - enemyAttributes.length - terminator.length)).fill(0)];
 
   return `
 msx2_hw_sprite_patterns:
-${layers.map((layer, index) => formatBytes(`msx2_hw_sprite_pattern_${index}`, layer.pattern, `Hardware metasprite part ${index}: x+${layer.xOffset}, y+${layer.yOffset}`)).join('')}msx2_hw_sprite_patterns_end:
+${layers.map((layer, index) => formatBytes(`msx2_hw_sprite_pattern_${index}`, layer.pattern, `Hardware metasprite part ${index}: x+${layer.xOffset}, y+${layer.yOffset}`)).join('')}${formatBytes('msx2_hw_enemy_sprite_pattern', MSX2_ENEMY_SPRITE_PATTERN, 'Shared 16x16 enemy/hazard hardware sprite pattern')}msx2_hw_sprite_patterns_end:
 
 msx2_hw_sprite_colors:
-${layers.map((layer, index) => formatBytes(`msx2_hw_sprite_colors_${index}`, layer.colors, `Line colors for hardware sprite layer ${index}`)).join('')}msx2_hw_sprite_colors_end:
+${layers.map((layer, index) => formatBytes(`msx2_hw_sprite_colors_${index}`, layer.colors, `Line colors for hardware sprite layer ${index}`)).join('')}${Array.from({ length: MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN }, (_unused, index) => formatBytes(`msx2_hw_enemy_sprite_colors_${index}`, Array(16).fill(MSX2_ENEMY_SPRITE_COLOR), `Line colors for enemy/hazard hardware sprite slot ${index}`)).join('')}msx2_hw_sprite_colors_end:
 
-${formatBytes('msx2_hw_sprite_attrs', attributes, `${layers.length} visible metasprite hardware sprite(s); next Y=216 terminates the SAT`)}
+${formatBytes('msx2_hw_sprite_attrs', attributes, `${layers.length} player hardware sprite(s), ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} enemy/hazard sprite slots; next Y=216 terminates the SAT`)}
 `;
 }
 
@@ -1851,7 +2245,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     bitmapLabels.get(screen.id || screen.name || `tile_screen_${index}`) || sanitizeLabel(screen.name, `MSX2_SCREEN5_SCREEN_${index}`)
   );
   const tileScreenIndexByLabel = new Map<string, number>();
-  const runtimeLayerLabels = new Map<string, { collision: string; effects: string }>();
+  const runtimeLayerLabels = new Map<string, { collision: string; effects: string; behavior: string }>();
   tileScreens.forEach((screen, index) => {
     const label = tileScreenLoadLabels[index];
     tileScreenLabels.set(screen.id || screen.name || `tile_screen_${index}`, label);
@@ -1859,6 +2253,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     runtimeLayerLabels.set(label, {
       collision: `${label}_COLLISION`,
       effects: `${label}_EFFECTS`,
+      behavior: `${label}_BEHAVIOR`,
     });
   });
   const tileScreenRuntimeBlocks = tileScreens.map((screen, index) => {
@@ -1866,6 +2261,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     return [
       formatBytes(`${label}_COLLISION`, buildTileScreenLayerBytes(screen, 'collision'), `${screen?.name || `MSX2 Tile Screen ${index}`} collision layer, 16x14 bytes`),
       formatBytes(`${label}_EFFECTS`, buildTileScreenLayerBytes(screen, 'effects'), `${screen?.name || `MSX2 Tile Screen ${index}`} effects layer, 16x14 bytes`),
+      formatBytes(`${label}_BEHAVIOR`, buildTileScreenLayerBytes(screen, 'behavior'), `${screen?.name || `MSX2 Tile Screen ${index}`} behavior layer, 16x14 bytes`),
     ].join('\n');
   });
   const genericLoadLabels = [...bitmapLoadLabels, ...screenLoadLabels];
@@ -1917,8 +2313,11 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
     const runtimeLabels = runtimeLayerLabels.get(label);
     const collisionLabel = runtimeLabels?.collision || 'screen5_empty_collision_layer';
     const effectsLabel = runtimeLabels?.effects || 'screen5_empty_effects_layer';
+    const behaviorLabel = runtimeLabels?.behavior || 'screen5_empty_behavior_layer';
     return `    ld hl, ${collisionLabel}
     ld (msx2_current_collision_ptr), hl
+    ld hl, ${behaviorLabel}
+    ld (msx2_current_behavior_ptr), hl
     ld hl, ${effectsLabel}
     ld de, msx2_effects_runtime_buffer
     ld bc, msx2_layer_size
@@ -1989,6 +2388,9 @@ msx2_level_complete_flag EQU #C014
 msx2_level_continue_lock EQU #C015
 msx2_enemy_hit_flag EQU #C016
 msx2_enemy_damage_cooldown EQU #C017
+msx2_air_value EQU #C018
+msx2_air_frame_counter EQU #C019
+msx2_current_behavior_ptr EQU #C01A
 msx2_effects_runtime_buffer EQU #C020
 msx2_enemy_runtime_x EQU #C100
 msx2_enemy_runtime_y EQU #C104
@@ -2039,6 +2441,7 @@ ${firstScreenIndexInit}${firstScreenEnemyRuntimeInit}${hasHardwareSprite(analysi
 ${gameFlowProgram}
 .main_loop:
 ${hasHardwareSprite(analysis) ? '    call update_hardware_sprite_input\n' : ''}
+${hasHardwareSprite(analysis) ? '    call update_msx2_air_timer\n' : ''}
     call wait_frame_busy
     jr .main_loop
 
@@ -2108,8 +2511,10 @@ ${formatBytes('msx2_screen_enemy_min_y', enemyMinYBytes.length ? enemyMinYBytes 
 ${formatBytes('msx2_screen_enemy_max_y', enemyMaxYBytes.length ? enemyMaxYBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard patrol maximum Y, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_dx', enemyDxBytes.length ? enemyDxBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard initial movement direction, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
 ${formatBytes('msx2_screen_enemy_dy', enemyDyBytes.length ? enemyDyBytes : Array(MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN).fill(0), `Per-msx2screen enemy/hazard initial vertical movement direction, ${MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN} slots per screen`)}
+${formatBytes('screen5_blank_tile', Array(16 * 8).fill(0), 'Packed blank 16x16 tile used to erase collected items')}
 ${formatBytes('screen5_empty_collision_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 collision layer, 16x14 bytes')}
 ${formatBytes('screen5_empty_effects_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 effects layer, 16x14 bytes')}
+${formatBytes('screen5_empty_behavior_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 behavior layer, 16x14 bytes')}
 ${hardwareSpriteDataAsm}
 ${[...tileScreenRuntimeBlocks, ...tileScreenBlocks, ...bitmapBlocks, ...screenBitmapBlocks].join('\n')}
     ds #C000 - $, #FF
@@ -2144,7 +2549,7 @@ export function generateMsx2Screen5Files(
       ? '; MSX2 SCREEN 5 hardware sprite MVP is emitted inline in unitedFiles.asm.\n'
       : '; Sprites are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
     'font.asm': '; Font is out of scope for the first MSX2 SCREEN 5 backend slice.\n',
-    'hud.asm': '; HUD is out of scope for the first MSX2 SCREEN 5 backend slice.\n',
+    'hud.asm': '; MSX2 SCREEN 5 lives and collectible HUD are emitted inline in unitedFiles.asm.\n',
     'menus.asm': '; Menus are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
     'sound.asm': '; Sound is out of scope for the first MSX2 SCREEN 5 backend slice.\n',
     'scroll.asm': '; Scroll is out of scope for the first MSX2 SCREEN 5 backend slice.\n',

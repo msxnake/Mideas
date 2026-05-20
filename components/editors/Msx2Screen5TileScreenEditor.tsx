@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MSXColorValue, Msx2Screen5EntityInstance, Msx2Screen5Layers, Msx2Screen5Runtime, Msx2Screen5Tile, Msx2Screen5TileScreen } from '../../types';
+import { MSXColorValue, Msx2EntityKind, Msx2Screen5EntityInstance, Msx2Screen5Layers, Msx2Screen5Runtime, Msx2Screen5Tile, Msx2Screen5TileScreen } from '../../types';
 import { ensureScreen5PaletteSlots } from '../../utils/screen5PaletteUtils';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
@@ -62,6 +62,7 @@ const normalizeEntities = (entities?: Msx2Screen5EntityInstance[]): Msx2Screen5E
 const normalizeLayers = (screen: Msx2Screen5TileScreen): Msx2Screen5Layers => ({
   collision: normalizeByteLayer(screen.layers?.collision, screen.collisionMap),
   effects: normalizeByteLayer(screen.layers?.effects),
+  behavior: normalizeByteLayer(screen.layers?.behavior),
   entities: normalizeEntities(screen.layers?.entities),
 });
 
@@ -78,7 +79,10 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tileCanvasRef = useRef<HTMLCanvasElement>(null);
   const [selectedTileIndex, setSelectedTileIndex] = useState(0);
-  const [mode, setMode] = useState<'visual' | 'collision' | 'effects' | 'entities' | 'tile'>('visual');
+  const [mode, setMode] = useState<'visual' | 'collision' | 'effects' | 'behavior' | 'entities' | 'tile'>('visual');
+  const [selectedEffectCode, setSelectedEffectCode] = useState(1);
+  const [selectedBehaviorCode, setSelectedBehaviorCode] = useState(1);
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(true);
   const [isDrawing, setIsDrawing] = useState(false);
 
@@ -88,6 +92,10 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
   const layers = useMemo(() => normalizeLayers(screen), [screen]);
   const runtime = useMemo(() => normalizeRuntime(screen.runtime), [screen.runtime]);
   const selectedTile = tiles[Math.max(0, Math.min(tiles.length - 1, selectedTileIndex))];
+  const selectedEntity = useMemo(
+    () => layers.entities.find(entity => entity.id === selectedEntityId) || null,
+    [layers.entities, selectedEntityId]
+  );
   const activeSlot = useMemo(() => {
     const exact = slots.find(slot => slot.hex === selectedColor)?.slotIndex;
     return typeof exact === 'number' ? exact : 0;
@@ -98,7 +106,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
   }, [changed, onUpdate, slots]);
 
   useEffect(() => {
-    if (!screen.layers || !screen.runtime) {
+    if (!screen.layers || !screen.layers.behavior || !screen.runtime) {
       onUpdate({
         layers,
         runtime,
@@ -110,6 +118,12 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
   useEffect(() => {
     setSelectedTileIndex(index => Math.max(0, Math.min(tiles.length - 1, index)));
   }, [tiles.length]);
+
+  useEffect(() => {
+    if (selectedEntityId && !layers.entities.some(entity => entity.id === selectedEntityId)) {
+      setSelectedEntityId(null);
+    }
+  }, [layers.entities, selectedEntityId]);
 
   useEffect(() => {
     const stop = () => setIsDrawing(false);
@@ -158,20 +172,31 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
       }
     }
 
-    if (mode === 'collision' || mode === 'effects' || mode === 'entities') {
+    if (mode === 'collision' || mode === 'effects' || mode === 'behavior' || mode === 'entities') {
       for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
           const px = x * TILE_SIZE * 2;
           const py = y * TILE_SIZE * 2;
           const collision = layers.collision[y]?.[x] || 0;
           const effect = layers.effects[y]?.[x] || 0;
+          const behavior = layers.behavior?.[y]?.[x] || 0;
           if (mode === 'collision' && collision) {
             ctx.fillStyle = 'rgba(255, 64, 64, 0.42)';
             ctx.fillRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
           }
           if (mode === 'effects' && effect) {
-            ctx.fillStyle = 'rgba(80, 220, 255, 0.38)';
+            ctx.fillStyle = effect === 1 ? 'rgba(255, 80, 80, 0.40)' : effect === 2 ? 'rgba(255, 216, 64, 0.42)' : 'rgba(80, 220, 255, 0.38)';
             ctx.fillRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '18px monospace';
+            ctx.fillText(String(effect), px + 8, py + 22);
+          }
+          if (mode === 'behavior' && behavior) {
+            ctx.fillStyle = behavior === 1 ? 'rgba(64, 220, 120, 0.40)' : 'rgba(255, 160, 48, 0.42)';
+            ctx.fillRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '18px monospace';
+            ctx.fillText(String(behavior), px + 8, py + 22);
           }
         }
       }
@@ -180,14 +205,36 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
         for (const entity of layers.entities) {
           const px = entity.position.x * TILE_SIZE * 2;
           const py = entity.position.y * TILE_SIZE * 2;
-          ctx.fillStyle = entity.kind === 'player' ? '#FFFF00' : entity.kind === 'enemy' ? '#FF4040' : '#40FF80';
+          ctx.fillStyle = entity.kind === 'player' ? '#FFFF00' : entity.kind === 'enemy' ? '#FF4040' : entity.kind === 'hazard' ? '#FF40A0' : '#40FF80';
           ctx.fillRect(px + 8, py + 8, TILE_SIZE * 2 - 16, TILE_SIZE * 2 - 16);
-          ctx.strokeStyle = '#FFFFFF';
+          ctx.strokeStyle = entity.id === selectedEntityId ? '#40DFFF' : '#FFFFFF';
+          ctx.lineWidth = entity.id === selectedEntityId ? 3 : 1;
           ctx.strokeRect(px + 8.5, py + 8.5, TILE_SIZE * 2 - 17, TILE_SIZE * 2 - 17);
+          ctx.lineWidth = 1;
+          if (entity.params?.movement === 'patrolX') {
+            const minX = Math.max(0, Math.min(MAP_WIDTH - 1, Number(entity.params.minX) || entity.position.x));
+            const maxX = Math.max(0, Math.min(MAP_WIDTH - 1, Number(entity.params.maxX) || entity.position.x));
+            const yLine = py + TILE_SIZE;
+            ctx.strokeStyle = '#40DFFF';
+            ctx.beginPath();
+            ctx.moveTo(minX * TILE_SIZE * 2 + 8, yLine);
+            ctx.lineTo((maxX + 1) * TILE_SIZE * 2 - 8, yLine);
+            ctx.stroke();
+          }
+          if (entity.params?.movement === 'patrolY') {
+            const minY = Math.max(0, Math.min(MAP_HEIGHT - 1, Number(entity.params.minY) || entity.position.y));
+            const maxY = Math.max(0, Math.min(MAP_HEIGHT - 1, Number(entity.params.maxY) || entity.position.y));
+            const xLine = px + TILE_SIZE;
+            ctx.strokeStyle = '#40DFFF';
+            ctx.beginPath();
+            ctx.moveTo(xLine, minY * TILE_SIZE * 2 + 8);
+            ctx.lineTo(xLine, (maxY + 1) * TILE_SIZE * 2 - 8);
+            ctx.stroke();
+          }
         }
       }
     }
-  }, [map, slots, tiles, showGrid, mode, layers]);
+  }, [map, slots, tiles, showGrid, mode, layers, selectedEntityId]);
 
   useEffect(() => {
     const canvas = tileCanvasRef.current;
@@ -224,6 +271,29 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
     });
   };
 
+  const updateSelectedEntity = (patch: Partial<Msx2Screen5EntityInstance>) => {
+    if (!selectedEntity) return;
+    updateLayers({
+      ...layers,
+      entities: layers.entities.map(entity =>
+        entity.id === selectedEntity.id
+          ? { ...entity, ...patch, params: patch.params ?? entity.params }
+          : entity
+      ),
+    });
+  };
+
+  const updateSelectedEntityParams = (patch: Record<string, any>) => {
+    if (!selectedEntity) return;
+    updateSelectedEntity({ params: { ...(selectedEntity.params || {}), ...patch } });
+  };
+
+  const removeSelectedEntity = () => {
+    if (!selectedEntity) return;
+    updateLayers({ ...layers, entities: layers.entities.filter(entity => entity.id !== selectedEntity.id) });
+    setSelectedEntityId(null);
+  };
+
   const handleMapCanvasPaint = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = Math.floor(((event.clientX - rect.left) / rect.width) * MAP_WIDTH);
@@ -246,23 +316,39 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
 
     if (mode === 'effects') {
       const next = { ...layers, effects: layers.effects.map(row => [...row]) };
-      next.effects[y][x] = event.button === 2 ? 0 : (next.effects[y][x] ? 0 : 1);
+      next.effects[y][x] = event.button === 2 ? 0 : selectedEffectCode;
       updateLayers(next);
+      return;
+    }
+
+    if (mode === 'behavior') {
+      const nextBehavior = (layers.behavior || normalizeByteLayer(undefined)).map(row => [...row]);
+      nextBehavior[y][x] = event.button === 2 ? 0 : selectedBehaviorCode;
+      updateLayers({ ...layers, behavior: nextBehavior });
       return;
     }
 
     if (mode === 'entities') {
       const existing = layers.entities.find(entity => entity.position.x === x && entity.position.y === y);
-      const nextEntities = existing
-        ? layers.entities.filter(entity => entity.id !== existing.id)
-        : [...layers.entities, {
-            id: `msx2_entity_${Date.now()}`,
-            name: `Entity ${layers.entities.length + 1}`,
-            kind: layers.entities.some(entity => entity.kind === 'player') ? 'enemy' : 'player',
-            position: { x, y },
-            params: {},
-          } as Msx2Screen5EntityInstance];
-      updateLayers({ ...layers, entities: nextEntities });
+      if (event.button === 2) {
+        if (existing?.id === selectedEntityId) setSelectedEntityId(null);
+        updateLayers({ ...layers, entities: layers.entities.filter(entity => entity.id !== existing?.id) });
+        return;
+      }
+      if (existing) {
+        setSelectedEntityId(existing.id);
+        return;
+      }
+      const id = `msx2_entity_${Date.now()}`;
+      const nextEntity: Msx2Screen5EntityInstance = {
+        id,
+        name: `Entity ${layers.entities.length + 1}`,
+        kind: layers.entities.some(entity => entity.kind === 'player') ? 'enemy' : 'player',
+        position: { x, y },
+        params: {},
+      };
+      updateLayers({ ...layers, entities: [...layers.entities, nextEntity] });
+      setSelectedEntityId(id);
     }
   };
 
@@ -298,6 +384,8 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
     onUpdate({ tiles: nextTiles });
   };
 
+  const numberInputClass = 'w-full px-2 py-1 bg-msx-panelbg border border-msx-border rounded';
+
   return (
     <div className="h-full min-h-0 grid grid-cols-[220px_1fr_300px] gap-2 p-2 bg-msx-bgcolor overflow-hidden">
       <div className="min-h-0 overflow-y-auto border-r border-msx-border pr-2 space-y-2">
@@ -307,6 +395,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
               value={screen.name}
               onChange={event => onUpdate({ name: event.target.value })}
               className="w-full px-2 py-1 bg-msx-panelbg border border-msx-border rounded"
+              aria-label="MSX2 screen name"
             />
             <div className="grid grid-cols-2 gap-2">
               <Button size="sm" variant={mode === 'visual' ? 'primary' : 'secondary'} onClick={() => setMode('visual')}>Visual</Button>
@@ -315,8 +404,41 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
             <div className="grid grid-cols-3 gap-2">
               <Button size="sm" variant={mode === 'collision' ? 'primary' : 'secondary'} onClick={() => setMode('collision')}>Collision</Button>
               <Button size="sm" variant={mode === 'effects' ? 'primary' : 'secondary'} onClick={() => setMode('effects')}>Effects</Button>
+              <Button size="sm" variant={mode === 'behavior' ? 'primary' : 'secondary'} onClick={() => setMode('behavior')}>Behavior</Button>
+            </div>
+            <div className="grid grid-cols-1 gap-2">
               <Button size="sm" variant={mode === 'entities' ? 'primary' : 'secondary'} onClick={() => setMode('entities')}>Entities</Button>
             </div>
+            {mode === 'effects' && (
+              <div className="space-y-1">
+                <div className="text-msx-textsecondary">Effect code</div>
+                <select
+                  value={selectedEffectCode}
+                  onChange={event => setSelectedEffectCode(Number(event.target.value))}
+                  className="w-full px-2 py-1 bg-msx-panelbg border border-msx-border rounded"
+                  aria-label="MSX2 effect code"
+                >
+                  <option value={1}>1 Hazard</option>
+                  <option value={2}>2 Exit</option>
+                  <option value={3}>3 Collectible</option>
+                </select>
+              </div>
+            )}
+            {mode === 'behavior' && (
+              <div className="space-y-1">
+                <div className="text-msx-textsecondary">Behavior code</div>
+                <select
+                  value={selectedBehaviorCode}
+                  onChange={event => setSelectedBehaviorCode(Number(event.target.value))}
+                  className="w-full px-2 py-1 bg-msx-panelbg border border-msx-border rounded"
+                  aria-label="MSX2 behavior code"
+                >
+                  <option value={1}>1 Ladder</option>
+                  <option value={2}>2 Conveyor right</option>
+                  <option value={3}>3 Conveyor left</option>
+                </select>
+              </div>
+            )}
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={showGrid} onChange={event => setShowGrid(event.target.checked)} />
               Tile grid
@@ -329,6 +451,131 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
             </div>
           </div>
         </Panel>
+
+        {mode === 'entities' && (
+          <Panel title="Entity Properties">
+            <div className="p-2 space-y-2 text-xs">
+              {selectedEntity ? (
+                <>
+                  <input
+                    value={selectedEntity.name}
+                    onChange={event => updateSelectedEntity({ name: event.target.value })}
+                    className={numberInputClass}
+                    aria-label="Entity name"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={selectedEntity.kind}
+                      onChange={event => updateSelectedEntity({ kind: event.target.value as Msx2EntityKind })}
+                      className={numberInputClass}
+                      aria-label="Entity kind"
+                    >
+                      <option value="player">Player</option>
+                      <option value="enemy">Enemy</option>
+                      <option value="hazard">Hazard</option>
+                      <option value="collectible">Collectible</option>
+                      <option value="door">Door</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                    <select
+                      value={selectedEntity.params?.movement || 'static'}
+                      onChange={event => {
+                        const movement = event.target.value;
+                        if (movement === 'static') {
+                          updateSelectedEntity({ params: {} });
+                          return;
+                        }
+                        updateSelectedEntityParams({
+                          movement,
+                          direction: Number(selectedEntity.params?.direction) || 1,
+                          minX: selectedEntity.params?.minX ?? selectedEntity.position.x,
+                          maxX: selectedEntity.params?.maxX ?? Math.min(MAP_WIDTH - 1, selectedEntity.position.x + 4),
+                          minY: selectedEntity.params?.minY ?? selectedEntity.position.y,
+                          maxY: selectedEntity.params?.maxY ?? Math.min(MAP_HEIGHT - 1, selectedEntity.position.y + 4),
+                        });
+                      }}
+                      className={numberInputClass}
+                      aria-label="Entity movement"
+                    >
+                      <option value="static">Static</option>
+                      <option value="patrolX">Patrol X</option>
+                      <option value="patrolY">Patrol Y</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="space-y-1">
+                      <span className="text-msx-textsecondary">Tile X</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={MAP_WIDTH - 1}
+                        value={selectedEntity.position.x}
+                        onChange={event => updateSelectedEntity({
+                          position: { ...selectedEntity.position, x: Math.max(0, Math.min(MAP_WIDTH - 1, Number(event.target.value) || 0)) },
+                        })}
+                        className={numberInputClass}
+                        aria-label="Entity tile X"
+                      />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="text-msx-textsecondary">Tile Y</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={MAP_HEIGHT - 1}
+                        value={selectedEntity.position.y}
+                        onChange={event => updateSelectedEntity({
+                          position: { ...selectedEntity.position, y: Math.max(0, Math.min(MAP_HEIGHT - 1, Number(event.target.value) || 0)) },
+                        })}
+                        className={numberInputClass}
+                        aria-label="Entity tile Y"
+                      />
+                    </label>
+                  </div>
+                  {selectedEntity.params?.movement && selectedEntity.params.movement !== 'static' && (
+                    <>
+                      {selectedEntity.params.movement === 'patrolX' ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="space-y-1">
+                            <span className="text-msx-textsecondary">Min X</span>
+                            <input type="number" min={0} max={MAP_WIDTH - 1} value={selectedEntity.params?.minX ?? selectedEntity.position.x} onChange={event => updateSelectedEntityParams({ minX: Math.max(0, Math.min(MAP_WIDTH - 1, Number(event.target.value) || 0)) })} className={numberInputClass} aria-label="Patrol min X" />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-msx-textsecondary">Max X</span>
+                            <input type="number" min={0} max={MAP_WIDTH - 1} value={selectedEntity.params?.maxX ?? selectedEntity.position.x} onChange={event => updateSelectedEntityParams({ maxX: Math.max(0, Math.min(MAP_WIDTH - 1, Number(event.target.value) || 0)) })} className={numberInputClass} aria-label="Patrol max X" />
+                          </label>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="space-y-1">
+                            <span className="text-msx-textsecondary">Min Y</span>
+                            <input type="number" min={0} max={MAP_HEIGHT - 1} value={selectedEntity.params?.minY ?? selectedEntity.position.y} onChange={event => updateSelectedEntityParams({ minY: Math.max(0, Math.min(MAP_HEIGHT - 1, Number(event.target.value) || 0)) })} className={numberInputClass} aria-label="Patrol min Y" />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-msx-textsecondary">Max Y</span>
+                            <input type="number" min={0} max={MAP_HEIGHT - 1} value={selectedEntity.params?.maxY ?? selectedEntity.position.y} onChange={event => updateSelectedEntityParams({ maxY: Math.max(0, Math.min(MAP_HEIGHT - 1, Number(event.target.value) || 0)) })} className={numberInputClass} aria-label="Patrol max Y" />
+                          </label>
+                        </div>
+                      )}
+                      <select
+                        value={Number(selectedEntity.params?.direction) < 0 ? -1 : 1}
+                        onChange={event => updateSelectedEntityParams({ direction: Number(event.target.value) })}
+                        className={numberInputClass}
+                        aria-label="Patrol direction"
+                      >
+                        <option value={1}>Positive</option>
+                        <option value={-1}>Negative</option>
+                      </select>
+                    </>
+                  )}
+                  <Button size="sm" variant="danger" onClick={removeSelectedEntity}>Delete Entity</Button>
+                </>
+              ) : (
+                <div className="text-msx-textsecondary">No entity selected.</div>
+              )}
+            </div>
+          </Panel>
+        )}
 
         <Panel title="Tiles 16x16">
           <div className="p-2 space-y-2">
@@ -358,7 +605,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
           ref={canvasRef}
           className="border border-msx-border bg-black"
           onMouseDown={event => { setIsDrawing(true); handleMapCanvasPaint(event); }}
-          onMouseMove={event => { if (isDrawing && (mode === 'visual' || mode === 'collision' || mode === 'effects')) handleMapCanvasPaint(event); }}
+          onMouseMove={event => { if (isDrawing && (mode === 'visual' || mode === 'collision' || mode === 'effects' || mode === 'behavior')) handleMapCanvasPaint(event); }}
           onContextMenu={event => event.preventDefault()}
         />
       </div>
@@ -389,8 +636,9 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
             <div>Map size: 208 bytes</div>
             <div>Collision layer: 224 bytes</div>
             <div>Effects layer: 224 bytes</div>
+            <div>Behavior layer: 224 bytes</div>
             <div>Entities: {layers.entities.length}</div>
-            <div>Current backend: rasterizes to 27136-byte SCREEN 5 bitmap.</div>
+            <div>Current backend: emits packed 16x16 tiles plus runtime layers.</div>
           </div>
         </Panel>
       </div>
