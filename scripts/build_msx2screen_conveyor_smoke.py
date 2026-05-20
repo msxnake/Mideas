@@ -13,10 +13,13 @@ from types import SimpleNamespace
 
 from build_msx2screen_layers_smoke import (
     capture_openmsx,
+    locate_green_player_bounds,
+    read_symbol_addresses,
     read_probe_values,
     repo_root_from_script,
     run_command,
     validate_asm,
+    validate_runtime_ram_layout,
     validate_rom,
 )
 
@@ -84,6 +87,19 @@ def validate_conveyor_probe(path: Path, direction: str) -> None:
     )
 
 
+def validate_conveyor_screenshot(path: Path, direction: str) -> None:
+    min_x, min_y, max_x, max_y = locate_green_player_bounds(path)
+    if min_y > 340 or max_y < 300:
+        raise RuntimeError(
+            f"OpenMSX conveyor {direction} screenshot does not show the player on the platform row: "
+            f"bounds={min_x}-{max_x},{min_y}-{max_y}"
+        )
+    print(
+        f"Conveyor {direction} visual check passed: "
+        f"player_bounds={min_x}-{max_x},{min_y}-{max_y}"
+    )
+
+
 def main() -> None:
     args = parse_args()
     project_root = Path(args.project_root).expanduser().resolve()
@@ -113,6 +129,8 @@ def main() -> None:
     ], cwd=project_root, timeout=180)
     validate_asm(asm_output)
     validate_rom(rom_output)
+    symbols = read_symbol_addresses(sym_output)
+    validate_runtime_ram_layout(symbols)
 
     if args.skip_openmsx:
         print("OpenMSX capture skipped by --skip-openmsx")
@@ -124,10 +142,30 @@ def main() -> None:
         boot_wait_ms=args.boot_wait_ms,
         openmsx=args.openmsx,
     )
-    capture_openmsx(capture_args, project_root, rom_output, right_screenshot_output, args.sequence, args.capture_wait_ms, right_probe_output)
-    capture_openmsx(capture_args, project_root, rom_output, left_screenshot_output, "RIGHT:600,WAIT:100", args.capture_wait_ms, left_probe_output)
+    capture_openmsx(
+        capture_args,
+        project_root,
+        rom_output,
+        right_screenshot_output,
+        args.sequence,
+        args.capture_wait_ms,
+        right_probe_output,
+        symbols,
+    )
+    capture_openmsx(
+        capture_args,
+        project_root,
+        rom_output,
+        left_screenshot_output,
+        "RIGHT:600,WAIT:100",
+        args.capture_wait_ms,
+        left_probe_output,
+        symbols,
+    )
     validate_conveyor_probe(right_probe_output, "right")
     validate_conveyor_probe(left_probe_output, "left")
+    validate_conveyor_screenshot(right_screenshot_output, "right")
+    validate_conveyor_screenshot(left_screenshot_output, "left")
     print(f"OpenMSX right conveyor screenshot ready: {right_screenshot_output}")
     print(f"OpenMSX right conveyor probe ready: {right_probe_output}")
     print(f"OpenMSX left conveyor screenshot ready: {left_screenshot_output}")

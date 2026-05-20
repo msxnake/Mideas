@@ -251,6 +251,10 @@ const required = [
   "msx2_player_dead_flag",
   "msx2_exit_reached_flag",
   "msx2_collectible_count",
+  "msx2_effects_runtime_buffers",
+  "msx2_runtime_ram_end",
+  "msx2_runtime_ram_limit",
+  "init_msx2_effect_buffers",
   "clear_msx2_collectible_visual",
   "screen5_blank_tile",
   "msx2_exit_blocked_flag",
@@ -328,6 +332,11 @@ def validate_asm(asm_output: Path) -> None:
         "msx2_player_dead_flag",
         "msx2_exit_reached_flag",
         "msx2_collectible_count",
+        "msx2_effects_runtime_buffers",
+        "msx2_runtime_ram_end",
+        "msx2_runtime_ram_limit",
+        "init_msx2_effect_buffers",
+        "apply_MSX2_LAYERS_SMOKE_SCREEN_collected_visuals",
         "clear_msx2_collectible_visual",
         "screen5_blank_tile",
         "msx2_exit_blocked_flag",
@@ -982,6 +991,51 @@ def validate_world_transition_screenshot(path: Path) -> None:
     print(f"World transition pixel check passed: marker_pixels={len(cyan_exit_marker_pixels)}")
 
 
+def validate_world_return_collectible_probe(path: Path) -> None:
+    values = read_probe_values(path)
+    expected = {
+        "collectible": 1,
+        "collectible_cell": 3,
+        "collectible_cell_left": 0,
+        "screen": 0,
+    }
+    missing = [key for key in expected if key not in values]
+    if missing:
+        raise RuntimeError(f"OpenMSX WorldMap return probe is missing values: {', '.join(missing)}")
+    failed = [f"{key}={values[key]:02X}" for key, expected_value in expected.items() if values[key] != expected_value]
+    if failed:
+        raise RuntimeError("OpenMSX WorldMap return collectible persistence probe failed: " + ", ".join(failed))
+    print(
+        "WorldMap return collectible persistence probe passed: "
+        f"collectible={values['collectible']:02X}, right_cell={values['collectible_cell']:02X}, "
+        f"left_cell={values['collectible_cell_left']:02X}, screen={values['screen']:02X}"
+    )
+
+
+def validate_world_return_collectible_visual(initial_path: Path, return_path: Path, cleared_path: Path) -> None:
+    initial_pixels = count_yellow_pixels(initial_path)
+    return_pixels = count_yellow_pixels(return_path)
+    cleared_pixels = count_yellow_pixels(cleared_path)
+    if initial_pixels < 80:
+        raise RuntimeError(f"Initial room does not show collectible pixels: {initial_path}; yellow_pixels={initial_pixels}")
+    if cleared_pixels != 0:
+        raise RuntimeError(f"Collect-both screenshot should have no gameplay collectible pixels: {cleared_path}; yellow_pixels={cleared_pixels}")
+    if return_pixels <= cleared_pixels + 40:
+        raise RuntimeError(
+            f"WorldMap return did not redraw the remaining collectible: {return_path}; "
+            f"return_yellow={return_pixels}, cleared_yellow={cleared_pixels}"
+        )
+    if return_pixels >= initial_pixels:
+        raise RuntimeError(
+            f"WorldMap return appears to redraw all collectibles instead of preserving the cleared one: {return_path}; "
+            f"initial_yellow={initial_pixels}, return_yellow={return_pixels}"
+        )
+    print(
+        "WorldMap return collectible visual check passed: "
+        f"initial_yellow={initial_pixels}, return_yellow={return_pixels}, cleared_yellow={cleared_pixels}"
+    )
+
+
 def validate_world_transition_air_probe(path: Path, label: str) -> None:
     values = read_probe_values(path)
     required = ["screen", "air", "air_frame"]
@@ -1018,6 +1072,66 @@ def read_probe_values(path: Path) -> dict[str, int]:
     return values
 
 
+def read_symbol_addresses(path: Path) -> dict[str, int]:
+    if not path.exists():
+        raise RuntimeError(f"Symbol file was not created: {path}")
+    symbols: dict[str, int] = {}
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if ": equ " not in line:
+            continue
+        name, raw_value = line.split(": equ ", 1)
+        value = raw_value.strip().upper()
+        if value.endswith("H"):
+            value = value[:-1]
+        try:
+            symbols[name.strip()] = int(value, 16)
+        except ValueError:
+            continue
+    return symbols
+
+
+def symbol_address(symbols: dict[str, int], name: str, offset: int = 0) -> int:
+    if name not in symbols:
+        raise RuntimeError(f"Symbol file is missing required symbol: {name}")
+    return symbols[name] + offset
+
+
+def validate_runtime_ram_layout(symbols: dict[str, int]) -> None:
+    required = [
+        "msx2_effects_runtime_buffers",
+        "msx2_effects_runtime_scratch",
+        "msx2_enemy_runtime_x",
+        "msx2_runtime_ram_end",
+        "msx2_runtime_ram_limit",
+    ]
+    missing = [name for name in required if name not in symbols]
+    if missing:
+        raise RuntimeError(f"Symbol file is missing MSX2 runtime RAM layout symbols: {', '.join(missing)}")
+    if symbols["msx2_effects_runtime_buffers"] >= symbols["msx2_effects_runtime_scratch"]:
+        raise RuntimeError(
+            "MSX2 runtime RAM layout is invalid: effect buffers do not precede scratch "
+            f"({symbols['msx2_effects_runtime_buffers']:04X} >= {symbols['msx2_effects_runtime_scratch']:04X})"
+        )
+    if symbols["msx2_effects_runtime_scratch"] >= symbols["msx2_enemy_runtime_x"]:
+        raise RuntimeError(
+            "MSX2 runtime RAM layout is invalid: effect scratch does not precede enemy runtime "
+            f"({symbols['msx2_effects_runtime_scratch']:04X} >= {symbols['msx2_enemy_runtime_x']:04X})"
+        )
+    if symbols["msx2_runtime_ram_end"] > symbols["msx2_runtime_ram_limit"]:
+        raise RuntimeError(
+            "MSX2 runtime RAM layout exceeds the safe limit: "
+            f"end={symbols['msx2_runtime_ram_end']:04X}, limit={symbols['msx2_runtime_ram_limit']:04X}"
+        )
+    print(
+        "MSX2 runtime RAM layout check passed: "
+        f"effects={symbols['msx2_effects_runtime_buffers']:04X}, "
+        f"scratch={symbols['msx2_effects_runtime_scratch']:04X}, "
+        f"enemy={symbols['msx2_enemy_runtime_x']:04X}, "
+        f"end={symbols['msx2_runtime_ram_end']:04X}, "
+        f"limit={symbols['msx2_runtime_ram_limit']:04X}"
+    )
+
+
 def validate_gameplay_probe(path: Path, expected: dict[str, int], label: str) -> None:
     values = read_probe_values(path)
     missing = [key for key in expected if key not in values]
@@ -1040,6 +1154,7 @@ def capture_openmsx(
     sequence: str,
     capture_wait_ms: int,
     probe_output: Path | None = None,
+    symbols: dict[str, int] | None = None,
 ) -> None:
     capture_cmd = [
         sys.executable,
@@ -1060,54 +1175,38 @@ def capture_openmsx(
         str(capture_wait_ms),
     ]
     if probe_output:
+        if symbols is None:
+            raise RuntimeError("RAM probes require symbol addresses")
+        probes = [
+            ("collectible", symbol_address(symbols, "msx2_collectible_count")),
+            ("hazard", symbol_address(symbols, "msx2_player_dead_flag")),
+            ("exit", symbol_address(symbols, "msx2_exit_reached_flag")),
+            ("blocked", symbol_address(symbols, "msx2_exit_blocked_flag")),
+            ("lives", symbol_address(symbols, "msx2_lives")),
+            ("gameover", symbol_address(symbols, "msx2_game_over_flag")),
+            ("restart_lock", symbol_address(symbols, "msx2_game_over_restart_lock")),
+            ("level", symbol_address(symbols, "msx2_level_complete_flag")),
+            ("level_lock", symbol_address(symbols, "msx2_level_continue_lock")),
+            ("enemy", symbol_address(symbols, "msx2_enemy_hit_flag")),
+            ("enemy0_x", symbol_address(symbols, "msx2_enemy_runtime_x")),
+            ("enemy1_x", symbol_address(symbols, "msx2_enemy_runtime_x", 1)),
+            ("enemy2_y", symbol_address(symbols, "msx2_enemy_runtime_y", 2)),
+            ("enemy0_dx", symbol_address(symbols, "msx2_enemy_runtime_dx")),
+            ("enemy2_dy", symbol_address(symbols, "msx2_enemy_runtime_dy", 2)),
+            ("air", symbol_address(symbols, "msx2_air_value")),
+            ("air_frame", symbol_address(symbols, "msx2_air_frame_counter")),
+            ("screen", symbol_address(symbols, "msx2_current_screen_index")),
+            ("player_x", symbol_address(symbols, "msx2_player_sprite_x")),
+            ("player_y", symbol_address(symbols, "msx2_player_sprite_y")),
+            ("collectible_cell", symbol_address(symbols, "msx2_effects_runtime_buffers", 0x97)),
+            ("collectible_cell_left", symbol_address(symbols, "msx2_effects_runtime_buffers", 0x95)),
+        ]
         capture_cmd.extend([
             "--probe-output",
             str(probe_output),
-            "--probe",
-            "collectible:0xC00E",
-            "--probe",
-            "hazard:0xC00C",
-            "--probe",
-            "exit:0xC00D",
-            "--probe",
-            "blocked:0xC010",
-            "--probe",
-            "lives:0xC011",
-            "--probe",
-            "gameover:0xC012",
-            "--probe",
-            "restart_lock:0xC013",
-            "--probe",
-            "level:0xC014",
-            "--probe",
-            "level_lock:0xC015",
-            "--probe",
-            "enemy:0xC016",
-            "--probe",
-            "enemy0_x:0xC100",
-            "--probe",
-            "enemy1_x:0xC101",
-            "--probe",
-            "enemy2_y:0xC106",
-            "--probe",
-            "enemy0_dx:0xC108",
-            "--probe",
-            "enemy2_dy:0xC10E",
-            "--probe",
-            "air:0xC018",
-            "--probe",
-            "air_frame:0xC019",
-            "--probe",
-            "screen:0xC00B",
-            "--probe",
-            "player_x:0xC000",
-            "--probe",
-            "player_y:0xC001",
-            "--probe",
-            "collectible_cell:0xC0B7",
-            "--probe",
-            "collectible_cell_left:0xC0B5",
         ])
+        for label, address in probes:
+            capture_cmd.extend(["--probe", f"{label}:0x{address:04X}"])
     if args.openmsx:
         capture_cmd.extend(["--openmsx", args.openmsx])
     run_command(capture_cmd, cwd=project_root, timeout=120)
@@ -1146,11 +1245,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--jump-screenshot-output", default=str(out / "msx2screen-layers-jump-mid.png"), help="Output OpenMSX jump screenshot path")
     parser.add_argument("--transition-screenshot-output", default=str(out / "msx2screen-layers-world-left.png"), help="Output OpenMSX WorldMap transition screenshot path")
     parser.add_argument("--locked-transition-screenshot-output", default=str(out / "msx2screen-layers-world-left-locked.png"), help="Output OpenMSX locked-exit WorldMap transition screenshot path")
+    parser.add_argument("--return-screenshot-output", default=str(out / "msx2screen-layers-world-return.png"), help="Output OpenMSX WorldMap return screenshot path")
     parser.add_argument("--level-continue-screenshot-output", default=str(out / "msx2screen-layers-level-continue.png"), help="Output OpenMSX level continue screenshot path")
     parser.add_argument("--air-screenshot-output", default=str(out / "msx2screen-layers-air.png"), help="Output OpenMSX air/time HUD screenshot path")
     parser.add_argument("--ladder-screenshot-output", default=str(out / "msx2screen-layers-ladder.png"), help="Output OpenMSX ladder behavior screenshot path")
     parser.add_argument("--gameplay-probe-output", default=str(out / "msx2screen-layers-gameplay-probe.txt"), help="Output OpenMSX gameplay RAM probe path")
     parser.add_argument("--locked-gameplay-probe-output", default=str(out / "msx2screen-layers-gameplay-locked-probe.txt"), help="Output OpenMSX locked-exit gameplay RAM probe path")
+    parser.add_argument("--return-probe-output", default=str(out / "msx2screen-layers-world-return-probe.txt"), help="Output OpenMSX WorldMap return RAM probe path")
     parser.add_argument("--level-continue-probe-output", default=str(out / "msx2screen-layers-level-continue-probe.txt"), help="Output OpenMSX level continue RAM probe path")
     parser.add_argument("--air-probe-output", default=str(out / "msx2screen-layers-air-probe.txt"), help="Output OpenMSX air/time RAM probe path")
     parser.add_argument("--ladder-probe-output", default=str(out / "msx2screen-layers-ladder-probe.txt"), help="Output OpenMSX ladder behavior RAM probe path")
@@ -1169,6 +1270,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--jump-sequence", default="SPACE:250", help="Input sequence for the jump capture")
     parser.add_argument("--transition-sequence", default="RIGHT:700,LEFT:5200", help="Input sequence for the collected WorldMap transition capture")
     parser.add_argument("--locked-transition-sequence", default="LEFT:4200", help="Input sequence for the WorldMap transition capture without collecting first")
+    parser.add_argument("--return-sequence", default="LEFT:4200,RIGHT:5200", help="Input sequence for returning to the first room after a WorldMap transition")
     parser.add_argument("--level-continue-sequence", default="RIGHT:700,LEFT:5200,WAIT:700,SPACE:180,WAIT:700", help="Input sequence for continuing after level complete")
     parser.add_argument("--air-sequence", default="WAIT:15000", help="Input sequence for the air/time HUD drain probe")
     parser.add_argument("--ladder-sequence", default="UP:700", help="Input sequence for the MSX2 behavior-layer ladder probe")
@@ -1214,11 +1316,13 @@ def main() -> None:
     jump_screenshot_output = Path(args.jump_screenshot_output).expanduser().resolve()
     transition_screenshot_output = Path(args.transition_screenshot_output).expanduser().resolve()
     locked_transition_screenshot_output = Path(args.locked_transition_screenshot_output).expanduser().resolve()
+    return_screenshot_output = Path(args.return_screenshot_output).expanduser().resolve()
     level_continue_screenshot_output = Path(args.level_continue_screenshot_output).expanduser().resolve()
     air_screenshot_output = Path(args.air_screenshot_output).expanduser().resolve()
     ladder_screenshot_output = Path(args.ladder_screenshot_output).expanduser().resolve()
     gameplay_probe_output = Path(args.gameplay_probe_output).expanduser().resolve()
     locked_gameplay_probe_output = Path(args.locked_gameplay_probe_output).expanduser().resolve()
+    return_probe_output = Path(args.return_probe_output).expanduser().resolve()
     level_continue_probe_output = Path(args.level_continue_probe_output).expanduser().resolve()
     air_probe_output = Path(args.air_probe_output).expanduser().resolve()
     ladder_probe_output = Path(args.ladder_probe_output).expanduser().resolve()
@@ -1258,24 +1362,26 @@ def main() -> None:
 
     validate_asm(asm_output)
     validate_rom(rom_output)
+    symbols = read_symbol_addresses(sym_output)
+    validate_runtime_ram_layout(symbols)
 
     if args.skip_openmsx:
         print("OpenMSX capture skipped by --skip-openmsx")
         print(f"ROM ready: {rom_output} ({rom_output.stat().st_size} bytes)")
         return
 
-    capture_openmsx(args, project_root, rom_output, screenshot_output, args.sequence, args.capture_wait_ms, right_probe_output)
-    capture_openmsx(args, project_root, rom_output, collect_screenshot_output, args.collect_sequence, args.capture_wait_ms, collect_probe_output)
-    capture_openmsx(args, project_root, rom_output, collect_both_screenshot_output, args.collect_both_sequence, args.capture_wait_ms, collect_both_probe_output)
-    capture_openmsx(args, project_root, rom_output, hazard_screenshot_output, args.hazard_sequence, args.capture_wait_ms, hazard_probe_output)
-    capture_openmsx(args, project_root, rom_output, enemy_screenshot_output, args.enemy_sequence, args.capture_wait_ms, enemy_probe_output)
-    capture_openmsx(args, project_root, rom_output, enemy_motion_a_screenshot_output, args.enemy_motion_a_sequence, args.capture_wait_ms, enemy_motion_a_probe_output)
-    capture_openmsx(args, project_root, rom_output, enemy_motion_b_screenshot_output, args.enemy_motion_b_sequence, args.capture_wait_ms, enemy_motion_b_probe_output)
-    capture_openmsx(args, project_root, rom_output, lives_screenshot_output, args.lives_sequence, args.capture_wait_ms, lives_probe_output)
-    capture_openmsx(args, project_root, rom_output, restart_screenshot_output, args.restart_sequence, args.capture_wait_ms, restart_probe_output)
+    capture_openmsx(args, project_root, rom_output, screenshot_output, args.sequence, args.capture_wait_ms, right_probe_output, symbols)
+    capture_openmsx(args, project_root, rom_output, collect_screenshot_output, args.collect_sequence, args.capture_wait_ms, collect_probe_output, symbols)
+    capture_openmsx(args, project_root, rom_output, collect_both_screenshot_output, args.collect_both_sequence, args.capture_wait_ms, collect_both_probe_output, symbols)
+    capture_openmsx(args, project_root, rom_output, hazard_screenshot_output, args.hazard_sequence, args.capture_wait_ms, hazard_probe_output, symbols)
+    capture_openmsx(args, project_root, rom_output, enemy_screenshot_output, args.enemy_sequence, args.capture_wait_ms, enemy_probe_output, symbols)
+    capture_openmsx(args, project_root, rom_output, enemy_motion_a_screenshot_output, args.enemy_motion_a_sequence, args.capture_wait_ms, enemy_motion_a_probe_output, symbols)
+    capture_openmsx(args, project_root, rom_output, enemy_motion_b_screenshot_output, args.enemy_motion_b_sequence, args.capture_wait_ms, enemy_motion_b_probe_output, symbols)
+    capture_openmsx(args, project_root, rom_output, lives_screenshot_output, args.lives_sequence, args.capture_wait_ms, lives_probe_output, symbols)
+    capture_openmsx(args, project_root, rom_output, restart_screenshot_output, args.restart_sequence, args.capture_wait_ms, restart_probe_output, symbols)
     capture_openmsx(args, project_root, rom_output, grounded_screenshot_output, args.grounded_sequence, args.capture_wait_ms)
-    capture_openmsx(args, project_root, rom_output, air_screenshot_output, args.air_sequence, args.capture_wait_ms, air_probe_output)
-    capture_openmsx(args, project_root, rom_output, ladder_screenshot_output, args.ladder_sequence, args.ladder_capture_wait_ms, ladder_probe_output)
+    capture_openmsx(args, project_root, rom_output, air_screenshot_output, args.air_sequence, args.capture_wait_ms, air_probe_output, symbols)
+    capture_openmsx(args, project_root, rom_output, ladder_screenshot_output, args.ladder_sequence, args.ladder_capture_wait_ms, ladder_probe_output, symbols)
     capture_openmsx(args, project_root, rom_output, jump_screenshot_output, args.jump_sequence, args.jump_capture_wait_ms)
     capture_openmsx(
         args,
@@ -1285,6 +1391,7 @@ def main() -> None:
         args.locked_transition_sequence,
         args.transition_capture_wait_ms,
         locked_gameplay_probe_output,
+        symbols,
     )
     capture_openmsx(
         args,
@@ -1294,6 +1401,17 @@ def main() -> None:
         args.transition_sequence,
         args.transition_capture_wait_ms,
         gameplay_probe_output,
+        symbols,
+    )
+    capture_openmsx(
+        args,
+        project_root,
+        rom_output,
+        return_screenshot_output,
+        args.return_sequence,
+        args.transition_capture_wait_ms,
+        return_probe_output,
+        symbols,
     )
     capture_openmsx(
         args,
@@ -1303,6 +1421,7 @@ def main() -> None:
         args.level_continue_sequence,
         args.transition_capture_wait_ms,
         level_continue_probe_output,
+        symbols,
     )
     if not args.skip_image_check:
         validate_blocked_screenshot(screenshot_output)
@@ -1328,6 +1447,8 @@ def main() -> None:
         validate_world_transition_screenshot(transition_screenshot_output)
         validate_world_transition_air_probe(locked_gameplay_probe_output, "locked")
         validate_world_transition_air_probe(gameplay_probe_output, "open")
+        validate_world_return_collectible_probe(return_probe_output)
+        validate_world_return_collectible_visual(grounded_screenshot_output, return_screenshot_output, collect_both_screenshot_output)
         validate_level_complete_screenshot(transition_screenshot_output)
         validate_level_continue_probe(level_continue_probe_output)
         validate_level_continue_screenshot(level_continue_screenshot_output)
@@ -1367,9 +1488,11 @@ def main() -> None:
     print(f"OpenMSX jump screenshot ready: {jump_screenshot_output}")
     print(f"OpenMSX locked WorldMap transition screenshot ready: {locked_transition_screenshot_output}")
     print(f"OpenMSX WorldMap transition screenshot ready: {transition_screenshot_output}")
+    print(f"OpenMSX WorldMap return screenshot ready: {return_screenshot_output}")
     print(f"OpenMSX level continue screenshot ready: {level_continue_screenshot_output}")
     print(f"OpenMSX locked gameplay probe ready: {locked_gameplay_probe_output}")
     print(f"OpenMSX gameplay probe ready: {gameplay_probe_output}")
+    print(f"OpenMSX WorldMap return probe ready: {return_probe_output}")
     print(f"OpenMSX level continue probe ready: {level_continue_probe_output}")
 
 

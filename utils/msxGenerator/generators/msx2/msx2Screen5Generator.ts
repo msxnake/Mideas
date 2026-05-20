@@ -23,6 +23,8 @@ const MSX2_TILE_SCREEN_HEIGHT = 14;
 const MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN = 4;
 const MSX2_MAX_PLAYER_HARDWARE_LAYERS = 32 - MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN - 1;
 const MSX2_ENEMY_SPRITE_COLOR = 13;
+const MSX2_RUNTIME_RAM_START = 0xC000;
+const MSX2_RUNTIME_RAM_LIMIT = 0xF300;
 const MSX2_ENEMY_SPRITE_PATTERN = [
   0x00, 0x03, 0x07, 0x0F, 0x1F, 0x1B, 0x3F, 0x3C,
   0x3C, 0x3F, 0x1B, 0x1F, 0x0F, 0x07, 0x03, 0x00,
@@ -37,6 +39,9 @@ const sanitizeLabel = (value: string, fallback: string): string =>
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '')
     .toUpperCase() || fallback.toUpperCase();
+
+const formatHexWord = (value: number): string =>
+  `#${Math.max(0, Math.min(0xFFFF, Math.floor(value))).toString(16).toUpperCase().padStart(4, '0')}`;
 
 const normalizeColor = (value: string | undefined): string =>
   String(value || '').trim().toUpperCase();
@@ -240,7 +245,8 @@ function buildTileScreenTileBlocks(label: string, screen: Msx2Screen5TileScreen 
 function buildTileScreenLoadRoutine(
   label: string,
   screen: Msx2Screen5TileScreen | undefined,
-  loadRuntimeLayerPointers: (label: string) => string
+  screenIndex: number | undefined,
+  loadRuntimeLayerPointers: (label: string, screenIndex?: number) => string
 ): string {
   const tiles = screen?.tiles || [];
   const map = screen?.map || [];
@@ -268,8 +274,77 @@ function buildTileScreenLoadRoutine(
     ld bc, SCREEN5_BITMAP_SIZE
     call FILVRM
 ${calls.join('\n')}
-${loadRuntimeLayerPointers(label)}    ret
+${loadRuntimeLayerPointers(label, screenIndex)}    call apply_${label}_collected_visuals
+    ret
 `;
+}
+
+function buildTileScreenCollectedVisualsRoutine(
+  label: string,
+  screen: Msx2Screen5TileScreen | undefined,
+  screenIndex: number,
+  effectRuntimeBase: number
+): string {
+  const effects = buildTileScreenLayerBytes(screen, 'effects');
+  const collectibleCells: string[] = [];
+  effects.forEach((value, offset) => {
+    if (value !== 3) return;
+    const tileX = offset % MSX2_TILE_SCREEN_WIDTH;
+    const tileY = Math.floor(offset / MSX2_TILE_SCREEN_WIDTH);
+    const vramAddress = (tileY * 16 * (SCREEN5_WIDTH / 2)) + (tileX * 8);
+    const runtimeAddress = effectRuntimeBase + (screenIndex * MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT) + offset;
+    collectibleCells.push(`    ld hl, #${runtimeAddress.toString(16).toUpperCase().padStart(4, '0')}
+    ld a, (hl)
+    cp 3
+    jp z, .keep_collectible_${collectibleCells.length}
+    ld hl, screen5_blank_tile
+    ld de, #${vramAddress.toString(16).toUpperCase().padStart(4, '0')}
+    ld b, 16
+    call copy_tile_rows_to_vram
+.keep_collectible_${collectibleCells.length}:`);
+  });
+
+  return `apply_${label}_collected_visuals:
+    ; Re-erases collectibles already cleared from this screen's persistent effect RAM.
+    ; Clobbers AF/BC/DE/HL.
+${collectibleCells.length ? collectibleCells.join('\n') : '    ; No collectible cells on this screen.'}
+    ret
+`;
+}
+
+function buildInitEffectBuffersRoutine(tileScreenLoadLabels: string[], effectRuntimeBase: number): string {
+  const layerSize = MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT;
+  const copies = tileScreenLoadLabels.map((label, index) => {
+    const destination = effectRuntimeBase + (index * layerSize);
+    return `    ld hl, ${label}_EFFECTS
+    ld de, #${destination.toString(16).toUpperCase().padStart(4, '0')}
+    ld bc, msx2_layer_size
+    ldir`;
+  });
+
+  return `init_msx2_effect_buffers:
+    ; Restores each msx2screen mutable effect layer from ROM into persistent RAM.
+    ; Clobbers AF/BC/DE/HL.
+${copies.length ? copies.join('\n') : '    ; No native MSX2 tile screens.'}
+    ret
+`;
+}
+
+function estimateMsx2RuntimeRamEnd(tileScreenCount: number): number {
+  const layerSize = MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT;
+  const effectRuntimeBase = 0xC020;
+  const effectRuntimeSize = Math.max(1, tileScreenCount) * layerSize;
+  const effectScratchBase = Math.max(0xC200, (effectRuntimeBase + effectRuntimeSize + 0x0f) & 0xfff0);
+  const enemyRuntimeBase = (effectScratchBase + layerSize + 0x0f) & 0xfff0;
+  return enemyRuntimeBase + 0x10;
+}
+
+function maxPersistentMsx2ScreenCount(): number {
+  let count = 0;
+  while (estimateMsx2RuntimeRamEnd(count + 1) <= MSX2_RUNTIME_RAM_LIMIT) {
+    count++;
+  }
+  return count;
 }
 
 function buildPaletteBytes(slots: Screen5PaletteSlot[]): number[] {
@@ -1331,9 +1406,10 @@ msx2_level_complete_idle:
     ret
 
 msx2_continue_after_level_complete:
-    call load_${restartScreenLabel}_bitmap
     ld a, ${Math.max(0, Math.min(255, restartScreenIndex))}
     ld (msx2_current_screen_index), a
+    call init_msx2_effect_buffers
+    call load_${restartScreenLabel}_bitmap
     xor a
     ld (msx2_level_complete_flag), a
     ld (msx2_level_continue_lock), a
@@ -1356,9 +1432,10 @@ msx2_continue_after_level_complete:
     ret
 
 msx2_restart_game:
-    call load_${restartScreenLabel}_bitmap
     ld a, ${Math.max(0, Math.min(255, restartScreenIndex))}
     ld (msx2_current_screen_index), a
+    call init_msx2_effect_buffers
+    call load_${restartScreenLabel}_bitmap
     xor a
     ld (msx2_game_over_flag), a
     ld (msx2_game_over_restart_lock), a
@@ -2067,7 +2144,7 @@ function buildMsx2TileScreenLoadLines(label: string | undefined, tileScreenIndex
   const setIndex = index === undefined
     ? ''
     : `    ld a, ${index}\n    ld (msx2_current_screen_index), a\n`;
-  return `    call load_${label}_bitmap\n${setIndex}`;
+  return `${setIndex}    call load_${label}_bitmap\n`;
 }
 
 function screenLoadLabelForAssetId(
@@ -2227,9 +2304,9 @@ function buildMsx2WorldTransitionAsm(
       const targetStart = getPlayerStartFromTileScreen(tileScreens[targetIndex]);
       const enterY = clampHardwareSpriteY(targetStart?.y ?? 144);
       return `.${suffix}_screen_${index}:
-    call load_${targetLabel}_bitmap
     ld a, ${targetIndex}
     ld (msx2_current_screen_index), a
+    call load_${targetLabel}_bitmap
     call msx2_reset_screen_transition_flags
     call msx2_reset_enemy_runtime_for_current_screen
     call msx2_load_current_screen_air
@@ -2332,6 +2409,21 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const requiredCollectiblesByScreen = tileScreens.map(screen => getTileScreenRequiredCollectibles(screen));
   const requiredCollectibles = Math.min(255, Math.max(0, ...requiredCollectiblesByScreen));
   const initialAirByScreen = tileScreens.map(screen => getTileScreenInitialAir(screen));
+  const effectRuntimeBase = 0xC020;
+  const effectRuntimeSize = Math.max(1, tileScreens.length) * MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT;
+  const effectScratchBase = Math.max(0xC200, (effectRuntimeBase + effectRuntimeSize + 0x0f) & 0xfff0);
+  const enemyRuntimeBase = (effectScratchBase + (MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT) + 0x0f) & 0xfff0;
+  const runtimeRamEnd = estimateMsx2RuntimeRamEnd(tileScreens.length);
+  if (runtimeRamEnd > MSX2_RUNTIME_RAM_LIMIT) {
+    const maxScreens = maxPersistentMsx2ScreenCount();
+    throw new Error(
+      `MSX2 SCREEN 5 runtime RAM overflow: ${tileScreens.length} native msx2screen rooms require ` +
+      `${runtimeRamEnd - MSX2_RUNTIME_RAM_START} bytes through ${formatHexWord(runtimeRamEnd)}, ` +
+      `beyond safe limit ${formatHexWord(MSX2_RUNTIME_RAM_LIMIT)}. ` +
+      `Reduce referenced rooms, split the WorldMap, or add a banked/streamed MSX2 runtime path. ` +
+      `Current simple runtime supports about ${maxScreens} rooms with persistent effects.`
+    );
+  }
   const spawnXBytes = tileScreens.map(screen => clampHardwareSpriteX(getPlayerStartFromTileScreen(screen)?.x ?? 96));
   const spawnYBytes = tileScreens.map(screen => clampHardwareSpriteY(getPlayerStartFromTileScreen(screen)?.y ?? 144));
   const enemyHazards = tileScreens.map(screen => getEnemyHazardRuntimeSlots(screen));
@@ -2368,25 +2460,36 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const firstScreenEnemyRuntimeInit = firstScreenIndex === undefined || !hasHardwareSprite(analysis)
     ? ''
     : '    call msx2_reset_enemy_runtime_for_current_screen\n';
-  const loadRuntimeLayerPointers = (label: string): string => {
+  const loadRuntimeLayerPointers = (label: string, screenIndex?: number): string => {
     const runtimeLabels = runtimeLayerLabels.get(label);
     const collisionLabel = runtimeLabels?.collision || 'screen5_empty_collision_layer';
     const effectsLabel = runtimeLabels?.effects || 'screen5_empty_effects_layer';
     const behaviorLabel = runtimeLabels?.behavior || 'screen5_empty_behavior_layer';
+    const runtimeEffectsAddress = screenIndex === undefined
+      ? undefined
+      : effectRuntimeBase + (screenIndex * MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT);
+    const loadEffectsPointer = runtimeEffectsAddress === undefined
+      ? `    ld hl, ${effectsLabel}
+    ld de, msx2_effects_runtime_scratch
+    ld bc, msx2_layer_size
+    ldir
+    ld hl, msx2_effects_runtime_scratch
+    ld (msx2_current_effects_ptr), hl
+`
+      : `    ld hl, #${runtimeEffectsAddress.toString(16).toUpperCase().padStart(4, '0')}
+    ld (msx2_current_effects_ptr), hl
+`;
     return `    ld hl, ${collisionLabel}
     ld (msx2_current_collision_ptr), hl
     ld hl, ${behaviorLabel}
     ld (msx2_current_behavior_ptr), hl
-    ld hl, ${effectsLabel}
-    ld de, msx2_effects_runtime_buffer
-    ld bc, msx2_layer_size
-    ldir
-    ld hl, msx2_effects_runtime_buffer
-    ld (msx2_current_effects_ptr), hl
-`;
+${loadEffectsPointer}`;
   };
   const tileScreenLoadRoutines = tileScreens.map((screen, index) =>
-    buildTileScreenLoadRoutine(tileScreenLoadLabels[index], screen, loadRuntimeLayerPointers)
+    buildTileScreenLoadRoutine(tileScreenLoadLabels[index], screen, index, loadRuntimeLayerPointers)
+  );
+  const tileScreenCollectedVisualRoutines = tileScreens.map((screen, index) =>
+    buildTileScreenCollectedVisualsRoutine(tileScreenLoadLabels[index], screen, index, effectRuntimeBase)
   );
   const genericScreenLoadRoutines = genericLoadLabels.map(label => `load_${label}_bitmap:
     ld hl, ${label}_BITMAP
@@ -2450,11 +2553,14 @@ msx2_enemy_damage_cooldown EQU #C017
 msx2_air_value EQU #C018
 msx2_air_frame_counter EQU #C019
 msx2_current_behavior_ptr EQU #C01A
-msx2_effects_runtime_buffer EQU #C020
-msx2_enemy_runtime_x EQU #C100
-msx2_enemy_runtime_y EQU #C104
-msx2_enemy_runtime_dx EQU #C108
-msx2_enemy_runtime_dy EQU #C10C
+msx2_effects_runtime_buffers EQU ${formatHexWord(effectRuntimeBase)}
+msx2_effects_runtime_scratch EQU ${formatHexWord(effectScratchBase)}
+msx2_enemy_runtime_x EQU ${formatHexWord(enemyRuntimeBase)}
+msx2_enemy_runtime_y EQU ${formatHexWord(enemyRuntimeBase + 0x04)}
+msx2_enemy_runtime_dx EQU ${formatHexWord(enemyRuntimeBase + 0x08)}
+msx2_enemy_runtime_dy EQU ${formatHexWord(enemyRuntimeBase + 0x0c)}
+msx2_runtime_ram_end EQU ${formatHexWord(runtimeRamEnd)}
+msx2_runtime_ram_limit EQU ${formatHexWord(MSX2_RUNTIME_RAM_LIMIT)}
 msx2_layer_size EQU ${MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT}
 msx2_required_collectibles EQU ${requiredCollectibles}
 
@@ -2492,8 +2598,9 @@ init_rom:
     call WRTVDP
 
     call load_screen5_palette
+${firstScreenIndexInit}    call init_msx2_effect_buffers
     call load_${firstScreenLabel}_bitmap
-${firstScreenIndexInit}${firstScreenEnemyRuntimeInit}${hasHardwareSprite(analysis) ? '    call init_hardware_sprites\n' : ''}
+${firstScreenEnemyRuntimeInit}${hasHardwareSprite(analysis) ? '    call init_hardware_sprites\n' : ''}
     call ENASCR
     ei
 
@@ -2557,7 +2664,8 @@ load_screen5_palette:
     djnz .palette_loop
     ret
 
-${[...tileScreenLoadRoutines, ...genericScreenLoadRoutines].join('\n')}
+${buildInitEffectBuffersRoutine(tileScreenLoadLabels, effectRuntimeBase)}
+${[...tileScreenLoadRoutines, ...genericScreenLoadRoutines, ...tileScreenCollectedVisualRoutines].join('\n')}
 ${formatBytes('screen5_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G')}
 ${formatBytes('msx2_screen_spawn_x', spawnXBytes.length ? spawnXBytes : [96], 'Per-msx2screen respawn X coordinates')}
 ${formatBytes('msx2_screen_spawn_y', spawnYBytes.length ? spawnYBytes : [144], 'Per-msx2screen respawn Y coordinates')}

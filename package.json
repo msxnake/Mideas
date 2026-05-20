@@ -8,6 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:msx2-editor-contract": "node scripts/check_msx2_entity_editor_contract.mjs",
+    "smoke:msx2-static": "npm run smoke:msx2-layers -- --skip-openmsx && npm run smoke:msx2-conveyor -- --skip-openmsx",
+    "smoke:msx2-report": "python scripts/build_msx2_visual_report.py",
+    "smoke:msx2-visual": "npm run smoke:msx2-layers && npm run smoke:msx2-conveyor && npm run smoke:msx2-report",
     "smoke:msx2-layers": "python scripts/build_msx2screen_layers_smoke.py",
     "smoke:msx2-conveyor": "python scripts/build_msx2screen_conveyor_smoke.py"
   },

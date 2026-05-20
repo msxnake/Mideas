@@ -98,6 +98,29 @@ python scripts\build_msx2screen_layers_smoke.py --skip-openmsx
 npm run smoke:msx2-layers -- --skip-openmsx
 ```
 
+Run the current MSX2 tester battery without OpenMSX:
+
+```powershell
+npm run smoke:msx2-static
+```
+
+Run the current MSX2 tester battery with OpenMSX screenshots and RAM probes:
+
+```powershell
+npm run smoke:msx2-visual
+```
+
+After a visual run, build or refresh the HTML evidence page:
+
+```powershell
+npm run smoke:msx2-report
+```
+
+Default report:
+
+- `test\msx2-screen5\out\msx2-visual-report.html`
+- `test\msx2-screen5\out\msx2-visual-report.json`
+
 Manual equivalent:
 
 ```powershell
@@ -122,6 +145,11 @@ Expected ASM signals:
 - `msx2_player_dead_flag`
 - `msx2_exit_reached_flag`
 - `msx2_collectible_count`
+- `msx2_effects_runtime_buffers`
+- `msx2_runtime_ram_end`
+- `msx2_runtime_ram_limit`
+- `init_msx2_effect_buffers`
+- `apply_MSX2_LAYERS_SMOKE_SCREEN_collected_visuals`
 - `clear_msx2_collectible_visual`
 - `screen5_blank_tile`
 - `msx2_exit_blocked_flag`
@@ -199,6 +227,7 @@ The one-command smoke performs multiple OpenMSX captures by default:
 - `test\msx2-screen5\out\msx2screen-layers-grounded.png` versus `test\msx2-screen5\out\msx2screen-layers-collect.png`: compares yellow collectible pixels before and after collecting the first item, proving the matching visible tile is erased from SCREEN 5 VRAM while other collectibles can remain visible.
 - `test\msx2-screen5\out\msx2screen-layers-collect-both.png`: collects both required items before crossing into the exit room.
 - `test\msx2-screen5\out\msx2screen-layers-collect-both-probe.txt`: requires `collectible=02`, `collectible_cell=00`, `collectible_cell_left=00`, and `screen=00`, proving both collectible cells are cleared in RAM. The screenshot must also have zero remaining yellow collectible pixels.
+- MSX2 effect layers are now persistent per `msx2screen` while a level is active: WorldMap transitions keep already collected item cells cleared, and restart/level-continue restores all effect buffers from ROM.
 - The same three captures check the top HUD: zero yellow object pips at start, one yellow pip after the first collectible, and two after the second.
 - `test\msx2-screen5\out\msx2screen-layers-hazard-respawn.png`: jumps into a hazard placed above the collectible.
 - `test\msx2-screen5\out\msx2screen-layers-hazard-respawn-probe.txt`: requires `hazard=01`, `lives=02`, `gameover=00`, `player_x=60`, `player_y=8E/8F/90`, and `screen=00`, proving hazard respawn uses the current room spawn and decrements one life.
@@ -218,6 +247,7 @@ The one-command smoke performs multiple OpenMSX captures by default:
 - `test\msx2-screen5\out\msx2screen-layers-jump-mid.png`: holds SPACE briefly and checks the player sprite is visibly airborne.
 - `test\msx2-screen5\out\msx2screen-layers-world-left-locked.png`: crosses into the exit room without collecting first.
 - `test\msx2-screen5\out\msx2screen-layers-world-left.png`: holds LEFT long enough to cross a WorldMap link, checks the second `msx2screen` is loaded, and must contain the yellow level-complete banner after touching an open exit.
+- `test\msx2-screen5\out\msx2screen-layers-world-return.png`: collects one item, crosses into the exit room, returns to the first room, and proves the collected cell remains cleared while the other collectible remains available. The visual check requires remaining yellow collectible pixels on return, but fewer than the fresh room baseline and more than the collect-both cleared state.
 - `test\msx2-screen5\out\msx2screen-layers-level-continue.png`: reaches level complete, releases SPACE, presses SPACE, and must no longer contain the yellow level-complete banner.
 - `test\msx2-screen5\out\msx2screen-layers-level-continue-probe.txt`: requires `lives=02`, `exit=00`, `level=00`, `collectible=00`, `collectible_cell=03`, `player_x=60`, `player_y=8E/8F/90`, and `screen=00`, proving continue reloads the first screen, restores mutable effects, and preserves the life lost to the enemy during the route.
 - `test\msx2-screen5\out\msx2screen-layers-gameplay-locked-probe.txt`: requires `collectible=01`, `hazard=00`, `exit=00`, `blocked=01`, `level=00`, `level_lock=00`, `enemy=00`, `lives=02`, and `screen=01`, proving one collected item is not enough when the room requires two and that stale damage flags are cleared on WorldMap entry.
@@ -248,7 +278,9 @@ Current `effects` layer runtime semantics for MSX2 tile screens:
 
 Each native `msx2screen.runtime` can define `requiredCollectibles` and `initialAir`. The generator emits one byte per referenced MSX2 screen as `msx2_screen_required_collectibles` and `msx2_screen_initial_air`. `msx2_compare_collectibles_required` gates exits against the active screen requirement, and `msx2_load_current_screen_air` loads the active screen air byte whenever the first room, restart, continue, or WorldMap screen-transition path resets the timer. If a screen omits `requiredCollectibles`, the backend falls back to counting `effects=3` cells on that screen. If it omits `initialAir`, the backend falls back to `255`. `msx2_required_collectibles EQU n` remains as the maximum requirement for the current ROM slice and is used by the tiny HUD pip renderer.
 
-Each screen load copies the selected 16x14 `effects` layer from ROM to `msx2_effects_runtime_buffer` at `#C020`, then points `msx2_current_effects_ptr` at that RAM buffer. Collision remains ROM-backed. This keeps collectible mutation local to the current room and avoids writing into cartridge ROM data.
+At level start/restart/continue, `init_msx2_effect_buffers` copies every referenced native `msx2screen` 16x14 `effects` layer from ROM into `msx2_effects_runtime_buffers` at `#C020`. Screen loads only repoint `msx2_current_effects_ptr` to the active screen slice and re-erase visuals for collectibles already cleared in that slice. Collision remains ROM-backed. This preserves collected items across WorldMap room transitions without writing into cartridge ROM data, while full restarts restore the ROM-authored effect layers.
+
+The generator emits `msx2_runtime_ram_end` and `msx2_runtime_ram_limit` and fails generation if the native MSX2 runtime layout would exceed the safe RAM window. This makes larger WorldMaps fail loudly instead of letting persistent effect buffers, scratch RAM, and enemy runtime tables overlap.
 
 Current `behavior` layer runtime semantics for MSX2 tile screens:
 
@@ -270,6 +302,8 @@ python scripts\build_msx2screen_conveyor_smoke.py
 ```
 
 This creates `test\msx2-screen5\msx2screen-conveyor-project.json`, builds `test\msx2-screen5\out\msx2screen-conveyor.rom`, and captures both `test\msx2-screen5\out\msx2screen-conveyor-right.png` and `test\msx2-screen5\out\msx2screen-conveyor-left.png`. The right probe requires the player X coordinate to move from the spawn at `60h` to at least `68h`, proving behavior code `2` pushes right in OpenMSX. The left probe first walks onto a neighboring conveyor-left cell and then requires X to be no greater than `68h`, proving behavior code `3` pushes left.
+
+The conveyor smoke reads the generated `.sym` file before OpenMSX capture, validates the MSX2 runtime RAM layout, and passes symbol-derived probe addresses to the shared capture helper. It also performs a PNG visual check by locating the green hardware sprite on the playable platform row in both conveyor screenshots.
 
 Hazards decrement `msx2_lives` from the initial value `3`, redraw the tiny SCREEN 5 life pips with `draw_msx2_lives_hud`, and set `msx2_game_over_flag` when the counter reaches zero. Collectibles redraw the object-progress pips with `draw_msx2_collectible_hud`, which emits up to four yellow pips for collected required items next to the life HUD. `msx2_air_value` is initialized from the active screen's `msx2_screen_initial_air` byte; `update_msx2_air_timer` decrements it through a coarse frame divider stored in `msx2_air_frame_counter`, and `draw_msx2_air_hud` renders a 16-segment green bar at the top-right of the SCREEN 5 playfield. When air reaches zero, the runtime sets `msx2_game_over_flag`, locks restart until SPACE is released, and draws the game-over banner. Hazards also set `msx2_game_over_restart_lock` so the SPACE press that caused the final jump cannot immediately restart the game. They then call `msx2_respawn_current_screen` and refresh sprite attributes without re-entering the effect dispatcher. Once game over is active, `msx2_game_over_idle` draws `draw_msx2_game_over_banner`, keeps the sprite visible, and skips movement/effect processing. After SPACE has been released, pressing SPACE again calls `msx2_restart_game`, reloads the first screen, restores the mutable effects layer, resets lives/collectibles/flags/air, redraws the HUD sections, and respawns the player. Level-complete uses the same release-then-press pattern with `msx2_level_continue_lock`; pressing SPACE calls `msx2_continue_after_level_complete`, reloads the first screen, restores mutable effects, clears exit/level flags, resets air, redraws the HUD sections, and keeps current lives. The respawn X/Y tables are emitted as `msx2_screen_spawn_x` and `msx2_screen_spawn_y`, one byte per referenced `msx2screen`, using that screen's player entity position; respawn resets jump frames and leaves `msx2_player_jump_lock` set until SPACE is released, so damage cannot trigger an immediate second jump. Up to four `enemy` or `hazard` entities per screen are emitted as `msx2_screen_enemy_count`, `msx2_screen_enemy_x`, `msx2_screen_enemy_y`, `msx2_screen_enemy_min_x`, `msx2_screen_enemy_max_x`, `msx2_screen_enemy_min_y`, `msx2_screen_enemy_max_y`, `msx2_screen_enemy_dx`, and `msx2_screen_enemy_dy`; on screen load they are copied into `msx2_enemy_runtime_x`, `msx2_enemy_runtime_y`, `msx2_enemy_runtime_dx`, and `msx2_enemy_runtime_dy`. The SAT writer emits one magenta 16x16 hardware sprite per active enemy slot using `msx2_hw_enemy_sprite_pattern`, so moving entities are visible in OpenMSX as well as collidable. Entities with `params.movement = "patrolX"` use `minX`, `maxX`, and `direction` to move horizontally; `params.movement = "patrolY"` uses `minY`, `maxY`, and `direction` to move vertically before collision checks. `update_msx2_enemy_state` treats each one as a 16x16 damage body, calls the shared `msx2_apply_damage_respawn` path, and uses `msx2_enemy_damage_cooldown` so one held direction cannot drain all lives immediately. The routine resets jump state and keeps `msx2_player_dead_flag` set for the smoke probe and later gameflow/life logic.
 
