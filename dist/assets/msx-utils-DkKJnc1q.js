@@ -44347,15 +44347,15 @@ ${c.join(`
 `)}
 ${r(e,a)}    call apply_${e}_collected_visuals
     ret
-`}function wg(e,t,a,r){const o=fl(t,"effects"),n=[];return o.forEach((i,_)=>{if(i!==3)return;const c=_%St,p=Math.floor(_/St)*16*($l/2)+c*8,s=r+a*St*kt+_;n.push(`    ld hl, #${s.toString(16).toUpperCase().padStart(4,"0")}
+`}function wg(e,t,a,r){const o=fl(t,"effects"),n=[];return o.forEach((i,_)=>{if(i!==3)return;const c=_%St,p=Math.floor(_/St)*16*($l/2)+c*8,s=r+a*St*kt+_,l=`keep_${e}_collectible_${n.length}`;n.push(`    ld hl, #${s.toString(16).toUpperCase().padStart(4,"0")}
     ld a, (hl)
     cp 3
-    jp z, .keep_collectible_${n.length}
+    jp z, ${l}
     ld hl, screen5_blank_tile
     ld de, #${p.toString(16).toUpperCase().padStart(4,"0")}
     ld b, 16
     call copy_tile_rows_to_vram
-.keep_collectible_${n.length}:`)}),`apply_${e}_collected_visuals:
+${l}:`)}),`apply_${e}_collected_visuals:
     ; Re-erases collectibles already cleared from this screen's persistent effect RAM.
     ; Clobbers AF/BC/DE/HL.
 ${n.length?n.join(`
@@ -45399,7 +45399,7 @@ update_msx2_effect_state:
 .no_effect:
     xor a
     ld (msx2_collectible_latch), a
-    ld b, #04
+    ld b, #01
     jp .write_border
 .hazard:
     xor a

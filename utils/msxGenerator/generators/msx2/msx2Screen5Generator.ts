@@ -293,15 +293,16 @@ function buildTileScreenCollectedVisualsRoutine(
     const tileY = Math.floor(offset / MSX2_TILE_SCREEN_WIDTH);
     const vramAddress = (tileY * 16 * (SCREEN5_WIDTH / 2)) + (tileX * 8);
     const runtimeAddress = effectRuntimeBase + (screenIndex * MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT) + offset;
+    const keepLabel = `keep_${label}_collectible_${collectibleCells.length}`;
     collectibleCells.push(`    ld hl, #${runtimeAddress.toString(16).toUpperCase().padStart(4, '0')}
     ld a, (hl)
     cp 3
-    jp z, .keep_collectible_${collectibleCells.length}
+    jp z, ${keepLabel}
     ld hl, screen5_blank_tile
     ld de, #${vramAddress.toString(16).toUpperCase().padStart(4, '0')}
     ld b, 16
     call copy_tile_rows_to_vram
-.keep_collectible_${collectibleCells.length}:`);
+${keepLabel}:`);
   });
 
   return `apply_${label}_collected_visuals:
@@ -1738,7 +1739,7 @@ update_msx2_effect_state:
 .no_effect:
     xor a
     ld (msx2_collectible_latch), a
-    ld b, #04
+    ld b, #01
     jp .write_border
 .hazard:
     xor a

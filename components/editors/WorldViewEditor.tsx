@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { WorldMapGraph, ScreenMap, Tile, ConnectionDirection } from '../../types';
+import { WorldMapGraph, ScreenMap, Tile, ConnectionDirection, Msx2Screen5TileScreen } from '../../types';
 import { Panel } from '../common/Panel';
 import { WorldViewIcon, RefreshCwIcon } from '../icons/MsxIcons';
 import { MSX1_PALETTE, MSX_SCREEN5_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
@@ -9,12 +9,80 @@ import { getScreenModeMetrics } from '../../utils/screenModeConfig';
 
 interface WorldViewEditorProps {
   allWorldMapGraphs: WorldMapGraph[];
-  allScreenMaps: ScreenMap[];
+  allScreenMaps: WorldViewScreen[];
   allTiles: Tile[];
   currentScreenMode: string;
 }
 
-const renderScreenToCanvas = (
+type WorldViewScreen = ScreenMap | Msx2Screen5TileScreen;
+
+const isMsx2Screen5TileScreen = (screen: WorldViewScreen | undefined): screen is Msx2Screen5TileScreen => {
+    return !!screen && (screen as Msx2Screen5TileScreen).vdpMode === 'SCREEN5' && Array.isArray((screen as Msx2Screen5TileScreen).tiles);
+};
+
+const isScreenMap = (screen: WorldViewScreen | undefined): screen is ScreenMap => {
+    return !!screen && Array.isArray((screen as ScreenMap).layers?.background);
+};
+
+const getWorldViewScreenPixelSize = (
+    screen: WorldViewScreen,
+    baseSliceDim: number
+): { width: number; height: number } => {
+    if (isMsx2Screen5TileScreen(screen)) {
+        return { width: 256, height: 212 };
+    }
+
+    return {
+        width: screen.width * baseSliceDim,
+        height: screen.height * baseSliceDim,
+    };
+};
+
+const resolveMsx2Screen5Color = (screen: Msx2Screen5TileScreen, colorIndex: number): string => {
+    return screen.palette?.[colorIndex]?.hex || (colorIndex === 0 ? '#000000' : '#ffffff');
+};
+
+const renderMsx2Screen5ToCanvas = (
+    canvas: HTMLCanvasElement,
+    screen: Msx2Screen5TileScreen
+) => {
+    canvas.width = 256;
+    canvas.height = 212;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+
+    ctx.fillStyle = resolveMsx2Screen5Color(screen, 0);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const tileSize = screen.tileSize || 16;
+    const visibleRows = Math.ceil(canvas.height / tileSize);
+    const visibleCols = Math.ceil(canvas.width / tileSize);
+
+    for (let tileY = 0; tileY < visibleRows; tileY++) {
+        for (let tileX = 0; tileX < visibleCols; tileX++) {
+            const tileIndex = screen.map?.[tileY]?.[tileX] ?? 0;
+            const tile = screen.tiles?.[tileIndex];
+            if (!tile) continue;
+
+            for (let py = 0; py < tileSize; py++) {
+                const destY = tileY * tileSize + py;
+                if (destY >= canvas.height) continue;
+
+                for (let px = 0; px < tileSize; px++) {
+                    const destX = tileX * tileSize + px;
+                    if (destX >= canvas.width) continue;
+
+                    const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
+                    ctx.fillStyle = resolveMsx2Screen5Color(screen, colorIndex);
+                    ctx.fillRect(destX, destY, 1, 1);
+                }
+            }
+        }
+    }
+};
+
+const renderScreenMapToCanvas = (
     canvas: HTMLCanvasElement,
     screenMap: ScreenMap,
     tileset: Tile[],
@@ -77,22 +145,38 @@ const renderScreenToCanvas = (
     }
 };
 
+const renderWorldViewScreenToCanvas = (
+    canvas: HTMLCanvasElement,
+    screen: WorldViewScreen,
+    tileset: Tile[],
+    currentScreenMode: string,
+    baseSliceDim: number
+) => {
+    if (isMsx2Screen5TileScreen(screen)) {
+        renderMsx2Screen5ToCanvas(canvas, screen);
+        return;
+    }
+
+    if (isScreenMap(screen)) {
+        renderScreenMapToCanvas(canvas, screen, tileset, currentScreenMode, baseSliceDim);
+    }
+};
+
 const ScreenCanvas: React.FC<{
-    screenMap: ScreenMap;
+    screen: WorldViewScreen;
     tileset: Tile[];
     currentScreenMode: string;
     baseSliceDim: number;
-}> = React.memo(({ screenMap, tileset, currentScreenMode, baseSliceDim }) => {
+}> = React.memo(({ screen, tileset, currentScreenMode, baseSliceDim }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
         if (canvasRef.current) {
-            renderScreenToCanvas(canvasRef.current, screenMap, tileset, currentScreenMode, baseSliceDim);
+            renderWorldViewScreenToCanvas(canvasRef.current, screen, tileset, currentScreenMode, baseSliceDim);
         }
-    }, [screenMap, tileset, currentScreenMode, baseSliceDim]);
+    }, [screen, tileset, currentScreenMode, baseSliceDim]);
 
-    const width = screenMap.width * baseSliceDim;
-    const height = screenMap.height * baseSliceDim;
+    const { width, height } = getWorldViewScreenPixelSize(screen, baseSliceDim);
 
     return <canvas ref={canvasRef} width={width} height={height} style={{ width, height, imageRendering: 'pixelated' }} />;
 });
@@ -174,8 +258,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
     
             if (!currentNode || !currentScreenMap || !currentPosition) continue;
     
-            const currentScreenPixelWidth = currentScreenMap.width * EDITOR_BASE_TILE_DIM;
-            const currentScreenPixelHeight = currentScreenMap.height * EDITOR_BASE_TILE_DIM;
+            const { width: currentScreenPixelWidth, height: currentScreenPixelHeight } = getWorldViewScreenPixelSize(currentScreenMap, EDITOR_BASE_TILE_DIM);
     
             worldMapGraph.connections.forEach(conn => {
                 let neighborNodeId: string | null = null;
@@ -199,8 +282,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                     const neighborScreenMap = allScreenMaps.find(s => s.id === neighborNode?.screenAssetId);
     
                     if (neighborNode && neighborScreenMap) {
-                        const neighborPixelWidth = neighborScreenMap.width * EDITOR_BASE_TILE_DIM;
-                        const neighborPixelHeight = neighborScreenMap.height * EDITOR_BASE_TILE_DIM;
+                        const { width: neighborPixelWidth, height: neighborPixelHeight } = getWorldViewScreenPixelSize(neighborScreenMap, EDITOR_BASE_TILE_DIM);
     
                         let newX = currentPosition.x;
                         let newY = currentPosition.y;
@@ -242,8 +324,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
             const screenMap = allScreenMaps.find(s => s.id === worldMapGraph.nodes.find(n => n.id === nodeId)?.screenAssetId);
             if (!screenMap) return null;
     
-            const screenPixelWidth = screenMap.width * EDITOR_BASE_TILE_DIM;
-            const screenPixelHeight = screenMap.height * EDITOR_BASE_TILE_DIM;
+            const { width: screenPixelWidth, height: screenPixelHeight } = getWorldViewScreenPixelSize(screenMap, EDITOR_BASE_TILE_DIM);
     
             minX = Math.min(minX, position.x);
             minY = Math.min(minY, position.y);
@@ -404,7 +485,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                                 title={s.title}
                             >
                                 <ScreenCanvas
-                                    screenMap={s.screenMap}
+                                    screen={s.screenMap}
                                     tileset={allTiles}
                                     currentScreenMode={currentScreenMode}
                                     baseSliceDim={EDITOR_BASE_TILE_DIM}

@@ -1,2 +1,17 @@
 # System files
 nul
+
+# Local Python/runtime caches
+__pycache__/
+*.py[cod]
+
+# Generated Mideas/OpenMSX smoke outputs
+server/temp/
+test/msx2-screen5/out/
+
+# Local visual evidence created during agent/browser sessions
+.agent/*.png
+screenshots/*.png
+
+# Local one-off MSX build probes
+builds/*_motor_check*
