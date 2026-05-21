@@ -487,6 +487,8 @@ export interface ComponentDefinition {
   id: string;
   /** A user-friendly name for the component (e.g., "Position"). */
   name: string;
+  /** Target runtime. Omitted means legacy MSX1. */
+  target?: 'MSX1' | 'MSX2' | 'COMMON';
   /** An array of property definitions for this component. */
   properties: ComponentPropertyDefinition[];
   /** A description of the component's purpose. */
@@ -511,6 +513,8 @@ export interface EntityTemplate {
   id: string;
   /** A user-friendly name for the template (e.g., "Player", "Goomba"). */
   name: string;
+  /** Target runtime. Omitted means legacy MSX1. */
+  target?: 'MSX1' | 'MSX2' | 'COMMON';
   /** An optional icon for display in the editor UI. */
   icon?: string;
   /** Marks this template as a player-controlled hero candidate for runtime systems. */

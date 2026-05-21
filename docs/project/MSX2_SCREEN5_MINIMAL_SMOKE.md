@@ -64,6 +64,13 @@ targetGraphicsBackend = msx2-screen5-bitmap
 
 It also checks that the generated file contains the MSX2 SCREEN 5 backend marker and that the returned `patterns.asm` and `colors.asm` files are the backend isolation stubs saying SCREEN 2 tables are intentionally not used.
 
+The MSX2 editor also keeps its entity repertoire separate from legacy MSX1 entity templates/components:
+
+- MSX2 Screen 5 entities are created from `MSX2_ENTITY_REPERTOIRE`.
+- Each preset carries `runtime: 'MSX2'` and an MSX2 engine id.
+- The MSX2 entity panel does not offer generic `custom` entities.
+- Imported legacy/unknown MSX2 screen entities are normalized back to a valid MSX2 kind before editing/generation.
+
 It also checks the first MSX2 GameFlow slice:
 
 - `Text` nodes emit `wait_key`
@@ -298,6 +305,32 @@ The MSX2 Screen editor now exposes these runtime layers directly: `Collision`, `
 MSX2 visual tiles can store per-tile `width` and `height` metadata constrained to 8/16/24/32 pixels. The editor resizes tile pixel data without touching MSX1 tile assets, and the SCREEN 5 backend emits rectangular tile copies for variable-size MSX2 tiles instead of rasterizing every native `msx2screen` into a full bitmap. Runtime collision, effects, behavior, and entities remain on the existing 16x14 cell grid in this first slice.
 
 The MSX2 tile editor now has an internal 16-slot palette picker, visual previews in the tile list, and basic tile operations for fill, horizontal/vertical flip, and one-pixel shifts. It also exposes tile-local paint modes for pencil, erase, contiguous bucket fill, and pick-color. These tools are scoped to native `msx2screen` tiles and do not alter the MSX1 `screenmap` editor.
+
+Hardware sprite pattern, color, and attribute table uploads use the backend's extended VRAM writer instead of BIOS `LDIRVM`. This is required for sprite tables at `#7400`, `#7600`, and `#7800`; using the BIOS copy path can wrap those writes into visible SCREEN 5 bitmap rows and cause striped corruption in dense maps such as the Puck Maze screen.
+
+The extended VRAM writer resets the VDP control-port latch with a status read before each two-byte control sequence. This is required on MSX2+ as well as MSX2, because a stale second-half latch can make the R#14 high-VRAM select write fail and redirect sprite-table uploads from `#7800` to visible bitmap row `#3800`.
+
+Dynamic 16x16 hardware sprite patterns are emitted in V9938 quadrant order: top-left, bottom-left, top-right, bottom-right. A normal bitmap scan order swaps the right/top and left/bottom pattern blocks, which makes circular sprites such as the Puck player appear as broken fragments in OpenMSX.
+
+The inline MSX2 status HUD is suppressed for maze/Pac-Man-style movement screens, and can also be disabled with `runtime.hideHud = true`, `runtime.showHud = false`, or `runtime.statusHud = false`. Those screens commonly use the full top row as authored maze graphics, so fixed life/collectible/air pips would otherwise overwrite the tilemap and look like intermittent play-time corruption.
+
+The MSX2 effect dispatcher must not use VDP register 7 border-color writes as runtime debug feedback. Earlier collectible/hazard/exit paths changed the border on every effect sample, producing a visible flash every time the Puck player consumed a pellet. Effects now report through RAM flags and authored visual changes only.
+
+Collected item erasure uses the dominant palette index from the authored collectible tiles, instead of assuming packed color `0/0`. This avoids replacing pellets with the SCREEN 5 backdrop color when slot 0 is transparent/backdrop and the corridor art actually uses palette slot 1 for black.
+
+Maze/Pac-Man movement keeps the player advancing in the last successful direction when no input is held. A held direction is tried first so turns happen as soon as the corridor opens; if that requested turn is blocked, the runtime falls back to the current direction. Movement stops only when the current direction collides with a wall or map edge.
+
+Direction changes in maze/Pac-Man movement are only accepted when the player position is aligned to the 16x16 tile grid. Input in the current direction remains valid between grid points, and blocked or premature turn requests fall back to the current direction instead of stopping the player.
+
+Maze/Pac-Man input is latched separately from the current movement direction. Pressing a cursor stores that requested direction even after the key is released; the runtime keeps trying that request at 16x16 grid points and only changes the current direction when the requested turn is open.
+
+MSX2 SCREEN 5 hardware sprites have their own frame runtime and do not reuse MSX1 sprite component code. The generator emits every authored `msx2sprite` frame as V9938 16x16 pattern groups, keeps `msx2_player_sprite_frame` for requested maze direction, and advances animation through `msx2_player_anim_counter` / `msx2_player_anim_frame` by changing the SAT pattern index.
+
+MSX2 projects keep the legacy MSX1 ECS offline. Component definitions and entity templates now carry an optional `target`; omitted legacy data is treated as `MSX1`, new definitions created inside an MSX2 project are tagged `MSX2`, and the MSX2 UI/generator filters out MSX1 defaults instead of inheriting them.
+
+WorldMap transitions in maze/Pac-Man mode resume through the maze sprite update path instead of the platformer vertical update path. This prevents a room transition from applying jump/gravity logic to a four-direction maze player.
+
+The platformer vertical update label is also guarded in generated maze/Pac-Man ROMs: if any legacy path accidentally jumps there, it exits through the maze sprite update path before jump or gravity code can run.
 
 Dedicated conveyor smoke:
 

@@ -1,0 +1,14 @@
+start pc=4149 x=112 y=112 dx=1 screen=0 collected=0 gameover=0 complete=0
+SHOTOK puck_maze_start.png
+right_before pc=4148 x=112 y=112 dx=1 screen=0 collected=0 gameover=0 complete=0
+right_after pc=406D x=139 y=112 dx=1 screen=0 collected=2 gameover=0 complete=0
+after_right pc=406C x=139 y=112 dx=1 screen=0 collected=2 gameover=0 complete=0
+SHOTOK puck_maze_after_right.png
+down_before pc=406B x=139 y=112 dx=1 screen=0 collected=2 gameover=0 complete=0
+down_after pc=417E x=139 y=144 dx=1 screen=0 collected=4 gameover=0 complete=0
+after_down pc=406B x=139 y=144 dx=1 screen=0 collected=4 gameover=0 complete=0
+SHOTOK puck_maze_after_down.png
+left_before pc=406D x=139 y=144 dx=1 screen=0 collected=4 gameover=0 complete=0
+left_after pc=406A x=101 y=144 dx=0 screen=0 collected=7 gameover=0 complete=0
+after_left pc=406B x=101 y=144 dx=0 screen=0 collected=7 gameover=0 complete=0
+SHOTOK puck_maze_after_left.png

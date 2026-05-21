@@ -1327,7 +1327,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
 
 
   return (
-    <Panel title={`Sprite Editor: ${localSpriteName}`} className="flex-grow flex flex-col bg-msx-bgcolor">
+    <Panel title={`MSX1 Sprite Editor: ${localSpriteName}`} className="flex-grow flex flex-col bg-msx-bgcolor">
       <div className="p-2 border-b border-msx-border flex items-center space-x-2 flex-wrap gap-y-1">
         <label className="text-xs pixel-font text-msx-textsecondary">Name:</label>
         <span className="p-1 text-xs text-msx-textprimary flex-grow min-w-[100px]">{sprite.name}</span>
@@ -1341,27 +1341,27 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
            {SPRITE_SIZE_OPTIONS.map(s => <option key={`h-${s}`} value={s}>{s}</option>)}
         </select>
         
-        <Button onClick={handleExportToPng} size="sm" variant="secondary" icon={<SaveIcon />}>Export PNG</Button>
-        <Button onClick={handleImportFromPngClick} size="sm" variant="secondary" icon={<FolderOpenIcon />}>Import PNG</Button>
+        <Button onClick={handleExportToPng} size="sm" variant="secondary" icon={<SaveIcon />}>MSX1 Export PNG</Button>
+        <Button onClick={handleImportFromPngClick} size="sm" variant="secondary" icon={<FolderOpenIcon />}>MSX1 Import PNG</Button>
         <input type="file" accept="image/png" ref={importFileRef} onChange={handlePngFileSelected} className="hidden" />
-        <Button onClick={onOpenSpriteSheetModal} size="sm" variant="secondary" icon={<TilesetIcon className="w-4 h-4" />} title="Reorder sprite sheet">Sheet</Button>
+        <Button onClick={onOpenSpriteSheetModal} size="sm" variant="secondary" icon={<TilesetIcon className="w-4 h-4" />} title="MSX1 reorder sprite sheet">MSX1 Sheet</Button>
 
         <Button onClick={() => setShowAttributesEditor(s => !s)} size="sm" variant="ghost" className="ml-auto" icon={<CogIcon />}>Attribs</Button>
-        <Button onClick={handleExportAsm} size="sm" variant="secondary" icon={<CodeIcon />}>Export ASM</Button>
-        <Button onClick={handleExportZx0Asm} size="sm" variant="primary" icon={<CodeIcon />}>ZX0 Export ASM</Button>
+        <Button onClick={handleExportAsm} size="sm" variant="secondary" icon={<CodeIcon />}>MSX1 Export ASM</Button>
+        <Button onClick={handleExportZx0Asm} size="sm" variant="primary" icon={<CodeIcon />}>MSX1 ZX0 Export ASM</Button>
       </div>
 
       <div className="flex-grow flex overflow-hidden" style={{ userSelect: 'none' }}>
         {/* Left Panel: Tools & Palette */}
         <div className="w-48 p-2 border-r border-msx-border flex-shrink-0 flex flex-col space-y-3 overflow-y-auto">
             <div>
-                <h4 className="text-sm pixel-font text-msx-highlight mb-1.5">Tools</h4>
+                <h4 className="text-sm pixel-font text-msx-highlight mb-1.5">MSX1 Tools</h4>
                 <div className="space-y-1">
-                    <Button onClick={() => setToolMode('draw')} variant={toolMode === 'draw' ? 'primary' : 'ghost'} size="sm" icon={<PencilIcon />} className="w-full" justify="start">Draw</Button>
-                    <Button onClick={() => setToolMode('sphere')} variant={toolMode === 'sphere' ? 'primary' : 'ghost'} size="sm" icon={<SphereIcon />} className="w-full" justify="start">Sphere</Button>
-                    <Button onClick={() => setToolMode('erase')} variant={toolMode === 'erase' ? 'primary' : 'ghost'} size="sm" icon={<EraserIcon />} className="w-full" justify="start">Erase (BG)</Button>
-                    <Button onClick={handleCopyLayer} variant="ghost" size="sm" icon={<CopyIcon />} className="w-full" justify="start">Copy Layer</Button>
-                    <Button onClick={handlePasteLayer} variant="ghost" size="sm" icon={<PasteIcon />} className="w-full" justify="start" disabled={!copiedFrameData}>Paste Layer</Button>
+                    <Button onClick={() => setToolMode('draw')} variant={toolMode === 'draw' ? 'primary' : 'ghost'} size="sm" icon={<PencilIcon />} className="w-full" justify="start">MSX1 Draw</Button>
+                    <Button onClick={() => setToolMode('sphere')} variant={toolMode === 'sphere' ? 'primary' : 'ghost'} size="sm" icon={<SphereIcon />} className="w-full" justify="start">MSX1 Sphere</Button>
+                    <Button onClick={() => setToolMode('erase')} variant={toolMode === 'erase' ? 'primary' : 'ghost'} size="sm" icon={<EraserIcon />} className="w-full" justify="start">MSX1 Erase (BG)</Button>
+                    <Button onClick={handleCopyLayer} variant="ghost" size="sm" icon={<CopyIcon />} className="w-full" justify="start">MSX1 Copy Layer</Button>
+                    <Button onClick={handlePasteLayer} variant="ghost" size="sm" icon={<PasteIcon />} className="w-full" justify="start" disabled={!copiedFrameData}>MSX1 Paste Layer</Button>
                 </div>
                 {toolMode === 'sphere' && (
                   <div className="mt-2 space-y-1 text-xs pt-2 border-t border-msx-border/50">
@@ -1380,7 +1380,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
             </div>
             
             <div>
-                <h4 className="text-sm pixel-font text-msx-highlight mb-1.5">Active Brush</h4>
+                <h4 className="text-sm pixel-font text-msx-highlight mb-1.5">MSX1 Active Brush</h4>
                 <div className="grid grid-cols-2 gap-1.5">
                     {sprite.spritePalette.map((color, index) => (
                         <div key={`active-brush-${index}`} className="relative">
@@ -1405,7 +1405,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
             </div>
 
             <div>
-                <h4 className="text-sm pixel-font text-msx-highlight mb-1.5">Transform Frame</h4>
+                <h4 className="text-sm pixel-font text-msx-highlight mb-1.5">MSX1 Transform Frame</h4>
                 <div className="grid grid-cols-3 gap-1 text-xs mb-2">
                     <Tooltip text="Shift pixels left"><Button onClick={() => handleTransform('shiftLeft')} variant="ghost" size="sm" icon={<ArrowLeftIcon className="w-3 h-3"/>}>{null}</Button></Tooltip>
                     <Tooltip text="Shift pixels up"><Button onClick={() => handleTransform('shiftUp')} variant="ghost" size="sm" icon={<ArrowUpIcon className="w-3 h-3"/>}>{null}</Button></Tooltip>
@@ -1413,14 +1413,14 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
 
                     <Tooltip text="Rotate 90° clockwise"><Button onClick={() => handleTransform('rotate')} variant="ghost" size="sm" icon={<RotateCcwIcon className="w-3 h-3"/>}>{null}</Button></Tooltip>
                     <Tooltip text="Shift pixels down"><Button onClick={() => handleTransform('shiftDown')} variant="ghost" size="sm" icon={<ArrowDownIcon className="w-3 h-3"/>}>{null}</Button></Tooltip>
-                    <Button onClick={handleClearFrame} variant="danger" size="sm" className="col-span-1" title="Clear Frame">Clr</Button>
+                    <Button onClick={handleClearFrame} variant="danger" size="sm" className="col-span-1" title="MSX1 Clear Frame">MSX1 Clr</Button>
 
                     <Tooltip text="Delete middle row"><Button onClick={handleContractRow} variant="ghost" size="sm" icon={<CompressVerticalIcon className="w-3 h-3"/>} disabled={sprite.size.height <= 1}>{null}</Button></Tooltip>
                     <Tooltip text="Delete middle column"><Button onClick={handleContractColumn} variant="ghost" size="sm" icon={<CompressHorizontalIcon className="w-3 h-3"/>} disabled={sprite.size.width <= 1}>{null}</Button></Tooltip>
                 </div>
                 <div className="grid grid-cols-2 gap-1 text-xs mb-2">
-                    <Button onClick={() => handleTransform('flipHorizontal')} variant="ghost" size="sm" className="w-full" justify="start">Flip H</Button>
-                    <Button onClick={() => handleTransform('flipVertical')} variant="ghost" size="sm" className="w-full" justify="start">Flip V</Button>
+                    <Button onClick={() => handleTransform('flipHorizontal')} variant="ghost" size="sm" className="w-full" justify="start">MSX1 Flip H</Button>
+                    <Button onClick={() => handleTransform('flipVertical')} variant="ghost" size="sm" className="w-full" justify="start">MSX1 Flip V</Button>
                 </div>
                 <Button
                     onClick={() => setIsFragmentModalOpen(true)}
@@ -1432,7 +1432,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                     title="Break sprite into 4 fragments with line-by-line separation"
                     disabled={isFrameEmpty}
                 >
-                    Gen Fragment
+                    MSX1 Gen Fragment
                 </Button>
                 <Button
                     onClick={() => setIsDisintegrationModalOpen(true)}
@@ -1444,7 +1444,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                     title="Generate disintegration animation with progressive pixel removal"
                     disabled={isFrameEmpty}
                 >
-                    Gen Disintegration
+                    MSX1 Gen Disintegration
                 </Button>
                 <Button
                     onClick={() => setIsWarpModalOpen(true)}
@@ -1456,7 +1456,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                     title="Generate warp spiral effect converging to center"
                     disabled={isFrameEmpty}
                 >
-                    Gen Warp
+                    MSX1 Gen Warp
                 </Button>
                 <Button
                     onClick={handleAddContour}
@@ -1468,7 +1468,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                     title="Add a 1px contour around the sprite using the active brush color"
                     disabled={isFrameEmpty}
                 >
-                    Add Contour
+                    MSX1 Add Contour
                 </Button>
             </div>
         </div>
@@ -1520,8 +1520,8 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
 
         {/* Right Panel 1: Sprite Configuration */}
         <div className="w-48 p-2 border-l border-msx-border flex-shrink-0 flex flex-col space-y-3 overflow-y-auto">
-          <Panel title="Define Sprite Colors" collapsible>
-            <p className="text-[0.65rem] text-msx-textsecondary mb-2">Click a slot, then pick from main MSX Palette Panel.</p>
+          <Panel title="MSX1 Define Sprite Colors" collapsible>
+            <p className="text-[0.65rem] text-msx-textsecondary mb-2">Click a slot, then pick from main MSX1 Palette Panel.</p>
             <div className="space-y-2">
               {sprite.spritePalette.map((color, index) => (
                 <div key={`setup-slot-${index}`} className="flex items-center space-x-2">
@@ -1549,7 +1549,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
               </div>
             </div>
           </Panel>
-          <Panel title="Sprite Settings" collapsible>
+          <Panel title="MSX1 Sprite Settings" collapsible>
             <div className="space-y-2 text-xs">
               <label className="flex items-center justify-between">
                 <span>Facing</span>

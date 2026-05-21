@@ -417,11 +417,11 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="tileFileOpsModalTitle" className="text-xl font-semibold text-msx-highlight mb-4 pb-2 border-b border-msx-border">
-          Tile File Operations
+          MSX1 Tile File Operations
         </h2>
 
         <div className="flex-grow overflow-y-auto pr-2 space-y-4 text-sm">
-          <Panel title="Tileset (JSON)" className="shadow-sm">
+          <Panel title="MSX1 Tileset (JSON)" className="shadow-sm">
             <div className="p-3 space-y-3">
               <div className="flex items-center space-x-2">
                 <label htmlFor="tilesetFilename" className="text-msx-textsecondary text-xs flex-shrink-0">Filename:</label>
@@ -434,13 +434,13 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
                 />
               </div>
               <div className="flex space-x-2">
-                <Button onClick={handleSaveTileset} variant="primary" size="sm" className="flex-1">Save All Tiles</Button>
-                <Button onClick={handleLoadTilesetClick}>Load Tileset</Button>
+                <Button onClick={handleSaveTileset} variant="primary" size="sm" className="flex-1">MSX1 Save All Tiles</Button>
+                <Button onClick={handleLoadTilesetClick}>MSX1 Load Tileset</Button>
           <Button onClick={onSaveTile} disabled={!currentTile}>
-            Save Selected Tile
+            MSX1 Save Selected Tile
           </Button>
           <Button onClick={onLoadTile} disabled={!onLoadTile}>
-            Load Selected Tile
+            MSX1 Load Selected Tile
           </Button>
                 <input type="file" accept=".json" ref={fileInputRef} onChange={handleFileSelected} className="hidden" />
               </div>
@@ -449,11 +449,11 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
           </Panel>
 
           {currentTile && (
-            <Panel title={`Export Current Tile: ${currentTile.name}`} className="shadow-sm">
+            <Panel title={`MSX1 Export Current Tile: ${currentTile.name}`} className="shadow-sm">
               <div className="p-3 space-y-3">
                   {currentScreenMode === "SCREEN 2 (Graphics I)" && currentTileAsmCode && (
                     <>
-                      <h4 className="text-xs text-msx-cyan">ASM (SCREEN 2)</h4>
+                      <h4 className="text-xs text-msx-cyan">MSX1 ASM (SCREEN 2)</h4>
                       <div className="max-h-60 overflow-hidden"> 
                          <Z80SyntaxHighlighter 
                             code={currentTileAsmCode} 
@@ -462,16 +462,16 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
                          />
                       </div>
                       <div className="flex space-x-2">
-                        <Button onClick={handleCopyCurrentTileAsm} variant="secondary" size="sm" className="flex-1" disabled={!currentTileAsmCode}>Copy ASM</Button>
-                        <Button onClick={handleDownloadCurrentTileAsm} variant="primary" size="sm" className="flex-1" disabled={!currentTileAsmCode}>Download .ASM</Button>
+                        <Button onClick={handleCopyCurrentTileAsm} variant="secondary" size="sm" className="flex-1" disabled={!currentTileAsmCode}>MSX1 Copy ASM</Button>
+                        <Button onClick={handleDownloadCurrentTileAsm} variant="primary" size="sm" className="flex-1" disabled={!currentTileAsmCode}>MSX1 Download .ASM</Button>
                       </div>
                     </>
                   )}
                  <h4 className="text-xs text-msx-cyan mt-2">Binary Data (.BIN)</h4>
                  <div className="flex space-x-2">
-                    <Button onClick={handleDownloadCurrentTilePatternBIN} variant="primary" size="sm" className="flex-1">Pattern .BIN</Button>
+                    <Button onClick={handleDownloadCurrentTilePatternBIN} variant="primary" size="sm" className="flex-1">MSX1 Pattern .BIN</Button>
                     {currentScreenMode === "SCREEN 2 (Graphics I)" && (
-                        <Button onClick={handleDownloadCurrentTileColorBIN} variant="primary" size="sm" className="flex-1">Color .BIN</Button>
+                        <Button onClick={handleDownloadCurrentTileColorBIN} variant="primary" size="sm" className="flex-1">MSX1 Color .BIN</Button>
                     )}
                  </div>
                  <p className="text-[0.65rem] text-msx-textsecondary mt-1">Exports raw binary data for the current tile.
@@ -481,13 +481,13 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
             </Panel>
           )}
 
-          <Panel title="Export All Tiles (Tileset)" className="shadow-sm">
+          <Panel title="MSX1 Export All Tiles (Tileset)" className="shadow-sm">
               <div className="p-3 space-y-3">
                 {currentScreenMode === "SCREEN 2 (Graphics I)" && (
                    <>
-                    <h4 className="text-xs text-msx-cyan">ASM (SCREEN 2)</h4>
+                    <h4 className="text-xs text-msx-cyan">MSX1 ASM (SCREEN 2)</h4>
                     <Button onClick={handleGenerateTilesetAsm} variant="secondary" size="sm" className="w-full mb-2">
-                      Generate Tileset ASM
+                      MSX1 Generate Tileset ASM
                     </Button>
                     {tilesetAsmCode && (
                       <>
@@ -499,8 +499,8 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
                           />
                         </div>
                         <div className="flex space-x-2">
-                          <Button onClick={handleCopyTilesetAsm} variant="secondary" size="sm" className="flex-1">Copy ASM</Button>
-                          <Button onClick={handleDownloadTilesetAsm} variant="primary" size="sm" className="flex-1">Download .ASM</Button>
+                          <Button onClick={handleCopyTilesetAsm} variant="secondary" size="sm" className="flex-1">MSX1 Copy ASM</Button>
+                          <Button onClick={handleDownloadTilesetAsm} variant="primary" size="sm" className="flex-1">MSX1 Download .ASM</Button>
                         </div>
                       </>
                     )}
@@ -508,9 +508,9 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
                 )}
                 <h4 className="text-xs text-msx-cyan mt-2">Binary Data (.BIN)</h4>
                 <div className="flex space-x-2">
-                    <Button onClick={handleDownloadAllPatternsBIN} variant="primary" size="sm" className="flex-1">All Patterns .BIN</Button>
+                    <Button onClick={handleDownloadAllPatternsBIN} variant="primary" size="sm" className="flex-1">MSX1 All Patterns .BIN</Button>
                     {currentScreenMode === "SCREEN 2 (Graphics I)" && (
-                        <Button onClick={handleDownloadAllColorsBIN} variant="primary" size="sm" className="flex-1">All Colors .BIN</Button>
+                        <Button onClick={handleDownloadAllColorsBIN} variant="primary" size="sm" className="flex-1">MSX1 All Colors .BIN</Button>
                     )}
                  </div>
                  <p className="text-[0.65rem] text-msx-textsecondary mt-1">

@@ -875,8 +875,8 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
 
   if (currentScreenMode !== "SCREEN 2 (Graphics I)") {
     return (
-      <Panel title="Tile Banks Management" icon={<ListBulletIcon />}>
-        <p className="p-4 text-msx-textsecondary">Tile Banks are only applicable for MSX SCREEN 2 projects.</p>
+      <Panel title="MSX1 Tile Banks Management" icon={<ListBulletIcon />}>
+        <p className="p-4 text-msx-textsecondary">Tile Banks are only applicable for MSX1 SCREEN 2 projects.</p>
       </Panel>
     );
   }
@@ -1042,7 +1042,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
   };
 
   return (
-    <Panel title="Tile Banks Management (SCREEN 2)" icon={<ListBulletIcon />} className="flex-grow flex flex-col p-2 bg-msx-bgcolor overflow-y-auto select-none">
+    <Panel title="MSX1 Tile Banks Management (SCREEN 2)" icon={<ListBulletIcon />} className="flex-grow flex flex-col p-2 bg-msx-bgcolor overflow-y-auto select-none">
       <div className="flex justify-between items-start mb-2">
         <p className="text-xs text-msx-textsecondary flex-1">
           Define 3 independent banks for character tiles. Each bank has 256 characters with 254 and 255 reserved.

@@ -87,26 +87,26 @@ const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'port
 /** A mapping from asset type keys to their display names. @constant */
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   statemachine: "State Machines",
-  tile: "Tiles",
-  sprite: "Sprites",
+  tile: "MSX1 Tiles",
+  sprite: "MSX1 Sprites",
   msx2sprite: "MSX2 Sprites",
   msx2bitmap: "MSX2 Bitmaps",
   msx2screen: "MSX2 16x16 Screens",
-  font: "Fonts",
-  boss: "Bosses",
-  screenmap: "Screen Maps",
+  font: "MSX1 Fonts",
+  boss: "MSX1 Bosses",
+  screenmap: "MSX1 Screen Maps",
   worldmap: "World Maps",
   gameflow: "Game Flows",
   dialogue: "Dialogues",
-  portrait: "Portraits",
-  tilebank: "Banks",
+  portrait: "MSX1 Portraits",
+  tilebank: "MSX1 Banks",
   sound: "Sound FX",
   track: "Music Tracks",
   behavior: "Behavior Scripts",
   componentdefinition: "Component Definitions (Data)",
   entitytemplate: "Entity Templates (Data)",
   globalvariables: "Global Variables",
-  palette: "Palettes",
+  palette: "MSX2 Palettes",
   presentationscreen: "Presentation Screens",
   code: "Code Files",
 };
@@ -313,12 +313,12 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
     if (asset.type === 'tile') {
       return [
         {
-          label: "Load",
+          label: "MSX1 Load Tile",
           icon: <LoadIcon className="w-3.5 h-3.5" />,
           onClick: () => onRequestLoadTile(contextMenu.assetId as string),
         },
         {
-          label: "Save",
+          label: "MSX1 Save Tile",
           icon: <SaveIcon className="w-3.5 h-3.5" />,
           onClick: () => {
             if (selectedTileIds.length > 1) {
@@ -394,6 +394,11 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
         ))}
 
         {FOLDER_TYPE_ORDER.map(folderType => {
+          const folderTarget = getAssetTarget(folderType);
+          if (hasActiveProject && ((folderTarget !== 'COMMON' && folderTarget !== projectTarget) || (folderType === 'palette' && projectTarget !== 'MSX2'))) {
+            return null;
+          }
+
           // Code Files are managed exclusively via the Export Z80 Code modal
           const assetsInFolder = folderType === 'code' ? [] : (groupedAssets[folderType] || []);
           const isExpanded = !!expandedFolders[folderType];

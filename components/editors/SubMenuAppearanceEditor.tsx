@@ -78,14 +78,14 @@ export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = (
             }}
             className="w-full max-w-xs px-2 py-1 rounded bg-msx-bgcolor border border-msx-border text-msx-textprimary"
           >
-            <option value="auto">Auto (sprite if selected, else char)</option>
+            <option value="auto">Auto (MSX1 sprite if selected, else char)</option>
             <option value="char">Char ('&gt;')</option>
-            <option value="sprite">Sprite</option>
+            <option value="sprite">MSX1 Sprite</option>
           </select>
         </div>
 
         <div className="mb-3">
-          <label className="block text-msx-textprimary text-sm mb-1">Cursor Sprite</label>
+          <label className="block text-msx-textprimary text-sm mb-1">MSX1 Cursor Sprite</label>
           <div className="flex items-center space-x-2">
             <Button onClick={() => openAssetPicker('sprite', (id) => handleConfigChange('cursorSpriteAssetId', id))} variant="secondary" size="sm">
               Select
@@ -102,10 +102,10 @@ export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = (
         </div>
 
         <div>
-          <label className="block text-msx-textprimary text-sm mb-1">Font</label>
+          <label className="block text-msx-textprimary text-sm mb-1">MSX1 Font</label>
           <div className="flex items-center space-x-2">
             <Button onClick={() => openAssetPicker('font', (id) => handleConfigChange('fontAssetId' as any, id))} variant="secondary" size="sm">
-              Select Font
+              MSX1 Select Font
             </Button>
             {(appearance as any).fontAssetId && (
               <Button onClick={() => handleConfigChange('fontAssetId' as any, undefined)} variant="ghost" size="sm">

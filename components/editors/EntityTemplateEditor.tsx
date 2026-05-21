@@ -15,6 +15,11 @@ import {
   remapPlayerKitForImport,
   sanitizePlayerKitFilename,
 } from '../../utils/playerKitUtils';
+import {
+  getProjectTargetFromScreenMode,
+  isComponentDefinitionEnabledForProject,
+  isEntityTemplateEnabledForProject,
+} from '../../utils/projectTarget';
 
 /**
  * Props for the EntityTemplateEditor component.
@@ -36,6 +41,7 @@ interface EntityTemplateEditorProps {
   allAssets: ProjectAsset[];
   /** Optional status message sink. */
   setStatusBarMessage?: (message: string) => void;
+  currentScreenMode: string;
 }
 
 /**
@@ -51,7 +57,15 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
   onGenerateAsm,
   allAssets,
   setStatusBarMessage,
+  currentScreenMode,
 }) => {
+  const projectTarget = getProjectTargetFromScreenMode(currentScreenMode);
+  const activeEntityTemplates = useMemo(() => entityTemplates.filter(template =>
+    isEntityTemplateEnabledForProject(template, currentScreenMode)
+  ), [entityTemplates, currentScreenMode]);
+  const activeComponentDefinitions = useMemo(() => componentDefinitions.filter(definition =>
+    isComponentDefinitionEnabledForProject(definition, currentScreenMode)
+  ), [componentDefinitions, currentScreenMode]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<Partial<EntityTemplate> | null>(null);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
@@ -94,15 +108,15 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
   useEffect(() => {
     if (selectedTemplateId) {
         if (editingTemplate && editingTemplate.id === selectedTemplateId &&
-            !entityTemplates.find(d => d.id === selectedTemplateId)) {
+            !activeEntityTemplates.find(d => d.id === selectedTemplateId)) {
             return;
         }
 
-        const templateFromList = entityTemplates.find(t => t.id === selectedTemplateId);
+        const templateFromList = activeEntityTemplates.find(t => t.id === selectedTemplateId);
         if (templateFromList) {
             // Limpiar defaultValues redundantes al cargar (para proyectos antiguos)
             const cleanedComponents = templateFromList.components.map(c => {
-              const componentDef = componentDefinitions.find(cd => cd.id === c.definitionId);
+              const componentDef = activeComponentDefinitions.find(cd => cd.id === c.definitionId);
               if (!componentDef) return { ...c, defaultValues: { ...c.defaultValues } };
 
               // Crear nuevos defaultValues solo con valores diferentes del default
@@ -134,7 +148,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
         setEditingTemplate(null);
     }
      setExpandedComponents({});
-  }, [selectedTemplateId, entityTemplates, componentDefinitions]);
+  }, [selectedTemplateId, activeEntityTemplates, activeComponentDefinitions]);
 
 
   const handleSelectTemplate = (id: string) => {
@@ -146,6 +160,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
     const newTpl: Partial<EntityTemplate> = {
       id: newId,
       name: `NewEntityTemplate_${entityTemplates.length + 1}`,
+      target: projectTarget,
       icon: '❓',
       isPlayer: false,
       description: '',
@@ -169,7 +184,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
     if (editingTemplate && editingTemplate.components) {
       const newComponents = editingTemplate.components.map(c => {
         if (c.definitionId === componentDefId) {
-          const componentDef = componentDefinitions.find(cd => cd.id === componentDefId);
+          const componentDef = activeComponentDefinitions.find(cd => cd.id === componentDefId);
           const propertyDef = componentDef?.properties.find(p => p.name === propertyName);
           const definitionDefault = propertyDef?.defaultValue;
 
@@ -230,7 +245,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
       alert("Template ID and Name are required.");
       return;
     }
-    const finalTemplate = { ...editingTemplate } as EntityTemplate;
+    const finalTemplate = { target: projectTarget, ...editingTemplate } as EntityTemplate;
     const existingIndex = entityTemplates.findIndex(t => t.id === finalTemplate.id);
 
     if (existingIndex > -1) {
@@ -418,7 +433,9 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
   };
 
   const handleConfirmLoadDefaults = () => {
-    onUpdateEntityTemplates(DEFAULT_ENTITY_TEMPLATES);
+    onUpdateEntityTemplates(DEFAULT_ENTITY_TEMPLATES.filter(template =>
+      isEntityTemplateEnabledForProject(template, currentScreenMode)
+    ));
     setSelectedTemplateId(null);
     setEditingTemplate(null);
     setIsConfirmLoadDefaultsModalOpen(false);
@@ -491,9 +508,9 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
             </Button>
           </div>
 
-          {entityTemplates.length === 0 && <p className="text-xs text-msx-textsecondary italic">No templates defined.</p>}
+          {activeEntityTemplates.length === 0 && <p className="text-xs text-msx-textsecondary italic">No {projectTarget} templates defined.</p>}
           <ul className="space-y-1">
-            {entityTemplates.map(tpl => (
+            {activeEntityTemplates.map(tpl => (
               <li key={tpl.id}>
                 <button
                   onClick={() => handleSelectTemplate(tpl.id)}
@@ -538,7 +555,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
                 <Button onClick={() => setIsAddComponentModalOpen(true)} variant="secondary" size="sm" icon={<PlusCircleIcon />} className="mb-2">Add Component</Button>
                 <div className="space-y-1 max-h-80 overflow-y-auto pr-1">
                   {editingTemplate.components?.map(tc => {
-                    const compDef = componentDefinitions.find(cd => cd.id === tc.definitionId);
+                    const compDef = activeComponentDefinitions.find(cd => cd.id === tc.definitionId);
                     if (!compDef) return <div key={tc.definitionId} className="text-xs text-red-500">Error: Component Definition "{tc.definitionId}" not found.</div>;
                     const isExpanded = !!expandedComponents[tc.definitionId];
                     return (
@@ -642,12 +659,12 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
           <div className="bg-msx-panelbg p-4 rounded-lg shadow-xl w-full max-w-sm animate-slideIn" onClick={e => e.stopPropagation()}>
             <h4 className="text-md text-msx-highlight mb-3">Add Component to Template</h4>
             <div className="max-h-60 overflow-y-auto space-y-1">
-              {componentDefinitions.filter(cd => !editingTemplate.components?.find(c => c.definitionId === cd.id)).map(cd => (
+              {activeComponentDefinitions.filter(cd => !editingTemplate.components?.find(c => c.definitionId === cd.id)).map(cd => (
                 <Button key={cd.id} onClick={() => handleAddComponentToTemplate(cd.id)} variant="ghost" className="w-full justify-start text-xs">
                   {cd.name}
                 </Button>
               ))}
-              {componentDefinitions.filter(cd => !editingTemplate.components?.find(c => c.definitionId === cd.id)).length === 0 && (
+              {activeComponentDefinitions.filter(cd => !editingTemplate.components?.find(c => c.definitionId === cd.id)).length === 0 && (
                 <p className="text-xs text-msx-textsecondary italic p-2">All available components are already added or no components defined.</p>
               )}
             </div>

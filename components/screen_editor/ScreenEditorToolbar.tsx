@@ -233,9 +233,9 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
           </div>
 
           <div className={`${groupClassName} border-l border-msx-border/60 pl-4`}>
-            <span className={labelClassName}>Palette</span>
+            <span className={labelClassName}>MSX1 Palette</span>
             <div className="flex items-center gap-1">
-              <label htmlFor="bgColorSelector" className="text-msx-textsecondary">BG</label>
+              <label htmlFor="bgColorSelector" className="text-msx-textsecondary">MSX1 BG</label>
               <select
                 id="bgColorSelector"
                 value={backgroundColor}
@@ -257,7 +257,7 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
             </div>
 
             <div className="flex items-center gap-1">
-              <label htmlFor="borderColorSelector" className="text-msx-textsecondary">Border</label>
+              <label htmlFor="borderColorSelector" className="text-msx-textsecondary">MSX1 Border</label>
               <select
                 id="borderColorSelector"
                 value={borderColor}

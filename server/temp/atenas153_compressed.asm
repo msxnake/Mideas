@@ -30,15 +30,15 @@
 ; ------------------------------------------------------------------
 ; DYNAMIC BANK PACKER (FFD) — Estimated layout for code banks
 ; ------------------------------------------------------------------
-; Bank 1 [#6000-#8000]: components (56738/8192 bytes est.)
-; Bank 2 [#8000-#A000]: components_tail, statemachine, gameflow (48332/8192 bytes est.)
+; Bank 1 [#6000-#8000]: components (57079/8192 bytes est.)
+; Bank 2 [#8000-#A000]: components_tail, statemachine, gameflow (48411/8192 bytes est.)
 ; Bank 9 [#6000-#8000]: screen_loaders (11038/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 10 [#6000-#8000]: sound (10240/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 11 [#6000-#8000]: entities (8875/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 12 [#6000-#8000]: components_autocontrol (8441/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 13 [#6000-#8000]: sprites (8295/8192 bytes est.) [FAR — accessed via trampoline]
+; Bank 11 [#6000-#8000]: sprites (9015/8192 bytes est.) [FAR — accessed via trampoline]
+; Bank 12 [#6000-#8000]: entities (8875/8192 bytes est.) [FAR — accessed via trampoline]
+; Bank 13 [#6000-#8000]: components_autocontrol (8441/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 14 [#6000-#8000]: worlds (6103/8192 bytes est.) [FAR — accessed via trampoline]
-; Bank 15 [#6000-#8000]: screens_code (5919/8192 bytes est.) [FAR — accessed via trampoline]
+; Bank 15 [#6000-#8000]: screens_code (5925/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 16 [#6000-#8000]: gameflow_aux (5866/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 17 [#6000-#8000]: font (3695/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 18 [#6000-#8000]: animtiles (2640/8192 bytes est.) [FAR — accessed via trampoline]
@@ -49,11 +49,11 @@
 ; Bank 23 [#6000-#8000]: hud (114/8192 bytes est.) [FAR — accessed via trampoline]
 ; Bank 3+ (data) [#A000+]: DATA mapped through P3/A000 before far code banks
 ; ------------------------------------------------------------------
-; Far code banks: bank9(screen_loaders) bank10(sound) bank11(entities) bank12(components_autocontrol) bank13(sprites) bank14(worlds) bank15(screens_code) bank16(gameflow_aux) bank17(font) bank18(animtiles) bank19(scroll) bank20(patterns_code) bank21(colors_code) bank22(bosses) bank23(hud)
+; Far code banks: bank9(screen_loaders) bank10(sound) bank11(sprites) bank12(entities) bank13(components_autocontrol) bank14(worlds) bank15(screens_code) bank16(gameflow_aux) bank17(font) bank18(animtiles) bank19(scroll) bank20(patterns_code) bank21(colors_code) bank22(bosses) bank23(hud)
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 181035
+; Estimated payload bytes: 182185
 ; Estimated banks used: 23
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : page0.asm (96 bytes)
@@ -69,32 +69,32 @@
 ; BANK 07 @#0000 : components.asm part 8/10 (8192 bytes)
 ; BANK 08 @#0000 : components.asm part 9/10 (8192 bytes)
 ; BANK 09 @#0000 : components.asm part 10/10 (8192 bytes)
-; BANK 10 @#0000 : components.asm part 11/10 (270 bytes)
-; BANK 10 @#010E : entities.asm part 1/2 (7922 bytes)
-; BANK 11 @#0000 : entities.asm part 2/2 (953 bytes)
-; BANK 11 @#03B9 : worlds.asm (6103 bytes)
-; BANK 11 @#1B90 : screens.asm part 1/3 (1136 bytes)
+; BANK 10 @#0000 : components.asm part 11/10 (612 bytes)
+; BANK 10 @#0264 : entities.asm part 1/2 (7580 bytes)
+; BANK 11 @#0000 : entities.asm part 2/2 (1295 bytes)
+; BANK 11 @#050F : worlds.asm (6103 bytes)
+; BANK 11 @#1CE6 : screens.asm part 1/3 (794 bytes)
 ; BANK 12 @#0000 : screens.asm part 2/3 (8192 bytes)
-; BANK 13 @#0000 : screens.asm part 3/3 (7532 bytes)
-; BANK 13 @#1D6C : sprites.asm part 1/2 (660 bytes)
-; BANK 14 @#0000 : sprites.asm part 2/2 (7635 bytes)
-; BANK 14 @#1DD3 : font.asm (557 bytes)
-; BANK 15 @#0000 : font.asm (3138 bytes)
-; BANK 15 @#0C42 : hud.asm (114 bytes)
-; BANK 15 @#0CB4 : menus.asm (219 bytes)
-; BANK 15 @#0D8F : sound.asm part 1/2 (4721 bytes)
-; BANK 16 @#0000 : sound.asm part 2/2 (5519 bytes)
-; BANK 16 @#158F : scroll.asm (2389 bytes)
-; BANK 16 @#1EE4 : animtiles.asm (284 bytes)
-; BANK 17 @#0000 : animtiles.asm (2356 bytes)
-; BANK 17 @#0934 : bosses.asm (331 bytes)
-; BANK 17 @#0A7F : statemachine.asm part 1/3 (5505 bytes)
+; BANK 13 @#0000 : screens.asm part 3/3 (7880 bytes)
+; BANK 13 @#1EC8 : sprites.asm part 1/2 (312 bytes)
+; BANK 14 @#0000 : sprites.asm part 2/2 (8192 bytes)
+; BANK 15 @#0000 : sprites.asm part 3/2 (511 bytes)
+; BANK 15 @#01FF : font.asm (3695 bytes)
+; BANK 15 @#106E : hud.asm (114 bytes)
+; BANK 15 @#10E0 : menus.asm (219 bytes)
+; BANK 15 @#11BB : sound.asm part 1/2 (3653 bytes)
+; BANK 16 @#0000 : sound.asm part 2/2 (6587 bytes)
+; BANK 16 @#19BB : scroll.asm (1605 bytes)
+; BANK 17 @#0000 : scroll.asm (784 bytes)
+; BANK 17 @#0310 : animtiles.asm (2640 bytes)
+; BANK 17 @#0D60 : bosses.asm (331 bytes)
+; BANK 17 @#0EAB : statemachine.asm part 1/3 (4437 bytes)
 ; BANK 18 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 19 @#0000 : statemachine.asm part 3/3 (3498 bytes)
-; BANK 19 @#0DAA : gameflow.asm part 1/3 (4694 bytes)
+; BANK 19 @#0000 : statemachine.asm part 3/3 (4566 bytes)
+; BANK 19 @#11D6 : gameflow.asm part 1/3 (3626 bytes)
 ; BANK 20 @#0000 : gameflow.asm part 2/3 (8192 bytes)
 ; BANK 21 @#0000 : gameflow.asm part 3/3 (8192 bytes)
-; BANK 22 @#0000 : gameflow.asm part 4/3 (811 bytes); ==================================================================
+; BANK 22 @#0000 : gameflow.asm part 4/3 (1961 bytes); ==================================================================
 
 ; [[[MIDEAS_ARTIFACT:resource_ids.asm:BEGIN]]]
 ; ; ==================================================================
@@ -19089,18 +19089,18 @@
 ; Retained modules:
 ; - animtiles: 2640 estimated bytes
 ; - colors_code: 1024 estimated bytes
-; - components: 56738 estimated bytes
+; - components: 57079 estimated bytes
 ; - components_autocontrol: 8441 estimated bytes
 ; - components_tail: 15023 estimated bytes
 ; - entities: 8875 estimated bytes
 ; - font: 3695 estimated bytes
-; - gameflow: 16151 estimated bytes
+; - gameflow: 16230 estimated bytes
 ; - gameflow_aux: 5866 estimated bytes
 ; - patterns_code: 1070 estimated bytes
 ; - screen_loaders: 11038 estimated bytes
-; - screens_code: 5919 estimated bytes
+; - screens_code: 5925 estimated bytes
 ; - sound: 10240 estimated bytes
-; - sprites: 8295 estimated bytes
+; - sprites: 9015 estimated bytes
 ; - statemachine: 17158 estimated bytes
 ; - worlds: 6103 estimated bytes
 ;
@@ -19161,14 +19161,14 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "resident kernel slot 1; fixed P1 window #6000-#8000; stays always mapped so runtime flow does not depend on P3 data-window state",
-;       "estimatedUsedBytes": 56738,
+;       "estimatedUsedBytes": 57079,
 ;       "estimatedFreeBytes": 0,
 ;       "estimatedOverBudget": true,
 ;       "modules": [
 ;         {
 ;           "key": "components",
 ;           "placementReason": "resident kernel slot 1; fixed P1 window #6000-#8000; stays always mapped so runtime flow does not depend on P3 data-window state; module components is part of the resident execution kernel",
-;           "estimatedBytes": 56738
+;           "estimatedBytes": 57079
 ;         }
 ;       ]
 ;     },
@@ -19180,7 +19180,7 @@
 ;       "orgAddress": 32768,
 ;       "endAddress": 40960,
 ;       "placementReason": "resident kernel slot 2; fixed P2 window #8000-#A000; stays always mapped so runtime flow does not depend on P3 data-window state",
-;       "estimatedUsedBytes": 48332,
+;       "estimatedUsedBytes": 48411,
 ;       "estimatedFreeBytes": 0,
 ;       "estimatedOverBudget": true,
 ;       "modules": [
@@ -19197,7 +19197,7 @@
 ;         {
 ;           "key": "gameflow",
 ;           "placementReason": "resident kernel slot 2; fixed P2 window #8000-#A000; stays always mapped so runtime flow does not depend on P3 data-window state; module gameflow is part of the resident execution kernel",
-;           "estimatedBytes": 16151
+;           "estimatedBytes": 16230
 ;         }
 ;       ]
 ;     },
@@ -19247,14 +19247,14 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "far-call module; sorted by estimated size at overlay index 3; physical bank 11; executes through P1/#6000 after reserved asset-data banks",
-;       "estimatedUsedBytes": 8875,
+;       "estimatedUsedBytes": 9015,
 ;       "estimatedFreeBytes": 0,
 ;       "estimatedOverBudget": true,
 ;       "modules": [
 ;         {
-;           "key": "entities",
-;           "placementReason": "far-call module; sorted by estimated size at overlay index 3; physical bank 11; executes through P1/#6000 after reserved asset-data banks; module entities is callable only through bank-0 far trampolines",
-;           "estimatedBytes": 8875
+;           "key": "sprites",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 3; physical bank 11; executes through P1/#6000 after reserved asset-data banks; module sprites is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 9015
 ;         }
 ;       ]
 ;     },
@@ -19266,14 +19266,14 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "far-call module; sorted by estimated size at overlay index 4; physical bank 12; executes through P1/#6000 after reserved asset-data banks",
-;       "estimatedUsedBytes": 8441,
+;       "estimatedUsedBytes": 8875,
 ;       "estimatedFreeBytes": 0,
 ;       "estimatedOverBudget": true,
 ;       "modules": [
 ;         {
-;           "key": "components_autocontrol",
-;           "placementReason": "far-call module; sorted by estimated size at overlay index 4; physical bank 12; executes through P1/#6000 after reserved asset-data banks; module components_autocontrol is callable only through bank-0 far trampolines",
-;           "estimatedBytes": 8441
+;           "key": "entities",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 4; physical bank 12; executes through P1/#6000 after reserved asset-data banks; module entities is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 8875
 ;         }
 ;       ]
 ;     },
@@ -19285,14 +19285,14 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "far-call module; sorted by estimated size at overlay index 5; physical bank 13; executes through P1/#6000 after reserved asset-data banks",
-;       "estimatedUsedBytes": 8295,
+;       "estimatedUsedBytes": 8441,
 ;       "estimatedFreeBytes": 0,
 ;       "estimatedOverBudget": true,
 ;       "modules": [
 ;         {
-;           "key": "sprites",
-;           "placementReason": "far-call module; sorted by estimated size at overlay index 5; physical bank 13; executes through P1/#6000 after reserved asset-data banks; module sprites is callable only through bank-0 far trampolines",
-;           "estimatedBytes": 8295
+;           "key": "components_autocontrol",
+;           "placementReason": "far-call module; sorted by estimated size at overlay index 5; physical bank 13; executes through P1/#6000 after reserved asset-data banks; module components_autocontrol is callable only through bank-0 far trampolines",
+;           "estimatedBytes": 8441
 ;         }
 ;       ]
 ;     },
@@ -19323,14 +19323,14 @@
 ;       "orgAddress": 24576,
 ;       "endAddress": 32768,
 ;       "placementReason": "far-call module; sorted by estimated size at overlay index 7; physical bank 15; executes through P1/#6000 after reserved asset-data banks",
-;       "estimatedUsedBytes": 5919,
-;       "estimatedFreeBytes": 2273,
+;       "estimatedUsedBytes": 5925,
+;       "estimatedFreeBytes": 2267,
 ;       "estimatedOverBudget": false,
 ;       "modules": [
 ;         {
 ;           "key": "screens_code",
 ;           "placementReason": "far-call module; sorted by estimated size at overlay index 7; physical bank 15; executes through P1/#6000 after reserved asset-data banks; module screens_code is callable only through bank-0 far trampolines",
-;           "estimatedBytes": 5919
+;           "estimatedBytes": 5925
 ;         }
 ;       ]
 ;     },
@@ -21268,7 +21268,7 @@ current_sprite_pattern_pack_id EQU #E1FC   ; Active runtime sprite pattern pack 
 sprite_attributes   EQU #E1FD   ; Interleaved sprite attributes (32 * 4 bytes)
 
 ; ==================================================================
-; SCREEN SYSTEM VARIABLES (5 screens detected)
+; SCREEN SYSTEM VARIABLES (5 runtime screens detected)
 ; ==================================================================
 current_screen_id   EQU #E27D   ; Currently displayed screen ID
 current_screen_engine EQU #E27E   ; Runtime engine: 0=Player, 1=FakePlayer
@@ -21461,123 +21461,125 @@ interrupt_counter       EQU #E978   ; Frame counter (16-bit)
 task_exec_time          EQU #E97A   ; Cycles used by tasks (16-bit, debug)
 vblank_flag             EQU #E97C   ; Set to 1 on each VBlank (1 byte)
 interrupt_in_progress   EQU #E97D   ; 1 while the H.TIMI dispatcher is running
-far_call_irq_lock_depth EQU #E97E   ; Nonzero while far trampolines own an IRQ-masked mapper window
-RAM_INTERRUPT_END       EQU #E97F   ; End of interrupt system
+player_hard_tick_enabled EQU #E97E   ; 1=run Player hard realtime pipeline inside VBlank hook
+player_hard_tick_lost   EQU #E97F   ; Debug counter: hard Player ticks skipped by mapper/IRQ lock (16-bit)
+far_call_irq_lock_depth EQU #E981   ; Nonzero while far trampolines own an IRQ-masked mapper window
+RAM_INTERRUPT_END       EQU #E982   ; End of interrupt system
 
 ; ==================================================================
 ; STATE MACHINE SOUND RUNTIME (one active sound asset)
 ; ==================================================================
-sm_sound_active       EQU #E97F   ; 0=idle, 1=playing state-machine sound asset
-sm_sound_frames_left  EQU #E980   ; Frames left for current state-machine sound asset
-sm_sound_ptr_l        EQU #E981   ; Next sound frame pointer low byte
-sm_sound_ptr_h        EQU #E982   ; Next sound frame pointer high byte
+sm_sound_active       EQU #E982   ; 0=idle, 1=playing state-machine sound asset
+sm_sound_frames_left  EQU #E983   ; Frames left for current state-machine sound asset
+sm_sound_ptr_l        EQU #E984   ; Next sound frame pointer low byte
+sm_sound_ptr_h        EQU #E985   ; Next sound frame pointer high byte
 
 ; ==================================================================
 ; TRACKER MUSIC RUNTIME
 ; ==================================================================
-music_active         EQU #E983   ; 0=stopped, 1=track active
-music_muted          EQU #E984   ; 0=audible, 1=muted/pause
-music_loop           EQU #E985   ; 0=no loop, 1=loop enabled
-music_track_index    EQU #E986   ; Current ROM track index
-music_row_frames     EQU #E987   ; Frames per tracker row
-music_row_countdown  EQU #E988   ; Countdown to next row
-music_order_pos      EQU #E989   ; Current order position
-music_pattern_index  EQU #E98A   ; Current pattern index
-music_pattern_row    EQU #E98B   ; Current row inside pattern
-music_pattern_rows   EQU #E98C   ; Cached rows in current pattern
-music_track_ptr_l    EQU #E98D   ; Current track pointer low byte
-music_track_ptr_h    EQU #E98E   ; Current track pointer high byte
-music_pattern_ptr_l  EQU #E98F   ; Current pattern rows pointer low byte
-music_pattern_ptr_h  EQU #E990   ; Current pattern rows pointer high byte
-music_mixer_shadow   EQU #E991   ; PSG mixer shadow for music runtime
-music_pitch_note_work EQU #E992   ; Scratch note index while resolving tone/ornament macros
-music_pitch_step_work EQU #E993   ; Scratch macro step while resolving tone/ornament macros
-music_pitch_len_work  EQU #E994   ; Scratch macro length while resolving tone/ornament macros
-music_ch_note_base EQU #E995   ; Current note index (255=silent) (3 bytes)
-music_ch_a_note EQU #E995   ; Channel A
-music_ch_b_note EQU #E996   ; Channel B
-music_ch_c_note EQU #E997   ; Channel C
-music_ch_instrument_base EQU #E998   ; Current instrument id (0=none) (3 bytes)
-music_ch_a_instrument EQU #E998   ; Channel A
-music_ch_b_instrument EQU #E999   ; Channel B
-music_ch_c_instrument EQU #E99A   ; Channel C
-music_ch_ornament_base EQU #E99B   ; Current ornament id (0=none) (3 bytes)
-music_ch_a_ornament EQU #E99B   ; Channel A
-music_ch_b_ornament EQU #E99C   ; Channel B
-music_ch_c_ornament EQU #E99D   ; Channel C
-music_ch_volume_base EQU #E99E   ; Current base volume (0-15) (3 bytes)
-music_ch_a_volume EQU #E99E   ; Channel A
-music_ch_b_volume EQU #E99F   ; Channel B
-music_ch_c_volume EQU #E9A0   ; Channel C
-music_ch_vol_step_base EQU #E9A1   ; Reserved software volume envelope step (3 bytes)
-music_ch_a_vol_step EQU #E9A1   ; Channel A
-music_ch_b_vol_step EQU #E9A2   ; Channel B
-music_ch_c_vol_step EQU #E9A3   ; Channel C
-music_ch_tone_step_base EQU #E9A4   ; Reserved software tone envelope step (3 bytes)
-music_ch_a_tone_step EQU #E9A4   ; Channel A
-music_ch_b_tone_step EQU #E9A5   ; Channel B
-music_ch_c_tone_step EQU #E9A6   ; Channel C
-music_ch_noise_step_base EQU #E9A7   ; Reserved software noise envelope step (3 bytes)
-music_ch_a_noise_step EQU #E9A7   ; Channel A
-music_ch_b_noise_step EQU #E9A8   ; Channel B
-music_ch_c_noise_step EQU #E9A9   ; Channel C
-music_ch_orn_step_base EQU #E9AA   ; Reserved ornament step (3 bytes)
-music_ch_a_orn_step EQU #E9AA   ; Channel A
-music_ch_b_orn_step EQU #E9AB   ; Channel B
-music_ch_c_orn_step EQU #E9AC   ; Channel C
-music_ch_hw_env_step_base EQU #E9AD   ; Software hardware-envelope divider step (3 bytes)
-music_ch_a_hw_env_step EQU #E9AD   ; Channel A
-music_ch_b_hw_env_step EQU #E9AE   ; Channel B
-music_ch_c_hw_env_step EQU #E9AF   ; Channel C
+music_active         EQU #E986   ; 0=stopped, 1=track active
+music_muted          EQU #E987   ; 0=audible, 1=muted/pause
+music_loop           EQU #E988   ; 0=no loop, 1=loop enabled
+music_track_index    EQU #E989   ; Current ROM track index
+music_row_frames     EQU #E98A   ; Frames per tracker row
+music_row_countdown  EQU #E98B   ; Countdown to next row
+music_order_pos      EQU #E98C   ; Current order position
+music_pattern_index  EQU #E98D   ; Current pattern index
+music_pattern_row    EQU #E98E   ; Current row inside pattern
+music_pattern_rows   EQU #E98F   ; Cached rows in current pattern
+music_track_ptr_l    EQU #E990   ; Current track pointer low byte
+music_track_ptr_h    EQU #E991   ; Current track pointer high byte
+music_pattern_ptr_l  EQU #E992   ; Current pattern rows pointer low byte
+music_pattern_ptr_h  EQU #E993   ; Current pattern rows pointer high byte
+music_mixer_shadow   EQU #E994   ; PSG mixer shadow for music runtime
+music_pitch_note_work EQU #E995   ; Scratch note index while resolving tone/ornament macros
+music_pitch_step_work EQU #E996   ; Scratch macro step while resolving tone/ornament macros
+music_pitch_len_work  EQU #E997   ; Scratch macro length while resolving tone/ornament macros
+music_ch_note_base EQU #E998   ; Current note index (255=silent) (3 bytes)
+music_ch_a_note EQU #E998   ; Channel A
+music_ch_b_note EQU #E999   ; Channel B
+music_ch_c_note EQU #E99A   ; Channel C
+music_ch_instrument_base EQU #E99B   ; Current instrument id (0=none) (3 bytes)
+music_ch_a_instrument EQU #E99B   ; Channel A
+music_ch_b_instrument EQU #E99C   ; Channel B
+music_ch_c_instrument EQU #E99D   ; Channel C
+music_ch_ornament_base EQU #E99E   ; Current ornament id (0=none) (3 bytes)
+music_ch_a_ornament EQU #E99E   ; Channel A
+music_ch_b_ornament EQU #E99F   ; Channel B
+music_ch_c_ornament EQU #E9A0   ; Channel C
+music_ch_volume_base EQU #E9A1   ; Current base volume (0-15) (3 bytes)
+music_ch_a_volume EQU #E9A1   ; Channel A
+music_ch_b_volume EQU #E9A2   ; Channel B
+music_ch_c_volume EQU #E9A3   ; Channel C
+music_ch_vol_step_base EQU #E9A4   ; Reserved software volume envelope step (3 bytes)
+music_ch_a_vol_step EQU #E9A4   ; Channel A
+music_ch_b_vol_step EQU #E9A5   ; Channel B
+music_ch_c_vol_step EQU #E9A6   ; Channel C
+music_ch_tone_step_base EQU #E9A7   ; Reserved software tone envelope step (3 bytes)
+music_ch_a_tone_step EQU #E9A7   ; Channel A
+music_ch_b_tone_step EQU #E9A8   ; Channel B
+music_ch_c_tone_step EQU #E9A9   ; Channel C
+music_ch_noise_step_base EQU #E9AA   ; Reserved software noise envelope step (3 bytes)
+music_ch_a_noise_step EQU #E9AA   ; Channel A
+music_ch_b_noise_step EQU #E9AB   ; Channel B
+music_ch_c_noise_step EQU #E9AC   ; Channel C
+music_ch_orn_step_base EQU #E9AD   ; Reserved ornament step (3 bytes)
+music_ch_a_orn_step EQU #E9AD   ; Channel A
+music_ch_b_orn_step EQU #E9AE   ; Channel B
+music_ch_c_orn_step EQU #E9AF   ; Channel C
+music_ch_hw_env_step_base EQU #E9B0   ; Software hardware-envelope divider step (3 bytes)
+music_ch_a_hw_env_step EQU #E9B0   ; Channel A
+music_ch_b_hw_env_step EQU #E9B1   ; Channel B
+music_ch_c_hw_env_step EQU #E9B2   ; Channel C
 
 ; ==================================================================
 ; PT3 REPLAYER WORKSPACE (~448 bytes)
 ; Layout matches PT3-ROM-alltables-glass.asm expected labels
 ; ==================================================================
-PT3_SETUP       EQU #E9B0   ; PT3 state flags (bit0=loop, bit7=song_ended)
-PT3_MODADDR     EQU #E9B1   ; Module address pointer (2 bytes)
-PT3_CrPsPtr     EQU #E9B3   ; Current position pointer
-PT3_SAMPTRS     EQU #E9B5   ; Sample pointers base
-PT3_OrnPtrs     EQU #E9B7   ; Ornament pointers base
-PT3_PDSP        EQU #E9B9   ; Pattern data start pointer
-PT3_CSP         EQU #E9BB   ; Saved SP (CHREGS SP trick)
-PT3_PSP         EQU #E9BD   ; PT3 stack pointer save
-PT3_PrNote      EQU #E9BF   ; Previous note
-PT3_PrSlide     EQU #E9C0   ; Previous slide (2 bytes)
-PT3_AdInPtA     EQU #E9C2   ; Channel A inline pointer
-PT3_AdInPtB     EQU #E9C4   ; Channel B inline pointer
-PT3_AdInPtC     EQU #E9C6   ; Channel C inline pointer
-PT3_LPosPtr     EQU #E9C8   ; Loop position pointer
-PT3_PatsPtr     EQU #E9CA   ; Patterns table pointer
-PT3_Delay       EQU #E9CC   ; Song speed/delay
-PT3_AddToEn     EQU #E9CD   ; Add to envelope
-PT3_Env_Del     EQU #E9CE   ; Envelope delay
-PT3_ESldAdd     EQU #E9CF   ; Envelope slide add (2 bytes)
-PT3_NTL3        EQU #E9D1   ; Note table link 3
-VARS            EQU #E9D3   ; Channel vars base
-ChanA           EQU #E9D3   ; Channel A data (29 bytes)
-ChanB           EQU #E9F0   ; Channel B data (29 bytes)
-ChanC           EQU #EA0D   ; Channel C data (29 bytes)
-DelyCnt         EQU #EA2A   ; Delay counter
-CurESld         EQU #EA2B   ; Current envelope slide (2 bytes)
-CurEDel         EQU #EA2D   ; Current envelope delay
-Ns_Base_AddToNs EQU #EA2E   ; Noise base + add to noise (combined)
-Ns_Base         EQU #EA2E   ; Noise base
-AddToNs         EQU #EA2F   ; Add to noise
-NT_             EQU #EA30   ; Note table (192 bytes)
-AYREGS          EQU #EAF0  ; AY registers mirror (14 bytes)
-VT_             EQU #EAF0  ; Volume table base (alias for AYREGS)
-EnvBase         EQU #EAFE  ; Envelope base
-VAR0END         EQU #EB00  ; End of fixed workspace
-T1_             EQU #EB00  ; Tone tables start (unpacked by PT3_INIT)
-T_NEW_1         EQU #EB00  ; Tone table new 1
-T_OLD_1         EQU #EB00  ; Tone table old 1
-T_OLD_2         EQU #EB18  ; Tone table old 2
-T_NEW_3         EQU #EB30  ; Tone table new 3
-T_OLD_3         EQU #EB30  ; Tone table old 3
-T_OLD_0         EQU #EB32  ; Tone table old 0
-T_NEW_0         EQU #EB32  ; Tone table new 0
-T_NEW_2         EQU #EB4A  ; Tone table new 2 (last, ends at +0x1B2)
+PT3_SETUP       EQU #E9B3   ; PT3 state flags (bit0=loop, bit7=song_ended)
+PT3_MODADDR     EQU #E9B4   ; Module address pointer (2 bytes)
+PT3_CrPsPtr     EQU #E9B6   ; Current position pointer
+PT3_SAMPTRS     EQU #E9B8   ; Sample pointers base
+PT3_OrnPtrs     EQU #E9BA   ; Ornament pointers base
+PT3_PDSP        EQU #E9BC   ; Pattern data start pointer
+PT3_CSP         EQU #E9BE   ; Saved SP (CHREGS SP trick)
+PT3_PSP         EQU #E9C0   ; PT3 stack pointer save
+PT3_PrNote      EQU #E9C2   ; Previous note
+PT3_PrSlide     EQU #E9C3   ; Previous slide (2 bytes)
+PT3_AdInPtA     EQU #E9C5   ; Channel A inline pointer
+PT3_AdInPtB     EQU #E9C7   ; Channel B inline pointer
+PT3_AdInPtC     EQU #E9C9   ; Channel C inline pointer
+PT3_LPosPtr     EQU #E9CB   ; Loop position pointer
+PT3_PatsPtr     EQU #E9CD   ; Patterns table pointer
+PT3_Delay       EQU #E9CF   ; Song speed/delay
+PT3_AddToEn     EQU #E9D0   ; Add to envelope
+PT3_Env_Del     EQU #E9D1   ; Envelope delay
+PT3_ESldAdd     EQU #E9D2   ; Envelope slide add (2 bytes)
+PT3_NTL3        EQU #E9D4   ; Note table link 3
+VARS            EQU #E9D6   ; Channel vars base
+ChanA           EQU #E9D6   ; Channel A data (29 bytes)
+ChanB           EQU #E9F3   ; Channel B data (29 bytes)
+ChanC           EQU #EA10   ; Channel C data (29 bytes)
+DelyCnt         EQU #EA2D   ; Delay counter
+CurESld         EQU #EA2E   ; Current envelope slide (2 bytes)
+CurEDel         EQU #EA30   ; Current envelope delay
+Ns_Base_AddToNs EQU #EA31   ; Noise base + add to noise (combined)
+Ns_Base         EQU #EA31   ; Noise base
+AddToNs         EQU #EA32   ; Add to noise
+NT_             EQU #EA33   ; Note table (192 bytes)
+AYREGS          EQU #EAF3  ; AY registers mirror (14 bytes)
+VT_             EQU #EAF3  ; Volume table base (alias for AYREGS)
+EnvBase         EQU #EB01  ; Envelope base
+VAR0END         EQU #EB03  ; End of fixed workspace
+T1_             EQU #EB03  ; Tone tables start (unpacked by PT3_INIT)
+T_NEW_1         EQU #EB03  ; Tone table new 1
+T_OLD_1         EQU #EB03  ; Tone table old 1
+T_OLD_2         EQU #EB1B  ; Tone table old 2
+T_NEW_3         EQU #EB33  ; Tone table new 3
+T_OLD_3         EQU #EB33  ; Tone table old 3
+T_OLD_0         EQU #EB35  ; Tone table old 0
+T_NEW_0         EQU #EB35  ; Tone table new 0
+T_NEW_2         EQU #EB4D  ; Tone table new 2 (last, ends at +0x1B2)
     
 ; ==================================================================
 ; ZX0 TEMPORARY RAM BUFFERS
@@ -21601,14 +21603,14 @@ ZX0_SCRATCH_END         EQU #F1D0   ; First byte after shared ZX0 scratch area
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #EBF0   ; End of project variables (11248 bytes used)
+RAM_USAGE_END       EQU #EBF3   ; End of project variables (11251 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#EBF0: Project variables (11248 bytes)
-;   #EBF0-#EC00: Alignment padding/free RAM (16 bytes)
+;   #C000-#EBF3: Project variables (11251 bytes)
+;   #EBF3-#EC00: Alignment padding/free RAM (13 bytes)
 ;   #EC00-#F1CF: Shared ZX0 scratch (1488 bytes, do not use for persistent vars)
 ;   #F1D0-#F37F: Free RAM after scratch (~432 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
@@ -23607,7 +23609,11 @@ init_interrupt_system:
     ld (interrupt_counter+1), a
     ld (vblank_flag), a
     ld (interrupt_in_progress), a
+    ld (player_hard_tick_lost), a
+    ld (player_hard_tick_lost+1), a
     ld (far_call_irq_lock_depth), a
+    ld a, 0
+    ld (player_hard_tick_enabled), a
 
     ; --- STEP 5: Mark system as enabled ---
     ld a, 1
@@ -23655,6 +23661,7 @@ stop_interrupt_system:
     ; Mark system as disabled
     xor a
     ld (interrupt_system_enabled), a
+    ld (player_hard_tick_enabled), a
 
     ei                          ; Re-enable interrupts
     ret
@@ -23712,15 +23719,18 @@ interrupt_dispatcher:
     or a
     jr z, .exit                 ; If disabled, exit quickly
 
-    ; --- STEP 3: Increment frame counter ---
+    ; --- STEP 3: Ack/latch VBlank flag (reads VDP status before gameplay tick) ---
+    call update_vblank_flag
+
+    ; --- STEP 4: Increment frame counter ---
     ld hl, (interrupt_counter)
     inc hl
     ld (interrupt_counter), hl
 
-    ; --- STEP 3.5: Update VBlank flag (reads VDP status) ---
-    call update_vblank_flag
+    ; --- STEP 5: Run the non-negotiable Player tick before soft tasks ---
+    call run_hard_player_tick
 
-    ; --- STEP 4: Walk through task table (DI ensures no nested interrupts) ---
+    ; --- STEP 6: Walk through task table (DI ensures no nested interrupts) ---
     di                          ; Disable interrupts for task execution
     ld hl, task_table           ; HL = pointer to task table
     ld b, 8                     ; 8 slots
@@ -23766,7 +23776,7 @@ interrupt_dispatcher:
     xor a
     ld (interrupt_in_progress), a
 
-    ; --- STEP 5: Restore registers ---
+    ; --- STEP 7: Restore registers ---
     pop iy                      ; 14 cycles
     pop ix                      ; 14 cycles
     pop de                      ; 10 cycles
@@ -23774,7 +23784,7 @@ interrupt_dispatcher:
     pop hl                      ; 10 cycles
     pop af                      ; 10 cycles
 
-    ; --- STEP 6: Return from interrupt ---
+    ; --- STEP 8: Return from interrupt ---
     ; For H.TIMI we should chain to the original hook (best compatibility)
     ; and let the BIOS interrupt handler manage EI/RETI.
     jp old_htimi_hook
@@ -23831,6 +23841,37 @@ update_vblank_flag:
     pop af
     ret
 ; @mideas:endblock id=runtime.interrupt.vblank_flag
+
+; ==================================================================
+; RUN_HARD_PLAYER_TICK - Optional hard realtime Player slice
+; ==================================================================
+; ==================================================================
+; RUN_HARD_PLAYER_TICK - Optional hard realtime Player slice
+; ==================================================================
+; @mideas:block id=runtime.interrupt.hard_player_tick kind=routine owner=interrupt roots=run_hard_player_tick
+; Register Contract:
+;   Purpose: Disabled hard Player VBlank hook stub.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - None
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;     - IX
+;     - IY
+;   Notes:
+;     - Generated when interruptConfig.enableHardPlayerTick is false or unsupported for the project runtime.
+;     - Keeps the dispatcher call target valid without requiring legacy Player runtime symbols.
+
+run_hard_player_tick:
+    ret
+; @mideas:endblock id=runtime.interrupt.hard_player_tick
+
 
 ; ==================================================================
 ; ENABLE_TASK - Activate a task in the system
@@ -24692,147 +24733,6 @@ music_execute_command_far:
 ; --- Far bank 11 [#6000, window P1] trampolines ---
 FAR_BANK_11 EQU 11
 
-init_entities_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_11
-    call mapper_set_bank_p1
-    call init_entities
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .init_entities_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .init_entities_far_irq_done
-    ei
-.init_entities_far_irq_done:
-    pop af
-    ret
-
-update_entities_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_11
-    call mapper_set_bank_p1
-    call update_entities
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .update_entities_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .update_entities_far_irq_done
-    ei
-.update_entities_far_irq_done:
-    pop af
-    ret
-
-; --- Far bank 12 [#6000, window P1] trampolines ---
-FAR_BANK_12 EQU 12
-
-init_auto_control_script_system_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_12
-    call mapper_set_bank_p1
-    call init_auto_control_script_system
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .init_auto_control_script_system_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .init_auto_control_script_system_far_irq_done
-    ei
-.init_auto_control_script_system_far_irq_done:
-    pop af
-    ret
-
-update_auto_control_script_component_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_12
-    call mapper_set_bank_p1
-    call update_auto_control_script_component
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .update_auto_control_script_component_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .update_auto_control_script_component_far_irq_done
-    ei
-.update_auto_control_script_component_far_irq_done:
-    pop af
-    ret
-
-update_auto_event_string_component_far:
-    push af
-    di
-    ld a, (far_call_irq_lock_depth)
-    inc a
-    ld (far_call_irq_lock_depth), a
-    ld a, (mapper_bank_p1_current)
-    push af
-    ld a, FAR_BANK_12
-    call mapper_set_bank_p1
-    call update_auto_event_string_component
-    pop af
-    call mapper_set_bank_p1
-    ld a, (far_call_irq_lock_depth)
-    dec a
-    ld (far_call_irq_lock_depth), a
-    ld a, (interrupt_in_progress)
-    or a
-    jp nz, .update_auto_event_string_component_far_irq_done
-    ld a, (far_call_irq_lock_depth)
-    or a
-    jp nz, .update_auto_event_string_component_far_irq_done
-    ei
-.update_auto_event_string_component_far_irq_done:
-    pop af
-    ret
-
-; --- Far bank 13 [#6000, window P1] trampolines ---
-FAR_BANK_13 EQU 13
-
 init_sprites_far:
     push af
     di
@@ -24841,7 +24741,7 @@ init_sprites_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_13
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     call init_sprites
     pop af
@@ -24868,7 +24768,7 @@ update_sprites_to_vram_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_13
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     call update_sprites_to_vram
     pop af
@@ -24887,6 +24787,33 @@ update_sprites_to_vram_far:
     pop af
     ret
 
+upload_player_sprites_to_vram_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_11
+    call mapper_set_bank_p1
+    call upload_player_sprites_to_vram
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .upload_player_sprites_to_vram_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .upload_player_sprites_to_vram_far_irq_done
+    ei
+.upload_player_sprites_to_vram_far_irq_done:
+    pop af
+    ret
+
 clear_all_sprites_far:
     push af
     di
@@ -24895,7 +24822,7 @@ clear_all_sprites_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_13
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     call clear_all_sprites
     pop af
@@ -24922,7 +24849,7 @@ hide_sprite_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_13
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     ex af, af'
     call hide_sprite
@@ -24951,7 +24878,7 @@ load_sprite_patterns_by_pack_id_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_13
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     ex af, af'
     call load_sprite_patterns_by_pack_id
@@ -24980,7 +24907,7 @@ ensure_sprite_patterns_by_pack_id_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_13
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     ex af, af'
     call ensure_sprite_patterns_by_pack_id
@@ -25009,7 +24936,7 @@ ensure_sprite_patterns_for_world_id_far:
     ld (far_call_irq_lock_depth), a
     ld a, (mapper_bank_p1_current)
     push af
-    ld a, FAR_BANK_13
+    ld a, FAR_BANK_11
     call mapper_set_bank_p1
     ex af, af'
     call ensure_sprite_patterns_for_world_id
@@ -25028,6 +24955,147 @@ ensure_sprite_patterns_for_world_id_far:
     ei
 .ensure_sprite_patterns_for_world_id_far_irq_done:
     ex af, af'
+    ret
+
+; --- Far bank 12 [#6000, window P1] trampolines ---
+FAR_BANK_12 EQU 12
+
+init_entities_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call init_entities
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .init_entities_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .init_entities_far_irq_done
+    ei
+.init_entities_far_irq_done:
+    pop af
+    ret
+
+update_entities_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_12
+    call mapper_set_bank_p1
+    call update_entities
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .update_entities_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .update_entities_far_irq_done
+    ei
+.update_entities_far_irq_done:
+    pop af
+    ret
+
+; --- Far bank 13 [#6000, window P1] trampolines ---
+FAR_BANK_13 EQU 13
+
+init_auto_control_script_system_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_13
+    call mapper_set_bank_p1
+    call init_auto_control_script_system
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .init_auto_control_script_system_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .init_auto_control_script_system_far_irq_done
+    ei
+.init_auto_control_script_system_far_irq_done:
+    pop af
+    ret
+
+update_auto_control_script_component_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_13
+    call mapper_set_bank_p1
+    call update_auto_control_script_component
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .update_auto_control_script_component_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .update_auto_control_script_component_far_irq_done
+    ei
+.update_auto_control_script_component_far_irq_done:
+    pop af
+    ret
+
+update_auto_event_string_component_far:
+    push af
+    di
+    ld a, (far_call_irq_lock_depth)
+    inc a
+    ld (far_call_irq_lock_depth), a
+    ld a, (mapper_bank_p1_current)
+    push af
+    ld a, FAR_BANK_13
+    call mapper_set_bank_p1
+    call update_auto_event_string_component
+    pop af
+    call mapper_set_bank_p1
+    ld a, (far_call_irq_lock_depth)
+    dec a
+    ld (far_call_irq_lock_depth), a
+    ld a, (interrupt_in_progress)
+    or a
+    jp nz, .update_auto_event_string_component_far_irq_done
+    ld a, (far_call_irq_lock_depth)
+    or a
+    jp nz, .update_auto_event_string_component_far_irq_done
+    ei
+.update_auto_event_string_component_far_irq_done:
+    pop af
     ret
 
 ; --- Far bank 14 [#6000, window P1] trampolines ---
@@ -26453,6 +26521,51 @@ call_update_sprites_to_vram_resident:
     call FAST_LDIRVM
     ret
 
+call_upload_player_sprites_to_vram_resident:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_SPRITE
+    ret z
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de
+    ld a, (hl)
+    inc hl
+    ld c, (hl)
+    ld b, 0
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    push hl
+    ld de, sprite_attributes
+    add hl, de
+    ex de, hl
+    pop hl
+    push de
+    ld de, SPRATR
+    add hl, de
+    ex de, hl
+    pop hl
+    ld a, c
+    or a
+    ret z
+    add a, a
+    add a, a
+    ld c, a
+    ld b, 0
+    call FAST_LDIRVM
+    ret
+
 call_clear_all_sprites_resident:
     ld hl, sprite_attributes
     ld b, 32
@@ -26593,6 +26706,10 @@ call_force_update_entity_sprite_resident:
     call force_update_entity_sprite
     call mapper_pop_p1
     ret
+
+
+call_update_player_realtime_pipeline_resident:
+    jp update_player_realtime_pipeline
 
 
 call_rebuild_used_entity_list_resident:
@@ -27054,7 +27171,7 @@ position_next_entity:
     jp nz, position_update_loop
     ret
 ; @mideas:endblock id=runtime.components.position
-; @mideas:block id=runtime.components.sprite kind=routine owner=components preserve=false roots=component-sprite
+; @mideas:block id=runtime.components.sprite kind=routine owner=components preserve=false roots=component-sprite,refresh_player_sprite_fastpath,update_player_realtime_pipeline,force_update_entity_sprite
 
 ; ==================================================================
 ; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
@@ -27252,6 +27369,27 @@ refresh_player_sprite_fastpath:
     and COMP_MASK_SPRITE
     ret z
     call call_force_update_entity_sprite_resident
+    ret
+
+; ==================================================================
+; PLAYER REALTIME PIPELINE
+; Runs only the hero-critical systems. This is callable from the optional
+; VBlank hard tick, so keep it bounded and keep long/background jobs out.
+; ==================================================================
+update_player_realtime_pipeline:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    call update_player_fastpath
+    call refresh_player_deadly_fastpath
+    call refresh_player_tile_interaction_fastpath
+    call refresh_player_state_machine_fastpath
+    call refresh_player_wallgrab_fastpath
+    call refresh_player_animation_fastpath
+    call refresh_player_sprite_fastpath
     ret
 
 ; ==================================================================
@@ -33059,6 +33197,15 @@ entity_job_should_run_c:
             ld e, c
             ld d, 0
 
+            ; HARD_PLAYER invariant: entity job cadence never gates the Player.
+            ; Soft scheduling can degrade enemies/NPCs, but the hero must remain
+            ; visible to the active buckets every VBlank-derived frame.
+            ld hl, entity_is_player
+            add hl, de
+            ld a, (hl)
+            or a
+            jr nz, entity_job_run_active
+
             ld hl, entity_job_period
             add hl, de
             ld a, (hl)
@@ -38539,6 +38686,7 @@ gameflow_handle_presentationscreen:
 ; Preserves: BC, DE, HL, IX, IY
 gameflow_presentation_wait_for_fire:
 .gfpwff_wait_press:
+    ei
     halt
     push bc
     push de
@@ -38551,6 +38699,7 @@ gameflow_presentation_wait_for_fire:
     or a
     jr z, .gfpwff_wait_press
 .gfpwff_wait_release:
+    ei
     halt
     push bc
     push de
@@ -39924,6 +40073,9 @@ gameflow_world_game_loop:
     call call_task_audio_tick_resident
     ; Poll input immediately after V-Blank edge so the hero uses
     ; the freshest input state in the same visible frame.
+    ld a, (player_hard_tick_enabled)
+    or a
+    jp nz, .skip_player_fastpath_pre_update
     call task_update_input
     ld a, (current_screen_engine)
     or a
@@ -39942,6 +40094,9 @@ gameflow_world_game_loop:
     ld a, (current_screen_engine)
     or a
     jp nz, .skip_player_fastpath_before_sm
+    ld a, (player_hard_tick_enabled)
+    or a
+    jp nz, .skip_player_fastpath_before_sm
 
     ; Refresh player deadly-tile state before state machines consume it.
     call refresh_player_deadly_fastpath
@@ -39957,6 +40112,9 @@ gameflow_world_game_loop:
     call call_execute_all_state_machines_resident
 
     ld a, (current_screen_engine)
+    or a
+    jp nz, .skip_player_fastpath_post_update
+    ld a, (player_hard_tick_enabled)
     or a
     jp nz, .skip_player_fastpath_post_update
 
@@ -44090,7 +44248,7 @@ BANK_10_USED_END:
     org FAR_BANK_10_ROM_START + #2000
 
 ; ##################################################################
-; FAR BANK 11 — [#6000h-#8000h] FAR CODE: entities
+; FAR BANK 11 — [#6000h-#8000h] FAR CODE: sprites
 ; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
 ; At runtime: bank0 saves P1, maps bank11 to P1,
 ; calls routine, then restores P1.
@@ -44098,6 +44256,1008 @@ BANK_10_USED_END:
 ;       primary banks (1-2). No far-to-far calls allowed.
 ; ##################################################################
 FAR_BANK_11_ROM_START:
+
+    org #6000
+
+; ==================================================================
+; SPRITE DATA
+; File: sprites.asm
+; Description: Sprite pattern and animation data
+; Entities: 3
+; Total Hardware Sprites (Layers): 32
+; SAT Upload Sprites per frame: 8
+; Sprite Pattern Preload Mode: STATIC_ALL_FRAMES
+; Runtime Sprite Pattern Packs: 2
+; ==================================================================
+; SPRITE_DATA_ROM_DATA_GROUP: bank4
+; (sprite pattern blobs are emitted in bank4 data zones for megarom builds)
+
+; Unified pattern label for sprite 0
+SPRITE_0_PATTERN EQU NINA_WALK_RIGHT_0_F0_LAYER0
+SPRITE_0_PATTERN_BANK EQU ((SPRITE_0_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 1
+SPRITE_1_PATTERN EQU NINA_LAND_RIGHT_1_F0_LAYER0
+SPRITE_1_PATTERN_BANK EQU ((SPRITE_1_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 2
+SPRITE_2_PATTERN EQU NINA_DEAD_2_F0_LAYER0
+SPRITE_2_PATTERN_BANK EQU ((SPRITE_2_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 3
+SPRITE_3_PATTERN EQU NINA_IDLE_RIGHT_3_F0_LAYER0
+SPRITE_3_PATTERN_BANK EQU ((SPRITE_3_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 4
+SPRITE_4_PATTERN EQU NINA_FALL_RIGHT_4_F0_LAYER0
+SPRITE_4_PATTERN_BANK EQU ((SPRITE_4_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 5
+SPRITE_5_PATTERN EQU NINA_GRUB_RIGHT_5_F0_LAYER1
+SPRITE_5_PATTERN_BANK EQU ((SPRITE_5_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 6
+SPRITE_6_PATTERN EQU CAIXA_6_F0_LAYER1
+SPRITE_6_PATTERN_BANK EQU ((SPRITE_6_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 7
+SPRITE_7_PATTERN EQU ESQUELETON_LEFT_7_F0_LAYER1
+SPRITE_7_PATTERN_BANK EQU ((SPRITE_7_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 8
+SPRITE_8_PATTERN EQU ATACADOR_LEFT_8_F0_LAYER1
+SPRITE_8_PATTERN_BANK EQU ((SPRITE_8_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 9
+SPRITE_9_PATTERN EQU NINA_WALK_LEFT_9_F0_LAYER0
+SPRITE_9_PATTERN_BANK EQU ((SPRITE_9_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 10
+SPRITE_10_PATTERN EQU NINA_LAND_LEFT_10_F0_LAYER0
+SPRITE_10_PATTERN_BANK EQU ((SPRITE_10_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 11
+SPRITE_11_PATTERN EQU NINA_IDLE_LEFT_11_F0_LAYER0
+SPRITE_11_PATTERN_BANK EQU ((SPRITE_11_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 12
+SPRITE_12_PATTERN EQU NINA_FALL_LEFT_12_F0_LAYER0
+SPRITE_12_PATTERN_BANK EQU ((SPRITE_12_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 13
+SPRITE_13_PATTERN EQU NINA_GRUB_LEFT_13_F0_LAYER1
+SPRITE_13_PATTERN_BANK EQU ((SPRITE_13_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 14
+SPRITE_14_PATTERN EQU ESQUELETON_RIGHT_14_F0_LAYER1
+SPRITE_14_PATTERN_BANK EQU ((SPRITE_14_PATTERN - #4000) / #2000)
+
+; Unified pattern label for sprite 15
+SPRITE_15_PATTERN EQU ATACADOR_RIGHT_15_F0_LAYER1
+SPRITE_15_PATTERN_BANK EQU ((SPRITE_15_PATTERN - #4000) / #2000)
+
+SPRITE_PLACEHOLDER_PATTERN_BANK EQU ((SPRITE_PLACEHOLDER_PATTERN - #4000) / #2000)
+
+
+; ==================================================================
+; SPRITE ANIMATION METADATA TABLES
+; ==================================================================
+
+; Table: Sprite Asset Frame Counts
+; Format: db frame_count
+sprite_asset_frame_count_init:
+    db 2 ; Sprite 0: nina_walk_right
+    db 3 ; Sprite 1: nina_land_right
+    db 3 ; Sprite 2: nina_dead
+    db 2 ; Sprite 3: nina_idle_right
+    db 1 ; Sprite 4: nina_fall_right
+    db 2 ; Sprite 5: nina_grub_right
+    db 1 ; Sprite 6: caixa
+    db 2 ; Sprite 7: esqueleton_left
+    db 2 ; Sprite 8: atacador_left
+    db 2 ; Sprite 9: nina_walk_left
+    db 3 ; Sprite 10: nina_land_left
+    db 2 ; Sprite 11: nina_idle_left
+    db 1 ; Sprite 12: nina_fall_left
+    db 2 ; Sprite 13: nina_grub_left
+    db 2 ; Sprite 14: esqueleton_right
+    db 2 ; Sprite 15: atacador_right
+
+; Table: Sprite Asset Drawable Layer Counts
+; Format: db compact drawable layer count (minimum 1)
+sprite_asset_layer_count_init:
+    db 2 ; Sprite 0: nina_walk_right
+    db 2 ; Sprite 1: nina_land_right
+    db 1 ; Sprite 2: nina_dead
+    db 2 ; Sprite 3: nina_idle_right
+    db 2 ; Sprite 4: nina_fall_right
+    db 2 ; Sprite 5: nina_grub_right
+    db 1 ; Sprite 6: caixa
+    db 1 ; Sprite 7: esqueleton_left
+    db 1 ; Sprite 8: atacador_left
+    db 2 ; Sprite 9: nina_walk_left
+    db 2 ; Sprite 10: nina_land_left
+    db 2 ; Sprite 11: nina_idle_left
+    db 2 ; Sprite 12: nina_fall_left
+    db 2 ; Sprite 13: nina_grub_left
+    db 1 ; Sprite 14: esqueleton_right
+    db 1 ; Sprite 15: atacador_right
+SPRITE_ASSET_COUNT EQU 16
+SPRITE_PATTERN_PRELOAD_MODE EQU 1
+
+; Table: Sprite Asset Loop Flags
+; Format: db flags (bit 1: 1=loop, 0=once)
+sprite_loop_flags_init:
+    db 2 ; Sprite 0: nina_walk_right
+    db 0 ; Sprite 1: nina_land_right
+    db 0 ; Sprite 2: nina_dead
+    db 0 ; Sprite 3: nina_idle_right
+    db 0 ; Sprite 4: nina_fall_right
+    db 2 ; Sprite 5: nina_grub_right
+    db 2 ; Sprite 6: caixa
+    db 2 ; Sprite 7: esqueleton_left
+    db 2 ; Sprite 8: atacador_left
+    db 2 ; Sprite 9: nina_walk_left
+    db 0 ; Sprite 10: nina_land_left
+    db 0 ; Sprite 11: nina_idle_left
+    db 0 ; Sprite 12: nina_fall_left
+    db 2 ; Sprite 13: nina_grub_left
+    db 2 ; Sprite 14: esqueleton_right
+    db 2 ; Sprite 15: atacador_right
+
+; Table: Sprite Asset Frame Pointer List Table
+; Format: dw SPRITE_<id>_FRAME_PTRS
+sprite_asset_frame_ptr_table:
+    dw SPRITE_0_FRAME_PTRS
+    dw SPRITE_1_FRAME_PTRS
+    dw SPRITE_2_FRAME_PTRS
+    dw SPRITE_3_FRAME_PTRS
+    dw SPRITE_4_FRAME_PTRS
+    dw SPRITE_5_FRAME_PTRS
+    dw SPRITE_6_FRAME_PTRS
+    dw SPRITE_7_FRAME_PTRS
+    dw SPRITE_8_FRAME_PTRS
+    dw SPRITE_9_FRAME_PTRS
+    dw SPRITE_10_FRAME_PTRS
+    dw SPRITE_11_FRAME_PTRS
+    dw SPRITE_12_FRAME_PTRS
+    dw SPRITE_13_FRAME_PTRS
+    dw SPRITE_14_FRAME_PTRS
+    dw SPRITE_15_FRAME_PTRS
+
+; Sprite 0: nina_walk_right frame pointers
+SPRITE_0_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 1: nina_land_right frame pointers
+SPRITE_1_FRAME_PTRS:
+    dw 0
+    dw 0
+    dw 0
+
+; Sprite 2: nina_dead frame pointers
+SPRITE_2_FRAME_PTRS:
+    dw 0
+    dw 0
+    dw 0
+
+; Sprite 3: nina_idle_right frame pointers
+SPRITE_3_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 4: nina_fall_right frame pointers
+SPRITE_4_FRAME_PTRS:
+    dw 0
+
+; Sprite 5: nina_grub_right frame pointers
+SPRITE_5_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 6: caixa frame pointers
+SPRITE_6_FRAME_PTRS:
+    dw 0
+
+; Sprite 7: esqueleton_left frame pointers
+SPRITE_7_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 8: atacador_left frame pointers
+SPRITE_8_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 9: nina_walk_left frame pointers
+SPRITE_9_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 10: nina_land_left frame pointers
+SPRITE_10_FRAME_PTRS:
+    dw 0
+    dw 0
+    dw 0
+
+; Sprite 11: nina_idle_left frame pointers
+SPRITE_11_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 12: nina_fall_left frame pointers
+SPRITE_12_FRAME_PTRS:
+    dw 0
+
+; Sprite 13: nina_grub_left frame pointers
+SPRITE_13_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 14: esqueleton_right frame pointers
+SPRITE_14_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; Sprite 15: atacador_right frame pointers
+SPRITE_15_FRAME_PTRS:
+    dw 0
+    dw 0
+
+; ==================================================================
+; DIRECTIONAL SPRITE LOOKUP TABLES
+; Maps any sprite asset index to its directional variant index.
+; If no directional variant exists, table points back to same index.
+; ==================================================================
+sprite_dir_left_table_init:
+    db 9, 10, 2, 11, 12, 13, 6, 7, 8, 9, 10, 11, 12, 13, 7, 8
+
+sprite_dir_right_table_init:
+    db 0, 1, 2, 3, 4, 5, 6, 14, 15, 0, 1, 3, 4, 5, 14, 15
+
+sprite_dir_up_table_init:
+    db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+
+sprite_dir_down_table_init:
+    db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+
+ 
+; ================================================================== 
+; SPRITE CONFIGURATION TABLES 
+; ================================================================== 
+
+; Table: Entity Sprite Configuration 
+; Format: db base_hw_sprite_index, layer_count 
+entity_sprite_config_init:
+    db 0, 2 ; Entity 0 (nina_idle_right)
+    db 4, 1 ; Entity 1 (caixa)
+    db 5, 2 ; Entity 2 (nina_idle_right)
+    ds 58, 0 ; Padding
+
+; Table: Entity -> Sprite Asset Index (ROM initial values)
+; Copied to RAM entity_sprite_asset_index at init
+; Format: db sprite_asset_index (#FF = none)
+entity_sprite_asset_index_init:
+    db #03 ; Entity 0 (nina_idle_right)
+    db #06 ; Entity 1 (caixa)
+    db #03 ; Entity 2 (nina_idle_right)
+    ds 29, #FF ; Padding
+SPRITE_MAX_ENTITY_LAYERS EQU 2  ; Max HW sprite layers per entity
+
+; Table: Hardware Sprite Layer Colors (ROM initial values - copied to RAM at init)
+; Format: db color_index
+sprite_layer_colors_init:
+    db 6 ; HW sprite slot 0
+    db 15 ; HW sprite slot 1
+    db 0 ; HW sprite slot 2
+    db 0 ; HW sprite slot 3
+    db 14 ; HW sprite slot 4
+    db 6 ; HW sprite slot 5
+    db 15 ; HW sprite slot 6
+    db 0 ; HW sprite slot 7
+    db 0 ; HW sprite slot 8
+    db 0 ; HW sprite slot 9
+    db 0 ; HW sprite slot 10
+    db 0 ; HW sprite slot 11
+    db 0 ; HW sprite slot 12
+    db 0 ; HW sprite slot 13
+    db 0 ; HW sprite slot 14
+    db 0 ; HW sprite slot 15
+    db 0 ; HW sprite slot 16
+    db 0 ; HW sprite slot 17
+    db 0 ; HW sprite slot 18
+    db 0 ; HW sprite slot 19
+    db 0 ; HW sprite slot 20
+    db 0 ; HW sprite slot 21
+    db 0 ; HW sprite slot 22
+    db 0 ; HW sprite slot 23
+    db 0 ; HW sprite slot 24
+    db 0 ; HW sprite slot 25
+    db 0 ; HW sprite slot 26
+    db 0 ; HW sprite slot 27
+    db 0 ; HW sprite slot 28
+    db 0 ; HW sprite slot 29
+    db 0 ; HW sprite slot 30
+    db 0 ; HW sprite slot 31
+
+; Table: Hardware Sprite Layer Y Offsets (ROM initial values - copied to RAM at init)
+; Format: db signed_offset_y
+sprite_layer_y_offsets_init:
+    db 0 ; HW sprite slot 0
+    db 0 ; HW sprite slot 1
+    db 0 ; HW sprite slot 2
+    db 0 ; HW sprite slot 3
+    db 0 ; HW sprite slot 4
+    db 0 ; HW sprite slot 5
+    db 0 ; HW sprite slot 6
+    db 0 ; HW sprite slot 7
+    db 0 ; HW sprite slot 8
+    db 0 ; HW sprite slot 9
+    db 0 ; HW sprite slot 10
+    db 0 ; HW sprite slot 11
+    db 0 ; HW sprite slot 12
+    db 0 ; HW sprite slot 13
+    db 0 ; HW sprite slot 14
+    db 0 ; HW sprite slot 15
+    db 0 ; HW sprite slot 16
+    db 0 ; HW sprite slot 17
+    db 0 ; HW sprite slot 18
+    db 0 ; HW sprite slot 19
+    db 0 ; HW sprite slot 20
+    db 0 ; HW sprite slot 21
+    db 0 ; HW sprite slot 22
+    db 0 ; HW sprite slot 23
+    db 0 ; HW sprite slot 24
+    db 0 ; HW sprite slot 25
+    db 0 ; HW sprite slot 26
+    db 0 ; HW sprite slot 27
+    db 0 ; HW sprite slot 28
+    db 0 ; HW sprite slot 29
+    db 0 ; HW sprite slot 30
+    db 0 ; HW sprite slot 31
+
+; Table: SM Sprite Layer Colors (for Action_ChangeSprite runtime color update)
+; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
+; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = color for HW sprite slot j of sprite i
+SM_SpriteLayerColorTable_init:
+    db 6, 15 ; Sprite 0: nina_walk_right
+    db 6, 15 ; Sprite 1: nina_land_right
+    db 6, 0 ; Sprite 2: nina_dead
+    db 6, 15 ; Sprite 3: nina_idle_right
+    db 6, 15 ; Sprite 4: nina_fall_right
+    db 15, 6 ; Sprite 5: nina_grub_right
+    db 14, 0 ; Sprite 6: caixa
+    db 15, 0 ; Sprite 7: esqueleton_left
+    db 9, 0 ; Sprite 8: atacador_left
+    db 6, 15 ; Sprite 9: nina_walk_left
+    db 6, 15 ; Sprite 10: nina_land_left
+    db 6, 15 ; Sprite 11: nina_idle_left
+    db 6, 15 ; Sprite 12: nina_fall_left
+    db 15, 6 ; Sprite 13: nina_grub_left
+    db 15, 0 ; Sprite 14: esqueleton_right
+    db 9, 0 ; Sprite 15: atacador_right
+
+; Table: SM Sprite Layer Y Offsets (for Action_ChangeSprite runtime layer alignment)
+; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
+; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = signed Y offset for HW sprite slot j of sprite i
+SM_SpriteLayerYOffsetTable_init:
+    db 0, 0 ; Sprite 0: nina_walk_right
+    db 0, 0 ; Sprite 1: nina_land_right
+    db 0, 0 ; Sprite 2: nina_dead
+    db 0, 0 ; Sprite 3: nina_idle_right
+    db 0, 0 ; Sprite 4: nina_fall_right
+    db 0, 0 ; Sprite 5: nina_grub_right
+    db 0, 0 ; Sprite 6: caixa
+    db 0, 0 ; Sprite 7: esqueleton_left
+    db 0, 0 ; Sprite 8: atacador_left
+    db 0, 0 ; Sprite 9: nina_walk_left
+    db 0, 0 ; Sprite 10: nina_land_left
+    db 0, 0 ; Sprite 11: nina_idle_left
+    db 0, 0 ; Sprite 12: nina_fall_left
+    db 0, 0 ; Sprite 13: nina_grub_left
+    db 0, 0 ; Sprite 14: esqueleton_right
+    db 0, 0 ; Sprite 15: atacador_right
+
+; ==================================================================
+; SPRITE INITIALIZATION FUNCTIONS
+; ==================================================================
+
+init_sprites:
+    ; Copy ROM sprite metadata tables into RAM so gameplay code can read them
+    ; without depending on which MegaROM bank is currently mapped.
+    ld hl, entity_sprite_config_init
+    ld de, entity_sprite_config
+    ld bc, 64
+    ldir
+    ld hl, sprite_asset_frame_count_init
+    ld de, sprite_asset_frame_count
+    ld bc, 16
+    ldir
+    ld hl, sprite_asset_layer_count_init
+    ld de, sprite_asset_layer_count
+    ld bc, 16
+    ldir
+    ld hl, sprite_loop_flags_init
+    ld de, sprite_loop_flags
+    ld bc, 16
+    ldir
+    ld hl, sprite_dir_left_table_init
+    ld de, sprite_dir_left_table
+    ld bc, 16
+    ldir
+    ld hl, sprite_dir_right_table_init
+    ld de, sprite_dir_right_table
+    ld bc, 16
+    ldir
+    ld hl, sprite_dir_up_table_init
+    ld de, sprite_dir_up_table
+    ld bc, 16
+    ldir
+    ld hl, sprite_dir_down_table_init
+    ld de, sprite_dir_down_table
+    ld bc, 16
+    ldir
+    ld hl, SM_SpriteLayerColorTable_init
+    ld de, SM_SpriteLayerColorTable
+    ld bc, 32
+    ldir
+    ld hl, SM_SpriteLayerYOffsetTable_init
+    ld de, SM_SpriteLayerYOffsetTable
+    ld bc, 32
+    ldir
+    ld hl, entity_sprite_asset_index_init
+    ld de, entity_sprite_asset_index
+    ld bc, 32
+    ldir
+    ; Copy sprite_layer_colors_init (ROM) -> sprite_layer_colors (RAM)
+    ld hl, sprite_layer_colors_init
+    ld de, sprite_layer_colors
+    ld bc, 32
+    ldir
+    ; Copy sprite_layer_y_offsets_init (ROM) -> sprite_layer_y_offsets (RAM)
+    ld hl, sprite_layer_y_offsets_init
+    ld de, sprite_layer_y_offsets
+    ld bc, 32
+    ldir
+    call call_clear_all_sprites_resident
+    ld hl, sprite_asset_base_pattern_slot_runtime
+    ld (hl), 0
+    ld de, sprite_asset_base_pattern_slot_runtime+1
+    ld bc, 15
+    ldir
+    xor a
+    ld (sprite_placeholder_base_pattern_num), a
+    ld a, #FF
+    ld (current_sprite_pattern_pack_id), a
+    xor a
+    ld (active_sprite_count), a
+    ret
+
+load_sprite_patterns:
+    call load_sprite_patterns_worldmap_1778070705501
+    ret
+
+
+SPRITE_PATTERN_PACK_INVALID EQU #FF
+SPRITE_PATTERN_PACK_COUNT EQU 2
+
+; World index -> runtime sprite pattern pack id
+world_sprite_pattern_pack_table:
+    db SPRITE_PATTERN_PACK_WORLDMAP_1778070705501_ID ; World 0: mon1
+    db SPRITE_PATTERN_PACK_WORLDMAP_1778241700081_ID ; World 1: dialeg_mon1
+
+; ------------------------------------------------------------------
+; Runtime Sprite Pattern Pack: World "mon1"
+; Slots required: 45/64
+; ------------------------------------------------------------------
+SPRITE_PATTERN_PACK_WORLDMAP_1778070705501_ID EQU 0
+
+sprite_asset_base_pattern_slot_worldmap_1778070705501:
+    db 0 ; Sprite 0: nina_walk_right
+    db 4 ; Sprite 1: nina_land_right
+    db 10 ; Sprite 2: nina_dead
+    db 13 ; Sprite 3: nina_idle_right
+    db 17 ; Sprite 4: nina_fall_right
+    db 19 ; Sprite 5: nina_grub_right
+    db 23 ; Sprite 6: caixa
+    db 0 ; Sprite 7: esqueleton_left
+    db 0 ; Sprite 8: atacador_left
+    db 24 ; Sprite 9: nina_walk_left
+    db 28 ; Sprite 10: nina_land_left
+    db 34 ; Sprite 11: nina_idle_left
+    db 38 ; Sprite 12: nina_fall_left
+    db 40 ; Sprite 13: nina_grub_left
+    db 0 ; Sprite 14: esqueleton_right
+    db 0 ; Sprite 15: atacador_right
+
+load_sprite_patterns_worldmap_1778070705501:
+    ld hl, sprite_asset_base_pattern_slot_worldmap_1778070705501
+    ld de, sprite_asset_base_pattern_slot_runtime
+    ld bc, SPRITE_ASSET_COUNT
+    ldir
+    ld a, 176
+    ld (sprite_placeholder_base_pattern_num), a
+    ; Sprite Asset 0: nina_walk_right frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER0
+    ld de, SPRPAT + (0 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER1
+    ld de, SPRPAT + (1 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 0: nina_walk_right frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER0
+    ld de, SPRPAT + (2 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER1
+    ld de, SPRPAT + (3 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 1: nina_land_right frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_LAND_RIGHT_1_F0_LAYER0
+    ld de, SPRPAT + (4 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_LAND_RIGHT_1_F0_LAYER1
+    ld de, SPRPAT + (5 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 1: nina_land_right frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_LAND_RIGHT_1_F1_LAYER0
+    ld de, SPRPAT + (6 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_LAND_RIGHT_1_F1_LAYER1
+    ld de, SPRPAT + (7 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 1: nina_land_right frame 2 (2 layers)
+    ld a, RESOURCE_ID_NINA_LAND_RIGHT_1_F2_LAYER0
+    ld de, SPRPAT + (8 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_LAND_RIGHT_1_F2_LAYER1
+    ld de, SPRPAT + (9 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 2: nina_dead frame 0 (1 layers)
+    ld a, RESOURCE_ID_NINA_DEAD_2_F0_LAYER0
+    ld de, SPRPAT + (10 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 2: nina_dead frame 1 (1 layers)
+    ld a, RESOURCE_ID_NINA_DEAD_2_F1_LAYER0
+    ld de, SPRPAT + (11 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 2: nina_dead frame 2 (1 layers)
+    ld a, RESOURCE_ID_NINA_DEAD_2_F2_LAYER0
+    ld de, SPRPAT + (12 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 3: nina_idle_right frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F0_LAYER0
+    ld de, SPRPAT + (13 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F0_LAYER1
+    ld de, SPRPAT + (14 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 3: nina_idle_right frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F1_LAYER0
+    ld de, SPRPAT + (15 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F1_LAYER1
+    ld de, SPRPAT + (16 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 4: nina_fall_right frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_FALL_RIGHT_4_F0_LAYER0
+    ld de, SPRPAT + (17 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_FALL_RIGHT_4_F0_LAYER1
+    ld de, SPRPAT + (18 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 5: nina_grub_right frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_GRUB_RIGHT_5_F0_LAYER1
+    ld de, SPRPAT + (19 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_GRUB_RIGHT_5_F0_LAYER2
+    ld de, SPRPAT + (20 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 5: nina_grub_right frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_GRUB_RIGHT_5_F1_LAYER1
+    ld de, SPRPAT + (21 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_GRUB_RIGHT_5_F1_LAYER2
+    ld de, SPRPAT + (22 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 6: caixa frame 0 (1 layers)
+    ld a, RESOURCE_ID_CAIXA_6_F0_LAYER1
+    ld de, SPRPAT + (23 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 9: nina_walk_left frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F0_LAYER0
+    ld de, SPRPAT + (24 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F0_LAYER1
+    ld de, SPRPAT + (25 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 9: nina_walk_left frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F1_LAYER0
+    ld de, SPRPAT + (26 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F1_LAYER1
+    ld de, SPRPAT + (27 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 10: nina_land_left frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_LAND_LEFT_10_F0_LAYER0
+    ld de, SPRPAT + (28 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_LAND_LEFT_10_F0_LAYER1
+    ld de, SPRPAT + (29 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 10: nina_land_left frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_LAND_LEFT_10_F1_LAYER0
+    ld de, SPRPAT + (30 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_LAND_LEFT_10_F1_LAYER1
+    ld de, SPRPAT + (31 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 10: nina_land_left frame 2 (2 layers)
+    ld a, RESOURCE_ID_NINA_LAND_LEFT_10_F2_LAYER0
+    ld de, SPRPAT + (32 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_LAND_LEFT_10_F2_LAYER1
+    ld de, SPRPAT + (33 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 11: nina_idle_left frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F0_LAYER0
+    ld de, SPRPAT + (34 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F0_LAYER1
+    ld de, SPRPAT + (35 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 11: nina_idle_left frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F1_LAYER0
+    ld de, SPRPAT + (36 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F1_LAYER1
+    ld de, SPRPAT + (37 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 12: nina_fall_left frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_FALL_LEFT_12_F0_LAYER0
+    ld de, SPRPAT + (38 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_FALL_LEFT_12_F0_LAYER1
+    ld de, SPRPAT + (39 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 13: nina_grub_left frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_GRUB_LEFT_13_F0_LAYER1
+    ld de, SPRPAT + (40 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_GRUB_LEFT_13_F0_LAYER2
+    ld de, SPRPAT + (41 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 13: nina_grub_left frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_GRUB_LEFT_13_F1_LAYER1
+    ld de, SPRPAT + (42 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_GRUB_LEFT_13_F1_LAYER2
+    ld de, SPRPAT + (43 * 32)
+    call resource_load_to_vram_by_id
+    ; Placeholder sprite used by missing sprite refs
+    ld a, RESOURCE_ID_SPRITE_PLACEHOLDER_PATTERN
+    ld de, SPRPAT + (44 * 32)
+    call resource_load_to_vram_by_id
+    ld a, SPRITE_PATTERN_PACK_WORLDMAP_1778070705501_ID
+    ld (current_sprite_pattern_pack_id), a
+    ret
+
+
+ensure_sprite_patterns_worldmap_1778070705501:
+    ld a, (current_sprite_pattern_pack_id)
+    cp SPRITE_PATTERN_PACK_WORLDMAP_1778070705501_ID
+    ret z
+    jp load_sprite_patterns_worldmap_1778070705501
+
+; ------------------------------------------------------------------
+; Runtime Sprite Pattern Pack: World "dialeg_mon1"
+; Slots required: 17/64
+; ------------------------------------------------------------------
+SPRITE_PATTERN_PACK_WORLDMAP_1778241700081_ID EQU 1
+
+sprite_asset_base_pattern_slot_worldmap_1778241700081:
+    db 0 ; Sprite 0: nina_walk_right
+    db 0 ; Sprite 1: nina_land_right
+    db 0 ; Sprite 2: nina_dead
+    db 4 ; Sprite 3: nina_idle_right
+    db 0 ; Sprite 4: nina_fall_right
+    db 0 ; Sprite 5: nina_grub_right
+    db 0 ; Sprite 6: caixa
+    db 0 ; Sprite 7: esqueleton_left
+    db 0 ; Sprite 8: atacador_left
+    db 8 ; Sprite 9: nina_walk_left
+    db 0 ; Sprite 10: nina_land_left
+    db 12 ; Sprite 11: nina_idle_left
+    db 0 ; Sprite 12: nina_fall_left
+    db 0 ; Sprite 13: nina_grub_left
+    db 0 ; Sprite 14: esqueleton_right
+    db 0 ; Sprite 15: atacador_right
+
+load_sprite_patterns_worldmap_1778241700081:
+    ld hl, sprite_asset_base_pattern_slot_worldmap_1778241700081
+    ld de, sprite_asset_base_pattern_slot_runtime
+    ld bc, SPRITE_ASSET_COUNT
+    ldir
+    ld a, 64
+    ld (sprite_placeholder_base_pattern_num), a
+    ; Sprite Asset 0: nina_walk_right frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER0
+    ld de, SPRPAT + (0 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER1
+    ld de, SPRPAT + (1 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 0: nina_walk_right frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER0
+    ld de, SPRPAT + (2 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER1
+    ld de, SPRPAT + (3 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 3: nina_idle_right frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F0_LAYER0
+    ld de, SPRPAT + (4 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F0_LAYER1
+    ld de, SPRPAT + (5 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 3: nina_idle_right frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F1_LAYER0
+    ld de, SPRPAT + (6 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F1_LAYER1
+    ld de, SPRPAT + (7 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 9: nina_walk_left frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F0_LAYER0
+    ld de, SPRPAT + (8 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F0_LAYER1
+    ld de, SPRPAT + (9 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 9: nina_walk_left frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F1_LAYER0
+    ld de, SPRPAT + (10 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F1_LAYER1
+    ld de, SPRPAT + (11 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 11: nina_idle_left frame 0 (2 layers)
+    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F0_LAYER0
+    ld de, SPRPAT + (12 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F0_LAYER1
+    ld de, SPRPAT + (13 * 32)
+    call resource_load_to_vram_by_id
+    ; Sprite Asset 11: nina_idle_left frame 1 (2 layers)
+    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F1_LAYER0
+    ld de, SPRPAT + (14 * 32)
+    call resource_load_to_vram_by_id
+    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F1_LAYER1
+    ld de, SPRPAT + (15 * 32)
+    call resource_load_to_vram_by_id
+    ; Placeholder sprite used by missing sprite refs
+    ld a, RESOURCE_ID_SPRITE_PLACEHOLDER_PATTERN
+    ld de, SPRPAT + (16 * 32)
+    call resource_load_to_vram_by_id
+    ld a, SPRITE_PATTERN_PACK_WORLDMAP_1778241700081_ID
+    ld (current_sprite_pattern_pack_id), a
+    ret
+
+
+ensure_sprite_patterns_worldmap_1778241700081:
+    ld a, (current_sprite_pattern_pack_id)
+    cp SPRITE_PATTERN_PACK_WORLDMAP_1778241700081_ID
+    ret z
+    jp load_sprite_patterns_worldmap_1778241700081
+
+; ------------------------------------------------------------------
+; Generic sprite pattern dispatchers
+; ------------------------------------------------------------------
+load_sprite_patterns_by_pack_id:
+    cp SPRITE_PATTERN_PACK_INVALID
+    ret z
+    cp SPRITE_PATTERN_PACK_WORLDMAP_1778070705501_ID
+    jp z, load_sprite_patterns_worldmap_1778070705501
+    cp SPRITE_PATTERN_PACK_WORLDMAP_1778241700081_ID
+    jp z, load_sprite_patterns_worldmap_1778241700081
+    ret
+
+ensure_sprite_patterns_by_pack_id:
+    cp SPRITE_PATTERN_PACK_INVALID
+    ret z
+    cp SPRITE_PATTERN_PACK_WORLDMAP_1778070705501_ID
+    jp z, ensure_sprite_patterns_worldmap_1778070705501
+    cp SPRITE_PATTERN_PACK_WORLDMAP_1778241700081_ID
+    jp z, ensure_sprite_patterns_worldmap_1778241700081
+    ret
+
+; ------------------------------------------------------------------
+; ensure_sprite_patterns_for_world_id
+; Input:  A = world id
+; Output: matching sprite pack ensured when world id is valid
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+ensure_sprite_patterns_for_world_id:
+    cp 2
+    ret nc
+    ld e, a
+    ld d, 0
+    ld hl, world_sprite_pattern_pack_table
+    add hl, de
+    ld a, (hl)
+    jp ensure_sprite_patterns_by_pack_id
+
+; ==================================================================
+; SPRITE MANAGEMENT FUNCTIONS
+; ==================================================================
+
+; A = hardware sprite index, B = X, C = Y, D = pattern, E = color
+; @mideas:block id=runtime.sprites.show_sprite_legacy kind=routine owner=sprites
+show_sprite:
+    ; Safety check: Ensure sprite index < 32
+    cp 32
+    ret nc
+
+    ; Safety check: Never write Y >= 208 (208 is SAT end marker on MSX)
+    push af
+    ld a, c
+    cp 208
+    jr c, .y_ok
+    ld c, SPRITE_INVISIBLE
+.y_ok:
+    pop af
+
+    ; Save pattern (D) and color (E) before calculating address
+    push de
+
+    ; Calculate base address for sprite: index * 4
+    ld l, a
+    ld h, 0
+    add hl, hl      ; index * 2
+    add hl, hl      ; index * 4
+    ; Add base of the attribute table
+    ld de, sprite_attributes
+    add hl, de      ; HL = &sprite_attributes[index * 4]
+
+    ; Restore pattern and color
+    pop de
+
+    ; Write attributes
+    ld (hl), c      ; Y
+    inc hl
+    ld (hl), b      ; X
+    inc hl
+    ld (hl), d      ; Pattern
+    inc hl
+    ld (hl), e      ; Color
+
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
+; @mideas:endblock id=runtime.sprites.show_sprite_legacy
+
+; Clear all sprites (set Y = SPRITE_INVISIBLE)
+; OPTIMIZED: Uses faster increment method instead of ADD HL,DE
+clear_all_sprites:
+    ld hl, sprite_attributes
+    ld b, 32
+    ld a, SPRITE_INVISIBLE
+.sprite_clear_loop:
+    ld (hl), a      ; Set Y = SPRITE_INVISIBLE
+    inc hl          ; Skip to X
+    inc hl          ; Skip to Pattern
+    inc hl          ; Skip to Color
+    inc hl          ; Next sprite (4× INC HL = 24 cycles vs ADD HL,DE = 35 cycles)
+    djnz .sprite_clear_loop
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
+
+; Hide specific sprite (A = hardware sprite index)
+hide_sprite:
+    cp 32
+    ret nc
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    ld de, sprite_attributes
+    add hl, de
+    ld (hl), SPRITE_INVISIBLE
+    ld a, 1
+    ld (sprites_dirty), a
+    ret
+
+; Copy sprite attributes from RAM to VRAM
+update_sprites_to_vram:
+    ld a, (sprites_dirty)
+    or a
+    ret z
+    xor a
+    ld (sprites_dirty), a
+    ld hl, sprite_attributes
+    ld de, SPRATR
+    ld bc, 32  ; Upload active sprite range + SAT end marker
+    call FAST_LDIRVM
+    ret
+
+; Copy only the Player-owned hardware sprite slots from RAM to VRAM.
+; This is the SAT fast path used by the optional VBlank hard Player tick.
+upload_player_sprites_to_vram:
+    ld a, (player_runtime_enabled)
+    or a
+    ret z
+    ld a, (player_entity_index)
+    cp #FF
+    ret z
+    ld e, a
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_SPRITE
+    ret z
+
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de
+    ld a, (hl)                 ; A = base HW sprite slot
+    inc hl
+    ld c, (hl)                 ; C = layer count
+    ld b, 0
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl                 ; HL = base slot * 4
+    push hl
+    ld de, sprite_attributes
+    add hl, de                 ; HL = RAM SAT source
+    ex de, hl                  ; DE = RAM SAT source
+    pop hl
+    push de
+    ld de, SPRATR
+    add hl, de                 ; HL = VRAM SAT destination
+    ex de, hl                  ; DE = VRAM destination
+    pop hl                     ; HL = RAM SAT source
+    ld a, c
+    or a
+    ret z
+    add a, a
+    add a, a
+    ld c, a
+    ld b, 0                    ; BC = layer count * 4 bytes
+    call FAST_LDIRVM
+    ret
+
+; ==================================================================
+; SPRITE CONSTANTS
+; ==================================================================
+SPRITE_INVISIBLE    EQU 224
+
+; ==================================================================
+; RAM REQUIREMENTS
+; ==================================================================
+; sprite_attributes: ds 128
+; active_sprite_count: db 0
+; sprites_dirty: db 0
+; sprite_layer_y_offsets: ds 32
+
+
+; --- End of Far Bank 11 — pad to 8KB boundary ---
+BANK_11_USED_END:
+    ds #8000 - $, #FF
+    org FAR_BANK_11_ROM_START + #2000
+
+; ##################################################################
+; FAR BANK 12 — [#6000h-#8000h] FAR CODE: entities
+; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
+; At runtime: bank0 saves P1, maps bank12 to P1,
+; calls routine, then restores P1.
+; NOTE: routines in this bank MUST only call code in bank 0 or
+;       primary banks (1-2). No far-to-far calls allowed.
+; ##################################################################
+FAR_BANK_12_ROM_START:
 
     org #6000
 
@@ -45276,20 +46436,20 @@ init_player_from_hero_entity:
 ; ==================================================================
 
 
-; --- End of Far Bank 11 — pad to 8KB boundary ---
-BANK_11_USED_END:
+; --- End of Far Bank 12 — pad to 8KB boundary ---
+BANK_12_USED_END:
     ds #8000 - $, #FF
-    org FAR_BANK_11_ROM_START + #2000
+    org FAR_BANK_12_ROM_START + #2000
 
 ; ##################################################################
-; FAR BANK 12 — [#6000h-#8000h] FAR CODE: components_autocontrol
+; FAR BANK 13 — [#6000h-#8000h] FAR CODE: components_autocontrol
 ; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
-; At runtime: bank0 saves P1, maps bank12 to P1,
+; At runtime: bank0 saves P1, maps bank13 to P1,
 ; calls routine, then restores P1.
 ; NOTE: routines in this bank MUST only call code in bank 0 or
 ;       primary banks (1-2). No far-to-far calls allowed.
 ; ##################################################################
-FAR_BANK_12_ROM_START:
+FAR_BANK_13_ROM_START:
 
     org #6000
 
@@ -46622,914 +47782,6 @@ update_auto_event_string_component:
 
 
 
-; --- End of Far Bank 12 — pad to 8KB boundary ---
-BANK_12_USED_END:
-    ds #8000 - $, #FF
-    org FAR_BANK_12_ROM_START + #2000
-
-; ##################################################################
-; FAR BANK 13 — [#6000h-#8000h] FAR CODE: sprites
-; Accessed ONLY via trampolines in bank 0 (entrypoint_far labels).
-; At runtime: bank0 saves P1, maps bank13 to P1,
-; calls routine, then restores P1.
-; NOTE: routines in this bank MUST only call code in bank 0 or
-;       primary banks (1-2). No far-to-far calls allowed.
-; ##################################################################
-FAR_BANK_13_ROM_START:
-
-    org #6000
-
-; ==================================================================
-; SPRITE DATA
-; File: sprites.asm
-; Description: Sprite pattern and animation data
-; Entities: 3
-; Total Hardware Sprites (Layers): 32
-; SAT Upload Sprites per frame: 6
-; Sprite Pattern Preload Mode: STATIC_ALL_FRAMES
-; Runtime Sprite Pattern Packs: 2
-; ==================================================================
-; SPRITE_DATA_ROM_DATA_GROUP: bank4
-; (sprite pattern blobs are emitted in bank4 data zones for megarom builds)
-
-; Unified pattern label for sprite 0
-SPRITE_0_PATTERN EQU NINA_WALK_RIGHT_0_F0_LAYER0
-SPRITE_0_PATTERN_BANK EQU ((SPRITE_0_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 1
-SPRITE_1_PATTERN EQU NINA_LAND_RIGHT_1_F0_LAYER0
-SPRITE_1_PATTERN_BANK EQU ((SPRITE_1_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 2
-SPRITE_2_PATTERN EQU NINA_DEAD_2_F0_LAYER0
-SPRITE_2_PATTERN_BANK EQU ((SPRITE_2_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 3
-SPRITE_3_PATTERN EQU NINA_IDLE_RIGHT_3_F0_LAYER0
-SPRITE_3_PATTERN_BANK EQU ((SPRITE_3_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 4
-SPRITE_4_PATTERN EQU NINA_FALL_RIGHT_4_F0_LAYER0
-SPRITE_4_PATTERN_BANK EQU ((SPRITE_4_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 5
-SPRITE_5_PATTERN EQU NINA_GRUB_RIGHT_5_F0_LAYER1
-SPRITE_5_PATTERN_BANK EQU ((SPRITE_5_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 6
-SPRITE_6_PATTERN EQU CAIXA_6_F0_LAYER1
-SPRITE_6_PATTERN_BANK EQU ((SPRITE_6_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 7
-SPRITE_7_PATTERN EQU ESQUELETON_LEFT_7_F0_LAYER1
-SPRITE_7_PATTERN_BANK EQU ((SPRITE_7_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 8
-SPRITE_8_PATTERN EQU ATACADOR_LEFT_8_F0_LAYER1
-SPRITE_8_PATTERN_BANK EQU ((SPRITE_8_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 9
-SPRITE_9_PATTERN EQU NINA_WALK_LEFT_9_F0_LAYER0
-SPRITE_9_PATTERN_BANK EQU ((SPRITE_9_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 10
-SPRITE_10_PATTERN EQU NINA_LAND_LEFT_10_F0_LAYER0
-SPRITE_10_PATTERN_BANK EQU ((SPRITE_10_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 11
-SPRITE_11_PATTERN EQU NINA_IDLE_LEFT_11_F0_LAYER0
-SPRITE_11_PATTERN_BANK EQU ((SPRITE_11_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 12
-SPRITE_12_PATTERN EQU NINA_FALL_LEFT_12_F0_LAYER0
-SPRITE_12_PATTERN_BANK EQU ((SPRITE_12_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 13
-SPRITE_13_PATTERN EQU NINA_GRUB_LEFT_13_F0_LAYER1
-SPRITE_13_PATTERN_BANK EQU ((SPRITE_13_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 14
-SPRITE_14_PATTERN EQU ESQUELETON_RIGHT_14_F0_LAYER1
-SPRITE_14_PATTERN_BANK EQU ((SPRITE_14_PATTERN - #4000) / #2000)
-
-; Unified pattern label for sprite 15
-SPRITE_15_PATTERN EQU ATACADOR_RIGHT_15_F0_LAYER1
-SPRITE_15_PATTERN_BANK EQU ((SPRITE_15_PATTERN - #4000) / #2000)
-
-SPRITE_PLACEHOLDER_PATTERN_BANK EQU ((SPRITE_PLACEHOLDER_PATTERN - #4000) / #2000)
-
-
-; ==================================================================
-; SPRITE ANIMATION METADATA TABLES
-; ==================================================================
-
-; Table: Sprite Asset Frame Counts
-; Format: db frame_count
-sprite_asset_frame_count_init:
-    db 2 ; Sprite 0: nina_walk_right
-    db 3 ; Sprite 1: nina_land_right
-    db 3 ; Sprite 2: nina_dead
-    db 2 ; Sprite 3: nina_idle_right
-    db 1 ; Sprite 4: nina_fall_right
-    db 2 ; Sprite 5: nina_grub_right
-    db 1 ; Sprite 6: caixa
-    db 2 ; Sprite 7: esqueleton_left
-    db 2 ; Sprite 8: atacador_left
-    db 2 ; Sprite 9: nina_walk_left
-    db 3 ; Sprite 10: nina_land_left
-    db 2 ; Sprite 11: nina_idle_left
-    db 1 ; Sprite 12: nina_fall_left
-    db 2 ; Sprite 13: nina_grub_left
-    db 2 ; Sprite 14: esqueleton_right
-    db 2 ; Sprite 15: atacador_right
-
-; Table: Sprite Asset Drawable Layer Counts
-; Format: db compact drawable layer count (minimum 1)
-sprite_asset_layer_count_init:
-    db 2 ; Sprite 0: nina_walk_right
-    db 2 ; Sprite 1: nina_land_right
-    db 1 ; Sprite 2: nina_dead
-    db 2 ; Sprite 3: nina_idle_right
-    db 2 ; Sprite 4: nina_fall_right
-    db 2 ; Sprite 5: nina_grub_right
-    db 1 ; Sprite 6: caixa
-    db 1 ; Sprite 7: esqueleton_left
-    db 1 ; Sprite 8: atacador_left
-    db 2 ; Sprite 9: nina_walk_left
-    db 2 ; Sprite 10: nina_land_left
-    db 2 ; Sprite 11: nina_idle_left
-    db 2 ; Sprite 12: nina_fall_left
-    db 2 ; Sprite 13: nina_grub_left
-    db 1 ; Sprite 14: esqueleton_right
-    db 1 ; Sprite 15: atacador_right
-SPRITE_ASSET_COUNT EQU 16
-SPRITE_PATTERN_PRELOAD_MODE EQU 1
-
-; Table: Sprite Asset Loop Flags
-; Format: db flags (bit 1: 1=loop, 0=once)
-sprite_loop_flags_init:
-    db 2 ; Sprite 0: nina_walk_right
-    db 0 ; Sprite 1: nina_land_right
-    db 0 ; Sprite 2: nina_dead
-    db 0 ; Sprite 3: nina_idle_right
-    db 0 ; Sprite 4: nina_fall_right
-    db 2 ; Sprite 5: nina_grub_right
-    db 2 ; Sprite 6: caixa
-    db 2 ; Sprite 7: esqueleton_left
-    db 2 ; Sprite 8: atacador_left
-    db 2 ; Sprite 9: nina_walk_left
-    db 0 ; Sprite 10: nina_land_left
-    db 0 ; Sprite 11: nina_idle_left
-    db 0 ; Sprite 12: nina_fall_left
-    db 2 ; Sprite 13: nina_grub_left
-    db 2 ; Sprite 14: esqueleton_right
-    db 2 ; Sprite 15: atacador_right
-
-; Table: Sprite Asset Frame Pointer List Table
-; Format: dw SPRITE_<id>_FRAME_PTRS
-sprite_asset_frame_ptr_table:
-    dw SPRITE_0_FRAME_PTRS
-    dw SPRITE_1_FRAME_PTRS
-    dw SPRITE_2_FRAME_PTRS
-    dw SPRITE_3_FRAME_PTRS
-    dw SPRITE_4_FRAME_PTRS
-    dw SPRITE_5_FRAME_PTRS
-    dw SPRITE_6_FRAME_PTRS
-    dw SPRITE_7_FRAME_PTRS
-    dw SPRITE_8_FRAME_PTRS
-    dw SPRITE_9_FRAME_PTRS
-    dw SPRITE_10_FRAME_PTRS
-    dw SPRITE_11_FRAME_PTRS
-    dw SPRITE_12_FRAME_PTRS
-    dw SPRITE_13_FRAME_PTRS
-    dw SPRITE_14_FRAME_PTRS
-    dw SPRITE_15_FRAME_PTRS
-
-; Sprite 0: nina_walk_right frame pointers
-SPRITE_0_FRAME_PTRS:
-    dw 0
-    dw 0
-
-; Sprite 1: nina_land_right frame pointers
-SPRITE_1_FRAME_PTRS:
-    dw 0
-    dw 0
-    dw 0
-
-; Sprite 2: nina_dead frame pointers
-SPRITE_2_FRAME_PTRS:
-    dw 0
-    dw 0
-    dw 0
-
-; Sprite 3: nina_idle_right frame pointers
-SPRITE_3_FRAME_PTRS:
-    dw 0
-    dw 0
-
-; Sprite 4: nina_fall_right frame pointers
-SPRITE_4_FRAME_PTRS:
-    dw 0
-
-; Sprite 5: nina_grub_right frame pointers
-SPRITE_5_FRAME_PTRS:
-    dw 0
-    dw 0
-
-; Sprite 6: caixa frame pointers
-SPRITE_6_FRAME_PTRS:
-    dw 0
-
-; Sprite 7: esqueleton_left frame pointers
-SPRITE_7_FRAME_PTRS:
-    dw 0
-    dw 0
-
-; Sprite 8: atacador_left frame pointers
-SPRITE_8_FRAME_PTRS:
-    dw 0
-    dw 0
-
-; Sprite 9: nina_walk_left frame pointers
-SPRITE_9_FRAME_PTRS:
-    dw 0
-    dw 0
-
-; Sprite 10: nina_land_left frame pointers
-SPRITE_10_FRAME_PTRS:
-    dw 0
-    dw 0
-    dw 0
-
-; Sprite 11: nina_idle_left frame pointers
-SPRITE_11_FRAME_PTRS:
-    dw 0
-    dw 0
-
-; Sprite 12: nina_fall_left frame pointers
-SPRITE_12_FRAME_PTRS:
-    dw 0
-
-; Sprite 13: nina_grub_left frame pointers
-SPRITE_13_FRAME_PTRS:
-    dw 0
-    dw 0
-
-; Sprite 14: esqueleton_right frame pointers
-SPRITE_14_FRAME_PTRS:
-    dw 0
-    dw 0
-
-; Sprite 15: atacador_right frame pointers
-SPRITE_15_FRAME_PTRS:
-    dw 0
-    dw 0
-
-; ==================================================================
-; DIRECTIONAL SPRITE LOOKUP TABLES
-; Maps any sprite asset index to its directional variant index.
-; If no directional variant exists, table points back to same index.
-; ==================================================================
-sprite_dir_left_table_init:
-    db 9, 10, 2, 11, 12, 13, 6, 7, 8, 9, 10, 11, 12, 13, 7, 8
-
-sprite_dir_right_table_init:
-    db 0, 1, 2, 3, 4, 5, 6, 14, 15, 0, 1, 3, 4, 5, 14, 15
-
-sprite_dir_up_table_init:
-    db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
-
-sprite_dir_down_table_init:
-    db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
-
- 
-; ================================================================== 
-; SPRITE CONFIGURATION TABLES 
-; ================================================================== 
-
-; Table: Entity Sprite Configuration 
-; Format: db base_hw_sprite_index, layer_count 
-entity_sprite_config_init:
-    db 0, 2 ; Entity 0 (nina_idle_right)
-    db 2, 1 ; Entity 1 (caixa)
-    db 3, 2 ; Entity 2 (nina_idle_right)
-    ds 58, 0 ; Padding
-
-; Table: Entity -> Sprite Asset Index (ROM initial values)
-; Copied to RAM entity_sprite_asset_index at init
-; Format: db sprite_asset_index (#FF = none)
-entity_sprite_asset_index_init:
-    db #03 ; Entity 0 (nina_idle_right)
-    db #06 ; Entity 1 (caixa)
-    db #03 ; Entity 2 (nina_idle_right)
-    ds 29, #FF ; Padding
-SPRITE_MAX_ENTITY_LAYERS EQU 2  ; Max HW sprite layers per entity
-
-; Table: Hardware Sprite Layer Colors (ROM initial values - copied to RAM at init)
-; Format: db color_index
-sprite_layer_colors_init:
-    ; Entity 0 (nina_idle_right) layers:
-    db 6 ; Layer 0
-    db 15 ; Layer 1
-    ; Entity 1 (caixa) layers:
-    db 14 ; Layer 0
-    ; Entity 2 (nina_idle_right) layers:
-    db 6 ; Layer 0
-    db 15 ; Layer 1
-    ds 27, 0 ; Padding
-
-; Table: Hardware Sprite Layer Y Offsets (ROM initial values - copied to RAM at init)
-; Format: db signed_offset_y
-sprite_layer_y_offsets_init:
-    ; Entity 0 (nina_idle_right) layers:
-    db 0 ; Layer 0
-    db 0 ; Layer 1
-    ; Entity 1 (caixa) layers:
-    db 0 ; Layer 0
-    ; Entity 2 (nina_idle_right) layers:
-    db 0 ; Layer 0
-    db 0 ; Layer 1
-    ds 27, 0 ; Padding
-
-; Table: SM Sprite Layer Colors (for Action_ChangeSprite runtime color update)
-; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
-; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = color for HW sprite slot j of sprite i
-SM_SpriteLayerColorTable_init:
-    db 6, 15 ; Sprite 0: nina_walk_right
-    db 6, 15 ; Sprite 1: nina_land_right
-    db 6, 0 ; Sprite 2: nina_dead
-    db 6, 15 ; Sprite 3: nina_idle_right
-    db 6, 15 ; Sprite 4: nina_fall_right
-    db 15, 6 ; Sprite 5: nina_grub_right
-    db 14, 0 ; Sprite 6: caixa
-    db 15, 0 ; Sprite 7: esqueleton_left
-    db 9, 0 ; Sprite 8: atacador_left
-    db 6, 15 ; Sprite 9: nina_walk_left
-    db 6, 15 ; Sprite 10: nina_land_left
-    db 6, 15 ; Sprite 11: nina_idle_left
-    db 6, 15 ; Sprite 12: nina_fall_left
-    db 15, 6 ; Sprite 13: nina_grub_left
-    db 15, 0 ; Sprite 14: esqueleton_right
-    db 9, 0 ; Sprite 15: atacador_right
-
-; Table: SM Sprite Layer Y Offsets (for Action_ChangeSprite runtime layer alignment)
-; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
-; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = signed Y offset for HW sprite slot j of sprite i
-SM_SpriteLayerYOffsetTable_init:
-    db 0, 0 ; Sprite 0: nina_walk_right
-    db 0, 0 ; Sprite 1: nina_land_right
-    db 0, 0 ; Sprite 2: nina_dead
-    db 0, 0 ; Sprite 3: nina_idle_right
-    db 0, 0 ; Sprite 4: nina_fall_right
-    db 0, 0 ; Sprite 5: nina_grub_right
-    db 0, 0 ; Sprite 6: caixa
-    db 0, 0 ; Sprite 7: esqueleton_left
-    db 0, 0 ; Sprite 8: atacador_left
-    db 0, 0 ; Sprite 9: nina_walk_left
-    db 0, 0 ; Sprite 10: nina_land_left
-    db 0, 0 ; Sprite 11: nina_idle_left
-    db 0, 0 ; Sprite 12: nina_fall_left
-    db 0, 0 ; Sprite 13: nina_grub_left
-    db 0, 0 ; Sprite 14: esqueleton_right
-    db 0, 0 ; Sprite 15: atacador_right
-
-; ==================================================================
-; SPRITE INITIALIZATION FUNCTIONS
-; ==================================================================
-
-init_sprites:
-    ; Copy ROM sprite metadata tables into RAM so gameplay code can read them
-    ; without depending on which MegaROM bank is currently mapped.
-    ld hl, entity_sprite_config_init
-    ld de, entity_sprite_config
-    ld bc, 64
-    ldir
-    ld hl, sprite_asset_frame_count_init
-    ld de, sprite_asset_frame_count
-    ld bc, 16
-    ldir
-    ld hl, sprite_asset_layer_count_init
-    ld de, sprite_asset_layer_count
-    ld bc, 16
-    ldir
-    ld hl, sprite_loop_flags_init
-    ld de, sprite_loop_flags
-    ld bc, 16
-    ldir
-    ld hl, sprite_dir_left_table_init
-    ld de, sprite_dir_left_table
-    ld bc, 16
-    ldir
-    ld hl, sprite_dir_right_table_init
-    ld de, sprite_dir_right_table
-    ld bc, 16
-    ldir
-    ld hl, sprite_dir_up_table_init
-    ld de, sprite_dir_up_table
-    ld bc, 16
-    ldir
-    ld hl, sprite_dir_down_table_init
-    ld de, sprite_dir_down_table
-    ld bc, 16
-    ldir
-    ld hl, SM_SpriteLayerColorTable_init
-    ld de, SM_SpriteLayerColorTable
-    ld bc, 32
-    ldir
-    ld hl, SM_SpriteLayerYOffsetTable_init
-    ld de, SM_SpriteLayerYOffsetTable
-    ld bc, 32
-    ldir
-    ld hl, entity_sprite_asset_index_init
-    ld de, entity_sprite_asset_index
-    ld bc, 32
-    ldir
-    ; Copy sprite_layer_colors_init (ROM) -> sprite_layer_colors (RAM)
-    ld hl, sprite_layer_colors_init
-    ld de, sprite_layer_colors
-    ld bc, 32
-    ldir
-    ; Copy sprite_layer_y_offsets_init (ROM) -> sprite_layer_y_offsets (RAM)
-    ld hl, sprite_layer_y_offsets_init
-    ld de, sprite_layer_y_offsets
-    ld bc, 32
-    ldir
-    call call_clear_all_sprites_resident
-    ld hl, sprite_asset_base_pattern_slot_runtime
-    ld (hl), 0
-    ld de, sprite_asset_base_pattern_slot_runtime+1
-    ld bc, 15
-    ldir
-    xor a
-    ld (sprite_placeholder_base_pattern_num), a
-    ld a, #FF
-    ld (current_sprite_pattern_pack_id), a
-    xor a
-    ld (active_sprite_count), a
-    ret
-
-load_sprite_patterns:
-    call load_sprite_patterns_worldmap_1778070705501
-    ret
-
-
-SPRITE_PATTERN_PACK_INVALID EQU #FF
-SPRITE_PATTERN_PACK_COUNT EQU 2
-
-; World index -> runtime sprite pattern pack id
-world_sprite_pattern_pack_table:
-    db SPRITE_PATTERN_PACK_WORLDMAP_1778070705501_ID ; World 0: mon1
-    db SPRITE_PATTERN_PACK_WORLDMAP_1778241700081_ID ; World 1: dialeg_mon1
-
-; ------------------------------------------------------------------
-; Runtime Sprite Pattern Pack: World "mon1"
-; Slots required: 45/64
-; ------------------------------------------------------------------
-SPRITE_PATTERN_PACK_WORLDMAP_1778070705501_ID EQU 0
-
-sprite_asset_base_pattern_slot_worldmap_1778070705501:
-    db 0 ; Sprite 0: nina_walk_right
-    db 4 ; Sprite 1: nina_land_right
-    db 10 ; Sprite 2: nina_dead
-    db 13 ; Sprite 3: nina_idle_right
-    db 17 ; Sprite 4: nina_fall_right
-    db 19 ; Sprite 5: nina_grub_right
-    db 23 ; Sprite 6: caixa
-    db 0 ; Sprite 7: esqueleton_left
-    db 0 ; Sprite 8: atacador_left
-    db 24 ; Sprite 9: nina_walk_left
-    db 28 ; Sprite 10: nina_land_left
-    db 34 ; Sprite 11: nina_idle_left
-    db 38 ; Sprite 12: nina_fall_left
-    db 40 ; Sprite 13: nina_grub_left
-    db 0 ; Sprite 14: esqueleton_right
-    db 0 ; Sprite 15: atacador_right
-
-load_sprite_patterns_worldmap_1778070705501:
-    ld hl, sprite_asset_base_pattern_slot_worldmap_1778070705501
-    ld de, sprite_asset_base_pattern_slot_runtime
-    ld bc, SPRITE_ASSET_COUNT
-    ldir
-    ld a, 176
-    ld (sprite_placeholder_base_pattern_num), a
-    ; Sprite Asset 0: nina_walk_right frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER0
-    ld de, SPRPAT + (0 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER1
-    ld de, SPRPAT + (1 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 0: nina_walk_right frame 1 (2 layers)
-    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER0
-    ld de, SPRPAT + (2 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER1
-    ld de, SPRPAT + (3 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 1: nina_land_right frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_LAND_RIGHT_1_F0_LAYER0
-    ld de, SPRPAT + (4 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_LAND_RIGHT_1_F0_LAYER1
-    ld de, SPRPAT + (5 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 1: nina_land_right frame 1 (2 layers)
-    ld a, RESOURCE_ID_NINA_LAND_RIGHT_1_F1_LAYER0
-    ld de, SPRPAT + (6 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_LAND_RIGHT_1_F1_LAYER1
-    ld de, SPRPAT + (7 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 1: nina_land_right frame 2 (2 layers)
-    ld a, RESOURCE_ID_NINA_LAND_RIGHT_1_F2_LAYER0
-    ld de, SPRPAT + (8 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_LAND_RIGHT_1_F2_LAYER1
-    ld de, SPRPAT + (9 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 2: nina_dead frame 0 (1 layers)
-    ld a, RESOURCE_ID_NINA_DEAD_2_F0_LAYER0
-    ld de, SPRPAT + (10 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 2: nina_dead frame 1 (1 layers)
-    ld a, RESOURCE_ID_NINA_DEAD_2_F1_LAYER0
-    ld de, SPRPAT + (11 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 2: nina_dead frame 2 (1 layers)
-    ld a, RESOURCE_ID_NINA_DEAD_2_F2_LAYER0
-    ld de, SPRPAT + (12 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 3: nina_idle_right frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F0_LAYER0
-    ld de, SPRPAT + (13 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F0_LAYER1
-    ld de, SPRPAT + (14 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 3: nina_idle_right frame 1 (2 layers)
-    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F1_LAYER0
-    ld de, SPRPAT + (15 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F1_LAYER1
-    ld de, SPRPAT + (16 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 4: nina_fall_right frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_FALL_RIGHT_4_F0_LAYER0
-    ld de, SPRPAT + (17 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_FALL_RIGHT_4_F0_LAYER1
-    ld de, SPRPAT + (18 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 5: nina_grub_right frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_GRUB_RIGHT_5_F0_LAYER1
-    ld de, SPRPAT + (19 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_GRUB_RIGHT_5_F0_LAYER2
-    ld de, SPRPAT + (20 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 5: nina_grub_right frame 1 (2 layers)
-    ld a, RESOURCE_ID_NINA_GRUB_RIGHT_5_F1_LAYER1
-    ld de, SPRPAT + (21 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_GRUB_RIGHT_5_F1_LAYER2
-    ld de, SPRPAT + (22 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 6: caixa frame 0 (1 layers)
-    ld a, RESOURCE_ID_CAIXA_6_F0_LAYER1
-    ld de, SPRPAT + (23 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 9: nina_walk_left frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F0_LAYER0
-    ld de, SPRPAT + (24 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F0_LAYER1
-    ld de, SPRPAT + (25 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 9: nina_walk_left frame 1 (2 layers)
-    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F1_LAYER0
-    ld de, SPRPAT + (26 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F1_LAYER1
-    ld de, SPRPAT + (27 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 10: nina_land_left frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_LAND_LEFT_10_F0_LAYER0
-    ld de, SPRPAT + (28 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_LAND_LEFT_10_F0_LAYER1
-    ld de, SPRPAT + (29 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 10: nina_land_left frame 1 (2 layers)
-    ld a, RESOURCE_ID_NINA_LAND_LEFT_10_F1_LAYER0
-    ld de, SPRPAT + (30 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_LAND_LEFT_10_F1_LAYER1
-    ld de, SPRPAT + (31 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 10: nina_land_left frame 2 (2 layers)
-    ld a, RESOURCE_ID_NINA_LAND_LEFT_10_F2_LAYER0
-    ld de, SPRPAT + (32 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_LAND_LEFT_10_F2_LAYER1
-    ld de, SPRPAT + (33 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 11: nina_idle_left frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F0_LAYER0
-    ld de, SPRPAT + (34 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F0_LAYER1
-    ld de, SPRPAT + (35 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 11: nina_idle_left frame 1 (2 layers)
-    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F1_LAYER0
-    ld de, SPRPAT + (36 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F1_LAYER1
-    ld de, SPRPAT + (37 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 12: nina_fall_left frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_FALL_LEFT_12_F0_LAYER0
-    ld de, SPRPAT + (38 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_FALL_LEFT_12_F0_LAYER1
-    ld de, SPRPAT + (39 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 13: nina_grub_left frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_GRUB_LEFT_13_F0_LAYER1
-    ld de, SPRPAT + (40 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_GRUB_LEFT_13_F0_LAYER2
-    ld de, SPRPAT + (41 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 13: nina_grub_left frame 1 (2 layers)
-    ld a, RESOURCE_ID_NINA_GRUB_LEFT_13_F1_LAYER1
-    ld de, SPRPAT + (42 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_GRUB_LEFT_13_F1_LAYER2
-    ld de, SPRPAT + (43 * 32)
-    call resource_load_to_vram_by_id
-    ; Placeholder sprite used by missing sprite refs
-    ld a, RESOURCE_ID_SPRITE_PLACEHOLDER_PATTERN
-    ld de, SPRPAT + (44 * 32)
-    call resource_load_to_vram_by_id
-    ld a, SPRITE_PATTERN_PACK_WORLDMAP_1778070705501_ID
-    ld (current_sprite_pattern_pack_id), a
-    ret
-
-
-ensure_sprite_patterns_worldmap_1778070705501:
-    ld a, (current_sprite_pattern_pack_id)
-    cp SPRITE_PATTERN_PACK_WORLDMAP_1778070705501_ID
-    ret z
-    jp load_sprite_patterns_worldmap_1778070705501
-
-; ------------------------------------------------------------------
-; Runtime Sprite Pattern Pack: World "dialeg_mon1"
-; Slots required: 17/64
-; ------------------------------------------------------------------
-SPRITE_PATTERN_PACK_WORLDMAP_1778241700081_ID EQU 1
-
-sprite_asset_base_pattern_slot_worldmap_1778241700081:
-    db 0 ; Sprite 0: nina_walk_right
-    db 0 ; Sprite 1: nina_land_right
-    db 0 ; Sprite 2: nina_dead
-    db 4 ; Sprite 3: nina_idle_right
-    db 0 ; Sprite 4: nina_fall_right
-    db 0 ; Sprite 5: nina_grub_right
-    db 0 ; Sprite 6: caixa
-    db 0 ; Sprite 7: esqueleton_left
-    db 0 ; Sprite 8: atacador_left
-    db 8 ; Sprite 9: nina_walk_left
-    db 0 ; Sprite 10: nina_land_left
-    db 12 ; Sprite 11: nina_idle_left
-    db 0 ; Sprite 12: nina_fall_left
-    db 0 ; Sprite 13: nina_grub_left
-    db 0 ; Sprite 14: esqueleton_right
-    db 0 ; Sprite 15: atacador_right
-
-load_sprite_patterns_worldmap_1778241700081:
-    ld hl, sprite_asset_base_pattern_slot_worldmap_1778241700081
-    ld de, sprite_asset_base_pattern_slot_runtime
-    ld bc, SPRITE_ASSET_COUNT
-    ldir
-    ld a, 64
-    ld (sprite_placeholder_base_pattern_num), a
-    ; Sprite Asset 0: nina_walk_right frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER0
-    ld de, SPRPAT + (0 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F0_LAYER1
-    ld de, SPRPAT + (1 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 0: nina_walk_right frame 1 (2 layers)
-    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER0
-    ld de, SPRPAT + (2 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_WALK_RIGHT_0_F1_LAYER1
-    ld de, SPRPAT + (3 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 3: nina_idle_right frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F0_LAYER0
-    ld de, SPRPAT + (4 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F0_LAYER1
-    ld de, SPRPAT + (5 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 3: nina_idle_right frame 1 (2 layers)
-    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F1_LAYER0
-    ld de, SPRPAT + (6 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_IDLE_RIGHT_3_F1_LAYER1
-    ld de, SPRPAT + (7 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 9: nina_walk_left frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F0_LAYER0
-    ld de, SPRPAT + (8 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F0_LAYER1
-    ld de, SPRPAT + (9 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 9: nina_walk_left frame 1 (2 layers)
-    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F1_LAYER0
-    ld de, SPRPAT + (10 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_WALK_LEFT_9_F1_LAYER1
-    ld de, SPRPAT + (11 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 11: nina_idle_left frame 0 (2 layers)
-    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F0_LAYER0
-    ld de, SPRPAT + (12 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F0_LAYER1
-    ld de, SPRPAT + (13 * 32)
-    call resource_load_to_vram_by_id
-    ; Sprite Asset 11: nina_idle_left frame 1 (2 layers)
-    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F1_LAYER0
-    ld de, SPRPAT + (14 * 32)
-    call resource_load_to_vram_by_id
-    ld a, RESOURCE_ID_NINA_IDLE_LEFT_11_F1_LAYER1
-    ld de, SPRPAT + (15 * 32)
-    call resource_load_to_vram_by_id
-    ; Placeholder sprite used by missing sprite refs
-    ld a, RESOURCE_ID_SPRITE_PLACEHOLDER_PATTERN
-    ld de, SPRPAT + (16 * 32)
-    call resource_load_to_vram_by_id
-    ld a, SPRITE_PATTERN_PACK_WORLDMAP_1778241700081_ID
-    ld (current_sprite_pattern_pack_id), a
-    ret
-
-
-ensure_sprite_patterns_worldmap_1778241700081:
-    ld a, (current_sprite_pattern_pack_id)
-    cp SPRITE_PATTERN_PACK_WORLDMAP_1778241700081_ID
-    ret z
-    jp load_sprite_patterns_worldmap_1778241700081
-
-; ------------------------------------------------------------------
-; Generic sprite pattern dispatchers
-; ------------------------------------------------------------------
-load_sprite_patterns_by_pack_id:
-    cp SPRITE_PATTERN_PACK_INVALID
-    ret z
-    cp SPRITE_PATTERN_PACK_WORLDMAP_1778070705501_ID
-    jp z, load_sprite_patterns_worldmap_1778070705501
-    cp SPRITE_PATTERN_PACK_WORLDMAP_1778241700081_ID
-    jp z, load_sprite_patterns_worldmap_1778241700081
-    ret
-
-ensure_sprite_patterns_by_pack_id:
-    cp SPRITE_PATTERN_PACK_INVALID
-    ret z
-    cp SPRITE_PATTERN_PACK_WORLDMAP_1778070705501_ID
-    jp z, ensure_sprite_patterns_worldmap_1778070705501
-    cp SPRITE_PATTERN_PACK_WORLDMAP_1778241700081_ID
-    jp z, ensure_sprite_patterns_worldmap_1778241700081
-    ret
-
-; ------------------------------------------------------------------
-; ensure_sprite_patterns_for_world_id
-; Input:  A = world id
-; Output: matching sprite pack ensured when world id is valid
-; Destroys: AF, DE, HL
-; ------------------------------------------------------------------
-ensure_sprite_patterns_for_world_id:
-    cp 2
-    ret nc
-    ld e, a
-    ld d, 0
-    ld hl, world_sprite_pattern_pack_table
-    add hl, de
-    ld a, (hl)
-    jp ensure_sprite_patterns_by_pack_id
-
-; ==================================================================
-; SPRITE MANAGEMENT FUNCTIONS
-; ==================================================================
-
-; A = hardware sprite index, B = X, C = Y, D = pattern, E = color
-; @mideas:block id=runtime.sprites.show_sprite_legacy kind=routine owner=sprites
-show_sprite:
-    ; Safety check: Ensure sprite index < 32
-    cp 32
-    ret nc
-
-    ; Safety check: Never write Y >= 208 (208 is SAT end marker on MSX)
-    push af
-    ld a, c
-    cp 208
-    jr c, .y_ok
-    ld c, SPRITE_INVISIBLE
-.y_ok:
-    pop af
-
-    ; Save pattern (D) and color (E) before calculating address
-    push de
-
-    ; Calculate base address for sprite: index * 4
-    ld l, a
-    ld h, 0
-    add hl, hl      ; index * 2
-    add hl, hl      ; index * 4
-    ; Add base of the attribute table
-    ld de, sprite_attributes
-    add hl, de      ; HL = &sprite_attributes[index * 4]
-
-    ; Restore pattern and color
-    pop de
-
-    ; Write attributes
-    ld (hl), c      ; Y
-    inc hl
-    ld (hl), b      ; X
-    inc hl
-    ld (hl), d      ; Pattern
-    inc hl
-    ld (hl), e      ; Color
-
-    ld a, 1
-    ld (sprites_dirty), a
-    ret
-; @mideas:endblock id=runtime.sprites.show_sprite_legacy
-
-; Clear all sprites (set Y = SPRITE_INVISIBLE)
-; OPTIMIZED: Uses faster increment method instead of ADD HL,DE
-clear_all_sprites:
-    ld hl, sprite_attributes
-    ld b, 32
-    ld a, SPRITE_INVISIBLE
-.sprite_clear_loop:
-    ld (hl), a      ; Set Y = SPRITE_INVISIBLE
-    inc hl          ; Skip to X
-    inc hl          ; Skip to Pattern
-    inc hl          ; Skip to Color
-    inc hl          ; Next sprite (4× INC HL = 24 cycles vs ADD HL,DE = 35 cycles)
-    djnz .sprite_clear_loop
-    ld a, 1
-    ld (sprites_dirty), a
-    ret
-
-; Hide specific sprite (A = hardware sprite index)
-hide_sprite:
-    cp 32
-    ret nc
-    ld l, a
-    ld h, 0
-    add hl, hl
-    add hl, hl
-    ld de, sprite_attributes
-    add hl, de
-    ld (hl), SPRITE_INVISIBLE
-    ld a, 1
-    ld (sprites_dirty), a
-    ret
-
-; Copy sprite attributes from RAM to VRAM
-update_sprites_to_vram:
-    ld a, (sprites_dirty)
-    or a
-    ret z
-    xor a
-    ld (sprites_dirty), a
-    ld hl, sprite_attributes
-    ld de, SPRATR
-    ld bc, 24  ; Upload active sprite range + SAT end marker
-    call FAST_LDIRVM
-    ret
-
-; ==================================================================
-; SPRITE CONSTANTS
-; ==================================================================
-SPRITE_INVISIBLE    EQU 224
-
-; ==================================================================
-; RAM REQUIREMENTS
-; ==================================================================
-; sprite_attributes: ds 128
-; active_sprite_count: db 0
-; sprites_dirty: db 0
-; sprite_layer_y_offsets: ds 32
-
-
 ; --- End of Far Bank 13 — pad to 8KB boundary ---
 BANK_13_USED_END:
     ds #8000 - $, #FF
@@ -48550,6 +48802,7 @@ presentation_wait_frames:
     or a
     jr z, .pwf_done
 .pwf_loop:
+    ei
     halt
     djnz .pwf_loop
 .pwf_done:
@@ -48573,11 +48826,13 @@ presentation_wait_frames:
 ;     - IY
 presentation_wait_for_fire:
 .pwff_wait_press:
+    ei
     halt
     call presentation_read_fire_direct
     or a
     jr z, .pwff_wait_press
 .pwff_wait_release:
+    ei
     halt
     call presentation_read_fire_direct
     or a

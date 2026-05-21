@@ -87,11 +87,11 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   };
 
   return (
-    <Panel title={`Palette Editor: ${paletteAsset.name}`} className="flex flex-col p-4 gap-4 h-full overflow-auto">
+    <Panel title={`MSX2 Palette Editor: ${paletteAsset.name}`} className="flex flex-col p-4 gap-4 h-full overflow-auto">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,420px)_1fr] gap-4 min-h-0">
         <div className="flex flex-col gap-3 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-msx-highlight">Slots ({mode})</h3>
+            <h3 className="text-sm font-semibold text-msx-highlight">MSX2 Slots ({mode})</h3>
             <Button size="sm" variant="secondary" onClick={resetToDefault}>Reset default</Button>
           </div>
 
@@ -191,7 +191,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
         </div>
 
         <div className="flex flex-col gap-2 min-w-0">
-          <h3 className="text-sm font-semibold text-msx-highlight">V9938 Master Palette</h3>
+          <h3 className="text-sm font-semibold text-msx-highlight">MSX2 V9938 Master Palette</h3>
           <div className="max-h-[28rem] overflow-y-auto border border-msx-border rounded">
             <div
               className="grid gap-1 p-1"

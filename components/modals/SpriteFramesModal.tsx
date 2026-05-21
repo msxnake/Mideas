@@ -172,11 +172,11 @@ export const SpriteFramesModal: React.FC<SpriteFramesModalProps> = ({
                     )}
                 </div>
                 <div className="mt-6 pt-4 flex justify-between items-center">
-                    <p className="text-xs text-msx-textsecondary font-sans">'Split' will create a new sprite asset for each frame.</p>
+                    <p className="text-xs text-msx-textsecondary font-sans">'Split' will create a new MSX1 sprite asset for each frame.</p>
                     <div className="flex space-x-2">
                         <Button onClick={onClose} variant="ghost" size="md">Close</Button>
                         <Button onClick={handleSplitClick} variant="primary" size="md" disabled={sprite.frames.length === 0}>
-                            Split Frames into Sprites
+                            MSX1 Split Frames into Sprites
                         </Button>
                     </div>
                 </div>

@@ -7,6 +7,7 @@ import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Msx2Sprite, 
 import { StateMachine } from '../statemachine.types';
 import { getUsedGlobalVariables } from './globalVariablesUtils';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
+import { isComponentDefinitionEnabledForProject, isEntityTemplateEnabledForProject } from './projectTarget';
 
 /**
  * Hot spot marker interface
@@ -131,6 +132,11 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   const presentationScreenAsset = assets.find(a => a.type === 'presentationscreen');
   const presentationScreen = presentationScreenAsset?.data as PresentationScreenConfig | undefined;
   const bosses = assets.filter(a => a.type === 'boss').map(a => a.data as Boss);
+  const inferredScreenMode = msx2Screens.length > 0 || msx2Sprites.length > 0 || msx2Bitmaps.length > 0
+    ? 'SCREEN 5 (Graphics III)'
+    : 'SCREEN 2 (Graphics I)';
+  components = components.filter(component => isComponentDefinitionEnabledForProject(component, inferredScreenMode));
+  templates = templates.filter(template => isEntityTemplateEnabledForProject(template, inferredScreenMode));
 
   // CRITICAL: Extract entities from screenmaps
   // Deduplicate entities across possible storage formats
@@ -184,6 +190,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   );
   const templateIdsPresent = new Set(templates.map(template => template.id));
   const missingDefaultTemplates = DEFAULT_ENTITY_TEMPLATES.filter(template =>
+    isEntityTemplateEnabledForProject(template, inferredScreenMode) &&
     templateIdsInUse.has(template.id) && !templateIdsPresent.has(template.id)
   );
   if (missingDefaultTemplates.length > 0) {
@@ -203,6 +210,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
 
   const componentIdsPresent = new Set(components.map(component => component.id));
   const missingDefaultComponents = DEFAULT_COMPONENT_DEFINITIONS.filter(component =>
+    isComponentDefinitionEnabledForProject(component, inferredScreenMode) &&
     componentIdsInUse.has(component.id) && !componentIdsPresent.has(component.id)
   );
   if (missingDefaultComponents.length > 0) {

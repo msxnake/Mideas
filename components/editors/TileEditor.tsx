@@ -358,7 +358,7 @@ const LineAttributeEditorPanel: React.FC<LineAttributeEditorPanelProps> = ({
   };
 
   return (
-    <Panel title="SCREEN 2 Line Color Attributes" className="flex-grow flex flex-col overflow-y-auto">
+    <Panel title="MSX1 SCREEN 2 Line Color Attributes" className="flex-grow flex flex-col overflow-y-auto">
       <p className="text-xs text-msx-textsecondary mb-2 p-1">
         Define 2 colors (Foreground/Background) for each 8-pixel segment of each row.
         Selected palette color <span className="inline-block w-3 h-3 border border-msx-border align-middle" style={{ backgroundColor: selectedPaletteColor }}></span> will be used.
@@ -477,7 +477,7 @@ const TechnicalPreviewPanel: React.FC<TechnicalPreviewPanelProps> = ({ tile, dat
 
 
   return (
-    <Panel title="Technical Preview (SCREEN 2)" className="mt-2">
+    <Panel title="MSX1 Technical Preview (SCREEN 2)" className="mt-2">
       <div className="text-xs space-y-1">
         <div><strong className="text-msx-highlight">Data Format:</strong> {dataFormat.toUpperCase()}</div>
         <div><strong className="text-msx-highlight">Color Attribute Bytes (FG|BG, Per 8x8 Block):</strong> ({totalAttributeBytes} bytes total)</div>
@@ -2836,7 +2836,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
   };
 
   return (
-    <Panel title={`Tile Editor: ${tile.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? "(SCREEN 2 Mode)" : ""}`} className="flex-grow flex flex-col p-2 bg-msx-bgcolor select-none">
+    <Panel title={`Tile Editor: ${tile.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? "(MSX1 SCREEN 2 Mode)" : ""}`} className="flex-grow flex flex-col p-2 bg-msx-bgcolor select-none">
       <TileEditorAdvancedLayout
         columnaIzquierda={
           <div className="flex flex-col gap-1 overflow-y-auto" style={{ maxHeight: '100%' }}>
@@ -2897,7 +2897,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
               </div>
             </CollapsiblePanel>
             {!isScreen2 && (
-              <CollapsiblePanel title="SCREEN 5 Palette (16 colores)" isOpen={!!leftPanelOpen.screen5} onToggle={() => toggleLeftPanel('screen5')}>
+              <CollapsiblePanel title="MSX2 SCREEN 5 Palette (16 colores)" isOpen={!!leftPanelOpen.screen5} onToggle={() => toggleLeftPanel('screen5')}>
                 <p className="text-xs text-msx-textsecondary mb-2">
                   Selecciona un slot (0 reservado como transparente). Los colores se cargan desde las paletas guardadas.
                 </p>
@@ -3339,7 +3339,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
               </div>
             </CollapsiblePanel>
             {currentScreenMode === "SCREEN 2 (Graphics I)" && tile.lineAttributes && (
-              <CollapsiblePanel title="Technical Preview [SCREEN 2]" isOpen={!!leftPanelOpen.technical} onToggle={() => toggleLeftPanel('technical')}>
+              <CollapsiblePanel title="MSX1 Technical Preview [SCREEN 2]" isOpen={!!leftPanelOpen.technical} onToggle={() => toggleLeftPanel('technical')}>
                 <TechnicalPreviewPanel tile={tile} dataFormat={dataOutputFormat} />
               </CollapsiblePanel>
             )}

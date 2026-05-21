@@ -1,0 +1,4 @@
+t0 player=112,112 lives=3 gameover=0 e0=106,80,m2 e1=154,48,m2 e2=70,144,m2 e3=202,144,m2
+t1 player=112,112 lives=3 gameover=0 e0=97,112,m2 e1=113,48,m2 e2=113,144,m2 e3=191,112,m2
+t2 player=112,112 lives=2 gameover=0 e0=117,112,m2 e1=123,48,m2 e2=123,144,m2 e3=149,112,m2
+t3 player=112,112 lives=2 gameover=0 e0=118,112,m2 e1=122,48,m2 e2=122,144,m2 e3=118,112,m2

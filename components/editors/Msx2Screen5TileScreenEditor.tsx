@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { MSXColorValue, Msx2Screen5EntityInstance, Msx2Screen5Layers, Msx2Screen5Runtime, Msx2Screen5Tile, Msx2Screen5TileScreen } from '../../types';
 import { ensureScreen5PaletteSlots } from '../../utils/screen5PaletteUtils';
 import {
-  DEFAULT_MSX2_ENTITY_CREATE_PRESETS,
   MAP_HEIGHT,
   MAP_WIDTH,
+  MSX2_ENTITY_REPERTOIRE,
+  MSX2_ENTITY_KIND_OPTIONS,
   Msx2Screen5CellAction,
   Msx2EntityCreatePreset,
   Msx2Screen5EditMode,
@@ -74,17 +75,20 @@ const normalizeByteLayer = (layer: number[][] | undefined, fallback?: number[][]
     Array.from({ length: MAP_WIDTH }, (_, x) => Math.max(0, Math.min(255, Number(layer?.[y]?.[x] ?? fallback?.[y]?.[x] ?? 0) || 0)))
   );
 
+const normalizeEntityKind = (kind: Msx2Screen5EntityInstance['kind'] | undefined): Msx2Screen5EntityInstance['kind'] =>
+  MSX2_ENTITY_KIND_OPTIONS.some(option => option.value === kind) ? kind as Msx2Screen5EntityInstance['kind'] : 'enemy';
+
 const normalizeEntities = (entities?: Msx2Screen5EntityInstance[]): Msx2Screen5EntityInstance[] =>
   (entities || []).map((entity, index) => ({
     id: entity.id || `msx2_entity_${index}`,
     name: entity.name || `Entity ${index + 1}`,
-    kind: entity.kind || 'custom',
+    kind: normalizeEntityKind(entity.kind),
     position: {
       x: Math.max(0, Math.min(MAP_WIDTH - 1, Number(entity.position?.x) || 0)),
       y: Math.max(0, Math.min(MAP_HEIGHT - 1, Number(entity.position?.y) || 0)),
     },
     spriteAssetId: entity.spriteAssetId,
-    params: entity.params || {},
+    params: { ...(entity.params || {}), runtime: 'MSX2' },
   }));
 
 const normalizeOptionalByte = (value: unknown, min = 0): number | undefined => {
@@ -131,7 +135,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
   const [selectedEffectCode, setSelectedEffectCode] = useState(1);
   const [selectedBehaviorCode, setSelectedBehaviorCode] = useState(1);
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
-  const [selectedEntityPresetId, setSelectedEntityPresetId] = useState(DEFAULT_MSX2_ENTITY_CREATE_PRESETS[0].id);
+  const [selectedEntityPresetId, setSelectedEntityPresetId] = useState(MSX2_ENTITY_REPERTOIRE[0].id);
   const [showGrid, setShowGrid] = useState(true);
   const [showRuntimeOverlays, setShowRuntimeOverlays] = useState(false);
   const [copiedLayer, setCopiedLayer] = useState<CopiedMsx2Layer | null>(null);
@@ -152,8 +156,8 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
     [layers.entities, selectedEntityId]
   );
   const selectedEntityPreset = useMemo<Msx2EntityCreatePreset>(
-    () => DEFAULT_MSX2_ENTITY_CREATE_PRESETS.find(preset => preset.id === selectedEntityPresetId)
-      || DEFAULT_MSX2_ENTITY_CREATE_PRESETS[0],
+    () => MSX2_ENTITY_REPERTOIRE.find(preset => preset.id === selectedEntityPresetId)
+      || MSX2_ENTITY_REPERTOIRE[0],
     [selectedEntityPresetId]
   );
   const selectedColorSlot = useMemo(() => {
@@ -513,7 +517,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
           />
           <Msx2Screen5EntityPalettePanel
             mode={mode}
-            presets={DEFAULT_MSX2_ENTITY_CREATE_PRESETS}
+            presets={MSX2_ENTITY_REPERTOIRE}
             selectedPresetId={selectedEntityPresetId}
             onSelectPresetId={setSelectedEntityPresetId}
           />

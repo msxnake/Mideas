@@ -546,7 +546,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
           </div>
         </Panel>
 
-        <Panel title="Transform Frame">
+        <Panel title="MSX2 Transform Frame">
           <div className="grid grid-cols-3 gap-1 p-2">
             <span />
             <Tooltip text="Shift up"><Button onClick={() => transformFrame('shiftUp')} variant="ghost" size="sm" icon={<ArrowUpIcon />}>{null}</Button></Tooltip>
@@ -554,10 +554,10 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             <Tooltip text="Shift left"><Button onClick={() => transformFrame('shiftLeft')} variant="ghost" size="sm" icon={<ArrowLeftIcon />}>{null}</Button></Tooltip>
             <Tooltip text="Rotate"><Button onClick={() => transformFrame('rotate')} variant="ghost" size="sm" icon={<RotateCcwIcon />}>{null}</Button></Tooltip>
             <Tooltip text="Shift right"><Button onClick={() => transformFrame('shiftRight')} variant="ghost" size="sm" icon={<ArrowRightIcon />}>{null}</Button></Tooltip>
-            <Button onClick={() => transformFrame('flipHorizontal')} variant="ghost" size="sm">Flip H</Button>
+            <Button onClick={() => transformFrame('flipHorizontal')} variant="ghost" size="sm">MSX2 Flip H</Button>
             <Tooltip text="Shift down"><Button onClick={() => transformFrame('shiftDown')} variant="ghost" size="sm" icon={<ArrowDownIcon />}>{null}</Button></Tooltip>
-            <Button onClick={() => transformFrame('flipVertical')} variant="ghost" size="sm">Flip V</Button>
-            <Button onClick={clearFrame} variant="danger" size="sm" className="col-span-3" disabled={isFrameEmpty}>Clear</Button>
+            <Button onClick={() => transformFrame('flipVertical')} variant="ghost" size="sm">MSX2 Flip V</Button>
+            <Button onClick={clearFrame} variant="danger" size="sm" className="col-span-3" disabled={isFrameEmpty}>MSX2 Clear</Button>
           </div>
         </Panel>
       </div>
@@ -570,11 +570,11 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
               onChange={event => onUpdate({ name: event.target.value })}
               className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm"
             />
-            <span className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm">16 x 16 hardware</span>
+            <span className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm">MSX2 16 x 16 hardware</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="secondary" icon={<SaveIcon />} onClick={exportPng}>Export PNG</Button>
-            <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} onClick={() => importFileRef.current?.click()}>Import PNG</Button>
+            <Button size="sm" variant="secondary" icon={<SaveIcon />} onClick={exportPng}>MSX2 Export PNG</Button>
+            <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} onClick={() => importFileRef.current?.click()}>MSX2 Import PNG</Button>
             <input type="file" accept="image/png" ref={importFileRef} onChange={importPng} className="hidden" />
             <Button size="sm" variant="secondary" onClick={() => setZoom(Math.max(8, zoom - 2))}>-</Button>
             <span className="w-10 text-center text-xs">{zoom}px</span>
@@ -682,7 +682,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
           </div>
         </Panel>
 
-        <Panel title="Hardware" collapsible>
+        <Panel title="MSX2 Hardware" collapsible>
           <div className="grid grid-cols-2 gap-2 p-3 text-xs">
             <label>X<input type="number" value={sprite.hardware.x} min={0} max={255} onChange={e => setHardware('x', Number(e.target.value))} className="mt-1 w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1" /></label>
             <label>Y<input type="number" value={sprite.hardware.y} min={0} max={211} onChange={e => setHardware('y', Number(e.target.value))} className="mt-1 w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1" /></label>
@@ -705,7 +705,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
           </div>
         </Panel>
 
-        <Panel title="Pattern Bytes" collapsible>
+        <Panel title="MSX2 Pattern Bytes" collapsible>
           <pre className="m-0 max-h-28 overflow-auto p-3 text-xs text-msx-textsecondary whitespace-pre-wrap">{asmBytes}</pre>
         </Panel>
       </div>

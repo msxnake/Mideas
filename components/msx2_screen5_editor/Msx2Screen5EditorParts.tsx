@@ -38,19 +38,39 @@ export interface Msx2EntityCreatePreset {
   id: string;
   label: string;
   kind: Msx2EntityKind;
+  runtime: 'MSX2';
+  engine: 'player' | 'staticEnemy' | 'ghostMaze' | 'patrolX' | 'patrolY' | 'hazard' | 'collectible' | 'door';
+  description: string;
   params?: Record<string, any>;
 }
 
-export const DEFAULT_MSX2_ENTITY_CREATE_PRESETS: Msx2EntityCreatePreset[] = [
-  { id: 'player', label: 'Player', kind: 'player' },
-  { id: 'enemy_static', label: 'Enemy', kind: 'enemy' },
-  { id: 'ghost_maze', label: 'Ghost Maze', kind: 'enemy', params: { movement: 'ghostMaze', initialDirection: 'right', speed: 4 } },
-  { id: 'patrol_x', label: 'Patrol X', kind: 'enemy', params: { movement: 'patrolX', direction: 1 } },
-  { id: 'patrol_y', label: 'Patrol Y', kind: 'enemy', params: { movement: 'patrolY', direction: 1 } },
-  { id: 'hazard', label: 'Hazard', kind: 'hazard' },
-  { id: 'collectible', label: 'Collectible', kind: 'collectible' },
-  { id: 'door', label: 'Door', kind: 'door' },
+export const MSX2_ENTITY_KIND_OPTIONS: Array<{ value: Exclude<Msx2EntityKind, 'custom'>; label: string }> = [
+  { value: 'player', label: 'Player' },
+  { value: 'enemy', label: 'Enemy' },
+  { value: 'hazard', label: 'Hazard' },
+  { value: 'collectible', label: 'Collectible' },
+  { value: 'door', label: 'Door' },
 ];
+
+export const MSX2_ENTITY_MOVEMENT_OPTIONS = [
+  { value: 'static', label: 'Static' },
+  { value: 'patrolX', label: 'Patrol X' },
+  { value: 'patrolY', label: 'Patrol Y' },
+  { value: 'ghostMaze', label: 'Ghost Maze' },
+] as const;
+
+export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
+  { id: 'player', label: 'MSX2 Player', kind: 'player', runtime: 'MSX2', engine: 'player', description: 'Hardware sprite player controlled by the MSX2 Screen 5 runtime.', params: { runtime: 'MSX2', engine: 'player' } },
+  { id: 'enemy_static', label: 'MSX2 Enemy', kind: 'enemy', runtime: 'MSX2', engine: 'staticEnemy', description: 'Static enemy or blocker handled by the MSX2 entity table.', params: { runtime: 'MSX2', engine: 'staticEnemy' } },
+  { id: 'ghost_maze', label: 'MSX2 Ghost Maze', kind: 'enemy', runtime: 'MSX2', engine: 'ghostMaze', description: 'Maze ghost movement component for Pac-Man style screens.', params: { runtime: 'MSX2', engine: 'ghostMaze', movement: 'ghostMaze', initialDirection: 'right', speed: 4 } },
+  { id: 'patrol_x', label: 'MSX2 Patrol X', kind: 'enemy', runtime: 'MSX2', engine: 'patrolX', description: 'Horizontal patrol movement component owned by the MSX2 runtime.', params: { runtime: 'MSX2', engine: 'patrolX', movement: 'patrolX', direction: 1 } },
+  { id: 'patrol_y', label: 'MSX2 Patrol Y', kind: 'enemy', runtime: 'MSX2', engine: 'patrolY', description: 'Vertical patrol movement component owned by the MSX2 runtime.', params: { runtime: 'MSX2', engine: 'patrolY', movement: 'patrolY', direction: 1 } },
+  { id: 'hazard', label: 'MSX2 Hazard', kind: 'hazard', runtime: 'MSX2', engine: 'hazard', description: 'MSX2 hazard entity used by the Screen 5 collision/effects runtime.', params: { runtime: 'MSX2', engine: 'hazard' } },
+  { id: 'collectible', label: 'MSX2 Collectible', kind: 'collectible', runtime: 'MSX2', engine: 'collectible', description: 'Collectible entity counted by the MSX2 Screen 5 runtime.', params: { runtime: 'MSX2', engine: 'collectible' } },
+  { id: 'door', label: 'MSX2 Door', kind: 'door', runtime: 'MSX2', engine: 'door', description: 'Door/exit entity for MSX2 screen progression.', params: { runtime: 'MSX2', engine: 'door' } },
+];
+
+export const DEFAULT_MSX2_ENTITY_CREATE_PRESETS = MSX2_ENTITY_REPERTOIRE;
 
 interface Msx2Screen5ToolbarProps {
   screenName: string;
@@ -257,7 +277,7 @@ export const Msx2Screen5SelectionPanel: React.FC<Msx2Screen5SelectionPanelProps>
   onCopySelection,
   onPasteSelection,
 }) => (
-  <Panel title="Selection Tools">
+  <Panel title="MSX2 Selection Tools">
     <div className="p-2 space-y-2 text-xs">
       <Button
         size="sm"
@@ -265,19 +285,19 @@ export const Msx2Screen5SelectionPanel: React.FC<Msx2Screen5SelectionPanelProps>
         onClick={() => onSelectionModeChange(!selectionMode)}
         className="w-full"
       >
-        Select Area
+        MSX2 Select Area
       </Button>
       <div className="text-msx-textsecondary">
-        Selection: {selectionRect ? `${selectionRect.width}x${selectionRect.height} @ ${selectionRect.x},${selectionRect.y}` : 'None'}
+        MSX2 Selection: {selectionRect ? `${selectionRect.width}x${selectionRect.height} @ ${selectionRect.x},${selectionRect.y}` : 'None'}
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <Button size="sm" variant="secondary" onClick={onFillSelection} disabled={!canEditSelection}>Fill</Button>
-        <Button size="sm" variant="danger" onClick={onClearSelection} disabled={!canEditSelection}>Clear</Button>
-        <Button size="sm" variant="secondary" onClick={onCopySelection} disabled={!canCopySelection}>Copy Sel.</Button>
-        <Button size="sm" variant="secondary" onClick={onPasteSelection} disabled={!canPasteSelection}>Paste Sel.</Button>
+        <Button size="sm" variant="secondary" onClick={onFillSelection} disabled={!canEditSelection}>MSX2 Fill</Button>
+        <Button size="sm" variant="danger" onClick={onClearSelection} disabled={!canEditSelection}>MSX2 Clear</Button>
+        <Button size="sm" variant="secondary" onClick={onCopySelection} disabled={!canCopySelection}>MSX2 Copy Sel.</Button>
+        <Button size="sm" variant="secondary" onClick={onPasteSelection} disabled={!canPasteSelection}>MSX2 Paste Sel.</Button>
       </div>
       <Button size="sm" variant="ghost" onClick={onClearSelectionRect} disabled={!selectionRect} className="w-full">
-        Unselect Area
+        MSX2 Unselect Area
       </Button>
     </div>
   </Panel>
@@ -319,23 +339,22 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
                 className={numberInputClass}
                 aria-label="Entity kind"
               >
-                <option value="player">Player</option>
-                <option value="enemy">Enemy</option>
-                <option value="hazard">Hazard</option>
-                <option value="collectible">Collectible</option>
-                <option value="door">Door</option>
-                <option value="custom">Custom</option>
+                {MSX2_ENTITY_KIND_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
               <select
                 value={selectedEntity.params?.movement || 'static'}
                 onChange={event => {
                   const movement = event.target.value;
                   if (movement === 'static') {
-                    onUpdateSelectedEntity({ params: {} });
+                    onUpdateSelectedEntity({ params: { runtime: 'MSX2', engine: 'static' } });
                     return;
                   }
                   if (movement === 'ghostMaze') {
                     onUpdateSelectedEntityParams({
+                      runtime: 'MSX2',
+                      engine: 'ghostMaze',
                       movement,
                       initialDirection: selectedEntity.params?.initialDirection || 'right',
                       speed: Math.max(1, Math.min(15, Number(selectedEntity.params?.speed) || 2)),
@@ -343,6 +362,8 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
                     return;
                   }
                   onUpdateSelectedEntityParams({
+                    runtime: 'MSX2',
+                    engine: movement,
                     movement,
                     direction: Number(selectedEntity.params?.direction) || 1,
                     minX: selectedEntity.params?.minX ?? selectedEntity.position.x,
@@ -354,10 +375,9 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
                 className={numberInputClass}
                 aria-label="Entity movement"
               >
-                <option value="static">Static</option>
-                <option value="patrolX">Patrol X</option>
-                <option value="patrolY">Patrol Y</option>
-                <option value="ghostMaze">Ghost Maze</option>
+                {MSX2_ENTITY_MOVEMENT_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -482,7 +502,7 @@ export const Msx2Screen5EntityPalettePanel: React.FC<Msx2Screen5EntityPalettePan
   if (mode !== 'entities') return null;
 
   return (
-    <Panel title="Create Entity">
+    <Panel title="Create MSX2 Entity">
       <div className="p-2 grid grid-cols-2 gap-2 text-xs">
         {presets.map(preset => (
           <Button
@@ -490,7 +510,7 @@ export const Msx2Screen5EntityPalettePanel: React.FC<Msx2Screen5EntityPalettePan
             size="sm"
             variant={preset.id === selectedPresetId ? 'primary' : 'secondary'}
             onClick={() => onSelectPresetId(preset.id)}
-            title={`${preset.label} (${preset.kind})`}
+            title={preset.description}
           >
             {preset.label}
           </Button>
@@ -558,7 +578,7 @@ export const Msx2Screen5TilesPanel: React.FC<Msx2Screen5TilesPanelProps> = ({
   onDuplicateTile,
   onClearTile,
 }) => (
-  <Panel title="Tiles">
+  <Panel title="MSX2 Tiles">
     <div className="p-2 space-y-2">
       <div className="grid grid-cols-2 gap-1">
         <Button size="sm" variant="secondary" onClick={onAddTile}>Add</Button>
@@ -936,10 +956,10 @@ export const Msx2Screen5TileEditorPanel: React.FC<Msx2Screen5TileEditorPanelProp
   };
 
   return (
-    <Panel title={`Edit Tile ${selectedTileIndex}`}>
+    <Panel title={`MSX2 Edit Tile ${selectedTileIndex}`}>
       <div className="p-2 space-y-2">
         <div className="flex items-center justify-between text-xs text-msx-textsecondary">
-          <span>Color slot {activeSlot}</span>
+          <span>MSX2 Color slot {activeSlot}</span>
           <span
             className="inline-block w-5 h-5 rounded border border-msx-border"
             style={{ backgroundColor: slots[activeSlot]?.hex === TRANSPARENT_HEX ? '#111827' : slots[activeSlot]?.hex }}
@@ -960,10 +980,10 @@ export const Msx2Screen5TileEditorPanel: React.FC<Msx2Screen5TileEditorPanelProp
         </div>
         <div className="grid grid-cols-4 gap-1 text-xs" aria-label="MSX2 tile paint tools">
           {([
-            ['pencil', 'Pencil'],
-            ['erase', 'Erase'],
-            ['fill', 'Bucket'],
-            ['pick', 'Pick'],
+            ['pencil', 'MSX2 Pencil'],
+            ['erase', 'MSX2 Erase'],
+            ['fill', 'MSX2 Bucket'],
+            ['pick', 'MSX2 Pick'],
           ] as const).map(([tool, label]) => (
             <Button
               key={tool}
@@ -979,7 +999,7 @@ export const Msx2Screen5TileEditorPanel: React.FC<Msx2Screen5TileEditorPanelProp
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
           <label className="space-y-1">
-            <span className="text-msx-textsecondary">Tile W</span>
+            <span className="text-msx-textsecondary">MSX2 Tile W</span>
             <select
               value={getTilePixelWidth(selectedTile)}
               onChange={event => onResizeTile(Number(event.target.value), getTilePixelHeight(selectedTile))}
@@ -990,7 +1010,7 @@ export const Msx2Screen5TileEditorPanel: React.FC<Msx2Screen5TileEditorPanelProp
             </select>
           </label>
           <label className="space-y-1">
-            <span className="text-msx-textsecondary">Tile H</span>
+            <span className="text-msx-textsecondary">MSX2 Tile H</span>
             <select
               value={getTilePixelHeight(selectedTile)}
               onChange={event => onResizeTile(getTilePixelWidth(selectedTile), Number(event.target.value))}
@@ -1002,13 +1022,13 @@ export const Msx2Screen5TileEditorPanel: React.FC<Msx2Screen5TileEditorPanelProp
           </label>
         </div>
         <div className="grid grid-cols-3 gap-1 text-xs">
-          <Button size="sm" variant="secondary" onClick={onFillTile} title="Fill selected tile" aria-label="MSX2 fill tile">Fill</Button>
-          <Button size="sm" variant="secondary" onClick={onFlipHorizontal} title="Flip tile horizontally" aria-label="MSX2 flip tile horizontal">Flip H</Button>
-          <Button size="sm" variant="secondary" onClick={onFlipVertical} title="Flip tile vertically" aria-label="MSX2 flip tile vertical">Flip V</Button>
-          <Button size="sm" variant="secondary" onClick={() => onShiftTile(-1, 0)} title="Shift tile left" aria-label="MSX2 shift tile left">Left</Button>
-          <Button size="sm" variant="secondary" onClick={() => onShiftTile(0, -1)} title="Shift tile up" aria-label="MSX2 shift tile up">Up</Button>
-          <Button size="sm" variant="secondary" onClick={() => onShiftTile(1, 0)} title="Shift tile right" aria-label="MSX2 shift tile right">Right</Button>
-          <Button size="sm" variant="secondary" onClick={() => onShiftTile(0, 1)} title="Shift tile down" aria-label="MSX2 shift tile down">Down</Button>
+          <Button size="sm" variant="secondary" onClick={onFillTile} title="MSX2 fill selected tile" aria-label="MSX2 fill tile">MSX2 Fill</Button>
+          <Button size="sm" variant="secondary" onClick={onFlipHorizontal} title="MSX2 flip tile horizontally" aria-label="MSX2 flip tile horizontal">MSX2 Flip H</Button>
+          <Button size="sm" variant="secondary" onClick={onFlipVertical} title="MSX2 flip tile vertically" aria-label="MSX2 flip tile vertical">MSX2 Flip V</Button>
+          <Button size="sm" variant="secondary" onClick={() => onShiftTile(-1, 0)} title="MSX2 shift tile left" aria-label="MSX2 shift tile left">MSX2 Left</Button>
+          <Button size="sm" variant="secondary" onClick={() => onShiftTile(0, -1)} title="MSX2 shift tile up" aria-label="MSX2 shift tile up">MSX2 Up</Button>
+          <Button size="sm" variant="secondary" onClick={() => onShiftTile(1, 0)} title="MSX2 shift tile right" aria-label="MSX2 shift tile right">MSX2 Right</Button>
+          <Button size="sm" variant="secondary" onClick={() => onShiftTile(0, 1)} title="MSX2 shift tile down" aria-label="MSX2 shift tile down">MSX2 Down</Button>
         </div>
         <canvas
           ref={tileCanvasRef}
@@ -1027,7 +1047,7 @@ interface Msx2Screen5ExportModelPanelProps {
 }
 
 export const Msx2Screen5ExportModelPanel: React.FC<Msx2Screen5ExportModelPanelProps> = ({ layers }) => (
-  <Panel title="Export Model">
+  <Panel title="MSX2 Export Model">
     <div className="p-2 text-xs text-msx-textsecondary space-y-1">
       <div>Tile raw size: variable, multiples of 8 px</div>
       <div>Map size: 224 bytes</div>

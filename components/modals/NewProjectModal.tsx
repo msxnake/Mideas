@@ -26,12 +26,12 @@ interface NewProjectModalProps {
 const SCREEN_MODE_OPTIONS = [
   {
     value: 'SCREEN 2 (Graphics I)',
-    title: 'SCREEN 2 (Graphics I) – MSX-1',
+    title: 'MSX1 SCREEN 2 (Graphics I)',
     description: 'Modo tileado (256×192, 4 colores) ideal para compatibilidad MSX-1 y VRAM mínima.',
   },
   {
     value: 'SCREEN 5 (Graphics III)',
-    title: 'SCREEN 5 (Graphics III) – MSX-2',
+    title: 'MSX2 SCREEN 5 (Graphics III)',
     description: 'Modo bitmap (256×212, 16 colores/px) con scroll fino y doble buffer en MSX-2.',
   },
 ];

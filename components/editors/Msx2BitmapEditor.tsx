@@ -201,16 +201,16 @@ export const Msx2BitmapEditor: React.FC<Msx2BitmapEditorProps> = ({ bitmap, onUp
   return (
     <div className="h-full min-h-0 grid grid-cols-[220px_1fr_280px] gap-2 p-2 bg-msx-bgcolor overflow-hidden">
       <div className="min-h-0 overflow-y-auto border-r border-msx-border pr-2 space-y-2">
-        <Panel title="Bitmap Tools">
+        <Panel title="MSX2 Bitmap Tools">
           <div className="p-2 space-y-1">
-            <Button size="sm" variant={tool === 'pencil' ? 'primary' : 'ghost'} icon={<PaintBrushIcon />} className="w-full" justify="start" onClick={() => setTool('pencil')}>Pencil</Button>
-            <Button size="sm" variant={tool === 'erase' ? 'primary' : 'ghost'} icon={<EraserIcon />} className="w-full" justify="start" onClick={() => setTool('erase')}>Erase</Button>
-            <Button size="sm" variant={tool === 'fill' ? 'primary' : 'ghost'} className="w-full" justify="start" onClick={() => setTool('fill')}>Fill</Button>
-            <Button size="sm" variant={tool === 'picker' ? 'primary' : 'ghost'} icon={<ViewfinderCircleIcon />} className="w-full" justify="start" onClick={() => setTool('picker')}>Picker</Button>
+            <Button size="sm" variant={tool === 'pencil' ? 'primary' : 'ghost'} icon={<PaintBrushIcon />} className="w-full" justify="start" onClick={() => setTool('pencil')}>MSX2 Pencil</Button>
+            <Button size="sm" variant={tool === 'erase' ? 'primary' : 'ghost'} icon={<EraserIcon />} className="w-full" justify="start" onClick={() => setTool('erase')}>MSX2 Erase</Button>
+            <Button size="sm" variant={tool === 'fill' ? 'primary' : 'ghost'} className="w-full" justify="start" onClick={() => setTool('fill')}>MSX2 Fill</Button>
+            <Button size="sm" variant={tool === 'picker' ? 'primary' : 'ghost'} icon={<ViewfinderCircleIcon />} className="w-full" justify="start" onClick={() => setTool('picker')}>MSX2 Picker</Button>
           </div>
         </Panel>
 
-        <Panel title="SCREEN 5 Palette">
+        <Panel title="MSX2 SCREEN 5 Palette">
           <div className="grid grid-cols-4 gap-2 p-2">
             {slots.map(slot => (
               <button
@@ -236,11 +236,11 @@ export const Msx2BitmapEditor: React.FC<Msx2BitmapEditorProps> = ({ bitmap, onUp
               onChange={event => onUpdate({ name: event.target.value })}
               className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm"
             />
-            <span className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm">256 x 212 SCREEN 5</span>
+            <span className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm">256 x 212 MSX2 SCREEN 5</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="secondary" icon={<SaveIcon />} onClick={exportPng}>Export PNG</Button>
-            <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} onClick={() => fileInputRef.current?.click()}>Import PNG</Button>
+            <Button size="sm" variant="secondary" icon={<SaveIcon />} onClick={exportPng}>MSX2 Export PNG</Button>
+            <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} onClick={() => fileInputRef.current?.click()}>MSX2 Import PNG</Button>
             <input type="file" accept="image/png" ref={fileInputRef} onChange={importPng} className="hidden" />
             <Button size="sm" variant="secondary" onClick={() => setZoom(Math.max(1, zoom - 1))}>-</Button>
             <span className="w-10 text-center text-xs">{zoom}x</span>
@@ -263,9 +263,9 @@ export const Msx2BitmapEditor: React.FC<Msx2BitmapEditorProps> = ({ bitmap, onUp
       </div>
 
       <div className="min-h-0 overflow-y-auto border-l border-msx-border pl-2 space-y-2">
-        <Panel title="Bitmap Data">
+        <Panel title="MSX2 Bitmap Data">
           <div className="p-3 text-xs space-y-2 text-msx-textsecondary">
-            <div>Mode: SCREEN 5</div>
+            <div>Mode: MSX2 SCREEN 5</div>
             <div>VRAM: #0000</div>
             <div>Raw size: 27136 bytes</div>
             <div>Format: 2 pixels per byte</div>

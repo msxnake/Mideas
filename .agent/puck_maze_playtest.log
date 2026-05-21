@@ -1,0 +1,30 @@
+start pc=4149 x=112 y=112 dx=1 screen=0 collected=0 lives=3 gameover=0 complete=0
+SHOTOK puck_play_00_start.png
+right_1_before pc=4146 x=112 y=112 dx=1 screen=0 collected=0 lives=3 gameover=0 complete=0
+right_1_after pc=406D x=139 y=112 dx=1 screen=0 collected=2 lives=3 gameover=0 complete=0
+after_right_1 pc=406A x=139 y=112 dx=1 screen=0 collected=2 lives=3 gameover=0 complete=0
+SHOTOK puck_play_01_right.png
+down_1_before pc=406C x=139 y=112 dx=1 screen=0 collected=2 lives=3 gameover=0 complete=0
+down_1_after pc=406C x=139 y=144 dx=1 screen=0 collected=4 lives=3 gameover=0 complete=0
+after_down_1 pc=4E78 x=139 y=144 dx=1 screen=0 collected=4 lives=3 gameover=0 complete=0
+SHOTOK puck_play_02_down.png
+left_1_before pc=406D x=139 y=144 dx=1 screen=0 collected=4 lives=3 gameover=0 complete=0
+left_1_after pc=406B x=80 y=144 dx=0 screen=0 collected=8 lives=3 gameover=0 complete=0
+after_left_1 pc=406B x=80 y=144 dx=0 screen=0 collected=8 lives=3 gameover=0 complete=0
+SHOTOK puck_play_03_left.png
+up_block_probe_before pc=406A x=80 y=144 dx=0 screen=0 collected=8 lives=3 gameover=0 complete=0
+up_block_probe_after pc=4181 x=112 y=112 dx=0 screen=0 collected=8 lives=2 gameover=0 complete=0
+after_up_probe pc=406A x=112 y=112 dx=0 screen=0 collected=8 lives=2 gameover=0 complete=0
+SHOTOK puck_play_04_up_probe.png
+right_2_before pc=406C x=112 y=112 dx=0 screen=0 collected=8 lives=2 gameover=0 complete=0
+right_2_after pc=406B x=176 y=112 dx=1 screen=0 collected=10 lives=2 gameover=0 complete=0
+after_right_2 pc=4EE4 x=176 y=112 dx=1 screen=0 collected=10 lives=2 gameover=0 complete=0
+SHOTOK puck_play_05_right_2.png
+down_2_before pc=406B x=176 y=112 dx=1 screen=0 collected=10 lives=2 gameover=0 complete=0
+down_2_after pc=406B x=176 y=112 dx=1 screen=0 collected=10 lives=2 gameover=0 complete=0
+after_down_2 pc=406A x=176 y=112 dx=1 screen=0 collected=10 lives=2 gameover=0 complete=0
+SHOTOK puck_play_06_down_2.png
+left_2_before pc=406C x=176 y=112 dx=1 screen=0 collected=10 lives=2 gameover=0 complete=0
+left_2_after pc=406D x=131 y=112 dx=0 screen=0 collected=10 lives=2 gameover=0 complete=0
+final pc=406D x=131 y=112 dx=0 screen=0 collected=10 lives=2 gameover=0 complete=0
+SHOTOK puck_play_07_final.png

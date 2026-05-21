@@ -1,0 +1,1 @@
+after time 6.0 { screenshot "C:/Users/salam/Downloads/puck_v3_6.png"; exit }

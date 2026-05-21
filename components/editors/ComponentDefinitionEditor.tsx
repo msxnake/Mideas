@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ComponentDefinition, ComponentPropertyDefinition } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
@@ -7,6 +7,7 @@ import { Tooltip } from '../common/Tooltip';
 import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, LoadIcon, DocumentPlusIcon } from '../icons/MsxIcons';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { DEFAULT_COMPONENT_DEFINITIONS } from '../../data/defaults';
+import { getProjectTargetFromScreenMode, isComponentDefinitionEnabledForProject } from '../../utils/projectTarget';
 
 /**
  * Props for the ComponentDefinitionEditor component.
@@ -16,6 +17,7 @@ interface ComponentDefinitionEditorProps {
   componentDefinitions: ComponentDefinition[];
   /** Callback to update the list of component definitions. */
   onUpdateComponentDefinitions: (updatedDefinitions: ComponentDefinition[]) => void;
+  currentScreenMode: string;
 }
 
 const PROPERTY_TYPES: ComponentPropertyDefinition['type'][] = [
@@ -30,7 +32,12 @@ const PROPERTY_TYPES: ComponentPropertyDefinition['type'][] = [
 export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps> = ({
   componentDefinitions,
   onUpdateComponentDefinitions,
+  currentScreenMode,
 }) => {
+  const projectTarget = getProjectTargetFromScreenMode(currentScreenMode);
+  const activeComponentDefinitions = useMemo(() => componentDefinitions.filter(definition =>
+    isComponentDefinitionEnabledForProject(definition, currentScreenMode)
+  ), [componentDefinitions, currentScreenMode]);
   const [selectedDefinitionId, setSelectedDefinitionId] = useState<string | null>(null);
   const [editingDefinition, setEditingDefinition] = useState<Partial<ComponentDefinition> | null>(null);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
@@ -50,7 +57,7 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
             return; 
         }
 
-        const defFromList = componentDefinitions.find(d => d.id === selectedDefinitionId);
+        const defFromList = activeComponentDefinitions.find(d => d.id === selectedDefinitionId);
         if (defFromList) {
             // If switching to an existing definition, or if an existing definition was updated in the main list.
             setEditingDefinition({ ...defFromList, properties: defFromList.properties.map(p => ({...p})) });
@@ -63,7 +70,7 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
     } else {
         setEditingDefinition(null); // No selection, clear form.
     }
-  }, [selectedDefinitionId, componentDefinitions]); // Note: `editingDefinition` is intentionally not in deps here to avoid loops with its own updates. The logic relies on `selectedDefinitionId` and the `componentDefinitions` prop.
+  }, [selectedDefinitionId, activeComponentDefinitions]); // Note: `editingDefinition` is intentionally not in deps here to avoid loops with its own updates.
 
 
   const handleSelectDefinition = (id: string) => {
@@ -75,6 +82,7 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
     const newDef: Partial<ComponentDefinition> = {
       id: newId,
       name: 'NewComponent',
+      target: projectTarget,
       description: '',
       properties: [],
     };
@@ -132,7 +140,7 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
         return;
     }
 
-    const finalDefinition = { ...editingDefinition } as ComponentDefinition;
+    const finalDefinition = { target: projectTarget, ...editingDefinition } as ComponentDefinition;
     const existingIndex = componentDefinitions.findIndex(d => d.id === finalDefinition.id);
 
     if (existingIndex > -1) {
@@ -220,7 +228,8 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
                      );
             };
 
-            const validDefinitions = importData.data.filter(isValidComponentDef);
+            const validDefinitions = importData.data.filter(isValidComponentDef)
+              .map((definition: ComponentDefinition) => ({ ...definition, target: definition.target || projectTarget }));
             
             if (validDefinitions.length === 0) {
               alert('No valid component definitions found in the file.');
@@ -263,7 +272,9 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
     setEditingDefinition(null);
     
     // Load default components
-    onUpdateComponentDefinitions([...DEFAULT_COMPONENT_DEFINITIONS]);
+    onUpdateComponentDefinitions(DEFAULT_COMPONENT_DEFINITIONS.filter(definition =>
+      isComponentDefinitionEnabledForProject(definition, currentScreenMode)
+    ));
     
     setIsConfirmLoadDefaultsModalOpen(false);
   };
@@ -288,9 +299,9 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
           <Button onClick={handleLoadDefaults} variant="secondary" size="sm" icon={<DocumentPlusIcon />} className="w-full mb-2" title="Load default component definitions">
             Default components
           </Button>
-          {componentDefinitions.length === 0 && <p className="text-xs text-msx-textsecondary italic">No components defined.</p>}
+          {activeComponentDefinitions.length === 0 && <p className="text-xs text-msx-textsecondary italic">No {projectTarget} components defined.</p>}
           <ul className="space-y-1">
-            {componentDefinitions.map(def => (
+            {activeComponentDefinitions.map(def => (
               <li key={def.id}>
                 <button
                   onClick={() => handleSelectDefinition(def.id)}

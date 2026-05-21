@@ -1,0 +1,13 @@
+start_ready x=112 y=112 screen=0 collected=0 lives=3 gameover=0 complete=0
+RIGHT_to_first_corridor_before x=112 y=112 screen=0 collected=0 lives=3 gameover=0 complete=0
+RIGHT_to_first_corridor_after x=165 y=112 screen=0 collected=3 lives=3 gameover=0 complete=0
+DOWN_to_mid_lane_before x=165 y=112 screen=0 collected=3 lives=3 gameover=0 complete=0
+DOWN_to_mid_lane_after x=165 y=112 screen=0 collected=3 lives=3 gameover=0 complete=0
+LEFT_collect_row_before x=165 y=112 screen=0 collected=3 lives=3 gameover=0 complete=0
+LEFT_collect_row_after x=81 y=112 screen=0 collected=5 lives=3 gameover=0 complete=0
+RIGHT_recover_before x=81 y=112 screen=0 collected=5 lives=3 gameover=0 complete=0
+RIGHT_recover_after x=151 y=112 screen=0 collected=5 lives=3 gameover=0 complete=0
+LEFT_again_before x=151 y=112 screen=0 collected=5 lives=3 gameover=0 complete=0
+LEFT_again_after x=107 y=112 screen=0 collected=5 lives=3 gameover=0 complete=0
+end_visible x=107 y=112 screen=0 collected=5 lives=3 gameover=0 complete=0
+FINISHED_BUT_OPENMSX_STAYS_OPEN
