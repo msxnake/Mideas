@@ -1379,7 +1379,7 @@ interface TileEditorProps {
   zoom: number;
   /** Callback to set the zoom level. */
   setZoom: (zoom: number) => void;
-  /** Callback to update the global palette selection (used for Screen 5 custom palettes). */
+  /** Callback to update the global palette selection (used for MSX2 custom palettes). */
   onSelectGlobalColor: (color: MSXColorValue) => void;
 }
 
@@ -2897,7 +2897,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
               </div>
             </CollapsiblePanel>
             {!isScreen2 && (
-              <CollapsiblePanel title="MSX2 SCREEN 5 Palette (16 colores)" isOpen={!!leftPanelOpen.screen5} onToggle={() => toggleLeftPanel('screen5')}>
+              <CollapsiblePanel title="MSX2 SCREEN 4 Palette (16 colores)" isOpen={!!leftPanelOpen.screen5} onToggle={() => toggleLeftPanel('screen5')}>
                 <p className="text-xs text-msx-textsecondary mb-2">
                   Selecciona un slot (0 reservado como transparente). Los colores se cargan desde las paletas guardadas.
                 </p>

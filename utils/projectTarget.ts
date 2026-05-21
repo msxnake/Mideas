@@ -60,4 +60,5 @@ export const isAssetTypeEnabledForProject = (
 };
 
 export const isScreen2Project = (screenMode: string): boolean => getProjectTargetFromScreenMode(screenMode) === 'MSX1';
+export const isScreen4Project = (screenMode: string): boolean => getProjectTargetFromScreenMode(screenMode) === 'MSX2';
 export const isScreen5Project = (screenMode: string): boolean => getProjectTargetFromScreenMode(screenMode) === 'MSX2';

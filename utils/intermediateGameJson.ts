@@ -8,6 +8,7 @@ import {
   LineColorAttribute,
   MSXFont,
   MSXFontColorAttributes,
+  Msx2Screen5TileScreen,
   PixelData,
   ProjectAsset,
   ScreenMap,
@@ -801,6 +802,70 @@ function buildIntermediateScreen({
   };
 }
 
+function encodeNumberLayerToBytes(layer: number[][] | undefined, width: number, height: number): Uint8Array {
+  const bytes = new Uint8Array(width * height);
+  let i = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      bytes[i++] = Math.max(0, Math.min(255, Number(layer?.[y]?.[x] ?? 0) || 0));
+    }
+  }
+  return bytes;
+}
+
+function buildIntermediateMsx2Screen(screen: Msx2Screen5TileScreen): IntermediateScreen {
+  const width = screen.widthTiles || 16;
+  const height = screen.heightTiles || 12;
+  const backgroundBytes = encodeNumberLayerToBytes(screen.map, width, height);
+  const collisionBytes = encodeNumberLayerToBytes(screen.layers?.collision ?? screen.collisionMap, width, height);
+  const effectsBytes = encodeNumberLayerToBytes(screen.layers?.effects, width, height);
+  const spriteIdsUsed = uniqueStrings((screen.layers?.entities || [])
+    .map(entity => entity?.spriteAssetId)
+    .filter((id): id is string => !!id));
+
+  return {
+    id: screen.id,
+    name: screen.name,
+    screenKind: screen.runtime?.screenKind,
+    screenEngine: screen.runtime?.screenEngine || 'player',
+    runtime: {
+      runsPlayerEngine: (screen.runtime?.screenEngine || 'player') === 'player',
+      runsFakePlayerEngine: screen.runtime?.screenEngine === 'fakePlayer',
+    },
+    width,
+    height,
+    layers: {
+      encoding: 'screen2-idx-hex-v1',
+      width,
+      height,
+      bytesPerRow: width,
+      emptyValue: 0,
+      tileTable: (screen.tiles || []).slice(0, 255).map((tile, index) => ({
+        index,
+        tileId: tile.id || `msx2_tile_${index}`,
+      })),
+      background: { hex: toHex(backgroundBytes), lengthBytes: backgroundBytes.length },
+      collision: { hex: toHex(collisionBytes), lengthBytes: collisionBytes.length },
+      effects: { hex: toHex(effectsBytes), lengthBytes: effectsBytes.length },
+    },
+    activeAreaX: screen.runtime?.activeAreaX,
+    activeAreaY: screen.runtime?.activeAreaY,
+    activeAreaWidth: screen.runtime?.activeAreaWidth,
+    activeAreaHeight: screen.runtime?.activeAreaHeight,
+    tileIdsUsed: (screen.tiles || []).map(tile => tile.id).filter((id): id is string => !!id),
+    spriteIdsUsed,
+    entitiesPacked: {
+      encoding: 'screen2-entities-hex-v1',
+      bytesPerEntity: 3,
+      entryCount: 0,
+      emptyValue: 0,
+      entityTemplateTable: [],
+      hex: '',
+      lengthBytes: 0,
+    },
+  };
+}
+
 function buildIntermediateWorldMap({
   worldAsset,
   assetsById,
@@ -823,13 +888,14 @@ function buildIntermediateWorldMap({
 
   for (const node of world.nodes) {
     const screenAsset = assetsById[node.screenAssetId];
-    if (!screenAsset || screenAsset.type !== 'screenmap' || !screenAsset.data) {
-      warnings.push(`WorldMap "${worldAsset.name}" references missing ScreenMap assetId="${node.screenAssetId}".`);
+    if (!screenAsset || !screenAsset.data || (screenAsset.type !== 'screenmap' && screenAsset.type !== 'msx2screen')) {
+      warnings.push(`WorldMap "${worldAsset.name}" references missing screen assetId="${node.screenAssetId}".`);
       continue;
     }
 
-    const screenMap = screenAsset.data as ScreenMap;
-    const screen = buildIntermediateScreen({ screen: screenMap, entityTemplatesById, componentDefinitionsById, spriteIdSet, warnings, includeHumanEntities });
+    const screen = screenAsset.type === 'msx2screen'
+      ? buildIntermediateMsx2Screen(screenAsset.data as Msx2Screen5TileScreen)
+      : buildIntermediateScreen({ screen: screenAsset.data as ScreenMap, entityTemplatesById, componentDefinitionsById, spriteIdSet, warnings, includeHumanEntities });
     screens.push({
       worldNodeId: node.id,
       screenAssetId: node.screenAssetId,

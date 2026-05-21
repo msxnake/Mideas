@@ -7,12 +7,15 @@ import { PlusCircleIcon, TrashIcon, SaveFloppyIcon, CodeIcon, PencilIcon } from 
 import { ExportWorldMapASMModal } from '../modals/ExportWorldMapASMModal';
 import { RandomMapGeneratorModal } from '../modals/RandomMapGeneratorModal';
 import { ConnectionManagerModal } from '../modals/ConnectionManagerModal';
+import { createDefaultScreen5PaletteSlots } from '../../utils/screen5PaletteUtils';
 
 const NODE_WIDTH = 120;
 const NODE_HEIGHT = 90;
 const PORT_SIZE = 10;
 const PORT_OFFSET = 5;
 const CONNECTION_PROXIMITY_THRESHOLD_DEFAULT_FACTOR = 1.5; // Multiplier for gridSize
+const MSX2_SCREEN_WIDTH = 256;
+const MSX2_SCREEN_HEIGHT = 192;
 
 interface WorldMapEditorProps {
   worldMapGraph: WorldMapGraph;
@@ -28,9 +31,13 @@ interface WorldMapEditorProps {
 
 type WorldMapSelectableScreen = ScreenMap | Msx2Screen5TileScreen;
 
-const isMsx2Screen5TileScreen = (screen: WorldMapSelectableScreen | undefined): screen is Msx2Screen5TileScreen => {
-  return !!screen && (screen as Msx2Screen5TileScreen).vdpMode === 'SCREEN5' && Array.isArray((screen as Msx2Screen5TileScreen).tiles);
+const isMsx2Screen4Mode = (vdpMode: unknown): boolean => vdpMode === 'SCREEN4' || vdpMode === 'SCREEN5';
+
+const isMsx2Screen4TileScreen = (screen: WorldMapSelectableScreen | undefined): screen is Msx2Screen5TileScreen => {
+  return !!screen && isMsx2Screen4Mode((screen as Msx2Screen5TileScreen).vdpMode) && Array.isArray((screen as Msx2Screen5TileScreen).tiles);
 };
+
+const isMsx2Screen5TileScreen = isMsx2Screen4TileScreen;
 
 const isScreenMap = (screen: WorldMapSelectableScreen | undefined): screen is ScreenMap => {
   return !!screen && !!(screen as ScreenMap).layers;
@@ -53,8 +60,8 @@ const drawMsx2Screen5Preview = (
   previewHeight: number
 ): void => {
   const sourceCanvas = document.createElement('canvas');
-  sourceCanvas.width = 256;
-  sourceCanvas.height = 212;
+  sourceCanvas.width = MSX2_SCREEN_WIDTH;
+  sourceCanvas.height = MSX2_SCREEN_HEIGHT;
   const sourceCtx = sourceCanvas.getContext('2d');
   if (!sourceCtx) return;
 
@@ -516,6 +523,14 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   };
 
   const handleOpenExportAsmModal = () => {
+    const hasMsx2Screens = nodes.some(node => {
+      const screen = availableScreenMaps.find(candidate => candidate.id === node.screenAssetId);
+      return isMsx2Screen5TileScreen(screen);
+    });
+    if (hasMsx2Screens) {
+      setStatusBarMessage('World Map ASM export is MSX1-only for now; MSX2 SCREEN 4 worlds export through the main Z80/ROM pipeline.');
+      return;
+    }
     setIsExportAsmModalOpen(true);
   };
 
@@ -598,8 +613,64 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       row.forEach((cell, x) => {
         if (cell !== 'X') {
           typeCounters[cell]++;
-          const screenId = `screenmap_random_${y}_${x}_${Date.now()}`;
+          const isMsx2Screen4 = currentScreenMode === 'SCREEN 4 (Graphics II)';
+          const screenId = `${isMsx2Screen4 ? 'msx2screen' : 'screenmap'}_random_${y}_${x}_${Date.now()}`;
           const screenName = `Room_${typeNames[cell] || 'unknown'}_${typeCounters[cell]}`;
+
+          if (isMsx2Screen4) {
+            const palette = createDefaultScreen5PaletteSlots();
+            const blankTile = Array.from({ length: 16 }, () => Array.from({ length: 16 }, () => 0));
+            const floorTile = Array.from({ length: 16 }, (_, py) =>
+              Array.from({ length: 16 }, (_, px) => py < 3 ? 15 : (px % 8 < 4 ? 5 : 4))
+            );
+            const newMsx2Screen: Msx2Screen5TileScreen = {
+              id: screenId,
+              name: screenName,
+              target: 'MSX2',
+              vdpMode: 'SCREEN4',
+              tileSize: 16,
+              widthTiles: 16,
+              heightTiles: 12,
+              palette,
+              tiles: [
+                { id: `${screenId}_tile_0`, name: 'Blank', width: 16, height: 16, pixels: blankTile },
+                { id: `${screenId}_tile_1`, name: 'Platform', width: 16, height: 16, pixels: floorTile },
+              ],
+              map: Array.from({ length: 12 }, (_, rowIndex) => Array.from({ length: 16 }, () => rowIndex === 11 ? 1 : 0)),
+              collisionMap: Array.from({ length: 12 }, (_, rowIndex) => Array.from({ length: 16 }, () => rowIndex === 11 ? 1 : 0)),
+              layers: {
+                collision: Array.from({ length: 12 }, (_, rowIndex) => Array.from({ length: 16 }, () => rowIndex === 11 ? 1 : 0)),
+                effects: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
+                behavior: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
+                entities: [],
+              },
+              runtime: {
+                screenKind: 'playable',
+                screenEngine: 'player',
+                movementMode: 'platform',
+                movementModel: 'platform',
+                activeAreaX: 0,
+                activeAreaY: 0,
+                activeAreaWidth: 16,
+                activeAreaHeight: 12,
+              },
+            };
+
+            newScreensToCreate.push({
+              id: screenId,
+              name: screenName,
+              type: 'msx2screen',
+              data: newMsx2Screen,
+            });
+
+            newNodes.push({
+              id: `wmnode_random_${y}_${x}`,
+              screenAssetId: screenId,
+              name: screenName,
+              position: { x: x * (NODE_WIDTH + 40), y: y * (NODE_HEIGHT + 40) },
+            });
+            return;
+          }
 
           const newScreenMap: ScreenMap = {
             id: screenId,
@@ -903,7 +974,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
             <option value="">Select Screen...</option>
             {availableScreenMaps.map(sm => (
               <option key={sm.id} value={sm.id}>
-                {sm.name} {isMsx2Screen5TileScreen(sm) ? '[MSX2 SCREEN 5]' : '[ScreenMap]'}
+                {sm.name} {isMsx2Screen5TileScreen(sm) ? '[MSX2 SCREEN 4]' : '[ScreenMap]'}
               </option>
             ))}
           </select>
@@ -1082,7 +1153,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
           isOpen={isExportAsmModalOpen}
           onClose={() => setIsExportAsmModalOpen(false)}
           worldMapGraph={worldMapGraph}
-          availableScreenMaps={availableScreenMaps.filter(isScreenMap)}
+          availableScreenMaps={availableScreenMaps.filter(screen => isScreenMap(screen) || isMsx2Screen4TileScreen(screen))}
           dataOutputFormat={dataOutputFormat}
         />
       )}

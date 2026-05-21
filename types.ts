@@ -9,7 +9,7 @@ export type MSXColorValue = string;
 export type MSX1ColorValue = string;
 
 /**
- * Represents a single configurable color slot for MSX2 SCREEN 5 tiles.
+ * Represents a single configurable color slot for MSX2 V9938 tiles.
  */
 export interface Screen5PaletteSlot {
   /** Position in the 16-color palette (0-15). */
@@ -21,7 +21,7 @@ export interface Screen5PaletteSlot {
 }
 
 /**
- * Represents a color in the MSX SCREEN 5 palette.
+ * Represents a color in the MSX2 V9938 palette.
  */
 export interface MSXColor {
   /** The common name of the color. */
@@ -147,7 +147,7 @@ export interface Tile {
   logicalProperties: TileLogicalProperties;
   /** Optional per-8x8 character logical overrides, keyed as "charX,charY". Missing entries inherit logicalProperties. */
   charLogicalProperties?: Record<string, TileLogicalProperties>;
-  /** Optional custom palette definition for SCREEN 5 tiles. */
+  /** Optional custom palette definition for MSX2 tiles. */
   screen5Palette?: Screen5PaletteSlot[];
   /** Optional tile animation metadata for ASM generation. */
   animation?: TileAnimationSettings;
@@ -248,7 +248,7 @@ export interface Msx2Sprite {
   id: string;
   name: string;
   target: 'MSX2';
-  vdpMode: 'SCREEN5';
+  vdpMode: 'SCREEN4' | 'SCREEN5';
   size: { width: number; height: number };
   palette: Screen5PaletteSlot[];
   backgroundColor: MSXColorValue;
@@ -290,8 +290,10 @@ export interface Msx2Screen5Tile {
 export type Msx2ScreenKind = ScreenKind;
 export type Msx2ScreenEngineKind = ScreenEngineKind;
 export type Msx2EntityKind = 'player' | 'enemy' | 'collectible' | 'door' | 'hazard' | 'custom';
+export type Msx2PlayerMovementMode = 'platform' | 'maze' | 'shooterHorizontal' | 'static';
+export type Msx2EnemyMovementMode = 'static' | 'patrolX' | 'patrolY' | 'ghostMaze' | 'dive';
 
-export interface Msx2Screen5EntityInstance {
+export interface Msx2Screen4EntityInstance {
   id: string;
   name: string;
   kind: Msx2EntityKind;
@@ -302,46 +304,66 @@ export interface Msx2Screen5EntityInstance {
   params?: Record<string, any>;
 }
 
-export interface Msx2Screen5Layers {
+export type Msx2Screen5EntityInstance = Msx2Screen4EntityInstance;
+
+export interface Msx2Screen4Layers {
   collision: number[][];
   effects: number[][];
   /** MSX2-only behavior cells. 1 = ladder, 2 = conveyor right, 3 = conveyor left. Kept separate from collision/effects. */
   behavior?: number[][];
-  entities: Msx2Screen5EntityInstance[];
+  entities: Msx2Screen4EntityInstance[];
 }
 
-export interface Msx2Screen5Runtime {
+export type Msx2Screen5Layers = Msx2Screen4Layers;
+
+export interface Msx2Screen4Runtime {
   screenKind: Msx2ScreenKind;
   screenEngine: Msx2ScreenEngineKind;
+  /** Player movement engine selected by the native SCREEN 4 runtime. */
+  movementMode?: Msx2PlayerMovementMode;
+  /** Legacy/editor alias for movementMode. */
+  movementModel?: Msx2PlayerMovementMode;
+  controlMode?: Msx2PlayerMovementMode;
+  playerMode?: Msx2PlayerMovementMode;
   /** Number of collected effect=3 cells required before exits unlock on this MSX2 screen. */
   requiredCollectibles?: number;
-  /** Initial air/time value for this MSX2 screen. */
+  /** Initial air/time value for this MSX2 screen. Use 0 to disable the countdown. */
   initialAir?: number;
+  disableAirTimer?: boolean;
+  airTimer?: boolean;
   activeAreaX: number;
   activeAreaY: number;
   activeAreaWidth: number;
   activeAreaHeight: number;
+  hideHud?: boolean;
+  showHud?: boolean;
+  statusHud?: boolean;
+  notes?: string;
 }
 
-export interface Msx2Screen5TileScreen {
+export type Msx2Screen5Runtime = Msx2Screen4Runtime;
+
+export interface Msx2Screen4TileScreen {
   id: string;
   name: string;
   target: 'MSX2';
-  vdpMode: 'SCREEN5';
+  vdpMode: 'SCREEN4' | 'SCREEN5';
   tileSize: 16;
   widthTiles: 16;
   heightTiles: 12;
   palette: Screen5PaletteSlot[];
   tiles: Msx2Screen5Tile[];
   map: number[][];
-  /** MSX2 runtime layers. Kept separate from visual SCREEN 5 tile data to avoid duplicating 27 KB bitmaps. */
-  layers?: Msx2Screen5Layers;
+  /** MSX2 runtime layers. Kept separate from visual tile data to avoid duplicating large bitmap payloads. */
+  layers?: Msx2Screen4Layers;
   /** Runtime role/engine metadata for MSX2 screens. */
-  runtime?: Msx2Screen5Runtime;
+  runtime?: Msx2Screen4Runtime;
   /** Legacy collision map retained for older projects. Prefer layers.collision for new data. */
   collisionMap?: number[][];
   notes?: string;
 }
+
+export type Msx2Screen5TileScreen = Msx2Screen4TileScreen;
 
 /**
  * Represents a single tile placed on a screen map layer.
@@ -663,7 +685,7 @@ export type ScreenBehaviorSource = 'collisionLayer' | 'backgroundChars';
 export type ScreenKind = 'playable' | 'tutorial' | 'dialog' | 'cutscene';
 
 /** Runtime update engine selected for a screen. Only one should run per screen. */
-export type ScreenEngineKind = 'player' | 'fakePlayer';
+export type ScreenEngineKind = 'player' | 'fakePlayer' | 'maze' | 'shooter';
 
 /** Optional build-time optimization settings for screen exports. */
 export interface ScreenBlockOptimization {
@@ -2087,12 +2109,12 @@ export interface GlobalVariablesAsset {
 }
 
 export interface PaletteAsset {
-  /** Palette slots (SCREEN 5 style). */
+  /** Palette slots (MSX2 V9938 style). */
   slots: Screen5PaletteSlot[];
   /** Optional notes about usage. */
   notes?: string;
   /** Intended palette mode. */
-  mode: 'SCREEN5';
+  mode: 'SCREEN4' | 'SCREEN5';
 }
 
 export type DataFormat = 'hex' | 'decimal';

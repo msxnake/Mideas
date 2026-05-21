@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MainMenuConfig, ProjectAsset, ScreenMap, Tile, MSXFont, MSXFontColorAttributes, Sprite } from '../../types';
+import { MainMenuConfig, ProjectAsset, ScreenMap, Tile, MSXFont, MSXFontColorAttributes, Sprite, Msx2Screen5TileScreen } from '../../types';
 import { Button } from '../common/Button';
 import { renderScreenToCanvas } from '../utils/screenUtils';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1 } from '../utils/msxFontRenderer';
@@ -30,6 +30,46 @@ interface MainMenuPreviewModalProps {
 const PREVIEW_WIDTH = 256;
 /** The height of the preview canvas in pixels. @constant */
 const PREVIEW_HEIGHT = 192;
+
+const isMsx2Screen4Asset = (asset: ProjectAsset | undefined): asset is ProjectAsset & { data: Msx2Screen5TileScreen } =>
+  !!asset && asset.type === 'msx2screen' && !!asset.data;
+
+const renderMsx2Screen4Background = (canvas: HTMLCanvasElement, screen: Msx2Screen5TileScreen): void => {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  canvas.width = PREVIEW_WIDTH;
+  canvas.height = PREVIEW_HEIGHT;
+  ctx.imageSmoothingEnabled = false;
+  const bg = screen.palette?.[0]?.hex || '#000000';
+  ctx.fillStyle = bg === 'rgba(0,0,0,0)' ? '#000000' : bg;
+  ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+
+  const anchorSize = Math.max(1, Number(screen.tileSize) || 16);
+  const visibleRows = Math.ceil(PREVIEW_HEIGHT / anchorSize);
+  const visibleCols = Math.ceil(PREVIEW_WIDTH / anchorSize);
+  for (let tileY = 0; tileY < visibleRows; tileY++) {
+    for (let tileX = 0; tileX < visibleCols; tileX++) {
+      const tileIndex = screen.map?.[tileY]?.[tileX] ?? 0;
+      const tile = screen.tiles?.[tileIndex];
+      if (!tile) continue;
+      const tileHeight = Math.max(1, Math.min(32, Number(tile.height ?? tile.pixels?.length ?? anchorSize) || anchorSize));
+      const tileWidth = Math.max(1, Math.min(32, Number(tile.width ?? tile.pixels?.[0]?.length ?? anchorSize) || anchorSize));
+      for (let py = 0; py < tileHeight; py++) {
+        const destY = tileY * anchorSize + py;
+        if (destY >= PREVIEW_HEIGHT) continue;
+        for (let px = 0; px < tileWidth; px++) {
+          const destX = tileX * anchorSize + px;
+          if (destX >= PREVIEW_WIDTH) continue;
+          const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
+          const color = screen.palette?.[colorIndex]?.hex || '#000000';
+          if (color === 'rgba(0,0,0,0)' || color === 'transparent') continue;
+          ctx.fillStyle = color;
+          ctx.fillRect(destX, destY, 1, 1);
+        }
+      }
+    }
+  }
+};
 
 /**
  * A modal dialog for previewing the main menu.
@@ -68,8 +108,10 @@ export const MainMenuPreviewModal: React.FC<MainMenuPreviewModalProps> = ({
         ctx.imageSmoothingEnabled = false;
 
         // 1. Draw Background
-        const bgScreenAsset = allAssets.find(a => a.id === config.menuScreenAssetId && a.type === 'screenmap');
-        if (bgScreenAsset) {
+        const bgScreenAsset = allAssets.find(a => a.id === config.menuScreenAssetId && (a.type === 'screenmap' || a.type === 'msx2screen'));
+        if (isMsx2Screen4Asset(bgScreenAsset)) {
+            renderMsx2Screen4Background(canvas, bgScreenAsset.data);
+        } else if (bgScreenAsset?.type === 'screenmap') {
             const screenMap = bgScreenAsset.data as ScreenMap;
             const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
             renderScreenToCanvas(canvas, screenMap, tileset, currentScreenMode, 8);

@@ -4,11 +4,14 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const outJson = path.join(root, 'Examples', 'msx2_screen5_manic_miner_example.json');
-const outPng = path.join(root, 'screenshots', 'msx2_screen5_manic_miner_example.png');
-const outBackgroundPng = path.join(root, 'screenshots', 'msx2_screen5_manic_miner_bitmap.png');
+const outJson = path.join(root, 'Examples', 'msx2_screen4_manic_miner_example.json');
+const outPng = path.join(root, 'screenshots', 'msx2_screen4_manic_miner_example.png');
+const outBackgroundPng = path.join(root, 'screenshots', 'msx2_screen4_manic_miner_tiles.png');
 const WIDTH = 256;
-const HEIGHT = 212;
+const HEIGHT = 192;
+const TILE_SIZE = 16;
+const WIDTH_TILES = 16;
+const HEIGHT_TILES = 12;
 
 const palette = [
   { slotIndex: 0, masterIndex: -1, hex: 'rgba(0,0,0,0)' },
@@ -64,7 +67,7 @@ const door = (x, y) => {
   rect(x + 6, y + 6, 6, 14, 7);
 };
 
-platform(0, 196, 256, 4);
+platform(0, 180, 256, 4);
 platform(18, 164, 84, 5);
 platform(136, 164, 98, 5);
 platform(0, 126, 56, 6);
@@ -77,13 +80,16 @@ platform(116, 50, 98, 5);
 ladder(66, 88, 76);
 ladder(180, 50, 114);
 ladder(24, 50, 76);
-hazard(112, 188, 6);
+hazard(112, 172, 6);
 hazard(18, 118, 4);
 door(222, 98);
 rect(118, 30, 4, 20, 7);
 rect(122, 26, 12, 4, 15);
 rect(134, 30, 4, 20, 7);
 rect(122, 42, 12, 4, 10);
+rect(44, 150, 8, 8, 10);
+rect(152, 112, 8, 8, 10);
+rect(196, 72, 8, 8, 10);
 const bitmapPixels = pixels.map(row => [...row]);
 
 const spriteRows = [
@@ -115,11 +121,58 @@ for (let y = 0; y < spritePixels.length; y++) {
   }
 }
 
+const tileKey = tilePixels => tilePixels.map(row => row.join(',')).join('|');
+const msx2Tiles = [];
+const tileIndexByKey = new Map();
+const map = Array.from({ length: HEIGHT_TILES }, (_, tileY) =>
+  Array.from({ length: WIDTH_TILES }, (_, tileX) => {
+    const tilePixels = Array.from({ length: TILE_SIZE }, (_unused, y) =>
+      Array.from({ length: TILE_SIZE }, (_unused2, x) =>
+        bitmapPixels[(tileY * TILE_SIZE) + y]?.[(tileX * TILE_SIZE) + x] ?? 1
+      )
+    );
+    const key = tileKey(tilePixels);
+    if (!tileIndexByKey.has(key)) {
+      tileIndexByKey.set(key, msx2Tiles.length);
+      msx2Tiles.push({
+        id: `manic_miner_tile_${msx2Tiles.length}`,
+        name: `Manic Miner Tile ${msx2Tiles.length}`,
+        pixels: tilePixels,
+      });
+    }
+    return tileIndexByKey.get(key);
+  })
+);
+const collisionMap = Array.from({ length: HEIGHT_TILES }, (_, y) =>
+  Array.from({ length: WIDTH_TILES }, (_, x) => {
+    const tileIndex = map[y][x];
+    const tile = msx2Tiles[tileIndex]?.pixels || [];
+    const solidPixels = tile.flat().filter(slot => slot === 4 || slot === 5 || slot === 6 || slot === 15).length;
+    return solidPixels > 80 ? 1 : 0;
+  })
+);
+const emptyLayer = Array.from({ length: HEIGHT_TILES }, () => Array(WIDTH_TILES).fill(0));
+const effectsLayer = Array.from({ length: HEIGHT_TILES }, () => Array(WIDTH_TILES).fill(0));
+const behaviorLayer = Array.from({ length: HEIGHT_TILES }, () => Array(WIDTH_TILES).fill(0));
+
+const markCells = (layer, cells, value) => {
+  for (const [x, y] of cells) {
+    if (layer[y] && x >= 0 && x < WIDTH_TILES) layer[y][x] = value;
+  }
+};
+
+markCells(effectsLayer, [[7, 10], [8, 10], [9, 10], [10, 10], [1, 7], [2, 7]], 1);
+markCells(effectsLayer, [[14, 6], [14, 7]], 2);
+markCells(effectsLayer, [[2, 9], [9, 7], [12, 4]], 3);
+for (let y = 5; y <= 9; y++) markCells(behaviorLayer, [[4, y]], 1);
+for (let y = 3; y <= 9; y++) markCells(behaviorLayer, [[11, y]], 1);
+for (let y = 3; y <= 7; y++) markCells(behaviorLayer, [[1, y]], 1);
+
 const project = {
-  name: 'MSX2 SCREEN 5 Manic Miner example',
-  currentScreenMode: 'SCREEN 5 (Graphics III)',
-  screenMode: 'SCREEN 5 (Graphics III)',
-  targetGraphicsBackend: 'msx2-screen5-bitmap',
+  name: 'MSX2 SCREEN 4 Manic Miner example',
+  currentScreenMode: 'SCREEN 4 (Graphics II)',
+  screenMode: 'SCREEN 4 (Graphics II)',
+  targetGraphicsBackend: 'msx2-screen4-pattern',
   dataFormat: 'hex',
   assets: [
     {
@@ -127,25 +180,70 @@ const project = {
       name: 'MSX2 Platform Palette',
       type: 'palette',
       data: {
-        mode: 'SCREEN5',
+        mode: 'SCREEN4',
         slots: palette,
-        notes: 'Default V9938 RGB333 SCREEN 5 palette for the example.',
+        notes: 'Default V9938 RGB333 SCREEN 4 palette for the example.',
       },
     },
     {
-      id: 'bitmap_msx2_manic_miner_room',
+      id: 'screen_msx2_manic_miner_room',
       name: 'Manic Miner Style Room',
-      type: 'msx2bitmap',
+      type: 'msx2screen',
       data: {
-        id: 'bitmap_msx2_manic_miner_room',
+        id: 'screen_msx2_manic_miner_room',
         name: 'Manic Miner Style Room',
         target: 'MSX2',
-        vdpMode: 'SCREEN5',
-        size: { width: WIDTH, height: HEIGHT },
+        vdpMode: 'SCREEN4',
+        tileSize: TILE_SIZE,
+        widthTiles: WIDTH_TILES,
+        heightTiles: HEIGHT_TILES,
         palette,
-        pixels: bitmapPixels,
-        transparentSlot: 0,
-        notes: 'SCREEN 5 bitmap background. Packed size: 27136 bytes, 2 pixels per byte.',
+        tiles: msx2Tiles,
+        map,
+        collisionMap,
+        layers: {
+          collision: collisionMap,
+          effects: effectsLayer,
+          behavior: behaviorLayer,
+          entities: [
+            {
+              id: 'entity_msx2_platform_player',
+              name: 'MSX2 Platform Player',
+              kind: 'player',
+              position: { x: Math.floor(playerX / TILE_SIZE), y: Math.floor(playerY / TILE_SIZE) },
+              spriteAssetId: 'sprite_msx2_platform_player',
+              params: { runtime: 'MSX2', engine: 'player', movementMode: 'platform' },
+            },
+            {
+              id: 'entity_manic_patrol_guard',
+              name: 'Patrol Guard',
+              kind: 'enemy',
+              position: { x: 9, y: 7 },
+              params: {
+                runtime: 'MSX2',
+                engine: 'patrolX',
+                movement: 'patrolX',
+                minX: 8,
+                maxX: 11,
+                direction: 1,
+                speed: 3,
+              },
+            },
+          ],
+        },
+        runtime: {
+          screenKind: 'playable',
+          screenEngine: 'player',
+          movementMode: 'platform',
+          movementModel: 'platform',
+          requiredCollectibles: 3,
+          initialAir: 255,
+          activeAreaX: 0,
+          activeAreaY: 0,
+          activeAreaWidth: WIDTH_TILES,
+          activeAreaHeight: HEIGHT_TILES,
+        },
+        notes: 'SCREEN 4 tile room generated from 16x16 pattern cells.',
       },
     },
     {
@@ -156,7 +254,7 @@ const project = {
         id: 'sprite_msx2_platform_player',
         name: 'MSX2 Platform Player',
         target: 'MSX2',
-        vdpMode: 'SCREEN5',
+        vdpMode: 'SCREEN4',
         size: { width: 16, height: 16 },
         palette,
         backgroundColor: 'rgba(0,0,0,0)',
@@ -235,4 +333,4 @@ writePng(outPng, pixels);
 writePng(outBackgroundPng, bitmapPixels);
 console.log(`Example JSON: ${outJson}`);
 console.log(`Screenshot PNG: ${outPng}`);
-console.log(`Bitmap-only PNG: ${outBackgroundPng}`);
+console.log(`Tile-source PNG: ${outBackgroundPng}`);

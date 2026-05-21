@@ -83,15 +83,15 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
 };
 
 /** The order in which asset type folders should be displayed. @constant */
-const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2bitmap', 'msx2screen', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
+const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'portrait', 'sprite', 'msx2sprite', 'msx2screen', 'msx2bitmap', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'dialogue', 'palette', 'tilebank', 'presentationscreen', 'sound', 'track', 'globalvariables', 'code'];
 /** A mapping from asset type keys to their display names. @constant */
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   statemachine: "State Machines",
   tile: "MSX1 Tiles",
   sprite: "MSX1 Sprites",
   msx2sprite: "MSX2 Sprites",
-  msx2bitmap: "MSX2 Bitmaps",
-  msx2screen: "MSX2 16x16 Screens",
+  msx2bitmap: "Legacy MSX2 Bitmaps",
+  msx2screen: "MSX2 SCREEN 4 Rooms",
   font: "MSX1 Fonts",
   boss: "MSX1 Bosses",
   screenmap: "MSX1 Screen Maps",
@@ -395,12 +395,15 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
 
         {FOLDER_TYPE_ORDER.map(folderType => {
           const folderTarget = getAssetTarget(folderType);
+          const assetsInFolder = folderType === 'code' ? [] : (groupedAssets[folderType] || []);
+          if (folderType === 'msx2bitmap' && assetsInFolder.length === 0) {
+            return null;
+          }
           if (hasActiveProject && ((folderTarget !== 'COMMON' && folderTarget !== projectTarget) || (folderType === 'palette' && projectTarget !== 'MSX2'))) {
             return null;
           }
 
           // Code Files are managed exclusively via the Export Z80 Code modal
-          const assetsInFolder = folderType === 'code' ? [] : (groupedAssets[folderType] || []);
           const isExpanded = !!expandedFolders[folderType];
           const folderEnabled = isFolderEnabled(folderType);
           const disabledTitle = getDisabledTitle(folderType);

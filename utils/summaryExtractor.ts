@@ -45,6 +45,7 @@ export interface ProjectSummary {
   assets: {
     worldMaps: any[];
     screens: any[];
+    msx2Screens: any[];
     tiles: any[];
     sprites: any[];
     entities: any[];
@@ -170,15 +171,26 @@ function extractUsedScreensFromWorldMap(worldMap: any, assets: ProjectAsset[], u
 
   // Extraer screenIds del WorldMap
   worldMap.nodes?.forEach((node: any) => {
-    if (node.screenId) {
-      screenIds.add(node.screenId);
+    const screenId = node.screenAssetId || node.screenId;
+    if (screenId) {
+      screenIds.add(screenId);
     }
   });
 
   // Validar y extraer cada Screen
   screenIds.forEach(screenId => {
-    if (assetExists(assets, 'screenmap', screenId)) {
-      const screenAsset = getAsset(assets, 'screenmap', screenId);
+    const screenAsset = getAsset(assets, 'screenmap', screenId) || getAsset(assets, 'msx2screen', screenId);
+    if (screenAsset) {
+      if (screenAsset.type === 'msx2screen') {
+        usedAssets.msx2Screens.push({
+          id: screenAsset.id,
+          name: screenAsset.name,
+          data: screenAsset.data
+        });
+        console.log(`âœ… MSX2 Screen added: "${screenAsset.name}"`);
+        extractSpritesFromMsx2Screen(screenAsset.data, assets, usedAssets, warnings);
+        return;
+      }
       if (screenAsset) {
         usedAssets.screens.push({
           id: screenAsset.id,
@@ -195,6 +207,13 @@ function extractUsedScreensFromWorldMap(worldMap: any, assets: ProjectAsset[], u
       warnings.push(warning);
       console.warn(warning);
     }
+  });
+}
+
+function extractSpritesFromMsx2Screen(screen: any, assets: ProjectAsset[], usedAssets: any, warnings: string[]): void {
+  const entities = screen?.layers?.entities || [];
+  entities.forEach((entity: any) => {
+    addSpriteAsset(entity?.spriteAssetId, assets, usedAssets, warnings, `MSX2 screen "${screen?.name || screen?.id}" entity "${entity?.name || entity?.id}"`);
   });
 }
 
@@ -537,6 +556,7 @@ export function extractProjectSummary(projectPath: string, outputDir: string = '
   const usedAssets = {
     worldMaps: [],
     screens: [],
+    msx2Screens: [],
     tiles: [],
     sprites: [],
     entities: [],

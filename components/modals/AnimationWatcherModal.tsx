@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Sprite, ScreenMap, Tile, ProjectAsset, PixelData, SpriteFrame, MSXColorValue } from '../../types';
+import { Sprite, ScreenMap, Tile, ProjectAsset, PixelData, SpriteFrame, MSXColorValue, Msx2Screen5TileScreen } from '../../types';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
 import { createSpriteDataURL } from '../utils/screenUtils';
@@ -27,6 +27,11 @@ const PREVIEW_HEIGHT = 192;
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.25;
+
+type WatcherBackgroundScreen = ScreenMap | Msx2Screen5TileScreen;
+
+const isMsx2Screen4 = (screen: WatcherBackgroundScreen | null | undefined): screen is Msx2Screen5TileScreen =>
+  !!screen && (screen as Msx2Screen5TileScreen).target === 'MSX2' && Array.isArray((screen as Msx2Screen5TileScreen).map);
 
 const clampLayerYOffset = (value: unknown): number => {
   const numeric = typeof value === 'number' ? value : Number(value);
@@ -185,6 +190,47 @@ const renderScreenToDataURL = (screenMap: ScreenMap, tileset: Tile[], currentScr
     return canvas.toDataURL();
 };
 
+const renderMsx2Screen4ToDataURL = (screen: Msx2Screen5TileScreen): string => {
+    const canvas = document.createElement('canvas');
+    canvas.width = PREVIEW_WIDTH;
+    canvas.height = PREVIEW_HEIGHT;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return '';
+    ctx.imageSmoothingEnabled = false;
+
+    const bg = screen.palette?.[0]?.hex || '#000000';
+    ctx.fillStyle = bg === 'rgba(0,0,0,0)' || bg === 'transparent' ? '#000000' : bg;
+    ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+
+    const anchorSize = Math.max(1, Number(screen.tileSize) || 16);
+    const visibleRows = Math.ceil(PREVIEW_HEIGHT / anchorSize);
+    const visibleCols = Math.ceil(PREVIEW_WIDTH / anchorSize);
+    for (let tileY = 0; tileY < visibleRows; tileY++) {
+        for (let tileX = 0; tileX < visibleCols; tileX++) {
+            const tileIndex = screen.map?.[tileY]?.[tileX] ?? 0;
+            const tile = screen.tiles?.[tileIndex];
+            if (!tile) continue;
+            const tileHeight = Math.max(1, Math.min(32, Number(tile.height ?? tile.pixels?.length ?? anchorSize) || anchorSize));
+            const tileWidth = Math.max(1, Math.min(32, Number(tile.width ?? tile.pixels?.[0]?.length ?? anchorSize) || anchorSize));
+            for (let py = 0; py < tileHeight; py++) {
+                const destY = tileY * anchorSize + py;
+                if (destY >= PREVIEW_HEIGHT) continue;
+                for (let px = 0; px < tileWidth; px++) {
+                    const destX = tileX * anchorSize + px;
+                    if (destX >= PREVIEW_WIDTH) continue;
+                    const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
+                    const color = screen.palette?.[colorIndex]?.hex || '#000000';
+                    if (color === 'rgba(0,0,0,0)' || color === 'transparent') continue;
+                    ctx.fillStyle = color;
+                    ctx.fillRect(destX, destY, 1, 1);
+                }
+            }
+        }
+    }
+
+    return canvas.toDataURL();
+};
+
 
 /**
  * A modal dialog for previewing sprite animations in a simulated environment.
@@ -226,7 +272,12 @@ export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
   const moveAccumulatorRef = useRef(0);
   const directionRef = useRef({ dx: 1, dy: 1 });
 
-  const screenMaps = useMemo(() => allAssets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap), [allAssets]);
+  const backgroundScreens = useMemo(
+    () => allAssets
+      .filter(a => a.type === 'screenmap' || a.type === 'msx2screen')
+      .map(a => a.data as WatcherBackgroundScreen),
+    [allAssets]
+  );
   const tileset = useMemo(() => allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile), [allAssets]);
   const baseComposedFrames = useMemo(() => sprite.frames.map(frame => composeSpriteFrame(sprite, frame)), [sprite]);
   const baseFrameDataUrls = useMemo(
@@ -260,14 +311,17 @@ export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
   // Generate background when screen selection changes
   useEffect(() => {
     if (backgroundScreenId) {
-        const screenMap = screenMaps.find(s => s.id === backgroundScreenId);
+        const screenMap = backgroundScreens.find(s => s.id === backgroundScreenId);
         if (screenMap) {
-            setBackgroundDataUrl(renderScreenToDataURL(screenMap, tileset, currentScreenMode));
+            setBackgroundDataUrl(isMsx2Screen4(screenMap)
+                ? renderMsx2Screen4ToDataURL(screenMap)
+                : renderScreenToDataURL(screenMap, tileset, currentScreenMode)
+            );
         }
     } else {
         setBackgroundDataUrl(null);
     }
-  }, [backgroundScreenId, screenMaps, tileset, currentScreenMode]);
+  }, [backgroundScreenId, backgroundScreens, tileset, currentScreenMode]);
   
   // Recalculate scale when modal opens or window resizes
   useEffect(() => {
@@ -475,15 +529,15 @@ export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
                     </Panel>
                      <Panel title="Background">
                         <Button onClick={() => setIsScreenListVisible(p => !p)} className="w-full" variant="secondary" size="sm">
-                            {backgroundScreenId ? `Screen: ${screenMaps.find(s => s.id === backgroundScreenId)?.name}` : 'Select Background'}
+                            {backgroundScreenId ? `Screen: ${backgroundScreens.find(s => s.id === backgroundScreenId)?.name}` : 'Select Background'}
                         </Button>
                         {isScreenListVisible && (
                             <div className="mt-2 max-h-24 overflow-y-auto space-y-1 border border-msx-border bg-msx-bgcolor rounded p-1">
                                 <Button onClick={() => { setBackgroundScreenId(null); setIsScreenListVisible(false); }} variant="ghost" size="sm" className="w-full text-left">None (Black)</Button>
-                                {screenMaps.map(sm => (
+                                {backgroundScreens.map(sm => (
                                     <Button key={sm.id} onClick={() => { setBackgroundScreenId(sm.id); setIsScreenListVisible(false); }} variant="ghost" size="sm" className="w-full text-left truncate">{sm.name}</Button>
                                 ))}
-                                {screenMaps.length === 0 && <p className="text-msx-textsecondary italic p-1">No screens created.</p>}
+                                {backgroundScreens.length === 0 && <p className="text-msx-textsecondary italic p-1">No screens created.</p>}
                             </div>
                         )}
                     </Panel>

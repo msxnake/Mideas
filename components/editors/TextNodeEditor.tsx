@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { GameFlowTextNode, ProjectAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { AssetPickerModal } from '../modals/AssetPickerModal';
+import { AssetPickerModal, AssetPickerType } from '../modals/AssetPickerModal';
 import { InlineColorPicker } from '../common/InlineColorPicker';
 
 interface TextNodeEditorProps {
@@ -18,7 +18,7 @@ export const TextNodeEditor: React.FC<TextNodeEditorProps> = ({
 }) => {
   const [assetPickerState, setAssetPickerState] = useState<{
     isOpen: boolean;
-    assetType: 'screenmap' | 'font';
+    assetType: AssetPickerType;
     onSelect: (assetId: string) => void;
   } | null>(null);
 
@@ -69,7 +69,7 @@ export const TextNodeEditor: React.FC<TextNodeEditorProps> = ({
     });
   };
 
-  const openAssetPicker = (assetType: 'screenmap' | 'font', onSelect: (assetId: string) => void) => {
+  const openAssetPicker = (assetType: AssetPickerType, onSelect: (assetId: string) => void) => {
     setAssetPickerState({ isOpen: true, assetType, onSelect });
   };
 
@@ -108,7 +108,7 @@ export const TextNodeEditor: React.FC<TextNodeEditorProps> = ({
           <label className="block text-msx-textprimary text-sm mb-1">Background Screen</label>
           <div className="flex items-center space-x-2">
             <Button
-              onClick={() => openAssetPicker('screenmap', (id) => handleBackgroundAssetChange(id))}
+              onClick={() => openAssetPicker('screenBackground', (id) => handleBackgroundAssetChange(id))}
               variant="secondary"
               size="sm"
             >
@@ -176,7 +176,7 @@ export const TextNodeEditor: React.FC<TextNodeEditorProps> = ({
           assetTypeToPick={assetPickerState.assetType}
           allAssets={allAssets}
           currentSelectedId={
-            assetPickerState.assetType === 'screenmap'
+            assetPickerState.assetType === 'screenBackground'
               ? node.appearance?.backgroundScreenAssetId || null
               : node.appearance?.fontAssetId || null
           }

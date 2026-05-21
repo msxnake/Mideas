@@ -5,6 +5,8 @@ import { Button } from '../common/Button';
 import { createSpriteDataURL } from '../utils/screenUtils';
 import { SoundIcon, PuzzlePieceIcon, SpriteIcon as EntityIcon } from '../icons/MsxIcons';
 
+export type AssetPickerType = ProjectAsset['type'] | 'screenBackground';
+
 /**
  * A component that renders a small preview of a sprite's first frame.
  */
@@ -73,7 +75,7 @@ interface AssetPickerModalProps {
     /** Callback function when an asset is selected. */
     onSelectAsset: (assetId: string) => void;
     /** The type of asset to display in the picker. */
-    assetTypeToPick: ProjectAsset['type'];
+    assetTypeToPick: AssetPickerType;
     /** A list of all project assets to choose from. */
     allAssets: ProjectAsset[];
     /** The ID of the currently selected asset, for highlighting. */
@@ -95,8 +97,11 @@ export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
 
     const filteredAssets = useMemo(() => {
+        const acceptedTypes: ProjectAsset['type'][] = assetTypeToPick === 'screenBackground'
+            ? ['screenmap', 'msx2screen']
+            : [assetTypeToPick];
         return allAssets
-            .filter(asset => asset.type === assetTypeToPick)
+            .filter(asset => acceptedTypes.includes(asset.type))
             .filter(asset => asset.name.toLowerCase().includes(searchTerm.toLowerCase()));
     }, [allAssets, assetTypeToPick, searchTerm]);
 
@@ -107,7 +112,9 @@ export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
         onClose();
     };
     
-    const assetTypeName = assetTypeToPick.charAt(0).toUpperCase() + assetTypeToPick.slice(1);
+    const assetTypeName = assetTypeToPick === 'screenBackground'
+        ? 'Screen Background'
+        : assetTypeToPick.charAt(0).toUpperCase() + assetTypeToPick.slice(1);
 
     return (
         <div

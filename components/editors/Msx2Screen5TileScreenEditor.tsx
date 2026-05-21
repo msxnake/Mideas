@@ -103,16 +103,30 @@ const normalizeRuntimeArea = (runtime?: Msx2Screen5Runtime): Msx2Screen5Runtime 
   const activeAreaY = Math.max(0, Math.min(MAP_HEIGHT - 1, Number(runtime?.activeAreaY) || 0));
   const activeAreaWidth = Math.max(1, Math.min(MAP_WIDTH - activeAreaX, Number(runtime?.activeAreaWidth) || MAP_WIDTH - activeAreaX));
   const activeAreaHeight = Math.max(1, Math.min(MAP_HEIGHT - activeAreaY, Number(runtime?.activeAreaHeight) || MAP_HEIGHT - activeAreaY));
+  const movementMode = runtime?.movementMode
+    || runtime?.movementModel
+    || runtime?.controlMode
+    || runtime?.playerMode
+    || (runtime?.screenEngine === 'maze' ? 'maze' : undefined);
+  const initialAir = runtime?.disableAirTimer || runtime?.airTimer === false
+    ? 0
+    : normalizeOptionalByte(runtime?.initialAir, 0);
 
   return {
     screenKind: runtime?.screenKind || 'playable',
     screenEngine: runtime?.screenEngine || 'player',
+    ...(movementMode ? { movementMode, movementModel: movementMode } : {}),
     requiredCollectibles: normalizeOptionalByte(runtime?.requiredCollectibles),
-    initialAir: normalizeOptionalByte(runtime?.initialAir, 1),
+    initialAir,
+    ...(initialAir === 0 ? { disableAirTimer: true, airTimer: false } : {}),
     activeAreaX,
     activeAreaY,
     activeAreaWidth,
     activeAreaHeight,
+    ...(runtime?.hideHud !== undefined ? { hideHud: runtime.hideHud } : {}),
+    ...(runtime?.showHud !== undefined ? { showHud: runtime.showHud } : {}),
+    ...(runtime?.statusHud !== undefined ? { statusHud: runtime.statusHud } : {}),
+    ...(runtime?.notes ? { notes: runtime.notes } : {}),
   };
 };
 
@@ -346,7 +360,28 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
         components,
         params: presetParams,
       };
-      updateLayers({ ...layers, entities: [...layers.entities, nextEntity] });
+      const nextLayers = { ...layers, entities: [...layers.entities, nextEntity] };
+      if (selectedEntityPreset.kind === 'player') {
+        const movementMode = presetParams.movementMode || presetParams.controlMode || presetParams.movement;
+        const nextRuntime: Msx2Screen5Runtime = {
+          ...runtime,
+          screenKind: 'playable',
+          screenEngine: movementMode === 'maze'
+            ? 'maze'
+            : movementMode === 'shooterHorizontal'
+              ? 'shooter'
+              : 'player',
+          ...(movementMode ? { movementMode, movementModel: movementMode } : {}),
+          ...(presetParams.disableAirTimer ? { initialAir: 0, disableAirTimer: true, airTimer: false } : {}),
+        };
+        onUpdate({
+          layers: nextLayers,
+          collisionMap: nextLayers.collision,
+          runtime: nextRuntime,
+        });
+      } else {
+        updateLayers(nextLayers);
+      }
       setSelectedEntityId(id);
     }
   };

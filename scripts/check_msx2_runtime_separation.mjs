@@ -8,9 +8,10 @@ const repoRoot = resolve(here, '..');
 
 const read = (...parts) => readFileSync(join(repoRoot, ...parts), 'utf8');
 
-const msx2Generator = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5Generator.ts');
+const msx2Generator = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts');
 const msx2EntityRuntime = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2EntityRuntimeGenerator.ts');
 const msx2Catalog = read('components', 'msx2_screen5_editor', 'msx2EntityCatalog.ts');
+const msxGeneratorIndex = read('utils', 'msxGenerator', 'index.ts');
 const defaults = read('data', 'defaults.ts');
 
 const forbiddenInMsx2Runtime = [
@@ -29,6 +30,13 @@ const checks = [
   [
     'MSX2 entity runtime helper does not import legacy ECS defaults or generators',
     forbiddenInMsx2Runtime.every(token => !msx2EntityRuntime.includes(token)),
+  ],
+  [
+    'MSX2 generator dispatcher returns only SCREEN 4 backend',
+    msxGeneratorIndex.includes("export type GraphicsBackend = 'screen2-tilebank' | 'msx2-screen4-pattern'") &&
+      msxGeneratorIndex.includes("type LegacyGraphicsBackend = 'msx2-screen5-bitmap' | 'msx2-screen5-tile16'") &&
+      !msxGeneratorIndex.includes("targetGraphicsBackend === 'msx2-screen4-pattern' || targetGraphicsBackend === 'msx2-screen5-bitmap'") &&
+      msxGeneratorIndex.includes("config.screenMode === 'SCREEN 4 (Graphics II)' || config.screenMode === 'SCREEN 5 (Graphics III)'"),
   ],
   [
     'MSX2 native catalog owns component and entity repertoires',

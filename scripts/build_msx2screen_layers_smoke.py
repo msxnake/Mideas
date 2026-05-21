@@ -91,10 +91,10 @@ def compile_generator(project_root: Path, ts_build_dir: Path, strict_tsc: bool) 
 
 def validate_fixture_json(project_json: Path) -> None:
     project = json.loads(project_json.read_text(encoding="utf-8"))
-    if project.get("screenMode") != "SCREEN 5 (Graphics III)":
-        raise RuntimeError("Fixture is not a SCREEN 5 project")
-    if project.get("targetGraphicsBackend") != "msx2-screen5-tile16":
-        raise RuntimeError("Fixture is not using the MSX2 16x16 tile backend alias")
+    if project.get("screenMode") != "SCREEN 4 (Graphics II)":
+        raise RuntimeError("Fixture is not a SCREEN 4 project")
+    if project.get("targetGraphicsBackend") != "msx2-screen4-pattern":
+        raise RuntimeError("Fixture is not using the MSX2 SCREEN 4 pattern backend")
 
     screen_assets = [asset for asset in project.get("assets", []) if asset.get("type") == "msx2screen"]
     screen_asset = next((asset for asset in screen_assets if asset.get("id") == "screen_msx2_layers_smoke"), None)
@@ -125,8 +125,8 @@ def validate_fixture_json(project_json: Path) -> None:
     layers = screen.get("layers", {})
     for layer_name in ("collision", "effects", "behavior"):
         layer = layers.get(layer_name)
-        if not isinstance(layer, list) or len(layer) != 14:
-            raise RuntimeError(f"{layer_name} layer must have 14 rows")
+        if not isinstance(layer, list) or len(layer) != 12:
+            raise RuntimeError(f"{layer_name} layer must have 12 rows")
         if any(not isinstance(row, list) or len(row) != 16 for row in layer):
             raise RuntimeError(f"{layer_name} layer must be 16 columns wide")
         if not any(any(int(cell or 0) for cell in row) for row in layer):
@@ -241,9 +241,9 @@ const files = generator.generateModularASMFromSummary(summary, {
 const asm = files["unitedFiles.asm"] || "";
 const required = [
   "Mideas MSX2 SCREEN 4 tile backend",
-  "MSX2_LAYERS_EXIT_SCREEN_CHR_",
+  "MSX2_LAYERS_EXIT_SCREEN_BANK_",
   "msx2_try_world_edge_transition_left",
-  "call load_MSX2_LAYERS_EXIT_SCREEN_bitmap",
+  "call load_MSX2_LAYERS_EXIT_SCREEN_screen4",
   "msx2_current_collision_ptr",
   "msx2_current_behavior_ptr",
   "MSX2_LAYERS_SMOKE_SCREEN_BEHAVIOR",
@@ -316,11 +316,11 @@ def validate_asm(asm_output: Path) -> None:
         "Mideas MSX2 SCREEN 4 tile backend",
         "MSX2_LAYERS_SMOKE_SCREEN_COLLISION",
         "MSX2_LAYERS_SMOKE_SCREEN_EFFECTS",
-        "MSX2_LAYERS_EXIT_SCREEN_CHR_",
+        "MSX2_LAYERS_EXIT_SCREEN_BANK_",
         "MSX2 minimal GameFlow",
-        "call load_MSX2_LAYERS_SMOKE_SCREEN_bitmap",
+        "call load_MSX2_LAYERS_SMOKE_SCREEN_screen4",
         "msx2_try_world_edge_transition_left",
-        "call load_MSX2_LAYERS_EXIT_SCREEN_bitmap",
+        "call load_MSX2_LAYERS_EXIT_SCREEN_screen4",
         "msx2_current_collision_ptr",
         "msx2_current_effects_ptr",
         "msx2_current_behavior_ptr",

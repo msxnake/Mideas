@@ -6,10 +6,10 @@ import { execFileSync } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../..');
-const outDir = resolve(repoRoot, 'server/temp/msx2-screen5-minimal');
-const asmPath = resolve(outDir, 'msx2_screen5_minimal.asm');
-const romPath = resolve(outDir, 'msx2_screen5_minimal.rom');
-const fixturePath = resolve(outDir, 'msx2_screen5_minimal.fixture.json');
+const outDir = resolve(repoRoot, 'server/temp/msx2-screen4-minimal');
+const asmPath = resolve(outDir, 'msx2_screen4_minimal.asm');
+const romPath = resolve(outDir, 'msx2_screen4_minimal.rom');
+const fixturePath = resolve(outDir, 'msx2_screen4_minimal.fixture.json');
 const glassPath = resolve(repoRoot, 'server/glass.jar');
 
 const tilePalette = [
@@ -35,11 +35,11 @@ function makeTile(id, name, fn) {
   return {
     id,
     name,
-    width: 8,
-    height: 8,
+    width: 16,
+    height: 16,
     screen5Palette: tilePalette,
-    data: Array.from({ length: 8 }, (_, y) =>
-      Array.from({ length: 8 }, (_, x) => fn(x, y))
+    pixels: Array.from({ length: 16 }, (_, y) =>
+      Array.from({ length: 16 }, (_, x) => fn(x, y))
     ),
     logicalProperties: {
       mapId: 0,
@@ -65,27 +65,42 @@ const tiles = [
   makeTile('tile_green_stripe', 'Green Stripe', (x) => (x < 4 ? '#009200' : '#249249')),
 ];
 
-const background = Array.from({ length: 27 }, (_, y) =>
-  Array.from({ length: 32 }, (_, x) => {
-    if (x === 0 || y === 0 || x === 31 || y === 26) return { tileId: 'tile_red_block' };
-    if ((x + y) % 7 === 0) return { tileId: 'tile_cyan_grid' };
-    if (y > 17 && x > 4 && x < 27) return { tileId: 'tile_green_stripe' };
-    return { tileId: 'tile_black' };
+const map = Array.from({ length: 12 }, (_, y) =>
+  Array.from({ length: 16 }, (_, x) => {
+    if (x === 0 || y === 0 || x === 15 || y === 11) return 2;
+    if ((x + y) % 5 === 0) return 1;
+    if (y > 7 && x > 2 && x < 14) return 3;
+    return 0;
   })
 );
+const emptyLayer = Array.from({ length: 12 }, () => Array(16).fill(0));
 
 const screen = {
   id: 'screen_msx2_minimal',
   name: 'MSX2 Minimal',
-  width: 32,
-  height: 27,
-  screenKind: 'cutscene',
-  screenEngine: 'fakePlayer',
+  target: 'MSX2',
+  vdpMode: 'SCREEN4',
+  tileSize: 16,
+  widthTiles: 16,
+  heightTiles: 12,
+  tiles,
+  map,
+  collisionMap: emptyLayer,
   layers: {
-    background,
-    collision: [],
-    effects: [],
+    collision: emptyLayer,
+    effects: emptyLayer,
+    behavior: emptyLayer,
     entities: [],
+  },
+  runtime: {
+    screenKind: 'cutscene',
+    screenEngine: 'fakePlayer',
+    requiredCollectibles: 0,
+    initialAir: 255,
+    activeAreaX: 0,
+    activeAreaY: 0,
+    activeAreaWidth: 16,
+    activeAreaHeight: 12,
   },
   backgroundColor: 1,
   borderColor: 1,
@@ -138,14 +153,14 @@ const assets = [
     id: 'palette_msx2_minimal',
     name: 'MSX2 Minimal Palette',
     type: 'palette',
-    data: { mode: 'SCREEN5', slots: tilePalette, notes: 'Minimal SCREEN 5 smoke palette.' },
+    data: { mode: 'SCREEN4', slots: tilePalette, notes: 'Minimal SCREEN 4 smoke palette.' },
   },
-  { id: 'asset_screen_msx2_minimal', name: screen.name, type: 'screenmap', data: screen },
+  { id: 'asset_screen_msx2_minimal', name: screen.name, type: 'msx2screen', data: screen },
   { id: 'asset_gf_msx2_minimal', name: gameFlow.name, type: 'gameflow', data: gameFlow },
 ];
 
 mkdirSync(outDir, { recursive: true });
-writeFileSync(fixturePath, JSON.stringify({ currentScreenMode: 'SCREEN 5 (Graphics III)', assets }, null, 2));
+writeFileSync(fixturePath, JSON.stringify({ currentScreenMode: 'SCREEN 4 (Graphics II)', assets }, null, 2));
 
 const bundle = await esbuild.build({
   entryPoints: [resolve(repoRoot, 'utils/msxGenerator/index.ts')],
@@ -157,10 +172,10 @@ const bundle = await esbuild.build({
 });
 
 const generator = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
-const files = generator.generateModularASM('MSX2_Screen5_Minimal', assets, {
+const files = generator.generateModularASM('MSX2_Screen4_Minimal', assets, {
   generateUnified: true,
-  screenMode: 'SCREEN 5 (Graphics III)',
-  targetGraphicsBackend: 'msx2-screen5-bitmap',
+  screenMode: 'SCREEN 4 (Graphics II)',
+  targetGraphicsBackend: 'msx2-screen4-pattern',
   romMode: 'simple32k',
   targetFormat: 'konami',
 });
@@ -169,7 +184,7 @@ writeFileSync(asmPath, files['unitedFiles.asm']);
 if (!files['unitedFiles.asm'].includes('MSX2 minimal GameFlow')) {
   throw new Error('MSX2 minimal GameFlow marker missing');
 }
-if (!files['unitedFiles.asm'].includes('call clear_screen5_bitmap')) {
+if (!files['unitedFiles.asm'].includes('call clear_screen4_names')) {
   throw new Error('MSX2 cls transition was not emitted');
 }
 if (!files['unitedFiles.asm'].includes('call wait_key')) {

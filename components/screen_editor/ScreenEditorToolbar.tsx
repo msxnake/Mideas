@@ -232,52 +232,54 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
             )}
           </div>
 
-          <div className={`${groupClassName} border-l border-msx-border/60 pl-4`}>
-            <span className={labelClassName}>MSX1 Palette</span>
-            <div className="flex items-center gap-1">
-              <label htmlFor="bgColorSelector" className="text-msx-textsecondary">MSX1 BG</label>
-              <select
-                id="bgColorSelector"
-                value={backgroundColor}
-                onChange={(e) => onBackgroundColorChange(parseInt(e.target.value))}
-                className={`${selectClassName} w-36`}
-                title="Background Color (VDP backdrop)"
-              >
-                {MSX1_PALETTE.map(color => (
-                  <option key={color.index} value={color.index}>
-                    {color.name}
-                  </option>
-                ))}
-              </select>
-              <span
-                className="h-6 w-6 rounded border border-msx-border"
-                style={{ backgroundColor: backgroundSwatch }}
-                title={MSX1_PALETTE[backgroundColor]?.name || 'Black'}
-              />
-            </div>
+          {isMSXScreen2 && (
+            <div className={`${groupClassName} border-l border-msx-border/60 pl-4`}>
+              <span className={labelClassName}>MSX1 Palette</span>
+              <div className="flex items-center gap-1">
+                <label htmlFor="bgColorSelector" className="text-msx-textsecondary">MSX1 BG</label>
+                <select
+                  id="bgColorSelector"
+                  value={backgroundColor}
+                  onChange={(e) => onBackgroundColorChange(parseInt(e.target.value))}
+                  className={`${selectClassName} w-36`}
+                  title="Background Color (VDP backdrop)"
+                >
+                  {MSX1_PALETTE.map(color => (
+                    <option key={color.index} value={color.index}>
+                      {color.name}
+                    </option>
+                  ))}
+                </select>
+                <span
+                  className="h-6 w-6 rounded border border-msx-border"
+                  style={{ backgroundColor: backgroundSwatch }}
+                  title={MSX1_PALETTE[backgroundColor]?.name || 'Black'}
+                />
+              </div>
 
-            <div className="flex items-center gap-1">
-              <label htmlFor="borderColorSelector" className="text-msx-textsecondary">MSX1 Border</label>
-              <select
-                id="borderColorSelector"
-                value={borderColor}
-                onChange={(e) => onBorderColorChange(parseInt(e.target.value))}
-                className={`${selectClassName} w-36`}
-                title="Border Color (VDP border area)"
-              >
-                {MSX1_PALETTE.map(color => (
-                  <option key={color.index} value={color.index}>
-                    {color.name}
-                  </option>
-                ))}
-              </select>
-              <span
-                className="h-6 w-6 rounded border border-msx-border"
-                style={{ backgroundColor: borderSwatch }}
-                title={MSX1_PALETTE[borderColor]?.name || 'Black'}
-              />
+              <div className="flex items-center gap-1">
+                <label htmlFor="borderColorSelector" className="text-msx-textsecondary">MSX1 Border</label>
+                <select
+                  id="borderColorSelector"
+                  value={borderColor}
+                  onChange={(e) => onBorderColorChange(parseInt(e.target.value))}
+                  className={`${selectClassName} w-36`}
+                  title="Border Color (VDP border area)"
+                >
+                  {MSX1_PALETTE.map(color => (
+                    <option key={color.index} value={color.index}>
+                      {color.name}
+                    </option>
+                  ))}
+                </select>
+                <span
+                  className="h-6 w-6 rounded border border-msx-border"
+                  style={{ backgroundColor: borderSwatch }}
+                  title={MSX1_PALETTE[borderColor]?.name || 'Black'}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
             <Button onClick={onOpenHudEditor} size="sm" variant="secondary" icon={<HudIcon className="w-4 h-4" />} title={!isHudAreaDefined ? "No HUD area defined (Active Area covers full screen)" : "Manage HUD elements for this screen"} disabled={!isHudAreaDefined}>HUD</Button>

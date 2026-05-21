@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute,
+    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Screen5TileScreen, PaletteAsset,
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
     ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowControlsNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType, DialogueAsset, ScreenBlockExportMode, ScreenTile, TileStamp
 } from '../../types';
@@ -981,6 +981,50 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 className="w-16 p-0.5 bg-msx-bgcolor border-msx-border rounded"
               />
             </label>
+          </div>
+        );
+      }
+      case 'msx2sprite': {
+        const sprite = asset.data as Msx2Sprite;
+        const frameCount = sprite.frames?.length || 0;
+        const currentFrameData = sprite.frames?.[sprite.currentFrameIndex ?? 0]?.data || sprite.frames?.[0]?.data;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {sprite.name}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> MSX2 hardware sprite</div>
+            <div><strong className="text-msx-highlight">Size:</strong> {sprite.size.width}x{sprite.size.height} px</div>
+            <div><strong className="text-msx-highlight">Frames:</strong> {frameCount}</div>
+            <div><strong className="text-msx-highlight">Pattern:</strong> {sprite.hardware.patternIndex}</div>
+            <div><strong className="text-msx-highlight">Position:</strong> {sprite.hardware.x},{sprite.hardware.y}</div>
+            {currentFrameData && <PixelGridPreview data={currentFrameData} className="mt-1" />}
+          </div>
+        );
+      }
+      case 'msx2screen': {
+        const screen = asset.data as Msx2Screen5TileScreen;
+        const tileCount = screen.tiles?.length || 0;
+        const entityCount = screen.layers?.entities?.length || 0;
+        const collisionRows = screen.layers?.collision?.length || screen.collisionMap?.length || 0;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {screen.name}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> MSX2 SCREEN 4</div>
+            <div><strong className="text-msx-highlight">Screen:</strong> {screen.widthTiles}x{screen.heightTiles} anchors ({screen.widthTiles * screen.tileSize}x{screen.heightTiles * screen.tileSize} px)</div>
+            <div><strong className="text-msx-highlight">Tile anchor:</strong> {screen.tileSize} px</div>
+            <div><strong className="text-msx-highlight">Tiles:</strong> {tileCount}</div>
+            <div><strong className="text-msx-highlight">Entities:</strong> {entityCount}</div>
+            <div><strong className="text-msx-highlight">Runtime:</strong> {screen.runtime?.screenKind || 'playable'} / {screen.runtime?.screenEngine || 'player'}</div>
+            <div><strong className="text-msx-highlight">Collision rows:</strong> {collisionRows}</div>
+          </div>
+        );
+      }
+      case 'palette': {
+        const palette = asset.data as PaletteAsset;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {asset.name}</div>
+            <div><strong className="text-msx-highlight">Mode:</strong> MSX2 V9938</div>
+            <div><strong className="text-msx-highlight">Slots:</strong> {palette?.slots?.length || 0}</div>
           </div>
         );
       }
@@ -2301,7 +2345,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               ? renderEntityInstanceProperties()
             : effectZone && activeEditorType === EditorType.Screen
               ? renderEffectZoneProperties()
-              : (asset && (activeEditorType === EditorType.Tile || activeEditorType === EditorType.Sprite || activeEditorType === EditorType.Screen || activeEditorType === EditorType.Code || activeEditorType === EditorType.BehaviorEditor || activeEditorType === EditorType.ComponentDefinitionEditor || activeEditorType === EditorType.EntityTemplateEditor || activeEditorType === EditorType.GlobalVariables || activeEditorType === EditorType.Dialogue ))
+            : (asset && (activeEditorType === EditorType.Tile || activeEditorType === EditorType.Sprite || activeEditorType === EditorType.Msx2Sprite || activeEditorType === EditorType.Msx2Screen || activeEditorType === EditorType.Palette || activeEditorType === EditorType.Screen || activeEditorType === EditorType.Code || activeEditorType === EditorType.BehaviorEditor || activeEditorType === EditorType.ComponentDefinitionEditor || activeEditorType === EditorType.EntityTemplateEditor || activeEditorType === EditorType.GlobalVariables || activeEditorType === EditorType.Dialogue ))
                   ? renderAssetProperties()
                   : (activeEditorType === EditorType.Font
                       ? (

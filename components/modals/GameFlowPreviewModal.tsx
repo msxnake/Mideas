@@ -33,6 +33,7 @@ import {
     DialogueAsset,
     DialogueLine,
     PortraitAsset,
+    Msx2Screen5TileScreen,
     resolveEffectZoneType
 } from '../../types';
 import { Button } from '../common/Button';
@@ -60,13 +61,16 @@ import { log } from 'console';
 
 const ANIMATION_SPEED_MS = 200; // Fallback if sprite.animationSpeedMs is undefined
 const SCREEN2_LABEL = "SCREEN 2 (Graphics I)";
-const SCREEN5_LABEL = "SCREEN 5 (Graphics III)";
+const MSX2_SCREEN_LABEL = "SCREEN 4 (Graphics II)";
+const MSX2_SCREEN4_PREVIEW_WIDTH = 256;
+const MSX2_SCREEN4_PREVIEW_HEIGHT = 192;
 const DEADLY_TILES_COMPONENT_ID = 'comp_deadly_tiles';
 const IN_WATER_COMPONENT_ID = 'comp_in_water';
 
 const resolveScreenModeForMap = (map: ScreenMap | null, fallback: string): string => {
     if (!map) return fallback;
-    if (map.height && map.height > 24) return SCREEN5_LABEL;
+    if ((map as PreviewScreenMap).__msx2Screen4) return MSX2_SCREEN_LABEL;
+    if (map.height && map.height > 24) return MSX2_SCREEN_LABEL;
     if (map.tileBankAssetId) return SCREEN2_LABEL;
     return fallback;
 };
@@ -77,6 +81,99 @@ const isPlayerRuntimeScreen = (map: ScreenMap | null | undefined): boolean => {
     if (configuredEngine === 'player') return true;
     if (configuredEngine === 'fakePlayer') return false;
     return (map as any).screenKind === 'playable';
+};
+
+type PreviewScreenMap = ScreenMap & { __msx2Screen4?: Msx2Screen5TileScreen };
+
+const isMsx2Screen4Data = (data: unknown): data is Msx2Screen5TileScreen =>
+    !!data
+    && (data as Msx2Screen5TileScreen).target === 'MSX2'
+    && Array.isArray((data as Msx2Screen5TileScreen).map);
+
+const getMsx2PreviewSource = (map: ScreenMap | null | undefined): Msx2Screen5TileScreen | undefined =>
+    (map as PreviewScreenMap | null | undefined)?.__msx2Screen4;
+
+const adaptMsx2Screen4ToPreviewScreenMap = (screen: Msx2Screen5TileScreen): PreviewScreenMap => {
+    const width = screen.widthTiles || 16;
+    const height = screen.heightTiles || 12;
+    const numberLayerToScreenLayer = (layer: number[][] | undefined, prefix: string): ScreenTile[][] =>
+        Array.from({ length: height }, (_, y) =>
+            Array.from({ length: width }, (_, x) => {
+                const value = layer?.[y]?.[x] ?? 0;
+                return { tileId: value ? `${prefix}_${value}` : null };
+            })
+        );
+
+    return {
+        id: screen.id,
+        name: screen.name,
+        width,
+        height,
+        screenKind: screen.runtime?.screenKind,
+        screenEngine: screen.runtime?.screenEngine,
+        activeAreaX: screen.runtime?.activeAreaX ?? 0,
+        activeAreaY: screen.runtime?.activeAreaY ?? 0,
+        activeAreaWidth: screen.runtime?.activeAreaWidth ?? width,
+        activeAreaHeight: screen.runtime?.activeAreaHeight ?? height,
+        layers: {
+            background: Array.from({ length: height }, (_, y) =>
+                Array.from({ length: width }, (_, x) => ({ tileId: `__msx2_tile_${screen.map?.[y]?.[x] ?? 0}` }))
+            ),
+            collision: numberLayerToScreenLayer(screen.layers?.collision ?? screen.collisionMap, '__msx2_collision'),
+            effects: numberLayerToScreenLayer(screen.layers?.effects, '__msx2_effect'),
+            entities: []
+        },
+        __msx2Screen4: screen
+    };
+};
+
+const isScreenPreviewAsset = (asset: ProjectAsset | undefined): asset is ProjectAsset =>
+    !!asset && (asset.type === 'screenmap' || asset.type === 'msx2screen');
+
+const assetToPreviewScreenMap = (asset: ProjectAsset | undefined): PreviewScreenMap | null => {
+    if (!isScreenPreviewAsset(asset)) return null;
+    if (asset.type === 'msx2screen' && isMsx2Screen4Data(asset.data)) {
+        return adaptMsx2Screen4ToPreviewScreenMap(asset.data);
+    }
+    return asset.data as PreviewScreenMap;
+};
+
+const renderMsx2Screen4ToCanvas = (canvas: HTMLCanvasElement, screen: Msx2Screen5TileScreen): void => {
+    canvas.width = MSX2_SCREEN4_PREVIEW_WIDTH;
+    canvas.height = MSX2_SCREEN4_PREVIEW_HEIGHT;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+
+    const bg = screen.palette?.[0]?.hex || '#000000';
+    ctx.fillStyle = bg === 'rgba(0,0,0,0)' || bg === 'transparent' ? '#000000' : bg;
+    ctx.fillRect(0, 0, MSX2_SCREEN4_PREVIEW_WIDTH, MSX2_SCREEN4_PREVIEW_HEIGHT);
+
+    const anchorSize = Math.max(1, Number(screen.tileSize) || 16);
+    const visibleRows = Math.ceil(MSX2_SCREEN4_PREVIEW_HEIGHT / anchorSize);
+    const visibleCols = Math.ceil(MSX2_SCREEN4_PREVIEW_WIDTH / anchorSize);
+    for (let tileY = 0; tileY < visibleRows; tileY++) {
+        for (let tileX = 0; tileX < visibleCols; tileX++) {
+            const tileIndex = screen.map?.[tileY]?.[tileX] ?? 0;
+            const tile = screen.tiles?.[tileIndex];
+            if (!tile) continue;
+            const tileHeight = Math.max(1, Math.min(32, Number(tile.height ?? tile.pixels?.length ?? anchorSize) || anchorSize));
+            const tileWidth = Math.max(1, Math.min(32, Number(tile.width ?? tile.pixels?.[0]?.length ?? anchorSize) || anchorSize));
+            for (let py = 0; py < tileHeight; py++) {
+                const destY = tileY * anchorSize + py;
+                if (destY >= MSX2_SCREEN4_PREVIEW_HEIGHT) continue;
+                for (let px = 0; px < tileWidth; px++) {
+                    const destX = tileX * anchorSize + px;
+                    if (destX >= MSX2_SCREEN4_PREVIEW_WIDTH) continue;
+                    const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
+                    const color = screen.palette?.[colorIndex]?.hex || '#000000';
+                    if (color === 'rgba(0,0,0,0)' || color === 'transparent') continue;
+                    ctx.fillStyle = color;
+                    ctx.fillRect(destX, destY, 1, 1);
+                }
+            }
+        }
+    }
 };
 
 const CHILD_LINK_COMPONENT_ID = 'comp_child_link';
@@ -3895,8 +3992,8 @@ const handleScreenTransition = useCallback((toNodeId: string) => {
     if (!currentWorldMapGraph) return;
     const nextScreenNode = currentWorldMapGraph.nodes.find(n => n.id === toNodeId);
     if (!nextScreenNode) return;
-    const nextScreenAsset = allAssets.find(a => a.id === nextScreenNode.screenAssetId && a.type === 'screenmap');
-    if (!nextScreenAsset) return;
+    const nextScreenMap = assetToPreviewScreenMap(allAssets.find(a => a.id === nextScreenNode.screenAssetId));
+    if (!nextScreenMap) return;
 
     // Skip checkpoint persistence here because:
     // - Border crossings set playerEntryPoint and the effect will record the safe spot
@@ -3904,7 +4001,7 @@ const handleScreenTransition = useCallback((toNodeId: string) => {
     // Mark transition time to debounce immediate re-exit on arrival
     try { lastScreenTransitionTimeRef.current = (typeof performance !== 'undefined' ? performance.now() : Date.now()); } catch { lastScreenTransitionTimeRef.current = Date.now(); }
 
-    setCurrentScreenMap(nextScreenAsset.data as ScreenMap);
+    setCurrentScreenMap(nextScreenMap);
 }, [currentWorldMapGraph, allAssets]);
 
 const resolveDefaultGameFlowExitNode = useCallback((fromNodeId: string): string | null => {
@@ -4163,9 +4260,9 @@ useEffect(() => {
     setCurrentWorldMapGraph(worldMapGraph);
     const startScreenNode = worldMapGraph.nodes.find(n => n.id === worldMapGraph.startScreenNodeId);
     if (!startScreenNode) return;
-    const screenMapAsset = allAssets.find(a => a.id === startScreenNode.screenAssetId && a.type === 'screenmap');
-    if (!screenMapAsset) return;
-    setCurrentScreenMap(screenMapAsset.data as ScreenMap);
+    const screenMap = assetToPreviewScreenMap(allAssets.find(a => a.id === startScreenNode.screenAssetId));
+    if (!screenMap) return;
+    setCurrentScreenMap(screenMap);
 }, [isOpen, currentNode, allAssets, currentScreenMap]);
 
 useEffect(() => {
@@ -4213,9 +4310,8 @@ useEffect(() => {
 // Update currentScreenMap when the underlying asset changes in allAssets
 useEffect(() => {
     if (!isOpen || !currentScreenMap) return;
-    const updatedScreenMapAsset = allAssets.find(a => a.id === currentScreenMap.id && a.type === 'screenmap');
-    if (!updatedScreenMapAsset) return;
-    const updatedScreenMap = updatedScreenMapAsset.data as ScreenMap;
+    const updatedScreenMap = assetToPreviewScreenMap(allAssets.find(a => a.id === currentScreenMap.id));
+    if (!updatedScreenMap) return;
     // Only update if the reference has actually changed (indicating an update occurred)
     if (updatedScreenMap !== currentScreenMap) {
         setCurrentScreenMap(updatedScreenMap);
@@ -4670,8 +4766,8 @@ useEffect(() => {
     const subMenuNode = currentNode.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
     const textNodeForBg = currentNode.type === 'Text' ? currentNode as GameFlowTextNode : null;
     const bgScreenAssetId = subMenuNode?.appearance?.backgroundScreenAssetId || textNodeForBg?.appearance?.backgroundScreenAssetId;
-    const bgAsset = bgScreenAssetId ? allAssets.find(a => a.id === bgScreenAssetId) : null;
-    const screenMapToRender = currentScreenMap || (bgAsset?.data as ScreenMap);
+    const bgAsset = bgScreenAssetId ? allAssets.find(a => a.id === bgScreenAssetId) : undefined;
+    const screenMapToRender = currentScreenMap || assetToPreviewScreenMap(bgAsset);
     const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
     const tileById = new Map<string, Tile>(tileset.map(tile => [tile.id, tile] as [string, Tile]));
 
@@ -4684,6 +4780,12 @@ useEffect(() => {
         const tileX = Math.floor(x / TILE_SIZE);
         const tileY = Math.floor(y / TILE_SIZE);
         if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
+
+        const msx2Source = getMsx2PreviewSource(screenMap);
+        if (msx2Source) {
+            const collisionValue = (msx2Source.layers?.collision ?? msx2Source.collisionMap)?.[tileY]?.[tileX] ?? 0;
+            return collisionValue > 0;
+        }
 
         // Use runtimeCollisionLayerRef when rendering the active screen so tile edits are respected
         const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
@@ -4728,6 +4830,12 @@ useEffect(() => {
             return true;
         }
 
+        const msx2Source = getMsx2PreviewSource(screenMap);
+        if (msx2Source) {
+            const collisionValue = (msx2Source.layers?.collision ?? msx2Source.collisionMap)?.[tileY]?.[tileX] ?? 0;
+            return collisionValue > 0;
+        }
+
         const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
 
         if (useRuntimeLayer) {
@@ -4749,6 +4857,12 @@ useEffect(() => {
     const isDropSupportSolidAt = (tileX: number, tileY: number, screenMap: ScreenMap): boolean => {
         if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) {
             return false;
+        }
+
+        const msx2Source = getMsx2PreviewSource(screenMap);
+        if (msx2Source) {
+            const collisionValue = (msx2Source.layers?.collision ?? msx2Source.collisionMap)?.[tileY]?.[tileX] ?? 0;
+            return collisionValue > 0;
         }
 
         const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
@@ -5146,6 +5260,13 @@ useEffect(() => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return null;
         ctx.imageSmoothingEnabled = false;
+
+        const msx2Source = getMsx2PreviewSource(map);
+        if (msx2Source) {
+            renderMsx2Screen4ToCanvas(canvas, msx2Source);
+            tileBufferRef.current = canvas;
+            return canvas;
+        }
 
         const droppedPlacements = droppedBoxTilesRef.current.get(map.id) || [];
         const visualBackground = droppedPlacements.length > 0
@@ -8227,10 +8348,10 @@ useEffect(() => {
                             if (targetNodeId) {
                                 let newPlayerPos = { x: entityA.x, y: entityA.y };
                                 const targetScreenNode = currentWorldMapGraph.nodes.find(n => n.id === targetNodeId);
-                                const targetScreenAsset = targetScreenNode
-                                    ? allAssets.find(a => a.id === targetScreenNode.screenAssetId && a.type === 'screenmap')
+                                const targetScreen = targetScreenNode
+                                    ? assetToPreviewScreenMap(allAssets.find(a => a.id === targetScreenNode.screenAssetId))
                                     : null;
-                                const targetActiveBounds = getScreenActiveBoundsPx((targetScreenAsset?.data as ScreenMap | undefined) ?? null);
+                                const targetActiveBounds = getScreenActiveBoundsPx(targetScreen);
 
                                 const entryMargin = 2;
                                 switch (exitDirection) {
@@ -8701,8 +8822,8 @@ useEffect(() => {
                                                 // Trigger screen transition
                                                 const targetScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === localCoord.screenId);
                                                 if (targetScreenNode) {
-                                                    const targetScreenAsset = allAssets.find(a => a.id === targetScreenNode.screenAssetId && a.type === 'screenmap');
-                                                    const targetActiveBounds = getScreenActiveBoundsPx((targetScreenAsset?.data as ScreenMap | undefined) ?? null);
+                                                    const targetScreen = assetToPreviewScreenMap(allAssets.find(a => a.id === targetScreenNode.screenAssetId));
+                                                    const targetActiveBounds = getScreenActiveBoundsPx(targetScreen);
                                                     const spriteW = entityA.sprite.size.width;
                                                     const spriteH = entityA.sprite.size.height;
                                                     const margin = 2;

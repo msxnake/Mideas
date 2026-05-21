@@ -16,7 +16,7 @@ export const createDefaultScreen5PaletteSlots = (): Screen5PaletteSlot[] =>
   cloneSlots(DEFAULT_SCREEN5_CUSTOM_PALETTE);
 
 /**
- * Ensures a SCREEN 5 palette definition always has 16 valid slots.
+ * Ensures an MSX2 V9938 palette definition always has 16 valid slots.
  * Returns both the sanitized slots and whether any changes were required.
  */
 export const ensureScreen5PaletteSlots = (incoming?: Screen5PaletteSlot[]): { slots: Screen5PaletteSlot[]; changed: boolean } => {

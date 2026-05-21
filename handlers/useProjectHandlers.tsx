@@ -661,7 +661,7 @@ export const useProjectHandlers = ({
           });
 
         const normalizeMsx2Layer = (layer: number[][] | undefined, fallback?: number[][]): number[][] =>
-          Array.from({ length: 14 }, (_, y) =>
+          Array.from({ length: 12 }, (_, y) =>
             Array.from({ length: 16 }, (_, x) => Math.max(0, Math.min(255, Number(layer?.[y]?.[x] ?? fallback?.[y]?.[x] ?? 0) || 0)))
           );
 
@@ -709,7 +709,7 @@ export const useProjectHandlers = ({
                   activeAreaX: Number.isFinite(Number(screen.runtime?.activeAreaX)) ? Number(screen.runtime.activeAreaX) : 0,
                   activeAreaY: Number.isFinite(Number(screen.runtime?.activeAreaY)) ? Number(screen.runtime.activeAreaY) : 0,
                   activeAreaWidth: Number.isFinite(Number(screen.runtime?.activeAreaWidth)) ? Number(screen.runtime.activeAreaWidth) : 16,
-                  activeAreaHeight: Number.isFinite(Number(screen.runtime?.activeAreaHeight)) ? Number(screen.runtime.activeAreaHeight) : 14,
+                  activeAreaHeight: Number.isFinite(Number(screen.runtime?.activeAreaHeight)) ? Number(screen.runtime.activeAreaHeight) : 12,
                 },
                 collisionMap: layers.collision,
               },

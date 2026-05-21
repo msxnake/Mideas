@@ -1,15 +1,15 @@
 {
   "name": "msx2_current_screen_complete",
-  "currentScreenMode": "SCREEN 5 (Graphics III)",
-  "screenMode": "SCREEN 5 (Graphics III)",
-  "targetGraphicsBackend": "msx2-screen5-tile16",
+  "currentScreenMode": "SCREEN 4 (Graphics II)",
+  "screenMode": "SCREEN 4 (Graphics II)",
+  "targetGraphicsBackend": "msx2-screen4-pattern",
   "assets": [
     {
       "id": "palette_msx2_layers_smoke",
       "name": "Current Screen MSX2 Palette",
       "type": "palette",
       "data": {
-        "mode": "SCREEN5",
+        "mode": "SCREEN4",
         "slots": [
           {
             "slotIndex": 0,
@@ -102,7 +102,7 @@
         "id": "screen_msx2_layers_exit",
         "name": "MSX2 Layers Exit Screen",
         "target": "MSX2",
-        "vdpMode": "SCREEN5",
+        "vdpMode": "SCREEN4",
         "tileSize": 16,
         "widthTiles": 16,
         "heightTiles": 14,
@@ -3541,7 +3541,7 @@
         "id": "screen_msx2_current_complete",
         "name": "Current Screen Complete",
         "target": "MSX2",
-        "vdpMode": "SCREEN5",
+        "vdpMode": "SCREEN4",
         "tileSize": 16,
         "widthTiles": 16,
         "heightTiles": 14,
@@ -7032,7 +7032,7 @@
         "id": "sprite_msx2_current_player",
         "name": "Current Player Sprite",
         "target": "MSX2",
-        "vdpMode": "SCREEN5",
+        "vdpMode": "SCREEN4",
         "size": {
           "width": 16,
           "height": 16

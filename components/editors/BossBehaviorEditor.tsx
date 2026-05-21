@@ -7,6 +7,7 @@ import {
   BossBehaviorTarget,
   BossForm,
   BossPhase,
+  Msx2Screen5TileScreen,
   ProjectAsset,
   ScreenMap,
   Tile,
@@ -28,6 +29,49 @@ import {
   TrashIcon,
   ViewfinderCircleIcon,
 } from '../icons/MsxIcons';
+
+type BossPreviewScreen = ScreenMap | Msx2Screen5TileScreen;
+
+const isMsx2Screen4 = (screen: BossPreviewScreen | null | undefined): screen is Msx2Screen5TileScreen =>
+  !!screen && (screen as Msx2Screen5TileScreen).target === 'MSX2' && Array.isArray((screen as Msx2Screen5TileScreen).map);
+
+const getPreviewScreenWidthChars = (screen: BossPreviewScreen | null): number =>
+  isMsx2Screen4(screen) ? (screen.widthTiles || 16) * 2 : (screen?.width || 32);
+
+const getPreviewScreenHeightChars = (screen: BossPreviewScreen | null): number =>
+  isMsx2Screen4(screen) ? (screen.heightTiles || 12) * 2 : (screen?.height || 24);
+
+const renderMsx2Screen4PreviewBackground = (canvas: HTMLCanvasElement, screen: Msx2Screen5TileScreen): void => {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = screen.palette?.[0]?.hex || '#000000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const anchorSize = Math.max(1, Number(screen.tileSize) || 16);
+  for (let tileY = 0; tileY < Math.ceil(canvas.height / anchorSize); tileY++) {
+    for (let tileX = 0; tileX < Math.ceil(canvas.width / anchorSize); tileX++) {
+      const tileIndex = screen.map?.[tileY]?.[tileX] ?? 0;
+      const tile = screen.tiles?.[tileIndex];
+      if (!tile) continue;
+      const tileHeight = Math.max(1, Math.min(32, Number(tile.height ?? tile.pixels?.length ?? anchorSize) || anchorSize));
+      const tileWidth = Math.max(1, Math.min(32, Number(tile.width ?? tile.pixels?.[0]?.length ?? anchorSize) || anchorSize));
+      for (let py = 0; py < tileHeight; py++) {
+        const destY = tileY * anchorSize + py;
+        if (destY >= canvas.height) continue;
+        for (let px = 0; px < tileWidth; px++) {
+          const destX = tileX * anchorSize + px;
+          if (destX >= canvas.width) continue;
+          const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
+          const color = screen.palette?.[colorIndex]?.hex || '#000000';
+          if (color === 'transparent' || color === 'rgba(0,0,0,0)') continue;
+          ctx.fillStyle = color;
+          ctx.fillRect(destX, destY, 1, 1);
+        }
+      }
+    }
+  }
+};
 
 interface BossBehaviorEditorProps {
   boss: Boss;
@@ -392,7 +436,7 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
   const totalFrames = behaviorLoop.reduce((sum, action) => sum + actionDuration(action), 0);
 
   const screenAssets = useMemo(
-    () => allAssets.filter(asset => asset.type === 'screenmap' && asset.data),
+    () => allAssets.filter(asset => (asset.type === 'screenmap' || asset.type === 'msx2screen') && asset.data),
     [allAssets]
   );
   const selectedScreenAsset = useMemo(() => {
@@ -400,13 +444,14 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
     if (linkedScreenAsset) return linkedScreenAsset;
 
     return screenAssets.find(asset => {
+      if (asset.type !== 'screenmap') return false;
       const screen = asset.data as ScreenMap;
       return (screen.bossInstances || []).some(instance => instance.bossAssetId === boss.id);
     }) || null;
   }, [screenAssets, boss.linkedScreenId, boss.id]);
-  const selectedScreen = (selectedScreenAsset?.data as ScreenMap | undefined) || null;
+  const selectedScreen = (selectedScreenAsset?.data as BossPreviewScreen | undefined) || null;
   const selectedScreenBossInstance = useMemo(() => (
-    (selectedScreen?.bossInstances || []).find(instance => instance.bossAssetId === boss.id) || null
+    (!isMsx2Screen4(selectedScreen) ? (selectedScreen?.bossInstances || []).find(instance => instance.bossAssetId === boss.id) : null) || null
   ), [selectedScreen, boss.id]);
   const tileset = useMemo(
     () => allAssets.filter(asset => asset.type === 'tile' && asset.data).map(asset => asset.data as Tile),
@@ -602,8 +647,8 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
     const scaleY = canvas.height / rect.height;
     const x = Math.floor((event.clientX - rect.left) * scaleX / 8);
     const y = Math.floor((event.clientY - rect.top) * scaleY / 8);
-    const maxX = Math.max(0, (selectedScreen?.width || 32) - bossWidth);
-    const maxY = Math.max(0, (selectedScreen?.height || 24) - bossHeight);
+    const maxX = Math.max(0, getPreviewScreenWidthChars(selectedScreen) - bossWidth);
+    const maxY = Math.max(0, getPreviewScreenHeightChars(selectedScreen) - bossHeight);
     setSelectedActionFixedTarget(Math.max(0, Math.min(maxX, x)), Math.max(0, Math.min(maxY, y)));
   };
 
@@ -611,8 +656,8 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const widthTiles = selectedScreen?.width || 32;
-    const heightTiles = selectedScreen?.height || 24;
+    const widthTiles = getPreviewScreenWidthChars(selectedScreen);
+    const heightTiles = getPreviewScreenHeightChars(selectedScreen);
     const tileSize = 8;
     canvas.width = widthTiles * tileSize;
     canvas.height = heightTiles * tileSize;
@@ -622,7 +667,11 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
     ctx.imageSmoothingEnabled = false;
 
     if (selectedScreen) {
-      renderScreenToCanvas(canvas, selectedScreen, tileset, currentScreenMode, tileSize);
+      if (isMsx2Screen4(selectedScreen)) {
+        renderMsx2Screen4PreviewBackground(canvas, selectedScreen);
+      } else {
+        renderScreenToCanvas(canvas, selectedScreen, tileset, currentScreenMode, tileSize);
+      }
     } else {
       ctx.fillStyle = '#101820';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -850,8 +899,10 @@ export const BossBehaviorEditor: React.FC<BossBehaviorEditorProps> = ({
                     onChange={event => {
                       const linkedScreenId = event.target.value || null;
                       const nextScreen = screenAssets.find(asset => asset.id === linkedScreenId);
-                      const nextScreenData = nextScreen?.data as ScreenMap | undefined;
-                      const nextBossInstance = (nextScreenData?.bossInstances || []).find(instance => instance.bossAssetId === boss.id);
+                      const nextScreenData = nextScreen?.data as BossPreviewScreen | undefined;
+                      const nextBossInstance = !isMsx2Screen4(nextScreenData)
+                        ? (nextScreenData?.bossInstances || []).find(instance => instance.bossAssetId === boss.id)
+                        : null;
                       onUpdateBoss({
                         linkedScreenId,
                         ...(nextBossInstance ? {

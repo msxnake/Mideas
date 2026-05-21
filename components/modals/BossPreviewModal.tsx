@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Boss, BossAttack, BossCrushMovement, BossNeckChain, Tile, ProjectAsset, ScreenMap, Sprite } from '../../types';
+import { Boss, BossAttack, BossCrushMovement, BossNeckChain, Tile, ProjectAsset, ScreenMap, Sprite, Msx2Screen5TileScreen } from '../../types';
 import { Button } from '../common/Button';
 import { createTileDataURL, renderScreenToCanvas } from '../utils/screenUtils';
 import { EDITOR_BASE_TILE_DIM_S2 } from '../../constants';
@@ -133,6 +133,41 @@ const createSpriteFrameDataURL = (sprite: Sprite) => {
     return canvas.toDataURL();
 };
 
+const isMsx2Screen4Asset = (asset: ProjectAsset | undefined): asset is ProjectAsset & { data: Msx2Screen5TileScreen } =>
+    !!asset && asset.type === 'msx2screen' && !!asset.data && Array.isArray((asset.data as Msx2Screen5TileScreen).map);
+
+const renderMsx2Screen4Background = (canvas: HTMLCanvasElement, screen: Msx2Screen5TileScreen): void => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = screen.palette?.[0]?.hex || '#000000';
+    ctx.fillRect(0, 0, 256, 192);
+
+    const anchorSize = Math.max(1, Number(screen.tileSize) || 16);
+    for (let tileY = 0; tileY < Math.ceil(192 / anchorSize); tileY++) {
+        for (let tileX = 0; tileX < Math.ceil(256 / anchorSize); tileX++) {
+            const tileIndex = screen.map?.[tileY]?.[tileX] ?? 0;
+            const tile = screen.tiles?.[tileIndex];
+            if (!tile) continue;
+            const tileHeight = Math.max(1, Math.min(32, Number(tile.height ?? tile.pixels?.length ?? anchorSize) || anchorSize));
+            const tileWidth = Math.max(1, Math.min(32, Number(tile.width ?? tile.pixels?.[0]?.length ?? anchorSize) || anchorSize));
+            for (let py = 0; py < tileHeight; py++) {
+                const destY = tileY * anchorSize + py;
+                if (destY >= 192) continue;
+                for (let px = 0; px < tileWidth; px++) {
+                    const destX = tileX * anchorSize + px;
+                    if (destX >= 256) continue;
+                    const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
+                    const color = screen.palette?.[colorIndex]?.hex || '#000000';
+                    if (color === 'transparent' || color === 'rgba(0,0,0,0)') continue;
+                    ctx.fillStyle = color;
+                    ctx.fillRect(destX, destY, 1, 1);
+                }
+            }
+        }
+    }
+};
+
 /**
  * A modal dialog for previewing a boss's animation cycles.
  * It displays the different phases of a boss animation in sequence.
@@ -147,7 +182,7 @@ export const BossPreviewModal: React.FC<BossPreviewModalProps> = ({ isOpen, onCl
 
     const linkedScreenAsset = useMemo(() => {
         if (!boss.linkedScreenId) return null;
-        return allAssets.find(a => a.id === boss.linkedScreenId && a.type === 'screenmap');
+        return allAssets.find(a => a.id === boss.linkedScreenId && (a.type === 'screenmap' || a.type === 'msx2screen'));
     }, [boss.linkedScreenId, allAssets]);
 
     const fullTileset = useMemo(() => allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile), [allAssets]);
@@ -177,9 +212,12 @@ export const BossPreviewModal: React.FC<BossPreviewModalProps> = ({ isOpen, onCl
         const canvas = backgroundCanvasRef.current;
         const ctx = canvas?.getContext('2d');
         if (ctx && linkedScreenAsset && showBackground) {
-            const screenMap = linkedScreenAsset.data as ScreenMap;
-            // Assuming SCREEN 2 for now, as renderScreenToCanvas needs a specific mode
-            renderScreenToCanvas(canvas, screenMap, fullTileset, "SCREEN 2 (Graphics I)", EDITOR_BASE_TILE_DIM_S2);
+            if (isMsx2Screen4Asset(linkedScreenAsset)) {
+                renderMsx2Screen4Background(canvas, linkedScreenAsset.data);
+            } else {
+                const screenMap = linkedScreenAsset.data as ScreenMap;
+                renderScreenToCanvas(canvas, screenMap, fullTileset, "SCREEN 2 (Graphics I)", EDITOR_BASE_TILE_DIM_S2);
+            }
         } else if (ctx) {
             // Clear canvas if no screen is linked
             ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -279,7 +317,7 @@ export const BossPreviewModal: React.FC<BossPreviewModalProps> = ({ isOpen, onCl
                             const tileY = Math.floor(index / phaseGridWidth);
                             const neckOffset = getNeckSegmentOffset(currentPhase.neckChain, tileX, tileY, animationTick);
                             const tile = tileId ? tilesById.get(tileId) : null;
-                            const dataUrl = tile ? createTileDataURL(tile, 0, 0, tile.width, tile.height, tile.width, "SCREEN 5 (Graphics IV)") : null;
+                            const dataUrl = tile ? createTileDataURL(tile, 0, 0, tile.width, tile.height, tile.width, "SCREEN 4 (Graphics II)") : null;
                             return (
                                 <div
                                     key={index}
@@ -420,7 +458,7 @@ export const BossPreviewModal: React.FC<BossPreviewModalProps> = ({ isOpen, onCl
                             ? allAssets.find(asset => asset.id === attack.laserTileAssetId && asset.type === 'tile')
                             : null;
                         const laserTile = laserTileAsset?.data as Tile | undefined;
-                        const laserDataUrl = laserTile ? createTileDataURL(laserTile, 0, 0, laserTile.width, laserTile.height, laserTile.width, "SCREEN 5 (Graphics IV)") : null;
+                        const laserDataUrl = laserTile ? createTileDataURL(laserTile, 0, 0, laserTile.width, laserTile.height, laserTile.width, "SCREEN 4 (Graphics II)") : null;
                         const charSize = 8;
                         const lengthChars = Math.max(1, attack.laserLengthChars || 12);
                         const durationFrames = Math.max(1, attack.laserDurationFrames || 18);
@@ -574,7 +612,7 @@ export const BossPreviewModal: React.FC<BossPreviewModalProps> = ({ isOpen, onCl
                             ? allAssets.find(asset => asset.id === attack.blockTileAssetId && asset.type === 'tile')
                             : null;
                         const blockTile = blockTileAsset?.data as Tile | undefined;
-                        const blockTileDataUrl = blockTile ? createTileDataURL(blockTile, 0, 0, blockTile.width, blockTile.height, blockTile.width, "SCREEN 5 (Graphics IV)") : null;
+                        const blockTileDataUrl = blockTile ? createTileDataURL(blockTile, 0, 0, blockTile.width, blockTile.height, blockTile.width, "SCREEN 4 (Graphics II)") : null;
                         const blockWidth = blockSprite?.size.width || 8;
                         const blockHeight = blockSprite?.size.height || 8;
                         const blockCount = Math.max(1, Math.min(4, attack.meteorCount || 4));

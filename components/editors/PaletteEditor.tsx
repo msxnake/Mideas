@@ -23,7 +23,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   onUpdate,
   setStatusBarMessage,
 }) => {
-  const { slots: rawSlots = [], notes = '', mode = 'SCREEN5' } = paletteAsset.data || { slots: [] };
+  const { slots: rawSlots = [], notes = '', mode = 'SCREEN4' } = paletteAsset.data || { slots: [] };
   const { slots, changed } = useMemo(() => ensureScreen5PaletteSlots(rawSlots), [rawSlots]);
   const [activeSlot, setActiveSlot] = useState<number>(1);
 
@@ -82,8 +82,8 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   };
 
   const resetToDefault = () => {
-    onUpdate({ slots: DEFAULT_SCREEN5_CUSTOM_PALETTE.map(slot => ({ ...slot })) });
-    setStatusBarMessage('SCREEN 5 palette reset to the default MSX2 slot set.');
+    onUpdate({ slots: DEFAULT_SCREEN5_CUSTOM_PALETTE.map(slot => ({ ...slot })), mode: 'SCREEN4' });
+    setStatusBarMessage('MSX2 palette reset to the default V9938 slot set.');
   };
 
   return (

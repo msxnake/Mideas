@@ -30,7 +30,7 @@ interface SnippetEditorModalProps {
  * The types of assets that can be used in placeholders.
  * @constant
  */
-const PLACEHOLDER_TYPES = ['tile', 'bank', 'screenmap'];
+const PLACEHOLDER_TYPES = ['tile', 'bank', 'screenmap', 'msx2screen'];
 /**
  * The types of macros that can be used.
  * @constant
@@ -182,6 +182,7 @@ export const SnippetEditorModal: React.FC<SnippetEditorModalProps> = ({
         case 'tile': return ['name', 'char_code', 'width', 'height'];
         case 'bank': return ['name', 'vram_pattern_start', 'vram_color_start', 'charset_start', 'charset_end'];
         case 'screenmap': return ['name', 'width', 'height'];
+        case 'msx2screen': return ['name', 'widthTiles', 'heightTiles', 'tileSize'];
         default: return [];
     }
   };

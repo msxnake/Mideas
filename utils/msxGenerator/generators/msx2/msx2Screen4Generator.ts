@@ -1,5 +1,5 @@
-import { DEFAULT_SCREEN5_CUSTOM_PALETTE } from '../../../../constants';
-import { GameFlowConnection, GameFlowNode, Msx2Bitmap, Msx2Screen5TileScreen, Msx2Sprite, PaletteAsset, Screen5PaletteSlot, ScreenMap, Tile } from '../../../../types';
+import { DEFAULT_SCREEN5_CUSTOM_PALETTE as DEFAULT_SCREEN4_CUSTOM_PALETTE } from '../../../../constants';
+import { GameFlowConnection, GameFlowNode, Msx2Screen5TileScreen as Msx2Screen4TileScreen, Msx2Sprite, PaletteAsset, Screen5PaletteSlot as Screen4PaletteSlot, ScreenMap } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -10,8 +10,8 @@ import {
   getMsx2EnemyHazardRuntimeSlots,
 } from './msx2EntityRuntimeGenerator';
 
-interface Msx2Screen5Config {
-  screenMode: 'SCREEN 4 (Graphics II)' | 'SCREEN 5 (Graphics III)';
+interface Msx2Screen4Config {
+  screenMode: 'SCREEN 4 (Graphics II)';
   romMode: MSXRomMode;
   targetFormat: MSXMapperFormat;
 }
@@ -33,9 +33,6 @@ const SCREEN4_COLOR_VRAM = '#2000';
 const SCREEN4_SPRPAT_VRAM = '#3800';
 const MSX2_TILE_SCREEN_WIDTH = 16;
 const MSX2_TILE_SCREEN_HEIGHT = 12;
-const SCREEN5_WIDTH = SCREEN4_WIDTH;
-const SCREEN5_HEIGHT = SCREEN4_HEIGHT;
-const SCREEN5_BYTES = SCREEN4_NAME_BYTES;
 const MSX2_PLAYER_BULLET_HARDWARE_SLOTS = 2;
 const MSX2_ENEMY_BULLET_HARDWARE_SLOTS = 1;
 const MSX2_MAX_PLAYER_HARDWARE_LAYERS = 32 - MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN - MSX2_PLAYER_BULLET_HARDWARE_SLOTS - MSX2_ENEMY_BULLET_HARDWARE_SLOTS - 1;
@@ -62,25 +59,6 @@ const MSX2_ENEMY_BULLET_PATTERN = [
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
-const MSX2_HEX_DIGIT_PATTERNS = [
-  0xFF, 0xFF, 0xF0, 0x0F, 0xF0, 0x0F, 0xF0, 0x0F, 0xF0, 0x0F, 0xFF, 0xFF,
-  0x00, 0xFF, 0x00, 0x0F, 0x00, 0x0F, 0x00, 0x0F, 0x00, 0x0F, 0x00, 0xFF,
-  0xFF, 0xFF, 0x00, 0x0F, 0x00, 0x0F, 0xFF, 0xFF, 0xF0, 0x00, 0xFF, 0xFF,
-  0xFF, 0xFF, 0x00, 0x0F, 0x00, 0x0F, 0x0F, 0xFF, 0x00, 0x0F, 0xFF, 0xFF,
-  0xF0, 0x0F, 0xF0, 0x0F, 0xF0, 0x0F, 0xFF, 0xFF, 0x00, 0x0F, 0x00, 0x0F,
-  0xFF, 0xFF, 0xF0, 0x00, 0xF0, 0x00, 0xFF, 0xF0, 0x00, 0x0F, 0xFF, 0xF0,
-  0xFF, 0xFF, 0xF0, 0x00, 0xF0, 0x00, 0xFF, 0xFF, 0xF0, 0x0F, 0xFF, 0xFF,
-  0xFF, 0xFF, 0x00, 0x0F, 0x00, 0x0F, 0x00, 0xF0, 0x00, 0xF0, 0x00, 0xF0,
-  0xFF, 0xFF, 0xF0, 0x0F, 0xF0, 0x0F, 0xFF, 0xFF, 0xF0, 0x0F, 0xFF, 0xFF,
-  0xFF, 0xFF, 0xF0, 0x0F, 0xF0, 0x0F, 0xFF, 0xFF, 0x00, 0x0F, 0xFF, 0xFF,
-  0xFF, 0xFF, 0xF0, 0x0F, 0xF0, 0x0F, 0xFF, 0xFF, 0xF0, 0x0F, 0xF0, 0x0F,
-  0xFF, 0xF0, 0xF0, 0x0F, 0xF0, 0x0F, 0xFF, 0xF0, 0xF0, 0x0F, 0xFF, 0xF0,
-  0xFF, 0xFF, 0xF0, 0x00, 0xF0, 0x00, 0xF0, 0x00, 0xF0, 0x00, 0xFF, 0xFF,
-  0xFF, 0xF0, 0xF0, 0x0F, 0xF0, 0x0F, 0xF0, 0x0F, 0xF0, 0x0F, 0xFF, 0xF0,
-  0xFF, 0xFF, 0xF0, 0x00, 0xF0, 0x00, 0xFF, 0xF0, 0xF0, 0x00, 0xFF, 0xFF,
-  0xFF, 0xFF, 0xF0, 0x00, 0xF0, 0x00, 0xFF, 0xF0, 0xF0, 0x00, 0xF0, 0x00,
-];
-
 const sanitizeLabel = (value: string, fallback: string): string =>
   String(value || fallback)
     .replace(/[^a-zA-Z0-9_]/g, '_')
@@ -115,17 +93,13 @@ const colorDistance = (a: string, b: string): number => {
   return dr * dr + dg * dg + db * db;
 };
 
-function resolveScreen5Palette(analysis: ProjectAnalysis): Screen5PaletteSlot[] {
+function resolveScreen4Palette(analysis: ProjectAnalysis): Screen4PaletteSlot[] {
   const assets = (analysis as any).assets as Array<{ type?: string; data?: unknown }> | undefined;
   const paletteAsset = assets?.find(asset => asset?.type === 'palette')?.data as PaletteAsset | undefined;
-  if (paletteAsset?.mode === 'SCREEN5' && paletteAsset.slots?.length === 16) {
+  if ((paletteAsset?.mode === 'SCREEN4' || paletteAsset?.mode === 'SCREEN5') && paletteAsset.slots?.length === 16) {
     return paletteAsset.slots.map(slot => ({ ...slot }));
   }
 
-  const bitmapPalette = (analysis.msx2Bitmaps || []).find(bitmap => bitmap.palette?.length === 16)?.palette;
-  if (bitmapPalette?.length === 16) {
-    return bitmapPalette.map(slot => ({ ...slot }));
-  }
 
   const tileScreenPalette = (analysis.msx2Screens || []).find(screen => screen.palette?.length === 16)?.palette;
   if (tileScreenPalette?.length === 16) {
@@ -137,10 +111,10 @@ function resolveScreen5Palette(analysis: ProjectAnalysis): Screen5PaletteSlot[] 
     return tilePalette.map(slot => ({ ...slot }));
   }
 
-  return DEFAULT_SCREEN5_CUSTOM_PALETTE.map(slot => ({ ...slot }));
+  return DEFAULT_SCREEN4_CUSTOM_PALETTE.map(slot => ({ ...slot }));
 }
 
-function paletteIndexForColor(color: string | undefined, slots: Screen5PaletteSlot[]): number {
+function paletteIndexForColor(color: string | undefined, slots: Screen4PaletteSlot[]): number {
   const normalized = normalizeColor(color);
   if (!normalized || normalized === TRANSPARENT_HEX) return 0;
 
@@ -159,95 +133,6 @@ function paletteIndexForColor(color: string | undefined, slots: Screen5PaletteSl
   return bestIndex & 0x0f;
 }
 
-function getTilePixel(tile: Tile | undefined, subTileX: number, subTileY: number, x: number, y: number): string | undefined {
-  if (!tile) return undefined;
-  return tile.data?.[(subTileY * CELL_SIZE) + y]?.[(subTileX * CELL_SIZE) + x];
-}
-
-function buildScreen5BitmapBytes(screen: ScreenMap | undefined, tiles: Tile[], slots: Screen5PaletteSlot[]): number[] {
-  const bytes: number[] = [];
-  const tileById = new Map(tiles.map(tile => [tile.id, tile]));
-  const backgroundLayer = screen?.layers?.background || [];
-
-  for (let y = 0; y < SCREEN5_HEIGHT; y++) {
-    const cellY = Math.floor(y / CELL_SIZE);
-    const pixelY = y % CELL_SIZE;
-    for (let byteX = 0; byteX < SCREEN5_WIDTH / 2; byteX++) {
-      const x0 = byteX * 2;
-      const x1 = x0 + 1;
-      const cellX0 = Math.floor(x0 / CELL_SIZE);
-      const cellX1 = Math.floor(x1 / CELL_SIZE);
-      const screenTile0 = backgroundLayer[cellY]?.[cellX0];
-      const screenTile1 = backgroundLayer[cellY]?.[cellX1];
-      const tile0 = screenTile0?.tileId ? tileById.get(screenTile0.tileId) : undefined;
-      const tile1 = screenTile1?.tileId ? tileById.get(screenTile1.tileId) : undefined;
-      const hi = paletteIndexForColor(
-        getTilePixel(tile0, screenTile0?.subTileX || 0, screenTile0?.subTileY || 0, x0 % CELL_SIZE, pixelY),
-        slots
-      );
-      const lo = paletteIndexForColor(
-        getTilePixel(tile1, screenTile1?.subTileX || 0, screenTile1?.subTileY || 0, x1 % CELL_SIZE, pixelY),
-        slots
-      );
-      bytes.push(((hi & 0x0f) << 4) | (lo & 0x0f));
-    }
-  }
-
-  return bytes;
-}
-
-function buildScreen5BitmapBytesFromAsset(bitmap: Msx2Bitmap | undefined): number[] {
-  const bytes: number[] = [];
-  const pixels = bitmap?.pixels || [];
-  for (let y = 0; y < SCREEN5_HEIGHT; y++) {
-    const row = pixels[y] || [];
-    for (let byteX = 0; byteX < SCREEN5_WIDTH / 2; byteX++) {
-      const x0 = byteX * 2;
-      const hi = Math.max(0, Math.min(15, Number(row[x0]) || 0));
-      const lo = Math.max(0, Math.min(15, Number(row[x0 + 1]) || 0));
-      bytes.push(((hi & 0x0f) << 4) | (lo & 0x0f));
-    }
-  }
-  return bytes;
-}
-
-function buildScreen5BitmapBytesFromTileScreen(screen: Msx2Screen5TileScreen | undefined): number[] {
-  const tiles = screen?.tiles || [];
-  const map = screen?.map || [];
-  const tileByIndex = (index: number) => tiles[Math.max(0, Math.min(tiles.length - 1, Number(index) || 0))];
-  const pixels = Array.from({ length: SCREEN5_HEIGHT }, () => Array(SCREEN5_WIDTH).fill(0));
-
-  for (let tileY = 0; tileY < MSX2_TILE_SCREEN_HEIGHT; tileY++) {
-    for (let tileX = 0; tileX < MSX2_TILE_SCREEN_WIDTH; tileX++) {
-      const tile = tileByIndex(map[tileY]?.[tileX] ?? 0);
-      const tileWidth = getMsx2TilePixelWidth(tile);
-      const tileHeight = getMsx2TilePixelHeight(tile);
-      const destBaseX = tileX * 16;
-      const destBaseY = tileY * 16;
-      for (let py = 0; py < tileHeight; py++) {
-        const destY = destBaseY + py;
-        if (destY >= SCREEN5_HEIGHT) continue;
-        for (let px = 0; px < tileWidth; px++) {
-          const destX = destBaseX + px;
-          if (destX >= SCREEN5_WIDTH) continue;
-          pixels[destY][destX] = Math.max(0, Math.min(15, Number(tile?.pixels?.[py]?.[px]) || 0));
-        }
-      }
-    }
-  }
-
-  const bytes: number[] = [];
-  for (let y = 0; y < SCREEN5_HEIGHT; y++) {
-    for (let byteX = 0; byteX < SCREEN5_WIDTH / 2; byteX++) {
-      const x0 = byteX * 2;
-      const hi = pixels[y][x0];
-      const lo = pixels[y][x0 + 1];
-      bytes.push(((hi & 0x0f) << 4) | (lo & 0x0f));
-    }
-  }
-  return bytes;
-}
-
 function getMsx2TilePixelWidth(tile: any | undefined): number {
   const numeric = Number(tile?.width ?? tile?.pixels?.[0]?.length ?? 16);
   if (!Number.isFinite(numeric)) return 16;
@@ -260,12 +145,12 @@ function getMsx2TilePixelHeight(tile: any | undefined): number {
   return Math.max(8, Math.min(32, Math.round(numeric / 8) * 8));
 }
 
-function hasVariableMsx2TileSize(screen: Msx2Screen5TileScreen | undefined): boolean {
+function hasVariableMsx2TileSize(screen: Msx2Screen4TileScreen | undefined): boolean {
   return (screen?.tiles || []).some(tile => getMsx2TilePixelWidth(tile) !== 16 || getMsx2TilePixelHeight(tile) !== 16);
 }
 
 function buildTileScreenLayerBytes(
-  screen: Msx2Screen5TileScreen | undefined,
+  screen: Msx2Screen4TileScreen | undefined,
   layerName: 'collision' | 'effects' | 'behavior'
 ): number[] {
   const fallback = layerName === 'collision' ? screen?.collisionMap : undefined;
@@ -279,11 +164,11 @@ function buildTileScreenLayerBytes(
   return bytes;
 }
 
-function countTileScreenEffectCode(screen: Msx2Screen5TileScreen | undefined, code: number): number {
+function countTileScreenEffectCode(screen: Msx2Screen4TileScreen | undefined, code: number): number {
   return buildTileScreenLayerBytes(screen, 'effects').filter(value => value === code).length;
 }
 
-function getTileScreenRequiredCollectibles(screen: Msx2Screen5TileScreen | undefined): number {
+function getTileScreenRequiredCollectibles(screen: Msx2Screen4TileScreen | undefined): number {
   const configured = Number(screen?.runtime?.requiredCollectibles);
   if (Number.isFinite(configured)) {
     return Math.max(0, Math.min(255, Math.floor(configured)));
@@ -291,7 +176,11 @@ function getTileScreenRequiredCollectibles(screen: Msx2Screen5TileScreen | undef
   return Math.max(0, Math.min(255, countTileScreenEffectCode(screen, 3)));
 }
 
-function getTileScreenInitialAir(screen: Msx2Screen5TileScreen | undefined): number {
+function getTileScreenInitialAir(screen: Msx2Screen4TileScreen | undefined): number {
+  const runtime = screen?.runtime as unknown as Record<string, unknown> | undefined;
+  if (runtime?.disableAirTimer === true || runtime?.airTimer === false || runtime?.initialAir === 0) {
+    return 0;
+  }
   const configured = Number(screen?.runtime?.initialAir);
   if (Number.isFinite(configured)) {
     return Math.max(1, Math.min(255, Math.floor(configured)));
@@ -378,7 +267,7 @@ interface Screen4CharDefinition {
   color: number[];
 }
 
-function buildScreen4ScreenData(screen: Msx2Screen5TileScreen | undefined): { names: number[]; charDefs: Screen4CharDefinition[] } {
+function buildScreen4ScreenData(screen: Msx2Screen4TileScreen | undefined): { names: number[]; charDefs: Screen4CharDefinition[]; patternBanks: number[][]; colorBanks: number[][] } {
   const tiles = screen?.tiles?.length ? screen.tiles : [{ pixels: Array.from({ length: 16 }, () => Array(16).fill(0)) }];
   const map = screen?.map || [];
   const maxTileIndex = Math.max(0, tiles.length - 1);
@@ -420,13 +309,17 @@ function buildScreen4ScreenData(screen: Msx2Screen5TileScreen | undefined): { na
     }
   }
 
+  const patternBanks = bankDefs.map(defs => defs.flatMap(def => def.pattern));
+  const colorBanks = bankDefs.map(defs => defs.flatMap(def => def.color));
   return {
     names,
     charDefs: bankDefs.flat(),
+    patternBanks,
+    colorBanks,
   };
 }
 
-function getCollectibleErasePaletteIndex(screens: Array<Msx2Screen5TileScreen | undefined>): number {
+function getCollectibleErasePaletteIndex(screens: Array<Msx2Screen4TileScreen | undefined>): number {
   const counts = new Map<number, number>();
   screens.forEach(screen => {
     const effects = buildTileScreenLayerBytes(screen, 'effects');
@@ -460,35 +353,38 @@ function getCollectibleErasePaletteIndex(screens: Array<Msx2Screen5TileScreen | 
   return Math.max(0, Math.min(15, best));
 }
 
-function buildTileScreenTileBlocks(label: string, screen: Msx2Screen5TileScreen | undefined): string {
+function buildTileScreenTileBlocks(label: string, screen: Msx2Screen4TileScreen | undefined): string {
   const data = buildScreen4ScreenData(screen);
   const blocks = [formatBytes(`${label}_NAMES`, data.names, `${screen?.name || label} SCREEN 4 name table, 32x24 chars`)];
-  data.charDefs.forEach((def, index) => {
-    blocks.push(formatBytes(`${label}_CHR_${index}_PATTERN`, def.pattern, `${screen?.name || label} SCREEN 4 bank ${def.bank} char ${def.charCode} pattern`));
-    blocks.push(formatBytes(`${label}_CHR_${index}_COLOR`, def.color, `${screen?.name || label} SCREEN 4 bank ${def.bank} char ${def.charCode} color`));
+  data.patternBanks.forEach((patterns, bank) => {
+    if (!patterns.length) return;
+    blocks.push(formatBytes(`${label}_BANK_${bank}_PATTERNS`, patterns, `${screen?.name || label} SCREEN 4 bank ${bank} compact patterns`));
+    blocks.push(formatBytes(`${label}_BANK_${bank}_COLORS`, data.colorBanks[bank], `${screen?.name || label} SCREEN 4 bank ${bank} compact colors`));
   });
   return blocks.join('\n');
 }
 
 function buildTileScreenLoadRoutine(
   label: string,
-  screen: Msx2Screen5TileScreen | undefined,
+  screen: Msx2Screen4TileScreen | undefined,
   screenIndex: number | undefined,
   loadRuntimeLayerPointers: (label: string, screenIndex?: number) => string
 ): string {
   const data = buildScreen4ScreenData(screen);
-  const charLoads = data.charDefs.map((def, index) => {
-    const charOffset = (def.bank * 0x0800) + (def.charCode * 8);
-    return `    ld hl, ${label}_CHR_${index}_PATTERN
+  const bankLoads = data.patternBanks.map((patterns, bank) => {
+    if (!patterns.length) return '';
+    const charOffset = bank * 0x0800;
+    const byteCount = patterns.length;
+    return `    ld hl, ${label}_BANK_${bank}_PATTERNS
     ld de, #${charOffset.toString(16).toUpperCase().padStart(4, '0')}
-    ld bc, 8
+    ld bc, ${byteCount}
     call LDIRVM
-    ld hl, ${label}_CHR_${index}_COLOR
+    ld hl, ${label}_BANK_${bank}_COLORS
     ld de, #${(0x2000 + charOffset).toString(16).toUpperCase().padStart(4, '0')}
-    ld bc, 8
+    ld bc, ${byteCount}
     call LDIRVM`;
-  }).join('\n');
-  return `load_${label}_bitmap:
+  }).filter(Boolean).join('\n');
+  return `load_${label}_screen4:
     xor a
     ld hl, SCREEN4_NAME_VRAM
     ld bc, SCREEN4_NAME_SIZE
@@ -501,7 +397,7 @@ function buildTileScreenLoadRoutine(
     ld hl, SCREEN4_COLOR_VRAM
     ld bc, SCREEN4_COLOR_SIZE
     call FILVRM
-${charLoads}
+${bankLoads}
     ld hl, ${label}_NAMES
     ld de, SCREEN4_NAME_VRAM
     ld bc, SCREEN4_NAME_SIZE
@@ -513,7 +409,7 @@ ${loadRuntimeLayerPointers(label, screenIndex)}    call apply_${label}_collected
 
 function buildTileScreenCollectedVisualsRoutine(
   label: string,
-  screen: Msx2Screen5TileScreen | undefined,
+  screen: Msx2Screen4TileScreen | undefined,
   screenIndex: number,
   effectRuntimeBase: number
 ): string {
@@ -578,7 +474,7 @@ function maxPersistentMsx2ScreenCount(): number {
   return count;
 }
 
-function buildPaletteBytes(slots: Screen5PaletteSlot[]): number[] {
+function buildPaletteBytes(slots: Screen4PaletteSlot[]): number[] {
   const bytes: number[] = [];
   for (let i = 0; i < 16; i++) {
     const slot = slots[i];
@@ -622,11 +518,11 @@ function clampTileCoordinate(value: unknown, max: number): number {
   return Math.max(0, Math.min(max, Number(value) || 0));
 }
 
-function getPrimaryRuntimeTileScreen(analysis: ProjectAnalysis): Msx2Screen5TileScreen | undefined {
+function getPrimaryRuntimeTileScreen(analysis: ProjectAnalysis): Msx2Screen4TileScreen | undefined {
   return collectReferencedTileScreens(analysis)[0] || analysis.msx2Screens?.[0];
 }
 
-function getPlayerStartFromTileScreen(screen: Msx2Screen5TileScreen | undefined): { x: number; y: number } | undefined {
+function getPlayerStartFromTileScreen(screen: Msx2Screen4TileScreen | undefined): { x: number; y: number } | undefined {
   const player = screen?.layers?.entities?.find(entity => entity.kind === 'player')
     || screen?.layers?.entities?.[0];
   if (!player?.position) return undefined;
@@ -696,15 +592,6 @@ function usesShooterHorizontalMovement(analysis: ProjectAnalysis): boolean {
     || mode === 'galaxian'
     || mode === 'space-shooter'
     || mode === 'spaceshooter';
-}
-
-function usesInlineStatusHud(analysis: ProjectAnalysis): boolean {
-  const screen = getPrimaryRuntimeTileScreen(analysis);
-  const runtime = (screen?.runtime || {}) as Record<string, unknown>;
-  if (runtime.hideHud === true || runtime.showHud === false || runtime.statusHud === false) return false;
-  // Maze/Pac-Man-style screens often use the full tilemap; drawing fixed HUD pips
-  // at the top overwrites authored maze tiles and looks like graphic corruption.
-  return !usesMazeMovement(analysis);
 }
 
 function usesSnakeGrowth(analysis: ProjectAnalysis): boolean {
@@ -1088,36 +975,6 @@ copy_to_vram_ext:
     out (VDP_CTRL_PORT), a
     ret
 
-copy_tile_rows_to_vram:
-    ; HL=packed 16x16 tile source, DE=SCREEN 5 VRAM destination, B=row count.
-    ; Copies 8 packed bytes per row and advances VRAM by one SCREEN 5 scanline.
-.tile_row_loop:
-    push bc
-    ld bc, 8
-    call copy_to_vram_ext
-    ex de, hl
-    ld bc, 128
-    add hl, bc
-    ex de, hl
-    pop bc
-    djnz .tile_row_loop
-    ret
-
-copy_tile_rect_rows_to_vram:
-    ; HL=packed tile source, DE=SCREEN 5 VRAM destination, B=row count, C=packed bytes per row.
-    ; Used by MSX2 variable-size visual tiles. Widths are multiples of 8 pixels.
-.tile_rect_row_loop:
-    push bc
-    ld b, 0
-    call copy_to_vram_ext
-    ex de, hl
-    ld bc, 128
-    add hl, bc
-    ex de, hl
-    pop bc
-    djnz .tile_rect_row_loop
-    ret
-
 write_vram_byte_ext:
     ; A=data, HL=absolute VRAM destination. Clobbers AF/B.
     ld b, a
@@ -1171,75 +1028,6 @@ clear_screen4_name_cell_16:
 function addImmediateToA(value: number): string {
   if (!value) return '';
   return `    add a, ${Math.max(0, Math.min(255, value))}\n`;
-}
-
-function buildCollectibleHudSlotAsm(requiredCollectibles: number): string {
-  const slotCount = Math.max(0, Math.min(4, Math.floor(requiredCollectibles)));
-  if (slotCount === 0) {
-    return `draw_msx2_collectible_hud:
-    ; No collectibles are required for this level. Clobbers AF/BC/DE/HL.
-    ret
-`;
-  }
-  return `draw_msx2_collectible_hud:
-    ; Tiny SCREEN 5 collectible-progress pips after the life HUD. Clobbers AF/BC/DE/HL.
-${Array.from({ length: slotCount }, (_unused, index) => {
-  const required = index + 1;
-  const destination = 0x0119 + (index * 0x0006);
-  return `    ld a, (msx2_collectible_count)
-    cp ${required}
-    jp nc, .collectible_hud_${required}_on
-    ld a, #11
-    jp .draw_collectible_hud_${required}
-.collectible_hud_${required}_on:
-    ld a, #AA
-.draw_collectible_hud_${required}:
-    ld hl, #${destination.toString(16).toUpperCase().padStart(4, '0')}
-    call draw_msx2_life_pip
-`;
-}).join('')}    ret
-`;
-}
-
-function buildAirHudSlotAsm(): string {
-  return `draw_msx2_air_hud:
-    ; SCREEN 5 air/time bar at the top-right. Clobbers AF/BC/DE/HL.
-${Array.from({ length: 16 }, (_unused, index) => {
-  const threshold = Math.max(1, Math.min(255, Math.ceil(((index + 1) * 255) / 16)));
-  const destination = 0x0150 + (index * 0x0002);
-  return `    ld a, (msx2_air_value)
-    cp ${threshold}
-    jp nc, .air_hud_${index}_on
-    ld a, #11
-    jp .draw_air_hud_${index}
-.air_hud_${index}_on:
-    ld a, #33
-.draw_air_hud_${index}:
-    ld hl, #${destination.toString(16).toUpperCase().padStart(4, '0')}
-    call draw_msx2_air_segment
-`;
-}).join('')}    ret
-
-draw_msx2_air_segment:
-    ; A=packed color byte, HL=SCREEN 5 VRAM destination. Clobbers AF/BC/DE/HL.
-    ld e, a
-    ld d, 4
-.air_segment_row:
-    push hl
-    ld c, 2
-.air_segment_col:
-    ld a, e
-    call write_vram_byte_ext
-    inc hl
-    dec c
-    jp nz, .air_segment_col
-    pop hl
-    ld bc, 128
-    add hl, bc
-    dec d
-    jp nz, .air_segment_row
-    ret
-`;
 }
 
 function buildHardwareSpriteRuntimeAsm(
@@ -1850,9 +1638,11 @@ ${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
 .enemy_slot_${slot}_right:
 ${enemySlotAddress('msx2_enemy_runtime_x', slot)}
     ld b, (hl)
+    push bc
 ${buildEnemyScreenSlotOffsetAsm(slot)}
     ld hl, msx2_screen_enemy_max_x
     add hl, de
+    pop bc
     ld a, b
     cp (hl)
     jp nc, .enemy_slot_${slot}_turn_left
@@ -1866,9 +1656,11 @@ ${enemySlotAddress('msx2_enemy_runtime_dx', slot)}
 .enemy_slot_${slot}_left:
 ${enemySlotAddress('msx2_enemy_runtime_x', slot)}
     ld b, (hl)
+    push bc
 ${buildEnemyScreenSlotOffsetAsm(slot)}
     ld hl, msx2_screen_enemy_min_x
     add hl, de
+    pop bc
     ld a, b
     cp (hl)
     jp c, .enemy_slot_${slot}_turn_right
@@ -1891,9 +1683,11 @@ ${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
 .enemy_slot_${slot}_down:
 ${enemySlotAddress('msx2_enemy_runtime_y', slot)}
     ld b, (hl)
+    push bc
 ${buildEnemyScreenSlotOffsetAsm(slot)}
     ld hl, msx2_screen_enemy_max_y
     add hl, de
+    pop bc
     ld a, b
     cp (hl)
     jp nc, .enemy_slot_${slot}_turn_up
@@ -1907,9 +1701,11 @@ ${enemySlotAddress('msx2_enemy_runtime_dy', slot)}
 .enemy_slot_${slot}_up:
 ${enemySlotAddress('msx2_enemy_runtime_y', slot)}
     ld b, (hl)
+    push bc
 ${buildEnemyScreenSlotOffsetAsm(slot)}
     ld hl, msx2_screen_enemy_min_y
     add hl, de
+    pop bc
     ld a, b
     cp (hl)
     jp c, .enemy_slot_${slot}_turn_down
@@ -2174,252 +1970,34 @@ ${enemySlotAddress('msx2_enemy_runtime_x', slot)}
 `;
   }).join('');
 
-  const statusHudAsm = usesInlineStatusHud(analysis) ? `draw_msx2_lives_hud:
-    ; Tiny SCREEN 5 life pips at the top-left. Clobbers AF/BC/DE/HL.
-    ld a, (msx2_lives)
-    cp 1
-    jp nc, .life_1_on
-    ld a, #88
-    jp .draw_life_1
-.life_1_on:
-    ld a, #33
-.draw_life_1:
-    ld hl, #0101
-    call draw_msx2_life_pip
-    ld a, (msx2_lives)
-    cp 2
-    jp nc, .life_2_on
-    ld a, #88
-    jp .draw_life_2
-.life_2_on:
-    ld a, #33
-.draw_life_2:
-    ld hl, #0107
-    call draw_msx2_life_pip
-    ld a, (msx2_lives)
-    cp 3
-    jp nc, .life_3_on
-    ld a, #88
-    jp .draw_life_3
-.life_3_on:
-    ld a, #33
-.draw_life_3:
-    ld hl, #010D
-    call draw_msx2_life_pip
-    ret
-
-draw_msx2_life_pip:
-    ; A=packed color byte, HL=SCREEN 5 VRAM destination. Clobbers AF/BC/DE/HL.
-    ld e, a
-    ld d, 6
-.pip_row:
-    push hl
-    ld c, 4
-.pip_col:
-    ld a, e
-    call write_vram_byte_ext
-    inc hl
-    dec c
-    jp nz, .pip_col
-    pop hl
-    ld bc, 128
-    add hl, bc
-    dec d
-    jp nz, .pip_row
-    ret
-
-draw_msx2_score_hud:
-    ; Four compact decimal score digits between lives and air HUD. Clobbers AF/BC/DE/HL.
-    ld a, (msx2_score_lo)
-    ld (msx2_score_work_lo), a
-    ld a, (msx2_score_hi)
-    ld (msx2_score_work_hi), a
-    cp 39
-    jp c, .score_decimal_ready
-    jp nz, .score_decimal_saturate
-    ld a, (msx2_score_work_lo)
-    cp 16
-    jp c, .score_decimal_ready
-.score_decimal_saturate:
-    ld a, 15
-    ld (msx2_score_work_lo), a
-    ld a, 39
-    ld (msx2_score_work_hi), a
-.score_decimal_ready:
-    ld hl, #0128
-    ld (msx2_score_digit_vram), hl
-    call draw_msx2_score_thousands
-    ld hl, #012D
-    ld (msx2_score_digit_vram), hl
-    call draw_msx2_score_hundreds
-    ld hl, #0132
-    ld (msx2_score_digit_vram), hl
-    call draw_msx2_score_tens
-    ld hl, #0137
-    ld (msx2_score_digit_vram), hl
-    ld a, (msx2_score_work_lo)
-    call draw_msx2_hex_digit
-    ret
-
-draw_msx2_score_thousands:
-    ld c, 0
-.score_thousands_loop:
-    ld a, (msx2_score_work_hi)
-    cp 3
-    jp c, .score_thousands_done
-    jp nz, .score_thousands_subtract
-    ld a, (msx2_score_work_lo)
-    cp 232
-    jp c, .score_thousands_done
-.score_thousands_subtract:
-    ld a, (msx2_score_work_lo)
-    sub 232
-    ld (msx2_score_work_lo), a
-    ld a, (msx2_score_work_hi)
-    sbc a, 3
-    ld (msx2_score_work_hi), a
-    inc c
-    jp .score_thousands_loop
-.score_thousands_done:
-    ld a, c
-    call draw_msx2_hex_digit
-    ret
-
-draw_msx2_score_hundreds:
-    ld c, 0
-.score_hundreds_loop:
-    ld a, (msx2_score_work_hi)
-    or a
-    jp nz, .score_hundreds_subtract
-    ld a, (msx2_score_work_lo)
-    cp 100
-    jp c, .score_hundreds_done
-.score_hundreds_subtract:
-    ld a, (msx2_score_work_lo)
-    sub 100
-    ld (msx2_score_work_lo), a
-    ld a, (msx2_score_work_hi)
-    sbc a, 0
-    ld (msx2_score_work_hi), a
-    inc c
-    jp .score_hundreds_loop
-.score_hundreds_done:
-    ld a, c
-    call draw_msx2_hex_digit
-    ret
-
-draw_msx2_score_tens:
-    ld c, 0
-.score_tens_loop:
-    ld a, (msx2_score_work_lo)
-    cp 10
-    jp c, .score_tens_done
-    sub 10
-    ld (msx2_score_work_lo), a
-    inc c
-    jp .score_tens_loop
-.score_tens_done:
-    ld a, c
-    call draw_msx2_hex_digit
-    ret
-
-draw_msx2_hex_digit:
-    ; A=nibble, msx2_score_digit_vram=SCREEN 5 destination. Clobbers AF/BC/DE/HL.
-    and #0F
-    ld e, a
-    ld d, 0
-    ld h, d
-    ld l, e
-    add hl, hl
-    add hl, hl
-    ld b, h
-    ld c, l
-    add hl, hl
-    add hl, bc
-    ld de, msx2_score_digit_patterns
-    add hl, de
-    ex de, hl
-    ld hl, (msx2_score_digit_vram)
-    ld b, 6
-.score_digit_row:
-    push bc
-    push hl
-    ld a, (de)
-    call write_vram_byte_ext
-    inc hl
-    inc de
-    ld a, (de)
-    call write_vram_byte_ext
-    inc de
-    pop hl
-    ld bc, 128
-    add hl, bc
-    pop bc
-    djnz .score_digit_row
-    ret
-
-${formatBytes('msx2_score_digit_patterns', MSX2_HEX_DIGIT_PATTERNS, 'Packed SCREEN 5 4x6 score digits 0-F')}
-
-${buildCollectibleHudSlotAsm(requiredCollectibles)}
-
-${buildAirHudSlotAsm()}
-` : `draw_msx2_lives_hud:
+  const statusHudAsm = `draw_msx2_lives_hud:
 draw_msx2_score_hud:
 draw_msx2_collectible_hud:
 draw_msx2_air_hud:
-    ; Inline status HUD disabled for full-map maze screens. Clobbers none.
+    ; Inline status HUD disabled for SCREEN 4 until it is tile/name-table based. Clobbers none.
     ret
 `;
 
   return `${statusHudAsm}
 draw_msx2_game_over_banner:
-    ; Simple visible game-over mark in SCREEN 5. Clobbers AF/BC/DE/HL.
-    ld hl, #0828
-    ld d, 12
-.game_over_row:
-    push hl
-    ld c, 48
-.game_over_col:
-    ld a, #88
-    call write_vram_byte_ext
-    inc hl
-    dec c
-    jp nz, .game_over_col
-    pop hl
-    ld bc, 128
-    add hl, bc
-    dec d
-    jp nz, .game_over_row
+    ; SCREEN 4 banners must use name/pattern data, not bitmap writes.
     ret
 
 draw_msx2_level_complete_banner:
-    ; Simple visible level-complete mark in SCREEN 5. Clobbers AF/BC/DE/HL.
-    ld hl, #1028
-    ld d, 12
-.level_complete_row:
-    push hl
-    ld c, 48
-.level_complete_col:
-    ld a, #AA
-    call write_vram_byte_ext
-    inc hl
-    dec c
-    jp nz, .level_complete_col
-    pop hl
-    ld bc, 128
-    add hl, bc
-    dec d
-    jp nz, .level_complete_row
+    ; SCREEN 4 banners must use name/pattern data, not bitmap writes.
     ret
 
 update_msx2_air_timer:
-    ; Decrements the SCREEN 5 air/time resource on a coarse frame divider. Clobbers AF/BC/DE/HL.
+    ; Decrements the SCREEN 4 air/time resource on a coarse frame divider. Clobbers AF/BC/DE/HL.
     ld a, (msx2_game_over_flag)
     or a
     ret nz
     ld a, (msx2_level_complete_flag)
     or a
     ret nz
+    ld a, (msx2_air_value)
+    or a
+    ret z
     ld a, (msx2_air_frame_counter)
     inc a
     cp 48
@@ -2860,7 +2438,7 @@ msx2_continue_after_level_complete:
     ld a, ${Math.max(0, Math.min(255, restartScreenIndex))}
     ld (msx2_current_screen_index), a
     call init_msx2_effect_buffers
-    call load_${restartScreenLabel}_bitmap
+    call load_${restartScreenLabel}_screen4
     xor a
     ld (msx2_level_complete_flag), a
     ld (msx2_level_continue_lock), a
@@ -2899,7 +2477,7 @@ msx2_restart_game:
     ld a, ${Math.max(0, Math.min(255, restartScreenIndex))}
     ld (msx2_current_screen_index), a
     call init_msx2_effect_buffers
-    call load_${restartScreenLabel}_bitmap
+    call load_${restartScreenLabel}_screen4
     xor a
     ld (msx2_game_over_flag), a
     ld (msx2_game_over_restart_lock), a
@@ -3071,7 +2649,7 @@ apply_msx2_conveyor:
     ret
 
 ${playerAnimationRoutine}write_hardware_sprite_attrs:
-    ; Writes player and enemy sprite attributes to SCREEN 5 SAT. Clobbers AF/BC/DE/HL.
+    ; Writes player and enemy sprite attributes to the SCREEN 4 SAT. Clobbers AF/BC/DE/HL.
 ${attrWrites}
 ${enemyAttrWrites}${playerBulletAttrWrite}${enemyBulletAttrWrite}    ld a, 208
     ld hl, #${terminatorAttrAddress.toString(16).toUpperCase().padStart(4, '0')}
@@ -3608,11 +3186,11 @@ function resolveScreenByAssetId(analysis: ProjectAnalysis, assetId: string | und
   return (analysis.screenMaps || []).find(screen => screen.id === assetId);
 }
 
-function resolveTileScreenByAssetId(analysis: ProjectAnalysis, assetId: string | undefined): Msx2Screen5TileScreen | undefined {
+function resolveTileScreenByAssetId(analysis: ProjectAnalysis, assetId: string | undefined): Msx2Screen4TileScreen | undefined {
   if (!assetId) return undefined;
   const assets = (analysis as any).assets as Array<{ id?: string; type?: string; data?: unknown }> | undefined;
   const asset = assets?.find(item => item.id === assetId && item.type === 'msx2screen');
-  if (asset?.data) return asset.data as Msx2Screen5TileScreen;
+  if (asset?.data) return asset.data as Msx2Screen4TileScreen;
   return (analysis.msx2Screens || []).find(screen => screen.id === assetId);
 }
 
@@ -3639,8 +3217,6 @@ function collectReferencedScreens(analysis: ProjectAnalysis): ScreenMap[] {
     screens.set(screen.id || screen.name || `screen_${screens.size}`, screen);
   };
 
-  addScreen(analysis.screenMaps?.[0]);
-
   for (const node of analysis.gameFlow?.nodes || []) {
     if (node.type === 'Text') {
       addScreen(resolveScreenByAssetId(analysis, node.appearance?.backgroundScreenAssetId));
@@ -3654,20 +3230,23 @@ function collectReferencedScreens(analysis: ProjectAnalysis): ScreenMap[] {
   return Array.from(screens.values());
 }
 
-function collectReferencedTileScreens(analysis: ProjectAnalysis): Msx2Screen5TileScreen[] {
-  const screens = new Map<string, Msx2Screen5TileScreen>();
-  const addScreen = (screen: Msx2Screen5TileScreen | undefined) => {
+function collectReferencedTileScreens(analysis: ProjectAnalysis): Msx2Screen4TileScreen[] {
+  const screens = new Map<string, Msx2Screen4TileScreen>();
+  const addScreen = (screen: Msx2Screen4TileScreen | undefined) => {
     if (!screen) return;
     screens.set(screen.id || screen.name || `msx2_screen_${screens.size}`, screen);
   };
 
   for (const node of analysis.gameFlow?.nodes || []) {
-    if (node.type !== 'WorldLink') continue;
-    const worldAssetId = getGameFlowWorldAssetId(node);
-    const world = resolveWorldByAssetId(analysis, worldAssetId);
-    addScreen(resolveTileScreenByAssetId(analysis, resolveWorldStartScreenAssetId(analysis, worldAssetId)));
-    for (const worldNode of world?.nodes || []) {
-      addScreen(resolveTileScreenByAssetId(analysis, worldNode?.screenAssetId || worldNode?.screenId));
+    if (node.type === 'Text' || node.type === 'SubMenu' || node.type === 'Restart') {
+      addScreen(resolveTileScreenByAssetId(analysis, node.appearance?.backgroundScreenAssetId));
+    } else if (node.type === 'WorldLink') {
+      const worldAssetId = getGameFlowWorldAssetId(node);
+      const world = resolveWorldByAssetId(analysis, worldAssetId);
+      addScreen(resolveTileScreenByAssetId(analysis, resolveWorldStartScreenAssetId(analysis, worldAssetId)));
+      for (const worldNode of world?.nodes || []) {
+        addScreen(resolveTileScreenByAssetId(analysis, worldNode?.screenAssetId || worldNode?.screenId));
+      }
     }
   }
 
@@ -3691,7 +3270,7 @@ function buildMsx2TileScreenLoadLines(
   const spriteRefresh = refreshHardwareSprites
     ? '    call msx2_reset_enemy_runtime_for_current_screen\n    call init_hardware_sprites\n'
     : '';
-  return `${setIndex}    call load_${label}_bitmap\n${spriteRefresh}`;
+  return `${setIndex}    call load_${label}_screen4\n${spriteRefresh}`;
 }
 
 function screenLoadLabelForAssetId(
@@ -3740,15 +3319,13 @@ function buildMsx2GameFlowProgram(
       case 'Music':
         break;
       case 'Text': {
-        const screen = resolveScreenByAssetId(analysis, current.appearance?.backgroundScreenAssetId) || analysis.screenMaps?.[0];
-        const label = screen ? screenLabels.get(screen.id || screen.name) : undefined;
+        const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, current.appearance?.backgroundScreenAssetId) || fallbackLabel;
         if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
         lines.push('    call wait_key');
         break;
       }
       case 'SubMenu': {
-        const screen = resolveScreenByAssetId(analysis, current.appearance?.backgroundScreenAssetId) || analysis.screenMaps?.[0];
-        const label = screen ? screenLabels.get(screen.id || screen.name) : undefined;
+        const label = screenLoadLabelForAssetId(analysis, screenLabels, tileScreenLabels, current.appearance?.backgroundScreenAssetId) || fallbackLabel;
         if (label) lines.push(buildMsx2TileScreenLoadLines(label, tileScreenIndexByLabel, refreshHardwareSprites).trimEnd());
         lines.push('    call wait_key');
         break;
@@ -3800,7 +3377,7 @@ function buildMsx2GameFlowProgram(
 
 function buildMsx2WorldTransitionAsm(
   analysis: ProjectAnalysis,
-  tileScreens: Msx2Screen5TileScreen[],
+  tileScreens: Msx2Screen4TileScreen[],
   tileScreenLoadLabels: string[]
 ): string {
   const mazeMovement = usesMazeMovement(analysis);
@@ -3862,7 +3439,7 @@ function buildMsx2WorldTransitionAsm(
       return `.${suffix}_screen_${index}:
     ld a, ${targetIndex}
     ld (msx2_current_screen_index), a
-    call load_${targetLabel}_bitmap
+    call load_${targetLabel}_screen4
     call msx2_reset_screen_transition_flags
     call msx2_reset_enemy_runtime_for_current_screen
     call msx2_load_current_screen_air
@@ -3889,51 +3466,33 @@ ${cases}`;
 ${buildDirectionRoutine('east')}`;
 }
 
-function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2Screen5Config): string {
+function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, config: Msx2Screen4Config): string {
   const screens = collectReferencedScreens(analysis);
   const bitmaps = analysis.msx2Bitmaps || [];
   const tileScreens = collectReferencedTileScreens(analysis);
-  const slots = resolveScreen5Palette(analysis);
+  if (screens.length || bitmaps.length) {
+    throw new Error('MSX2 SCREEN 4 backend requires native msx2screen tile assets; legacy screenmap/msx2bitmap assets are not supported by this backend.');
+  }
+  if (tileScreens.length === 0) {
+    throw new Error('MSX2 SCREEN 4 backend requires at least one native msx2screen tile asset.');
+  }
+  const slots = resolveScreen4Palette(analysis);
   const paletteBytes = buildPaletteBytes(slots);
   const title = projectName.replace(/[^ -~]/g, '');
-  const bitmapLabels = new Map<string, string>();
   const screenLabels = new Map<string, string>();
-  const bitmapBlocks = bitmaps.map((bitmap, index) => {
-    const label = sanitizeLabel(bitmap?.name || `msx2_bitmap_${index}`, `MSX2_BITMAP_${index}`);
-    bitmapLabels.set(bitmap.id || bitmap.name || `bitmap_${index}`, label);
-    return formatBytes(
-      `${label}_BITMAP`,
-      buildScreen5BitmapBytesFromAsset(bitmap),
-      `${bitmap?.name || `Bitmap ${index}`} packed as SCREEN 5, 2 pixels per byte`
-    );
+  screens.forEach((screen, index) => {
+    screenLabels.set(screen.id || screen.name || `screen_${index}`, sanitizeLabel(screen?.name || `legacy_screen_${index}`, `LEGACY_SCREEN_${index}`));
   });
-  const screenBitmapBlocks = screens.map((screen, index) => {
-    const label = sanitizeLabel(screen?.name || `screen5_screen_${index}`, `SCREEN5_SCREEN_${index}`);
-    screenLabels.set(screen.id || screen.name || `screen_${index}`, label);
-    return formatBytes(
-      `${label}_BITMAP`,
-      buildScreen5BitmapBytes(screen, analysis.tiles || [], slots),
-      `${screen?.name || `Screen ${index}`} rasterized as SCREEN 5, 2 pixels per byte`
-    );
+  const tileScreenLabels = new Map<string, string>();
+  const tileScreenLoadLabels = tileScreens.map((screen, index) => {
+    const label = sanitizeLabel(screen?.name || `msx2_screen4_screen_${index}`, `MSX2_SCREEN4_SCREEN_${index}`);
+    tileScreenLabels.set(screen.id || screen.name || `tile_screen_${index}`, label);
+    return label;
   });
   const tileScreenBlocks = tileScreens.map((screen, index) => {
-    const label = sanitizeLabel(screen?.name || `msx2_screen5_screen_${index}`, `MSX2_SCREEN5_SCREEN_${index}`);
-    bitmapLabels.set(screen.id || screen.name || `tile_screen_${index}`, label);
+    const label = tileScreenLoadLabels[index];
     return buildTileScreenTileBlocks(label, screen);
   });
-  if (bitmapBlocks.length === 0 && screenBitmapBlocks.length === 0 && tileScreenBlocks.length === 0) {
-    bitmapBlocks.push(formatBytes('SCREEN5_SCREEN_0_BITMAP', Array(SCREEN5_BYTES).fill(0), 'Empty SCREEN 5 bitmap'));
-  }
-  const bitmapLoadLabels = bitmaps.map((bitmap, index) =>
-    bitmapLabels.get(bitmap.id || bitmap.name || `bitmap_${index}`) || sanitizeLabel(bitmap.name, `MSX2_BITMAP_${index}`)
-  );
-  const screenLoadLabels = screens.map((screen, index) =>
-    screenLabels.get(screen.id || screen.name || `screen_${index}`) || sanitizeLabel(screen.name, `SCREEN5_SCREEN_${index}`)
-  );
-  const tileScreenLabels = new Map<string, string>();
-  const tileScreenLoadLabels = tileScreens.map((screen, index) =>
-    bitmapLabels.get(screen.id || screen.name || `tile_screen_${index}`) || sanitizeLabel(screen.name, `MSX2_SCREEN5_SCREEN_${index}`)
-  );
   const tileScreenIndexByLabel = new Map<string, number>();
   const runtimeLayerLabels = new Map<string, { collision: string; effects: string; behavior: string }>();
   tileScreens.forEach((screen, index) => {
@@ -3954,11 +3513,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
       formatBytes(`${label}_BEHAVIOR`, buildTileScreenLayerBytes(screen, 'behavior'), `${screen?.name || `MSX2 Tile Screen ${index}`} behavior layer, 16x14 bytes`),
     ].join('\n');
   });
-  const genericLoadLabels = [...bitmapLoadLabels, ...screenLoadLabels];
-  const allLoadLabels = [...tileScreenLoadLabels, ...genericLoadLabels];
-  const firstScreen = screens[0] || analysis.screenMaps?.[0];
-  const firstScreenLabel = allLoadLabels[0]
-    || (firstScreen ? screenLabels.get(firstScreen.id || firstScreen.name) || sanitizeLabel(firstScreen.name, 'SCREEN5_SCREEN_0') : 'SCREEN5_SCREEN_0');
+  const firstScreenLabel = tileScreenLoadLabels[0];
   const gameFlowProgram = buildMsx2GameFlowProgram(analysis, screenLabels, tileScreenLabels, tileScreenIndexByLabel);
   const hardwareSpriteInitAsm = buildHardwareSpriteInitAsm(analysis);
   const hardwareSpriteDataAsm = buildHardwareSpriteDataAsm(analysis);
@@ -3975,7 +3530,7 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   if (runtimeRamEnd > MSX2_RUNTIME_RAM_LIMIT) {
     const maxScreens = maxPersistentMsx2ScreenCount();
     throw new Error(
-      `MSX2 SCREEN 5 runtime RAM overflow: ${tileScreens.length} native msx2screen rooms require ` +
+      `MSX2 SCREEN 4 runtime RAM overflow: ${tileScreens.length} native msx2screen rooms require ` +
       `${runtimeRamEnd - MSX2_RUNTIME_RAM_START} bytes through ${formatHexWord(runtimeRamEnd)}, ` +
       `beyond safe limit ${formatHexWord(MSX2_RUNTIME_RAM_LIMIT)}. ` +
       `Reduce referenced rooms, split the WorldMap, or add a banked/streamed MSX2 runtime path. ` +
@@ -4066,14 +3621,6 @@ ${loadEffectsPointer}`;
   const tileScreenCollectedVisualRoutines = tileScreens.map((screen, index) =>
     buildTileScreenCollectedVisualsRoutine(tileScreenLoadLabels[index], screen, index, effectRuntimeBase)
   );
-  const genericScreenLoadRoutines = genericLoadLabels.map(label => `load_${label}_bitmap:
-    xor a
-    ld hl, SCREEN4_NAME_VRAM
-    ld bc, SCREEN4_NAME_SIZE
-    call FILVRM
-${loadRuntimeLayerPointers(label)}    ret
-`);
-
   return `; ==================================================================
 ; Mideas MSX2 SCREEN 4 tile backend
 ; Project: ${title}
@@ -4205,7 +3752,7 @@ init_rom:
 
     call load_screen4_palette
 ${firstScreenIndexInit}    call init_msx2_effect_buffers
-    call load_${firstScreenLabel}_bitmap
+    call load_${firstScreenLabel}_screen4
 ${firstScreenEnemyRuntimeInit}${hasHardwareSprite(analysis) ? '    call init_hardware_sprites\n' : ''}
     call ENASCR
     ei
@@ -4271,7 +3818,7 @@ load_screen4_palette:
     ret
 
 ${buildInitEffectBuffersRoutine(tileScreenLoadLabels, effectRuntimeBase)}
-${[...tileScreenLoadRoutines, ...genericScreenLoadRoutines, ...tileScreenCollectedVisualRoutines].join('\n')}
+${[...tileScreenLoadRoutines, ...tileScreenCollectedVisualRoutines].join('\n')}
 ${formatBytes('screen4_palette_data', paletteBytes, 'Palette bytes: byte1=(R<<4)|B, byte2=G')}
 ${formatBytes('msx2_screen_spawn_x', spawnXBytes.length ? spawnXBytes : [96], 'Per-msx2screen respawn X coordinates')}
 ${formatBytes('msx2_screen_spawn_y', spawnYBytes.length ? spawnYBytes : [144], 'Per-msx2screen respawn Y coordinates')}
@@ -4293,47 +3840,47 @@ ${formatBytes('screen4_empty_collision_layer', Array(MSX2_TILE_SCREEN_WIDTH * MS
 ${formatBytes('screen4_empty_effects_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 effects layer, 16x12 cells')}
 ${formatBytes('screen4_empty_behavior_layer', Array(MSX2_TILE_SCREEN_WIDTH * MSX2_TILE_SCREEN_HEIGHT).fill(0), 'Default empty MSX2 SCREEN 4 behavior layer, 16x12 cells')}
 ${hardwareSpriteDataAsm}
-${[...tileScreenRuntimeBlocks, ...tileScreenBlocks, ...bitmapBlocks, ...screenBitmapBlocks].join('\n')}
+${[...tileScreenRuntimeBlocks, ...tileScreenBlocks].join('\n')}
     ds #C000 - $, #FF
     end
 `;
 }
 
-export function generateMsx2Screen5Files(
+export function generateMsx2Screen4Files(
   projectName: string,
   analysis: ProjectAnalysis,
-  config: Msx2Screen5Config
+  config: Msx2Screen4Config
 ): GeneratedASMFiles {
   const unitedFiles = generateUnitedFiles(projectName, analysis, config);
   return {
-    'page0.asm': '; MSX2 SCREEN 5 backend: page0 not used in MVP.\n',
-    'bios.asm': '; MSX2 SCREEN 5 backend emits BIOS equates in unitedFiles.asm.\n',
-    'constants.asm': '; MSX2 SCREEN 5 backend constants are local to unitedFiles.asm.\n',
-    'variables.asm': '; MSX2 SCREEN 5 backend has no RAM variables in MVP.\n',
-    'mapper.asm': '; MSX2 SCREEN 5 backend MVP is a simple ROM path.\n',
-    'resource_ids.asm': '; MSX2 SCREEN 5 backend has no resource table in MVP.\n',
-    'resource_table.asm': '; MSX2 SCREEN 5 backend has no resource table in MVP.\n',
-    'resource_manager.asm': '; MSX2 SCREEN 5 backend has no resource manager in MVP.\n',
-    'interrupt.asm': '; MSX2 SCREEN 5 backend uses BIOS CHGET and HALT loop in MVP.\n',
-    'header.asm': '; MSX2 SCREEN 5 backend header is emitted in unitedFiles.asm.\n',
-    'patterns.asm': '; SCREEN 2 pattern tables are intentionally not used by MSX2 SCREEN 5.\n',
-    'colors.asm': '; SCREEN 2 color tables are intentionally not used by MSX2 SCREEN 5.\n',
-    'components.asm': '; Components are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
-    'entities.asm': '; MSX2 SCREEN 5 backend emits player spawn and enemy/hazard runtime data in unitedFiles.asm.\n',
-    'worlds.asm': '; Worlds are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
-    'screens.asm': '; SCREEN 5 bitmap data is emitted in unitedFiles.asm.\n',
+    'page0.asm': '; MSX2 SCREEN 4 backend: page0 not used in MVP.\n',
+    'bios.asm': '; MSX2 SCREEN 4 backend emits BIOS equates in unitedFiles.asm.\n',
+    'constants.asm': '; MSX2 SCREEN 4 backend constants are local to unitedFiles.asm.\n',
+    'variables.asm': '; MSX2 SCREEN 4 backend has no RAM variables in MVP.\n',
+    'mapper.asm': '; MSX2 SCREEN 4 backend MVP is a simple ROM path.\n',
+    'resource_ids.asm': '; MSX2 SCREEN 4 backend has no resource table in MVP.\n',
+    'resource_table.asm': '; MSX2 SCREEN 4 backend has no resource table in MVP.\n',
+    'resource_manager.asm': '; MSX2 SCREEN 4 backend has no resource manager in MVP.\n',
+    'interrupt.asm': '; MSX2 SCREEN 4 backend uses BIOS CHGET and HALT loop in MVP.\n',
+    'header.asm': '; MSX2 SCREEN 4 backend header is emitted in unitedFiles.asm.\n',
+    'patterns.asm': '; SCREEN 2 pattern tables are intentionally not used by MSX2 SCREEN 4.\n',
+    'colors.asm': '; SCREEN 2 color tables are intentionally not used by MSX2 SCREEN 4.\n',
+    'components.asm': '; Components are out of scope for the first MSX2 SCREEN 4 backend slice.\n',
+    'entities.asm': '; MSX2 SCREEN 4 backend emits player spawn and enemy/hazard runtime data in unitedFiles.asm.\n',
+    'worlds.asm': '; Worlds are out of scope for the first MSX2 SCREEN 4 backend slice.\n',
+    'screens.asm': '; SCREEN 4 name/pattern/color data is emitted in unitedFiles.asm.\n',
     'sprites.asm': hasHardwareSprite(analysis)
-      ? '; MSX2 SCREEN 5 hardware sprite MVP is emitted inline in unitedFiles.asm.\n'
-      : '; Sprites are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
-    'font.asm': '; Font is out of scope for the first MSX2 SCREEN 5 backend slice.\n',
-    'hud.asm': '; MSX2 SCREEN 5 lives and collectible HUD are emitted inline in unitedFiles.asm.\n',
-    'menus.asm': '; Menus are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
-    'sound.asm': '; Sound is out of scope for the first MSX2 SCREEN 5 backend slice.\n',
-    'scroll.asm': '; Scroll is out of scope for the first MSX2 SCREEN 5 backend slice.\n',
-    'animtiles.asm': '; Animated tiles are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
-    'bosses.asm': '; Bosses are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
-    'statemachine.asm': '; State machines are out of scope for the first MSX2 SCREEN 5 backend slice.\n',
-    'gameflow.asm': '; MSX2 SCREEN 5 minimal GameFlow is emitted inline in unitedFiles.asm.\n',
+      ? '; MSX2 SCREEN 4 hardware sprite MVP is emitted inline in unitedFiles.asm.\n'
+      : '; Sprites are out of scope for the first MSX2 SCREEN 4 backend slice.\n',
+    'font.asm': '; Font is out of scope for the first MSX2 SCREEN 4 backend slice.\n',
+    'hud.asm': '; MSX2 SCREEN 4 lives and collectible HUD are emitted inline in unitedFiles.asm.\n',
+    'menus.asm': '; Menus are out of scope for the first MSX2 SCREEN 4 backend slice.\n',
+    'sound.asm': '; Sound is out of scope for the first MSX2 SCREEN 4 backend slice.\n',
+    'scroll.asm': '; Scroll is out of scope for the first MSX2 SCREEN 4 backend slice.\n',
+    'animtiles.asm': '; Animated tiles are out of scope for the first MSX2 SCREEN 4 backend slice.\n',
+    'bosses.asm': '; Bosses are out of scope for the first MSX2 SCREEN 4 backend slice.\n',
+    'statemachine.asm': '; State machines are out of scope for the first MSX2 SCREEN 4 backend slice.\n',
+    'gameflow.asm': '; MSX2 SCREEN 4 minimal GameFlow is emitted inline in unitedFiles.asm.\n',
     'main.asm': unitedFiles,
     'unitedFiles.asm': unitedFiles,
   };

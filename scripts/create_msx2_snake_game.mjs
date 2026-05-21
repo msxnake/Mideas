@@ -97,9 +97,7 @@ const mapRows = [
   '1000000000200001',
   '1003000000200001',
   '1000000300000001',
-  '1000000000000001',
-  '1000000000000041',
-  '1111111111111111',
+  '1111111111111141',
 ];
 
 const map = mapRows.map(row => row.split('').map(ch => Number(ch)));
@@ -111,7 +109,7 @@ const effects = mapRows.map(row =>
     return 0;
   })
 );
-const behavior = Array.from({ length: 14 }, () => Array(16).fill(0));
+const behavior = Array.from({ length: 12 }, () => Array(16).fill(0));
 
 const snakeHeadFrame = tileFromRows([
   '0000333333000000',
@@ -135,9 +133,9 @@ const snakeHeadFrame = tileFromRows([
 const project = {
   name: 'snake_msx2_mideas',
   currentProjectName: 'snake_msx2_mideas',
-  currentScreenMode: 'SCREEN 5 (Graphics III)',
-  screenMode: 'SCREEN 5 (Graphics III)',
-  targetGraphicsBackend: 'msx2-screen5-tile16',
+  currentScreenMode: 'SCREEN 4 (Graphics II)',
+  screenMode: 'SCREEN 4 (Graphics II)',
+  targetGraphicsBackend: 'msx2-screen4-pattern',
   selectedAssetId: 'screen_snake_msx2_arena',
   currentEditor: 'Msx2Screen',
   assets: [
@@ -146,9 +144,9 @@ const project = {
       name: 'Snake MSX2 Palette',
       type: 'palette',
       data: {
-        mode: 'SCREEN5',
+        mode: 'SCREEN4',
         slots: palette,
-        notes: 'V9938 SCREEN 5 palette for a green Snake arena with red apples.',
+        notes: 'V9938 SCREEN 4 palette for a green Snake arena with red apples.',
       },
     },
     {
@@ -159,10 +157,10 @@ const project = {
         id: 'screen_snake_msx2_arena',
         name: 'Snake Arena',
         target: 'MSX2',
-        vdpMode: 'SCREEN5',
+        vdpMode: 'SCREEN4',
         tileSize: 16,
         widthTiles: 16,
-        heightTiles: 14,
+        heightTiles: 12,
         palette,
         tiles: msx2Tiles,
         map,
@@ -176,7 +174,7 @@ const project = {
               id: 'entity_snake_head',
               name: 'Snake Head',
               kind: 'player',
-              position: { x: 3, y: 11 },
+              position: { x: 3, y: 10 },
               spriteAssetId: 'sprite_snake_head_msx2',
               params: {},
             },
@@ -210,7 +208,7 @@ const project = {
           activeAreaX: 0,
           activeAreaY: 0,
           activeAreaWidth: 16,
-          activeAreaHeight: 14,
+          activeAreaHeight: 12,
           hideHud: true,
         },
         notes: 'Snake-style MSX2 arena: collect all six apples, avoid walls/body hazards, then reach the exit tile.',
@@ -224,7 +222,7 @@ const project = {
         id: 'sprite_snake_head_msx2',
         name: 'Snake Head Sprite',
         target: 'MSX2',
-        vdpMode: 'SCREEN5',
+        vdpMode: 'SCREEN4',
         size: { width: 16, height: 16 },
         palette,
         backgroundColor: 'rgba(0,0,0,0)',

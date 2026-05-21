@@ -678,7 +678,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
                 </div>
               ))}
             </div>
-            <p className="text-msx-textsecondary">Transparent pixels are pattern bits set to 0. Rows are split into overlapped SCREEN 5 sprite mode 2 layers; OR color uses the VDP color-table CC bit.</p>
+            <p className="text-msx-textsecondary">Transparent pixels are pattern bits set to 0. Rows are split into overlapped MSX2 sprite mode 2 layers; OR color uses the VDP color-table CC bit.</p>
           </div>
         </Panel>
 

@@ -65,15 +65,15 @@ const tiles = [
   { id: 'galaxian_tile_alien_marker', name: 'Formation Marker', pixels: alienMarkerTile },
 ];
 
-const map = Array.from({ length: 14 }, (_, y) =>
+const map = Array.from({ length: 12 }, (_, y) =>
   Array.from({ length: 16 }, (_, x) => {
     if (y === 11 && (x === 2 || x === 6 || x === 10 || x === 14)) return 3;
     if (y >= 2 && y <= 5 && x >= 4 && x <= 11 && (x + y) % 2 === 0) return 4;
     return (x * 7 + y * 5) % 11 === 0 ? 1 : (x * 3 + y * 2) % 17 === 0 ? 2 : 0;
   })
 );
-const emptyLayer = Array.from({ length: 14 }, () => Array(16).fill(0));
-const collision = Array.from({ length: 14 }, (_, y) =>
+const emptyLayer = Array.from({ length: 12 }, () => Array(16).fill(0));
+const collision = Array.from({ length: 12 }, (_, y) =>
   Array.from({ length: 16 }, (_, x) => (y === 11 && (x === 2 || x === 6 || x === 10 || x === 14) ? 1 : 0))
 );
 
@@ -189,7 +189,7 @@ const entities = [
     id: 'entity_galaxian_player',
     name: 'Galaxian Player',
     kind: 'player',
-    position: { x: 7, y: 12 },
+    position: { x: 7, y: 10 },
     spriteAssetId: 'sprite_galaxian_player_msx2',
     components: {
       msx2_transform: makeTransform(7, 12),
@@ -243,9 +243,9 @@ const entities = [
 const project = {
   name: 'galaxian_msx2_mideas',
   currentProjectName: 'galaxian_msx2_mideas',
-  currentScreenMode: 'SCREEN 5 (Graphics III)',
-  screenMode: 'SCREEN 5 (Graphics III)',
-  targetGraphicsBackend: 'msx2-screen5-tile16',
+  currentScreenMode: 'SCREEN 4 (Graphics II)',
+  screenMode: 'SCREEN 4 (Graphics II)',
+  targetGraphicsBackend: 'msx2-screen4-pattern',
   selectedAssetId: 'screen_galaxian_msx2',
   currentEditor: 'Msx2Screen',
   assets: [
@@ -253,7 +253,7 @@ const project = {
       id: 'palette_galaxian_msx2',
       name: 'Galaxian MSX2 Palette',
       type: 'palette',
-      data: { mode: 'SCREEN5', slots: palette, notes: 'SCREEN 5 palette for Galaxian-style arcade colors.' },
+      data: { mode: 'SCREEN4', slots: palette, notes: 'SCREEN 4 palette for Galaxian-style arcade colors.' },
     },
     {
       id: 'screen_galaxian_msx2',
@@ -263,10 +263,10 @@ const project = {
         id: 'screen_galaxian_msx2',
         name: 'Galaxian Sector',
         target: 'MSX2',
-        vdpMode: 'SCREEN5',
+        vdpMode: 'SCREEN4',
         tileSize: 16,
         widthTiles: 16,
-        heightTiles: 14,
+        heightTiles: 12,
         palette,
         tiles,
         map,
@@ -281,7 +281,7 @@ const project = {
           activeAreaX: 0,
           activeAreaY: 0,
           activeAreaWidth: 16,
-          activeAreaHeight: 14,
+          activeAreaHeight: 12,
           hideHud: false,
         },
         notes: 'Galaxian-style MSX2 clone data. Current ROM runtime supports player, horizontal shooter movement, one player projectile, one enemy projectile, visible score, dive-attack movement, and the 12 authored formation enemy slots.',
@@ -295,7 +295,7 @@ const project = {
         id: 'sprite_galaxian_player_msx2',
         name: 'Galaxian Player Ship',
         target: 'MSX2',
-        vdpMode: 'SCREEN5',
+        vdpMode: 'SCREEN4',
         size: { width: 16, height: 16 },
         palette,
         backgroundColor: 'rgba(0,0,0,0)',
@@ -315,7 +315,7 @@ const project = {
         id: 'sprite_galaxian_alien_msx2',
         name: 'Galaxian Alien',
         target: 'MSX2',
-        vdpMode: 'SCREEN5',
+        vdpMode: 'SCREEN4',
         size: { width: 16, height: 16 },
         palette,
         backgroundColor: 'rgba(0,0,0,0)',
@@ -338,7 +338,7 @@ const project = {
         id: 'sprite_galaxian_laser_msx2',
         name: 'Galaxian Laser',
         target: 'MSX2',
-        vdpMode: 'SCREEN5',
+        vdpMode: 'SCREEN4',
         size: { width: 16, height: 16 },
         palette,
         backgroundColor: 'rgba(0,0,0,0)',

@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
 import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
-import { WorldMapGraph, ConnectionDirection, ScreenMap, DataFormat } from '../../types';
+import { WorldMapGraph, ConnectionDirection, ScreenMap, Msx2Screen5TileScreen, DataFormat } from '../../types';
+
+type ExportableWorldScreen = ScreenMap | Msx2Screen5TileScreen;
 
 /**
  * Props for the {@link ExportWorldMapASMModal} component.
@@ -16,8 +18,8 @@ interface ExportWorldMapASMModalProps {
   onClose: () => void;
   /** The world map graph data to be exported. */
   worldMapGraph: WorldMapGraph;
-  /** The list of available screen maps in the project. */
-  availableScreenMaps: ScreenMap[];
+  /** The list of available screen assets in the project. */
+  availableScreenMaps: ExportableWorldScreen[];
   /** The data format for the output ASM code (hex or decimal). */
   dataOutputFormat: DataFormat;
 }
@@ -37,13 +39,13 @@ const MODAL_LINE_HEIGHT_MULTIPLIER = 1.5;
  * Generates Z80 assembly code for a world map graph.
  *
  * @param graph The world map graph data.
- * @param availableScreenMaps The list of available screen maps.
+ * @param availableScreenMaps The list of available screen assets.
  * @param dataFormat The data format for the output (hex or decimal).
  * @returns A string containing the generated assembly code.
  */
 const generateWorldMapASMCode = (
   graph: WorldMapGraph,
-  availableScreenMaps: ScreenMap[],
+  availableScreenMaps: ExportableWorldScreen[],
   dataFormat: DataFormat
 ): string => {
   const safeMapName = graph.name.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
@@ -119,7 +121,8 @@ const generateWorldMapASMCode = (
     asmString += `${safeMapName}_SCREEN_ASSETS_TABLE:\n`;
     availableScreenMaps.forEach((sm, index) => {
         const screenLabel = sm.id.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-        asmString += `  ;; Index ${formatNumber(index)}: Screen '${sm.name}' (Asset ID: ${sm.id})\n`;
+        const size = 'widthTiles' in sm ? `${sm.widthTiles}x${sm.heightTiles} tiles` : `${sm.width}x${sm.height} chars`;
+        asmString += `  ;; Index ${formatNumber(index)}: Screen '${sm.name}' (${size}, Asset ID: ${sm.id})\n`;
         asmString += `${screenLabel}_ASSET_INDEX EQU ${formatNumber(index)}\n`;
     });
   } else {

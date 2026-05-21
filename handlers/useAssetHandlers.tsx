@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import {
-  ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Bitmap, Msx2Screen5TileScreen, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
+  ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Screen5TileScreen, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph,
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset,
   DialogueAsset, PortraitAsset, ScreenKind, Boss
@@ -287,6 +287,11 @@ export const useAssetHandlers = ({
   }, [assets, setAssetsWithHistory, setStatusBarMessage, setTileBanksWithHistory]);
 
   const handleNewAsset = (type: ProjectAsset['type'], options?: { select?: boolean; screenKind?: ScreenKind }): ProjectAsset | undefined => {
+    if (type === 'msx2bitmap') {
+      setStatusBarMessage('MSX2 bitmap assets are legacy import-only; use MSX2 SCREEN 4 Room (16x12) for new projects.');
+      return undefined;
+    }
+
     if (!isAssetTypeEnabledForProject(type, currentScreenMode)) {
       setStatusBarMessage(`${type} is disabled in ${getProjectTargetFromScreenMode(currentScreenMode)} projects.`);
       return undefined;
@@ -363,7 +368,7 @@ export const useAssetHandlers = ({
           id,
           name: defaultName,
           target: 'MSX2',
-          vdpMode: 'SCREEN5',
+          vdpMode: 'SCREEN4',
           size: { width: msx2SpriteSize, height: msx2SpriteSize },
           palette: msx2Palette,
           backgroundColor: msx2Background,
@@ -373,39 +378,25 @@ export const useAssetHandlers = ({
         } as Msx2Sprite;
         newEditorType = EditorType.Msx2Sprite;
         break;
-      case 'msx2bitmap':
-        defaultName = 'New MSX2 Bitmap';
-        newAssetData = {
-          id,
-          name: defaultName,
-          target: 'MSX2',
-          vdpMode: 'SCREEN5',
-          size: { width: 256, height: 212 },
-          palette: createDefaultScreen5PaletteSlots(),
-          pixels: Array.from({ length: 212 }, () => Array.from({ length: 256 }, () => 0)),
-          transparentSlot: 0,
-        } as Msx2Bitmap;
-        newEditorType = EditorType.Msx2Bitmap;
-        break;
       case 'msx2screen':
-        defaultName = 'New MSX2 16x16 Screen';
-        const screen5TileSize = 16;
-        const blankTile = Array.from({ length: screen5TileSize }, () => Array.from({ length: screen5TileSize }, () => 0));
-        const floorTile = Array.from({ length: screen5TileSize }, (_, y) =>
-          Array.from({ length: screen5TileSize }, (_, x) => y < 3 ? 15 : (x % 8 < 4 ? 5 : 4))
+        defaultName = 'New MSX2 SCREEN 4 Room';
+        const msx2TileSize = 16;
+        const blankTile = Array.from({ length: msx2TileSize }, () => Array.from({ length: msx2TileSize }, () => 0));
+        const floorTile = Array.from({ length: msx2TileSize }, (_, y) =>
+          Array.from({ length: msx2TileSize }, (_, x) => y < 3 ? 15 : (x % 8 < 4 ? 5 : 4))
         );
         newAssetData = {
           id,
           name: defaultName,
           target: 'MSX2',
-          vdpMode: 'SCREEN5',
+          vdpMode: 'SCREEN4',
           tileSize: 16,
           widthTiles: 16,
           heightTiles: 12,
           palette: createDefaultScreen5PaletteSlots(),
           tiles: [
-            { id: `tile_${Date.now()}_0`, name: 'Blank', width: screen5TileSize, height: screen5TileSize, pixels: blankTile },
-            { id: `tile_${Date.now()}_1`, name: 'Platform', width: screen5TileSize, height: screen5TileSize, pixels: floorTile },
+            { id: `tile_${Date.now()}_0`, name: 'Blank', width: msx2TileSize, height: msx2TileSize, pixels: blankTile },
+            { id: `tile_${Date.now()}_1`, name: 'Platform', width: msx2TileSize, height: msx2TileSize, pixels: floorTile },
           ],
           map: Array.from({ length: 12 }, (_, y) => Array.from({ length: 16 }, () => y === 11 ? 1 : 0)),
           collisionMap: Array.from({ length: 12 }, (_, y) => Array.from({ length: 16 }, () => y === 11 ? 1 : 0)),
@@ -418,6 +409,8 @@ export const useAssetHandlers = ({
           runtime: {
             screenKind: 'playable',
             screenEngine: 'player',
+            movementMode: 'platform',
+            movementModel: 'platform',
             requiredCollectibles: 0,
             initialAir: 255,
             activeAreaX: 0,
@@ -619,7 +612,7 @@ export const useAssetHandlers = ({
         newAssetData = {
           slots: createDefaultScreen5PaletteSlots(),
           notes: '',
-          mode: 'SCREEN5'
+          mode: 'SCREEN4'
         } as PaletteAsset;
         newEditorType = EditorType.Palette;
         break;

@@ -1065,10 +1065,10 @@ export const Msx2Screen5ExportModelPanel: React.FC<Msx2Screen5ExportModelPanelPr
   <Panel title="MSX2 Export Model">
     <div className="p-2 text-xs text-msx-textsecondary space-y-1">
       <div>Tile raw size: variable, multiples of 8 px</div>
-      <div>Map size: 224 bytes</div>
-      <div>Collision layer: 224 bytes</div>
-      <div>Effects layer: 224 bytes</div>
-      <div>Behavior layer: 224 bytes</div>
+      <div>Map size: 192 bytes</div>
+      <div>Collision layer: 192 bytes</div>
+      <div>Effects layer: 192 bytes</div>
+      <div>Behavior layer: 192 bytes</div>
       <div>Entities: {layers.entities.length}</div>
       <div>Current backend: emits packed 16x16 tiles or rasterized variable-size tile screens plus runtime layers.</div>
     </div>

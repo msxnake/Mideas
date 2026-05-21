@@ -9,7 +9,7 @@ import { Panel } from '../common/Panel';
  * @category Tools
  */
 interface PalettePanelProps {
-  /** The color palette to display (can be for SCREEN 2 or SCREEN 5). */
+  /** The color palette to display (can be for SCREEN 2 or MSX2 V9938 modes). */
   palette: MSXColor[] | MSX1Color[];
   /** The currently selected color value. */
   selectedColor: MSXColorValue;
@@ -28,7 +28,7 @@ interface PalettePanelProps {
  * @category Tools
  */
 export const PalettePanel: React.FC<PalettePanelProps> = ({ palette, selectedColor, onColorSelect, isMsx1Palette = false }) => {
-  const title = isMsx1Palette ? "MSX1 Palette (SCREEN 2)" : "MSX2 Palette (SCREEN 5)";
+  const title = isMsx1Palette ? "MSX1 Palette (SCREEN 2)" : "MSX2 Palette";
   
   return (
     <Panel title={title} titleClassName="text-msx-highlight">

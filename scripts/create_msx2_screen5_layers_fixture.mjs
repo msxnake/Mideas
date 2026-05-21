@@ -53,7 +53,7 @@ const conveyorTile = Array.from({ length: 16 }, (_, y) =>
   })
 );
 
-const map = Array.from({ length: 14 }, (_, y) =>
+const map = Array.from({ length: 12 }, (_, y) =>
   Array.from({ length: 16 }, (_, x) => {
     if (y === 10 && x >= 2 && x <= 12) return 1;
     if (y === 10 && x === 12) return 6;
@@ -68,7 +68,7 @@ const map = Array.from({ length: 14 }, (_, y) =>
   })
 );
 
-const exitMap = Array.from({ length: 14 }, (_, y) =>
+const exitMap = Array.from({ length: 12 }, (_, y) =>
   Array.from({ length: 16 }, (_, x) => {
     if (y === 10 && x >= 1 && x <= 15) return 1;
     if (y === 8 && x === 11) return 3;
@@ -76,10 +76,10 @@ const exitMap = Array.from({ length: 14 }, (_, y) =>
   })
 );
 
-const collision = Array.from({ length: 14 }, (_, y) =>
+const collision = Array.from({ length: 12 }, (_, y) =>
   Array.from({ length: 16 }, (_, x) => ((y === 10 && x >= 2 && x <= 12) || (y === 9 && x === 8) ? 1 : 0))
 );
-const effects = Array.from({ length: 14 }, (_, y) =>
+const effects = Array.from({ length: 12 }, (_, y) =>
   Array.from({ length: 16 }, (_, x) => {
     if (y === 8 && x === 7) return 1; // jump hazard over the collectible
     if (y === 9 && x === 5) return 3; // second required collectible on the exit route
@@ -87,17 +87,17 @@ const effects = Array.from({ length: 14 }, (_, y) =>
     return 0;
   })
 );
-const behavior = Array.from({ length: 14 }, (_, y) =>
+const behavior = Array.from({ length: 12 }, (_, y) =>
   Array.from({ length: 16 }, (_, x) => {
     if ((y === 8 || y === 9) && x === 6) return 1;
     if (y === 10 && x === 12) return 2;
     return 0;
   })
 );
-const exitCollision = Array.from({ length: 14 }, (_, y) =>
+const exitCollision = Array.from({ length: 12 }, (_, y) =>
   Array.from({ length: 16 }, (_, x) => (y === 10 && x >= 1 && x <= 15 ? 1 : 0))
 );
-const exitEffects = Array.from({ length: 14 }, (_, y) =>
+const exitEffects = Array.from({ length: 12 }, (_, y) =>
   Array.from({ length: 16 }, (_, x) => (y >= 8 && y <= 10 && x >= 10 && x <= 15 ? 2 : 0))
 );
 
@@ -139,15 +139,15 @@ const spriteFrame = spriteRows.map(row =>
 
 const project = {
   name: 'msx2screen_layers_smoke',
-  currentScreenMode: 'SCREEN 5 (Graphics III)',
-  screenMode: 'SCREEN 5 (Graphics III)',
-  targetGraphicsBackend: 'msx2-screen5-tile16',
+  currentScreenMode: 'SCREEN 4 (Graphics II)',
+  screenMode: 'SCREEN 4 (Graphics II)',
+  targetGraphicsBackend: 'msx2-screen4-pattern',
   assets: [
     {
       id: 'palette_msx2_layers_smoke',
       name: 'MSX2 Layers Smoke Palette',
       type: 'palette',
-      data: { mode: 'SCREEN5', slots: palette },
+      data: { mode: 'SCREEN4', slots: palette },
     },
     {
       id: 'screen_msx2_layers_smoke',
@@ -157,10 +157,10 @@ const project = {
         id: 'screen_msx2_layers_smoke',
         name: 'MSX2 Layers Smoke Screen',
         target: 'MSX2',
-        vdpMode: 'SCREEN5',
+        vdpMode: 'SCREEN4',
         tileSize: 16,
         widthTiles: 16,
-        heightTiles: 14,
+        heightTiles: 12,
         palette,
         tiles: msx2Tiles,
         map,
@@ -209,7 +209,7 @@ const project = {
           activeAreaX: 0,
           activeAreaY: 0,
           activeAreaWidth: 16,
-          activeAreaHeight: 14,
+          activeAreaHeight: 12,
         },
       },
     },
@@ -221,10 +221,10 @@ const project = {
         id: 'screen_msx2_layers_exit',
         name: 'MSX2 Layers Exit Screen',
         target: 'MSX2',
-        vdpMode: 'SCREEN5',
+        vdpMode: 'SCREEN4',
         tileSize: 16,
         widthTiles: 16,
-        heightTiles: 14,
+        heightTiles: 12,
         palette,
         tiles: msx2Tiles,
         map: exitMap,
@@ -232,7 +232,7 @@ const project = {
         layers: {
           collision: exitCollision,
           effects: exitEffects,
-          behavior: Array.from({ length: 14 }, () => Array(16).fill(0)),
+          behavior: Array.from({ length: 12 }, () => Array(16).fill(0)),
           entities: [],
         },
         runtime: {
@@ -243,7 +243,7 @@ const project = {
           activeAreaX: 0,
           activeAreaY: 0,
           activeAreaWidth: 16,
-          activeAreaHeight: 14,
+          activeAreaHeight: 12,
         },
       },
     },
@@ -255,7 +255,7 @@ const project = {
         id: 'sprite_msx2_layers_player',
         name: 'MSX2 Layers Player',
         target: 'MSX2',
-        vdpMode: 'SCREEN5',
+        vdpMode: 'SCREEN4',
         size: { width: 16, height: 16 },
         palette,
         backgroundColor: 'rgba(0,0,0,0)',

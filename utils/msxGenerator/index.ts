@@ -36,7 +36,7 @@ import { generateAnimatedTilesFile } from './generators/animatedTilesGenerator';
 import { generateBossesFile } from './generators/bossesGenerator';
 import { generatePage0File } from './generators/page0Generator';
 import { getMapperWindowConfig } from './generators/mapperWindowUtils';
-import { generateMsx2Screen5Files } from './generators/msx2/msx2Screen5Generator';
+import { generateMsx2Screen4Files } from './generators/msx2/msx2Screen4Generator';
 import { buildExecutionPlan } from './planning/executionPlan';
 import { validateExecutionPlan } from './planning/executionValidators';
 import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes';
@@ -46,7 +46,8 @@ import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes'
  */
 export type MSXMapperFormat = 'konami' | 'ascii8' | 'ascii16';
 export type MSXRomMode = 'auto' | 'simple32k' | 'plain48k' | 'megarom';
-export type GraphicsBackend = 'screen2-tilebank' | 'msx2-screen4-pattern' | 'msx2-screen5-bitmap' | 'msx2-screen5-tile16';
+export type GraphicsBackend = 'screen2-tilebank' | 'msx2-screen4-pattern';
+type LegacyGraphicsBackend = 'msx2-screen5-bitmap' | 'msx2-screen5-tile16';
 
 export interface MSXInterruptConfig {
   enableAudioTask?: boolean;
@@ -68,7 +69,7 @@ export interface MSXModularConfig {
   optimizeLevel?: 'safe' | 'aggressive'; // Optimization level for direct mode
   interruptConfig?: MSXInterruptConfig;
   screenMode?: string;
-  targetGraphicsBackend?: GraphicsBackend;
+  targetGraphicsBackend?: GraphicsBackend | LegacyGraphicsBackend;
 }
 
 function resolveExecutionMode(config: MSXModularConfig): EngineExecutionMode {
@@ -114,18 +115,17 @@ function buildRuntimeTrackIndexByAssetId(tracks: any[]): Record<string, number> 
 }
 
 function resolveGraphicsBackend(config: MSXModularConfig): GraphicsBackend {
-  if (config.targetGraphicsBackend === 'msx2-screen5-tile16') {
+  if (config.targetGraphicsBackend === 'msx2-screen5-bitmap' || config.targetGraphicsBackend === 'msx2-screen5-tile16') {
+    console.warn(`Legacy ${config.targetGraphicsBackend} backend is deprecated; routing to the SCREEN 4 pattern backend.`);
     return 'msx2-screen4-pattern';
   }
   if (config.targetGraphicsBackend) {
     return config.targetGraphicsBackend;
   }
-  if (config.screenMode === 'SCREEN 4 (Graphics II)') {
+  if (config.screenMode === 'SCREEN 4 (Graphics II)' || config.screenMode === 'SCREEN 5 (Graphics III)') {
     return 'msx2-screen4-pattern';
   }
-  return config.screenMode === 'SCREEN 5 (Graphics III)'
-    ? 'msx2-screen5-bitmap'
-    : 'screen2-tilebank';
+  return 'screen2-tilebank';
 }
 
 /**
@@ -245,12 +245,9 @@ export function generateModularASM(
   console.log(`📊 Project: ${projectName}, Assets: ${assets.length}, Config:`, config);
 
   const targetGraphicsBackend = resolveGraphicsBackend(config);
-  if (targetGraphicsBackend === 'msx2-screen4-pattern' || targetGraphicsBackend === 'msx2-screen5-bitmap') {
-    if (targetGraphicsBackend === 'msx2-screen5-bitmap') {
-      console.warn('MSX2 SCREEN 5 bitmap backend is deprecated; routing to the SCREEN 4 pattern backend.');
-    }
+  if (targetGraphicsBackend === 'msx2-screen4-pattern') {
     const analysis = analyzeProject(projectName, assets);
-    return generateMsx2Screen5Files(projectName, analysis, {
+    return generateMsx2Screen4Files(projectName, analysis, {
       screenMode: 'SCREEN 4 (Graphics II)',
       romMode: config.romMode || 'simple32k',
       targetFormat: config.targetFormat || 'konami',
@@ -431,11 +428,8 @@ export function generateModularASMFromSummary(
     targetGraphicsBackend: config.targetGraphicsBackend || (summary as any).targetGraphicsBackend,
   };
   const summaryGraphicsBackend = resolveGraphicsBackend(summaryGraphicsConfig);
-  if (summaryGraphicsBackend === 'msx2-screen4-pattern' || summaryGraphicsBackend === 'msx2-screen5-bitmap') {
-    if (summaryGraphicsBackend === 'msx2-screen5-bitmap') {
-      console.warn('MSX2 SCREEN 5 bitmap backend is deprecated; routing to the SCREEN 4 pattern backend.');
-    }
-    return generateMsx2Screen5Files(summary.projectInfo.name, analysis, {
+  if (summaryGraphicsBackend === 'msx2-screen4-pattern') {
+    return generateMsx2Screen4Files(summary.projectInfo.name, analysis, {
       screenMode: 'SCREEN 4 (Graphics II)',
       romMode: summaryGraphicsConfig.romMode || 'simple32k',
       targetFormat: summaryGraphicsConfig.targetFormat || 'konami',

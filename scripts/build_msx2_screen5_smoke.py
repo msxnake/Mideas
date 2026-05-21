@@ -9,8 +9,8 @@ import tempfile
 from pathlib import Path
 
 
-SCREEN5_MODE = "SCREEN 5 (Graphics III)"
-BACKEND = "msx2-screen5-bitmap"
+SCREEN4_MODE = "SCREEN 4 (Graphics II)"
+BACKEND = "msx2-screen4-pattern"
 ROM_BLOCK_SIZE = 8192
 
 
@@ -38,37 +38,31 @@ def ensure_minimal_screen_layers(project_path: Path) -> None:
     project = json.loads(project_path.read_text(encoding="utf-8"))
     changed = False
     assets = project.get("assets", [])
-    screen_asset = next((asset for asset in assets if asset.get("type") == "screenmap"), None)
+    screen_asset = next((asset for asset in assets if asset.get("type") == "msx2screen"), None)
     if not screen_asset:
-        raise RuntimeError(f"No screenmap asset found in {project_path}")
+        raise RuntimeError(f"No msx2screen asset found in {project_path}")
 
     screen = screen_asset.setdefault("data", {})
-    width = int(screen.get("width", 32))
-    height = int(screen.get("height", 27))
+    width = int(screen.get("widthTiles", 16))
+    height = int(screen.get("heightTiles", 12))
     layers = screen.setdefault("layers", {})
 
-    if width != 32 or height != 27:
-        raise RuntimeError(f"Expected 32x27 SCREEN 5 smoke screen, got {width}x{height}")
+    if width != 16 or height != 12:
+        raise RuntimeError(f"Expected 16x12 SCREEN 4 smoke screen, got {width}x{height}")
 
-    blue = "tile_screen5_blue_grid"
-    red = "tile_screen5_red_marker"
-    expected_background = [
+    expected_map = [
         [
-            {
-                "tileId": red if (x in (4, 5, 26, 27) or y in (3, 4, 22, 23) or (10 <= x <= 21 and 11 <= y <= 15)) else blue,
-                "subTileX": 0,
-                "subTileY": 0,
-            }
+            2 if (x in (2, 13) or y in (2, 9) or (5 <= x <= 10 and 5 <= y <= 6)) else 1
             for x in range(width)
         ]
         for y in range(height)
     ]
-    expected_empty = [[{"tileId": None, "subTileX": 0, "subTileY": 0} for _ in range(width)] for _ in range(height)]
+    expected_empty = [[0 for _ in range(width)] for _ in range(height)]
 
-    if layers.get("background") != expected_background:
-        layers["background"] = expected_background
+    if screen.get("map") != expected_map:
+        screen["map"] = expected_map
         changed = True
-    for layer_name in ("collision", "effects"):
+    for layer_name in ("collision", "effects", "behavior"):
         if layers.get(layer_name) != expected_empty:
             layers[layer_name] = expected_empty
             changed = True
@@ -78,7 +72,7 @@ def ensure_minimal_screen_layers(project_path: Path) -> None:
 
     if changed:
         project_path.write_text(json.dumps(project, indent=2) + "\n", encoding="utf-8")
-        print(f"Normalized 32x27 screen layers in {project_path}")
+        print(f"Normalized 16x12 SCREEN 4 msx2screen layers in {project_path}")
 
 
 def compile_generator(project_root: Path, ts_build_dir: Path, strict_tsc: bool) -> Path:
@@ -293,7 +287,7 @@ after time {wait_ms / 1000:.3f} do_capture
 def parse_args() -> argparse.Namespace:
     project_root = repo_root_from_script()
     default_out = project_root / "test" / "msx2-screen5" / "out"
-    parser = argparse.ArgumentParser(description="Build and optionally capture the minimal Mideas MSX2 SCREEN 5 smoke ROM.")
+    parser = argparse.ArgumentParser(description="Build and optionally capture the minimal Mideas MSX2 SCREEN 4 smoke ROM.")
     parser.add_argument("--project-root", default=str(project_root), help="Mideas repository root")
     parser.add_argument("--json", default=str(project_root / "test" / "msx2-screen5" / "minimal-screen5-project.json"), help="Mideas JSON fixture")
     parser.add_argument("--asm-output", default=str(default_out / "minimal-screen5.asm"), help="Output ASM path")

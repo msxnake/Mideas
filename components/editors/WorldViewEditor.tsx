@@ -7,6 +7,9 @@ import { Button } from '../common/Button';
 import { GridToggleButton } from './GridToggleButton';
 import { getScreenModeMetrics } from '../../utils/screenModeConfig';
 
+const MSX2_SCREEN_WIDTH = 256;
+const MSX2_SCREEN_HEIGHT = 192;
+
 interface WorldViewEditorProps {
   allWorldMapGraphs: WorldMapGraph[];
   allScreenMaps: WorldViewScreen[];
@@ -16,9 +19,11 @@ interface WorldViewEditorProps {
 
 type WorldViewScreen = ScreenMap | Msx2Screen5TileScreen;
 
+const isMsx2Screen4Mode = (vdpMode: unknown): boolean => vdpMode === 'SCREEN4' || vdpMode === 'SCREEN5';
+
 const unwrapWorldViewScreen = (screen: WorldViewScreen | any | undefined): WorldViewScreen | undefined => {
     const data = screen?.data;
-    if (data && (data.vdpMode === 'SCREEN5' || data.layers || data.map)) {
+    if (data && (isMsx2Screen4Mode(data.vdpMode) || data.layers || data.map)) {
         return data as WorldViewScreen;
     }
     return screen as WorldViewScreen | undefined;
@@ -26,7 +31,7 @@ const unwrapWorldViewScreen = (screen: WorldViewScreen | any | undefined): World
 
 const isMsx2Screen5TileScreen = (screen: WorldViewScreen | undefined): screen is Msx2Screen5TileScreen => {
     const unwrapped = unwrapWorldViewScreen(screen);
-    return !!unwrapped && (unwrapped as Msx2Screen5TileScreen).vdpMode === 'SCREEN5' && Array.isArray((unwrapped as Msx2Screen5TileScreen).tiles);
+    return !!unwrapped && isMsx2Screen4Mode((unwrapped as Msx2Screen5TileScreen).vdpMode) && Array.isArray((unwrapped as Msx2Screen5TileScreen).tiles);
 };
 
 const isScreenMap = (screen: WorldViewScreen | undefined): screen is ScreenMap => {
@@ -40,7 +45,7 @@ const getWorldViewScreenPixelSize = (
 ): { width: number; height: number } => {
     const unwrapped = unwrapWorldViewScreen(screen) || screen;
     if (isMsx2Screen5TileScreen(unwrapped)) {
-        return { width: 256, height: 212 };
+        return { width: MSX2_SCREEN_WIDTH, height: MSX2_SCREEN_HEIGHT };
     }
 
     return {
@@ -63,8 +68,8 @@ const renderMsx2Screen5ToCanvas = (
     canvas: HTMLCanvasElement,
     screen: Msx2Screen5TileScreen
 ) => {
-    canvas.width = 256;
-    canvas.height = 212;
+    canvas.width = MSX2_SCREEN_WIDTH;
+    canvas.height = MSX2_SCREEN_HEIGHT;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
@@ -106,13 +111,13 @@ const isTransparentScreen5Color = (color: string): boolean =>
 
 const createMsx2Screen5SvgDataURL = (screen: Msx2Screen5TileScreen): string => {
     const anchorSize = Math.max(1, Number(screen.tileSize) || 16);
-    const visibleRows = Math.ceil(212 / anchorSize);
-    const visibleCols = Math.ceil(256 / anchorSize);
+    const visibleRows = Math.ceil(MSX2_SCREEN_HEIGHT / anchorSize);
+    const visibleCols = Math.ceil(MSX2_SCREEN_WIDTH / anchorSize);
     const rects: string[] = [];
     const bg = resolveMsx2Screen5Color(screen, 0);
 
     if (!isTransparentScreen5Color(bg)) {
-        rects.push(`<rect x="0" y="0" width="256" height="212" fill="${bg}"/>`);
+        rects.push(`<rect x="0" y="0" width="${MSX2_SCREEN_WIDTH}" height="${MSX2_SCREEN_HEIGHT}" fill="${bg}"/>`);
     }
 
     for (let tileY = 0; tileY < visibleRows; tileY++) {
@@ -127,14 +132,14 @@ const createMsx2Screen5SvgDataURL = (screen: Msx2Screen5TileScreen): string => {
 
             for (let py = 0; py < tileHeight; py++) {
                 const destY = destBaseY + py;
-                if (destY >= 212) continue;
+                if (destY >= MSX2_SCREEN_HEIGHT) continue;
                 let runColor = '';
                 let runStart = -1;
 
                 const flushRun = (endPx: number) => {
                     if (runStart < 0 || isTransparentScreen5Color(runColor)) return;
                     const x = destBaseX + runStart;
-                    const width = Math.min(destBaseX + endPx, 256) - x;
+                    const width = Math.min(destBaseX + endPx, MSX2_SCREEN_WIDTH) - x;
                     if (width > 0) {
                         rects.push(`<rect x="${x}" y="${destY}" width="${width}" height="1" fill="${runColor}"/>`);
                     }
@@ -142,7 +147,7 @@ const createMsx2Screen5SvgDataURL = (screen: Msx2Screen5TileScreen): string => {
 
                 for (let px = 0; px < tileWidth; px++) {
                     const destX = destBaseX + px;
-                    if (destX >= 256) {
+                    if (destX >= MSX2_SCREEN_WIDTH) {
                         flushRun(px);
                         break;
                     }
@@ -159,7 +164,7 @@ const createMsx2Screen5SvgDataURL = (screen: Msx2Screen5TileScreen): string => {
         }
     }
 
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="212" viewBox="0 0 256 212" shape-rendering="crispEdges">${rects.join('')}</svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${MSX2_SCREEN_WIDTH}" height="${MSX2_SCREEN_HEIGHT}" viewBox="0 0 ${MSX2_SCREEN_WIDTH} ${MSX2_SCREEN_HEIGHT}" shape-rendering="crispEdges">${rects.join('')}</svg>`;
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 };
 

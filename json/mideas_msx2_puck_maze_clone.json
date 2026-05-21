@@ -1,9 +1,9 @@
 {
   "name": "mideas_msx2_puck_maze_clone",
   "currentProjectName": "mideas_msx2_puck_maze_clone",
-  "currentScreenMode": "SCREEN 5 (Graphics III)",
-  "screenMode": "SCREEN 5 (Graphics III)",
-  "targetGraphicsBackend": "msx2-screen5-tile16",
+  "currentScreenMode": "SCREEN 4 (Graphics II)",
+  "screenMode": "SCREEN 4 (Graphics II)",
+  "targetGraphicsBackend": "msx2-screen4-pattern",
   "selectedAssetId": "screen_msx2_puck_maze",
   "currentEditor": "Msx2Screen",
   "assets": [
@@ -12,7 +12,7 @@
       "type": "palette",
       "name": "Puck Maze MSX2 Palette",
       "data": {
-        "mode": "SCREEN5",
+        "mode": "SCREEN4",
         "slots": [
           {
             "slotIndex": 0,
@@ -105,7 +105,7 @@
         "id": "screen_msx2_puck_maze",
         "name": "Puck Maze 01",
         "target": "MSX2",
-        "vdpMode": "SCREEN5",
+        "vdpMode": "SCREEN4",
         "tileSize": {
           "width": 16,
           "height": 16
@@ -3620,7 +3620,7 @@
         "id": "screen_msx2_puck_bonus",
         "name": "Puck Bonus Vault",
         "target": "MSX2",
-        "vdpMode": "SCREEN5",
+        "vdpMode": "SCREEN4",
         "tileSize": {
           "width": 16,
           "height": 16
@@ -7090,7 +7090,7 @@
         "id": "sprite_msx2_puck_player",
         "name": "Puck Runner Sprite",
         "target": "MSX2",
-        "vdpMode": "SCREEN5",
+        "vdpMode": "SCREEN4",
         "size": {
           "width": 16,
           "height": 16
@@ -8382,7 +8382,7 @@
         "id": "sprite_msx2_puck_ghost",
         "name": "Maze Ghost Sprite",
         "target": "MSX2",
-        "vdpMode": "SCREEN5",
+        "vdpMode": "SCREEN4",
         "size": {
           "width": 16,
           "height": 16

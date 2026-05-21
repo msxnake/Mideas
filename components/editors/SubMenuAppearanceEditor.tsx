@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { MainMenuAppearance, ProjectAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { AssetPickerModal } from '../modals/AssetPickerModal';
+import { AssetPickerModal, AssetPickerType } from '../modals/AssetPickerModal';
 import { InlineColorPicker } from '../common/InlineColorPicker';
 
 interface SubMenuAppearanceEditorProps {
@@ -18,7 +18,7 @@ export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = (
 }) => {
   const [assetPickerState, setAssetPickerState] = useState<{
     isOpen: boolean;
-    assetType: 'screenmap' | 'sprite' | 'font';
+    assetType: AssetPickerType;
     onSelect: (assetId: string) => void;
   } | null>(null);
 
@@ -36,7 +36,7 @@ export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = (
     });
   };
 
-  const openAssetPicker = (assetType: 'screenmap' | 'sprite' | 'font', onSelect: (assetId: string) => void) => {
+  const openAssetPicker = (assetType: AssetPickerType, onSelect: (assetId: string) => void) => {
     setAssetPickerState({ isOpen: true, assetType, onSelect });
   };
 
@@ -51,7 +51,7 @@ export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = (
         <div className="mb-3">
           <label className="block text-msx-textprimary text-sm mb-1">Background Screen</label>
           <div className="flex items-center space-x-2">
-            <Button onClick={() => openAssetPicker('screenmap', (id) => handleConfigChange('backgroundScreenAssetId', id))} variant="secondary" size="sm">
+            <Button onClick={() => openAssetPicker('screenBackground', (id) => handleConfigChange('backgroundScreenAssetId', id))} variant="secondary" size="sm">
               Select
             </Button>
             {appearance.backgroundScreenAssetId && (
@@ -131,7 +131,7 @@ export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = (
           assetTypeToPick={assetPickerState.assetType}
           allAssets={allAssets}
           currentSelectedId={
-            assetPickerState.assetType === 'screenmap' ? appearance.backgroundScreenAssetId || null :
+            assetPickerState.assetType === 'screenBackground' ? appearance.backgroundScreenAssetId || null :
             assetPickerState.assetType === 'sprite' ? appearance.cursorSpriteAssetId || null :
             (appearance as any).fontAssetId || null
           }

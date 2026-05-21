@@ -224,15 +224,17 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   // Detect various features
   const hasEntities = entities.length > 0;
   const hasECS = components.length > 0 || hasEntities;
-  const hasMultipleScreens = screenMaps.length > 1;
+  const hasMultipleScreens = (screenMaps.length + msx2Screens.length) > 1;
   const hasSprites = sprites.length > 0;
   const hasTiles = tiles.length > 0;
-  const hasScreens = screenMaps.length > 0;
+  const hasScreens = screenMaps.length > 0 || msx2Screens.length > 0;
   const hasComponents = components.length > 0;
   const hasGameFlowBool = !!gameFlow;
   const hasFonts = assets.some(a => a.type === 'font');
   const hasAnimations = sprites.some(s => s.frames.length > 1);
-  const hasCollisions = screenMaps.some(s => s.layers.collision.some(row => row.some(cell => cell !== null)));
+  const hasCollisions =
+    screenMaps.some(s => s.layers.collision.some(row => row.some(cell => cell !== null))) ||
+    msx2Screens.some(s => (s.layers?.collision || s.collisionMap || []).some(row => row.some(cell => Number(cell) > 0)));
   const hasMenuSystem = templates.some(t => t.name.toLowerCase().includes('menu'));
 
   // Detect custom states from component names and templates

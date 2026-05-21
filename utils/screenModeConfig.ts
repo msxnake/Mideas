@@ -25,7 +25,8 @@ export interface ScreenModeMetrics {
 
 const DEFAULT_EDITOR_BASE_TILE_DIM_OTHER = 16;
 const SCREEN_2_LABEL = 'SCREEN 2 (Graphics I)';
-const SCREEN_5_LABEL = 'SCREEN 5 (Graphics III)';
+const SCREEN_4_LABEL = 'SCREEN 4 (Graphics II)';
+const LEGACY_SCREEN_5_LABEL = 'SCREEN 5 (Graphics III)';
 const BASE_TILE_SIZE = 8;
 
 const DEFAULT_METRICS: ScreenModeMetrics = {
@@ -44,12 +45,19 @@ const SCREEN_MODE_CONFIG: Record<string, ScreenModeMetrics> = {
     heightTiles: DEFAULT_SCREEN_HEIGHT_TILES,
     baseTileSize: EDITOR_BASE_TILE_DIM_S2,
   },
-  [SCREEN_5_LABEL]: {
+  [SCREEN_4_LABEL]: {
     pixelWidth: 256,
-    pixelHeight: 212,
+    pixelHeight: 192,
     widthTiles: 32,
-    heightTiles: 27,
-    baseTileSize: EDITOR_BASE_TILE_DIM_S2,
+    heightTiles: 24,
+    baseTileSize: BASE_TILE_SIZE,
+  },
+  [LEGACY_SCREEN_5_LABEL]: {
+    pixelWidth: 256,
+    pixelHeight: 192,
+    widthTiles: 32,
+    heightTiles: 24,
+    baseTileSize: BASE_TILE_SIZE,
   },
   'SCREEN 0 (Text 40)': {
     pixelWidth: 240,
@@ -66,13 +74,6 @@ const SCREEN_MODE_CONFIG: Record<string, ScreenModeMetrics> = {
     baseTileSize: BASE_TILE_SIZE,
   },
   'SCREEN 3 (Multicolor)': {
-    pixelWidth: 256,
-    pixelHeight: 192,
-    widthTiles: 32,
-    heightTiles: 24,
-    baseTileSize: BASE_TILE_SIZE,
-  },
-  'SCREEN 4 (Graphics II)': {
     pixelWidth: 256,
     pixelHeight: 192,
     widthTiles: 32,
@@ -114,7 +115,8 @@ export function getScreenModeMetrics(mode: string | null | undefined): ScreenMod
 }
 
 export const isScreen2Mode = (screenMode: string): boolean => screenMode === SCREEN_2_LABEL;
-export const isScreen5Mode = (screenMode: string): boolean => screenMode === SCREEN_5_LABEL;
+export const isScreen4Mode = (screenMode: string): boolean => screenMode === SCREEN_4_LABEL;
+export const isScreen5Mode = (screenMode: string): boolean => screenMode === LEGACY_SCREEN_5_LABEL;
 
 const getPaletteForMode = (screenMode: string) =>
   isScreen2Mode(screenMode) ? MSX1_PALETTE : MSX_SCREEN5_PALETTE;

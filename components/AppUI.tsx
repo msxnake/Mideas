@@ -372,7 +372,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const [selectedPaletteAssetId, setSelectedPaletteAssetId] = useState<string>('');
 
   useEffect(() => {
-    if (props.currentEditor !== EditorType.Tile && props.currentEditor !== EditorType.Msx2Sprite && props.currentEditor !== EditorType.Msx2Bitmap) {
+    if (props.currentEditor !== EditorType.Tile && props.currentEditor !== EditorType.Msx2Sprite && props.currentEditor !== EditorType.Msx2Bitmap && props.currentEditor !== EditorType.Msx2Screen) {
       setSelectedPaletteAssetId('');
     }
   }, [props.currentEditor, selectedAssetId]);

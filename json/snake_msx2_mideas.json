@@ -1,9 +1,9 @@
 {
   "name": "snake_msx2_mideas",
   "currentProjectName": "snake_msx2_mideas",
-  "currentScreenMode": "SCREEN 5 (Graphics III)",
-  "screenMode": "SCREEN 5 (Graphics III)",
-  "targetGraphicsBackend": "msx2-screen5-tile16",
+  "currentScreenMode": "SCREEN 4 (Graphics II)",
+  "screenMode": "SCREEN 4 (Graphics II)",
+  "targetGraphicsBackend": "msx2-screen4-pattern",
   "selectedAssetId": "screen_snake_msx2_arena",
   "currentEditor": "Msx2Screen",
   "assets": [
@@ -12,7 +12,7 @@
       "name": "Snake MSX2 Palette",
       "type": "palette",
       "data": {
-        "mode": "SCREEN5",
+        "mode": "SCREEN4",
         "slots": [
           {
             "slotIndex": 0,
@@ -95,7 +95,7 @@
             "hex": "#FF00FF"
           }
         ],
-        "notes": "V9938 SCREEN 5 palette for a green Snake arena with red apples."
+        "notes": "V9938 SCREEN 4 palette for a green Snake arena with red apples."
       }
     },
     {
@@ -106,10 +106,10 @@
         "id": "screen_snake_msx2_arena",
         "name": "Snake Arena",
         "target": "MSX2",
-        "vdpMode": "SCREEN5",
+        "vdpMode": "SCREEN4",
         "tileSize": 16,
         "widthTiles": 16,
-        "heightTiles": 14,
+        "heightTiles": 12,
         "palette": [
           {
             "slotIndex": 0,
@@ -2159,56 +2159,20 @@
           ],
           [
             1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            1
-          ],
-          [
             1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
             4,
-            1
-          ],
-          [
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
             1
           ]
         ],
@@ -2413,41 +2377,6 @@
           ],
           [
             1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            1
-          ],
-          [
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            1
-          ],
-          [
             1,
             1,
             1,
@@ -2461,8 +2390,7 @@
             1,
             1,
             1,
-            1,
-            1,
+            0,
             1
           ]
         ],
@@ -2668,41 +2596,6 @@
             ],
             [
               1,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              1
-            ],
-            [
-              1,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              1
-            ],
-            [
               1,
               1,
               1,
@@ -2716,8 +2609,7 @@
               1,
               1,
               1,
-              1,
-              1,
+              0,
               1
             ]
           ],
@@ -2935,83 +2827,11 @@
               0,
               0,
               0,
-              0,
-              0
-            ],
-            [
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
               2,
-              0
-            ],
-            [
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
               0
             ]
           ],
           "behavior": [
-            [
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0
-            ],
-            [
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0
-            ],
             [
               0,
               0,
@@ -3236,7 +3056,7 @@
               "kind": "player",
               "position": {
                 "x": 3,
-                "y": 11
+                "y": 10
               },
               "spriteAssetId": "sprite_snake_head_msx2",
               "params": {}
@@ -3289,7 +3109,7 @@
           "activeAreaX": 0,
           "activeAreaY": 0,
           "activeAreaWidth": 16,
-          "activeAreaHeight": 14,
+          "activeAreaHeight": 12,
           "hideHud": true
         },
         "notes": "Snake-style MSX2 arena: collect all six apples, avoid walls/body hazards, then reach the exit tile."
@@ -3303,7 +3123,7 @@
         "id": "sprite_snake_head_msx2",
         "name": "Snake Head Sprite",
         "target": "MSX2",
-        "vdpMode": "SCREEN5",
+        "vdpMode": "SCREEN4",
         "size": {
           "width": 16,
           "height": 16

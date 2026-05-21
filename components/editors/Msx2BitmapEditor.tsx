@@ -210,7 +210,7 @@ export const Msx2BitmapEditor: React.FC<Msx2BitmapEditorProps> = ({ bitmap, onUp
           </div>
         </Panel>
 
-        <Panel title="MSX2 SCREEN 5 Palette">
+        <Panel title="MSX2 Legacy Bitmap Palette">
           <div className="grid grid-cols-4 gap-2 p-2">
             {slots.map(slot => (
               <button
@@ -236,7 +236,7 @@ export const Msx2BitmapEditor: React.FC<Msx2BitmapEditorProps> = ({ bitmap, onUp
               onChange={event => onUpdate({ name: event.target.value })}
               className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm"
             />
-            <span className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm">256 x 212 MSX2 SCREEN 5</span>
+            <span className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm">256 x 212 legacy bitmap</span>
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="secondary" icon={<SaveIcon />} onClick={exportPng}>MSX2 Export PNG</Button>
@@ -265,7 +265,7 @@ export const Msx2BitmapEditor: React.FC<Msx2BitmapEditorProps> = ({ bitmap, onUp
       <div className="min-h-0 overflow-y-auto border-l border-msx-border pl-2 space-y-2">
         <Panel title="MSX2 Bitmap Data">
           <div className="p-3 text-xs space-y-2 text-msx-textsecondary">
-            <div>Mode: MSX2 SCREEN 5</div>
+            <div>Mode: Legacy bitmap asset</div>
             <div>VRAM: #0000</div>
             <div>Raw size: 27136 bytes</div>
             <div>Format: 2 pixels per byte</div>

@@ -2,7 +2,7 @@ import React, { startTransition, useState } from 'react';
 import JSZip from 'jszip';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
-import { ExportRomMode, ProjectAsset } from '../../types';
+import { ExportRomMode, Msx2Screen5TileScreen, ProjectAsset } from '../../types';
 import { hasPresentationScreenData } from '../utils/presentationScreenUtils';
 import {
   generateCompleteGameAssembly,
@@ -70,6 +70,63 @@ const DEFAULT_ZX0_OPTIONS: Zx0CompressionOptions = {
   fontColors: true,
   spritePatterns: true,
   presentationScreen: true,
+};
+
+const sanitizeAsmLabel = (value: string, fallback: string): string => {
+  const label = (value || fallback).toUpperCase().replace(/[^A-Z0-9_]/g, '_').replace(/^([^A-Z_])/, '_$1');
+  return label || fallback;
+};
+
+const SCREEN4_MODE = 'SCREEN 4 (Graphics II)';
+const LEGACY_SCREEN5_MODE = 'SCREEN 5 (Graphics III)';
+
+const normalizeMsx2ExportScreenMode = (screenMode: string): string =>
+  screenMode === LEGACY_SCREEN5_MODE ? SCREEN4_MODE : screenMode;
+
+const isMsx2Screen4ExportMode = (screenMode: string): boolean =>
+  normalizeMsx2ExportScreenMode(screenMode) === SCREEN4_MODE;
+
+const formatDbRows = (label: string, rows: number[][], comment: string): string => {
+  const body = rows.length > 0
+    ? rows.map(row => `    DB ${row.map(value => Math.max(0, Math.min(255, Number(value) || 0))).join(',')}`).join('\n')
+    : '    DB 0';
+  return `${label}:\n    ; ${comment}\n${body}`;
+};
+
+const generateMsx2Screen4ScreenAssembly = (screen: Msx2Screen5TileScreen, index: number): string => {
+  const label = sanitizeAsmLabel(screen.name || screen.id, `MSX2_SCREEN4_${index}`);
+  const collision = screen.layers?.collision || screen.collisionMap || [];
+  const effects = screen.layers?.effects || [];
+  const behavior = screen.layers?.behavior || [];
+  return [
+    `; MSX2 SCREEN 4 native screen: ${screen.name || screen.id}`,
+    `${label}_WIDTH_TILES EQU ${screen.widthTiles || 16}`,
+    `${label}_HEIGHT_TILES EQU ${screen.heightTiles || 12}`,
+    `${label}_TILE_SIZE EQU ${screen.tileSize || 16}`,
+    formatDbRows(`${label}_MAP`, screen.map || [], '16x12 visual tile indices'),
+    formatDbRows(`${label}_COLLISION`, collision, '16x12 collision codes'),
+    formatDbRows(`${label}_EFFECTS`, effects, '16x12 effect codes'),
+    formatDbRows(`${label}_BEHAVIOR`, behavior, '16x12 behavior codes')
+  ].join('\n');
+};
+
+const generateMsx2NativeEntitiesAssembly = (screens: Msx2Screen5TileScreen[]): string => {
+  const lines: string[] = ['; MSX2 SCREEN 4 native entity summary'];
+  screens.forEach((screen, screenIndex) => {
+    const label = sanitizeAsmLabel(screen.name || screen.id, `MSX2_SCREEN4_${screenIndex}`);
+    const entities = screen.layers?.entities || [];
+    lines.push(`${label}_ENTITY_COUNT EQU ${entities.length}`);
+    lines.push(`${label}_ENTITIES:`);
+    if (entities.length === 0) {
+      lines.push('    DB 0,0,0,0 ; empty');
+      return;
+    }
+    entities.forEach((entity, index) => {
+      const kindId = ['player', 'enemy', 'collectible', 'door', 'hazard', 'custom'].indexOf(entity.kind || 'custom');
+      lines.push(`    DB ${Math.max(0, kindId)},${entity.position?.x ?? 0},${entity.position?.y ?? 0},0 ; ${index}: ${entity.name || entity.id}`);
+    });
+  });
+  return lines.join('\n');
 };
 
 const ZX0_OPTION_ITEMS: { key: keyof Zx0CompressionOptions; label: string }[] = [
@@ -421,8 +478,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   ): Promise<MapperReadyBundle> => {
     const projectName = projectNameInput || currentProjectName || 'MSX_Game';
     const romConfig = romConfigInput || buildCurrentRomConfig();
-    const currentScreenMode = projectData?.currentScreenMode || 'SCREEN 2 (Graphics I)';
-    const targetGraphicsBackend = currentScreenMode === 'SCREEN 4 (Graphics II)' || currentScreenMode === 'SCREEN 5 (Graphics III)'
+    const currentScreenMode = normalizeMsx2ExportScreenMode(projectData?.currentScreenMode || 'SCREEN 2 (Graphics I)');
+    const targetGraphicsBackend = isMsx2Screen4ExportMode(currentScreenMode)
       ? 'msx2-screen4-pattern'
       : 'screen2-tilebank';
     const { generateModularASM } = await import('../../utils/msxGenerator');
@@ -880,6 +937,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       let nextActiveFileIndex = 0;
 
       const projectName = currentProjectName || "MSX_Project";
+      const activeScreenMode = normalizeMsx2ExportScreenMode(projectData?.currentScreenMode || 'SCREEN 2 (Graphics I)');
+      const isScreen4Backend = isMsx2Screen4ExportMode(activeScreenMode);
 
       switch (exportType) {
         case 'complete':
@@ -947,9 +1006,22 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
         case 'screens':
           const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as any);
+          const msx2Screens = assets.filter(a => a.type === 'msx2screen').map(a => a.data as Msx2Screen5TileScreen);
           const tilesForScreens = assets.filter(a => a.type === 'tile').map(a => a.data as any);
 
-          if (screenMaps.length > 1) {
+          if (isScreen4Backend && msx2Screens.length > 0) {
+            files = msx2Screens.map((screen, index) => ({
+              name: `screen4_${index}.asm`,
+              content: generateMsx2Screen4ScreenAssembly(screen, index)
+            }));
+            files.unshift({
+              name: 'all_screen4_screens.asm',
+              content: msx2Screens.map((screen, index) =>
+                generateMsx2Screen4ScreenAssembly(screen, index)
+              ).join('\n\n')
+            });
+            code = files[0].content;
+          } else if (screenMaps.length > 1) {
             // Generate separate files for each screen
             files = screenMaps.map((screen, index) => ({
               name: `screen_${index}.asm`,
@@ -1016,10 +1088,16 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
         case 'entities':
           const mainScreen = assets.filter(a => a.type === 'screenmap').map(a => a.data as any)
             .find(s => s.layers.entities.length > 0);
+          const nativeMsx2EntityScreens = assets
+            .filter(a => a.type === 'msx2screen')
+            .map(a => a.data as Msx2Screen5TileScreen)
+            .filter(screen => (screen.layers?.entities || []).length > 0);
           const components = assets.filter(a => a.type === 'componentdefinition').map(a => a.data as any);
           const templates = assets.filter(a => a.type === 'entitytemplate').map(a => a.data as any);
 
-          if (mainScreen && components.length > 0 && templates.length > 0) {
+          if (isScreen4Backend && nativeMsx2EntityScreens.length > 0) {
+            code = generateMsx2NativeEntitiesAssembly(nativeMsx2EntityScreens);
+          } else if (mainScreen && components.length > 0 && templates.length > 0) {
             code = generateEntityAssembly(mainScreen.layers.entities, components, templates, options);
           } else {
             code = '; No entities found or missing component definitions/templates';
@@ -1734,7 +1812,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     <p>💡 State Machine will be automatically analyzed and optimized for your project assets:</p>
                     <ul className="mt-1 ml-4 text-xs">
                       <li>• ECS integration: {getAssetCount('componentdefinition') > 0 ? 'Enabled' : 'Disabled'}</li>
-                      <li>• Multiple screens: {getAssetCount('screenmap') > 1 ? 'Yes' : 'No'}</li>
+                      <li>• Multiple screens: {(getAssetCount('screenmap') + getAssetCount('msx2screen')) > 1 ? 'Yes' : 'No'}</li>
                       <li>• Custom states: Auto-detected</li>
                     </ul>
                   </div>
@@ -1763,7 +1841,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       <li>• Components: {projectAnalysis.components.length}</li>
                       <li>• Entity Templates: {projectAnalysis.templates.length}</li>
                       <li>• Sprites: {projectAnalysis.sprites.length} ({projectAnalysis.hasAnimations ? 'with animations' : 'static'})</li>
-                      <li>• Screen Maps: {projectAnalysis.screenMaps.length}</li>
+                      <li>• Screens: {(projectAnalysis.screenMaps?.length || 0) + (projectAnalysis.msx2Screens?.length || 0)}</li>
                       <li>• Collisions: {projectAnalysis.hasCollisions ? '✅ Detected' : '❌ Not detected'}</li>
                       <li>• Menu System: {projectAnalysis.hasMenuSystem ? '✅ Detected' : '❌ Not detected'}</li>
                       {projectAnalysis.customStates.length > 0 && (

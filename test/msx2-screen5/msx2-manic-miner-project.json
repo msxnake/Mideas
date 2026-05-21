@@ -1,14 +1,14 @@
 {
   "name": "msx2_manic_miner_screen",
-  "screenMode": "SCREEN 5 (Graphics III)",
-  "targetGraphicsBackend": "msx2-screen5-bitmap",
+  "screenMode": "SCREEN 4 (Graphics II)",
+  "targetGraphicsBackend": "msx2-screen4-pattern",
   "assets": [
     {
       "id": "pal_msx2_manic_miner",
       "name": "MSX2 Manic Miner Palette",
       "type": "palette",
       "data": {
-        "mode": "SCREEN5",
+        "mode": "SCREEN4",
         "notes": "Bright platform palette for MSX2 Manic Miner style smoke.",
         "slots": [
           {

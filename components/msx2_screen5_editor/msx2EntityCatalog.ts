@@ -34,12 +34,25 @@ export interface Msx2ComponentDefinition {
   defaults: Record<string, any>;
 }
 
+export type Msx2RuntimeEngine =
+  | 'platform'
+  | 'maze'
+  | 'shooterHorizontal'
+  | 'staticEnemy'
+  | 'ghostMaze'
+  | 'patrolX'
+  | 'patrolY'
+  | 'hazard'
+  | 'collectible'
+  | 'door'
+  | 'checkpoint';
+
 export interface Msx2EntityCreatePreset {
   id: string;
   label: string;
   kind: Exclude<Msx2EntityKind, 'custom'>;
   runtime: 'MSX2';
-  engine: 'player' | 'staticEnemy' | 'ghostMaze' | 'patrolX' | 'patrolY' | 'hazard' | 'collectible' | 'door' | 'checkpoint';
+  engine: Msx2RuntimeEngine;
   description: string;
   components: Partial<Record<Msx2ComponentId, Record<string, any>>>;
   params?: Record<string, any>;
@@ -49,7 +62,7 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
   {
     id: 'msx2_transform',
     label: 'Transform',
-    description: 'Native MSX2 tile and pixel placement for SCREEN 5 entities.',
+    description: 'Native MSX2 tile and pixel placement for SCREEN 4 entities.',
     defaults: { tileX: 0, tileY: 0, pixelX: 0, pixelY: 0, spawnX: 0, spawnY: 0 },
   },
   {
@@ -62,7 +75,7 @@ export const MSX2_COMPONENT_REPERTOIRE: Msx2ComponentDefinition[] = [
     id: 'msx2_player_control',
     label: 'Player Control',
     description: 'Player-only control mode for the MSX2 runtime.',
-    defaults: { controlMode: 'platform', jump: true, gravity: true, air: 255 },
+    defaults: { controlMode: 'maze', movementMode: 'maze', jump: false, gravity: false, air: 0, disableAirTimer: true },
   },
   {
     id: 'msx2_movement',
@@ -208,6 +221,8 @@ export const MSX2_ENTITY_KIND_OPTIONS: Array<{ value: Exclude<Msx2EntityKind, 'c
 
 export const MSX2_ENTITY_MOVEMENT_OPTIONS = [
   { value: 'static', label: 'Static' },
+  { value: 'maze', label: 'Maze Player' },
+  { value: 'shooterHorizontal', label: 'Shooter Horizontal' },
   { value: 'patrolX', label: 'Patrol X' },
   { value: 'patrolY', label: 'Patrol Y' },
   { value: 'ghostMaze', label: 'Ghost Maze' },
@@ -219,37 +234,37 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
     label: 'MSX2 Player Platform',
     kind: 'player',
     runtime: 'MSX2',
-    engine: 'player',
-    description: 'Hardware sprite platform player controlled by the MSX2 SCREEN 5 runtime.',
+    engine: 'platform',
+    description: 'Hardware sprite platform player controlled by the MSX2 SCREEN 4 runtime.',
     components: {
       msx2_transform: {},
       msx2_hardware_sprite: {},
-      msx2_player_control: { controlMode: 'platform', jump: true, gravity: true },
+      msx2_player_control: { controlMode: 'platform', movementMode: 'platform', jump: true, gravity: true, air: 255, disableAirTimer: false },
       msx2_animation: { animation: 'player_idle', frameCount: 2, frameDelay: 8, animateOnlyWhenMoving: true },
       msx2_health: { current: 3, max: 3, invincibleFrames: 60, deathAction: 'respawn' },
       msx2_spawn: { spawnOnScreenLoad: true, respawn: true, respawnDelayFrames: 45 },
       msx2_timer: { initialValue: 255, tickRateFrames: 60, onZero: 'damage', hud: true },
       msx2_collision: { solid: false, hitboxW: 14, hitboxH: 15, offsetX: 1, offsetY: 1 },
     },
-    params: { runtime: 'MSX2', engine: 'player', controlMode: 'platform' },
+    params: { runtime: 'MSX2', engine: 'platform', controlMode: 'platform', movementMode: 'platform' },
   },
   {
     id: 'player_maze',
     label: 'MSX2 Player Maze',
     kind: 'player',
     runtime: 'MSX2',
-    engine: 'player',
+    engine: 'maze',
     description: 'Grid-gated maze player for Pac-Man style MSX2 screens.',
     components: {
       msx2_transform: {},
       msx2_hardware_sprite: {},
-      msx2_player_control: { controlMode: 'maze', jump: false, gravity: false },
+      msx2_player_control: { controlMode: 'maze', movementMode: 'maze', jump: false, gravity: false, air: 0, disableAirTimer: true },
       msx2_animation: { animation: 'maze_walk', frameCount: 2, frameDelay: 6, animateOnlyWhenMoving: true },
       msx2_health: { current: 3, max: 3, invincibleFrames: 45, deathAction: 'respawn' },
       msx2_spawn: { spawnOnScreenLoad: true, respawn: true, respawnDelayFrames: 45 },
       msx2_collision: { solid: false, hitboxW: 14, hitboxH: 14, offsetX: 1, offsetY: 1 },
     },
-    params: { runtime: 'MSX2', engine: 'player', controlMode: 'maze', movement: 'maze' },
+    params: { runtime: 'MSX2', engine: 'maze', controlMode: 'maze', movement: 'maze', movementMode: 'maze', initialAir: 0, disableAirTimer: true },
   },
   {
     id: 'enemy_static',
@@ -327,7 +342,7 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
     kind: 'hazard',
     runtime: 'MSX2',
     engine: 'hazard',
-    description: 'MSX2 hazard entity used by the SCREEN 5 collision/effects runtime.',
+    description: 'MSX2 hazard entity used by the SCREEN 4 collision/effects runtime.',
     components: {
       msx2_transform: {},
       msx2_hazard: {},
@@ -343,7 +358,7 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
     kind: 'collectible',
     runtime: 'MSX2',
     engine: 'collectible',
-    description: 'Collectible entity counted by the MSX2 SCREEN 5 runtime.',
+    description: 'Collectible entity counted by the MSX2 SCREEN 4 runtime.',
     components: {
       msx2_transform: {},
       msx2_collectible: {},
@@ -389,19 +404,19 @@ export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
     label: 'Galaxian Player',
     kind: 'player',
     runtime: 'MSX2',
-    engine: 'player',
+    engine: 'shooterHorizontal',
     description: 'Horizontal shooter player for Galaxian-style MSX2 games.',
     components: {
       msx2_transform: {},
       msx2_hardware_sprite: { paletteSlot: 15 },
-      msx2_player_control: { controlMode: 'shooterHorizontal', jump: false, gravity: false },
+      msx2_player_control: { controlMode: 'shooterHorizontal', movementMode: 'shooterHorizontal', jump: false, gravity: false, air: 0, disableAirTimer: true },
       msx2_movement: { mode: 'horizontal', speed: 3 },
       msx2_collision: { hitboxW: 14, hitboxH: 12, offsetX: 1, offsetY: 2 },
       msx2_shooter: {},
       msx2_lives: {},
       msx2_score: { points: 0, variableId: 'score', addOnCollect: false },
     },
-    params: { runtime: 'MSX2', engine: 'player', controlMode: 'shooterHorizontal', movement: 'horizontal', speed: 3 },
+    params: { runtime: 'MSX2', engine: 'shooterHorizontal', controlMode: 'shooterHorizontal', movement: 'horizontal', movementMode: 'shooterHorizontal', speed: 3, initialAir: 0, disableAirTimer: true },
   },
   {
     id: 'galaxian_alien_formation',

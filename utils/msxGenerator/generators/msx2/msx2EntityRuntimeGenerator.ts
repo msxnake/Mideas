@@ -1,4 +1,4 @@
-import { Msx2Screen5TileScreen } from '../../../../types';
+import { Msx2Screen4TileScreen } from '../../../../types';
 
 export const MSX2_MAX_ENTITY_HAZARDS_PER_SCREEN = 12;
 export const MSX2_ENEMY_MOVEMENT_PATROL = 0;
@@ -44,8 +44,12 @@ const getComponentValue = (
   fallback: unknown
 ): unknown => entity?.components?.[componentId]?.[key] ?? entity?.params?.[key] ?? fallback;
 
+const normalizeMovementMode = (value: unknown): string => String(value || '')
+  .replace(/[\s_-]+/g, '')
+  .toLowerCase();
+
 export function getMsx2EnemyHazardRuntimeSlots(
-  screen: Msx2Screen5TileScreen | undefined
+  screen: Msx2Screen4TileScreen | undefined
 ): Msx2EnemyHazardRuntimeSlot[] {
   return (screen?.layers?.entities || [])
     .filter(entity => (entity.kind === 'enemy' || entity.kind === 'hazard') && entity.position)
@@ -53,18 +57,16 @@ export function getMsx2EnemyHazardRuntimeSlots(
     .map(entity => {
       const xTile = clampTileCoordinate(entity.position?.x, 15);
       const yTile = clampTileCoordinate(entity.position?.y, 11);
-      const movement = String(
+      const movement = normalizeMovementMode(
         getComponentValue(entity, 'msx2_movement', 'mode', entity.params?.movement || entity.params?.motion || '')
-      ).toLowerCase();
-      const hasPatrolX = movement === 'patrolx' || movement === 'patrol-x' || movement === 'horizontal';
-      const hasPatrolY = movement === 'patroly' || movement === 'patrol-y' || movement === 'vertical';
+      );
+      const hasPatrolX = movement === 'patrolx' || movement === 'horizontal';
+      const hasPatrolY = movement === 'patroly' || movement === 'vertical';
       const hasGhostMaze = movement === 'ghostmaze'
-        || movement === 'ghost-maze'
         || movement === 'mazeghost'
-        || movement === 'maze-ghost'
         || movement === 'ghost'
-        || movement === 'pacman-ghost'
-        || movement === 'puck-ghost'
+        || movement === 'pacmanghost'
+        || movement === 'puckghost'
         || movement === 'chase';
       const attackPattern = String(getComponentValue(entity, 'msx2_attack_pattern', 'pattern', entity.params?.attackPattern || '')).toLowerCase();
       const hasDiveAttack = attackPattern === 'dive'

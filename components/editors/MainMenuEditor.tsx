@@ -4,7 +4,7 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
 import { PlusCircleIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon, CodeIcon, ListBulletIcon } from '../icons/MsxIcons';
-import { AssetPickerModal } from '../modals/AssetPickerModal';
+import { AssetPickerModal, AssetPickerType } from '../modals/AssetPickerModal';
 import { ExportMainMenuASMModal } from '../modals/ExportMainMenuASMModal';
 import { generateMainMenuASM } from '../utils/mainMenuUtils';
 import { MainMenuPreviewModal } from '../modals/MainMenuPreviewModal';
@@ -57,7 +57,7 @@ export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, 
 
     const [assetPickerState, setAssetPickerState] = useState<{
         isOpen: boolean;
-        assetType: 'screenmap' | 'sprite';
+        assetType: AssetPickerType;
         onSelect: (assetId: string) => void;
     } | null>(null);
 
@@ -129,7 +129,7 @@ export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, 
         };
     }, [listeningForKey]);
 
-    const openAssetPicker = (assetType: 'screenmap' | 'sprite', onSelect: (assetId: string) => void) => {
+    const openAssetPicker = (assetType: AssetPickerType, onSelect: (assetId: string) => void) => {
         setAssetPickerState({ isOpen: true, assetType, onSelect });
     };
     
@@ -162,7 +162,7 @@ export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, 
                     <div className="space-y-3">
                         <Panel title="Visuals">
                             <div className="flex items-center space-x-2">
-                                <Button onClick={() => openAssetPicker('screenmap', (id) => handleConfigChange('menuScreenAssetId', id))} variant="secondary" size="sm">Select Background Screen</Button>
+                                <Button onClick={() => openAssetPicker('screenBackground', (id) => handleConfigChange('menuScreenAssetId', id))} variant="secondary" size="sm">Select Background Screen</Button>
                                 <span className="text-msx-textsecondary truncate">Selected: {bgAsset ? `${bgAsset.name}` : 'None'}</span>
                             </div>
                              <div className="flex items-center space-x-2 mt-2">
@@ -210,7 +210,7 @@ export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, 
                     <div className="space-y-2">
                         <label>Intro Text:</label><textarea value={mainMenuConfig.introScreen.text} onChange={e => handleSubConfigChange('introScreen', 'text', e.target.value)} rows={5} className="w-full p-1 bg-msx-bgcolor border border-msx-border rounded font-mono"/>
                         <div className="flex items-center space-x-2">
-                            <Button onClick={() => openAssetPicker('screenmap', (id) => handleSubConfigChange('introScreen', 'backgroundAssetId', id))} variant="secondary" size="sm">Select Background Asset</Button>
+                            <Button onClick={() => openAssetPicker('screenBackground', (id) => handleSubConfigChange('introScreen', 'backgroundAssetId', id))} variant="secondary" size="sm">Select Background Asset</Button>
                             <span className="text-msx-textsecondary truncate">Selected: {introBgAsset ? `${introBgAsset.name} (${introBgAsset.type})` : 'None'}</span>
                         </div>
                     </div>

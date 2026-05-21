@@ -26,7 +26,7 @@ CASES = [
         "title": "Collectible cleared",
         "image": "msx2screen-layers-collect.png",
         "probe": "msx2screen-layers-collect-probe.txt",
-        "note": "First collectible is removed from effects RAM and SCREEN 5.",
+        "note": "First collectible is removed from effects RAM and the SCREEN 4 tile layer.",
     },
     {
         "title": "Both collectibles cleared",

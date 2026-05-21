@@ -71,6 +71,7 @@ function createProjectSummary(projectPath) {
   const usedAssets = {
     worldMaps: [],
     screens: [],
+    msx2Screens: [],
     tiles: [],
     sprites: [],
     entities: [],
@@ -121,9 +122,23 @@ function createProjectSummary(projectPath) {
 
     // Procesar cada Screen
     screenIds.forEach(screenId => {
-      const screenAsset = assets.find(asset => asset.type === 'screenmap' && asset.id === screenId);
+      const screenAsset = assets.find(asset => (asset.type === 'screenmap' || asset.type === 'msx2screen') && asset.id === screenId);
       if (!screenAsset) {
         warnings.push(`Screen "${screenId}" not found`);
+        return;
+      }
+
+      if (screenAsset.type === 'msx2screen') {
+        usedAssets.msx2Screens.push({
+          id: screenAsset.id,
+          name: screenAsset.name,
+          widthTiles: screenAsset.data.widthTiles,
+          heightTiles: screenAsset.data.heightTiles,
+          tileSize: screenAsset.data.tileSize,
+          layers: screenAsset.data.layers,
+          entityInstances: screenAsset.data.layers?.entities || []
+        });
+        console.log(`âœ… MSX2 Screen added: "${screenAsset.name}" (${screenAsset.data.widthTiles}x${screenAsset.data.heightTiles})`);
         return;
       }
 
