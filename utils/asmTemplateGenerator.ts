@@ -133,7 +133,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   const presentationScreen = presentationScreenAsset?.data as PresentationScreenConfig | undefined;
   const bosses = assets.filter(a => a.type === 'boss').map(a => a.data as Boss);
   const inferredScreenMode = msx2Screens.length > 0 || msx2Sprites.length > 0 || msx2Bitmaps.length > 0
-    ? 'SCREEN 5 (Graphics III)'
+    ? 'SCREEN 4 (Graphics II)'
     : 'SCREEN 2 (Graphics I)';
   components = components.filter(component => isComponentDefinitionEnabledForProject(component, inferredScreenMode));
   templates = templates.filter(template => isEntityTemplateEnabledForProject(template, inferredScreenMode));

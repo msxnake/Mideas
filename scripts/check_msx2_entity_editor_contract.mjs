@@ -7,7 +7,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
 const editorPath = join(repoRoot, 'components', 'editors', 'Msx2Screen5TileScreenEditor.tsx');
 const partsPath = join(repoRoot, 'components', 'msx2_screen5_editor', 'Msx2Screen5EditorParts.tsx');
+const catalogPath = join(repoRoot, 'components', 'msx2_screen5_editor', 'msx2EntityCatalog.ts');
 const generatorPath = join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen5Generator.ts');
+const entityRuntimeGeneratorPath = join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2EntityRuntimeGenerator.ts');
 const appUiPath = join(repoRoot, 'components', 'AppUI.tsx');
 const componentEditorPath = join(repoRoot, 'components', 'editors', 'ComponentDefinitionEditor.tsx');
 const templateEditorPath = join(repoRoot, 'components', 'editors', 'EntityTemplateEditor.tsx');
@@ -17,7 +19,9 @@ const typesPath = join(repoRoot, 'types.ts');
 const source = [
   readFileSync(editorPath, 'utf8'),
   readFileSync(partsPath, 'utf8'),
+  readFileSync(catalogPath, 'utf8'),
   readFileSync(generatorPath, 'utf8'),
+  readFileSync(entityRuntimeGeneratorPath, 'utf8'),
   readFileSync(appUiPath, 'utf8'),
   readFileSync(componentEditorPath, 'utf8'),
   readFileSync(templateEditorPath, 'utf8'),
@@ -81,7 +85,7 @@ const checks = [
     "paintTool === 'fill'",
     "paintTool === 'pick'",
   ].every((needle) => source.includes(needle))],
-  ['hardware sprite init uses extended VRAM copies', hardwareSpriteInit.includes('SCREEN5_SPRPAT_VRAM') && hardwareSpriteInit.includes('SCREEN5_SPRCOL_VRAM') && hardwareSpriteInit.includes('SCREEN5_SPRATR_VRAM') && !hardwareSpriteInit.includes('call LDIRVM')],
+  ['hardware sprite init uses SCREEN 4 extended VRAM copies', hardwareSpriteInit.includes('SCREEN4_SPRPAT_VRAM') && hardwareSpriteInit.includes('SCREEN4_SPRCOL_VRAM') && hardwareSpriteInit.includes('SCREEN4_SPRATR_VRAM') && !hardwareSpriteInit.includes('call LDIRVM')],
   ['hardware 16x16 sprite pattern order is V9938 quadrant order', hardwareSpritePatternBuilder.includes('top-left, bottom-left, top-right, bottom-right') && hardwareSpritePatternBuilder.includes('layerIndex, 0, y));\n  for (let y = 8; y < 16; y++) bytes.push(spritePatternByteForLayer(rowCompositions, layerIndex, 0, y));\n  for (let y = 0; y < 8; y++) bytes.push(spritePatternByteForLayer(rowCompositions, layerIndex, 8, y));')],
   ['maze movement suppresses inline status HUD overlay', generatorSource.includes('function usesInlineStatusHud') && generatorSource.includes('return !usesMazeMovement(analysis)') && generatorSource.includes('Inline status HUD disabled for full-map maze screens')],
   ['extended VRAM writers reset VDP control latch', (extendedVramWriters.match(/in a, \(VDP_CTRL_PORT\)/g) || []).length >= 6],

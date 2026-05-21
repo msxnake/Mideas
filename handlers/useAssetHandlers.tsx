@@ -401,18 +401,18 @@ export const useAssetHandlers = ({
           vdpMode: 'SCREEN5',
           tileSize: 16,
           widthTiles: 16,
-          heightTiles: 14,
+          heightTiles: 12,
           palette: createDefaultScreen5PaletteSlots(),
           tiles: [
             { id: `tile_${Date.now()}_0`, name: 'Blank', width: screen5TileSize, height: screen5TileSize, pixels: blankTile },
             { id: `tile_${Date.now()}_1`, name: 'Platform', width: screen5TileSize, height: screen5TileSize, pixels: floorTile },
           ],
-          map: Array.from({ length: 14 }, (_, y) => Array.from({ length: 16 }, () => y === 13 ? 1 : 0)),
-          collisionMap: Array.from({ length: 14 }, (_, y) => Array.from({ length: 16 }, () => y === 13 ? 1 : 0)),
+          map: Array.from({ length: 12 }, (_, y) => Array.from({ length: 16 }, () => y === 11 ? 1 : 0)),
+          collisionMap: Array.from({ length: 12 }, (_, y) => Array.from({ length: 16 }, () => y === 11 ? 1 : 0)),
           layers: {
-            collision: Array.from({ length: 14 }, (_, y) => Array.from({ length: 16 }, () => y === 13 ? 1 : 0)),
-            effects: Array.from({ length: 14 }, () => Array.from({ length: 16 }, () => 0)),
-            behavior: Array.from({ length: 14 }, () => Array.from({ length: 16 }, () => 0)),
+            collision: Array.from({ length: 12 }, (_, y) => Array.from({ length: 16 }, () => y === 11 ? 1 : 0)),
+            effects: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
+            behavior: Array.from({ length: 12 }, () => Array.from({ length: 16 }, () => 0)),
             entities: [],
           },
           runtime: {
@@ -423,7 +423,7 @@ export const useAssetHandlers = ({
             activeAreaX: 0,
             activeAreaY: 0,
             activeAreaWidth: 16,
-            activeAreaHeight: 14,
+            activeAreaHeight: 12,
           },
         } as Msx2Screen5TileScreen;
         newEditorType = EditorType.Msx2Screen;

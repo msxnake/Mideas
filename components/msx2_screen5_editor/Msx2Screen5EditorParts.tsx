@@ -2,15 +2,23 @@ import React, { useEffect, useRef } from 'react';
 import { MSXColorValue, Msx2EntityKind, Msx2Screen5EntityInstance, Msx2Screen5Layers, Msx2Screen5Runtime, Msx2Screen5Tile, Screen5PaletteSlot } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
+import {
+  DEFAULT_MSX2_ENTITY_CREATE_PRESETS,
+  MSX2_COMPONENT_REPERTOIRE,
+  MSX2_ENTITY_KIND_OPTIONS,
+  MSX2_ENTITY_MOVEMENT_OPTIONS,
+  MSX2_ENTITY_REPERTOIRE,
+  Msx2EntityCreatePreset,
+} from './msx2EntityCatalog';
 
 export type Msx2Screen5EditMode = 'visual' | 'collision' | 'effects' | 'behavior' | 'entities' | 'tile';
 export type Msx2Screen5TilePaintTool = 'pencil' | 'erase' | 'fill' | 'pick';
 
 export const SCREEN_WIDTH = 256;
-export const SCREEN_HEIGHT = 212;
+export const SCREEN_HEIGHT = 192;
 export const TILE_SIZE = 16;
 export const MAP_WIDTH = 16;
-export const MAP_HEIGHT = 14;
+export const MAP_HEIGHT = 12;
 export const MAP_PIXEL_WIDTH = MAP_WIDTH * TILE_SIZE;
 export const MAP_PIXEL_HEIGHT = MAP_HEIGHT * TILE_SIZE;
 export const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
@@ -34,43 +42,13 @@ export interface Msx2Screen5SelectionRect {
   height: number;
 }
 
-export interface Msx2EntityCreatePreset {
-  id: string;
-  label: string;
-  kind: Msx2EntityKind;
-  runtime: 'MSX2';
-  engine: 'player' | 'staticEnemy' | 'ghostMaze' | 'patrolX' | 'patrolY' | 'hazard' | 'collectible' | 'door';
-  description: string;
-  params?: Record<string, any>;
-}
-
-export const MSX2_ENTITY_KIND_OPTIONS: Array<{ value: Exclude<Msx2EntityKind, 'custom'>; label: string }> = [
-  { value: 'player', label: 'Player' },
-  { value: 'enemy', label: 'Enemy' },
-  { value: 'hazard', label: 'Hazard' },
-  { value: 'collectible', label: 'Collectible' },
-  { value: 'door', label: 'Door' },
-];
-
-export const MSX2_ENTITY_MOVEMENT_OPTIONS = [
-  { value: 'static', label: 'Static' },
-  { value: 'patrolX', label: 'Patrol X' },
-  { value: 'patrolY', label: 'Patrol Y' },
-  { value: 'ghostMaze', label: 'Ghost Maze' },
-] as const;
-
-export const MSX2_ENTITY_REPERTOIRE: Msx2EntityCreatePreset[] = [
-  { id: 'player', label: 'MSX2 Player', kind: 'player', runtime: 'MSX2', engine: 'player', description: 'Hardware sprite player controlled by the MSX2 Screen 5 runtime.', params: { runtime: 'MSX2', engine: 'player' } },
-  { id: 'enemy_static', label: 'MSX2 Enemy', kind: 'enemy', runtime: 'MSX2', engine: 'staticEnemy', description: 'Static enemy or blocker handled by the MSX2 entity table.', params: { runtime: 'MSX2', engine: 'staticEnemy' } },
-  { id: 'ghost_maze', label: 'MSX2 Ghost Maze', kind: 'enemy', runtime: 'MSX2', engine: 'ghostMaze', description: 'Maze ghost movement component for Pac-Man style screens.', params: { runtime: 'MSX2', engine: 'ghostMaze', movement: 'ghostMaze', initialDirection: 'right', speed: 4 } },
-  { id: 'patrol_x', label: 'MSX2 Patrol X', kind: 'enemy', runtime: 'MSX2', engine: 'patrolX', description: 'Horizontal patrol movement component owned by the MSX2 runtime.', params: { runtime: 'MSX2', engine: 'patrolX', movement: 'patrolX', direction: 1 } },
-  { id: 'patrol_y', label: 'MSX2 Patrol Y', kind: 'enemy', runtime: 'MSX2', engine: 'patrolY', description: 'Vertical patrol movement component owned by the MSX2 runtime.', params: { runtime: 'MSX2', engine: 'patrolY', movement: 'patrolY', direction: 1 } },
-  { id: 'hazard', label: 'MSX2 Hazard', kind: 'hazard', runtime: 'MSX2', engine: 'hazard', description: 'MSX2 hazard entity used by the Screen 5 collision/effects runtime.', params: { runtime: 'MSX2', engine: 'hazard' } },
-  { id: 'collectible', label: 'MSX2 Collectible', kind: 'collectible', runtime: 'MSX2', engine: 'collectible', description: 'Collectible entity counted by the MSX2 Screen 5 runtime.', params: { runtime: 'MSX2', engine: 'collectible' } },
-  { id: 'door', label: 'MSX2 Door', kind: 'door', runtime: 'MSX2', engine: 'door', description: 'Door/exit entity for MSX2 screen progression.', params: { runtime: 'MSX2', engine: 'door' } },
-];
-
-export const DEFAULT_MSX2_ENTITY_CREATE_PRESETS = MSX2_ENTITY_REPERTOIRE;
+export {
+  DEFAULT_MSX2_ENTITY_CREATE_PRESETS,
+  MSX2_ENTITY_KIND_OPTIONS,
+  MSX2_ENTITY_MOVEMENT_OPTIONS,
+  MSX2_ENTITY_REPERTOIRE,
+  type Msx2EntityCreatePreset,
+};
 
 interface Msx2Screen5ToolbarProps {
   screenName: string;
@@ -192,7 +170,7 @@ export const Msx2Screen5Toolbar: React.FC<Msx2Screen5ToolbarProps> = ({
           <Button size="sm" variant="secondary" onClick={onPasteLayer} disabled={!canPasteLayer}>Paste Layer</Button>
         </div>
         <div className="text-msx-textsecondary">
-          16x14 visual anchors. Tiles can be 8/16/24/32 px in each axis; the visible SCREEN 5 crop is marked at 256x212.
+          16x12 visual anchors. Tiles are projected to SCREEN 4 pattern/color/name tables at 256x192.
         </div>
         <div className="text-msx-textsecondary">
           Runtime: {runtime.screenKind} / {runtime.screenEngine}
@@ -311,6 +289,15 @@ interface Msx2Screen5EntityPanelProps {
   onRemoveSelectedEntity: () => void;
 }
 
+const summarizeMsx2Component = (values: Record<string, any> | undefined): string => {
+  if (!values) return '';
+  return Object.entries(values)
+    .filter(([, value]) => value !== '' && value !== undefined && value !== false)
+    .slice(0, 4)
+    .map(([key, value]) => `${key}:${String(value)}`)
+    .join(' ');
+};
+
 export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
   mode,
   selectedEntity,
@@ -348,7 +335,17 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
                 onChange={event => {
                   const movement = event.target.value;
                   if (movement === 'static') {
-                    onUpdateSelectedEntity({ params: { runtime: 'MSX2', engine: 'static' } });
+                    onUpdateSelectedEntity({
+                      components: {
+                        ...(selectedEntity.components || {}),
+                        msx2_movement: {
+                          ...(selectedEntity.components?.msx2_movement || {}),
+                          mode: 'static',
+                          speed: 0,
+                        },
+                      },
+                      params: { runtime: 'MSX2', engine: 'static', movement: 'static' },
+                    });
                     return;
                   }
                   if (movement === 'ghostMaze') {
@@ -409,6 +406,24 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
                   aria-label="Entity tile Y"
                 />
               </label>
+            </div>
+            <div className="rounded border border-msx-border/60 p-2">
+              <div className="mb-1 text-msx-textsecondary">MSX2 Components</div>
+              <div className="space-y-1">
+                {MSX2_COMPONENT_REPERTOIRE
+                  .filter(component => selectedEntity.components?.[component.id])
+                  .map(component => (
+                    <div key={component.id} className="flex items-center justify-between gap-2 text-[0.65rem]">
+                      <span className="text-msx-cyan">{component.label}</span>
+                      <span className="truncate text-msx-textsecondary" title={JSON.stringify(selectedEntity.components?.[component.id] || {})}>
+                        {summarizeMsx2Component(selectedEntity.components?.[component.id]) || component.id}
+                      </span>
+                    </div>
+                  ))}
+                {!selectedEntity.components && (
+                  <div className="text-[0.65rem] text-msx-textsecondary">Legacy MSX2 entity params only.</div>
+                )}
+              </div>
             </div>
             {selectedEntity.params?.movement === 'ghostMaze' && (
               <div className="grid grid-cols-2 gap-2">
@@ -1091,7 +1106,7 @@ export const Msx2Screen5StatusBar: React.FC<Msx2Screen5StatusBarProps> = ({
       Collectibles: {runtime.requiredCollectibles ?? 0}/{collectibleCells} |
       Active Area: X:{runtime.activeAreaX} Y:{runtime.activeAreaY} W:{runtime.activeAreaWidth} H:{runtime.activeAreaHeight} |
       Selection: {selectionRect ? `${selectionRect.x},${selectionRect.y} ${selectionRect.width}x${selectionRect.height}` : 'None'} |
-      Size: 16x14 anchors / variable visual tiles / 256x212 visible
+      Size: 16x12 anchors / SCREEN 4 pattern tiles / 256x192 visible
     </div>
   );
 };

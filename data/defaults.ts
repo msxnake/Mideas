@@ -1,10 +1,30 @@
-import { ComponentDefinition, EntityTemplate } from '../types';
+import { ComponentDefinition, ComponentPropertyDefinition, EntityTemplate } from '../types';
+import { MSX2_COMPONENT_REPERTOIRE } from '../components/msx2_screen5_editor/msx2EntityCatalog';
 
 export const DEFAULT_MAP_ASM_CONTENT = `
  include "asm/init.asm"
 `;
 
 export const DEFAULT_CONSTANTS_ASM_CONTENT = ``;
+
+const inferMsx2DefaultPropertyType = (value: any): ComponentPropertyDefinition['type'] => {
+  if (typeof value === 'boolean') return 'boolean';
+  if (typeof value === 'number') return Number.isInteger(value) && value >= 0 && value <= 255 ? 'byte' : 'word';
+  return 'string';
+};
+
+const DEFAULT_MSX2_COMPONENT_DEFINITIONS: ComponentDefinition[] = MSX2_COMPONENT_REPERTOIRE.map(component => ({
+  id: component.id,
+  name: `MSX2 ${component.label}`,
+  target: 'MSX2',
+  description: component.description,
+  properties: Object.entries(component.defaults).map(([name, defaultValue]) => ({
+    name,
+    type: inferMsx2DefaultPropertyType(defaultValue),
+    defaultValue,
+    description: `${component.label} ${name}.`,
+  })),
+}));
 
 export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   {
@@ -509,7 +529,8 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "facingDirection", type: 'byte', defaultValue: '0', description: "Current facing direction: 0=right, 1=up, 2=left, 3=down" },
       { name: "autoRotate", type: 'boolean', defaultValue: 'true', description: "Automatically rotate sprite based on movement direction" }
     ],
-  }
+  },
+  ...DEFAULT_MSX2_COMPONENT_DEFINITIONS
 ];
 
 export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [

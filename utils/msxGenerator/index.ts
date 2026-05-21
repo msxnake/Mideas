@@ -46,7 +46,7 @@ import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes'
  */
 export type MSXMapperFormat = 'konami' | 'ascii8' | 'ascii16';
 export type MSXRomMode = 'auto' | 'simple32k' | 'plain48k' | 'megarom';
-export type GraphicsBackend = 'screen2-tilebank' | 'msx2-screen5-bitmap' | 'msx2-screen5-tile16';
+export type GraphicsBackend = 'screen2-tilebank' | 'msx2-screen4-pattern' | 'msx2-screen5-bitmap' | 'msx2-screen5-tile16';
 
 export interface MSXInterruptConfig {
   enableAudioTask?: boolean;
@@ -115,10 +115,13 @@ function buildRuntimeTrackIndexByAssetId(tracks: any[]): Record<string, number> 
 
 function resolveGraphicsBackend(config: MSXModularConfig): GraphicsBackend {
   if (config.targetGraphicsBackend === 'msx2-screen5-tile16') {
-    return 'msx2-screen5-bitmap';
+    return 'msx2-screen4-pattern';
   }
   if (config.targetGraphicsBackend) {
     return config.targetGraphicsBackend;
+  }
+  if (config.screenMode === 'SCREEN 4 (Graphics II)') {
+    return 'msx2-screen4-pattern';
   }
   return config.screenMode === 'SCREEN 5 (Graphics III)'
     ? 'msx2-screen5-bitmap'
@@ -242,13 +245,13 @@ export function generateModularASM(
   console.log(`📊 Project: ${projectName}, Assets: ${assets.length}, Config:`, config);
 
   const targetGraphicsBackend = resolveGraphicsBackend(config);
-  if (targetGraphicsBackend === 'msx2-screen5-bitmap') {
-    if (config.screenMode !== 'SCREEN 5 (Graphics III)') {
-      throw new Error(`MSX2 bitmap backend currently supports only SCREEN 5 (Graphics III), received: ${config.screenMode || 'unknown'}`);
+  if (targetGraphicsBackend === 'msx2-screen4-pattern' || targetGraphicsBackend === 'msx2-screen5-bitmap') {
+    if (targetGraphicsBackend === 'msx2-screen5-bitmap') {
+      console.warn('MSX2 SCREEN 5 bitmap backend is deprecated; routing to the SCREEN 4 pattern backend.');
     }
     const analysis = analyzeProject(projectName, assets);
     return generateMsx2Screen5Files(projectName, analysis, {
-      screenMode: config.screenMode,
+      screenMode: 'SCREEN 4 (Graphics II)',
       romMode: config.romMode || 'simple32k',
       targetFormat: config.targetFormat || 'konami',
     });
@@ -428,12 +431,12 @@ export function generateModularASMFromSummary(
     targetGraphicsBackend: config.targetGraphicsBackend || (summary as any).targetGraphicsBackend,
   };
   const summaryGraphicsBackend = resolveGraphicsBackend(summaryGraphicsConfig);
-  if (summaryGraphicsBackend === 'msx2-screen5-bitmap') {
-    if (summaryGraphicsConfig.screenMode !== 'SCREEN 5 (Graphics III)') {
-      throw new Error(`MSX2 bitmap backend currently supports only SCREEN 5 (Graphics III), received: ${summaryGraphicsConfig.screenMode || 'unknown'}`);
+  if (summaryGraphicsBackend === 'msx2-screen4-pattern' || summaryGraphicsBackend === 'msx2-screen5-bitmap') {
+    if (summaryGraphicsBackend === 'msx2-screen5-bitmap') {
+      console.warn('MSX2 SCREEN 5 bitmap backend is deprecated; routing to the SCREEN 4 pattern backend.');
     }
     return generateMsx2Screen5Files(summary.projectInfo.name, analysis, {
-      screenMode: summaryGraphicsConfig.screenMode,
+      screenMode: 'SCREEN 4 (Graphics II)',
       romMode: summaryGraphicsConfig.romMode || 'simple32k',
       targetFormat: summaryGraphicsConfig.targetFormat || 'konami',
     });

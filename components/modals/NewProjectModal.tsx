@@ -30,9 +30,9 @@ const SCREEN_MODE_OPTIONS = [
     description: 'Modo tileado (256×192, 4 colores) ideal para compatibilidad MSX-1 y VRAM mínima.',
   },
   {
-    value: 'SCREEN 5 (Graphics III)',
-    title: 'MSX2 SCREEN 5 (Graphics III)',
-    description: 'Modo bitmap (256×212, 16 colores/px) con scroll fino y doble buffer en MSX-2.',
+    value: 'SCREEN 4 (Graphics II)',
+    title: 'MSX2 SCREEN 4 (Graphics II)',
+    description: 'Modo tileado/patrones (256x192, paleta MSX2 y sprites tipo 2) pensado para juegos Z80.',
   },
 ];
 

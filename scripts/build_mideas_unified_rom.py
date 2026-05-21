@@ -3060,7 +3060,7 @@ const files = generator.generateModularASM(name, assets, {
   executionMode,
   autoMegaROM,
   screenMode: raw.screenMode || raw.currentScreenMode || "SCREEN 2 (Graphics I)",
-  targetGraphicsBackend: raw.targetGraphicsBackend || ((raw.screenMode || raw.currentScreenMode) === "SCREEN 5 (Graphics III)" ? "msx2-screen5-bitmap" : "screen2-tilebank"),
+  targetGraphicsBackend: raw.targetGraphicsBackend || (["SCREEN 4 (Graphics II)", "SCREEN 5 (Graphics III)"].includes(raw.screenMode || raw.currentScreenMode) ? "msx2-screen4-pattern" : "screen2-tilebank"),
   interruptConfig: {
     ...(raw.interruptConfig || {}),
     enableHardPlayerTick: enableHardPlayerTick || Boolean(raw.interruptConfig && raw.interruptConfig.enableHardPlayerTick),

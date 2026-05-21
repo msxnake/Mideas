@@ -20,7 +20,7 @@ const MSX2_ONLY_ASSET_TYPES = new Set<ProjectAsset['type']>([
 ]);
 
 export const getProjectTargetFromScreenMode = (screenMode: string): ProjectTarget => (
-  screenMode === 'SCREEN 5 (Graphics III)' ? 'MSX2' : 'MSX1'
+  screenMode === 'SCREEN 4 (Graphics II)' || screenMode === 'SCREEN 5 (Graphics III)' ? 'MSX2' : 'MSX1'
 );
 
 export const getAssetTarget = (assetType: ProjectAsset['type']): ProjectTarget | 'COMMON' => {

@@ -127,14 +127,14 @@ const asmPath = process.argv[4];
 const raw = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
 const name = raw.name || "msx2_screen5_minimal";
 const assets = Array.isArray(raw.assets) ? raw.assets : [];
-const screenMode = raw.screenMode || "SCREEN 5 (Graphics III)";
-const targetGraphicsBackend = raw.targetGraphicsBackend || "msx2-screen5-bitmap";
+const screenMode = raw.screenMode || "SCREEN 4 (Graphics II)";
+const targetGraphicsBackend = raw.targetGraphicsBackend || "msx2-screen4-pattern";
 
-if (screenMode !== "SCREEN 5 (Graphics III)") {
-  throw new Error(`Expected SCREEN 5 (Graphics III), got ${screenMode}`);
+if (screenMode !== "SCREEN 4 (Graphics II)" && screenMode !== "SCREEN 5 (Graphics III)") {
+  throw new Error(`Expected an MSX2 SCREEN 4/legacy SCREEN 5 project, got ${screenMode}`);
 }
-if (targetGraphicsBackend !== "msx2-screen5-bitmap") {
-  throw new Error(`Expected msx2-screen5-bitmap backend, got ${targetGraphicsBackend}`);
+if (targetGraphicsBackend !== "msx2-screen4-pattern" && targetGraphicsBackend !== "msx2-screen5-bitmap" && targetGraphicsBackend !== "msx2-screen5-tile16") {
+  throw new Error(`Expected MSX2 SCREEN 4 backend or legacy MSX2 backend alias, got ${targetGraphicsBackend}`);
 }
 
 const files = generator.generateModularASM(name, assets, {
@@ -150,13 +150,13 @@ const asm = files["unitedFiles.asm"] || files["main.asm"];
 if (!asm) {
   throw new Error("Generator did not return unitedFiles.asm or main.asm");
 }
-if (!asm.includes("Mideas MSX2 SCREEN 5 bitmap backend")) {
-  throw new Error("Generated ASM does not look like the MSX2 SCREEN 5 backend output");
+if (!asm.includes("Mideas MSX2 SCREEN 4 tile backend")) {
+  throw new Error("Generated ASM does not look like the MSX2 SCREEN 4 backend output");
 }
 if (!asm.includes("MSX2 minimal GameFlow")) {
   throw new Error("Generated ASM does not include the MSX2 minimal GameFlow marker");
 }
-if (!asm.includes("call clear_screen5_bitmap")) {
+if (!asm.includes("call clear_screen4_names")) {
   throw new Error("Generated ASM does not include the MSX2 cls transition");
 }
 if (!asm.includes("call wait_key")) {

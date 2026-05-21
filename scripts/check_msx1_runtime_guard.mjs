@@ -15,6 +15,7 @@ const templateEditor = read('components', 'editors', 'EntityTemplateEditor.tsx')
 const asmTemplate = read('utils', 'asmTemplateGenerator.ts');
 const defaults = read('data', 'defaults.ts');
 const msx2Parts = read('components', 'msx2_screen5_editor', 'Msx2Screen5EditorParts.tsx');
+const msx2Catalog = read('components', 'msx2_screen5_editor', 'msx2EntityCatalog.ts');
 const msx2ScreenEditor = read('components', 'editors', 'Msx2Screen5TileScreenEditor.tsx');
 
 const checks = [
@@ -26,7 +27,7 @@ const checks = [
   ],
   [
     'SCREEN 2 still resolves to MSX1',
-    projectTarget.includes("screenMode === 'SCREEN 5 (Graphics III)' ? 'MSX2' : 'MSX1'"),
+    projectTarget.includes("screenMode === 'SCREEN 4 (Graphics II)' || screenMode === 'SCREEN 5 (Graphics III)' ? 'MSX2' : 'MSX1'"),
   ],
   [
     'MSX1 screen editor receives templates through the target filter',
@@ -53,10 +54,11 @@ const checks = [
       asmTemplate.includes('isComponentDefinitionEnabledForProject(component, inferredScreenMode)'),
   ],
   [
-    'legacy default component definitions remain unretargeted',
+    'legacy default component definitions remain unretargeted while MSX2 defaults are targeted',
     defaults.includes('export const DEFAULT_COMPONENT_DEFINITIONS') &&
       defaults.includes('id: "comp_pos", name: "Position"') &&
-      !/DEFAULT_COMPONENT_DEFINITIONS[\s\S]*?target:\s*['"]MSX2['"]/.test(defaults),
+      defaults.includes('DEFAULT_MSX2_COMPONENT_DEFINITIONS') &&
+      defaults.includes("target: 'MSX2'"),
   ],
   [
     'legacy default entity templates remain unretargeted',
@@ -67,7 +69,8 @@ const checks = [
   [
     'MSX2 native entity repertoire stays outside MSX1 templates/components',
     msx2Parts.includes('MSX2_ENTITY_REPERTOIRE') &&
-      msx2Parts.includes("runtime: 'MSX2'") &&
+      msx2Catalog.includes('MSX2_ENTITY_REPERTOIRE') &&
+      msx2Catalog.includes("runtime: 'MSX2'") &&
       msx2ScreenEditor.includes('MSX2_ENTITY_REPERTOIRE') &&
       !templateEditor.includes('MSX2_ENTITY_REPERTOIRE') &&
       !componentEditor.includes('MSX2_ENTITY_REPERTOIRE'),

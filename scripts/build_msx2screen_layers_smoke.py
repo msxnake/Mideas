@@ -240,8 +240,8 @@ const files = generator.generateModularASMFromSummary(summary, {
 });
 const asm = files["unitedFiles.asm"] || "";
 const required = [
-  "Mideas MSX2 SCREEN 5 bitmap backend",
-  "MSX2_LAYERS_EXIT_SCREEN_TILE_",
+  "Mideas MSX2 SCREEN 4 tile backend",
+  "MSX2_LAYERS_EXIT_SCREEN_CHR_",
   "msx2_try_world_edge_transition_left",
   "call load_MSX2_LAYERS_EXIT_SCREEN_bitmap",
   "msx2_current_collision_ptr",
@@ -256,7 +256,7 @@ const required = [
   "msx2_runtime_ram_limit",
   "init_msx2_effect_buffers",
   "clear_msx2_collectible_visual",
-  "screen5_blank_tile",
+  "clear_screen4_name_cell_16",
   "msx2_exit_blocked_flag",
   "msx2_lives",
   "msx2_game_over_flag",
@@ -313,10 +313,10 @@ console.log(`Summary codegen check passed: chars=${asm.length}, files=${Object.k
 def validate_asm(asm_output: Path) -> None:
     asm = asm_output.read_text(encoding="utf-8", errors="replace")
     required = [
-        "Mideas MSX2 SCREEN 5 bitmap backend",
+        "Mideas MSX2 SCREEN 4 tile backend",
         "MSX2_LAYERS_SMOKE_SCREEN_COLLISION",
         "MSX2_LAYERS_SMOKE_SCREEN_EFFECTS",
-        "MSX2_LAYERS_EXIT_SCREEN_TILE_",
+        "MSX2_LAYERS_EXIT_SCREEN_CHR_",
         "MSX2 minimal GameFlow",
         "call load_MSX2_LAYERS_SMOKE_SCREEN_bitmap",
         "msx2_try_world_edge_transition_left",
@@ -338,7 +338,7 @@ def validate_asm(asm_output: Path) -> None:
         "init_msx2_effect_buffers",
         "apply_MSX2_LAYERS_SMOKE_SCREEN_collected_visuals",
         "clear_msx2_collectible_visual",
-        "screen5_blank_tile",
+        "clear_screen4_name_cell_16",
         "msx2_exit_blocked_flag",
         "msx2_lives",
         "msx2_game_over_flag",

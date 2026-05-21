@@ -297,6 +297,8 @@ export interface Msx2Screen5EntityInstance {
   kind: Msx2EntityKind;
   position: { x: number; y: number };
   spriteAssetId?: string;
+  /** Native MSX2 component bags. Kept separate from legacy MSX1 EntityTemplate ECS. */
+  components?: Record<string, Record<string, any>>;
   params?: Record<string, any>;
 }
 
@@ -328,7 +330,7 @@ export interface Msx2Screen5TileScreen {
   vdpMode: 'SCREEN5';
   tileSize: 16;
   widthTiles: 16;
-  heightTiles: 14;
+  heightTiles: 12;
   palette: Screen5PaletteSlot[];
   tiles: Msx2Screen5Tile[];
   map: number[][];

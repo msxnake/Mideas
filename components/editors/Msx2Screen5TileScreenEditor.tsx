@@ -22,6 +22,7 @@ import {
   Msx2Screen5Toolbar,
   TILE_SIZE,
 } from '../msx2_screen5_editor/Msx2Screen5EditorParts';
+import { buildMsx2EntityComponents } from '../msx2_screen5_editor/msx2EntityCatalog';
 
 interface Msx2Screen5TileScreenEditorProps {
   screen: Msx2Screen5TileScreen;
@@ -88,6 +89,7 @@ const normalizeEntities = (entities?: Msx2Screen5EntityInstance[]): Msx2Screen5E
       y: Math.max(0, Math.min(MAP_HEIGHT - 1, Number(entity.position?.y) || 0)),
     },
     spriteAssetId: entity.spriteAssetId,
+    components: { ...(entity.components || {}) },
     params: { ...(entity.params || {}), runtime: 'MSX2' },
   }));
 
@@ -213,7 +215,23 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
       ...layers,
       entities: layers.entities.map(entity =>
         entity.id === selectedEntity.id
-          ? { ...entity, ...patch, params: patch.params ?? entity.params }
+          ? {
+            ...entity,
+            ...patch,
+            components: patch.position
+              ? {
+                ...(patch.components ?? entity.components ?? {}),
+                msx2_transform: {
+                  ...((patch.components ?? entity.components ?? {}).msx2_transform || {}),
+                  tileX: patch.position.x,
+                  tileY: patch.position.y,
+                  pixelX: patch.position.x * TILE_SIZE,
+                  pixelY: patch.position.y * TILE_SIZE,
+                },
+              }
+              : patch.components ?? entity.components,
+            params: patch.params ?? entity.params,
+          }
           : entity
       ),
     });
@@ -221,7 +239,29 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
 
   const updateSelectedEntityParams = (patch: Record<string, any>) => {
     if (!selectedEntity) return;
-    updateSelectedEntity({ params: { ...(selectedEntity.params || {}), ...patch } });
+    const componentPatch: Record<string, Record<string, any>> = { ...(selectedEntity.components || {}) };
+    const movementKeys = ['movement', 'mode', 'speed', 'direction', 'minX', 'maxX', 'minY', 'maxY'];
+    const hasMovementPatch = movementKeys.some(key => Object.prototype.hasOwnProperty.call(patch, key));
+    if (hasMovementPatch || componentPatch.msx2_movement) {
+      componentPatch.msx2_movement = {
+        ...(componentPatch.msx2_movement || {}),
+        ...Object.fromEntries(
+          Object.entries(patch)
+            .filter(([key]) => movementKeys.includes(key))
+            .map(([key, value]) => [key === 'movement' ? 'mode' : key, value])
+        ),
+      };
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'initialDirection') || componentPatch.msx2_ai) {
+      componentPatch.msx2_ai = {
+        ...(componentPatch.msx2_ai || {}),
+        ...(patch.initialDirection !== undefined ? { initialDirection: patch.initialDirection } : {}),
+      };
+    }
+    updateSelectedEntity({
+      components: componentPatch,
+      params: { ...(selectedEntity.params || {}), ...patch },
+    });
   };
 
   const removeSelectedEntity = () => {
@@ -272,22 +312,38 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
       }
       const id = `msx2_entity_${Date.now()}`;
       const presetParams = { ...(selectedEntityPreset.params || {}) };
+      const components = buildMsx2EntityComponents(selectedEntityPreset, x, y);
       if (presetParams.movement === 'patrolX') {
         presetParams.minX = x;
         presetParams.maxX = Math.min(MAP_WIDTH - 1, x + 4);
         presetParams.minY = y;
         presetParams.maxY = y;
+        components.msx2_movement = {
+          ...(components.msx2_movement || {}),
+          minX: presetParams.minX,
+          maxX: presetParams.maxX,
+          minY: presetParams.minY,
+          maxY: presetParams.maxY,
+        };
       } else if (presetParams.movement === 'patrolY') {
         presetParams.minX = x;
         presetParams.maxX = x;
         presetParams.minY = y;
         presetParams.maxY = Math.min(MAP_HEIGHT - 1, y + 4);
+        components.msx2_movement = {
+          ...(components.msx2_movement || {}),
+          minX: presetParams.minX,
+          maxX: presetParams.maxX,
+          minY: presetParams.minY,
+          maxY: presetParams.maxY,
+        };
       }
       const nextEntity: Msx2Screen5EntityInstance = {
         id,
         name: `${selectedEntityPreset.label} ${layers.entities.length + 1}`,
         kind: selectedEntityPreset.kind,
         position: { x, y },
+        components,
         params: presetParams,
       };
       updateLayers({ ...layers, entities: [...layers.entities, nextEntity] });
