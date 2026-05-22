@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
-import { MSXColorValue, Msx2EntityKind, Msx2Screen5EntityInstance, Msx2Screen5Layers, Msx2Screen5Runtime, Msx2Screen5Tile, Screen5PaletteSlot } from '../../types';
+import React, { useEffect, useRef, useState } from 'react';
+import { MSXColorValue, Msx2EntityKind, Msx2Screen5EntityInstance, Msx2Screen5Layers, Msx2Screen5Runtime, Msx2Screen5Tile, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
+import { AssetPickerModal } from '../modals/AssetPickerModal';
 import {
   DEFAULT_MSX2_ENTITY_CREATE_PRESETS,
   MSX2_COMPONENT_REPERTOIRE,
@@ -107,7 +108,7 @@ export const Msx2Screen5Toolbar: React.FC<Msx2Screen5ToolbarProps> = ({
   );
 
   return (
-    <Panel title="MSX2 Screen">
+    <Panel title="MSX2 Screen" collapsible>
       <div className="p-2 space-y-2 text-xs">
         <input
           value={screenName}
@@ -154,6 +155,7 @@ export const Msx2Screen5Toolbar: React.FC<Msx2Screen5ToolbarProps> = ({
               <option value={1}>1 Ladder</option>
               <option value={2}>2 Conveyor right</option>
               <option value={3}>3 Conveyor left</option>
+              <option value={4}>4 Rope</option>
             </select>
           </div>
         )}
@@ -255,7 +257,7 @@ export const Msx2Screen5SelectionPanel: React.FC<Msx2Screen5SelectionPanelProps>
   onCopySelection,
   onPasteSelection,
 }) => (
-  <Panel title="MSX2 Selection Tools">
+  <Panel title="MSX2 Selection Tools" collapsible>
     <div className="p-2 space-y-2 text-xs">
       <Button
         size="sm"
@@ -284,6 +286,7 @@ export const Msx2Screen5SelectionPanel: React.FC<Msx2Screen5SelectionPanelProps>
 interface Msx2Screen5EntityPanelProps {
   mode: Msx2Screen5EditMode;
   selectedEntity: Msx2Screen5EntityInstance | null;
+  allAssets: ProjectAsset[];
   onUpdateSelectedEntity: (patch: Partial<Msx2Screen5EntityInstance>) => void;
   onUpdateSelectedEntityParams: (patch: Record<string, any>) => void;
   onRemoveSelectedEntity: () => void;
@@ -298,18 +301,52 @@ const summarizeMsx2Component = (values: Record<string, any> | undefined): string
     .join(' ');
 };
 
+const getMsx2RenderSpriteId = (entity: Msx2Screen5EntityInstance | null): string =>
+  String(entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId || entity?.spriteAssetId || '');
+
+const getMsx2RenderSpriteName = (assets: ProjectAsset[], spriteAssetId: string): string => {
+  if (!spriteAssetId) return 'None';
+  return assets.find(asset => asset.type === 'msx2sprite' && asset.id === spriteAssetId)?.name || spriteAssetId;
+};
+
 export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
   mode,
   selectedEntity,
+  allAssets,
   onUpdateSelectedEntity,
   onUpdateSelectedEntityParams,
   onRemoveSelectedEntity,
 }) => {
+  const [isRenderPickerOpen, setIsRenderPickerOpen] = useState(false);
   if (mode !== 'entities') return null;
   const numberInputClass = 'w-full px-2 py-1 bg-msx-panelbg border border-msx-border rounded';
+  const renderSpriteAssetId = getMsx2RenderSpriteId(selectedEntity);
+  const patchSelectedComponent = (
+    componentId: string,
+    componentPatch: Record<string, any>,
+    paramsPatch?: Record<string, any>
+  ) => {
+    if (!selectedEntity) return;
+    const patch: Partial<Msx2Screen5EntityInstance> = {
+      components: {
+        ...(selectedEntity.components || {}),
+        [componentId]: {
+          ...(selectedEntity.components?.[componentId] || {}),
+          ...componentPatch,
+        },
+      },
+    };
+    if (paramsPatch) {
+      patch.params = {
+        ...(selectedEntity.params || {}),
+        ...paramsPatch,
+      };
+    }
+    onUpdateSelectedEntity(patch);
+  };
 
   return (
-    <Panel title="Entity Properties">
+    <Panel title="Entity Properties" collapsible>
       <div className="p-2 space-y-2 text-xs">
         {selectedEntity ? (
           <>
@@ -363,10 +400,21 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
                     engine: movement,
                     movement,
                     direction: Number(selectedEntity.params?.direction) || 1,
-                    minX: selectedEntity.params?.minX ?? selectedEntity.position.x,
-                    maxX: selectedEntity.params?.maxX ?? Math.min(MAP_WIDTH - 1, selectedEntity.position.x + 4),
-                    minY: selectedEntity.params?.minY ?? selectedEntity.position.y,
-                    maxY: selectedEntity.params?.maxY ?? Math.min(MAP_HEIGHT - 1, selectedEntity.position.y + 4),
+                    ...(movement === 'ballBounce'
+                      ? {
+                        minX: selectedEntity.params?.minX ?? 8,
+                        maxX: selectedEntity.params?.maxX ?? 232,
+                        minY: selectedEntity.params?.minY ?? 16,
+                        maxY: selectedEntity.params?.maxY ?? 176,
+                        boundsUnit: 'px',
+                      }
+                      : {
+                        minX: selectedEntity.params?.minX ?? selectedEntity.position.x,
+                        maxX: selectedEntity.params?.maxX ?? Math.min(MAP_WIDTH - 1, selectedEntity.position.x + 4),
+                        minY: selectedEntity.params?.minY ?? selectedEntity.position.y,
+                        maxY: selectedEntity.params?.maxY ?? Math.min(MAP_HEIGHT - 1, selectedEntity.position.y + 4),
+                        boundsUnit: 'tile',
+                      }),
                   });
                 }}
                 className={numberInputClass}
@@ -377,6 +425,25 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
                 ))}
               </select>
             </div>
+            <label className="block space-y-1">
+              <span className="text-msx-textsecondary">Render</span>
+              <div className="flex items-center gap-1">
+                <span
+                  className="min-w-0 flex-1 truncate rounded border border-msx-border bg-msx-panelbg px-2 py-1"
+                  title={renderSpriteAssetId || 'None'}
+                >
+                  {getMsx2RenderSpriteName(allAssets, renderSpriteAssetId)}
+                </span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setIsRenderPickerOpen(true)}
+                  aria-label="Choose MSX2 render sprite"
+                >
+                  ...
+                </Button>
+              </div>
+            </label>
             <div className="grid grid-cols-2 gap-2">
               <label className="space-y-1">
                 <span className="text-msx-textsecondary">Tile X</span>
@@ -425,6 +492,101 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
                 )}
               </div>
             </div>
+            {selectedEntity.components?.msx2_attack_pattern && (
+              <div className="rounded border border-msx-border/60 p-2 space-y-2">
+                <div className="text-msx-textsecondary">Attack Pattern</div>
+                <label className="block space-y-1">
+                  <span className="text-msx-textsecondary">Pattern</span>
+                  <select
+                    value={String(selectedEntity.components.msx2_attack_pattern.pattern || selectedEntity.params?.attackPattern || 'circle')}
+                    onChange={event => patchSelectedComponent('msx2_attack_pattern', { pattern: event.target.value }, { attackPattern: event.target.value })}
+                    className={numberInputClass}
+                    aria-label="Galaxian attack pattern"
+                  >
+                    <option value="circle">Circle</option>
+                    <option value="zigzag">Zig Zag</option>
+                    <option value="diagonal">Diagonal</option>
+                  </select>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="space-y-1">
+                    <span className="text-msx-textsecondary">Trigger Frames</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={240}
+                      value={Math.max(1, Math.min(240, Number(selectedEntity.components.msx2_attack_pattern.triggerFrames) || 120))}
+                      onChange={event => patchSelectedComponent('msx2_attack_pattern', { triggerFrames: Math.max(1, Math.min(240, Number(event.target.value) || 120)) }, { triggerFrames: Math.max(1, Math.min(240, Number(event.target.value) || 120)) })}
+                      className={numberInputClass}
+                      aria-label="Galaxian attack trigger frames"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 self-end rounded border border-msx-border px-2 py-1 text-msx-textprimary">
+                    <input
+                      type="checkbox"
+                      checked={selectedEntity.components.msx2_attack_pattern.fireDuringDive === true || String(selectedEntity.components.msx2_attack_pattern.fireDuringDive).toLowerCase() === 'true'}
+                      onChange={event => patchSelectedComponent('msx2_attack_pattern', { fireDuringDive: event.target.checked })}
+                    />
+                    <span>Fire Dive</span>
+                  </label>
+                </div>
+              </div>
+            )}
+            {selectedEntity.components?.msx2_attack_wave && (
+              <div className="rounded border border-msx-border/60 p-2 space-y-2">
+                <div className="text-msx-textsecondary">Attack Wave</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="space-y-1">
+                    <span className="text-msx-textsecondary">Interval</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={255}
+                      value={Math.max(1, Math.min(255, Number(selectedEntity.components.msx2_attack_wave.intervalFrames) || 180))}
+                      onChange={event => patchSelectedComponent('msx2_attack_wave', { intervalFrames: Math.max(1, Math.min(255, Number(event.target.value) || 180)) }, { attackIntervalFrames: Math.max(1, Math.min(255, Number(event.target.value) || 180)) })}
+                      className={numberInputClass}
+                      aria-label="Galaxian attack wave interval frames"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-msx-textsecondary">Seed</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={255}
+                      value={Math.max(1, Math.min(255, Number(selectedEntity.components.msx2_attack_wave.randomSeed) || 73))}
+                      onChange={event => patchSelectedComponent('msx2_attack_wave', { randomSeed: Math.max(1, Math.min(255, Number(event.target.value) || 73)) }, { randomSeed: Math.max(1, Math.min(255, Number(event.target.value) || 73)) })}
+                      className={numberInputClass}
+                      aria-label="Galaxian attack wave random seed"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-msx-textsecondary">Min Attackers</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={3}
+                      value={Math.max(1, Math.min(3, Number(selectedEntity.components.msx2_attack_wave.minAttackers) || 1))}
+                      onChange={event => patchSelectedComponent('msx2_attack_wave', { minAttackers: Math.max(1, Math.min(3, Number(event.target.value) || 1)) }, { minAttackers: Math.max(1, Math.min(3, Number(event.target.value) || 1)) })}
+                      className={numberInputClass}
+                      aria-label="Galaxian attack wave minimum attackers"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-msx-textsecondary">Max Attackers</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={3}
+                      value={Math.max(1, Math.min(3, Number(selectedEntity.components.msx2_attack_wave.maxAttackers) || 3))}
+                      onChange={event => patchSelectedComponent('msx2_attack_wave', { maxAttackers: Math.max(1, Math.min(3, Number(event.target.value) || 3)) }, { maxAttackers: Math.max(1, Math.min(3, Number(event.target.value) || 3)) })}
+                      className={numberInputClass}
+                      aria-label="Galaxian attack wave maximum attackers"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
             {selectedEntity.params?.movement === 'ghostMaze' && (
               <div className="grid grid-cols-2 gap-2">
                 <label className="space-y-1">
@@ -455,7 +617,62 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
                 </label>
               </div>
             )}
-            {selectedEntity.params?.movement && selectedEntity.params.movement !== 'static' && selectedEntity.params.movement !== 'ghostMaze' && (
+            {selectedEntity.params?.movement === 'ballBounce' && (
+              <div className="rounded border border-msx-border/60 p-2 space-y-2">
+                <div className="text-msx-textsecondary">Ball Bounds (px)</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="space-y-1">
+                    <span className="text-msx-textsecondary">Min X</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={MAP_PIXEL_WIDTH - 1}
+                      value={selectedEntity.params?.minX ?? selectedEntity.components?.msx2_movement?.minX ?? 8}
+                      onChange={event => onUpdateSelectedEntityParams({ minX: Math.max(0, Math.min(MAP_PIXEL_WIDTH - 1, Number(event.target.value) || 0)), boundsUnit: 'px' })}
+                      className={numberInputClass}
+                      aria-label="Ball minimum X in pixels"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-msx-textsecondary">Max X</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={MAP_PIXEL_WIDTH - 1}
+                      value={selectedEntity.params?.maxX ?? selectedEntity.components?.msx2_movement?.maxX ?? 232}
+                      onChange={event => onUpdateSelectedEntityParams({ maxX: Math.max(0, Math.min(MAP_PIXEL_WIDTH - 1, Number(event.target.value) || 0)), boundsUnit: 'px' })}
+                      className={numberInputClass}
+                      aria-label="Ball maximum X in pixels"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-msx-textsecondary">Min Y</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={MAP_PIXEL_HEIGHT - 1}
+                      value={selectedEntity.params?.minY ?? selectedEntity.components?.msx2_movement?.minY ?? 16}
+                      onChange={event => onUpdateSelectedEntityParams({ minY: Math.max(0, Math.min(MAP_PIXEL_HEIGHT - 1, Number(event.target.value) || 0)), boundsUnit: 'px' })}
+                      className={numberInputClass}
+                      aria-label="Ball minimum Y in pixels"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-msx-textsecondary">Max Y</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={MAP_PIXEL_HEIGHT - 1}
+                      value={selectedEntity.params?.maxY ?? selectedEntity.components?.msx2_movement?.maxY ?? 176}
+                      onChange={event => onUpdateSelectedEntityParams({ maxY: Math.max(0, Math.min(MAP_PIXEL_HEIGHT - 1, Number(event.target.value) || 0)), boundsUnit: 'px' })}
+                      className={numberInputClass}
+                      aria-label="Ball maximum Y in pixels"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+            {selectedEntity.params?.movement && selectedEntity.params.movement !== 'static' && selectedEntity.params.movement !== 'ghostMaze' && selectedEntity.params.movement !== 'ballBounce' && (
               <>
                 {selectedEntity.params.movement === 'patrolX' ? (
                   <div className="grid grid-cols-2 gap-2">
@@ -492,6 +709,29 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
               </>
             )}
             <Button size="sm" variant="danger" onClick={onRemoveSelectedEntity}>Delete Entity</Button>
+            {isRenderPickerOpen && (
+              <AssetPickerModal
+                isOpen={isRenderPickerOpen}
+                onClose={() => setIsRenderPickerOpen(false)}
+                onSelectAsset={(assetId) => {
+                  onUpdateSelectedEntity({
+                    spriteAssetId: assetId || undefined,
+                    components: {
+                      ...(selectedEntity.components || {}),
+                      msx2_hardware_sprite: {
+                        ...(selectedEntity.components?.msx2_hardware_sprite || {}),
+                        msx2SpriteAssetId: assetId,
+                        visible: assetId ? selectedEntity.components?.msx2_hardware_sprite?.visible ?? true : false,
+                      },
+                    },
+                  });
+                  setIsRenderPickerOpen(false);
+                }}
+                assetTypeToPick="msx2sprite"
+                allAssets={allAssets}
+                currentSelectedId={renderSpriteAssetId || null}
+              />
+            )}
           </>
         ) : (
           <div className="text-msx-textsecondary">No entity selected.</div>
@@ -517,7 +757,7 @@ export const Msx2Screen5EntityPalettePanel: React.FC<Msx2Screen5EntityPalettePan
   if (mode !== 'entities') return null;
 
   return (
-    <Panel title="Create MSX2 Entity">
+    <Panel title="Create MSX2 Entity" collapsible>
       <div className="p-2 grid grid-cols-2 gap-2 text-xs">
         {presets.map(preset => (
           <Button
@@ -593,7 +833,7 @@ export const Msx2Screen5TilesPanel: React.FC<Msx2Screen5TilesPanelProps> = ({
   onDuplicateTile,
   onClearTile,
 }) => (
-  <Panel title="MSX2 Tiles">
+  <Panel title="MSX2 Tiles" collapsible>
     <div className="p-2 space-y-2">
       <div className="grid grid-cols-2 gap-1">
         <Button size="sm" variant="secondary" onClick={onAddTile}>Add</Button>
@@ -971,7 +1211,7 @@ export const Msx2Screen5TileEditorPanel: React.FC<Msx2Screen5TileEditorPanelProp
   };
 
   return (
-    <Panel title={`MSX2 Edit Tile ${selectedTileIndex}`}>
+    <Panel title={`MSX2 Edit Tile ${selectedTileIndex}`} collapsible>
       <div className="p-2 space-y-2">
         <div className="flex items-center justify-between text-xs text-msx-textsecondary">
           <span>MSX2 Color slot {activeSlot}</span>
@@ -1062,7 +1302,7 @@ interface Msx2Screen5ExportModelPanelProps {
 }
 
 export const Msx2Screen5ExportModelPanel: React.FC<Msx2Screen5ExportModelPanelProps> = ({ layers }) => (
-  <Panel title="MSX2 Export Model">
+  <Panel title="MSX2 Export Model" collapsible>
     <div className="p-2 text-xs text-msx-textsecondary space-y-1">
       <div>Tile raw size: variable, multiples of 8 px</div>
       <div>Map size: 192 bytes</div>

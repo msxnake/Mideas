@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Msx2Sprite, MSXColorValue, PixelData, Point } from '../../types';
+import { FacingDirection, Msx2Sprite, MSXColorValue, PixelData, Point } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
@@ -510,13 +510,42 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   };
 
   const previewFrame = sprite.frames[previewFrameIndex]?.data || frame;
+  const mirroredPreviewFrame = useMemo(() => mirrorPixelDataHorizontally(previewFrame), [previewFrame]);
+  const facingDirection = sprite.facingDirection ?? 'neutral';
+  const hasHorizontalFacing = facingDirection === 'right' || facingDirection === 'left';
   const asmBytes = useMemo(() => toAsmBytes(sprite), [sprite]);
   const isFrameEmpty = frame.every(row => row.every(color => color === sprite.backgroundColor));
+  const setAllPanelsCollapsed = (collapsed: boolean) => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('mideas:panel-collapse-all', { detail: { collapsed } }));
+  };
 
   return (
-    <div className="h-full min-h-0 grid grid-cols-[200px_1fr_360px] gap-2 p-2 bg-msx-bgcolor overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col bg-msx-bgcolor overflow-hidden">
+      <div className="flex flex-none items-center justify-between border-b border-msx-border px-3 py-2 text-xs">
+        <span className="text-msx-textsecondary">MSX2 sprite editor sections</span>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setAllPanelsCollapsed(true)}
+            aria-label="Collapse all MSX2 sprite editor sections"
+          >
+            Collapse All
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setAllPanelsCollapsed(false)}
+            aria-label="Expand all MSX2 sprite editor sections"
+          >
+            Expand All
+          </Button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-grow grid grid-cols-[200px_1fr_360px] gap-2 p-2 overflow-hidden">
       <div className="min-h-0 overflow-y-auto border-r border-msx-border pr-2 space-y-4">
-        <Panel title="Tools">
+        <Panel title="Tools" collapsible>
           <div className="p-2 space-y-1">
             <Button onClick={() => setToolMode('draw')} variant={toolMode === 'draw' ? 'primary' : 'ghost'} size="sm" icon={<PencilIcon />} className="w-full" justify="start">Draw</Button>
             <Button onClick={() => setToolMode('sphere')} variant={toolMode === 'sphere' ? 'primary' : 'ghost'} size="sm" icon={<SphereIcon />} className="w-full" justify="start">Sphere</Button>
@@ -531,7 +560,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
           </div>
         </Panel>
 
-        <Panel title="Active Brush">
+        <Panel title="Active Brush" collapsible>
           <div className="grid grid-cols-2 gap-2 p-2">
             {palette.map(slot => (
               <button
@@ -546,7 +575,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
           </div>
         </Panel>
 
-        <Panel title="MSX2 Transform Frame">
+        <Panel title="MSX2 Transform Frame" collapsible>
           <div className="grid grid-cols-3 gap-1 p-2">
             <span />
             <Tooltip text="Shift up"><Button onClick={() => transformFrame('shiftUp')} variant="ghost" size="sm" icon={<ArrowUpIcon />}>{null}</Button></Tooltip>
@@ -612,18 +641,40 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
         <Panel title="Animation Tools" collapsible>
           <div className="p-3 space-y-3 text-xs">
             <div className="flex items-center gap-3">
-              <Msx2PixelGrid
-                frame={previewFrame}
-                width={sprite.size.width}
-                height={sprite.size.height}
-                zoom={4}
-                backgroundColor={sprite.backgroundColor}
-                onPixel={() => undefined}
-                onionSkinEnabled={false}
-                onionSkinOpacity={0}
-                showHitbox={false}
-                hitbox={resolvedHitbox}
-              />
+              <div className="flex gap-2">
+                <div className="space-y-1">
+                  <Msx2PixelGrid
+                    frame={previewFrame}
+                    width={sprite.size.width}
+                    height={sprite.size.height}
+                    zoom={4}
+                    backgroundColor={sprite.backgroundColor}
+                    onPixel={() => undefined}
+                    onionSkinEnabled={false}
+                    onionSkinOpacity={0}
+                    showHitbox={false}
+                    hitbox={resolvedHitbox}
+                  />
+                  <div className="text-center text-[10px] text-msx-textsecondary">Base</div>
+                </div>
+                {hasHorizontalFacing && (
+                  <div className="space-y-1">
+                    <Msx2PixelGrid
+                      frame={mirroredPreviewFrame}
+                      width={sprite.size.width}
+                      height={sprite.size.height}
+                      zoom={4}
+                      backgroundColor={sprite.backgroundColor}
+                      onPixel={() => undefined}
+                      onionSkinEnabled={false}
+                      onionSkinOpacity={0}
+                      showHitbox={false}
+                      hitbox={resolvedHitbox}
+                    />
+                    <div className="text-center text-[10px] text-msx-textsecondary">Mirror</div>
+                  </div>
+                )}
+              </div>
               <Button size="sm" variant="secondary" icon={isAnimationPlaying ? <StopIcon /> : <PlayIcon />} onClick={() => setIsAnimationPlaying(v => !v)}>
                 {isAnimationPlaying ? 'Stop' : 'Play'}
               </Button>
@@ -639,6 +690,25 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             </label>
             <label className="flex items-center justify-between gap-2">Opacity
               <input type="range" min={0.1} max={0.7} step={0.05} value={onionSkinOpacity} onChange={e => setOnionSkinOpacity(Number(e.target.value))} className="w-28 accent-msx-accent" disabled={!onionSkinEnabled} />
+            </label>
+          </div>
+        </Panel>
+
+        <Panel title="MSX2 Sprite Settings" collapsible>
+          <div className="p-3 space-y-2 text-xs">
+            <label className="flex items-center justify-between gap-2">
+              <span>Facing</span>
+              <select
+                value={facingDirection}
+                onChange={event => onUpdate({ facingDirection: event.target.value as FacingDirection })}
+                className="bg-msx-bgcolor border border-msx-border rounded px-2 py-1 text-msx-textprimary"
+              >
+                <option value="neutral">Neutral</option>
+                <option value="right">Right</option>
+                <option value="left">Left</option>
+                <option value="up">Up</option>
+                <option value="down">Down</option>
+              </select>
             </label>
           </div>
         </Panel>
@@ -708,6 +778,7 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
         <Panel title="MSX2 Pattern Bytes" collapsible>
           <pre className="m-0 max-h-28 overflow-auto p-3 text-xs text-msx-textsecondary whitespace-pre-wrap">{asmBytes}</pre>
         </Panel>
+      </div>
       </div>
     </div>
   );

@@ -41,6 +41,18 @@ export const Panel: React.FC<PanelProps> = ({
   const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
   const resolvedBodyClass = bodyClassName ?? 'p-2 flex-grow overflow-auto';
 
+  React.useEffect(() => {
+    if (!collapsible || typeof window === 'undefined') return;
+    const handlePanelCollapse = (event: Event) => {
+      const detail = (event as CustomEvent<{ collapsed?: boolean }>).detail;
+      if (typeof detail?.collapsed === 'boolean') {
+        setIsCollapsed(detail.collapsed);
+      }
+    };
+    window.addEventListener('mideas:panel-collapse-all', handlePanelCollapse);
+    return () => window.removeEventListener('mideas:panel-collapse-all', handlePanelCollapse);
+  }, [collapsible]);
+
   return (
     <div className={`bg-msx-panelbg border border-msx-border rounded-md shadow-lg flex flex-col ${className}`}>
       <h3 className={`font-sans text-sm text-msx-textprimary p-2 border-b border-msx-border flex items-center ${titleClassName}`}> {/* Changed font and text color */}

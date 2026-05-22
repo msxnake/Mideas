@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MSXColorValue, Msx2Screen5EntityInstance, Msx2Screen5Layers, Msx2Screen5Runtime, Msx2Screen5Tile, Msx2Screen5TileScreen } from '../../types';
+import { MSXColorValue, Msx2Screen5EntityInstance, Msx2Screen5Layers, Msx2Screen5Runtime, Msx2Screen5Tile, Msx2Screen5TileScreen, ProjectAsset } from '../../types';
 import { ensureScreen5PaletteSlots } from '../../utils/screen5PaletteUtils';
 import {
   MAP_HEIGHT,
@@ -23,11 +23,13 @@ import {
   TILE_SIZE,
 } from '../msx2_screen5_editor/Msx2Screen5EditorParts';
 import { buildMsx2EntityComponents } from '../msx2_screen5_editor/msx2EntityCatalog';
+import { Button } from '../common/Button';
 
 interface Msx2Screen5TileScreenEditorProps {
   screen: Msx2Screen5TileScreen;
   onUpdate: (data: Partial<Msx2Screen5TileScreen>) => void;
   selectedColor: MSXColorValue;
+  allAssets: ProjectAsset[];
 }
 
 const MSX2_TILE_DIMENSION_OPTIONS = [8, 16, 24, 32] as const;
@@ -145,7 +147,7 @@ interface CopiedMsx2Layer {
   height: number;
 }
 
-export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorProps> = ({ screen, onUpdate, selectedColor }) => {
+export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorProps> = ({ screen, onUpdate, selectedColor, allAssets }) => {
   const [selectedTileIndex, setSelectedTileIndex] = useState(0);
   const [mode, setMode] = useState<Msx2Screen5EditMode>('visual');
   const [selectedEffectCode, setSelectedEffectCode] = useState(1);
@@ -254,7 +256,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
   const updateSelectedEntityParams = (patch: Record<string, any>) => {
     if (!selectedEntity) return;
     const componentPatch: Record<string, Record<string, any>> = { ...(selectedEntity.components || {}) };
-    const movementKeys = ['movement', 'mode', 'speed', 'direction', 'minX', 'maxX', 'minY', 'maxY'];
+    const movementKeys = ['movement', 'mode', 'speed', 'direction', 'minX', 'maxX', 'minY', 'maxY', 'boundsUnit'];
     const hasMovementPatch = movementKeys.some(key => Object.prototype.hasOwnProperty.call(patch, key));
     if (hasMovementPatch || componentPatch.msx2_movement) {
       componentPatch.msx2_movement = {
@@ -575,10 +577,37 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
     updateCurrentRuntimeLayer(nextLayer);
   };
 
+  const setAllPanelsCollapsed = (collapsed: boolean) => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('mideas:panel-collapse-all', { detail: { collapsed } }));
+  };
+
   return (
     <div className="h-full min-h-0 flex flex-col bg-msx-bgcolor overflow-hidden">
-      <div className="min-h-0 flex flex-wrap flex-grow items-start content-start overflow-auto p-2 gap-2">
-        <div className="w-[220px] flex-none min-h-0 overflow-y-auto border-r border-msx-border pr-2 space-y-2">
+      <div className="flex flex-none items-center justify-between border-b border-msx-border px-3 py-2 text-xs">
+        <span className="text-msx-textsecondary">MSX2 editor sections</span>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setAllPanelsCollapsed(true)}
+            aria-label="Collapse all MSX2 editor sections"
+          >
+            Collapse All
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setAllPanelsCollapsed(false)}
+            aria-label="Expand all MSX2 editor sections"
+          >
+            Expand All
+          </Button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-grow overflow-hidden p-2">
+        <div className="flex h-full min-h-0 min-w-0 gap-2 overflow-hidden">
+          <div className="w-[220px] flex-shrink-0 min-h-0 overflow-y-auto border-r border-msx-border pr-2 space-y-2">
           <Msx2Screen5Toolbar
             screenName={screen.name}
             onScreenNameChange={name => onUpdate({ name })}
@@ -602,6 +631,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
           <Msx2Screen5EntityPanel
             mode={mode}
             selectedEntity={selectedEntity}
+            allAssets={allAssets}
             onUpdateSelectedEntity={updateSelectedEntity}
             onUpdateSelectedEntityParams={updateSelectedEntityParams}
             onRemoveSelectedEntity={removeSelectedEntity}
@@ -638,7 +668,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
           )}
         </div>
 
-        <div className="w-[540px] flex-none min-h-0 overflow-auto flex items-start justify-center p-3">
+          <div className="min-w-0 flex-1 min-h-0 overflow-auto flex items-start justify-center p-3">
           <Msx2Screen5Grid
             map={map}
             slots={slots}
@@ -658,7 +688,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
           />
         </div>
 
-        <div className="w-[300px] flex-none min-h-0 overflow-y-auto border-l border-msx-border pl-2 space-y-2">
+          <div className="w-[300px] flex-shrink-0 min-h-0 overflow-y-auto border-l border-msx-border pl-2 space-y-2">
           {mode !== 'entities' && (
             <Msx2Screen5TileEditorPanel
               selectedTileIndex={selectedTileIndex}
@@ -680,6 +710,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
             />
           )}
           <Msx2Screen5ExportModelPanel layers={layers} />
+          </div>
         </div>
       </div>
       <Msx2Screen5StatusBar
