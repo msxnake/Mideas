@@ -1,13 +1,13 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, ScreenMap, Tile, DataFormat, ContextMenuItem, Msx2Screen5TileScreen, ProjectAsset } from '../../types';
+import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirection, ScreenMap, Tile, DataFormat, ContextMenuItem, Msx2Screen4TileScreen, ProjectAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, SaveFloppyIcon, CodeIcon, PencilIcon } from '../icons/MsxIcons';
 import { ExportWorldMapASMModal } from '../modals/ExportWorldMapASMModal';
 import { RandomMapGeneratorModal } from '../modals/RandomMapGeneratorModal';
 import { ConnectionManagerModal } from '../modals/ConnectionManagerModal';
-import { createDefaultScreen5PaletteSlots } from '../../utils/screen5PaletteUtils';
+import { createDefaultScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 
 const NODE_WIDTH = 120;
 const NODE_HEIGHT = 90;
@@ -29,33 +29,31 @@ interface WorldMapEditorProps {
   setStatusBarMessage: (message: string) => void;
 }
 
-type WorldMapSelectableScreen = ScreenMap | Msx2Screen5TileScreen;
+type WorldMapSelectableScreen = ScreenMap | Msx2Screen4TileScreen;
 
 const isMsx2Screen4Mode = (vdpMode: unknown): boolean => vdpMode === 'SCREEN4' || vdpMode === 'SCREEN5';
 
-const isMsx2Screen4TileScreen = (screen: WorldMapSelectableScreen | undefined): screen is Msx2Screen5TileScreen => {
-  return !!screen && isMsx2Screen4Mode((screen as Msx2Screen5TileScreen).vdpMode) && Array.isArray((screen as Msx2Screen5TileScreen).tiles);
+const isMsx2Screen4TileScreen = (screen: WorldMapSelectableScreen | undefined): screen is Msx2Screen4TileScreen => {
+  return !!screen && isMsx2Screen4Mode((screen as Msx2Screen4TileScreen).vdpMode) && Array.isArray((screen as Msx2Screen4TileScreen).tiles);
 };
-
-const isMsx2Screen5TileScreen = isMsx2Screen4TileScreen;
 
 const isScreenMap = (screen: WorldMapSelectableScreen | undefined): screen is ScreenMap => {
   return !!screen && !!(screen as ScreenMap).layers;
 };
 
-const resolveMsx2Screen5Color = (screen: Msx2Screen5TileScreen, colorIndex: number): string => {
+const resolveMsx2Screen4Color = (screen: Msx2Screen4TileScreen, colorIndex: number): string => {
   return screen.palette?.[colorIndex]?.hex || (colorIndex === 0 ? '#000000' : '#ffffff');
 };
 
-const getMsx2TilePixelWidth = (tile: Msx2Screen5TileScreen['tiles'][number] | undefined): number =>
+const getMsx2TilePixelWidth = (tile: Msx2Screen4TileScreen['tiles'][number] | undefined): number =>
   Math.max(8, Math.min(32, Number(tile?.width ?? tile?.pixels?.[0]?.length ?? 16) || 16));
 
-const getMsx2TilePixelHeight = (tile: Msx2Screen5TileScreen['tiles'][number] | undefined): number =>
+const getMsx2TilePixelHeight = (tile: Msx2Screen4TileScreen['tiles'][number] | undefined): number =>
   Math.max(8, Math.min(32, Number(tile?.height ?? tile?.pixels?.length ?? 16) || 16));
 
-const drawMsx2Screen5Preview = (
+const drawMsx2Screen4Preview = (
   ctx: CanvasRenderingContext2D,
-  screen: Msx2Screen5TileScreen,
+  screen: Msx2Screen4TileScreen,
   previewWidth: number,
   previewHeight: number
 ): void => {
@@ -65,7 +63,7 @@ const drawMsx2Screen5Preview = (
   const sourceCtx = sourceCanvas.getContext('2d');
   if (!sourceCtx) return;
 
-  sourceCtx.fillStyle = resolveMsx2Screen5Color(screen, 0);
+  sourceCtx.fillStyle = resolveMsx2Screen4Color(screen, 0);
   sourceCtx.fillRect(0, 0, sourceCanvas.width, sourceCanvas.height);
 
   const anchorSize = screen.tileSize || 16;
@@ -88,7 +86,7 @@ const drawMsx2Screen5Preview = (
           const destX = tileX * anchorSize + px;
           if (destX >= sourceCanvas.width) continue;
           const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
-          sourceCtx.fillStyle = resolveMsx2Screen5Color(screen, colorIndex);
+          sourceCtx.fillStyle = resolveMsx2Screen4Color(screen, colorIndex);
           sourceCtx.fillRect(destX, destY, 1, 1);
         }
       }
@@ -120,8 +118,8 @@ const createScreenMiniPreviewDataURL = (
   ctx.fillStyle = currentScreenMode === "SCREEN 2 (Graphics I)" ? '#000080' : '#2F2FC1';
   ctx.fillRect(0, 0, previewWidth, previewHeight);
 
-  if (isMsx2Screen5TileScreen(screenMap)) {
-    drawMsx2Screen5Preview(ctx, screenMap, previewWidth, previewHeight);
+  if (isMsx2Screen4TileScreen(screenMap)) {
+    drawMsx2Screen4Preview(ctx, screenMap, previewWidth, previewHeight);
     return canvas.toDataURL();
   }
 
@@ -525,7 +523,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const handleOpenExportAsmModal = () => {
     const hasMsx2Screens = nodes.some(node => {
       const screen = availableScreenMaps.find(candidate => candidate.id === node.screenAssetId);
-      return isMsx2Screen5TileScreen(screen);
+      return isMsx2Screen4TileScreen(screen);
     });
     if (hasMsx2Screens) {
       setStatusBarMessage('World Map ASM export is MSX1-only for now; MSX2 SCREEN 4 worlds export through the main Z80/ROM pipeline.');
@@ -623,7 +621,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
             const floorTile = Array.from({ length: 16 }, (_, py) =>
               Array.from({ length: 16 }, (_, px) => py < 3 ? 15 : (px % 8 < 4 ? 5 : 4))
             );
-            const newMsx2Screen: Msx2Screen5TileScreen = {
+            const newMsx2Screen: Msx2Screen4TileScreen = {
               id: screenId,
               name: screenName,
               target: 'MSX2',
@@ -974,7 +972,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
             <option value="">Select Screen...</option>
             {availableScreenMaps.map(sm => (
               <option key={sm.id} value={sm.id}>
-                {sm.name} {isMsx2Screen5TileScreen(sm) ? '[MSX2 SCREEN 4]' : '[ScreenMap]'}
+                {sm.name} {isMsx2Screen4TileScreen(sm) ? '[MSX2 SCREEN 4]' : '[ScreenMap]'}
               </option>
             ))}
           </select>

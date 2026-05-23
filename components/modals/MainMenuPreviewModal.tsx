@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MainMenuConfig, ProjectAsset, ScreenMap, Tile, MSXFont, MSXFontColorAttributes, Sprite, Msx2Screen5TileScreen } from '../../types';
+import { MainMenuConfig, ProjectAsset, ScreenMap, Tile, MSXFont, MSXFontColorAttributes, Sprite, Msx2Screen4TileScreen } from '../../types';
 import { Button } from '../common/Button';
 import { renderScreenToCanvas } from '../utils/screenUtils';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1 } from '../utils/msxFontRenderer';
@@ -31,10 +31,10 @@ const PREVIEW_WIDTH = 256;
 /** The height of the preview canvas in pixels. @constant */
 const PREVIEW_HEIGHT = 192;
 
-const isMsx2Screen4Asset = (asset: ProjectAsset | undefined): asset is ProjectAsset & { data: Msx2Screen5TileScreen } =>
+const isMsx2Screen4Asset = (asset: ProjectAsset | undefined): asset is ProjectAsset & { data: Msx2Screen4TileScreen } =>
   !!asset && asset.type === 'msx2screen' && !!asset.data;
 
-const renderMsx2Screen4Background = (canvas: HTMLCanvasElement, screen: Msx2Screen5TileScreen): void => {
+const renderMsx2Screen4Background = (canvas: HTMLCanvasElement, screen: Msx2Screen4TileScreen): void => {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   canvas.width = PREVIEW_WIDTH;

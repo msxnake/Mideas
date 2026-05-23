@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FacingDirection, Msx2Sprite, MSXColorValue, PixelData, Point } from '../../types';
+import { FacingDirection, Msx2Sprite, Msx2SpriteFrame, Msx2SuperSpriteLayout, Msx2SuperSpritePart, MSXColorValue, PixelData, Point } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { Tooltip } from '../common/Tooltip';
-import { ensureScreen5PaletteSlots } from '../../utils/screen5PaletteUtils';
+import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import {
   ArrowDownIcon,
@@ -39,6 +39,99 @@ const clonePixels = (data: PixelData): PixelData => data.map(row => [...row]);
 
 const createPixels = (width: number, height: number, color: MSXColorValue): PixelData =>
   Array.from({ length: height }, () => Array.from({ length: width }, () => color));
+
+interface MetaSpritePreset {
+  id: Exclude<Msx2SuperSpriteLayout, 'custom'>;
+  label: string;
+  size: { width: number; height: number };
+  parts: Msx2SuperSpritePart[];
+}
+
+const MSX2_METASPRITE_PRESETS: MetaSpritePreset[] = [
+  {
+    id: 'single16',
+    label: '1x1',
+    size: { width: 16, height: 16 },
+    parts: [{ id: 'part_a', label: 'A', offsetX: 0, offsetY: 0, width: 16, height: 16 }],
+  },
+  {
+    id: 'stackVertical',
+    label: '1x2',
+    size: { width: 16, height: 32 },
+    parts: [
+      { id: 'part_a', label: 'A', offsetX: 0, offsetY: 0, width: 16, height: 16 },
+      { id: 'part_b', label: 'B', offsetX: 0, offsetY: 16, width: 16, height: 16 },
+    ],
+  },
+  {
+    id: 'stackHorizontal',
+    label: '2x1',
+    size: { width: 32, height: 16 },
+    parts: [
+      { id: 'part_a', label: 'A', offsetX: 0, offsetY: 0, width: 16, height: 16 },
+      { id: 'part_b', label: 'B', offsetX: 16, offsetY: 0, width: 16, height: 16 },
+    ],
+  },
+  {
+    id: 'block2x2',
+    label: '2x2',
+    size: { width: 32, height: 32 },
+    parts: [
+      { id: 'part_a', label: 'A', offsetX: 0, offsetY: 0, width: 16, height: 16 },
+      { id: 'part_b', label: 'B', offsetX: 16, offsetY: 0, width: 16, height: 16 },
+      { id: 'part_c', label: 'C', offsetX: 0, offsetY: 16, width: 16, height: 16 },
+      { id: 'part_d', label: 'D', offsetX: 16, offsetY: 16, width: 16, height: 16 },
+    ],
+  },
+];
+
+const inferMetaSpriteLayout = (width: number, height: number): Msx2SuperSpriteLayout => {
+  const preset = MSX2_METASPRITE_PRESETS.find(candidate => candidate.size.width === width && candidate.size.height === height);
+  return preset?.id || 'custom';
+};
+
+const buildMetaSpriteParts = (layout: Msx2SuperSpriteLayout, width: number, height: number): Msx2SuperSpritePart[] => {
+  const preset = MSX2_METASPRITE_PRESETS.find(candidate => candidate.id === layout);
+  if (preset) return preset.parts.map(part => ({ ...part }));
+  const columns = Math.max(1, Math.ceil(width / 16));
+  const rows = Math.max(1, Math.ceil(height / 16));
+  return Array.from({ length: rows }, (_rowUnused, row) =>
+    Array.from({ length: columns }, (_columnUnused, column) => ({
+      id: `part_${column}_${row}`,
+      label: `${String.fromCharCode(65 + row * columns + column)}`,
+      offsetX: column * 16,
+      offsetY: row * 16,
+      width: 16 as const,
+      height: 16 as const,
+    }))
+  ).flat();
+};
+
+const resizePixels = (
+  data: PixelData,
+  width: number,
+  height: number,
+  nextWidth: number,
+  nextHeight: number,
+  backgroundColor: MSXColorValue
+): PixelData => Array.from({ length: nextHeight }, (_, y) =>
+  Array.from({ length: nextWidth }, (_, x) => (x < width && y < height ? data[y]?.[x] || backgroundColor : backgroundColor))
+);
+
+const resizeFramesForMetaSprite = (
+  frames: Msx2SpriteFrame[],
+  width: number,
+  height: number,
+  nextWidth: number,
+  nextHeight: number,
+  backgroundColor: MSXColorValue
+): Msx2SpriteFrame[] => {
+  const sourceFrames = frames.length ? frames : [{ id: `frame_${Date.now()}`, data: createPixels(width, height, backgroundColor) }];
+  return sourceFrames.map(frame => ({
+    ...frame,
+    data: resizePixels(frame.data, width, height, nextWidth, nextHeight, backgroundColor),
+  }));
+};
 
 const normalizeFrame = (sprite: Msx2Sprite): PixelData => {
   const frame = sprite.frames[sprite.currentFrameIndex] || sprite.frames[0];
@@ -99,6 +192,24 @@ interface HardwareOrColorPair {
   result: number;
 }
 
+interface HardwareOrColorPalettePair extends HardwareOrColorPair {
+  baseHex: string;
+  overlayHex: string;
+  resultHex: string;
+}
+
+interface SeparatedHardwareLayerPreview {
+  index: number;
+  cellX: number;
+  cellY: number;
+  xOffset: number;
+  yOffset: number;
+  usesOrColor: boolean;
+  slots: number[];
+  forcedByRows: string[];
+  pixels: PixelData;
+}
+
 const findHardwareOrColorPair = (slots: number[]): HardwareOrColorPair | undefined => {
   const counts = new Map<number, number>();
   slots.forEach(slot => counts.set(slot, (counts.get(slot) || 0) + 1));
@@ -125,6 +236,115 @@ const hardwareRowLayerCount = (slots: number[], useOrColor: boolean): { layerCou
   const remaining = uniqueSlots.filter(slot => slot !== orPair.base && slot !== orPair.overlay && slot !== orPair.result);
   return { layerCount: 2 + remaining.length, usesOrColor: true };
 };
+
+const buildSeparatedHardwareLayerPreviews = (
+  frame: PixelData,
+  width: number,
+  height: number,
+  palette: { slotIndex: number; hex: string }[],
+  backgroundColor: MSXColorValue,
+  useOrColor: boolean
+): SeparatedHardwareLayerPreview[] => {
+  const slotByIndex = new Map(palette.map(slot => [slot.slotIndex, slot.hex as MSXColorValue]));
+  const bg = normalizeColor(backgroundColor);
+  const cellColumns = Math.max(1, Math.ceil(width / 16));
+  const cellRows = Math.max(1, Math.ceil(height / 16));
+  const previews: SeparatedHardwareLayerPreview[] = [];
+  for (let cellY = 0; cellY < cellRows; cellY++) {
+    for (let cellX = 0; cellX < cellColumns; cellX++) {
+      const xOffset = cellX * 16;
+      const yOffset = cellY * 16;
+      const layers: SeparatedHardwareLayerPreview[] = [];
+      const ensureLayer = (index: number): SeparatedHardwareLayerPreview => {
+        if (!layers[index]) {
+          layers[index] = {
+            index,
+            cellX,
+            cellY,
+            xOffset,
+            yOffset,
+            usesOrColor: false,
+            slots: [],
+            forcedByRows: [],
+            pixels: createPixels(16, 16, backgroundColor),
+          };
+        }
+        return layers[index];
+      };
+      for (let y = 0; y < 16; y++) {
+        const sourceY = yOffset + y;
+        const rowSlots = Array.from({ length: 16 }, (_unused, x) => {
+          const sourceX = xOffset + x;
+          if (sourceX >= width || sourceY >= height) return 0;
+          const color = String(frame[sourceY]?.[sourceX] || '');
+          const normalized = normalizeColor(color);
+          if (!normalized || normalized === bg || normalized === normalizeColor(TRANSPARENT_HEX)) return 0;
+          return paletteSlotForColor(normalized, palette) || 0;
+        });
+        const uniqueSlots = Array.from(new Set(rowSlots)).filter(slot => slot > 0).sort((a, b) => a - b);
+        const orPair = useOrColor ? findHardwareOrColorPair(rowSlots) : undefined;
+        const handled = new Set<number>();
+        if (orPair) {
+          const baseLayer = ensureLayer(0);
+          const overlayLayer = ensureLayer(1);
+          overlayLayer.usesOrColor = true;
+          [orPair.base, orPair.overlay, orPair.result].forEach(slot => handled.add(slot));
+          if (!baseLayer.slots.includes(orPair.base)) baseLayer.slots.push(orPair.base);
+          if (!overlayLayer.slots.includes(orPair.overlay)) overlayLayer.slots.push(orPair.overlay);
+          rowSlots.forEach((slot, x) => {
+            if (slot === orPair.base || slot === orPair.result) baseLayer.pixels[y][x] = slotByIndex.get(orPair.base) || backgroundColor;
+            if (slot === orPair.overlay || slot === orPair.result) overlayLayer.pixels[y][x] = slotByIndex.get(orPair.overlay) || backgroundColor;
+          });
+        }
+        uniqueSlots.filter(slot => !handled.has(slot)).forEach((slot, layerOffset) => {
+          const layer = ensureLayer((orPair ? 2 : 0) + layerOffset);
+          if (!layer.slots.includes(slot)) layer.slots.push(slot);
+          const reason = `local y${y} slot ${slot}${orPair ? ` outside ${orPair.base}|${orPair.overlay}=${orPair.result}` : ''}`;
+          if (!layer.forcedByRows.includes(reason)) layer.forcedByRows.push(reason);
+          rowSlots.forEach((rowSlot, x) => {
+            if (rowSlot === slot) layer.pixels[y][x] = slotByIndex.get(slot) || backgroundColor;
+          });
+        });
+      }
+      previews.push(...layers.filter(Boolean));
+    }
+  }
+  return previews.map(layer => ({
+    ...layer,
+    slots: layer.slots.sort((a, b) => a - b),
+    forcedByRows: layer.forcedByRows.slice(0, 8),
+  }));
+};
+
+const LayerPreviewGrid: React.FC<{
+  pixels: PixelData;
+  width: number;
+  height: number;
+  backgroundColor: MSXColorValue;
+  zoom: number;
+}> = ({ pixels, width, height, backgroundColor, zoom }) => (
+  <div
+    className="grid border border-msx-border bg-black"
+    style={{
+      width: width * zoom,
+      height: height * zoom,
+      gridTemplateColumns: `repeat(${width}, ${zoom}px)`,
+      gridTemplateRows: `repeat(${height}, ${zoom}px)`,
+      imageRendering: 'pixelated',
+    }}
+  >
+    {pixels.map((row, y) => row.map((color, x) => (
+      <div
+        key={`${x}-${y}`}
+        style={{
+          width: zoom,
+          height: zoom,
+          backgroundColor: color === backgroundColor || normalizeColor(String(color)) === normalizeColor(TRANSPARENT_HEX) ? 'transparent' : color,
+        }}
+      />
+    )))}
+  </div>
+);
 
 const toAsmBytes = (sprite: Msx2Sprite): string => {
   const frame = normalizeFrame(sprite);
@@ -158,6 +378,7 @@ const Msx2PixelGrid: React.FC<{
   nextFrame?: PixelData;
   showHitbox: boolean;
   hitbox: { width: number; height: number; offsetX: number; offsetY: number };
+  metaSpriteParts?: Msx2SuperSpritePart[];
 }> = ({
   frame,
   width,
@@ -171,6 +392,7 @@ const Msx2PixelGrid: React.FC<{
   nextFrame,
   showHitbox,
   hitbox,
+  metaSpriteParts = [],
 }) => {
   const [dragState, setDragState] = useState<{ active: boolean; right: boolean }>({ active: false, right: false });
 
@@ -251,6 +473,22 @@ const Msx2PixelGrid: React.FC<{
           }}
         />
       )}
+      {metaSpriteParts.map(part => (
+        <div
+          key={part.id}
+          className="absolute border border-msx-highlight/70 pointer-events-none"
+          style={{
+            left: part.offsetX * zoom,
+            top: part.offsetY * zoom,
+            width: part.width * zoom,
+            height: part.height * zoom,
+          }}
+        >
+          <span className="absolute left-0 top-0 bg-msx-highlight px-1 text-[10px] leading-tight text-msx-bgcolor">
+            {part.label}
+          </span>
+        </div>
+      ))}
     </div>
   );
 };
@@ -270,13 +508,46 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   const [onionSkinEnabled, setOnionSkinEnabled] = useState(true);
   const [onionSkinOpacity, setOnionSkinOpacity] = useState(0.3);
   const [showHitbox, setShowHitbox] = useState(false);
+  const [showSeparatedLayers, setShowSeparatedLayers] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const resolvedHitbox = sprite.hitbox || { width: sprite.size.width, height: sprite.size.height, offsetX: 0, offsetY: 0 };
   const animationSpeedMs = sprite.animationSpeedMs || 150;
   const useOrColor = sprite.hardware?.useOrColor !== false;
+  const orPalettePairs = useMemo<HardwareOrColorPalettePair[]>(() => {
+    const slotByIndex = new Map(palette.map(slot => [slot.slotIndex, slot]));
+    const pairs: HardwareOrColorPalettePair[] = [];
+    for (let base = 1; base < 16; base++) {
+      for (let overlay = base + 1; overlay < 16; overlay++) {
+        const result = base | overlay;
+        if (result === base || result === overlay || result > 15) continue;
+        const baseSlot = slotByIndex.get(base);
+        const overlaySlot = slotByIndex.get(overlay);
+        const resultSlot = slotByIndex.get(result);
+        if (!baseSlot || !overlaySlot || !resultSlot) continue;
+        pairs.push({
+          base,
+          overlay,
+          result,
+          baseHex: baseSlot.hex,
+          overlayHex: overlaySlot.hex,
+          resultHex: resultSlot.hex,
+        });
+      }
+    }
+    return pairs;
+  }, [palette]);
   const cellColumns = Math.max(1, Math.ceil(sprite.size.width / 16));
   const cellRows = Math.max(1, Math.ceil(sprite.size.height / 16));
+  const inferredSuperSpriteLayout = inferMetaSpriteLayout(sprite.size.width, sprite.size.height);
+  const superSpriteLayout = sprite.superSpriteLayout || inferredSuperSpriteLayout;
+  const superSpriteParts = useMemo(
+    () => (sprite.superSpriteParts?.length
+      ? sprite.superSpriteParts.map(part => ({ ...part }))
+      : buildMetaSpriteParts(superSpriteLayout, sprite.size.width, sprite.size.height)),
+    [sprite.size.height, sprite.size.width, sprite.superSpriteParts, superSpriteLayout]
+  );
+  const superSpriteBaseParts = superSpriteParts.length;
   const rowDiagnostics = useMemo(() => {
     return Array.from({ length: sprite.size.height }, (_, y) =>
       Array.from({ length: cellColumns }, (_, cellX) => {
@@ -306,6 +577,9 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
   }, [cellColumns, frame, palette, sprite.backgroundColor, sprite.size.height, useOrColor]);
   const invalidLineCount = rowDiagnostics.filter(row => row.invalid).length;
   const orColorLineCount = rowDiagnostics.filter(row => row.usesOrColor).length;
+  const stackedColorLineCount = rowDiagnostics.filter(row => row.layerCount > 1).length;
+  const threeColorLineCount = rowDiagnostics.filter(row => row.slots.length >= 3 || row.layerCount >= 3).length;
+  const maxCellLayerCount = Math.max(0, ...rowDiagnostics.map(row => row.layerCount));
   const maxSpritesPerScanline = Math.max(
     1,
     ...Array.from({ length: sprite.size.height }, (_, y) =>
@@ -313,6 +587,15 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     )
   );
   const scanlineOverflow = maxSpritesPerScanline > 8;
+  const separatedHardwareLayers = useMemo(
+    () => buildSeparatedHardwareLayerPreviews(frame, sprite.size.width, sprite.size.height, palette, sprite.backgroundColor, useOrColor),
+    [frame, palette, sprite.backgroundColor, sprite.size.height, sprite.size.width, useOrColor]
+  );
+  const partLabelByOffset = useMemo(() => {
+    const labels = new Map<string, string>();
+    superSpriteParts.forEach(part => labels.set(`${part.offsetX},${part.offsetY}`, part.label));
+    return labels;
+  }, [superSpriteParts]);
   const estimatedHardwareSprites = Array.from({ length: cellRows }, (_, cellY) =>
     Array.from({ length: cellColumns }, (_, cellX) => {
       const firstY = cellY * 16;
@@ -325,6 +608,76 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
       );
     }).reduce((sum, value) => sum + value, 0)
   ).reduce((sum, value) => sum + value, 0);
+  const spriteExportContract = useMemo(() => {
+    const cellLayerCounts = Array.from({ length: cellRows }, (_, cellY) =>
+      Array.from({ length: cellColumns }, (_, cellX) => {
+        const firstY = cellY * 16;
+        const lastY = Math.min(sprite.size.height, firstY + 16);
+        const rows = rowDiagnostics.filter(row => row.cellX === cellX && row.y >= firstY && row.y < lastY);
+        return {
+          cell: [cellX, cellY],
+          xOffset: cellX * 16,
+          yOffset: cellY * 16,
+          hardwareLayers: Math.max(0, ...rows.map(row => row.layerCount)),
+          stackedRows: rows.filter(row => row.layerCount > 1).length,
+          threeColorRows: rows.filter(row => row.slots.length >= 3 || row.layerCount >= 3).length,
+          usesOrColor: rows.some(row => row.usesOrColor),
+        };
+      })
+    ).flat();
+    return {
+      sprite: {
+        mode: 'MSX2_SCREEN4_HARDWARE_SPRITE',
+        frame: sprite.currentFrameIndex || 0,
+        size: [sprite.size.width, sprite.size.height],
+        superSpriteLayout,
+        superSpriteParts: superSpriteParts.map(part => ({
+          label: part.label,
+          offset: [part.offsetX, part.offsetY],
+          size: [part.width, part.height],
+        })),
+        baseHardwareCells: superSpriteBaseParts,
+        metaspriteCells: [cellColumns, cellRows],
+        hardwareLayers: estimatedHardwareSprites,
+        separatedLayerPreviewCount: separatedHardwareLayers.length,
+        separatedLayerReasons: separatedHardwareLayers.map(layer => ({
+          layer: layer.index + 1,
+          cell: [layer.cellX, layer.cellY],
+          offset: [layer.xOffset, layer.yOffset],
+          slots: layer.slots,
+          forcedByRows: layer.forcedByRows,
+        })),
+        maxCellLayers: maxCellLayerCount,
+        worstScanlineSprites: maxSpritesPerScanline,
+        scanlineLimit: 8,
+        overflow: scanlineOverflow,
+        colorTable: 'line_color_per_sprite_plane',
+        transparentBit: 'pattern_bit_0_is_transparent',
+        overlapTechnique: 'transparent_masks_plus_v9938_cc_or_color',
+        orColorRule: 'base_palette_slot | overlay_palette_slot = visible_overlap_color',
+        orCompatiblePairs: orPalettePairs.map(pair => [pair.base, pair.overlay, pair.result]),
+        orColorRows: orColorLineCount,
+        cells: cellLayerCounts,
+      },
+    };
+  }, [
+    cellColumns,
+    cellRows,
+    estimatedHardwareSprites,
+    maxCellLayerCount,
+    maxSpritesPerScanline,
+    orColorLineCount,
+    orPalettePairs,
+    rowDiagnostics,
+    scanlineOverflow,
+    separatedHardwareLayers,
+    sprite.currentFrameIndex,
+    sprite.size.height,
+    sprite.size.width,
+    superSpriteBaseParts,
+    superSpriteLayout,
+    superSpriteParts,
+  ]);
 
   useEffect(() => {
     if (paletteChanged) {
@@ -391,8 +744,51 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
     onUpdate({ hardware: { ...sprite.hardware, [field]: value } });
   };
 
+  const useOrBrushColor = (color: MSXColorValue) => {
+    setSelectedColor(color);
+    if (!useOrColor) setHardware('useOrColor', true);
+    if (toolMode === 'erase') setToolMode('draw');
+  };
+
   const setHitbox = (field: keyof NonNullable<Msx2Sprite['hitbox']>, value: number) => {
     onUpdate({ hitbox: { ...resolvedHitbox, [field]: value } });
+  };
+
+  const applyMetaSpriteLayout = (layout: Exclude<Msx2SuperSpriteLayout, 'custom'>) => {
+    const preset = MSX2_METASPRITE_PRESETS.find(candidate => candidate.id === layout);
+    if (!preset) return;
+    const nextWidth = preset.size.width;
+    const nextHeight = preset.size.height;
+    const resizedFrames = resizeFramesForMetaSprite(
+      sprite.frames,
+      sprite.size.width,
+      sprite.size.height,
+      nextWidth,
+      nextHeight,
+      sprite.backgroundColor
+    );
+    const oldHitboxWasFullSprite =
+      !sprite.hitbox ||
+      (resolvedHitbox.offsetX === 0 &&
+        resolvedHitbox.offsetY === 0 &&
+        resolvedHitbox.width === sprite.size.width &&
+        resolvedHitbox.height === sprite.size.height);
+    onUpdate({
+      size: { width: nextWidth, height: nextHeight },
+      frames: resizedFrames,
+      currentFrameIndex: Math.min(sprite.currentFrameIndex || 0, resizedFrames.length - 1),
+      superSpriteLayout: layout,
+      superSpriteParts: preset.parts.map(part => ({ ...part })),
+      hitbox: oldHitboxWasFullSprite
+        ? { width: nextWidth, height: nextHeight, offsetX: 0, offsetY: 0 }
+        : {
+          ...resolvedHitbox,
+          width: Math.min(resolvedHitbox.width, nextWidth),
+          height: Math.min(resolvedHitbox.height, nextHeight),
+          offsetX: Math.min(resolvedHitbox.offsetX, Math.max(0, nextWidth - 1)),
+          offsetY: Math.min(resolvedHitbox.offsetY, Math.max(0, nextHeight - 1)),
+        },
+    });
   };
 
   const handleFrameManagement = (action: 'add' | 'delete' | 'duplicate' | 'prev' | 'next') => {
@@ -599,11 +995,16 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
               onChange={event => onUpdate({ name: event.target.value })}
               className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm"
             />
-            <span className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm">MSX2 16 x 16 hardware</span>
+            <span className="px-2 py-1 bg-msx-panelbg border border-msx-border rounded text-sm">
+              MSX2 {sprite.size.width} x {sprite.size.height} metasprite
+            </span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="secondary" icon={<SaveIcon />} onClick={exportPng}>MSX2 Export PNG</Button>
             <Button size="sm" variant="secondary" icon={<FolderOpenIcon />} onClick={() => importFileRef.current?.click()}>MSX2 Import PNG</Button>
+            <Button size="sm" variant={showSeparatedLayers ? 'primary' : 'secondary'} onClick={() => setShowSeparatedLayers(value => !value)}>
+              {showSeparatedLayers ? 'Hide HW Layers' : 'Separate HW Layers'}
+            </Button>
             <input type="file" accept="image/png" ref={importFileRef} onChange={importPng} className="hidden" />
             <Button size="sm" variant="secondary" onClick={() => setZoom(Math.max(8, zoom - 2))}>-</Button>
             <span className="w-10 text-center text-xs">{zoom}px</span>
@@ -612,20 +1013,52 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
         </div>
 
         <div className="min-h-0 flex flex-1 items-start justify-center overflow-auto p-4">
-          <Msx2PixelGrid
-            frame={frame}
-            width={sprite.size.width}
-            height={sprite.size.height}
-            zoom={zoom}
-            backgroundColor={sprite.backgroundColor}
-            onPixel={handlePixel}
-            onionSkinEnabled={onionSkinEnabled}
-            onionSkinOpacity={onionSkinOpacity}
-            prevFrame={prevFrame}
-            nextFrame={nextFrame}
-            showHitbox={showHitbox}
-            hitbox={resolvedHitbox}
-          />
+          {showSeparatedLayers ? (
+            <div className="flex w-full max-w-md flex-col gap-3">
+              {separatedHardwareLayers.map(layer => (
+                <div key={`${layer.cellX}-${layer.cellY}-${layer.index}`} className="space-y-1 rounded border border-msx-border/70 bg-msx-panelbg/70 p-2">
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-msx-textprimary">
+                      Part {partLabelByOffset.get(`${layer.xOffset},${layer.yOffset}`) || `${layer.cellX},${layer.cellY}`} - Layer {layer.index + 1}
+                    </span>
+                    <span className={layer.usesOrColor ? 'text-msx-highlight' : 'text-msx-textsecondary'}>
+                      {layer.usesOrColor ? 'CC/OR' : 'mask'}
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-msx-textsecondary">offset x+{layer.xOffset}, y+{layer.yOffset}</div>
+                  <LayerPreviewGrid
+                    pixels={layer.pixels}
+                    width={16}
+                    height={16}
+                    zoom={Math.max(6, Math.min(18, zoom - 4))}
+                    backgroundColor={sprite.backgroundColor}
+                  />
+                  <div className="text-[10px] text-msx-textsecondary">slots {layer.slots.join(', ') || 'none'}</div>
+                  {layer.forcedByRows.length > 0 && (
+                    <div className="max-h-14 overflow-auto text-[10px] text-msx-warning">
+                      {layer.forcedByRows.join(' / ')}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Msx2PixelGrid
+              frame={frame}
+              width={sprite.size.width}
+              height={sprite.size.height}
+              zoom={zoom}
+              backgroundColor={sprite.backgroundColor}
+              onPixel={handlePixel}
+              onionSkinEnabled={onionSkinEnabled}
+              onionSkinOpacity={onionSkinOpacity}
+              prevFrame={prevFrame}
+              nextFrame={nextFrame}
+              showHitbox={showHitbox}
+              hitbox={resolvedHitbox}
+              metaSpriteParts={superSpriteParts}
+            />
+          )}
         </div>
         <div className="flex items-center justify-center gap-2 pb-2 text-xs text-msx-textsecondary">
           <span>Frame: {sprite.currentFrameIndex + 1} / {sprite.frames.length}</span>
@@ -725,6 +1158,47 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
           </div>
         </Panel>
 
+        <Panel title="MSX2 MetaSprite Layout" collapsible>
+          <div className="p-3 space-y-3 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              {MSX2_METASPRITE_PRESETS.map(preset => (
+                <Button
+                  key={preset.id}
+                  size="sm"
+                  variant={superSpriteLayout === preset.id ? 'primary' : 'secondary'}
+                  onClick={() => applyMetaSpriteLayout(preset.id)}
+                  className="justify-start"
+                >
+                  {preset.label} {preset.size.width}x{preset.size.height}
+                </Button>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              <div className="rounded border border-msx-border/70 bg-msx-bgcolor/50 px-2 py-1">
+                <div className="text-msx-textsecondary">Parts</div>
+                <div className="text-msx-textprimary">{superSpriteBaseParts}</div>
+              </div>
+              <div className="rounded border border-msx-border/70 bg-msx-bgcolor/50 px-2 py-1">
+                <div className="text-msx-textsecondary">HW sprites</div>
+                <div className={estimatedHardwareSprites > 8 ? 'text-msx-warning' : 'text-msx-textprimary'}>{estimatedHardwareSprites}</div>
+              </div>
+              <div className="rounded border border-msx-border/70 bg-msx-bgcolor/50 px-2 py-1">
+                <div className="text-msx-textsecondary">Worst line</div>
+                <div className={maxSpritesPerScanline > 8 ? 'text-msx-warning' : 'text-msx-textprimary'}>{maxSpritesPerScanline}/8</div>
+              </div>
+            </div>
+            <div className="space-y-1">
+              {superSpriteParts.map(part => (
+                <div key={part.id} className="flex items-center justify-between rounded border border-msx-border/70 bg-msx-bgcolor/40 px-2 py-1">
+                  <span>{part.label}</span>
+                  <span className="text-msx-textsecondary">x{part.offsetX}, y{part.offsetY}, 16x16</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-msx-textsecondary">Each part is a 16x16 MSX2 hardware sprite cell. Extra color planes from OR/masks multiply the hardware sprite cost per cell.</p>
+          </div>
+        </Panel>
+
         <Panel title="MSX2 HW Limits" collapsible>
           <div className="p-3 space-y-2 text-xs">
             <div className={(invalidLineCount > 0 || scanlineOverflow) ? 'text-msx-warning' : 'text-msx-textsecondary'}>
@@ -737,18 +1211,32 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             <div className="text-msx-textsecondary">
               Worst scanline: {maxSpritesPerScanline}/8 visible hardware sprites. {orColorLineCount} line{orColorLineCount === 1 ? '' : 's'} use OR color.
             </div>
+            <div className="grid grid-cols-3 gap-1">
+              <div className="rounded border border-msx-border/70 bg-msx-bgcolor/50 px-2 py-1">
+                <div className="text-msx-textsecondary">Stacked rows</div>
+                <div className="text-msx-textprimary">{stackedColorLineCount}</div>
+              </div>
+              <div className="rounded border border-msx-border/70 bg-msx-bgcolor/50 px-2 py-1">
+                <div className="text-msx-textsecondary">3+ color rows</div>
+                <div className={threeColorLineCount ? 'text-msx-highlight' : 'text-msx-textprimary'}>{threeColorLineCount}</div>
+              </div>
+              <div className="rounded border border-msx-border/70 bg-msx-bgcolor/50 px-2 py-1">
+                <div className="text-msx-textsecondary">Max cell layers</div>
+                <div className={maxCellLayerCount > 4 ? 'text-msx-warning' : 'text-msx-textprimary'}>{maxCellLayerCount}</div>
+              </div>
+            </div>
             <div className="grid grid-cols-4 gap-1">
               {rowDiagnostics.map(row => (
                 <div
                   key={`${row.cellX}-${row.y}`}
-                  className={`rounded border px-1 py-0.5 ${row.invalid ? 'border-msx-warning text-msx-warning' : 'border-msx-border text-msx-textsecondary'}`}
-                  title={row.colors.length ? `Cell ${row.cellX}, line ${row.y}: ${row.colors.join(', ')}` : `Cell ${row.cellX}, line ${row.y}: transparent`}
+                  className={`rounded border px-1 py-0.5 ${row.invalid ? 'border-msx-warning text-msx-warning' : row.layerCount >= 3 ? 'border-msx-highlight text-msx-highlight' : row.layerCount > 1 ? 'border-msx-border text-msx-textprimary' : 'border-msx-border text-msx-textsecondary'}`}
+                  title={row.colors.length ? `Cell ${row.cellX}, line ${row.y}: ${row.colors.join(', ')}; slots ${row.slots.join(', ') || 'none'}` : `Cell ${row.cellX}, line ${row.y}: transparent`}
                 >
                   c{row.cellX} y{row.y}: {row.layerCount ? `${row.layerCount}${row.usesOrColor ? '+' : ''}` : 'T'}
                 </div>
               ))}
             </div>
-            <p className="text-msx-textsecondary">Transparent pixels are pattern bits set to 0. Rows are split into overlapped MSX2 sprite mode 2 layers; OR color uses the VDP color-table CC bit.</p>
+            <p className="text-msx-textsecondary">Transparent pixels are pattern bits set to 0. Rows are split into overlapped MSX2 sprite mode 2 masks; with the V9938 CC/OR color bit, two planes can show base color, overlay color, and a third overlap color where paletteSlotA | paletteSlotB matches the desired slot.</p>
           </div>
         </Panel>
 
@@ -760,6 +1248,47 @@ export const Msx2SpriteEditor: React.FC<Msx2SpriteEditorProps> = ({ sprite, onUp
             <label>Pattern<input type="number" value={sprite.hardware.patternIndex} min={0} max={252} step={4} onChange={e => setHardware('patternIndex', Number(e.target.value))} className="mt-1 w-full bg-msx-bgcolor border border-msx-border rounded px-2 py-1" /></label>
             <label className="col-span-2 flex items-center justify-between gap-2">OR color<input type="checkbox" checked={useOrColor} onChange={e => setHardware('useOrColor', e.target.checked)} /></label>
           </div>
+        </Panel>
+
+        <Panel title="MSX2 OR Color Helper" collapsible>
+          <div className="p-3 space-y-2 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-msx-textsecondary">Transparent mask + CC/OR</span>
+              <Button size="sm" variant={useOrColor ? 'primary' : 'secondary'} onClick={() => setHardware('useOrColor', !useOrColor)}>
+                {useOrColor ? 'On' : 'Off'}
+              </Button>
+            </div>
+            <div className="max-h-40 space-y-1 overflow-auto">
+              {orPalettePairs.length === 0 ? (
+                <div className="text-msx-textsecondary">No OR-compatible palette pairs found.</div>
+              ) : (
+                orPalettePairs.map(pair => (
+                  <div key={`${pair.base}-${pair.overlay}-${pair.result}`} className="rounded border border-msx-border/70 bg-msx-bgcolor/40 p-1">
+                    <div className="mb-1 text-msx-textsecondary">
+                      slot {pair.base} | slot {pair.overlay} = slot {pair.result}
+                    </div>
+                    <div className="grid grid-cols-3 gap-1">
+                      <Button size="sm" variant="ghost" className="justify-start text-[10px]" onClick={() => useOrBrushColor(pair.baseHex as MSXColorValue)}>
+                        <span className="mr-1 h-3 w-3 rounded-sm border border-msx-border" style={{ backgroundColor: pair.baseHex }} />A {pair.base}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="justify-start text-[10px]" onClick={() => useOrBrushColor(pair.overlayHex as MSXColorValue)}>
+                        <span className="mr-1 h-3 w-3 rounded-sm border border-msx-border" style={{ backgroundColor: pair.overlayHex }} />B {pair.overlay}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="justify-start text-[10px]" onClick={() => useOrBrushColor(pair.resultHex as MSXColorValue)}>
+                        <span className="mr-1 h-3 w-3 rounded-sm border border-msx-border" style={{ backgroundColor: pair.resultHex }} />A|B {pair.result}
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </Panel>
+
+        <Panel title="MSX2 Sprite Export Contract" collapsible>
+          <pre className="m-0 max-h-44 overflow-auto p-3 text-[10px] leading-relaxed text-msx-textsecondary whitespace-pre-wrap">
+            {JSON.stringify(spriteExportContract, null, 2)}
+          </pre>
         </Panel>
 
         <Panel title="Hitbox Settings" collapsible>

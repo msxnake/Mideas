@@ -28,7 +28,7 @@ import {
   mirrorTileDataVertical
 } from '../utils/tileUtils';
 import { TileEditorAdvancedLayout } from './TileEditorAdvancedLayout';
-import { ensureScreen5PaletteSlots, getScreen5PaletteColor, screen5SlotsToMsxColors } from '../../utils/screen5PaletteUtils';
+import { ensureScreen5PaletteSlots, getScreen5PaletteColor, screen5SlotsToMsxColors } from '../../utils/msx2PaletteUtils';
 import { isTriggeredTileInteractionType } from '../utils/screenUtils';
 
 

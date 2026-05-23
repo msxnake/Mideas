@@ -980,6 +980,8 @@ generation. The slice is the current pre-compilation contract and includes:
 
 - reachable assets and excluded assets,
 - included and excluded runtime modules,
+- `ownerWorldIds` on world-owned screens, tiles, and sprites,
+- `worldPackageSummary`,
 - `assetStoragePolicy`,
 - `logicalBankBudget`,
 - `ramBudget`.
@@ -988,6 +990,11 @@ The current rule is conservative: a runtime helper is emitted only when the
 analysis proves the project needs it. For example, the MSX2 stage-banner helper
 is included for shooter-wave builds and excluded for non-shooter builds, so a
 platformer variation does not pay bytes for unused arcade HUD behavior.
+
+`worldPackageSummary` is the bridge toward real World Packages. It groups the
+currently reachable owner-world assets, counts reachable screens, reports
+estimated bytes, and breaks those bytes down by bank class. Its totals must
+match the owner-marked storage policy rows before the build can continue.
 
 ### Phase MSX2-4: Budgeted bank allocator
 
@@ -1026,6 +1033,11 @@ Glass and fails early when:
 
 For a passing build, the CLI prints the payload size, estimated packed bank
 count, package count, and largest contributor.
+
+The budget also includes `bankClassSummary`, grouped by classes such as
+`world.screen`, `world.graphics.sprite`, and `world.manifest`. This lets the
+CLI and IDE explain which part of a world package is creating bank pressure
+without inspecting every package row manually.
 
 The CLI also supports `--strict-msx2-megarom-preflight-warnings`. Normal builds
 keep warnings as diagnostics; strict builds treat ROM/RAM warnings and `plan_b`
@@ -1076,6 +1088,14 @@ Acceptance criteria:
 Current MSX2 SCREEN 4 budget artifacts already include recovery
 recommendations. Passing builds may still carry warning or `plan_b`
 recommendations so the IDE can show pressure before it becomes fatal.
+`logical_bank_budget.json` also carries the ordered `recoveryPlan`, so the CLI
+and IDE can show the deterministic Plan B sequence even before a build fails:
+final-size repack, world package split, cold data move, selective ZX0, hot data
+guard, special-code bank, chunk split, and actionable failure report.
+The passing `preflight_summary.json` records byte counts and stable checksums
+for the four required preflight artifacts. This makes stale, empty, or
+truncated artifact problems visible as build diagnostics instead of surfacing
+later as confusing compiler failures.
 
 
 ### Phase MSX2-5: RAM map and live-instance model
@@ -1187,7 +1207,54 @@ Current CLI gate:
 3. MSX2 SCREEN 4 preflight validates those artifacts before the post-ASM pass
    and before Glass.
 4. Passing preflight writes `preflight_summary.json` with compact ROM, RAM, and
-   Plan B data for CLI/IDE consumption.
+   Plan B data for CLI/IDE consumption. The summary also records
+   `outputArtifactChecks` for `msx2_ide_budget_feedback.json`, so the preflight
+   report proves the IDE-facing budget artifact was regenerated and checksummed
+   during the same gate.
+5. `preflight_summary.json` now also exposes the ordered `pipelineGates` list:
+   gates 1-6 are marked passed by the preflight, ASM generation is marked as
+   already done, and Glass/symbol validation/post optimization/OpenMSX remain
+   pending for the later build stages.
+6. After Glass and mapper validation pass, MSX2 SCREEN 4 builds write
+   `msx2_build_summary.json`. This ties the final ROM to the exact preflight
+   input and output artifact checks, marks Glass and symbol/artifact validation
+   as passed, and records checksums for the ROM, ASM, and symbol file. It also records whether
+   the Post-ASM pass was not requested, check-only, applied, or produced no
+   change, and whether OpenMSX smoke was not requested, pending, or passed.
+   When OpenMSX smoke is requested, the summary is rewritten after the smoke
+   completes so the final report reflects the real last gate state.
+   When Post-ASM is requested, `msx2_build_summary.json` also carries compact
+   `postAsmReports` entries with findings, applied patch count, dead-block
+   candidate size, and bytes removed. The IDE can use this without parsing the
+   full optimizer report.
+   The final build summary also records the path, size, checksum, scope, and
+   status of `msx2_ide_budget_feedback.json`, so the UI-facing budget view is
+   tied to the same passing build as the ROM. If the build used the controlled
+   retry loop, the summary also includes `budgetResolution` with the resolver
+   status, attempt count, final action, and checksum of
+   `msx2_budget_resolution.json`.
+7. Passing preflight also writes `msx2_ide_budget_feedback.json`. This is the
+   compact editor-facing view of the same facts: current ROM mode/mapper,
+   logical bank pressure by class, RAM usage, world package bytes, largest
+   assets, concrete warnings, and suggested fixes generated from Plan B data.
+8. If a budget-oriented MSX2 preflight fails before Glass, it writes
+   `msx2_preflight_failure.json` instead of leaving stale success summaries.
+   This gives the CLI/IDE a machine-readable reason, affected package/bank
+   data, RAM context, and the ordered Plan B recommendations.
+9. `scripts/build_mideas_unified_rom.py --auto-resolve-msx2-budget` now adds
+   the first controlled retry loop. It can resolve safe cases without changing
+   project data: strict-warning failures can retry as non-strict, and over-budget
+   failures produced while ZX0 was explicitly skipped can retry with ZX0
+   preprocessing enabled. Each attempt is recorded in
+   `msx2_budget_resolution.json`; unresolved cases keep
+   `msx2_preflight_failure.json` as the actionable stop report.
+10. The normal `/compile` server path now also has a budget gate for embedded
+    MSX2 SCREEN 4 artifacts. If the ASM budget is already marked `error`, the
+    server stops before Glass and returns `msx2BudgetFeedback` plus
+    `msx2BudgetResolution`. If compression was disabled, it first tries one
+    safe ZX0 preprocess pass and only continues to Glass when that clears the
+    budget error. The export modal reports the resolver status and final action
+    in the compile summary.
 
 Regression coverage currently checks the preflight directly and through the
 MSX2 SCREEN 4 smoke fixtures for layers, Lode Runner-style mirrors, conveyor
@@ -1249,6 +1316,13 @@ Acceptance criteria:
 - The user can see why adding a feature threatens a bank.
 - The report distinguishes resident-core pressure from content/world pressure.
 - Suggested fixes are generated from the allocator facts, not generic advice.
+
+Current artifact:
+
+- `msx2_ide_budget_feedback.json` is generated by the MSX2 SCREEN 4 preflight
+  and validated by the smoke fixtures. It is intentionally derived from
+  `project_slice.json`, `logical_bank_budget.json`, and `ram_budget.json`, so
+  the editor and CLI do not drift into separate budget logic.
 
 ### Non-negotiable invariant
 

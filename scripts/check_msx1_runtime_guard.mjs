@@ -17,9 +17,9 @@ const defaults = read('data', 'defaults.ts');
 const useAppState = read('hooks', 'useAppState.tsx');
 const projectHandlers = read('handlers', 'useProjectHandlers.tsx');
 const projectCleanup = read('utils', 'projectCleanup.ts');
-const msx2Parts = read('components', 'msx2_screen5_editor', 'Msx2Screen5EditorParts.tsx');
-const msx2Catalog = read('components', 'msx2_screen5_editor', 'msx2EntityCatalog.ts');
-const msx2ScreenEditor = read('components', 'editors', 'Msx2Screen5TileScreenEditor.tsx');
+const msx2Parts = read('components', 'msx2_screen4_editor', 'Msx2Screen4EditorParts.tsx');
+const msx2Catalog = read('components', 'msx2_screen4_editor', 'msx2EntityCatalog.ts');
+const msx2ScreenEditor = read('components', 'editors', 'Msx2Screen4RoomEditor.tsx');
 
 const checks = [
   [

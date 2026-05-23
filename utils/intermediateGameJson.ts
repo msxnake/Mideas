@@ -8,7 +8,7 @@ import {
   LineColorAttribute,
   MSXFont,
   MSXFontColorAttributes,
-  Msx2Screen5TileScreen,
+  Msx2Screen4TileScreen,
   PixelData,
   ProjectAsset,
   ScreenMap,
@@ -813,7 +813,7 @@ function encodeNumberLayerToBytes(layer: number[][] | undefined, width: number, 
   return bytes;
 }
 
-function buildIntermediateMsx2Screen(screen: Msx2Screen5TileScreen): IntermediateScreen {
+function buildIntermediateMsx2Screen(screen: Msx2Screen4TileScreen): IntermediateScreen {
   const width = screen.widthTiles || 16;
   const height = screen.heightTiles || 12;
   const backgroundBytes = encodeNumberLayerToBytes(screen.map, width, height);
@@ -894,7 +894,7 @@ function buildIntermediateWorldMap({
     }
 
     const screen = screenAsset.type === 'msx2screen'
-      ? buildIntermediateMsx2Screen(screenAsset.data as Msx2Screen5TileScreen)
+      ? buildIntermediateMsx2Screen(screenAsset.data as Msx2Screen4TileScreen)
       : buildIntermediateScreen({ screen: screenAsset.data as ScreenMap, entityTemplatesById, componentDefinitionsById, spriteIdSet, warnings, includeHumanEntities });
     screens.push({
       worldNodeId: node.id,

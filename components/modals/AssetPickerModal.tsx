@@ -115,7 +115,7 @@ export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
     const assetTypeName = assetTypeToPick === 'screenBackground'
         ? 'Screen Background'
         : assetTypeToPick === 'msx2sprite'
-            ? 'MSX2 Sprite'
+            ? 'MSX2 Sprites'
             : assetTypeToPick.charAt(0).toUpperCase() + assetTypeToPick.slice(1);
 
     return (

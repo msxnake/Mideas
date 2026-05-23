@@ -39,6 +39,8 @@ interface FileExplorerPanelProps {
   hasActiveProject: boolean;
   /** Optional CSS class name for the panel. */
   className?: string;
+  /** Optional callback to collapse the whole asset explorer column. */
+  onRequestCollapse?: () => void;
 }
 
 /**
@@ -182,6 +184,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   currentScreenMode,
   hasActiveProject,
   className = '',
+  onRequestCollapse,
 }) => {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [tileSortOrder, setTileSortOrder] = useState<'default' | 'alpha'>('default');
@@ -361,6 +364,16 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
       icon={<FolderOpenIcon className="w-4 h-4 text-msx-textsecondary" />}
       headerButtons={
         <>
+          {onRequestCollapse && (
+            <button
+              onClick={onRequestCollapse}
+              title="Hide Project Assets"
+              aria-label="Hide Project Assets"
+              className="px-1 py-0.5 text-xs leading-none text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-border rounded"
+            >
+              {'<'}
+            </button>
+          )}
           <button onClick={handleExpandAll} title="Expand All" className="p-0.5 text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-border rounded"><ExpandAllIcon className="w-3.5 h-3.5" /></button>
           <button onClick={handleCollapseAll} title="Collapse All" className="p-0.5 text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-border rounded"><CollapseAllIcon className="w-3.5 h-3.5" /></button>
         </>

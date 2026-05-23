@@ -298,7 +298,7 @@ const project = {
   screenMode: 'SCREEN 4 (Graphics II)',
   targetGraphicsBackend: 'msx2-screen4-pattern',
   selectedAssetId: screenAssetId,
-  currentEditor: 'MSX2Screen5TileScreen',
+  currentEditor: 'Msx2Screen',
   assets: [
     { id: 'palette_loderunner_msx2', name: 'Lode Runner MSX2 Palette', type: 'palette', data: { mode: 'SCREEN4', slots: palette, notes: 'SCREEN 4 palette for Lode Runner style mine graphics.' } },
     makeSprite('sprite_loderunner_player_msx2', 'MSX2 Runner Sprite', playerFrame, 8, 0),

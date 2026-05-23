@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MSXColorValue, Msx2EntityKind, Msx2Screen5EntityInstance, Msx2Screen5Layers, Msx2Screen5Runtime, Msx2Screen5Tile, ProjectAsset, Screen5PaletteSlot } from '../../types';
+import { MSXColorValue, Msx2EntityKind, Msx2Screen4EntityInstance, Msx2Screen4Layers, Msx2Screen4Runtime, Msx2Screen4Tile, ProjectAsset, Screen5PaletteSlot } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
@@ -12,8 +12,9 @@ import {
   Msx2EntityCreatePreset,
 } from './msx2EntityCatalog';
 
-export type Msx2Screen5EditMode = 'visual' | 'collision' | 'effects' | 'behavior' | 'entities' | 'tile';
-export type Msx2Screen5TilePaintTool = 'pencil' | 'erase' | 'fill' | 'pick';
+export type Msx2Screen4EditMode = 'visual' | 'collision' | 'effects' | 'behavior' | 'entities' | 'tile';
+export type Msx2Screen4TilePaintTool = 'pencil' | 'erase' | 'fill' | 'pick';
+export type Msx2Screen4CompositionOverlay = 'off' | 'reuse2x2' | 'reuse4x4' | 'copy8x8' | 'props16x16' | 'hudBands';
 
 export const SCREEN_WIDTH = 256;
 export const SCREEN_HEIGHT = 192;
@@ -24,19 +25,19 @@ export const MAP_PIXEL_WIDTH = MAP_WIDTH * TILE_SIZE;
 export const MAP_PIXEL_HEIGHT = MAP_HEIGHT * TILE_SIZE;
 export const TRANSPARENT_HEX = 'rgba(0,0,0,0)';
 
-const getTilePixelWidth = (tile: Msx2Screen5Tile | undefined): number =>
+const getTilePixelWidth = (tile: Msx2Screen4Tile | undefined): number =>
   Math.max(8, Math.min(32, Number(tile?.width ?? tile?.pixels?.[0]?.length ?? TILE_SIZE) || TILE_SIZE));
 
-const getTilePixelHeight = (tile: Msx2Screen5Tile | undefined): number =>
+const getTilePixelHeight = (tile: Msx2Screen4Tile | undefined): number =>
   Math.max(8, Math.min(32, Number(tile?.height ?? tile?.pixels?.length ?? TILE_SIZE) || TILE_SIZE));
 
-export interface Msx2Screen5CellAction {
+export interface Msx2Screen4CellAction {
   x: number;
   y: number;
   button: number;
 }
 
-export interface Msx2Screen5SelectionRect {
+export interface Msx2Screen4SelectionRect {
   x: number;
   y: number;
   width: number;
@@ -51,11 +52,11 @@ export {
   type Msx2EntityCreatePreset,
 };
 
-interface Msx2Screen5ToolbarProps {
+interface Msx2Screen4ToolbarProps {
   screenName: string;
   onScreenNameChange: (name: string) => void;
-  mode: Msx2Screen5EditMode;
-  onModeChange: (mode: Msx2Screen5EditMode) => void;
+  mode: Msx2Screen4EditMode;
+  onModeChange: (mode: Msx2Screen4EditMode) => void;
   selectedEffectCode: number;
   onSelectedEffectCodeChange: (code: number) => void;
   selectedBehaviorCode: number;
@@ -64,15 +65,17 @@ interface Msx2Screen5ToolbarProps {
   onShowGridChange: (showGrid: boolean) => void;
   showRuntimeOverlays: boolean;
   onShowRuntimeOverlaysChange: (showRuntimeOverlays: boolean) => void;
-  runtime: Msx2Screen5Runtime;
-  onRuntimeChange: (runtime: Msx2Screen5Runtime) => void;
+  compositionOverlay: Msx2Screen4CompositionOverlay;
+  onCompositionOverlayChange: (overlay: Msx2Screen4CompositionOverlay) => void;
+  runtime: Msx2Screen4Runtime;
+  onRuntimeChange: (runtime: Msx2Screen4Runtime) => void;
   canCopyLayer: boolean;
   canPasteLayer: boolean;
   onCopyLayer: () => void;
   onPasteLayer: () => void;
 }
 
-export const Msx2Screen5Toolbar: React.FC<Msx2Screen5ToolbarProps> = ({
+export const Msx2Screen4Toolbar: React.FC<Msx2Screen4ToolbarProps> = ({
   screenName,
   onScreenNameChange,
   mode,
@@ -85,6 +88,8 @@ export const Msx2Screen5Toolbar: React.FC<Msx2Screen5ToolbarProps> = ({
   onShowGridChange,
   showRuntimeOverlays,
   onShowRuntimeOverlaysChange,
+  compositionOverlay,
+  onCompositionOverlayChange,
   runtime,
   onRuntimeChange,
   canCopyLayer,
@@ -93,7 +98,7 @@ export const Msx2Screen5Toolbar: React.FC<Msx2Screen5ToolbarProps> = ({
   onPasteLayer,
 }) => {
   const numberInputClass = 'w-full px-2 py-1 bg-msx-panelbg border border-msx-border rounded';
-  const updateRuntimeArea = (patch: Partial<Msx2Screen5Runtime>) => {
+  const updateRuntimeArea = (patch: Partial<Msx2Screen4Runtime>) => {
     const next = { ...runtime, ...patch };
     const x = Math.max(0, Math.min(MAP_WIDTH - 1, Number(next.activeAreaX) || 0));
     const y = Math.max(0, Math.min(MAP_HEIGHT - 1, Number(next.activeAreaY) || 0));
@@ -101,7 +106,7 @@ export const Msx2Screen5Toolbar: React.FC<Msx2Screen5ToolbarProps> = ({
     const height = Math.max(1, Math.min(MAP_HEIGHT - y, Number(next.activeAreaHeight) || MAP_HEIGHT - y));
     onRuntimeChange({ ...next, activeAreaX: x, activeAreaY: y, activeAreaWidth: width, activeAreaHeight: height });
   };
-  const layerButton = (layer: Msx2Screen5EditMode, label: string) => (
+  const layerButton = (layer: Msx2Screen4EditMode, label: string) => (
     <Button size="sm" variant={mode === layer ? 'primary' : 'secondary'} onClick={() => onModeChange(layer)}>
       {label}
     </Button>
@@ -167,6 +172,22 @@ export const Msx2Screen5Toolbar: React.FC<Msx2Screen5ToolbarProps> = ({
           <input type="checkbox" checked={showRuntimeOverlays} onChange={event => onShowRuntimeOverlaysChange(event.target.checked)} />
           Runtime overlays
         </label>
+        <label className="block space-y-1">
+          <span className="text-msx-textsecondary">MSX2 overlay</span>
+          <select
+            value={compositionOverlay}
+            onChange={event => onCompositionOverlayChange(event.target.value as Msx2Screen4CompositionOverlay)}
+            className="w-full px-2 py-1 bg-msx-panelbg border border-msx-border rounded"
+            aria-label="MSX2 composition overlay"
+          >
+            <option value="off">Off</option>
+            <option value="reuse2x2">2x2 reuse</option>
+            <option value="reuse4x4">4x4 reuse</option>
+            <option value="copy8x8">8x8 copy grid</option>
+            <option value="props16x16">16x16 candidate props</option>
+            <option value="hudBands">HUD/static bands</option>
+          </select>
+        </label>
         <div className="grid grid-cols-2 gap-2">
           <Button size="sm" variant="secondary" onClick={onCopyLayer} disabled={!canCopyLayer}>Copy Layer</Button>
           <Button size="sm" variant="secondary" onClick={onPasteLayer} disabled={!canPasteLayer}>Paste Layer</Button>
@@ -230,10 +251,10 @@ export const Msx2Screen5Toolbar: React.FC<Msx2Screen5ToolbarProps> = ({
   );
 };
 
-interface Msx2Screen5SelectionPanelProps {
+interface Msx2Screen4SelectionPanelProps {
   selectionMode: boolean;
   onSelectionModeChange: (selectionMode: boolean) => void;
-  selectionRect: Msx2Screen5SelectionRect | null;
+  selectionRect: Msx2Screen4SelectionRect | null;
   canEditSelection: boolean;
   canCopySelection: boolean;
   canPasteSelection: boolean;
@@ -244,7 +265,7 @@ interface Msx2Screen5SelectionPanelProps {
   onPasteSelection: () => void;
 }
 
-export const Msx2Screen5SelectionPanel: React.FC<Msx2Screen5SelectionPanelProps> = ({
+export const Msx2Screen4SelectionPanel: React.FC<Msx2Screen4SelectionPanelProps> = ({
   selectionMode,
   onSelectionModeChange,
   selectionRect,
@@ -283,11 +304,11 @@ export const Msx2Screen5SelectionPanel: React.FC<Msx2Screen5SelectionPanelProps>
   </Panel>
 );
 
-interface Msx2Screen5EntityPanelProps {
-  mode: Msx2Screen5EditMode;
-  selectedEntity: Msx2Screen5EntityInstance | null;
+interface Msx2Screen4EntityPanelProps {
+  mode: Msx2Screen4EditMode;
+  selectedEntity: Msx2Screen4EntityInstance | null;
   allAssets: ProjectAsset[];
-  onUpdateSelectedEntity: (patch: Partial<Msx2Screen5EntityInstance>) => void;
+  onUpdateSelectedEntity: (patch: Partial<Msx2Screen4EntityInstance>) => void;
   onUpdateSelectedEntityParams: (patch: Record<string, any>) => void;
   onRemoveSelectedEntity: () => void;
 }
@@ -301,7 +322,7 @@ const summarizeMsx2Component = (values: Record<string, any> | undefined): string
     .join(' ');
 };
 
-const getMsx2RenderSpriteId = (entity: Msx2Screen5EntityInstance | null): string =>
+const getMsx2RenderSpriteId = (entity: Msx2Screen4EntityInstance | null): string =>
   String(entity?.components?.msx2_hardware_sprite?.msx2SpriteAssetId || entity?.spriteAssetId || '');
 
 const getMsx2RenderSpriteName = (assets: ProjectAsset[], spriteAssetId: string): string => {
@@ -309,7 +330,7 @@ const getMsx2RenderSpriteName = (assets: ProjectAsset[], spriteAssetId: string):
   return assets.find(asset => asset.type === 'msx2sprite' && asset.id === spriteAssetId)?.name || spriteAssetId;
 };
 
-export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
+export const Msx2Screen4EntityPanel: React.FC<Msx2Screen4EntityPanelProps> = ({
   mode,
   selectedEntity,
   allAssets,
@@ -327,7 +348,7 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
     paramsPatch?: Record<string, any>
   ) => {
     if (!selectedEntity) return;
-    const patch: Partial<Msx2Screen5EntityInstance> = {
+    const patch: Partial<Msx2Screen4EntityInstance> = {
       components: {
         ...(selectedEntity.components || {}),
         [componentId]: {
@@ -741,14 +762,14 @@ export const Msx2Screen5EntityPanel: React.FC<Msx2Screen5EntityPanelProps> = ({
   );
 };
 
-interface Msx2Screen5EntityPalettePanelProps {
-  mode: Msx2Screen5EditMode;
+interface Msx2Screen4EntityPalettePanelProps {
+  mode: Msx2Screen4EditMode;
   presets: Msx2EntityCreatePreset[];
   selectedPresetId: string;
   onSelectPresetId: (presetId: string) => void;
 }
 
-export const Msx2Screen5EntityPalettePanel: React.FC<Msx2Screen5EntityPalettePanelProps> = ({
+export const Msx2Screen4EntityPalettePanel: React.FC<Msx2Screen4EntityPalettePanelProps> = ({
   mode,
   presets,
   selectedPresetId,
@@ -775,8 +796,8 @@ export const Msx2Screen5EntityPalettePanel: React.FC<Msx2Screen5EntityPalettePan
   );
 };
 
-interface Msx2Screen5TilesPanelProps {
-  tiles: Msx2Screen5Tile[];
+interface Msx2Screen4TilesPanelProps {
+  tiles: Msx2Screen4Tile[];
   slots: Screen5PaletteSlot[];
   selectedTileIndex: number;
   onSelectTileIndex: (index: number) => void;
@@ -786,7 +807,7 @@ interface Msx2Screen5TilesPanelProps {
 }
 
 interface Msx2TilePreviewProps {
-  tile: Msx2Screen5Tile;
+  tile: Msx2Screen4Tile;
   slots: Screen5PaletteSlot[];
 }
 
@@ -824,7 +845,7 @@ const Msx2TilePreview: React.FC<Msx2TilePreviewProps> = ({ tile, slots }) => {
   );
 };
 
-export const Msx2Screen5TilesPanel: React.FC<Msx2Screen5TilesPanelProps> = ({
+export const Msx2Screen4TilesPanel: React.FC<Msx2Screen4TilesPanelProps> = ({
   tiles,
   slots,
   selectedTileIndex,
@@ -864,25 +885,26 @@ export const Msx2Screen5TilesPanel: React.FC<Msx2Screen5TilesPanelProps> = ({
   </Panel>
 );
 
-interface Msx2Screen5GridProps {
+interface Msx2Screen4GridProps {
   map: number[][];
   slots: Screen5PaletteSlot[];
-  tiles: Msx2Screen5Tile[];
+  tiles: Msx2Screen4Tile[];
   showGrid: boolean;
-  mode: Msx2Screen5EditMode;
-  layers: Msx2Screen5Layers;
-  runtime: Msx2Screen5Runtime;
+  mode: Msx2Screen4EditMode;
+  layers: Msx2Screen4Layers;
+  runtime: Msx2Screen4Runtime;
   selectionMode: boolean;
-  selectionRect: Msx2Screen5SelectionRect | null;
+  selectionRect: Msx2Screen4SelectionRect | null;
   selectedEntityId: string | null;
   showRuntimeOverlays: boolean;
+  compositionOverlay: Msx2Screen4CompositionOverlay;
   isDrawing: boolean;
   onSetDrawing: (isDrawing: boolean) => void;
-  onCellAction: (action: Msx2Screen5CellAction) => void;
-  onSelectionChange: (rect: Msx2Screen5SelectionRect | null) => void;
+  onCellAction: (action: Msx2Screen4CellAction) => void;
+  onSelectionChange: (rect: Msx2Screen4SelectionRect | null) => void;
 }
 
-export const Msx2Screen5Grid: React.FC<Msx2Screen5GridProps> = ({
+export const Msx2Screen4Grid: React.FC<Msx2Screen4GridProps> = ({
   map,
   slots,
   tiles,
@@ -894,6 +916,7 @@ export const Msx2Screen5Grid: React.FC<Msx2Screen5GridProps> = ({
   selectionRect,
   selectedEntityId,
   showRuntimeOverlays,
+  compositionOverlay,
   isDrawing,
   onSetDrawing,
   onCellAction,
@@ -970,6 +993,100 @@ export const Msx2Screen5Grid: React.FC<Msx2Screen5GridProps> = ({
     );
     ctx.setLineDash([]);
     ctx.lineWidth = 1;
+    }
+
+    if (compositionOverlay !== 'off') {
+      const drawCellStroke = (x: number, y: number, w: number, h: number, color: string) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+          x * TILE_SIZE * 2 + 2,
+          y * TILE_SIZE * 2 + 2,
+          w * TILE_SIZE * 2 - 4,
+          h * TILE_SIZE * 2 - 4
+        );
+        ctx.lineWidth = 1;
+      };
+
+      if (compositionOverlay === 'copy8x8') {
+        ctx.strokeStyle = 'rgba(64, 223, 255, 0.32)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= MAP_PIXEL_WIDTH; x += 8) {
+          ctx.beginPath();
+          ctx.moveTo(x * 2 + 0.5, 0);
+          ctx.lineTo(x * 2 + 0.5, MAP_PIXEL_HEIGHT * 2);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= MAP_PIXEL_HEIGHT; y += 8) {
+          ctx.beginPath();
+          ctx.moveTo(0, y * 2 + 0.5);
+          ctx.lineTo(MAP_PIXEL_WIDTH * 2, y * 2 + 0.5);
+          ctx.stroke();
+        }
+      }
+
+      if (compositionOverlay === 'hudBands') {
+        ctx.fillStyle = 'rgba(255, 216, 64, 0.20)';
+        if (runtime.activeAreaY > 0) {
+          ctx.fillRect(0, 0, MAP_PIXEL_WIDTH * 2, runtime.activeAreaY * TILE_SIZE * 2);
+        }
+        const bottomStart = runtime.activeAreaY + runtime.activeAreaHeight;
+        if (bottomStart < MAP_HEIGHT) {
+          ctx.fillRect(0, bottomStart * TILE_SIZE * 2, MAP_PIXEL_WIDTH * 2, (MAP_HEIGHT - bottomStart) * TILE_SIZE * 2);
+        }
+        if (runtime.activeAreaX > 0) {
+          ctx.fillRect(0, runtime.activeAreaY * TILE_SIZE * 2, runtime.activeAreaX * TILE_SIZE * 2, runtime.activeAreaHeight * TILE_SIZE * 2);
+        }
+        const rightStart = runtime.activeAreaX + runtime.activeAreaWidth;
+        if (rightStart < MAP_WIDTH) {
+          ctx.fillRect(rightStart * TILE_SIZE * 2, runtime.activeAreaY * TILE_SIZE * 2, (MAP_WIDTH - rightStart) * TILE_SIZE * 2, runtime.activeAreaHeight * TILE_SIZE * 2);
+        }
+        ctx.fillStyle = '#FFE050';
+        ctx.font = '12px monospace';
+        ctx.fillText('HUD/static', 8, 18);
+      }
+
+      if (compositionOverlay === 'props16x16') {
+        const counts = new Map<number, number>();
+        map.flat().forEach(index => counts.set(index, (counts.get(index) || 0) + 1));
+        for (let y = 0; y < MAP_HEIGHT; y++) {
+          for (let x = 0; x < MAP_WIDTH; x++) {
+            const tileIndex = map[y][x] || 0;
+            if ((counts.get(tileIndex) || 0) > 1) {
+              ctx.fillStyle = 'rgba(80, 220, 255, 0.14)';
+              ctx.fillRect(x * TILE_SIZE * 2, y * TILE_SIZE * 2, TILE_SIZE * 2, TILE_SIZE * 2);
+              drawCellStroke(x, y, 1, 1, 'rgba(80, 220, 255, 0.72)');
+            }
+          }
+        }
+      }
+
+      if (compositionOverlay === 'reuse2x2' || compositionOverlay === 'reuse4x4') {
+        const blockSize = compositionOverlay === 'reuse2x2' ? 2 : 4;
+        const counts = new Map<string, number>();
+        const blockKey = (x: number, y: number) => {
+          const values: number[] = [];
+          for (let by = 0; by < blockSize; by++) {
+            for (let bx = 0; bx < blockSize; bx++) values.push(map[y + by]?.[x + bx] || 0);
+          }
+          return values.join(',');
+        };
+        for (let y = 0; y <= MAP_HEIGHT - blockSize; y += blockSize) {
+          for (let x = 0; x <= MAP_WIDTH - blockSize; x += blockSize) {
+            const key = blockKey(x, y);
+            counts.set(key, (counts.get(key) || 0) + 1);
+          }
+        }
+        for (let y = 0; y <= MAP_HEIGHT - blockSize; y += blockSize) {
+          for (let x = 0; x <= MAP_WIDTH - blockSize; x += blockSize) {
+            const repeated = (counts.get(blockKey(x, y)) || 0) > 1;
+            if (!repeated) continue;
+            ctx.fillStyle = compositionOverlay === 'reuse2x2' ? 'rgba(116, 208, 125, 0.16)' : 'rgba(255, 142, 129, 0.16)';
+            ctx.fillRect(x * TILE_SIZE * 2, y * TILE_SIZE * 2, blockSize * TILE_SIZE * 2, blockSize * TILE_SIZE * 2);
+            drawCellStroke(x, y, blockSize, blockSize, compositionOverlay === 'reuse2x2' ? 'rgba(116, 208, 125, 0.74)' : 'rgba(255, 142, 129, 0.74)');
+          }
+        }
+      }
     }
 
     if (selectionRect) {
@@ -1063,7 +1180,7 @@ export const Msx2Screen5Grid: React.FC<Msx2Screen5GridProps> = ({
         }
       }
     }
-  }, [map, slots, tiles, showGrid, mode, layers, runtime, selectionRect, selectedEntityId, showRuntimeOverlays]);
+  }, [map, slots, tiles, showGrid, mode, layers, runtime, selectionRect, selectedEntityId, showRuntimeOverlays, compositionOverlay]);
 
   const getCellFromEvent = (event: React.MouseEvent<HTMLCanvasElement>): { x: number; y: number } | null => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -1073,7 +1190,7 @@ export const Msx2Screen5Grid: React.FC<Msx2Screen5GridProps> = ({
     return { x, y };
   };
 
-  const buildSelectionRect = (start: { x: number; y: number }, end: { x: number; y: number }): Msx2Screen5SelectionRect => {
+  const buildSelectionRect = (start: { x: number; y: number }, end: { x: number; y: number }): Msx2Screen4SelectionRect => {
     const x = Math.min(start.x, end.x);
     const y = Math.min(start.y, end.y);
     return {
@@ -1127,17 +1244,17 @@ export const Msx2Screen5Grid: React.FC<Msx2Screen5GridProps> = ({
   );
 };
 
-interface Msx2Screen5TileEditorPanelProps {
+interface Msx2Screen4TileEditorPanelProps {
   selectedTileIndex: number;
-  selectedTile: Msx2Screen5Tile;
+  selectedTile: Msx2Screen4Tile;
   slots: Screen5PaletteSlot[];
   activeSlot: number;
-  paintTool: Msx2Screen5TilePaintTool;
+  paintTool: Msx2Screen4TilePaintTool;
   dimensionOptions: readonly number[];
   isDrawing: boolean;
   onSetDrawing: (isDrawing: boolean) => void;
   onSelectSlot: (slot: number) => void;
-  onPaintToolChange: (tool: Msx2Screen5TilePaintTool) => void;
+  onPaintToolChange: (tool: Msx2Screen4TilePaintTool) => void;
   onPixelAction: (x: number, y: number, button: number) => void;
   onResizeTile: (width: number, height: number) => void;
   onFillTile: () => void;
@@ -1146,7 +1263,7 @@ interface Msx2Screen5TileEditorPanelProps {
   onShiftTile: (dx: number, dy: number) => void;
 }
 
-export const Msx2Screen5TileEditorPanel: React.FC<Msx2Screen5TileEditorPanelProps> = ({
+export const Msx2Screen4TileEditorPanel: React.FC<Msx2Screen4TileEditorPanelProps> = ({
   selectedTileIndex,
   selectedTile,
   slots,
@@ -1297,11 +1414,11 @@ export const Msx2Screen5TileEditorPanel: React.FC<Msx2Screen5TileEditorPanelProp
   );
 };
 
-interface Msx2Screen5ExportModelPanelProps {
-  layers: Msx2Screen5Layers;
+interface Msx2Screen4ExportModelPanelProps {
+  layers: Msx2Screen4Layers;
 }
 
-export const Msx2Screen5ExportModelPanel: React.FC<Msx2Screen5ExportModelPanelProps> = ({ layers }) => (
+export const Msx2Screen4ExportModelPanel: React.FC<Msx2Screen4ExportModelPanelProps> = ({ layers }) => (
   <Panel title="MSX2 Export Model" collapsible>
     <div className="p-2 text-xs text-msx-textsecondary space-y-1">
       <div>Tile raw size: variable, multiples of 8 px</div>
@@ -1315,17 +1432,17 @@ export const Msx2Screen5ExportModelPanel: React.FC<Msx2Screen5ExportModelPanelPr
   </Panel>
 );
 
-interface Msx2Screen5StatusBarProps {
-  mode: Msx2Screen5EditMode;
+interface Msx2Screen4StatusBarProps {
+  mode: Msx2Screen4EditMode;
   selectedTileIndex: number;
   selectedEffectCode: number;
   selectedBehaviorCode: number;
-  layers: Msx2Screen5Layers;
-  runtime: Msx2Screen5Runtime;
-  selectionRect: Msx2Screen5SelectionRect | null;
+  layers: Msx2Screen4Layers;
+  runtime: Msx2Screen4Runtime;
+  selectionRect: Msx2Screen4SelectionRect | null;
 }
 
-export const Msx2Screen5StatusBar: React.FC<Msx2Screen5StatusBarProps> = ({
+export const Msx2Screen4StatusBar: React.FC<Msx2Screen4StatusBarProps> = ({
   mode,
   selectedTileIndex,
   selectedEffectCode,

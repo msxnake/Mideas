@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Boss, BossAttack, BossCrushMovement, BossNeckChain, Tile, ProjectAsset, ScreenMap, Sprite, Msx2Screen5TileScreen } from '../../types';
+import { Boss, BossAttack, BossCrushMovement, BossNeckChain, Tile, ProjectAsset, ScreenMap, Sprite, Msx2Screen4TileScreen } from '../../types';
 import { Button } from '../common/Button';
 import { createTileDataURL, renderScreenToCanvas } from '../utils/screenUtils';
 import { EDITOR_BASE_TILE_DIM_S2 } from '../../constants';
@@ -133,10 +133,10 @@ const createSpriteFrameDataURL = (sprite: Sprite) => {
     return canvas.toDataURL();
 };
 
-const isMsx2Screen4Asset = (asset: ProjectAsset | undefined): asset is ProjectAsset & { data: Msx2Screen5TileScreen } =>
-    !!asset && asset.type === 'msx2screen' && !!asset.data && Array.isArray((asset.data as Msx2Screen5TileScreen).map);
+const isMsx2Screen4Asset = (asset: ProjectAsset | undefined): asset is ProjectAsset & { data: Msx2Screen4TileScreen } =>
+    !!asset && asset.type === 'msx2screen' && !!asset.data && Array.isArray((asset.data as Msx2Screen4TileScreen).map);
 
-const renderMsx2Screen4Background = (canvas: HTMLCanvasElement, screen: Msx2Screen5TileScreen): void => {
+const renderMsx2Screen4Background = (canvas: HTMLCanvasElement, screen: Msx2Screen4TileScreen): void => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;

@@ -33,7 +33,7 @@ import {
     DialogueAsset,
     DialogueLine,
     PortraitAsset,
-    Msx2Screen5TileScreen,
+    Msx2Screen4TileScreen,
     resolveEffectZoneType
 } from '../../types';
 import { Button } from '../common/Button';
@@ -83,17 +83,17 @@ const isPlayerRuntimeScreen = (map: ScreenMap | null | undefined): boolean => {
     return (map as any).screenKind === 'playable';
 };
 
-type PreviewScreenMap = ScreenMap & { __msx2Screen4?: Msx2Screen5TileScreen };
+type PreviewScreenMap = ScreenMap & { __msx2Screen4?: Msx2Screen4TileScreen };
 
-const isMsx2Screen4Data = (data: unknown): data is Msx2Screen5TileScreen =>
+const isMsx2Screen4Data = (data: unknown): data is Msx2Screen4TileScreen =>
     !!data
-    && (data as Msx2Screen5TileScreen).target === 'MSX2'
-    && Array.isArray((data as Msx2Screen5TileScreen).map);
+    && (data as Msx2Screen4TileScreen).target === 'MSX2'
+    && Array.isArray((data as Msx2Screen4TileScreen).map);
 
-const getMsx2PreviewSource = (map: ScreenMap | null | undefined): Msx2Screen5TileScreen | undefined =>
+const getMsx2PreviewSource = (map: ScreenMap | null | undefined): Msx2Screen4TileScreen | undefined =>
     (map as PreviewScreenMap | null | undefined)?.__msx2Screen4;
 
-const adaptMsx2Screen4ToPreviewScreenMap = (screen: Msx2Screen5TileScreen): PreviewScreenMap => {
+const adaptMsx2Screen4ToPreviewScreenMap = (screen: Msx2Screen4TileScreen): PreviewScreenMap => {
     const width = screen.widthTiles || 16;
     const height = screen.heightTiles || 12;
     const numberLayerToScreenLayer = (layer: number[][] | undefined, prefix: string): ScreenTile[][] =>
@@ -138,7 +138,7 @@ const assetToPreviewScreenMap = (asset: ProjectAsset | undefined): PreviewScreen
     return asset.data as PreviewScreenMap;
 };
 
-const renderMsx2Screen4ToCanvas = (canvas: HTMLCanvasElement, screen: Msx2Screen5TileScreen): void => {
+const renderMsx2Screen4ToCanvas = (canvas: HTMLCanvasElement, screen: Msx2Screen4TileScreen): void => {
     canvas.width = MSX2_SCREEN4_PREVIEW_WIDTH;
     canvas.height = MSX2_SCREEN4_PREVIEW_HEIGHT;
     const ctx = canvas.getContext('2d');

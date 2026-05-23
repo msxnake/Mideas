@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Screen5TileScreen, PaletteAsset,
+    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, MSXColorValue, LineColorAttribute, Msx2Sprite, Msx2Screen4TileScreen, PaletteAsset,
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
     ComponentDefinition, EntityTemplate, EffectZone, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowControlsNode, GameFlowEndNode, GameFlowStartNode, EFFECT_ZONE_TYPE_CONFIG, EffectType, WindEffectDirection, normalizeEffectZoneParams, resolveEffectZoneType, DialogueAsset, ScreenBlockExportMode, ScreenTile, TileStamp
 } from '../../types';
@@ -304,6 +304,8 @@ interface PropertiesPanelProps {
   onSelectScreenCatalogBlock?: (stamp: TileStamp) => void;
   /** ID of the currently selected catalog block stamp. */
   selectedScreenCatalogBlockId?: string | null;
+  /** Optional callback to collapse the whole properties column. */
+  onRequestCollapse?: () => void;
 }
 
 /**
@@ -327,7 +329,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   onUpdateAsset,
   onCreateAsset,
   onSelectScreenCatalogBlock,
-  selectedScreenCatalogBlockId
+  selectedScreenCatalogBlockId,
+  onRequestCollapse
 }) => {
   const [currentFrame, setCurrentFrame] = useState(0); 
   const [animationSpeedMs, setAnimationSpeedMs] = useState<number>(asset?.type === 'sprite' ? ((asset.data as Sprite).animationSpeedMs ?? 200) : 200); 
@@ -988,11 +991,15 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         const sprite = asset.data as Msx2Sprite;
         const frameCount = sprite.frames?.length || 0;
         const currentFrameData = sprite.frames?.[sprite.currentFrameIndex ?? 0]?.data || sprite.frames?.[0]?.data;
+        const metaColumns = Math.max(1, Math.ceil(sprite.size.width / 16));
+        const metaRows = Math.max(1, Math.ceil(sprite.size.height / 16));
+        const metaParts = sprite.superSpriteParts?.length || (metaColumns * metaRows);
         return (
           <div className="space-y-1">
             <div><strong className="text-msx-highlight">Name:</strong> {sprite.name}</div>
             <div><strong className="text-msx-highlight">Mode:</strong> MSX2 hardware sprite</div>
             <div><strong className="text-msx-highlight">Size:</strong> {sprite.size.width}x{sprite.size.height} px</div>
+            <div><strong className="text-msx-highlight">MetaSprite:</strong> {sprite.superSpriteLayout || `${metaColumns}x${metaRows}`} / {metaParts} part{metaParts === 1 ? '' : 's'}</div>
             <div><strong className="text-msx-highlight">Frames:</strong> {frameCount}</div>
             <div><strong className="text-msx-highlight">Pattern:</strong> {sprite.hardware.patternIndex}</div>
             <div><strong className="text-msx-highlight">Position:</strong> {sprite.hardware.x},{sprite.hardware.y}</div>
@@ -1001,7 +1008,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         );
       }
       case 'msx2screen': {
-        const screen = asset.data as Msx2Screen5TileScreen;
+        const screen = asset.data as Msx2Screen4TileScreen;
         const tileCount = screen.tiles?.length || 0;
         const entityCount = screen.layers?.entities?.length || 0;
         const collisionRows = screen.layers?.collision?.length || screen.collisionMap?.length || 0;
@@ -2281,6 +2288,17 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       title={panelTitle}
       className="text-xs flex-1 flex flex-col"
       bodyClassName="flex-1 flex flex-col min-h-0"
+      headerButtons={onRequestCollapse ? (
+        <button
+          type="button"
+          onClick={onRequestCollapse}
+          title="Hide Asset Properties"
+          aria-label="Hide Asset Properties"
+          className="px-1 py-0.5 text-xs leading-none text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-border rounded"
+        >
+          {'>'}
+        </button>
+      ) : undefined}
     >
       <div className="space-y-1 p-2 flex-1 overflow-y-auto min-h-0">
           {activeEditorType === EditorType.Screen && screenBlockCatalogAnalysis && tilesetForScreenEditor && (

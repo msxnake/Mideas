@@ -8,7 +8,7 @@
   "screenMode": "SCREEN 4 (Graphics II)",
   "targetGraphicsBackend": "msx2-screen4-pattern",
   "selectedAssetId": "screen_loderunner_msx2_level1",
-  "currentEditor": "MSX2Screen5TileScreen",
+  "currentEditor": "Msx2Screen",
   "assets": [
     {
       "id": "palette_loderunner_msx2",

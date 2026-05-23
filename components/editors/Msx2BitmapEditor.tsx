@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Msx2Bitmap } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { ensureScreen5PaletteSlots } from '../../utils/screen5PaletteUtils';
+import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import { EraserIcon, FolderOpenIcon, PaintBrushIcon, SaveIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
 
 type BitmapTool = 'pencil' | 'erase' | 'fill' | 'picker';

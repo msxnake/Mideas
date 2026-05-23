@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import {
-  ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Screen5TileScreen, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
+  ProjectAsset, EditorType, Tile, Sprite, Msx2Sprite, Msx2Screen4TileScreen, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph,
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset,
   DialogueAsset, PortraitAsset, ScreenKind, Boss
@@ -14,7 +14,7 @@ import {
 } from '../constants';
 import { createDefaultLineAttributes } from '../components/utils/tileUtils';
 import { DEFAULT_MSX_FONT } from '../components/utils/msxFontRenderer';
-import { createDefaultScreen5PaletteSlots } from '../utils/screen5PaletteUtils';
+import { createDefaultScreen5PaletteSlots } from '../utils/msx2PaletteUtils';
 import { getScreenModeMetrics } from '../utils/screenModeConfig';
 import { createCmajorChiptuneSampleSong } from '../utils/trackerSampleSong';
 import { getProjectTargetFromScreenMode, isAssetTypeEnabledForProject } from '../utils/projectTarget';
@@ -367,12 +367,14 @@ export const useAssetHandlers = ({
         newAssetData = {
           id,
           name: defaultName,
-          target: 'MSX2',
-          vdpMode: 'SCREEN4',
-          size: { width: msx2SpriteSize, height: msx2SpriteSize },
-          palette: msx2Palette,
-          backgroundColor: msx2Background,
-          frames: [{ id: `frame_${Date.now()}`, data: msx2SpriteData }],
+            target: 'MSX2',
+            vdpMode: 'SCREEN4',
+            size: { width: msx2SpriteSize, height: msx2SpriteSize },
+            superSpriteLayout: 'single16',
+            superSpriteParts: [{ id: 'part_a', label: 'A', offsetX: 0, offsetY: 0, width: 16, height: 16 }],
+            palette: msx2Palette,
+            backgroundColor: msx2Background,
+            frames: [{ id: `frame_${Date.now()}`, data: msx2SpriteData }],
           currentFrameIndex: 0,
           facingDirection: 'right',
           hardware: { x: 72, y: 102, color: 5, patternIndex: 0, useOrColor: true }
@@ -419,7 +421,7 @@ export const useAssetHandlers = ({
             activeAreaWidth: 16,
             activeAreaHeight: 12,
           },
-        } as Msx2Screen5TileScreen;
+        } as Msx2Screen4TileScreen;
         newEditorType = EditorType.Msx2Screen;
         break;
       case 'screenmap':

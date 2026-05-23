@@ -10,7 +10,7 @@ const read = (...parts) => readFileSync(join(repoRoot, ...parts), 'utf8');
 
 const msx2Generator = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts');
 const msx2EntityRuntime = read('utils', 'msxGenerator', 'generators', 'msx2', 'msx2EntityRuntimeGenerator.ts');
-const msx2Catalog = read('components', 'msx2_screen5_editor', 'msx2EntityCatalog.ts');
+const msx2Catalog = read('components', 'msx2_screen4_editor', 'msx2EntityCatalog.ts');
 const msxGeneratorIndex = read('utils', 'msxGenerator', 'index.ts');
 const defaults = read('data', 'defaults.ts');
 
@@ -131,6 +131,14 @@ const checks = [
       msx2Generator.includes('clear_msx2_effect_visual_at_pixel') &&
       msx2Generator.includes('ball_break_brick') &&
       msx2Generator.includes('call draw_msx2_collectible_hud'),
+  ],
+  [
+    'MSX2 SCREEN 4 HUD contract is exported without legacy HUD coupling',
+    msx2Generator.includes('msx2_screen_hud_style') &&
+      msx2Generator.includes('msx2_screen_hud_primary_color') &&
+      msx2Generator.includes('msx2_screen_hud_empty_color') &&
+      msx2Generator.includes('Runtime drawing is intentionally data-driven work, not hardcoded bars') &&
+      !msx2Generator.includes('VDP_REGISTER_PORT EQU #9B'),
   ],
 ];
 

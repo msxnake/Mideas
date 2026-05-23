@@ -235,6 +235,17 @@ export interface Msx2SpriteFrame {
   data: PixelData;
 }
 
+export type Msx2SuperSpriteLayout = 'single16' | 'stackVertical' | 'stackHorizontal' | 'block2x2' | 'custom';
+
+export interface Msx2SuperSpritePart {
+  id: string;
+  label: string;
+  offsetX: number;
+  offsetY: number;
+  width: 16;
+  height: 16;
+}
+
 export interface Msx2HardwareSpriteSettings {
   x: number;
   y: number;
@@ -250,6 +261,9 @@ export interface Msx2Sprite {
   target: 'MSX2';
   vdpMode: 'SCREEN4' | 'SCREEN5';
   size: { width: number; height: number };
+  /** Logical composition of 16x16 MSX2 hardware sprite cells. */
+  superSpriteLayout?: Msx2SuperSpriteLayout;
+  superSpriteParts?: Msx2SuperSpritePart[];
   palette: Screen5PaletteSlot[];
   backgroundColor: MSXColorValue;
   frames: Msx2SpriteFrame[];
@@ -279,7 +293,7 @@ export interface Msx2Bitmap {
   notes?: string;
 }
 
-export interface Msx2Screen5Tile {
+export interface Msx2Screen4Tile {
   id: string;
   name: string;
   /** Width in pixels. Must be a multiple of 8. Defaults to the screen cell size, 16. */
@@ -306,8 +320,6 @@ export interface Msx2Screen4EntityInstance {
   params?: Record<string, any>;
 }
 
-export type Msx2Screen5EntityInstance = Msx2Screen4EntityInstance;
-
 export interface Msx2Screen4Layers {
   collision: number[][];
   effects: number[][];
@@ -316,7 +328,35 @@ export interface Msx2Screen4Layers {
   entities: Msx2Screen4EntityInstance[];
 }
 
-export type Msx2Screen5Layers = Msx2Screen4Layers;
+export type Msx2HudWidgetKind = 'bar' | 'counter' | 'icon' | 'text';
+export type Msx2HudWidgetBinding =
+  | 'playerEnergy'
+  | 'bossEnergy'
+  | 'air'
+  | 'score'
+  | 'lives'
+  | 'collectibles'
+  | 'custom';
+
+export interface Msx2HudWidget {
+  id: string;
+  name: string;
+  kind: Msx2HudWidgetKind;
+  binding: Msx2HudWidgetBinding;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  maxValue?: number;
+  initialValue?: number;
+  primaryColor?: number;
+  secondaryColor?: number;
+  borderColor?: number;
+  emptyColor?: number;
+  iconTileIndex?: number;
+  text?: string;
+  variableName?: string;
+}
 
 export interface Msx2Screen4Runtime {
   screenKind: Msx2ScreenKind;
@@ -340,10 +380,18 @@ export interface Msx2Screen4Runtime {
   hideHud?: boolean;
   showHud?: boolean;
   statusHud?: boolean;
+  hudStyle?: 'compact' | 'statusBars';
+  playerEnergyMax?: number;
+  playerEnergyInitial?: number;
+  bossEnergyMax?: number;
+  bossEnergyInitial?: number;
+  hudPrimaryColor?: number;
+  hudSecondaryColor?: number;
+  hudBorderColor?: number;
+  hudEmptyColor?: number;
+  hudWidgets?: Msx2HudWidget[];
   notes?: string;
 }
-
-export type Msx2Screen5Runtime = Msx2Screen4Runtime;
 
 export interface Msx2Screen4TileScreen {
   id: string;
@@ -354,7 +402,7 @@ export interface Msx2Screen4TileScreen {
   widthTiles: 16;
   heightTiles: 12;
   palette: Screen5PaletteSlot[];
-  tiles: Msx2Screen5Tile[];
+  tiles: Msx2Screen4Tile[];
   map: number[][];
   /** MSX2 runtime layers. Kept separate from visual tile data to avoid duplicating large bitmap payloads. */
   layers?: Msx2Screen4Layers;
@@ -364,8 +412,6 @@ export interface Msx2Screen4TileScreen {
   collisionMap?: number[][];
   notes?: string;
 }
-
-export type Msx2Screen5TileScreen = Msx2Screen4TileScreen;
 
 /**
  * Represents a single tile placed on a screen map layer.
@@ -2082,7 +2128,7 @@ export interface ProjectAsset {
   /** The type of the asset. */
   type: 'tile' | 'sprite' | 'msx2sprite' | 'msx2bitmap' | 'msx2screen' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'dialogue' | 'portrait' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette' | 'presentationscreen';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | Msx2Screen5TileScreen | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
+  data?: Tile | Sprite | Msx2Sprite | Msx2Bitmap | Msx2Screen4TileScreen | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | DialogueAsset | PortraitAsset | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset | PresentationScreenConfig;
 }
 
 export interface Point { x: number; y: number; }

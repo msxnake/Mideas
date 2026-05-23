@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { WorldMapGraph, ScreenMap, Tile, ConnectionDirection, Msx2Screen5TileScreen } from '../../types';
+import { WorldMapGraph, ScreenMap, Tile, ConnectionDirection, Msx2Screen4TileScreen } from '../../types';
 import { Panel } from '../common/Panel';
 import { WorldViewIcon, RefreshCwIcon } from '../icons/MsxIcons';
 import { MSX1_PALETTE, MSX_SCREEN5_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
@@ -17,7 +17,7 @@ interface WorldViewEditorProps {
   currentScreenMode: string;
 }
 
-type WorldViewScreen = ScreenMap | Msx2Screen5TileScreen;
+type WorldViewScreen = ScreenMap | Msx2Screen4TileScreen;
 
 const isMsx2Screen4Mode = (vdpMode: unknown): boolean => vdpMode === 'SCREEN4' || vdpMode === 'SCREEN5';
 
@@ -29,9 +29,9 @@ const unwrapWorldViewScreen = (screen: WorldViewScreen | any | undefined): World
     return screen as WorldViewScreen | undefined;
 };
 
-const isMsx2Screen5TileScreen = (screen: WorldViewScreen | undefined): screen is Msx2Screen5TileScreen => {
+const isMsx2Screen4TileScreen = (screen: WorldViewScreen | undefined): screen is Msx2Screen4TileScreen => {
     const unwrapped = unwrapWorldViewScreen(screen);
-    return !!unwrapped && isMsx2Screen4Mode((unwrapped as Msx2Screen5TileScreen).vdpMode) && Array.isArray((unwrapped as Msx2Screen5TileScreen).tiles);
+    return !!unwrapped && isMsx2Screen4Mode((unwrapped as Msx2Screen4TileScreen).vdpMode) && Array.isArray((unwrapped as Msx2Screen4TileScreen).tiles);
 };
 
 const isScreenMap = (screen: WorldViewScreen | undefined): screen is ScreenMap => {
@@ -44,7 +44,7 @@ const getWorldViewScreenPixelSize = (
     baseSliceDim: number
 ): { width: number; height: number } => {
     const unwrapped = unwrapWorldViewScreen(screen) || screen;
-    if (isMsx2Screen5TileScreen(unwrapped)) {
+    if (isMsx2Screen4TileScreen(unwrapped)) {
         return { width: MSX2_SCREEN_WIDTH, height: MSX2_SCREEN_HEIGHT };
     }
 
@@ -54,19 +54,19 @@ const getWorldViewScreenPixelSize = (
     };
 };
 
-const resolveMsx2Screen5Color = (screen: Msx2Screen5TileScreen, colorIndex: number): string => {
+const resolveMsx2Screen4Color = (screen: Msx2Screen4TileScreen, colorIndex: number): string => {
     return screen.palette?.[colorIndex]?.hex || (colorIndex === 0 ? '#000000' : '#ffffff');
 };
 
-const getMsx2TilePixelWidth = (tile: Msx2Screen5TileScreen['tiles'][number] | undefined): number =>
+const getMsx2TilePixelWidth = (tile: Msx2Screen4TileScreen['tiles'][number] | undefined): number =>
     Math.max(8, Math.min(32, Number(tile?.width ?? tile?.pixels?.[0]?.length ?? 16) || 16));
 
-const getMsx2TilePixelHeight = (tile: Msx2Screen5TileScreen['tiles'][number] | undefined): number =>
+const getMsx2TilePixelHeight = (tile: Msx2Screen4TileScreen['tiles'][number] | undefined): number =>
     Math.max(8, Math.min(32, Number(tile?.height ?? tile?.pixels?.length ?? 16) || 16));
 
-const renderMsx2Screen5ToCanvas = (
+const renderMsx2Screen4ToCanvas = (
     canvas: HTMLCanvasElement,
-    screen: Msx2Screen5TileScreen
+    screen: Msx2Screen4TileScreen
 ) => {
     canvas.width = MSX2_SCREEN_WIDTH;
     canvas.height = MSX2_SCREEN_HEIGHT;
@@ -74,7 +74,7 @@ const renderMsx2Screen5ToCanvas = (
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
 
-    ctx.fillStyle = resolveMsx2Screen5Color(screen, 0);
+    ctx.fillStyle = resolveMsx2Screen4Color(screen, 0);
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const anchorSize = Math.max(1, Number(screen.tileSize) || 16);
@@ -98,7 +98,7 @@ const renderMsx2Screen5ToCanvas = (
                     if (destX >= canvas.width) continue;
 
                     const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
-                    ctx.fillStyle = resolveMsx2Screen5Color(screen, colorIndex);
+                    ctx.fillStyle = resolveMsx2Screen4Color(screen, colorIndex);
                     ctx.fillRect(destX, destY, 1, 1);
                 }
             }
@@ -109,12 +109,12 @@ const renderMsx2Screen5ToCanvas = (
 const isTransparentScreen5Color = (color: string): boolean =>
     color === 'rgba(0,0,0,0)' || color === 'transparent' || (color.startsWith('rgba(') && color.endsWith(',0)'));
 
-const createMsx2Screen5SvgDataURL = (screen: Msx2Screen5TileScreen): string => {
+const createMsx2Screen4SvgDataURL = (screen: Msx2Screen4TileScreen): string => {
     const anchorSize = Math.max(1, Number(screen.tileSize) || 16);
     const visibleRows = Math.ceil(MSX2_SCREEN_HEIGHT / anchorSize);
     const visibleCols = Math.ceil(MSX2_SCREEN_WIDTH / anchorSize);
     const rects: string[] = [];
-    const bg = resolveMsx2Screen5Color(screen, 0);
+    const bg = resolveMsx2Screen4Color(screen, 0);
 
     if (!isTransparentScreen5Color(bg)) {
         rects.push(`<rect x="0" y="0" width="${MSX2_SCREEN_WIDTH}" height="${MSX2_SCREEN_HEIGHT}" fill="${bg}"/>`);
@@ -152,7 +152,7 @@ const createMsx2Screen5SvgDataURL = (screen: Msx2Screen5TileScreen): string => {
                         break;
                     }
                     const colorIndex = tile.pixels?.[py]?.[px] ?? 0;
-                    const color = resolveMsx2Screen5Color(screen, colorIndex);
+                    const color = resolveMsx2Screen4Color(screen, colorIndex);
                     if (color !== runColor) {
                         flushRun(px);
                         runColor = color;
@@ -239,8 +239,8 @@ const renderWorldViewScreenToCanvas = (
     baseSliceDim: number
 ) => {
     const unwrapped = unwrapWorldViewScreen(screen) || screen;
-    if (isMsx2Screen5TileScreen(unwrapped)) {
-        renderMsx2Screen5ToCanvas(canvas, unwrapped);
+    if (isMsx2Screen4TileScreen(unwrapped)) {
+        renderMsx2Screen4ToCanvas(canvas, unwrapped);
         return;
     }
 
@@ -256,8 +256,8 @@ const createWorldViewScreenDataURL = (
     baseSliceDim: number
 ): string => {
     const unwrapped = unwrapWorldViewScreen(screen) || screen;
-    if (isMsx2Screen5TileScreen(unwrapped)) {
-        return createMsx2Screen5SvgDataURL(unwrapped);
+    if (isMsx2Screen4TileScreen(unwrapped)) {
+        return createMsx2Screen4SvgDataURL(unwrapped);
     }
 
     const { width, height } = getWorldViewScreenPixelSize(screen, baseSliceDim);
@@ -269,7 +269,7 @@ const createWorldViewScreenDataURL = (
 };
 
 const getWorldViewScreenDebugInfo = (screen: WorldViewScreen): { vdpMode: string; tileCount: number; mapRows: number; firstMapValue: string; firstTileColor: string; paletteColor: string } => {
-    const msx2 = screen as Msx2Screen5TileScreen;
+    const msx2 = screen as Msx2Screen4TileScreen;
     const firstMapValue = msx2.map?.[0]?.[0] ?? '';
     const firstTile = Array.isArray(msx2.tiles) ? msx2.tiles[Number(firstMapValue) || 0] : undefined;
     const firstTileColor = firstTile?.pixels?.[0]?.[0] ?? '';

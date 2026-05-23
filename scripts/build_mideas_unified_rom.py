@@ -210,6 +210,21 @@ def parse_args() -> argparse.Namespace:
             "ROM/RAM preflight contains warning or plan_b recommendations."
         ),
     )
+    parser.add_argument(
+        "--auto-resolve-msx2-budget",
+        action="store_true",
+        help=(
+            "After an MSX2 SCREEN 4 MegaROM preflight failure, try safe automatic "
+            "recovery passes before Glass, such as enabling ZX0 preprocessing when "
+            "it was skipped or relaxing a strict warning-only gate."
+        ),
+    )
+    parser.add_argument(
+        "--msx2-budget-resolve-attempts",
+        type=int,
+        default=2,
+        help="Maximum safe auto-resolve attempts for --auto-resolve-msx2-budget (default: 2).",
+    )
     return parser.parse_args()
 
 
@@ -354,6 +369,576 @@ def write_generated_artifacts(asm_path: Path) -> Path | None:
     return artifact_dir
 
 
+def read_preflight_json_artifact(path: Path, artifact_name: str) -> object:
+    if not path.exists():
+        raise RuntimeError(f"MSX2 MegaROM preflight failed: missing {path}")
+    raw_text = path.read_text(encoding="utf-8")
+    if not raw_text.strip():
+        raise RuntimeError(f"MSX2 MegaROM preflight failed: {artifact_name} is empty")
+    try:
+        return json.loads(raw_text)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed: "
+            f"{artifact_name} is not valid JSON at line {exc.lineno}, column {exc.colno}: {exc.msg}"
+        ) from exc
+
+
+def build_preflight_artifact_summaries(paths: list[tuple[str, Path]]) -> list[dict[str, object]]:
+    summaries: list[dict[str, object]] = []
+    for artifact_name, path in paths:
+        raw_text = path.read_text(encoding="utf-8")
+        summaries.append({
+            "name": artifact_name,
+            "bytes": len(raw_text.encode("utf-8")),
+            "checksum": _bank_metadata_checksum([artifact_name, raw_text]),
+        })
+    return summaries
+
+
+def write_msx2_preflight_failure_summary(
+    artifact_dir: Path,
+    reason: str,
+    project_slice: dict,
+    logical_budget: dict,
+    ram_budget: dict,
+    details: dict[str, object] | None = None,
+) -> Path:
+    failure_summary = {
+        "scope": "msx2_screen4_megarom_preflight_failure",
+        "status": "error",
+        "reason": reason,
+        "artifactDir": str(artifact_dir),
+        "project": {
+            "name": project_slice.get("projectName"),
+            "backend": project_slice.get("backend"),
+            "screenMode": project_slice.get("screenMode"),
+            "romMode": project_slice.get("romMode"),
+            "mapper": project_slice.get("mapper"),
+        },
+        "rom": {
+            "bankSizeBytes": int(logical_budget.get("bankSizeBytes") or 0),
+            "payloadBytes": int(logical_budget.get("totalPayloadBytes") or 0),
+            "estimatedPackedBankCount": int(logical_budget.get("estimatedPackedBankCount") or 0),
+            "overBudgetPackages": logical_budget.get("overBudgetPackages") or [],
+            "overBudgetBanks": [
+                bank for bank in (logical_budget.get("estimatedPackedBanks") or [])
+                if isinstance(bank, dict) and int(bank.get("overBudgetBytes") or 0) > 0
+            ],
+        },
+        "ram": {
+            "start": ram_budget.get("start"),
+            "limit": ram_budget.get("limit"),
+            "usedBytes": int(ram_budget.get("usedBytes") or 0),
+            "freeBytes": int(ram_budget.get("freeBytes") or 0),
+            "status": ram_budget.get("status", "unknown"),
+        },
+        "planB": {
+            "romRecommendations": logical_budget.get("recoveryRecommendations") or [],
+            "recoveryPlan": logical_budget.get("recoveryPlan") or [],
+            "ramRecommendations": ram_budget.get("recommendations") or [],
+        },
+        "details": details or {},
+    }
+    failure_path = artifact_dir / "msx2_preflight_failure.json"
+    failure_path.write_text(
+        json.dumps(failure_summary, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return failure_path
+
+
+def read_msx2_preflight_failure_summary(artifact_dir: Path | None) -> dict[str, Any] | None:
+    if artifact_dir is None:
+        return None
+    failure_path = artifact_dir / "msx2_preflight_failure.json"
+    if not failure_path.exists():
+        return None
+    failure = read_preflight_json_artifact(failure_path, "msx2_preflight_failure.json")
+    if isinstance(failure, dict) and failure.get("scope") == "msx2_screen4_megarom_preflight_failure":
+        return failure
+    return None
+
+
+def write_msx2_budget_resolution_summary(
+    artifact_dir: Path | None,
+    status: str,
+    attempts: list[dict[str, object]],
+    final_artifact_dir: Path | None = None,
+) -> None:
+    if artifact_dir is None:
+        return
+    summary = {
+        "scope": "msx2_screen4_budget_resolution",
+        "status": status,
+        "artifactDir": str(final_artifact_dir or artifact_dir),
+        "attempts": attempts,
+    }
+    (artifact_dir / "msx2_budget_resolution.json").write_text(
+        json.dumps(summary, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def validate_msx2_preflight_with_safe_resolution(
+    artifact_dir: Path | None,
+    asm_output: Path,
+    project_root: Path,
+    strict_warnings: bool,
+    auto_resolve: bool,
+    skip_zx0_preprocess: bool,
+    max_attempts: int,
+) -> tuple[Path | None, Path]:
+    try:
+        validate_msx2_screen4_megarom_preflight_budget(
+            artifact_dir,
+            strict_warnings=strict_warnings,
+        )
+        return artifact_dir, asm_output
+    except RuntimeError as first_error:
+        if not auto_resolve or artifact_dir is None:
+            raise
+
+        attempts: list[dict[str, object]] = []
+        failure = read_msx2_preflight_failure_summary(artifact_dir) or {}
+        reason = str(failure.get("reason") or "")
+        attempts.append({
+            "attempt": 0,
+            "action": "initial_preflight",
+            "status": "failed",
+            "reason": reason or str(first_error),
+            "artifactDir": str(artifact_dir),
+        })
+
+        attempt_limit = max(0, int(max_attempts or 0))
+        if (
+            reason == "strict_warning_gate_rejected"
+            and strict_warnings
+            and attempt_limit >= 1
+        ):
+            try:
+                validate_msx2_screen4_megarom_preflight_budget(
+                    artifact_dir,
+                    strict_warnings=False,
+                )
+                attempts.append({
+                    "attempt": 1,
+                    "action": "relax_strict_warning_gate",
+                    "status": "resolved",
+                    "artifactDir": str(artifact_dir),
+                })
+                write_msx2_budget_resolution_summary(
+                    artifact_dir,
+                    "resolved",
+                    attempts,
+                    artifact_dir,
+                )
+                return artifact_dir, asm_output
+            except RuntimeError as retry_error:
+                attempts.append({
+                    "attempt": 1,
+                    "action": "relax_strict_warning_gate",
+                    "status": "failed",
+                    "reason": str(retry_error),
+                    "artifactDir": str(artifact_dir),
+                })
+
+        if (
+            reason in {"logical_package_over_budget", "estimated_packed_bank_over_budget"}
+            and skip_zx0_preprocess
+            and attempt_limit >= 1
+        ):
+            try:
+                zx0_retry_asm, zx0_retry_info = maybe_run_zx0_preprocess(
+                    project_root=project_root,
+                    asm_output=asm_output,
+                    enabled=True,
+                )
+                retry_artifact_dir = write_generated_artifacts(zx0_retry_asm)
+                validate_msx2_screen4_megarom_preflight_budget(
+                    retry_artifact_dir,
+                    strict_warnings=strict_warnings,
+                )
+                attempts.append({
+                    "attempt": 1,
+                    "action": "enable_zx0_preprocess",
+                    "status": "resolved",
+                    "artifactDir": str(retry_artifact_dir),
+                    "zx0": zx0_retry_info,
+                })
+                write_msx2_budget_resolution_summary(
+                    retry_artifact_dir,
+                    "resolved",
+                    attempts,
+                    retry_artifact_dir,
+                )
+                return retry_artifact_dir, zx0_retry_asm
+            except RuntimeError as retry_error:
+                attempts.append({
+                    "attempt": 1,
+                    "action": "enable_zx0_preprocess",
+                    "status": "failed",
+                    "reason": str(retry_error),
+                    "artifactDir": str(artifact_dir),
+                })
+
+        write_msx2_budget_resolution_summary(
+            artifact_dir,
+            "unresolved",
+            attempts,
+            artifact_dir,
+        )
+        raise first_error
+
+
+def build_msx2_preflight_gate_summary(strict_warnings: bool) -> list[dict[str, object]]:
+    return [
+        {
+            "order": 1,
+            "id": "project_analysis_and_world_package_extraction",
+            "status": "passed",
+            "evidence": ["project_slice.json", "worldPackageSummary"],
+        },
+        {
+            "order": 2,
+            "id": "project_precompilation_slice",
+            "status": "passed",
+            "evidence": ["includedAssets", "excludedAssets", "includedRuntimeModules", "excludedRuntimeModules"],
+        },
+        {
+            "order": 3,
+            "id": "asset_storage_policy",
+            "status": "passed",
+            "evidence": ["asset_storage_policy.json"],
+        },
+        {
+            "order": 4,
+            "id": "ram_budget_report",
+            "status": "passed",
+            "evidence": ["ram_budget.json"],
+        },
+        {
+            "order": 5,
+            "id": "bank_allocation_dry_run",
+            "status": "passed",
+            "evidence": ["logical_bank_budget.json"],
+        },
+        {
+            "order": 6,
+            "id": "overflow_recovery_plan",
+            "status": "passed",
+            "evidence": ["recoveryRecommendations", "recoveryPlan"],
+            "strictWarnings": strict_warnings,
+        },
+        {
+            "order": 7,
+            "id": "asm_generation",
+            "status": "already_done",
+            "evidence": ["unified ASM with embedded preflight artifacts"],
+        },
+        {
+            "order": 8,
+            "id": "glass_compile",
+            "status": "pending",
+            "evidence": [],
+        },
+        {
+            "order": 9,
+            "id": "artifact_validation_against_symbols",
+            "status": "pending",
+            "evidence": [],
+        },
+        {
+            "order": 10,
+            "id": "post_compilation_optimization",
+            "status": "pending",
+            "evidence": [],
+        },
+        {
+            "order": 11,
+            "id": "openmsx_smoke",
+            "status": "pending_when_requested",
+            "evidence": [],
+        },
+    ]
+
+
+def write_msx2_build_summary(
+    artifact_dir: Path | None,
+    rom_output: Path,
+    asm_to_compile: Path,
+    sym_output: Path | None,
+    original_size: int,
+    padded_size: int,
+    validation_kind: str,
+    post_asm_requested: bool = False,
+    post_asm_check_only: bool = False,
+    post_asm_applied: bool = False,
+    post_asm_report_paths: list[Path] | None = None,
+    openmsx_requested: bool = False,
+    openmsx_passed: bool = False,
+) -> None:
+    if artifact_dir is None:
+        return
+    preflight_summary_path = artifact_dir / "preflight_summary.json"
+    if not preflight_summary_path.exists():
+        return
+    preflight_summary = read_preflight_json_artifact(preflight_summary_path, "preflight_summary.json")
+    if not isinstance(preflight_summary, dict) or preflight_summary.get("scope") != "msx2_screen4_megarom_preflight_summary":
+        return
+    pipeline_gates = []
+    for gate in preflight_summary.get("pipelineGates") or []:
+        if not isinstance(gate, dict):
+            continue
+        updated_gate = dict(gate)
+        gate_id = updated_gate.get("id")
+        if gate_id in {"glass_compile", "artifact_validation_against_symbols"}:
+            updated_gate["status"] = "passed"
+            updated_gate["evidence"] = [str(rom_output), str(sym_output)] if sym_output else [str(rom_output)]
+        elif gate_id == "post_compilation_optimization":
+            if post_asm_applied:
+                updated_gate["status"] = "passed"
+                updated_gate["evidence"] = [str(asm_to_compile)]
+            elif post_asm_requested and post_asm_check_only:
+                updated_gate["status"] = "check_only_passed"
+                updated_gate["evidence"] = [str(asm_to_compile)]
+            elif post_asm_requested:
+                updated_gate["status"] = "requested_no_change"
+                updated_gate["evidence"] = [str(asm_to_compile)]
+            elif updated_gate.get("status") == "pending":
+                updated_gate["status"] = "not_requested"
+        elif gate_id == "openmsx_smoke":
+            if openmsx_passed:
+                updated_gate["status"] = "passed"
+                updated_gate["evidence"] = ["OpenMSX smoke completed"]
+            elif openmsx_requested:
+                updated_gate["status"] = "requested_pending"
+                updated_gate["evidence"] = []
+        pipeline_gates.append(updated_gate)
+
+    rom_bytes = rom_output.read_bytes()
+    asm_text = asm_to_compile.read_text(encoding="utf-8", errors="ignore")
+    sym_text = sym_output.read_text(encoding="utf-8", errors="ignore") if sym_output and sym_output.exists() else ""
+    ide_budget_feedback_path = artifact_dir / "msx2_ide_budget_feedback.json"
+    ide_budget_feedback_summary = None
+    if ide_budget_feedback_path.exists():
+        ide_budget_feedback_text = ide_budget_feedback_path.read_text(encoding="utf-8")
+        ide_budget_feedback = read_preflight_json_artifact(ide_budget_feedback_path, "msx2_ide_budget_feedback.json")
+        ide_budget_feedback_summary = {
+            "path": str(ide_budget_feedback_path),
+            "bytes": len(ide_budget_feedback_text.encode("utf-8")),
+            "checksum": _bank_metadata_checksum(["msx2_ide_budget_feedback.json", ide_budget_feedback_text]),
+            "scope": ide_budget_feedback.get("scope") if isinstance(ide_budget_feedback, dict) else None,
+            "status": ide_budget_feedback.get("status") if isinstance(ide_budget_feedback, dict) else None,
+        }
+    budget_resolution_path = artifact_dir / "msx2_budget_resolution.json"
+    budget_resolution_summary = None
+    if budget_resolution_path.exists():
+        budget_resolution_text = budget_resolution_path.read_text(encoding="utf-8")
+        budget_resolution = read_preflight_json_artifact(budget_resolution_path, "msx2_budget_resolution.json")
+        attempts = budget_resolution.get("attempts") if isinstance(budget_resolution, dict) else []
+        budget_resolution_summary = {
+            "path": str(budget_resolution_path),
+            "bytes": len(budget_resolution_text.encode("utf-8")),
+            "checksum": _bank_metadata_checksum(["msx2_budget_resolution.json", budget_resolution_text]),
+            "scope": budget_resolution.get("scope") if isinstance(budget_resolution, dict) else None,
+            "status": budget_resolution.get("status") if isinstance(budget_resolution, dict) else None,
+            "attempts": len(attempts) if isinstance(attempts, list) else 0,
+            "finalAction": next(
+                (
+                    str(item.get("action"))
+                    for item in reversed(attempts)
+                    if isinstance(item, dict) and item.get("status") == "resolved" and item.get("action")
+                ),
+                None,
+            ) if isinstance(attempts, list) else None,
+        }
+    post_asm_reports = []
+    for report_path in post_asm_report_paths or []:
+        if not report_path.exists():
+            post_asm_reports.append({
+                "path": str(report_path),
+                "exists": False,
+            })
+            continue
+        report = read_preflight_json_artifact(report_path, report_path.name)
+        if not isinstance(report, dict):
+            post_asm_reports.append({
+                "path": str(report_path),
+                "exists": True,
+                "valid": False,
+            })
+            continue
+        metrics = report.get("metrics") if isinstance(report.get("metrics"), dict) else {}
+        block_inventory = metrics.get("block_inventory") if isinstance(metrics.get("block_inventory"), dict) else {}
+        optimization_summary = metrics.get("optimization_summary") if isinstance(metrics.get("optimization_summary"), dict) else {}
+        findings = report.get("findings") if isinstance(report.get("findings"), list) else []
+        post_asm_reports.append({
+            "path": str(report_path),
+            "exists": True,
+            "valid": True,
+            "input": report.get("input"),
+            "findings": len(findings),
+            "appliedPatches": int(report.get("applied_patches") or 0),
+            "deadBlockCandidates": int(block_inventory.get("dead_block_candidates") or 0),
+            "deadCandidateLines": int(block_inventory.get("dead_candidate_lines") or 0),
+            "deadCandidateSourceBytes": int(block_inventory.get("dead_candidate_source_bytes") or 0),
+            "passesRun": int(optimization_summary.get("passes_run") or 0),
+            "removedLines": int(optimization_summary.get("removed_lines") or 0),
+            "removedSourceBytes": int(optimization_summary.get("removed_source_bytes") or 0),
+        })
+    build_summary = {
+        "scope": "msx2_screen4_megarom_build_summary",
+        "status": "ok",
+        "artifactDir": str(artifact_dir),
+        "preflightArtifactChecks": preflight_summary.get("artifactChecks") or [],
+        "preflightOutputArtifactChecks": preflight_summary.get("outputArtifactChecks") or [],
+        "pipelineGates": pipeline_gates,
+        "rom": {
+            "path": str(rom_output),
+            "originalBytes": original_size,
+            "paddedBytes": padded_size,
+            "checksum": _bank_metadata_checksum(["rom", rom_bytes.hex()]),
+        },
+        "asm": {
+            "path": str(asm_to_compile),
+            "bytes": len(asm_text.encode("utf-8")),
+            "checksum": _bank_metadata_checksum(["asm", asm_text]),
+        },
+        "sym": {
+            "path": str(sym_output) if sym_output else None,
+            "bytes": len(sym_text.encode("utf-8")),
+            "checksum": _bank_metadata_checksum(["sym", sym_text]) if sym_text else None,
+        },
+        "validation": {
+            "kind": validation_kind,
+            "glass": "passed",
+            "symbols": "passed" if sym_output and sym_output.exists() else "not_available",
+            "postAsm": "applied" if post_asm_applied else "check_only_passed" if post_asm_requested and post_asm_check_only else "requested_no_change" if post_asm_requested else "not_requested",
+            "openmsx": "passed" if openmsx_passed else "requested_pending" if openmsx_requested else "not_requested",
+        },
+        "ideBudgetFeedback": ide_budget_feedback_summary,
+        "budgetResolution": budget_resolution_summary,
+        "postAsmReports": post_asm_reports,
+    }
+    (artifact_dir / "msx2_build_summary.json").write_text(
+        json.dumps(build_summary, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_msx2_ide_budget_feedback(
+    artifact_dir: Path,
+    project_slice: dict,
+    logical_budget: dict,
+    ram_budget: dict,
+    world_package_summary: list,
+    warnings: list,
+    warning_banks: list,
+    ram_warnings: list,
+) -> Path:
+    bank_size = int(logical_budget.get("bankSizeBytes") or 8192)
+    total_payload = int(logical_budget.get("totalPayloadBytes") or 0)
+    warning_threshold = int(logical_budget.get("warningThresholdBytes") or 0)
+    packages = [
+        package for package in (logical_budget.get("packages") or [])
+        if isinstance(package, dict)
+    ]
+    largest_packages = sorted(
+        packages,
+        key=lambda item: int(item.get("usedBytes") or 0),
+        reverse=True,
+    )[:8]
+    suggested_fixes = [
+        {
+            "severity": item.get("severity", "info"),
+            "target": item.get("target"),
+            "reason": item.get("reason"),
+            "action": item.get("action"),
+        }
+        for item in (logical_budget.get("recoveryRecommendations") or [])
+        if isinstance(item, dict)
+    ]
+    suggested_fixes.extend(
+        {
+            "severity": step.get("status", "info"),
+            "target": ", ".join(str(target) for target in (step.get("appliesTo") or [])) or step.get("id"),
+            "reason": step.get("trigger"),
+            "action": step.get("action"),
+        }
+        for step in (logical_budget.get("recoveryPlan") or [])
+        if isinstance(step, dict) and step.get("status") in {"recommended", "required", "enforced"}
+    )
+    suggested_fixes.extend(
+        {
+            "severity": item.get("severity", "info"),
+            "target": item.get("target"),
+            "reason": item.get("reason"),
+            "action": item.get("action"),
+        }
+        for item in (ram_budget.get("recommendations") or [])
+        if isinstance(item, dict) and item.get("severity") in {"warning", "plan_b"}
+    )
+    pressure_status = "ok"
+    if warnings or warning_banks or ram_warnings:
+        pressure_status = "warning"
+    if logical_budget.get("overBudgetPackages") or ram_budget.get("status") not in {"ok", None}:
+        pressure_status = "error"
+    feedback = {
+        "scope": "msx2_screen4_ide_budget_feedback",
+        "status": pressure_status,
+        "project": {
+            "name": project_slice.get("projectName"),
+            "backend": project_slice.get("backend"),
+            "screenMode": project_slice.get("screenMode"),
+            "romMode": project_slice.get("romMode"),
+            "mapper": project_slice.get("mapper"),
+        },
+        "rom": {
+            "bankSizeBytes": bank_size,
+            "payloadBytes": total_payload,
+            "estimatedPackedBankCount": int(logical_budget.get("estimatedPackedBankCount") or 0),
+            "warningThresholdBytes": warning_threshold,
+            "usedPercentOfSingleBank": round((total_payload / bank_size) * 100, 2) if bank_size else 0,
+            "warningBankCount": len(warning_banks),
+            "warningRecommendationCount": len(warnings),
+            "bankClassSummary": logical_budget.get("bankClassSummary") or [],
+        },
+        "ram": {
+            "start": ram_budget.get("start"),
+            "limit": ram_budget.get("limit"),
+            "usedBytes": int(ram_budget.get("usedBytes") or 0),
+            "freeBytes": int(ram_budget.get("freeBytes") or 0),
+            "status": ram_budget.get("status", "unknown"),
+            "warningCount": len(ram_warnings),
+            "sections": ram_budget.get("sections") or [],
+        },
+        "worldPackages": world_package_summary,
+        "largestAssets": [
+            {
+                "id": item.get("id"),
+                "usedBytes": int(item.get("usedBytes") or 0),
+                "bankClass": item.get("recommendedBankClass"),
+                "warning": bool(item.get("warning")),
+                "overBudgetBytes": int(item.get("overBudgetBytes") or 0),
+            }
+            for item in largest_packages
+        ],
+        "warnings": {
+            "romRecommendations": warnings,
+            "warningPackedBanks": warning_banks,
+            "ramRecommendations": ram_warnings,
+        },
+        "suggestedFixes": suggested_fixes,
+    }
+    feedback_path = artifact_dir / "msx2_ide_budget_feedback.json"
+    feedback_path.write_text(
+        json.dumps(feedback, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return feedback_path
+
+
 def validate_msx2_screen4_megarom_preflight_budget(
     artifact_dir: Path | None,
     strict_warnings: bool = False,
@@ -364,30 +949,78 @@ def validate_msx2_screen4_megarom_preflight_budget(
     if not project_slice_path.exists():
         return
 
-    project_slice = json.loads(project_slice_path.read_text(encoding="utf-8"))
+    project_slice = read_preflight_json_artifact(project_slice_path, "project_slice.json")
+    if not isinstance(project_slice, dict):
+        raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json root must be an object")
     if project_slice.get("scope") != "msx2_screen4_project_slice":
         return
     preflight_summary_path = artifact_dir / "preflight_summary.json"
     if preflight_summary_path.exists():
         preflight_summary_path.unlink()
+    ide_budget_feedback_path = artifact_dir / "msx2_ide_budget_feedback.json"
+    if ide_budget_feedback_path.exists():
+        ide_budget_feedback_path.unlink()
+    build_summary_path = artifact_dir / "msx2_build_summary.json"
+    if build_summary_path.exists():
+        build_summary_path.unlink()
+    failure_summary_path = artifact_dir / "msx2_preflight_failure.json"
+    if failure_summary_path.exists():
+        failure_summary_path.unlink()
 
     storage_policy = project_slice.get("assetStoragePolicy")
     if not isinstance(storage_policy, list) or not storage_policy:
         raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no assetStoragePolicy")
     storage_policy_path = artifact_dir / "asset_storage_policy.json"
-    if not storage_policy_path.exists():
-        raise RuntimeError(f"MSX2 MegaROM preflight failed: missing {storage_policy_path}")
-    storage_policy_artifact = json.loads(storage_policy_path.read_text(encoding="utf-8"))
+    storage_policy_artifact = read_preflight_json_artifact(storage_policy_path, "asset_storage_policy.json")
     if storage_policy_artifact != storage_policy:
         raise RuntimeError("MSX2 MegaROM preflight failed: asset_storage_policy.json differs from project_slice.json")
+    world_package_summary = project_slice.get("worldPackageSummary")
+    if not isinstance(world_package_summary, list) or not world_package_summary:
+        raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no worldPackageSummary")
+    entry_world_ids = set((project_slice.get("entryPoints") or {}).get("worldIds") or [])
+    summary_world_ids = {item.get("worldId") for item in world_package_summary if isinstance(item, dict)}
+    missing_world_summaries = sorted(entry_world_ids - summary_world_ids)
+    if missing_world_summaries:
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed: "
+            f"worldPackageSummary missing entry point worlds: {', '.join(missing_world_summaries)}"
+        )
+    for world_summary in world_package_summary:
+        if not isinstance(world_summary, dict):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid worldPackageSummary entry: {world_summary}")
+        world_id = world_summary.get("worldId")
+        estimated_bytes = int(world_summary.get("estimatedBytes") or 0)
+        if not world_id or estimated_bytes <= 0:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid worldPackageSummary budget: {world_summary}")
+        if int(world_summary.get("screenCount") or 0) <= 0:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: worldPackageSummary has no reachable screens: {world_summary}")
+        bank_class_bytes = world_summary.get("bankClassBytes")
+        if not isinstance(bank_class_bytes, list) or not bank_class_bytes:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: worldPackageSummary has no bankClassBytes: {world_summary}")
+        bank_class_total = sum(int(item.get("usedBytes") or 0) for item in bank_class_bytes if isinstance(item, dict))
+        if bank_class_total != estimated_bytes:
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed: "
+                f"worldPackageSummary class total {bank_class_total} differs from estimatedBytes {estimated_bytes}"
+            )
+        owner_policy_total = sum(
+            int(policy.get("storedBytesEstimate") or 0)
+            for policy in storage_policy
+            if policy.get("decision") != "INHERIT_OWNER_SCREEN_POLICY"
+            and world_id in (policy.get("ownerWorldIds") or ([policy.get("id")] if policy.get("type") == "worldmap" else []))
+        )
+        if owner_policy_total != estimated_bytes:
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed: "
+                f"worldPackageSummary estimatedBytes for {world_id} differ from owner asset policies: "
+                f"{estimated_bytes} != {owner_policy_total}"
+            )
 
     logical_budget = project_slice.get("logicalBankBudget")
     if not isinstance(logical_budget, dict) or not logical_budget:
         raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no logicalBankBudget")
     budget_path = artifact_dir / "logical_bank_budget.json"
-    if not budget_path.exists():
-        raise RuntimeError(f"MSX2 MegaROM preflight failed: missing {budget_path}")
-    budget_artifact = json.loads(budget_path.read_text(encoding="utf-8"))
+    budget_artifact = read_preflight_json_artifact(budget_path, "logical_bank_budget.json")
     if budget_artifact != logical_budget:
         raise RuntimeError("MSX2 MegaROM preflight failed: logical_bank_budget.json differs from project_slice.json")
 
@@ -395,9 +1028,7 @@ def validate_msx2_screen4_megarom_preflight_budget(
     if not isinstance(ram_budget, dict) or not ram_budget:
         raise RuntimeError("MSX2 MegaROM preflight failed: project_slice.json has no ramBudget")
     ram_budget_path = artifact_dir / "ram_budget.json"
-    if not ram_budget_path.exists():
-        raise RuntimeError(f"MSX2 MegaROM preflight failed: missing {ram_budget_path}")
-    ram_budget_artifact = json.loads(ram_budget_path.read_text(encoding="utf-8"))
+    ram_budget_artifact = read_preflight_json_artifact(ram_budget_path, "ram_budget.json")
     if ram_budget_artifact != ram_budget:
         raise RuntimeError("MSX2 MegaROM preflight failed: ram_budget.json differs from project_slice.json")
     if ram_budget.get("scope") != "msx2_screen4_ram_budget":
@@ -460,13 +1091,89 @@ def validate_msx2_screen4_megarom_preflight_budget(
             for item in over_budget_packages
             if isinstance(item, dict)
         )
+        recovery_steps = [
+            f"{step.get('id')}={step.get('status')}"
+            for step in (logical_budget.get("recoveryPlan") or [])
+            if isinstance(step, dict) and step.get("status") in {"required", "recommended"}
+        ]
+        recovery_hint = "; Plan B: " + ", ".join(recovery_steps) if recovery_steps else ""
+        write_msx2_preflight_failure_summary(
+            artifact_dir=artifact_dir,
+            reason="logical_package_over_budget",
+            project_slice=project_slice,
+            logical_budget=logical_budget,
+            ram_budget=ram_budget,
+            details={
+                "overBudgetPackages": over_budget_packages,
+                "recoveryHint": recovery_hint,
+            },
+        )
         raise RuntimeError(
             "MSX2 MegaROM preflight failed before Glass: "
-            f"logical packages exceed one 8KB bank: {details}"
+            f"logical packages exceed one 8KB bank: {details}{recovery_hint}"
         )
+    bank_class_summary = logical_budget.get("bankClassSummary")
+    if not isinstance(bank_class_summary, list) or not bank_class_summary:
+        raise RuntimeError("MSX2 MegaROM preflight failed: logicalBankBudget has no bankClassSummary")
+    bank_class_total = 0
+    for class_entry in bank_class_summary:
+        if not isinstance(class_entry, dict):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid bankClassSummary entry: {class_entry}")
+        class_id = class_entry.get("id")
+        class_used = int(class_entry.get("usedBytes") or 0)
+        bank_class_total += class_used
+        largest_class_package = class_entry.get("largestPackage")
+        if not class_id or class_used <= 0 or int(class_entry.get("packageCount") or 0) <= 0:
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid bankClassSummary budget: {class_entry}")
+        if (
+            not isinstance(largest_class_package, dict)
+            or not largest_class_package.get("id")
+            or int(largest_class_package.get("usedBytes") or 0) <= 0
+        ):
+            raise RuntimeError(
+                "MSX2 MegaROM preflight failed: "
+                f"bankClassSummary entry has no largestPackage: {class_entry}"
+            )
+    if bank_class_total != int(logical_budget.get("totalPayloadBytes") or 0):
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed: "
+            f"bankClassSummary total {bank_class_total} differs from payload {logical_budget.get('totalPayloadBytes')}"
+        )
+    recovery_plan = logical_budget.get("recoveryPlan")
+    if not isinstance(recovery_plan, list) or len(recovery_plan) < 8:
+        raise RuntimeError("MSX2 MegaROM preflight failed: logicalBankBudget has no complete recoveryPlan")
+    expected_recovery_order = [
+        "repack_final_sizes",
+        "split_world_packages",
+        "move_cold_readonly_data",
+        "selective_zx0",
+        "keep_hot_runtime_raw",
+        "world_special_code_bank",
+        "split_large_payload_chunks",
+        "fail_actionable_report",
+    ]
+    actual_recovery_order = [item.get("id") for item in recovery_plan if isinstance(item, dict)]
+    if actual_recovery_order[: len(expected_recovery_order)] != expected_recovery_order:
+        raise RuntimeError(
+            "MSX2 MegaROM preflight failed: recoveryPlan order is invalid: "
+            f"{actual_recovery_order}"
+        )
+    for index, step in enumerate(recovery_plan, start=1):
+        if not isinstance(step, dict):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: invalid recoveryPlan step: {step}")
+        if int(step.get("order") or 0) != index or not step.get("status") or not step.get("action"):
+            raise RuntimeError(f"MSX2 MegaROM preflight failed: incomplete recoveryPlan step: {step}")
 
     for bank in logical_budget.get("estimatedPackedBanks") or []:
         if int(bank.get("overBudgetBytes") or 0) > 0:
+            write_msx2_preflight_failure_summary(
+                artifact_dir=artifact_dir,
+                reason="estimated_packed_bank_over_budget",
+                project_slice=project_slice,
+                logical_budget=logical_budget,
+                ram_budget=ram_budget,
+                details={"bank": bank},
+            )
             raise RuntimeError(
                 "MSX2 MegaROM preflight failed before Glass: "
                 f"estimated packed bank exceeds one 8KB bank: {bank}"
@@ -491,6 +1198,20 @@ def validate_msx2_screen4_megarom_preflight_budget(
         f"packages={len(packages)}, "
         f"largest={largest_label}"
     )
+    class_summaries = ", ".join(
+        f"{item.get('id')}={int(item.get('usedBytes') or 0)} bytes/{int(item.get('packageCount') or 0)} pkg"
+        for item in bank_class_summary
+        if isinstance(item, dict)
+    )
+    if class_summaries:
+        print(f"MSX2 MegaROM preflight classes: {class_summaries}")
+    world_summaries = ", ".join(
+        f"{item.get('worldId')}={int(item.get('estimatedBytes') or 0)} bytes/{int(item.get('screenCount') or 0)} screens"
+        for item in world_package_summary
+        if isinstance(item, dict)
+    )
+    if world_summaries:
+        print(f"MSX2 MegaROM preflight worlds: {world_summaries}")
 
     warnings = [
         item for item in (logical_budget.get("recoveryRecommendations") or [])
@@ -523,11 +1244,34 @@ def validate_msx2_screen4_megarom_preflight_budget(
     if ram_warnings:
         print(f"MSX2 RAM preflight warning: {len(ram_warnings)} recommendation(s) need attention")
     if strict_warnings and (warnings or warning_banks or ram_warnings):
+        write_msx2_preflight_failure_summary(
+            artifact_dir=artifact_dir,
+            reason="strict_warning_gate_rejected",
+            project_slice=project_slice,
+            logical_budget=logical_budget,
+            ram_budget=ram_budget,
+            details={
+                "romWarnings": len(warnings),
+                "warningBanks": warning_banks,
+                "ramWarnings": len(ram_warnings),
+            },
+        )
         raise RuntimeError(
             "MSX2 MegaROM preflight failed before Glass: "
             "strict warning gate rejected "
             f"romWarnings={len(warnings)}, warningBanks={len(warning_banks)}, ramWarnings={len(ram_warnings)}"
         )
+
+    ide_feedback_path = write_msx2_ide_budget_feedback(
+        artifact_dir=artifact_dir,
+        project_slice=project_slice,
+        logical_budget=logical_budget,
+        ram_budget=ram_budget,
+        world_package_summary=world_package_summary,
+        warnings=warnings,
+        warning_banks=warning_banks,
+        ram_warnings=ram_warnings,
+    )
 
     preflight_summary = {
         "scope": "msx2_screen4_megarom_preflight_summary",
@@ -539,15 +1283,27 @@ def validate_msx2_screen4_megarom_preflight_budget(
             "logical_bank_budget.json",
             "ram_budget.json",
         ],
+        "artifactChecks": build_preflight_artifact_summaries([
+            ("project_slice.json", project_slice_path),
+            ("asset_storage_policy.json", storage_policy_path),
+            ("logical_bank_budget.json", budget_path),
+            ("ram_budget.json", ram_budget_path),
+        ]),
+        "outputArtifactChecks": build_preflight_artifact_summaries([
+            ("msx2_ide_budget_feedback.json", ide_feedback_path),
+        ]),
+        "pipelineGates": build_msx2_preflight_gate_summary(strict_warnings),
         "rom": {
             "bankSizeBytes": bank_size,
             "payloadBytes": total_payload,
             "estimatedPackedBankCount": estimated_count,
             "packageCount": len(packages),
             "largestPackage": largest_package,
+            "bankClassSummary": bank_class_summary,
             "warningCount": len(warnings),
             "warningBankCount": len(warning_banks),
         },
+        "worldPackages": world_package_summary,
         "ram": {
             "start": ram_budget.get("start"),
             "limit": ram_budget.get("limit"),
@@ -559,6 +1315,7 @@ def validate_msx2_screen4_megarom_preflight_budget(
         },
         "planB": {
             "romRecommendations": logical_budget.get("recoveryRecommendations") or [],
+            "recoveryPlan": recovery_plan,
             "ramRecommendations": ram_recommendations,
         },
     }
@@ -4172,9 +4929,14 @@ def main() -> int:
         enabled=not args.skip_zx0_preprocess,
     )
     artifact_dir = write_generated_artifacts(zx0_asm)
-    validate_msx2_screen4_megarom_preflight_budget(
-        artifact_dir,
+    artifact_dir, zx0_asm = validate_msx2_preflight_with_safe_resolution(
+        artifact_dir=artifact_dir,
+        asm_output=zx0_asm,
+        project_root=project_root,
         strict_warnings=args.strict_msx2_megarom_preflight_warnings,
+        auto_resolve=args.auto_resolve_msx2_budget,
+        skip_zx0_preprocess=args.skip_zx0_preprocess,
+        max_attempts=args.msx2_budget_resolve_attempts,
     )
 
     asm_to_compile = maybe_run_post_asm_optimizer(
@@ -4240,6 +5002,30 @@ def main() -> int:
             strict_vram_staging=args.strict_vram_staging,
             strict_tilebank_integrity=args.strict_tilebank_integrity,
         )
+    validation_kind = (
+        "msx2_screen4_konami_fixed_bank0"
+        if screen4_konami_fixed_bank0_compat
+        else f"{args.rom_mode}_{args.target_format}"
+    )
+    write_msx2_build_summary(
+        artifact_dir=artifact_dir,
+        rom_output=rom_output,
+        asm_to_compile=asm_to_compile,
+        sym_output=sym_output,
+        original_size=original_size,
+        padded_size=padded_size,
+        validation_kind=validation_kind,
+        post_asm_requested=bool(args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks),
+        post_asm_check_only=bool(args.post_asm_check_only),
+        post_asm_applied=bool(asm_to_compile != zx0_asm),
+        post_asm_report_paths=(
+            [post_asm_report_json_path(zx0_asm)]
+            + ([post_asm_report_json_path(asm_to_compile)] if asm_to_compile != zx0_asm else [])
+            if args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks
+            else []
+        ),
+        openmsx_requested=bool(args.openmsx_smoke),
+    )
 
     print("")
     print("Done.")
@@ -4384,6 +5170,26 @@ def main() -> int:
             timeout_seconds=args.openmsx_timeout,
             require_movement=args.openmsx_smoke_require_movement,
             force_romtype=not args.openmsx_smoke_no_forced_romtype,
+        )
+        write_msx2_build_summary(
+            artifact_dir=artifact_dir,
+            rom_output=rom_output,
+            asm_to_compile=asm_to_compile,
+            sym_output=sym_output,
+            original_size=original_size,
+            padded_size=padded_size,
+            validation_kind=validation_kind,
+            post_asm_requested=bool(args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks),
+            post_asm_check_only=bool(args.post_asm_check_only),
+            post_asm_applied=bool(asm_to_compile != zx0_asm),
+            post_asm_report_paths=(
+                [post_asm_report_json_path(zx0_asm)]
+                + ([post_asm_report_json_path(asm_to_compile)] if asm_to_compile != zx0_asm else [])
+                if args.post_asm_opt or args.post_asm_check_only or args.strict_post_asm_no_dead_blocks
+                else []
+            ),
+            openmsx_requested=True,
+            openmsx_passed=True,
         )
 
     if args.run_openmsx:

@@ -5,9 +5,9 @@ import { dirname, join, resolve } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
-const editorPath = join(repoRoot, 'components', 'editors', 'Msx2Screen5TileScreenEditor.tsx');
-const partsPath = join(repoRoot, 'components', 'msx2_screen5_editor', 'Msx2Screen5EditorParts.tsx');
-const catalogPath = join(repoRoot, 'components', 'msx2_screen5_editor', 'msx2EntityCatalog.ts');
+const editorPath = join(repoRoot, 'components', 'editors', 'Msx2Screen4RoomEditor.tsx');
+const partsPath = join(repoRoot, 'components', 'msx2_screen4_editor', 'Msx2Screen4EditorParts.tsx');
+const catalogPath = join(repoRoot, 'components', 'msx2_screen4_editor', 'msx2EntityCatalog.ts');
 const generatorPath = join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2Screen4Generator.ts');
 const entityRuntimeGeneratorPath = join(repoRoot, 'utils', 'msxGenerator', 'generators', 'msx2', 'msx2EntityRuntimeGenerator.ts');
 const appUiPath = join(repoRoot, 'components', 'AppUI.tsx');
@@ -24,14 +24,23 @@ const worldMapEditorPath = join(repoRoot, 'components', 'editors', 'WorldMapEdit
 const worldViewEditorPath = join(repoRoot, 'components', 'editors', 'WorldViewEditor.tsx');
 const useAssetHandlersPath = join(repoRoot, 'handlers', 'useAssetHandlers.tsx');
 const toolbarPath = join(repoRoot, 'components', 'layout', 'Toolbar.tsx');
+const codeExportModalPath = join(repoRoot, 'components', 'modals', 'CodeExportModal.tsx');
 const fileExplorerPath = join(repoRoot, 'components', 'tools', 'FileExplorerPanel.tsx');
+const propertiesPanelPath = join(repoRoot, 'components', 'tools', 'PropertiesPanel.tsx');
+const serverPath = join(repoRoot, 'server', 'server.js');
 const summaryExtractorPath = join(repoRoot, 'utils', 'summaryExtractor.ts');
 const globalVariablesUtilsPath = join(repoRoot, 'utils', 'globalVariablesUtils.ts');
 const loderunnerCreatorPath = join(repoRoot, 'scripts', 'create_msx2_loderunner_clone.mjs');
+const msx2AtlasPreviewPath = join(repoRoot, 'components', 'screen_editor', 'MSX2AtlasPreviewPanel.tsx');
+const msx2ExportContractPath = join(repoRoot, 'components', 'screen_editor', 'MSX2ExportContractPanel.tsx');
+const msx2HudPlanPath = join(repoRoot, 'components', 'msx2_screen4_editor', 'MSX2HudPlanPanel.tsx');
 const source = [
   readFileSync(editorPath, 'utf8'),
   readFileSync(partsPath, 'utf8'),
   readFileSync(catalogPath, 'utf8'),
+  readFileSync(msx2HudPlanPath, 'utf8'),
+  readFileSync(msx2AtlasPreviewPath, 'utf8'),
+  readFileSync(msx2ExportContractPath, 'utf8'),
   readFileSync(generatorPath, 'utf8'),
   readFileSync(entityRuntimeGeneratorPath, 'utf8'),
   readFileSync(appUiPath, 'utf8'),
@@ -48,13 +57,17 @@ const source = [
   readFileSync(worldViewEditorPath, 'utf8'),
   readFileSync(useAssetHandlersPath, 'utf8'),
   readFileSync(toolbarPath, 'utf8'),
+  readFileSync(codeExportModalPath, 'utf8'),
   readFileSync(fileExplorerPath, 'utf8'),
+  readFileSync(propertiesPanelPath, 'utf8'),
+  readFileSync(serverPath, 'utf8'),
   readFileSync(summaryExtractorPath, 'utf8'),
   readFileSync(globalVariablesUtilsPath, 'utf8'),
 ].join('\n');
 
 const generatorSource = readFileSync(generatorPath, 'utf8');
 const entityRuntimeSource = readFileSync(entityRuntimeGeneratorPath, 'utf8');
+const appUiSource = readFileSync(appUiPath, 'utf8');
 const catalogSource = readFileSync(catalogPath, 'utf8');
 const partsSource = readFileSync(partsPath, 'utf8');
 const panelSource = readFileSync(panelPath, 'utf8');
@@ -64,7 +77,10 @@ const worldViewEditorSource = readFileSync(worldViewEditorPath, 'utf8');
 const useAssetHandlersSource = readFileSync(useAssetHandlersPath, 'utf8');
 const msx2SpriteEditorSource = readFileSync(msx2SpriteEditorPath, 'utf8');
 const toolbarSource = readFileSync(toolbarPath, 'utf8');
+const codeExportModalSource = readFileSync(codeExportModalPath, 'utf8');
 const fileExplorerSource = readFileSync(fileExplorerPath, 'utf8');
+const propertiesPanelSource = readFileSync(propertiesPanelPath, 'utf8');
+const serverSource = readFileSync(serverPath, 'utf8');
 const summaryExtractorSource = readFileSync(summaryExtractorPath, 'utf8');
 const globalVariablesUtilsSource = readFileSync(globalVariablesUtilsPath, 'utf8');
 const loderunnerCreatorSource = readFileSync(loderunnerCreatorPath, 'utf8');
@@ -90,6 +106,7 @@ const checks = [
   ['new MSX2 editor assets are SCREEN 4 native', useAssetHandlersSource.includes("vdpMode: 'SCREEN4'") && useAssetHandlersSource.includes("mode: 'SCREEN4'") && useAssetHandlersSource.includes("movementMode: 'platform'")],
   ['WorldMap creates SCREEN 4 native rooms', worldMapEditorSource.includes("vdpMode: 'SCREEN4'") && worldMapEditorSource.includes('isMsx2Screen4Mode') && worldMapEditorSource.includes('isMsx2Screen4TileScreen(screen)')],
   ['WorldView accepts SCREEN 4 native rooms', worldViewEditorSource.includes('isMsx2Screen4Mode') && worldViewEditorSource.includes("vdpMode === 'SCREEN4'")],
+  ['MSX2 sprite creator uses MSX2 Sprites label', toolbarSource.includes('>MSX2 Sprites</DropdownItem>') && fileExplorerSource.includes('msx2sprite: "MSX2 Sprites"')],
   ['SCREEN 4 palette assets are accepted by generator', generatorSource.includes("paletteAsset?.mode === 'SCREEN4'") && generatorSource.includes("paletteAsset?.mode === 'SCREEN5'")],
   ['MSX2 entity kind options exclude generic custom entities', source.includes('MSX2_ENTITY_KIND_OPTIONS') && !source.includes('<option value="custom">Custom</option>')],
   ['MSX2 entity components expose Position and Render labels', source.includes("label: 'Position'") && source.includes("label: 'Render'") && source.includes("name === 'msx2SpriteAssetId'")],
@@ -139,6 +156,8 @@ const checks = [
   ['MSX2 screen editor columns scroll independently', source.includes('flex h-full min-h-0 min-w-0 gap-2 overflow-hidden') && source.includes('w-[220px] flex-shrink-0 min-h-0 overflow-y-auto') && source.includes('min-w-0 flex-1 min-h-0 overflow-auto') && source.includes('w-[300px] flex-shrink-0 min-h-0 overflow-y-auto')],
   ['MSX2 screen editor exposes collapse all controls', source.includes('Collapse All') && source.includes('Expand All') && source.includes('aria-label="Collapse all MSX2 editor sections"') && source.includes('mideas:panel-collapse-all')],
   ['MSX2 screen editor panels are collapsible', (partsSource.match(/<Panel title=.*collapsible/g) || []).length >= 7 && panelSource.includes('window.addEventListener') && panelSource.includes('mideas:panel-collapse-all')],
+  ['Project Assets panel can collapse left for editor space', fileExplorerSource.includes('onRequestCollapse') && fileExplorerSource.includes('Hide Project Assets') && appUiSource.includes('isAssetExplorerCollapsed') && appUiSource.includes('Show Project Assets')],
+  ['Asset Properties panel can collapse right for editor space', propertiesPanelSource.includes('onRequestCollapse') && propertiesPanelSource.includes('Hide Asset Properties') && appUiSource.includes('isPropertiesPanelCollapsed') && appUiSource.includes('Show Asset Properties')],
   ['selection rect is rendered in grid', source.includes('selectionRect.x * TILE_SIZE * 2') && source.includes('selectionRect.width * TILE_SIZE * 2')],
   ['variable tile dimensions controls exist', source.includes('MSX2_TILE_DIMENSION_OPTIONS') && source.includes('aria-label="MSX2 tile width"') && source.includes('aria-label="MSX2 tile height"')],
   ['variable tile dimensions are normalized to multiples of 8', source.includes('Math.round(numeric / 8) * 8') && source.includes('Math.max(8, Math.min(32')],
@@ -156,14 +175,20 @@ const checks = [
   ['tile editor exposes paint modes', [
     'aria-label="MSX2 tile paint tools"',
     'aria-label={`MSX2 tile tool ${tool}`}',
-    "Msx2Screen5TilePaintTool = 'pencil' | 'erase' | 'fill' | 'pick'",
+    "Msx2Screen4TilePaintTool = 'pencil' | 'erase' | 'fill' | 'pick'",
     "paintTool === 'fill'",
     "paintTool === 'pick'",
   ].every((needle) => source.includes(needle))],
   ['hardware sprite init uses SCREEN 4 extended VRAM copies', hardwareSpriteInit.includes('SCREEN4_SPRPAT_VRAM') && hardwareSpriteInit.includes('SCREEN4_SPRCOL_VRAM') && hardwareSpriteInit.includes('SCREEN4_SPRATR_VRAM') && !hardwareSpriteInit.includes('call LDIRVM')],
   ['hardware 16x16 sprite pattern order is V9938 quadrant order', hardwareSpritePatternBuilder.includes('top-left, bottom-left, top-right, bottom-right') && hardwareSpritePatternBuilder.includes('layerIndex, 0, y));\n  for (let y = 8; y < 16; y++) bytes.push(spritePatternByteForLayer(rowCompositions, layerIndex, 0, y));\n  for (let y = 0; y < 8; y++) bytes.push(spritePatternByteForLayer(rowCompositions, layerIndex, 8, y));')],
   ['SCREEN 4 generator has no legacy bitmap load path', !generatorSource.includes('load_${label}_bitmap') && !generatorSource.includes('load_${firstScreenLabel}_bitmap') && !generatorSource.includes('buildScreen5BitmapBytes')],
-  ['SCREEN 4 suppresses bitmap status HUD overlay', !generatorSource.includes('false && usesInlineStatusHud(analysis)') && !generatorSource.includes('msx2_score_digit_patterns') && generatorSource.includes('Inline status HUD disabled for SCREEN 4 until it is tile/name-table based')],
+  ['SCREEN 4 exports native HUD metadata without hardcoded bitmap overlay', !generatorSource.includes('false && usesInlineStatusHud(analysis)') && !generatorSource.includes('msx2_score_digit_patterns') && generatorSource.includes('msx2_screen_hud_style') && generatorSource.includes('Runtime drawing is intentionally data-driven work, not hardcoded bars')],
+  ['SCREEN 4 editor exposes atlas and export contract previews', source.includes('MSX2AtlasPreviewPanel') && source.includes('MSX2ExportContractPanel') && source.includes('MSX2 Atlas Preview') && source.includes('MSX2 Export Contract')],
+  ['SCREEN 4 HUD editor exposes per-widget export hints and templates', source.includes('Export hint') && source.includes('V9938 fill/line rectangle') && source.includes('8x8 glyph atlas copies') && source.includes('16x16 icon atlas copy') && source.includes('aria-label="MSX2 HUD widget variable name"') && source.includes('aria-label="MSX2 HUD widget icon tile"') && source.includes('clampNibble')],
+  ['SCREEN 4 export contract maps HUD widgets to primitives', source.includes('v9938_fill_line_rect') && source.includes('glyph_atlas_copy_8x8') && source.includes('icon_atlas_copy_16x16') && source.includes('recordOffsetBytes') && source.includes('auxiliaryTables') && source.includes('runtimeRenderer')],
+  ['SCREEN 4 generator exports HUD widget record offsets', generatorSource.includes('msx2_screen_hud_widget_record_size EQU 12') && generatorSource.includes('msx2_screen_hud_widget_offset') && generatorSource.includes('formatWords')],
+  ['SCREEN 4 generator exports HUD widget auxiliary metadata', generatorSource.includes('msx2_screen_hud_widget_icon_tile') && generatorSource.includes('msx2_screen_hud_widget_text_offset') && generatorSource.includes('msx2_screen_hud_widget_text_pool') && generatorSource.includes('msx2_screen_hud_widget_variable_name_offset') && generatorSource.includes('msx2_screen_hud_widget_variable_name_pool') && generatorSource.includes('appendHudStringPoolEntry')],
+  ['SCREEN 4 editor exposes composition overlay modes', source.includes('Msx2Screen4CompositionOverlay') && source.includes('aria-label="MSX2 composition overlay"') && source.includes("compositionOverlay === 'copy8x8'") && source.includes("compositionOverlay === 'hudBands'") && source.includes("compositionOverlay === 'reuse2x2'") && source.includes("compositionOverlay === 'reuse4x4'") && source.includes("compositionOverlay === 'props16x16'")],
   ['extended VRAM writers reset VDP control latch', (extendedVramWriters.match(/in a, \(VDP_CTRL_PORT\)/g) || []).length >= 6],
   ['effect runtime does not flash debug border colors', effectStateRoutine.length > 0 && !effectStateRoutine.includes('call WRTVDP') && !effectStateRoutine.includes('.write_border')],
   ['collectible eraser uses authored tile background color', generatorSource.includes('function getCollectibleErasePaletteIndex') && generatorSource.includes('collectibleErasePackedByte') && !generatorSource.includes("formatBytes('screen5_blank_tile', Array(16 * 8).fill(0)")],
@@ -172,6 +197,13 @@ const checks = [
   ['maze input latches requested direction', generatorSource.includes('maze_try_latched_direction') && generatorSource.includes('ld (msx2_player_sprite_frame), a') && generatorSource.includes('ld a, (msx2_player_sprite_frame)')],
   ['hardware sprite animation uses MSX2-owned frame runtime', generatorSource.includes('buildHardwareSpriteLayersForFrame') && generatorSource.includes('msx2_player_anim_counter EQU #C01D') && generatorSource.includes('msx2_player_anim_frame EQU #C01E') && generatorSource.includes('update_msx2_player_sprite_animation') && generatorSource.includes('msx2_hw_sprite_frame_${frameIndex}_pattern_${layerIndex}')],
   ['MSX2 sprite editor exposes authored facing and mirror preview', msx2SpriteEditorSource.includes('Panel title="MSX2 Sprite Settings"') && msx2SpriteEditorSource.includes('value={facingDirection}') && msx2SpriteEditorSource.includes('mirrorPixelDataHorizontally(previewFrame)') && msx2SpriteEditorSource.includes('<option value="right">Right</option>') && msx2SpriteEditorSource.includes('<option value="left">Left</option>')],
+  ['MSX2 sprite editor exposes hardware color plane diagnostics', msx2SpriteEditorSource.includes('stackedColorLineCount') && msx2SpriteEditorSource.includes('threeColorLineCount') && msx2SpriteEditorSource.includes('maxCellLayerCount') && msx2SpriteEditorSource.includes('3+ color rows') && msx2SpriteEditorSource.includes('Max cell layers')],
+  ['MSX2 sprite editor exposes sprite export contract preview', msx2SpriteEditorSource.includes('spriteExportContract') && msx2SpriteEditorSource.includes('Panel title="MSX2 Sprite Export Contract"') && msx2SpriteEditorSource.includes('MSX2_SCREEN4_HARDWARE_SPRITE') && msx2SpriteEditorSource.includes('transparent_masks_plus_v9938_cc_or_color') && msx2SpriteEditorSource.includes('orColorRule')],
+  ['MSX2 Sprites editor exposes OR color authoring helper', msx2SpriteEditorSource.includes('Panel title="MSX2 OR Color Helper"') && msx2SpriteEditorSource.includes('orPalettePairs') && msx2SpriteEditorSource.includes('useOrBrushColor') && msx2SpriteEditorSource.includes('A|B') && msx2SpriteEditorSource.includes('orCompatiblePairs')],
+  ['MSX2 Sprites editor can separate real hardware layers', msx2SpriteEditorSource.includes('Separate HW Layers') && msx2SpriteEditorSource.includes('buildSeparatedHardwareLayerPreviews') && msx2SpriteEditorSource.includes('LayerPreviewGrid') && msx2SpriteEditorSource.includes('separatedLayerPreviewCount') && msx2SpriteEditorSource.includes('forcedByRows')],
+  ['MSX2 Sprites separated layers are shown per 16x16 metasprite part', msx2SpriteEditorSource.includes('partLabelByOffset') && msx2SpriteEditorSource.includes('Part {partLabelByOffset.get') && msx2SpriteEditorSource.includes('width={16}') && msx2SpriteEditorSource.includes('height={16}') && msx2SpriteEditorSource.includes('offset x+{layer.xOffset}')],
+  ['MSX2 Sprites editor exposes MetaSprite layout presets', msx2SpriteEditorSource.includes('Panel title="MSX2 MetaSprite Layout"') && msx2SpriteEditorSource.includes('MSX2_METASPRITE_PRESETS') && msx2SpriteEditorSource.includes('stackVertical') && msx2SpriteEditorSource.includes('stackHorizontal') && msx2SpriteEditorSource.includes('block2x2') && msx2SpriteEditorSource.includes('superSpriteParts') && msx2SpriteEditorSource.includes('applyMetaSpriteLayout')],
+  ['MSX2 MetaSprite metadata reaches asset policy and properties panel', generatorSource.includes('superSpriteLayout') && generatorSource.includes('superSpriteParts') && generatorSource.includes('metaspriteCells') && generatorSource.includes('worstScanlineHardwareSprites') && propertiesPanelSource.includes('MetaSprite:') && propertiesPanelSource.includes('metaParts')],
   ['MSX2 sprite editor exposes collapse all controls', msx2SpriteEditorSource.includes('Collapse All') && msx2SpriteEditorSource.includes('Expand All') && msx2SpriteEditorSource.includes('aria-label="Collapse all MSX2 sprite editor sections"') && msx2SpriteEditorSource.includes('mideas:panel-collapse-all')],
   ['MSX2 sprite editor panels are collapsible', (msx2SpriteEditorSource.match(/<Panel title=.*collapsible/g) || []).length >= 10 && msx2SpriteEditorSource.includes('Panel title="Tools" collapsible') && msx2SpriteEditorSource.includes('Panel title="Active Brush" collapsible') && msx2SpriteEditorSource.includes('Panel title="MSX2 Transform Frame" collapsible')],
   ['new MSX2 sprites default to side-facing right', useAssetHandlersSource.includes("facingDirection: 'right'")],
@@ -186,12 +218,18 @@ const checks = [
   ['maze vertical routine guards against gravity', verticalRoutine.includes('Maze/Pac-Man mode has no platform vertical physics') && verticalRoutine.includes('jp upload_hardware_sprite_attrs')],
   ['Snake char runtime is generated as SCREEN 4 name-table updates with body growth', generatorSource.includes('function usesSnakeCharMovement') && generatorSource.includes('function buildSnakeCharRuntimeAsm') && generatorSource.includes('init_msx2_snake_char') && generatorSource.includes('update_msx2_snake_char') && generatorSource.includes('msx2_snake_draw_cell_16') && generatorSource.includes('msx2_snake_append_head') && generatorSource.includes('msx2_snake_check_self_collision') && generatorSource.includes('call WRTVRM')],
   ['Snake char runtime reserves and writes 16x16 blocks across SCREEN 4 banks', generatorSource.includes('getScreen4TileBytesForEntity') && generatorSource.includes('reserveCharBlockForAllBanks') && generatorSource.includes('findFreeScreen4CharBlockBase') && generatorSource.includes('call msx2_snake_load_runtime_chars') && generatorSource.includes('ld bc, ${byteCount}') && generatorSource.includes('add a, 3')],
-  ['WorldMap ASM export accepts SCREEN 4 rooms', exportWorldMapAsmSource.includes('Msx2Screen5TileScreen') && exportWorldMapAsmSource.includes('ExportableWorldScreen') && worldMapEditorSource.includes('isMsx2Screen4TileScreen(screen)')],
+  ['WorldMap ASM export accepts SCREEN 4 rooms', exportWorldMapAsmSource.includes('Msx2Screen4TileScreen') && exportWorldMapAsmSource.includes('ExportableWorldScreen') && worldMapEditorSource.includes('isMsx2Screen4TileScreen(screen)')],
   ['SCREEN 4 room labels replace old MSX2 screen wording', toolbarSource.includes('MSX2 SCREEN 4 Room (16x12)') && fileExplorerSource.includes('MSX2 SCREEN 4 Rooms') && !toolbarSource.includes('MSX2 16x16 Screen')],
   ['SCREEN 4 backend no longer rejects unused legacy screenmaps', !generatorSource.includes('addScreen(analysis.screenMaps?.[0])') && generatorSource.includes('collectReferencedTileScreens(analysis)')],
   ['GameFlow backgrounds resolve native SCREEN 4 rooms', (generatorSource.match(/screenLoadLabelForAssetId\(analysis, screenLabels, tileScreenLabels, current\.appearance\?\.backgroundScreenAssetId\)/g) || []).length >= 2 && generatorSource.includes("node.type === 'Restart'")],
   ['summary extraction keeps SCREEN 4 world references', summaryExtractorSource.includes('msx2Screens') && summaryExtractorSource.includes('node.screenAssetId || node.screenId') && summaryExtractorSource.includes("getAsset(assets, 'msx2screen', screenId)")],
   ['SCREEN 4 native entity scripts are scanned for variables', globalVariablesUtilsSource.includes("assets.filter(a => a.type === 'msx2screen')") && globalVariablesUtilsSource.includes('component?.behaviorCode') && globalVariablesUtilsSource.includes('component?.customCode')],
+  ['compile endpoint returns MSX2 budget feedback from embedded artifacts', serverSource.includes('function buildMsx2IdeBudgetFeedbackFromAsm') && serverSource.includes("project_slice.json") && serverSource.includes("logical_bank_budget.json") && serverSource.includes('responseData.msx2BudgetFeedback') && serverSource.includes('msx2BudgetFeedback: msx2BudgetFeedback') && serverSource.includes('msx2BudgetFeedback = buildMsx2IdeBudgetFeedbackFromAsm(codeToCompile)')],
+  ['MSX2 budget feedback keeps IDE-facing shape stable', serverSource.includes("scope: 'msx2_screen4_ide_budget_feedback'") && serverSource.includes("status = 'warning'") && serverSource.includes("status = 'error'") && serverSource.includes('bankClassSummary: Array.isArray(logicalBudget.bankClassSummary)') && serverSource.includes('worldPackages: Array.isArray(projectSlice.worldPackageSummary)') && serverSource.includes('largestAssets') && serverSource.includes('suggestedFixes')],
+  ['compile endpoint gates MSX2 budget errors before Glass and records resolution attempts', serverSource.includes("error: 'MSX2 MegaROM preflight budget failed'") && serverSource.includes("action: 'server_compile_budget_gate'") && serverSource.includes("action: 'enable_zx0_preprocess'") && serverSource.includes('responseData.msx2BudgetResolution')],
+  ['ROM build result displays MSX2 MegaROM budget feedback', codeExportModalSource.includes('MSX2 MegaROM budget') && codeExportModalSource.includes('msx2BudgetFeedback.rom?.payloadBytes') && codeExportModalSource.includes('msx2BudgetFeedback.rom.bankClassSummary') && codeExportModalSource.includes('msx2BudgetFeedback.largestAssets') && codeExportModalSource.includes('msx2BudgetFeedback.suggestedFixes[0].action')],
+  ['ROM build result highlights MSX2 budget warning and error status', codeExportModalSource.includes('msx2BudgetStatusClass') && codeExportModalSource.includes("msx2BudgetStatus === 'error'") && codeExportModalSource.includes("msx2BudgetStatus === 'warning'") && codeExportModalSource.includes('border-red-500') && codeExportModalSource.includes('border-yellow-500') && codeExportModalSource.includes('msx2BudgetBadgeClass')],
+  ['ROM build summary reports MSX2 budget resolution attempts', codeExportModalSource.includes('MSX2 budget resolution:') && codeExportModalSource.includes('MSX2 budget action:') && codeExportModalSource.includes('compileResult?.msx2BudgetResolution')],
 ];
 
 const failures = checks.filter(([, passed]) => !passed);

@@ -7,7 +7,7 @@ import {
   MSX_SCREEN5_MASTER_PALETTE,
   snapHexToScreen5MasterColor,
 } from '../../constants';
-import { assignMasterColorToSlot, ensureScreen5PaletteSlots } from '../../utils/screen5PaletteUtils';
+import { assignMasterColorToSlot, ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 
 const MASTER_PALETTE_COLUMNS = 32;
 const TRANSPARENT_HEX = 'rgba(0,0,0,0)';

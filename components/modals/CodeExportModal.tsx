@@ -2,7 +2,7 @@ import React, { startTransition, useState } from 'react';
 import JSZip from 'jszip';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
-import { ExportRomMode, Msx2Screen5TileScreen, ProjectAsset } from '../../types';
+import { ExportRomMode, Msx2Screen4TileScreen, ProjectAsset } from '../../types';
 import { hasPresentationScreenData } from '../utils/presentationScreenUtils';
 import {
   generateCompleteGameAssembly,
@@ -93,7 +93,7 @@ const formatDbRows = (label: string, rows: number[][], comment: string): string 
   return `${label}:\n    ; ${comment}\n${body}`;
 };
 
-const generateMsx2Screen4ScreenAssembly = (screen: Msx2Screen5TileScreen, index: number): string => {
+const generateMsx2Screen4ScreenAssembly = (screen: Msx2Screen4TileScreen, index: number): string => {
   const label = sanitizeAsmLabel(screen.name || screen.id, `MSX2_SCREEN4_${index}`);
   const collision = screen.layers?.collision || screen.collisionMap || [];
   const effects = screen.layers?.effects || [];
@@ -110,7 +110,7 @@ const generateMsx2Screen4ScreenAssembly = (screen: Msx2Screen5TileScreen, index:
   ].join('\n');
 };
 
-const generateMsx2NativeEntitiesAssembly = (screens: Msx2Screen5TileScreen[]): string => {
+const generateMsx2NativeEntitiesAssembly = (screens: Msx2Screen4TileScreen[]): string => {
   const lines: string[] = ['; MSX2 SCREEN 4 native entity summary'];
   screens.forEach((screen, screenIndex) => {
     const label = sanitizeAsmLabel(screen.name || screen.id, `MSX2_SCREEN4_${screenIndex}`);
@@ -887,6 +887,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       lines.push(`ROM mode warning: ${compileResult.romModeConflictWarning}`);
     }
 
+    if (compileResult?.msx2BudgetResolution) {
+      const resolution = compileResult.msx2BudgetResolution;
+      const attempts = Array.isArray(resolution.attempts) ? resolution.attempts.length : 0;
+      lines.push(`MSX2 budget resolution: ${resolution.status ?? 'unknown'} (${attempts} attempt${attempts === 1 ? '' : 's'})`);
+      const finalAttempt = Array.isArray(resolution.attempts)
+        ? [...resolution.attempts].reverse().find((item: any) => item?.action)
+        : null;
+      if (finalAttempt?.action) {
+        lines.push(`MSX2 budget action: ${finalAttempt.action}`);
+      }
+    }
+
     if (compileResult?.plain48kPage0Info) {
       const page0 = compileResult.plain48kPage0Info;
       const selected = Array.isArray(page0.selectedGroups) && page0.selectedGroups.length > 0
@@ -1006,7 +1018,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
         case 'screens':
           const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as any);
-          const msx2Screens = assets.filter(a => a.type === 'msx2screen').map(a => a.data as Msx2Screen5TileScreen);
+          const msx2Screens = assets.filter(a => a.type === 'msx2screen').map(a => a.data as Msx2Screen4TileScreen);
           const tilesForScreens = assets.filter(a => a.type === 'tile').map(a => a.data as any);
 
           if (isScreen4Backend && msx2Screens.length > 0) {
@@ -1090,7 +1102,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
             .find(s => s.layers.entities.length > 0);
           const nativeMsx2EntityScreens = assets
             .filter(a => a.type === 'msx2screen')
-            .map(a => a.data as Msx2Screen5TileScreen)
+            .map(a => a.data as Msx2Screen4TileScreen)
             .filter(screen => (screen.layers?.entities || []).length > 0);
           const components = assets.filter(a => a.type === 'componentdefinition').map(a => a.data as any);
           const templates = assets.filter(a => a.type === 'entitytemplate').map(a => a.data as any);
@@ -1565,6 +1577,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
   const currentRomConfig = buildCurrentRomConfig();
   const hasRomConfigDrift = isRomConfigDifferent(lastGeneratedRomConfig, currentRomConfig);
+  const msx2BudgetFeedback = (compilationResult as any)?.msx2BudgetFeedback;
+  const msx2BudgetStatus = String(msx2BudgetFeedback?.status || 'ok');
+  const msx2BudgetStatusClass = msx2BudgetStatus === 'error'
+    ? 'border-red-500 bg-red-950 bg-opacity-40 text-red-100'
+    : msx2BudgetStatus === 'warning'
+      ? 'border-yellow-500 bg-yellow-950 bg-opacity-30 text-yellow-100'
+      : 'border-msx-border bg-msx-bgcolor bg-opacity-30 text-msx-textsecondary';
+  const msx2BudgetBadgeClass = msx2BudgetStatus === 'error'
+    ? 'text-red-200'
+    : msx2BudgetStatus === 'warning'
+      ? 'text-yellow-200'
+      : 'text-green-200';
 
   if (!isOpen) return null;
 
@@ -2385,6 +2409,52 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                         )}
                       </div>
                     )}
+
+                  {msx2BudgetFeedback && (
+                    <div className={`mt-3 p-3 rounded border text-xs ${msx2BudgetStatusClass}`}>
+                      <div className="text-sm text-msx-highlight font-semibold">
+                        MSX2 MegaROM budget
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-msx-textsecondary">
+                        <div>
+                          ROM: <strong>{msx2BudgetFeedback.project?.romMode}</strong>
+                          {', '}mapper=<strong>{msx2BudgetFeedback.project?.mapper}</strong>
+                        </div>
+                        <div>
+                          Pressure: <strong className={msx2BudgetBadgeClass}>{msx2BudgetStatus}</strong>
+                        </div>
+                        <div>
+                          Payload: <strong>{msx2BudgetFeedback.rom?.payloadBytes ?? 0}</strong> bytes
+                        </div>
+                        <div>
+                          RAM free: <strong>{msx2BudgetFeedback.ram?.freeBytes ?? 0}</strong> bytes
+                        </div>
+                      </div>
+                      {Array.isArray(msx2BudgetFeedback.rom?.bankClassSummary) &&
+                        msx2BudgetFeedback.rom.bankClassSummary.length > 0 && (
+                          <div className="mt-2 text-msx-textsecondary">
+                            Classes: {msx2BudgetFeedback.rom.bankClassSummary
+                              .map((item: any) => `${item.id} ${item.usedBytes}b`)
+                              .join(', ')}
+                          </div>
+                        )}
+                      {Array.isArray(msx2BudgetFeedback.largestAssets) &&
+                        msx2BudgetFeedback.largestAssets.length > 0 && (
+                          <div className="mt-1 text-msx-textsecondary">
+                            Largest: {msx2BudgetFeedback.largestAssets
+                              .slice(0, 3)
+                              .map((item: any) => `${item.id} ${item.usedBytes}b`)
+                              .join(', ')}
+                          </div>
+                        )}
+                      {Array.isArray(msx2BudgetFeedback.suggestedFixes) &&
+                        msx2BudgetFeedback.suggestedFixes.length > 0 && (
+                          <div className="mt-2 text-yellow-200">
+                            Suggested: {msx2BudgetFeedback.suggestedFixes[0].action}
+                          </div>
+                        )}
+                    </div>
+                  )}
 
                   {(compilationResult as any).resolvedRomConfig?.resolvedRomMode === 'megarom_failed' && (
                     <div className="mt-3 p-3 bg-red-950 bg-opacity-40 rounded border border-red-500">

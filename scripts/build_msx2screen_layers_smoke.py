@@ -15,6 +15,15 @@ RESPAWN_PLAYER_Y_VALUES = (0x8E, 0x8F, 0x90)
 ENEMY_RESPAWN_PLAYER_X_VALUES = (0x5F, 0x60)
 
 
+def mideas_artifact_checksum(artifact_name: str, raw_text: str) -> str:
+    checksum = 0x811C9DC5
+    text = f"{artifact_name}|{raw_text}"
+    for char in text:
+        checksum ^= ord(char)
+        checksum = (checksum * 0x01000193) & 0xFFFFFFFF
+    return f"fnv1a32:{checksum:08X}"
+
+
 def repo_root_from_script() -> Path:
     return Path(__file__).resolve().parents[1]
 
@@ -122,6 +131,16 @@ def validate_fixture_json(project_json: Path) -> None:
         initial_air = int(runtime.get("initialAir", -1))
         if initial_air < 1 or initial_air > 255:
             raise RuntimeError("Fixture MSX2 screens must define an initialAir byte between 1 and 255")
+        hud_widgets = runtime.get("hudWidgets")
+        if not isinstance(hud_widgets, list) or not hud_widgets:
+            raise RuntimeError("Fixture MSX2 screens must define at least one native HUD widget")
+        if runtime.get("hudStyle") != "statusBars":
+            raise RuntimeError("Fixture MSX2 screens must use the statusBars HUD style")
+        for widget in hud_widgets:
+            if widget.get("kind") not in {"bar", "counter", "icon", "text"}:
+                raise RuntimeError(f"Invalid HUD widget kind in fixture: {widget.get('kind')}")
+            if widget.get("binding") not in {"playerEnergy", "bossEnergy", "air", "score", "lives", "collectibles", "custom"}:
+                raise RuntimeError(f"Invalid HUD widget binding in fixture: {widget.get('binding')}")
     layers = screen.get("layers", {})
     for layer_name in ("collision", "effects", "behavior"):
         layer = layers.get(layer_name)
@@ -286,6 +305,18 @@ const required = [
   "msx2_screen_required_collectibles",
   "msx2_compare_collectibles_required",
   "msx2_screen_initial_air",
+  "msx2_screen_hud_style",
+  "msx2_screen_hud_widget_record_size EQU 12",
+  "msx2_screen_hud_widget_count",
+  "msx2_screen_hud_widget_offset",
+  "msx2_screen_hud_widget_records",
+  "msx2_screen_hud_widget_icon_tile",
+  "msx2_screen_hud_widget_text_offset",
+  "msx2_screen_hud_widget_text_length",
+  "msx2_screen_hud_widget_text_pool",
+  "msx2_screen_hud_widget_variable_name_offset",
+  "msx2_screen_hud_widget_variable_length",
+  "msx2_screen_hud_widget_variable_name_pool",
   "msx2_load_current_screen_air",
   "msx2_reset_screen_transition_flags",
   "msx2_respawn_current_screen",
@@ -368,6 +399,25 @@ def validate_asm(asm_output: Path, rom_mode: str = "simple32k", target_format: s
         "msx2_screen_required_collectibles",
         "msx2_compare_collectibles_required",
         "msx2_screen_initial_air",
+        "msx2_screen_hud_style",
+        "msx2_screen_hud_player_energy_max",
+        "msx2_screen_hud_widget_record_size EQU 12",
+        "msx2_screen_hud_widget_count",
+        "msx2_screen_hud_widget_offset",
+        "DB #00,#00,#24,#00",
+        "msx2_screen_hud_widget_records",
+        "msx2_screen_hud_widget_icon_tile",
+        "DB #FF,#FF,#FF,#FF,#03",
+        "msx2_screen_hud_widget_text_offset",
+        "msx2_screen_hud_widget_text_length",
+        "msx2_screen_hud_widget_text_pool",
+        "DB #00,#52,#4F,#4F,#4D,#00",
+        "msx2_screen_hud_widget_variable_name_offset",
+        "msx2_screen_hud_widget_variable_length",
+        "msx2_screen_hud_widget_variable_name_pool",
+        "DB #01,#01,#08,#05,#40,#06,#10,#0C,#0A,#08,#0F,#04,#02,#04,#68,#04",
+        "DB #28,#08,#FF,#00,#0F,#0A,#0F,#04,#04,#07,#B0,#04,#40,#08,#10,#10",
+        "DB #0F,#08,#0F,#04,#01,#03,#10,#03,#60,#06,#FF,#C0,#0A,#08,#0F,#04",
         "msx2_load_current_screen_air",
         "msx2_reset_screen_transition_flags",
         "msx2_respawn_current_screen",
@@ -445,7 +495,8 @@ def validate_project_slice_artifact(
     if not artifact_path.exists():
         raise RuntimeError(f"Generated project_slice.json was not created: {artifact_path}")
 
-    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    project_slice_text = artifact_path.read_text(encoding="utf-8")
+    artifact = json.loads(project_slice_text)
     if artifact.get("scope") != "msx2_screen4_project_slice":
         raise RuntimeError(f"Unexpected project_slice scope: {artifact.get('scope')!r}")
     included_modules = artifact.get("includedRuntimeModules")
@@ -481,6 +532,40 @@ def validate_project_slice_artifact(
     storage_policy_artifact = json.loads(storage_policy_path.read_text(encoding="utf-8"))
     if storage_policy_artifact != storage_policy:
         raise RuntimeError("asset_storage_policy.json does not match project_slice assetStoragePolicy")
+    world_package_summary = artifact.get("worldPackageSummary")
+    if not isinstance(world_package_summary, list) or not world_package_summary:
+        raise RuntimeError("project_slice.json must include worldPackageSummary")
+    entry_world_ids = set((artifact.get("entryPoints") or {}).get("worldIds") or [])
+    summary_world_ids = {item.get("worldId") for item in world_package_summary if isinstance(item, dict)}
+    if entry_world_ids and not entry_world_ids.issubset(summary_world_ids):
+        raise RuntimeError(f"worldPackageSummary missing entry point worlds: {sorted(entry_world_ids - summary_world_ids)}")
+    for world_summary in world_package_summary:
+        if not isinstance(world_summary, dict):
+            raise RuntimeError(f"Invalid worldPackageSummary entry: {world_summary}")
+        world_id = world_summary.get("worldId")
+        if not world_id:
+            raise RuntimeError(f"worldPackageSummary entry must include worldId: {world_summary}")
+        estimated_bytes = int(world_summary.get("estimatedBytes") or 0)
+        if estimated_bytes <= 0:
+            raise RuntimeError(f"worldPackageSummary entry must include positive estimatedBytes: {world_summary}")
+        if int(world_summary.get("screenCount") or 0) <= 0:
+            raise RuntimeError(f"worldPackageSummary entry must include reachable screens: {world_summary}")
+        if not isinstance(world_summary.get("bankClassBytes"), list) or not world_summary.get("bankClassBytes"):
+            raise RuntimeError(f"worldPackageSummary entry must include bankClassBytes: {world_summary}")
+        class_bytes_total = sum(int(item.get("usedBytes") or 0) for item in world_summary.get("bankClassBytes") if isinstance(item, dict))
+        if class_bytes_total != estimated_bytes:
+            raise RuntimeError(f"worldPackageSummary bankClassBytes must add up to estimatedBytes: {world_summary}")
+        owner_policy_total = sum(
+            int(policy.get("storedBytesEstimate") or 0)
+            for policy in storage_policy
+            if policy.get("decision") != "INHERIT_OWNER_SCREEN_POLICY"
+            and world_id in (policy.get("ownerWorldIds") or ([policy.get("id")] if policy.get("type") == "worldmap" else []))
+        )
+        if owner_policy_total != estimated_bytes:
+            raise RuntimeError(
+                f"worldPackageSummary estimatedBytes must match owner asset policies for {world_id}: "
+                f"{estimated_bytes} != {owner_policy_total}"
+            )
 
     estimated_rom = artifact.get("estimatedRomNeeds") or {}
     if int(estimated_rom.get("romPayloadBytesEstimate") or 0) <= 0:
@@ -502,6 +587,27 @@ def validate_project_slice_artifact(
     if over_budget_packages:
         details = ", ".join(str(item.get("id") or item.get("sourceId")) for item in over_budget_packages if isinstance(item, dict))
         raise RuntimeError(f"MSX2 preflight budget failed before Glass: logical packages exceed 8KB banks: {details}")
+    bank_class_summary = logical_bank_budget.get("bankClassSummary")
+    if not isinstance(bank_class_summary, list) or not bank_class_summary:
+        raise RuntimeError("project_slice.json logicalBankBudget must include bankClassSummary")
+    class_total = 0
+    class_ids = set()
+    for class_entry in bank_class_summary:
+        if not isinstance(class_entry, dict):
+            raise RuntimeError(f"Invalid bankClassSummary entry: {class_entry}")
+        class_id = class_entry.get("id")
+        class_ids.add(class_id)
+        used = int(class_entry.get("usedBytes") or 0)
+        class_total += used
+        if not class_id or used <= 0 or int(class_entry.get("packageCount") or 0) <= 0:
+            raise RuntimeError(f"Invalid bankClassSummary budget entry: {class_entry}")
+        largest = class_entry.get("largestPackage")
+        if not isinstance(largest, dict) or not largest.get("id") or int(largest.get("usedBytes") or 0) <= 0:
+            raise RuntimeError(f"bankClassSummary entry must include largestPackage: {class_entry}")
+    if class_total != int(logical_bank_budget.get("totalPayloadBytes") or 0):
+        raise RuntimeError("bankClassSummary usedBytes total must match logicalBankBudget totalPayloadBytes")
+    if "world.screen" not in class_ids:
+        raise RuntimeError("bankClassSummary must include world.screen for MSX2 SCREEN 4 builds")
     packed_banks = logical_bank_budget.get("estimatedPackedBanks")
     if not isinstance(packed_banks, list) or not packed_banks:
         raise RuntimeError("project_slice.json logicalBankBudget must include estimatedPackedBanks")
@@ -524,6 +630,25 @@ def validate_project_slice_artifact(
             raise RuntimeError(f"Invalid recovery recommendation entry: {recommendation}")
         if recommendation.get("severity") == "error":
             raise RuntimeError(f"MSX2 preflight budget error: {recommendation}")
+    recovery_plan = logical_bank_budget.get("recoveryPlan")
+    expected_recovery_order = [
+        "repack_final_sizes",
+        "split_world_packages",
+        "move_cold_readonly_data",
+        "selective_zx0",
+        "keep_hot_runtime_raw",
+        "world_special_code_bank",
+        "split_large_payload_chunks",
+        "fail_actionable_report",
+    ]
+    if not isinstance(recovery_plan, list):
+        raise RuntimeError("project_slice.json logicalBankBudget must include recoveryPlan")
+    actual_recovery_order = [item.get("id") for item in recovery_plan if isinstance(item, dict)]
+    if actual_recovery_order[: len(expected_recovery_order)] != expected_recovery_order:
+        raise RuntimeError(f"project_slice.json recoveryPlan order is invalid: {actual_recovery_order}")
+    for index, step in enumerate(recovery_plan, start=1):
+        if not isinstance(step, dict) or int(step.get("order") or 0) != index or not step.get("status") or not step.get("action"):
+            raise RuntimeError(f"Invalid recoveryPlan step: {step}")
 
     budget_path = generated_dir / "logical_bank_budget.json"
     if not budget_path.exists():
@@ -541,6 +666,10 @@ def validate_project_slice_artifact(
         raise RuntimeError("logical_bank_budget.json does not match project_slice packed bank count")
     if budget_artifact.get("recoveryRecommendations") != logical_bank_budget.get("recoveryRecommendations"):
         raise RuntimeError("logical_bank_budget.json does not match project_slice recovery recommendations")
+    if budget_artifact.get("recoveryPlan") != logical_bank_budget.get("recoveryPlan"):
+        raise RuntimeError("logical_bank_budget.json does not match project_slice recovery plan")
+    if budget_artifact.get("bankClassSummary") != logical_bank_budget.get("bankClassSummary"):
+        raise RuntimeError("logical_bank_budget.json does not match project_slice bank class summary")
 
     ram_budget = artifact.get("ramBudget") or {}
     if ram_budget.get("scope") != "msx2_screen4_ram_budget":
@@ -574,6 +703,7 @@ def validate_project_slice_artifact(
     ram_budget_artifact = json.loads(ram_budget_path.read_text(encoding="utf-8"))
     if ram_budget_artifact != ram_budget:
         raise RuntimeError("ram_budget.json does not exactly match project_slice ramBudget")
+    ide_feedback_path = generated_dir / "msx2_ide_budget_feedback.json"
     preflight_summary_path = generated_dir / "preflight_summary.json"
     if require_preflight_summary and not preflight_summary_path.exists():
         raise RuntimeError(f"Generated preflight_summary.json was not created: {preflight_summary_path}")
@@ -583,16 +713,155 @@ def validate_project_slice_artifact(
             raise RuntimeError("preflight_summary.json has an unexpected scope")
         if preflight_summary.get("status") != "ok":
             raise RuntimeError(f"preflight_summary.json did not report ok status: {preflight_summary.get('status')!r}")
+        artifact_checks = preflight_summary.get("artifactChecks")
+        if not isinstance(artifact_checks, list):
+            raise RuntimeError("preflight_summary.json must include artifactChecks")
+        artifact_names = {item.get("name") for item in artifact_checks if isinstance(item, dict)}
+        expected_artifact_names = {"project_slice.json", "asset_storage_policy.json", "logical_bank_budget.json", "ram_budget.json"}
+        if artifact_names != expected_artifact_names:
+            raise RuntimeError(f"preflight_summary.json artifactChecks names are invalid: {artifact_checks}")
+        for artifact_check in artifact_checks:
+            if not isinstance(artifact_check, dict) or int(artifact_check.get("bytes") or 0) <= 0:
+                raise RuntimeError(f"preflight_summary.json artifact check has invalid byte count: {artifact_check}")
+            if not str(artifact_check.get("checksum") or "").startswith("fnv1a32:"):
+                raise RuntimeError(f"preflight_summary.json artifact check has invalid checksum: {artifact_check}")
+        input_artifact_paths = {
+            "project_slice.json": artifact_path,
+            "asset_storage_policy.json": storage_policy_path,
+            "logical_bank_budget.json": budget_path,
+            "ram_budget.json": ram_budget_path,
+        }
+        for artifact_check in artifact_checks:
+            artifact_name = artifact_check.get("name") if isinstance(artifact_check, dict) else None
+            artifact_file = input_artifact_paths.get(artifact_name)
+            if artifact_file is None:
+                raise RuntimeError(f"preflight_summary.json references an unknown input artifact: {artifact_check}")
+            raw_text = artifact_file.read_text(encoding="utf-8")
+            if artifact_check.get("bytes") != len(raw_text.encode("utf-8")):
+                raise RuntimeError(f"preflight_summary.json input artifact byte count does not match file: {artifact_check}")
+            if artifact_check.get("checksum") != mideas_artifact_checksum(str(artifact_name), raw_text):
+                raise RuntimeError(f"preflight_summary.json input artifact checksum does not match file: {artifact_check}")
+        output_artifact_checks = preflight_summary.get("outputArtifactChecks")
+        if not isinstance(output_artifact_checks, list) or len(output_artifact_checks) != 1:
+            raise RuntimeError(f"preflight_summary.json must include IDE outputArtifactChecks: {output_artifact_checks}")
+        ide_output_check = output_artifact_checks[0]
+        if ide_output_check.get("name") != "msx2_ide_budget_feedback.json":
+            raise RuntimeError(f"preflight_summary.json output artifact name is invalid: {ide_output_check}")
+        if int(ide_output_check.get("bytes") or 0) <= 0:
+            raise RuntimeError(f"preflight_summary.json output artifact has invalid byte count: {ide_output_check}")
+        if not str(ide_output_check.get("checksum") or "").startswith("fnv1a32:"):
+            raise RuntimeError(f"preflight_summary.json output artifact checksum is invalid: {ide_output_check}")
+        ide_feedback_text = ide_feedback_path.read_text(encoding="utf-8") if ide_feedback_path.exists() else ""
+        if ide_output_check.get("bytes") != len(ide_feedback_text.encode("utf-8")):
+            raise RuntimeError(f"preflight_summary.json output artifact byte count does not match IDE feedback file: {ide_output_check}")
+        if ide_output_check.get("checksum") != mideas_artifact_checksum("msx2_ide_budget_feedback.json", ide_feedback_text):
+            raise RuntimeError(f"preflight_summary.json output artifact checksum does not match IDE feedback file: {ide_output_check}")
+        pipeline_gates = preflight_summary.get("pipelineGates")
+        expected_gate_ids = [
+            "project_analysis_and_world_package_extraction",
+            "project_precompilation_slice",
+            "asset_storage_policy",
+            "ram_budget_report",
+            "bank_allocation_dry_run",
+            "overflow_recovery_plan",
+            "asm_generation",
+            "glass_compile",
+            "artifact_validation_against_symbols",
+            "post_compilation_optimization",
+            "openmsx_smoke",
+        ]
+        if not isinstance(pipeline_gates, list):
+            raise RuntimeError("preflight_summary.json must include pipelineGates")
+        actual_gate_ids = [item.get("id") for item in pipeline_gates if isinstance(item, dict)]
+        if actual_gate_ids != expected_gate_ids:
+            raise RuntimeError(f"preflight_summary.json pipelineGates order is invalid: {pipeline_gates}")
+        if any(item.get("status") != "passed" for item in pipeline_gates[:6] if isinstance(item, dict)):
+            raise RuntimeError(f"preflight_summary.json preflight gates did not pass: {pipeline_gates}")
+        if pipeline_gates[7].get("status") != "pending":
+            raise RuntimeError(f"preflight_summary.json must leave Glass gate pending: {pipeline_gates}")
         if int((preflight_summary.get("rom") or {}).get("bankSizeBytes") or 0) != 8192:
             raise RuntimeError("preflight_summary.json must report 8192-byte Konami banks")
         if int((preflight_summary.get("rom") or {}).get("payloadBytes") or 0) != int(logical_bank_budget.get("totalPayloadBytes") or 0):
             raise RuntimeError("preflight_summary.json ROM payload does not match logical_bank_budget.json")
+        if (preflight_summary.get("rom") or {}).get("bankClassSummary") != bank_class_summary:
+            raise RuntimeError("preflight_summary.json bank class summary does not match logical_bank_budget.json")
         if int((preflight_summary.get("ram") or {}).get("usedBytes") or 0) != int(ram_budget.get("usedBytes") or 0):
             raise RuntimeError("preflight_summary.json RAM usage does not match ram_budget.json")
         if not isinstance((preflight_summary.get("planB") or {}).get("romRecommendations"), list):
             raise RuntimeError("preflight_summary.json must include ROM Plan B recommendations")
+        if (preflight_summary.get("planB") or {}).get("recoveryPlan") != recovery_plan:
+            raise RuntimeError("preflight_summary.json Plan B recovery plan does not match logical_bank_budget.json")
         if not isinstance((preflight_summary.get("planB") or {}).get("ramRecommendations"), list):
             raise RuntimeError("preflight_summary.json must include RAM Plan B recommendations")
+    if require_preflight_summary and not ide_feedback_path.exists():
+        raise RuntimeError(f"Generated msx2_ide_budget_feedback.json was not created: {ide_feedback_path}")
+    if ide_feedback_path.exists():
+        ide_feedback = json.loads(ide_feedback_path.read_text(encoding="utf-8"))
+        if ide_feedback.get("scope") != "msx2_screen4_ide_budget_feedback":
+            raise RuntimeError("msx2_ide_budget_feedback.json has an unexpected scope")
+        if ide_feedback.get("status") not in {"ok", "warning", "error"}:
+            raise RuntimeError(f"msx2_ide_budget_feedback.json has invalid status: {ide_feedback.get('status')!r}")
+        if (ide_feedback.get("rom") or {}).get("bankClassSummary") != bank_class_summary:
+            raise RuntimeError("msx2_ide_budget_feedback.json bank class summary does not match logical_bank_budget.json")
+        if int((ide_feedback.get("ram") or {}).get("usedBytes") or 0) != int(ram_budget.get("usedBytes") or 0):
+            raise RuntimeError("msx2_ide_budget_feedback.json RAM usage does not match ram_budget.json")
+        if ide_feedback.get("worldPackages") != world_package_summary:
+            raise RuntimeError("msx2_ide_budget_feedback.json world packages do not match project_slice.json")
+        if not isinstance(ide_feedback.get("largestAssets"), list):
+            raise RuntimeError("msx2_ide_budget_feedback.json must include largestAssets")
+        if not isinstance(ide_feedback.get("suggestedFixes"), list):
+            raise RuntimeError("msx2_ide_budget_feedback.json must include suggestedFixes")
+    build_summary_path = generated_dir / "msx2_build_summary.json"
+    if require_preflight_summary and not build_summary_path.exists():
+        raise RuntimeError(f"Generated msx2_build_summary.json was not created: {build_summary_path}")
+    if build_summary_path.exists():
+        build_summary = json.loads(build_summary_path.read_text(encoding="utf-8"))
+        if build_summary.get("scope") != "msx2_screen4_megarom_build_summary":
+            raise RuntimeError("msx2_build_summary.json has an unexpected scope")
+        if build_summary.get("status") != "ok":
+            raise RuntimeError(f"msx2_build_summary.json did not report ok status: {build_summary.get('status')!r}")
+        if build_summary.get("preflightArtifactChecks") != (preflight_summary.get("artifactChecks") if preflight_summary_path.exists() else []):
+            raise RuntimeError("msx2_build_summary.json preflight artifact checks do not match preflight_summary.json")
+        if build_summary.get("preflightOutputArtifactChecks") != (preflight_summary.get("outputArtifactChecks") if preflight_summary_path.exists() else []):
+            raise RuntimeError("msx2_build_summary.json preflight output artifact checks do not match preflight_summary.json")
+        build_gates = build_summary.get("pipelineGates")
+        if not isinstance(build_gates, list):
+            raise RuntimeError("msx2_build_summary.json must include pipelineGates")
+        build_gate_by_id = {item.get("id"): item for item in build_gates if isinstance(item, dict)}
+        for passed_gate in ("glass_compile", "artifact_validation_against_symbols"):
+            if build_gate_by_id.get(passed_gate, {}).get("status") != "passed":
+                raise RuntimeError(f"msx2_build_summary.json must mark {passed_gate} as passed: {build_gates}")
+        if build_gate_by_id.get("post_compilation_optimization", {}).get("status") not in {"not_requested", "passed", "check_only_passed", "requested_no_change"}:
+            raise RuntimeError(f"msx2_build_summary.json has invalid post optimization gate: {build_gates}")
+        if build_gate_by_id.get("openmsx_smoke", {}).get("status") not in {"pending_when_requested", "requested_pending", "passed"}:
+            raise RuntimeError(f"msx2_build_summary.json has invalid OpenMSX gate: {build_gates}")
+        rom_summary = build_summary.get("rom") or {}
+        if int(rom_summary.get("paddedBytes") or 0) <= 32768 or int(rom_summary.get("paddedBytes") or 0) % 8192 != 0:
+            raise RuntimeError(f"msx2_build_summary.json has invalid ROM size summary: {rom_summary}")
+        if not str(rom_summary.get("checksum") or "").startswith("fnv1a32:"):
+            raise RuntimeError(f"msx2_build_summary.json has invalid ROM checksum: {rom_summary}")
+        validation_summary = build_summary.get("validation") or {}
+        if validation_summary.get("glass") != "passed":
+            raise RuntimeError(f"msx2_build_summary.json must mark Glass as passed: {validation_summary}")
+        if validation_summary.get("postAsm") not in {"not_requested", "applied", "check_only_passed", "requested_no_change"}:
+            raise RuntimeError(f"msx2_build_summary.json has invalid Post-ASM status: {validation_summary}")
+        if validation_summary.get("openmsx") not in {"not_requested", "requested_pending", "passed"}:
+            raise RuntimeError(f"msx2_build_summary.json has invalid OpenMSX status: {validation_summary}")
+        ide_summary = build_summary.get("ideBudgetFeedback")
+        if not isinstance(ide_summary, dict):
+            raise RuntimeError("msx2_build_summary.json must include ideBudgetFeedback")
+        if ide_summary.get("status") not in {"ok", "warning", "error"}:
+            raise RuntimeError(f"msx2_build_summary.json has invalid IDE feedback status: {ide_summary}")
+        if not str(ide_summary.get("checksum") or "").startswith("fnv1a32:"):
+            raise RuntimeError(f"msx2_build_summary.json has invalid IDE feedback checksum: {ide_summary}")
+        if preflight_summary_path.exists():
+            ide_output_check = (preflight_summary.get("outputArtifactChecks") or [{}])[0]
+            if ide_summary.get("bytes") != ide_output_check.get("bytes"):
+                raise RuntimeError(f"msx2_build_summary.json IDE feedback byte count differs from preflight output: {ide_summary}")
+            if ide_summary.get("checksum") != ide_output_check.get("checksum"):
+                raise RuntimeError(f"msx2_build_summary.json IDE feedback checksum differs from preflight output: {ide_summary}")
+        if not isinstance(build_summary.get("postAsmReports"), list):
+            raise RuntimeError("msx2_build_summary.json must include postAsmReports")
 
 
 def validate_editor_contract(project_root: Path) -> None:

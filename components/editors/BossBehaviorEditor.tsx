@@ -7,7 +7,7 @@ import {
   BossBehaviorTarget,
   BossForm,
   BossPhase,
-  Msx2Screen5TileScreen,
+  Msx2Screen4TileScreen,
   ProjectAsset,
   ScreenMap,
   Tile,
@@ -30,10 +30,10 @@ import {
   ViewfinderCircleIcon,
 } from '../icons/MsxIcons';
 
-type BossPreviewScreen = ScreenMap | Msx2Screen5TileScreen;
+type BossPreviewScreen = ScreenMap | Msx2Screen4TileScreen;
 
-const isMsx2Screen4 = (screen: BossPreviewScreen | null | undefined): screen is Msx2Screen5TileScreen =>
-  !!screen && (screen as Msx2Screen5TileScreen).target === 'MSX2' && Array.isArray((screen as Msx2Screen5TileScreen).map);
+const isMsx2Screen4 = (screen: BossPreviewScreen | null | undefined): screen is Msx2Screen4TileScreen =>
+  !!screen && (screen as Msx2Screen4TileScreen).target === 'MSX2' && Array.isArray((screen as Msx2Screen4TileScreen).map);
 
 const getPreviewScreenWidthChars = (screen: BossPreviewScreen | null): number =>
   isMsx2Screen4(screen) ? (screen.widthTiles || 16) * 2 : (screen?.width || 32);
@@ -41,7 +41,7 @@ const getPreviewScreenWidthChars = (screen: BossPreviewScreen | null): number =>
 const getPreviewScreenHeightChars = (screen: BossPreviewScreen | null): number =>
   isMsx2Screen4(screen) ? (screen.heightTiles || 12) * 2 : (screen?.height || 24);
 
-const renderMsx2Screen4PreviewBackground = (canvas: HTMLCanvasElement, screen: Msx2Screen5TileScreen): void => {
+const renderMsx2Screen4PreviewBackground = (canvas: HTMLCanvasElement, screen: Msx2Screen4TileScreen): void => {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   ctx.imageSmoothingEnabled = false;

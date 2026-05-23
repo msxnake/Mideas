@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { Boss, BossBehaviorAction, BossForm, BossPhase, BossPhaseWeakPoint, ProjectAsset, ScreenMap, Sprite, Tile, TileBank, TileBankDefinition, BossAttack, BossCrushMovement, BossNeckChain, ContextMenuItem, EditorType, Msx2Screen5TileScreen } from '../../types';
+import { Boss, BossBehaviorAction, BossForm, BossPhase, BossPhaseWeakPoint, ProjectAsset, ScreenMap, Sprite, Tile, TileBank, TileBankDefinition, BossAttack, BossCrushMovement, BossNeckChain, ContextMenuItem, EditorType, Msx2Screen4TileScreen } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, CopyIcon, EraserIcon, PasteIcon, PlusCircleIcon, TrashIcon, PencilIcon, ViewfinderCircleIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
@@ -908,7 +908,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
         if (!boss.linkedScreenId) return null;
         const linkedScreenAsset = allAssets.find(asset => asset.id === boss.linkedScreenId && (asset.type === 'screenmap' || asset.type === 'msx2screen'));
         if (linkedScreenAsset?.type === 'msx2screen') {
-            const linkedScreen = linkedScreenAsset.data as Msx2Screen5TileScreen | undefined;
+            const linkedScreen = linkedScreenAsset.data as Msx2Screen4TileScreen | undefined;
             const bossEntity = linkedScreen?.layers?.entities?.find(entity =>
                 entity.kind === 'custom' && (
                     entity.id === boss.id ||

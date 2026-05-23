@@ -3,7 +3,7 @@ import {
   buildMsx2EntityComponents,
   MSX2_COMPONENT_REPERTOIRE,
   MSX2_ENTITY_REPERTOIRE,
-} from '../components/msx2_screen5_editor/msx2EntityCatalog';
+} from '../components/msx2_screen4_editor/msx2EntityCatalog';
 
 export const DEFAULT_MAP_ASM_CONTENT = `
  include "asm/init.asm"

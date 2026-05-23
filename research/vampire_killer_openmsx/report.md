@@ -361,6 +361,100 @@ Likely creation pipeline:
 
 The exact RAM-to-SAT copy routine still needs a tighter watchpoint trace, but the visible hardware composition and VRAM locations are confirmed.
 
+### SAT and sprite-color update trace
+
+Follow-up probe: `probe_sat_update_trace.tcl`.
+
+Reproduction used:
+
+1. Boot the ROM with OpenMSX `C-BIOS_MSX2+`, `-romtype konami`.
+2. Press SPACE at 9.0 seconds.
+3. Press SPACE again at 12.0 seconds to enter real gameplay.
+4. At 21.5 seconds enable VDP-port tracing and dump registers/SAT/color table.
+5. Hold RIGHT from 22.0 to 24.0 seconds.
+6. At 24.2 seconds dump the post-move registers/SAT/color table.
+
+Files produced:
+
+- `probe_sat_update_trace.log`
+- `sat_trace_21_real_gameplay.png`
+- `sat_trace_24_after_right.png`
+- `sat_trace_21_sat_f600.bin`
+- `sat_trace_24_sat_f600.bin`
+- `sat_trace_21_sct_f400.bin`
+- `sat_trace_24_sct_f400.bin`
+
+Confirmed VDP state at both gameplay samples:
+
+`R00=06 R01=62 R02=1F R03=80 R04=00 R05=EF R06=1F R07=00 R08=08 R09=80 R11=01 R14=03`
+
+This keeps the same interpretation:
+
+- 16x16 sprites, no magnification.
+- Sprite color table: physical VRAM `0xF400`.
+- Sprite attribute table: physical VRAM `0xF600`.
+- Sprite pattern table: physical VRAM `0xF800`.
+
+The new port trace identifies the active upload path:
+
+- SAT VRAM address setup is repeatedly done at `PC=46CA`, with `HL=F600` and `R14=03`.
+- Sprite color table address setup is also done at `PC=46CA`, with `HL=F400` and `R14=03`.
+- SAT data bytes are written to VDP port `#98` at `PC=6581`.
+- Sprite color table bytes are written to VDP port `#98` at `PC=659D`.
+
+Representative first SAT burst:
+
+```text
+addr F600..F607 = E0 99 40 00  E0 99 50 00
+addr F608..F60F = A0 08 00 00  A0 08 04 00
+```
+
+The source pointer in this burst advances through RAM around `HL=D639..D640` and `HL=D601..D608`. This strongly suggests the game builds or sorts a RAM-side SAT buffer first, then uploads that buffer to VRAM each frame. The same trace alternates `F400` color uploads and `F600` SAT uploads, so color planes and SAT entries are refreshed together.
+
+### Decoded Simon SAT entries
+
+At the post-move sample `sat_trace_24_after_right`, the visible Simon entries are:
+
+| SAT entry | Y | X | Pattern | Role |
+| --- | ---: | ---: | ---: | --- |
+| `02` | `A0` | `80` | `00` | lower 16x16 cell, plane A |
+| `03` | `A0` | `80` | `04` | lower 16x16 cell, plane B |
+| `20` | `90` | `80` | `08` | upper 16x16 cell, plane A |
+| `21` | `90` | `80` | `0C` | upper 16x16 cell, plane B |
+
+So the player is a vertical MetaSprite:
+
+```text
+upper cell:  16x16 at x=0x80, y=0x90, patterns 08 + 0C
+lower cell:  16x16 at x=0x80, y=0xA0, patterns 00 + 04
+```
+
+Each cell uses two hardware sprites at the same coordinate. The second plane is not a separate body part; it is the overlay color plane for the same 16x16 cell.
+
+Decoded sprite color-table bytes for Simon in the same sample:
+
+```text
+entry 02: 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01
+entry 03: 42 42 42 42 42 42 42 42 42 42 42 42 42 42 42 42
+entry 20: 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01
+entry 21: 42 42 42 42 42 42 42 42 42 42 42 42 42 42 42 42
+```
+
+Interpretation:
+
+- Plane A uses color slot `1` for every line.
+- Plane B uses byte `0x42`, meaning color slot `2` with the V9938 sprite CC/OR bit set.
+- Where plane A and plane B overlap, the visible color becomes `1 OR 2 = 3`.
+
+This confirms the earlier visual suspicion: the apparent third color is not a third hardware sprite. It is produced by two overlaid sprites using transparent masks plus the V9938 OR-color mode in the sprite color byte. For Simon's normal walking sample, the full body uses four hardware sprite entries: two 16x16 cells times two planes.
+
+### Progress checklist
+
+- [x] Volcar registros VDP y tablas de sprites en gameplay real.
+- [x] Decodificar entradas SAT visibles y agrupar las del jugador.
+- [x] Trazar qué rutina actualiza los slots de Simon.
+- [x] Actualizar informe con composición de sprites.
+
 ## Enemy/object data
 
 Two separate RAM areas matter:

@@ -1,5 +1,5 @@
 import { DEFAULT_SCREEN5_CUSTOM_PALETTE as DEFAULT_SCREEN4_CUSTOM_PALETTE } from '../../../../constants';
-import { GameFlowConnection, GameFlowNode, Msx2Screen5TileScreen as Msx2Screen4TileScreen, Msx2Sprite, PaletteAsset, Screen5PaletteSlot as Screen4PaletteSlot, ScreenMap } from '../../../../types';
+import { GameFlowConnection, GameFlowNode, Msx2Screen4TileScreen, Msx2Sprite, PaletteAsset, Screen5PaletteSlot as Screen4PaletteSlot, ScreenMap } from '../../../../types';
 import { ProjectAnalysis } from '../../../asmTemplateGenerator';
 import { GeneratedASMFiles } from '../../types/asmTypes';
 import type { MSXMapperFormat, MSXRomMode } from '../../index';
@@ -227,6 +227,82 @@ function getTileScreenInitialAir(screen: Msx2Screen4TileScreen | undefined): num
     return Math.max(1, Math.min(255, Math.floor(configured)));
   }
   return 255;
+}
+
+function getTileScreenHudStyle(screen: Msx2Screen4TileScreen | undefined): number {
+  const runtime = screen?.runtime as unknown as Record<string, unknown> | undefined;
+  return runtime?.hudStyle === 'statusBars' || runtime?.hudStyle === 'vampire' ? 1 : 0;
+}
+
+function getTileScreenRuntimeByte(
+  screen: Msx2Screen4TileScreen | undefined,
+  key: string,
+  fallback: number,
+  min = 0,
+  max = 255
+): number {
+  const runtime = screen?.runtime as unknown as Record<string, unknown> | undefined;
+  const configured = Number(runtime?.[key]);
+  if (Number.isFinite(configured)) {
+    return Math.max(min, Math.min(max, Math.floor(configured)));
+  }
+  return fallback;
+}
+
+const MSX2_HUD_WIDGET_KIND_IDS: Record<string, number> = {
+  bar: 1,
+  counter: 2,
+  icon: 3,
+  text: 4,
+};
+
+const MSX2_HUD_WIDGET_BINDING_IDS: Record<string, number> = {
+  playerEnergy: 1,
+  bossEnergy: 2,
+  air: 3,
+  score: 4,
+  lives: 5,
+  collectibles: 6,
+  custom: 7,
+};
+
+function getTileScreenHudWidgets(screen: Msx2Screen4TileScreen | undefined): any[] {
+  const widgets = (screen?.runtime as any)?.hudWidgets;
+  return Array.isArray(widgets) ? widgets.slice(0, 16) : [];
+}
+
+function hudWidgetByte(widget: any, key: string, fallback: number, min = 0, max = 255): number {
+  const configured = Number(widget?.[key]);
+  if (Number.isFinite(configured)) {
+    return Math.max(min, Math.min(max, Math.floor(configured)));
+  }
+  return fallback;
+}
+
+function hudWidgetKindId(widget: any): number {
+  return MSX2_HUD_WIDGET_KIND_IDS[String(widget?.kind || '').trim()] || 0;
+}
+
+function hudWidgetBindingId(widget: any): number {
+  return MSX2_HUD_WIDGET_BINDING_IDS[String(widget?.binding || '').trim()] || 0;
+}
+
+function encodeHudAscii(value: unknown, maxLength = 31, trim = false): number[] {
+  const rawText = String(value ?? '');
+  const text = (trim ? rawText.trim() : rawText).slice(0, maxLength);
+  const bytes: number[] = [];
+  for (let index = 0; index < text.length; index++) {
+    const code = text.charCodeAt(index);
+    bytes.push(code >= 32 && code <= 126 ? code : 32);
+  }
+  return bytes;
+}
+
+function appendHudStringPoolEntry(pool: number[], bytes: number[]): number {
+  if (bytes.length <= 0) return 0;
+  const offset = pool.length;
+  pool.push(...bytes, 0);
+  return offset;
 }
 
 function buildTilePatternBytes(tile: any | undefined): number[] {
@@ -717,6 +793,14 @@ function formatBytes(label: string, bytes: number[], comment?: string): string {
     lines.push(`    DB ${bytes.slice(offset, offset + 16).map(value => `#${value.toString(16).toUpperCase().padStart(2, '0')}`).join(',')}`);
   }
   return `${lines.join('\n')}\n`;
+}
+
+function formatWords(label: string, words: number[], comment?: string): string {
+  const bytes = words.flatMap(word => {
+    const clamped = Math.max(0, Math.min(0xffff, Math.trunc(word || 0)));
+    return [clamped & 0xff, (clamped >> 8) & 0xff];
+  });
+  return formatBytes(label, bytes, comment);
 }
 
 function getEntityRenderSpriteId(entity: any): string {
@@ -3540,7 +3624,8 @@ control_2_players_ball_collect_item:
 draw_msx2_score_hud:
 draw_msx2_collectible_hud:
 draw_msx2_air_hud:
-    ; Inline status HUD disabled for SCREEN 4 until it is tile/name-table based. Clobbers none.
+    ; Native SCREEN 4 HUD authoring is exported as metadata for now.
+    ; Runtime drawing is intentionally data-driven work, not hardcoded bars.
     ret
 `;
 
@@ -5328,7 +5413,16 @@ function addIncludedAsset(
 ): void {
   const id = getAssetIdFromData(asset);
   const key = assetKey(asset?.type, id);
-  if (!id || included.has(key)) return;
+  if (!id) return;
+  if (included.has(key)) {
+    const existing = included.get(key);
+    const existingWorldIds = Array.isArray(existing.ownerWorldIds) ? existing.ownerWorldIds : [];
+    const extraWorldIds = Array.isArray(extra.ownerWorldIds) ? extra.ownerWorldIds : [];
+    const ownerWorldIds = Array.from(new Set([...existingWorldIds, ...extraWorldIds].filter(Boolean))).sort();
+    if (ownerWorldIds.length > 0) existing.ownerWorldIds = ownerWorldIds;
+    if (extra.ownerScreenId && !existing.ownerScreenId) existing.ownerScreenId = extra.ownerScreenId;
+    return;
+  }
   included.set(key, {
     type: asset.type,
     id,
@@ -5408,10 +5502,28 @@ function estimateMsx2ScreenStoragePolicy(screen: Msx2Screen4TileScreen): Record<
 function estimateMsx2SpriteStoragePolicy(analysis: ProjectAnalysis, sprite: Msx2Sprite): Record<string, unknown> {
   const settings = getHardwareSpriteRuntimeSettings(analysis, sprite);
   const color = Math.max(1, Math.min(15, settings.color));
-  const layers = clampHardwareSpriteCount(buildHardwareSpriteLayers(sprite, color)).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
+  const authoredLayers = buildHardwareSpriteLayers(sprite, color);
+  const layers = clampHardwareSpriteCount(authoredLayers).slice(0, MSX2_MAX_PLAYER_HARDWARE_LAYERS);
   const animationFrameCount = getHardwareSpriteAnimationFrameCount(sprite, Math.max(1, layers.length));
   const horizontalFacing = getHorizontalFacingDirection(sprite);
   const mirrorPatternVariantCount = horizontalFacing ? 2 : 1;
+  const cellColumns = Math.max(1, Math.ceil((sprite.size?.width || 16) / 16));
+  const cellRows = Math.max(1, Math.ceil((sprite.size?.height || 16) / 16));
+  const authoredParts = Array.isArray(sprite.superSpriteParts) && sprite.superSpriteParts.length
+    ? sprite.superSpriteParts
+    : Array.from({ length: cellRows }, (_unusedRow, cellY) =>
+      Array.from({ length: cellColumns }, (_unusedColumn, cellX) => ({
+        label: `${String.fromCharCode(65 + cellY * cellColumns + cellX)}`,
+        offsetX: cellX * 16,
+        offsetY: cellY * 16,
+        width: 16,
+        height: 16,
+      }))
+    ).flat();
+  const hardwareLayerCountsByRow = Array.from({ length: cellRows }, (_unused, cellY) =>
+    authoredLayers.filter(layer => layer.yOffset === cellY * 16).length
+  );
+  const worstScanlineHardwareSprites = Math.max(0, ...hardwareLayerCountsByRow);
   const patternBytes = Math.max(1, layers.length) * Math.max(1, animationFrameCount) * mirrorPatternVariantCount * 32;
   const colorBytes = Math.max(1, layers.length) * 16;
   const rawBytes = patternBytes + colorBytes;
@@ -5422,6 +5534,20 @@ function estimateMsx2SpriteStoragePolicy(analysis: ProjectAnalysis, sprite: Msx2
     mutable: false,
     decision: getStorageDecisionForReadonlyData(rawBytes, 'load_to_vram'),
     reason: 'Referenced MSX2 hardware sprite source; sprite patterns/colors are loaded to VRAM/SAT data.',
+    superSpriteLayout: sprite.superSpriteLayout || `${cellColumns}x${cellRows}`,
+    superSpriteParts: authoredParts.map(part => ({
+      label: part.label,
+      offsetX: part.offsetX,
+      offsetY: part.offsetY,
+      width: part.width,
+      height: part.height,
+    })),
+    metaspriteCells: { columns: cellColumns, rows: cellRows, count: cellColumns * cellRows },
+    hardwareLayerCount: authoredLayers.length,
+    emittedHardwareLayerCount: layers.length,
+    worstScanlineHardwareSprites,
+    scanlineLimit: MSX2_MAX_PLAYER_HARDWARE_LAYERS,
+    overScanlineLimit: worstScanlineHardwareSprites > MSX2_MAX_PLAYER_HARDWARE_LAYERS,
     parts: [
       { name: 'patterns', rawBytes: patternBytes, accessPattern: 'load_to_vram', decision: getStorageDecisionForReadonlyData(patternBytes, 'load_to_vram') },
       { name: 'lineColors', rawBytes: colorBytes, accessPattern: 'load_to_vram', decision: 'ROM_RAW_TO_VRAM' },
@@ -5475,6 +5601,7 @@ function buildMsx2AssetStoragePolicy(
       id: entry.id,
       name: entry.name,
       ownerScreenId: entry.ownerScreenId,
+      ownerWorldIds: entry.ownerWorldIds,
       ...policy,
     };
   }).sort((a, b) => `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`));
@@ -5545,7 +5672,48 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
   const overBudgetPackages = packages.filter(entry => entry.overBudgetBytes > 0);
   const warningPackages = packages.filter(entry => entry.warning);
   const warningPackedBanks = packedBanks.filter(bank => bank.warning);
+  const bankClassSummary = Array.from(packages.reduce((summary, entry) => {
+    const bankClass = entry.recommendedBankClass || 'world.misc';
+    const current = summary.get(bankClass) || {
+      id: bankClass,
+      packageCount: 0,
+      usedBytes: 0,
+      estimatedMinimumBanks: 0,
+      warningPackageCount: 0,
+      overBudgetPackageCount: 0,
+      largestPackage: { id: entry.id, usedBytes: 0 },
+    };
+    current.packageCount += 1;
+    current.usedBytes += entry.usedBytes;
+    current.warningPackageCount += entry.warning ? 1 : 0;
+    current.overBudgetPackageCount += entry.overBudgetBytes > 0 ? 1 : 0;
+    if (entry.usedBytes > current.largestPackage.usedBytes) {
+      current.largestPackage = { id: entry.id, usedBytes: entry.usedBytes };
+    }
+    current.estimatedMinimumBanks = Math.max(1, Math.ceil(current.usedBytes / bankSizeBytes));
+    summary.set(bankClass, current);
+    return summary;
+  }, new Map<string, {
+    id: string;
+    packageCount: number;
+    usedBytes: number;
+    estimatedMinimumBanks: number;
+    warningPackageCount: number;
+    overBudgetPackageCount: number;
+    largestPackage: { id: string; usedBytes: number };
+  }>()).values()).sort((left, right) => {
+    if (right.usedBytes !== left.usedBytes) return right.usedBytes - left.usedBytes;
+    return left.id.localeCompare(right.id);
+  });
   const recoveryRecommendations: Array<Record<string, unknown>> = [];
+  const graphicsPressurePackages = packages.filter(entry =>
+    (entry.type === 'msx2screen' || entry.type === 'msx2sprite') &&
+    (entry.warning || entry.overBudgetBytes > 0)
+  );
+  const unsplittablePressurePackages = packages.filter(entry =>
+    !entry.canSplit && (entry.warning || entry.overBudgetBytes > 0)
+  );
+  const coldDataPressure = warningPackedBanks.length > 0 || unsplittablePressurePackages.length > 0;
   for (const entry of overBudgetPackages) {
     recoveryRecommendations.push({
       severity: 'error',
@@ -5580,6 +5748,72 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
       action: 'Allocator should retry first-fit-decreasing after ZX0 decisions and may group smaller manifest packages together.',
     });
   }
+  const recoveryPlan = [
+    {
+      order: 1,
+      id: 'repack_final_sizes',
+      status: warningPackedBanks.length > 0 || overBudgetPackages.length > 0 ? 'recommended' : 'not_needed',
+      trigger: 'estimated packed bank reaches warning threshold or any package is over one 8 KB window',
+      appliesTo: warningPackedBanks.map(bank => `estimatedBank${bank.bankIndex}`),
+      action: 'Re-run first-fit-decreasing with final stored sizes after ZX0 policy decisions.',
+    },
+    {
+      order: 2,
+      id: 'split_world_packages',
+      status: overBudgetPackages.some(entry => entry.canSplit) ? 'required' : warningPackages.some(entry => entry.canSplit) ? 'recommended' : 'not_needed',
+      trigger: 'independently addressable world/screen/sprite package is too large or near the bank limit',
+      appliesTo: packages.filter(entry => entry.canSplit && (entry.warning || entry.overBudgetBytes > 0)).map(entry => entry.id),
+      action: 'Split the logical world package across additional physical world data banks.',
+    },
+    {
+      order: 3,
+      id: 'move_cold_readonly_data',
+      status: coldDataPressure ? 'recommended' : 'not_needed',
+      trigger: 'resident or manifest data creates bank pressure',
+      appliesTo: unsplittablePressurePackages.map(entry => entry.id),
+      action: 'Move cold read-only tables out of resident/core placement and into world data banks.',
+    },
+    {
+      order: 4,
+      id: 'selective_zx0',
+      status: graphicsPressurePackages.length > 0 ? 'recommended' : 'not_needed',
+      trigger: 'large load-to-VRAM screen, pattern, color, tilemap, or sprite data creates pressure',
+      appliesTo: graphicsPressurePackages.map(entry => entry.id),
+      action: 'Try ZX0 only for large load-to-VRAM resources; keep runtime lookup data raw.',
+    },
+    {
+      order: 5,
+      id: 'keep_hot_runtime_raw',
+      status: 'enforced',
+      trigger: 'runtime table is tiny, mutable, or accessed in hot loops',
+      appliesTo: ['runtime lookup tables', 'entity instances', 'state-machine runtime state'],
+      action: 'Do not solve ROM pressure by decompressing whole worlds into RAM or by compressing hot per-frame tables.',
+    },
+    {
+      order: 6,
+      id: 'world_special_code_bank',
+      status: unsplittablePressurePackages.length > 0 ? 'recommended' : 'not_needed',
+      trigger: 'rare behavior or boss-specific code contributes to resident pressure',
+      appliesTo: unsplittablePressurePackages.map(entry => entry.id),
+      action: 'Move rare behavior behind a world special-code bank and far-call boundary.',
+    },
+    {
+      order: 7,
+      id: 'split_large_payload_chunks',
+      status: graphicsPressurePackages.some(entry => entry.overBudgetBytes > 0) ? 'required' : graphicsPressurePackages.length > 0 ? 'recommended' : 'not_needed',
+      trigger: 'single screen/graphics payload cannot fit one mapper window as a unit',
+      appliesTo: graphicsPressurePackages.map(entry => entry.id),
+      action: 'Split large screen or graphics payloads into loader-addressable chunks only when each chunk is independently referenced.',
+    },
+    {
+      order: 8,
+      id: 'fail_actionable_report',
+      status: overBudgetPackages.length > 0 ? 'required' : 'ready',
+      trigger: 'all deterministic recovery attempts still leave an over-budget unit',
+      appliesTo: overBudgetPackages.map(entry => entry.id),
+      action: 'Fail before Glass with largest contributors and concrete authoring changes.',
+    },
+  ];
   if (recoveryRecommendations.length === 0) {
     recoveryRecommendations.push({
       severity: 'ok',
@@ -5598,10 +5832,75 @@ function buildMsx2LogicalBankBudget(assetStoragePolicy: any[]): Record<string, u
     overBudgetPackages,
     warningPackages,
     warningPackedBanks,
+    bankClassSummary,
     recoveryRecommendations,
+    recoveryPlan,
     packages,
     note: 'Logical pre-pack budget by asset package with first-fit-decreasing estimate. Final allocator still decides physical Konami 8K placement after compression.',
   };
+}
+
+function buildMsx2WorldPackageSummary(includedAssets: any[], assetStoragePolicy: any[]): Array<Record<string, unknown>> {
+  const includedByKey = new Map(includedAssets.map(asset => [assetKey(asset.type, asset.id), asset]));
+  const summaries = new Map<string, {
+    worldId: string;
+    assetCount: number;
+    screenCount: number;
+    estimatedBytes: number;
+    bankClassBytes: Map<string, number>;
+  }>();
+  const ensureSummary = (worldId: string) => {
+    let summary = summaries.get(worldId);
+    if (!summary) {
+      summary = {
+        worldId,
+        assetCount: 0,
+        screenCount: 0,
+        estimatedBytes: 0,
+        bankClassBytes: new Map<string, number>(),
+      };
+      summaries.set(worldId, summary);
+    }
+    return summary;
+  };
+
+  for (const policy of assetStoragePolicy) {
+    if (policy.decision === 'INHERIT_OWNER_SCREEN_POLICY') continue;
+    const included = includedByKey.get(assetKey(policy.type, policy.id));
+    const ownerWorldIds = policy.type === 'worldmap'
+      ? [policy.id]
+      : (Array.isArray(included?.ownerWorldIds) ? included.ownerWorldIds : []);
+    if (ownerWorldIds.length === 0) continue;
+    const storedBytes = Number(policy.storedBytesEstimate) || 0;
+    const bankClass = policy.type === 'msx2screen'
+      ? 'world.screen'
+      : policy.type === 'msx2sprite'
+        ? 'world.graphics.sprite'
+        : 'world.manifest';
+    for (const worldId of ownerWorldIds) {
+      const summary = ensureSummary(worldId);
+      summary.assetCount += 1;
+      summary.screenCount += policy.type === 'msx2screen' ? 1 : 0;
+      summary.estimatedBytes += storedBytes;
+      summary.bankClassBytes.set(bankClass, (summary.bankClassBytes.get(bankClass) || 0) + storedBytes);
+    }
+  }
+
+  return Array.from(summaries.values())
+    .map(summary => ({
+      worldId: summary.worldId,
+      assetCount: summary.assetCount,
+      screenCount: summary.screenCount,
+      estimatedBytes: summary.estimatedBytes,
+      estimated8kBanks: Math.max(1, Math.ceil(summary.estimatedBytes / 8192)),
+      bankClassBytes: Array.from(summary.bankClassBytes.entries())
+        .map(([id, usedBytes]) => ({ id, usedBytes }))
+        .sort((left, right) => {
+          if (right.usedBytes !== left.usedBytes) return right.usedBytes - left.usedBytes;
+          return left.id.localeCompare(right.id);
+        }),
+    }))
+    .sort((left, right) => String(left.worldId).localeCompare(String(right.worldId)));
 }
 
 function buildMsx2ProjectSliceJson(
@@ -5620,6 +5919,8 @@ function buildMsx2ProjectSliceJson(
   const movementModes = new Set<string>();
   const attackProfiles = new Set<string>();
   const screenIds = new Set(tileScreens.map(screen => screen.id).filter(Boolean));
+  const screenOwnerWorldIds = new Map<string, Set<string>>();
+  const spriteOwnerWorldIds = new Map<string, Set<string>>();
 
   const includeByTypeAndId = (type: string, id: string | undefined, reason: string, extra: Record<string, unknown> = {}) => {
     if (!id) return;
@@ -5659,13 +5960,18 @@ function buildMsx2ProjectSliceJson(
     const world = resolveWorldByAssetId(analysis, worldId);
     for (const worldNode of world?.nodes || []) {
       const screenId = worldNode?.screenAssetId || worldNode?.screenId;
-      if (screenId) screenIds.add(screenId);
-      includeByTypeAndId('msx2screen', screenId, `Referenced by world ${worldId}`);
+      if (screenId) {
+        screenIds.add(screenId);
+        if (!screenOwnerWorldIds.has(screenId)) screenOwnerWorldIds.set(screenId, new Set());
+        screenOwnerWorldIds.get(screenId)!.add(worldId);
+      }
+      includeByTypeAndId('msx2screen', screenId, `Referenced by world ${worldId}`, { ownerWorldIds: [worldId] });
     }
   }
 
   for (const screen of tileScreens) {
-    includeByTypeAndId('msx2screen', screen.id, 'Reachable native MSX2 screen');
+    const ownerWorldIds = Array.from(screenOwnerWorldIds.get(screen.id) || []).sort();
+    includeByTypeAndId('msx2screen', screen.id, 'Reachable native MSX2 screen', { ownerWorldIds });
     for (const tile of screen.tiles || []) {
       if (tile?.id) {
         included.set(assetKey('msx2screen_tile', `${screen.id}:${tile.id}`), {
@@ -5673,13 +5979,20 @@ function buildMsx2ProjectSliceJson(
           id: tile.id,
           name: tile.name || tile.id,
           ownerScreenId: screen.id,
+          ownerWorldIds,
           reason: 'Tile used by reachable native MSX2 screen',
         });
       }
     }
 
     for (const entity of screen.layers?.entities || []) {
-      if (entity.spriteAssetId) spriteIds.add(entity.spriteAssetId);
+      if (entity.spriteAssetId) {
+        spriteIds.add(entity.spriteAssetId);
+        if (ownerWorldIds.length > 0) {
+          if (!spriteOwnerWorldIds.has(entity.spriteAssetId)) spriteOwnerWorldIds.set(entity.spriteAssetId, new Set());
+          for (const worldId of ownerWorldIds) spriteOwnerWorldIds.get(entity.spriteAssetId)!.add(worldId);
+        }
+      }
       for (const componentId of Object.keys(entity.components || {})) {
         componentIds.add(componentId);
       }
@@ -5705,7 +6018,9 @@ function buildMsx2ProjectSliceJson(
     spriteIds.add(analysis.msx2Sprites[0].id);
   }
   for (const spriteId of spriteIds) {
-    includeByTypeAndId('msx2sprite', spriteId, 'Referenced by reachable MSX2 entity or sprite fallback');
+    includeByTypeAndId('msx2sprite', spriteId, 'Referenced by reachable MSX2 entity or sprite fallback', {
+      ownerWorldIds: Array.from(spriteOwnerWorldIds.get(spriteId) || []).sort(),
+    });
   }
 
   const includedKeys = new Set(included.keys());
@@ -5745,6 +6060,7 @@ function buildMsx2ProjectSliceJson(
   const includedAssetList = Array.from(included.values()).sort((a, b) => `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`));
   const assetStoragePolicy = buildMsx2AssetStoragePolicy(analysis, includedAssetList, tileScreens);
   const logicalBankBudget = buildMsx2LogicalBankBudget(assetStoragePolicy);
+  const worldPackageSummary = buildMsx2WorldPackageSummary(includedAssetList, assetStoragePolicy);
   const ramBudget = buildMsx2RamBudget(tileScreens, runtimeRamEnd);
   const romPayloadBytesEstimate = assetStoragePolicy
     .filter(policy => policy.decision !== 'INHERIT_OWNER_SCREEN_POLICY')
@@ -5766,6 +6082,7 @@ function buildMsx2ProjectSliceJson(
     excludedAssets,
     includedRuntimeModules,
     excludedRuntimeModules,
+    worldPackageSummary,
     assetStoragePolicy,
     logicalBankBudget,
     ramBudget,
@@ -6756,6 +7073,67 @@ function generateUnitedFiles(projectName: string, analysis: ProjectAnalysis, con
   const requiredCollectiblesByScreen = tileScreens.map(screen => getTileScreenRequiredCollectibles(screen));
   const requiredCollectibles = Math.min(255, Math.max(0, ...requiredCollectiblesByScreen));
   const initialAirByScreen = tileScreens.map(screen => getTileScreenInitialAir(screen));
+  const hudStyleByScreen = tileScreens.map(screen => getTileScreenHudStyle(screen));
+  const hudPlayerEnergyMaxByScreen = tileScreens.map(screen => getTileScreenRuntimeByte(screen, 'playerEnergyMax', 16, 1));
+  const hudPlayerEnergyInitialByScreen = tileScreens.map((screen, index) =>
+    Math.min(hudPlayerEnergyMaxByScreen[index] ?? 16, getTileScreenRuntimeByte(screen, 'playerEnergyInitial', hudPlayerEnergyMaxByScreen[index] ?? 16, 1))
+  );
+  const hudBossEnergyMaxByScreen = tileScreens.map(screen => getTileScreenRuntimeByte(screen, 'bossEnergyMax', 16, 1));
+  const hudBossEnergyInitialByScreen = tileScreens.map((screen, index) =>
+    Math.min(hudBossEnergyMaxByScreen[index] ?? 16, getTileScreenRuntimeByte(screen, 'bossEnergyInitial', hudBossEnergyMaxByScreen[index] ?? 16, 1))
+  );
+  const hudPrimaryColorByScreen = tileScreens.map(screen => getTileScreenRuntimeByte(screen, 'hudPrimaryColor', 10, 0, 15));
+  const hudSecondaryColorByScreen = tileScreens.map(screen => getTileScreenRuntimeByte(screen, 'hudSecondaryColor', 8, 0, 15));
+  const hudBorderColorByScreen = tileScreens.map(screen => getTileScreenRuntimeByte(screen, 'hudBorderColor', 15, 0, 15));
+  const hudEmptyColorByScreen = tileScreens.map(screen => getTileScreenRuntimeByte(screen, 'hudEmptyColor', 4, 0, 15));
+  const hudWidgetsByScreen = tileScreens.map(screen => getTileScreenHudWidgets(screen));
+  const hudWidgetCountByScreen = hudWidgetsByScreen.map(widgets => widgets.length);
+  let hudWidgetRecordOffset = 0;
+  const hudWidgetRecordOffsetByScreen = hudWidgetCountByScreen.map(count => {
+    const offset = hudWidgetRecordOffset;
+    hudWidgetRecordOffset += count * 12;
+    return offset;
+  });
+  const hudWidgetRecords = hudWidgetsByScreen.flatMap(widgets => widgets.flatMap(widget => [
+    hudWidgetKindId(widget),
+    hudWidgetBindingId(widget),
+    hudWidgetByte(widget, 'x', 0),
+    hudWidgetByte(widget, 'y', 0),
+    hudWidgetByte(widget, 'width', 64, 1),
+    hudWidgetByte(widget, 'height', 6, 1),
+    hudWidgetByte(widget, 'maxValue', 16, 1),
+    hudWidgetByte(widget, 'initialValue', hudWidgetByte(widget, 'maxValue', 16, 1)),
+    hudWidgetByte(widget, 'primaryColor', 10, 0, 15),
+    hudWidgetByte(widget, 'secondaryColor', 8, 0, 15),
+    hudWidgetByte(widget, 'borderColor', 15, 0, 15),
+    hudWidgetByte(widget, 'emptyColor', 4, 0, 15),
+  ]));
+  const hudWidgetsFlat = hudWidgetsByScreen.flat();
+  const hudWidgetIconTileByWidget = hudWidgetsFlat.map(widget =>
+    hudWidgetKindId(widget) === MSX2_HUD_WIDGET_KIND_IDS.icon
+      ? hudWidgetByte(widget, 'iconTileIndex', 0)
+      : 0xff
+  );
+  const hudWidgetTextBytesByWidget = hudWidgetsFlat.map(widget =>
+    hudWidgetKindId(widget) === MSX2_HUD_WIDGET_KIND_IDS.text
+      ? encodeHudAscii(widget?.text || widget?.name || '', 31)
+      : []
+  );
+  const hudWidgetTextPool: number[] = [0];
+  const hudWidgetTextOffsetByWidget = hudWidgetTextBytesByWidget.map(bytes =>
+    appendHudStringPoolEntry(hudWidgetTextPool, bytes)
+  );
+  const hudWidgetTextLengthByWidget = hudWidgetTextBytesByWidget.map(bytes => bytes.length);
+  const hudWidgetVariableNameBytesByWidget = hudWidgetsFlat.map(widget =>
+    hudWidgetBindingId(widget) === MSX2_HUD_WIDGET_BINDING_IDS.custom
+      ? encodeHudAscii(widget?.variableName || widget?.name || '', 31, true)
+      : []
+  );
+  const hudWidgetVariableNamePool: number[] = [0];
+  const hudWidgetVariableNameOffsetByWidget = hudWidgetVariableNameBytesByWidget.map(bytes =>
+    appendHudStringPoolEntry(hudWidgetVariableNamePool, bytes)
+  );
+  const hudWidgetVariableNameLengthByWidget = hudWidgetVariableNameBytesByWidget.map(bytes => bytes.length);
   const attackWaveSettingsByScreen = tileScreens.map(screen => getGalaxianAttackWaveSettingsForScreen(screen));
   const collectibleErasePaletteIndex = getCollectibleErasePaletteIndex(tileScreens);
   const collectibleErasePackedByte = ((collectibleErasePaletteIndex & 0x0f) << 4) | (collectibleErasePaletteIndex & 0x0f);
@@ -7309,6 +7687,26 @@ ${formatBytes('msx2_screen_spawn_x', spawnXBytes.length ? spawnXBytes : [96], 'P
 ${formatBytes('msx2_screen_spawn_y', spawnYBytes.length ? spawnYBytes : [144], 'Per-msx2screen respawn Y coordinates')}
 ${formatBytes('msx2_screen_required_collectibles', requiredCollectiblesByScreen.length ? requiredCollectiblesByScreen : [requiredCollectibles], 'Per-msx2screen collectible count required before exits unlock')}
 ${formatBytes('msx2_screen_initial_air', initialAirByScreen.length ? initialAirByScreen : [255], 'Per-msx2screen initial air/time values')}
+${formatBytes('msx2_screen_hud_style', hudStyleByScreen.length ? hudStyleByScreen : [0], 'Per-msx2screen HUD style: 0=compact runtime HUD, 1=status bars')}
+${formatBytes('msx2_screen_hud_player_energy_max', hudPlayerEnergyMaxByScreen.length ? hudPlayerEnergyMaxByScreen : [16], 'Per-msx2screen planned player energy maximum')}
+${formatBytes('msx2_screen_hud_player_energy_initial', hudPlayerEnergyInitialByScreen.length ? hudPlayerEnergyInitialByScreen : [16], 'Per-msx2screen planned player energy initial value')}
+${formatBytes('msx2_screen_hud_boss_energy_max', hudBossEnergyMaxByScreen.length ? hudBossEnergyMaxByScreen : [16], 'Per-msx2screen planned boss energy maximum')}
+${formatBytes('msx2_screen_hud_boss_energy_initial', hudBossEnergyInitialByScreen.length ? hudBossEnergyInitialByScreen : [16], 'Per-msx2screen planned boss energy initial value')}
+${formatBytes('msx2_screen_hud_primary_color', hudPrimaryColorByScreen.length ? hudPrimaryColorByScreen : [10], 'Per-msx2screen planned player energy/fill color slot')}
+${formatBytes('msx2_screen_hud_secondary_color', hudSecondaryColorByScreen.length ? hudSecondaryColorByScreen : [8], 'Per-msx2screen planned boss/secondary color slot')}
+${formatBytes('msx2_screen_hud_border_color', hudBorderColorByScreen.length ? hudBorderColorByScreen : [15], 'Per-msx2screen planned HUD border color slot')}
+${formatBytes('msx2_screen_hud_empty_color', hudEmptyColorByScreen.length ? hudEmptyColorByScreen : [4], 'Per-msx2screen planned HUD empty/background color slot')}
+msx2_screen_hud_widget_record_size EQU 12
+${formatBytes('msx2_screen_hud_widget_count', hudWidgetCountByScreen.length ? hudWidgetCountByScreen : [0], 'Per-msx2screen authored HUD widget counts')}
+${formatWords('msx2_screen_hud_widget_offset', hudWidgetRecordOffsetByScreen.length ? hudWidgetRecordOffsetByScreen : [0], 'Per-msx2screen byte offsets into msx2_screen_hud_widget_records')}
+${formatBytes('msx2_screen_hud_widget_records', hudWidgetRecords.length ? hudWidgetRecords : [0], 'Flat authored HUD widget records: kind,binding,x,y,w,h,max,initial,primary,secondary,border,empty')}
+${formatBytes('msx2_screen_hud_widget_icon_tile', hudWidgetIconTileByWidget.length ? hudWidgetIconTileByWidget : [0xff], 'Per-widget icon tile index for icon HUD widgets, #FF means none')}
+${formatWords('msx2_screen_hud_widget_text_offset', hudWidgetTextOffsetByWidget.length ? hudWidgetTextOffsetByWidget : [0], 'Per-widget byte offsets into msx2_screen_hud_widget_text_pool')}
+${formatBytes('msx2_screen_hud_widget_text_length', hudWidgetTextLengthByWidget.length ? hudWidgetTextLengthByWidget : [0], 'Per-widget text lengths for text HUD widgets')}
+${formatBytes('msx2_screen_hud_widget_text_pool', hudWidgetTextPool, 'Zero-terminated ASCII text payloads for text HUD widgets; offset 0 is empty')}
+${formatWords('msx2_screen_hud_widget_variable_name_offset', hudWidgetVariableNameOffsetByWidget.length ? hudWidgetVariableNameOffsetByWidget : [0], 'Per-widget byte offsets into msx2_screen_hud_widget_variable_name_pool')}
+${formatBytes('msx2_screen_hud_widget_variable_length', hudWidgetVariableNameLengthByWidget.length ? hudWidgetVariableNameLengthByWidget : [0], 'Per-widget variable name lengths for custom HUD bindings')}
+${formatBytes('msx2_screen_hud_widget_variable_name_pool', hudWidgetVariableNamePool, 'Zero-terminated ASCII variable names for custom HUD bindings; offset 0 is empty')}
 ${formatBytes('msx2_screen_attack_interval', attackWaveSettingsByScreen.map(settings => settings.intervalFrames), 'Per-msx2screen Galaxian Attack Wave interval in frames')}
 ${formatBytes('msx2_screen_attack_min', attackWaveSettingsByScreen.map(settings => settings.minAttackers), 'Per-msx2screen Galaxian Attack Wave minimum attackers')}
 ${formatBytes('msx2_screen_attack_max', attackWaveSettingsByScreen.map(settings => settings.maxAttackers), 'Per-msx2screen Galaxian Attack Wave maximum attackers')}

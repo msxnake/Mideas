@@ -1,38 +1,44 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MSXColorValue, Msx2Screen5EntityInstance, Msx2Screen5Layers, Msx2Screen5Runtime, Msx2Screen5Tile, Msx2Screen5TileScreen, ProjectAsset } from '../../types';
-import { ensureScreen5PaletteSlots } from '../../utils/screen5PaletteUtils';
+import { MSXColorValue, Msx2HudWidget, Msx2Screen4EntityInstance, Msx2Screen4Layers, Msx2Screen4Runtime, Msx2Screen4Tile, Msx2Screen4TileScreen, ProjectAsset } from '../../types';
+import { ensureScreen5PaletteSlots } from '../../utils/msx2PaletteUtils';
 import {
   MAP_HEIGHT,
   MAP_WIDTH,
   MSX2_ENTITY_REPERTOIRE,
   MSX2_ENTITY_KIND_OPTIONS,
-  Msx2Screen5CellAction,
+  Msx2Screen4CellAction,
   Msx2EntityCreatePreset,
-  Msx2Screen5EditMode,
-  Msx2Screen5EntityPalettePanel,
-  Msx2Screen5EntityPanel,
-  Msx2Screen5ExportModelPanel,
-  Msx2Screen5Grid,
-  Msx2Screen5SelectionPanel,
-  Msx2Screen5SelectionRect,
-  Msx2Screen5StatusBar,
-  Msx2Screen5TileEditorPanel,
-  Msx2Screen5TilePaintTool,
-  Msx2Screen5TilesPanel,
-  Msx2Screen5Toolbar,
+  Msx2Screen4CompositionOverlay,
+  Msx2Screen4EditMode,
+  Msx2Screen4EntityPalettePanel,
+  Msx2Screen4EntityPanel,
+  Msx2Screen4ExportModelPanel,
+  Msx2Screen4Grid,
+  Msx2Screen4SelectionPanel,
+  Msx2Screen4SelectionRect,
+  Msx2Screen4StatusBar,
+  Msx2Screen4TileEditorPanel,
+  Msx2Screen4TilePaintTool,
+  Msx2Screen4TilesPanel,
+  Msx2Screen4Toolbar,
   TILE_SIZE,
-} from '../msx2_screen5_editor/Msx2Screen5EditorParts';
-import { buildMsx2EntityComponents } from '../msx2_screen5_editor/msx2EntityCatalog';
+} from '../msx2_screen4_editor/Msx2Screen4EditorParts';
+import { buildMsx2EntityComponents } from '../msx2_screen4_editor/msx2EntityCatalog';
 import { Button } from '../common/Button';
+import { MSX2AtlasPreviewPanel } from '../screen_editor/MSX2AtlasPreviewPanel';
+import { MSX2CompositionPanel } from '../screen_editor/MSX2CompositionPanel';
+import { MSX2ExportContractPanel } from '../screen_editor/MSX2ExportContractPanel';
+import { MSX2HudPlanPanel } from '../msx2_screen4_editor/MSX2HudPlanPanel';
 
-interface Msx2Screen5TileScreenEditorProps {
-  screen: Msx2Screen5TileScreen;
-  onUpdate: (data: Partial<Msx2Screen5TileScreen>) => void;
+interface Msx2Screen4RoomEditorProps {
+  screen: Msx2Screen4TileScreen;
+  onUpdate: (data: Partial<Msx2Screen4TileScreen>) => void;
   selectedColor: MSXColorValue;
   allAssets: ProjectAsset[];
 }
 
 const MSX2_TILE_DIMENSION_OPTIONS = [8, 16, 24, 32] as const;
+type Msx2RoomCompositionPreset = 'full' | 'topHud' | 'topHudBottom' | 'tallHud';
 
 const normalizeTileDimension = (value: unknown): number => {
   const numeric = Number(value);
@@ -44,14 +50,14 @@ const normalizeTileDimension = (value: unknown): number => {
 const createTilePixels = (slot = 0, width = TILE_SIZE, height = TILE_SIZE): number[][] =>
   Array.from({ length: height }, () => Array.from({ length: width }, () => slot));
 
-const cloneTile = (tile: Msx2Screen5Tile): Msx2Screen5Tile => ({
+const cloneTile = (tile: Msx2Screen4Tile): Msx2Screen4Tile => ({
   ...tile,
   width: normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE),
   height: normalizeTileDimension(tile.height ?? tile.pixels?.length ?? TILE_SIZE),
   pixels: tile.pixels.map(row => [...row]),
 });
 
-const normalizeTiles = (tiles?: Msx2Screen5Tile[]): Msx2Screen5Tile[] => {
+const normalizeTiles = (tiles?: Msx2Screen4Tile[]): Msx2Screen4Tile[] => {
   const source = tiles?.length ? tiles : [{ id: 'tile_0', name: 'Tile 0', pixels: createTilePixels(0) }];
   return source.map((tile, index) => {
     const width = normalizeTileDimension(tile.width ?? tile.pixels?.[0]?.length ?? TILE_SIZE);
@@ -78,10 +84,10 @@ const normalizeByteLayer = (layer: number[][] | undefined, fallback?: number[][]
     Array.from({ length: MAP_WIDTH }, (_, x) => Math.max(0, Math.min(255, Number(layer?.[y]?.[x] ?? fallback?.[y]?.[x] ?? 0) || 0)))
   );
 
-const normalizeEntityKind = (kind: Msx2Screen5EntityInstance['kind'] | undefined): Msx2Screen5EntityInstance['kind'] =>
-  MSX2_ENTITY_KIND_OPTIONS.some(option => option.value === kind) ? kind as Msx2Screen5EntityInstance['kind'] : 'enemy';
+const normalizeEntityKind = (kind: Msx2Screen4EntityInstance['kind'] | undefined): Msx2Screen4EntityInstance['kind'] =>
+  MSX2_ENTITY_KIND_OPTIONS.some(option => option.value === kind) ? kind as Msx2Screen4EntityInstance['kind'] : 'enemy';
 
-const normalizeEntities = (entities?: Msx2Screen5EntityInstance[]): Msx2Screen5EntityInstance[] =>
+const normalizeEntities = (entities?: Msx2Screen4EntityInstance[]): Msx2Screen4EntityInstance[] =>
   (entities || []).map((entity, index) => ({
     id: entity.id || `msx2_entity_${index}`,
     name: entity.name || `Entity ${index + 1}`,
@@ -100,7 +106,33 @@ const normalizeOptionalByte = (value: unknown, min = 0): number | undefined => {
   return Number.isFinite(numeric) ? Math.max(min, Math.min(255, Math.floor(numeric))) : undefined;
 };
 
-const normalizeRuntimeArea = (runtime?: Msx2Screen5Runtime): Msx2Screen5Runtime => {
+const normalizeOptionalNibble = (value: unknown): number | undefined => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(0, Math.min(15, Math.floor(numeric))) : undefined;
+};
+
+const normalizeHudWidgets = (widgets?: Msx2HudWidget[]): Msx2HudWidget[] =>
+  (widgets || []).map((widget, index) => ({
+    id: widget.id || `msx2_hud_widget_${index}`,
+    name: widget.name || `HUD Widget ${index + 1}`,
+    kind: widget.kind || 'bar',
+    binding: widget.binding || 'custom',
+    x: Math.max(0, Math.min(255, Math.floor(Number(widget.x) || 0))),
+    y: Math.max(0, Math.min(191, Math.floor(Number(widget.y) || 0))),
+    width: Math.max(1, Math.min(256, Math.floor(Number(widget.width) || 64))),
+    height: Math.max(1, Math.min(64, Math.floor(Number(widget.height) || 6))),
+    ...(widget.maxValue !== undefined ? { maxValue: normalizeOptionalByte(widget.maxValue, 1) } : {}),
+    ...(widget.initialValue !== undefined ? { initialValue: normalizeOptionalByte(widget.initialValue, 0) } : {}),
+    ...(widget.primaryColor !== undefined ? { primaryColor: normalizeOptionalNibble(widget.primaryColor) } : {}),
+    ...(widget.secondaryColor !== undefined ? { secondaryColor: normalizeOptionalNibble(widget.secondaryColor) } : {}),
+    ...(widget.borderColor !== undefined ? { borderColor: normalizeOptionalNibble(widget.borderColor) } : {}),
+    ...(widget.emptyColor !== undefined ? { emptyColor: normalizeOptionalNibble(widget.emptyColor) } : {}),
+    ...(widget.iconTileIndex !== undefined ? { iconTileIndex: normalizeOptionalByte(widget.iconTileIndex) } : {}),
+    ...(widget.text ? { text: widget.text } : {}),
+    ...(widget.variableName ? { variableName: widget.variableName } : {}),
+  }));
+
+const normalizeRuntimeArea = (runtime?: Msx2Screen4Runtime): Msx2Screen4Runtime => {
   const activeAreaX = Math.max(0, Math.min(MAP_WIDTH - 1, Number(runtime?.activeAreaX) || 0));
   const activeAreaY = Math.max(0, Math.min(MAP_HEIGHT - 1, Number(runtime?.activeAreaY) || 0));
   const activeAreaWidth = Math.max(1, Math.min(MAP_WIDTH - activeAreaX, Number(runtime?.activeAreaWidth) || MAP_WIDTH - activeAreaX));
@@ -128,11 +160,21 @@ const normalizeRuntimeArea = (runtime?: Msx2Screen5Runtime): Msx2Screen5Runtime 
     ...(runtime?.hideHud !== undefined ? { hideHud: runtime.hideHud } : {}),
     ...(runtime?.showHud !== undefined ? { showHud: runtime.showHud } : {}),
     ...(runtime?.statusHud !== undefined ? { statusHud: runtime.statusHud } : {}),
+    ...(runtime?.hudStyle ? { hudStyle: runtime.hudStyle } : {}),
+    ...(runtime?.playerEnergyMax !== undefined ? { playerEnergyMax: normalizeOptionalByte(runtime.playerEnergyMax, 1) } : {}),
+    ...(runtime?.playerEnergyInitial !== undefined ? { playerEnergyInitial: normalizeOptionalByte(runtime.playerEnergyInitial, 1) } : {}),
+    ...(runtime?.bossEnergyMax !== undefined ? { bossEnergyMax: normalizeOptionalByte(runtime.bossEnergyMax, 1) } : {}),
+    ...(runtime?.bossEnergyInitial !== undefined ? { bossEnergyInitial: normalizeOptionalByte(runtime.bossEnergyInitial, 1) } : {}),
+    ...(runtime?.hudPrimaryColor !== undefined ? { hudPrimaryColor: normalizeOptionalByte(runtime.hudPrimaryColor) } : {}),
+    ...(runtime?.hudSecondaryColor !== undefined ? { hudSecondaryColor: normalizeOptionalByte(runtime.hudSecondaryColor) } : {}),
+    ...(runtime?.hudBorderColor !== undefined ? { hudBorderColor: normalizeOptionalByte(runtime.hudBorderColor) } : {}),
+    ...(runtime?.hudEmptyColor !== undefined ? { hudEmptyColor: normalizeOptionalByte(runtime.hudEmptyColor) } : {}),
+    ...(runtime?.hudWidgets ? { hudWidgets: normalizeHudWidgets(runtime.hudWidgets) } : {}),
     ...(runtime?.notes ? { notes: runtime.notes } : {}),
   };
 };
 
-const normalizeLayers = (screen: Msx2Screen5TileScreen): Msx2Screen5Layers => ({
+const normalizeLayers = (screen: Msx2Screen4TileScreen): Msx2Screen4Layers => ({
   collision: normalizeByteLayer(screen.layers?.collision, screen.collisionMap),
   effects: normalizeByteLayer(screen.layers?.effects),
   behavior: normalizeByteLayer(screen.layers?.behavior),
@@ -147,21 +189,22 @@ interface CopiedMsx2Layer {
   height: number;
 }
 
-export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorProps> = ({ screen, onUpdate, selectedColor, allAssets }) => {
+export const Msx2Screen4RoomEditor: React.FC<Msx2Screen4RoomEditorProps> = ({ screen, onUpdate, selectedColor, allAssets }) => {
   const [selectedTileIndex, setSelectedTileIndex] = useState(0);
-  const [mode, setMode] = useState<Msx2Screen5EditMode>('visual');
+  const [mode, setMode] = useState<Msx2Screen4EditMode>('visual');
   const [selectedEffectCode, setSelectedEffectCode] = useState(1);
   const [selectedBehaviorCode, setSelectedBehaviorCode] = useState(1);
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [selectedEntityPresetId, setSelectedEntityPresetId] = useState(MSX2_ENTITY_REPERTOIRE[0].id);
   const [showGrid, setShowGrid] = useState(true);
   const [showRuntimeOverlays, setShowRuntimeOverlays] = useState(false);
+  const [compositionOverlay, setCompositionOverlay] = useState<Msx2Screen4CompositionOverlay>('off');
   const [copiedLayer, setCopiedLayer] = useState<CopiedMsx2Layer | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
-  const [selectionRect, setSelectionRect] = useState<Msx2Screen5SelectionRect | null>(null);
+  const [selectionRect, setSelectionRect] = useState<Msx2Screen4SelectionRect | null>(null);
   const [paintSlot, setPaintSlot] = useState(0);
-  const [tilePaintTool, setTilePaintTool] = useState<Msx2Screen5TilePaintTool>('pencil');
+  const [tilePaintTool, setTilePaintTool] = useState<Msx2Screen4TilePaintTool>('pencil');
 
   const { slots, changed } = useMemo(() => ensureScreen5PaletteSlots(screen.palette), [screen.palette]);
   const tiles = useMemo(() => normalizeTiles(screen.tiles), [screen.tiles]);
@@ -218,14 +261,14 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
     return () => window.removeEventListener('mouseup', stop);
   }, []);
 
-  const updateLayers = (nextLayers: Msx2Screen5Layers) => {
+  const updateLayers = (nextLayers: Msx2Screen4Layers) => {
     onUpdate({
       layers: nextLayers,
       collisionMap: nextLayers.collision,
     });
   };
 
-  const updateSelectedEntity = (patch: Partial<Msx2Screen5EntityInstance>) => {
+  const updateSelectedEntity = (patch: Partial<Msx2Screen4EntityInstance>) => {
     if (!selectedEntity) return;
     updateLayers({
       ...layers,
@@ -286,7 +329,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
     setSelectedEntityId(null);
   };
 
-  const handleCellAction = ({ x, y, button }: Msx2Screen5CellAction) => {
+  const handleCellAction = ({ x, y, button }: Msx2Screen4CellAction) => {
     if (mode === 'visual') {
       const next = map.map(row => [...row]);
       next[y][x] = selectedTileIndex;
@@ -354,7 +397,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
           maxY: presetParams.maxY,
         };
       }
-      const nextEntity: Msx2Screen5EntityInstance = {
+      const nextEntity: Msx2Screen4EntityInstance = {
         id,
         name: `${selectedEntityPreset.label} ${layers.entities.length + 1}`,
         kind: selectedEntityPreset.kind,
@@ -365,7 +408,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
       const nextLayers = { ...layers, entities: [...layers.entities, nextEntity] };
       if (selectedEntityPreset.kind === 'player') {
         const movementMode = presetParams.movementMode || presetParams.controlMode || presetParams.movement;
-        const nextRuntime: Msx2Screen5Runtime = {
+        const nextRuntime: Msx2Screen4Runtime = {
           ...runtime,
           screenKind: 'playable',
           screenEngine: movementMode === 'maze'
@@ -426,7 +469,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
     onUpdate({ tiles: nextTiles });
   };
 
-  const updateSelectedTilePixels = (buildPixels: (tile: Msx2Screen5Tile) => number[][]) => {
+  const updateSelectedTilePixels = (buildPixels: (tile: Msx2Screen4Tile) => number[][]) => {
     if (!selectedTile) return;
     const nextTiles = tiles.map(cloneTile);
     const targetIndex = Math.max(0, Math.min(nextTiles.length - 1, selectedTileIndex));
@@ -582,6 +625,25 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
     window.dispatchEvent(new CustomEvent('mideas:panel-collapse-all', { detail: { collapsed } }));
   };
 
+  const applyCompositionPreset = (preset: Msx2RoomCompositionPreset) => {
+    const presetConfig = {
+      full: { y: 0, height: MAP_HEIGHT },
+      topHud: { y: 2, height: Math.max(1, MAP_HEIGHT - 2) },
+      topHudBottom: { y: 2, height: Math.max(1, MAP_HEIGHT - 3) },
+      tallHud: { y: 3, height: Math.max(1, MAP_HEIGHT - 3) },
+    }[preset];
+
+    onUpdate({
+      runtime: normalizeRuntime({
+        ...runtime,
+        activeAreaX: 0,
+        activeAreaY: presetConfig.y,
+        activeAreaWidth: MAP_WIDTH,
+        activeAreaHeight: presetConfig.height,
+      }),
+    });
+  };
+
   return (
     <div className="h-full min-h-0 flex flex-col bg-msx-bgcolor overflow-hidden">
       <div className="flex flex-none items-center justify-between border-b border-msx-border px-3 py-2 text-xs">
@@ -608,7 +670,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
       <div className="min-h-0 flex-grow overflow-hidden p-2">
         <div className="flex h-full min-h-0 min-w-0 gap-2 overflow-hidden">
           <div className="w-[220px] flex-shrink-0 min-h-0 overflow-y-auto border-r border-msx-border pr-2 space-y-2">
-          <Msx2Screen5Toolbar
+          <Msx2Screen4Toolbar
             screenName={screen.name}
             onScreenNameChange={name => onUpdate({ name })}
             mode={mode}
@@ -621,6 +683,8 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
             onShowGridChange={setShowGrid}
             showRuntimeOverlays={showRuntimeOverlays}
             onShowRuntimeOverlaysChange={setShowRuntimeOverlays}
+            compositionOverlay={compositionOverlay}
+            onCompositionOverlayChange={setCompositionOverlay}
             runtime={runtime}
             onRuntimeChange={nextRuntime => onUpdate({ runtime: normalizeRuntime(nextRuntime) })}
             canCopyLayer={editableRuntimeLayer}
@@ -628,7 +692,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
             onCopyLayer={copyActiveLayer}
             onPasteLayer={pasteActiveLayer}
           />
-          <Msx2Screen5EntityPanel
+          <Msx2Screen4EntityPanel
             mode={mode}
             selectedEntity={selectedEntity}
             allAssets={allAssets}
@@ -636,13 +700,13 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
             onUpdateSelectedEntityParams={updateSelectedEntityParams}
             onRemoveSelectedEntity={removeSelectedEntity}
           />
-          <Msx2Screen5EntityPalettePanel
+          <Msx2Screen4EntityPalettePanel
             mode={mode}
             presets={MSX2_ENTITY_REPERTOIRE}
             selectedPresetId={selectedEntityPresetId}
             onSelectPresetId={setSelectedEntityPresetId}
           />
-          <Msx2Screen5SelectionPanel
+          <Msx2Screen4SelectionPanel
             selectionMode={selectionMode}
             onSelectionModeChange={setSelectionMode}
             selectionRect={selectionRect}
@@ -656,7 +720,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
             onPasteSelection={pasteActiveLayer}
           />
           {mode !== 'entities' && (
-            <Msx2Screen5TilesPanel
+            <Msx2Screen4TilesPanel
               tiles={tiles}
               slots={slots}
               selectedTileIndex={selectedTileIndex}
@@ -669,7 +733,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
         </div>
 
           <div className="min-w-0 flex-1 min-h-0 overflow-auto flex items-start justify-center p-3">
-          <Msx2Screen5Grid
+          <Msx2Screen4Grid
             map={map}
             slots={slots}
             tiles={tiles}
@@ -681,6 +745,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
             selectionRect={selectionRect}
             selectedEntityId={selectedEntityId}
             showRuntimeOverlays={showRuntimeOverlays}
+            compositionOverlay={compositionOverlay}
             isDrawing={isDrawing}
             onSetDrawing={setIsDrawing}
             onCellAction={handleCellAction}
@@ -690,7 +755,7 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
 
           <div className="w-[300px] flex-shrink-0 min-h-0 overflow-y-auto border-l border-msx-border pl-2 space-y-2">
           {mode !== 'entities' && (
-            <Msx2Screen5TileEditorPanel
+            <Msx2Screen4TileEditorPanel
               selectedTileIndex={selectedTileIndex}
               selectedTile={selectedTile}
               slots={slots}
@@ -709,11 +774,44 @@ export const Msx2Screen5TileScreenEditor: React.FC<Msx2Screen5TileScreenEditorPr
               onShiftTile={shiftSelectedTile}
             />
           )}
-          <Msx2Screen5ExportModelPanel layers={layers} />
+          <Msx2Screen4ExportModelPanel layers={layers} />
+          <MSX2CompositionPanel
+            title="MSX2 Room Composition"
+            screenWidth={MAP_WIDTH}
+            screenHeight={MAP_HEIGHT}
+            pixelWidth={MAP_WIDTH * TILE_SIZE}
+            pixelHeight={MAP_HEIGHT * TILE_SIZE}
+            cellPixelSize={TILE_SIZE}
+            activeAreaX={runtime.activeAreaX}
+            activeAreaY={runtime.activeAreaY}
+            activeAreaWidth={runtime.activeAreaWidth}
+            activeAreaHeight={runtime.activeAreaHeight}
+            currentMode="raw"
+            rawLengthBytes={MAP_WIDTH * MAP_HEIGHT}
+            blocks2x2={null}
+            blocks4x4={null}
+            recommendedMode="raw"
+            onApplyRoomPreset={applyCompositionPreset}
+            className="w-full"
+          />
+          <MSX2HudPlanPanel
+            runtime={runtime}
+            onRuntimeChange={nextRuntime => onUpdate({ runtime: normalizeRuntime(nextRuntime) })}
+          />
+          <MSX2AtlasPreviewPanel
+            tiles={tiles}
+            map={map}
+            runtime={runtime}
+          />
+          <MSX2ExportContractPanel
+            map={map}
+            layers={layers}
+            runtime={runtime}
+          />
           </div>
         </div>
       </div>
-      <Msx2Screen5StatusBar
+      <Msx2Screen4StatusBar
         mode={mode}
         selectedTileIndex={selectedTileIndex}
         selectedEffectCode={selectedEffectCode}

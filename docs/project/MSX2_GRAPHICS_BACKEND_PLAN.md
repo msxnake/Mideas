@@ -85,7 +85,7 @@ architecture:
 
 This should be treated as an MSX2 backend direction only. It must not change
 the SCREEN 2 tilebank backend. Screen Editor implementation planning lives in
-`docs/project/MSX2_SCREEN_EDITOR_VAMPIRE_KILLER_PLAN.md`.
+`docs/project/MSX2_SCREEN_EDITOR_COMPOSED_ROOM_PLAN.md`.
 
 ### SCREEN 4 composer target
 

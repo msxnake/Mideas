@@ -8,7 +8,7 @@ const repoRoot = resolve(here, '..');
 
 const read = (...parts) => readFileSync(join(repoRoot, ...parts), 'utf8');
 
-const catalog = read('components', 'msx2_screen5_editor', 'msx2EntityCatalog.ts');
+const catalog = read('components', 'msx2_screen4_editor', 'msx2EntityCatalog.ts');
 const defaults = read('data', 'defaults.ts');
 const projectTarget = read('utils', 'projectTarget.ts');
 const useAppState = read('hooks', 'useAppState.tsx');

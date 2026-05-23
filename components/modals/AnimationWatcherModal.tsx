@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Sprite, ScreenMap, Tile, ProjectAsset, PixelData, SpriteFrame, MSXColorValue, Msx2Screen5TileScreen } from '../../types';
+import { Sprite, ScreenMap, Tile, ProjectAsset, PixelData, SpriteFrame, MSXColorValue, Msx2Screen4TileScreen } from '../../types';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
 import { createSpriteDataURL } from '../utils/screenUtils';
@@ -28,10 +28,10 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.25;
 
-type WatcherBackgroundScreen = ScreenMap | Msx2Screen5TileScreen;
+type WatcherBackgroundScreen = ScreenMap | Msx2Screen4TileScreen;
 
-const isMsx2Screen4 = (screen: WatcherBackgroundScreen | null | undefined): screen is Msx2Screen5TileScreen =>
-  !!screen && (screen as Msx2Screen5TileScreen).target === 'MSX2' && Array.isArray((screen as Msx2Screen5TileScreen).map);
+const isMsx2Screen4 = (screen: WatcherBackgroundScreen | null | undefined): screen is Msx2Screen4TileScreen =>
+  !!screen && (screen as Msx2Screen4TileScreen).target === 'MSX2' && Array.isArray((screen as Msx2Screen4TileScreen).map);
 
 const clampLayerYOffset = (value: unknown): number => {
   const numeric = typeof value === 'number' ? value : Number(value);
@@ -190,7 +190,7 @@ const renderScreenToDataURL = (screenMap: ScreenMap, tileset: Tile[], currentScr
     return canvas.toDataURL();
 };
 
-const renderMsx2Screen4ToDataURL = (screen: Msx2Screen5TileScreen): string => {
+const renderMsx2Screen4ToDataURL = (screen: Msx2Screen4TileScreen): string => {
     const canvas = document.createElement('canvas');
     canvas.width = PREVIEW_WIDTH;
     canvas.height = PREVIEW_HEIGHT;

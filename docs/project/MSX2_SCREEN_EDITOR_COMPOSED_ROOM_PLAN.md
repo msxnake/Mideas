@@ -1,6 +1,6 @@
-# MSX2 Screen Editor Plan: Vampire Killer-Inspired Workflow
+# MSX2 Screen Editor Plan: Composed-Room Workflow
 
-Purpose: modify the Mideas Screen Editor so MSX2/SCREEN 4 projects can be authored with the same practical model observed in Vampire Killer: tile-friendly editing, bitmap-style screen composition, procedural HUD, and hardware sprites on top.
+Purpose: modify the Mideas MSX2 room editor so SCREEN 4 projects can be authored around a broad composed-room model: tile-friendly editing, bitmap-style screen composition, procedural HUD/status areas, and hardware sprites on top.
 
 This is an editor plan. Runtime/export work should remain in the MSX2 backend plan:
 
@@ -30,7 +30,7 @@ It should show:
   - raw 8x8 cells;
   - shared 2x2 blocks;
   - shared 4x4 blocks;
-  - Vampire-style 8x8/16x16 command estimate;
+  - 8x8/16x16 command estimate;
 - warning if side HUD margins exist, because MSX2 command composition should prefer full-width gameplay with top/bottom HUD bands;
 - planned runtime primitive summary:
   - background: V9938 copy;
@@ -49,7 +49,7 @@ Likely files:
 - `components/screen_editor/ScreenOptimizationPanel.tsx`
 - new `components/screen_editor/MSX2CompositionPanel.tsx`
 
-## Phase 2: Vampire-Style Overlay Modes
+## Phase 2: MSX2 Overlay Modes
 
 Extend the current optimization overlay with MSX2-specific overlays.
 
@@ -84,7 +84,7 @@ Likely files:
 
 ## Phase 3: Active Area Presets for MSX2
 
-Add SCREEN 4 presets that align with the Vampire Killer-style HUD layout.
+Add SCREEN 4 presets that align with common HUD/status-band layouts.
 
 Presets:
 
@@ -92,7 +92,7 @@ Presets:
 - `Top HUD 4 rows`: active area `0,4,32,20`.
 - `Top HUD 4 + bottom HUD 2`: active area `0,4,32,18`.
 - `Top HUD 5 rows`: active area `0,5,32,19` but warn that odd row counts are less friendly for 2x2/4x4 block modes.
-- `Vampire-style top HUD`: active area `0,4,32,20`, HUD guide at rows `0-3`.
+- `Top status band`: active area `0,4,32,20`, HUD guide at rows `0-3`.
 
 The existing snap logic already understands top/bottom HUD row alignment. The UI should expose that as intentional MSX2 presets.
 
@@ -118,7 +118,7 @@ For each HUD element, display an MSX2 export hint:
 - `EnergyBar`, `BossEnergyBar`: fill/line rectangle primitive.
 - imported HUD frame: static bitmap/tile frame that can be composed once on room load.
 
-Add a `Vampire-style Energy Bar` template:
+Add a generic `Status Bar` template:
 
 - width: `64`;
 - height: `6` outer, `4` inner;
@@ -205,7 +205,7 @@ Minimum checks:
   - create or open a native MSX2 screen;
   - apply top HUD preset;
   - toggle overlays;
-  - add Vampire-style energy bars;
+  - add status bars;
   - confirm project JSON remains backward compatible.
 
 Later, when generator support exists:
@@ -219,7 +219,7 @@ Later, when generator support exists:
 
 1. Add `MSX2CompositionPanel`.
 2. Add Active Area presets for SCREEN 4.
-3. Add HUD export hints and Vampire-style Energy Bar template.
+3. Add HUD export hints and generic Status Bar template.
 4. Add MSX2 overlay modes.
 5. Add atlas planning preview.
 6. Add export contract preview.
@@ -238,3 +238,18 @@ Later, when generator support exists:
 Implement `MSX2CompositionPanel` and SCREEN 4 Active Area presets.
 
 This gives immediate authoring value, is low risk, and prepares the UI for the later procedural HUD and atlas work.
+
+## Implementation Notes
+
+- The MSX2 work belongs to the native `MSX2 SCREEN 4 Rooms` editor (`msx2screen` / `Msx2Screen4RoomEditor`), not the generic MSX1 `ScreenEditor`.
+- `MSX2CompositionPanel` is now wired into the native room editor with 16x12 room cells, 16x16 authoring tiles, 256x192 pixels, and room-specific Active Area presets.
+- The native room canvas now exposes MSX2 composition overlays: `2x2 reuse`, `4x4 reuse`, `8x8 copy grid`, `16x16 candidate props`, and `HUD/static bands`. These overlays are visual-only and do not alter project JSON.
+- `MSX2HudPlanPanel` adds a native MSX2 HUD planning/editor surface with generic widgets (`bar`, `counter`, `icon`, `text`), per-widget bindings, placement, dimensions, colors, export hints, and quick templates for each widget kind.
+- `MSX2AtlasPreviewPanel` adds an informational atlas footprint preview for glyphs, icons, unique room tiles, offscreen rows, and simple VRAM fit.
+- `MSX2ExportContractPanel` adds a read-only JSON-like contract preview for clear, background copies, HUD static/dynamic widgets, widget primitives, per-widget record offsets, auxiliary HUD metadata tables, sprite initialization, collision, effects, and behavior resources.
+- `Msx2SpriteEditor` now exposes MSX2 hardware color-plane diagnostics: stacked rows, 3+ color rows, maximum layers per 16x16 cell, per-scanline layer counts, and the transparent-mask plus V9938 CC/OR-color trick used for multi-color character details.
+- `Msx2SpriteEditor` now includes a generic MetaSprite layout panel for 1x1, 1x2, 2x1, and 2x2 compositions. It resizes frames, stores 16x16 hardware-part offsets, overlays those parts on the paint grid, and reports the resulting hardware sprite cost with OR/mask layers included.
+- `Msx2Screen4Runtime` now carries HUD metadata fields so authoring settings survive project save/load.
+- The MSX2 SCREEN 4 generator now emits per-room HUD metadata tables (`msx2_screen_hud_*`), `msx2_screen_hud_widget_record_size EQU 12`, per-screen widget record offsets, flat authored HUD widget records, and auxiliary per-widget tables for icon tile index, text strings, and custom variable names next to the existing `requiredCollectibles` and `initialAir` tables.
+- Actual SCREEN 4 VDP drawing must be data-driven from `hudWidgets`; hardcoded HUD bars were avoided because each MSX2 game needs different HUD composition.
+- The MSX2 layers smoke fixture now carries authored `hudWidgets` on multiple rooms, and the smoke validates those widgets in JSON plus `msx2_screen_hud_widget_*` ASM records before compiling the ROM with Glass.

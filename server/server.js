@@ -1403,6 +1403,109 @@ function parseMideasJsonArtifact(sourceCode, fileName) {
   }
 }
 
+function buildMsx2IdeBudgetFeedbackFromAsm(sourceCode) {
+  const projectSlice = parseMideasJsonArtifact(sourceCode, 'project_slice.json');
+  const logicalBudget = parseMideasJsonArtifact(sourceCode, 'logical_bank_budget.json');
+  const ramBudget = parseMideasJsonArtifact(sourceCode, 'ram_budget.json');
+  if (
+    !projectSlice ||
+    projectSlice.scope !== 'msx2_screen4_project_slice' ||
+    !logicalBudget ||
+    !ramBudget
+  ) {
+    return null;
+  }
+  const bankSize = Number(logicalBudget.bankSizeBytes || 8192);
+  const totalPayload = Number(logicalBudget.totalPayloadBytes || 0);
+  const packages = Array.isArray(logicalBudget.packages) ? logicalBudget.packages : [];
+  const warnings = Array.isArray(logicalBudget.recoveryRecommendations)
+    ? logicalBudget.recoveryRecommendations.filter((item) => item && ['warning', 'plan_b'].includes(item.severity))
+    : [];
+  const warningPackedBanks = Array.isArray(logicalBudget.warningPackedBanks) ? logicalBudget.warningPackedBanks : [];
+  const ramRecommendations = Array.isArray(ramBudget.recommendations) ? ramBudget.recommendations : [];
+  const ramWarnings = ramRecommendations.filter((item) => item && ['warning', 'plan_b'].includes(item.severity));
+  const largestAssets = [...packages]
+    .sort((a, b) => Number(b?.usedBytes || 0) - Number(a?.usedBytes || 0))
+    .slice(0, 8)
+    .map((item) => ({
+      id: item.id,
+      usedBytes: Number(item.usedBytes || 0),
+      bankClass: item.recommendedBankClass,
+      warning: Boolean(item.warning),
+      overBudgetBytes: Number(item.overBudgetBytes || 0)
+    }));
+  const suggestedFixes = [];
+  for (const item of Array.isArray(logicalBudget.recoveryRecommendations) ? logicalBudget.recoveryRecommendations : []) {
+    if (!item) continue;
+    suggestedFixes.push({
+      severity: item.severity || 'info',
+      target: item.target,
+      reason: item.reason,
+      action: item.action
+    });
+  }
+  for (const step of Array.isArray(logicalBudget.recoveryPlan) ? logicalBudget.recoveryPlan : []) {
+    if (!step || !['recommended', 'required', 'enforced'].includes(step.status)) continue;
+    suggestedFixes.push({
+      severity: step.status,
+      target: Array.isArray(step.appliesTo) && step.appliesTo.length ? step.appliesTo.join(', ') : step.id,
+      reason: step.trigger,
+      action: step.action
+    });
+  }
+  for (const item of ramWarnings) {
+    suggestedFixes.push({
+      severity: item.severity || 'info',
+      target: item.target,
+      reason: item.reason,
+      action: item.action
+    });
+  }
+  let status = 'ok';
+  if (warnings.length || warningPackedBanks.length || ramWarnings.length) status = 'warning';
+  if ((Array.isArray(logicalBudget.overBudgetPackages) && logicalBudget.overBudgetPackages.length) || (ramBudget.status && ramBudget.status !== 'ok')) {
+    status = 'error';
+  }
+  return {
+    scope: 'msx2_screen4_ide_budget_feedback',
+    status,
+    project: {
+      name: projectSlice.projectName,
+      backend: projectSlice.backend,
+      screenMode: projectSlice.screenMode,
+      romMode: projectSlice.romMode,
+      mapper: projectSlice.mapper
+    },
+    rom: {
+      bankSizeBytes: bankSize,
+      payloadBytes: totalPayload,
+      estimatedPackedBankCount: Number(logicalBudget.estimatedPackedBankCount || 0),
+      warningThresholdBytes: Number(logicalBudget.warningThresholdBytes || 0),
+      usedPercentOfSingleBank: bankSize ? Math.round((totalPayload / bankSize) * 10000) / 100 : 0,
+      warningBankCount: warningPackedBanks.length,
+      warningRecommendationCount: warnings.length,
+      bankClassSummary: Array.isArray(logicalBudget.bankClassSummary) ? logicalBudget.bankClassSummary : []
+    },
+    ram: {
+      start: ramBudget.start,
+      limit: ramBudget.limit,
+      usedBytes: Number(ramBudget.usedBytes || 0),
+      freeBytes: Number(ramBudget.freeBytes || 0),
+      status: ramBudget.status || 'unknown',
+      warningCount: ramWarnings.length,
+      sections: Array.isArray(ramBudget.sections) ? ramBudget.sections : []
+    },
+    worldPackages: Array.isArray(projectSlice.worldPackageSummary) ? projectSlice.worldPackageSummary : [],
+    largestAssets,
+    warnings: {
+      romRecommendations: warnings,
+      warningPackedBanks,
+      ramRecommendations: ramWarnings
+    },
+    suggestedFixes
+  };
+}
+
 function isResourceTableRamZx0Candidate(resource) {
   const type = String(resource?.type || '').toUpperCase();
   const label = String(resource?.label || '').toUpperCase();
@@ -4359,6 +4462,8 @@ app.post('/compile', async (req, res) => {
   const isUnifiedInput = /;\s*File:\s*unitedFiles\.asm/i.test(code);
 
   let compressedAsmFileInfo = null;
+  let msx2BudgetFeedback = null;
+  let msx2BudgetResolution = null;
 
   let codeToCompile = code;
   let screenCompressionInfo = {
@@ -4432,11 +4537,98 @@ app.post('/compile', async (req, res) => {
       return res.status(400).send({
         error: 'Invalid compressed 4x4 shared block catalog',
         details: preprocessError.message,
+        msx2BudgetFeedback: buildMsx2IdeBudgetFeedbackFromAsm(codeToCompile),
         screenCompressionInfo
       });
     }
     screenCompressionInfo.warning = `ZX0 preprocess error: ${preprocessError.message}`;
     console.error('ZX0 preprocess error:', preprocessError);
+  }
+
+  msx2BudgetFeedback = buildMsx2IdeBudgetFeedbackFromAsm(codeToCompile);
+  if (msx2BudgetFeedback?.status === 'error' && screenCompression === false) {
+    msx2BudgetResolution = {
+      scope: 'msx2_screen4_budget_resolution',
+      status: 'attempted',
+      attempts: [
+        {
+          attempt: 0,
+          action: 'server_compile_budget_gate',
+          status: 'failed',
+          reason: 'ide_budget_feedback_error'
+        }
+      ]
+    };
+    try {
+      const retryPreprocessed = await injectZx0IntoUnifiedAsm(codeToCompile, tempDir);
+      const retryFeedback = buildMsx2IdeBudgetFeedbackFromAsm(retryPreprocessed.code);
+      screenCompressionInfo = retryPreprocessed.info;
+      if (retryPreprocessed.info.applied) {
+        codeToCompile = retryPreprocessed.code;
+        fs.writeFileSync(compressedAsmOutputPath, codeToCompile, 'utf8');
+        compressedAsmFileInfo = {
+          compressedAsmFile: path.basename(compressedAsmOutputPath),
+          compressedAsmPath: compressedAsmOutputPath,
+          compressedAsmDownloadUrl: `/download/${path.basename(compressedAsmOutputPath)}`
+        };
+        if (isUnifiedInput) {
+          fs.writeFileSync(unifiedCompressedAsmOutputPath, codeToCompile, 'utf8');
+          compressedAsmFileInfo.unitedCompressedAsmFile = path.basename(unifiedCompressedAsmOutputPath);
+          compressedAsmFileInfo.unitedCompressedAsmPath = unifiedCompressedAsmOutputPath;
+          compressedAsmFileInfo.unitedCompressedAsmDownloadUrl = `/download/${path.basename(unifiedCompressedAsmOutputPath)}`;
+        }
+      }
+      msx2BudgetFeedback = retryFeedback || msx2BudgetFeedback;
+      msx2BudgetResolution.attempts.push({
+        attempt: 1,
+        action: 'enable_zx0_preprocess',
+        status: retryFeedback && retryFeedback.status !== 'error' ? 'resolved' : 'failed',
+        reason: retryFeedback ? `budget_status_${retryFeedback.status}` : 'missing_msx2_budget_feedback',
+        zx0: retryPreprocessed.info
+      });
+      msx2BudgetResolution.status = retryFeedback && retryFeedback.status !== 'error' ? 'resolved' : 'unresolved';
+    } catch (retryError) {
+      msx2BudgetResolution.attempts.push({
+        attempt: 1,
+        action: 'enable_zx0_preprocess',
+        status: 'failed',
+        reason: retryError instanceof Error ? retryError.message : String(retryError)
+      });
+      msx2BudgetResolution.status = 'unresolved';
+    }
+  }
+
+  if (msx2BudgetFeedback?.status === 'error') {
+    if (!msx2BudgetResolution) {
+      msx2BudgetResolution = {
+        scope: 'msx2_screen4_budget_resolution',
+        status: 'unresolved',
+        attempts: [
+          {
+            attempt: 0,
+            action: 'server_compile_budget_gate',
+            status: 'failed',
+            reason: 'ide_budget_feedback_error'
+          }
+        ]
+      };
+    } else if (msx2BudgetResolution.status !== 'resolved') {
+      msx2BudgetResolution.status = 'unresolved';
+    }
+    return res.status(409).json({
+      success: false,
+      error: 'MSX2 MegaROM preflight budget failed',
+      details: 'Mideas stopped before Glass because the current MSX2 SCREEN 4 MegaROM budget is already marked as error.',
+      requestedRomConfig: {
+        romMode: normalizedRomMode,
+        targetFormat: normalizedTargetFormat,
+        autoMegaROM: normalizedAutoMegaROM
+      },
+      msx2BudgetFeedback,
+      msx2BudgetResolution,
+      screenCompressionInfo,
+      compressedAsmFileInfo
+    });
   }
 
   fs.writeFile(tempFilePath, codeToCompile, (err) => {
@@ -4493,6 +4685,7 @@ app.post('/compile', async (req, res) => {
           const capacityOverflow = isGlassRomCapacityError(fullErrorText);
           const negativeDsOverflowBytes = getNegativeDsOverflowBytes(fullErrorText);
           const plain48kPage0Info = parsePlain48kPage0Diagnostics(codeToCompile);
+          const msx2BudgetFeedback = buildMsx2IdeBudgetFeedbackFromAsm(codeToCompile);
           const canSuggestPlain48k =
             normalizedRomMode === 'simple32k' &&
             (negativeDsOverflowBytes === null || negativeDsOverflowBytes <= (PLAIN48_ROM_LIMIT_BYTES - SIMPLE_ROM_LIMIT_BYTES));
@@ -4526,6 +4719,8 @@ app.post('/compile', async (req, res) => {
               autoMegaROM: normalizedAutoMegaROM
             },
             sourceRomConfig: sourceRomConfig,
+            msx2BudgetFeedback: msx2BudgetFeedback,
+            msx2BudgetResolution: msx2BudgetResolution,
             screenCompressionInfo: screenCompressionInfo,
             compressedAsmFileInfo: compressedAsmFileInfo
           };
@@ -4611,6 +4806,7 @@ app.post('/compile', async (req, res) => {
                     autoMegaROM: normalizedAutoMegaROM
                   },
                   sourceRomConfig: sourceRomConfig,
+                  msx2BudgetFeedback: buildMsx2IdeBudgetFeedbackFromAsm(recovery.optimizedCode || codeToCompile) || msx2BudgetFeedback,
                   resolvedRomConfig: {
                     requestedRomMode: normalizedRomMode,
                     resolvedRomMode: 'megarom',
@@ -5037,6 +5233,13 @@ app.post('/compile', async (req, res) => {
             mapperHint: mapperHint
           }
         };
+        msx2BudgetFeedback = buildMsx2IdeBudgetFeedbackFromAsm(codeToCompile);
+        if (msx2BudgetFeedback) {
+          responseData.msx2BudgetFeedback = msx2BudgetFeedback;
+        }
+        if (msx2BudgetResolution) {
+          responseData.msx2BudgetResolution = msx2BudgetResolution;
+        }
 
         // Add symbol file info if available
         if (symbolFileInfo) {
